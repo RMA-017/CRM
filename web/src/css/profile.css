@@ -1,0 +1,104 @@
+@import "./style.css";
+
+.profile-shell {
+  width: min(880px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  padding: 28px;
+}
+
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: #052b24;
+  background: linear-gradient(110deg, var(--brand), var(--brand-2));
+}
+
+.profile-tag {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--brand-2);
+}
+
+.profile-header h1 {
+  margin: 4px 0 0;
+  font-size: 24px;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.profile-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  background: rgba(7, 11, 18, 0.55);
+}
+
+.profile-card h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.profile-list {
+  margin: 0;
+}
+
+.profile-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 8px 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+.profile-list div:last-child {
+  border-bottom: 0;
+}
+
+.profile-list dt {
+  color: var(--text-muted);
+}
+
+.profile-list dd {
+  margin: 0;
+}
+
+.ok {
+  color: var(--success);
+}
+
+.profile-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 860px) {
+  .profile-shell {
+    padding: 20px;
+  }
+
+  .profile-grid {
+    grid-template-columns: 1fr;
+  }
+}

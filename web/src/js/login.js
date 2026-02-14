@@ -1,4 +1,4 @@
-const API_BASE_URL = window.CRM_API_BASE_URL || "http://localhost:3003/api";
+const API_BASE_URL = window.CRM_API_BASE_URL || "http://localhost:3003";
 
 const loginForm = document.getElementById("loginForm");
 const loginBtn = document.getElementById("loginBtn");
@@ -62,7 +62,7 @@ loginForm?.addEventListener("submit", async (event) => {
   try {
     loginBtn.disabled = true;
 
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    const response = await fetch(`${API_BASE_URL}/api/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -82,9 +82,7 @@ loginForm?.addEventListener("submit", async (event) => {
       return;
     }
 
-    if (data.token) {
-      localStorage.setItem("crm_access_token", data.token);
-    }
+    window.location.href = "/profile";
   } catch {
     setFieldError("password", "Unexpected error. Please try again.");
   } finally {

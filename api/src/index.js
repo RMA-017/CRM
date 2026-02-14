@@ -3,8 +3,9 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import path from "path";
 import { fileURLToPath } from "url";
-import authRouter from "./routes/login.js";
+import loginRouter from "./routes/login.js";
 import adminRouter from "./routes/admin-create.js";
+import profileRouter from "./routes/profile.js";
 
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
@@ -32,10 +33,9 @@ app.use(cookieParser());
 app.use(express.static(webPublic));
 app.use("/src/css", express.static(webCss));
 app.use("/src/js", express.static(webJs));
-app.use("/api/login", authRouter);
+app.use("/api/login", loginRouter);
 app.use("/api/admin-create", adminRouter);
-
-
+app.use("/api/profile", profileRouter);
 
 ////// GET
 app.get(["/", "/home"], (req, res) => {
@@ -48,6 +48,10 @@ app.get("/login", (req, res) => {
 
 app.get("/admin-create", (req, res) => {
     res.sendFile(path.join(webRoot, "src", "html", "admin-create.html"));
+});
+
+app.get("/profile", (req, res) => {
+    res.sendFile(path.join(webRoot, "src", "html", "profile.html"));
 });
 
 app.use((req, res) => {

@@ -26,9 +26,14 @@ export default defineConfig({
             return next();
           }
 
+          if (pathname === "/profile") {
+            req.url = "/src/html/profile.html";
+            return next();
+          }
+
           const acceptsHtml = String(req.headers.accept || "").includes("text/html");
           const isHtmlRequest = req.method === "GET" && acceptsHtml;
-          const allowedRoutes = new Set(["/", "/home", "/admin-create", "/login"]);
+          const allowedRoutes = new Set(["/", "/home", "/admin-create", "/login", "/profile"]);
 
           if (isHtmlRequest && !allowedRoutes.has(pathname)) {
             res.statusCode = 404;

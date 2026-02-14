@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/svg+xml" href="/crm.svg" />
+  <title>CRM Profile</title>
+  <link rel="stylesheet" href="/src/css/profile.css" />
+</head>
+
+  <body>
+  <main class="page">
+    <section class="profile-shell">
+      <header class="profile-header">
+        <div class="avatar">U</div>
+        <div>
+          <p class="profile-tag">Employee Profile</p>
+          <h1>Welcome Back</h1>
+        </div>
+      </header>
+
+      <div class="profile-grid">
+        <article class="profile-card">
+          <h2>Account Info</h2>
+          <dl class="profile-list">
+            <div>
+              <dt>Username</dt>
+              <dd id="profileUsername">-</dd>
+            </div>
+            <div>
+              <dt>Full Name</dt>
+              <dd id="profileFullName">-</dd>
+            </div>
+            <div>
+              <dt>Role</dt>
+              <dd id="profileRole">-</dd>
+            </div>
+          </dl>
+        </article>
+
+        <article class="profile-card">
+          <h2>Contact</h2>
+          <dl class="profile-list">
+            <div>
+              <dt>Phone</dt>
+              <dd id="profilePhone">-</dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd class="ok">Active</dd>
+            </div>
+            <div>
+              <dt>Session</dt>
+              <dd>Authenticated</dd>
+            </div>
+          </dl>
+        </article>
+      </div>
+
+      <div class="profile-actions">
+        <a class="link-btn secondary" href="/login">Back to Login</a>
+        <a class="link-btn primary" href="/">Home</a>
+      </div>
+    </section>
+  </main>
+  <script src="/src/js/profile.js"></script>
+</body>
+
+</html>

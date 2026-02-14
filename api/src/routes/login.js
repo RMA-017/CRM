@@ -1,12 +1,16 @@
 import { Router } from "express";
-import crypto from "crypto";
+import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
+import { Pool } from "pg";
 
+const pool = new Pool({
+  host: process.env.PG_HOST,
+  port: process.env.PG_PORT,
+  user: process.env.PG_USER,
+  password: process.env.PG_PASSWORD,
+  database: process.env.PG_DBNAME,
+});
 const router = Router();
-
-const DEMO_USERNAME = process.env.DEMO_USERNAME || "admin";
-const DEMO_PASSWORD_HASH =
-  process.env.DEMO_PASSWORD_HASH || bcrypt.hashSync("admin123", 10);
 
 router.post("/", async (req, res) => {
   const username = String(req.body?.username || "").trim();
@@ -26,14 +30,33 @@ router.post("/", async (req, res) => {
     });
   }
 
-  if (username !== DEMO_USERNAME) {
+  let client = null;
+  let user = null;
+
+  try {
+    client = await pool.connect();
+    const { rows } = await client.query(`SELECT * FROM users WHERE username = $1`, [username]);
+    user = rows[0];
+  }
+  catch (error) {
+    console.error("Error executing SQL:", error);
+    return res.status(500).json({ message: "Internal server error." });
+  }
+  finally {
+    if (client) {
+      client.release();
+    }
+  }
+
+  if (!user) {
     return res.status(401).json({
       field: "password",
       message: "Invalid username or password."
     });
   }
 
-  const isPasswordValid = await bcrypt.compare(password, DEMO_PASSWORD_HASH);
+  const isPasswordValid = await bcrypt.compare(password, user.password);
+
   if (!isPasswordValid) {
     return res.status(401).json({
       field: "password",
@@ -41,19 +64,22 @@ router.post("/", async (req, res) => {
     });
   }
 
-  const token = crypto.randomBytes(24).toString("hex");
+  const token = jwt.sign({ username }, process.env.JWT_SECRET, {
+    expiresIn: "1d"
+  });
+
   res.cookie("crm_access_token", token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: false,
     maxAge: 1000 * 60 * 60 * 24
   });
 
   return res.json({
-    message: "Login successful.",
+    message: "Successful",
     token,
     user: {
-      username: DEMO_USERNAME
+      username: user.username
     }
   });
 });
