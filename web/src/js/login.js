@@ -3,6 +3,28 @@ const API_BASE_URL = window.CRM_API_BASE_URL || "http://localhost:3003";
 const loginForm = document.getElementById("loginForm");
 const loginBtn = document.getElementById("loginBtn");
 const formFields = ["username", "password"];
+const LOGOUT_FLAG_KEY = "crm_just_logged_out";
+
+async function redirectIfAuthenticated() {
+  const justLoggedOut = sessionStorage.getItem(LOGOUT_FLAG_KEY) === "1";
+  if (justLoggedOut) {
+    sessionStorage.removeItem(LOGOUT_FLAG_KEY);
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/profile`, {
+      method: "GET",
+      credentials: "include"
+    });
+
+    if (response.ok) {
+      window.location.replace("/profile");
+    }
+  } catch {
+    // Stay on login page when profile check fails.
+  }
+}
 
 function clearFieldErrors() {
   formFields.forEach((fieldName) => {
@@ -82,7 +104,7 @@ loginForm?.addEventListener("submit", async (event) => {
       return;
     }
 
-    window.location.href = "/profile";
+    window.location.replace("/profile");
   } catch {
     setFieldError("password", "Unexpected error. Please try again.");
   } finally {
@@ -101,4 +123,4 @@ formFields.forEach((fieldName) => {
   });
 });
 
-
+redirectIfAuthenticated();

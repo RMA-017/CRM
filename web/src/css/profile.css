@@ -93,6 +93,16 @@
   justify-content: flex-end;
 }
 
+.logout-btn {
+  color: #ffd9de;
+  border: 1px solid rgba(255, 107, 120, 0.45);
+  background: rgba(255, 107, 120, 0.14);
+}
+
+.logout-btn:hover {
+  filter: brightness(1.06);
+}
+
 @media (max-width: 860px) {
   .profile-shell {
     padding: 20px;

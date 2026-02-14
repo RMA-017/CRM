@@ -4,7 +4,7 @@ import { Pool } from "pg"
 
 const router = Router();
 
-const PHONE_REGEX = /^[+]?[0-9\s\-()]{7,20}$/;
+const PHONE_REGEX = /^[+]?[0-9\s\-()]{7,15}$/;
 const USERNAME_REGEX = /^[a-zA-Z0-9._-]{3,30}$/;
 const ALLOWED_ROLES = new Set([
   "admin",
@@ -42,7 +42,7 @@ router.post("/", async (req, res) => {
   }
 
   if (!PHONE_REGEX.test(phone)) {
-    errors.phone = "Invalid phone number format.";
+    errors.phone = "Phone number must be 7-15 characters.";
   }
 
   if (password.length < 6) {

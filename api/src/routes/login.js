@@ -70,6 +70,7 @@ router.post("/", async (req, res) => {
 
   res.cookie("crm_access_token", token, {
     httpOnly: true,
+    path: "/",
     sameSite: "lax",
     secure: false,
     maxAge: 1000 * 60 * 60 * 24
@@ -82,6 +83,17 @@ router.post("/", async (req, res) => {
       username: user.username
     }
   });
+});
+
+router.post("/logout", (req, res) => {
+  res.clearCookie("crm_access_token", {
+    httpOnly: true,
+    path: "/",
+    sameSite: "lax",
+    secure: false
+  });
+
+  return res.json({ message: "Logged out." });
 });
 
 export default router;

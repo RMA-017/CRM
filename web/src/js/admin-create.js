@@ -4,7 +4,7 @@ const adminCreateForm = document.getElementById("adminCreateForm");
 const adminCreateBtn = document.getElementById("adminCreateBtn");
 const formFields = ["username", "fullName", "phone", "password", "role"];
 
-const PHONE_REGEX = /^[+]?[0-9\s\-()]{7,20}$/;
+const PHONE_REGEX = /^[+]?[0-9\s\-()]{7,15}$/;
 const USERNAME_REGEX = /^[a-zA-Z0-9._-]{3,30}$/;
 
 function clearFieldErrors() {
@@ -41,7 +41,7 @@ function validate(values) {
   }
 
   if (!PHONE_REGEX.test(values.phone)) {
-    errors.phone = "Invalid phone number format.";
+    errors.phone = "Phone number must be 7-15 characters.";
   }
 
   if (values.password.length < 6) {

@@ -1,13 +1,16 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import jwt from "jsonwebtoken";
 import path from "path";
 import { fileURLToPath } from "url";
+
 import loginRouter from "./routes/login.js";
 import adminRouter from "./routes/admin-create.js";
 import profileRouter from "./routes/profile.js";
 
 const app = express();
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -33,31 +36,46 @@ app.use(cookieParser());
 app.use(express.static(webPublic));
 app.use("/src/css", express.static(webCss));
 app.use("/src/js", express.static(webJs));
-app.use("/api/login", loginRouter);
-app.use("/api/admin-create", adminRouter);
-app.use("/api/profile", profileRouter);
 
-////// GET
-app.get(["/", "/home"], (req, res) => {
+
+////// INDEX routes
+app.get("/", (req, res) => {
     res.sendFile(path.join(webRoot, "index.html"));
 });
 
+//// LOGIN routes
 app.get("/login", (req, res) => {
     res.sendFile(path.join(webRoot, "src", "html", "login.html"));
 });
+app.use("/api/login", loginRouter);
 
+//// ADMIN routes
 app.get("/admin-create", (req, res) => {
     res.sendFile(path.join(webRoot, "src", "html", "admin-create.html"));
 });
+app.use("/api/admin-create", adminRouter);
 
+//// PROFILE routes
 app.get("/profile", (req, res) => {
+    const token = req.cookies?.crm_access_token;
+    if (!token) {
+        return res.redirect("/login");
+    }
+    
+    try {
+        jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+        return res.redirect("/login");
+    }
+    
     res.sendFile(path.join(webRoot, "src", "html", "profile.html"));
 });
+app.use("/api/profile", profileRouter);
 
+////// ERROR handling
 app.use((req, res) => {
     res.status(404).send("Not Found");
 });
-
 
 
 ////// PORT

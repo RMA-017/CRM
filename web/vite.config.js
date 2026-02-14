@@ -9,13 +9,6 @@ export default defineConfig({
           const rawUrl = req.url || "";
           const pathname = rawUrl.split("?")[0];
 
-          if (pathname.startsWith("/src/html/")) {
-            res.statusCode = 404;
-            res.setHeader("Content-Type", "text/plain; charset=utf-8");
-            res.end("Not Found");
-            return;
-          }
-
           if (pathname === "/admin-create") {
             req.url = "/src/html/admin-create.html";
             return next();
@@ -33,7 +26,7 @@ export default defineConfig({
 
           const acceptsHtml = String(req.headers.accept || "").includes("text/html");
           const isHtmlRequest = req.method === "GET" && acceptsHtml;
-          const allowedRoutes = new Set(["/", "/home", "/admin-create", "/login", "/profile"]);
+          const allowedRoutes = new Set(["/", "/admin-create", "/login", "/profile"]);
 
           if (isHtmlRequest && !allowedRoutes.has(pathname)) {
             res.statusCode = 404;
