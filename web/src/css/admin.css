@@ -1,7 +1,7 @@
 @import "./style.css";
 
 .admin-shell {
-  width: min(540px, 100%);
+  width: min(440px, 100%);
 }
 
 .auth-shell {
@@ -16,7 +16,7 @@
 
 .auth-form-wrap {
   background: var(--panel);
-  padding: 26px;
+  padding: 30px;
 }
 
 .auth-form {
