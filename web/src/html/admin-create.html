@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/svg+xml" href="/crm.svg" />
+  <title>CRM Admin Create User</title>
+  <link rel="stylesheet" href="/src/css/admin.css" />
+</head>
+
+<body>
+  <main class="page">
+    <section class="auth-shell admin-shell">
+      <div class="auth-form-wrap">
+        <h3 class="tag">Create user</h3>
+        <form class="auth-form" id="adminCreateForm" novalidate>
+          <div class="field">
+            <label for="username">Username</label>
+            <input id="username" name="username" type="text" placeholder="Username" required />
+            <small class="field-error" id="usernameError"></small>
+          </div>
+
+          <div class="field">
+            <label for="fullName">Full Name</label>
+            <input id="fullName" name="fullName" type="text" placeholder="Muhammad Rahmonov" required />
+            <small class="field-error" id="fullNameError"></small>
+          </div>
+
+          <div class="field">
+            <label for="phone">Phone Number</label>
+            <input id="phone" name="phone" type="tel" placeholder="+998 90 123 45 67" required />
+            <small class="field-error" id="phoneError"></small>
+          </div>
+
+          <div class="field">
+            <label for="password">Temporary Password</label>
+            <input id="password" name="password" type="password" placeholder="At least 6 characters" required />
+            <small class="field-error" id="passwordError"></small>
+          </div>
+
+          <div class="field">
+            <label for="role">Role</label>
+            <select id="role" name="role" required>
+              <option value="">Select role</option>
+              <option value="admin">Admin</option>
+              <option value="tutor">Tutor</option>
+              <option value="educator">Educator</option>
+              <option value="specialist">Specialist</option>
+              <option value="manager">Manager</option>
+              <option value="finance">Finance</option>
+            </select>
+            <small class="field-error" id="roleError"></small>
+          </div>
+
+          <button id="adminCreateBtn" class="btn" type="submit">Create Employee Account</button>
+
+        </form>
+
+      </div>
+    </section>
+  </main>
+
+  <script src="/src/js/admin-create.js"></script>
+</body>
+
+</html>

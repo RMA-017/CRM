@@ -1,16 +1,8 @@
-const API_BASE_URL = window.CRM_API_BASE_URL || "http://localhost:3000/api";
+const API_BASE_URL = window.CRM_API_BASE_URL || "http://localhost:3003/api";
 
 const loginForm = document.getElementById("loginForm");
 const loginBtn = document.getElementById("loginBtn");
-const loginStatus = document.getElementById("loginStatus");
-const formFields = ["email", "password"];
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function setStatus(message, type = "") {
-  loginStatus.textContent = message;
-  loginStatus.className = `status ${type}`.trim();
-}
+const formFields = ["username", "password"];
 
 function clearFieldErrors() {
   formFields.forEach((fieldName) => {
@@ -37,8 +29,8 @@ function setFieldError(fieldName, message) {
 function validate(values) {
   const errors = {};
 
-  if (!EMAIL_REGEX.test(values.email)) {
-    errors.email = "Invalid email format.";
+  if (!values.username.trim()) {
+    errors.username = "Username is required.";
   }
 
   if (!values.password) {
@@ -53,49 +45,48 @@ loginForm?.addEventListener("submit", async (event) => {
 
   const formData = new FormData(loginForm);
   const payload = {
-    email: String(formData.get("email") || "").trim().toLowerCase(),
+    username: String(formData.get("username") || "").trim(),
     password: String(formData.get("password") || "")
   };
 
   clearFieldErrors();
-  setStatus("");
 
   const errors = validate(payload);
   if (Object.keys(errors).length > 0) {
     Object.entries(errors).forEach(([fieldName, message]) => {
       setFieldError(fieldName, message);
     });
-    setStatus("Please fix the highlighted fields.", "error");
     return;
   }
 
   try {
     loginBtn.disabled = true;
-    setStatus("Verifying...");
 
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
+      credentials: "include",
       body: JSON.stringify(payload)
     });
 
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      const message = data.message || "Invalid email or password.";
-      setFieldError("password", message);
-      throw new Error(message);
+      if (data?.field && formFields.includes(data.field)) {
+        setFieldError(data.field, data.message || "Invalid value.");
+      } else {
+        setFieldError("password", data.message || "Invalid username or password.");
+      }
+      return;
     }
 
     if (data.token) {
       localStorage.setItem("crm_access_token", data.token);
     }
-
-    setStatus(data.message || "Login successful.", "success");
-  } catch (errorObj) {
-    setStatus(errorObj.message || "Unexpected error.", "error");
+  } catch {
+    setFieldError("password", "Unexpected error. Please try again.");
   } finally {
     loginBtn.disabled = false;
   }
@@ -111,3 +102,5 @@ formFields.forEach((fieldName) => {
     }
   });
 });
+
+

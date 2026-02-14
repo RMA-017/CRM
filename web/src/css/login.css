@@ -1,0 +1,28 @@
+@import "./style.css";
+
+.auth-shell {
+  width: min(500px, 100%);
+  display: grid;
+  grid-template-columns: 1fr;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(8px);
+}
+
+.auth-form-wrap {
+  background: var(--panel);
+  padding: 26px;
+}
+
+.auth-form {
+  display: grid;
+  gap: 10px;
+}
+
+@media (max-width: 860px) {
+  .auth-form-wrap {
+    padding: 20px;
+  }
+}

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="CRM Logo">
+  <defs>
+    <linearGradient id="crmBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0d1321" />
+      <stop offset="100%" stop-color="#111b2e" />
+    </linearGradient>
+    <linearGradient id="crmAccent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00c2a8" />
+      <stop offset="100%" stop-color="#11e5c8" />
+    </linearGradient>
+  </defs>
+
+  <rect x="8" y="8" width="112" height="112" rx="24" fill="url(#crmBg)" />
+  <rect x="14" y="14" width="100" height="100" rx="20" fill="none" stroke="url(#crmAccent)" stroke-width="2.5" opacity="0.9" />
+
+  <path d="M34 64c0-12 7.8-19 18-19 6.7 0 11.6 2.9 14.9 7.2l-7 5.4c-1.8-2.4-4.2-3.8-7.4-3.8-5.4 0-9.2 3.8-9.2 10.2s3.8 10.2 9.2 10.2c3.2 0 5.6-1.4 7.4-3.8l7 5.4c-3.3 4.3-8.2 7.2-14.9 7.2-10.2 0-18-7-18-19z" fill="#eaf3ff" />
+  <path d="M70 46h9.1l7.1 12 7.1-12h9.1v36h-8.6V61.9l-7.6 12.7h-.3l-7.6-12.7V82H70V46z" fill="#eaf3ff" />
+
+  <circle cx="96" cy="34" r="7" fill="url(#crmAccent)" />
+</svg>
