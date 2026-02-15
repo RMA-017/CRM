@@ -13,6 +13,10 @@ const pool = new Pool({
 });
 
 router.get("/", (req, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+
     const token = req.cookies?.crm_access_token;
     if (!token) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -31,20 +35,29 @@ router.get("/", (req, res) => {
     }
 
     pool.query(
-        "SELECT username, name, role, phone_number FROM users WHERE username = $1",
+        "SELECT username, email, full_name, birthday, role, phone_number, position FROM users WHERE username = $1",
         [username]
     )
         .then(({ rows }) => {
             const user = rows[0];
             if (!user) {
-                return res.status(404).json({ message: "User not found." });
+                res.clearCookie("crm_access_token", {
+                    httpOnly: true,
+                    path: "/",
+                    sameSite: "lax",
+                    secure: false
+                });
+                return res.status(401).json({ message: "Unauthorized" });
             }
 
             return res.json({
                 username: user.username,
-                fullName: user.name,
+                email: user.email,
+                fullName: user.full_name,
+                birthday: user.birthday,
                 role: user.role,
-                phone: user.phone_number
+                phone: user.phone_number,
+                position: user.position
             });
         })
         .catch((error) => {

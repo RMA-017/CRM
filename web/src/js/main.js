@@ -6,6 +6,7 @@ const homeLoginPanel = document.getElementById("homeLoginPanel");
 const homeLoginForm = document.getElementById("homeLoginForm");
 const homeLoginSubmit = document.getElementById("homeLoginSubmit");
 const loginOverlay = document.getElementById("loginOverlay");
+const LOGOUT_FLAG_KEY = "crm_just_logged_out";
 
 openLoginBtn.hidden = true;
 openProfileBtn.hidden = true;
@@ -41,13 +42,23 @@ function renderAuthenticated() {
 }
 
 async function loadCurrentUser() {
+  const justLoggedOut = sessionStorage.getItem(LOGOUT_FLAG_KEY) === "1";
+  if (justLoggedOut) {
+    sessionStorage.removeItem(LOGOUT_FLAG_KEY);
+    renderGuest();
+    return;
+  }
+
   try {
     const response = await fetch(`${API_BASE_URL}/api/profile`, {
       method: "GET",
-      credentials: "include"
+      credentials: "include",
+      cache: "no-store"
     });
 
-    if (!response.ok) {
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok || !data?.username) {
       renderGuest();
       return;
     }

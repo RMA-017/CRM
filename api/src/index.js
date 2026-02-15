@@ -6,7 +6,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 import loginRouter from "./routes/login.js";
-import adminRouter from "./routes/admin-create.js";
+import adminRouter from "./routes/createUser.js";
 import profileRouter from "./routes/profile.js";
 
 const app = express();
@@ -39,10 +39,6 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(webRoot, "index.html"));
 });
 
-app.get("/login", (req, res) => {
-  res.redirect("/");
-});
-
 app.get("/profile", (req, res) => {
   const token = req.cookies?.crm_access_token;
   if (!token) {
@@ -58,10 +54,6 @@ app.get("/profile", (req, res) => {
   return res.sendFile(path.join(webRoot, "src", "html", "profile.html"));
 });
 
-app.get("/admin-create", (req, res) => {
-  res.sendFile(path.join(webRoot, "src", "html", "admin-create.html"));
-});
-
 app.use("/api/login", loginRouter);
 app.use("/api/admin-create", adminRouter);
 app.use("/api/profile", profileRouter);
@@ -69,6 +61,7 @@ app.use("/api/profile", profileRouter);
 app.use((req, res) => {
   res.status(404).send("Not Found");
 });
+
 
 const port = process.env.PORT || 3003;
 app.listen(port, () => {

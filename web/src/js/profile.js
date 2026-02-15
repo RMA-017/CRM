@@ -5,6 +5,7 @@ const mainMenu = document.getElementById("mainMenu");
 const menuOverlay = document.getElementById("menuOverlay");
 const toggleUsersMenuBtn = document.getElementById("toggleUsersMenuBtn");
 const usersSubMenu = document.getElementById("usersSubMenu");
+const usersMenuGroup = document.getElementById("usersMenuGroup");
 
 const headerUserNameBtn = document.getElementById("headerUserNameBtn");
 const headerUserNameText = document.getElementById("headerUserNameText");
@@ -37,6 +38,7 @@ const roleSelectTrigger = document.getElementById("roleSelectTrigger");
 const roleSelectMenu = document.getElementById("roleSelectMenu");
 const roleSelectLabel = document.getElementById("roleSelectLabel");
 const roleSelectOptions = Array.from(document.querySelectorAll(".custom-select-option"));
+const LOGOUT_FLAG_KEY = "crm_just_logged_out";
 
 const USERNAME_REGEX = /^[a-zA-Z0-9._-]{3,30}$/;
 
@@ -45,6 +47,40 @@ let currentProfile = null;
 function getInitial(text) {
   const value = String(text || "").trim();
   return (value[0] || "U").toUpperCase();
+}
+
+function formatDateYMD(value) {
+  if (!value) {
+    return "-";
+  }
+
+  const raw = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw;
+  }
+
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) {
+    return raw;
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+function normalizeProfile(profile) {
+  if (!profile || typeof profile !== "object") {
+    return {};
+  }
+
+  return {
+    username: profile.username || "",
+    email: profile.email || "",
+    fullName: profile.fullName || profile.full_name || profile.name || "",
+    birthday: profile.birthday || "",
+    phone: profile.phone || profile.phone_number || "",
+    position: profile.position || "",
+    role: profile.role || ""
+  };
 }
 
 function getAvatarStorageKey() {
@@ -88,6 +124,15 @@ function loadSavedAvatar() {
 
   const saved = localStorage.getItem(key) || "";
   applyAvatar(saved);
+}
+
+function applyRoleVisibility() {
+  if (!usersMenuGroup) {
+    return;
+  }
+
+  const role = String(currentProfile?.role || "").toLowerCase();
+  usersMenuGroup.hidden = role !== "admin";
 }
 
 function closeMenu() {
@@ -154,10 +199,10 @@ function openMyProfileModal() {
 
   document.getElementById("modalProfileUsername").textContent = currentProfile.username || "-";
   document.getElementById("modalProfileEmail").textContent = currentProfile.email || "-";
-  document.getElementById("modalProfileFullName").textContent = currentProfile.fullName || currentProfile.name || "-";
-  document.getElementById("modalProfileBirthday").textContent = currentProfile.birthday || "-";
+  document.getElementById("modalProfileFullName").textContent = currentProfile.fullName || "-";
+  document.getElementById("modalProfileBirthday").textContent = formatDateYMD(currentProfile.birthday);
   document.getElementById("modalProfilePassword").textContent = "********";
-  document.getElementById("modalProfilePhone").textContent = currentProfile.phone || currentProfile.phone_number || "-";
+  document.getElementById("modalProfilePhone").textContent = currentProfile.phone || "-";
   document.getElementById("modalProfilePosition").textContent = currentProfile.position || "-";
   document.getElementById("modalProfileRole").textContent = currentProfile.role || "-";
 
@@ -295,9 +340,10 @@ async function loadProfile() {
       return;
     }
 
-    currentProfile = profileData;
+    currentProfile = normalizeProfile(profileData);
+    applyRoleVisibility();
 
-    const rawName = String(profileData.fullName || profileData.username || "User").trim();
+    const rawName = String(currentProfile.fullName || currentProfile.username || "User").trim();
     const firstName = rawName.split(/\s+/)[0] || "User";
 
     headerUserNameText.textContent = firstName;
@@ -371,6 +417,7 @@ logoutConfirmYes?.addEventListener("click", async () => {
       credentials: "include"
     });
   } finally {
+    sessionStorage.setItem(LOGOUT_FLAG_KEY, "1");
     closeLogoutConfirm();
     window.location.replace("/");
   }
