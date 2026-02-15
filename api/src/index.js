@@ -21,14 +21,12 @@ const webJs = path.join(webRoot, "src", "js");
 const allowedOrigin = process.env.WEB_ORIGIN || "http://localhost:5173";
 
 const corsOptions = {
-    origin: allowedOrigin,
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"]
+  origin: allowedOrigin,
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
 };
 
-
-////// MIDDLEWARE settings
 app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
 app.use(express.json());
@@ -37,49 +35,42 @@ app.use(express.static(webPublic));
 app.use("/src/css", express.static(webCss));
 app.use("/src/js", express.static(webJs));
 
-
-////// INDEX routes
 app.get("/", (req, res) => {
-    res.sendFile(path.join(webRoot, "index.html"));
+  res.sendFile(path.join(webRoot, "index.html"));
 });
 
-//// LOGIN routes
 app.get("/login", (req, res) => {
-    res.sendFile(path.join(webRoot, "src", "html", "login.html"));
+  res.redirect("/");
 });
-app.use("/api/login", loginRouter);
 
-//// ADMIN routes
-app.get("/admin-create", (req, res) => {
-    res.sendFile(path.join(webRoot, "src", "html", "admin-create.html"));
-});
-app.use("/api/admin-create", adminRouter);
-
-//// PROFILE routes
 app.get("/profile", (req, res) => {
-    const token = req.cookies?.crm_access_token;
-    if (!token) {
-        return res.redirect("/login");
-    }
-    
-    try {
-        jwt.verify(token, process.env.JWT_SECRET);
-    } catch {
-        return res.redirect("/login");
-    }
-    
-    res.sendFile(path.join(webRoot, "src", "html", "profile.html"));
+  const token = req.cookies?.crm_access_token;
+  if (!token) {
+    return res.redirect("/");
+  }
+
+  try {
+    jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    return res.redirect("/");
+  }
+
+  return res.sendFile(path.join(webRoot, "src", "html", "profile.html"));
 });
+
+app.get("/admin-create", (req, res) => {
+  res.sendFile(path.join(webRoot, "src", "html", "admin-create.html"));
+});
+
+app.use("/api/login", loginRouter);
+app.use("/api/admin-create", adminRouter);
 app.use("/api/profile", profileRouter);
 
-////// ERROR handling
 app.use((req, res) => {
-    res.status(404).send("Not Found");
+  res.status(404).send("Not Found");
 });
 
-
-////// PORT
 const port = process.env.PORT || 3003;
 app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
+  console.log(`Server is running on port ${port}`);
 });

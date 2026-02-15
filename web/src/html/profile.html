@@ -5,64 +5,191 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/svg+xml" href="/crm.svg" />
-  <title>CRM Profile</title>
-  <link rel="stylesheet" href="/src/css/profile.css" />
+  <title>Profile</title>
+  <link rel="stylesheet" href="/src/css/style.css" />
 </head>
 
-  <body>
-  <main class="page">
-    <section class="profile-shell">
-      <header class="profile-header">
-        <div class="avatar">U</div>
-        <div>
-          <p class="profile-tag">Employee Profile</p>
-          <h1>Welcome Back</h1>
+<body>
+  <div class="home-layout">
+    <header class="home-header">
+      <div class="brand-wrap">
+        <button id="menuToggle" class="menu-toggle" type="button" aria-label="Open main menu" aria-expanded="false"
+          aria-controls="mainMenu">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+
+        <a class="brand" href="/" aria-label="AARON CRM home">
+          <img src="/crm.svg" alt="AARON CRM logo" class="brand-logo" />
+          <span class="brand-text">AARON</span>
+        </a>
+      </div>
+
+      <nav class="header-actions" aria-label="Header actions">
+        <div class="user-menu-wrap">
+          <button id="headerUserNameBtn" type="button" class="header-btn user-name-btn" aria-expanded="false">
+            <span class="header-avatar-inline">
+              <img id="headerAvatarImage" class="header-avatar-image" alt="Profile photo" hidden />
+              <span id="headerAvatarFallback" class="header-avatar-fallback">U</span>
+            </span>
+            <span id="headerUserNameText">-</span>
+          </button>
+
+          <input id="headerAvatarInput" type="file" accept="image/*" hidden />
+
+          <div id="headerUserMenu" class="header-user-menu" hidden>
+            <button id="openMyProfileBtn" type="button" class="header-user-menu-item">My Profile</button>
+            <button id="openSettingsBtn" type="button" class="header-user-menu-item">Settings</button>
+          </div>
         </div>
-      </header>
 
-      <div class="profile-grid">
-        <article class="profile-card">
-          <h2>Account Info</h2>
-          <dl class="profile-list">
-            <div>
-              <dt>Username</dt>
-              <dd id="profileUsername">-</dd>
-            </div>
-            <div>
-              <dt>Full Name</dt>
-              <dd id="profileFullName">-</dd>
-            </div>
-            <div>
-              <dt>Role</dt>
-              <dd id="profileRole">-</dd>
-            </div>
-          </dl>
-        </article>
+        <button id="headerLogoutBtn" type="button" class="header-btn">Logout</button>
+      </nav>
+    </header>
 
-        <article class="profile-card">
-          <h2>Contact</h2>
-          <dl class="profile-list">
-            <div>
-              <dt>Phone</dt>
-              <dd id="profilePhone">-</dd>
-            </div>
-            <div>
-              <dt>Status</dt>
-              <dd class="ok">Active</dd>
-            </div>
-            <div>
-              <dt>Session</dt>
-              <dd>Authenticated</dd>
-            </div>
-          </dl>
-        </article>
+    <main class="home-main" aria-label="Main content"></main>
+
+    <footer class="home-footer">
+      <a href="https://instagram.com" target="_blank" rel="noreferrer">Instagram</a>
+      <a href="https://t.me/aaron_uz" target="_blank" rel="noreferrer">Telegram</a>
+      <a href="tel:+998954550033">Call Center</a>
+    </footer>
+  </div>
+
+  <section id="myProfileModal" class="logout-confirm-modal profile-modal" hidden>
+    <h3>My Profile</h3>
+    <div class="profile-modal-photo" id="myProfilePhoto">
+      <img id="myProfilePhotoImage" class="profile-modal-photo-image" alt="My profile photo" hidden />
+      <span id="myProfilePhotoFallback">U</span>
+    </div>
+    <dl class="profile-modal-list">
+      <div>
+        <dt>Username</dt>
+        <dd id="modalProfileUsername">-</dd>
+      </div>
+      <div>
+        <dt>Role</dt>
+        <dd id="modalProfileRole">-</dd>
+      </div>
+      <div>
+        <dt>Email</dt>
+        <div class="profile-modal-edit-row">
+          <dd id="modalProfileEmail">-</dd>
+          <button type="button" class="profile-edit-btn" data-edit-field="email">Edit</button>
+        </div>
+      </div>
+      <div>
+        <dt>Full Name</dt>
+        <div class="profile-modal-edit-row">
+          <dd id="modalProfileFullName">-</dd>
+          <button type="button" class="profile-edit-btn" data-edit-field="fullName">Edit</button>
+        </div>
+      </div>
+      <div>
+        <dt>Birthday</dt>
+        <div class="profile-modal-edit-row">
+          <dd id="modalProfileBirthday">-</dd>
+          <button type="button" class="profile-edit-btn" data-edit-field="birthday">Edit</button>
+        </div>
+      </div>
+      <div>
+        <dt>Password</dt>
+        <div class="profile-modal-edit-row">
+          <dd id="modalProfilePassword">-</dd>
+          <button type="button" class="profile-edit-btn" data-edit-field="password">Edit</button>
+        </div>
+      </div>
+      <div>
+        <dt>Phone</dt>
+        <div class="profile-modal-edit-row">
+          <dd id="modalProfilePhone">-</dd>
+          <button type="button" class="profile-edit-btn" data-edit-field="phone">Edit</button>
+        </div>
+      </div>
+      <div>
+        <dt>Position</dt>
+        <div class="profile-modal-edit-row">
+          <dd id="modalProfilePosition">-</dd>
+          <button type="button" class="profile-edit-btn" data-edit-field="position">Edit</button>
+        </div>
+      </div>
+    </dl>
+  </section>
+
+  <div id="myProfileOverlay" class="login-overlay" hidden></div>
+
+  <section id="logoutConfirmModal" class="logout-confirm-modal" hidden>
+    <h3>Are you sure you want to log out?</h3>
+    <div class="logout-confirm-actions">
+      <button id="logoutConfirmYes" type="button" class="header-btn logout-confirm-yes">Yes</button>
+      <button id="logoutConfirmNo" type="button" class="header-btn">No</button>
+    </div>
+  </section>
+
+  <div id="logoutConfirmOverlay" class="login-overlay" hidden></div>
+
+  <aside id="mainMenu" class="side-menu" aria-label="Main menu" aria-hidden="true">
+    <div class="side-menu-head">
+      <img src="/crm.svg" alt="CRM logo" class="side-logo" />
+      <strong>Main Menu</strong>
+    </div>
+    <nav class="side-menu-links">
+      <a href="/">Home</a>
+      <div class="side-menu-group">
+        <button id="toggleUsersMenuBtn" type="button" class="side-menu-action side-menu-parent" aria-expanded="false">
+          Users
+        </button>
+        <div id="usersSubMenu" class="side-submenu" hidden>
+          <a href="/profile" class="side-submenu-link">All Users</a>
+          <button id="openCreateUserBtn" type="button" class="side-submenu-link side-submenu-action">Create User</button>
+        </div>
+      </div>
+    </nav>
+  </aside>
+
+  <div id="menuOverlay" class="menu-overlay" hidden></div>
+
+  <section id="createUserModal" class="logout-confirm-modal create-user-modal" hidden>
+    <h3>Create User</h3>
+    <form class="auth-form" id="adminCreateForm" novalidate>
+      <div class="field">
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" placeholder="Username" required />
+        <small class="field-error" id="usernameError"></small>
       </div>
 
-      <div class="profile-actions">
-        <button class="link-btn logout-btn" id="logoutBtn" type="button">Logout</button>
+      <div class="field">
+        <label for="fullName">Full Name</label>
+        <input id="fullName" name="fullName" type="text" placeholder="Muhammad Rahmonov" required />
+        <small class="field-error" id="fullNameError"></small>
       </div>
-    </section>
-  </main>
+
+      <div class="field">
+        <label for="role">Role</label>
+        <div id="roleSelect" class="custom-select">
+          <button id="roleSelectTrigger" type="button" class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+            <span id="roleSelectLabel">Select role</span>
+          </button>
+          <div id="roleSelectMenu" class="custom-select-menu" role="listbox" hidden>
+            <button type="button" class="custom-select-option" data-value="admin">Admin</button>
+            <button type="button" class="custom-select-option" data-value="tutor">Tutor</button>
+            <button type="button" class="custom-select-option" data-value="educator">Educator</button>
+            <button type="button" class="custom-select-option" data-value="specialist">Specialist</button>
+            <button type="button" class="custom-select-option" data-value="manager">Manager</button>
+            <button type="button" class="custom-select-option" data-value="finance">Finance</button>
+          </div>
+          <input id="role" name="role" type="hidden" value="" />
+        </div>
+        <small class="field-error" id="roleError"></small>
+      </div>
+
+      <button id="adminCreateBtn" class="btn" type="submit">Create Employee Account</button>
+    </form>
+  </section>
+
+  <div id="createUserOverlay" class="login-overlay" hidden></div>
+
   <script src="/src/js/profile.js"></script>
 </body>
 
