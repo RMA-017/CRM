@@ -14,6 +14,7 @@ const ALLOWED_ROLES = new Set([
   "manager",
   "finance"
 ]);
+const DEFAULT_CREATED_USER_PASSWORD = process.env.DEFAULT_CREATED_USER_PASSWORD || "aaron2021";
 
 const pool = new Pool({
   host: process.env.PG_HOST,
@@ -88,7 +89,7 @@ router.post("/", async (req, res) => {
     // Frontend currently sends username/fullName/role only.
     // Keep DB constraints satisfied until full profile flow is implemented.
 
-    const temporaryPassword = "aaron2021";
+    const temporaryPassword = DEFAULT_CREATED_USER_PASSWORD;
     const password_hash = await bcrypt.hash(temporaryPassword, 10);
 
     const sql = {

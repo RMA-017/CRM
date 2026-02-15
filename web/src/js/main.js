@@ -7,6 +7,7 @@ const homeLoginForm = document.getElementById("homeLoginForm");
 const homeLoginSubmit = document.getElementById("homeLoginSubmit");
 const loginOverlay = document.getElementById("loginOverlay");
 const LOGOUT_FLAG_KEY = "crm_just_logged_out";
+const MAIN_VIEW_KEY = "crm_profile_main_view";
 
 openLoginBtn.hidden = true;
 openProfileBtn.hidden = true;
@@ -133,6 +134,7 @@ homeLoginForm?.addEventListener("submit", async (event) => {
       return;
     }
 
+    sessionStorage.removeItem(MAIN_VIEW_KEY);
     window.location.replace("/profile");
   } catch {
     setError("password", "Unexpected error. Please try again.");

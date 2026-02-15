@@ -35,7 +35,10 @@ router.post("/", async (req, res) => {
 
   try {
     client = await pool.connect();
-    const { rows } = await client.query(`SELECT * FROM users WHERE username = $1`, [username]);
+    const { rows } = await client.query(
+      "SELECT username, password_hash FROM users WHERE username = $1",
+      [username]
+    );
     user = rows[0];
   }
   catch (error) {
@@ -65,7 +68,7 @@ router.post("/", async (req, res) => {
   }
 
   const token = jwt.sign({ username }, process.env.JWT_SECRET, {
-    expiresIn: "1d"
+    expiresIn: "7d"
   });
 
   res.cookie("crm_access_token", token, {
@@ -73,12 +76,11 @@ router.post("/", async (req, res) => {
     path: "/",
     sameSite: "lax",
     secure: false,
-    maxAge: 1000 * 60 * 60 * 24
+    maxAge: 1000 * 60 * 60 * 24 * 7
   });
 
   return res.json({
     message: "Successful",
-    token,
     user: {
       username: user.username
     }

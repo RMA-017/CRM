@@ -48,7 +48,130 @@
       </nav>
     </header>
 
-    <main class="home-main" aria-label="Main content"></main>
+    <main class="home-main" aria-label="Main content">
+      <section id="myProfilePanel" class="my-profile-panel" hidden>
+        <div class="all-users-head">
+          <h3>My Profile</h3>
+          <button id="closeMyProfileBtn" type="button" class="header-btn" aria-label="Close my profile panel">X</button>
+        </div>
+        <div class="profile-modal-photo" id="myProfilePhoto">
+          <img id="myProfilePhotoImage" class="profile-modal-photo-image" alt="My profile photo" hidden />
+          <span id="myProfilePhotoFallback">U</span>
+        </div>
+        <dl class="profile-modal-list">
+          <div>
+            <dt>Username</dt>
+            <dd id="modalProfileUsername">-</dd>
+            <span class="profile-no-edit"></span>
+          </div>
+          <div>
+            <dt>Role</dt>
+            <dd id="modalProfileRole">-</dd>
+            <span class="profile-no-edit"></span>
+          </div>
+          <div>
+            <dt>Email</dt>
+            <dd id="modalProfileEmail">-</dd>
+            <button type="button" class="profile-edit-btn" data-edit-field="email">Edit</button>
+          </div>
+          <div>
+            <dt>Full Name</dt>
+            <dd id="modalProfileFullName">-</dd>
+            <button type="button" class="profile-edit-btn" data-edit-field="fullName">Edit</button>
+          </div>
+          <div>
+            <dt>Birthday</dt>
+            <dd id="modalProfileBirthday">-</dd>
+            <button type="button" class="profile-edit-btn" data-edit-field="birthday">Edit</button>
+          </div>
+          <div>
+            <dt>Password</dt>
+            <dd id="modalProfilePassword">-</dd>
+            <button type="button" class="profile-edit-btn" data-edit-field="password">Edit</button>
+          </div>
+          <div>
+            <dt>Phone</dt>
+            <dd id="modalProfilePhone">-</dd>
+            <button type="button" class="profile-edit-btn" data-edit-field="phone">Edit</button>
+          </div>
+          <div>
+            <dt>Position</dt>
+            <dd id="modalProfilePosition">-</dd>
+            <button type="button" class="profile-edit-btn" data-edit-field="position">Edit</button>
+          </div>
+        </dl>
+      </section>
+
+      <section id="allUsersPanel" class="all-users-panel" hidden>
+        <div class="all-users-head">
+          <h3>All Users</h3>
+          <button id="closeAllUsersBtn" type="button" class="header-btn" aria-label="Close all users panel">X</button>
+        </div>
+        <p id="allUsersState" class="all-users-state">Loading users...</p>
+        <div id="allUsersTableWrap" class="all-users-table-wrap" hidden>
+          <table class="all-users-table" aria-label="All users table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Full Name</th>
+                <th>Birthday</th>
+                <th>Phone</th>
+                <th>Position</th>
+                <th>Role</th>
+                <th>Created At</th>
+                <th>Edit</th>
+                <th>Delete</th>
+              </tr>
+            </thead>
+            <tbody id="allUsersTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="createUserPanel" class="create-user-panel" hidden>
+        <div class="all-users-head">
+          <h3>Create User</h3>
+          <button id="closeCreateUserBtn" type="button" class="header-btn" aria-label="Close create user panel">X</button>
+        </div>
+        <form class="auth-form" id="adminCreateForm" novalidate>
+          <div class="field">
+            <label for="username">Username</label>
+            <input id="username" name="username" type="text" placeholder="Username" autocomplete="username" required />
+            <small class="field-error" id="usernameError"></small>
+          </div>
+
+          <div class="field">
+            <label for="fullName">Full Name</label>
+            <input id="fullName" name="fullName" type="text" placeholder="Muhammad Rahmonov" autocomplete="name" required />
+            <small class="field-error" id="fullNameError"></small>
+          </div>
+
+          <div class="field">
+            <label for="role">Role</label>
+            <div id="roleSelect" class="custom-select">
+              <button id="roleSelectTrigger" type="button" class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+                <span id="roleSelectLabel">Select role</span>
+              </button>
+              <div id="roleSelectMenu" class="custom-select-menu" role="listbox" hidden>
+                <button type="button" class="custom-select-option" data-value="admin">Admin</button>
+                <button type="button" class="custom-select-option" data-value="tutor">Tutor</button>
+                <button type="button" class="custom-select-option" data-value="educator">Educator</button>
+                <button type="button" class="custom-select-option" data-value="specialist">Specialist</button>
+                <button type="button" class="custom-select-option" data-value="manager">Manager</button>
+                <button type="button" class="custom-select-option" data-value="finance">Finance</button>
+              </div>
+              <input id="role" name="role" type="hidden" value="" />
+            </div>
+            <small class="field-error" id="roleError"></small>
+          </div>
+
+          <button id="adminCreateBtn" class="btn" type="submit">Create Employee Account</button>
+          <p id="createUserStatus" class="form-status" aria-live="polite"></p>
+        </form>
+      </section>
+    </main>
 
     <footer class="home-footer">
       <a href="https://instagram.com" target="_blank" rel="noreferrer">Instagram</a>
@@ -56,68 +179,6 @@
       <a href="tel:+998954550033">Call Center</a>
     </footer>
   </div>
-
-  <section id="myProfileModal" class="logout-confirm-modal profile-modal" hidden>
-    <h3>My Profile</h3>
-    <div class="profile-modal-photo" id="myProfilePhoto">
-      <img id="myProfilePhotoImage" class="profile-modal-photo-image" alt="My profile photo" hidden />
-      <span id="myProfilePhotoFallback">U</span>
-    </div>
-    <dl class="profile-modal-list">
-      <div>
-        <dt>Username</dt>
-        <dd id="modalProfileUsername">-</dd>
-      </div>
-      <div>
-        <dt>Role</dt>
-        <dd id="modalProfileRole">-</dd>
-      </div>
-      <div>
-        <dt>Email</dt>
-        <div class="profile-modal-edit-row">
-          <dd id="modalProfileEmail">-</dd>
-          <button type="button" class="profile-edit-btn" data-edit-field="email">Edit</button>
-        </div>
-      </div>
-      <div>
-        <dt>Full Name</dt>
-        <div class="profile-modal-edit-row">
-          <dd id="modalProfileFullName">-</dd>
-          <button type="button" class="profile-edit-btn" data-edit-field="fullName">Edit</button>
-        </div>
-      </div>
-      <div>
-        <dt>Birthday</dt>
-        <div class="profile-modal-edit-row">
-          <dd id="modalProfileBirthday">-</dd>
-          <button type="button" class="profile-edit-btn" data-edit-field="birthday">Edit</button>
-        </div>
-      </div>
-      <div>
-        <dt>Password</dt>
-        <div class="profile-modal-edit-row">
-          <dd id="modalProfilePassword">-</dd>
-          <button type="button" class="profile-edit-btn" data-edit-field="password">Edit</button>
-        </div>
-      </div>
-      <div>
-        <dt>Phone</dt>
-        <div class="profile-modal-edit-row">
-          <dd id="modalProfilePhone">-</dd>
-          <button type="button" class="profile-edit-btn" data-edit-field="phone">Edit</button>
-        </div>
-      </div>
-      <div>
-        <dt>Position</dt>
-        <div class="profile-modal-edit-row">
-          <dd id="modalProfilePosition">-</dd>
-          <button type="button" class="profile-edit-btn" data-edit-field="position">Edit</button>
-        </div>
-      </div>
-    </dl>
-  </section>
-
-  <div id="myProfileOverlay" class="login-overlay" hidden></div>
 
   <section id="logoutConfirmModal" class="logout-confirm-modal" hidden>
     <h3>Are you sure you want to log out?</h3>
@@ -128,6 +189,91 @@
   </section>
 
   <div id="logoutConfirmOverlay" class="login-overlay" hidden></div>
+
+  <section id="profileEditModal" class="logout-confirm-modal profile-edit-modal" hidden>
+    <h3 id="profileEditTitle">Edit</h3>
+    <form id="profileEditForm" class="auth-form" novalidate>
+      <div class="field">
+        <label id="profileEditLabel" for="profileEditValue">Value</label>
+        <input id="profileEditValue" name="value" type="text" autocomplete="off" required />
+        <small id="profileEditError" class="field-error"></small>
+      </div>
+      <button id="profileEditSubmit" class="btn" type="submit">Save</button>
+    </form>
+  </section>
+
+  <div id="profileEditOverlay" class="login-overlay" hidden></div>
+
+  <section id="allUsersEditModal" class="logout-confirm-modal all-users-edit-modal" hidden>
+    <h3>Edit User</h3>
+    <form id="allUsersEditForm" class="auth-form" novalidate>
+      <div class="field">
+        <label for="allUsersEditUsername">Username</label>
+        <input id="allUsersEditUsername" name="username" type="text" autocomplete="username" required />
+        <small id="allUsersEditUsernameError" class="field-error"></small>
+      </div>
+
+      <div class="field">
+        <label for="allUsersEditEmail">Email</label>
+        <input id="allUsersEditEmail" name="email" type="email" autocomplete="email" />
+        <small id="allUsersEditEmailError" class="field-error"></small>
+      </div>
+
+      <div class="field">
+        <label for="allUsersEditFullName">Full Name</label>
+        <input id="allUsersEditFullName" name="fullName" type="text" autocomplete="name" required />
+        <small id="allUsersEditFullNameError" class="field-error"></small>
+      </div>
+
+      <div class="field">
+        <label for="allUsersEditBirthday">Birthday</label>
+        <input id="allUsersEditBirthday" name="birthday" type="date" autocomplete="bday" />
+        <small id="allUsersEditBirthdayError" class="field-error"></small>
+      </div>
+
+      <div class="field">
+        <label for="allUsersEditPhone">Phone</label>
+        <input id="allUsersEditPhone" name="phone" type="tel" autocomplete="tel" />
+        <small id="allUsersEditPhoneError" class="field-error"></small>
+      </div>
+
+      <div class="field">
+        <label for="allUsersEditPosition">Position</label>
+        <input id="allUsersEditPosition" name="position" type="text" autocomplete="organization-title" />
+        <small id="allUsersEditPositionError" class="field-error"></small>
+      </div>
+
+      <div class="field">
+        <label for="allUsersEditRole">Role</label>
+        <input id="allUsersEditRole" name="role" type="text" autocomplete="off" required />
+        <small id="allUsersEditRoleError" class="field-error"></small>
+      </div>
+
+      <div class="field">
+        <label for="allUsersEditPassword">New Password (optional)</label>
+        <input id="allUsersEditPassword" name="password" type="password" autocomplete="new-password" />
+        <small id="allUsersEditPasswordError" class="field-error"></small>
+      </div>
+
+      <div class="edit-actions">
+        <button id="allUsersEditSaveBtn" class="btn" type="submit">Save</button>
+        <button id="allUsersEditCancelBtn" class="header-btn" type="button">Cancel</button>
+      </div>
+    </form>
+  </section>
+
+  <div id="allUsersEditOverlay" class="login-overlay" hidden></div>
+
+  <section id="allUsersDeleteModal" class="logout-confirm-modal" hidden>
+    <h3>Are you sure you want to delete this user?</h3>
+    <p id="allUsersDeleteError" class="field-error"></p>
+    <div class="logout-confirm-actions">
+      <button id="allUsersDeleteYesBtn" type="button" class="header-btn logout-confirm-yes">Yes</button>
+      <button id="allUsersDeleteNoBtn" type="button" class="header-btn">No</button>
+    </div>
+  </section>
+
+  <div id="allUsersDeleteOverlay" class="login-overlay" hidden></div>
 
   <aside id="mainMenu" class="side-menu" aria-label="Main menu" aria-hidden="true">
     <div class="side-menu-head">
@@ -141,7 +287,7 @@
           Users
         </button>
         <div id="usersSubMenu" class="side-submenu" hidden>
-          <a href="/profile" class="side-submenu-link">All Users</a>
+          <button id="openAllUsersBtn" type="button" class="side-submenu-link side-submenu-action">All Users</button>
           <button id="openCreateUserBtn" type="button" class="side-submenu-link side-submenu-action">Create User</button>
         </div>
       </div>
@@ -149,46 +295,6 @@
   </aside>
 
   <div id="menuOverlay" class="menu-overlay" hidden></div>
-
-  <section id="createUserModal" class="logout-confirm-modal create-user-modal" hidden>
-    <h3>Create User</h3>
-    <form class="auth-form" id="adminCreateForm" novalidate>
-      <div class="field">
-        <label for="username">Username</label>
-        <input id="username" name="username" type="text" placeholder="Username" required />
-        <small class="field-error" id="usernameError"></small>
-      </div>
-
-      <div class="field">
-        <label for="fullName">Full Name</label>
-        <input id="fullName" name="fullName" type="text" placeholder="Muhammad Rahmonov" required />
-        <small class="field-error" id="fullNameError"></small>
-      </div>
-
-      <div class="field">
-        <label for="role">Role</label>
-        <div id="roleSelect" class="custom-select">
-          <button id="roleSelectTrigger" type="button" class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
-            <span id="roleSelectLabel">Select role</span>
-          </button>
-          <div id="roleSelectMenu" class="custom-select-menu" role="listbox" hidden>
-            <button type="button" class="custom-select-option" data-value="admin">Admin</button>
-            <button type="button" class="custom-select-option" data-value="tutor">Tutor</button>
-            <button type="button" class="custom-select-option" data-value="educator">Educator</button>
-            <button type="button" class="custom-select-option" data-value="specialist">Specialist</button>
-            <button type="button" class="custom-select-option" data-value="manager">Manager</button>
-            <button type="button" class="custom-select-option" data-value="finance">Finance</button>
-          </div>
-          <input id="role" name="role" type="hidden" value="" />
-        </div>
-        <small class="field-error" id="roleError"></small>
-      </div>
-
-      <button id="adminCreateBtn" class="btn" type="submit">Create Employee Account</button>
-    </form>
-  </section>
-
-  <div id="createUserOverlay" class="login-overlay" hidden></div>
 
   <script src="/src/js/profile.js"></script>
 </body>
