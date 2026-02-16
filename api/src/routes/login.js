@@ -1,15 +1,7 @@
 import { Router } from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
-import { Pool } from "pg";
-
-const pool = new Pool({
-  host: process.env.PG_HOST,
-  port: process.env.PG_PORT,
-  user: process.env.PG_USER,
-  password: process.env.PG_PASSWORD,
-  database: process.env.PG_DBNAME,
-});
+import pool from "../config/db.js";
 const router = Router();
 
 router.post("/", async (req, res) => {
@@ -61,8 +53,7 @@ router.post("/", async (req, res) => {
 
   if (!isPasswordValid) {
     return res.status(401).json({
-      field: "password",
-      message: "Password is incorrect."
+      message: "Invalid username or password."
     });
   }
 

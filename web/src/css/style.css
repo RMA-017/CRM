@@ -54,7 +54,8 @@ label {
   font-size: var(--fs-base);
 }
 
-input {
+input,
+select {
   width: 100%;
   border: 1px solid rgba(255, 255, 255, 0.13);
   outline: none;
@@ -185,12 +186,14 @@ input {
   color: #ddfff8;
 }
 
-input:focus {
+input:focus,
+select:focus {
   border-color: var(--brand);
   box-shadow: 0 0 0 3px rgba(0, 194, 168, 0.2);
 }
 
-input.input-error {
+input.input-error,
+select.input-error {
   border-color: var(--danger);
   box-shadow: 0 0 0 3px rgba(255, 107, 120, 0.16);
 }
@@ -866,6 +869,25 @@ input.input-error {
   font-size: var(--fs-base);
 }
 
+.all-users-pagination {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.all-users-pagination .header-btn {
+  min-width: 84px;
+}
+
+.all-users-page-info {
+  font-size: var(--fs-small);
+  color: var(--text-muted);
+  min-width: 92px;
+  text-align: center;
+}
+
 .table-action-btn {
   height: 30px;
   padding: 0 10px;
@@ -1133,6 +1155,10 @@ input.input-error {
   .home-footer {
     justify-content: center;
     gap: 10px;
+  }
+
+  .all-users-pagination {
+    justify-content: center;
   }
 
   .logout-confirm-modal,

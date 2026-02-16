@@ -1,17 +1,9 @@
 import { Router } from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
-import { Pool } from "pg";
+import pool from "../config/db.js";
 
 const router = Router();
-
-const pool = new Pool({
-    host: process.env.PG_HOST,
-    port: process.env.PG_PORT,
-    user: process.env.PG_USER,
-    password: process.env.PG_PASSWORD,
-    database: process.env.PG_DBNAME,
-});
 
 function getTokenPayload(req, res) {
     const token = req.cookies?.crm_access_token;
@@ -90,6 +82,11 @@ router.get("/all", async (req, res) => {
         return res.status(401).json({ message: "Unauthorized" });
     }
 
+    const pageParam = Number.parseInt(String(req.query?.page || ""), 10);
+    const limitParam = Number.parseInt(String(req.query?.limit || ""), 10);
+    const page = Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1;
+    const limit = Number.isInteger(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 20;
+
     try {
         const requester = await pool.query(
             "SELECT role FROM users WHERE username = $1",
@@ -105,8 +102,15 @@ router.get("/all", async (req, res) => {
             return res.status(403).json({ message: "Forbidden" });
         }
 
+        const totalResult = await pool.query("SELECT COUNT(*)::int AS total FROM users");
+        const total = Number(totalResult.rows[0]?.total || 0);
+        const totalPages = Math.max(1, Math.ceil(total / limit));
+        const safePage = Math.min(page, totalPages);
+        const offset = (safePage - 1) * limit;
+
         const { rows } = await pool.query(
-            "SELECT id::text AS id, username, email, full_name, birthday, phone_number, position, role, created_at FROM users ORDER BY created_at DESC"
+            "SELECT id::text AS id, username, email, full_name, birthday, phone_number, position, role, created_at FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+            [limit, offset]
         );
 
         const users = rows.map((user) => ({
@@ -121,7 +125,17 @@ router.get("/all", async (req, res) => {
             createdAt: user.created_at
         }));
 
-        return res.json({ users });
+        return res.json({
+            users,
+            pagination: {
+                page: safePage,
+                limit,
+                total,
+                totalPages,
+                hasPrev: safePage > 1,
+                hasNext: safePage < totalPages
+            }
+        });
     } catch (error) {
         console.error("Error fetching all users:", error);
         return res.status(500).json({ message: "Internal server error." });

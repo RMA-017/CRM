@@ -36,11 +36,19 @@ const closeAllUsersBtn = document.getElementById("closeAllUsersBtn");
 const allUsersState = document.getElementById("allUsersState");
 const allUsersTableWrap = document.getElementById("allUsersTableWrap");
 const allUsersTableBody = document.getElementById("allUsersTableBody");
+const allUsersPagination = document.getElementById("allUsersPagination");
+const allUsersPrevBtn = document.getElementById("allUsersPrevBtn");
+const allUsersNextBtn = document.getElementById("allUsersNextBtn");
+const allUsersPageInfo = document.getElementById("allUsersPageInfo");
 const allUsersEditModal = document.getElementById("allUsersEditModal");
 const allUsersEditOverlay = document.getElementById("allUsersEditOverlay");
 const allUsersEditForm = document.getElementById("allUsersEditForm");
 const allUsersEditSaveBtn = document.getElementById("allUsersEditSaveBtn");
 const allUsersEditCancelBtn = document.getElementById("allUsersEditCancelBtn");
+const allUsersEditPositionSelect = document.getElementById("allUsersEditPositionSelect");
+const allUsersEditPositionSelectTrigger = document.getElementById("allUsersEditPositionSelectTrigger");
+const allUsersEditPositionSelectMenu = document.getElementById("allUsersEditPositionSelectMenu");
+const allUsersEditPositionSelectLabel = document.getElementById("allUsersEditPositionSelectLabel");
 const allUsersEditRoleSelect = document.getElementById("allUsersEditRoleSelect");
 const allUsersEditRoleSelectTrigger = document.getElementById("allUsersEditRoleSelectTrigger");
 const allUsersEditRoleSelectMenu = document.getElementById("allUsersEditRoleSelectMenu");
@@ -59,6 +67,13 @@ const roleSelectTrigger = document.getElementById("roleSelectTrigger");
 const roleSelectMenu = document.getElementById("roleSelectMenu");
 const roleSelectLabel = document.getElementById("roleSelectLabel");
 const roleSelectOptions = Array.from(roleSelect?.querySelectorAll(".custom-select-option") || []);
+const profileEditPositionSelect = document.getElementById("profileEditPositionSelect");
+const profileEditPositionSelectTrigger = document.getElementById("profileEditPositionSelectTrigger");
+const profileEditPositionSelectMenu = document.getElementById("profileEditPositionSelectMenu");
+const profileEditPositionSelectLabel = document.getElementById("profileEditPositionSelectLabel");
+const profileEditPositionValue = document.getElementById("profileEditPositionValue");
+const profileEditPositionOptions = Array.from(profileEditPositionSelect?.querySelectorAll(".custom-select-option") || []);
+const allUsersEditPositionOptions = Array.from(allUsersEditPositionSelect?.querySelectorAll(".custom-select-option") || []);
 const allUsersEditRoleOptions = Array.from(allUsersEditRoleSelect?.querySelectorAll(".custom-select-option") || []);
 const profileEditButtons = Array.from(document.querySelectorAll(".profile-edit-btn"));
 const profileEditModal = document.getElementById("profileEditModal");
@@ -77,6 +92,9 @@ const USERNAME_REGEX = /^[a-zA-Z0-9._-]{3,30}$/;
 let currentProfile = null;
 let activeEditField = "";
 let allUsersCache = [];
+let allUsersPage = 1;
+let allUsersLimit = 20;
+let allUsersTotalPages = 1;
 let activeAllUsersEditId = "";
 let activeAllUsersDeleteId = "";
 
@@ -310,12 +328,73 @@ function openMyProfileModal() {
   setMainView("my-profile");
 }
 
+function closeProfileEditPositionSelect() {
+  if (!profileEditPositionSelectMenu || !profileEditPositionSelectTrigger || !profileEditPositionSelect) {
+    return;
+  }
+  profileEditPositionSelectMenu.hidden = true;
+  profileEditPositionSelectTrigger.setAttribute("aria-expanded", "false");
+  profileEditPositionSelect.classList.remove("open-up");
+  profileEditPositionSelectMenu.style.maxHeight = "";
+}
+
+function openProfileEditPositionSelect() {
+  if (!profileEditPositionSelectMenu || !profileEditPositionSelectTrigger || !profileEditPositionSelect) {
+    return;
+  }
+
+  profileEditPositionSelect.classList.remove("open-up");
+  profileEditPositionSelectMenu.hidden = false;
+  profileEditPositionSelectTrigger.setAttribute("aria-expanded", "true");
+
+  const triggerRect = profileEditPositionSelectTrigger.getBoundingClientRect();
+  const spaceBelow = window.innerHeight - triggerRect.bottom - 12;
+  const spaceAbove = triggerRect.top - 12;
+  const desiredMenuHeight = 184;
+  const shouldOpenUp = spaceBelow < desiredMenuHeight && spaceAbove > spaceBelow;
+
+  if (shouldOpenUp) {
+    profileEditPositionSelect.classList.add("open-up");
+  }
+
+  const availableSpace = shouldOpenUp ? spaceAbove : spaceBelow;
+  const menuMaxHeight = Math.max(120, Math.min(desiredMenuHeight, availableSpace - 8));
+  profileEditPositionSelectMenu.style.maxHeight = `${menuMaxHeight}px`;
+}
+
+function syncProfileEditPositionSelectUI() {
+  if (!profileEditPositionSelectLabel) {
+    return;
+  }
+
+  const value = String(profileEditPositionValue?.value || "").trim();
+  const selectedOption = profileEditPositionOptions.find((option) => option.dataset.value === value);
+  profileEditPositionSelectLabel.textContent = selectedOption ? selectedOption.textContent : (value || "Select position");
+
+  profileEditPositionOptions.forEach((option) => {
+    option.setAttribute("aria-selected", String(option.dataset.value === value));
+  });
+}
+
 function closeProfileEditModal() {
   profileEditModal.hidden = true;
   profileEditOverlay.hidden = true;
   profileEditForm.reset();
+  closeProfileEditPositionSelect();
+  if (profileEditPositionSelect) {
+    profileEditPositionSelect.hidden = true;
+  }
+  if (profileEditPositionValue) {
+    profileEditPositionValue.value = "";
+  }
+  if (profileEditValue) {
+    profileEditValue.hidden = false;
+  }
+  profileEditLabel.htmlFor = "profileEditValue";
   profileEditError.textContent = "";
   profileEditValue.classList.remove("input-error");
+  profileEditPositionSelectTrigger?.classList.remove("input-error");
+  syncProfileEditPositionSelectUI();
   activeEditField = "";
 }
 
@@ -328,11 +407,9 @@ function openProfileEditModal(fieldName) {
   activeEditField = fieldName;
   profileEditTitle.textContent = `Edit ${config.label}`;
   profileEditLabel.textContent = config.label;
-  profileEditValue.type = config.inputType;
-  profileEditValue.placeholder = config.placeholder;
-  profileEditValue.required = !!config.required;
-  profileEditValue.classList.remove("input-error");
   profileEditError.textContent = "";
+  profileEditValue.classList.remove("input-error");
+  profileEditPositionSelectTrigger?.classList.remove("input-error");
 
   let currentValue = "";
   if (fieldName !== "password") {
@@ -342,10 +419,32 @@ function openProfileEditModal(fieldName) {
     currentValue = formatDateForInput(currentValue);
   }
 
-  profileEditValue.value = currentValue;
+  if (fieldName === "position") {
+    profileEditValue.hidden = true;
+    profileEditValue.required = false;
+    profileEditPositionSelect.hidden = false;
+    profileEditLabel.htmlFor = "profileEditPositionSelectTrigger";
+    profileEditPositionValue.value = currentValue;
+    syncProfileEditPositionSelectUI();
+  } else {
+    profileEditPositionSelect.hidden = true;
+    closeProfileEditPositionSelect();
+    profileEditPositionValue.value = "";
+    profileEditValue.hidden = false;
+    profileEditLabel.htmlFor = "profileEditValue";
+    profileEditValue.type = config.inputType;
+    profileEditValue.placeholder = config.placeholder;
+    profileEditValue.required = !!config.required;
+    profileEditValue.value = currentValue;
+  }
+
   profileEditModal.hidden = false;
   profileEditOverlay.hidden = false;
-  profileEditValue.focus();
+  if (fieldName === "position") {
+    profileEditPositionSelectTrigger?.focus();
+  } else {
+    profileEditValue.focus();
+  }
 }
 
 function closeLogoutConfirm() {
@@ -472,6 +571,29 @@ function setAllUsersState(message) {
   allUsersState.hidden = false;
   allUsersTableWrap.hidden = true;
   allUsersTableBody.replaceChildren();
+  if (allUsersPagination) {
+    allUsersPagination.hidden = true;
+  }
+}
+
+function updateAllUsersPagination(pagination) {
+  if (!allUsersPagination || !allUsersPrevBtn || !allUsersNextBtn || !allUsersPageInfo) {
+    return;
+  }
+
+  const page = Number(pagination?.page || 1);
+  const limit = Number(pagination?.limit || 20);
+  const total = Number(pagination?.total || 0);
+  const totalPages = Number(pagination?.totalPages || 1);
+
+  allUsersPage = page;
+  allUsersLimit = limit;
+  allUsersTotalPages = totalPages;
+
+  allUsersPageInfo.textContent = `Page ${page} of ${totalPages}`;
+  allUsersPrevBtn.disabled = page <= 1;
+  allUsersNextBtn.disabled = page >= totalPages;
+  allUsersPagination.hidden = total <= limit;
 }
 
 function clearAllUsersEditErrors() {
@@ -479,6 +601,9 @@ function clearAllUsersEditErrors() {
     const input = allUsersEditForm?.elements?.[field];
     const errorNode = document.getElementById(`allUsersEdit${field.charAt(0).toUpperCase() + field.slice(1)}Error`);
     input?.classList.remove("input-error");
+    if (field === "position") {
+      allUsersEditPositionSelectTrigger?.classList.remove("input-error");
+    }
     if (field === "role") {
       allUsersEditRoleSelectTrigger?.classList.remove("input-error");
     }
@@ -492,12 +617,62 @@ function setAllUsersEditError(field, message) {
   const input = allUsersEditForm?.elements?.[field];
   const errorNode = document.getElementById(`allUsersEdit${field.charAt(0).toUpperCase() + field.slice(1)}Error`);
   input?.classList.add("input-error");
+  if (field === "position") {
+    allUsersEditPositionSelectTrigger?.classList.add("input-error");
+  }
   if (field === "role") {
     allUsersEditRoleSelectTrigger?.classList.add("input-error");
   }
   if (errorNode) {
     errorNode.textContent = message;
   }
+}
+
+function closeAllUsersEditPositionSelect() {
+  if (!allUsersEditPositionSelectMenu || !allUsersEditPositionSelectTrigger || !allUsersEditPositionSelect) {
+    return;
+  }
+  allUsersEditPositionSelectMenu.hidden = true;
+  allUsersEditPositionSelectTrigger.setAttribute("aria-expanded", "false");
+  allUsersEditPositionSelect.classList.remove("open-up");
+  allUsersEditPositionSelectMenu.style.maxHeight = "";
+}
+
+function openAllUsersEditPositionSelect() {
+  if (!allUsersEditPositionSelectMenu || !allUsersEditPositionSelectTrigger || !allUsersEditPositionSelect) {
+    return;
+  }
+
+  allUsersEditPositionSelect.classList.remove("open-up");
+  allUsersEditPositionSelectMenu.hidden = false;
+  allUsersEditPositionSelectTrigger.setAttribute("aria-expanded", "true");
+
+  const triggerRect = allUsersEditPositionSelectTrigger.getBoundingClientRect();
+  const spaceBelow = window.innerHeight - triggerRect.bottom - 12;
+  const spaceAbove = triggerRect.top - 12;
+  const desiredMenuHeight = 184;
+  const shouldOpenUp = spaceBelow < desiredMenuHeight && spaceAbove > spaceBelow;
+
+  if (shouldOpenUp) {
+    allUsersEditPositionSelect.classList.add("open-up");
+  }
+
+  const availableSpace = shouldOpenUp ? spaceAbove : spaceBelow;
+  const menuMaxHeight = Math.max(120, Math.min(desiredMenuHeight, availableSpace - 8));
+  allUsersEditPositionSelectMenu.style.maxHeight = `${menuMaxHeight}px`;
+}
+
+function syncAllUsersEditPositionSelectUI() {
+  if (!allUsersEditPositionSelectLabel) {
+    return;
+  }
+  const value = String(allUsersEditForm?.elements?.position?.value || "");
+  const selectedOption = allUsersEditPositionOptions.find((option) => option.dataset.value === value);
+  allUsersEditPositionSelectLabel.textContent = selectedOption ? selectedOption.textContent : "Select position";
+
+  allUsersEditPositionOptions.forEach((option) => {
+    option.setAttribute("aria-selected", String(option.dataset.value === value));
+  });
 }
 
 function closeAllUsersEditRoleSelect() {
@@ -550,9 +725,11 @@ function syncAllUsersEditRoleSelectUI() {
 function closeAllUsersEditModal() {
   allUsersEditModal.hidden = true;
   allUsersEditOverlay.hidden = true;
+  closeAllUsersEditPositionSelect();
   closeAllUsersEditRoleSelect();
   clearAllUsersEditErrors();
   allUsersEditForm?.reset();
+  syncAllUsersEditPositionSelectUI();
   syncAllUsersEditRoleSelectUI();
   activeAllUsersEditId = "";
 }
@@ -591,6 +768,7 @@ function openAllUsersEditModal(userId) {
   allUsersEditForm.elements.position.value = user.position || "";
   allUsersEditForm.elements.role.value = user.role || "";
   allUsersEditForm.elements.password.value = "";
+  syncAllUsersEditPositionSelectUI();
   syncAllUsersEditRoleSelectUI();
 
   allUsersEditModal.hidden = false;
@@ -602,9 +780,14 @@ function closeAllUsersPanel() {
   allUsersPanel.hidden = true;
   allUsersTableBody.replaceChildren();
   allUsersCache = [];
+  allUsersPage = 1;
+  allUsersTotalPages = 1;
   allUsersTableWrap.hidden = true;
   allUsersState.hidden = true;
   allUsersState.textContent = "";
+  if (allUsersPagination) {
+    allUsersPagination.hidden = true;
+  }
   if (createUserPanel.hidden) {
     setMainView("none");
   }
@@ -678,7 +861,7 @@ function renderAllUsers(users) {
   });
 }
 
-async function openAllUsersPanel() {
+async function openAllUsersPanel(page = allUsersPage) {
   closeMenu();
   closeCreateUserPanel();
   closeMyProfileModal();
@@ -687,7 +870,13 @@ async function openAllUsersPanel() {
   setAllUsersState("Loading users...");
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/profile/all`, {
+    const nextPage = Number.isInteger(page) && page > 0 ? page : 1;
+    const query = new URLSearchParams({
+      page: String(nextPage),
+      limit: String(allUsersLimit)
+    });
+
+    const response = await fetch(`${API_BASE_URL}/api/profile/all?${query.toString()}`, {
       method: "GET",
       credentials: "include",
       cache: "no-store"
@@ -711,6 +900,10 @@ async function openAllUsersPanel() {
     }
 
     const users = Array.isArray(data?.users) ? data.users : [];
+    const pagination = data?.pagination || null;
+
+    updateAllUsersPagination(pagination);
+
     if (users.length === 0) {
       setAllUsersState("No users found.");
       return;
@@ -821,8 +1014,18 @@ logoutConfirmYes?.addEventListener("click", async () => {
 
 openCreateUserBtn?.addEventListener("click", openCreateUserPanel);
 closeCreateUserBtn?.addEventListener("click", closeCreateUserPanel);
-openAllUsersBtn?.addEventListener("click", openAllUsersPanel);
+openAllUsersBtn?.addEventListener("click", () => openAllUsersPanel(1));
 closeAllUsersBtn?.addEventListener("click", closeAllUsersPanel);
+allUsersPrevBtn?.addEventListener("click", () => {
+  if (allUsersPage > 1) {
+    openAllUsersPanel(allUsersPage - 1);
+  }
+});
+allUsersNextBtn?.addEventListener("click", () => {
+  if (allUsersPage < allUsersTotalPages) {
+    openAllUsersPanel(allUsersPage + 1);
+  }
+});
 allUsersEditCancelBtn?.addEventListener("click", closeAllUsersEditModal);
 allUsersEditOverlay?.addEventListener("click", closeAllUsersEditModal);
 allUsersDeleteNoBtn?.addEventListener("click", closeAllUsersDeleteModal);
@@ -880,6 +1083,57 @@ roleSelectOptions.forEach((option) => {
     }
     syncRoleSelectUI();
     closeRoleSelect();
+  });
+});
+
+profileEditPositionSelectTrigger?.addEventListener("click", () => {
+  if (profileEditPositionSelectMenu.hidden) {
+    openProfileEditPositionSelect();
+    return;
+  }
+  closeProfileEditPositionSelect();
+});
+
+profileEditPositionOptions.forEach((option) => {
+  option.addEventListener("click", () => {
+    const value = String(option.dataset.value || "");
+    if (!profileEditPositionValue || !value) {
+      return;
+    }
+
+    profileEditPositionValue.value = value;
+    profileEditPositionSelectTrigger?.classList.remove("input-error");
+    profileEditError.textContent = "";
+    syncProfileEditPositionSelectUI();
+    closeProfileEditPositionSelect();
+  });
+});
+
+allUsersEditPositionSelectTrigger?.addEventListener("click", () => {
+  if (allUsersEditPositionSelectMenu.hidden) {
+    openAllUsersEditPositionSelect();
+    return;
+  }
+  closeAllUsersEditPositionSelect();
+});
+
+allUsersEditPositionOptions.forEach((option) => {
+  option.addEventListener("click", () => {
+    const value = String(option.dataset.value || "");
+    const positionInput = allUsersEditForm?.elements?.position;
+    if (!positionInput || !value) {
+      return;
+    }
+
+    positionInput.value = value;
+    positionInput.classList.remove("input-error");
+    allUsersEditPositionSelectTrigger?.classList.remove("input-error");
+    const positionError = document.getElementById("allUsersEditPositionError");
+    if (positionError) {
+      positionError.textContent = "";
+    }
+    syncAllUsersEditPositionSelectUI();
+    closeAllUsersEditPositionSelect();
   });
 });
 
@@ -1064,9 +1318,12 @@ profileEditForm?.addEventListener("submit", async (event) => {
     return;
   }
 
-  const value = String(profileEditValue.value || "").trim();
+  const value = activeEditField === "position"
+    ? String(profileEditPositionValue?.value || "").trim()
+    : String(profileEditValue.value || "").trim();
   profileEditError.textContent = "";
   profileEditValue.classList.remove("input-error");
+  profileEditPositionSelectTrigger?.classList.remove("input-error");
 
   if (activeEditField === "password" && value.length < 6) {
     profileEditError.textContent = "Password must be at least 6 characters.";
@@ -1093,7 +1350,11 @@ profileEditForm?.addEventListener("submit", async (event) => {
 
     if (!response.ok) {
       profileEditError.textContent = data?.message || "Failed to update profile.";
-      profileEditValue.classList.add("input-error");
+      if (activeEditField === "position") {
+        profileEditPositionSelectTrigger?.classList.add("input-error");
+      } else {
+        profileEditValue.classList.add("input-error");
+      }
       return;
     }
 
@@ -1112,7 +1373,11 @@ profileEditForm?.addEventListener("submit", async (event) => {
     closeProfileEditModal();
   } catch {
     profileEditError.textContent = "Unexpected error. Please try again.";
-    profileEditValue.classList.add("input-error");
+    if (activeEditField === "position") {
+      profileEditPositionSelectTrigger?.classList.add("input-error");
+    } else {
+      profileEditValue.classList.add("input-error");
+    }
   } finally {
     profileEditSubmit.disabled = false;
   }
@@ -1144,6 +1409,12 @@ document.addEventListener("click", (event) => {
   if (roleSelectMenu && !roleSelectMenu.hidden && !event.target.closest("#roleSelect")) {
     closeRoleSelect();
   }
+  if (profileEditPositionSelectMenu && !profileEditPositionSelectMenu.hidden && !event.target.closest("#profileEditPositionSelect")) {
+    closeProfileEditPositionSelect();
+  }
+  if (allUsersEditPositionSelectMenu && !allUsersEditPositionSelectMenu.hidden && !event.target.closest("#allUsersEditPositionSelect")) {
+    closeAllUsersEditPositionSelect();
+  }
   if (allUsersEditRoleSelectMenu && !allUsersEditRoleSelectMenu.hidden && !event.target.closest("#allUsersEditRoleSelect")) {
     closeAllUsersEditRoleSelect();
   }
@@ -1172,6 +1443,7 @@ window.addEventListener("keydown", (event) => {
       closeCreateUserPanel();
     }
     closeRoleSelect();
+    closeAllUsersEditPositionSelect();
     closeAllUsersEditRoleSelect();
   }
 });
@@ -1197,11 +1469,48 @@ window.addEventListener("drop", (event) => {
   saveAvatarFromFile(file);
 }, true);
 
+function isAdminRole() {
+  return String(currentProfile?.role || "").toLowerCase() === "admin";
+}
+
+async function restoreMainView() {
+  const savedView = String(sessionStorage.getItem(MAIN_VIEW_KEY) || "none");
+
+  if (savedView === "my-profile") {
+    openMyProfileModal();
+    return true;
+  }
+
+  if (savedView === "all-users") {
+    if (!isAdminRole()) {
+      setMainView("none");
+      return false;
+    }
+    await openAllUsersPanel(1);
+    return true;
+  }
+
+  if (savedView === "create-user") {
+    if (!isAdminRole()) {
+      setMainView("none");
+      return false;
+    }
+    openCreateUserPanel();
+    return true;
+  }
+
+  return false;
+}
+
 async function initProfilePage() {
   await loadProfile();
   syncRoleSelectUI();
+  syncAllUsersEditPositionSelectUI();
   syncAllUsersEditRoleSelectUI();
-  setMainView("none");
+  const restored = await restoreMainView();
+  if (!restored) {
+    setMainView("none");
+  }
 }
 
 initProfilePage();

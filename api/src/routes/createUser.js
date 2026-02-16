@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { Pool } from "pg";
+import pool from "../config/db.js";
 
 const router = Router();
 
@@ -15,14 +15,6 @@ const ALLOWED_ROLES = new Set([
   "finance"
 ]);
 const DEFAULT_CREATED_USER_PASSWORD = process.env.DEFAULT_CREATED_USER_PASSWORD || "aaron2021";
-
-const pool = new Pool({
-  host: process.env.PG_HOST,
-  port: process.env.PG_PORT,
-  user: process.env.PG_USER,
-  password: process.env.PG_PASSWORD,
-  database: process.env.PG_DBNAME,
-});
 
 router.post("/", async (req, res) => {
   const username = String(req.body?.username || "").trim();
