@@ -174,9 +174,18 @@
     </main>
 
     <footer class="home-footer">
-      <a href="https://instagram.com" target="_blank" rel="noreferrer">Instagram</a>
-      <a href="https://t.me/aaron_uz" target="_blank" rel="noreferrer">Telegram</a>
-      <a href="tel:+998954550033">Call Center</a>
+      <a class="footer-link" href="https://www.instagram.com/aaron_uzb?igsh=MWxod2Q1eDV6NGowZw==" target="_blank" rel="noreferrer">
+        <img src="/icon/instagram.svg" alt="" aria-hidden="true" class="footer-link-icon" />
+        <span>Instagram</span>
+      </a>
+      <a class="footer-link" href="https://t.me/aaron_uz" target="_blank" rel="noreferrer">
+        <img src="/icon/telegram.svg" alt="" aria-hidden="true" class="footer-link-icon" />
+        <span>Telegram</span>
+      </a>
+      <a class="footer-link" href="tel:+998954550033">
+        <img src="/icon/call-center.svg" alt="" aria-hidden="true" class="footer-link-icon" />
+        <span>Call Center</span>
+      </a>
     </footer>
   </div>
 
@@ -215,7 +224,7 @@
 
       <div class="field">
         <label for="allUsersEditEmail">Email</label>
-        <input id="allUsersEditEmail" name="email" type="email" autocomplete="email" />
+        <input id="allUsersEditEmail" name="email" type="email" autocomplete="email" placeholder="user@gmail.com" />
         <small id="allUsersEditEmailError" class="field-error"></small>
       </div>
 
@@ -233,19 +242,32 @@
 
       <div class="field">
         <label for="allUsersEditPhone">Phone</label>
-        <input id="allUsersEditPhone" name="phone" type="tel" autocomplete="tel" />
+        <input id="allUsersEditPhone" name="phone" type="tel" autocomplete="tel" placeholder="+998954550033" />
         <small id="allUsersEditPhoneError" class="field-error"></small>
       </div>
 
       <div class="field">
         <label for="allUsersEditPosition">Position</label>
-        <input id="allUsersEditPosition" name="position" type="text" autocomplete="organization-title" />
+        <input id="allUsersEditPosition" name="position" type="text" autocomplete="organization-title" placeholder="ABA Therapist" />
         <small id="allUsersEditPositionError" class="field-error"></small>
       </div>
 
       <div class="field">
         <label for="allUsersEditRole">Role</label>
-        <input id="allUsersEditRole" name="role" type="text" autocomplete="off" required />
+        <div id="allUsersEditRoleSelect" class="custom-select">
+          <button id="allUsersEditRoleSelectTrigger" type="button" class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false">
+            <span id="allUsersEditRoleSelectLabel">Select role</span>
+          </button>
+          <div id="allUsersEditRoleSelectMenu" class="custom-select-menu" role="listbox" hidden>
+            <button type="button" class="custom-select-option" data-value="admin">Admin</button>
+            <button type="button" class="custom-select-option" data-value="tutor">Tutor</button>
+            <button type="button" class="custom-select-option" data-value="educator">Educator</button>
+            <button type="button" class="custom-select-option" data-value="specialist">Specialist</button>
+            <button type="button" class="custom-select-option" data-value="manager">Manager</button>
+            <button type="button" class="custom-select-option" data-value="finance">Finance</button>
+          </div>
+          <input id="allUsersEditRole" name="role" type="hidden" value="" />
+        </div>
         <small id="allUsersEditRoleError" class="field-error"></small>
       </div>
 

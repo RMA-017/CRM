@@ -53,7 +53,6 @@ router.post("/", async (req, res) => {
 
   if (!user) {
     return res.status(401).json({
-      field: "password",
       message: "Invalid username or password."
     });
   }
@@ -63,7 +62,7 @@ router.post("/", async (req, res) => {
   if (!isPasswordValid) {
     return res.status(401).json({
       field: "password",
-      message: "Invalid username or password."
+      message: "Password is incorrect."
     });
   }
 

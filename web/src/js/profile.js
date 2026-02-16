@@ -41,6 +41,10 @@ const allUsersEditOverlay = document.getElementById("allUsersEditOverlay");
 const allUsersEditForm = document.getElementById("allUsersEditForm");
 const allUsersEditSaveBtn = document.getElementById("allUsersEditSaveBtn");
 const allUsersEditCancelBtn = document.getElementById("allUsersEditCancelBtn");
+const allUsersEditRoleSelect = document.getElementById("allUsersEditRoleSelect");
+const allUsersEditRoleSelectTrigger = document.getElementById("allUsersEditRoleSelectTrigger");
+const allUsersEditRoleSelectMenu = document.getElementById("allUsersEditRoleSelectMenu");
+const allUsersEditRoleSelectLabel = document.getElementById("allUsersEditRoleSelectLabel");
 const allUsersDeleteModal = document.getElementById("allUsersDeleteModal");
 const allUsersDeleteOverlay = document.getElementById("allUsersDeleteOverlay");
 const allUsersDeleteYesBtn = document.getElementById("allUsersDeleteYesBtn");
@@ -54,7 +58,8 @@ const roleSelect = document.getElementById("roleSelect");
 const roleSelectTrigger = document.getElementById("roleSelectTrigger");
 const roleSelectMenu = document.getElementById("roleSelectMenu");
 const roleSelectLabel = document.getElementById("roleSelectLabel");
-const roleSelectOptions = Array.from(document.querySelectorAll(".custom-select-option"));
+const roleSelectOptions = Array.from(roleSelect?.querySelectorAll(".custom-select-option") || []);
+const allUsersEditRoleOptions = Array.from(allUsersEditRoleSelect?.querySelectorAll(".custom-select-option") || []);
 const profileEditButtons = Array.from(document.querySelectorAll(".profile-edit-btn"));
 const profileEditModal = document.getElementById("profileEditModal");
 const profileEditOverlay = document.getElementById("profileEditOverlay");
@@ -474,6 +479,9 @@ function clearAllUsersEditErrors() {
     const input = allUsersEditForm?.elements?.[field];
     const errorNode = document.getElementById(`allUsersEdit${field.charAt(0).toUpperCase() + field.slice(1)}Error`);
     input?.classList.remove("input-error");
+    if (field === "role") {
+      allUsersEditRoleSelectTrigger?.classList.remove("input-error");
+    }
     if (errorNode) {
       errorNode.textContent = "";
     }
@@ -484,16 +492,68 @@ function setAllUsersEditError(field, message) {
   const input = allUsersEditForm?.elements?.[field];
   const errorNode = document.getElementById(`allUsersEdit${field.charAt(0).toUpperCase() + field.slice(1)}Error`);
   input?.classList.add("input-error");
+  if (field === "role") {
+    allUsersEditRoleSelectTrigger?.classList.add("input-error");
+  }
   if (errorNode) {
     errorNode.textContent = message;
   }
 }
 
+function closeAllUsersEditRoleSelect() {
+  if (!allUsersEditRoleSelectMenu || !allUsersEditRoleSelectTrigger || !allUsersEditRoleSelect) {
+    return;
+  }
+  allUsersEditRoleSelectMenu.hidden = true;
+  allUsersEditRoleSelectTrigger.setAttribute("aria-expanded", "false");
+  allUsersEditRoleSelect.classList.remove("open-up");
+  allUsersEditRoleSelectMenu.style.maxHeight = "";
+}
+
+function openAllUsersEditRoleSelect() {
+  if (!allUsersEditRoleSelectMenu || !allUsersEditRoleSelectTrigger || !allUsersEditRoleSelect) {
+    return;
+  }
+
+  allUsersEditRoleSelect.classList.remove("open-up");
+  allUsersEditRoleSelectMenu.hidden = false;
+  allUsersEditRoleSelectTrigger.setAttribute("aria-expanded", "true");
+
+  const triggerRect = allUsersEditRoleSelectTrigger.getBoundingClientRect();
+  const spaceBelow = window.innerHeight - triggerRect.bottom - 12;
+  const spaceAbove = triggerRect.top - 12;
+  const desiredMenuHeight = 184;
+  const shouldOpenUp = spaceBelow < desiredMenuHeight && spaceAbove > spaceBelow;
+
+  if (shouldOpenUp) {
+    allUsersEditRoleSelect.classList.add("open-up");
+  }
+
+  const availableSpace = shouldOpenUp ? spaceAbove : spaceBelow;
+  const menuMaxHeight = Math.max(120, Math.min(desiredMenuHeight, availableSpace - 8));
+  allUsersEditRoleSelectMenu.style.maxHeight = `${menuMaxHeight}px`;
+}
+
+function syncAllUsersEditRoleSelectUI() {
+  if (!allUsersEditRoleSelectLabel) {
+    return;
+  }
+  const value = String(allUsersEditForm?.elements?.role?.value || "");
+  const selectedOption = allUsersEditRoleOptions.find((option) => option.dataset.value === value);
+  allUsersEditRoleSelectLabel.textContent = selectedOption ? selectedOption.textContent : "Select role";
+
+  allUsersEditRoleOptions.forEach((option) => {
+    option.setAttribute("aria-selected", String(option.dataset.value === value));
+  });
+}
+
 function closeAllUsersEditModal() {
   allUsersEditModal.hidden = true;
   allUsersEditOverlay.hidden = true;
+  closeAllUsersEditRoleSelect();
   clearAllUsersEditErrors();
   allUsersEditForm?.reset();
+  syncAllUsersEditRoleSelectUI();
   activeAllUsersEditId = "";
 }
 
@@ -531,6 +591,7 @@ function openAllUsersEditModal(userId) {
   allUsersEditForm.elements.position.value = user.position || "";
   allUsersEditForm.elements.role.value = user.role || "";
   allUsersEditForm.elements.password.value = "";
+  syncAllUsersEditRoleSelectUI();
 
   allUsersEditModal.hidden = false;
   allUsersEditOverlay.hidden = false;
@@ -822,6 +883,34 @@ roleSelectOptions.forEach((option) => {
   });
 });
 
+allUsersEditRoleSelectTrigger?.addEventListener("click", () => {
+  if (allUsersEditRoleSelectMenu.hidden) {
+    openAllUsersEditRoleSelect();
+    return;
+  }
+  closeAllUsersEditRoleSelect();
+});
+
+allUsersEditRoleOptions.forEach((option) => {
+  option.addEventListener("click", () => {
+    const value = String(option.dataset.value || "");
+    const roleInput = allUsersEditForm?.elements?.role;
+    if (!roleInput || !value) {
+      return;
+    }
+
+    roleInput.value = value;
+    roleInput.classList.remove("input-error");
+    allUsersEditRoleSelectTrigger?.classList.remove("input-error");
+    const roleError = document.getElementById("allUsersEditRoleError");
+    if (roleError) {
+      roleError.textContent = "";
+    }
+    syncAllUsersEditRoleSelectUI();
+    closeAllUsersEditRoleSelect();
+  });
+});
+
 adminCreateForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
 
@@ -1055,6 +1144,9 @@ document.addEventListener("click", (event) => {
   if (roleSelectMenu && !roleSelectMenu.hidden && !event.target.closest("#roleSelect")) {
     closeRoleSelect();
   }
+  if (allUsersEditRoleSelectMenu && !allUsersEditRoleSelectMenu.hidden && !event.target.closest("#allUsersEditRoleSelect")) {
+    closeAllUsersEditRoleSelect();
+  }
 });
 
 window.addEventListener("keydown", (event) => {
@@ -1080,6 +1172,7 @@ window.addEventListener("keydown", (event) => {
       closeCreateUserPanel();
     }
     closeRoleSelect();
+    closeAllUsersEditRoleSelect();
   }
 });
 
@@ -1107,6 +1200,7 @@ window.addEventListener("drop", (event) => {
 async function initProfilePage() {
   await loadProfile();
   syncRoleSelectUI();
+  syncAllUsersEditRoleSelectUI();
   setMainView("none");
 }
 

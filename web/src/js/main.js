@@ -129,6 +129,7 @@ homeLoginForm?.addEventListener("submit", async (event) => {
       if (data?.field === "username" || data?.field === "password") {
         setError(data.field, data.message || "Invalid value.");
       } else {
+        setError("username", "Username is incorrect.");
         setError("password", data?.message || "Invalid username or password.");
       }
       return;
