@@ -5,66 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/crm.svg" />
     <title>Aaron Academy</title>
-    <link rel="stylesheet" href="/src/css/style.css" />
   </head>
   <body>
-    <div class="home-layout">
-      <header class="home-header">
-        <div class="brand-wrap">
-          <a class="brand" href="/" aria-label="AARON CRM home">
-            <img src="/crm.svg" alt="AARON CRM logo" class="brand-logo" />
-            <span class="brand-text">AARON</span>
-          </a>
-        </div>
-
-        <nav class="header-actions" aria-label="Header actions">
-          <button id="openLoginBtn" type="button" class="header-btn profile-link">Login</button>
-          <button id="openProfileBtn" type="button" class="header-btn profile-link" hidden>My Profile</button>
-        </nav>
-      </header>
-
-      <main class="home-main" aria-label="Main content"></main>
-
-      <footer class="home-footer">
-        <a class="footer-link" href="https://www.instagram.com/aaron_uzb?igsh=MWxod2Q1eDV6NGowZw==" target="_blank" rel="noreferrer">
-          <img src="/icon/instagram.svg" alt="" aria-hidden="true" class="footer-link-icon" />
-          <span>Instagram</span>
-        </a>
-        <a class="footer-link" href="https://t.me/aaron_uz" target="_blank" rel="noreferrer">
-          <img src="/icon/telegram.svg" alt="" aria-hidden="true" class="footer-link-icon" />
-          <span>Telegram</span>
-        </a>
-        <a class="footer-link" href="tel:+998954550033">
-          <img src="/icon/call-center.svg" alt="" aria-hidden="true" class="footer-link-icon" />
-          <span>Call Center</span>
-        </a>
-      </footer>
-    </div>
-
-    <section id="homeLoginPanel" class="home-login-panel" hidden>
-      <div class="home-login-head">
-        <h2>Welcome Back</h2>
-      </div>
-
-      <form id="homeLoginForm" class="home-login-form" novalidate>
-        <div class="field">
-          <label for="homeUsername">Username</label>
-          <input id="homeUsername" name="username" type="text" placeholder="Username" autocomplete="username" required />
-          <small class="field-error" id="homeUsernameError"></small>
-        </div>
-
-        <div class="field">
-          <label for="homePassword">Password</label>
-          <input id="homePassword" name="password" type="password" placeholder="Password" autocomplete="current-password" required />
-          <small class="field-error" id="homePasswordError"></small>
-        </div>
-
-        <button id="homeLoginSubmit" class="btn" type="submit">Login</button>
-      </form>
-    </section>
-
-    <div id="loginOverlay" class="login-overlay" hidden></div>
-
-    <script src="/src/js/main.js"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

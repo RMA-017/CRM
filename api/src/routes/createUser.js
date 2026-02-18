@@ -12,7 +12,8 @@ const ALLOWED_ROLES = new Set([
   "educator",
   "specialist",
   "manager",
-  "finance"
+  "finance",
+  "director"
 ]);
 const DEFAULT_CREATED_USER_PASSWORD = process.env.DEFAULT_CREATED_USER_PASSWORD || "aaron2021";
 

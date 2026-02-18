@@ -269,7 +269,7 @@ router.patch("/users/:id", async (req, res) => {
     const role = String(req.body?.role || "").trim().toLowerCase();
     const password = String(req.body?.password || "");
 
-    const allowedRoles = new Set(["admin", "tutor", "educator", "specialist", "manager", "finance"]);
+    const allowedRoles = new Set(["admin", "director", "tutor", "educator", "specialist", "manager", "finance"]);
     const usernameRegex = /^[a-zA-Z0-9._-]{3,30}$/;
 
     const errors = {};
