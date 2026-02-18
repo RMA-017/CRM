@@ -6,10 +6,10 @@
   --text-muted: #6b7280;
   --line: #d7e0ec;
   --brand: #0f766e;
-  --brand-2: #14b8a6;
+  --brand-2: #408AF3;
   --brand-gradient: linear-gradient(110deg, var(--brand), var(--brand-2));
   --on-brand: #ffffff;
-  --accent-border-hover: rgba(17, 229, 200, 0.55);
+  --accent-border-hover: #408AF3;
   --danger: #dc2626;
   --success: #059669;
   --shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
