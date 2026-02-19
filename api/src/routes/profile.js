@@ -1,105 +1,115 @@
-import { Router } from "express";
 import jwt from "jsonwebtoken";
-import bcrypt from "bcrypt";
+import argon2 from "argon2";
 import pool from "../config/db.js";
 
-const router = Router();
-
-function getTokenPayload(req, res) {
-    const token = req.cookies?.crm_access_token;
-    if (!token) {
-        res.status(401).json({ message: "Unauthorized" });
-        return null;
-    }
-
-    try {
-        return jwt.verify(token, process.env.JWT_SECRET);
-    } catch {
-        res.status(401).json({ message: "Invalid or expired token." });
-        return null;
-    }
+function setNoCacheHeaders(reply) {
+  reply.header("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  reply.header("Pragma", "no-cache");
+  reply.header("Expires", "0");
 }
 
-router.get("/", (req, res) => {
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-    res.setHeader("Pragma", "no-cache");
-    res.setHeader("Expires", "0");
+function getTokenPayload(request, reply) {
+  const token = request.cookies?.crm_access_token;
+  if (!token) {
+    reply.status(401).send({ message: "Unauthorized" });
+    return null;
+  }
 
-    const payload = getTokenPayload(req, res);
-    if (!payload) {
+  try {
+    return jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    reply.status(401).send({ message: "Invalid or expired token." });
+    return null;
+  }
+}
+
+async function profileRoutes(fastify) {
+  fastify.get(
+    "/",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+
+      const payload = getTokenPayload(request, reply);
+      if (!payload) {
         return;
-    }
+      }
 
-    const username = String(payload?.username || "").trim();
-    if (!username) {
-        return res.status(401).json({ message: "Unauthorized" });
-    }
+      const username = String(payload?.username || "").trim();
+      if (!username) {
+        return reply.status(401).send({ message: "Unauthorized" });
+      }
 
-    pool.query(
-        "SELECT username, email, full_name, birthday, role, phone_number, position FROM users WHERE username = $1",
-        [username]
-    )
-        .then(({ rows }) => {
-            const user = rows[0];
-            if (!user) {
-                res.clearCookie("crm_access_token", {
-                    httpOnly: true,
-                    path: "/",
-                    sameSite: "lax",
-                    secure: false
-                });
-                return res.status(401).json({ message: "Unauthorized" });
-            }
+      try {
+        const { rows } = await pool.query(
+          "SELECT username, email, full_name, birthday, role, phone_number, position FROM users WHERE username = $1",
+          [username]
+        );
+        const user = rows[0];
+        if (!user) {
+          reply.clearCookie("crm_access_token", {
+            httpOnly: true,
+            path: "/",
+            sameSite: "lax",
+            secure: false
+          });
+          return reply.status(401).send({ message: "Unauthorized" });
+        }
 
-            return res.json({
-                username: user.username,
-                email: user.email,
-                fullName: user.full_name,
-                birthday: user.birthday,
-                role: user.role,
-                phone: user.phone_number,
-                position: user.position
-            });
-        })
-        .catch((error) => {
-            console.error("Error fetching profile:", error);
-            return res.status(500).json({ message: "Internal server error." });
+        return reply.send({
+          username: user.username,
+          email: user.email,
+          fullName: user.full_name,
+          birthday: user.birthday,
+          role: user.role,
+          phone: user.phone_number,
+          position: user.position
         });
-});
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
 
-router.get("/all", async (req, res) => {
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-    res.setHeader("Pragma", "no-cache");
-    res.setHeader("Expires", "0");
+  fastify.get(
+    "/all",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
 
-    const payload = getTokenPayload(req, res);
-    if (!payload) {
+      const payload = getTokenPayload(request, reply);
+      if (!payload) {
         return;
-    }
+      }
 
-    const username = String(payload?.username || "").trim();
-    if (!username) {
-        return res.status(401).json({ message: "Unauthorized" });
-    }
+      const username = String(payload?.username || "").trim();
+      if (!username) {
+        return reply.status(401).send({ message: "Unauthorized" });
+      }
 
-    const pageParam = Number.parseInt(String(req.query?.page || ""), 10);
-    const limitParam = Number.parseInt(String(req.query?.limit || ""), 10);
-    const page = Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1;
-    const limit = Number.isInteger(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 20;
+      const pageParam = Number.parseInt(String(request.query?.page || ""), 10);
+      const limitParam = Number.parseInt(String(request.query?.limit || ""), 10);
+      const page = Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1;
+      const limit = Number.isInteger(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 20;
 
-    try {
+      try {
         const requester = await pool.query(
-            "SELECT role FROM users WHERE username = $1",
-            [username]
+          "SELECT role FROM users WHERE username = $1",
+          [username]
         );
 
         if (!requester.rows[0]) {
-            return res.status(401).json({ message: "Unauthorized" });
+          return reply.status(401).send({ message: "Unauthorized" });
         }
 
         const requesterRole = String(requester.rows[0].role || "").toLowerCase();
         if (requesterRole !== "admin") {
-            return res.status(403).json({ message: "Forbidden" });
+          return reply.status(403).send({ message: "Forbidden" });
         }
 
         const totalResult = await pool.query("SELECT COUNT(*)::int AS total FROM users");
@@ -109,11 +119,252 @@ router.get("/all", async (req, res) => {
         const offset = (safePage - 1) * limit;
 
         const { rows } = await pool.query(
-            "SELECT id::text AS id, username, email, full_name, birthday, phone_number, position, role, created_at FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2",
-            [limit, offset]
+          "SELECT id::text AS id, username, email, full_name, birthday, phone_number, position, role, created_at FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+          [limit, offset]
         );
 
         const users = rows.map((user) => ({
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          fullName: user.full_name,
+          birthday: user.birthday,
+          role: user.role,
+          phone: user.phone_number,
+          position: user.position,
+          createdAt: user.created_at
+        }));
+
+        return reply.send({
+          users,
+          pagination: {
+            page: safePage,
+            limit,
+            total,
+            totalPages,
+            hasPrev: safePage > 1,
+            hasNext: safePage < totalPages
+          }
+        });
+      } catch (error) {
+        console.error("Error fetching all users:", error);
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.patch(
+    "/",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      const payload = getTokenPayload(request, reply);
+      if (!payload) {
+        return;
+      }
+
+      const username = String(payload?.username || "").trim();
+      if (!username) {
+        return reply.status(401).send({ message: "Unauthorized" });
+      }
+
+      const field = String(request.body?.field || "").trim();
+      const rawValue = request.body?.value;
+
+      const allowedFields = new Set(["email", "fullName", "birthday", "password", "phone", "position"]);
+      if (!allowedFields.has(field)) {
+        return reply.status(400).send({ message: "Invalid field." });
+      }
+
+      let sql = "";
+      let values = [];
+
+      if (field === "password") {
+        const password = String(rawValue || "");
+        if (password.length < 6) {
+          return reply.status(400).send({ field: "password", message: "Password must be at least 6 characters." });
+        }
+
+        const passwordHash = await argon2.hash(password);
+        sql = "UPDATE users SET password_hash = $1 WHERE username = $2";
+        values = [passwordHash, username];
+      } else if (field === "email") {
+        const email = String(rawValue || "").trim();
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          return reply.status(400).send({ field: "email", message: "Invalid email format." });
+        }
+        sql = "UPDATE users SET email = $1 WHERE username = $2";
+        values = [email || null, username];
+      } else if (field === "fullName") {
+        const fullName = String(rawValue || "").trim();
+        if (!fullName) {
+          return reply.status(400).send({ field: "fullName", message: "Full name is required." });
+        }
+        sql = "UPDATE users SET full_name = $1 WHERE username = $2";
+        values = [fullName, username];
+      } else if (field === "birthday") {
+        const birthday = String(rawValue || "").trim();
+        if (birthday && !/^\d{4}-\d{2}-\d{2}$/.test(birthday)) {
+          return reply.status(400).send({ field: "birthday", message: "Invalid birthday format." });
+        }
+        sql = "UPDATE users SET birthday = $1 WHERE username = $2";
+        values = [birthday || null, username];
+      } else if (field === "phone") {
+        const phone = String(rawValue || "").trim();
+        if (phone && !/^\+?[0-9]{7,15}$/.test(phone)) {
+          return reply.status(400).send({ field: "phone", message: "Invalid phone number." });
+        }
+        sql = "UPDATE users SET phone_number = $1 WHERE username = $2";
+        values = [phone || null, username];
+      } else if (field === "position") {
+        const position = String(rawValue || "").trim();
+        sql = "UPDATE users SET position = $1 WHERE username = $2";
+        values = [position || null, username];
+      }
+
+      try {
+        const updateResult = await pool.query(sql, values);
+        if (updateResult.rowCount === 0) {
+          return reply.status(404).send({ message: "User not found." });
+        }
+
+        const { rows } = await pool.query(
+          "SELECT username, email, full_name, birthday, role, phone_number, position FROM users WHERE username = $1",
+          [username]
+        );
+
+        const user = rows[0];
+        if (!user) {
+          return reply.status(404).send({ message: "User not found." });
+        }
+
+        return reply.send({
+          message: "Profile updated.",
+          profile: {
+            username: user.username,
+            email: user.email,
+            fullName: user.full_name,
+            birthday: user.birthday,
+            role: user.role,
+            phone: user.phone_number,
+            position: user.position
+          }
+        });
+      } catch (error) {
+        if (error?.code === "23505" && field === "email") {
+          return reply.status(409).send({ field: "email", message: "Email already exists." });
+        }
+        console.error("Error updating profile:", error);
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.patch(
+    "/users/:id",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      const payload = getTokenPayload(request, reply);
+      if (!payload) {
+        return;
+      }
+
+      const requesterUsername = String(payload?.username || "").trim();
+      if (!requesterUsername) {
+        return reply.status(401).send({ message: "Unauthorized" });
+      }
+
+      const userId = Number(request.params?.id);
+      if (!Number.isInteger(userId) || userId <= 0) {
+        return reply.status(400).send({ message: "Invalid user id." });
+      }
+
+      const username = String(request.body?.username || "").trim();
+      const email = String(request.body?.email || "").trim();
+      const fullName = String(request.body?.fullName || "").trim();
+      const birthday = String(request.body?.birthday || "").trim();
+      const phone = String(request.body?.phone || "").trim();
+      const position = String(request.body?.position || "").trim();
+      const role = String(request.body?.role || "").trim().toLowerCase();
+      const password = String(request.body?.password || "");
+
+      const allowedRoles = new Set(["admin", "director", "tutor", "educator", "specialist", "manager", "finance"]);
+      const usernameRegex = /^[a-zA-Z0-9._-]{3,30}$/;
+
+      const errors = {};
+      if (!usernameRegex.test(username)) {
+        errors.username = "Username must be 3-30 chars and contain letters, numbers, ., _, -";
+      }
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        errors.email = "Invalid email format.";
+      }
+      if (!fullName) {
+        errors.fullName = "Full name is required.";
+      }
+      if (birthday && !/^\d{4}-\d{2}-\d{2}$/.test(birthday)) {
+        errors.birthday = "Invalid birthday format.";
+      }
+      if (phone && !/^\+?[0-9]{7,15}$/.test(phone)) {
+        errors.phone = "Invalid phone number.";
+      }
+      if (!allowedRoles.has(role)) {
+        errors.role = "Invalid role.";
+      }
+      if (password && password.length < 6) {
+        errors.password = "Password must be at least 6 characters.";
+      }
+
+      if (Object.keys(errors).length > 0) {
+        return reply.status(400).send({ errors });
+      }
+
+      let client = null;
+      try {
+        client = await pool.connect();
+
+        const requesterResult = await client.query(
+          "SELECT role FROM users WHERE username = $1",
+          [requesterUsername]
+        );
+        const requester = requesterResult.rows[0];
+        if (!requester || String(requester.role || "").toLowerCase() !== "admin") {
+          return reply.status(403).send({ message: "Only admin can edit users." });
+        }
+
+        await client.query("BEGIN");
+
+        await client.query(
+          "UPDATE users SET username = $1, email = $2, full_name = $3, birthday = $4, phone_number = $5, position = $6, role = $7 WHERE id = $8",
+          [username, email || null, fullName, birthday || null, phone || null, position || null, role, userId]
+        );
+
+        if (password) {
+          const passwordHash = await argon2.hash(password);
+          await client.query(
+            "UPDATE users SET password_hash = $1 WHERE id = $2",
+            [passwordHash, userId]
+          );
+        }
+
+        const { rows } = await client.query(
+          "SELECT id::text AS id, username, email, full_name, birthday, role, phone_number, position, created_at FROM users WHERE id = $1",
+          [userId]
+        );
+
+        const user = rows[0];
+        if (!user) {
+          await client.query("ROLLBACK");
+          return reply.status(404).send({ message: "User not found." });
+        }
+
+        await client.query("COMMIT");
+
+        return reply.send({
+          message: "User updated successfully.",
+          user: {
             id: user.id,
             username: user.username,
             email: user.email,
@@ -123,294 +374,72 @@ router.get("/all", async (req, res) => {
             phone: user.phone_number,
             position: user.position,
             createdAt: user.created_at
-        }));
-
-        return res.json({
-            users,
-            pagination: {
-                page: safePage,
-                limit,
-                total,
-                totalPages,
-                hasPrev: safePage > 1,
-                hasNext: safePage < totalPages
-            }
+          }
         });
-    } catch (error) {
-        console.error("Error fetching all users:", error);
-        return res.status(500).json({ message: "Internal server error." });
-    }
-});
-
-router.patch("/", async (req, res) => {
-    const payload = getTokenPayload(req, res);
-    if (!payload) {
-        return;
-    }
-
-    const username = String(payload?.username || "").trim();
-    if (!username) {
-        return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const field = String(req.body?.field || "").trim();
-    const rawValue = req.body?.value;
-
-    const allowedFields = new Set(["email", "fullName", "birthday", "password", "phone", "position"]);
-    if (!allowedFields.has(field)) {
-        return res.status(400).json({ message: "Invalid field." });
-    }
-
-    let sql = "";
-    let values = [];
-
-    if (field === "password") {
-        const password = String(rawValue || "");
-        if (password.length < 6) {
-            return res.status(400).json({ field: "password", message: "Password must be at least 6 characters." });
-        }
-
-        const passwordHash = await bcrypt.hash(password, 10);
-        sql = "UPDATE users SET password_hash = $1 WHERE username = $2";
-        values = [passwordHash, username];
-    } else if (field === "email") {
-        const email = String(rawValue || "").trim();
-        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-            return res.status(400).json({ field: "email", message: "Invalid email format." });
-        }
-        sql = "UPDATE users SET email = $1 WHERE username = $2";
-        values = [email || null, username];
-    } else if (field === "fullName") {
-        const fullName = String(rawValue || "").trim();
-        if (!fullName) {
-            return res.status(400).json({ field: "fullName", message: "Full name is required." });
-        }
-        sql = "UPDATE users SET full_name = $1 WHERE username = $2";
-        values = [fullName, username];
-    } else if (field === "birthday") {
-        const birthday = String(rawValue || "").trim();
-        if (birthday && !/^\d{4}-\d{2}-\d{2}$/.test(birthday)) {
-            return res.status(400).json({ field: "birthday", message: "Invalid birthday format." });
-        }
-        sql = "UPDATE users SET birthday = $1 WHERE username = $2";
-        values = [birthday || null, username];
-    } else if (field === "phone") {
-        const phone = String(rawValue || "").trim();
-        if (phone && !/^\+?[0-9]{7,15}$/.test(phone)) {
-            return res.status(400).json({ field: "phone", message: "Invalid phone number." });
-        }
-        sql = "UPDATE users SET phone_number = $1 WHERE username = $2";
-        values = [phone || null, username];
-    } else if (field === "position") {
-        const position = String(rawValue || "").trim();
-        sql = "UPDATE users SET position = $1 WHERE username = $2";
-        values = [position || null, username];
-    }
-
-    try {
-        const updateResult = await pool.query(sql, values);
-        if (updateResult.rowCount === 0) {
-            return res.status(404).json({ message: "User not found." });
-        }
-
-        const { rows } = await pool.query(
-            "SELECT username, email, full_name, birthday, role, phone_number, position FROM users WHERE username = $1",
-            [username]
-        );
-
-        const user = rows[0];
-        if (!user) {
-            return res.status(404).json({ message: "User not found." });
-        }
-
-        return res.json({
-            message: "Profile updated.",
-            profile: {
-                username: user.username,
-                email: user.email,
-                fullName: user.full_name,
-                birthday: user.birthday,
-                role: user.role,
-                phone: user.phone_number,
-                position: user.position
-            }
-        });
-    } catch (error) {
-        if (error?.code === "23505" && field === "email") {
-            return res.status(409).json({ field: "email", message: "Email already exists." });
-        }
-        console.error("Error updating profile:", error);
-        return res.status(500).json({ message: "Internal server error." });
-    }
-});
-
-router.patch("/users/:id", async (req, res) => {
-    const payload = getTokenPayload(req, res);
-    if (!payload) {
-        return;
-    }
-
-    const requesterUsername = String(payload?.username || "").trim();
-    if (!requesterUsername) {
-        return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const userId = Number(req.params?.id);
-    if (!Number.isInteger(userId) || userId <= 0) {
-        return res.status(400).json({ message: "Invalid user id." });
-    }
-
-    const username = String(req.body?.username || "").trim();
-    const email = String(req.body?.email || "").trim();
-    const fullName = String(req.body?.fullName || "").trim();
-    const birthday = String(req.body?.birthday || "").trim();
-    const phone = String(req.body?.phone || "").trim();
-    const position = String(req.body?.position || "").trim();
-    const role = String(req.body?.role || "").trim().toLowerCase();
-    const password = String(req.body?.password || "");
-
-    const allowedRoles = new Set(["admin", "director", "tutor", "educator", "specialist", "manager", "finance"]);
-    const usernameRegex = /^[a-zA-Z0-9._-]{3,30}$/;
-
-    const errors = {};
-    if (!usernameRegex.test(username)) {
-        errors.username = "Username must be 3-30 chars and contain letters, numbers, ., _, -";
-    }
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        errors.email = "Invalid email format.";
-    }
-    if (!fullName) {
-        errors.fullName = "Full name is required.";
-    }
-    if (birthday && !/^\d{4}-\d{2}-\d{2}$/.test(birthday)) {
-        errors.birthday = "Invalid birthday format.";
-    }
-    if (phone && !/^\+?[0-9]{7,15}$/.test(phone)) {
-        errors.phone = "Invalid phone number.";
-    }
-    if (!allowedRoles.has(role)) {
-        errors.role = "Invalid role.";
-    }
-    if (password && password.length < 6) {
-        errors.password = "Password must be at least 6 characters.";
-    }
-
-    if (Object.keys(errors).length > 0) {
-        return res.status(400).json({ errors });
-    }
-
-    let client = null;
-    try {
-        client = await pool.connect();
-
-        const requesterResult = await client.query(
-            "SELECT role FROM users WHERE username = $1",
-            [requesterUsername]
-        );
-        const requester = requesterResult.rows[0];
-        if (!requester || String(requester.role || "").toLowerCase() !== "admin") {
-            return res.status(403).json({ message: "Only admin can edit users." });
-        }
-
-        await client.query("BEGIN");
-
-        await client.query(
-            "UPDATE users SET username = $1, email = $2, full_name = $3, birthday = $4, phone_number = $5, position = $6, role = $7 WHERE id = $8",
-            [username, email || null, fullName, birthday || null, phone || null, position || null, role, userId]
-        );
-
-        if (password) {
-            const passwordHash = await bcrypt.hash(password, 10);
-            await client.query(
-                "UPDATE users SET password_hash = $1 WHERE id = $2",
-                [passwordHash, userId]
-            );
-        }
-
-        const { rows } = await client.query(
-            "SELECT id::text AS id, username, email, full_name, birthday, role, phone_number, position, created_at FROM users WHERE id = $1",
-            [userId]
-        );
-
-        const user = rows[0];
-        if (!user) {
-            await client.query("ROLLBACK");
-            return res.status(404).json({ message: "User not found." });
-        }
-
-        await client.query("COMMIT");
-
-        return res.json({
-            message: "User updated successfully.",
-            user: {
-                id: user.id,
-                username: user.username,
-                email: user.email,
-                fullName: user.full_name,
-                birthday: user.birthday,
-                role: user.role,
-                phone: user.phone_number,
-                position: user.position,
-                createdAt: user.created_at
-            }
-        });
-    } catch (error) {
+      } catch (error) {
         if (client) {
-            await client.query("ROLLBACK").catch(() => {});
+          await client.query("ROLLBACK").catch(() => {});
         }
         if (error?.code === "23505") {
-            return res.status(409).json({ message: "Username or email already exists." });
+          return reply.status(409).send({ message: "Username or email already exists." });
         }
         console.error("Error updating user:", error);
-        return res.status(500).json({ message: "Internal server error." });
-    } finally {
+        return reply.status(500).send({ message: "Internal server error." });
+      } finally {
         if (client) {
-            client.release();
+          client.release();
         }
+      }
     }
-});
+  );
 
-router.delete("/users/:id", async (req, res) => {
-    const payload = getTokenPayload(req, res);
-    if (!payload) {
+  fastify.delete(
+    "/users/:id",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      const payload = getTokenPayload(request, reply);
+      if (!payload) {
         return;
-    }
+      }
 
-    const requesterUsername = String(payload?.username || "").trim();
-    if (!requesterUsername) {
-        return res.status(401).json({ message: "Unauthorized" });
-    }
+      const requesterUsername = String(payload?.username || "").trim();
+      if (!requesterUsername) {
+        return reply.status(401).send({ message: "Unauthorized" });
+      }
 
-    const userId = Number(req.params?.id);
-    if (!Number.isInteger(userId) || userId <= 0) {
-        return res.status(400).json({ message: "Invalid user id." });
-    }
+      const userId = Number(request.params?.id);
+      if (!Number.isInteger(userId) || userId <= 0) {
+        return reply.status(400).send({ message: "Invalid user id." });
+      }
 
-    try {
+      try {
         const requesterResult = await pool.query(
-            "SELECT id, role FROM users WHERE username = $1",
-            [requesterUsername]
+          "SELECT id, role FROM users WHERE username = $1",
+          [requesterUsername]
         );
         const requester = requesterResult.rows[0];
         if (!requester || String(requester.role || "").toLowerCase() !== "admin") {
-            return res.status(403).json({ message: "Only admin can delete users." });
+          return reply.status(403).send({ message: "Only admin can delete users." });
         }
 
-        // Avoid deleting currently logged-in admin account by mistake.
         if (Number(requester.id) === userId) {
-            return res.status(400).json({ message: "You cannot delete your own account." });
+          return reply.status(400).send({ message: "You cannot delete your own account." });
         }
 
         const deleteResult = await pool.query("DELETE FROM users WHERE id = $1", [userId]);
         if (deleteResult.rowCount === 0) {
-            return res.status(404).json({ message: "User not found." });
+          return reply.status(404).send({ message: "User not found." });
         }
 
-        return res.json({ message: "User deleted successfully." });
-    } catch (error) {
+        return reply.send({ message: "User deleted successfully." });
+      } catch (error) {
         console.error("Error deleting user:", error);
-        return res.status(500).json({ message: "Internal server error." });
+        return reply.status(500).send({ message: "Internal server error." });
+      }
     }
-});
+  );
+}
 
-export default router;
+export default profileRoutes;

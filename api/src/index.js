@@ -1,67 +1,76 @@
-import express from "express";
-import cors from "cors";
-import cookieParser from "cookie-parser";
-import helmet from "helmet";
-import rateLimit from "express-rate-limit";
+import Fastify from "fastify";
+import cors from "@fastify/cors";
+import cookie from "@fastify/cookie";
+import helmet from "@fastify/helmet";
+import rateLimit from "@fastify/rate-limit";
 
-import loginRouter from "./routes/login.js";
-import adminRouter from "./routes/createUser.js";
-import profileRouter from "./routes/profile.js";
+import loginRoutes from "./routes/login.js";
+import adminRoutes from "./routes/createUser.js";
+import profileRoutes from "./routes/profile.js";
 
-const app = express();
 const allowedOrigin = process.env.WEB_ORIGIN || "http://localhost:5173";
 const trustProxy = String(process.env.TRUST_PROXY || "").toLowerCase();
 
-const apiRateLimiter = rateLimit({
-  windowMs: Number(process.env.API_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
-  limit: Number(process.env.API_RATE_LIMIT_MAX || 300),
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { message: "Too many requests. Please try again later." }
+const app = Fastify({
+  logger: false,
+  trustProxy: trustProxy === "1" || trustProxy === "true"
 });
 
-const loginRateLimiter = rateLimit({
-  windowMs: Number(process.env.LOGIN_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
-  limit: Number(process.env.LOGIN_RATE_LIMIT_MAX || 10),
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { message: "Too many login attempts. Please try again later." }
+const apiRateLimit = {
+  max: Number(process.env.API_RATE_LIMIT_MAX || 300),
+  timeWindow: Number(process.env.API_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000)
+};
+
+const loginRateLimit = {
+  max: Number(process.env.LOGIN_RATE_LIMIT_MAX || 10),
+  timeWindow: Number(process.env.LOGIN_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000)
+};
+
+app.decorate("apiRateLimit", apiRateLimit);
+app.decorate("loginRateLimit", loginRateLimit);
+
+await app.register(helmet, {
+  crossOriginResourcePolicy: { policy: "cross-origin" }
 });
 
-const corsOptions = {
+await app.register(cors, {
   origin: allowedOrigin,
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
-};
-
-if (trustProxy === "1" || trustProxy === "true") {
-  app.set("trust proxy", 1);
-}
-
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
-app.use(cors(corsOptions));
-app.options(/.*/, cors(corsOptions));
-app.use(express.json());
-app.use(cookieParser());
-
-app.get("/", (req, res) => {
-  res.json({ message: "CRM API is running." });
 });
 
-app.use("/api", apiRateLimiter);
-app.use("/api/login", loginRateLimiter, loginRouter);
-app.use("/api/admin-create", adminRouter);
-app.use("/api/profile", profileRouter);
+await app.register(cookie);
 
-app.use((req, res) => {
-  res.status(404).send("Not Found");
+await app.register(rateLimit, {
+  global: false,
+  addHeaders: {
+    "x-ratelimit-limit": true,
+    "x-ratelimit-remaining": true,
+    "x-ratelimit-reset": true,
+    "retry-after": true
+  },
+  errorResponseBuilder: () => ({
+    message: "Too many requests. Please try again later."
+  })
 });
 
+app.get("/", async () => ({ message: "CRM API is running." }));
 
-const port = process.env.PORT || 3003;
-app.listen(port, () => {
+await app.register(loginRoutes, { prefix: "/api/login" });
+await app.register(adminRoutes, { prefix: "/api/admin-create" });
+await app.register(profileRoutes, { prefix: "/api/profile" });
+
+app.setNotFoundHandler((request, reply) => {
+  reply.status(404).send("Not Found");
+});
+
+const port = Number(process.env.PORT || 3003);
+
+try {
+  await app.listen({ port, host: "0.0.0.0" });
   console.log(`Server is running on port ${port}`);
-});
+} catch (error) {
+  app.log.error(error);
+  process.exit(1);
+}
