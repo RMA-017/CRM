@@ -8,10 +8,11 @@
 
 .home-header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto auto;
+  justify-content: space-between;
   align-items: center;
   gap: 10px;
-  min-height: 46px;
+  min-height: var(--bar-height);
   border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--surface);
@@ -22,14 +23,14 @@
 .brand-wrap {
   display: inline-flex;
   align-items: center;
-  height: 36px;
+  height: var(--btn-height);
   min-width: 0;
   gap: 10px;
 }
 
 .menu-toggle {
   width: 34px;
-  height: 36px;
+  height: var(--btn-height);
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--surface-soft);
@@ -52,7 +53,7 @@
 .brand {
   display: inline-flex;
   align-items: center;
-  height: 36px;
+  height: var(--btn-height);
   min-width: 0;
   gap: 10px;
   text-decoration: none;
@@ -80,23 +81,19 @@
 .header-actions {
   display: inline-flex;
   align-items: center;
-  height: 36px;
+  justify-content: center;
+  height: var(--btn-height);
   gap: 10px;
   min-width: 0;
   min-height: 0;
-}
-
-.home-header .header-btn {
-  height: 36px;
-  padding-top: 0;
-  padding-bottom: 0;
 }
 
 .header-btn {
   border: 1px solid var(--line);
   color: var(--text-main);
   background: var(--surface-soft);
-  padding: 9px 12px;
+  height: var(--btn-height);
+  padding: 0 12px;
   border-radius: 10px;
   display: inline-flex;
   align-items: center;
@@ -116,17 +113,13 @@
 }
 
 #headerLogoutBtn,
-#closeAllUsersBtn,
-#closeCreateUserBtn,
-#closeMyProfileBtn {
-  color: #991b1b;
+.panel-close-btn {
+  color: var(--danger);
   border: 1px solid var(--danger-border);
   background: var(--danger-soft);
 }
 
-#closeAllUsersBtn,
-#closeCreateUserBtn,
-#closeMyProfileBtn {
+.panel-close-btn {
   width: 30px;
   min-width: 30px;
   height: 30px;
@@ -137,9 +130,7 @@
 }
 
 #headerLogoutBtn:hover,
-#closeAllUsersBtn:hover,
-#closeCreateUserBtn:hover,
-#closeMyProfileBtn:hover {
+.panel-close-btn:hover {
   filter: brightness(1.06);
 }
 
@@ -150,11 +141,17 @@
   padding: 16px;
 }
 
+.home-main-centered {
+  display: grid;
+  place-items: center;
+}
+
 .home-footer {
   display: flex;
   justify-content: center;
   align-items: center;
   gap: 18px;
+  min-height: var(--bar-height);
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--surface);
@@ -236,7 +233,7 @@
   position: fixed;
   top: 0;
   left: 0;
-  width: min(290px, 84vw);
+  width: min(250px, 84vw);
   height: 100vh;
   border-right: 1px solid var(--line);
   background: var(--surface);
@@ -254,6 +251,7 @@
 .side-menu-head {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   margin-bottom: 18px;
 }
@@ -281,15 +279,13 @@
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--surface-soft);
-  padding: 9px 10px;
-  text-align: center;
+  height: var(--btn-height);
+  padding: 0 10px;
+  text-align: left;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   line-height: normal;
-}
-
-.side-menu-action {
   cursor: pointer;
   font: inherit;
   appearance: none;
@@ -355,4 +351,5 @@
   gap: 10px;
   padding-left: 4px;
 }
+
 

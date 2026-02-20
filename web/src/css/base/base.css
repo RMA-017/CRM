@@ -10,7 +10,7 @@
   --brand-gradient: linear-gradient(110deg, var(--brand), var(--brand-2));
   --on-brand: #ffffff;
   --accent-border-hover: #408AF3;
-  --danger: #dc2626;
+  --danger: #e6302b;
   --success: #408AF3;
   --shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
   --surface: #ffffff;
@@ -18,15 +18,17 @@
   --input-bg: #ffffff;
   --input-border: #cfd9e8;
   --focus-ring: rgba(64, 138, 243, 0.2);
-  --danger-ring: rgba(220, 38, 38, 0.14);
-  --danger-soft: #fee2e2;
-  --danger-border: #fecaca;
+  --danger-ring: rgba(230, 48, 43, 0.18);
+  --danger-soft: rgba(230, 48, 43, 0.12);
+  --danger-border: rgba(230, 48, 43, 0.4);
   --overlay: rgba(15, 23, 42, 0.22);
   --scroll-track: #e6edf7;
   --scroll-thumb: #a7b6cc;
   --scroll-thumb-hover: #8ea2bf;
   --fs-base: 14px;
   --fs-small: 12px;
+  --bar-height: 48px;
+  --btn-height: 36px;
 }
 
 *,
@@ -88,6 +90,7 @@ body {
 label {
   color: #334155;
   font-size: var(--fs-base);
+  margin-left: 4px;
 }
 
 input,
@@ -270,7 +273,8 @@ textarea.input-error {
   margin-bottom: 10px;
   border: 0;
   border-radius: 12px;
-  padding: 9px 14px;
+  height: var(--btn-height);
+  padding: 0 14px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -280,17 +284,15 @@ textarea.input-error {
   color: var(--on-brand);
   background: var(--brand-gradient);
   cursor: pointer;
-  transition: transform 120ms ease, filter 120ms ease;
+  transition: filter 120ms ease;
 }
 
 .btn:hover {
-  transform: translateY(-1px);
   filter: brightness(1.06);
 }
 
 #profileEditSubmit:hover,
 #allUsersEditSaveBtn:hover {
-  transform: none;
   filter: none;
 }
 

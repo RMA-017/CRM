@@ -30,8 +30,9 @@
 
   .home-header {
     height: auto;
-    min-height: 46px;
-    grid-template-columns: minmax(0, 1fr) auto;
+    min-height: var(--bar-height);
+    grid-template-columns: auto auto;
+    justify-content: space-between;
     gap: 8px;
     padding: 5px 10px;
   }
@@ -44,16 +45,15 @@
 
   .header-actions {
     gap: 8px;
-    justify-content: flex-end;
+    justify-content: center;
     flex-wrap: nowrap;
     min-width: 0;
   }
 
   .brand-wrap,
   .header-actions,
-  .user-menu-wrap,
-  .home-header .header-btn {
-    height: 36px;
+  .user-menu-wrap {
+    height: var(--btn-height);
   }
 
   .user-menu-wrap {
@@ -77,7 +77,7 @@
   }
 
   .header-btn {
-    padding: 9px 10px;
+    padding: 0 10px;
     white-space: nowrap;
   }
 
@@ -93,10 +93,14 @@
 
   .logout-confirm-modal,
   .home-login-panel,
-  .profile-edit-modal,
   .all-users-edit-modal {
-    width: calc(100vw - 24px);
+    width: calc(100vw - 30px);
     max-height: calc(100dvh - 24px);
+  }
+
+  .profile-edit-modal {
+    width: min(400px, calc(100vw - 40px));
+    max-height: calc(100dvh - 56px);
   }
 
   .my-profile-panel {
@@ -104,14 +108,13 @@
     padding: 14px;
   }
 
-  .profile-modal-list div {
-    grid-template-columns: 100px minmax(0, 1fr) auto;
-    gap: 8px;
+  .settings-create-form {
+    overflow-x: auto;
   }
 
-  .profile-edit-btn {
-    width: 48px;
-    padding: 5px 0;
+  .profile-modal-list div {
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 8px;
   }
 
 }
@@ -127,7 +130,7 @@
 
   .home-header {
     height: auto;
-    min-height: 46px;
+    min-height: var(--bar-height);
     padding: 5px 8px;
     gap: 4px;
   }
@@ -185,15 +188,25 @@
 
   .logout-confirm-modal,
   .home-login-panel,
-  .profile-edit-modal,
   .all-users-edit-modal {
-    width: calc(100vw - 20px);
+    width: calc(100vw - 24px);
     max-height: calc(100dvh - 20px);
+    overflow: auto;
+  }
+
+  .profile-edit-modal {
+    width: calc(100vw - 34px);
+    max-height: calc(100dvh - 48px);
     overflow: auto;
   }
 
   .my-profile-panel {
     padding: 12px;
+  }
+
+  .settings-add-btn {
+    width: 84px;
+    justify-self: start;
   }
 
   .profile-modal-photo {
@@ -203,43 +216,29 @@
   }
 
   .profile-modal-list div {
-    grid-template-columns: minmax(0, 1fr) 46px;
-    grid-template-areas:
-      "label label"
-      "value edit";
+    grid-template-columns: 88px minmax(0, 1fr);
     align-items: center;
     column-gap: 8px;
     row-gap: 0;
-    min-height: 52px;
+    min-height: 44px;
     padding: 6px 0;
   }
 
   .profile-modal-list dt {
-    grid-area: label;
     font-size: var(--fs-small);
-    line-height: 1.05;
+    line-height: 1.15;
     margin: 0;
   }
 
   .profile-modal-list dd {
-    grid-area: value;
     font-size: var(--fs-base);
     line-height: 1.12;
     margin: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-
-  .profile-edit-btn,
-  .profile-no-edit {
-    grid-area: edit;
+    text-align: right;
     justify-self: end;
-  }
-
-  .profile-edit-btn {
-    width: 46px;
-    padding: 5px 0;
   }
 
 }

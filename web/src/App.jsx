@@ -29,7 +29,21 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
-      <Route path="/profile" element={<ProfilePage />} />
+      <Route path="/profile" element={<ProfilePage forcedView="none" />} />
+      <Route path="/users/allusers" element={<ProfilePage forcedView="all-users" />} />
+      <Route path="/users/create" element={<ProfilePage forcedView="create-user" />} />
+      <Route path="/clients" element={<ProfilePage forcedView="clients" />} />
+      <Route path="/appointments" element={<ProfilePage forcedView="appointment" />} />
+      <Route path="/settings/organizations" element={<ProfilePage forcedView="settings-organizations" />} />
+      <Route path="/settings/roles" element={<ProfilePage forcedView="settings-roles" />} />
+      <Route path="/settings/positions" element={<ProfilePage forcedView="settings-positions" />} />
+      <Route path="/profile/my-profile" element={<Navigate to="/profile" replace />} />
+      <Route path="/profile/users" element={<Navigate to="/profile" replace />} />
+      <Route path="/profile/users/allusers" element={<Navigate to="/users/allusers" replace />} />
+      <Route path="/profile/users/create" element={<Navigate to="/users/create" replace />} />
+      <Route path="/profile/settings/organizations" element={<Navigate to="/settings/organizations" replace />} />
+      <Route path="/profile/settings/roles" element={<Navigate to="/settings/roles" replace />} />
+      <Route path="/profile/settings/positions" element={<Navigate to="/settings/positions" replace />} />
       <Route path="/home" element={<Navigate to="/" replace />} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

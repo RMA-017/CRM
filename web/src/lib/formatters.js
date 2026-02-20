@@ -48,13 +48,23 @@ export function normalizeProfile(profile) {
     return {};
   }
 
+  const permissions = Array.isArray(profile.permissions)
+    ? profile.permissions
+      .map((permission) => String(permission || "").trim().toLowerCase())
+      .filter(Boolean)
+    : [];
+
   return {
     username: profile.username || "",
+    organizationId: profile.organizationId || profile.organization_id || "",
+    organizationCode: profile.organizationCode || profile.organization_code || "",
+    organizationName: profile.organizationName || profile.organization_name || "",
     email: profile.email || "",
     fullName: profile.fullName || profile.full_name || profile.name || "",
     birthday: profile.birthday || "",
     phone: profile.phone || profile.phone_number || "",
     position: profile.position || "",
-    role: profile.role || ""
+    role: profile.role || "",
+    permissions
   };
 }
