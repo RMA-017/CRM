@@ -100,9 +100,9 @@ textarea {
   border: 1px solid var(--input-border);
   outline: none;
   border-radius: 12px;
-  min-height: 34px;
+  min-height: 30px;
   padding: 8px 11px;
-  font-size: var(--fs-base);
+  font-size: 12px;
   color: var(--text-main);
   background: var(--input-bg);
   transition: border-color 120ms ease, box-shadow 120ms ease;
@@ -120,7 +120,7 @@ textarea::placeholder {
 }
 
 select option {
-  font-size: var(--fs-base);
+  font-size: 12px;
 }
 
 .custom-select {
@@ -132,9 +132,9 @@ select option {
   border: 1px solid var(--input-border);
   outline: none;
   border-radius: 12px;
-  min-height: 34px;
+  min-height: 30px;
   padding: 8px 36px 8px 11px;
-  font-size: var(--fs-base);
+  font-size: 12px;
   color: var(--text-main);
   background: var(--input-bg);
   text-align: left;
@@ -229,7 +229,7 @@ select option {
   display: flex;
   align-items: center;
   font: inherit;
-  font-size: var(--fs-base);
+  font-size: 12px;
   line-height: 1;
   cursor: pointer;
 }

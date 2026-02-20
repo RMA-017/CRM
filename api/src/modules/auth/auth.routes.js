@@ -10,16 +10,8 @@ async function authRoutes(fastify) {
       config: { rateLimit: fastify.loginRateLimit }
     },
     async (request, reply) => {
-      const organizationCode = String(request.body?.organizationCode || "").trim();
       const username = String(request.body?.username || "").trim();
       const password = String(request.body?.password || "");
-
-      if (!organizationCode) {
-        return reply.status(400).send({
-          field: "organizationCode",
-          message: "Organization code is required."
-        });
-      }
 
       if (!username) {
         return reply.status(400).send({
@@ -36,7 +28,7 @@ async function authRoutes(fastify) {
       }
 
       try {
-        const user = await findAuthUserForLogin({ organizationCode, username });
+        const user = await findAuthUserForLogin({ username });
         if (!user) {
           return reply.status(401).send({
             message: "Invalid username or password."
@@ -57,13 +49,15 @@ async function authRoutes(fastify) {
           username: user.username
         });
         reply.setCookie(AUTH_COOKIE_NAME, token, getAuthCookieOptions());
-        const permissions = await getRolePermissions(user.role);
+        const permissions = await getRolePermissions(user.role_id);
 
         return reply.send({
           message: "Successful",
           user: {
             username: user.username,
+            roleId: user.role_id,
             role: user.role,
+            isAdmin: Boolean(user.is_admin),
             organizationCode: user.organization_code,
             organizationName: user.organization_name,
             permissions

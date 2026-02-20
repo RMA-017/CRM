@@ -8,18 +8,17 @@ function HomePage() {
   const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const [form, setForm] = useState({ organizationCode: "", username: "", password: "" });
-  const [errors, setErrors] = useState({ organizationCode: "", username: "", password: "" });
+  const [form, setForm] = useState({ username: "", password: "" });
+  const [errors, setErrors] = useState({ username: "", password: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const canSubmit = useMemo(
     () => (
-      form.organizationCode.trim().length > 0
-      && form.username.trim().length > 0
+      form.username.trim().length > 0
       && form.password.length > 0
       && !isSubmitting
     ),
-    [form.organizationCode, form.password.length, form.username, isSubmitting]
+    [form.password.length, form.username, isSubmitting]
   );
 
   useEffect(() => {
@@ -64,7 +63,7 @@ function HomePage() {
     function handleEscape(event) {
       if (event.key === "Escape") {
         setIsLoginOpen(false);
-        setErrors({ organizationCode: "", username: "", password: "" });
+        setErrors({ username: "", password: "" });
       }
     }
 
@@ -75,27 +74,23 @@ function HomePage() {
   }, []);
 
   function resetFormErrors() {
-    setErrors({ organizationCode: "", username: "", password: "" });
+    setErrors({ username: "", password: "" });
   }
 
   function closeLogin() {
     setIsLoginOpen(false);
-    setForm({ organizationCode: "", username: "", password: "" });
+    setForm({ username: "", password: "" });
     resetFormErrors();
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
     const payload = {
-      organizationCode: form.organizationCode.trim().toLowerCase(),
       username: form.username.trim(),
       password: form.password
     };
 
-    const nextErrors = { organizationCode: "", username: "", password: "" };
-    if (!payload.organizationCode) {
-      nextErrors.organizationCode = "Organization code is required.";
-    }
+    const nextErrors = { username: "", password: "" };
     if (!payload.username) {
       nextErrors.username = "Username is required.";
     }
@@ -103,7 +98,7 @@ function HomePage() {
       nextErrors.password = "Password is required.";
     }
 
-    if (nextErrors.organizationCode || nextErrors.username || nextErrors.password) {
+    if (nextErrors.username || nextErrors.password) {
       setErrors(nextErrors);
       return;
     }
@@ -120,13 +115,12 @@ function HomePage() {
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        if (data?.field === "organizationCode" || data?.field === "username" || data?.field === "password") {
+        if (data?.field === "username" || data?.field === "password") {
           setErrors((prev) => ({ ...prev, [data.field]: data.message || "Invalid value." }));
           return;
         }
 
         setErrors({
-          organizationCode: "",
           username: "Username is incorrect.",
           password: data?.message || "Invalid username or password."
         });
@@ -198,28 +192,6 @@ function HomePage() {
         </div>
 
         <form className="home-login-form" onSubmit={handleSubmit} noValidate>
-          <div className="field">
-            <label htmlFor="homeOrganizationCode">Organization Code</label>
-            <input
-              id="homeOrganizationCode"
-              name="organizationCode"
-              type="text"
-              placeholder="Organization code"
-              autoComplete="organization"
-              required
-              className={errors.organizationCode ? "input-error" : ""}
-              value={form.organizationCode}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setForm((prev) => ({ ...prev, organizationCode: nextValue }));
-                if (errors.organizationCode) {
-                  setErrors((prev) => ({ ...prev, organizationCode: "" }));
-                }
-              }}
-            />
-            <small className="field-error">{errors.organizationCode}</small>
-          </div>
-
           <div className="field">
             <label htmlFor="homeUsername">Username</label>
             <input

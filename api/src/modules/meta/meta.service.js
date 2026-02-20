@@ -11,14 +11,14 @@ function mapOptionRows(rows) {
 
 async function loadRoleOptionsFromDb() {
   const { rows } = await pool.query(
-    "SELECT value, label FROM role_options WHERE is_active = TRUE ORDER BY sort_order ASC, id ASC"
+    "SELECT id::text AS value, label FROM role_options WHERE is_active = TRUE ORDER BY sort_order ASC, id ASC"
   );
   return mapOptionRows(rows);
 }
 
 async function loadPositionOptionsFromDb() {
   const { rows } = await pool.query(
-    "SELECT value, label FROM position_options WHERE is_active = TRUE ORDER BY sort_order ASC, id ASC"
+    "SELECT id::text AS value, label FROM position_options WHERE is_active = TRUE ORDER BY sort_order ASC, id ASC"
   );
   return mapOptionRows(rows);
 }

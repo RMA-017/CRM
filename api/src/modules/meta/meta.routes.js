@@ -24,8 +24,8 @@ async function metaRoutes(fastify) {
         if (!user) {
           return reply.status(401).send({ message: "Unauthorized" });
         }
-        if (!(await hasPermission(user.role, PERMISSIONS.PROFILE_READ))) {
-          return reply.status(403).send({ message: "You do not have permission to load options." });
+        if (!(await hasPermission(user.role_id, PERMISSIONS.PROFILE_READ))) {
+          return reply.status(404).send({ message: "Not found." });
         }
 
         const options = await getUserOptions();

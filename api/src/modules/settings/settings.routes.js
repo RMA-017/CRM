@@ -1,4 +1,5 @@
 import { setNoCacheHeaders } from "../../lib/http.js";
+import { parsePositiveInteger } from "../../lib/number.js";
 import { getAuthContext } from "../../lib/session.js";
 import {
   createOrganization,
@@ -11,6 +12,7 @@ import {
   getPositionOptionById,
   getRoleOptionById,
   listOrganizations,
+  listPermissionOptionsForSettings,
   listPositionOptionsForSettings,
   listRoleOptionsForSettings,
   updateOrganization,
@@ -19,12 +21,7 @@ import {
 } from "./settings.service.js";
 
 const ORGANIZATION_CODE_REGEX = /^[a-z0-9._-]{2,64}$/;
-const ROLE_VALUE_REGEX = /^[a-z0-9._-]{2,32}$/;
-
-function parsePositiveId(value) {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-}
+const PERMISSION_CODE_REGEX = /^[a-z0-9._-]{2,64}$/;
 
 function parseSortOrder(value) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -48,6 +45,41 @@ function parseIsActive(value, fallback = true) {
   return fallback;
 }
 
+function parsePermissionCodes(value) {
+  if (value == null) {
+    return { codes: null };
+  }
+
+  if (!Array.isArray(value)) {
+    return {
+      error: {
+        field: "permissionCodes",
+        message: "permissionCodes must be an array."
+      }
+    };
+  }
+
+  const codes = Array.from(
+    new Set(
+      value
+        .map((code) => String(code || "").trim().toLowerCase())
+        .filter(Boolean)
+    )
+  );
+
+  const invalidCode = codes.find((code) => !PERMISSION_CODE_REGEX.test(code));
+  if (invalidCode) {
+    return {
+      error: {
+        field: "permissionCodes",
+        message: `Invalid permission code: ${invalidCode}`
+      }
+    };
+  }
+
+  return { codes };
+}
+
 function validateOrganizationPayload({ code, name }) {
   if (!ORGANIZATION_CODE_REGEX.test(code)) {
     return { field: "code", message: "Code must be 2-64 chars and contain lowercase letters, numbers, ., _, -" };
@@ -61,10 +93,7 @@ function validateOrganizationPayload({ code, name }) {
   return null;
 }
 
-function validateRolePayload({ value, label }) {
-  if (!ROLE_VALUE_REGEX.test(value)) {
-    return { field: "value", message: "Role value must be 2-32 chars and contain lowercase letters, numbers, ., _, -" };
-  }
+function validateRolePayload({ label }) {
   if (!label) {
     return { field: "label", message: "Label is required." };
   }
@@ -74,13 +103,7 @@ function validateRolePayload({ value, label }) {
   return null;
 }
 
-function validatePositionPayload({ value, label }) {
-  if (!value) {
-    return { field: "value", message: "Value is required." };
-  }
-  if (value.length > 96) {
-    return { field: "value", message: "Value is too long (max 96)." };
-  }
+function validatePositionPayload({ label }) {
   if (!label) {
     return { field: "label", message: "Label is required." };
   }
@@ -102,8 +125,8 @@ async function requireAdmin(request, reply) {
     return null;
   }
 
-  if (String(requester.role || "").trim().toLowerCase() !== "admin") {
-    reply.status(403).send({ message: "You do not have permission to manage settings." });
+  if (!Boolean(requester.is_admin)) {
+    reply.status(404).send({ message: "Not found." });
     return null;
   }
 
@@ -181,7 +204,7 @@ async function settingsRoutes(fastify) {
           return;
         }
 
-        const id = parsePositiveId(request.params?.id);
+        const id = parsePositiveInteger(request.params?.id);
         if (!id) {
           return reply.status(400).send({ message: "Invalid organization id." });
         }
@@ -229,7 +252,7 @@ async function settingsRoutes(fastify) {
           return;
         }
 
-        const id = parsePositiveId(request.params?.id);
+        const id = parsePositiveInteger(request.params?.id);
         if (!id) {
           return reply.status(400).send({ message: "Invalid organization id." });
         }
@@ -268,8 +291,11 @@ async function settingsRoutes(fastify) {
           return;
         }
 
-        const items = await listRoleOptionsForSettings();
-        return reply.send({ items });
+        const [items, permissions] = await Promise.all([
+          listRoleOptionsForSettings(),
+          listPermissionOptionsForSettings()
+        ]);
+        return reply.send({ items, permissions });
       } catch (error) {
         console.error("Error fetching roles:", error);
         return reply.status(500).send({ message: "Internal server error." });
@@ -289,23 +315,37 @@ async function settingsRoutes(fastify) {
           return;
         }
 
-        const value = String(request.body?.value || "").trim().toLowerCase();
         const label = String(request.body?.label || "").trim();
         const sortOrder = parseSortOrder(request.body?.sortOrder);
         const isActive = parseIsActive(request.body?.isActive, true);
-        const validationError = validateRolePayload({ value, label });
+        const parsedPermissions = parsePermissionCodes(request.body?.permissionCodes);
+        if (parsedPermissions.error) {
+          return reply.status(400).send(parsedPermissions.error);
+        }
+        const validationError = validateRolePayload({ label });
         if (validationError) {
           return reply.status(400).send(validationError);
         }
 
-        const item = await createRoleOption({ value, label, sortOrder, isActive });
+        const permissionCodes = Array.isArray(parsedPermissions.codes) ? parsedPermissions.codes : [];
+
+        const item = await createRoleOption({ label, sortOrder, isActive, permissionCodes });
         return reply.status(201).send({
           message: "Role created.",
           item
         });
       } catch (error) {
         if (error?.code === "23505") {
-          return reply.status(409).send({ field: "value", message: "Role value already exists." });
+          return reply.status(409).send({ field: "label", message: "Role label already exists." });
+        }
+        if (error?.code === "INVALID_PERMISSION_CODES") {
+          const invalidCodes = Array.isArray(error.invalidCodes) ? error.invalidCodes.join(", ") : "";
+          return reply.status(400).send({
+            field: "permissionCodes",
+            message: invalidCodes
+              ? `Unknown permission code(s): ${invalidCodes}`
+              : "Unknown permission code(s)."
+          });
         }
         console.error("Error creating role:", error);
         return reply.status(500).send({ message: "Internal server error." });
@@ -325,7 +365,7 @@ async function settingsRoutes(fastify) {
           return;
         }
 
-        const id = parsePositiveId(request.params?.id);
+        const id = parsePositiveInteger(request.params?.id);
         if (!id) {
           return reply.status(400).send({ message: "Invalid role id." });
         }
@@ -335,24 +375,38 @@ async function settingsRoutes(fastify) {
           return reply.status(404).send({ message: "Role not found." });
         }
 
-        const value = String(request.body?.value || "").trim().toLowerCase();
         const label = String(request.body?.label || "").trim();
         const sortOrder = parseSortOrder(request.body?.sortOrder);
         const isActive = parseIsActive(request.body?.isActive, true);
-        const validationError = validateRolePayload({ value, label });
+        const parsedPermissions = parsePermissionCodes(request.body?.permissionCodes);
+        if (parsedPermissions.error) {
+          return reply.status(400).send(parsedPermissions.error);
+        }
+        const validationError = validateRolePayload({ label });
         if (validationError) {
           return reply.status(400).send(validationError);
         }
 
-        const isAdminRole = String(existing.value || "").trim().toLowerCase() === "admin";
-        if (isAdminRole && value !== "admin") {
-          return reply.status(400).send({ field: "value", message: "Admin role value cannot be changed." });
+        const isAdminRole = Boolean(existing.isAdmin);
+        if (isAdminRole && String(existing.label || "").trim() !== label) {
+          return reply.status(400).send({ field: "label", message: "Admin role label cannot be changed." });
         }
         if (isAdminRole && !isActive) {
           return reply.status(400).send({ field: "isActive", message: "Admin role cannot be deactivated." });
         }
 
-        const item = await updateRoleOption({ id, value, label, sortOrder, isActive });
+        let permissionCodes = Array.isArray(parsedPermissions.codes)
+          ? parsedPermissions.codes
+          : (Array.isArray(existing.permissionCodes) ? existing.permissionCodes : []);
+        if (isAdminRole) {
+          const permissions = await listPermissionOptionsForSettings();
+          permissionCodes = permissions
+            .filter((permission) => Boolean(permission.isActive))
+            .map((permission) => String(permission.code || "").trim().toLowerCase())
+            .filter(Boolean);
+        }
+
+        const item = await updateRoleOption({ id, label, sortOrder, isActive, permissionCodes });
         if (!item) {
           return reply.status(404).send({ message: "Role not found." });
         }
@@ -363,7 +417,16 @@ async function settingsRoutes(fastify) {
         });
       } catch (error) {
         if (error?.code === "23505") {
-          return reply.status(409).send({ field: "value", message: "Role value already exists." });
+          return reply.status(409).send({ field: "label", message: "Role label already exists." });
+        }
+        if (error?.code === "INVALID_PERMISSION_CODES") {
+          const invalidCodes = Array.isArray(error.invalidCodes) ? error.invalidCodes.join(", ") : "";
+          return reply.status(400).send({
+            field: "permissionCodes",
+            message: invalidCodes
+              ? `Unknown permission code(s): ${invalidCodes}`
+              : "Unknown permission code(s)."
+          });
         }
         if (error?.code === "23503") {
           return reply.status(409).send({ message: "Role is used by users and cannot be changed." });
@@ -386,7 +449,7 @@ async function settingsRoutes(fastify) {
           return;
         }
 
-        const id = parsePositiveId(request.params?.id);
+        const id = parsePositiveInteger(request.params?.id);
         if (!id) {
           return reply.status(400).send({ message: "Invalid role id." });
         }
@@ -395,7 +458,7 @@ async function settingsRoutes(fastify) {
         if (!existing) {
           return reply.status(404).send({ message: "Role not found." });
         }
-        if (String(existing.value || "").trim().toLowerCase() === "admin") {
+        if (Boolean(existing.isAdmin)) {
           return reply.status(400).send({ message: "Admin role cannot be deleted." });
         }
 
@@ -450,23 +513,22 @@ async function settingsRoutes(fastify) {
           return;
         }
 
-        const value = String(request.body?.value || "").trim();
         const label = String(request.body?.label || "").trim();
         const sortOrder = parseSortOrder(request.body?.sortOrder);
         const isActive = parseIsActive(request.body?.isActive, true);
-        const validationError = validatePositionPayload({ value, label });
+        const validationError = validatePositionPayload({ label });
         if (validationError) {
           return reply.status(400).send(validationError);
         }
 
-        const item = await createPositionOption({ value, label, sortOrder, isActive });
+        const item = await createPositionOption({ label, sortOrder, isActive });
         return reply.status(201).send({
           message: "Position created.",
           item
         });
       } catch (error) {
         if (error?.code === "23505") {
-          return reply.status(409).send({ field: "value", message: "Position value already exists." });
+          return reply.status(409).send({ field: "label", message: "Position label already exists." });
         }
         console.error("Error creating position:", error);
         return reply.status(500).send({ message: "Internal server error." });
@@ -486,21 +548,20 @@ async function settingsRoutes(fastify) {
           return;
         }
 
-        const id = parsePositiveId(request.params?.id);
+        const id = parsePositiveInteger(request.params?.id);
         if (!id) {
           return reply.status(400).send({ message: "Invalid position id." });
         }
 
-        const value = String(request.body?.value || "").trim();
         const label = String(request.body?.label || "").trim();
         const sortOrder = parseSortOrder(request.body?.sortOrder);
         const isActive = parseIsActive(request.body?.isActive, true);
-        const validationError = validatePositionPayload({ value, label });
+        const validationError = validatePositionPayload({ label });
         if (validationError) {
           return reply.status(400).send(validationError);
         }
 
-        const item = await updatePositionOption({ id, value, label, sortOrder, isActive });
+        const item = await updatePositionOption({ id, label, sortOrder, isActive });
         if (!item) {
           return reply.status(404).send({ message: "Position not found." });
         }
@@ -511,7 +572,7 @@ async function settingsRoutes(fastify) {
         });
       } catch (error) {
         if (error?.code === "23505") {
-          return reply.status(409).send({ field: "value", message: "Position value already exists." });
+          return reply.status(409).send({ field: "label", message: "Position label already exists." });
         }
         if (error?.code === "23503") {
           return reply.status(409).send({ message: "Position is used by users and cannot be changed." });
@@ -534,7 +595,7 @@ async function settingsRoutes(fastify) {
           return;
         }
 
-        const id = parsePositiveId(request.params?.id);
+        const id = parsePositiveInteger(request.params?.id);
         if (!id) {
           return reply.status(400).send({ message: "Invalid position id." });
         }

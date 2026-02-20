@@ -1,5 +1,6 @@
 import { getClearCookieOptions, AUTH_COOKIE_NAME } from "../../lib/cookies.js";
 import { setNoCacheHeaders } from "../../lib/http.js";
+import { parsePositiveInteger } from "../../lib/number.js";
 import { getAuthContext } from "../../lib/session.js";
 import { findAuthUserById, verifyPassword } from "../auth/auth.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
@@ -36,11 +37,14 @@ function validateOwnProfileUpdate(field, value, currentPassword) {
 
 function mapProfile(user, permissions) {
   return {
+    roleId: user.role_id,
+    positionId: user.position_id,
     username: user.username,
     email: user.email,
     fullName: user.full_name,
     birthday: user.birthday,
     role: user.role,
+    isAdmin: Boolean(user.is_admin),
     phone: user.phone_number,
     position: user.position,
     organizationId: user.organization_id,
@@ -69,10 +73,10 @@ async function profileRoutes(fastify) {
           reply.clearCookie(AUTH_COOKIE_NAME, getClearCookieOptions());
           return reply.status(401).send({ message: "Unauthorized" });
         }
-        if (!(await hasPermission(user.role, PERMISSIONS.PROFILE_READ))) {
-          return reply.status(403).send({ message: "You do not have permission to view profile." });
+        if (!(await hasPermission(user.role_id, PERMISSIONS.PROFILE_READ))) {
+          return reply.status(404).send({ message: "Not found." });
         }
-        const permissions = await getRolePermissions(user.role);
+        const permissions = await getRolePermissions(user.role_id);
         return reply.send(mapProfile(user, permissions));
       } catch (error) {
         console.error("Error fetching profile:", error);
@@ -94,6 +98,7 @@ async function profileRoutes(fastify) {
 
       const field = String(request.body?.field || "").trim();
       const value = String(request.body?.value || "").trim();
+      const positionId = field === "position" ? parsePositiveInteger(value) : null;
       const currentPassword = String(request.body?.currentPassword || "");
       const validationError = validateOwnProfileUpdate(field, value, currentPassword);
       if (validationError) {
@@ -105,10 +110,13 @@ async function profileRoutes(fastify) {
         if (!currentUser) {
           return reply.status(404).send({ message: "User not found." });
         }
-        if (!(await hasPermission(currentUser.role, PERMISSIONS.PROFILE_UPDATE))) {
-          return reply.status(403).send({ message: "You do not have permission to update profile." });
+        if (!(await hasPermission(currentUser.role_id, PERMISSIONS.PROFILE_UPDATE))) {
+          return reply.status(404).send({ message: "Not found." });
         }
-        if (field === "position" && value && !(await isAllowedPosition(value))) {
+        if (field === "position" && value && !positionId) {
+          return reply.status(400).send({ field: "position", message: "Invalid position." });
+        }
+        if (field === "position" && positionId && !(await isAllowedPosition(positionId))) {
           return reply.status(400).send({ field: "position", message: "Invalid position." });
         }
 
@@ -137,7 +145,7 @@ async function profileRoutes(fastify) {
           userId: authContext.userId,
           organizationId: authContext.organizationId,
           field,
-          value
+          value: field === "position" ? (positionId ? String(positionId) : "") : value
         });
         if (result.rowCount === 0) {
           return reply.status(404).send({ message: "User not found." });
@@ -147,7 +155,7 @@ async function profileRoutes(fastify) {
         if (!user) {
           return reply.status(404).send({ message: "User not found." });
         }
-        const permissions = await getRolePermissions(user.role);
+        const permissions = await getRolePermissions(user.role_id);
 
         return reply.send({
           message: "Profile updated.",

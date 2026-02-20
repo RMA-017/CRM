@@ -1,41 +1,32 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import CustomSelect from "../components/CustomSelect.jsx";
-import { PERMISSIONS } from "../constants/permissions.js";
 import { apiFetch } from "../lib/api.js";
 import { formatDateForInput, formatDateYMD, getInitial, normalizeProfile } from "../lib/formatters.js";
-
-const LOGOUT_FLAG_KEY = "crm_just_logged_out";
-const USERNAME_REGEX = /^[a-zA-Z0-9._-]{3,30}$/;
-const ORGANIZATION_CODE_REGEX = /^[a-z0-9._-]{2,64}$/;
-const ROLE_VALUE_REGEX = /^[a-z0-9._-]{2,32}$/;
-const ALL_USERS_LIMIT = 20;
-
-const EMPTY_PROFILE_EDIT_FORM = {
-  email: "",
-  fullName: "",
-  birthday: "",
-  phone: "",
-  position: ""
-};
-
-const EMPTY_ORGANIZATION_FORM = {
-  code: "",
-  name: "",
-  isActive: true
-};
-
-const EMPTY_SETTINGS_OPTION_FORM = {
-  value: "",
-  label: "",
-  sortOrder: "0",
-  isActive: true
-};
-
-function normalizeSettingsSortOrderInput(value) {
-  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
-  return Number.isInteger(parsed) ? parsed : 0;
-}
+import {
+  ALL_USERS_LIMIT,
+  createEmptyAllUsersDeleteState,
+  createEmptyAllUsersEditState,
+  createEmptyProfileEditState,
+  createEmptySettingsDeleteState,
+  EMPTY_ORGANIZATION_FORM,
+  EMPTY_PROFILE_EDIT_FORM,
+  EMPTY_ROLE_CREATE_FORM,
+  EMPTY_ROLE_EDIT_FORM,
+  EMPTY_SETTINGS_OPTION_FORM,
+  LOGOUT_FLAG_KEY,
+  ORGANIZATION_CODE_REGEX,
+  USERNAME_REGEX
+} from "./profile/profile.constants.js";
+import {
+  groupRolePermissionOptions,
+  handleProtectedStatus,
+  mapValueLabelOptions,
+  normalizePermissionCodesInput,
+  normalizeSettingsSortOrderInput,
+  togglePermissionCode
+} from "./profile/profile.helpers.js";
+import { useProfileAccess } from "./profile/useProfileAccess.js";
 
 function ProfilePage({ forcedView = "none" }) {
   const navigate = useNavigate();
@@ -57,17 +48,10 @@ function ProfilePage({ forcedView = "none" }) {
   const [mainView, setMainViewState] = useState("none");
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
-  const [profileEdit, setProfileEdit] = useState({
-    open: false,
-    mode: "profile",
-    form: { ...EMPTY_PROFILE_EDIT_FORM },
-    currentPassword: "",
-    newPassword: "",
-    error: "",
-    submitting: false
-  });
+  const [profileEdit, setProfileEdit] = useState(createEmptyProfileEditState);
 
   const [createForm, setCreateForm] = useState({
+    organizationCode: "",
     username: "",
     fullName: "",
     role: ""
@@ -83,37 +67,10 @@ function ProfilePage({ forcedView = "none" }) {
   const [allUsersPage, setAllUsersPage] = useState(1);
   const [allUsersTotalPages, setAllUsersTotalPages] = useState(1);
 
-  const [allUsersEdit, setAllUsersEdit] = useState({
-    open: false,
-    id: "",
-    submitting: false,
-    form: {
-      username: "",
-      email: "",
-      fullName: "",
-      birthday: "",
-      phone: "",
-      position: "",
-      role: "",
-      password: ""
-    },
-    errors: {}
-  });
+  const [allUsersEdit, setAllUsersEdit] = useState(createEmptyAllUsersEditState);
 
-  const [allUsersDelete, setAllUsersDelete] = useState({
-    open: false,
-    id: "",
-    error: "",
-    submitting: false
-  });
-  const [settingsDelete, setSettingsDelete] = useState({
-    open: false,
-    type: "",
-    id: "",
-    label: "",
-    error: "",
-    submitting: false
-  });
+  const [allUsersDelete, setAllUsersDelete] = useState(createEmptyAllUsersDeleteState);
+  const [settingsDelete, setSettingsDelete] = useState(createEmptySettingsDeleteState);
 
   const [organizations, setOrganizations] = useState([]);
   const [organizationsLoading, setOrganizationsLoading] = useState(false);
@@ -131,12 +88,14 @@ function ProfilePage({ forcedView = "none" }) {
   const [rolesSettings, setRolesSettings] = useState([]);
   const [rolesSettingsLoading, setRolesSettingsLoading] = useState(false);
   const [rolesSettingsMessage, setRolesSettingsMessage] = useState("");
-  const [roleCreateForm, setRoleCreateForm] = useState({ ...EMPTY_SETTINGS_OPTION_FORM });
+  const [rolePermissionOptions, setRolePermissionOptions] = useState([]);
+  const [roleCreateForm, setRoleCreateForm] = useState({ ...EMPTY_ROLE_CREATE_FORM });
   const [roleCreateError, setRoleCreateError] = useState("");
   const [roleCreateSubmitting, setRoleCreateSubmitting] = useState(false);
   const [roleEditId, setRoleEditId] = useState("");
   const [roleEditOpen, setRoleEditOpen] = useState(false);
-  const [roleEditForm, setRoleEditForm] = useState({ ...EMPTY_SETTINGS_OPTION_FORM });
+  const [roleEditTab, setRoleEditTab] = useState("edit");
+  const [roleEditForm, setRoleEditForm] = useState({ ...EMPTY_ROLE_EDIT_FORM });
   const [roleEditError, setRoleEditError] = useState("");
   const [roleEditSubmitting, setRoleEditSubmitting] = useState(false);
   const [roleDeletingId, setRoleDeletingId] = useState("");
@@ -154,23 +113,17 @@ function ProfilePage({ forcedView = "none" }) {
   const [positionEditSubmitting, setPositionEditSubmitting] = useState(false);
   const [positionDeletingId, setPositionDeletingId] = useState("");
 
-  const permissionSet = useMemo(() => {
-    if (!Array.isArray(profile?.permissions)) {
-      return new Set();
-    }
-    return new Set(
-      profile.permissions
-        .map((permission) => String(permission || "").trim().toLowerCase())
-        .filter(Boolean)
-    );
-  }, [profile?.permissions]);
-
-  const canReadUsers = permissionSet.has(PERMISSIONS.USERS_READ);
-  const canCreateUsers = permissionSet.has(PERMISSIONS.USERS_CREATE);
-  const canUpdateUsers = permissionSet.has(PERMISSIONS.USERS_UPDATE);
-  const canDeleteUsers = permissionSet.has(PERMISSIONS.USERS_DELETE);
-  const hasUsersMenuAccess = canReadUsers || canCreateUsers;
-  const hasSettingsMenuAccess = String(profile?.role || "").trim().toLowerCase() === "admin";
+  const {
+    canReadUsers,
+    canCreateUsers,
+    canUpdateUsers,
+    canDeleteUsers,
+    canReadClients,
+    canReadAppointments,
+    hasUsersMenuAccess,
+    hasSettingsMenuAccess,
+    canAccessForcedView
+  } = useProfileAccess(profile, forcedView);
 
   const allowedRoleValues = useMemo(() => (
     new Set(
@@ -179,6 +132,57 @@ function ProfilePage({ forcedView = "none" }) {
         .filter(Boolean)
     )
   ), [roleOptions]);
+
+  const createOrganizationOptions = useMemo(() => {
+    const currentCode = String(profile?.organizationCode || "").trim().toLowerCase();
+    const currentName = String(profile?.organizationName || "").trim();
+
+    if (!hasSettingsMenuAccess) {
+      return currentCode
+        ? [{ value: currentCode, label: currentName ? `${currentName} (${currentCode})` : currentCode }]
+        : [];
+    }
+
+    const activeItems = Array.isArray(organizations)
+      ? organizations
+          .filter((item) => Boolean(item?.isActive))
+          .map((item) => {
+            const code = String(item?.code || "").trim().toLowerCase();
+            const name = String(item?.name || "").trim();
+            if (!code) {
+              return null;
+            }
+            return {
+              value: code,
+              label: name ? `${name} (${code})` : code
+            };
+          })
+          .filter(Boolean)
+      : [];
+
+    const hasCurrent = activeItems.some((item) => item.value === currentCode);
+    if (!hasCurrent && currentCode) {
+      activeItems.unshift({
+        value: currentCode,
+        label: currentName ? `${currentName} (${currentCode})` : currentCode
+      });
+    }
+
+    return activeItems;
+  }, [hasSettingsMenuAccess, organizations, profile?.organizationCode, profile?.organizationName]);
+
+  const allowedCreateOrganizationCodes = useMemo(() => (
+    new Set(
+      createOrganizationOptions
+        .map((option) => String(option?.value || "").trim().toLowerCase())
+        .filter(Boolean)
+    )
+  ), [createOrganizationOptions]);
+
+  const groupedRolePermissionOptions = useMemo(
+    () => groupRolePermissionOptions(rolePermissionOptions),
+    [rolePermissionOptions]
+  );
 
   const firstName = useMemo(() => {
     const rawName = String(profile?.fullName || profile?.username || "User").trim();
@@ -224,54 +228,19 @@ function ProfilePage({ forcedView = "none" }) {
   }, []);
 
   const closeProfileEditModal = useCallback(() => {
-    setProfileEdit({
-      open: false,
-      mode: "profile",
-      form: { ...EMPTY_PROFILE_EDIT_FORM },
-      currentPassword: "",
-      newPassword: "",
-      error: "",
-      submitting: false
-    });
+    setProfileEdit(createEmptyProfileEditState());
   }, []);
 
   const closeAllUsersEditModal = useCallback(() => {
-    setAllUsersEdit({
-      open: false,
-      id: "",
-      submitting: false,
-      form: {
-        username: "",
-        email: "",
-        fullName: "",
-        birthday: "",
-        phone: "",
-        position: "",
-        role: "",
-        password: ""
-      },
-      errors: {}
-    });
+    setAllUsersEdit(createEmptyAllUsersEditState());
   }, []);
 
   const closeAllUsersDeleteModal = useCallback(() => {
-    setAllUsersDelete({
-      open: false,
-      id: "",
-      error: "",
-      submitting: false
-    });
+    setAllUsersDelete(createEmptyAllUsersDeleteState());
   }, []);
 
   const closeSettingsDeleteModal = useCallback(() => {
-    setSettingsDelete({
-      open: false,
-      type: "",
-      id: "",
-      label: "",
-      error: "",
-      submitting: false
-    });
+    setSettingsDelete(createEmptySettingsDeleteState());
   }, []);
 
   const openAvatarPicker = useCallback(() => {
@@ -297,8 +266,7 @@ function ProfilePage({ forcedView = "none" }) {
 
   const loadAllUsers = useCallback(async (requestedPage = 1) => {
     if (!canReadUsers) {
-      setAllUsers([]);
-      setAllUsersMessage("You do not have permission to view users.");
+      navigate("/404", { replace: true });
       return;
     }
 
@@ -324,9 +292,8 @@ function ProfilePage({ forcedView = "none" }) {
           navigate("/", { replace: true });
           return;
         }
-        if (response.status === 403) {
-          setAllUsers([]);
-          setAllUsersMessage("You do not have permission to view users.");
+        if (response.status === 403 || response.status === 404) {
+          navigate("/404", { replace: true });
           return;
         }
         setAllUsers([]);
@@ -365,28 +332,22 @@ function ProfilePage({ forcedView = "none" }) {
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        if (response.status === 401) {
-          navigate("/", { replace: true });
+        if (handleProtectedStatus(response, navigate)) {
+          return;
         }
         return;
       }
 
-      const nextRoles = Array.isArray(data?.roles)
-        ? data.roles
-            .map((option) => ({
-              value: String(option?.value || "").trim(),
-              label: String(option?.label || "").trim()
-            }))
-            .filter((option) => option.value && option.label)
-        : [];
-      const nextPositions = Array.isArray(data?.positions)
-        ? data.positions
-            .map((option) => ({
-              value: String(option?.value || "").trim(),
-              label: String(option?.label || "").trim()
-            }))
-            .filter((option) => option.value && option.label)
-        : [];
+      const nextRoles = mapValueLabelOptions(
+        data?.roles,
+        (option) => option?.value,
+        (option) => option?.label
+      );
+      const nextPositions = mapValueLabelOptions(
+        data?.positions,
+        (option) => option?.value,
+        (option) => option?.label
+      );
 
       setRoleOptions(nextRoles);
       setPositionOptions(nextPositions);
@@ -398,8 +359,7 @@ function ProfilePage({ forcedView = "none" }) {
 
   const loadOrganizations = useCallback(async () => {
     if (!hasSettingsMenuAccess) {
-      setOrganizations([]);
-      setOrganizationsMessage("You do not have permission to manage settings.");
+      navigate("/404", { replace: true });
       return;
     }
 
@@ -414,8 +374,7 @@ function ProfilePage({ forcedView = "none" }) {
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        if (response.status === 401) {
-          navigate("/", { replace: true });
+        if (handleProtectedStatus(response, navigate)) {
           return;
         }
         setOrganizations([]);
@@ -436,8 +395,7 @@ function ProfilePage({ forcedView = "none" }) {
 
   const loadRolesSettings = useCallback(async () => {
     if (!hasSettingsMenuAccess) {
-      setRolesSettings([]);
-      setRolesSettingsMessage("You do not have permission to manage settings.");
+      navigate("/404", { replace: true });
       return;
     }
 
@@ -452,20 +410,33 @@ function ProfilePage({ forcedView = "none" }) {
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        if (response.status === 401) {
-          navigate("/", { replace: true });
+        if (handleProtectedStatus(response, navigate)) {
           return;
         }
         setRolesSettings([]);
+        setRolePermissionOptions([]);
         setRolesSettingsMessage(data?.message || "Failed to load roles.");
         return;
       }
 
-      const items = Array.isArray(data?.items) ? data.items : [];
+      const items = Array.isArray(data?.items)
+        ? data.items.map((item) => ({
+            ...item,
+            permissionCodes: normalizePermissionCodesInput(item?.permissionCodes)
+          }))
+        : [];
+      const permissions = mapValueLabelOptions(
+        data?.permissions,
+        (permission) => String(permission?.code || permission?.value || "").toLowerCase(),
+        (permission) => permission?.label
+      );
+
+      setRolePermissionOptions(permissions);
       setRolesSettings(items);
       setRolesSettingsMessage(items.length === 0 ? "No roles found." : "");
     } catch {
       setRolesSettings([]);
+      setRolePermissionOptions([]);
       setRolesSettingsMessage("Unexpected error. Please try again.");
     } finally {
       setRolesSettingsLoading(false);
@@ -474,8 +445,7 @@ function ProfilePage({ forcedView = "none" }) {
 
   const loadPositionsSettings = useCallback(async () => {
     if (!hasSettingsMenuAccess) {
-      setPositionsSettings([]);
-      setPositionsSettingsMessage("You do not have permission to manage settings.");
+      navigate("/404", { replace: true });
       return;
     }
 
@@ -490,8 +460,7 @@ function ProfilePage({ forcedView = "none" }) {
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        if (response.status === 401) {
-          navigate("/", { replace: true });
+        if (handleProtectedStatus(response, navigate)) {
           return;
         }
         setPositionsSettings([]);
@@ -568,8 +537,27 @@ function ProfilePage({ forcedView = "none" }) {
   }, [forcedView, setMainView]);
 
   useEffect(() => {
+    if (profileLoading || !profile?.username) {
+      return;
+    }
+    if (!canAccessForcedView) {
+      navigate("/404", { replace: true });
+    }
+  }, [canAccessForcedView, navigate, profile?.username, profileLoading]);
+
+  useEffect(() => {
+    if (profileLoading || !profile?.username) {
+      return;
+    }
+
     if (mainView === "all-users") {
       loadAllUsers(1);
+      return;
+    }
+    if (mainView === "create-user") {
+      if (hasSettingsMenuAccess) {
+        loadOrganizations();
+      }
       return;
     }
     if (mainView === "settings-organizations") {
@@ -583,7 +571,36 @@ function ProfilePage({ forcedView = "none" }) {
     if (mainView === "settings-positions") {
       loadPositionsSettings();
     }
-  }, [loadAllUsers, loadOrganizations, loadPositionsSettings, loadRolesSettings, mainView]);
+  }, [
+    hasSettingsMenuAccess,
+    loadAllUsers,
+    loadOrganizations,
+    loadPositionsSettings,
+    loadRolesSettings,
+    mainView,
+    profile?.username,
+    profileLoading
+  ]);
+
+  useEffect(() => {
+    const fallbackCode = String(profile?.organizationCode || "").trim().toLowerCase();
+    const firstAvailableCode = createOrganizationOptions[0]?.value || "";
+    const nextCode = fallbackCode || firstAvailableCode;
+    if (!nextCode) {
+      return;
+    }
+
+    setCreateForm((prev) => {
+      const currentCode = String(prev.organizationCode || "").trim().toLowerCase();
+      if (currentCode && allowedCreateOrganizationCodes.has(currentCode)) {
+        return prev;
+      }
+      return {
+        ...prev,
+        organizationCode: nextCode
+      };
+    });
+  }, [allowedCreateOrganizationCodes, createOrganizationOptions, profile?.organizationCode]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -685,7 +702,7 @@ function ProfilePage({ forcedView = "none" }) {
   }
 
   function openClientsPanel() {
-    openPanel("/clients");
+    openPanel("/clients", canReadClients);
   }
 
   function closeClientsPanel() {
@@ -693,7 +710,7 @@ function ProfilePage({ forcedView = "none" }) {
   }
 
   function openAppointmentPanel() {
-    openPanel("/appointments");
+    openPanel("/appointments", canReadAppointments);
   }
 
   function closeAppointmentPanel() {
@@ -746,12 +763,8 @@ function ProfilePage({ forcedView = "none" }) {
   }
 
   function validateRoleSettingsForm(form) {
-    const value = String(form?.value || "").trim().toLowerCase();
     const label = String(form?.label || "").trim();
 
-    if (!ROLE_VALUE_REGEX.test(value)) {
-      return "Value must be 2-32 chars and contain lowercase letters, numbers, ., _, -";
-    }
     if (!label) {
       return "Label is required.";
     }
@@ -759,12 +772,8 @@ function ProfilePage({ forcedView = "none" }) {
   }
 
   function validatePositionSettingsForm(form) {
-    const value = String(form?.value || "").trim();
     const label = String(form?.label || "").trim();
 
-    if (!value) {
-      return "Value is required.";
-    }
     if (!label) {
       return "Label is required.";
     }
@@ -910,7 +919,6 @@ function ProfilePage({ forcedView = "none" }) {
     }
 
     const payload = {
-      value: String(roleCreateForm.value || "").trim().toLowerCase(),
       label: String(roleCreateForm.label || "").trim(),
       sortOrder: normalizeSettingsSortOrderInput(roleCreateForm.sortOrder),
       isActive: Boolean(roleCreateForm.isActive)
@@ -940,7 +948,7 @@ function ProfilePage({ forcedView = "none" }) {
         return;
       }
 
-      setRoleCreateForm({ ...EMPTY_SETTINGS_OPTION_FORM });
+      setRoleCreateForm({ ...EMPTY_ROLE_CREATE_FORM });
       await Promise.all([loadRolesSettings(), loadUserOptions()]);
     } catch {
       setRoleCreateError("Unexpected error. Please try again.");
@@ -951,11 +959,12 @@ function ProfilePage({ forcedView = "none" }) {
 
   function startRoleEdit(item) {
     setRoleEditId(String(item?.id || ""));
+    setRoleEditTab("edit");
     setRoleEditForm({
-      value: String(item?.value || ""),
       label: String(item?.label || ""),
       sortOrder: String(item?.sortOrder ?? "0"),
-      isActive: Boolean(item?.isActive)
+      isActive: Boolean(item?.isActive),
+      permissionCodes: normalizePermissionCodesInput(item?.permissionCodes)
     });
     setRoleEditError("");
     setRoleEditOpen(true);
@@ -963,8 +972,9 @@ function ProfilePage({ forcedView = "none" }) {
 
   function cancelRoleEdit() {
     setRoleEditOpen(false);
+    setRoleEditTab("edit");
     setRoleEditId("");
-    setRoleEditForm({ ...EMPTY_SETTINGS_OPTION_FORM });
+    setRoleEditForm({ ...EMPTY_ROLE_EDIT_FORM });
     setRoleEditError("");
     setRoleEditSubmitting(false);
   }
@@ -976,10 +986,10 @@ function ProfilePage({ forcedView = "none" }) {
     }
 
     const payload = {
-      value: String(roleEditForm.value || "").trim().toLowerCase(),
       label: String(roleEditForm.label || "").trim(),
       sortOrder: normalizeSettingsSortOrderInput(roleEditForm.sortOrder),
-      isActive: Boolean(roleEditForm.isActive)
+      isActive: Boolean(roleEditForm.isActive),
+      permissionCodes: normalizePermissionCodesInput(roleEditForm.permissionCodes)
     };
     const validationError = validateRoleSettingsForm(payload);
     if (validationError) {
@@ -1028,7 +1038,6 @@ function ProfilePage({ forcedView = "none" }) {
     }
 
     const payload = {
-      value: String(positionCreateForm.value || "").trim(),
       label: String(positionCreateForm.label || "").trim(),
       sortOrder: normalizeSettingsSortOrderInput(positionCreateForm.sortOrder),
       isActive: Boolean(positionCreateForm.isActive)
@@ -1070,7 +1079,6 @@ function ProfilePage({ forcedView = "none" }) {
   function startPositionEdit(item) {
     setPositionEditId(String(item?.id || ""));
     setPositionEditForm({
-      value: String(item?.value || ""),
       label: String(item?.label || ""),
       sortOrder: String(item?.sortOrder ?? "0"),
       isActive: Boolean(item?.isActive)
@@ -1094,7 +1102,6 @@ function ProfilePage({ forcedView = "none" }) {
     }
 
     const payload = {
-      value: String(positionEditForm.value || "").trim(),
       label: String(positionEditForm.label || "").trim(),
       sortOrder: normalizeSettingsSortOrderInput(positionEditForm.sortOrder),
       isActive: Boolean(positionEditForm.isActive)
@@ -1219,6 +1226,11 @@ function ProfilePage({ forcedView = "none" }) {
 
   function validateCreatePayload(payload) {
     const errors = {};
+    if (!ORGANIZATION_CODE_REGEX.test(payload.organizationCode)) {
+      errors.organizationCode = "Invalid organisation.";
+    } else if (!allowedCreateOrganizationCodes.has(payload.organizationCode)) {
+      errors.organizationCode = "Invalid organisation.";
+    }
     if (!USERNAME_REGEX.test(payload.username)) {
       errors.username = "Username must be 3-30 chars and contain letters, numbers, ., _, -";
     }
@@ -1242,6 +1254,9 @@ function ProfilePage({ forcedView = "none" }) {
     }
 
     const payload = {
+      organizationCode: String(
+        createForm.organizationCode || profile?.organizationCode || ""
+      ).trim().toLowerCase(),
       username: String(createForm.username || "").trim(),
       fullName: String(createForm.fullName || "").trim(),
       role: String(createForm.role || "").trim().toLowerCase()
@@ -1277,7 +1292,7 @@ function ProfilePage({ forcedView = "none" }) {
         return;
       }
 
-      setCreateForm({ username: "", fullName: "", role: "" });
+      setCreateForm((prev) => ({ ...prev, username: "", fullName: "", role: "" }));
       setCreateErrors({});
     } catch {
       setCreateErrors({ username: "Unexpected error. Please try again." });
@@ -1295,7 +1310,7 @@ function ProfilePage({ forcedView = "none" }) {
         fullName: String(profile?.fullName || ""),
         birthday: formatDateForInput(profile?.birthday),
         phone: String(profile?.phone || ""),
-        position: String(profile?.position || "")
+        position: String(profile?.positionId || "")
       },
       currentPassword: "",
       newPassword: "",
@@ -1411,7 +1426,7 @@ function ProfilePage({ forcedView = "none" }) {
         fullName: String(profile?.fullName || "").trim(),
         birthday: formatDateForInput(profile?.birthday),
         phone: String(profile?.phone || "").trim(),
-        position: String(profile?.position || "").trim()
+        position: String(profile?.positionId || "").trim()
       };
       const fieldsToUpdate = Object.keys(nextValues).filter(
         (field) => nextValues[field] !== currentValues[field]
@@ -1465,6 +1480,9 @@ function ProfilePage({ forcedView = "none" }) {
     if (!canUpdateUsers) {
       return;
     }
+    if (hasSettingsMenuAccess && !organizationsLoading && organizations.length === 0) {
+      loadOrganizations();
+    }
     const currentUser = allUsers.find((user) => String(user.id) === String(userId));
     if (!currentUser) {
       return;
@@ -1475,13 +1493,15 @@ function ProfilePage({ forcedView = "none" }) {
       id: String(currentUser.id || ""),
       submitting: false,
       form: {
+        organizationName: String(currentUser.organizationName || ""),
+        organizationCode: String(currentUser.organizationCode || ""),
         username: String(currentUser.username || ""),
         email: String(currentUser.email || ""),
         fullName: String(currentUser.fullName || ""),
         birthday: formatDateForInput(currentUser.birthday),
         phone: String(currentUser.phone || ""),
-        position: String(currentUser.position || ""),
-        role: String(currentUser.role || "").toLowerCase(),
+        position: String(currentUser.positionId || ""),
+        role: String(currentUser.roleId || ""),
         password: ""
       },
       errors: {}
@@ -1516,6 +1536,7 @@ function ProfilePage({ forcedView = "none" }) {
     }
 
     const payload = {
+      organizationCode: String(allUsersEdit.form.organizationCode || "").trim().toLowerCase(),
       username: String(allUsersEdit.form.username || "").trim(),
       email: String(allUsersEdit.form.email || "").trim(),
       fullName: String(allUsersEdit.form.fullName || "").trim(),
@@ -1548,6 +1569,8 @@ function ProfilePage({ forcedView = "none" }) {
           submitting: false,
           errors: data?.errors && typeof data.errors === "object"
             ? data.errors
+            : data?.field
+              ? { [data.field]: data.message || "Invalid value." }
             : { username: data?.message || "Failed to update user." }
         }));
         return;
@@ -1734,6 +1757,7 @@ function ProfilePage({ forcedView = "none" }) {
                   <thead>
                     <tr>
                       <th>ID</th>
+                      <th>Organization</th>
                       <th>Username</th>
                       <th>Email</th>
                       <th>Full Name</th>
@@ -1750,6 +1774,11 @@ function ProfilePage({ forcedView = "none" }) {
                     {allUsers.map((user) => (
                       <tr key={String(user.id)}>
                         <td>{user.id || "-"}</td>
+                        <td>
+                          {user.organizationName && user.organizationCode
+                            ? `${user.organizationName} (${user.organizationCode})`
+                            : (user.organizationCode || "-")}
+                        </td>
                         <td>{user.username || "-"}</td>
                         <td>{user.email || "-"}</td>
                         <td>{user.fullName || "-"}</td>
@@ -1999,23 +2028,6 @@ function ProfilePage({ forcedView = "none" }) {
               <form className="auth-form settings-create-form" noValidate onSubmit={handleRoleCreateSubmit}>
                 <div className="settings-form-grid">
                   <div className="field">
-                    <label htmlFor="roleValueInput">Value</label>
-                    <input
-                      id="roleValueInput"
-                      name="value"
-                      type="text"
-                      placeholder="manager"
-                      value={roleCreateForm.value}
-                      onInput={(event) => {
-                        const nextValue = event.currentTarget.value;
-                        setRoleCreateForm((prev) => ({ ...prev, value: nextValue }));
-                        if (roleCreateError) {
-                          setRoleCreateError("");
-                        }
-                      }}
-                    />
-                  </div>
-                  <div className="field">
                     <label htmlFor="roleLabelInput">Label</label>
                     <input
                       id="roleLabelInput"
@@ -2079,7 +2091,6 @@ function ProfilePage({ forcedView = "none" }) {
                   <thead>
                     <tr>
                       <th>ID</th>
-                      <th>Value</th>
                       <th>Label</th>
                       <th>Sort</th>
                       <th>Active</th>
@@ -2094,7 +2105,6 @@ function ProfilePage({ forcedView = "none" }) {
                       return (
                         <tr key={rowId}>
                           <td>{rowId}</td>
-                          <td>{item.value || "-"}</td>
                           <td>{item.label || "-"}</td>
                           <td>{item.sortOrder}</td>
                           <td>{item.isActive ? "Yes" : "No"}</td>
@@ -2113,7 +2123,7 @@ function ProfilePage({ forcedView = "none" }) {
                               type="button"
                               className="table-action-btn table-action-btn-danger"
                               disabled={roleDeletingId === rowId}
-                              onClick={() => handleRoleDelete(rowId, item?.label || item?.value || rowId)}
+                              onClick={() => handleRoleDelete(rowId, item?.label || rowId)}
                             >
                               {roleDeletingId === rowId ? "..." : "Delete"}
                             </button>
@@ -2144,23 +2154,6 @@ function ProfilePage({ forcedView = "none" }) {
 
               <form className="auth-form settings-create-form" noValidate onSubmit={handlePositionCreateSubmit}>
                 <div className="settings-form-grid">
-                  <div className="field">
-                    <label htmlFor="positionValueInput">Value</label>
-                    <input
-                      id="positionValueInput"
-                      name="value"
-                      type="text"
-                      placeholder="New Position Value"
-                      value={positionCreateForm.value}
-                      onInput={(event) => {
-                        const nextValue = event.currentTarget.value;
-                        setPositionCreateForm((prev) => ({ ...prev, value: nextValue }));
-                        if (positionCreateError) {
-                          setPositionCreateError("");
-                        }
-                      }}
-                    />
-                  </div>
                   <div className="field">
                     <label htmlFor="positionLabelInput">Label</label>
                     <input
@@ -2225,7 +2218,6 @@ function ProfilePage({ forcedView = "none" }) {
                   <thead>
                     <tr>
                       <th>ID</th>
-                      <th>Value</th>
                       <th>Label</th>
                       <th>Sort</th>
                       <th>Active</th>
@@ -2240,7 +2232,6 @@ function ProfilePage({ forcedView = "none" }) {
                       return (
                         <tr key={rowId}>
                           <td>{rowId}</td>
-                          <td>{item.value || "-"}</td>
                           <td>{item.label || "-"}</td>
                           <td>{item.sortOrder}</td>
                           <td>{item.isActive ? "Yes" : "No"}</td>
@@ -2259,7 +2250,7 @@ function ProfilePage({ forcedView = "none" }) {
                               type="button"
                               className="table-action-btn table-action-btn-danger"
                               disabled={positionDeletingId === rowId}
-                              onClick={() => handlePositionDelete(rowId, item?.label || item?.value || rowId)}
+                              onClick={() => handlePositionDelete(rowId, item?.label || rowId)}
                             >
                               {positionDeletingId === rowId ? "..." : "Delete"}
                             </button>
@@ -2292,6 +2283,24 @@ function ProfilePage({ forcedView = "none" }) {
                 <p className="all-users-state">You do not have permission to create users.</p>
               ) : (
                 <form className="auth-form" id="adminCreateForm" noValidate onSubmit={handleCreateUserSubmit}>
+                <div className="field">
+                  <label htmlFor="createUserOrganizationCode">Organisation</label>
+                  <CustomSelect
+                    id="createUserOrganizationCode"
+                    placeholder={organizationsLoading ? "Loading organisations..." : "Select organisation"}
+                    value={createForm.organizationCode}
+                    options={createOrganizationOptions}
+                    error={Boolean(createErrors.organizationCode)}
+                    onChange={(nextCode) => {
+                      setCreateForm((prev) => ({ ...prev, organizationCode: nextCode }));
+                      if (createErrors.organizationCode) {
+                        setCreateErrors((prev) => ({ ...prev, organizationCode: "" }));
+                      }
+                    }}
+                  />
+                  <small className="field-error">{createErrors.organizationCode || ""}</small>
+                </div>
+
                 <div className="field">
                   <label htmlFor="username">Username</label>
                   <input
@@ -2660,6 +2669,25 @@ function ProfilePage({ forcedView = "none" }) {
         <h3>Edit User</h3>
         <form id="allUsersEditForm" className="auth-form" noValidate onSubmit={handleAllUsersEditSubmit}>
           <div className="field">
+            <label htmlFor="allUsersEditOrganizationSelect">Organisation</label>
+            <CustomSelect
+              id="allUsersEditOrganizationSelect"
+              placeholder={organizationsLoading ? "Loading organisations..." : "Select organisation"}
+              value={allUsersEdit.form.organizationCode}
+              options={createOrganizationOptions}
+              error={Boolean(allUsersEdit.errors.organizationCode)}
+              onChange={(nextCode) => {
+                setAllUsersEdit((prev) => ({
+                  ...prev,
+                  form: { ...prev.form, organizationCode: nextCode },
+                  errors: { ...prev.errors, organizationCode: "" }
+                }));
+              }}
+            />
+            <small id="allUsersEditOrganizationError" className="field-error">{allUsersEdit.errors.organizationCode || ""}</small>
+          </div>
+
+          <div className="field">
             <label htmlFor="allUsersEditUsername">Username</label>
             <input
               id="allUsersEditUsername"
@@ -2960,7 +2988,6 @@ function ProfilePage({ forcedView = "none" }) {
       <div className="login-overlay" hidden={!organizationEditOpen} onClick={cancelOrganizationEdit} />
 
       <section id="roleEditModal" className="logout-confirm-modal settings-edit-modal" hidden={!roleEditOpen}>
-        <h3>Edit Role</h3>
         <form
           className="auth-form settings-edit-form"
           noValidate
@@ -2969,22 +2996,58 @@ function ProfilePage({ forcedView = "none" }) {
             handleRoleEditSave();
           }}
         >
-          <div className="field">
-            <label htmlFor="roleEditValueInput">Value</label>
-            <input
-              id="roleEditValueInput"
-              type="text"
-              value={roleEditForm.value}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setRoleEditForm((prev) => ({ ...prev, value: nextValue }));
-                if (roleEditError) {
-                  setRoleEditError("");
-                }
-              }}
-            />
+          <div className="settings-edit-tabs">
+            <button
+              type="button"
+              className={`header-btn settings-edit-tab-btn${roleEditTab === "edit" ? " is-active" : ""}`}
+              onClick={() => setRoleEditTab("edit")}
+            >
+              Edit role
+            </button>
+            <button
+              type="button"
+              className={`header-btn settings-edit-tab-btn${roleEditTab === "permissions" ? " is-active" : ""}`}
+              onClick={() => setRoleEditTab("permissions")}
+            >
+              Permissions
+            </button>
           </div>
-          <div className="field">
+          <div
+            className="settings-permissions-section"
+            hidden={roleEditTab !== "permissions" || groupedRolePermissionOptions.length === 0}
+          >
+            <p className="settings-permissions-title">Permissions</p>
+            <div className="settings-permission-groups">
+              {groupedRolePermissionOptions.map((group) => (
+                <section key={group.key} className="settings-permission-group">
+                  <p className="settings-permission-group-title">{group.label}</p>
+                  <div className="settings-permissions-grid settings-permissions-grid-group">
+                    {group.permissions.map((permission) => {
+                      const inputId = `roleEditPermission_${permission.code.replace(/[^a-z0-9_-]/g, "_")}`;
+                      return (
+                        <label key={permission.code} className="settings-permission-item" htmlFor={inputId}>
+                          <input
+                            id={inputId}
+                            type="checkbox"
+                            checked={roleEditForm.permissionCodes.includes(permission.code)}
+                            onChange={(event) => {
+                              const checked = event.currentTarget.checked;
+                              setRoleEditForm((prev) => ({
+                                ...prev,
+                                permissionCodes: togglePermissionCode(prev.permissionCodes, permission.code, checked)
+                              }));
+                            }}
+                          />
+                          <span>{permission.actionLabel}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </div>
+          <div className="field" hidden={roleEditTab !== "edit"}>
             <label htmlFor="roleEditLabelInput">Label</label>
             <input
               id="roleEditLabelInput"
@@ -2999,7 +3062,7 @@ function ProfilePage({ forcedView = "none" }) {
               }}
             />
           </div>
-          <div className="field">
+          <div className="field" hidden={roleEditTab !== "edit"}>
             <label htmlFor="roleEditSortInput">Sort</label>
             <input
               id="roleEditSortInput"
@@ -3011,7 +3074,7 @@ function ProfilePage({ forcedView = "none" }) {
               }}
             />
           </div>
-          <div className="field settings-inline-control">
+          <div className="field settings-inline-control" hidden={roleEditTab !== "edit"}>
             <label htmlFor="roleEditIsActiveInput">Active</label>
             <label className="settings-checkbox settings-checkbox-inline" htmlFor="roleEditIsActiveInput">
               <input
@@ -3044,21 +3107,6 @@ function ProfilePage({ forcedView = "none" }) {
             handlePositionEditSave();
           }}
         >
-          <div className="field">
-            <label htmlFor="positionEditValueInput">Value</label>
-            <input
-              id="positionEditValueInput"
-              type="text"
-              value={positionEditForm.value}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setPositionEditForm((prev) => ({ ...prev, value: nextValue }));
-                if (positionEditError) {
-                  setPositionEditError("");
-                }
-              }}
-            />
-          </div>
           <div className="field">
             <label htmlFor="positionEditLabelInput">Label</label>
             <input
@@ -3125,6 +3173,7 @@ function ProfilePage({ forcedView = "none" }) {
             id="openClientsBtn"
             type="button"
             className="side-menu-action"
+            hidden={!canReadClients}
             onClick={openClientsPanel}
           >
             Clients
@@ -3133,6 +3182,7 @@ function ProfilePage({ forcedView = "none" }) {
             id="openAppointmentBtn"
             type="button"
             className="side-menu-action"
+            hidden={!canReadAppointments}
             onClick={openAppointmentPanel}
           >
             Appointment

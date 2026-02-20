@@ -4,18 +4,23 @@ import pool from "../../config/db.js";
 export async function getProfileByAuthContext({ userId, organizationId }) {
   const { rows } = await pool.query(
     `SELECT
+       u.role_id,
+       u.position_id,
        u.username,
        u.email,
        u.full_name,
        u.birthday,
-       u.role,
+       r.label AS role,
+       r.is_admin,
        u.phone_number,
-       u.position,
+       p.label AS position,
        o.id AS organization_id,
        o.code AS organization_code,
        o.name AS organization_name
      FROM users u
      JOIN organizations o ON o.id = u.organization_id
+     JOIN role_options r ON r.id = u.role_id
+     LEFT JOIN position_options p ON p.id = u.position_id
      WHERE u.id = $1
        AND u.organization_id = $2
        AND o.is_active = TRUE
@@ -46,7 +51,9 @@ export async function updateOwnProfileField({ userId, organizationId, field, val
     sql = "UPDATE users SET phone_number = $1 WHERE id = $2 AND organization_id = $3";
     values = [value || null, userId, organizationId];
   } else if (field === "position") {
-    sql = "UPDATE users SET position = $1 WHERE id = $2 AND organization_id = $3";
+    sql = `UPDATE users
+              SET position_id = CASE WHEN $1::int IS NULL THEN NULL ELSE $1::int END
+            WHERE id = $2 AND organization_id = $3`;
     values = [value || null, userId, organizationId];
   }
 

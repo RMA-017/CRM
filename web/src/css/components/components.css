@@ -12,6 +12,10 @@
   z-index: 55;
 }
 
+.logout-confirm-modal.settings-edit-modal {
+  padding: 10.5px 18px;
+}
+
 .logout-confirm-modal h3 {
   margin: 0;
   font-size: var(--fs-base);
@@ -178,6 +182,10 @@
   z-index: 56;
 }
 
+.logout-confirm-modal.all-users-edit-modal h3 {
+  margin: 4px 0 10px;
+}
+
 
 .all-users-edit-modal .auth-form {
   max-height: 360px;
@@ -257,7 +265,7 @@
 
 .settings-form-grid {
   display: grid;
-  grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr) 78px 48px 84px;
+  grid-template-columns: minmax(180px, 1fr) 78px 48px 84px;
   gap: 6px;
   align-items: center;
   min-width: max-content;
@@ -327,8 +335,162 @@
   justify-self: start;
 }
 
+.settings-permissions-section {
+  margin-top: 4px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 6px;
+}
+
+.settings-permissions-title {
+  margin: 0 0 4px 4px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
+.settings-permissions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+  gap: 2px 8px;
+}
+
+.settings-permission-groups {
+  display: grid;
+  gap: 4px;
+}
+
+.settings-permission-group {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 2px 4px;
+}
+
+.settings-permission-group-title {
+  margin: 0 0 1px 2px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+
+.settings-permissions-grid-group {
+  grid-template-columns: repeat(2, minmax(140px, 1fr));
+}
+
+.settings-permission-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 30px;
+  margin: 0;
+  padding: 0 1px;
+  font-size: var(--fs-small);
+  line-height: 1;
+  color: var(--text-main);
+}
+
+.settings-permission-item span {
+  line-height: 1;
+}
+
+.settings-permission-item input[type="checkbox"] {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.settings-edit-form .settings-permissions-section {
+  margin-top: 2px;
+}
+
+.settings-edit-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 20px 0 10px 0;
+}
+
+.settings-edit-tab-btn {
+  width: 116px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--text-main);
+  font-weight: 500;
+}
+
+.settings-edit-tab-btn:hover {
+  border-color: var(--accent-border-hover);
+  color: var(--brand-2);
+}
+
+.settings-edit-tab-btn.is-active {
+  color: var(--brand-2);
+  border: 1px solid var(--accent-border-hover);
+  background: rgba(64, 138, 243, 0.14);
+  font-weight: 600;
+}
+
 .settings-edit-modal h3 {
-  margin: 2px 0 10px;
+  margin: 8px 0 10px;
+}
+
+#roleEditModal {
+  width: min(420px, calc(100vw - 40px));
+  height: min(305px, calc(100dvh - 28px));
+  overflow: hidden;
+}
+
+#roleEditModal .settings-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 100%;
+  overflow: hidden;
+  padding-right: 0;
+}
+
+#roleEditModal .settings-permissions-section {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+}
+
+#roleEditModal .settings-permissions-section::-webkit-scrollbar {
+  width: 10px;
+}
+
+#roleEditModal .settings-permissions-section::-webkit-scrollbar-track {
+  background: var(--scroll-track);
+  border-radius: 10px;
+}
+
+#roleEditModal .settings-permissions-section::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 10px;
+  border: 2px solid var(--surface);
+}
+
+#roleEditModal .settings-permissions-section::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+}
+
+#roleEditModal .settings-edit-form .edit-actions {
+  position: sticky;
+  bottom: 0;
+  margin-top: auto;
+  padding-top: 10px;
+  padding-bottom: 2px;
+  background: linear-gradient(to top, var(--surface) 78%, rgba(255, 255, 255, 0));
+  z-index: 1;
 }
 
 .settings-edit-form .settings-inline-control {
@@ -395,15 +557,41 @@
   min-width: 760px;
 }
 
+.settings-table th:nth-child(5),
+.settings-table td:nth-child(5),
 .settings-table th:nth-child(6),
 .settings-table td:nth-child(6),
 .settings-table th:nth-child(7),
-.settings-table td:nth-child(7),
-.settings-table th:nth-child(8),
-.settings-table td:nth-child(8) {
+.settings-table td:nth-child(7) {
   width: 90px;
   min-width: 90px;
   max-width: 90px;
+}
+
+#rolesPanel .settings-table th:nth-child(5),
+#rolesPanel .settings-table td:nth-child(5),
+#rolesPanel .settings-table th:nth-child(6),
+#rolesPanel .settings-table td:nth-child(6),
+#rolesPanel .settings-table th:nth-child(7),
+#rolesPanel .settings-table td:nth-child(7) {
+  width: 96px;
+  min-width: 96px;
+  max-width: 96px;
+}
+
+.settings-table th:nth-child(6),
+.settings-table td:nth-child(6),
+.settings-table th:nth-child(7),
+.settings-table td:nth-child(7) {
+  text-align: center;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.settings-table td:nth-child(6) .table-action-btn,
+.settings-table td:nth-child(7) .table-action-btn {
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .settings-table td input[type="text"],
@@ -441,6 +629,19 @@
 
 .all-users-panel {
   width: 100%;
+}
+
+#allUsersPanel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100%;
+}
+
+#allUsersPanel .all-users-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
 }
 
 .all-users-head {
@@ -526,25 +727,43 @@
   height: 30px;
 }
 
-.all-users-table th:nth-child(10),
-.all-users-table td:nth-child(10),
 .all-users-table th:nth-child(11),
-.all-users-table td:nth-child(11) {
+.all-users-table td:nth-child(11),
+.all-users-table th:nth-child(12),
+.all-users-table td:nth-child(12) {
   width: 90px;
   min-width: 90px;
   max-width: 90px;
+  text-align: center;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.all-users-table td:nth-child(11) .table-action-btn,
+.all-users-table td:nth-child(12) .table-action-btn {
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .all-users-pagination {
   margin-top: 10px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 10px;
+}
+
+#allUsersPanel .all-users-pagination {
+  position: static;
+  background: transparent;
 }
 
 .all-users-pagination .header-btn {
   min-width: 84px;
+  height: 30px;
+  min-height: 30px;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .all-users-page-info {
@@ -739,4 +958,3 @@
 #headerAvatarImage[hidden] {
   display: none;
 }
-

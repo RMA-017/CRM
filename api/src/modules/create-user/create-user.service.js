@@ -3,9 +3,10 @@ import pool from "../../config/db.js";
 
 export async function getActorForCreate({ userId, organizationId }) {
   const { rows } = await pool.query(
-    `SELECT u.id, u.role, u.organization_id
+    `SELECT u.id, u.role_id, r.is_admin, u.organization_id
        FROM users u
        JOIN organizations o ON o.id = u.organization_id
+       JOIN role_options r ON r.id = u.role_id
       WHERE u.id = $1
         AND u.organization_id = $2
         AND o.is_active = TRUE`,
@@ -14,14 +15,54 @@ export async function getActorForCreate({ userId, organizationId }) {
   return rows[0] || null;
 }
 
-export async function createBasicUser({ organizationId, username, fullName, role, defaultPassword }) {
+export async function createBasicUser({ organizationId, username, fullName, roleId, defaultPassword }) {
   const passwordHash = await argon2.hash(defaultPassword);
   const { rows } = await pool.query(
-    `INSERT INTO users (
-      organization_id, username, email, full_name, birthday, password_hash, phone_number, position, role
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-     RETURNING id, username, email, full_name, birthday, phone_number, position, role, created_at`,
-    [organizationId, username, null, fullName, null, passwordHash, null, null, role]
+    `WITH created AS (
+       INSERT INTO users (
+         organization_id, username, email, full_name, birthday, password_hash, phone_number, position_id, role_id
+       )
+       VALUES (
+         $1,
+         $2,
+         $3,
+         $4,
+         $5,
+         $6,
+         $7,
+         NULL,
+         $8
+       )
+       RETURNING id, username, email, full_name, birthday, phone_number, position_id, role_id, created_at
+     )
+     SELECT
+       c.id,
+       c.username,
+       c.email,
+       c.full_name,
+       c.birthday,
+       c.phone_number,
+       p.label AS position,
+       r.label AS role,
+       c.position_id::text AS position_id,
+       c.role_id::text AS role_id,
+       c.created_at
+     FROM created c
+     JOIN role_options r ON r.id = c.role_id
+     LEFT JOIN position_options p ON p.id = c.position_id`,
+    [organizationId, username, null, fullName, null, passwordHash, null, roleId]
+  );
+  return rows[0] || null;
+}
+
+export async function findActiveOrganizationByCode(code) {
+  const { rows } = await pool.query(
+    `SELECT id, code, name
+       FROM organizations
+      WHERE LOWER(code) = LOWER($1)
+        AND is_active = TRUE
+      LIMIT 1`,
+    [code]
   );
   return rows[0] || null;
 }

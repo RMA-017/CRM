@@ -209,6 +209,14 @@
     justify-self: start;
   }
 
+  .settings-permissions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-permissions-grid-group {
+    grid-template-columns: 1fr;
+  }
+
   .profile-modal-photo {
     width: 72px;
     height: 72px;

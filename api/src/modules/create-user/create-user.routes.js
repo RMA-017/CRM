@@ -1,8 +1,11 @@
 import { appConfig } from "../../config/app-config.js";
+import { parsePositiveInteger } from "../../lib/number.js";
 import { getAuthContext } from "../../lib/session.js";
 import { PERMISSIONS, USERNAME_REGEX } from "../users/users.constants.js";
 import { hasPermission, isAllowedRole } from "../users/access.service.js";
-import { createBasicUser, getActorForCreate } from "./create-user.service.js";
+import { createBasicUser, findActiveOrganizationByCode, getActorForCreate } from "./create-user.service.js";
+
+const ORGANIZATION_CODE_REGEX = /^[a-z0-9._-]{2,64}$/;
 
 async function createUserRoutes(fastify) {
   fastify.post(
@@ -13,7 +16,8 @@ async function createUserRoutes(fastify) {
     async (request, reply) => {
       const username = String(request.body?.username || "").trim();
       const fullName = String(request.body?.fullName || request.body?.full_name || "").trim();
-      const role = String(request.body?.role || "").trim().toLowerCase();
+      const roleId = parsePositiveInteger(request.body?.role);
+      const organizationCode = String(request.body?.organizationCode || "").trim().toLowerCase();
 
       const authContext = getAuthContext(request, reply);
       if (!authContext) {
@@ -27,13 +31,16 @@ async function createUserRoutes(fastify) {
       if (!fullName) {
         errors.fullName = "Full name is required.";
       }
-      if (!role) {
+      if (!roleId) {
         errors.role = "Role is required.";
       }
+      if (organizationCode && !ORGANIZATION_CODE_REGEX.test(organizationCode)) {
+        errors.organizationCode = "Invalid organisation.";
+      }
 
-      if (role) {
+      if (roleId) {
         try {
-          if (!(await isAllowedRole(role))) {
+          if (!(await isAllowedRole(roleId))) {
             errors.role = "Invalid role.";
           }
         } catch (error) {
@@ -51,15 +58,34 @@ async function createUserRoutes(fastify) {
         if (!actor) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
-        if (!(await hasPermission(actor.role, PERMISSIONS.USERS_CREATE))) {
-          return reply.status(403).send({ message: "You do not have permission to create users." });
+        if (!(await hasPermission(actor.role_id, PERMISSIONS.USERS_CREATE))) {
+          return reply.status(404).send({ message: "Not found." });
+        }
+
+        let targetOrganizationId = authContext.organizationId;
+        if (organizationCode) {
+          const selectedOrganization = await findActiveOrganizationByCode(organizationCode);
+          if (!selectedOrganization) {
+            return reply.status(400).send({
+              field: "organizationCode",
+              message: "Organization not found or inactive."
+            });
+          }
+
+          const isAdmin = Boolean(actor.is_admin);
+          const selectedOrganizationId = Number(selectedOrganization.id);
+          if (!isAdmin && selectedOrganizationId !== Number(authContext.organizationId)) {
+            return reply.status(404).send({ message: "Not found." });
+          }
+
+          targetOrganizationId = selectedOrganizationId;
         }
 
         const createdUser = await createBasicUser({
-          organizationId: authContext.organizationId,
+          organizationId: targetOrganizationId,
           username,
           fullName,
-          role,
+          roleId,
           defaultPassword: appConfig.defaultCreatedUserPassword
         });
 

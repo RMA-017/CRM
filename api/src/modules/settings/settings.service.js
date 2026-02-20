@@ -13,7 +13,6 @@ function mapOrganization(row) {
 function mapOption(row) {
   return {
     id: String(row.id),
-    value: row.value,
     label: row.label,
     sortOrder: Number(row.sort_order || 0),
     isActive: Boolean(row.is_active),
@@ -21,11 +20,127 @@ function mapOption(row) {
   };
 }
 
+function normalizePermissionCode(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function normalizePermissionCodes(codes) {
+  if (!Array.isArray(codes)) {
+    return [];
+  }
+  return Array.from(
+    new Set(
+      codes
+        .map((code) => normalizePermissionCode(code))
+        .filter(Boolean)
+    )
+  );
+}
+
+function mapPermissionOption(row) {
+  return {
+    id: String(row.id),
+    code: normalizePermissionCode(row.code),
+    label: row.label,
+    sortOrder: Number(row.sort_order || 0),
+    isActive: Boolean(row.is_active),
+    createdAt: row.created_at
+  };
+}
+
+function mapRoleOption(row) {
+  const permissionCodes = Array.isArray(row.permission_codes)
+    ? row.permission_codes
+        .map((code) => normalizePermissionCode(code))
+        .filter(Boolean)
+    : [];
+
+  return {
+    id: String(row.id),
+    label: row.label,
+    sortOrder: Number(row.sort_order || 0),
+    isAdmin: Boolean(row.is_admin),
+    isActive: Boolean(row.is_active),
+    createdAt: row.created_at,
+    permissionCodes
+  };
+}
+
+async function getRoleOptionByIdWithDb(db, id) {
+  const { rows } = await db.query(
+    `SELECT
+       r.id,
+       r.label,
+       r.sort_order,
+       r.is_admin,
+       r.is_active,
+       r.created_at,
+       COALESCE(
+         ARRAY_AGG(LOWER(p.code) ORDER BY p.sort_order ASC, p.id ASC)
+         FILTER (WHERE p.id IS NOT NULL AND p.is_active = TRUE),
+         '{}'
+       ) AS permission_codes
+     FROM role_options r
+     LEFT JOIN role_permissions rp ON rp.role_id = r.id
+     LEFT JOIN permissions p ON p.id = rp.permission_id
+    WHERE r.id = $1
+    GROUP BY r.id
+    LIMIT 1`,
+    [id]
+  );
+
+  return rows[0] ? mapRoleOption(rows[0]) : null;
+}
+
+async function resolvePermissionIdsByCodes(db, permissionCodes) {
+  const normalizedCodes = normalizePermissionCodes(permissionCodes);
+  if (normalizedCodes.length === 0) {
+    return [];
+  }
+
+  const { rows } = await db.query(
+    `SELECT id, LOWER(code) AS code
+       FROM permissions
+      WHERE is_active = TRUE
+        AND LOWER(code) = ANY($1::text[])`,
+    [normalizedCodes]
+  );
+
+  const foundCodes = new Set(rows.map((row) => normalizePermissionCode(row.code)));
+  if (foundCodes.size !== normalizedCodes.length) {
+    const invalidCodes = normalizedCodes.filter((code) => !foundCodes.has(code));
+    const error = new Error("Invalid permission code(s).");
+    error.code = "INVALID_PERMISSION_CODES";
+    error.invalidCodes = invalidCodes;
+    throw error;
+  }
+
+  return rows
+    .map((row) => Number(row.id))
+    .filter((id) => Number.isInteger(id) && id > 0);
+}
+
+async function replaceRolePermissions(db, roleId, permissionIds) {
+  await db.query("DELETE FROM role_permissions WHERE role_id = $1", [roleId]);
+
+  if (!Array.isArray(permissionIds) || permissionIds.length === 0) {
+    return;
+  }
+
+  await db.query(
+    `INSERT INTO role_permissions (role_id, permission_id)
+     SELECT $1, src.permission_id
+       FROM UNNEST($2::int[]) AS src(permission_id)`,
+    [roleId, permissionIds]
+  );
+}
+
 export async function findSettingsRequester({ userId, organizationId }) {
   const { rows } = await pool.query(
-    `SELECT u.id, u.role
+    `SELECT u.id, u.role_id, r.label AS role, r.is_admin
        FROM users u
        JOIN organizations o ON o.id = u.organization_id
+       JOIN role_options r ON r.id = u.role_id
       WHERE u.id = $1
         AND u.organization_id = $2
         AND o.is_active = TRUE
@@ -64,33 +179,107 @@ export async function deleteOrganizationById(id) {
 
 export async function listRoleOptionsForSettings() {
   const { rows } = await pool.query(
-    "SELECT id, value, label, sort_order, is_active, created_at FROM role_options ORDER BY sort_order ASC, id ASC"
+    `SELECT
+       r.id,
+       r.label,
+       r.sort_order,
+       r.is_admin,
+       r.is_active,
+       r.created_at,
+       COALESCE(
+         ARRAY_AGG(LOWER(p.code) ORDER BY p.sort_order ASC, p.id ASC)
+         FILTER (WHERE p.id IS NOT NULL AND p.is_active = TRUE),
+         '{}'
+       ) AS permission_codes
+     FROM role_options r
+     LEFT JOIN role_permissions rp ON rp.role_id = r.id
+     LEFT JOIN permissions p ON p.id = rp.permission_id
+    GROUP BY r.id
+    ORDER BY r.sort_order ASC, r.id ASC`
   );
-  return rows.map(mapOption);
+  return rows.map(mapRoleOption);
 }
 
 export async function getRoleOptionById(id) {
-  const { rows } = await pool.query(
-    "SELECT id, value, label, sort_order, is_active, created_at FROM role_options WHERE id = $1 LIMIT 1",
-    [id]
-  );
-  return rows[0] ? mapOption(rows[0]) : null;
+  return getRoleOptionByIdWithDb(pool, id);
 }
 
-export async function createRoleOption({ value, label, sortOrder, isActive }) {
+export async function listPermissionOptionsForSettings() {
   const { rows } = await pool.query(
-    "INSERT INTO role_options (value, label, sort_order, is_active) VALUES ($1, $2, $3, $4) RETURNING id, value, label, sort_order, is_active, created_at",
-    [value, label, sortOrder, isActive]
+    "SELECT id, code, label, sort_order, is_active, created_at FROM permissions ORDER BY sort_order ASC, id ASC"
   );
-  return rows[0] ? mapOption(rows[0]) : null;
+  return rows.map(mapPermissionOption);
 }
 
-export async function updateRoleOption({ id, value, label, sortOrder, isActive }) {
-  const { rows } = await pool.query(
-    "UPDATE role_options SET value = $1, label = $2, sort_order = $3, is_active = $4 WHERE id = $5 RETURNING id, value, label, sort_order, is_active, created_at",
-    [value, label, sortOrder, isActive, id]
-  );
-  return rows[0] ? mapOption(rows[0]) : null;
+export async function createRoleOption({ label, sortOrder, isActive, permissionCodes = [] }) {
+  let client = null;
+
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const insertResult = await client.query(
+      "INSERT INTO role_options (label, sort_order, is_active, is_admin) VALUES ($1, $2, $3, FALSE) RETURNING id",
+      [label, sortOrder, isActive]
+    );
+
+    const roleId = Number(insertResult.rows[0]?.id || 0);
+    if (!roleId) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const permissionIds = await resolvePermissionIdsByCodes(client, permissionCodes);
+    await replaceRolePermissions(client, roleId, permissionIds);
+
+    const item = await getRoleOptionByIdWithDb(client, roleId);
+    await client.query("COMMIT");
+    return item;
+  } catch (error) {
+    if (client) {
+      await client.query("ROLLBACK").catch(() => {});
+    }
+    throw error;
+  } finally {
+    if (client) {
+      client.release();
+    }
+  }
+}
+
+export async function updateRoleOption({ id, label, sortOrder, isActive, permissionCodes = [] }) {
+  let client = null;
+
+  try {
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    const updateResult = await client.query(
+      "UPDATE role_options SET label = $1, sort_order = $2, is_active = $3 WHERE id = $4 RETURNING id",
+      [label, sortOrder, isActive, id]
+    );
+
+    if (updateResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const permissionIds = await resolvePermissionIdsByCodes(client, permissionCodes);
+    await replaceRolePermissions(client, id, permissionIds);
+
+    const item = await getRoleOptionByIdWithDb(client, id);
+    await client.query("COMMIT");
+    return item;
+  } catch (error) {
+    if (client) {
+      await client.query("ROLLBACK").catch(() => {});
+    }
+    throw error;
+  } finally {
+    if (client) {
+      client.release();
+    }
+  }
 }
 
 export async function deleteRoleOptionById(id) {
@@ -99,31 +288,31 @@ export async function deleteRoleOptionById(id) {
 
 export async function listPositionOptionsForSettings() {
   const { rows } = await pool.query(
-    "SELECT id, value, label, sort_order, is_active, created_at FROM position_options ORDER BY sort_order ASC, id ASC"
+    "SELECT id, label, sort_order, is_active, created_at FROM position_options ORDER BY sort_order ASC, id ASC"
   );
   return rows.map(mapOption);
 }
 
 export async function getPositionOptionById(id) {
   const { rows } = await pool.query(
-    "SELECT id, value, label, sort_order, is_active, created_at FROM position_options WHERE id = $1 LIMIT 1",
+    "SELECT id, label, sort_order, is_active, created_at FROM position_options WHERE id = $1 LIMIT 1",
     [id]
   );
   return rows[0] ? mapOption(rows[0]) : null;
 }
 
-export async function createPositionOption({ value, label, sortOrder, isActive }) {
+export async function createPositionOption({ label, sortOrder, isActive }) {
   const { rows } = await pool.query(
-    "INSERT INTO position_options (value, label, sort_order, is_active) VALUES ($1, $2, $3, $4) RETURNING id, value, label, sort_order, is_active, created_at",
-    [value, label, sortOrder, isActive]
+    "INSERT INTO position_options (label, sort_order, is_active) VALUES ($1, $2, $3) RETURNING id, label, sort_order, is_active, created_at",
+    [label, sortOrder, isActive]
   );
   return rows[0] ? mapOption(rows[0]) : null;
 }
 
-export async function updatePositionOption({ id, value, label, sortOrder, isActive }) {
+export async function updatePositionOption({ id, label, sortOrder, isActive }) {
   const { rows } = await pool.query(
-    "UPDATE position_options SET value = $1, label = $2, sort_order = $3, is_active = $4 WHERE id = $5 RETURNING id, value, label, sort_order, is_active, created_at",
-    [value, label, sortOrder, isActive, id]
+    "UPDATE position_options SET label = $1, sort_order = $2, is_active = $3 WHERE id = $4 RETURNING id, label, sort_order, is_active, created_at",
+    [label, sortOrder, isActive, id]
   );
   return rows[0] ? mapOption(rows[0]) : null;
 }

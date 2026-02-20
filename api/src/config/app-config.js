@@ -34,5 +34,5 @@ export const appConfig = {
     max: toNumber(process.env.LOGIN_RATE_LIMIT_MAX, 10),
     timeWindow: toNumber(process.env.LOGIN_RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000)
   },
-  defaultCreatedUserPassword: String(process.env.DEFAULT_CREATED_USER_PASSWORD || "aaron2021")
+  defaultCreatedUserPassword: String(process.env.DEFAULT_CREATED_USER_PASSWORD)
 };

@@ -1,17 +1,32 @@
 import { setNoCacheHeaders } from "../../lib/http.js";
+import { parsePositiveInteger } from "../../lib/number.js";
 import { getAuthContext } from "../../lib/session.js";
 import { PERMISSIONS, USERNAME_REGEX } from "./users.constants.js";
 import { hasPermission, isAllowedPosition, isAllowedRole } from "./access.service.js";
-import { deleteUserById, findRequester, getUsersPage, updateUserByAdmin } from "./users.service.js";
+import {
+  deleteUserById,
+  findActiveOrganizationByCode,
+  findRequester,
+  getUserScopeById,
+  getUsersPage,
+  updateUserByAdmin
+} from "./users.service.js";
+
+const ORGANIZATION_CODE_REGEX = /^[a-z0-9._-]{2,64}$/;
 
 function mapUser(user) {
   return {
     id: user.id,
+    organizationId: user.organization_id,
+    organizationCode: user.organization_code,
+    organizationName: user.organization_name,
     username: user.username,
     email: user.email,
     fullName: user.full_name,
     birthday: user.birthday,
+    roleId: user.role_id,
     role: user.role,
+    positionId: user.position_id,
     phone: user.phone_number,
     position: user.position,
     createdAt: user.created_at
@@ -34,6 +49,7 @@ async function usersRoutes(fastify) {
 
       const pageParam = Number.parseInt(String(request.query?.page || ""), 10);
       const limitParam = Number.parseInt(String(request.query?.limit || ""), 10);
+      const organizationCodeParam = String(request.query?.organizationCode || "").trim().toLowerCase();
       const page = Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1;
       const limit = Number.isInteger(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 20;
 
@@ -42,14 +58,23 @@ async function usersRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized" });
         }
-        if (!(await hasPermission(requester.role, PERMISSIONS.USERS_READ))) {
-          return reply.status(403).send({ message: "You do not have permission to view users." });
+        if (!(await hasPermission(requester.role_id, PERMISSIONS.USERS_READ))) {
+          return reply.status(404).send({ message: "Not found." });
+        }
+        const isAdmin = Boolean(requester.is_admin);
+
+        if (organizationCodeParam && organizationCodeParam !== "all" && !ORGANIZATION_CODE_REGEX.test(organizationCodeParam)) {
+          return reply.status(400).send({ field: "organizationCode", message: "Invalid organisation." });
         }
 
         const { total, rows, page: safePage, totalPages } = await getUsersPage({
           organizationId: authContext.organizationId,
           page,
-          limit
+          limit,
+          canReadAllOrganizations: isAdmin,
+          organizationCode: isAdmin
+            ? organizationCodeParam
+            : String(authContext.organizationCode || "").trim().toLowerCase()
         });
         const users = rows.map(mapUser);
 
@@ -92,11 +117,20 @@ async function usersRoutes(fastify) {
       const fullName = String(request.body?.fullName || "").trim();
       const birthday = String(request.body?.birthday || "").trim();
       const phone = String(request.body?.phone || "").trim();
-      const position = String(request.body?.position || "").trim();
-      const role = String(request.body?.role || "").trim().toLowerCase();
+      const positionId = String(request.body?.position || "").trim()
+        ? parsePositiveInteger(request.body?.position)
+        : null;
+      const roleId = parsePositiveInteger(request.body?.role);
+      const organizationCode = String(request.body?.organizationCode || "").trim().toLowerCase();
       const password = String(request.body?.password || "");
 
       const errors = {};
+      if (!roleId) {
+        errors.role = "Role is required.";
+      }
+      if (organizationCode && !ORGANIZATION_CODE_REGEX.test(organizationCode)) {
+        errors.organizationCode = "Invalid organisation.";
+      }
       if (!USERNAME_REGEX.test(username)) {
         errors.username = "Username must be 3-30 chars and contain letters, numbers, ., _, -";
       }
@@ -116,9 +150,11 @@ async function usersRoutes(fastify) {
         errors.password = "Password must be at least 6 characters.";
       }
 
-      if (position) {
+      if (String(request.body?.position || "").trim() && !positionId) {
+        errors.position = "Invalid position.";
+      } else if (positionId) {
         try {
-          if (!(await isAllowedPosition(position))) {
+          if (!(await isAllowedPosition(positionId))) {
             errors.position = "Invalid position.";
           }
         } catch (error) {
@@ -128,7 +164,7 @@ async function usersRoutes(fastify) {
       }
 
       try {
-        if (!(await isAllowedRole(role))) {
+        if (roleId && !(await isAllowedRole(roleId))) {
           errors.role = "Invalid role.";
         }
       } catch (error) {
@@ -142,20 +178,40 @@ async function usersRoutes(fastify) {
 
       try {
         const requester = await findRequester(authContext);
-        if (!requester || !(await hasPermission(requester.role, PERMISSIONS.USERS_UPDATE))) {
-          return reply.status(403).send({ message: "You do not have permission to edit users." });
+        if (!requester || !(await hasPermission(requester.role_id, PERMISSIONS.USERS_UPDATE))) {
+          return reply.status(404).send({ message: "Not found." });
+        }
+        const isAdmin = Boolean(requester.is_admin);
+
+        let scopedOrganizationId = authContext.organizationId;
+        let nextOrganizationId = null;
+        if (isAdmin) {
+          const targetUser = await getUserScopeById(userId);
+          if (!targetUser) {
+            return reply.status(404).send({ message: "User not found." });
+          }
+          scopedOrganizationId = Number(targetUser.organization_id);
+
+          if (organizationCode) {
+            const targetOrganization = await findActiveOrganizationByCode(organizationCode);
+            if (!targetOrganization) {
+              return reply.status(400).send({ field: "organizationCode", message: "Invalid organisation." });
+            }
+            nextOrganizationId = Number(targetOrganization.id);
+          }
         }
 
         const user = await updateUserByAdmin({
-          organizationId: authContext.organizationId,
+          currentOrganizationId: scopedOrganizationId,
+          nextOrganizationId,
           userId,
           username,
           email,
           fullName,
           birthday,
           phone,
-          position,
-          role,
+          positionId,
+          roleId,
           password
         });
 
@@ -195,15 +251,25 @@ async function usersRoutes(fastify) {
 
       try {
         const requester = await findRequester(authContext);
-        if (!requester || !(await hasPermission(requester.role, PERMISSIONS.USERS_DELETE))) {
-          return reply.status(403).send({ message: "You do not have permission to delete users." });
+        if (!requester || !(await hasPermission(requester.role_id, PERMISSIONS.USERS_DELETE))) {
+          return reply.status(404).send({ message: "Not found." });
         }
+        const isAdmin = Boolean(requester.is_admin);
 
         if (Number(requester.id) === userId) {
           return reply.status(400).send({ message: "You cannot delete your own account." });
         }
 
-        const deleteResult = await deleteUserById(userId, authContext.organizationId);
+        let scopedOrganizationId = authContext.organizationId;
+        if (isAdmin) {
+          const targetUser = await getUserScopeById(userId);
+          if (!targetUser) {
+            return reply.status(404).send({ message: "User not found." });
+          }
+          scopedOrganizationId = Number(targetUser.organization_id);
+        }
+
+        const deleteResult = await deleteUserById(userId, scopedOrganizationId);
         if (deleteResult.rowCount === 0) {
           return reply.status(404).send({ message: "User not found." });
         }
