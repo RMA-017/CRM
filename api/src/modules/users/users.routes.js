@@ -1,18 +1,17 @@
+import { ORGANIZATION_CODE_REGEX } from "../../constants/validation.js";
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 import { getAuthContext } from "../../lib/session.js";
+import { findActiveOrganizationByCode } from "../organizations/organizations.service.js";
 import { PERMISSIONS, USERNAME_REGEX } from "./users.constants.js";
 import { hasPermission, isAllowedPosition, isAllowedRole } from "./access.service.js";
 import {
   deleteUserById,
-  findActiveOrganizationByCode,
   findRequester,
   getUserScopeById,
   getUsersPage,
   updateUserByAdmin
 } from "./users.service.js";
-
-const ORGANIZATION_CODE_REGEX = /^[a-z0-9._-]{2,64}$/;
 
 function mapUser(user) {
   return {

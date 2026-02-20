@@ -1,3 +1,4 @@
+import { ORGANIZATION_CODE_REGEX, PERMISSION_CODE_REGEX } from "../../constants/validation.js";
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 import { getAuthContext } from "../../lib/session.js";
@@ -19,9 +20,6 @@ import {
   updatePositionOption,
   updateRoleOption
 } from "./settings.service.js";
-
-const ORGANIZATION_CODE_REGEX = /^[a-z0-9._-]{2,64}$/;
-const PERMISSION_CODE_REGEX = /^[a-z0-9._-]{2,64}$/;
 
 function parseSortOrder(value) {
   const parsed = Number.parseInt(String(value ?? ""), 10);

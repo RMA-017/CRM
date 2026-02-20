@@ -1,11 +1,11 @@
 import { appConfig } from "../../config/app-config.js";
+import { ORGANIZATION_CODE_REGEX } from "../../constants/validation.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 import { getAuthContext } from "../../lib/session.js";
+import { findActiveOrganizationByCode } from "../organizations/organizations.service.js";
 import { PERMISSIONS, USERNAME_REGEX } from "../users/users.constants.js";
 import { hasPermission, isAllowedRole } from "../users/access.service.js";
-import { createBasicUser, findActiveOrganizationByCode, getActorForCreate } from "./create-user.service.js";
-
-const ORGANIZATION_CODE_REGEX = /^[a-z0-9._-]{2,64}$/;
+import { createBasicUser, getActorForCreate } from "./create-user.service.js";
 
 async function createUserRoutes(fastify) {
   fastify.post(

@@ -1,4 +1,6 @@
-export const USERNAME_REGEX = /^[a-zA-Z0-9._-]{3,30}$/;
+import { USERNAME_REGEX } from "../../constants/validation.js";
+
+export { USERNAME_REGEX };
 
 export const PERMISSIONS = Object.freeze({
   PROFILE_READ: "profile.read",

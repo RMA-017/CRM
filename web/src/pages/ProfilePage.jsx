@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import CustomSelect from "../components/CustomSelect.jsx";
 import { apiFetch } from "../lib/api.js";
-import { formatDateForInput, formatDateYMD, getInitial, normalizeProfile } from "../lib/formatters.js";
+import { formatDateForInput, getInitial, normalizeProfile } from "../lib/formatters.js";
 import {
   ALL_USERS_LIMIT,
   createEmptyAllUsersDeleteState,
@@ -23,9 +22,11 @@ import {
   handleProtectedStatus,
   mapValueLabelOptions,
   normalizePermissionCodesInput,
-  normalizeSettingsSortOrderInput,
-  togglePermissionCode
+  normalizeSettingsSortOrderInput
 } from "./profile/profile.helpers.js";
+import ProfileMainContent from "./profile/ProfileMainContent.jsx";
+import ProfileModals from "./profile/ProfileModals.jsx";
+import ProfileSideMenu from "./profile/ProfileSideMenu.jsx";
 import { useProfileAccess } from "./profile/useProfileAccess.js";
 
 function ProfilePage({ forcedView = "none" }) {
@@ -182,6 +183,18 @@ function ProfilePage({ forcedView = "none" }) {
   const groupedRolePermissionOptions = useMemo(
     () => groupRolePermissionOptions(rolePermissionOptions),
     [rolePermissionOptions]
+  );
+
+  const hasAnyModalOpen = (
+    myProfileModalOpen
+    || logoutConfirmOpen
+    || profileEdit.open
+    || allUsersEdit.open
+    || allUsersDelete.open
+    || settingsDelete.open
+    || organizationEditOpen
+    || roleEditOpen
+    || positionEditOpen
   );
 
   const firstName = useMemo(() => {
@@ -1732,645 +1745,69 @@ function ProfilePage({ forcedView = "none" }) {
           </nav>
         </header>
 
-        <main className={`home-main${mainView === "create-user" ? " home-main-centered" : ""}`} aria-label="Main content">
-          {mainView === "all-users" && (
-            <section id="allUsersPanel" className="all-users-panel">
-              <div className="all-users-head">
-                <h3>All Users</h3>
-                <button
-                  id="closeAllUsersBtn"
-                  type="button"
-                  className="header-btn panel-close-btn"
-                  aria-label="Close all users panel"
-                  onClick={closeAllUsersPanel}
-                >
-                  ×
-                </button>
-              </div>
-
-              <p id="allUsersState" className="all-users-state" hidden={!allUsersMessage}>
-                {allUsersMessage}
-              </p>
-
-              <div id="allUsersTableWrap" className="all-users-table-wrap" hidden={allUsers.length === 0}>
-                <table className="all-users-table" aria-label="All users table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Organization</th>
-                      <th>Username</th>
-                      <th>Email</th>
-                      <th>Full Name</th>
-                      <th>Birthday</th>
-                      <th>Phone</th>
-                      <th>Position</th>
-                      <th>Role</th>
-                      <th>Created At</th>
-                      <th>Edit</th>
-                      <th>Delete</th>
-                    </tr>
-                  </thead>
-                  <tbody id="allUsersTableBody">
-                    {allUsers.map((user) => (
-                      <tr key={String(user.id)}>
-                        <td>{user.id || "-"}</td>
-                        <td>
-                          {user.organizationName && user.organizationCode
-                            ? `${user.organizationName} (${user.organizationCode})`
-                            : (user.organizationCode || "-")}
-                        </td>
-                        <td>{user.username || "-"}</td>
-                        <td>{user.email || "-"}</td>
-                        <td>{user.fullName || "-"}</td>
-                        <td>{formatDateYMD(user.birthday)}</td>
-                        <td>{user.phone || "-"}</td>
-                        <td>{user.position || "-"}</td>
-                        <td>{user.role || "-"}</td>
-                        <td>{formatDateYMD(user.createdAt)}</td>
-                        <td>
-                          <button
-                            type="button"
-                            className="table-action-btn"
-                            disabled={!canUpdateUsers}
-                            onClick={() => openAllUsersEditModal(user.id)}
-                          >
-                            Edit
-                          </button>
-                        </td>
-                        <td>
-                          <button
-                            type="button"
-                            className="table-action-btn table-action-btn-danger"
-                            disabled={!canDeleteUsers}
-                            onClick={() => openAllUsersDeleteModal(user.id)}
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div id="allUsersPagination" className="all-users-pagination" hidden={allUsers.length === 0}>
-                <button
-                  id="allUsersPrevBtn"
-                  type="button"
-                  className="header-btn"
-                  disabled={allUsersPage <= 1 || allUsersLoading}
-                  onClick={() => loadAllUsers(allUsersPage - 1)}
-                >
-                  Previous
-                </button>
-                <span id="allUsersPageInfo" className="all-users-page-info">
-                  Page {allUsersPage} of {allUsersTotalPages}
-                </span>
-                <button
-                  id="allUsersNextBtn"
-                  type="button"
-                  className="header-btn"
-                  disabled={allUsersPage >= allUsersTotalPages || allUsersLoading}
-                  onClick={() => loadAllUsers(allUsersPage + 1)}
-                >
-                  Next
-                </button>
-              </div>
-            </section>
-          )}
-
-          {mainView === "clients" && (
-            <section id="clientsPanel" className="create-user-panel">
-              <div className="all-users-head">
-                <h3>Clients</h3>
-                <button
-                  id="closeClientsBtn"
-                  type="button"
-                  className="header-btn panel-close-btn"
-                  aria-label="Close clients panel"
-                  onClick={closeClientsPanel}
-                >
-                  ×
-                </button>
-              </div>
-              <p className="all-users-state">
-                Clients bo'limi tayyorlandi. Keyingi bosqichda mijozlar jadvali va CRUD funksiyalarini qo'shamiz.
-              </p>
-            </section>
-          )}
-
-          {mainView === "appointment" && (
-            <section id="appointmentPanel" className="create-user-panel">
-              <div className="all-users-head">
-                <h3>Appointment</h3>
-                <button
-                  id="closeAppointmentBtn"
-                  type="button"
-                  className="header-btn panel-close-btn"
-                  aria-label="Close appointment panel"
-                  onClick={closeAppointmentPanel}
-                >
-                  ×
-                </button>
-              </div>
-              <p className="all-users-state">
-                Appointment bo'limi tayyorlandi. Keyingi bosqichda jadval va bronlash oqimini qo'shamiz.
-              </p>
-            </section>
-          )}
-
-          {mainView === "settings-organizations" && (
-            <section id="organizationsPanel" className="all-users-panel settings-panel">
-              <div className="all-users-head">
-                <h3>Organizations</h3>
-                <button
-                  id="closeOrganizationsBtn"
-                  type="button"
-                  className="header-btn panel-close-btn"
-                  aria-label="Close organizations panel"
-                  onClick={closeOrganizationsPanel}
-                >
-                  ×
-                </button>
-              </div>
-
-              <form className="auth-form settings-create-form" noValidate onSubmit={handleOrganizationCreateSubmit}>
-                <div className="settings-form-grid settings-form-grid-org">
-                  <div className="field">
-                    <label htmlFor="organizationCodeInput">Code</label>
-                    <input
-                      id="organizationCodeInput"
-                      name="code"
-                      type="text"
-                      placeholder="organization-code"
-                      value={organizationCreateForm.code}
-                      onInput={(event) => {
-                        const nextValue = event.currentTarget.value;
-                        setOrganizationCreateForm((prev) => ({ ...prev, code: nextValue }));
-                        if (organizationCreateError) {
-                          setOrganizationCreateError("");
-                        }
-                      }}
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="organizationNameInput">Name</label>
-                    <input
-                      id="organizationNameInput"
-                      name="name"
-                      type="text"
-                      placeholder="Organization Name"
-                      value={organizationCreateForm.name}
-                      onInput={(event) => {
-                        const nextValue = event.currentTarget.value;
-                        setOrganizationCreateForm((prev) => ({ ...prev, name: nextValue }));
-                        if (organizationCreateError) {
-                          setOrganizationCreateError("");
-                        }
-                      }}
-                    />
-                  </div>
-                  <div className="field settings-inline-control">
-                    <label className="settings-spacer-label" aria-hidden="true">&nbsp;</label>
-                    <label className="settings-checkbox" htmlFor="organizationIsActiveInput">
-                      <input
-                        id="organizationIsActiveInput"
-                        type="checkbox"
-                        aria-label="Active"
-                        checked={Boolean(organizationCreateForm.isActive)}
-                        onChange={(event) => {
-                          const checked = event.currentTarget.checked;
-                          setOrganizationCreateForm((prev) => ({ ...prev, isActive: checked }));
-                        }}
-                      />
-                    </label>
-                  </div>
-                  <div className="field settings-inline-control settings-action-field">
-                    <label aria-hidden="true">&nbsp;</label>
-                    <button className="btn settings-add-btn" type="submit" disabled={organizationCreateSubmitting}>
-                      Add
-                    </button>
-                  </div>
-                </div>
-                <small className="field-error settings-error">{organizationCreateError}</small>
-              </form>
-
-              <p id="organizationsState" className="all-users-state" hidden={!organizationsMessage}>
-                {organizationsMessage}
-              </p>
-
-              <div className="all-users-table-wrap settings-table-wrap" hidden={organizations.length === 0}>
-                <table className="all-users-table settings-table" aria-label="Organizations table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Code</th>
-                      <th>Name</th>
-                      <th>Active</th>
-                      <th>Created</th>
-                      <th>Edit</th>
-                      <th>Delete</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {organizations.map((item) => {
-                      const rowId = String(item.id);
-                      return (
-                        <tr key={rowId}>
-                          <td>{rowId}</td>
-                          <td>{item.code || "-"}</td>
-                          <td>{item.name || "-"}</td>
-                          <td>{item.isActive ? "Yes" : "No"}</td>
-                          <td>{formatDateYMD(item.createdAt)}</td>
-                          <td>
-                            <button
-                              type="button"
-                              className="table-action-btn"
-                              onClick={() => startOrganizationEdit(item)}
-                            >
-                              Edit
-                            </button>
-                          </td>
-                          <td>
-                            <button
-                              type="button"
-                              className="table-action-btn table-action-btn-danger"
-                              disabled={organizationDeletingId === rowId}
-                              onClick={() => handleOrganizationDelete(rowId, item?.name || item?.code || rowId)}
-                            >
-                              {organizationDeletingId === rowId ? "..." : "Delete"}
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          )}
-
-          {mainView === "settings-roles" && (
-            <section id="rolesPanel" className="all-users-panel settings-panel">
-              <div className="all-users-head">
-                <h3>Roles</h3>
-                <button
-                  id="closeRolesBtn"
-                  type="button"
-                  className="header-btn panel-close-btn"
-                  aria-label="Close roles panel"
-                  onClick={closeRolesPanel}
-                >
-                  ×
-                </button>
-              </div>
-
-              <form className="auth-form settings-create-form" noValidate onSubmit={handleRoleCreateSubmit}>
-                <div className="settings-form-grid">
-                  <div className="field">
-                    <label htmlFor="roleLabelInput">Label</label>
-                    <input
-                      id="roleLabelInput"
-                      name="label"
-                      type="text"
-                      placeholder="Manager"
-                      value={roleCreateForm.label}
-                      onInput={(event) => {
-                        const nextValue = event.currentTarget.value;
-                        setRoleCreateForm((prev) => ({ ...prev, label: nextValue }));
-                        if (roleCreateError) {
-                          setRoleCreateError("");
-                        }
-                      }}
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="roleSortOrderInput">Sort</label>
-                    <input
-                      id="roleSortOrderInput"
-                      name="sortOrder"
-                      type="number"
-                      value={roleCreateForm.sortOrder}
-                      onInput={(event) => {
-                        const nextValue = event.currentTarget.value;
-                        setRoleCreateForm((prev) => ({ ...prev, sortOrder: nextValue }));
-                      }}
-                    />
-                  </div>
-                  <div className="field settings-inline-control">
-                    <label className="settings-spacer-label" aria-hidden="true">&nbsp;</label>
-                    <label className="settings-checkbox" htmlFor="roleIsActiveInput">
-                      <input
-                        id="roleIsActiveInput"
-                        type="checkbox"
-                        aria-label="Active"
-                        checked={Boolean(roleCreateForm.isActive)}
-                        onChange={(event) => {
-                          const checked = event.currentTarget.checked;
-                          setRoleCreateForm((prev) => ({ ...prev, isActive: checked }));
-                        }}
-                      />
-                    </label>
-                  </div>
-                  <div className="field settings-inline-control settings-action-field">
-                    <label aria-hidden="true">&nbsp;</label>
-                    <button className="btn settings-add-btn" type="submit" disabled={roleCreateSubmitting}>
-                      Add
-                    </button>
-                  </div>
-                </div>
-                <small className="field-error settings-error">{roleCreateError}</small>
-              </form>
-
-              <p id="rolesState" className="all-users-state" hidden={!rolesSettingsMessage}>
-                {rolesSettingsMessage}
-              </p>
-
-              <div className="all-users-table-wrap settings-table-wrap" hidden={rolesSettings.length === 0}>
-                <table className="all-users-table settings-table" aria-label="Roles table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Label</th>
-                      <th>Sort</th>
-                      <th>Active</th>
-                      <th>Created</th>
-                      <th>Edit</th>
-                      <th>Delete</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rolesSettings.map((item) => {
-                      const rowId = String(item.id);
-                      return (
-                        <tr key={rowId}>
-                          <td>{rowId}</td>
-                          <td>{item.label || "-"}</td>
-                          <td>{item.sortOrder}</td>
-                          <td>{item.isActive ? "Yes" : "No"}</td>
-                          <td>{formatDateYMD(item.createdAt)}</td>
-                          <td>
-                            <button
-                              type="button"
-                              className="table-action-btn"
-                              onClick={() => startRoleEdit(item)}
-                            >
-                              Edit
-                            </button>
-                          </td>
-                          <td>
-                            <button
-                              type="button"
-                              className="table-action-btn table-action-btn-danger"
-                              disabled={roleDeletingId === rowId}
-                              onClick={() => handleRoleDelete(rowId, item?.label || rowId)}
-                            >
-                              {roleDeletingId === rowId ? "..." : "Delete"}
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          )}
-
-          {mainView === "settings-positions" && (
-            <section id="positionsPanel" className="all-users-panel settings-panel">
-              <div className="all-users-head">
-                <h3>Positions</h3>
-                <button
-                  id="closePositionsBtn"
-                  type="button"
-                  className="header-btn panel-close-btn"
-                  aria-label="Close positions panel"
-                  onClick={closePositionsPanel}
-                >
-                  ×
-                </button>
-              </div>
-
-              <form className="auth-form settings-create-form" noValidate onSubmit={handlePositionCreateSubmit}>
-                <div className="settings-form-grid">
-                  <div className="field">
-                    <label htmlFor="positionLabelInput">Label</label>
-                    <input
-                      id="positionLabelInput"
-                      name="label"
-                      type="text"
-                      placeholder="New Position Label"
-                      value={positionCreateForm.label}
-                      onInput={(event) => {
-                        const nextValue = event.currentTarget.value;
-                        setPositionCreateForm((prev) => ({ ...prev, label: nextValue }));
-                        if (positionCreateError) {
-                          setPositionCreateError("");
-                        }
-                      }}
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="positionSortOrderInput">Sort</label>
-                    <input
-                      id="positionSortOrderInput"
-                      name="sortOrder"
-                      type="number"
-                      value={positionCreateForm.sortOrder}
-                      onInput={(event) => {
-                        const nextValue = event.currentTarget.value;
-                        setPositionCreateForm((prev) => ({ ...prev, sortOrder: nextValue }));
-                      }}
-                    />
-                  </div>
-                  <div className="field settings-inline-control">
-                    <label className="settings-spacer-label" aria-hidden="true">&nbsp;</label>
-                    <label className="settings-checkbox" htmlFor="positionIsActiveInput">
-                      <input
-                        id="positionIsActiveInput"
-                        type="checkbox"
-                        aria-label="Active"
-                        checked={Boolean(positionCreateForm.isActive)}
-                        onChange={(event) => {
-                          const checked = event.currentTarget.checked;
-                          setPositionCreateForm((prev) => ({ ...prev, isActive: checked }));
-                        }}
-                      />
-                    </label>
-                  </div>
-                  <div className="field settings-inline-control settings-action-field">
-                    <label aria-hidden="true">&nbsp;</label>
-                    <button className="btn settings-add-btn" type="submit" disabled={positionCreateSubmitting}>
-                      Add
-                    </button>
-                  </div>
-                </div>
-                <small className="field-error settings-error">{positionCreateError}</small>
-              </form>
-
-              <p id="positionsState" className="all-users-state" hidden={!positionsSettingsMessage}>
-                {positionsSettingsMessage}
-              </p>
-
-              <div className="all-users-table-wrap settings-table-wrap" hidden={positionsSettings.length === 0}>
-                <table className="all-users-table settings-table" aria-label="Positions table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Label</th>
-                      <th>Sort</th>
-                      <th>Active</th>
-                      <th>Created</th>
-                      <th>Edit</th>
-                      <th>Delete</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {positionsSettings.map((item) => {
-                      const rowId = String(item.id);
-                      return (
-                        <tr key={rowId}>
-                          <td>{rowId}</td>
-                          <td>{item.label || "-"}</td>
-                          <td>{item.sortOrder}</td>
-                          <td>{item.isActive ? "Yes" : "No"}</td>
-                          <td>{formatDateYMD(item.createdAt)}</td>
-                          <td>
-                            <button
-                              type="button"
-                              className="table-action-btn"
-                              onClick={() => startPositionEdit(item)}
-                            >
-                              Edit
-                            </button>
-                          </td>
-                          <td>
-                            <button
-                              type="button"
-                              className="table-action-btn table-action-btn-danger"
-                              disabled={positionDeletingId === rowId}
-                              onClick={() => handlePositionDelete(rowId, item?.label || rowId)}
-                            >
-                              {positionDeletingId === rowId ? "..." : "Delete"}
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          )}
-
-          {mainView === "create-user" && (
-            <section id="createUserPanel" className="create-user-panel">
-              <div className="all-users-head">
-                <h3>Create User</h3>
-                <button
-                  id="closeCreateUserBtn"
-                  type="button"
-                  className="header-btn panel-close-btn"
-                  aria-label="Close create user panel"
-                  onClick={closeCreateUserPanel}
-                >
-                  ×
-                </button>
-              </div>
-
-              {!canCreateUsers ? (
-                <p className="all-users-state">You do not have permission to create users.</p>
-              ) : (
-                <form className="auth-form" id="adminCreateForm" noValidate onSubmit={handleCreateUserSubmit}>
-                <div className="field">
-                  <label htmlFor="createUserOrganizationCode">Organisation</label>
-                  <CustomSelect
-                    id="createUserOrganizationCode"
-                    placeholder={organizationsLoading ? "Loading organisations..." : "Select organisation"}
-                    value={createForm.organizationCode}
-                    options={createOrganizationOptions}
-                    error={Boolean(createErrors.organizationCode)}
-                    onChange={(nextCode) => {
-                      setCreateForm((prev) => ({ ...prev, organizationCode: nextCode }));
-                      if (createErrors.organizationCode) {
-                        setCreateErrors((prev) => ({ ...prev, organizationCode: "" }));
-                      }
-                    }}
-                  />
-                  <small className="field-error">{createErrors.organizationCode || ""}</small>
-                </div>
-
-                <div className="field">
-                  <label htmlFor="username">Username</label>
-                  <input
-                    id="username"
-                    name="username"
-                    type="text"
-                    placeholder="Username"
-                    autoComplete="username"
-                    required
-                  className={createErrors.username ? "input-error" : ""}
-                  value={createForm.username}
-                  onInput={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setCreateForm((prev) => ({ ...prev, username: nextValue }));
-                    if (createErrors.username) {
-                      setCreateErrors((prev) => ({ ...prev, username: "" }));
-                    }
-                  }}
-                  />
-                  <small className="field-error" id="usernameError">{createErrors.username || ""}</small>
-                </div>
-
-                <div className="field">
-                  <label htmlFor="fullName">Full Name</label>
-                  <input
-                    id="fullName"
-                    name="fullName"
-                    type="text"
-                    placeholder="Muhammad Rahmonov"
-                    autoComplete="name"
-                    required
-                  className={createErrors.fullName ? "input-error" : ""}
-                  value={createForm.fullName}
-                  onInput={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setCreateForm((prev) => ({ ...prev, fullName: nextValue }));
-                    if (createErrors.fullName) {
-                      setCreateErrors((prev) => ({ ...prev, fullName: "" }));
-                    }
-                  }}
-                  />
-                  <small className="field-error" id="fullNameError">{createErrors.fullName || ""}</small>
-                </div>
-
-                <div className="field">
-                  <label htmlFor="roleSelect">Role</label>
-                  <CustomSelect
-                    id="roleSelect"
-                    placeholder="Select role"
-                    value={createForm.role}
-                    options={roleOptions}
-                    error={Boolean(createErrors.role)}
-                    onChange={(nextRole) => {
-                      setCreateForm((prev) => ({ ...prev, role: nextRole }));
-                      if (createErrors.role) {
-                        setCreateErrors((prev) => ({ ...prev, role: "" }));
-                      }
-                    }}
-                  />
-                  <small className="field-error" id="roleError">{createErrors.role || ""}</small>
-                </div>
-
-                <button id="adminCreateBtn" className="btn" type="submit" disabled={createSubmitting}>
-                  Create
-                </button>
-                </form>
-              )}
-            </section>
-          )}
-        </main>
+        <ProfileMainContent
+          mainView={mainView}
+          allUsersMessage={allUsersMessage}
+          allUsers={allUsers}
+          canUpdateUsers={canUpdateUsers}
+          canDeleteUsers={canDeleteUsers}
+          openAllUsersEditModal={openAllUsersEditModal}
+          openAllUsersDeleteModal={openAllUsersDeleteModal}
+          allUsersPage={allUsersPage}
+          allUsersTotalPages={allUsersTotalPages}
+          allUsersLoading={allUsersLoading}
+          loadAllUsers={loadAllUsers}
+          closeAllUsersPanel={closeAllUsersPanel}
+          closeClientsPanel={closeClientsPanel}
+          closeAppointmentPanel={closeAppointmentPanel}
+          closeOrganizationsPanel={closeOrganizationsPanel}
+          closeRolesPanel={closeRolesPanel}
+          closePositionsPanel={closePositionsPanel}
+          organizations={organizations}
+          organizationsMessage={organizationsMessage}
+          organizationCreateForm={organizationCreateForm}
+          organizationCreateError={organizationCreateError}
+          organizationCreateSubmitting={organizationCreateSubmitting}
+          setOrganizationCreateForm={setOrganizationCreateForm}
+          setOrganizationCreateError={setOrganizationCreateError}
+          handleOrganizationCreateSubmit={handleOrganizationCreateSubmit}
+          startOrganizationEdit={startOrganizationEdit}
+          organizationDeletingId={organizationDeletingId}
+          handleOrganizationDelete={handleOrganizationDelete}
+          rolesSettings={rolesSettings}
+          rolesSettingsMessage={rolesSettingsMessage}
+          roleCreateForm={roleCreateForm}
+          roleCreateError={roleCreateError}
+          roleCreateSubmitting={roleCreateSubmitting}
+          setRoleCreateForm={setRoleCreateForm}
+          setRoleCreateError={setRoleCreateError}
+          handleRoleCreateSubmit={handleRoleCreateSubmit}
+          startRoleEdit={startRoleEdit}
+          roleDeletingId={roleDeletingId}
+          handleRoleDelete={handleRoleDelete}
+          positionsSettings={positionsSettings}
+          positionsSettingsMessage={positionsSettingsMessage}
+          positionCreateForm={positionCreateForm}
+          positionCreateError={positionCreateError}
+          positionCreateSubmitting={positionCreateSubmitting}
+          setPositionCreateForm={setPositionCreateForm}
+          setPositionCreateError={setPositionCreateError}
+          handlePositionCreateSubmit={handlePositionCreateSubmit}
+          startPositionEdit={startPositionEdit}
+          positionDeletingId={positionDeletingId}
+          handlePositionDelete={handlePositionDelete}
+          canCreateUsers={canCreateUsers}
+          handleCreateUserSubmit={handleCreateUserSubmit}
+          createForm={createForm}
+          createErrors={createErrors}
+          createSubmitting={createSubmitting}
+          organizationsLoading={organizationsLoading}
+          createOrganizationOptions={createOrganizationOptions}
+          setCreateForm={setCreateForm}
+          setCreateErrors={setCreateErrors}
+          roleOptions={roleOptions}
+          closeCreateUserPanel={closeCreateUserPanel}
+        />
 
         <footer className="home-footer">
           <a
@@ -2393,883 +1830,92 @@ function ProfilePage({ forcedView = "none" }) {
         </footer>
       </div>
 
-      <section id="myProfileModal" className="my-profile-panel my-profile-modal" hidden={!myProfileModalOpen}>
-        <div className="all-users-head">
-          <h3>My Profile</h3>
-          <button
-            id="closeMyProfileBtn"
-            type="button"
-            className="header-btn panel-close-btn"
-            aria-label="Close my profile panel"
-            onClick={closeMyProfilePanel}
-          >
-            ×
-          </button>
-        </div>
+      {hasAnyModalOpen && (
+        <ProfileModals
+          myProfileModalOpen={myProfileModalOpen}
+          closeMyProfilePanel={closeMyProfilePanel}
+          openAvatarPicker={openAvatarPicker}
+          avatarDataUrl={avatarDataUrl}
+          avatarFallback={avatarFallback}
+          profile={profile}
+          openProfileEditModal={openProfileEditModal}
+          openPasswordEditModal={openPasswordEditModal}
+          logoutConfirmOpen={logoutConfirmOpen}
+          handleLogout={handleLogout}
+          setLogoutConfirmOpen={setLogoutConfirmOpen}
+          profileEdit={profileEdit}
+          handleProfileEditSubmit={handleProfileEditSubmit}
+          setProfileEdit={setProfileEdit}
+          positionOptions={positionOptions}
+          closeProfileEditModal={closeProfileEditModal}
+          allUsersEdit={allUsersEdit}
+          handleAllUsersEditSubmit={handleAllUsersEditSubmit}
+          organizationsLoading={organizationsLoading}
+          createOrganizationOptions={createOrganizationOptions}
+          setAllUsersEdit={setAllUsersEdit}
+          roleOptions={roleOptions}
+          closeAllUsersEditModal={closeAllUsersEditModal}
+          allUsersDelete={allUsersDelete}
+          handleAllUsersDelete={handleAllUsersDelete}
+          closeAllUsersDeleteModal={closeAllUsersDeleteModal}
+          settingsDelete={settingsDelete}
+          handleSettingsDeleteConfirm={handleSettingsDeleteConfirm}
+          closeSettingsDeleteModal={closeSettingsDeleteModal}
+          organizationEditOpen={organizationEditOpen}
+          handleOrganizationEditSave={handleOrganizationEditSave}
+          organizationEditForm={organizationEditForm}
+          setOrganizationEditForm={setOrganizationEditForm}
+          organizationEditError={organizationEditError}
+          setOrganizationEditError={setOrganizationEditError}
+          organizationEditSubmitting={organizationEditSubmitting}
+          cancelOrganizationEdit={cancelOrganizationEdit}
+          roleEditOpen={roleEditOpen}
+          handleRoleEditSave={handleRoleEditSave}
+          roleEditTab={roleEditTab}
+          setRoleEditTab={setRoleEditTab}
+          groupedRolePermissionOptions={groupedRolePermissionOptions}
+          roleEditForm={roleEditForm}
+          setRoleEditForm={setRoleEditForm}
+          roleEditError={roleEditError}
+          setRoleEditError={setRoleEditError}
+          roleEditSubmitting={roleEditSubmitting}
+          cancelRoleEdit={cancelRoleEdit}
+          positionEditOpen={positionEditOpen}
+          handlePositionEditSave={handlePositionEditSave}
+          positionEditForm={positionEditForm}
+          setPositionEditForm={setPositionEditForm}
+          positionEditError={positionEditError}
+          setPositionEditError={setPositionEditError}
+          positionEditSubmitting={positionEditSubmitting}
+          cancelPositionEdit={cancelPositionEdit}
+        />
+      )}
 
-        <div
-          className="profile-modal-photo"
-          id="myProfilePhoto"
-          role="button"
-          tabIndex={0}
-          aria-label="Upload profile photo"
-          onClick={openAvatarPicker}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              openAvatarPicker();
-            }
-          }}
-        >
-          <img
-            id="myProfilePhotoImage"
-            className="profile-modal-photo-image"
-            alt="My profile photo"
-            hidden={!avatarDataUrl}
-            src={avatarDataUrl || undefined}
-          />
-          <span id="myProfilePhotoFallback" hidden={Boolean(avatarDataUrl)}>
-            {avatarFallback}
-          </span>
-        </div>
-
-        <dl className="profile-modal-list">
-          <div>
-            <dt>Username</dt>
-            <dd id="modalProfileUsername">{profile?.username || "-"}</dd>
-          </div>
-          <div>
-            <dt>Role</dt>
-            <dd id="modalProfileRole">{profile?.role || "-"}</dd>
-          </div>
-          <div>
-            <dt>Email</dt>
-            <dd id="modalProfileEmail">{profile?.email || "-"}</dd>
-          </div>
-          <div>
-            <dt>Full Name</dt>
-            <dd id="modalProfileFullName">{profile?.fullName || "-"}</dd>
-          </div>
-          <div>
-            <dt>Birthday</dt>
-            <dd id="modalProfileBirthday">{formatDateYMD(profile?.birthday)}</dd>
-          </div>
-          <div>
-            <dt>Password</dt>
-            <dd id="modalProfilePassword">********</dd>
-          </div>
-          <div>
-            <dt>Phone</dt>
-            <dd id="modalProfilePhone">{profile?.phone || "-"}</dd>
-          </div>
-          <div>
-            <dt>Position</dt>
-            <dd id="modalProfilePosition">{profile?.position || "-"}</dd>
-          </div>
-        </dl>
-        <div className="profile-modal-actions">
-          <button id="openProfileEditBtn" className="btn" type="button" onClick={openProfileEditModal}>
-            Edit Profile
-          </button>
-          <button id="openPasswordEditBtn" className="header-btn" type="button" onClick={openPasswordEditModal}>
-            Change Password
-          </button>
-        </div>
-      </section>
-      <div id="myProfileOverlay" className="login-overlay" hidden={!myProfileModalOpen} onClick={closeMyProfilePanel} />
-
-      <section id="logoutConfirmModal" className="logout-confirm-modal" hidden={!logoutConfirmOpen}>
-        <h3>Are you sure you want to log out?</h3>
-        <div className="logout-confirm-actions">
-          <button
-            id="logoutConfirmYes"
-            type="button"
-            className="header-btn logout-confirm-yes"
-            onClick={handleLogout}
-          >
-            Yes
-          </button>
-          <button
-            id="logoutConfirmNo"
-            type="button"
-            className="header-btn"
-            onClick={() => setLogoutConfirmOpen(false)}
-          >
-            No
-          </button>
-        </div>
-      </section>
-      <div
-        id="logoutConfirmOverlay"
-        className="login-overlay"
-        hidden={!logoutConfirmOpen}
-        onClick={() => setLogoutConfirmOpen(false)}
+      <ProfileSideMenu
+        menuRef={menuRef}
+        menuOpen={menuOpen}
+        canReadClients={canReadClients}
+        openClientsPanel={openClientsPanel}
+        canReadAppointments={canReadAppointments}
+        openAppointmentPanel={openAppointmentPanel}
+        hasUsersMenuAccess={hasUsersMenuAccess}
+        usersMenuOpen={usersMenuOpen}
+        setUsersMenuOpen={setUsersMenuOpen}
+        setSettingsMenuOpen={setSettingsMenuOpen}
+        canReadUsers={canReadUsers}
+        closeMenu={closeMenu}
+        navigate={navigate}
+        canCreateUsers={canCreateUsers}
+        openCreateUserPanel={openCreateUserPanel}
+        hasSettingsMenuAccess={hasSettingsMenuAccess}
+        settingsMenuOpen={settingsMenuOpen}
+        openOrganizationsPanel={openOrganizationsPanel}
+        openRolesPanel={openRolesPanel}
+        openPositionsPanel={openPositionsPanel}
       />
-
-      <section id="profileEditModal" className="logout-confirm-modal profile-edit-modal" hidden={!profileEdit.open}>
-        <h3 id="profileEditTitle">{profileEdit.mode === "password" ? "Change Password" : "Edit Profile"}</h3>
-        <form id="profileEditForm" className="auth-form" noValidate onSubmit={handleProfileEditSubmit}>
-          {profileEdit.mode === "password" ? (
-            <>
-              <div className="field">
-                <label id="profileEditLabel" htmlFor="profileEditCurrentPassword">Current Password</label>
-                <input
-                  id="profileEditCurrentPassword"
-                  name="currentPassword"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  placeholder="Current password"
-                  className={profileEdit.error ? "input-error" : ""}
-                  value={profileEdit.currentPassword}
-                  onInput={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setProfileEdit((prev) => ({ ...prev, currentPassword: nextValue, error: "" }));
-                  }}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="profileEditNewPassword">New Password</label>
-                <input
-                  id="profileEditNewPassword"
-                  name="newPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  placeholder="New password"
-                  className={profileEdit.error ? "input-error" : ""}
-                  value={profileEdit.newPassword}
-                  onInput={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setProfileEdit((prev) => ({ ...prev, newPassword: nextValue, error: "" }));
-                  }}
-                />
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="field">
-                <label htmlFor="profileEditEmail">Email</label>
-                <input
-                  id="profileEditEmail"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="example@mail.com"
-                  className={profileEdit.error ? "input-error" : ""}
-                  value={profileEdit.form.email}
-                  onInput={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setProfileEdit((prev) => ({
-                      ...prev,
-                      form: { ...prev.form, email: nextValue },
-                      error: ""
-                    }));
-                  }}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="profileEditFullName">Full Name</label>
-                <input
-                  id="profileEditFullName"
-                  name="fullName"
-                  type="text"
-                  autoComplete="name"
-                  required
-                  placeholder="Full name"
-                  className={profileEdit.error ? "input-error" : ""}
-                  value={profileEdit.form.fullName}
-                  onInput={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setProfileEdit((prev) => ({
-                      ...prev,
-                      form: { ...prev.form, fullName: nextValue },
-                      error: ""
-                    }));
-                  }}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="profileEditBirthday">Birthday</label>
-                <input
-                  id="profileEditBirthday"
-                  name="birthday"
-                  type="date"
-                  autoComplete="bday"
-                  className={profileEdit.error ? "input-error" : ""}
-                  value={profileEdit.form.birthday}
-                  onInput={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setProfileEdit((prev) => ({
-                      ...prev,
-                      form: { ...prev.form, birthday: nextValue },
-                      error: ""
-                    }));
-                  }}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="profileEditPhone">Phone</label>
-                <input
-                  id="profileEditPhone"
-                  name="phone"
-                  type="tel"
-                  autoComplete="tel"
-                  placeholder="+998..."
-                  className={profileEdit.error ? "input-error" : ""}
-                  value={profileEdit.form.phone}
-                  onInput={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setProfileEdit((prev) => ({
-                      ...prev,
-                      form: { ...prev.form, phone: nextValue },
-                      error: ""
-                    }));
-                  }}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="profileEditPositionSelectControl">Position</label>
-                <CustomSelect
-                  id="profileEditPositionSelectControl"
-                  placeholder="Select position"
-                  value={profileEdit.form.position}
-                  options={positionOptions}
-                  error={Boolean(profileEdit.error)}
-                  onChange={(nextPosition) => {
-                    setProfileEdit((prev) => ({
-                      ...prev,
-                      form: { ...prev.form, position: nextPosition },
-                      error: ""
-                    }));
-                  }}
-                />
-              </div>
-            </>
-          )}
-          <small id="profileEditError" className="field-error">{profileEdit.error}</small>
-          <div className="edit-actions">
-            <button id="profileEditSubmit" className="btn" type="submit" disabled={profileEdit.submitting}>
-              Save
-            </button>
-            <button id="profileEditCancel" className="header-btn" type="button" onClick={closeProfileEditModal}>
-              Cancel
-            </button>
-          </div>
-        </form>
-      </section>
-      <div
-        id="profileEditOverlay"
-        className="login-overlay stacked-modal-overlay"
-        hidden={!profileEdit.open}
-        onClick={closeProfileEditModal}
-      />
-
-      <section id="allUsersEditModal" className="logout-confirm-modal all-users-edit-modal" hidden={!allUsersEdit.open}>
-        <h3>Edit User</h3>
-        <form id="allUsersEditForm" className="auth-form" noValidate onSubmit={handleAllUsersEditSubmit}>
-          <div className="field">
-            <label htmlFor="allUsersEditOrganizationSelect">Organisation</label>
-            <CustomSelect
-              id="allUsersEditOrganizationSelect"
-              placeholder={organizationsLoading ? "Loading organisations..." : "Select organisation"}
-              value={allUsersEdit.form.organizationCode}
-              options={createOrganizationOptions}
-              error={Boolean(allUsersEdit.errors.organizationCode)}
-              onChange={(nextCode) => {
-                setAllUsersEdit((prev) => ({
-                  ...prev,
-                  form: { ...prev.form, organizationCode: nextCode },
-                  errors: { ...prev.errors, organizationCode: "" }
-                }));
-              }}
-            />
-            <small id="allUsersEditOrganizationError" className="field-error">{allUsersEdit.errors.organizationCode || ""}</small>
-          </div>
-
-          <div className="field">
-            <label htmlFor="allUsersEditUsername">Username</label>
-            <input
-              id="allUsersEditUsername"
-              name="username"
-              type="text"
-              autoComplete="username"
-              required
-              className={allUsersEdit.errors.username ? "input-error" : ""}
-              value={allUsersEdit.form.username}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setAllUsersEdit((prev) => ({
-                  ...prev,
-                  form: { ...prev.form, username: nextValue },
-                  errors: { ...prev.errors, username: "" }
-                }));
-              }}
-            />
-            <small id="allUsersEditUsernameError" className="field-error">{allUsersEdit.errors.username || ""}</small>
-          </div>
-
-          <div className="field">
-            <label htmlFor="allUsersEditEmail">Email</label>
-            <input
-              id="allUsersEditEmail"
-              name="email"
-              type="email"
-              autoComplete="email"
-              placeholder="user@gmail.com"
-              className={allUsersEdit.errors.email ? "input-error" : ""}
-              value={allUsersEdit.form.email}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setAllUsersEdit((prev) => ({
-                  ...prev,
-                  form: { ...prev.form, email: nextValue },
-                  errors: { ...prev.errors, email: "" }
-                }));
-              }}
-            />
-            <small id="allUsersEditEmailError" className="field-error">{allUsersEdit.errors.email || ""}</small>
-          </div>
-
-          <div className="field">
-            <label htmlFor="allUsersEditFullName">Full Name</label>
-            <input
-              id="allUsersEditFullName"
-              name="fullName"
-              type="text"
-              autoComplete="name"
-              required
-              className={allUsersEdit.errors.fullName ? "input-error" : ""}
-              value={allUsersEdit.form.fullName}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setAllUsersEdit((prev) => ({
-                  ...prev,
-                  form: { ...prev.form, fullName: nextValue },
-                  errors: { ...prev.errors, fullName: "" }
-                }));
-              }}
-            />
-            <small id="allUsersEditFullNameError" className="field-error">{allUsersEdit.errors.fullName || ""}</small>
-          </div>
-
-          <div className="field">
-            <label htmlFor="allUsersEditBirthday">Birthday</label>
-            <input
-              id="allUsersEditBirthday"
-              name="birthday"
-              type="date"
-              autoComplete="bday"
-              className={allUsersEdit.errors.birthday ? "input-error" : ""}
-              value={allUsersEdit.form.birthday}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setAllUsersEdit((prev) => ({
-                  ...prev,
-                  form: { ...prev.form, birthday: nextValue },
-                  errors: { ...prev.errors, birthday: "" }
-                }));
-              }}
-            />
-            <small id="allUsersEditBirthdayError" className="field-error">{allUsersEdit.errors.birthday || ""}</small>
-          </div>
-
-          <div className="field">
-            <label htmlFor="allUsersEditPhone">Phone</label>
-            <input
-              id="allUsersEditPhone"
-              name="phone"
-              type="tel"
-              autoComplete="tel"
-              placeholder="+998954550033"
-              className={allUsersEdit.errors.phone ? "input-error" : ""}
-              value={allUsersEdit.form.phone}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setAllUsersEdit((prev) => ({
-                  ...prev,
-                  form: { ...prev.form, phone: nextValue },
-                  errors: { ...prev.errors, phone: "" }
-                }));
-              }}
-            />
-            <small id="allUsersEditPhoneError" className="field-error">{allUsersEdit.errors.phone || ""}</small>
-          </div>
-
-          <div className="field">
-            <label htmlFor="allUsersEditPositionSelect">Position</label>
-            <CustomSelect
-              id="allUsersEditPositionSelect"
-              placeholder="Select position"
-              value={allUsersEdit.form.position}
-              options={positionOptions}
-              error={Boolean(allUsersEdit.errors.position)}
-              onChange={(nextValue) => {
-                setAllUsersEdit((prev) => ({
-                  ...prev,
-                  form: { ...prev.form, position: nextValue },
-                  errors: { ...prev.errors, position: "" }
-                }));
-              }}
-            />
-            <small id="allUsersEditPositionError" className="field-error">{allUsersEdit.errors.position || ""}</small>
-          </div>
-
-          <div className="field">
-            <label htmlFor="allUsersEditRoleSelect">Role</label>
-            <CustomSelect
-              id="allUsersEditRoleSelect"
-              placeholder="Select role"
-              value={allUsersEdit.form.role}
-              options={roleOptions}
-              error={Boolean(allUsersEdit.errors.role)}
-              onChange={(nextValue) => {
-                setAllUsersEdit((prev) => ({
-                  ...prev,
-                  form: { ...prev.form, role: nextValue },
-                  errors: { ...prev.errors, role: "" }
-                }));
-              }}
-            />
-            <small id="allUsersEditRoleError" className="field-error">{allUsersEdit.errors.role || ""}</small>
-          </div>
-
-          <div className="field">
-            <label htmlFor="allUsersEditPassword">New Password (optional)</label>
-            <input
-              id="allUsersEditPassword"
-              name="password"
-              type="password"
-              autoComplete="new-password"
-              className={allUsersEdit.errors.password ? "input-error" : ""}
-              value={allUsersEdit.form.password}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setAllUsersEdit((prev) => ({
-                  ...prev,
-                  form: { ...prev.form, password: nextValue },
-                  errors: { ...prev.errors, password: "" }
-                }));
-              }}
-            />
-            <small id="allUsersEditPasswordError" className="field-error">{allUsersEdit.errors.password || ""}</small>
-          </div>
-
-          <div className="edit-actions">
-            <button id="allUsersEditSaveBtn" className="btn" type="submit" disabled={allUsersEdit.submitting}>
-              Save
-            </button>
-            <button id="allUsersEditCancelBtn" className="header-btn" type="button" onClick={closeAllUsersEditModal}>
-              Cancel
-            </button>
-          </div>
-        </form>
-      </section>
-      <div id="allUsersEditOverlay" className="login-overlay" hidden={!allUsersEdit.open} onClick={closeAllUsersEditModal} />
-
-      <section id="allUsersDeleteModal" className="logout-confirm-modal" hidden={!allUsersDelete.open}>
-        <h3>Are you sure you want to delete this user?</h3>
-        <p id="allUsersDeleteError" className="field-error">{allUsersDelete.error}</p>
-        <div className="logout-confirm-actions">
-          <button
-            id="allUsersDeleteYesBtn"
-            type="button"
-            className="header-btn logout-confirm-yes"
-            disabled={allUsersDelete.submitting}
-            onClick={handleAllUsersDelete}
-          >
-            Yes
-          </button>
-          <button
-            id="allUsersDeleteNoBtn"
-            type="button"
-            className="header-btn"
-            disabled={allUsersDelete.submitting}
-            onClick={closeAllUsersDeleteModal}
-          >
-            No
-          </button>
-        </div>
-      </section>
-      <div id="allUsersDeleteOverlay" className="login-overlay" hidden={!allUsersDelete.open} onClick={closeAllUsersDeleteModal} />
-
-      <section id="settingsDeleteModal" className="logout-confirm-modal" hidden={!settingsDelete.open}>
-        <h3>
-          {`Are you sure you want to delete this ${settingsDelete.type || "item"}?`}
-        </h3>
-        <p className="all-users-state" hidden={!settingsDelete.label}>
-          {settingsDelete.label}
-        </p>
-        <p id="settingsDeleteError" className="field-error">{settingsDelete.error}</p>
-        <div className="logout-confirm-actions">
-          <button
-            id="settingsDeleteYesBtn"
-            type="button"
-            className="header-btn logout-confirm-yes"
-            disabled={settingsDelete.submitting}
-            onClick={handleSettingsDeleteConfirm}
-          >
-            Yes
-          </button>
-          <button
-            id="settingsDeleteNoBtn"
-            type="button"
-            className="header-btn"
-            disabled={settingsDelete.submitting}
-            onClick={closeSettingsDeleteModal}
-          >
-            No
-          </button>
-        </div>
-      </section>
-      <div id="settingsDeleteOverlay" className="login-overlay" hidden={!settingsDelete.open} onClick={closeSettingsDeleteModal} />
-
-      <section id="organizationEditModal" className="logout-confirm-modal settings-edit-modal" hidden={!organizationEditOpen}>
-        <h3>Edit Organization</h3>
-        <form
-          className="auth-form settings-edit-form"
-          noValidate
-          onSubmit={(event) => {
-            event.preventDefault();
-            handleOrganizationEditSave();
-          }}
-        >
-          <div className="field">
-            <label htmlFor="organizationEditCodeInput">Code</label>
-            <input
-              id="organizationEditCodeInput"
-              type="text"
-              value={organizationEditForm.code}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setOrganizationEditForm((prev) => ({ ...prev, code: nextValue }));
-                if (organizationEditError) {
-                  setOrganizationEditError("");
-                }
-              }}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="organizationEditNameInput">Name</label>
-            <input
-              id="organizationEditNameInput"
-              type="text"
-              value={organizationEditForm.name}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setOrganizationEditForm((prev) => ({ ...prev, name: nextValue }));
-                if (organizationEditError) {
-                  setOrganizationEditError("");
-                }
-              }}
-            />
-          </div>
-          <div className="field settings-inline-control">
-            <label htmlFor="organizationEditIsActiveInput">Active</label>
-            <label className="settings-checkbox settings-checkbox-inline" htmlFor="organizationEditIsActiveInput">
-              <input
-                id="organizationEditIsActiveInput"
-                type="checkbox"
-                checked={Boolean(organizationEditForm.isActive)}
-                onChange={(event) => {
-                  const checked = event.currentTarget.checked;
-                  setOrganizationEditForm((prev) => ({ ...prev, isActive: checked }));
-                }}
-              />
-            </label>
-          </div>
-          <small className="field-error settings-error">{organizationEditError}</small>
-          <div className="edit-actions">
-            <button className="btn" type="submit" disabled={organizationEditSubmitting}>Save</button>
-            <button className="header-btn" type="button" onClick={cancelOrganizationEdit}>Cancel</button>
-          </div>
-        </form>
-      </section>
-      <div className="login-overlay" hidden={!organizationEditOpen} onClick={cancelOrganizationEdit} />
-
-      <section id="roleEditModal" className="logout-confirm-modal settings-edit-modal" hidden={!roleEditOpen}>
-        <form
-          className="auth-form settings-edit-form"
-          noValidate
-          onSubmit={(event) => {
-            event.preventDefault();
-            handleRoleEditSave();
-          }}
-        >
-          <div className="settings-edit-tabs">
-            <button
-              type="button"
-              className={`header-btn settings-edit-tab-btn${roleEditTab === "edit" ? " is-active" : ""}`}
-              onClick={() => setRoleEditTab("edit")}
-            >
-              Edit role
-            </button>
-            <button
-              type="button"
-              className={`header-btn settings-edit-tab-btn${roleEditTab === "permissions" ? " is-active" : ""}`}
-              onClick={() => setRoleEditTab("permissions")}
-            >
-              Permissions
-            </button>
-          </div>
-          <div
-            className="settings-permissions-section"
-            hidden={roleEditTab !== "permissions" || groupedRolePermissionOptions.length === 0}
-          >
-            <p className="settings-permissions-title">Permissions</p>
-            <div className="settings-permission-groups">
-              {groupedRolePermissionOptions.map((group) => (
-                <section key={group.key} className="settings-permission-group">
-                  <p className="settings-permission-group-title">{group.label}</p>
-                  <div className="settings-permissions-grid settings-permissions-grid-group">
-                    {group.permissions.map((permission) => {
-                      const inputId = `roleEditPermission_${permission.code.replace(/[^a-z0-9_-]/g, "_")}`;
-                      return (
-                        <label key={permission.code} className="settings-permission-item" htmlFor={inputId}>
-                          <input
-                            id={inputId}
-                            type="checkbox"
-                            checked={roleEditForm.permissionCodes.includes(permission.code)}
-                            onChange={(event) => {
-                              const checked = event.currentTarget.checked;
-                              setRoleEditForm((prev) => ({
-                                ...prev,
-                                permissionCodes: togglePermissionCode(prev.permissionCodes, permission.code, checked)
-                              }));
-                            }}
-                          />
-                          <span>{permission.actionLabel}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </section>
-              ))}
-            </div>
-          </div>
-          <div className="field" hidden={roleEditTab !== "edit"}>
-            <label htmlFor="roleEditLabelInput">Label</label>
-            <input
-              id="roleEditLabelInput"
-              type="text"
-              value={roleEditForm.label}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setRoleEditForm((prev) => ({ ...prev, label: nextValue }));
-                if (roleEditError) {
-                  setRoleEditError("");
-                }
-              }}
-            />
-          </div>
-          <div className="field" hidden={roleEditTab !== "edit"}>
-            <label htmlFor="roleEditSortInput">Sort</label>
-            <input
-              id="roleEditSortInput"
-              type="number"
-              value={roleEditForm.sortOrder}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setRoleEditForm((prev) => ({ ...prev, sortOrder: nextValue }));
-              }}
-            />
-          </div>
-          <div className="field settings-inline-control" hidden={roleEditTab !== "edit"}>
-            <label htmlFor="roleEditIsActiveInput">Active</label>
-            <label className="settings-checkbox settings-checkbox-inline" htmlFor="roleEditIsActiveInput">
-              <input
-                id="roleEditIsActiveInput"
-                type="checkbox"
-                checked={Boolean(roleEditForm.isActive)}
-                onChange={(event) => {
-                  const checked = event.currentTarget.checked;
-                  setRoleEditForm((prev) => ({ ...prev, isActive: checked }));
-                }}
-              />
-            </label>
-          </div>
-          <small className="field-error settings-error">{roleEditError}</small>
-          <div className="edit-actions">
-            <button className="btn" type="submit" disabled={roleEditSubmitting}>Save</button>
-            <button className="header-btn" type="button" onClick={cancelRoleEdit}>Cancel</button>
-          </div>
-        </form>
-      </section>
-      <div className="login-overlay" hidden={!roleEditOpen} onClick={cancelRoleEdit} />
-
-      <section id="positionEditModal" className="logout-confirm-modal settings-edit-modal" hidden={!positionEditOpen}>
-        <h3>Edit Position</h3>
-        <form
-          className="auth-form settings-edit-form"
-          noValidate
-          onSubmit={(event) => {
-            event.preventDefault();
-            handlePositionEditSave();
-          }}
-        >
-          <div className="field">
-            <label htmlFor="positionEditLabelInput">Label</label>
-            <input
-              id="positionEditLabelInput"
-              type="text"
-              value={positionEditForm.label}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setPositionEditForm((prev) => ({ ...prev, label: nextValue }));
-                if (positionEditError) {
-                  setPositionEditError("");
-                }
-              }}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="positionEditSortInput">Sort</label>
-            <input
-              id="positionEditSortInput"
-              type="number"
-              value={positionEditForm.sortOrder}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setPositionEditForm((prev) => ({ ...prev, sortOrder: nextValue }));
-              }}
-            />
-          </div>
-          <div className="field settings-inline-control">
-            <label htmlFor="positionEditIsActiveInput">Active</label>
-            <label className="settings-checkbox settings-checkbox-inline" htmlFor="positionEditIsActiveInput">
-              <input
-                id="positionEditIsActiveInput"
-                type="checkbox"
-                checked={Boolean(positionEditForm.isActive)}
-                onChange={(event) => {
-                  const checked = event.currentTarget.checked;
-                  setPositionEditForm((prev) => ({ ...prev, isActive: checked }));
-                }}
-              />
-            </label>
-          </div>
-          <small className="field-error settings-error">{positionEditError}</small>
-          <div className="edit-actions">
-            <button className="btn" type="submit" disabled={positionEditSubmitting}>Save</button>
-            <button className="header-btn" type="button" onClick={cancelPositionEdit}>Cancel</button>
-          </div>
-        </form>
-      </section>
-      <div className="login-overlay" hidden={!positionEditOpen} onClick={cancelPositionEdit} />
-
-      <aside
-        id="mainMenu"
-        ref={menuRef}
-        className={`side-menu${menuOpen ? " open" : ""}`}
-        aria-label="Main menu"
-        aria-hidden={menuOpen ? "false" : "true"}
-      >
-        <div className="side-menu-head">
-          <img src="/crm.svg" alt="CRM logo" className="side-logo" />
-          <strong>Main Menu</strong>
-        </div>
-        <nav className="side-menu-links">
-          <button
-            id="openClientsBtn"
-            type="button"
-            className="side-menu-action"
-            hidden={!canReadClients}
-            onClick={openClientsPanel}
-          >
-            Clients
-          </button>
-          <button
-            id="openAppointmentBtn"
-            type="button"
-            className="side-menu-action"
-            hidden={!canReadAppointments}
-            onClick={openAppointmentPanel}
-          >
-            Appointment
-          </button>
-          <div id="usersMenuGroup" className="side-menu-group" hidden={!hasUsersMenuAccess}>
-            <button
-              id="toggleUsersMenuBtn"
-              type="button"
-              className="side-menu-action side-menu-parent"
-              aria-expanded={usersMenuOpen ? "true" : "false"}
-              onClick={() => {
-                setUsersMenuOpen((prev) => !prev);
-                setSettingsMenuOpen(false);
-              }}
-            >
-              Users
-            </button>
-            <div id="usersSubMenu" className="side-submenu" hidden={!usersMenuOpen}>
-              <button
-                id="openAllUsersBtn"
-                type="button"
-                className="side-submenu-link side-submenu-action"
-                hidden={!canReadUsers}
-                onClick={() => {
-                  closeMenu();
-                  navigate("/users/allusers");
-                }}
-              >
-                All Users
-              </button>
-              <button
-                id="openCreateUserBtn"
-                type="button"
-                className="side-submenu-link side-submenu-action"
-                hidden={!canCreateUsers}
-                onClick={openCreateUserPanel}
-              >
-                Create User
-              </button>
-            </div>
-          </div>
-          <div id="settingsMenuGroup" className="side-menu-group" hidden={!hasSettingsMenuAccess}>
-            <button
-              id="toggleSettingsMenuBtn"
-              type="button"
-              className="side-menu-action side-menu-parent"
-              aria-expanded={settingsMenuOpen ? "true" : "false"}
-              onClick={() => {
-                setSettingsMenuOpen((prev) => !prev);
-                setUsersMenuOpen(false);
-              }}
-            >
-              General Settings
-            </button>
-            <div id="settingsSubMenu" className="side-submenu" hidden={!settingsMenuOpen}>
-              <button
-                id="openOrganizationsBtn"
-                type="button"
-                className="side-submenu-link side-submenu-action"
-                onClick={openOrganizationsPanel}
-              >
-                Organizations
-              </button>
-              <button
-                id="openRolesBtn"
-                type="button"
-                className="side-submenu-link side-submenu-action"
-                onClick={openRolesPanel}
-              >
-                Roles
-              </button>
-              <button
-                id="openPositionsBtn"
-                type="button"
-                className="side-submenu-link side-submenu-action"
-                onClick={openPositionsPanel}
-              >
-                Positions
-              </button>
-            </div>
-          </div>
-        </nav>
-      </aside>
-
-      <div id="menuOverlay" className="menu-overlay" hidden={!menuOpen} onClick={closeMenu} />
     </>
   );
 }
 
 export default ProfilePage;
+
