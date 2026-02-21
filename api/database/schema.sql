@@ -58,3 +58,25 @@ CREATE TABLE users (
 
 CREATE UNIQUE INDEX users_username_unique_ci ON users (LOWER(username));
 CREATE INDEX idx_users_organization_created_at ON users (organization_id, created_at DESC);
+
+CREATE TABLE clients (
+  id SERIAL PRIMARY KEY UNIQUE,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
+  first_name VARCHAR(64) NOT NULL,
+  last_name VARCHAR(64) NOT NULL,
+  middle_name VARCHAR(64),
+  birthday DATE NOT NULL,
+  phone_number VARCHAR(15),
+  tg_mail VARCHAR(96),
+  is_vip BOOLEAN NOT NULL DEFAULT FALSE,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  note VARCHAR(255)
+);
+
+ALTER SEQUENCE clients_id_seq RESTART WITH 1000;
+
+CREATE INDEX idx_clients_organization_created_at ON clients (organization_id, created_at DESC);
+CREATE INDEX idx_clients_organization_name ON clients (organization_id, last_name, first_name);

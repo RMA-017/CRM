@@ -327,6 +327,20 @@
   background: transparent;
 }
 
+.clients-edit-vip-field .settings-checkbox {
+  justify-self: start;
+  min-height: 30px;
+}
+
+.clients-create-vip-field .settings-checkbox {
+  justify-self: start;
+  min-height: 30px;
+}
+
+#createClientPanel #createClientBtn {
+  margin-top: 6px;
+}
+
 .settings-add-btn {
   width: 84px;
   min-width: 84px;
@@ -629,6 +643,7 @@
 
 .all-users-panel {
   width: 100%;
+  min-width: 0;
 }
 
 #allUsersPanel {
@@ -670,6 +685,8 @@
   margin-top: 10px;
   max-height: min(46vh, 420px);
   overflow: auto;
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--line);
   border-radius: 10px;
   width: 100%;
@@ -741,6 +758,101 @@
 
 .all-users-table td:nth-child(11) .table-action-btn,
 .all-users-table td:nth-child(12) .table-action-btn {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#clientsPanel .all-users-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+#clientsPanel .all-users-table-wrap {
+  overflow-x: hidden;
+}
+
+#clientsPanel .all-users-table th,
+#clientsPanel .all-users-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#clientsPanel .all-users-table th {
+  font-size: 10px;
+}
+
+#clientsPanel .all-users-table td {
+  font-size: 10px;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#clientsPanel .all-users-table th:nth-child(1),
+#clientsPanel .all-users-table td:nth-child(1) {
+  width: 5%;
+  text-align: center;
+}
+
+#clientsPanel .all-users-table th:nth-child(2),
+#clientsPanel .all-users-table td:nth-child(2) {
+  width: 11%;
+}
+
+#clientsPanel .all-users-table th:nth-child(3),
+#clientsPanel .all-users-table td:nth-child(3),
+#clientsPanel .all-users-table th:nth-child(4),
+#clientsPanel .all-users-table td:nth-child(4) {
+  width: 11%;
+}
+
+#clientsPanel .all-users-table th:nth-child(5),
+#clientsPanel .all-users-table td:nth-child(5) {
+  width: 8%;
+}
+
+#clientsPanel .all-users-table th:nth-child(6),
+#clientsPanel .all-users-table td:nth-child(6) {
+  width: 10%;
+}
+
+#clientsPanel .all-users-table th:nth-child(7),
+#clientsPanel .all-users-table td:nth-child(7) {
+  width: 8%;
+}
+
+#clientsPanel .all-users-table th:nth-child(8),
+#clientsPanel .all-users-table td:nth-child(8) {
+  width: 5%;
+  text-align: center;
+}
+
+#clientsPanel .all-users-table th:nth-child(9),
+#clientsPanel .all-users-table td:nth-child(9) {
+  width: 9%;
+}
+
+#clientsPanel .all-users-table th:nth-child(10),
+#clientsPanel .all-users-table td:nth-child(10) {
+  width: 10%;
+  text-align: left;
+}
+
+#clientsPanel .all-users-table th:nth-child(11),
+#clientsPanel .all-users-table td:nth-child(11),
+#clientsPanel .all-users-table th:nth-child(12),
+#clientsPanel .all-users-table td:nth-child(12) {
+  width: 6%;
+  min-width: 72px;
+  max-width: 72px;
+  text-align: center;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#clientsPanel .all-users-table td:nth-child(11) .table-action-btn,
+#clientsPanel .all-users-table td:nth-child(12) .table-action-btn {
   margin-left: auto;
   margin-right: auto;
 }

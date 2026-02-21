@@ -2,7 +2,11 @@ function ProfileSideMenu({
   menuRef,
   menuOpen,
   canReadClients,
-  openClientsPanel,
+  canManageClients,
+  clientsMenuOpen,
+  setClientsMenuOpen,
+  openAllClientsPanel,
+  openCreateClientPanel,
   canReadAppointments,
   openAppointmentPanel,
   hasUsersMenuAccess,
@@ -35,14 +39,38 @@ function ProfileSideMenu({
         </div>
         <nav className="side-menu-links">
           <button
-            id="openClientsBtn"
+            id="toggleClientsMenuBtn"
             type="button"
-            className="side-menu-action"
+            className="side-menu-action side-menu-parent"
             hidden={!canReadClients}
-            onClick={openClientsPanel}
+            aria-expanded={clientsMenuOpen ? "true" : "false"}
+            onClick={() => {
+              setClientsMenuOpen((prev) => !prev);
+              setUsersMenuOpen(false);
+              setSettingsMenuOpen(false);
+            }}
           >
             Clients
           </button>
+          <div id="clientsSubMenu" className="side-submenu" hidden={!clientsMenuOpen || !canReadClients}>
+            <button
+              id="openAllClientsBtn"
+              type="button"
+              className="side-submenu-link side-submenu-action"
+              onClick={openAllClientsPanel}
+            >
+              All Clients
+            </button>
+            <button
+              id="openCreateClientBtn"
+              type="button"
+              className="side-submenu-link side-submenu-action"
+              hidden={!canManageClients}
+              onClick={openCreateClientPanel}
+            >
+              Create Client
+            </button>
+          </div>
           <button
             id="openAppointmentBtn"
             type="button"
@@ -61,6 +89,7 @@ function ProfileSideMenu({
               onClick={() => {
                 setUsersMenuOpen((prev) => !prev);
                 setSettingsMenuOpen(false);
+                setClientsMenuOpen(false);
               }}
             >
               Users
@@ -98,6 +127,7 @@ function ProfileSideMenu({
               onClick={() => {
                 setSettingsMenuOpen((prev) => !prev);
                 setUsersMenuOpen(false);
+                setClientsMenuOpen(false);
               }}
             >
               General Settings

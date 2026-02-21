@@ -14,7 +14,23 @@ function ProfileMainContent({
   allUsersLoading,
   loadAllUsers,
   closeAllUsersPanel,
-  closeClientsPanel,
+  closeAllClientsPanel,
+  closeCreateClientPanel,
+  clients,
+  clientsMessage,
+  clientsLoading,
+  clientsPage,
+  clientsTotalPages,
+  loadClients,
+  canManageClients,
+  clientCreateForm,
+  clientCreateErrors,
+  clientCreateSubmitting,
+  setClientCreateForm,
+  setClientCreateErrors,
+  handleClientCreateSubmit,
+  startClientEdit,
+  openClientsDeleteModal,
   closeAppointmentPanel,
   closeOrganizationsPanel,
   closeRolesPanel,
@@ -64,8 +80,10 @@ function ProfileMainContent({
   roleOptions,
   closeCreateUserPanel
 }) {
+  const maxBirthdayYmd = new Date().toISOString().slice(0, 10);
+
   return (
-    <main className={`home-main${mainView === "create-user" ? " home-main-centered" : ""}`} aria-label="Main content">
+    <main className={`home-main${(mainView === "create-user" || mainView === "clients-create") ? " home-main-centered" : ""}`} aria-label="Main content">
       {mainView === "all-users" && (
         <section id="allUsersPanel" className="all-users-panel">
           <div className="all-users-head">
@@ -172,23 +190,284 @@ function ProfileMainContent({
         </section>
       )}
 
-      {mainView === "clients" && (
-        <section id="clientsPanel" className="create-user-panel">
+      {mainView === "clients-all" && (
+        <section id="clientsPanel" className="all-users-panel">
           <div className="all-users-head">
-            <h3>Clients</h3>
+            <h3>All Clients</h3>
             <button
-              id="closeClientsBtn"
+              id="closeAllClientsBtn"
               type="button"
               className="header-btn panel-close-btn"
-              aria-label="Close clients panel"
-              onClick={closeClientsPanel}
+              aria-label="Close all clients panel"
+              onClick={closeAllClientsPanel}
             >
               ×
             </button>
           </div>
-          <p className="all-users-state">
-            Clients bo'limi tayyorlandi. Keyingi bosqichda mijozlar jadvali va CRUD funksiyalarini qo'shamiz.
+
+          <p className="all-users-state" hidden={!clientsMessage}>
+            {clientsMessage}
           </p>
+
+          <div className="all-users-table-wrap" hidden={clients.length === 0}>
+            <table className="all-users-table" aria-label="Clients table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>First Name</th>
+                  <th>Last Name</th>
+                  <th>Middle Name</th>
+                  <th>Birthday</th>
+                  <th>Phone</th>
+                  <th>TG / Email</th>
+                  <th>VIP</th>
+                  <th>Created At</th>
+                  <th>Note</th>
+                  <th>Edit</th>
+                  <th>Delete</th>
+                </tr>
+              </thead>
+              <tbody>
+                {clients.map((item) => {
+                  const rowId = String(item.id || "");
+                  const firstName = String(item.firstName || item.first_name || "").trim();
+                  const lastName = String(item.lastName || item.last_name || "").trim();
+                  const middleName = String(item.middleName || item.middle_name || "").trim();
+                  const displayBirthday = String(item.birthday || item.birthdate || "").trim();
+                  const displayTgMail = String(
+                    item.tgMail || item.telegramOrEmail || item.telegram_or_email || item.tg_mail || ""
+                  ).trim();
+                  const displayNote = String(item.note || "").trim() || "-";
+                  const isVip = Boolean(item.isVip ?? item.is_vip);
+                  const createdAt = item.createdAt || item.created_at || "";
+
+                  return (
+                    <tr key={rowId}>
+                      <td>{rowId || "-"}</td>
+                      <td>{firstName || "-"}</td>
+                      <td>{lastName || "-"}</td>
+                      <td>{middleName || "-"}</td>
+                      <td>{formatDateYMD(displayBirthday)}</td>
+                      <td>{item.phone || item.phone_number || "-"}</td>
+                      <td>{displayTgMail || "-"}</td>
+                      <td>{isVip ? "Yes" : "No"}</td>
+                      <td>{formatDateYMD(createdAt)}</td>
+                      <td>{displayNote}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="table-action-btn"
+                          disabled={!canManageClients}
+                          onClick={() => startClientEdit(item)}
+                        >
+                          Edit
+                        </button>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="table-action-btn table-action-btn-danger"
+                          disabled={!canManageClients}
+                          onClick={() => openClientsDeleteModal(item)}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="all-users-pagination" hidden={clients.length === 0}>
+            <button
+              type="button"
+              className="header-btn"
+              disabled={clientsPage <= 1 || clientsLoading}
+              onClick={() => loadClients(clientsPage - 1)}
+            >
+              Previous
+            </button>
+            <span className="all-users-page-info">
+              Page {clientsPage} of {clientsTotalPages}
+            </span>
+            <button
+              type="button"
+              className="header-btn"
+              disabled={clientsPage >= clientsTotalPages || clientsLoading}
+              onClick={() => loadClients(clientsPage + 1)}
+            >
+              Next
+            </button>
+          </div>
+        </section>
+      )}
+
+      {mainView === "clients-create" && (
+        <section id="createClientPanel" className="create-user-panel">
+          <div className="all-users-head">
+            <h3>Create Client</h3>
+            <button
+              id="closeCreateClientBtn"
+              type="button"
+              className="header-btn panel-close-btn"
+              aria-label="Close create client panel"
+              onClick={closeCreateClientPanel}
+            >
+              ×
+            </button>
+          </div>
+
+          {!canManageClients ? (
+            <p className="all-users-state">You do not have permission to manage clients.</p>
+          ) : (
+            <form className="auth-form" noValidate onSubmit={handleClientCreateSubmit}>
+              <div className="field">
+                <label htmlFor="clientCreateFirstName">First Name</label>
+                <input
+                  id="clientCreateFirstName"
+                  name="firstName"
+                  type="text"
+                  required
+                  placeholder="First Name"
+                  className={clientCreateErrors.firstName ? "input-error" : ""}
+                  value={clientCreateForm.firstName}
+                  onInput={(event) => {
+                    const nextValue = event.currentTarget.value;
+                    setClientCreateForm((prev) => ({ ...prev, firstName: nextValue }));
+                    if (clientCreateErrors.firstName) {
+                      setClientCreateErrors((prev) => ({ ...prev, firstName: "" }));
+                    }
+                  }}
+                />
+                <small className="field-error">{clientCreateErrors.firstName || ""}</small>
+              </div>
+
+              <div className="field">
+                <label htmlFor="clientCreateLastName">Last Name</label>
+                <input
+                  id="clientCreateLastName"
+                  name="lastName"
+                  type="text"
+                  required
+                  placeholder="Last Name"
+                  className={clientCreateErrors.lastName ? "input-error" : ""}
+                  value={clientCreateForm.lastName}
+                  onInput={(event) => {
+                    const nextValue = event.currentTarget.value;
+                    setClientCreateForm((prev) => ({ ...prev, lastName: nextValue }));
+                    if (clientCreateErrors.lastName) {
+                      setClientCreateErrors((prev) => ({ ...prev, lastName: "" }));
+                    }
+                  }}
+                />
+                <small className="field-error">{clientCreateErrors.lastName || ""}</small>
+              </div>
+
+              <div className="field">
+                <label htmlFor="clientCreateMiddleName">Middle Name</label>
+                <input
+                  id="clientCreateMiddleName"
+                  name="middleName"
+                  type="text"
+                  placeholder="Middle Name"
+                  className={clientCreateErrors.middleName ? "input-error" : ""}
+                  value={clientCreateForm.middleName}
+                  onInput={(event) => {
+                    const nextValue = event.currentTarget.value;
+                    setClientCreateForm((prev) => ({ ...prev, middleName: nextValue }));
+                    if (clientCreateErrors.middleName) {
+                      setClientCreateErrors((prev) => ({ ...prev, middleName: "" }));
+                    }
+                  }}
+                />
+                <small className="field-error">{clientCreateErrors.middleName || ""}</small>
+              </div>
+
+              <div className="field">
+                <label htmlFor="clientCreateBirthday">Birthday</label>
+                <input
+                  id="clientCreateBirthday"
+                  name="birthday"
+                  type="date"
+                  required
+                  min="1950-01-01"
+                  max={maxBirthdayYmd}
+                  className={clientCreateErrors.birthday ? "input-error" : ""}
+                  value={clientCreateForm.birthday}
+                  onInput={(event) => {
+                    const nextValue = event.currentTarget.value;
+                    setClientCreateForm((prev) => ({ ...prev, birthday: nextValue }));
+                    if (clientCreateErrors.birthday) {
+                      setClientCreateErrors((prev) => ({ ...prev, birthday: "" }));
+                    }
+                  }}
+                />
+                <small className="field-error">{clientCreateErrors.birthday || ""}</small>
+              </div>
+
+              <div className="field">
+                <label htmlFor="clientCreatePhone">Phone Number</label>
+                <input
+                  id="clientCreatePhone"
+                  name="phone"
+                  type="tel"
+                  placeholder="+998..."
+                  className={clientCreateErrors.phone ? "input-error" : ""}
+                  value={clientCreateForm.phone}
+                  onInput={(event) => {
+                    const nextValue = event.currentTarget.value;
+                    setClientCreateForm((prev) => ({ ...prev, phone: nextValue }));
+                    if (clientCreateErrors.phone) {
+                      setClientCreateErrors((prev) => ({ ...prev, phone: "" }));
+                    }
+                  }}
+                />
+                <small className="field-error">{clientCreateErrors.phone || ""}</small>
+              </div>
+
+              <div className="field">
+                <label htmlFor="clientCreateTelegramOrEmail">Telegram or Email</label>
+                <input
+                  id="clientCreateTelegramOrEmail"
+                  name="telegramOrEmail"
+                  type="text"
+                  placeholder="@username or email@example.com"
+                  className={clientCreateErrors.telegramOrEmail ? "input-error" : ""}
+                  value={clientCreateForm.telegramOrEmail}
+                  onInput={(event) => {
+                    const nextValue = event.currentTarget.value;
+                    setClientCreateForm((prev) => ({ ...prev, telegramOrEmail: nextValue }));
+                    if (clientCreateErrors.telegramOrEmail) {
+                      setClientCreateErrors((prev) => ({ ...prev, telegramOrEmail: "" }));
+                    }
+                  }}
+                />
+                <small className="field-error">{clientCreateErrors.telegramOrEmail || ""}</small>
+              </div>
+
+              <div className="field clients-create-vip-field">
+                <label htmlFor="clientCreateIsVip">VIP Client</label>
+                <label className="settings-checkbox clients-create-vip-checkbox" htmlFor="clientCreateIsVip">
+                  <input
+                    id="clientCreateIsVip"
+                    type="checkbox"
+                    checked={Boolean(clientCreateForm.isVip)}
+                    onChange={(event) => {
+                      const checked = event.currentTarget.checked;
+                      setClientCreateForm((prev) => ({ ...prev, isVip: checked }));
+                    }}
+                  />
+                </label>
+                <small className="field-error">{clientCreateErrors.isVip || ""}</small>
+              </div>
+
+              <button id="createClientBtn" className="btn" type="submit" disabled={clientCreateSubmitting}>
+                Create
+              </button>
+            </form>
+          )}
         </section>
       )}
 

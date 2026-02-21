@@ -1,4 +1,5 @@
 import { ORGANIZATION_CODE_REGEX } from "../../constants/validation.js";
+import { validateBirthdayYmd } from "../../lib/date.js";
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 import { getAuthContext } from "../../lib/session.js";
@@ -139,8 +140,9 @@ async function usersRoutes(fastify) {
       if (!fullName) {
         errors.fullName = "Full name is required.";
       }
-      if (birthday && !/^\d{4}-\d{2}-\d{2}$/.test(birthday)) {
-        errors.birthday = "Invalid birthday format.";
+      const birthdayError = validateBirthdayYmd(birthday);
+      if (birthdayError) {
+        errors.birthday = birthdayError;
       }
       if (phone && !/^\+?[0-9]{7,15}$/.test(phone)) {
         errors.phone = "Invalid phone number.";

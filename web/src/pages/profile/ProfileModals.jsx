@@ -3,6 +3,8 @@ import { formatDateYMD } from "../../lib/formatters.js";
 import { togglePermissionCode } from "./profile.helpers.js";
 
 function ProfileModals(props) {
+  const maxBirthdayYmd = new Date().toISOString().slice(0, 10);
+
   const {
     myProfileModalOpen,
     closeMyProfilePanel,
@@ -27,9 +29,20 @@ function ProfileModals(props) {
     setAllUsersEdit,
     roleOptions,
     closeAllUsersEditModal,
+    clientsEditOpen,
+    clientEditForm,
+    clientEditErrors,
+    clientEditSubmitting,
+    setClientEditForm,
+    setClientEditErrors,
+    handleClientEditSubmit,
+    closeClientsEditModal,
     allUsersDelete,
     handleAllUsersDelete,
     closeAllUsersDeleteModal,
+    clientsDelete,
+    handleClientsDeleteConfirm,
+    closeClientsDeleteModal,
     settingsDelete,
     handleSettingsDeleteConfirm,
     closeSettingsDeleteModal,
@@ -191,11 +204,11 @@ function ProfileModals(props) {
                   autoComplete="current-password"
                   required
                   placeholder="Current password"
-                  className={profileEdit.error ? "input-error" : ""}
+                  className={profileEdit.errorField === "currentPassword" ? "input-error" : ""}
                   value={profileEdit.currentPassword}
                   onInput={(event) => {
                     const nextValue = event.currentTarget.value;
-                    setProfileEdit((prev) => ({ ...prev, currentPassword: nextValue, error: "" }));
+                    setProfileEdit((prev) => ({ ...prev, currentPassword: nextValue, error: "", errorField: "" }));
                   }}
                 />
               </div>
@@ -208,11 +221,11 @@ function ProfileModals(props) {
                   autoComplete="new-password"
                   required
                   placeholder="New password"
-                  className={profileEdit.error ? "input-error" : ""}
+                  className={profileEdit.errorField === "newPassword" ? "input-error" : ""}
                   value={profileEdit.newPassword}
                   onInput={(event) => {
                     const nextValue = event.currentTarget.value;
-                    setProfileEdit((prev) => ({ ...prev, newPassword: nextValue, error: "" }));
+                    setProfileEdit((prev) => ({ ...prev, newPassword: nextValue, error: "", errorField: "" }));
                   }}
                 />
               </div>
@@ -227,14 +240,15 @@ function ProfileModals(props) {
                   type="email"
                   autoComplete="email"
                   placeholder="example@mail.com"
-                  className={profileEdit.error ? "input-error" : ""}
+                  className={profileEdit.errorField === "email" ? "input-error" : ""}
                   value={profileEdit.form.email}
                   onInput={(event) => {
                     const nextValue = event.currentTarget.value;
                     setProfileEdit((prev) => ({
                       ...prev,
                       form: { ...prev.form, email: nextValue },
-                      error: ""
+                      error: "",
+                      errorField: ""
                     }));
                   }}
                 />
@@ -248,14 +262,15 @@ function ProfileModals(props) {
                   autoComplete="name"
                   required
                   placeholder="Full name"
-                  className={profileEdit.error ? "input-error" : ""}
+                  className={profileEdit.errorField === "fullName" ? "input-error" : ""}
                   value={profileEdit.form.fullName}
                   onInput={(event) => {
                     const nextValue = event.currentTarget.value;
                     setProfileEdit((prev) => ({
                       ...prev,
                       form: { ...prev.form, fullName: nextValue },
-                      error: ""
+                      error: "",
+                      errorField: ""
                     }));
                   }}
                 />
@@ -266,15 +281,18 @@ function ProfileModals(props) {
                   id="profileEditBirthday"
                   name="birthday"
                   type="date"
+                  min="1950-01-01"
+                  max={maxBirthdayYmd}
                   autoComplete="bday"
-                  className={profileEdit.error ? "input-error" : ""}
+                  className={profileEdit.errorField === "birthday" ? "input-error" : ""}
                   value={profileEdit.form.birthday}
                   onInput={(event) => {
                     const nextValue = event.currentTarget.value;
                     setProfileEdit((prev) => ({
                       ...prev,
                       form: { ...prev.form, birthday: nextValue },
-                      error: ""
+                      error: "",
+                      errorField: ""
                     }));
                   }}
                 />
@@ -287,14 +305,15 @@ function ProfileModals(props) {
                   type="tel"
                   autoComplete="tel"
                   placeholder="+998..."
-                  className={profileEdit.error ? "input-error" : ""}
+                  className={profileEdit.errorField === "phone" ? "input-error" : ""}
                   value={profileEdit.form.phone}
                   onInput={(event) => {
                     const nextValue = event.currentTarget.value;
                     setProfileEdit((prev) => ({
                       ...prev,
                       form: { ...prev.form, phone: nextValue },
-                      error: ""
+                      error: "",
+                      errorField: ""
                     }));
                   }}
                 />
@@ -306,12 +325,13 @@ function ProfileModals(props) {
                   placeholder="Select position"
                   value={profileEdit.form.position}
                   options={positionOptions}
-                  error={Boolean(profileEdit.error)}
+                  error={profileEdit.errorField === "position"}
                   onChange={(nextPosition) => {
                     setProfileEdit((prev) => ({
                       ...prev,
                       form: { ...prev.form, position: nextPosition },
-                      error: ""
+                      error: "",
+                      errorField: ""
                     }));
                   }}
                 />
@@ -430,6 +450,8 @@ function ProfileModals(props) {
               id="allUsersEditBirthday"
               name="birthday"
               type="date"
+              min="1950-01-01"
+              max={maxBirthdayYmd}
               autoComplete="bday"
               className={allUsersEdit.errors.birthday ? "input-error" : ""}
               value={allUsersEdit.form.birthday}
@@ -538,6 +560,168 @@ function ProfileModals(props) {
       </section>
       <div id="allUsersEditOverlay" className="login-overlay" hidden={!allUsersEdit.open} onClick={closeAllUsersEditModal} />
 
+      <section id="clientsEditModal" className="logout-confirm-modal all-users-edit-modal" hidden={!clientsEditOpen}>
+        <h3>Edit Client</h3>
+        <form id="clientsEditForm" className="auth-form" noValidate onSubmit={handleClientEditSubmit}>
+          <div className="field">
+            <label htmlFor="clientsEditFirstName">First Name</label>
+            <input
+              id="clientsEditFirstName"
+              type="text"
+              className={clientEditErrors.firstName ? "input-error" : ""}
+              value={clientEditForm.firstName}
+              onInput={(event) => {
+                const nextValue = event.currentTarget.value;
+                setClientEditForm((prev) => ({ ...prev, firstName: nextValue }));
+                if (clientEditErrors.firstName) {
+                  setClientEditErrors((prev) => ({ ...prev, firstName: "" }));
+                }
+              }}
+            />
+            <small className="field-error">{clientEditErrors.firstName || ""}</small>
+          </div>
+
+          <div className="field">
+            <label htmlFor="clientsEditLastName">Last Name</label>
+            <input
+              id="clientsEditLastName"
+              type="text"
+              className={clientEditErrors.lastName ? "input-error" : ""}
+              value={clientEditForm.lastName}
+              onInput={(event) => {
+                const nextValue = event.currentTarget.value;
+                setClientEditForm((prev) => ({ ...prev, lastName: nextValue }));
+                if (clientEditErrors.lastName) {
+                  setClientEditErrors((prev) => ({ ...prev, lastName: "" }));
+                }
+              }}
+            />
+            <small className="field-error">{clientEditErrors.lastName || ""}</small>
+          </div>
+
+          <div className="field">
+            <label htmlFor="clientsEditMiddleName">Middle Name</label>
+            <input
+              id="clientsEditMiddleName"
+              type="text"
+              className={clientEditErrors.middleName ? "input-error" : ""}
+              value={clientEditForm.middleName}
+              onInput={(event) => {
+                const nextValue = event.currentTarget.value;
+                setClientEditForm((prev) => ({ ...prev, middleName: nextValue }));
+                if (clientEditErrors.middleName) {
+                  setClientEditErrors((prev) => ({ ...prev, middleName: "" }));
+                }
+              }}
+            />
+            <small className="field-error">{clientEditErrors.middleName || ""}</small>
+          </div>
+
+          <div className="field">
+            <label htmlFor="clientsEditBirthday">Birthday</label>
+            <input
+              id="clientsEditBirthday"
+              type="date"
+              min="1950-01-01"
+              max={maxBirthdayYmd}
+              className={clientEditErrors.birthday ? "input-error" : ""}
+              value={clientEditForm.birthday}
+              onInput={(event) => {
+                const nextValue = event.currentTarget.value;
+                setClientEditForm((prev) => ({ ...prev, birthday: nextValue }));
+                if (clientEditErrors.birthday) {
+                  setClientEditErrors((prev) => ({ ...prev, birthday: "" }));
+                }
+              }}
+            />
+            <small className="field-error">{clientEditErrors.birthday || ""}</small>
+          </div>
+
+          <div className="field">
+            <label htmlFor="clientsEditPhone">Phone Number</label>
+            <input
+              id="clientsEditPhone"
+              type="text"
+              className={clientEditErrors.phone ? "input-error" : ""}
+              value={clientEditForm.phone}
+              onInput={(event) => {
+                const nextValue = event.currentTarget.value;
+                setClientEditForm((prev) => ({ ...prev, phone: nextValue }));
+                if (clientEditErrors.phone) {
+                  setClientEditErrors((prev) => ({ ...prev, phone: "" }));
+                }
+              }}
+            />
+            <small className="field-error">{clientEditErrors.phone || ""}</small>
+          </div>
+
+          <div className="field">
+            <label htmlFor="clientsEditTgMail">Telegram / Email</label>
+            <input
+              id="clientsEditTgMail"
+              type="text"
+              className={clientEditErrors.tgMail ? "input-error" : ""}
+              value={clientEditForm.tgMail}
+              onInput={(event) => {
+                const nextValue = event.currentTarget.value;
+                setClientEditForm((prev) => ({ ...prev, tgMail: nextValue }));
+                if (clientEditErrors.tgMail) {
+                  setClientEditErrors((prev) => ({ ...prev, tgMail: "" }));
+                }
+              }}
+            />
+            <small className="field-error">{clientEditErrors.tgMail || ""}</small>
+          </div>
+
+          <div className="field clients-edit-vip-field">
+            <label htmlFor="clientsEditIsVip">VIP Client</label>
+            <label className="settings-checkbox clients-edit-vip-checkbox" htmlFor="clientsEditIsVip">
+              <input
+                id="clientsEditIsVip"
+                type="checkbox"
+                checked={Boolean(clientEditForm.isVip)}
+                onChange={(event) => {
+                  const checked = event.currentTarget.checked;
+                  setClientEditForm((prev) => ({ ...prev, isVip: checked }));
+                  if (clientEditErrors.isVip) {
+                    setClientEditErrors((prev) => ({ ...prev, isVip: "" }));
+                  }
+                }}
+              />
+            </label>
+            <small className="field-error">{clientEditErrors.isVip || ""}</small>
+          </div>
+
+          <div className="field">
+            <label htmlFor="clientsEditNote">Note</label>
+            <input
+              id="clientsEditNote"
+              type="text"
+              className={clientEditErrors.note ? "input-error" : ""}
+              value={clientEditForm.note}
+              onInput={(event) => {
+                const nextValue = event.currentTarget.value;
+                setClientEditForm((prev) => ({ ...prev, note: nextValue }));
+                if (clientEditErrors.note) {
+                  setClientEditErrors((prev) => ({ ...prev, note: "" }));
+                }
+              }}
+            />
+            <small className="field-error">{clientEditErrors.note || ""}</small>
+          </div>
+
+          <div className="edit-actions">
+            <button id="clientsEditSaveBtn" className="btn" type="submit" disabled={clientEditSubmitting}>
+              Save
+            </button>
+            <button id="clientsEditCancelBtn" className="header-btn" type="button" onClick={closeClientsEditModal}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      </section>
+      <div id="clientsEditOverlay" className="login-overlay" hidden={!clientsEditOpen} onClick={closeClientsEditModal} />
+
       <section id="allUsersDeleteModal" className="logout-confirm-modal" hidden={!allUsersDelete.open}>
         <h3>Are you sure you want to delete this user?</h3>
         <p id="allUsersDeleteError" className="field-error">{allUsersDelete.error}</p>
@@ -563,6 +747,35 @@ function ProfileModals(props) {
         </div>
       </section>
       <div id="allUsersDeleteOverlay" className="login-overlay" hidden={!allUsersDelete.open} onClick={closeAllUsersDeleteModal} />
+
+      <section id="clientsDeleteModal" className="logout-confirm-modal" hidden={!clientsDelete.open}>
+        <h3>Are you sure you want to delete this client?</h3>
+        <p className="all-users-state" hidden={!clientsDelete.label}>
+          {clientsDelete.label}
+        </p>
+        <p id="clientsDeleteError" className="field-error">{clientsDelete.error}</p>
+        <div className="logout-confirm-actions">
+          <button
+            id="clientsDeleteYesBtn"
+            type="button"
+            className="header-btn logout-confirm-yes"
+            disabled={clientsDelete.submitting}
+            onClick={handleClientsDeleteConfirm}
+          >
+            Yes
+          </button>
+          <button
+            id="clientsDeleteNoBtn"
+            type="button"
+            className="header-btn"
+            disabled={clientsDelete.submitting}
+            onClick={closeClientsDeleteModal}
+          >
+            No
+          </button>
+        </div>
+      </section>
+      <div id="clientsDeleteOverlay" className="login-overlay" hidden={!clientsDelete.open} onClick={closeClientsDeleteModal} />
 
       <section id="settingsDeleteModal" className="logout-confirm-modal" hidden={!settingsDelete.open}>
         <h3>

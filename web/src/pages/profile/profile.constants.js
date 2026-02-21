@@ -51,6 +51,7 @@ export function createEmptyProfileEditState() {
     currentPassword: "",
     newPassword: "",
     error: "",
+    errorField: "",
     submitting: false
   };
 }
@@ -78,6 +79,16 @@ export function createEmptySettingsDeleteState() {
   return {
     open: false,
     type: "",
+    id: "",
+    label: "",
+    error: "",
+    submitting: false
+  };
+}
+
+export function createEmptyClientsDeleteState() {
+  return {
+    open: false,
     id: "",
     label: "",
     error: "",

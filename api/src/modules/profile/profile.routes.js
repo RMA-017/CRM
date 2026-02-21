@@ -1,4 +1,5 @@
 import { getClearCookieOptions, AUTH_COOKIE_NAME } from "../../lib/cookies.js";
+import { validateBirthdayYmd } from "../../lib/date.js";
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 import { getAuthContext } from "../../lib/session.js";
@@ -26,8 +27,11 @@ function validateOwnProfileUpdate(field, value, currentPassword) {
   if (field === "fullName" && !value) {
     return { field: "fullName", message: "Full name is required." };
   }
-  if (field === "birthday" && value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return { field: "birthday", message: "Invalid birthday format." };
+  if (field === "birthday") {
+    const birthdayError = validateBirthdayYmd(value);
+    if (birthdayError) {
+      return { field: "birthday", message: birthdayError };
+    }
   }
   if (field === "phone" && value && !/^\+?[0-9]{7,15}$/.test(value)) {
     return { field: "phone", message: "Invalid phone number." };
