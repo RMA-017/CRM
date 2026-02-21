@@ -46,20 +46,9 @@
   background: var(--danger-soft);
 }
 
-#logoutConfirmNo {
-  color: var(--on-brand);
-  border: 0;
-  background: var(--brand-gradient);
-  font-weight: 600;
-}
-
-#allUsersDeleteNoBtn {
-  color: var(--on-brand);
-  border: 0;
-  background: var(--brand-gradient);
-  font-weight: 600;
-}
-
+#logoutConfirmNo,
+#allUsersDeleteNoBtn,
+#clientsDeleteNoBtn,
 #settingsDeleteNoBtn {
   color: var(--on-brand);
   border: 0;
@@ -327,18 +316,10 @@
   background: transparent;
 }
 
-.clients-edit-vip-field .settings-checkbox {
-  justify-self: start;
-  min-height: 30px;
-}
-
+.clients-edit-vip-field .settings-checkbox,
 .clients-create-vip-field .settings-checkbox {
   justify-self: start;
   min-height: 30px;
-}
-
-#createClientPanel #createClientBtn {
-  margin-top: 6px;
 }
 
 .settings-add-btn {
