@@ -112,6 +112,29 @@
     overflow-x: auto;
   }
 
+  .appointment-specialist-list {
+    grid-template-columns: 1fr;
+  }
+
+  .appointment-week-switcher {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .appointment-week-switcher .header-btn {
+    min-width: 128px;
+  }
+
+  .appointment-setting-row {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .appointment-specialist-schedule-card header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .profile-modal-list div {
     grid-template-columns: 96px minmax(0, 1fr);
     gap: 8px;
@@ -211,6 +234,14 @@
 
   .settings-permissions-grid {
     grid-template-columns: 1fr;
+  }
+
+  .appointment-toolbar-block {
+    padding: 8px;
+  }
+
+  .appointment-grid {
+    min-width: 760px;
   }
 
   .settings-permissions-grid-group {

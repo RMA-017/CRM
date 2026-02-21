@@ -42,7 +42,7 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "clients-create") {
       return canCreateClients;
     }
-    if (forcedView === "appointment") {
+    if (forcedView === "appointment" || forcedView === "appointment-settings") {
       return canReadAppointments;
     }
     if (

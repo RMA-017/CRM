@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import { appConfig } from "./config/app-config.js";
 import securityPlugin from "./plugins/security.js";
+import appointmentSettingsRoutes from "./modules/appointments/appointment-settings.routes.js";
 import authRoutes from "./modules/auth/auth.routes.js";
 import clientsRoutes from "./modules/clients/clients.routes.js";
 import createUserRoutes from "./modules/create-user/create-user.routes.js";
@@ -27,6 +28,7 @@ export async function buildApp() {
   await app.register(createUserRoutes, { prefix: "/api/users" });
   await app.register(usersRoutes, { prefix: "/api/users" });
   await app.register(clientsRoutes, { prefix: "/api/clients" });
+  await app.register(appointmentSettingsRoutes, { prefix: "/api/appointments" });
   await app.register(settingsRoutes, { prefix: "/api/settings" });
 
   app.setNotFoundHandler((_request, reply) => {

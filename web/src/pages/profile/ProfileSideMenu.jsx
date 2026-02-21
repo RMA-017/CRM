@@ -9,7 +9,10 @@ function ProfileSideMenu({
   openAllClientsPanel,
   openCreateClientPanel,
   canReadAppointments,
+  appointmentMenuOpen,
+  setAppointmentMenuOpen,
   openAppointmentPanel,
+  openAppointmentSettingsPanel,
   hasUsersMenuAccess,
   usersMenuOpen,
   setUsersMenuOpen,
@@ -49,6 +52,7 @@ function ProfileSideMenu({
               setClientsMenuOpen((prev) => !prev);
               setUsersMenuOpen(false);
               setSettingsMenuOpen(false);
+              setAppointmentMenuOpen(false);
             }}
           >
             Clients
@@ -73,15 +77,40 @@ function ProfileSideMenu({
               Create Client
             </button>
           </div>
-          <button
-            id="openAppointmentBtn"
-            type="button"
-            className="side-menu-action"
-            hidden={!canReadAppointments}
-            onClick={openAppointmentPanel}
-          >
-            Appointment
-          </button>
+          <div id="appointmentsMenuGroup" className="side-menu-group" hidden={!canReadAppointments}>
+            <button
+              id="toggleAppointmentsMenuBtn"
+              type="button"
+              className="side-menu-action side-menu-parent"
+              aria-expanded={appointmentMenuOpen ? "true" : "false"}
+              onClick={() => {
+                setAppointmentMenuOpen((prev) => !prev);
+                setClientsMenuOpen(false);
+                setUsersMenuOpen(false);
+                setSettingsMenuOpen(false);
+              }}
+            >
+              Appointments
+            </button>
+            <div id="appointmentsSubMenu" className="side-submenu" hidden={!appointmentMenuOpen}>
+              <button
+                id="openAppointmentSettingsBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                onClick={openAppointmentSettingsPanel}
+              >
+                Settings
+              </button>
+              <button
+                id="openAppointmentScheduleBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                onClick={openAppointmentPanel}
+              >
+                Schedule
+              </button>
+            </div>
+          </div>
           <div id="usersMenuGroup" className="side-menu-group" hidden={!hasUsersMenuAccess}>
             <button
               id="toggleUsersMenuBtn"
@@ -92,6 +121,7 @@ function ProfileSideMenu({
                 setUsersMenuOpen((prev) => !prev);
                 setSettingsMenuOpen(false);
                 setClientsMenuOpen(false);
+                setAppointmentMenuOpen(false);
               }}
             >
               Users
@@ -130,6 +160,7 @@ function ProfileSideMenu({
                 setSettingsMenuOpen((prev) => !prev);
                 setUsersMenuOpen(false);
                 setClientsMenuOpen(false);
+                setAppointmentMenuOpen(false);
               }}
             >
               General Settings

@@ -36,6 +36,7 @@ function App() {
       <Route path="/clients/create" element={<ProfilePage forcedView="clients-create" />} />
       <Route path="/clients" element={<Navigate to="/clients/allclients" replace />} />
       <Route path="/appointments" element={<ProfilePage forcedView="appointment" />} />
+      <Route path="/appointments/settings" element={<ProfilePage forcedView="appointment-settings" />} />
       <Route path="/settings/organizations" element={<ProfilePage forcedView="settings-organizations" />} />
       <Route path="/settings/roles" element={<ProfilePage forcedView="settings-roles" />} />
       <Route path="/settings/positions" element={<ProfilePage forcedView="settings-positions" />} />
@@ -46,6 +47,8 @@ function App() {
       <Route path="/profile/clients" element={<Navigate to="/clients/allclients" replace />} />
       <Route path="/profile/clients/allclients" element={<Navigate to="/clients/allclients" replace />} />
       <Route path="/profile/clients/create" element={<Navigate to="/clients/create" replace />} />
+      <Route path="/profile/appointments" element={<Navigate to="/appointments" replace />} />
+      <Route path="/profile/appointments/settings" element={<Navigate to="/appointments/settings" replace />} />
       <Route path="/profile/settings/organizations" element={<Navigate to="/settings/organizations" replace />} />
       <Route path="/profile/settings/roles" element={<Navigate to="/settings/roles" replace />} />
       <Route path="/profile/settings/positions" element={<Navigate to="/settings/positions" replace />} />

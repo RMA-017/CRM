@@ -77,6 +77,7 @@ function ProfilePage({ forcedView = "none" }) {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [clientsMenuOpen, setClientsMenuOpen] = useState(false);
+  const [appointmentMenuOpen, setAppointmentMenuOpen] = useState(false);
   const [usersMenuOpen, setUsersMenuOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -393,6 +394,7 @@ function ProfilePage({ forcedView = "none" }) {
     }
     setMenuOpen(false);
     setClientsMenuOpen(false);
+    setAppointmentMenuOpen(false);
     setUsersMenuOpen(false);
     setSettingsMenuOpen(false);
   }, []);
@@ -686,6 +688,14 @@ function ProfilePage({ forcedView = "none" }) {
 
   function closeAppointmentPanel() {
     closePanel("appointment");
+  }
+
+  function openAppointmentSettingsPanel() {
+    openPanel("/appointments/settings", canReadAppointments);
+  }
+
+  function closeAppointmentSettingsPanel() {
+    closePanel("appointment-settings");
   }
 
   function openOrganizationsPanel() {
@@ -1131,6 +1141,7 @@ function ProfilePage({ forcedView = "none" }) {
           startClientEdit={startClientEdit}
           openClientsDeleteModal={openClientsDeleteModal}
           closeAppointmentPanel={closeAppointmentPanel}
+          closeAppointmentSettingsPanel={closeAppointmentSettingsPanel}
           closeOrganizationsPanel={closeOrganizationsPanel}
           closeRolesPanel={closeRolesPanel}
           closePositionsPanel={closePositionsPanel}
@@ -1284,7 +1295,10 @@ function ProfilePage({ forcedView = "none" }) {
         openAllClientsPanel={openAllClientsPanel}
         openCreateClientPanel={openCreateClientPanel}
         canReadAppointments={canReadAppointments}
+        appointmentMenuOpen={appointmentMenuOpen}
+        setAppointmentMenuOpen={setAppointmentMenuOpen}
         openAppointmentPanel={openAppointmentPanel}
+        openAppointmentSettingsPanel={openAppointmentSettingsPanel}
         hasUsersMenuAccess={hasUsersMenuAccess}
         usersMenuOpen={usersMenuOpen}
         setUsersMenuOpen={setUsersMenuOpen}

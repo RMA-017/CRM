@@ -947,18 +947,6 @@ function ProfileModals(props) {
             />
           </div>
           <div className="field" hidden={roleEditTab !== "edit"}>
-            <label htmlFor="roleEditSortInput">Sort</label>
-            <input
-              id="roleEditSortInput"
-              type="number"
-              value={roleEditForm.sortOrder}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setRoleEditForm((prev) => ({ ...prev, sortOrder: nextValue }));
-              }}
-            />
-          </div>
-          <div className="field settings-inline-control" hidden={roleEditTab !== "edit"}>
             <label htmlFor="roleEditIsActiveInput">Active</label>
             <label className="settings-checkbox settings-checkbox-inline" htmlFor="roleEditIsActiveInput">
               <input
@@ -999,25 +987,13 @@ function ProfileModals(props) {
               value={positionEditForm.label}
               onInput={(event) => {
                 const nextValue = event.currentTarget.value;
-                setPositionEditForm((prev) => ({ ...prev, label: nextValue }));
-                if (positionEditError) {
-                  setPositionEditError("");
-                }
-              }}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="positionEditSortInput">Sort</label>
-            <input
-              id="positionEditSortInput"
-              type="number"
-              value={positionEditForm.sortOrder}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setPositionEditForm((prev) => ({ ...prev, sortOrder: nextValue }));
-              }}
-            />
-          </div>
+                  setPositionEditForm((prev) => ({ ...prev, label: nextValue }));
+                  if (positionEditError) {
+                    setPositionEditError("");
+                  }
+                }}
+              />
+            </div>
           <div className="field settings-inline-control">
             <label htmlFor="positionEditIsActiveInput">Active</label>
             <label className="settings-checkbox settings-checkbox-inline" htmlFor="positionEditIsActiveInput">

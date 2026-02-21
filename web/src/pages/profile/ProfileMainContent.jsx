@@ -1,5 +1,7 @@
 import CustomSelect from "../../components/CustomSelect.jsx";
 import { formatDateYMD } from "../../lib/formatters.js";
+import AppointmentScheduler from "./AppointmentScheduler.jsx";
+import AppointmentSettingsPanel from "./AppointmentSettingsPanel.jsx";
 
 function ProfileMainContent({
   mainView,
@@ -34,6 +36,7 @@ function ProfileMainContent({
   startClientEdit,
   openClientsDeleteModal,
   closeAppointmentPanel,
+  closeAppointmentSettingsPanel,
   closeOrganizationsPanel,
   closeRolesPanel,
   closePositionsPanel,
@@ -124,44 +127,46 @@ function ProfileMainContent({
                 </tr>
               </thead>
               <tbody id="allUsersTableBody">
-                {allUsers.map((user) => (
-                  <tr key={String(user.id)}>
-                    <td>{user.id || "-"}</td>
-                    <td>
-                      {user.organizationName && user.organizationCode
-                        ? `${user.organizationName} (${user.organizationCode})`
-                        : (user.organizationCode || "-")}
-                    </td>
-                    <td>{user.username || "-"}</td>
-                    <td>{user.email || "-"}</td>
-                    <td>{user.fullName || "-"}</td>
-                    <td>{formatDateYMD(user.birthday)}</td>
-                    <td>{user.phone || "-"}</td>
-                    <td>{user.position || "-"}</td>
-                    <td>{user.role || "-"}</td>
-                    <td>{formatDateYMD(user.createdAt)}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="table-action-btn"
-                        disabled={!canUpdateUsers}
-                        onClick={() => openAllUsersEditModal(user.id)}
-                      >
-                        Edit
-                      </button>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="table-action-btn table-action-btn-danger"
-                        disabled={!canDeleteUsers}
-                        onClick={() => openAllUsersDeleteModal(user.id)}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {allUsers.map((user) => {
+                  return (
+                    <tr key={String(user.id)}>
+                      <td>{user.id || "-"}</td>
+                      <td>
+                        {user.organizationName && user.organizationCode
+                          ? `${user.organizationName} (${user.organizationCode})`
+                          : (user.organizationCode || "-")}
+                      </td>
+                      <td>{user.username || "-"}</td>
+                      <td>{user.email || "-"}</td>
+                      <td>{user.fullName || "-"}</td>
+                      <td>{formatDateYMD(user.birthday)}</td>
+                      <td>{user.phone || "-"}</td>
+                      <td>{user.position || "-"}</td>
+                      <td>{user.role || "-"}</td>
+                      <td>{formatDateYMD(user.createdAt)}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="table-action-btn"
+                          disabled={!canUpdateUsers}
+                          onClick={() => openAllUsersEditModal(user.id)}
+                        >
+                          Edit
+                        </button>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="table-action-btn table-action-btn-danger"
+                          disabled={!canDeleteUsers}
+                          onClick={() => openAllUsersDeleteModal(user.id)}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -474,7 +479,7 @@ function ProfileMainContent({
       )}
 
       {mainView === "appointment" && (
-        <section id="appointmentPanel" className="create-user-panel">
+        <section id="appointmentPanel" className="all-users-panel">
           <div className="all-users-head">
             <h3>Appointment</h3>
             <button
@@ -487,9 +492,25 @@ function ProfileMainContent({
               ×
             </button>
           </div>
-          <p className="all-users-state">
-            Appointment bo'limi tayyorlandi. Keyingi bosqichda jadval va bronlash oqimini qo'shamiz.
-          </p>
+          <AppointmentScheduler />
+        </section>
+      )}
+
+      {mainView === "appointment-settings" && (
+        <section id="appointmentSettingsPanel" className="all-users-panel settings-panel">
+          <div className="all-users-head">
+            <h3>Appointment Settings</h3>
+            <button
+              id="closeAppointmentSettingsBtn"
+              type="button"
+              className="header-btn panel-close-btn"
+              aria-label="Close appointment settings panel"
+              onClick={closeAppointmentSettingsPanel}
+            >
+              ×
+            </button>
+          </div>
+          <AppointmentSettingsPanel />
         </section>
       )}
 
@@ -658,19 +679,6 @@ function ProfileMainContent({
                   }}
                 />
               </div>
-              <div className="field">
-                <label htmlFor="roleSortOrderInput">Sort</label>
-                <input
-                  id="roleSortOrderInput"
-                  name="sortOrder"
-                  type="number"
-                  value={roleCreateForm.sortOrder}
-                  onInput={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setRoleCreateForm((prev) => ({ ...prev, sortOrder: nextValue }));
-                  }}
-                />
-              </div>
               <div className="field settings-inline-control">
                 <label className="settings-spacer-label" aria-hidden="true">&nbsp;</label>
                 <label className="settings-checkbox" htmlFor="roleIsActiveInput">
@@ -706,7 +714,6 @@ function ProfileMainContent({
                 <tr>
                   <th>ID</th>
                   <th>Label</th>
-                  <th>Sort</th>
                   <th>Active</th>
                   <th>Created</th>
                   <th>Edit</th>
@@ -720,7 +727,6 @@ function ProfileMainContent({
                     <tr key={rowId}>
                       <td>{rowId}</td>
                       <td>{item.label || "-"}</td>
-                      <td>{item.sortOrder}</td>
                       <td>{item.isActive ? "Yes" : "No"}</td>
                       <td>{formatDateYMD(item.createdAt)}</td>
                       <td>
@@ -785,19 +791,6 @@ function ProfileMainContent({
                   }}
                 />
               </div>
-              <div className="field">
-                <label htmlFor="positionSortOrderInput">Sort</label>
-                <input
-                  id="positionSortOrderInput"
-                  name="sortOrder"
-                  type="number"
-                  value={positionCreateForm.sortOrder}
-                  onInput={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setPositionCreateForm((prev) => ({ ...prev, sortOrder: nextValue }));
-                  }}
-                />
-              </div>
               <div className="field settings-inline-control">
                 <label className="settings-spacer-label" aria-hidden="true">&nbsp;</label>
                 <label className="settings-checkbox" htmlFor="positionIsActiveInput">
@@ -833,7 +826,6 @@ function ProfileMainContent({
                 <tr>
                   <th>ID</th>
                   <th>Label</th>
-                  <th>Sort</th>
                   <th>Active</th>
                   <th>Created</th>
                   <th>Edit</th>
@@ -847,7 +839,6 @@ function ProfileMainContent({
                     <tr key={rowId}>
                       <td>{rowId}</td>
                       <td>{item.label || "-"}</td>
-                      <td>{item.sortOrder}</td>
                       <td>{item.isActive ? "Yes" : "No"}</td>
                       <td>{formatDateYMD(item.createdAt)}</td>
                       <td>
