@@ -1,8 +1,9 @@
 function ProfileSideMenu({
   menuRef,
   menuOpen,
+  hasClientsMenuAccess,
   canReadClients,
-  canManageClients,
+  canCreateClients,
   clientsMenuOpen,
   setClientsMenuOpen,
   openAllClientsPanel,
@@ -42,7 +43,7 @@ function ProfileSideMenu({
             id="toggleClientsMenuBtn"
             type="button"
             className="side-menu-action side-menu-parent"
-            hidden={!canReadClients}
+            hidden={!hasClientsMenuAccess}
             aria-expanded={clientsMenuOpen ? "true" : "false"}
             onClick={() => {
               setClientsMenuOpen((prev) => !prev);
@@ -52,11 +53,12 @@ function ProfileSideMenu({
           >
             Clients
           </button>
-          <div id="clientsSubMenu" className="side-submenu" hidden={!clientsMenuOpen || !canReadClients}>
+          <div id="clientsSubMenu" className="side-submenu" hidden={!clientsMenuOpen || !hasClientsMenuAccess}>
             <button
               id="openAllClientsBtn"
               type="button"
               className="side-submenu-link side-submenu-action"
+              hidden={!canReadClients}
               onClick={openAllClientsPanel}
             >
               All Clients
@@ -65,7 +67,7 @@ function ProfileSideMenu({
               id="openCreateClientBtn"
               type="button"
               className="side-submenu-link side-submenu-action"
-              hidden={!canManageClients}
+              hidden={!canCreateClients}
               onClick={openCreateClientPanel}
             >
               Create Client

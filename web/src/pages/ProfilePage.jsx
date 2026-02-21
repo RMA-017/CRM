@@ -104,7 +104,10 @@ function ProfilePage({ forcedView = "none" }) {
     canUpdateUsers,
     canDeleteUsers,
     canReadClients,
-    canManageClients,
+    canCreateClients,
+    canUpdateClients,
+    canDeleteClients,
+    hasClientsMenuAccess,
     canReadAppointments,
     hasUsersMenuAccess,
     hasSettingsMenuAccess,
@@ -279,7 +282,9 @@ function ProfilePage({ forcedView = "none" }) {
     closeClientsDeleteModal
   } = useClientsSection({
     canReadClients,
-    canManageClients,
+    canCreateClients,
+    canUpdateClients,
+    canDeleteClients,
     navigate,
     getBirthdayValidationMessage
   });
@@ -668,7 +673,7 @@ function ProfilePage({ forcedView = "none" }) {
   }
 
   function openCreateClientPanel() {
-    openPanel("/clients/create", canManageClients && canReadClients);
+    openPanel("/clients/create", canCreateClients);
   }
 
   function closeCreateClientPanel() {
@@ -1114,7 +1119,9 @@ function ProfilePage({ forcedView = "none" }) {
           clientsPage={clientsPage}
           clientsTotalPages={clientsTotalPages}
           loadClients={loadClients}
-          canManageClients={canManageClients}
+          canCreateClients={canCreateClients}
+          canUpdateClients={canUpdateClients}
+          canDeleteClients={canDeleteClients}
           clientCreateForm={clientCreateForm}
           clientCreateErrors={clientCreateErrors}
           clientCreateSubmitting={clientCreateSubmitting}
@@ -1269,8 +1276,9 @@ function ProfilePage({ forcedView = "none" }) {
       <ProfileSideMenu
         menuRef={menuRef}
         menuOpen={menuOpen}
+        hasClientsMenuAccess={hasClientsMenuAccess}
         canReadClients={canReadClients}
-        canManageClients={canManageClients}
+        canCreateClients={canCreateClients}
         clientsMenuOpen={clientsMenuOpen}
         setClientsMenuOpen={setClientsMenuOpen}
         openAllClientsPanel={openAllClientsPanel}

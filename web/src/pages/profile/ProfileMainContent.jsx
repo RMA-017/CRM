@@ -22,7 +22,9 @@ function ProfileMainContent({
   clientsPage,
   clientsTotalPages,
   loadClients,
-  canManageClients,
+  canCreateClients,
+  canUpdateClients,
+  canDeleteClients,
   clientCreateForm,
   clientCreateErrors,
   clientCreateSubmitting,
@@ -219,7 +221,7 @@ function ProfileMainContent({
                   <th>Middle Name</th>
                   <th>Birthday</th>
                   <th>Phone</th>
-                  <th>TG / Email</th>
+                  <th>Tg or Mail</th>
                   <th>VIP</th>
                   <th>Created At</th>
                   <th>Note</th>
@@ -257,7 +259,7 @@ function ProfileMainContent({
                         <button
                           type="button"
                           className="table-action-btn"
-                          disabled={!canManageClients}
+                          disabled={!canUpdateClients}
                           onClick={() => startClientEdit(item)}
                         >
                           Edit
@@ -267,7 +269,7 @@ function ProfileMainContent({
                         <button
                           type="button"
                           className="table-action-btn table-action-btn-danger"
-                          disabled={!canManageClients}
+                          disabled={!canDeleteClients}
                           onClick={() => openClientsDeleteModal(item)}
                         >
                           Delete
@@ -319,8 +321,8 @@ function ProfileMainContent({
             </button>
           </div>
 
-          {!canManageClients ? (
-            <p className="all-users-state">You do not have permission to manage clients.</p>
+          {!canCreateClients ? (
+            <p className="all-users-state">You do not have permission to create clients.</p>
           ) : (
             <form className="auth-form" noValidate onSubmit={handleClientCreateSubmit}>
               <div className="field">

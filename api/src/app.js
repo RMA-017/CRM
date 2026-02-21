@@ -8,6 +8,7 @@ import metaRoutes from "./modules/meta/meta.routes.js";
 import profileRoutes from "./modules/profile/profile.routes.js";
 import settingsRoutes from "./modules/settings/settings.routes.js";
 import usersRoutes from "./modules/users/users.routes.js";
+import { ensureSystemPermissions } from "./modules/users/permissions.service.js";
 
 export async function buildApp() {
   const app = Fastify({
@@ -15,6 +16,7 @@ export async function buildApp() {
     trustProxy: appConfig.trustProxy
   });
 
+  await ensureSystemPermissions();
   await app.register(securityPlugin);
 
   app.get("/", async () => ({ message: "CRM API is running." }));

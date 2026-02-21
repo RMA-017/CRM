@@ -2,10 +2,9 @@ import pool from "../../config/db.js";
 
 export async function findClientsRequester({ userId, organizationId }) {
   const { rows } = await pool.query(
-    `SELECT u.id, u.role_id, r.is_admin
+    `SELECT u.id, u.role_id
        FROM users u
        JOIN organizations o ON o.id = u.organization_id
-       JOIN role_options r ON r.id = u.role_id
       WHERE u.id = $1
         AND u.organization_id = $2
         AND o.is_active = TRUE

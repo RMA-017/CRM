@@ -31,7 +31,9 @@ const EMPTY_CLIENT_EDIT_FORM = {
 
 export function useClientsSection({
   canReadClients,
-  canManageClients,
+  canCreateClients,
+  canUpdateClients,
+  canDeleteClients,
   navigate,
   getBirthdayValidationMessage
 }) {
@@ -216,8 +218,8 @@ export function useClientsSection({
   const handleClientCreateSubmit = useCallback(async (event) => {
     event.preventDefault();
 
-    if (!canManageClients) {
-      setClientCreateErrors({ firstName: "You do not have permission to manage clients." });
+    if (!canCreateClients) {
+      setClientCreateErrors({ firstName: "You do not have permission to create clients." });
       return;
     }
 
@@ -292,14 +294,17 @@ export function useClientsSection({
 
       setClientCreateForm({ ...EMPTY_CLIENT_CREATE_FORM });
       setClientCreateErrors({});
-      await loadClients(1);
+      if (canReadClients) {
+        await loadClients(1);
+      }
     } catch {
       setClientCreateErrors({ firstName: "Unexpected error. Please try again." });
     } finally {
       setClientCreateSubmitting(false);
     }
   }, [
-    canManageClients,
+    canCreateClients,
+    canReadClients,
     clientCreateForm,
     loadClients,
     navigate,
@@ -329,8 +334,8 @@ export function useClientsSection({
   }, []);
 
   const handleClientEditSave = useCallback(async (id) => {
-    if (!canManageClients) {
-      setClientEditErrors({ firstName: "You do not have permission to manage clients." });
+    if (!canUpdateClients) {
+      setClientEditErrors({ firstName: "You do not have permission to update clients." });
       return;
     }
 
@@ -392,14 +397,17 @@ export function useClientsSection({
       }
 
       closeClientsEditModal();
-      await loadClients(clientsPage);
+      if (canReadClients) {
+        await loadClients(clientsPage);
+      }
     } catch {
       setClientEditErrors({ firstName: "Unexpected error. Please try again." });
     } finally {
       setClientEditSubmitting(false);
     }
   }, [
-    canManageClients,
+    canReadClients,
+    canUpdateClients,
     clientEditForm,
     clientsPage,
     closeClientsEditModal,
@@ -414,7 +422,7 @@ export function useClientsSection({
   }, [clientEditId, handleClientEditSave]);
 
   const openClientsDeleteModal = useCallback((client) => {
-    if (!canManageClients) {
+    if (!canDeleteClients) {
       return;
     }
 
@@ -435,13 +443,13 @@ export function useClientsSection({
       error: "",
       submitting: false
     });
-  }, [canManageClients]);
+  }, [canDeleteClients]);
 
   const handleClientsDeleteConfirm = useCallback(async () => {
-    if (!canManageClients) {
+    if (!canDeleteClients) {
       setClientsDelete((prev) => ({
         ...prev,
-        error: "You do not have permission to manage clients."
+        error: "You do not have permission to delete clients."
       }));
       return;
     }
@@ -479,7 +487,9 @@ export function useClientsSection({
         closeClientsEditModal();
       }
       closeClientsDeleteModal();
-      await loadClients(clientsPage);
+      if (canReadClients) {
+        await loadClients(clientsPage);
+      }
     } catch {
       setClientsDelete((prev) => ({
         ...prev,
@@ -488,7 +498,8 @@ export function useClientsSection({
       }));
     }
   }, [
-    canManageClients,
+    canDeleteClients,
+    canReadClients,
     clientEditId,
     clientsDelete.id,
     clientsPage,

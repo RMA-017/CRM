@@ -251,7 +251,7 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
-        if (!(await hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ)) || !Boolean(requester.is_admin)) {
+        if (!(await hasPermission(requester.role_id, PERMISSIONS.CLIENTS_CREATE))) {
           return reply.status(404).send({ message: "Not found." });
         }
 
@@ -307,7 +307,7 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
-        if (!(await hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ)) || !Boolean(requester.is_admin)) {
+        if (!(await hasPermission(requester.role_id, PERMISSIONS.CLIENTS_UPDATE))) {
           return reply.status(404).send({ message: "Not found." });
         }
 
@@ -361,7 +361,7 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
-        if (!(await hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ)) || !Boolean(requester.is_admin)) {
+        if (!(await hasPermission(requester.role_id, PERMISSIONS.CLIENTS_DELETE))) {
           return reply.status(404).send({ message: "Not found." });
         }
 
