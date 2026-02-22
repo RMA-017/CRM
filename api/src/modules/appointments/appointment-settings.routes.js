@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { getAuthContext } from "../../lib/session.js";
 import { getProfileByAuthContext } from "../profile/profile.service.js";
@@ -5,16 +6,18 @@ import { hasPermission } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
 import {
   createAppointmentSchedule,
-  deleteAppointmentScheduleById,
+  deleteAppointmentSchedulesByIds,
   getAppointmentClientNoShowSummary,
   getAppointmentDayKeys,
+  getAppointmentScheduleTargetsByScope,
   getAppointmentSchedulesByRange,
   getAppointmentSettingsByOrganization,
   getAppointmentSpecialistsByOrganization,
   hasAppointmentScheduleConflict,
   saveAppointmentSettings,
   toAppointmentDayNum,
-  updateAppointmentScheduleById
+  updateAppointmentScheduleByIdWithRepeatMeta,
+  updateAppointmentSchedulesByIds
 } from "./appointment-settings.service.js";
 
 const DAY_KEYS = getAppointmentDayKeys();
@@ -22,6 +25,7 @@ const TIME_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const APPOINTMENT_STATUS_SET = new Set(["pending", "confirmed", "cancelled", "no-show"]);
 const MAX_RECURRING_RANGE_DAYS = 366;
+const SCHEDULE_SCOPE_SET = new Set(["single", "future", "all"]);
 const DAY_NUM_TO_KEY = Object.freeze({
   1: "mon",
   2: "tue",
@@ -79,6 +83,14 @@ function normalizeWorkingHours(value) {
 
 function normalizeAppointmentStatus(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function normalizeScheduleScope(value) {
+  const normalized = String(value || "single").trim().toLowerCase();
+  if (!SCHEDULE_SCOPE_SET.has(normalized)) {
+    return "";
+  }
+  return normalized;
 }
 
 function parseDateYmdToUtcDate(value) {
@@ -514,9 +526,15 @@ async function appointmentSettingsRoutes(fastify) {
             });
           }
 
+          const repeatDayNums = repeatDayKeys
+            .map((dayKey) => toAppointmentDayNum(dayKey))
+            .filter((dayNum) => Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 7);
+          const repeatGroupKey = randomUUID();
+
           const createdItems = [];
           const skippedDates = [];
           const shouldCheckConflicts = status === "pending" || status === "confirmed";
+          let rootAssigned = false;
 
           for (const recurringDate of recurringDates) {
             if (shouldCheckConflicts) {
@@ -537,6 +555,7 @@ async function appointmentSettingsRoutes(fastify) {
             }
 
             try {
+              const isRepeatRoot = !rootAssigned;
               const createdItem = await createAppointmentSchedule({
                 organizationId: access.authContext.organizationId,
                 actorUserId: access.authContext.userId,
@@ -547,10 +566,19 @@ async function appointmentSettingsRoutes(fastify) {
                 endTime,
                 serviceName,
                 status,
-                note
+                note,
+                repeatGroupKey,
+                repeatType: "weekly",
+                repeatUntilDate: repeat.untilDate,
+                repeatDays: repeatDayNums,
+                repeatAnchorDate: appointmentDate,
+                isRepeatRoot
               });
               if (createdItem) {
                 createdItems.push(createdItem);
+                if (isRepeatRoot) {
+                  rootAssigned = true;
+                }
               }
             } catch (error) {
               if (error?.code === "23505" && repeat.skipConflicts) {
@@ -652,6 +680,10 @@ async function appointmentSettingsRoutes(fastify) {
         if (!id) {
           return reply.status(400).send({ message: "Invalid appointment id." });
         }
+        const scope = normalizeScheduleScope(request.query?.scope);
+        if (!scope) {
+          return reply.status(400).send({ field: "scope", message: "Invalid scope." });
+        }
 
         const specialistId = parsePositiveInteger(request.body?.specialistId, 0);
         const clientId = parsePositiveInteger(request.body?.clientId, 0);
@@ -661,6 +693,7 @@ async function appointmentSettingsRoutes(fastify) {
         const serviceName = String(request.body?.service || request.body?.serviceName || "").trim();
         const status = normalizeAppointmentStatus(request.body?.status || "pending");
         const note = String(request.body?.note || "").trim();
+        const repeat = normalizeScheduleRepeatPayload(request.body?.repeat);
 
         const errors = validateSchedulePayload({
           specialistId,
@@ -676,24 +709,202 @@ async function appointmentSettingsRoutes(fastify) {
           return reply.status(400).send({ errors });
         }
 
-        if (status === "pending" || status === "confirmed") {
-          const hasConflict = await hasAppointmentScheduleConflict({
+        const target = await getAppointmentScheduleTargetsByScope({
+          organizationId: access.authContext.organizationId,
+          id,
+          scope
+        });
+        if (!Array.isArray(target.items) || target.items.length === 0) {
+          return reply.status(404).send({ message: "Appointment not found." });
+        }
+
+        const shouldConvertSingleToRepeat = repeat.enabled && target.scope === "single" && !target.isRecurring;
+        if (shouldConvertSingleToRepeat) {
+          const repeatError = validateScheduleRepeatPayload(repeat, appointmentDate);
+          if (repeatError) {
+            return reply.status(400).send(repeatError);
+          }
+
+          const settingsForRepeat = await getAppointmentSettingsByOrganization(access.authContext.organizationId);
+          const repeatDaysValidation = validateRepeatDaysAgainstVisibleWeekDays({
+            repeatDayKeys: repeat.dayKeys,
+            visibleWeekDayKeys: settingsForRepeat?.visibleWeekDays
+          });
+          if (repeatDaysValidation.error) {
+            return reply.status(400).send(repeatDaysValidation.error);
+          }
+
+          let repeatDayKeys = repeatDaysValidation.normalizedDayKeys;
+          const appointmentDayKey = toDayKeyFromUtcDate(parseDateYmdToUtcDate(appointmentDate));
+          if (appointmentDayKey && !repeatDayKeys.includes(appointmentDayKey)) {
+            repeatDayKeys = normalizeVisibleWeekDays([...repeatDayKeys, appointmentDayKey]);
+          }
+          if (repeatDayKeys.length === 0) {
+            return reply.status(400).send({
+              field: "repeatDays",
+              message: "Select at least one repeat day."
+            });
+          }
+
+          const recurringDates = buildWeeklyRecurringDates({
+            startDate: appointmentDate,
+            untilDate: repeat.untilDate,
+            dayKeys: repeatDayKeys
+          });
+          if (recurringDates.length === 0) {
+            return reply.status(400).send({
+              field: "repeatDays",
+              message: "No matching week days in selected range."
+            });
+          }
+          if (!recurringDates.includes(appointmentDate)) {
+            recurringDates.unshift(appointmentDate);
+          }
+
+          const shouldCheckConflicts = status === "pending" || status === "confirmed";
+          const skippedDates = [];
+
+          if (shouldCheckConflicts) {
+            const hasAnchorConflict = await hasAppointmentScheduleConflict({
+              organizationId: access.authContext.organizationId,
+              specialistId,
+              appointmentDate,
+              startTime,
+              endTime,
+              excludeId: id
+            });
+            if (hasAnchorConflict) {
+              return reply.status(409).send({ message: "This slot conflicts with existing appointment." });
+            }
+          }
+
+          const repeatGroupKey = randomUUID();
+          const repeatDayNums = repeatDayKeys
+            .map((dayKey) => toAppointmentDayNum(dayKey))
+            .filter((dayNum) => Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 7);
+
+          const anchorItem = await updateAppointmentScheduleByIdWithRepeatMeta({
             organizationId: access.authContext.organizationId,
+            actorUserId: access.authContext.userId,
+            id,
             specialistId,
+            clientId,
             appointmentDate,
             startTime,
             endTime,
-            excludeId: id
+            serviceName,
+            status,
+            note,
+            repeatGroupKey,
+            repeatUntilDate: repeat.untilDate,
+            repeatDays: repeatDayNums,
+            repeatAnchorDate: appointmentDate,
+            isRepeatRoot: true
           });
-          if (hasConflict) {
-            return reply.status(409).send({ message: "This slot conflicts with existing appointment." });
+          if (!anchorItem) {
+            return reply.status(404).send({ message: "Appointment not found." });
+          }
+
+          const createdItems = [];
+          for (const recurringDate of recurringDates) {
+            if (recurringDate === appointmentDate) {
+              continue;
+            }
+
+            if (shouldCheckConflicts) {
+              const hasConflict = await hasAppointmentScheduleConflict({
+                organizationId: access.authContext.organizationId,
+                specialistId,
+                appointmentDate: recurringDate,
+                startTime,
+                endTime
+              });
+              if (hasConflict) {
+                if (repeat.skipConflicts) {
+                  skippedDates.push(recurringDate);
+                  continue;
+                }
+                return reply.status(409).send({ message: `Slot conflict on ${recurringDate}.` });
+              }
+            }
+
+            try {
+              const createdItem = await createAppointmentSchedule({
+                organizationId: access.authContext.organizationId,
+                actorUserId: access.authContext.userId,
+                specialistId,
+                clientId,
+                appointmentDate: recurringDate,
+                startTime,
+                endTime,
+                serviceName,
+                status,
+                note,
+                repeatGroupKey,
+                repeatType: "weekly",
+                repeatUntilDate: repeat.untilDate,
+                repeatDays: repeatDayNums,
+                repeatAnchorDate: appointmentDate,
+                isRepeatRoot: false
+              });
+              if (createdItem) {
+                createdItems.push(createdItem);
+              }
+            } catch (error) {
+              if (error?.code === "23505" && repeat.skipConflicts) {
+                skippedDates.push(recurringDate);
+                continue;
+              }
+              throw error;
+            }
+          }
+
+          const items = [anchorItem, ...createdItems];
+          const affectedCount = items.length;
+          const message = skippedDates.length > 0
+            ? `${affectedCount} appointments updated. ${skippedDates.length} conflicts skipped.`
+            : `${affectedCount} appointments updated.`;
+
+          return reply.send({
+            message,
+            item: anchorItem,
+            items,
+            summary: {
+              scope: "single",
+              affectedCount,
+              skippedCount: skippedDates.length,
+              skippedDates
+            }
+          });
+        }
+
+        const targetIds = target.items.map((item) => item.id);
+        const applyAppointmentDate = target.scope === "single";
+
+        if (status === "pending" || status === "confirmed") {
+          for (const item of target.items) {
+            const conflictDate = applyAppointmentDate ? appointmentDate : item.appointmentDate;
+            const hasConflict = await hasAppointmentScheduleConflict({
+              organizationId: access.authContext.organizationId,
+              specialistId,
+              appointmentDate: conflictDate,
+              startTime,
+              endTime,
+              excludeId: item.id
+            });
+            if (hasConflict) {
+              if (target.items.length > 1) {
+                return reply.status(409).send({ message: `Slot conflict on ${conflictDate}.` });
+              }
+              return reply.status(409).send({ message: "This slot conflicts with existing appointment." });
+            }
           }
         }
 
-        const item = await updateAppointmentScheduleById({
+        const items = await updateAppointmentSchedulesByIds({
           organizationId: access.authContext.organizationId,
           actorUserId: access.authContext.userId,
-          id,
+          ids: targetIds,
           specialistId,
           clientId,
           appointmentDate,
@@ -701,16 +912,28 @@ async function appointmentSettingsRoutes(fastify) {
           endTime,
           serviceName,
           status,
-          note
+          note,
+          applyAppointmentDate
         });
 
-        if (!item) {
+        if (!Array.isArray(items) || items.length === 0) {
           return reply.status(404).send({ message: "Appointment not found." });
         }
 
+        const anchorItem = items.find((item) => Number.parseInt(String(item.id || ""), 10) === id) || items[0];
+        const affectedCount = items.length;
+        const message = target.scope === "single"
+          ? "Appointment updated."
+          : `${affectedCount} appointments updated.`;
+
         return reply.send({
-          message: "Appointment updated.",
-          item
+          message,
+          item: anchorItem,
+          items,
+          summary: {
+            scope: target.scope,
+            affectedCount
+          }
         });
       } catch (error) {
         if (error?.code === "23505") {
@@ -744,17 +967,39 @@ async function appointmentSettingsRoutes(fastify) {
         if (!id) {
           return reply.status(400).send({ message: "Invalid appointment id." });
         }
+        const scope = normalizeScheduleScope(request.query?.scope);
+        if (!scope) {
+          return reply.status(400).send({ field: "scope", message: "Invalid scope." });
+        }
 
-        const deleted = await deleteAppointmentScheduleById({
+        const target = await getAppointmentScheduleTargetsByScope({
           organizationId: access.authContext.organizationId,
-          id
+          id,
+          scope
         });
-
-        if (!deleted) {
+        if (!Array.isArray(target.items) || target.items.length === 0) {
           return reply.status(404).send({ message: "Appointment not found." });
         }
 
-        return reply.send({ message: "Appointment deleted." });
+        const deletedCount = await deleteAppointmentSchedulesByIds({
+          organizationId: access.authContext.organizationId,
+          ids: target.items.map((item) => item.id)
+        });
+
+        if (deletedCount <= 0) {
+          return reply.status(404).send({ message: "Appointment not found." });
+        }
+
+        const message = target.scope === "single"
+          ? "Appointment deleted."
+          : `${deletedCount} appointments deleted.`;
+        return reply.send({
+          message,
+          summary: {
+            scope: target.scope,
+            deletedCount
+          }
+        });
       } catch (error) {
         console.error("Error deleting appointment schedule:", error);
         return reply.status(500).send({ message: "Internal server error." });

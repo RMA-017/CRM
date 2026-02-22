@@ -949,6 +949,12 @@
   gap: 10px;
 }
 
+.appointment-scheduler-state {
+  margin: 10px 0 4px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
 .appointment-toolbar {
   display: grid;
   gap: 10px;
@@ -1431,7 +1437,7 @@
 }
 
 .appointment-create-modal {
-  width: min(620px, calc(100vw - 24px));
+  width: min(654px, calc(100vw - 24px));
   min-height: 0;
   height: auto;
   max-height: none;
@@ -1468,6 +1474,10 @@
 .appointment-create-modal .auth-form {
   padding-right: 2px;
   overflow: visible;
+}
+
+.appointment-create-modal .field-error {
+  display: none !important;
 }
 
 .appointment-create-warning {
@@ -1535,6 +1545,29 @@
   margin-top: 2px;
 }
 
+.appointment-repeat-title {
+  margin-left: 4px;
+  color: #334155;
+  font-size: var(--fs-base);
+}
+
+.appointment-repeat-head-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
+  gap: 6px;
+  align-items: start;
+}
+
+.appointment-repeat-title-field {
+  display: grid;
+  gap: 6px;
+  align-items: start;
+}
+
+.appointment-repeat-title-field > label {
+  margin: 0 0 0 4px;
+  line-height: 1;
+}
+
 .appointment-repeat-toggle {
   display: inline-flex;
   align-items: center;
@@ -1555,15 +1588,16 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
-  flex-wrap: wrap;
+  gap: 4px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
 }
 
 .appointment-repeat-day-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 30px;
+  height: 34px;
   padding: 0 8px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1591,7 +1625,32 @@
 }
 
 .appointment-repeat-until-field {
-  margin: 5px 0 0;
+  margin: 0;
+}
+
+.appointment-edit-scope-field {
+  margin: 0;
+  width: 100%;
+  min-width: 0;
+}
+
+.appointment-edit-scope-field .custom-select,
+.appointment-edit-scope-field .custom-select-trigger {
+  width: 100%;
+}
+
+.appointment-status-note-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
+  gap: 6px;
+  align-items: start;
+}
+
+.appointment-status-note-row .field {
+  margin: 0;
+  width: 100%;
+  min-width: 0;
 }
 
 .appointment-status-inline-row {
@@ -1613,6 +1672,18 @@
 .appointment-status-inline-select .custom-select,
 .appointment-status-inline-select .custom-select-trigger {
   width: 100%;
+}
+
+.appointment-create-modal .auth-form,
+.appointment-create-modal .appointment-create-head,
+.appointment-create-modal .appointment-client-search-row,
+.appointment-create-modal .appointment-create-date-time-row,
+.appointment-create-modal .appointment-repeat-block,
+.appointment-create-modal .appointment-repeat-head-row,
+.appointment-create-modal .appointment-repeat-days,
+.appointment-create-modal .appointment-status-note-row,
+.appointment-create-modal .edit-actions {
+  gap: 15px;
 }
 
 .appointment-specialist-schedule-list {

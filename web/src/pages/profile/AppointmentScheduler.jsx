@@ -26,6 +26,12 @@ const STATUS_OPTIONS = [
   { value: "no-show", label: "No Show" }
 ];
 
+const EDIT_SCOPE_OPTIONS = [
+  { value: "single", label: "This only" },
+  { value: "future", label: "This and next" },
+  { value: "all", label: "All in series" }
+];
+
 const SAMPLE_APPOINTMENTS = {};
 const DAY_KEYS_SET = new Set(DAY_ITEMS.map((item) => item.key));
 const MAX_REPEAT_RANGE_DAYS = 366;
@@ -44,6 +50,7 @@ function createEmptyClientForm({
     service: "",
     status: "pending",
     note: "",
+    editScope: "single",
     repeatEnabled: Boolean(repeatEnabled),
     repeatUntil: String(repeatUntil || "").trim(),
     repeatDays: Array.isArray(repeatDays)
@@ -275,7 +282,9 @@ function AppointmentScheduler({
     dayKey: "",
     dayLabel: "",
     date: null,
-    time: ""
+    time: "",
+    repeatType: "none",
+    repeatGroupKey: ""
   });
   const [createForm, setCreateForm] = useState(createEmptyClientForm);
   const [createErrors, setCreateErrors] = useState({});
@@ -531,7 +540,9 @@ function AppointmentScheduler({
           }),
           service: String(item?.serviceName || "").trim(),
           status: String(item?.status || "pending").trim().toLowerCase(),
-          note: String(item?.note || "").trim()
+          note: String(item?.note || "").trim(),
+          repeatType: String(item?.repeatType || "none").trim().toLowerCase(),
+          repeatGroupKey: String(item?.repeatGroupKey || "").trim()
         };
 
         byDay[dayKey].push(nextCard);
@@ -563,7 +574,9 @@ function AppointmentScheduler({
       dayKey: "",
       dayLabel: "",
       date: null,
-      time: ""
+      time: "",
+      repeatType: "none",
+      repeatGroupKey: ""
     });
     setCreateForm(createEmptyClientForm());
     setCreateErrors({});
@@ -606,9 +619,14 @@ function AppointmentScheduler({
       dayKey: day.key,
       dayLabel: day.label,
       date: day.date,
-      time: slot
+      time: slot,
+      repeatType: String(existingItem?.repeatType || "none").trim().toLowerCase(),
+      repeatGroupKey: String(existingItem?.repeatGroupKey || "").trim()
     });
-    const defaultRepeatDays = day?.key ? [String(day.key).trim().toLowerCase()] : [];
+    const isExistingRecurring = Boolean(
+      String(existingItem?.repeatType || "").trim().toLowerCase() === "weekly"
+      && String(existingItem?.repeatGroupKey || "").trim()
+    );
     if (existingItem) {
       setCreateForm({
         clientId: String(existingItem?.clientId || ""),
@@ -617,17 +635,18 @@ function AppointmentScheduler({
         service: String(existingItem?.service || ""),
         status: String(existingItem?.status || "pending"),
         note: String(existingItem?.note || ""),
+        editScope: "single",
         repeatEnabled: false,
-        repeatUntil: appointmentDate,
-        repeatDays: defaultRepeatDays
+        repeatUntil: isExistingRecurring ? "" : appointmentDate,
+        repeatDays: []
       });
     } else {
       setCreateForm(createEmptyClientForm({
         appointmentDate,
         startTime,
         repeatEnabled: false,
-        repeatUntil: appointmentDate,
-        repeatDays: defaultRepeatDays
+        repeatUntil: "",
+        repeatDays: []
       }));
     }
     setCreateErrors({});
@@ -808,15 +827,7 @@ function AppointmentScheduler({
             .map((day) => String(day || "").trim().toLowerCase())
             .filter((day) => DAY_KEYS_SET.has(day))
         : [];
-      let nextDays = visibleRepeatDayKeys.filter((day) => currentDays.includes(day));
-
-      if (prev.repeatEnabled && nextDays.length === 0) {
-        const appointmentDay = getDayKeyFromDateYmd(prev.appointmentDate);
-        const preferredDay = (appointmentDay && visibleRepeatDayKeys.includes(appointmentDay))
-          ? appointmentDay
-          : visibleRepeatDayKeys[0];
-        nextDays = preferredDay ? [preferredDay] : [];
-      }
+      const nextDays = visibleRepeatDayKeys.filter((day) => currentDays.includes(day));
 
       const isSame = (
         nextDays.length === currentDays.length
@@ -833,7 +844,19 @@ function AppointmentScheduler({
     });
   }, [createForm.appointmentDate, createForm.repeatEnabled, createModal.mode, createModal.open, visibleRepeatDayKeys]);
 
-  function validateCreateForm(value, { isEditMode = false } = {}) {
+  const isEditMode = createModal.mode === "edit";
+  const isEditRecurring = isEditMode
+    && createModal.repeatType === "weekly"
+    && Boolean(String(createModal.repeatGroupKey || "").trim());
+  const normalizedEditScope = EDIT_SCOPE_OPTIONS.some((option) => option.value === createForm.editScope)
+    ? createForm.editScope
+    : "single";
+  const shouldLockEditDate = isEditRecurring && normalizedEditScope !== "single";
+
+  function validateCreateForm(value, {
+    isEditMode = false,
+    allowRepeatValidationInEdit = false
+  } = {}) {
     const errors = {};
     const visibleRepeatDayKeySet = new Set(visibleRepeatDayKeys);
     const clientId = String(value.clientId || "").trim();
@@ -841,7 +864,6 @@ function AppointmentScheduler({
     const startTime = String(value.startTime || "").trim();
     const service = String(value.service || "").trim();
     const note = String(value.note || "").trim();
-    const repeatEnabled = Boolean(value.repeatEnabled);
     const repeatUntil = String(value.repeatUntil || "").trim();
     const repeatDays = Array.isArray(value.repeatDays)
       ? Array.from(
@@ -868,22 +890,22 @@ function AppointmentScheduler({
     if (note.length > 255) {
       errors.note = "Note is too long.";
     }
-    if (!isEditMode && repeatEnabled) {
-      if (!isValidDateYmd(repeatUntil)) {
-        errors.repeatUntil = "Invalid repeat end date.";
-      } else if (isValidDateYmd(appointmentDate) && repeatUntil < appointmentDate) {
-        errors.repeatUntil = "Repeat end date must be on or after appointment date.";
-      } else if (isValidDateYmd(appointmentDate)) {
-        const start = new Date(`${appointmentDate}T00:00:00`);
-        const end = new Date(`${repeatUntil}T00:00:00`);
-        const days = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
-        if (days > MAX_REPEAT_RANGE_DAYS) {
-          errors.repeatUntil = "Repeat range is too long (max 366 days).";
+    const shouldValidateRepeat = !isEditMode || allowRepeatValidationInEdit;
+    if (shouldValidateRepeat) {
+      const wantsRepeat = repeatDays.length > 0;
+      if (wantsRepeat) {
+        if (!isValidDateYmd(repeatUntil)) {
+          errors.repeatUntil = "Invalid repeat end date.";
+        } else if (isValidDateYmd(appointmentDate) && repeatUntil < appointmentDate) {
+          errors.repeatUntil = "Repeat end date must be on or after appointment date.";
+        } else if (isValidDateYmd(appointmentDate)) {
+          const start = new Date(`${appointmentDate}T00:00:00`);
+          const end = new Date(`${repeatUntil}T00:00:00`);
+          const days = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+          if (days > MAX_REPEAT_RANGE_DAYS) {
+            errors.repeatUntil = "Repeat range is too long (max 366 days).";
+          }
         }
-      }
-
-      if (repeatDays.length === 0) {
-        errors.repeatDays = "Select at least one week day.";
       }
     }
 
@@ -896,7 +918,6 @@ function AppointmentScheduler({
     if (!createModal.open) {
       return;
     }
-    const isEditMode = createModal.mode === "edit";
     if (!isEditMode && !canCreateAppointments) {
       setCreateErrors({ form: "You do not have permission to create appointments." });
       return;
@@ -918,7 +939,9 @@ function AppointmentScheduler({
         service: String(createForm.service || "").trim(),
         status: String(createForm.status || "pending").trim().toLowerCase(),
         note: String(createForm.note || "").trim(),
-        repeatEnabled: Boolean(createForm.repeatEnabled),
+        editScope: EDIT_SCOPE_OPTIONS.some((option) => option.value === createForm.editScope)
+          ? createForm.editScope
+          : "single",
         repeatUntil: String(createForm.repeatUntil || "").trim(),
         repeatDays: Array.isArray(createForm.repeatDays)
           ? Array.from(
@@ -931,7 +954,11 @@ function AppointmentScheduler({
           : []
       };
 
-      const errors = validateCreateForm(nextPayload, { isEditMode });
+      const allowRepeatValidationInEdit = isEditMode && !isEditRecurring;
+      const errors = validateCreateForm(nextPayload, {
+        isEditMode,
+        allowRepeatValidationInEdit
+      });
       if (Object.keys(errors).length > 0) {
         setCreateErrors(errors);
         return;
@@ -970,7 +997,11 @@ function AppointmentScheduler({
         status: nextPayload.status,
         note: nextPayload.note
       };
-      if (!isEditMode && nextPayload.repeatEnabled) {
+      const shouldSendRepeat = (
+        nextPayload.repeatDays.length > 0
+        && (!isEditMode || !isEditRecurring)
+      );
+      if (shouldSendRepeat) {
         requestPayload.repeat = {
           enabled: true,
           type: "weekly",
@@ -981,7 +1012,7 @@ function AppointmentScheduler({
       }
 
       const requestUrl = isEditMode
-        ? `/api/appointments/schedules/${encodeURIComponent(String(createModal.appointmentId || ""))}`
+        ? `/api/appointments/schedules/${encodeURIComponent(String(createModal.appointmentId || ""))}?scope=${encodeURIComponent(nextPayload.editScope)}`
         : "/api/appointments/schedules";
       const requestMethod = isEditMode ? "PATCH" : "POST";
 
@@ -1006,7 +1037,11 @@ function AppointmentScheduler({
       }
 
       await loadSchedulesForCurrentWeek();
-      setMessage(String(data?.message || (createModal.mode === "edit" ? "Appointment updated." : "Client added to schedule.")));
+      if (isEditMode) {
+        setMessage("");
+      } else {
+        setMessage(String(data?.message || "Client added to schedule."));
+      }
       closeCreateModal();
     } finally {
       setCreateSubmitting(false);
@@ -1032,7 +1067,10 @@ function AppointmentScheduler({
       setCreateDeleting(true);
       setCreateErrors({});
 
-      const response = await apiFetch(`/api/appointments/schedules/${encodeURIComponent(appointmentId)}`, {
+      const deleteScope = EDIT_SCOPE_OPTIONS.some((option) => option.value === createForm.editScope)
+        ? createForm.editScope
+        : "single";
+      const response = await apiFetch(`/api/appointments/schedules/${encodeURIComponent(appointmentId)}?scope=${encodeURIComponent(deleteScope)}`, {
         method: "DELETE"
       });
       const data = await response.json().catch(() => ({}));
@@ -1043,7 +1081,7 @@ function AppointmentScheduler({
       }
 
       await loadSchedulesForCurrentWeek();
-      setMessage("Appointment deleted.");
+      setMessage(String(data?.message || "Appointment deleted."));
       closeCreateModal();
     } catch {
       setCreateErrors({ form: "Failed to delete appointment." });
@@ -1152,12 +1190,12 @@ function AppointmentScheduler({
         </div>
       </div>
 
-      <p className="all-users-state" hidden={!message}>
+      <p className="appointment-scheduler-state" hidden={!message}>
         {message}
       </p>
 
       {loading ? (
-        <p className="all-users-state">
+        <p className="appointment-scheduler-state">
           Loading scheduler...
         </p>
       ) : (
@@ -1316,11 +1354,12 @@ function AppointmentScheduler({
                     type="date"
                     className={createErrors.appointmentDate ? "input-error" : ""}
                     value={createForm.appointmentDate}
+                    disabled={shouldLockEditDate}
                     onInput={(event) => {
                       const nextValue = event.currentTarget.value;
                       setCreateForm((prev) => {
                         const nextForm = { ...prev, appointmentDate: nextValue };
-                        if (prev.repeatEnabled && (!prev.repeatUntil || prev.repeatUntil < nextValue)) {
+                        if (!prev.repeatUntil || prev.repeatUntil < nextValue) {
                           nextForm.repeatUntil = nextValue;
                         }
                         return nextForm;
@@ -1352,85 +1391,6 @@ function AppointmentScheduler({
                 </div>
               </div>
 
-              {createModal.mode !== "edit" ? (
-                <div className="appointment-repeat-block">
-                  <label htmlFor="appointmentCreateRepeatEnabled" className="appointment-repeat-toggle">
-                    <input
-                      id="appointmentCreateRepeatEnabled"
-                      type="checkbox"
-                      checked={Boolean(createForm.repeatEnabled)}
-                      onChange={(event) => {
-                        const isEnabled = event.currentTarget.checked;
-                        setCreateForm((prev) => {
-                          const appointmentDay = getDayKeyFromDateYmd(prev.appointmentDate);
-                          const nextDays = isEnabled
-                            ? (
-                                Array.isArray(prev.repeatDays) && prev.repeatDays.length > 0
-                                  ? prev.repeatDays
-                                  : (appointmentDay ? [appointmentDay] : [])
-                              )
-                            : prev.repeatDays;
-                          return {
-                            ...prev,
-                            repeatEnabled: isEnabled,
-                            repeatUntil: isEnabled
-                              ? (prev.repeatUntil || prev.appointmentDate)
-                              : prev.repeatUntil,
-                            repeatDays: nextDays
-                          };
-                        });
-                        if (createErrors.repeatUntil || createErrors.repeatDays) {
-                          setCreateErrors((prev) => ({ ...prev, repeatUntil: "", repeatDays: "" }));
-                        }
-                      }}
-                    />
-                    <span>Repeat weekly</span>
-                  </label>
-
-                  {createForm.repeatEnabled ? (
-                    <>
-                      <div className="appointment-repeat-days" role="group" aria-label="Repeat weekdays">
-                        {visibleRepeatDayItems.map((day) => {
-                          const checked = Array.isArray(createForm.repeatDays) && createForm.repeatDays.includes(day.key);
-                          return (
-                            <label
-                              key={day.key}
-                              className={`appointment-repeat-day-chip${checked ? " is-active" : ""}`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => toggleRepeatDay(day.key)}
-                              />
-                              <span>{day.label.slice(0, 3)}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-
-                      <div className="field appointment-repeat-until-field">
-                        <label htmlFor="appointmentCreateRepeatUntil">Repeat Until</label>
-                        <input
-                          id="appointmentCreateRepeatUntil"
-                          type="date"
-                          className={createErrors.repeatUntil ? "input-error" : ""}
-                          value={createForm.repeatUntil}
-                          min={createForm.appointmentDate || undefined}
-                          onInput={(event) => {
-                            const nextValue = event.currentTarget.value;
-                            setCreateForm((prev) => ({ ...prev, repeatUntil: nextValue }));
-                            if (createErrors.repeatUntil) {
-                              setCreateErrors((prev) => ({ ...prev, repeatUntil: "" }));
-                            }
-                          }}
-                        />
-                      </div>
-                      <small className="field-error">{createErrors.repeatDays || createErrors.repeatUntil || ""}</small>
-                    </>
-                  ) : null}
-                </div>
-              ) : null}
-
               <div className="field">
                 <label htmlFor="appointmentCreateService">Service</label>
                 <input
@@ -1449,38 +1409,104 @@ function AppointmentScheduler({
                 <small className="field-error">{createErrors.service || ""}</small>
               </div>
 
-              <div className="field appointment-status-inline-row">
-                <label htmlFor="appointmentCreateStatus">Status</label>
-                <div className="appointment-status-inline-select">
+              {!isEditRecurring ? (
+                <div className="appointment-repeat-block">
+                  <div className="appointment-create-date-time-row appointment-repeat-head-row">
+                    <div className="field appointment-repeat-until-field">
+                      <label htmlFor="appointmentCreateRepeatUntil">Repeat Until</label>
+                      <input
+                        id="appointmentCreateRepeatUntil"
+                        type="date"
+                        className={createErrors.repeatUntil ? "input-error" : ""}
+                        value={createForm.repeatUntil}
+                        min={createForm.appointmentDate || undefined}
+                        onInput={(event) => {
+                          const nextValue = event.currentTarget.value;
+                          setCreateForm((prev) => ({ ...prev, repeatUntil: nextValue }));
+                          if (createErrors.repeatUntil) {
+                            setCreateErrors((prev) => ({ ...prev, repeatUntil: "" }));
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="field appointment-repeat-title-field">
+                      <label>Repeat weekly</label>
+                      <div className="appointment-repeat-days" role="group" aria-label="Repeat weekdays">
+                        {visibleRepeatDayItems.map((day) => {
+                          const checked = Array.isArray(createForm.repeatDays) && createForm.repeatDays.includes(day.key);
+                          return (
+                            <label
+                              key={day.key}
+                              className={`appointment-repeat-day-chip${checked ? " is-active" : ""}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleRepeatDay(day.key)}
+                              />
+                              <span>{day.label.slice(0, 3)}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  <small className="field-error">{createErrors.repeatDays || createErrors.repeatUntil || ""}</small>
+                </div>
+              ) : null}
+
+              {createModal.mode === "edit" && isEditRecurring ? (
+                <div className="field appointment-edit-scope-field">
+                  <label htmlFor="appointmentEditScope">Apply to</label>
                   <CustomSelect
-                    id="appointmentCreateStatus"
-                    placeholder="Select status"
-                    value={createForm.status}
-                    options={STATUS_OPTIONS}
-                    forceOpenDown
+                    id="appointmentEditScope"
+                    placeholder="Select scope"
+                    value={normalizedEditScope}
+                    options={EDIT_SCOPE_OPTIONS}
                     onChange={(nextValue) => {
-                      setCreateForm((prev) => ({ ...prev, status: nextValue }));
+                      const nextScope = EDIT_SCOPE_OPTIONS.some((option) => option.value === nextValue)
+                        ? nextValue
+                        : "single";
+                      setCreateForm((prev) => ({ ...prev, editScope: nextScope }));
                     }}
                   />
                 </div>
-              </div>
+              ) : null}
 
-              <div className="field">
-                <label htmlFor="appointmentCreateNote">Note</label>
-                <input
-                  id="appointmentCreateNote"
-                  type="text"
-                  className={createErrors.note ? "input-error" : ""}
-                  value={createForm.note}
-                  onInput={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setCreateForm((prev) => ({ ...prev, note: nextValue }));
-                    if (createErrors.note) {
-                      setCreateErrors((prev) => ({ ...prev, note: "" }));
-                    }
-                  }}
-                />
-                <small className="field-error">{createErrors.note || ""}</small>
+              <div className="appointment-status-note-row">
+                <div className="field">
+                  <label htmlFor="appointmentCreateStatus">Status</label>
+                  <div className="appointment-status-inline-select">
+                    <CustomSelect
+                      id="appointmentCreateStatus"
+                      placeholder="Select status"
+                      value={createForm.status}
+                      options={STATUS_OPTIONS}
+                      forceOpenDown
+                      onChange={(nextValue) => {
+                        setCreateForm((prev) => ({ ...prev, status: nextValue }));
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="field">
+                  <label htmlFor="appointmentCreateNote">Note</label>
+                  <input
+                    id="appointmentCreateNote"
+                    type="text"
+                    className={createErrors.note ? "input-error" : ""}
+                    value={createForm.note}
+                    onInput={(event) => {
+                      const nextValue = event.currentTarget.value;
+                      setCreateForm((prev) => ({ ...prev, note: nextValue }));
+                      if (createErrors.note) {
+                        setCreateErrors((prev) => ({ ...prev, note: "" }));
+                      }
+                    }}
+                  />
+                  <small className="field-error">{createErrors.note || ""}</small>
+                </div>
               </div>
 
               {showNoShowWarning ? (

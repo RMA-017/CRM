@@ -21,6 +21,7 @@ const DAY_NUM_TO_KEY = Object.freeze({
 });
 
 const DAY_KEYS = Object.freeze(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
+const SCHEDULE_SCOPE_SET = new Set(["single", "future", "all"]);
 
 function toDayKey(dayNum) {
   return DAY_NUM_TO_KEY[Number(dayNum)] || "";
@@ -109,8 +110,43 @@ function normalizeTimeHm(value) {
   return raw ? raw.slice(0, 5) : "";
 }
 
+function normalizeScheduleScope(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return SCHEDULE_SCOPE_SET.has(normalized) ? normalized : "single";
+}
+
+function mapRepeatDayNumsToKeys(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const mapped = value
+    .map((dayNum) => toDayKey(dayNum))
+    .filter(Boolean);
+  return Array.from(new Set(mapped)).sort((left, right) => toDayNum(left) - toDayNum(right));
+}
+
+function normalizeRepeatType(value) {
+  const normalized = String(value || "none").trim().toLowerCase();
+  return normalized === "weekly" ? "weekly" : "none";
+}
+
+function normalizeScheduleIds(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return Array.from(
+    new Set(
+      value
+        .map((id) => Number.parseInt(String(id ?? "").trim(), 10))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    )
+  );
+}
+
 function toScheduleItem(row) {
   const status = String(row?.status || "").trim().toLowerCase();
+  const repeatType = normalizeRepeatType(row?.repeat_type);
+  const repeatGroupKey = String(row?.repeat_group_key || "").trim();
   return {
     id: String(row?.id || "").trim(),
     organizationId: String(row?.organization_id || "").trim(),
@@ -122,6 +158,13 @@ function toScheduleItem(row) {
     serviceName: String(row?.service_name || "").trim(),
     status,
     note: String(row?.note || "").trim(),
+    repeatType,
+    repeatGroupKey,
+    repeatUntilDate: normalizeDateYmd(row?.repeat_until_date),
+    repeatDays: mapRepeatDayNumsToKeys(row?.repeat_days),
+    repeatAnchorDate: normalizeDateYmd(row?.repeat_anchor_date),
+    isRepeatRoot: Boolean(row?.is_repeat_root),
+    isRecurring: repeatType === "weekly" && Boolean(repeatGroupKey),
     clientFirstName: String(row?.first_name || "").trim(),
     clientLastName: String(row?.last_name || "").trim(),
     clientMiddleName: String(row?.middle_name || "").trim(),
@@ -136,6 +179,21 @@ export function getAppointmentDayKeys() {
 
 export function toAppointmentDayNum(dayKey) {
   return toDayNum(dayKey);
+}
+
+export async function withAppointmentTransaction(callback) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await callback(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function getAppointmentSpecialistsByOrganization(organizationId) {
@@ -206,6 +264,12 @@ export async function getAppointmentSchedulesByRange({
        s.service_name,
        s.status,
        s.note,
+       s.repeat_group_key,
+       s.repeat_type,
+       s.repeat_until_date,
+       s.repeat_days,
+       s.repeat_anchor_date,
+       s.is_repeat_root,
        s.created_at,
        s.updated_at,
        c.first_name,
@@ -271,14 +335,15 @@ export async function hasAppointmentScheduleConflict({
   appointmentDate,
   startTime,
   endTime,
-  excludeId = null
+  excludeId = null,
+  db = pool
 }) {
   const parsedExcludeId = Number.parseInt(String(excludeId ?? "").trim(), 10);
   const normalizedExcludeId = Number.isInteger(parsedExcludeId) && parsedExcludeId > 0
     ? parsedExcludeId
     : null;
 
-  const { rows } = await pool.query(
+  const { rows } = await db.query(
     `SELECT 1
        FROM appointment_schedules s
       WHERE s.organization_id = $1
@@ -312,9 +377,17 @@ export async function createAppointmentSchedule({
   endTime,
   serviceName,
   status,
-  note
+  note,
+  repeatGroupKey = null,
+  repeatType = "none",
+  repeatUntilDate = null,
+  repeatDays = null,
+  repeatAnchorDate = null,
+  isRepeatRoot = false,
+  db = pool
 }) {
-  const { rows } = await pool.query(
+  const normalizedRepeatType = normalizeRepeatType(repeatType);
+  const { rows } = await db.query(
     `WITH inserted AS (
        INSERT INTO appointment_schedules (
          organization_id,
@@ -326,10 +399,16 @@ export async function createAppointmentSchedule({
          service_name,
          status,
          note,
+         repeat_group_key,
+         repeat_type,
+         repeat_until_date,
+         repeat_days,
+         repeat_anchor_date,
+         is_repeat_root,
          created_by,
          updated_by
        )
-       VALUES ($1,$2,$3,$4::date,$5::time,$6::time,$7,$8,$9,$10,$10)
+       VALUES ($1,$2,$3,$4::date,$5::time,$6::time,$7,$8,$9,$10::uuid,$11,$12::date,$13::smallint[],$14::date,$15,$16,$16)
        RETURNING *
      )
      SELECT
@@ -343,6 +422,12 @@ export async function createAppointmentSchedule({
        i.service_name,
        i.status,
        i.note,
+       i.repeat_group_key,
+       i.repeat_type,
+       i.repeat_until_date,
+       i.repeat_days,
+       i.repeat_anchor_date,
+       i.is_repeat_root,
        i.created_at,
        i.updated_at,
        c.first_name,
@@ -363,6 +448,12 @@ export async function createAppointmentSchedule({
       serviceName,
       status,
       note || null,
+      normalizedRepeatType === "weekly" ? (repeatGroupKey || null) : null,
+      normalizedRepeatType,
+      normalizedRepeatType === "weekly" ? repeatUntilDate : null,
+      normalizedRepeatType === "weekly" ? (Array.isArray(repeatDays) ? repeatDays : null) : null,
+      normalizedRepeatType === "weekly" ? repeatAnchorDate : null,
+      normalizedRepeatType === "weekly" ? Boolean(isRepeatRoot) : false,
       actorUserId || null
     ]
   );
@@ -370,10 +461,86 @@ export async function createAppointmentSchedule({
   return rows[0] ? toScheduleItem(rows[0]) : null;
 }
 
-export async function updateAppointmentScheduleById({
+export async function getAppointmentScheduleTargetsByScope({
+  organizationId,
+  id,
+  scope = "single"
+}) {
+  const normalizedScope = normalizeScheduleScope(scope);
+  const anchorResult = await pool.query(
+    `SELECT
+       id,
+       appointment_date,
+       repeat_group_key,
+       repeat_type
+      FROM appointment_schedules
+      WHERE organization_id = $1
+        AND id = $2
+      LIMIT 1`,
+    [organizationId, id]
+  );
+
+  const anchor = anchorResult.rows[0] || null;
+  if (!anchor) {
+    return {
+      anchorId: 0,
+      anchorAppointmentDate: "",
+      repeatGroupKey: "",
+      isRecurring: false,
+      scope: "single",
+      items: []
+    };
+  }
+
+  const repeatGroupKey = String(anchor.repeat_group_key || "").trim();
+  const isRecurring = normalizeRepeatType(anchor.repeat_type) === "weekly" && Boolean(repeatGroupKey);
+  const effectiveScope = isRecurring ? normalizedScope : "single";
+
+  let rows = [];
+  if (effectiveScope === "all") {
+    const result = await pool.query(
+      `SELECT id, appointment_date
+       FROM appointment_schedules
+       WHERE organization_id = $1
+         AND repeat_group_key = $2::uuid
+       ORDER BY appointment_date ASC, start_time ASC, id ASC`,
+      [organizationId, repeatGroupKey]
+    );
+    rows = result.rows || [];
+  } else if (effectiveScope === "future") {
+    const result = await pool.query(
+      `SELECT id, appointment_date
+       FROM appointment_schedules
+       WHERE organization_id = $1
+         AND repeat_group_key = $2::uuid
+         AND appointment_date >= $3::date
+       ORDER BY appointment_date ASC, start_time ASC, id ASC`,
+      [organizationId, repeatGroupKey, anchor.appointment_date]
+    );
+    rows = result.rows || [];
+  } else {
+    rows = [anchor];
+  }
+
+  return {
+    anchorId: Number.parseInt(String(anchor.id), 10) || 0,
+    anchorAppointmentDate: normalizeDateYmd(anchor.appointment_date),
+    repeatGroupKey: isRecurring ? repeatGroupKey : "",
+    isRecurring,
+    scope: effectiveScope,
+    items: rows
+      .map((row) => ({
+        id: Number.parseInt(String(row?.id || ""), 10),
+        appointmentDate: normalizeDateYmd(row?.appointment_date)
+      }))
+      .filter((row) => Number.isInteger(row.id) && row.id > 0 && row.appointmentDate)
+  };
+}
+
+export async function updateAppointmentSchedulesByIds({
   organizationId,
   actorUserId,
-  id,
+  ids,
   specialistId,
   clientId,
   appointmentDate,
@@ -381,14 +548,20 @@ export async function updateAppointmentScheduleById({
   endTime,
   serviceName,
   status,
-  note
+  note,
+  applyAppointmentDate = true
 }) {
+  const normalizedIds = normalizeScheduleIds(ids);
+  if (normalizedIds.length === 0) {
+    return [];
+  }
+
   const { rows } = await pool.query(
     `WITH updated AS (
-       UPDATE appointment_schedules
+       UPDATE appointment_schedules s
           SET specialist_id = $1,
               client_id = $2,
-              appointment_date = $3::date,
+              appointment_date = CASE WHEN $10::boolean THEN $3::date ELSE s.appointment_date END,
               start_time = $4::time,
               end_time = $5::time,
               service_name = $6,
@@ -396,8 +569,8 @@ export async function updateAppointmentScheduleById({
               note = $8,
               updated_by = $9,
               updated_at = CURRENT_TIMESTAMP
-        WHERE id = $10
-          AND organization_id = $11
+        WHERE s.organization_id = $11
+          AND s.id = ANY($12::integer[])
        RETURNING *
      )
      SELECT
@@ -411,6 +584,100 @@ export async function updateAppointmentScheduleById({
        u.service_name,
        u.status,
        u.note,
+       u.repeat_group_key,
+       u.repeat_type,
+       u.repeat_until_date,
+       u.repeat_days,
+       u.repeat_anchor_date,
+       u.is_repeat_root,
+       u.created_at,
+       u.updated_at,
+       c.first_name,
+       c.last_name,
+       c.middle_name
+      FROM updated u
+      JOIN clients c
+        ON c.id = u.client_id
+       AND c.organization_id = u.organization_id
+      ORDER BY u.appointment_date ASC, u.start_time ASC, u.id ASC`,
+    [
+      specialistId,
+      clientId,
+      appointmentDate,
+      startTime,
+      endTime,
+      serviceName,
+      status,
+      note || null,
+      actorUserId || null,
+      Boolean(applyAppointmentDate),
+      organizationId,
+      normalizedIds
+    ]
+  );
+
+  return (rows || []).map(toScheduleItem);
+}
+
+export async function updateAppointmentScheduleByIdWithRepeatMeta({
+  organizationId,
+  actorUserId,
+  id,
+  specialistId,
+  clientId,
+  appointmentDate,
+  startTime,
+  endTime,
+  serviceName,
+  status,
+  note,
+  repeatGroupKey,
+  repeatUntilDate,
+  repeatDays,
+  repeatAnchorDate,
+  isRepeatRoot = true,
+  db = pool
+}) {
+  const { rows } = await db.query(
+    `WITH updated AS (
+       UPDATE appointment_schedules
+          SET specialist_id = $1,
+              client_id = $2,
+              appointment_date = $3::date,
+              start_time = $4::time,
+              end_time = $5::time,
+              service_name = $6,
+              status = $7,
+              note = $8,
+              repeat_group_key = $9::uuid,
+              repeat_type = 'weekly',
+              repeat_until_date = $10::date,
+              repeat_days = $11::smallint[],
+              repeat_anchor_date = $12::date,
+              is_repeat_root = $13,
+              updated_by = $14,
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = $15
+          AND organization_id = $16
+       RETURNING *
+     )
+     SELECT
+       u.id,
+       u.organization_id,
+       u.specialist_id,
+       u.client_id,
+       u.appointment_date,
+       u.start_time,
+       u.end_time,
+       u.service_name,
+       u.status,
+       u.note,
+       u.repeat_group_key,
+       u.repeat_type,
+       u.repeat_until_date,
+       u.repeat_days,
+       u.repeat_anchor_date,
+       u.is_repeat_root,
        u.created_at,
        u.updated_at,
        c.first_name,
@@ -430,6 +697,11 @@ export async function updateAppointmentScheduleById({
       serviceName,
       status,
       note || null,
+      repeatGroupKey,
+      repeatUntilDate,
+      Array.isArray(repeatDays) ? repeatDays : [],
+      repeatAnchorDate,
+      Boolean(isRepeatRoot),
       actorUserId || null,
       id,
       organizationId
@@ -439,18 +711,65 @@ export async function updateAppointmentScheduleById({
   return rows[0] ? toScheduleItem(rows[0]) : null;
 }
 
+export async function deleteAppointmentSchedulesByIds({
+  organizationId,
+  ids
+}) {
+  const normalizedIds = normalizeScheduleIds(ids);
+  if (normalizedIds.length === 0) {
+    return 0;
+  }
+
+  const { rowCount } = await pool.query(
+    `DELETE FROM appointment_schedules
+      WHERE organization_id = $1
+        AND id = ANY($2::integer[])`,
+    [organizationId, normalizedIds]
+  );
+
+  return rowCount || 0;
+}
+
+export async function updateAppointmentScheduleById({
+  organizationId,
+  actorUserId,
+  id,
+  specialistId,
+  clientId,
+  appointmentDate,
+  startTime,
+  endTime,
+  serviceName,
+  status,
+  note
+}) {
+  const items = await updateAppointmentSchedulesByIds({
+    organizationId,
+    actorUserId,
+    ids: [id],
+    specialistId,
+    clientId,
+    appointmentDate,
+    startTime,
+    endTime,
+    serviceName,
+    status,
+    note,
+    applyAppointmentDate: true
+  });
+
+  return items[0] || null;
+}
+
 export async function deleteAppointmentScheduleById({
   organizationId,
   id
 }) {
-  const { rowCount } = await pool.query(
-    `DELETE FROM appointment_schedules
-      WHERE id = $1
-        AND organization_id = $2`,
-    [id, organizationId]
-  );
-
-  return rowCount > 0;
+  const deletedCount = await deleteAppointmentSchedulesByIds({
+    organizationId,
+    ids: [id]
+  });
+  return deletedCount > 0;
 }
 
 export async function getAppointmentSettingsByOrganization(organizationId) {

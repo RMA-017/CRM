@@ -187,6 +187,12 @@ CREATE TABLE appointment_schedules (
   service_name VARCHAR(128) NOT NULL,
   status VARCHAR(24) NOT NULL DEFAULT 'pending',
   note VARCHAR(255),
+  repeat_group_key UUID,
+  repeat_type VARCHAR(16) NOT NULL DEFAULT 'none',
+  repeat_until_date DATE,
+  repeat_days SMALLINT[],
+  repeat_anchor_date DATE,
+  is_repeat_root BOOLEAN NOT NULL DEFAULT FALSE,
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -198,7 +204,25 @@ CREATE TABLE appointment_schedules (
     FOREIGN KEY (organization_id, client_id)
     REFERENCES clients(organization_id, id) ON DELETE RESTRICT,
   CHECK (start_time < end_time),
-  CHECK (status IN ('pending', 'confirmed', 'cancelled', 'no-show'))
+  CHECK (status IN ('pending', 'confirmed', 'cancelled', 'no-show')),
+  CHECK (repeat_type IN ('none', 'weekly')),
+  CHECK (
+    (repeat_type = 'none'
+      AND repeat_group_key IS NULL
+      AND repeat_until_date IS NULL
+      AND repeat_days IS NULL
+      AND repeat_anchor_date IS NULL
+      AND is_repeat_root = FALSE)
+    OR
+    (repeat_type = 'weekly'
+      AND repeat_group_key IS NOT NULL
+      AND repeat_until_date IS NOT NULL
+      AND repeat_days IS NOT NULL
+      AND repeat_anchor_date IS NOT NULL
+      AND array_length(repeat_days, 1) >= 1
+      AND repeat_days <@ ARRAY[1,2,3,4,5,6,7]::SMALLINT[]
+      AND repeat_anchor_date <= repeat_until_date)
+  )
 );
 
 CREATE INDEX idx_appointment_schedules_org_date_specialist
@@ -207,6 +231,14 @@ CREATE INDEX idx_appointment_schedules_org_date_specialist
 CREATE INDEX idx_appointment_schedules_org_client_date
   ON appointment_schedules (organization_id, client_id, appointment_date DESC);
 
+CREATE INDEX idx_appointment_schedules_org_repeat_group_date
+  ON appointment_schedules (organization_id, repeat_group_key, appointment_date);
+
 CREATE UNIQUE INDEX idx_appointment_schedules_active_slot_unique
   ON appointment_schedules (organization_id, specialist_id, appointment_date, start_time)
   WHERE status IN ('pending', 'confirmed');
+
+CREATE UNIQUE INDEX uq_appointment_schedules_repeat_group_root
+  ON appointment_schedules (organization_id, repeat_group_key)
+  WHERE repeat_group_key IS NOT NULL
+    AND is_repeat_root = TRUE;
