@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CustomSelect from "../../components/CustomSelect.jsx";
 import { apiFetch } from "../../lib/api.js";
 
@@ -302,6 +302,7 @@ function AppointmentScheduler({
     visibleWeekDays: ["mon", "tue", "wed", "thu", "fri", "sat"],
     workingHours: createDefaultWorkingHours()
   });
+  const schedulesRequestIdRef = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -489,6 +490,8 @@ function AppointmentScheduler({
     if (!dateFrom || !dateTo) {
       return;
     }
+    const requestId = schedulesRequestIdRef.current + 1;
+    schedulesRequestIdRef.current = requestId;
 
     try {
       const queryParams = new URLSearchParams({
@@ -502,6 +505,9 @@ function AppointmentScheduler({
         cache: "no-store"
       });
       const data = await response.json().catch(() => ({}));
+      if (requestId !== schedulesRequestIdRef.current) {
+        return;
+      }
 
       if (!response.ok) {
         setMessage(data?.message || "Failed to load appointments.");
@@ -557,6 +563,9 @@ function AppointmentScheduler({
         [selectedSpecialistId]: byDay
       }));
     } catch {
+      if (requestId !== schedulesRequestIdRef.current) {
+        return;
+      }
       setMessage("Failed to load appointments.");
     }
   }, [selectedSpecialistId, weekDays]);

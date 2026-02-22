@@ -7,6 +7,7 @@ import { PERMISSIONS } from "../users/users.constants.js";
 import {
   createAppointmentSchedule,
   deleteAppointmentSchedulesByIds,
+  getAppointmentBreaksBySpecialistAndDays,
   getAppointmentClientNoShowSummary,
   getAppointmentDayKeys,
   getAppointmentScheduleTargetsByScope,
@@ -17,7 +18,8 @@ import {
   saveAppointmentSettings,
   toAppointmentDayNum,
   updateAppointmentScheduleByIdWithRepeatMeta,
-  updateAppointmentSchedulesByIds
+  updateAppointmentSchedulesByIds,
+  withAppointmentTransaction
 } from "./appointment-settings.service.js";
 
 const DAY_KEYS = getAppointmentDayKeys();
@@ -93,6 +95,17 @@ function normalizeScheduleScope(value) {
   return normalized;
 }
 
+function createRouteError(statusCode, payload) {
+  const error = new Error(payload?.message || "Request failed.");
+  error.statusCode = statusCode;
+  error.payload = payload;
+  return error;
+}
+
+function isUniqueOrExclusionConflict(error) {
+  return error?.code === "23505" || error?.code === "23P01";
+}
+
 function parseDateYmdToUtcDate(value) {
   const raw = String(value || "").trim();
   if (!DATE_REGEX.test(raw)) {
@@ -132,6 +145,125 @@ function toDayKeyFromUtcDate(value) {
   }
   const dayNum = value.getUTCDay() === 0 ? 7 : value.getUTCDay();
   return DAY_NUM_TO_KEY[dayNum] || "";
+}
+
+function toDayNumFromUtcDate(value) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+    return 0;
+  }
+  return value.getUTCDay() === 0 ? 7 : value.getUTCDay();
+}
+
+function toDayNumFromDateYmd(value) {
+  return toDayNumFromUtcDate(parseDateYmdToUtcDate(value));
+}
+
+function toTimeMinutes(value) {
+  const raw = String(value || "").trim();
+  if (!TIME_REGEX.test(raw)) {
+    return null;
+  }
+  const [hoursRaw, minutesRaw] = raw.split(":");
+  const hours = Number(hoursRaw);
+  const minutes = Number(minutesRaw);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) {
+    return null;
+  }
+  return (hours * 60) + minutes;
+}
+
+function collectDayNumsFromDates(dates) {
+  return Array.from(
+    new Set(
+      (Array.isArray(dates) ? dates : [])
+        .map((dateValue) => toDayNumFromDateYmd(dateValue))
+        .filter((dayNum) => Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 7)
+    )
+  );
+}
+
+function buildBreakRangesByDay(rows) {
+  const byDay = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const dayNum = Number.parseInt(String(row?.dayOfWeek ?? row?.day_of_week ?? "").trim(), 10);
+    if (!Number.isInteger(dayNum) || dayNum < 1 || dayNum > 7) {
+      return;
+    }
+    const start = toTimeMinutes(row?.startTime ?? row?.start_time);
+    const end = toTimeMinutes(row?.endTime ?? row?.end_time);
+    if (start === null || end === null || start >= end) {
+      return;
+    }
+    const list = byDay.get(dayNum) || [];
+    list.push({ start, end });
+    byDay.set(dayNum, list);
+  });
+  return byDay;
+}
+
+function hasSpecialistBreakConflict({
+  breakRangesByDay,
+  appointmentDate,
+  startTime,
+  endTime
+}) {
+  const dayNum = toDayNumFromDateYmd(appointmentDate);
+  if (!Number.isInteger(dayNum) || dayNum <= 0) {
+    return false;
+  }
+  const ranges = breakRangesByDay instanceof Map ? (breakRangesByDay.get(dayNum) || []) : [];
+  if (ranges.length === 0) {
+    return false;
+  }
+  const start = toTimeMinutes(startTime);
+  const end = toTimeMinutes(endTime);
+  if (start === null || end === null || start >= end) {
+    return false;
+  }
+  return ranges.some((range) => start < range.end && range.start < end);
+}
+
+function validateSlotAgainstWorkingHours({
+  settings,
+  appointmentDate,
+  startTime,
+  endTime
+}) {
+  const date = parseDateYmdToUtcDate(appointmentDate);
+  if (!date) {
+    return { field: "appointmentDate", message: "Invalid appointment date." };
+  }
+  const dayKey = toDayKeyFromUtcDate(date);
+  if (!dayKey) {
+    return { field: "appointmentDate", message: "Invalid appointment date." };
+  }
+
+  const normalizedVisibleWeekDays = normalizeVisibleWeekDays(settings?.visibleWeekDays);
+  const effectiveVisibleWeekDays = normalizedVisibleWeekDays.length > 0
+    ? normalizedVisibleWeekDays
+    : DAY_KEYS;
+  if (!effectiveVisibleWeekDays.includes(dayKey)) {
+    return { field: "appointmentDate", message: `Selected day ${dayKey} is not available.` };
+  }
+
+  const dayHours = settings?.workingHours?.[dayKey] || {};
+  const dayStart = String(dayHours.start || "").trim();
+  const dayEnd = String(dayHours.end || "").trim();
+  if (!TIME_REGEX.test(dayStart) || !TIME_REGEX.test(dayEnd) || dayStart >= dayEnd) {
+    return {
+      field: `workingHours.${dayKey}`,
+      message: `Working hours are not configured for ${dayKey}.`
+    };
+  }
+
+  if (startTime < dayStart || endTime > dayEnd) {
+    return {
+      field: "startTime",
+      message: `Selected time is outside working hours for ${dayKey}.`
+    };
+  }
+
+  return null;
 }
 
 function normalizeScheduleRepeatPayload(value) {
@@ -530,64 +662,108 @@ async function appointmentSettingsRoutes(fastify) {
             .map((dayKey) => toAppointmentDayNum(dayKey))
             .filter((dayNum) => Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 7);
           const repeatGroupKey = randomUUID();
+          const shouldEnforceAvailability = status === "pending" || status === "confirmed";
+          const breakRangesByDay = shouldEnforceAvailability
+            ? buildBreakRangesByDay(
+                await getAppointmentBreaksBySpecialistAndDays({
+                  organizationId: access.authContext.organizationId,
+                  specialistId,
+                  dayNums: collectDayNumsFromDates(recurringDates)
+                })
+              )
+            : new Map();
+          const { createdItems, skippedDates } = await withAppointmentTransaction(async (db) => {
+            const nextCreatedItems = [];
+            const nextSkippedDates = [];
+            let rootAssigned = false;
 
-          const createdItems = [];
-          const skippedDates = [];
-          const shouldCheckConflicts = status === "pending" || status === "confirmed";
-          let rootAssigned = false;
+            for (const recurringDate of recurringDates) {
+              if (shouldEnforceAvailability) {
+                const workingHoursError = validateSlotAgainstWorkingHours({
+                  settings: settingsForRepeat,
+                  appointmentDate: recurringDate,
+                  startTime,
+                  endTime
+                });
+                if (workingHoursError) {
+                  if (repeat.skipConflicts) {
+                    nextSkippedDates.push(recurringDate);
+                    continue;
+                  }
+                  throw createRouteError(400, workingHoursError);
+                }
 
-          for (const recurringDate of recurringDates) {
-            if (shouldCheckConflicts) {
-              const hasConflict = await hasAppointmentScheduleConflict({
-                organizationId: access.authContext.organizationId,
-                specialistId,
-                appointmentDate: recurringDate,
-                startTime,
-                endTime
-              });
-              if (hasConflict) {
-                if (repeat.skipConflicts) {
-                  skippedDates.push(recurringDate);
+                if (hasSpecialistBreakConflict({
+                  breakRangesByDay,
+                  appointmentDate: recurringDate,
+                  startTime,
+                  endTime
+                })) {
+                  if (repeat.skipConflicts) {
+                    nextSkippedDates.push(recurringDate);
+                    continue;
+                  }
+                  throw createRouteError(409, { message: `Break conflict on ${recurringDate}.` });
+                }
+
+                const hasConflict = await hasAppointmentScheduleConflict({
+                  organizationId: access.authContext.organizationId,
+                  specialistId,
+                  appointmentDate: recurringDate,
+                  startTime,
+                  endTime,
+                  db
+                });
+                if (hasConflict) {
+                  if (repeat.skipConflicts) {
+                    nextSkippedDates.push(recurringDate);
+                    continue;
+                  }
+                  throw createRouteError(409, { message: `Slot conflict on ${recurringDate}.` });
+                }
+              }
+
+              try {
+                const isRepeatRoot = !rootAssigned;
+                const createdItem = await createAppointmentSchedule({
+                  organizationId: access.authContext.organizationId,
+                  actorUserId: access.authContext.userId,
+                  specialistId,
+                  clientId,
+                  appointmentDate: recurringDate,
+                  startTime,
+                  endTime,
+                  serviceName,
+                  status,
+                  note,
+                  repeatGroupKey,
+                  repeatType: "weekly",
+                  repeatUntilDate: repeat.untilDate,
+                  repeatDays: repeatDayNums,
+                  repeatAnchorDate: appointmentDate,
+                  isRepeatRoot,
+                  db
+                });
+                if (createdItem) {
+                  nextCreatedItems.push(createdItem);
+                  if (isRepeatRoot) {
+                    rootAssigned = true;
+                  }
+                }
+              } catch (error) {
+                if (isUniqueOrExclusionConflict(error) && repeat.skipConflicts) {
+                  nextSkippedDates.push(recurringDate);
                   continue;
                 }
-                return reply.status(409).send({ message: `Slot conflict on ${recurringDate}.` });
+                throw error;
               }
             }
 
-            try {
-              const isRepeatRoot = !rootAssigned;
-              const createdItem = await createAppointmentSchedule({
-                organizationId: access.authContext.organizationId,
-                actorUserId: access.authContext.userId,
-                specialistId,
-                clientId,
-                appointmentDate: recurringDate,
-                startTime,
-                endTime,
-                serviceName,
-                status,
-                note,
-                repeatGroupKey,
-                repeatType: "weekly",
-                repeatUntilDate: repeat.untilDate,
-                repeatDays: repeatDayNums,
-                repeatAnchorDate: appointmentDate,
-                isRepeatRoot
-              });
-              if (createdItem) {
-                createdItems.push(createdItem);
-                if (isRepeatRoot) {
-                  rootAssigned = true;
-                }
-              }
-            } catch (error) {
-              if (error?.code === "23505" && repeat.skipConflicts) {
-                skippedDates.push(recurringDate);
-                continue;
-              }
-              throw error;
-            }
-          }
+            return {
+              createdItems: nextCreatedItems,
+              skippedDates: nextSkippedDates
+            };
+          });
 
           if (createdItems.length === 0) {
             return reply.status(409).send({
@@ -619,6 +795,33 @@ async function appointmentSettingsRoutes(fastify) {
         }
 
         if (status === "pending" || status === "confirmed") {
+          const settingsForSlot = await getAppointmentSettingsByOrganization(access.authContext.organizationId);
+          const workingHoursError = validateSlotAgainstWorkingHours({
+            settings: settingsForSlot,
+            appointmentDate,
+            startTime,
+            endTime
+          });
+          if (workingHoursError) {
+            return reply.status(400).send(workingHoursError);
+          }
+
+          const breakRangesByDay = buildBreakRangesByDay(
+            await getAppointmentBreaksBySpecialistAndDays({
+              organizationId: access.authContext.organizationId,
+              specialistId,
+              dayNums: collectDayNumsFromDates([appointmentDate])
+            })
+          );
+          if (hasSpecialistBreakConflict({
+            breakRangesByDay,
+            appointmentDate,
+            startTime,
+            endTime
+          })) {
+            return reply.status(409).send({ message: "Selected time conflicts with specialist break." });
+          }
+
           const hasConflict = await hasAppointmentScheduleConflict({
             organizationId: access.authContext.organizationId,
             specialistId,
@@ -649,7 +852,10 @@ async function appointmentSettingsRoutes(fastify) {
           item
         });
       } catch (error) {
-        if (error?.code === "23505") {
+        if (Number.isInteger(error?.statusCode) && error?.payload) {
+          return reply.status(error.statusCode).send(error.payload);
+        }
+        if (isUniqueOrExclusionConflict(error)) {
           return reply.status(409).send({ message: "This slot is already occupied." });
         }
         if (error?.code === "23503") {
@@ -761,103 +967,168 @@ async function appointmentSettingsRoutes(fastify) {
             recurringDates.unshift(appointmentDate);
           }
 
-          const shouldCheckConflicts = status === "pending" || status === "confirmed";
-          const skippedDates = [];
-
-          if (shouldCheckConflicts) {
-            const hasAnchorConflict = await hasAppointmentScheduleConflict({
-              organizationId: access.authContext.organizationId,
-              specialistId,
-              appointmentDate,
-              startTime,
-              endTime,
-              excludeId: id
-            });
-            if (hasAnchorConflict) {
-              return reply.status(409).send({ message: "This slot conflicts with existing appointment." });
-            }
-          }
-
+          const shouldEnforceAvailability = status === "pending" || status === "confirmed";
           const repeatGroupKey = randomUUID();
           const repeatDayNums = repeatDayKeys
             .map((dayKey) => toAppointmentDayNum(dayKey))
             .filter((dayNum) => Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 7);
-
-          const anchorItem = await updateAppointmentScheduleByIdWithRepeatMeta({
-            organizationId: access.authContext.organizationId,
-            actorUserId: access.authContext.userId,
-            id,
-            specialistId,
-            clientId,
-            appointmentDate,
-            startTime,
-            endTime,
-            serviceName,
-            status,
-            note,
-            repeatGroupKey,
-            repeatUntilDate: repeat.untilDate,
-            repeatDays: repeatDayNums,
-            repeatAnchorDate: appointmentDate,
-            isRepeatRoot: true
-          });
-          if (!anchorItem) {
-            return reply.status(404).send({ message: "Appointment not found." });
-          }
-
-          const createdItems = [];
-          for (const recurringDate of recurringDates) {
-            if (recurringDate === appointmentDate) {
-              continue;
-            }
-
-            if (shouldCheckConflicts) {
-              const hasConflict = await hasAppointmentScheduleConflict({
-                organizationId: access.authContext.organizationId,
-                specialistId,
-                appointmentDate: recurringDate,
+          const breakRangesByDay = shouldEnforceAvailability
+            ? buildBreakRangesByDay(
+                await getAppointmentBreaksBySpecialistAndDays({
+                  organizationId: access.authContext.organizationId,
+                  specialistId,
+                  dayNums: collectDayNumsFromDates(recurringDates)
+                })
+              )
+            : new Map();
+          const { anchorItem, createdItems, skippedDates } = await withAppointmentTransaction(async (db) => {
+            if (shouldEnforceAvailability) {
+              const anchorWorkingHoursError = validateSlotAgainstWorkingHours({
+                settings: settingsForRepeat,
+                appointmentDate,
                 startTime,
                 endTime
               });
-              if (hasConflict) {
-                if (repeat.skipConflicts) {
-                  skippedDates.push(recurringDate);
-                  continue;
-                }
-                return reply.status(409).send({ message: `Slot conflict on ${recurringDate}.` });
+              if (anchorWorkingHoursError) {
+                throw createRouteError(400, anchorWorkingHoursError);
+              }
+
+              if (hasSpecialistBreakConflict({
+                breakRangesByDay,
+                appointmentDate,
+                startTime,
+                endTime
+              })) {
+                throw createRouteError(409, { message: "Selected time conflicts with specialist break." });
+              }
+
+              const hasAnchorConflict = await hasAppointmentScheduleConflict({
+                organizationId: access.authContext.organizationId,
+                specialistId,
+                appointmentDate,
+                startTime,
+                endTime,
+                excludeId: id,
+                db
+              });
+              if (hasAnchorConflict) {
+                throw createRouteError(409, { message: "This slot conflicts with existing appointment." });
               }
             }
 
-            try {
-              const createdItem = await createAppointmentSchedule({
-                organizationId: access.authContext.organizationId,
-                actorUserId: access.authContext.userId,
-                specialistId,
-                clientId,
-                appointmentDate: recurringDate,
-                startTime,
-                endTime,
-                serviceName,
-                status,
-                note,
-                repeatGroupKey,
-                repeatType: "weekly",
-                repeatUntilDate: repeat.untilDate,
-                repeatDays: repeatDayNums,
-                repeatAnchorDate: appointmentDate,
-                isRepeatRoot: false
-              });
-              if (createdItem) {
-                createdItems.push(createdItem);
-              }
-            } catch (error) {
-              if (error?.code === "23505" && repeat.skipConflicts) {
-                skippedDates.push(recurringDate);
+            const updatedAnchorItem = await updateAppointmentScheduleByIdWithRepeatMeta({
+              organizationId: access.authContext.organizationId,
+              actorUserId: access.authContext.userId,
+              id,
+              specialistId,
+              clientId,
+              appointmentDate,
+              startTime,
+              endTime,
+              serviceName,
+              status,
+              note,
+              repeatGroupKey,
+              repeatUntilDate: repeat.untilDate,
+              repeatDays: repeatDayNums,
+              repeatAnchorDate: appointmentDate,
+              isRepeatRoot: true,
+              db
+            });
+            if (!updatedAnchorItem) {
+              throw createRouteError(404, { message: "Appointment not found." });
+            }
+
+            const nextCreatedItems = [];
+            const nextSkippedDates = [];
+            for (const recurringDate of recurringDates) {
+              if (recurringDate === appointmentDate) {
                 continue;
               }
-              throw error;
+
+              if (shouldEnforceAvailability) {
+                const workingHoursError = validateSlotAgainstWorkingHours({
+                  settings: settingsForRepeat,
+                  appointmentDate: recurringDate,
+                  startTime,
+                  endTime
+                });
+                if (workingHoursError) {
+                  if (repeat.skipConflicts) {
+                    nextSkippedDates.push(recurringDate);
+                    continue;
+                  }
+                  throw createRouteError(400, workingHoursError);
+                }
+
+                if (hasSpecialistBreakConflict({
+                  breakRangesByDay,
+                  appointmentDate: recurringDate,
+                  startTime,
+                  endTime
+                })) {
+                  if (repeat.skipConflicts) {
+                    nextSkippedDates.push(recurringDate);
+                    continue;
+                  }
+                  throw createRouteError(409, { message: `Break conflict on ${recurringDate}.` });
+                }
+
+                const hasConflict = await hasAppointmentScheduleConflict({
+                  organizationId: access.authContext.organizationId,
+                  specialistId,
+                  appointmentDate: recurringDate,
+                  startTime,
+                  endTime,
+                  db
+                });
+                if (hasConflict) {
+                  if (repeat.skipConflicts) {
+                    nextSkippedDates.push(recurringDate);
+                    continue;
+                  }
+                  throw createRouteError(409, { message: `Slot conflict on ${recurringDate}.` });
+                }
+              }
+
+              try {
+                const createdItem = await createAppointmentSchedule({
+                  organizationId: access.authContext.organizationId,
+                  actorUserId: access.authContext.userId,
+                  specialistId,
+                  clientId,
+                  appointmentDate: recurringDate,
+                  startTime,
+                  endTime,
+                  serviceName,
+                  status,
+                  note,
+                  repeatGroupKey,
+                  repeatType: "weekly",
+                  repeatUntilDate: repeat.untilDate,
+                  repeatDays: repeatDayNums,
+                  repeatAnchorDate: appointmentDate,
+                  isRepeatRoot: false,
+                  db
+                });
+                if (createdItem) {
+                  nextCreatedItems.push(createdItem);
+                }
+              } catch (error) {
+                if (isUniqueOrExclusionConflict(error) && repeat.skipConflicts) {
+                  nextSkippedDates.push(recurringDate);
+                  continue;
+                }
+                throw error;
+              }
             }
-          }
+
+            return {
+              anchorItem: updatedAnchorItem,
+              createdItems: nextCreatedItems,
+              skippedDates: nextSkippedDates
+            };
+          });
 
           const items = [anchorItem, ...createdItems];
           const affectedCount = items.length;
@@ -882,8 +1153,48 @@ async function appointmentSettingsRoutes(fastify) {
         const applyAppointmentDate = target.scope === "single";
 
         if (status === "pending" || status === "confirmed") {
+          const settingsForAvailability = await getAppointmentSettingsByOrganization(access.authContext.organizationId);
+          const validationDates = target.items.map((item) => (
+            applyAppointmentDate ? appointmentDate : item.appointmentDate
+          ));
+          const breakRangesByDay = buildBreakRangesByDay(
+            await getAppointmentBreaksBySpecialistAndDays({
+              organizationId: access.authContext.organizationId,
+              specialistId,
+              dayNums: collectDayNumsFromDates(validationDates)
+            })
+          );
+
           for (const item of target.items) {
             const conflictDate = applyAppointmentDate ? appointmentDate : item.appointmentDate;
+            const workingHoursError = validateSlotAgainstWorkingHours({
+              settings: settingsForAvailability,
+              appointmentDate: conflictDate,
+              startTime,
+              endTime
+            });
+            if (workingHoursError) {
+              if (target.items.length > 1) {
+                return reply.status(400).send({
+                  field: workingHoursError.field,
+                  message: `${workingHoursError.message} (${conflictDate}).`
+                });
+              }
+              return reply.status(400).send(workingHoursError);
+            }
+
+            if (hasSpecialistBreakConflict({
+              breakRangesByDay,
+              appointmentDate: conflictDate,
+              startTime,
+              endTime
+            })) {
+              if (target.items.length > 1) {
+                return reply.status(409).send({ message: `Break conflict on ${conflictDate}.` });
+              }
+              return reply.status(409).send({ message: "Selected time conflicts with specialist break." });
+            }
+
             const hasConflict = await hasAppointmentScheduleConflict({
               organizationId: access.authContext.organizationId,
               specialistId,
@@ -936,7 +1247,10 @@ async function appointmentSettingsRoutes(fastify) {
           }
         });
       } catch (error) {
-        if (error?.code === "23505") {
+        if (Number.isInteger(error?.statusCode) && error?.payload) {
+          return reply.status(error.statusCode).send(error.payload);
+        }
+        if (isUniqueOrExclusionConflict(error)) {
           return reply.status(409).send({ message: "This slot is already occupied." });
         }
         if (error?.code === "23503") {

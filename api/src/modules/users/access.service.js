@@ -1,6 +1,9 @@
 import pool from "../../config/db.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 
+const ROLE_PERMISSIONS_CACHE_TTL_MS = 15000;
+const rolePermissionsCache = new Map();
+
 function normalizeRoleId(value) {
   return parsePositiveInteger(value);
 }
@@ -11,6 +14,34 @@ function normalizePositionId(value) {
 
 function normalizePermissionCode(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function readRolePermissionsFromCache(roleId) {
+  const cached = rolePermissionsCache.get(roleId);
+  if (!cached) {
+    return null;
+  }
+  if (cached.expiresAt <= Date.now()) {
+    rolePermissionsCache.delete(roleId);
+    return null;
+  }
+  return Array.isArray(cached.permissions) ? [...cached.permissions] : null;
+}
+
+function writeRolePermissionsToCache(roleId, permissions) {
+  rolePermissionsCache.set(roleId, {
+    permissions: Array.isArray(permissions) ? [...permissions] : [],
+    expiresAt: Date.now() + ROLE_PERMISSIONS_CACHE_TTL_MS
+  });
+}
+
+export function clearRolePermissionsCache(roleId = null) {
+  const normalizedRoleId = normalizeRoleId(roleId);
+  if (normalizedRoleId) {
+    rolePermissionsCache.delete(normalizedRoleId);
+    return;
+  }
+  rolePermissionsCache.clear();
 }
 
 async function selectRoleById(roleId) {
@@ -55,6 +86,11 @@ export async function getRolePermissions(roleId) {
     return [];
   }
 
+  const cachedPermissions = readRolePermissionsFromCache(normalizedRoleId);
+  if (cachedPermissions) {
+    return cachedPermissions;
+  }
+
   const { rows } = await pool.query(
     `SELECT p.code
        FROM role_options r
@@ -67,9 +103,11 @@ export async function getRolePermissions(roleId) {
     [normalizedRoleId]
   );
 
-  return rows
+  const permissions = rows
     .map((row) => normalizePermissionCode(row?.code))
     .filter(Boolean);
+  writeRolePermissionsToCache(normalizedRoleId, permissions);
+  return permissions;
 }
 
 export async function hasPermission(roleId, permissionCode) {

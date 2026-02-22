@@ -1,4 +1,5 @@
 import pool from "../../config/db.js";
+import { clearRolePermissionsCache } from "../users/access.service.js";
 
 function mapOrganization(row) {
   return {
@@ -245,6 +246,7 @@ export async function createRoleOption({ label, sortOrder, isActive, permissionC
 
     const item = await getRoleOptionByIdWithDb(client, roleId);
     await client.query("COMMIT");
+    clearRolePermissionsCache(roleId);
     return item;
   } catch (error) {
     if (client) {
@@ -287,6 +289,7 @@ export async function updateRoleOption({ id, label, sortOrder, isActive, permiss
 
     const item = await getRoleOptionByIdWithDb(client, id);
     await client.query("COMMIT");
+    clearRolePermissionsCache(id);
     return item;
   } catch (error) {
     if (client) {
@@ -301,7 +304,11 @@ export async function updateRoleOption({ id, label, sortOrder, isActive, permiss
 }
 
 export async function deleteRoleOptionById(id) {
-  return pool.query("DELETE FROM role_options WHERE id = $1", [id]);
+  const result = await pool.query("DELETE FROM role_options WHERE id = $1", [id]);
+  if ((result?.rowCount || 0) > 0) {
+    clearRolePermissionsCache(id);
+  }
+  return result;
 }
 
 export async function listPositionOptionsForSettings() {

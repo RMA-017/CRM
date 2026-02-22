@@ -329,6 +329,41 @@ export async function getAppointmentClientNoShowSummary({
   };
 }
 
+export async function getAppointmentBreaksBySpecialistAndDays({
+  organizationId,
+  specialistId,
+  dayNums,
+  db = pool
+}) {
+  const normalizedDayNums = Array.from(
+    new Set(
+      (Array.isArray(dayNums) ? dayNums : [])
+        .map((dayNum) => Number.parseInt(String(dayNum ?? "").trim(), 10))
+        .filter((dayNum) => Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 7)
+    )
+  );
+  if (normalizedDayNums.length === 0) {
+    return [];
+  }
+
+  const { rows } = await db.query(
+    `SELECT day_of_week, start_time, end_time
+       FROM appointment_breaks
+      WHERE organization_id = $1
+        AND specialist_id = $2
+        AND is_active = TRUE
+        AND day_of_week = ANY($3::smallint[])
+      ORDER BY day_of_week ASC, start_time ASC`,
+    [organizationId, specialistId, normalizedDayNums]
+  );
+
+  return (rows || []).map((row) => ({
+    dayOfWeek: Number.parseInt(String(row?.day_of_week ?? ""), 10) || 0,
+    startTime: row?.start_time ? String(row.start_time).slice(0, 5) : "",
+    endTime: row?.end_time ? String(row.end_time).slice(0, 5) : ""
+  }));
+}
+
 export async function hasAppointmentScheduleConflict({
   organizationId,
   specialistId,

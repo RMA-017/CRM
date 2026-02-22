@@ -30,35 +30,49 @@ export async function getClientsPage({
   const whereParts = ["c.organization_id = $1", "o.is_active = TRUE"];
   const params = [organizationId];
 
-  const normalizedFirstName = String(firstName || "").trim();
+  const normalizedFirstName = String(firstName || "").trim().toLowerCase();
   if (normalizedFirstName) {
-    params.push(`%${normalizedFirstName}%`);
-    whereParts.push(`COALESCE(c.first_name, '') ILIKE $${params.length}`);
+    params.push(`${normalizedFirstName}%`);
+    whereParts.push(`LOWER(COALESCE(c.first_name, '')) LIKE $${params.length}`);
   }
 
-  const normalizedLastName = String(lastName || "").trim();
+  const normalizedLastName = String(lastName || "").trim().toLowerCase();
   if (normalizedLastName) {
-    params.push(`%${normalizedLastName}%`);
-    whereParts.push(`COALESCE(c.last_name, '') ILIKE $${params.length}`);
+    params.push(`${normalizedLastName}%`);
+    whereParts.push(`LOWER(COALESCE(c.last_name, '')) LIKE $${params.length}`);
   }
 
-  const normalizedMiddleName = String(middleName || "").trim();
+  const normalizedMiddleName = String(middleName || "").trim().toLowerCase();
   if (normalizedMiddleName) {
-    params.push(`%${normalizedMiddleName}%`);
-    whereParts.push(`COALESCE(c.middle_name, '') ILIKE $${params.length}`);
+    params.push(`${normalizedMiddleName}%`);
+    whereParts.push(`LOWER(COALESCE(c.middle_name, '')) LIKE $${params.length}`);
   }
 
-  const normalizedSearch = String(search || "").trim();
+  const normalizedSearch = String(search || "").trim().toLowerCase();
   if (normalizedSearch) {
-    params.push(`%${normalizedSearch}%`);
-    whereParts.push(`(
-      c.first_name ILIKE $${params.length}
-      OR c.last_name ILIKE $${params.length}
-      OR COALESCE(c.middle_name, '') ILIKE $${params.length}
-      OR COALESCE(c.phone_number, '') ILIKE $${params.length}
-      OR COALESCE(c.tg_mail, '') ILIKE $${params.length}
-      OR COALESCE(c.note, '') ILIKE $${params.length}
-    )`);
+    const usePrefixOnly = normalizedSearch.length < 4;
+    params.push(`${normalizedSearch}%`);
+    const prefixParamIndex = params.length;
+
+    if (usePrefixOnly) {
+      whereParts.push(`(
+        LOWER(COALESCE(c.first_name, '')) LIKE $${prefixParamIndex}
+        OR LOWER(COALESCE(c.last_name, '')) LIKE $${prefixParamIndex}
+        OR LOWER(COALESCE(c.middle_name, '')) LIKE $${prefixParamIndex}
+        OR COALESCE(c.phone_number, '') LIKE $${prefixParamIndex}
+      )`);
+    } else {
+      params.push(`%${normalizedSearch}%`);
+      const containsParamIndex = params.length;
+      whereParts.push(`(
+        LOWER(COALESCE(c.first_name, '')) LIKE $${prefixParamIndex}
+        OR LOWER(COALESCE(c.last_name, '')) LIKE $${prefixParamIndex}
+        OR LOWER(COALESCE(c.middle_name, '')) LIKE $${prefixParamIndex}
+        OR COALESCE(c.phone_number, '') LIKE $${prefixParamIndex}
+        OR LOWER(COALESCE(c.tg_mail, '')) LIKE $${containsParamIndex}
+        OR LOWER(COALESCE(c.note, '')) LIKE $${containsParamIndex}
+      )`);
+    }
   }
 
   const whereSql = `WHERE ${whereParts.join(" AND ")}`;

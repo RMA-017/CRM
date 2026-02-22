@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
 CREATE TABLE role_options (
   id SERIAL PRIMARY KEY,
   label VARCHAR(64) NOT NULL,
@@ -225,18 +227,27 @@ CREATE TABLE appointment_schedules (
   )
 );
 
-CREATE INDEX idx_appointment_schedules_org_date_specialist
-  ON appointment_schedules (organization_id, appointment_date, specialist_id, start_time);
+CREATE INDEX idx_appointment_schedules_org_specialist_date_time
+  ON appointment_schedules (organization_id, specialist_id, appointment_date, start_time);
 
 CREATE INDEX idx_appointment_schedules_org_client_date
   ON appointment_schedules (organization_id, client_id, appointment_date DESC);
 
+CREATE INDEX idx_appointment_schedules_org_client_no_show
+  ON appointment_schedules (organization_id, client_id)
+  WHERE status = 'no-show';
+
 CREATE INDEX idx_appointment_schedules_org_repeat_group_date
   ON appointment_schedules (organization_id, repeat_group_key, appointment_date);
 
-CREATE UNIQUE INDEX idx_appointment_schedules_active_slot_unique
-  ON appointment_schedules (organization_id, specialist_id, appointment_date, start_time)
-  WHERE status IN ('pending', 'confirmed');
+ALTER TABLE appointment_schedules
+  ADD CONSTRAINT ex_appointment_schedules_active_overlap
+  EXCLUDE USING gist (
+    organization_id WITH =,
+    specialist_id WITH =,
+    tsrange(appointment_date + start_time, appointment_date + end_time, '[)') WITH &&
+  )
+  WHERE (status IN ('pending', 'confirmed'));
 
 CREATE UNIQUE INDEX uq_appointment_schedules_repeat_group_root
   ON appointment_schedules (organization_id, repeat_group_key)
