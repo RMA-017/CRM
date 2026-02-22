@@ -120,7 +120,7 @@ async function resolvePermissionIdsByCodes(db, permissionCodes) {
     .filter((id) => Number.isInteger(id) && id > 0);
 }
 
-async function replaceRolePermissions(db, roleId, permissionIds) {
+async function replaceRolePermissions(db, roleId, permissionIds, actorUserId = null) {
   await db.query("DELETE FROM role_permissions WHERE role_id = $1", [roleId]);
 
   if (!Array.isArray(permissionIds) || permissionIds.length === 0) {
@@ -128,10 +128,10 @@ async function replaceRolePermissions(db, roleId, permissionIds) {
   }
 
   await db.query(
-    `INSERT INTO role_permissions (role_id, permission_id)
-     SELECT $1, src.permission_id
+    `INSERT INTO role_permissions (role_id, permission_id, created_by, updated_by)
+     SELECT $1, src.permission_id, $3, $3
        FROM UNNEST($2::int[]) AS src(permission_id)`,
-    [roleId, permissionIds]
+    [roleId, permissionIds, actorUserId]
   );
 }
 
@@ -157,18 +157,27 @@ export async function listOrganizations() {
   return rows.map(mapOrganization);
 }
 
-export async function createOrganization({ code, name, isActive }) {
+export async function createOrganization({ code, name, isActive, actorUserId = null }) {
   const { rows } = await pool.query(
-    "INSERT INTO organizations (code, name, is_active) VALUES ($1, $2, $3) RETURNING id, code, name, is_active, created_at",
-    [code, name, isActive]
+    `INSERT INTO organizations (code, name, is_active, created_by, updated_by)
+     VALUES ($1, $2, $3, $4, $4)
+     RETURNING id, code, name, is_active, created_at`,
+    [code, name, isActive, actorUserId]
   );
   return rows[0] ? mapOrganization(rows[0]) : null;
 }
 
-export async function updateOrganization({ id, code, name, isActive }) {
+export async function updateOrganization({ id, code, name, isActive, actorUserId = null }) {
   const { rows } = await pool.query(
-    "UPDATE organizations SET code = $1, name = $2, is_active = $3 WHERE id = $4 RETURNING id, code, name, is_active, created_at",
-    [code, name, isActive, id]
+    `UPDATE organizations
+        SET code = $1,
+            name = $2,
+            is_active = $3,
+            updated_by = $4,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id = $5
+      RETURNING id, code, name, is_active, created_at`,
+    [code, name, isActive, actorUserId, id]
   );
   return rows[0] ? mapOrganization(rows[0]) : null;
 }
@@ -211,7 +220,7 @@ export async function listPermissionOptionsForSettings() {
   return rows.map(mapPermissionOption);
 }
 
-export async function createRoleOption({ label, sortOrder, isActive, permissionCodes = [] }) {
+export async function createRoleOption({ label, sortOrder, isActive, permissionCodes = [], actorUserId = null }) {
   let client = null;
 
   try {
@@ -219,8 +228,10 @@ export async function createRoleOption({ label, sortOrder, isActive, permissionC
     await client.query("BEGIN");
 
     const insertResult = await client.query(
-      "INSERT INTO role_options (label, sort_order, is_active, is_admin) VALUES ($1, $2, $3, FALSE) RETURNING id",
-      [label, sortOrder, isActive]
+      `INSERT INTO role_options (label, sort_order, is_active, is_admin, created_by, updated_by)
+       VALUES ($1, $2, $3, FALSE, $4, $4)
+       RETURNING id`,
+      [label, sortOrder, isActive, actorUserId]
     );
 
     const roleId = Number(insertResult.rows[0]?.id || 0);
@@ -230,7 +241,7 @@ export async function createRoleOption({ label, sortOrder, isActive, permissionC
     }
 
     const permissionIds = await resolvePermissionIdsByCodes(client, permissionCodes);
-    await replaceRolePermissions(client, roleId, permissionIds);
+    await replaceRolePermissions(client, roleId, permissionIds, actorUserId);
 
     const item = await getRoleOptionByIdWithDb(client, roleId);
     await client.query("COMMIT");
@@ -247,7 +258,7 @@ export async function createRoleOption({ label, sortOrder, isActive, permissionC
   }
 }
 
-export async function updateRoleOption({ id, label, sortOrder, isActive, permissionCodes = [] }) {
+export async function updateRoleOption({ id, label, sortOrder, isActive, permissionCodes = [], actorUserId = null }) {
   let client = null;
 
   try {
@@ -255,8 +266,15 @@ export async function updateRoleOption({ id, label, sortOrder, isActive, permiss
     await client.query("BEGIN");
 
     const updateResult = await client.query(
-      "UPDATE role_options SET label = $1, sort_order = $2, is_active = $3 WHERE id = $4 RETURNING id",
-      [label, sortOrder, isActive, id]
+      `UPDATE role_options
+          SET label = $1,
+              sort_order = $2,
+              is_active = $3,
+              updated_by = $4,
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = $5
+        RETURNING id`,
+      [label, sortOrder, isActive, actorUserId, id]
     );
 
     if (updateResult.rowCount === 0) {
@@ -265,7 +283,7 @@ export async function updateRoleOption({ id, label, sortOrder, isActive, permiss
     }
 
     const permissionIds = await resolvePermissionIdsByCodes(client, permissionCodes);
-    await replaceRolePermissions(client, id, permissionIds);
+    await replaceRolePermissions(client, id, permissionIds, actorUserId);
 
     const item = await getRoleOptionByIdWithDb(client, id);
     await client.query("COMMIT");
@@ -301,18 +319,27 @@ export async function getPositionOptionById(id) {
   return rows[0] ? mapOption(rows[0]) : null;
 }
 
-export async function createPositionOption({ label, sortOrder, isActive }) {
+export async function createPositionOption({ label, sortOrder, isActive, actorUserId = null }) {
   const { rows } = await pool.query(
-    "INSERT INTO position_options (label, sort_order, is_active) VALUES ($1, $2, $3) RETURNING id, label, sort_order, is_active, created_at",
-    [label, sortOrder, isActive]
+    `INSERT INTO position_options (label, sort_order, is_active, created_by, updated_by)
+     VALUES ($1, $2, $3, $4, $4)
+     RETURNING id, label, sort_order, is_active, created_at`,
+    [label, sortOrder, isActive, actorUserId]
   );
   return rows[0] ? mapOption(rows[0]) : null;
 }
 
-export async function updatePositionOption({ id, label, sortOrder, isActive }) {
+export async function updatePositionOption({ id, label, sortOrder, isActive, actorUserId = null }) {
   const { rows } = await pool.query(
-    "UPDATE position_options SET label = $1, sort_order = $2, is_active = $3 WHERE id = $4 RETURNING id, label, sort_order, is_active, created_at",
-    [label, sortOrder, isActive, id]
+    `UPDATE position_options
+        SET label = $1,
+            sort_order = $2,
+            is_active = $3,
+            updated_by = $4,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id = $5
+      RETURNING id, label, sort_order, is_active, created_at`,
+    [label, sortOrder, isActive, actorUserId, id]
   );
   return rows[0] ? mapOption(rows[0]) : null;
 }

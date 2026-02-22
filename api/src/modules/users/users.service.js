@@ -95,6 +95,7 @@ export async function getUserScopeById(userId) {
 export async function updateUserByAdmin({
   currentOrganizationId,
   nextOrganizationId = null,
+  actorUserId,
   userId,
   username,
   email,
@@ -118,12 +119,14 @@ export async function updateUserByAdmin({
       `UPDATE users
           SET organization_id = $1,
               username = $2,
-              email = $3,
+              email = LOWER($3),
               full_name = $4,
               birthday = $5,
               phone_number = $6,
               position_id = $7::int,
-              role_id = $8::int
+              role_id = $8::int,
+              updated_by = $11,
+              updated_at = CURRENT_TIMESTAMP
         WHERE id = $9
           AND organization_id = $10`,
       [
@@ -136,7 +139,8 @@ export async function updateUserByAdmin({
         positionId,
         roleId,
         userId,
-        currentOrganizationId
+        currentOrganizationId,
+        actorUserId || null
       ]
     );
 
@@ -148,8 +152,8 @@ export async function updateUserByAdmin({
     if (password) {
       const passwordHash = await argon2.hash(password);
       await client.query(
-        "UPDATE users SET password_hash = $1 WHERE id = $2 AND organization_id = $3",
-        [passwordHash, userId, targetOrganizationId]
+        "UPDATE users SET password_hash = $1, updated_by = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 AND organization_id = $4",
+        [passwordHash, actorUserId || null, userId, targetOrganizationId]
       );
     }
 

@@ -102,9 +102,10 @@ async function profileRoutes(fastify) {
 
       const field = String(request.body?.field || "").trim();
       const value = String(request.body?.value || "").trim();
+      const normalizedValue = field === "email" ? value.toLowerCase() : value;
       const positionId = field === "position" ? parsePositiveInteger(value) : null;
       const currentPassword = String(request.body?.currentPassword || "");
-      const validationError = validateOwnProfileUpdate(field, value, currentPassword);
+      const validationError = validateOwnProfileUpdate(field, normalizedValue, currentPassword);
       if (validationError) {
         return reply.status(400).send(validationError);
       }
@@ -148,8 +149,9 @@ async function profileRoutes(fastify) {
         const result = await updateOwnProfileField({
           userId: authContext.userId,
           organizationId: authContext.organizationId,
+          actorUserId: authContext.userId,
           field,
-          value: field === "position" ? (positionId ? String(positionId) : "") : value
+          value: field === "position" ? (positionId ? String(positionId) : "") : normalizedValue
         });
         if (result.rowCount === 0) {
           return reply.status(404).send({ message: "User not found." });

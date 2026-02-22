@@ -15,12 +15,22 @@ export async function getActorForCreate({ userId, organizationId }) {
   return rows[0] || null;
 }
 
-export async function createBasicUser({ organizationId, username, fullName, roleId, defaultPassword }) {
+export async function createBasicUser({ organizationId, username, fullName, roleId, defaultPassword, actorUserId }) {
   const passwordHash = await argon2.hash(defaultPassword);
   const { rows } = await pool.query(
     `WITH created AS (
        INSERT INTO users (
-         organization_id, username, email, full_name, birthday, password_hash, phone_number, position_id, role_id
+         organization_id,
+         username,
+         email,
+         full_name,
+         birthday,
+         password_hash,
+         phone_number,
+         position_id,
+         role_id,
+         created_by,
+         updated_by
        )
        VALUES (
          $1,
@@ -31,7 +41,9 @@ export async function createBasicUser({ organizationId, username, fullName, role
          $6,
          $7,
          NULL,
-         $8
+         $8,
+         $9,
+         $9
        )
        RETURNING id, username, email, full_name, birthday, phone_number, position_id, role_id, created_at
      )
@@ -50,7 +62,7 @@ export async function createBasicUser({ organizationId, username, fullName, role
      FROM created c
      JOIN role_options r ON r.id = c.role_id
      LEFT JOIN position_options p ON p.id = c.position_id`,
-    [organizationId, username, null, fullName, null, passwordHash, null, roleId]
+    [organizationId, username, null, fullName, null, passwordHash, null, roleId, actorUserId || null]
   );
   return rows[0] || null;
 }

@@ -14,7 +14,7 @@ async function createUserRoutes(fastify) {
       config: { rateLimit: fastify.apiRateLimit }
     },
     async (request, reply) => {
-      const username = String(request.body?.username || "").trim();
+      const username = String(request.body?.username || "").trim().toLowerCase();
       const fullName = String(request.body?.fullName || request.body?.full_name || "").trim();
       const roleId = parsePositiveInteger(request.body?.role);
       const organizationCode = String(request.body?.organizationCode || "").trim().toLowerCase();
@@ -81,12 +81,19 @@ async function createUserRoutes(fastify) {
           targetOrganizationId = selectedOrganizationId;
         }
 
+        const defaultPassword = String(appConfig.defaultCreatedUserPassword || "");
+        if (!defaultPassword) {
+          console.error("DEFAULT_CREATED_USER_PASSWORD is not configured.");
+          return reply.status(500).send({ message: "Server configuration error." });
+        }
+
         const createdUser = await createBasicUser({
           organizationId: targetOrganizationId,
           username,
           fullName,
           roleId,
-          defaultPassword: appConfig.defaultCreatedUserPassword
+          defaultPassword,
+          actorUserId: actor.id
         });
 
         return reply.status(201).send({

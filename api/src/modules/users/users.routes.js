@@ -112,8 +112,8 @@ async function usersRoutes(fastify) {
         return reply.status(400).send({ message: "Invalid user id." });
       }
 
-      const username = String(request.body?.username || "").trim();
-      const email = String(request.body?.email || "").trim();
+      const username = String(request.body?.username || "").trim().toLowerCase();
+      const email = String(request.body?.email || "").trim().toLowerCase();
       const fullName = String(request.body?.fullName || "").trim();
       const birthday = String(request.body?.birthday || "").trim();
       const phone = String(request.body?.phone || "").trim();
@@ -205,6 +205,7 @@ async function usersRoutes(fastify) {
         const user = await updateUserByAdmin({
           currentOrganizationId: scopedOrganizationId,
           nextOrganizationId,
+          actorUserId: requester.id,
           userId,
           username,
           email,

@@ -175,7 +175,12 @@ async function settingsRoutes(fastify) {
           return reply.status(400).send(validationError);
         }
 
-        const item = await createOrganization({ code, name, isActive });
+        const item = await createOrganization({
+          code,
+          name,
+          isActive,
+          actorUserId: adminContext.authContext.userId
+        });
         return reply.status(201).send({
           message: "Organization created.",
           item
@@ -219,7 +224,13 @@ async function settingsRoutes(fastify) {
           return reply.status(400).send({ message: "You cannot deactivate your current organization." });
         }
 
-        const item = await updateOrganization({ id, code, name, isActive });
+        const item = await updateOrganization({
+          id,
+          code,
+          name,
+          isActive,
+          actorUserId: adminContext.authContext.userId
+        });
         if (!item) {
           return reply.status(404).send({ message: "Organization not found." });
         }
@@ -327,7 +338,13 @@ async function settingsRoutes(fastify) {
 
         const permissionCodes = Array.isArray(parsedPermissions.codes) ? parsedPermissions.codes : [];
 
-        const item = await createRoleOption({ label, sortOrder, isActive, permissionCodes });
+        const item = await createRoleOption({
+          label,
+          sortOrder,
+          isActive,
+          permissionCodes,
+          actorUserId: adminContext.authContext.userId
+        });
         return reply.status(201).send({
           message: "Role created.",
           item
@@ -404,7 +421,14 @@ async function settingsRoutes(fastify) {
             .filter(Boolean);
         }
 
-        const item = await updateRoleOption({ id, label, sortOrder, isActive, permissionCodes });
+        const item = await updateRoleOption({
+          id,
+          label,
+          sortOrder,
+          isActive,
+          permissionCodes,
+          actorUserId: adminContext.authContext.userId
+        });
         if (!item) {
           return reply.status(404).send({ message: "Role not found." });
         }
@@ -519,7 +543,12 @@ async function settingsRoutes(fastify) {
           return reply.status(400).send(validationError);
         }
 
-        const item = await createPositionOption({ label, sortOrder, isActive });
+        const item = await createPositionOption({
+          label,
+          sortOrder,
+          isActive,
+          actorUserId: adminContext.authContext.userId
+        });
         return reply.status(201).send({
           message: "Position created.",
           item
@@ -559,7 +588,13 @@ async function settingsRoutes(fastify) {
           return reply.status(400).send(validationError);
         }
 
-        const item = await updatePositionOption({ id, label, sortOrder, isActive });
+        const item = await updatePositionOption({
+          id,
+          label,
+          sortOrder,
+          isActive,
+          actorUserId: adminContext.authContext.userId
+        });
         if (!item) {
           return reply.status(404).send({ message: "Position not found." });
         }

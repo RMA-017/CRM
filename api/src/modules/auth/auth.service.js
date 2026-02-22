@@ -2,6 +2,7 @@ import argon2 from "argon2";
 import pool from "../../config/db.js";
 
 export async function findAuthUserForLogin({ username }) {
+  const normalizedUsername = String(username || "").trim().toLowerCase();
   const { rows } = await pool.query(
     `SELECT
        u.id,
@@ -16,10 +17,10 @@ export async function findAuthUserForLogin({ username }) {
       FROM users u
       JOIN organizations o ON o.id = u.organization_id
       JOIN role_options r ON r.id = u.role_id
-      WHERE u.username = $1
+      WHERE LOWER(u.username) = $1
         AND o.is_active = TRUE
       LIMIT 1`,
-    [username]
+    [normalizedUsername]
   );
   return rows[0] || null;
 }

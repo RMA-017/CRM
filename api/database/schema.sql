@@ -59,26 +59,27 @@ CREATE TABLE organizations (
 CREATE TABLE users (
   id SERIAL PRIMARY KEY,
   organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
-  username VARCHAR(64) NOT NULL,
-  email VARCHAR(64),
+  username VARCHAR(64) NOT NULL UNIQUE,
+  email VARCHAR(64) DEFAULT NULL,
   full_name VARCHAR(64) NOT NULL,
   birthday DATE,
   password_hash VARCHAR(255) NOT NULL,
   phone_number VARCHAR(15),
   position_id INTEGER REFERENCES position_options(id),
   role_id INTEGER NOT NULL REFERENCES role_options(id),
-  created_by INTEGER,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_by INTEGER,
+  updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (organization_id, email)
+  UNIQUE (organization_id, id)
 );
 
 CREATE UNIQUE INDEX users_username_unique_ci ON users (LOWER(username));
+CREATE UNIQUE INDEX users_email_unique_ci ON users (LOWER(email)) WHERE email IS NOT NULL;
 CREATE INDEX idx_users_organization_created_at ON users (organization_id, created_at DESC);
 
 CREATE TABLE clients (
-  id SERIAL PRIMARY KEY UNIQUE,
+  id SERIAL PRIMARY KEY,
   organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
   first_name VARCHAR(64) NOT NULL,
   last_name VARCHAR(64) NOT NULL,
@@ -91,7 +92,8 @@ CREATE TABLE clients (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  note VARCHAR(255)
+  note VARCHAR(255),
+  UNIQUE (organization_id, id)
 );
 
 ALTER SEQUENCE clients_id_seq RESTART WITH 1000;
@@ -143,8 +145,8 @@ CREATE INDEX idx_appointment_working_hours_org
 CREATE TABLE appointment_schedules (
   id SERIAL PRIMARY KEY,
   organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  specialist_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,
+  specialist_id INTEGER NOT NULL,
+  client_id INTEGER NOT NULL,
   appointment_date DATE NOT NULL,
   start_time TIME NOT NULL,
   end_time TIME NOT NULL,
@@ -155,6 +157,12 @@ CREATE TABLE appointment_schedules (
   updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_appointment_schedules_specialist_org
+    FOREIGN KEY (organization_id, specialist_id)
+    REFERENCES users(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fk_appointment_schedules_client_org
+    FOREIGN KEY (organization_id, client_id)
+    REFERENCES clients(organization_id, id) ON DELETE RESTRICT,
   CHECK (start_time < end_time),
   CHECK (status IN ('pending', 'confirmed', 'cancelled', 'no-show'))
 );
