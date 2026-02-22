@@ -32,6 +32,7 @@ function AppointmentSettingsPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("");
 
   const [form, setForm] = useState({
     slotInterval: "30",
@@ -52,6 +53,7 @@ function AppointmentSettingsPanel() {
       try {
         setLoading(true);
         setMessage("");
+        setMessageType("");
 
         const response = await apiFetch("/api/appointments/settings", {
           method: "GET",
@@ -65,6 +67,7 @@ function AppointmentSettingsPanel() {
 
         if (!response.ok) {
           setMessage(data?.message || "Failed to load appointment settings.");
+          setMessageType("error");
           return;
         }
 
@@ -113,6 +116,7 @@ function AppointmentSettingsPanel() {
       } catch {
         if (active) {
           setMessage("Failed to load appointment settings.");
+          setMessageType("error");
         }
       } finally {
         if (active) {
@@ -159,6 +163,7 @@ function AppointmentSettingsPanel() {
     try {
       setSaving(true);
       setMessage("");
+      setMessageType("");
 
       const payload = {
         slotInterval: String(form.slotInterval || "").trim(),
@@ -181,10 +186,12 @@ function AppointmentSettingsPanel() {
 
       if (!response.ok) {
         setMessage(data?.message || "Failed to save appointment settings.");
+        setMessageType("error");
         return;
       }
 
       setMessage(data?.message || "Appointment settings updated.");
+      setMessageType("success");
       setInitialForm({
         ...form,
         visibleWeekDays: Array.isArray(form.visibleWeekDays) ? [...form.visibleWeekDays] : []
@@ -192,6 +199,7 @@ function AppointmentSettingsPanel() {
       setInitialWorkingHours(JSON.parse(JSON.stringify(workingHours)));
     } catch {
       setMessage("Failed to save appointment settings.");
+      setMessageType("error");
     } finally {
       setSaving(false);
     }
@@ -319,7 +327,7 @@ function AppointmentSettingsPanel() {
         <button className="btn" type="submit" disabled={loading || saving}>
           {saving ? "Saving..." : "Save"}
         </button>
-        <p className="all-users-state" hidden={!message}>
+        <p className={`appointment-settings-message${messageType ? ` is-${messageType}` : ""}`} hidden={!message}>
           {message}
         </p>
       </div>

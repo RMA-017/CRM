@@ -42,7 +42,11 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "clients-create") {
       return canCreateClients;
     }
-    if (forcedView === "appointment" || forcedView === "appointment-settings") {
+    if (
+      forcedView === "appointment"
+      || forcedView === "appointment-settings"
+      || forcedView === "appointment-vip-recurring"
+    ) {
       return canReadAppointments;
     }
     if (

@@ -122,12 +122,23 @@
   }
 
   .appointment-week-switcher .header-btn {
-    min-width: 128px;
+    width: 96px;
+    min-width: 96px;
+  }
+
+  .appointment-week-range {
+    width: 100%;
+    max-width: 100%;
   }
 
   .appointment-setting-row {
     grid-template-columns: 1fr;
     align-items: start;
+  }
+
+  .appointment-specialist-row {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .appointment-specialist-schedule-card header {

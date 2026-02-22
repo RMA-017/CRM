@@ -14,9 +14,35 @@ export async function findClientsRequester({ userId, organizationId }) {
   return rows[0] || null;
 }
 
-export async function getClientsPage({ organizationId, page, limit, search = "" }) {
+export async function getClientsPage({
+  organizationId,
+  page,
+  limit,
+  search = "",
+  firstName = "",
+  lastName = "",
+  middleName = ""
+}) {
   const whereParts = ["c.organization_id = $1", "o.is_active = TRUE"];
   const params = [organizationId];
+
+  const normalizedFirstName = String(firstName || "").trim();
+  if (normalizedFirstName) {
+    params.push(`%${normalizedFirstName}%`);
+    whereParts.push(`COALESCE(c.first_name, '') ILIKE $${params.length}`);
+  }
+
+  const normalizedLastName = String(lastName || "").trim();
+  if (normalizedLastName) {
+    params.push(`%${normalizedLastName}%`);
+    whereParts.push(`COALESCE(c.last_name, '') ILIKE $${params.length}`);
+  }
+
+  const normalizedMiddleName = String(middleName || "").trim();
+  if (normalizedMiddleName) {
+    params.push(`%${normalizedMiddleName}%`);
+    whereParts.push(`COALESCE(c.middle_name, '') ILIKE $${params.length}`);
+  }
 
   const normalizedSearch = String(search || "").trim();
   if (normalizedSearch) {

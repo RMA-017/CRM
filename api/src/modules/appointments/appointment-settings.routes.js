@@ -6,6 +6,7 @@ import { PERMISSIONS } from "../users/users.constants.js";
 import {
   getAppointmentDayKeys,
   getAppointmentSettingsByOrganization,
+  getAppointmentSpecialistsByOrganization,
   saveAppointmentSettings,
   toAppointmentDayNum
 } from "./appointment-settings.service.js";
@@ -134,6 +135,29 @@ async function requireAppointmentsAccess(request, reply) {
 }
 
 async function appointmentSettingsRoutes(fastify) {
+  fastify.get(
+    "/specialists",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+
+      try {
+        const access = await requireAppointmentsAccess(request, reply);
+        if (!access) {
+          return;
+        }
+
+        const items = await getAppointmentSpecialistsByOrganization(access.authContext.organizationId);
+        return reply.send({ items });
+      } catch (error) {
+        console.error("Error fetching appointment specialists:", error);
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
   fastify.get(
     "/settings",
     {

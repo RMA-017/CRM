@@ -6,7 +6,9 @@ function CustomSelect({
   placeholder,
   onChange,
   id,
-  error = false
+  error = false,
+  forceOpenDown = false,
+  maxVisibleOptions = null
 }) {
   const wrapRef = useRef(null);
   const triggerRef = useRef(null);
@@ -29,14 +31,24 @@ function CustomSelect({
     const triggerRect = triggerRef.current.getBoundingClientRect();
     const spaceBelow = window.innerHeight - triggerRect.bottom - 12;
     const spaceAbove = triggerRect.top - 12;
-    const desiredMenuHeight = 184;
-    const shouldOpenUp = spaceBelow < desiredMenuHeight && spaceAbove > spaceBelow;
+    const normalizedMaxVisibleOptions = Number.isInteger(maxVisibleOptions) && maxVisibleOptions > 0
+      ? maxVisibleOptions
+      : null;
+    const visibleOptionsCount = normalizedMaxVisibleOptions
+      ? Math.max(1, Math.min(options.length, normalizedMaxVisibleOptions))
+      : null;
+    const desiredMenuHeight = visibleOptionsCount
+      ? ((visibleOptionsCount * 40) + 8)
+      : 184;
+    const shouldOpenUp = forceOpenDown
+      ? false
+      : (spaceBelow < desiredMenuHeight && spaceAbove > spaceBelow);
     const availableSpace = shouldOpenUp ? spaceAbove : spaceBelow;
     const calculatedMaxHeight = Math.max(120, Math.min(desiredMenuHeight, availableSpace - 8));
 
     setOpenUp(shouldOpenUp);
     setMenuMaxHeight(`${calculatedMaxHeight}px`);
-  }, [open]);
+  }, [forceOpenDown, maxVisibleOptions, open, options.length]);
 
   useEffect(() => {
     function handleOutside(event) {
@@ -75,7 +87,25 @@ function CustomSelect({
         <span>{selectedLabel}</span>
       </button>
 
-      <div className="custom-select-menu" role="listbox" hidden={!open} style={menuMaxHeight ? { maxHeight: menuMaxHeight } : undefined}>
+      <div
+        className="custom-select-menu"
+        role="listbox"
+        hidden={!open}
+        style={menuMaxHeight ? { maxHeight: menuMaxHeight } : undefined}
+        onWheel={(event) => {
+          const element = event.currentTarget;
+          const delta = Number(event.deltaY || 0);
+          const atTop = element.scrollTop <= 0;
+          const atBottom = (element.scrollTop + element.clientHeight) >= (element.scrollHeight - 1);
+          if ((delta < 0 && atTop) || (delta > 0 && atBottom)) {
+            event.preventDefault();
+          }
+          event.stopPropagation();
+        }}
+        onTouchMove={(event) => {
+          event.stopPropagation();
+        }}
+      >
         {options.map((option) => (
           <button
             key={option.value}

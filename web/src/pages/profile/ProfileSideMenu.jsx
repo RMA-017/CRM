@@ -13,6 +13,7 @@ function ProfileSideMenu({
   setAppointmentMenuOpen,
   openAppointmentPanel,
   openAppointmentSettingsPanel,
+  openAppointmentVipRecurringPanel,
   hasUsersMenuAccess,
   usersMenuOpen,
   setUsersMenuOpen,
@@ -108,6 +109,14 @@ function ProfileSideMenu({
                 onClick={openAppointmentPanel}
               >
                 Schedule
+              </button>
+              <button
+                id="openAppointmentVipRecurringBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                onClick={openAppointmentVipRecurringPanel}
+              >
+                VIP Recurring
               </button>
             </div>
           </div>

@@ -37,6 +37,7 @@ function ProfileMainContent({
   openClientsDeleteModal,
   closeAppointmentPanel,
   closeAppointmentSettingsPanel,
+  closeAppointmentVipRecurringPanel,
   closeOrganizationsPanel,
   closeRolesPanel,
   closePositionsPanel,
@@ -511,6 +512,27 @@ function ProfileMainContent({
             </button>
           </div>
           <AppointmentSettingsPanel />
+        </section>
+      )}
+
+      {mainView === "appointment-vip-recurring" && (
+        <section id="appointmentVipRecurringPanel" className="all-users-panel settings-panel">
+          <div className="all-users-head">
+            <h3>VIP Recurring</h3>
+            <button
+              id="closeAppointmentVipRecurringBtn"
+              type="button"
+              className="header-btn panel-close-btn"
+              aria-label="Close VIP recurring panel"
+              onClick={closeAppointmentVipRecurringPanel}
+            >
+              ×
+            </button>
+          </div>
+
+          <p className="all-users-state">
+            VIP recurring appointment section is ready. Next step is form/table logic for weekly recurring clients.
+          </p>
         </section>
       )}
 

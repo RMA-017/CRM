@@ -698,6 +698,14 @@ function ProfilePage({ forcedView = "none" }) {
     closePanel("appointment-settings");
   }
 
+  function openAppointmentVipRecurringPanel() {
+    openPanel("/appointments/vip-recurring", canReadAppointments);
+  }
+
+  function closeAppointmentVipRecurringPanel() {
+    closePanel("appointment-vip-recurring");
+  }
+
   function openOrganizationsPanel() {
     openPanel("/settings/organizations", hasSettingsMenuAccess);
   }
@@ -1142,6 +1150,7 @@ function ProfilePage({ forcedView = "none" }) {
           openClientsDeleteModal={openClientsDeleteModal}
           closeAppointmentPanel={closeAppointmentPanel}
           closeAppointmentSettingsPanel={closeAppointmentSettingsPanel}
+          closeAppointmentVipRecurringPanel={closeAppointmentVipRecurringPanel}
           closeOrganizationsPanel={closeOrganizationsPanel}
           closeRolesPanel={closeRolesPanel}
           closePositionsPanel={closePositionsPanel}
@@ -1299,6 +1308,7 @@ function ProfilePage({ forcedView = "none" }) {
         setAppointmentMenuOpen={setAppointmentMenuOpen}
         openAppointmentPanel={openAppointmentPanel}
         openAppointmentSettingsPanel={openAppointmentSettingsPanel}
+        openAppointmentVipRecurringPanel={openAppointmentVipRecurringPanel}
         hasUsersMenuAccess={hasUsersMenuAccess}
         usersMenuOpen={usersMenuOpen}
         setUsersMenuOpen={setUsersMenuOpen}

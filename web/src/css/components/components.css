@@ -912,7 +912,8 @@
 
 .appointment-scheduler {
   margin-top: 10px;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
 }
 
@@ -929,10 +930,32 @@
 }
 
 .appointment-toolbar-label {
-  display: inline-block;
-  margin-bottom: 8px;
-  font-size: var(--fs-small);
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 0;
+  font-size: var(--fs-base);
   color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.appointment-specialist-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.appointment-specialist-select-wrap {
+  width: min(420px, 100%);
+  flex: 1 1 auto;
+}
+
+.appointment-specialist-select-wrap .custom-select {
+  width: 100%;
+}
+
+.appointment-specialist-select-wrap .custom-select-trigger {
+  width: 100%;
+  height: 36px;
 }
 
 .appointment-specialist-list {
@@ -946,22 +969,29 @@
   border-radius: 10px;
   background: var(--surface-soft);
   color: var(--text-main);
-  min-height: 62px;
+  min-height: 76px;
   padding: 8px;
   text-align: left;
   display: grid;
-  gap: 4px;
+  gap: 3px;
   cursor: pointer;
 }
 
-.appointment-specialist-btn span {
+.appointment-specialist-btn .appointment-specialist-name {
   font-size: var(--fs-base);
   font-weight: 600;
+  line-height: 1.2;
 }
 
 .appointment-specialist-btn small {
   font-size: var(--fs-small);
   color: var(--text-muted);
+}
+
+.appointment-specialist-btn em {
+  font-style: normal;
+  font-size: 11px;
+  color: #334155;
 }
 
 .appointment-specialist-btn.is-active {
@@ -976,21 +1006,29 @@
   gap: 10px;
 }
 
+.appointment-toolbar-block.appointment-week-switcher {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.appointment-week-switcher .header-btn {
+  height: 30px;
+  min-height: 30px;
+  width: 96px;
+  min-width: 96px;
+  padding-top: 0;
+  padding-bottom: 0;
+  justify-content: center;
+}
+
 .appointment-week-range {
   margin: 0;
   font-size: var(--fs-base);
   color: var(--text-main);
   text-align: center;
-}
-
-.appointment-selected-specialist {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: var(--fs-base);
-}
-
-.appointment-selected-specialist strong {
-  color: var(--text-main);
+  line-height: 1.2;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .appointment-grid-wrap {
@@ -1004,6 +1042,7 @@
   width: 100%;
   min-width: 900px;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .appointment-grid th,
@@ -1011,7 +1050,7 @@
   border-bottom: 1px dashed var(--line);
   border-right: 1px dashed var(--line);
   vertical-align: top;
-  min-height: 62px;
+  min-height: 48px;
 }
 
 .appointment-grid th:last-child,
@@ -1022,27 +1061,47 @@
 .appointment-grid thead th {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 2;
   background: #eef3fb;
   color: #334155;
-  text-align: left;
-  padding: 8px;
+  text-align: center;
+  vertical-align: middle;
+  padding: 4px 8px;
+}
+
+.appointment-grid tbody th {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #f7faff;
 }
 
 .appointment-grid tbody th,
 .appointment-grid tbody td {
-  padding: 6px;
+  padding: 4px;
 }
 
 .appointment-time-col {
   width: 74px;
   min-width: 74px;
   max-width: 74px;
+  text-align: center;
+}
+
+.appointment-grid tbody th.appointment-time-col {
+  vertical-align: middle;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 1.15;
 }
 
 .appointment-day-head {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 2px;
+  min-height: 32px;
 }
 
 .appointment-day-head small {
@@ -1050,25 +1109,43 @@
   font-size: var(--fs-small);
 }
 
+.appointment-day-is-today {
+  background: #dbeafe !important;
+}
+
 .appointment-card {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface-soft);
-  padding: 6px;
+  padding: 4px;
   display: grid;
-  gap: 3px;
+  gap: 2px;
+  justify-items: center;
+  text-align: center;
+}
+
+.appointment-card-btn {
+  width: 100%;
+  text-align: center;
+  cursor: pointer;
 }
 
 .appointment-client {
   margin: 0;
-  font-size: var(--fs-small);
+  font-size: 10px;
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .appointment-service {
   margin: 0;
-  font-size: var(--fs-small);
+  font-size: 10px;
   color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .appointment-status {
@@ -1115,10 +1192,52 @@
 
 .appointment-free-slot {
   display: inline-flex;
-  min-height: 46px;
+  min-height: 34px;
   align-items: center;
   color: var(--text-muted);
   font-size: var(--fs-small);
+}
+
+.appointment-off-slot {
+  width: 100%;
+  min-height: 34px;
+  border: 1px dashed rgba(220, 38, 38, 0.45);
+  border-radius: 8px;
+  background: rgba(254, 226, 226, 0.7);
+  color: #b91c1c;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.appointment-add-slot {
+  width: 100%;
+  min-height: 34px;
+  border: 1px dashed #93c5fd;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.appointment-add-slot:hover {
+  background: #dbeafe;
+  border-color: #60a5fa;
+}
+
+.appointment-add-slot:focus,
+.appointment-add-slot:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 1px;
 }
 
 .appointment-settings-list {
@@ -1248,6 +1367,53 @@
 
 .appointment-settings-actions .btn {
   min-width: 110px;
+}
+
+.appointment-settings-message {
+  margin: 0;
+  width: min(680px, 100%);
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--text-main);
+  text-align: center;
+  font-size: var(--fs-small);
+  line-height: 1.25;
+}
+
+.appointment-settings-message.is-error {
+  border-color: var(--danger-border);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.appointment-settings-message.is-success {
+  border-color: rgba(37, 99, 235, 0.35);
+  background: rgba(219, 234, 254, 0.75);
+  color: #1e40af;
+}
+
+.appointment-create-modal {
+  width: min(520px, calc(100vw - 24px));
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  padding-bottom: 18px;
+  overflow: visible;
+  z-index: 56;
+}
+
+.appointment-create-modal h3 {
+  width: 100%;
+  display: block;
+  margin: 6px 0 4px;
+  text-align: center;
+}
+
+.appointment-create-modal .auth-form {
+  padding-right: 2px;
+  overflow: visible;
 }
 
 .appointment-specialist-schedule-list {

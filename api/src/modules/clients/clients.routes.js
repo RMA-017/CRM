@@ -191,6 +191,9 @@ async function clientsRoutes(fastify) {
       const pageParam = Number.parseInt(String(request.query?.page || ""), 10);
       const limitParam = Number.parseInt(String(request.query?.limit || ""), 10);
       const search = String(request.query?.q || "").trim();
+      const firstName = String(request.query?.firstName || "").trim();
+      const lastName = String(request.query?.lastName || "").trim();
+      const middleName = String(request.query?.middleName || "").trim();
       const page = Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1;
       const limit = Number.isInteger(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 20;
 
@@ -207,7 +210,10 @@ async function clientsRoutes(fastify) {
           organizationId: authContext.organizationId,
           page,
           limit,
-          search
+          search,
+          firstName,
+          lastName,
+          middleName
         });
 
         return reply.send({

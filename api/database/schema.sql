@@ -5,16 +5,10 @@ CREATE TABLE role_options (
   is_admin BOOLEAN NOT NULL DEFAULT FALSE,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   UNIQUE (label),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE position_options (
-  id SERIAL PRIMARY KEY,
-  label VARCHAR(96) NOT NULL,
-  sort_order INTEGER NOT NULL DEFAULT 0,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  UNIQUE (label),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_by INTEGER,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by INTEGER,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE permissions (
@@ -23,14 +17,32 @@ CREATE TABLE permissions (
   label VARCHAR(96) NOT NULL,
   sort_order INTEGER NOT NULL DEFAULT 0,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_by INTEGER,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by INTEGER,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE role_permissions (
   role_id INTEGER NOT NULL REFERENCES role_options(id) ON DELETE CASCADE,
   permission_id INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+  created_by INTEGER,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by INTEGER,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (role_id, permission_id)
+);
+
+CREATE TABLE position_options (
+  id SERIAL PRIMARY KEY,
+  label VARCHAR(96) NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  UNIQUE (label),
+  created_by INTEGER,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by INTEGER,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE organizations (
@@ -38,7 +50,10 @@ CREATE TABLE organizations (
   code VARCHAR(64) NOT NULL UNIQUE,
   name VARCHAR(128) NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_by INTEGER,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by INTEGER,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE users (
@@ -52,7 +67,10 @@ CREATE TABLE users (
   phone_number VARCHAR(15),
   position_id INTEGER REFERENCES position_options(id),
   role_id INTEGER NOT NULL REFERENCES role_options(id),
+  created_by INTEGER,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by INTEGER,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (organization_id, email)
 );
 
@@ -107,6 +125,8 @@ CREATE TABLE appointment_working_hours (
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   start_time TIME,
   end_time TIME,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CHECK (
@@ -119,3 +139,32 @@ CREATE TABLE appointment_working_hours (
 
 CREATE INDEX idx_appointment_working_hours_org
   ON appointment_working_hours (organization_id);
+
+CREATE TABLE appointment_schedules (
+  id SERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  specialist_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,
+  appointment_date DATE NOT NULL,
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  service_name VARCHAR(128) NOT NULL,
+  status VARCHAR(24) NOT NULL DEFAULT 'pending',
+  note VARCHAR(255),
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (start_time < end_time),
+  CHECK (status IN ('pending', 'confirmed', 'cancelled', 'no-show'))
+);
+
+CREATE INDEX idx_appointment_schedules_org_date_specialist
+  ON appointment_schedules (organization_id, appointment_date, specialist_id, start_time);
+
+CREATE INDEX idx_appointment_schedules_org_client_date
+  ON appointment_schedules (organization_id, client_id, appointment_date DESC);
+
+CREATE UNIQUE INDEX idx_appointment_schedules_active_slot_unique
+  ON appointment_schedules (organization_id, specialist_id, appointment_date, start_time)
+  WHERE status IN ('pending', 'confirmed');

@@ -105,6 +105,28 @@ export function toAppointmentDayNum(dayKey) {
   return toDayNum(dayKey);
 }
 
+export async function getAppointmentSpecialistsByOrganization(organizationId) {
+  const { rows } = await pool.query(
+    `SELECT
+       u.id::text AS id,
+       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS name,
+       COALESCE(NULLIF(TRIM(p.label), ''), NULLIF(TRIM(r.label), ''), 'Specialist') AS role
+     FROM users u
+     JOIN organizations o ON o.id = u.organization_id
+     JOIN role_options r ON r.id = u.role_id
+     LEFT JOIN position_options p ON p.id = u.position_id
+     WHERE u.organization_id = $1
+       AND o.is_active = TRUE
+       AND r.is_active = TRUE
+       AND LOWER(TRIM(r.label)) LIKE '%specialist%'
+     ORDER BY
+       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), u.id::text) ASC`,
+    [organizationId]
+  );
+
+  return rows || [];
+}
+
 export async function getAppointmentSettingsByOrganization(organizationId) {
   const [settingsResult, workingHoursResult] = await Promise.all([
     pool.query(
@@ -207,19 +229,23 @@ export async function saveAppointmentSettings({
            day_of_week,
            is_active,
            start_time,
-           end_time
-         ) VALUES ($1,$2,$3,$4::time,$5::time)
+           end_time,
+           created_by,
+           updated_by
+         ) VALUES ($1,$2,$3,$4::time,$5::time,$6,$6)
          ON CONFLICT (organization_id, day_of_week) DO UPDATE SET
-           is_active = EXCLUDED.is_active,
-           start_time = EXCLUDED.start_time,
-           end_time = EXCLUDED.end_time,
-           updated_at = CURRENT_TIMESTAMP`,
+            is_active = EXCLUDED.is_active,
+            start_time = EXCLUDED.start_time,
+            end_time = EXCLUDED.end_time,
+            updated_by = EXCLUDED.updated_by,
+            updated_at = CURRENT_TIMESTAMP`,
         [
           organizationId,
           dayNum,
           isActive,
           isActive ? startTime : null,
-          isActive ? endTime : null
+          isActive ? endTime : null,
+          actorUserId
         ]
       );
     }
