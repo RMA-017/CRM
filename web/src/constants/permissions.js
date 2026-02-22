@@ -9,5 +9,8 @@ export const PERMISSIONS = Object.freeze({
   CLIENTS_CREATE: "clients.create",
   CLIENTS_UPDATE: "clients.update",
   CLIENTS_DELETE: "clients.delete",
-  APPOINTMENTS_READ: "appointments.read"
+  APPOINTMENTS_READ: "appointments.read",
+  APPOINTMENTS_CREATE: "appointments.create",
+  APPOINTMENTS_UPDATE: "appointments.update",
+  APPOINTMENTS_DELETE: "appointments.delete"
 });

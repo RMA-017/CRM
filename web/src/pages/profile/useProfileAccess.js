@@ -22,7 +22,11 @@ export function useProfileAccess(profile, forcedView) {
   const canUpdateClients = permissionSet.has(PERMISSIONS.CLIENTS_UPDATE);
   const canDeleteClients = permissionSet.has(PERMISSIONS.CLIENTS_DELETE);
   const canReadAppointments = permissionSet.has(PERMISSIONS.APPOINTMENTS_READ);
+  const canCreateAppointments = permissionSet.has(PERMISSIONS.APPOINTMENTS_CREATE);
+  const canUpdateAppointments = permissionSet.has(PERMISSIONS.APPOINTMENTS_UPDATE);
+  const canDeleteAppointments = permissionSet.has(PERMISSIONS.APPOINTMENTS_DELETE);
   const hasClientsMenuAccess = canReadClients || canCreateClients;
+  const hasAppointmentsMenuAccess = canReadAppointments;
   const hasUsersMenuAccess = canReadUsers || canCreateUsers;
   const hasSettingsMenuAccess = Boolean(profile?.isAdmin);
 
@@ -78,6 +82,10 @@ export function useProfileAccess(profile, forcedView) {
     canDeleteClients,
     hasClientsMenuAccess,
     canReadAppointments,
+    canCreateAppointments,
+    canUpdateAppointments,
+    canDeleteAppointments,
+    hasAppointmentsMenuAccess,
     hasUsersMenuAccess,
     hasSettingsMenuAccess,
     canAccessForcedView

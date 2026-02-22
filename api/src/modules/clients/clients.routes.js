@@ -9,6 +9,7 @@ import {
   deleteClientById,
   findClientsRequester,
   getClientsPage,
+  searchClientsForSchedule,
   updateClientById
 } from "./clients.service.js";
 
@@ -175,6 +176,57 @@ function validateClientPayload({ firstName, lastName, middleName, birthday, phon
 }
 
 async function clientsRoutes(fastify) {
+  fastify.get(
+    "/search",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+
+      const authContext = getAuthContext(request, reply);
+      if (!authContext) {
+        return;
+      }
+
+      const firstName = String(request.query?.firstName || "").trim();
+      const lastName = String(request.query?.lastName || "").trim();
+      const middleName = String(request.query?.middleName || "").trim();
+      const limitParam = Number.parseInt(String(request.query?.limit || ""), 10);
+      const limit = Number.isInteger(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 50;
+
+      const combinedLength = `${firstName}${lastName}${middleName}`.length;
+      if (combinedLength < 3) {
+        return reply.send({ items: [] });
+      }
+
+      try {
+        const requester = await findClientsRequester(authContext);
+        if (!requester) {
+          return reply.status(401).send({ message: "Unauthorized." });
+        }
+        if (!(await hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ))) {
+          return reply.status(404).send({ message: "Not found." });
+        }
+
+        const rows = await searchClientsForSchedule({
+          organizationId: authContext.organizationId,
+          firstName,
+          lastName,
+          middleName,
+          limit
+        });
+
+        return reply.send({
+          items: rows.map(mapClient)
+        });
+      } catch (error) {
+        console.error("Error searching clients:", error);
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
   fastify.get(
     "/",
     {

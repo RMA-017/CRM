@@ -14,6 +14,10 @@ export async function findClientsRequester({ userId, organizationId }) {
   return rows[0] || null;
 }
 
+function normalizeSearchToken(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
 export async function getClientsPage({
   organizationId,
   page,
@@ -116,6 +120,55 @@ export async function getClientsPage({
     page: safePage,
     rows: rowsResult.rows
   };
+}
+
+export async function searchClientsForSchedule({
+  organizationId,
+  firstName = "",
+  lastName = "",
+  middleName = "",
+  limit = 50
+}) {
+  const normalizedFirstName = normalizeSearchToken(firstName);
+  const normalizedLastName = normalizeSearchToken(lastName);
+  const normalizedMiddleName = normalizeSearchToken(middleName);
+  const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 50;
+
+  const { rows } = await pool.query(
+    `SELECT
+       c.id::text AS id,
+       c.organization_id::text AS organization_id,
+       c.first_name,
+       c.last_name,
+       c.middle_name,
+       c.birthday,
+       c.phone_number,
+       c.tg_mail,
+       c.is_vip,
+       c.note
+      FROM clients c
+      JOIN organizations o ON o.id = c.organization_id
+     WHERE c.organization_id = $1
+       AND o.is_active = TRUE
+       AND ($2 = '' OR LOWER(c.first_name) LIKE $2 || '%')
+       AND ($3 = '' OR LOWER(c.last_name) LIKE $3 || '%')
+       AND ($4 = '' OR (c.middle_name IS NOT NULL AND LOWER(c.middle_name) LIKE $4 || '%'))
+     ORDER BY
+       LOWER(c.last_name) ASC,
+       LOWER(c.first_name) ASC,
+       LOWER(COALESCE(c.middle_name, '')) ASC,
+       c.id ASC
+     LIMIT $5`,
+    [
+      organizationId,
+      normalizedFirstName,
+      normalizedLastName,
+      normalizedMiddleName,
+      safeLimit
+    ]
+  );
+
+  return rows || [];
 }
 
 export async function createClient({

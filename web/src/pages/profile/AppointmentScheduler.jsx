@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import CustomSelect from "../../components/CustomSelect.jsx";
 import { apiFetch } from "../../lib/api.js";
 
@@ -27,21 +27,35 @@ const STATUS_OPTIONS = [
 ];
 
 const SAMPLE_APPOINTMENTS = {};
+const DAY_KEYS_SET = new Set(DAY_ITEMS.map((item) => item.key));
+const MAX_REPEAT_RANGE_DAYS = 366;
 
-function createEmptyClientForm() {
+function createEmptyClientForm({
+  appointmentDate = "",
+  startTime = "",
+  repeatEnabled = false,
+  repeatUntil = "",
+  repeatDays = []
+} = {}) {
   return {
     clientId: "",
+    appointmentDate,
+    startTime,
     service: "",
     status: "pending",
-    note: ""
+    note: "",
+    repeatEnabled: Boolean(repeatEnabled),
+    repeatUntil: String(repeatUntil || "").trim(),
+    repeatDays: Array.isArray(repeatDays)
+      ? Array.from(new Set(repeatDays.map((day) => String(day || "").trim().toLowerCase()).filter((day) => DAY_KEYS_SET.has(day))))
+      : []
   };
 }
 
 function createEmptyClientSearchForm() {
   return {
     firstName: "",
-    lastName: "",
-    middleName: ""
+    lastName: ""
   };
 }
 
@@ -87,6 +101,52 @@ function addDays(date, days) {
 
 function formatHeaderDate(date) {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function formatDateYmd(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return "";
+  }
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function isValidDateYmd(value) {
+  const raw = String(value || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return false;
+  }
+  const [yearRaw, monthRaw, dayRaw] = raw.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+  const date = new Date(year, month - 1, day);
+  return (
+    !Number.isNaN(date.getTime())
+    && date.getFullYear() === year
+    && date.getMonth() === month - 1
+    && date.getDate() === day
+  );
+}
+
+function getDayKeyFromDateYmd(value) {
+  const raw = String(value || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return "";
+  }
+  const [yearRaw, monthRaw, dayRaw] = raw.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+  const date = new Date(year, month - 1, day);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const map = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+  return map[date.getDay()] || "";
 }
 
 function formatWeekRange(days) {
@@ -195,12 +255,17 @@ function buildTimeSlots({ visibleDays, workingHours, slotIntervalMinutes }) {
   return slots;
 }
 
-function AppointmentScheduler() {
+function AppointmentScheduler({
+  canCreateAppointments = true,
+  canUpdateAppointments = true,
+  canDeleteAppointments = true
+}) {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [weekOffset, setWeekOffset] = useState(0);
   const [specialists, setSpecialists] = useState([]);
   const [selectedSpecialistId, setSelectedSpecialistId] = useState("");
+  const [specialistSelectError, setSpecialistSelectError] = useState(false);
   const [appointmentsBySpecialist, setAppointmentsBySpecialist] = useState(() => ({}));
   const [createModal, setCreateModal] = useState({
     open: false,
@@ -215,11 +280,14 @@ function AppointmentScheduler() {
   const [createForm, setCreateForm] = useState(createEmptyClientForm);
   const [createErrors, setCreateErrors] = useState({});
   const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [createDeleting, setCreateDeleting] = useState(false);
   const [clientSearch, setClientSearch] = useState(createEmptyClientSearchForm);
   const [clientSearchLoading, setClientSearchLoading] = useState(false);
   const [clientSearchMessage, setClientSearchMessage] = useState("");
   const [clientOptions, setClientOptions] = useState([]);
   const [clientMap, setClientMap] = useState({});
+  const [clientNoShowSummary, setClientNoShowSummary] = useState(null);
+  const [clientNoShowLoading, setClientNoShowLoading] = useState(false);
   const [settings, setSettings] = useState({
     slotInterval: "30",
     visibleWeekDays: ["mon", "tue", "wed", "thu", "fri", "sat"],
@@ -337,12 +405,52 @@ function AppointmentScheduler() {
   ), [settings.slotInterval, settings.workingHours, weekDays]);
 
   const appointmentsByDay = appointmentsBySpecialist[selectedSpecialistId] || SAMPLE_APPOINTMENTS;
+  const slotMinutesByValue = useMemo(() => (
+    timeSlots.reduce((acc, slot) => {
+      acc[slot] = normalizeTimeToMinutes(slot);
+      return acc;
+    }, {})
+  ), [timeSlots]);
+  const workingHoursMinutesByDay = useMemo(() => (
+    DAY_ITEMS.reduce((acc, day) => {
+      const dayHours = settings.workingHours?.[day.key] || {};
+      acc[day.key] = {
+        start: normalizeTimeToMinutes(dayHours.start),
+        end: normalizeTimeToMinutes(dayHours.end)
+      };
+      return acc;
+    }, {})
+  ), [settings.workingHours]);
+  const appointmentLookupByDay = useMemo(() => (
+    weekDays.reduce((acc, day) => {
+      const dayItems = Array.isArray(appointmentsByDay[day.key]) ? appointmentsByDay[day.key] : [];
+      const byTime = {};
+      dayItems.forEach((event) => {
+        const time = String(event?.time || "").trim();
+        if (time && !byTime[time]) {
+          byTime[time] = event;
+        }
+      });
+      acc[day.key] = byTime;
+      return acc;
+    }, {})
+  ), [appointmentsByDay, weekDays]);
   const specialistOptions = useMemo(() => (
     specialists.map((specialist) => ({
       value: specialist.id,
       label: `${specialist.name} (${specialist.role})`
     }))
   ), [specialists]);
+  const visibleRepeatDayKeys = useMemo(
+    () => normalizeVisibleDays(settings.visibleWeekDays),
+    [settings.visibleWeekDays]
+  );
+  const visibleRepeatDayItems = useMemo(
+    () => DAY_ITEMS.filter((day) => visibleRepeatDayKeys.includes(day.key)),
+    [visibleRepeatDayKeys]
+  );
+  const clientSelectNotFound = clientSearchMessage === "No clients found.";
+  const clientSelectHasError = Boolean(createErrors.clientId) || clientSelectNotFound;
   const selectedClient = createForm.clientId ? (clientMap[createForm.clientId] || null) : null;
   const clientSelectOptions = useMemo(() => {
     const currentId = String(createForm.clientId || "").trim();
@@ -357,7 +465,94 @@ function AppointmentScheduler() {
       ...clientOptions
     ];
   }, [clientOptions, createForm.clientId, selectedClient]);
+  const timeSelectOptions = useMemo(() => (
+    timeSlots.map((slot) => ({ value: slot, label: slot }))
+  ), [timeSlots]);
   const now = new Date();
+
+  const loadSchedulesForCurrentWeek = useCallback(async () => {
+    if (!selectedSpecialistId || weekDays.length === 0) {
+      return;
+    }
+
+    const dateFrom = formatDateYmd(weekDays[0].date);
+    const dateTo = formatDateYmd(weekDays[weekDays.length - 1].date);
+    if (!dateFrom || !dateTo) {
+      return;
+    }
+
+    try {
+      const queryParams = new URLSearchParams({
+        specialistId: selectedSpecialistId,
+        dateFrom,
+        dateTo
+      });
+
+      const response = await apiFetch(`/api/appointments/schedules?${queryParams.toString()}`, {
+        method: "GET",
+        cache: "no-store"
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setMessage(data?.message || "Failed to load appointments.");
+        setAppointmentsBySpecialist((prev) => ({
+          ...prev,
+          [selectedSpecialistId]: {}
+        }));
+        return;
+      }
+
+      const byDay = weekDays.reduce((acc, day) => {
+        acc[day.key] = [];
+        return acc;
+      }, {});
+
+      const items = Array.isArray(data?.items) ? data.items : [];
+      items.forEach((item) => {
+        const dayKey = getDayKeyFromDateYmd(item?.appointmentDate);
+        if (!dayKey || !Array.isArray(byDay[dayKey])) {
+          return;
+        }
+
+        const startTime = String(item?.startTime || "").trim();
+        if (!startTime) {
+          return;
+        }
+
+        const nextCard = {
+          id: String(item?.id || ""),
+          clientId: String(item?.clientId || ""),
+          time: startTime,
+          client: getClientCardName({
+            id: item?.clientId,
+            firstName: item?.clientFirstName,
+            lastName: item?.clientLastName
+          }),
+          service: String(item?.serviceName || "").trim(),
+          status: String(item?.status || "pending").trim().toLowerCase(),
+          note: String(item?.note || "").trim()
+        };
+
+        byDay[dayKey].push(nextCard);
+      });
+
+      Object.keys(byDay).forEach((dayKey) => {
+        byDay[dayKey].sort((left, right) => String(left.time || "").localeCompare(String(right.time || "")));
+      });
+
+      setAppointmentsBySpecialist((prev) => ({
+        ...prev,
+        [selectedSpecialistId]: byDay
+      }));
+    } catch {
+      setMessage("Failed to load appointments.");
+    }
+  }, [selectedSpecialistId, weekDays]);
+
+  useEffect(() => {
+    loadSchedulesForCurrentWeek();
+  }, [loadSchedulesForCurrentWeek]);
 
   function closeCreateModal() {
     setCreateModal({
@@ -373,17 +568,36 @@ function AppointmentScheduler() {
     setCreateForm(createEmptyClientForm());
     setCreateErrors({});
     setCreateSubmitting(false);
+    setCreateDeleting(false);
     setClientSearch(createEmptyClientSearchForm());
     setClientSearchLoading(false);
     setClientSearchMessage("");
     setClientOptions([]);
+    setClientNoShowSummary(null);
+    setClientNoShowLoading(false);
   }
 
   function openCreateModal(day, slot, existingItem = null) {
-    if (!selectedSpecialistId) {
+    const isEditMode = Boolean(existingItem);
+    if (isEditMode) {
+      if (!canUpdateAppointments && !canDeleteAppointments) {
+        setMessage("You do not have permission to edit appointments.");
+        return;
+      }
+    } else if (!canCreateAppointments) {
+      setMessage("You do not have permission to create appointments.");
       return;
     }
+
+    if (!selectedSpecialistId) {
+      setSpecialistSelectError(true);
+      return;
+    }
+    setSpecialistSelectError(false);
     setMessage("");
+    const appointmentDate = formatDateYmd(day.date);
+    const startTime = String(slot || "").trim();
+
     setCreateModal({
       open: true,
       mode: existingItem ? "edit" : "create",
@@ -394,15 +608,27 @@ function AppointmentScheduler() {
       date: day.date,
       time: slot
     });
+    const defaultRepeatDays = day?.key ? [String(day.key).trim().toLowerCase()] : [];
     if (existingItem) {
       setCreateForm({
         clientId: String(existingItem?.clientId || ""),
+        appointmentDate,
+        startTime,
         service: String(existingItem?.service || ""),
         status: String(existingItem?.status || "pending"),
-        note: String(existingItem?.note || "")
+        note: String(existingItem?.note || ""),
+        repeatEnabled: false,
+        repeatUntil: appointmentDate,
+        repeatDays: defaultRepeatDays
       });
     } else {
-      setCreateForm(createEmptyClientForm());
+      setCreateForm(createEmptyClientForm({
+        appointmentDate,
+        startTime,
+        repeatEnabled: false,
+        repeatUntil: appointmentDate,
+        repeatDays: defaultRepeatDays
+      }));
     }
     setCreateErrors({});
   }
@@ -413,8 +639,7 @@ function AppointmentScheduler() {
     }
     const trimmedFirstName = String(clientSearch.firstName || "").trim();
     const trimmedLastName = String(clientSearch.lastName || "").trim();
-    const trimmedMiddleName = String(clientSearch.middleName || "").trim();
-    const combinedLength = `${trimmedFirstName}${trimmedLastName}${trimmedMiddleName}`.length;
+    const combinedLength = `${trimmedFirstName}${trimmedLastName}`.length;
     if (combinedLength === 0) {
       setClientSearchLoading(false);
       setClientSearchMessage("");
@@ -435,8 +660,7 @@ function AppointmentScheduler() {
         setClientSearchMessage("");
 
         const queryParams = new URLSearchParams({
-          page: "1",
-          limit: "100"
+          limit: "50"
         });
         if (trimmedFirstName) {
           queryParams.set("firstName", trimmedFirstName);
@@ -444,11 +668,8 @@ function AppointmentScheduler() {
         if (trimmedLastName) {
           queryParams.set("lastName", trimmedLastName);
         }
-        if (trimmedMiddleName) {
-          queryParams.set("middleName", trimmedMiddleName);
-        }
 
-        const response = await apiFetch(`/api/clients?${queryParams.toString()}`, {
+        const response = await apiFetch(`/api/clients/search?${queryParams.toString()}`, {
           method: "GET",
           cache: "no-store"
         });
@@ -510,22 +731,160 @@ function AppointmentScheduler() {
       active = false;
       window.clearTimeout(timerId);
     };
-  }, [clientSearch.firstName, clientSearch.lastName, clientSearch.middleName, createModal.open]);
+  }, [clientSearch.firstName, clientSearch.lastName, createModal.open]);
 
-  function validateCreateForm(value) {
+  useEffect(() => {
+    if (!createModal.open) {
+      setClientNoShowSummary(null);
+      setClientNoShowLoading(false);
+      return;
+    }
+
+    const clientId = String(createForm.clientId || "").trim();
+    if (!clientId) {
+      setClientNoShowSummary(null);
+      setClientNoShowLoading(false);
+      return;
+    }
+
+    let active = true;
+    const timerId = window.setTimeout(async () => {
+      try {
+        setClientNoShowLoading(true);
+        const query = new URLSearchParams({ clientId }).toString();
+        const response = await apiFetch(`/api/appointments/client-no-show-summary?${query}`, {
+          method: "GET",
+          cache: "no-store"
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!active) {
+          return;
+        }
+        if (!response.ok) {
+          setClientNoShowSummary(null);
+          return;
+        }
+        const item = data?.item;
+        if (!item || typeof item !== "object") {
+          setClientNoShowSummary(null);
+          return;
+        }
+
+        const noShowCount = Number.parseInt(String(item.noShowCount), 10);
+        const noShowThreshold = Number.parseInt(String(item.noShowThreshold), 10);
+        setClientNoShowSummary({
+          noShowCount: Number.isInteger(noShowCount) && noShowCount >= 0 ? noShowCount : 0,
+          noShowThreshold: Number.isInteger(noShowThreshold) && noShowThreshold > 0 ? noShowThreshold : 1,
+          isAtRisk: Boolean(item.isAtRisk)
+        });
+      } catch {
+        if (active) {
+          setClientNoShowSummary(null);
+        }
+      } finally {
+        if (active) {
+          setClientNoShowLoading(false);
+        }
+      }
+    }, 150);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timerId);
+    };
+  }, [createForm.clientId, createModal.open]);
+
+  useEffect(() => {
+    if (!createModal.open || createModal.mode === "edit") {
+      return;
+    }
+    if (!Array.isArray(visibleRepeatDayKeys) || visibleRepeatDayKeys.length === 0) {
+      return;
+    }
+
+    setCreateForm((prev) => {
+      const currentDays = Array.isArray(prev.repeatDays)
+        ? prev.repeatDays
+            .map((day) => String(day || "").trim().toLowerCase())
+            .filter((day) => DAY_KEYS_SET.has(day))
+        : [];
+      let nextDays = visibleRepeatDayKeys.filter((day) => currentDays.includes(day));
+
+      if (prev.repeatEnabled && nextDays.length === 0) {
+        const appointmentDay = getDayKeyFromDateYmd(prev.appointmentDate);
+        const preferredDay = (appointmentDay && visibleRepeatDayKeys.includes(appointmentDay))
+          ? appointmentDay
+          : visibleRepeatDayKeys[0];
+        nextDays = preferredDay ? [preferredDay] : [];
+      }
+
+      const isSame = (
+        nextDays.length === currentDays.length
+        && nextDays.every((day, index) => day === currentDays[index])
+      );
+      if (isSame) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        repeatDays: nextDays
+      };
+    });
+  }, [createForm.appointmentDate, createForm.repeatEnabled, createModal.mode, createModal.open, visibleRepeatDayKeys]);
+
+  function validateCreateForm(value, { isEditMode = false } = {}) {
     const errors = {};
+    const visibleRepeatDayKeySet = new Set(visibleRepeatDayKeys);
     const clientId = String(value.clientId || "").trim();
+    const appointmentDate = String(value.appointmentDate || "").trim();
+    const startTime = String(value.startTime || "").trim();
     const service = String(value.service || "").trim();
     const note = String(value.note || "").trim();
+    const repeatEnabled = Boolean(value.repeatEnabled);
+    const repeatUntil = String(value.repeatUntil || "").trim();
+    const repeatDays = Array.isArray(value.repeatDays)
+      ? Array.from(
+          new Set(
+            value.repeatDays
+              .map((day) => String(day || "").trim().toLowerCase())
+              .filter((day) => visibleRepeatDayKeySet.has(day))
+          )
+        )
+      : [];
 
     if (!clientId) {
       errors.clientId = "Client is required.";
+    }
+    if (!isValidDateYmd(appointmentDate)) {
+      errors.appointmentDate = "Invalid appointment date.";
+    }
+    if (normalizeTimeToMinutes(startTime) === null) {
+      errors.startTime = "Invalid start time.";
     }
     if (!service) {
       errors.service = "Service is required.";
     }
     if (note.length > 255) {
       errors.note = "Note is too long.";
+    }
+    if (!isEditMode && repeatEnabled) {
+      if (!isValidDateYmd(repeatUntil)) {
+        errors.repeatUntil = "Invalid repeat end date.";
+      } else if (isValidDateYmd(appointmentDate) && repeatUntil < appointmentDate) {
+        errors.repeatUntil = "Repeat end date must be on or after appointment date.";
+      } else if (isValidDateYmd(appointmentDate)) {
+        const start = new Date(`${appointmentDate}T00:00:00`);
+        const end = new Date(`${repeatUntil}T00:00:00`);
+        const days = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+        if (days > MAX_REPEAT_RANGE_DAYS) {
+          errors.repeatUntil = "Repeat range is too long (max 366 days).";
+        }
+      }
+
+      if (repeatDays.length === 0) {
+        errors.repeatDays = "Select at least one week day.";
+      }
     }
 
     return errors;
@@ -537,28 +896,49 @@ function AppointmentScheduler() {
     if (!createModal.open) {
       return;
     }
+    const isEditMode = createModal.mode === "edit";
+    if (!isEditMode && !canCreateAppointments) {
+      setCreateErrors({ form: "You do not have permission to create appointments." });
+      return;
+    }
+    if (isEditMode && !canUpdateAppointments) {
+      setCreateErrors({ form: "You do not have permission to update appointments." });
+      return;
+    }
 
     try {
       setCreateSubmitting(true);
       setCreateErrors({});
+      const visibleRepeatDayKeySet = new Set(visibleRepeatDayKeys);
 
       const nextPayload = {
         clientId: String(createForm.clientId || "").trim(),
+        appointmentDate: String(createForm.appointmentDate || "").trim(),
+        startTime: String(createForm.startTime || "").trim(),
         service: String(createForm.service || "").trim(),
         status: String(createForm.status || "pending").trim().toLowerCase(),
-        note: String(createForm.note || "").trim()
+        note: String(createForm.note || "").trim(),
+        repeatEnabled: Boolean(createForm.repeatEnabled),
+        repeatUntil: String(createForm.repeatUntil || "").trim(),
+        repeatDays: Array.isArray(createForm.repeatDays)
+          ? Array.from(
+              new Set(
+                createForm.repeatDays
+                  .map((day) => String(day || "").trim().toLowerCase())
+                  .filter((day) => visibleRepeatDayKeySet.has(day))
+              )
+            )
+          : []
       };
 
-      const errors = validateCreateForm(nextPayload);
+      const errors = validateCreateForm(nextPayload, { isEditMode });
       if (Object.keys(errors).length > 0) {
         setCreateErrors(errors);
         return;
       }
 
       const specialistId = String(createModal.specialistId || "");
-      const dayKey = String(createModal.dayKey || "");
-      const time = String(createModal.time || "");
-      if (!specialistId || !dayKey || !time) {
+      if (!specialistId) {
         setCreateErrors({ form: "Invalid slot. Please try again." });
         return;
       }
@@ -567,60 +947,136 @@ function AppointmentScheduler() {
         return;
       }
 
-      const existingItems = appointmentsBySpecialist[specialistId]?.[dayKey] || [];
-      const isEditMode = createModal.mode === "edit";
-      const editingId = String(createModal.appointmentId || "");
-      const hasSlotConflict = existingItems.some((item) => {
-        const sameTime = String(item.time || "") === time;
-        if (!sameTime) {
-          return false;
-        }
-        if (!isEditMode) {
-          return true;
-        }
-        return String(item.id || "") !== editingId;
+      const appointmentDate = nextPayload.appointmentDate;
+      const startTime = nextPayload.startTime;
+      const startMinutes = normalizeTimeToMinutes(startTime);
+      if (!appointmentDate || startMinutes === null) {
+        setCreateErrors({ form: "Invalid slot. Please try again." });
+        return;
+      }
+      const slotIntervalMinutes = Number.parseInt(String(settings.slotInterval), 10);
+      const safeSlotIntervalMinutes = Number.isInteger(slotIntervalMinutes) && slotIntervalMinutes > 0
+        ? slotIntervalMinutes
+        : 30;
+      const endTime = minutesToTime(startMinutes + safeSlotIntervalMinutes);
+
+      const requestPayload = {
+        specialistId,
+        clientId: nextPayload.clientId,
+        appointmentDate,
+        startTime,
+        endTime,
+        service: nextPayload.service,
+        status: nextPayload.status,
+        note: nextPayload.note
+      };
+      if (!isEditMode && nextPayload.repeatEnabled) {
+        requestPayload.repeat = {
+          enabled: true,
+          type: "weekly",
+          untilDate: nextPayload.repeatUntil,
+          dayKeys: nextPayload.repeatDays,
+          skipConflicts: true
+        };
+      }
+
+      const requestUrl = isEditMode
+        ? `/api/appointments/schedules/${encodeURIComponent(String(createModal.appointmentId || ""))}`
+        : "/api/appointments/schedules";
+      const requestMethod = isEditMode ? "PATCH" : "POST";
+
+      const response = await apiFetch(requestUrl, {
+        method: requestMethod,
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(requestPayload)
       });
-      if (hasSlotConflict) {
-        setCreateErrors({ form: "This slot is already occupied." });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        if (data?.errors && typeof data.errors === "object") {
+          setCreateErrors(data.errors);
+        } else if (data?.field) {
+          setCreateErrors({ [data.field]: data.message || "Invalid value." });
+        } else {
+          setCreateErrors({ form: data?.message || "Failed to save appointment." });
+        }
         return;
       }
 
-      setAppointmentsBySpecialist((prev) => {
-        const specialistItems = { ...(prev[specialistId] || {}) };
-        const dayItems = Array.isArray(specialistItems[dayKey]) ? [...specialistItems[dayKey]] : [];
-        const client = clientMap[nextPayload.clientId];
-        const fullName = client ? getClientCardName(client) : `Client #${nextPayload.clientId}`;
-        const nextItem = {
-          id: String(createModal.appointmentId || `local_${Date.now()}`),
-          clientId: nextPayload.clientId,
-          time,
-          client: fullName,
-          service: nextPayload.service,
-          status: nextPayload.status,
-          note: nextPayload.note
-        };
-
-        const existingIndex = dayItems.findIndex((item) => (
-          String(item.id || "") === String(createModal.appointmentId || "")
-        ));
-        if (existingIndex >= 0) {
-          dayItems[existingIndex] = nextItem;
-        } else {
-          dayItems.push(nextItem);
-        }
-        dayItems.sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
-        specialistItems[dayKey] = dayItems;
-
-        return {
-          ...prev,
-          [specialistId]: specialistItems
-        };
-      });
-
-      setMessage(createModal.mode === "edit" ? "Appointment updated." : "Client added to schedule.");
+      await loadSchedulesForCurrentWeek();
+      setMessage(String(data?.message || (createModal.mode === "edit" ? "Appointment updated." : "Client added to schedule.")));
       closeCreateModal();
     } finally {
       setCreateSubmitting(false);
+    }
+  }
+
+  async function handleDeleteAppointment() {
+    if (!createModal.open || createModal.mode !== "edit") {
+      return;
+    }
+    if (!canDeleteAppointments) {
+      setCreateErrors({ form: "You do not have permission to delete appointments." });
+      return;
+    }
+
+    const appointmentId = String(createModal.appointmentId || "").trim();
+    if (!appointmentId) {
+      setCreateErrors({ form: "Invalid appointment id." });
+      return;
+    }
+
+    try {
+      setCreateDeleting(true);
+      setCreateErrors({});
+
+      const response = await apiFetch(`/api/appointments/schedules/${encodeURIComponent(appointmentId)}`, {
+        method: "DELETE"
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setCreateErrors({ form: data?.message || "Failed to delete appointment." });
+        return;
+      }
+
+      await loadSchedulesForCurrentWeek();
+      setMessage("Appointment deleted.");
+      closeCreateModal();
+    } catch {
+      setCreateErrors({ form: "Failed to delete appointment." });
+    } finally {
+      setCreateDeleting(false);
+    }
+  }
+
+  function toggleRepeatDay(dayKey) {
+    const normalizedDayKey = String(dayKey || "").trim().toLowerCase();
+    if (!visibleRepeatDayKeys.includes(normalizedDayKey)) {
+      return;
+    }
+
+    setCreateForm((prev) => {
+      const currentDays = Array.isArray(prev.repeatDays)
+        ? prev.repeatDays.map((day) => String(day || "").trim().toLowerCase()).filter((day) => DAY_KEYS_SET.has(day))
+        : [];
+      const daySet = new Set(currentDays);
+      if (daySet.has(normalizedDayKey)) {
+        daySet.delete(normalizedDayKey);
+      } else {
+        daySet.add(normalizedDayKey);
+      }
+
+      return {
+        ...prev,
+        repeatDays: visibleRepeatDayKeys.filter((key) => daySet.has(key))
+      };
+    });
+
+    if (createErrors.repeatDays) {
+      setCreateErrors((prev) => ({ ...prev, repeatDays: "" }));
     }
   }
 
@@ -640,6 +1096,13 @@ function AppointmentScheduler() {
       window.removeEventListener("keydown", handleEscape);
     };
   }, [createModal.open]);
+
+  const showNoShowWarning = Boolean(
+    createForm.clientId
+    && !clientNoShowLoading
+    && clientNoShowSummary
+    && clientNoShowSummary.noShowCount >= clientNoShowSummary.noShowThreshold
+  );
 
   useEffect(() => {
     if (!createModal.open) {
@@ -666,7 +1129,13 @@ function AppointmentScheduler() {
                 placeholder={loading ? "Loading specialists..." : "Select specialist"}
                 value={selectedSpecialistId}
                 options={specialistOptions}
-                onChange={(nextValue) => setSelectedSpecialistId(nextValue)}
+                error={specialistSelectError}
+                onChange={(nextValue) => {
+                  setSelectedSpecialistId(nextValue);
+                  if (specialistSelectError) {
+                    setSpecialistSelectError(false);
+                  }
+                }}
               />
             </div>
           </div>
@@ -687,118 +1156,138 @@ function AppointmentScheduler() {
         {message}
       </p>
 
-      <div className="appointment-grid-wrap">
-        <table className="appointment-grid" aria-label="Appointment week table">
-          <thead>
-            <tr>
-              <th className="appointment-time-col">Time</th>
-              {weekDays.map((day) => (
-                <th key={day.key} className={isSameDate(day.date, now) ? "appointment-day-is-today" : ""}>
-                  <div className="appointment-day-head">
-                    <span>{day.label}</span>
-                    <small>{formatHeaderDate(day.date)}</small>
-                  </div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {timeSlots.map((slot) => (
-              <tr key={slot}>
-                <th className="appointment-time-col" scope="row">{slot}</th>
-                {weekDays.map((day) => {
-                  const dayHours = settings.workingHours?.[day.key] || {};
-                  const slotMinutes = normalizeTimeToMinutes(slot);
-                  const startMinutes = normalizeTimeToMinutes(dayHours.start);
-                  const endMinutes = normalizeTimeToMinutes(dayHours.end);
-                  const isInsideWorkingHours = (
-                    slotMinutes !== null
-                    && startMinutes !== null
-                    && endMinutes !== null
-                    && slotMinutes >= startMinutes
-                    && slotMinutes < endMinutes
-                  );
-                  const item = (appointmentsByDay[day.key] || []).find((event) => event.time === slot);
-
-                  return (
-                    <td key={`${day.key}-${slot}`}>
-                      {!isInsideWorkingHours ? (
-                        <span className="appointment-off-slot">o</span>
-                      ) : item ? (
-                        <button
-                          type="button"
-                          className={`appointment-card appointment-card-btn appointment-status-${item.status}`}
-                          onClick={() => openCreateModal(day, slot, item)}
-                          aria-label={`Edit appointment on ${day.label} at ${slot}`}
-                        >
-                          <p className="appointment-client">{item.client}</p>
-                          <p className="appointment-service">{item.service}</p>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="appointment-add-slot"
-                          aria-label={`Add appointment on ${day.label} at ${slot}`}
-                          onClick={() => openCreateModal(day, slot)}
-                        >
-                          +
-                        </button>
-                      )}
-                    </td>
-                  );
-                })}
+      {loading ? (
+        <p className="all-users-state">
+          Loading scheduler...
+        </p>
+      ) : (
+        <div className="appointment-grid-wrap">
+          <table className="appointment-grid" aria-label="Appointment week table">
+            <thead>
+              <tr>
+                <th className="appointment-time-col">Time</th>
+                {weekDays.map((day) => (
+                  <th key={day.key} className={isSameDate(day.date, now) ? "appointment-day-is-today" : ""}>
+                    <div className="appointment-day-head">
+                      <span>{day.label}</span>
+                      <small>{formatHeaderDate(day.date)}</small>
+                    </div>
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {timeSlots.map((slot) => {
+                const slotMinutes = slotMinutesByValue[slot];
+
+                return (
+                  <tr key={slot}>
+                    <th className="appointment-time-col" scope="row">{slot}</th>
+                    {weekDays.map((day) => {
+                      const dayMinutes = workingHoursMinutesByDay[day.key] || { start: null, end: null };
+                      const isInsideWorkingHours = (
+                        slotMinutes !== null
+                        && dayMinutes.start !== null
+                        && dayMinutes.end !== null
+                        && slotMinutes >= dayMinutes.start
+                        && slotMinutes < dayMinutes.end
+                      );
+                      const item = appointmentLookupByDay[day.key]?.[slot] || null;
+
+                      return (
+                        <td key={`${day.key}-${slot}`}>
+                          {!isInsideWorkingHours ? (
+                            <span className="appointment-off-slot">o</span>
+                          ) : item ? (
+                            (canUpdateAppointments || canDeleteAppointments) ? (
+                              <button
+                                type="button"
+                                className={`appointment-card appointment-card-btn appointment-status-${item.status}`}
+                                onClick={() => openCreateModal(day, slot, item)}
+                                aria-label={`Edit appointment on ${day.label} at ${slot}`}
+                              >
+                                <p className="appointment-client">{item.client}</p>
+                                <p className="appointment-service">{item.service}</p>
+                              </button>
+                            ) : (
+                              <div
+                                className={`appointment-card appointment-status-${item.status}`}
+                                aria-label={`Appointment on ${day.label} at ${slot}`}
+                              >
+                                <p className="appointment-client">{item.client}</p>
+                                <p className="appointment-service">{item.service}</p>
+                              </div>
+                            )
+                          ) : (
+                            canCreateAppointments ? (
+                              <button
+                                type="button"
+                                className="appointment-add-slot"
+                                aria-label={`Add appointment on ${day.label} at ${slot}`}
+                                onClick={() => openCreateModal(day, slot)}
+                              >
+                                +
+                              </button>
+                            ) : (
+                              <span className="appointment-add-slot appointment-add-slot-disabled">+</span>
+                            )
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {createModal.open && (
         <>
           <section id="appointmentCreateClientModal" className="logout-confirm-modal appointment-create-modal">
-            <h3>To Schedule</h3>
+            <div className="appointment-create-head">
+              <h3>To Schedule</h3>
+              <button
+                id="appointmentCreateCloseBtn"
+                type="button"
+                className="header-btn panel-close-btn appointment-create-close-btn"
+                aria-label="Close to schedule modal"
+                onClick={closeCreateModal}
+                disabled={createSubmitting || createDeleting}
+              >
+                ×
+              </button>
+            </div>
             <form className="auth-form" noValidate onSubmit={handleCreateSubmit}>
-              <div className="field">
-                <label htmlFor="appointmentClientSearchFirst">First</label>
-                <input
-                  id="appointmentClientSearchFirst"
-                  type="text"
-                  placeholder="First name"
-                  value={clientSearch.firstName}
-                  onInput={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setClientSearch((prev) => ({ ...prev, firstName: nextValue }));
-                  }}
-                />
-              </div>
+              <div className="appointment-client-search-row">
+                <div className="field">
+                  <label htmlFor="appointmentClientSearchFirst">First</label>
+                  <input
+                    id="appointmentClientSearchFirst"
+                    type="text"
+                    placeholder="First name"
+                    value={clientSearch.firstName}
+                    onInput={(event) => {
+                      const nextValue = event.currentTarget.value;
+                      setClientSearch((prev) => ({ ...prev, firstName: nextValue }));
+                    }}
+                  />
+                </div>
 
-              <div className="field">
-                <label htmlFor="appointmentClientSearchLast">Last</label>
-                <input
-                  id="appointmentClientSearchLast"
-                  type="text"
-                  placeholder="Last name"
-                  value={clientSearch.lastName}
-                  onInput={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setClientSearch((prev) => ({ ...prev, lastName: nextValue }));
-                  }}
-                />
-              </div>
-
-              <div className="field">
-                <label htmlFor="appointmentClientSearchMiddle">Middle</label>
-                <input
-                  id="appointmentClientSearchMiddle"
-                  type="text"
-                  placeholder="Middle name"
-                  value={clientSearch.middleName}
-                  onInput={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setClientSearch((prev) => ({ ...prev, middleName: nextValue }));
-                  }}
-                />
-                <small className="field-error">{clientSearchMessage || ""}</small>
+                <div className="field">
+                  <label htmlFor="appointmentClientSearchLast">Last</label>
+                  <input
+                    id="appointmentClientSearchLast"
+                    type="text"
+                    placeholder="Last name"
+                    value={clientSearch.lastName}
+                    onInput={(event) => {
+                      const nextValue = event.currentTarget.value;
+                      setClientSearch((prev) => ({ ...prev, lastName: nextValue }));
+                    }}
+                  />
+                </div>
               </div>
 
               <div className="field">
@@ -809,7 +1298,7 @@ function AppointmentScheduler() {
                   value={createForm.clientId}
                   options={clientSelectOptions}
                   maxVisibleOptions={10}
-                  error={Boolean(createErrors.clientId)}
+                  error={clientSelectHasError}
                   onChange={(nextValue) => {
                     setCreateForm((prev) => ({ ...prev, clientId: nextValue }));
                     if (createErrors.clientId) {
@@ -817,8 +1306,130 @@ function AppointmentScheduler() {
                     }
                   }}
                 />
-                <small className="field-error">{createErrors.clientId || ""}</small>
               </div>
+
+              <div className="appointment-create-date-time-row">
+                <div className="field">
+                  <label htmlFor="appointmentCreateDate">Date</label>
+                  <input
+                    id="appointmentCreateDate"
+                    type="date"
+                    className={createErrors.appointmentDate ? "input-error" : ""}
+                    value={createForm.appointmentDate}
+                    onInput={(event) => {
+                      const nextValue = event.currentTarget.value;
+                      setCreateForm((prev) => {
+                        const nextForm = { ...prev, appointmentDate: nextValue };
+                        if (prev.repeatEnabled && (!prev.repeatUntil || prev.repeatUntil < nextValue)) {
+                          nextForm.repeatUntil = nextValue;
+                        }
+                        return nextForm;
+                      });
+                      if (createErrors.appointmentDate || createErrors.repeatUntil) {
+                        setCreateErrors((prev) => ({ ...prev, appointmentDate: "", repeatUntil: "" }));
+                      }
+                    }}
+                  />
+                  <small className="field-error">{createErrors.appointmentDate || ""}</small>
+                </div>
+
+                <div className="field">
+                  <label htmlFor="appointmentCreateTime">Time</label>
+                  <CustomSelect
+                    id="appointmentCreateTime"
+                    placeholder="Select time"
+                    value={createForm.startTime}
+                    options={timeSelectOptions}
+                    error={Boolean(createErrors.startTime)}
+                    onChange={(nextValue) => {
+                      setCreateForm((prev) => ({ ...prev, startTime: nextValue }));
+                      if (createErrors.startTime) {
+                        setCreateErrors((prev) => ({ ...prev, startTime: "" }));
+                      }
+                    }}
+                  />
+                  <small className="field-error">{createErrors.startTime || ""}</small>
+                </div>
+              </div>
+
+              {createModal.mode !== "edit" ? (
+                <div className="appointment-repeat-block">
+                  <label htmlFor="appointmentCreateRepeatEnabled" className="appointment-repeat-toggle">
+                    <input
+                      id="appointmentCreateRepeatEnabled"
+                      type="checkbox"
+                      checked={Boolean(createForm.repeatEnabled)}
+                      onChange={(event) => {
+                        const isEnabled = event.currentTarget.checked;
+                        setCreateForm((prev) => {
+                          const appointmentDay = getDayKeyFromDateYmd(prev.appointmentDate);
+                          const nextDays = isEnabled
+                            ? (
+                                Array.isArray(prev.repeatDays) && prev.repeatDays.length > 0
+                                  ? prev.repeatDays
+                                  : (appointmentDay ? [appointmentDay] : [])
+                              )
+                            : prev.repeatDays;
+                          return {
+                            ...prev,
+                            repeatEnabled: isEnabled,
+                            repeatUntil: isEnabled
+                              ? (prev.repeatUntil || prev.appointmentDate)
+                              : prev.repeatUntil,
+                            repeatDays: nextDays
+                          };
+                        });
+                        if (createErrors.repeatUntil || createErrors.repeatDays) {
+                          setCreateErrors((prev) => ({ ...prev, repeatUntil: "", repeatDays: "" }));
+                        }
+                      }}
+                    />
+                    <span>Repeat weekly</span>
+                  </label>
+
+                  {createForm.repeatEnabled ? (
+                    <>
+                      <div className="appointment-repeat-days" role="group" aria-label="Repeat weekdays">
+                        {visibleRepeatDayItems.map((day) => {
+                          const checked = Array.isArray(createForm.repeatDays) && createForm.repeatDays.includes(day.key);
+                          return (
+                            <label
+                              key={day.key}
+                              className={`appointment-repeat-day-chip${checked ? " is-active" : ""}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleRepeatDay(day.key)}
+                              />
+                              <span>{day.label.slice(0, 3)}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+
+                      <div className="field appointment-repeat-until-field">
+                        <label htmlFor="appointmentCreateRepeatUntil">Repeat Until</label>
+                        <input
+                          id="appointmentCreateRepeatUntil"
+                          type="date"
+                          className={createErrors.repeatUntil ? "input-error" : ""}
+                          value={createForm.repeatUntil}
+                          min={createForm.appointmentDate || undefined}
+                          onInput={(event) => {
+                            const nextValue = event.currentTarget.value;
+                            setCreateForm((prev) => ({ ...prev, repeatUntil: nextValue }));
+                            if (createErrors.repeatUntil) {
+                              setCreateErrors((prev) => ({ ...prev, repeatUntil: "" }));
+                            }
+                          }}
+                        />
+                      </div>
+                      <small className="field-error">{createErrors.repeatDays || createErrors.repeatUntil || ""}</small>
+                    </>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className="field">
                 <label htmlFor="appointmentCreateService">Service</label>
@@ -838,18 +1449,20 @@ function AppointmentScheduler() {
                 <small className="field-error">{createErrors.service || ""}</small>
               </div>
 
-              <div className="field">
+              <div className="field appointment-status-inline-row">
                 <label htmlFor="appointmentCreateStatus">Status</label>
-                <CustomSelect
-                  id="appointmentCreateStatus"
-                  placeholder="Select status"
-                  value={createForm.status}
-                  options={STATUS_OPTIONS}
-                  forceOpenDown
-                  onChange={(nextValue) => {
-                    setCreateForm((prev) => ({ ...prev, status: nextValue }));
-                  }}
-                />
+                <div className="appointment-status-inline-select">
+                  <CustomSelect
+                    id="appointmentCreateStatus"
+                    placeholder="Select status"
+                    value={createForm.status}
+                    options={STATUS_OPTIONS}
+                    forceOpenDown
+                    onChange={(nextValue) => {
+                      setCreateForm((prev) => ({ ...prev, status: nextValue }));
+                    }}
+                  />
+                </div>
               </div>
 
               <div className="field">
@@ -870,13 +1483,32 @@ function AppointmentScheduler() {
                 <small className="field-error">{createErrors.note || ""}</small>
               </div>
 
+              {showNoShowWarning ? (
+                <p className="appointment-create-warning" role="status" aria-live="polite">
+                  Warning: this client has {clientNoShowSummary.noShowCount} no-shows.
+                </p>
+              ) : null}
+
               <small className="field-error">{createErrors.form || ""}</small>
               <div className="edit-actions">
-                <button className="btn" type="submit" disabled={createSubmitting}>
+                <button
+                  className="btn"
+                  type="submit"
+                  disabled={
+                    createSubmitting
+                    || createDeleting
+                    || (createModal.mode === "edit" ? !canUpdateAppointments : !canCreateAppointments)
+                  }
+                >
                   {createSubmitting ? "Saving..." : "Save"}
                 </button>
-                <button className="header-btn" type="button" onClick={closeCreateModal}>
-                  Cancel
+                <button
+                  className="header-btn logout-confirm-yes"
+                  type="button"
+                  disabled={createModal.mode !== "edit" || createSubmitting || createDeleting || !canDeleteAppointments}
+                  onClick={handleDeleteAppointment}
+                >
+                  {createDeleting ? "Deleting..." : "Delete"}
                 </button>
               </div>
             </form>
@@ -889,9 +1521,6 @@ function AppointmentScheduler() {
         </>
       )}
 
-      <p className="all-users-state" hidden={!loading}>
-        Loading scheduler...
-      </p>
     </section>
   );
 }

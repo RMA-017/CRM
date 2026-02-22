@@ -110,6 +110,10 @@ function ProfilePage({ forcedView = "none" }) {
     canDeleteClients,
     hasClientsMenuAccess,
     canReadAppointments,
+    canCreateAppointments,
+    canUpdateAppointments,
+    canDeleteAppointments,
+    hasAppointmentsMenuAccess,
     hasUsersMenuAccess,
     hasSettingsMenuAccess,
     canAccessForcedView
@@ -169,7 +173,6 @@ function ProfilePage({ forcedView = "none" }) {
     roleCreateError,
     roleCreateSubmitting,
     roleEditOpen,
-    roleEditTab,
     roleEditForm,
     roleEditError,
     roleEditSubmitting,
@@ -190,7 +193,6 @@ function ProfilePage({ forcedView = "none" }) {
     setOrganizationEditError,
     setRoleCreateForm,
     setRoleCreateError,
-    setRoleEditTab,
     setRoleEditForm,
     setRoleEditError,
     setPositionCreateForm,
@@ -581,9 +583,9 @@ function ProfilePage({ forcedView = "none" }) {
       closeUserDropdown();
       setMyProfileModalOpen(false);
       setLogoutConfirmOpen(false);
-      setOrganizationEditOpen(false);
-      setRoleEditOpen(false);
-      setPositionEditOpen(false);
+      cancelOrganizationEdit();
+      cancelRoleEdit();
+      cancelPositionEdit();
       closeProfileEditModal();
       closeAllUsersEditModal();
       closeAllUsersDeleteModal();
@@ -604,7 +606,10 @@ function ProfilePage({ forcedView = "none" }) {
     closeMenu,
     closeProfileEditModal,
     closeSettingsDeleteModal,
-    closeUserDropdown
+    closeUserDropdown,
+    cancelOrganizationEdit,
+    cancelRoleEdit,
+    cancelPositionEdit
   ]);
 
   useEffect(() => {
@@ -1148,6 +1153,9 @@ function ProfilePage({ forcedView = "none" }) {
           handleClientCreateSubmit={handleClientCreateSubmit}
           startClientEdit={startClientEdit}
           openClientsDeleteModal={openClientsDeleteModal}
+          canCreateAppointments={canCreateAppointments}
+          canUpdateAppointments={canUpdateAppointments}
+          canDeleteAppointments={canDeleteAppointments}
           closeAppointmentPanel={closeAppointmentPanel}
           closeAppointmentSettingsPanel={closeAppointmentSettingsPanel}
           closeAppointmentVipRecurringPanel={closeAppointmentVipRecurringPanel}
@@ -1273,8 +1281,6 @@ function ProfilePage({ forcedView = "none" }) {
           cancelOrganizationEdit={cancelOrganizationEdit}
           roleEditOpen={roleEditOpen}
           handleRoleEditSave={handleRoleEditSave}
-          roleEditTab={roleEditTab}
-          setRoleEditTab={setRoleEditTab}
           groupedRolePermissionOptions={groupedRolePermissionOptions}
           roleEditForm={roleEditForm}
           setRoleEditForm={setRoleEditForm}
@@ -1303,7 +1309,7 @@ function ProfilePage({ forcedView = "none" }) {
         setClientsMenuOpen={setClientsMenuOpen}
         openAllClientsPanel={openAllClientsPanel}
         openCreateClientPanel={openCreateClientPanel}
-        canReadAppointments={canReadAppointments}
+        hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
         appointmentMenuOpen={appointmentMenuOpen}
         setAppointmentMenuOpen={setAppointmentMenuOpen}
         openAppointmentPanel={openAppointmentPanel}

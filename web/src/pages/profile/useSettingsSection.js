@@ -45,7 +45,6 @@ export function useSettingsSection({
   const [roleCreateSubmitting, setRoleCreateSubmitting] = useState(false);
   const [roleEditId, setRoleEditId] = useState("");
   const [roleEditOpen, setRoleEditOpen] = useState(false);
-  const [roleEditTab, setRoleEditTab] = useState("edit");
   const [roleEditForm, setRoleEditForm] = useState({ ...EMPTY_ROLE_EDIT_FORM });
   const [roleEditError, setRoleEditError] = useState("");
   const [roleEditSubmitting, setRoleEditSubmitting] = useState(false);
@@ -426,7 +425,6 @@ export function useSettingsSection({
 
   const startRoleEdit = useCallback((item) => {
     setRoleEditId(String(item?.id || ""));
-    setRoleEditTab("edit");
     setRoleEditForm({
       label: String(item?.label || ""),
       sortOrder: String(item?.sortOrder ?? "0"),
@@ -439,7 +437,6 @@ export function useSettingsSection({
 
   const cancelRoleEdit = useCallback(() => {
     setRoleEditOpen(false);
-    setRoleEditTab("edit");
     setRoleEditId("");
     setRoleEditForm({ ...EMPTY_ROLE_EDIT_FORM });
     setRoleEditError("");
@@ -754,7 +751,6 @@ export function useSettingsSection({
     roleCreateError,
     roleCreateSubmitting,
     roleEditOpen,
-    roleEditTab,
     roleEditForm,
     roleEditError,
     roleEditSubmitting,
@@ -776,7 +772,6 @@ export function useSettingsSection({
     setOrganizationEditError,
     setRoleCreateForm,
     setRoleCreateError,
-    setRoleEditTab,
     setRoleEditForm,
     setRoleEditError,
     setPositionCreateForm,

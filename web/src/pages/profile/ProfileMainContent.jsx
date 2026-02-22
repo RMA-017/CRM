@@ -35,6 +35,9 @@ function ProfileMainContent({
   handleClientCreateSubmit,
   startClientEdit,
   openClientsDeleteModal,
+  canCreateAppointments,
+  canUpdateAppointments,
+  canDeleteAppointments,
   closeAppointmentPanel,
   closeAppointmentSettingsPanel,
   closeAppointmentVipRecurringPanel,
@@ -493,7 +496,11 @@ function ProfileMainContent({
               ×
             </button>
           </div>
-          <AppointmentScheduler />
+          <AppointmentScheduler
+            canCreateAppointments={canCreateAppointments}
+            canUpdateAppointments={canUpdateAppointments}
+            canDeleteAppointments={canDeleteAppointments}
+          />
         </section>
       )}
 
@@ -511,7 +518,7 @@ function ProfileMainContent({
               ×
             </button>
           </div>
-          <AppointmentSettingsPanel />
+          <AppointmentSettingsPanel canUpdateAppointments={canUpdateAppointments} />
         </section>
       )}
 
@@ -754,7 +761,7 @@ function ProfileMainContent({
                       <td>
                         <button
                           type="button"
-                          className="table-action-btn"
+                          className="table-action-btn table-action-btn-role-permissions"
                           onClick={() => startRoleEdit(item)}
                         >
                           Edit

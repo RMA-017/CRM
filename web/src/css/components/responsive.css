@@ -98,6 +98,15 @@
     max-height: calc(100dvh - 24px);
   }
 
+  #roleEditModal {
+    width: calc(100vw - 30px);
+    height: min(460px, calc(100dvh - 24px));
+  }
+
+  #roleEditModal .role-edit-top-row {
+    grid-template-columns: 1fr;
+  }
+
   .profile-edit-modal {
     width: min(400px, calc(100vw - 40px));
     max-height: calc(100dvh - 56px);
@@ -226,6 +235,11 @@
     width: calc(100vw - 24px);
     max-height: calc(100dvh - 20px);
     overflow: auto;
+  }
+
+  #roleEditModal {
+    width: calc(100vw - 24px);
+    height: min(440px, calc(100dvh - 20px));
   }
 
   .profile-edit-modal {

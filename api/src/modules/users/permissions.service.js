@@ -12,7 +12,10 @@ const BASE_PERMISSION_DEFINITIONS = [
   { code: PERMISSIONS.CLIENTS_CREATE, label: "Create Clients", sortOrder: 41 },
   { code: PERMISSIONS.CLIENTS_UPDATE, label: "Update Clients", sortOrder: 42 },
   { code: PERMISSIONS.CLIENTS_DELETE, label: "Delete Clients", sortOrder: 43 },
-  { code: PERMISSIONS.APPOINTMENTS_READ, label: "Read Appointments", sortOrder: 50 }
+  { code: PERMISSIONS.APPOINTMENTS_READ, label: "Read Appointments", sortOrder: 50 },
+  { code: PERMISSIONS.APPOINTMENTS_CREATE, label: "Create Appointments", sortOrder: 51 },
+  { code: PERMISSIONS.APPOINTMENTS_UPDATE, label: "Update Appointments", sortOrder: 52 },
+  { code: PERMISSIONS.APPOINTMENTS_DELETE, label: "Delete Appointments", sortOrder: 53 }
 ];
 
 export async function ensureSystemPermissions() {

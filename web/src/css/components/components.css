@@ -13,7 +13,7 @@
 }
 
 .logout-confirm-modal.settings-edit-modal {
-  padding: 10.5px 18px;
+  padding: 18px;
 }
 
 .logout-confirm-modal h3 {
@@ -448,18 +448,44 @@
 }
 
 #roleEditModal {
-  width: min(420px, calc(100vw - 40px));
-  height: min(305px, calc(100dvh - 28px));
+  width: min(520px, calc(100vw - 40px));
+  height: min(420px, calc(100dvh - 28px));
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+#roleEditModal h3 {
+  margin: 4px 0 8px;
 }
 
 #roleEditModal .settings-edit-form {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
   padding-right: 0;
+}
+
+#roleEditModal .role-edit-top-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+#roleEditModal .role-edit-top-row .field {
+  margin-right: 35px;
+}
+
+#roleEditModal .role-edit-active-field {
+  min-height: 34px;
+  margin: 0;
+}
+
+#roleEditModal .role-edit-active-field > label:first-child {
+  margin: 0;
 }
 
 #roleEditModal .settings-permissions-section {
@@ -492,13 +518,12 @@
 }
 
 #roleEditModal .settings-edit-form .edit-actions {
-  position: sticky;
-  bottom: 0;
+  position: static;
   margin-top: auto;
-  padding-top: 10px;
-  padding-bottom: 2px;
-  background: linear-gradient(to top, var(--surface) 78%, rgba(255, 255, 255, 0));
-  z-index: 1;
+  padding-top: 0;
+  padding-bottom: 0;
+  background: transparent;
+  z-index: auto;
 }
 
 .settings-edit-form .settings-inline-control {
@@ -585,6 +610,13 @@
   width: 96px;
   min-width: 96px;
   max-width: 96px;
+}
+
+#rolesPanel .settings-table th:nth-child(5),
+#rolesPanel .settings-table td:nth-child(5) {
+  width: 132px;
+  min-width: 132px;
+  max-width: 132px;
 }
 
 #rolesPanel .settings-table th:nth-child(4),
@@ -933,7 +965,7 @@
   display: inline-flex;
   align-items: center;
   margin-bottom: 0;
-  font-size: var(--fs-base);
+  font-size: var(--fs-small);
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -945,7 +977,7 @@
 }
 
 .appointment-specialist-select-wrap {
-  width: min(420px, 100%);
+  width: min(320px, 100%);
   flex: 1 1 auto;
 }
 
@@ -955,7 +987,7 @@
 
 .appointment-specialist-select-wrap .custom-select-trigger {
   width: 100%;
-  height: 36px;
+  height: 34px;
 }
 
 .appointment-specialist-list {
@@ -1240,6 +1272,10 @@
   outline-offset: 1px;
 }
 
+.appointment-add-slot-disabled {
+  cursor: default;
+}
+
 .appointment-settings-list {
   margin-top: 10px;
   border: 1px solid var(--line);
@@ -1395,7 +1431,7 @@
 }
 
 .appointment-create-modal {
-  width: min(520px, calc(100vw - 24px));
+  width: min(620px, calc(100vw - 24px));
   min-height: 0;
   height: auto;
   max-height: none;
@@ -1404,16 +1440,179 @@
   z-index: 56;
 }
 
-.appointment-create-modal h3 {
-  width: 100%;
-  display: block;
+.appointment-create-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   margin: 6px 0 4px;
-  text-align: center;
+}
+
+.appointment-create-close-btn {
+  position: static;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.appointment-create-head h3 {
+  margin: 0;
+  text-align: left;
 }
 
 .appointment-create-modal .auth-form {
   padding-right: 2px;
   overflow: visible;
+}
+
+.appointment-create-warning {
+  margin: 2px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--danger-border);
+  border-radius: 8px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: var(--fs-small);
+  line-height: 1.3;
+}
+
+.appointment-create-date-time-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-items: start;
+}
+
+.appointment-create-date-time-row .field {
+  margin: 0;
+  width: 100%;
+  min-width: 0;
+}
+
+.appointment-create-date-time-row .field input,
+.appointment-create-date-time-row .field .custom-select,
+.appointment-create-date-time-row .field .custom-select-trigger {
+  width: 100%;
+  min-width: 0;
+}
+
+.appointment-create-date-time-row .field input[type="date"],
+.appointment-create-date-time-row .field .custom-select-trigger {
+  height: 34px;
+  min-height: 34px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.appointment-create-date-time-row .field .custom-select-trigger {
+  display: inline-flex;
+  align-items: center;
+}
+
+.appointment-client-search-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-items: start;
+}
+
+.appointment-client-search-row .field {
+  margin: 0;
+  width: 100%;
+  min-width: 0;
+}
+
+.appointment-repeat-block {
+  display: grid;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.appointment-repeat-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-main);
+  font-size: var(--fs-base);
+  font-weight: 500;
+}
+
+.appointment-repeat-toggle input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+.appointment-repeat-days {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.appointment-repeat-day-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--text-main);
+  cursor: pointer;
+  user-select: none;
+}
+
+.appointment-repeat-day-chip input[type="checkbox"] {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+}
+
+.appointment-repeat-day-chip span {
+  font-size: var(--fs-small);
+  line-height: 1;
+}
+
+.appointment-repeat-day-chip.is-active {
+  border-color: var(--accent-border-hover);
+  background: rgba(64, 138, 243, 0.14);
+  color: var(--brand-2);
+}
+
+.appointment-repeat-until-field {
+  margin: 5px 0 0;
+}
+
+.appointment-status-inline-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.appointment-status-inline-row > label {
+  margin: 0 0 0 4px;
+  line-height: 1;
+}
+
+.appointment-status-inline-select {
+  min-width: 0;
+}
+
+.appointment-status-inline-select .custom-select,
+.appointment-status-inline-select .custom-select-trigger {
+  width: 100%;
 }
 
 .appointment-specialist-schedule-list {
@@ -1477,6 +1676,11 @@
   min-width: 72px;
   padding: 0;
   line-height: 1;
+}
+
+#rolesPanel .table-action-btn-role-permissions {
+  width: 72px;
+  min-width: 72px;
 }
 
 .table-action-btn:hover {

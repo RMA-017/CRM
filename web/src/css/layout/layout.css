@@ -220,6 +220,10 @@
   gap: 10px;
 }
 
+.home-login-form .btn {
+  margin-top: 5px;
+}
+
 .login-overlay {
   position: fixed;
   inset: 0;

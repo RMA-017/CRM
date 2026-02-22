@@ -28,7 +28,7 @@ function createDayTimeMap() {
   }, {});
 }
 
-function AppointmentSettingsPanel() {
+function AppointmentSettingsPanel({ canUpdateAppointments = true }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -36,9 +36,7 @@ function AppointmentSettingsPanel() {
 
   const [form, setForm] = useState({
     slotInterval: "30",
-    breakDurationMinutes: "60",
     visibleWeekDays: ["mon", "tue", "wed", "thu", "fri", "sat"],
-    bufferAfter: "10",
     noShowThreshold: "3",
     reminderHours: "24"
   });
@@ -85,9 +83,7 @@ function AppointmentSettingsPanel() {
         setForm((prev) => ({
           ...prev,
           slotInterval: String(item.slotInterval ?? prev.slotInterval),
-          breakDurationMinutes: String(item.breakDurationMinutes ?? prev.breakDurationMinutes),
           visibleWeekDays: nextVisibleWeekDays.length > 0 ? nextVisibleWeekDays : prev.visibleWeekDays,
-          bufferAfter: String(item.bufferAfter ?? prev.bufferAfter),
           noShowThreshold: String(item.noShowThreshold ?? prev.noShowThreshold),
           reminderHours: String(item.reminderHours ?? prev.reminderHours)
         }));
@@ -107,9 +103,7 @@ function AppointmentSettingsPanel() {
 
         setInitialForm({
           slotInterval: String(item.slotInterval ?? "30"),
-          breakDurationMinutes: String(item.breakDurationMinutes ?? "60"),
           visibleWeekDays: nextVisibleWeekDays.length > 0 ? nextVisibleWeekDays : ["mon", "tue", "wed", "thu", "fri", "sat"],
-          bufferAfter: String(item.bufferAfter ?? "10"),
           noShowThreshold: String(item.noShowThreshold ?? "3"),
           reminderHours: String(item.reminderHours ?? "24")
         });
@@ -159,6 +153,11 @@ function AppointmentSettingsPanel() {
 
   async function handleSave(event) {
     event.preventDefault();
+    if (!canUpdateAppointments) {
+      setMessage("You do not have permission to update appointment settings.");
+      setMessageType("error");
+      return;
+    }
 
     try {
       setSaving(true);
@@ -167,10 +166,8 @@ function AppointmentSettingsPanel() {
 
       const payload = {
         slotInterval: String(form.slotInterval || "").trim(),
-        breakDurationMinutes: String(form.breakDurationMinutes || "").trim(),
         visibleWeekDays: form.visibleWeekDays,
         workingHours,
-        bufferAfter: String(form.bufferAfter || "").trim(),
         noShowThreshold: String(form.noShowThreshold || "").trim(),
         reminderHours: String(form.reminderHours || "").trim()
       };
@@ -215,7 +212,7 @@ function AppointmentSettingsPanel() {
             type="number"
             min="1"
             value={form.slotInterval}
-            disabled={loading}
+            disabled={loading || !canUpdateAppointments}
             onChange={(event) => handleFormField("slotInterval", event.currentTarget.value)}
           />
           <span>minutes</span>
@@ -231,7 +228,7 @@ function AppointmentSettingsPanel() {
                 id={`appointmentDay_${day.key}`}
                 type="checkbox"
                 checked={form.visibleWeekDays.includes(day.key)}
-                disabled={loading}
+                disabled={loading || !canUpdateAppointments}
                 onChange={(event) => handleDayToggle(day.key, event.currentTarget.checked)}
               />
               {day.label}
@@ -249,14 +246,14 @@ function AppointmentSettingsPanel() {
               <input
                 type="time"
                 value={workingHours[day.key].start}
-                disabled={loading}
+                disabled={loading || !canUpdateAppointments}
                 onChange={(event) => handleDayTimeChange(setWorkingHours, day.key, "start", event.currentTarget.value)}
               />
               <span>-</span>
               <input
                 type="time"
                 value={workingHours[day.key].end}
-                disabled={loading}
+                disabled={loading || !canUpdateAppointments}
                 onChange={(event) => handleDayTimeChange(setWorkingHours, day.key, "end", event.currentTarget.value)}
               />
             </div>
@@ -265,43 +262,13 @@ function AppointmentSettingsPanel() {
       </div>
 
       <div className="appointment-setting-row">
-        <label htmlFor="breakDurationMinutesInput">4. Break Time (Minutes)</label>
-        <div className="appointment-setting-inline">
-          <input
-            id="breakDurationMinutesInput"
-            type="number"
-            min="0"
-            step="5"
-            value={form.breakDurationMinutes}
-            disabled={loading}
-            onChange={(event) => handleFormField("breakDurationMinutes", event.currentTarget.value)}
-          />
-          <span>minutes</span>
-        </div>
-      </div>
-
-      <div className="appointment-setting-row">
-        <label>5. Buffer Time</label>
-        <div className="appointment-setting-inline">
-          <input
-            type="number"
-            min="0"
-            value={form.bufferAfter}
-            disabled={loading}
-            onChange={(event) => handleFormField("bufferAfter", event.currentTarget.value)}
-          />
-          <span>minutes</span>
-        </div>
-      </div>
-
-      <div className="appointment-setting-row">
-        <label>6. No-show Rules</label>
+        <label>4. No-show Rules</label>
         <div className="appointment-setting-inline">
           <input
             type="number"
             min="1"
             value={form.noShowThreshold}
-            disabled={loading}
+            disabled={loading || !canUpdateAppointments}
             onChange={(event) => handleFormField("noShowThreshold", event.currentTarget.value)}
           />
           <span>count threshold</span>
@@ -309,14 +276,14 @@ function AppointmentSettingsPanel() {
       </div>
 
       <div className="appointment-setting-row">
-        <label>7. Reminder Settings</label>
+        <label>5. Reminder Settings</label>
         <div className="appointment-setting-inline">
           <input
             id="appointmentReminderHoursInput"
             type="number"
             min="1"
             value={form.reminderHours}
-            disabled={loading}
+            disabled={loading || !canUpdateAppointments}
             onChange={(event) => handleFormField("reminderHours", event.currentTarget.value)}
           />
           <span>hours before appointment</span>
@@ -324,7 +291,7 @@ function AppointmentSettingsPanel() {
       </div>
 
       <div className="appointment-settings-actions">
-        <button className="btn" type="submit" disabled={loading || saving}>
+        <button className="btn" type="submit" disabled={loading || saving || !canUpdateAppointments}>
           {saving ? "Saving..." : "Save"}
         </button>
         <p className={`appointment-settings-message${messageType ? ` is-${messageType}` : ""}`} hidden={!message}>

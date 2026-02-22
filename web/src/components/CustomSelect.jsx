@@ -93,13 +93,6 @@ function CustomSelect({
         hidden={!open}
         style={menuMaxHeight ? { maxHeight: menuMaxHeight } : undefined}
         onWheel={(event) => {
-          const element = event.currentTarget;
-          const delta = Number(event.deltaY || 0);
-          const atTop = element.scrollTop <= 0;
-          const atBottom = (element.scrollTop + element.clientHeight) >= (element.scrollHeight - 1);
-          if ((delta < 0 && atTop) || (delta > 0 && atBottom)) {
-            event.preventDefault();
-          }
           event.stopPropagation();
         }}
         onTouchMove={(event) => {

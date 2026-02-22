@@ -8,7 +8,7 @@ function ProfileSideMenu({
   setClientsMenuOpen,
   openAllClientsPanel,
   openCreateClientPanel,
-  canReadAppointments,
+  hasAppointmentsMenuAccess,
   appointmentMenuOpen,
   setAppointmentMenuOpen,
   openAppointmentPanel,
@@ -78,7 +78,7 @@ function ProfileSideMenu({
               Create Client
             </button>
           </div>
-          <div id="appointmentsMenuGroup" className="side-menu-group" hidden={!canReadAppointments}>
+          <div id="appointmentsMenuGroup" className="side-menu-group" hidden={!hasAppointmentsMenuAccess}>
             <button
               id="toggleAppointmentsMenuBtn"
               type="button"

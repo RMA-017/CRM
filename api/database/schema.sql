@@ -100,13 +100,19 @@ ALTER SEQUENCE clients_id_seq RESTART WITH 1000;
 
 CREATE INDEX idx_clients_organization_created_at ON clients (organization_id, created_at DESC);
 CREATE INDEX idx_clients_organization_name ON clients (organization_id, last_name, first_name);
+CREATE INDEX idx_clients_org_first_name_prefix
+  ON clients (organization_id, LOWER(first_name) text_pattern_ops);
+CREATE INDEX idx_clients_org_last_name_prefix
+  ON clients (organization_id, LOWER(last_name) text_pattern_ops);
+CREATE INDEX idx_clients_org_middle_name_prefix
+  ON clients (organization_id, LOWER(middle_name) text_pattern_ops);
+CREATE INDEX idx_clients_org_phone_prefix
+  ON clients (organization_id, phone_number text_pattern_ops);
 
 CREATE TABLE appointment_settings (
   id SERIAL PRIMARY KEY,
   organization_id INTEGER NOT NULL UNIQUE REFERENCES organizations(id) ON DELETE CASCADE,
   slot_interval_minutes INTEGER NOT NULL CHECK (slot_interval_minutes > 0),
-  break_time_minutes INTEGER NOT NULL DEFAULT 0 CHECK (break_time_minutes >= 0),
-  buffer_time_minutes INTEGER NOT NULL DEFAULT 0 CHECK (buffer_time_minutes >= 0),
   no_show_threshold INTEGER NOT NULL DEFAULT 1 CHECK (no_show_threshold >= 1),
   reminder_hours INTEGER NOT NULL DEFAULT 24 CHECK (reminder_hours >= 1),
   visible_week_days SMALLINT[] NOT NULL DEFAULT ARRAY[1,2,3,4,5,6],
@@ -141,6 +147,34 @@ CREATE TABLE appointment_working_hours (
 
 CREATE INDEX idx_appointment_working_hours_org
   ON appointment_working_hours (organization_id);
+
+CREATE TABLE appointment_breaks (
+  id SERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  specialist_id INTEGER NOT NULL,
+  day_of_week SMALLINT NOT NULL CHECK (day_of_week BETWEEN 1 AND 7),
+  break_type VARCHAR(24) NOT NULL DEFAULT 'lunch'
+    CHECK (break_type IN ('lunch', 'meeting', 'training', 'other')),
+  title VARCHAR(120),
+  note VARCHAR(255),
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (start_time < end_time),
+  CONSTRAINT fk_appointment_breaks_specialist_org
+    FOREIGN KEY (organization_id, specialist_id)
+    REFERENCES users(organization_id, id) ON DELETE RESTRICT
+);
+
+CREATE INDEX idx_appointment_breaks_specialist_week
+  ON appointment_breaks (organization_id, specialist_id, day_of_week, is_active, start_time);
+
+CREATE UNIQUE INDEX uq_appointment_breaks_exact_slot
+  ON appointment_breaks (organization_id, specialist_id, day_of_week, start_time, end_time, break_type);
 
 CREATE TABLE appointment_schedules (
   id SERIAL PRIMARY KEY,

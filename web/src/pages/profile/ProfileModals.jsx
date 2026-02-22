@@ -56,8 +56,6 @@ function ProfileModals(props) {
     cancelOrganizationEdit,
     roleEditOpen,
     handleRoleEditSave,
-    roleEditTab,
-    setRoleEditTab,
     groupedRolePermissionOptions,
     roleEditForm,
     setRoleEditForm,
@@ -872,6 +870,7 @@ function ProfileModals(props) {
       <div className="login-overlay" hidden={!organizationEditOpen} onClick={cancelOrganizationEdit} />
 
       <section id="roleEditModal" className="logout-confirm-modal settings-edit-modal" hidden={!roleEditOpen}>
+        <h3>Edit Permissions</h3>
         <form
           className="auth-form settings-edit-form"
           noValidate
@@ -880,25 +879,40 @@ function ProfileModals(props) {
             handleRoleEditSave();
           }}
         >
-          <div className="settings-edit-tabs">
-            <button
-              type="button"
-              className={`header-btn settings-edit-tab-btn${roleEditTab === "edit" ? " is-active" : ""}`}
-              onClick={() => setRoleEditTab("edit")}
-            >
-              Edit role
-            </button>
-            <button
-              type="button"
-              className={`header-btn settings-edit-tab-btn${roleEditTab === "permissions" ? " is-active" : ""}`}
-              onClick={() => setRoleEditTab("permissions")}
-            >
-              Permissions
-            </button>
+          <div className="role-edit-top-row">
+            <div className="field">
+              <label htmlFor="roleEditLabelInput">Label</label>
+              <input
+                id="roleEditLabelInput"
+                type="text"
+                value={roleEditForm.label}
+                onInput={(event) => {
+                  const nextValue = event.currentTarget.value;
+                  setRoleEditForm((prev) => ({ ...prev, label: nextValue }));
+                  if (roleEditError) {
+                    setRoleEditError("");
+                  }
+                }}
+              />
+            </div>
+            <div className="field settings-inline-control role-edit-active-field">
+              <label htmlFor="roleEditIsActiveInput">Active</label>
+              <label className="settings-checkbox settings-checkbox-inline" htmlFor="roleEditIsActiveInput">
+                <input
+                  id="roleEditIsActiveInput"
+                  type="checkbox"
+                  checked={Boolean(roleEditForm.isActive)}
+                  onChange={(event) => {
+                    const checked = event.currentTarget.checked;
+                    setRoleEditForm((prev) => ({ ...prev, isActive: checked }));
+                  }}
+                />
+              </label>
+            </div>
           </div>
           <div
             className="settings-permissions-section"
-            hidden={roleEditTab !== "permissions" || groupedRolePermissionOptions.length === 0}
+            hidden={groupedRolePermissionOptions.length === 0}
           >
             <p className="settings-permissions-title">Permissions</p>
             <div className="settings-permission-groups">
@@ -931,35 +945,9 @@ function ProfileModals(props) {
               ))}
             </div>
           </div>
-          <div className="field" hidden={roleEditTab !== "edit"}>
-            <label htmlFor="roleEditLabelInput">Label</label>
-            <input
-              id="roleEditLabelInput"
-              type="text"
-              value={roleEditForm.label}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setRoleEditForm((prev) => ({ ...prev, label: nextValue }));
-                if (roleEditError) {
-                  setRoleEditError("");
-                }
-              }}
-            />
-          </div>
-          <div className="field" hidden={roleEditTab !== "edit"}>
-            <label htmlFor="roleEditIsActiveInput">Active</label>
-            <label className="settings-checkbox settings-checkbox-inline" htmlFor="roleEditIsActiveInput">
-              <input
-                id="roleEditIsActiveInput"
-                type="checkbox"
-                checked={Boolean(roleEditForm.isActive)}
-                onChange={(event) => {
-                  const checked = event.currentTarget.checked;
-                  setRoleEditForm((prev) => ({ ...prev, isActive: checked }));
-                }}
-              />
-            </label>
-          </div>
+          <p className="all-users-state" hidden={groupedRolePermissionOptions.length > 0}>
+            No permissions found.
+          </p>
           <small className="field-error settings-error">{roleEditError}</small>
           <div className="edit-actions">
             <button className="btn" type="submit" disabled={roleEditSubmitting}>Save</button>
