@@ -22,6 +22,19 @@ const DAY_NUM_TO_KEY = Object.freeze({
 
 const DAY_KEYS = Object.freeze(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
 const SCHEDULE_SCOPE_SET = new Set(["single", "future", "all"]);
+const REMINDER_CHANNEL_SET = new Set(["sms", "email", "telegram"]);
+const APPOINTMENT_SETTINGS_TABLE = "appointment_settings";
+const APPOINTMENT_VIP_SETTINGS_TABLE = "appointment_vip_settings";
+
+function normalizeAppointmentSettingsScope(value) {
+  return String(value || "").trim().toLowerCase() === "vip" ? "vip" : "default";
+}
+
+function getAppointmentSettingsTableName(scope = "default") {
+  return normalizeAppointmentSettingsScope(scope) === "vip"
+    ? APPOINTMENT_VIP_SETTINGS_TABLE
+    : APPOINTMENT_SETTINGS_TABLE;
+}
 
 function toDayKey(dayNum) {
   return DAY_NUM_TO_KEY[Number(dayNum)] || "";
@@ -50,6 +63,38 @@ function mapDurationOptions(value) {
   return Array.from(new Set(normalized));
 }
 
+function mapReminderChannels(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return Array.from(
+    new Set(
+      value
+        .map((item) => String(item || "").trim().toLowerCase())
+        .filter((item) => REMINDER_CHANNEL_SET.has(item))
+    )
+  );
+}
+
+function toBreakItem(row) {
+  const dayOfWeek = Number.parseInt(String(row?.day_of_week ?? "").trim(), 10) || 0;
+  return {
+    id: String(row?.id || "").trim(),
+    organizationId: String(row?.organization_id || "").trim(),
+    specialistId: String(row?.specialist_id || "").trim(),
+    dayOfWeek,
+    dayKey: toDayKey(dayOfWeek),
+    breakType: String(row?.break_type || "lunch").trim().toLowerCase(),
+    title: String(row?.title || "").trim(),
+    note: String(row?.note || "").trim(),
+    startTime: normalizeTimeHm(row?.start_time),
+    endTime: normalizeTimeHm(row?.end_time),
+    isActive: Boolean(row?.is_active),
+    createdAt: row?.created_at || null,
+    updatedAt: row?.updated_at || null
+  };
+}
+
 function createEmptyWorkingHours() {
   return DAY_KEYS.reduce((acc, dayKey) => {
     acc[dayKey] = { start: "", end: "" };
@@ -73,7 +118,21 @@ function createDefaultSettings() {
     visibleWeekDays: ["mon", "tue", "wed", "thu", "fri", "sat"],
     workingHours,
     noShowThreshold: "3",
-    reminderHours: "24"
+    reminderHours: "24",
+    reminderChannels: ["sms", "email", "telegram"]
+  };
+}
+
+function createEmptySettings() {
+  return {
+    slotInterval: "",
+    appointmentDuration: "",
+    appointmentDurationOptions: [],
+    visibleWeekDays: [],
+    workingHours: createEmptyWorkingHours(),
+    noShowThreshold: "",
+    reminderHours: "",
+    reminderChannels: []
   };
 }
 
@@ -112,7 +171,8 @@ function mapSettingsRow(row, workingHourRows) {
     visibleWeekDays: mapVisibleWeekDays(row.visible_week_days),
     workingHours: mapWorkingHours(workingHourRows),
     noShowThreshold: String(row.no_show_threshold || 1),
-    reminderHours: String(row.reminder_hours || 24)
+    reminderHours: String(row.reminder_hours || 24),
+    reminderChannels: mapReminderChannels(row.reminder_channels)
   };
 }
 
@@ -183,18 +243,20 @@ function normalizeScheduleIds(value) {
   );
 }
 
-async function getAppointmentSettingsColumnFlags() {
+async function getAppointmentSettingsColumnFlags(tableName = APPOINTMENT_SETTINGS_TABLE) {
   const { rows } = await pool.query(
     `SELECT column_name
        FROM information_schema.columns
       WHERE table_schema = current_schema()
-        AND table_name = 'appointment_settings'`
+        AND table_name = $1`,
+    [tableName]
   );
 
   const set = new Set((rows || []).map((row) => String(row?.column_name || "").trim()));
   const flags = {
     hasAppointmentDuration: set.has("appointment_duration_minutes"),
-    hasAppointmentDurationOptions: set.has("appointment_duration_options_minutes")
+    hasAppointmentDurationOptions: set.has("appointment_duration_options_minutes"),
+    hasReminderChannels: set.has("reminder_channels")
   };
   return flags;
 }
@@ -311,8 +373,24 @@ export async function getAppointmentSchedulesByRange({
   organizationId,
   specialistId,
   dateFrom,
-  dateTo
+  dateTo,
+  vipOnly = false,
+  recurringOnly = false
 }) {
+  const whereParts = [
+    "s.organization_id = $1",
+    "s.specialist_id = $2",
+    "s.appointment_date BETWEEN $3::date AND $4::date"
+  ];
+
+  if (vipOnly) {
+    whereParts.push("c.is_vip = TRUE");
+  }
+  if (recurringOnly) {
+    whereParts.push("s.repeat_type = 'weekly'");
+    whereParts.push("s.repeat_group_key IS NOT NULL");
+  }
+
   const { rows } = await pool.query(
     `SELECT
        s.id,
@@ -341,9 +419,7 @@ export async function getAppointmentSchedulesByRange({
       JOIN clients c
         ON c.id = s.client_id
        AND c.organization_id = s.organization_id
-      WHERE s.organization_id = $1
-        AND s.specialist_id = $2
-        AND s.appointment_date BETWEEN $3::date AND $4::date
+      WHERE ${whereParts.join("\n        AND ")}
       ORDER BY
         s.appointment_date ASC,
         s.start_time ASC,
@@ -409,7 +485,7 @@ export async function getAppointmentBreaksBySpecialistAndDays({
   }
 
   const { rows } = await db.query(
-    `SELECT day_of_week, start_time, end_time
+    `SELECT day_of_week, start_time, end_time, break_type, title
        FROM appointment_breaks
       WHERE organization_id = $1
         AND specialist_id = $2
@@ -422,8 +498,118 @@ export async function getAppointmentBreaksBySpecialistAndDays({
   return (rows || []).map((row) => ({
     dayOfWeek: Number.parseInt(String(row?.day_of_week ?? ""), 10) || 0,
     startTime: row?.start_time ? String(row.start_time).slice(0, 5) : "",
-    endTime: row?.end_time ? String(row.end_time).slice(0, 5) : ""
+    endTime: row?.end_time ? String(row.end_time).slice(0, 5) : "",
+    breakType: String(row?.break_type || "break").trim().toLowerCase(),
+    title: String(row?.title || "").trim()
   }));
+}
+
+export async function getAppointmentBreaksBySpecialist({
+  organizationId,
+  specialistId,
+  db = pool
+}) {
+  const { rows } = await db.query(
+    `SELECT
+       id,
+       organization_id,
+       specialist_id,
+       day_of_week,
+       break_type,
+       title,
+       note,
+       start_time,
+       end_time,
+       is_active,
+       created_at,
+       updated_at
+      FROM appointment_breaks
+      WHERE organization_id = $1
+        AND specialist_id = $2
+      ORDER BY day_of_week ASC, start_time ASC, id ASC`,
+    [organizationId, specialistId]
+  );
+
+  return (rows || []).map(toBreakItem);
+}
+
+export async function replaceAppointmentBreaksBySpecialist({
+  organizationId,
+  actorUserId,
+  specialistId,
+  items,
+  db = pool
+}) {
+  const normalizedItems = Array.isArray(items) ? items : [];
+  const executor = db === pool ? withAppointmentTransaction : async (callback) => callback(db);
+
+  return executor(async (trx) => {
+    await trx.query(
+      `DELETE FROM appointment_breaks
+        WHERE organization_id = $1
+          AND specialist_id = $2`,
+      [organizationId, specialistId]
+    );
+
+    const inserted = [];
+    for (const item of normalizedItems) {
+      const dayOfWeek = Number.parseInt(String(item?.dayOfWeek ?? "").trim(), 10);
+      const breakType = String(item?.breakType || "lunch").trim().toLowerCase();
+      const title = String(item?.title || "").trim();
+      const note = String(item?.note || "").trim();
+      const startTime = normalizeTimeHm(item?.startTime);
+      const endTime = normalizeTimeHm(item?.endTime);
+      const isActive = item?.isActive !== false;
+
+      const { rows } = await trx.query(
+        `INSERT INTO appointment_breaks (
+           organization_id,
+           specialist_id,
+           day_of_week,
+           break_type,
+           title,
+           note,
+           start_time,
+           end_time,
+           is_active,
+           created_by,
+           updated_by
+         )
+         VALUES ($1,$2,$3,$4,$5,$6,$7::time,$8::time,$9,$10,$10)
+         RETURNING
+           id,
+           organization_id,
+           specialist_id,
+           day_of_week,
+           break_type,
+           title,
+           note,
+           start_time,
+           end_time,
+           is_active,
+           created_at,
+           updated_at`,
+        [
+          organizationId,
+          specialistId,
+          dayOfWeek,
+          breakType,
+          title || null,
+          note || null,
+          startTime,
+          endTime,
+          isActive,
+          actorUserId || null
+        ]
+      );
+
+      if (rows[0]) {
+        inserted.push(toBreakItem(rows[0]));
+      }
+    }
+
+    return inserted;
+  });
 }
 
 export async function hasAppointmentScheduleConflict({
@@ -839,14 +1025,22 @@ export async function deleteAppointmentSchedulesByIds({
   return rowCount || 0;
 }
 
-export async function getAppointmentSettingsByOrganization(organizationId) {
-  const flags = await getAppointmentSettingsColumnFlags();
+export async function getAppointmentSettingsByOrganization(
+  organizationId,
+  { scope = "default" } = {}
+) {
+  const normalizedScope = normalizeAppointmentSettingsScope(scope);
+  const tableName = getAppointmentSettingsTableName(normalizedScope);
+  const flags = await getAppointmentSettingsColumnFlags(tableName);
   const appointmentDurationSelect = flags.hasAppointmentDuration
     ? "appointment_duration_minutes,"
     : "30::integer AS appointment_duration_minutes,";
   const appointmentDurationOptionsSelect = flags.hasAppointmentDurationOptions
     ? "appointment_duration_options_minutes,"
     : "ARRAY[30]::smallint[] AS appointment_duration_options_minutes,";
+  const reminderChannelsSelect = flags.hasReminderChannels
+    ? "reminder_channels,"
+    : "ARRAY['sms','email','telegram']::text[] AS reminder_channels,";
 
   const [settingsResult, workingHoursResult] = await Promise.all([
     pool.query(
@@ -855,11 +1049,12 @@ export async function getAppointmentSettingsByOrganization(organizationId) {
          organization_id,
          slot_interval_minutes,
          ${appointmentDurationSelect}
-         ${appointmentDurationOptionsSelect}
+       ${appointmentDurationOptionsSelect}
          no_show_threshold,
          reminder_hours,
+         ${reminderChannelsSelect}
          visible_week_days
-       FROM appointment_settings
+       FROM ${tableName}
        WHERE organization_id = $1
        LIMIT 1`,
       [organizationId]
@@ -875,7 +1070,19 @@ export async function getAppointmentSettingsByOrganization(organizationId) {
 
   const row = settingsResult.rows[0] || null;
   if (!row) {
-    return createDefaultSettings();
+    const workingHoursRows = workingHoursResult.rows || [];
+    if (normalizedScope === "vip") {
+      return {
+        ...createEmptySettings(),
+        workingHours: mapWorkingHours(workingHoursRows)
+      };
+    }
+
+    const defaults = createDefaultSettings();
+    if (workingHoursRows.length > 0) {
+      defaults.workingHours = mapWorkingHours(workingHoursRows);
+    }
+    return defaults;
   }
 
   return mapSettingsRow(row, workingHoursResult.rows || []);
@@ -889,11 +1096,15 @@ export async function saveAppointmentSettings({
   appointmentDurationOptionsMinutes,
   noShowThreshold,
   reminderHours,
+  reminderChannels,
   visibleWeekDays,
-  workingHours
+  workingHours,
+  settingsScope = "default"
 }) {
-  const flags = await getAppointmentSettingsColumnFlags();
-  if (!flags.hasAppointmentDuration || !flags.hasAppointmentDurationOptions) {
+  const normalizedScope = normalizeAppointmentSettingsScope(settingsScope);
+  const tableName = getAppointmentSettingsTableName(normalizedScope);
+  const flags = await getAppointmentSettingsColumnFlags(tableName);
+  if (!flags.hasAppointmentDuration || !flags.hasAppointmentDurationOptions || !flags.hasReminderChannels) {
     const error = new Error("Appointment settings migration is required.");
     error.code = "MIGRATION_REQUIRED";
     throw error;
@@ -912,25 +1123,28 @@ export async function saveAppointmentSettings({
       ? normalizedDurationOptions
       : [appointmentDurationMinutes];
     const effectiveAppointmentDuration = effectiveDurationOptions[0];
+    const normalizedReminderChannels = mapReminderChannels(reminderChannels);
 
     await client.query(
-      `INSERT INTO appointment_settings (
+      `INSERT INTO ${tableName} (
          organization_id,
          slot_interval_minutes,
          appointment_duration_minutes,
          appointment_duration_options_minutes,
          no_show_threshold,
          reminder_hours,
+         reminder_channels,
          visible_week_days,
          created_by,
          updated_by
-       ) VALUES ($1,$2,$3,$4::smallint[],$5,$6,$7::smallint[],$8,$8)
+       ) VALUES ($1,$2,$3,$4::smallint[],$5,$6,$7::text[],$8::smallint[],$9,$9)
        ON CONFLICT (organization_id) DO UPDATE SET
          slot_interval_minutes = EXCLUDED.slot_interval_minutes,
          appointment_duration_minutes = EXCLUDED.appointment_duration_minutes,
          appointment_duration_options_minutes = EXCLUDED.appointment_duration_options_minutes,
          no_show_threshold = EXCLUDED.no_show_threshold,
          reminder_hours = EXCLUDED.reminder_hours,
+         reminder_channels = EXCLUDED.reminder_channels,
          visible_week_days = EXCLUDED.visible_week_days,
          updated_by = EXCLUDED.updated_by,
          updated_at = CURRENT_TIMESTAMP`,
@@ -941,6 +1155,7 @@ export async function saveAppointmentSettings({
         effectiveDurationOptions,
         noShowThreshold,
         reminderHours,
+        normalizedReminderChannels,
         visibleWeekDayNums,
         actorUserId
       ]
@@ -990,5 +1205,5 @@ export async function saveAppointmentSettings({
     client.release();
   }
 
-  return getAppointmentSettingsByOrganization(organizationId);
+  return getAppointmentSettingsByOrganization(organizationId, { scope: normalizedScope });
 }

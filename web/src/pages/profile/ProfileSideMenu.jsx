@@ -11,9 +11,13 @@ function ProfileSideMenu({
   hasAppointmentsMenuAccess,
   appointmentMenuOpen,
   setAppointmentMenuOpen,
+  appointmentVipMenuOpen,
+  setAppointmentVipMenuOpen,
   openAppointmentPanel,
   openAppointmentSettingsPanel,
   openAppointmentVipRecurringPanel,
+  openAppointmentVipSettingsPanel,
+  openAppointmentVipClientsPanel,
   hasUsersMenuAccess,
   usersMenuOpen,
   setUsersMenuOpen,
@@ -40,7 +44,7 @@ function ProfileSideMenu({
       >
         <div className="side-menu-head">
           <img src="/crm.svg" alt="CRM logo" className="side-logo" />
-          <strong>Main Menu</strong>
+          <strong>Menu</strong>
         </div>
         <nav className="side-menu-links">
           <button
@@ -54,6 +58,7 @@ function ProfileSideMenu({
               setUsersMenuOpen(false);
               setSettingsMenuOpen(false);
               setAppointmentMenuOpen(false);
+              setAppointmentVipMenuOpen(false);
             }}
           >
             Clients
@@ -89,6 +94,7 @@ function ProfileSideMenu({
                 setClientsMenuOpen(false);
                 setUsersMenuOpen(false);
                 setSettingsMenuOpen(false);
+                setAppointmentVipMenuOpen(false);
               }}
             >
               Appointments
@@ -110,13 +116,49 @@ function ProfileSideMenu({
               >
                 Schedule
               </button>
+            </div>
+          </div>
+          <div id="appointmentsVipMenuGroup" className="side-menu-group" hidden={!hasAppointmentsMenuAccess}>
+            <button
+              id="toggleAppointmentsVipMenuBtn"
+              type="button"
+              className="side-menu-action side-menu-parent"
+              aria-expanded={appointmentVipMenuOpen ? "true" : "false"}
+              onClick={() => {
+                setAppointmentVipMenuOpen((prev) => !prev);
+                setAppointmentMenuOpen(false);
+                setClientsMenuOpen(false);
+                setUsersMenuOpen(false);
+                setSettingsMenuOpen(false);
+              }}
+            >
+              Appointments VIP
+            </button>
+            <div id="appointmentsVipSubMenu" className="side-submenu" hidden={!appointmentVipMenuOpen}>
               <button
-                id="openAppointmentVipRecurringBtn"
+                id="openAppointmentVipSettingsBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                onClick={openAppointmentVipSettingsPanel}
+              >
+                Settings
+              </button>
+              <button
+                id="openAppointmentVipScheduleBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
                 onClick={openAppointmentVipRecurringPanel}
               >
-                VIP Recurring
+                Appointment VIP
+              </button>
+              <button
+                id="openAppointmentVipClientsBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                hidden={!canReadClients}
+                onClick={openAppointmentVipClientsPanel}
+              >
+                VIP Clients
               </button>
             </div>
           </div>
@@ -131,6 +173,7 @@ function ProfileSideMenu({
                 setSettingsMenuOpen(false);
                 setClientsMenuOpen(false);
                 setAppointmentMenuOpen(false);
+                setAppointmentVipMenuOpen(false);
               }}
             >
               Users
@@ -170,6 +213,7 @@ function ProfileSideMenu({
                 setUsersMenuOpen(false);
                 setClientsMenuOpen(false);
                 setAppointmentMenuOpen(false);
+                setAppointmentVipMenuOpen(false);
               }}
             >
               General Settings

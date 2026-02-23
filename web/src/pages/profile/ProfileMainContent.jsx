@@ -24,6 +24,12 @@ function ProfileMainContent({
   clientsPage,
   clientsTotalPages,
   loadClients,
+  vipClients,
+  vipClientsMessage,
+  vipClientsLoading,
+  vipClientsPage,
+  vipClientsTotalPages,
+  loadVipClients,
   canCreateClients,
   canUpdateClients,
   canDeleteClients,
@@ -41,6 +47,8 @@ function ProfileMainContent({
   closeAppointmentPanel,
   closeAppointmentSettingsPanel,
   closeAppointmentVipRecurringPanel,
+  closeAppointmentVipSettingsPanel,
+  closeAppointmentVipClientsPanel,
   closeOrganizationsPanel,
   closeRolesPanel,
   closePositionsPanel,
@@ -424,7 +432,7 @@ function ProfileMainContent({
                   id="clientCreatePhone"
                   name="phone"
                   type="tel"
-                  placeholder="+998..."
+                  placeholder="+998977861070"
                   className={clientCreateErrors.phone ? "input-error" : ""}
                   value={clientCreateForm.phone}
                   onInput={(event) => {
@@ -444,7 +452,7 @@ function ProfileMainContent({
                   id="clientCreateTelegramOrEmail"
                   name="telegramOrEmail"
                   type="text"
-                  placeholder="@username or email@example.com"
+                  placeholder="@username or user@gmail.com"
                   className={clientCreateErrors.telegramOrEmail ? "input-error" : ""}
                   value={clientCreateForm.telegramOrEmail}
                   onInput={(event) => {
@@ -523,23 +531,149 @@ function ProfileMainContent({
       )}
 
       {mainView === "appointment-vip-recurring" && (
-        <section id="appointmentVipRecurringPanel" className="all-users-panel settings-panel">
+        <section id="appointmentVipRecurringPanel" className="all-users-panel">
           <div className="all-users-head">
-            <h3>VIP Recurring</h3>
+            <h3>Appointment VIP</h3>
             <button
               id="closeAppointmentVipRecurringBtn"
               type="button"
               className="header-btn panel-close-btn"
-              aria-label="Close VIP recurring panel"
+              aria-label="Close appointment VIP panel"
               onClick={closeAppointmentVipRecurringPanel}
             >
               ×
             </button>
           </div>
+          <AppointmentScheduler
+            canCreateAppointments={canCreateAppointments}
+            canUpdateAppointments={canUpdateAppointments}
+            canDeleteAppointments={canDeleteAppointments}
+            vipOnly
+            recurringOnly
+            settingsScope="vip"
+            modalTitle="To Schedule VIP"
+          />
+        </section>
+      )}
 
-          <p className="all-users-state">
-            VIP recurring appointment section is ready. Next step is form/table logic for weekly recurring clients.
+      {mainView === "appointment-vip-settings" && (
+        <section id="appointmentVipSettingsPanel" className="all-users-panel settings-panel">
+          <div className="all-users-head">
+            <h3>Appointment VIP Settings</h3>
+            <button
+              id="closeAppointmentVipSettingsBtn"
+              type="button"
+              className="header-btn panel-close-btn"
+              aria-label="Close appointment VIP settings panel"
+              onClick={closeAppointmentVipSettingsPanel}
+            >
+              ×
+            </button>
+          </div>
+          <AppointmentSettingsPanel canUpdateAppointments={canUpdateAppointments} settingsScope="vip" />
+        </section>
+      )}
+
+      {mainView === "appointment-vip-clients" && (
+        <section id="appointmentVipClientsPanel" className="all-users-panel">
+          <div className="all-users-head">
+            <h3>VIP Clients</h3>
+            <button
+              id="closeAppointmentVipClientsBtn"
+              type="button"
+              className="header-btn panel-close-btn"
+              aria-label="Close VIP clients panel"
+              onClick={closeAppointmentVipClientsPanel}
+            >
+              ×
+            </button>
+          </div>
+
+          <p className="all-users-state" hidden={!vipClientsMessage}>
+            {vipClientsMessage}
           </p>
+
+          <div className="all-users-table-wrap" hidden={vipClients.length === 0}>
+            <table className="all-users-table" aria-label="VIP clients table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>First Name</th>
+                  <th>Last Name</th>
+                  <th>Middle Name</th>
+                  <th>Birthday</th>
+                  <th>Phone</th>
+                  <th>Tg or Mail</th>
+                  <th>VIP</th>
+                  <th>Created At</th>
+                  <th>Note</th>
+                  <th>Edit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {vipClients.map((item) => {
+                  const rowId = String(item.id || "");
+                  const firstName = String(item.firstName || item.first_name || "").trim();
+                  const lastName = String(item.lastName || item.last_name || "").trim();
+                  const middleName = String(item.middleName || item.middle_name || "").trim();
+                  const displayBirthday = String(item.birthday || item.birthdate || "").trim();
+                  const displayTgMail = String(
+                    item.tgMail || item.telegramOrEmail || item.telegram_or_email || item.tg_mail || ""
+                  ).trim();
+                  const displayNote = String(item.note || "").trim() || "-";
+                  const isVip = Boolean(item.isVip ?? item.is_vip);
+                  const createdAt = item.createdAt || item.created_at || "";
+
+                  return (
+                    <tr key={rowId}>
+                      <td>{rowId || "-"}</td>
+                      <td>{firstName || "-"}</td>
+                      <td>{lastName || "-"}</td>
+                      <td>{middleName || "-"}</td>
+                      <td>{formatDateYMD(displayBirthday)}</td>
+                      <td>{item.phone || item.phone_number || "-"}</td>
+                      <td>{displayTgMail || "-"}</td>
+                      <td>{isVip ? "Yes" : "No"}</td>
+                      <td>{formatDateYMD(createdAt)}</td>
+                      <td>{displayNote}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="table-action-btn"
+                          disabled={!canUpdateClients}
+                          onClick={() => startClientEdit(item, "vip")}
+                        >
+                          Edit
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="all-users-pagination" hidden={vipClients.length === 0}>
+            <button
+              type="button"
+              className="header-btn"
+              disabled={vipClientsPage <= 1 || vipClientsLoading}
+              onClick={() => loadVipClients(vipClientsPage - 1)}
+            >
+              Previous
+            </button>
+            <span className="all-users-page-info">
+              Page {vipClientsPage} of {vipClientsTotalPages}
+            </span>
+            <button
+              type="button"
+              className="header-btn"
+              disabled={vipClientsPage >= vipClientsTotalPages || vipClientsLoading}
+              onClick={() => loadVipClients(vipClientsPage + 1)}
+            >
+              Next
+            </button>
+          </div>
         </section>
       )}
 

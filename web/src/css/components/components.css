@@ -1,49 +1,70 @@
+/* =============================================
+   AARON CRM — Components (upgraded)
+   ============================================= */
+
+/* ---- Modal base ---- */
 .logout-confirm-modal {
   position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: min(380px, calc(100vw - 40px));
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--surface);
-  padding: 18px;
-  box-shadow: var(--shadow);
+  width: min(400px, calc(100vw - 32px));
+  border: 1.5px solid rgba(255,255,255,0.88);
+  border-radius: var(--radius-lg);
+  background: rgba(255,255,255,0.98);
+  padding: 24px;
+  box-shadow: var(--shadow-xl);
   z-index: 55;
+  animation: modalIn 200ms var(--ease);
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: translate(-50%, calc(-50% - 12px)) scale(0.96); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 
 .logout-confirm-modal.settings-edit-modal {
-  padding: 18px;
+  padding: 24px;
 }
 
 .logout-confirm-modal h3 {
-  margin: 0;
+  margin: 0 0 6px;
   font-size: var(--fs-base);
-  font-weight: 600;
+  font-weight: 700;
   text-align: center;
+  color: var(--text-main);
+  letter-spacing: -0.01em;
 }
 
 .logout-confirm-actions {
-  margin-top: 14px;
+  margin-top: 18px;
   display: flex;
   justify-content: center;
   gap: 10px;
 }
 
 .logout-confirm-actions .header-btn {
-  flex: 0 0 92px;
-  width: 92px;
+  flex: 0 0 100px;
+  width: 100px;
   height: var(--btn-height);
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  font-weight: 500;
+  border-radius: var(--radius);
 }
 
 .logout-confirm-yes {
   color: var(--danger);
-  border: 1px solid var(--danger-border);
+  border: 1.5px solid var(--danger-border);
   background: var(--danger-soft);
+  font-weight: 600;
+}
+
+.logout-confirm-yes:hover {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: var(--danger);
 }
 
 #logoutConfirmNo,
@@ -54,12 +75,17 @@
   border: 0;
   background: var(--brand-gradient);
   font-weight: 600;
+  box-shadow: 0 2px 8px rgba(67,97,238,0.28);
 }
 
-.logout-confirm-yes:hover {
-  filter: brightness(1.06);
+#logoutConfirmNo:hover,
+#allUsersDeleteNoBtn:hover,
+#clientsDeleteNoBtn:hover,
+#settingsDeleteNoBtn:hover {
+  filter: brightness(1.08);
 }
 
+/* ---- Header user menu ---- */
 .user-menu-wrap {
   position: relative;
   display: inline-flex;
@@ -70,21 +96,34 @@
 
 .user-name-btn {
   min-width: 120px;
-  height: 100%;
+  height: var(--btn-height);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 0 6px;
-  border: 0;
-  background: transparent;
+  padding: 0 10px;
+  border: 1.5px solid var(--line);
+  background: rgba(255,255,255,0.70);
+  border-radius: var(--radius);
+  cursor: pointer;
   line-height: 1;
+  font: inherit;
+  font-size: var(--fs-small);
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: border-color var(--dur) ease, background var(--dur) ease, color var(--dur) ease;
+}
+
+.user-name-btn:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: var(--brand-light);
 }
 
 #headerUserNameText {
   display: inline-flex;
   align-items: center;
-  max-width: 120px;
+  max-width: 130px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -93,10 +132,11 @@
 
 .user-name-btn::after {
   content: "▾";
-  font-size: var(--fs-small);
+  font-size: var(--fs-xxs);
   line-height: 1;
-  opacity: 0.9;
-  transition: transform 120ms ease;
+  opacity: 0.7;
+  transition: transform var(--dur) ease;
+  flex-shrink: 0;
 }
 
 .user-name-btn[aria-expanded="true"]::after {
@@ -107,17 +147,30 @@
   position: absolute;
   top: calc(100% + 8px);
   left: 50%;
+  right: auto;
   transform: translateX(-50%);
-  min-width: 160px;
+  min-width: 175px;
   max-width: min(220px, calc(100vw - 24px));
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface);
-  box-shadow: var(--shadow);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,0.97);
+  box-shadow: var(--shadow-lg);
   padding: 6px;
   z-index: 60;
   display: grid;
-  gap: 6px;
+  gap: 3px;
+  animation: headerMenuFadeIn 140ms var(--ease);
+}
+
+@keyframes headerMenuFadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
 }
 
 .header-user-menu[hidden] {
@@ -125,27 +178,30 @@
 }
 
 .header-user-menu-item {
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  background: var(--surface-soft);
-  color: var(--text-main);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
   text-align: left;
-  height: var(--btn-height);
-  padding: 0 10px;
-  font-size: var(--fs-base);
+  height: 36px;
+  padding: 0 12px;
+  font-size: var(--fs-small);
+  font-weight: 500;
+  font-family: inherit;
   display: inline-flex;
   align-items: center;
   cursor: pointer;
+  transition: background var(--dur) ease, color var(--dur) ease;
 }
 
 .header-user-menu-item:hover {
-  border-color: var(--accent-border-hover);
-  color: var(--brand-2);
+  background: var(--brand-light);
+  color: var(--brand);
 }
 
 .profile-edit-modal {
-  width: min(420px, calc(100vw - 48px));
-  max-height: calc(100dvh - 72px);
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100dvh - 60px);
   overflow: auto;
   z-index: 56;
 }
@@ -155,7 +211,10 @@
 }
 
 .profile-edit-modal h3 {
-  margin: 4px 0 10px;
+  margin: 2px 0 14px;
+  font-size: var(--fs-md);
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .stacked-modal-overlay {
@@ -163,8 +222,8 @@
 }
 
 .all-users-edit-modal {
-  width: min(500px, calc(100vw - 40px));
-  max-height: calc(100vh - 40px);
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
   overflow: hidden;
   display: grid;
   grid-template-rows: auto 1fr;
@@ -226,12 +285,13 @@
 }
 
 .create-user-panel {
-  width: min(460px, 100%);
+  width: min(480px, 100%);
   margin: 0 auto;
-  padding: 20px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  padding: 24px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-lg);
   background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .settings-panel {
@@ -239,12 +299,13 @@
 }
 
 .settings-create-form {
-  margin-top: 8px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 6px 10px;
+  margin-top: 10px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
   background: var(--surface-soft);
   overflow-x: auto;
+  box-shadow: var(--shadow-xs);
 }
 
 .auth-form.settings-create-form {
@@ -590,65 +651,71 @@
   min-width: 760px;
 }
 
-.settings-table th:nth-child(5),
-.settings-table td:nth-child(5),
-.settings-table th:nth-child(6),
-.settings-table td:nth-child(6),
-.settings-table th:nth-child(7),
-.settings-table td:nth-child(7) {
-  width: 90px;
-  min-width: 90px;
-  max-width: 90px;
+/* ---- Organizations table columns (7 cols: ID, Code, Name, Active, Created, Edit, Delete) ---- */
+
+#organizationsPanel .settings-table th:nth-child(1),
+#organizationsPanel .settings-table td:nth-child(1) {
+  width: 5%;
+  text-align: center;
 }
 
-#rolesPanel .settings-table th:nth-child(5),
-#rolesPanel .settings-table td:nth-child(5),
-#rolesPanel .settings-table th:nth-child(6),
-#rolesPanel .settings-table td:nth-child(6),
-#rolesPanel .settings-table th:nth-child(7),
-#rolesPanel .settings-table td:nth-child(7) {
+#organizationsPanel .settings-table th:nth-child(2),
+#organizationsPanel .settings-table td:nth-child(2) {
+  width: 10%;
+}
+
+#organizationsPanel .settings-table th:nth-child(4),
+#organizationsPanel .settings-table td:nth-child(4) {
+  width: 8%;
+  text-align: center;
+}
+
+#organizationsPanel .settings-table th:nth-child(5),
+#organizationsPanel .settings-table td:nth-child(5) {
+  width: 11%;
+}
+
+#organizationsPanel .settings-table th:nth-child(6),
+#organizationsPanel .settings-table td:nth-child(6),
+#organizationsPanel .settings-table th:nth-child(7),
+#organizationsPanel .settings-table td:nth-child(7) {
   width: 96px;
   min-width: 96px;
   max-width: 96px;
-}
-
-#rolesPanel .settings-table th:nth-child(5),
-#rolesPanel .settings-table td:nth-child(5) {
-  width: 132px;
-  min-width: 132px;
-  max-width: 132px;
-}
-
-#rolesPanel .settings-table th:nth-child(4),
-#rolesPanel .settings-table td:nth-child(4),
-#rolesPanel .settings-table th:nth-child(5),
-#rolesPanel .settings-table td:nth-child(5),
-#rolesPanel .settings-table th:nth-child(6),
-#rolesPanel .settings-table td:nth-child(6),
-#positionsPanel .settings-table th:nth-child(4),
-#positionsPanel .settings-table td:nth-child(4),
-#positionsPanel .settings-table th:nth-child(5),
-#positionsPanel .settings-table td:nth-child(5),
-#positionsPanel .settings-table th:nth-child(6),
-#positionsPanel .settings-table td:nth-child(6) {
-  width: 96px;
-  min-width: 96px;
-  max-width: 96px;
-}
-
-.settings-table th:nth-child(6),
-.settings-table td:nth-child(6),
-.settings-table th:nth-child(7),
-.settings-table td:nth-child(7) {
   text-align: center;
   padding-left: 4px;
   padding-right: 4px;
 }
 
-.settings-table td:nth-child(6) .table-action-btn,
-.settings-table td:nth-child(7) .table-action-btn {
+#organizationsPanel .settings-table td:nth-child(6) .table-action-btn,
+#organizationsPanel .settings-table td:nth-child(7) .table-action-btn {
   margin-left: auto;
   margin-right: auto;
+}
+
+/* ---- Roles / Positions table columns (6 cols: ID, Label, Active, Created, Edit, Delete) ---- */
+
+#rolesPanel .settings-table th:nth-child(1),
+#rolesPanel .settings-table td:nth-child(1),
+#positionsPanel .settings-table th:nth-child(1),
+#positionsPanel .settings-table td:nth-child(1) {
+  width: 5%;
+  text-align: center;
+}
+
+#rolesPanel .settings-table th:nth-child(3),
+#rolesPanel .settings-table td:nth-child(3),
+#positionsPanel .settings-table th:nth-child(3),
+#positionsPanel .settings-table td:nth-child(3) {
+  width: 8%;
+  text-align: center;
+}
+
+#rolesPanel .settings-table th:nth-child(4),
+#rolesPanel .settings-table td:nth-child(4),
+#positionsPanel .settings-table th:nth-child(4),
+#positionsPanel .settings-table td:nth-child(4) {
+  width: 12%;
 }
 
 #rolesPanel .settings-table th:nth-child(5),
@@ -659,6 +726,9 @@
 #positionsPanel .settings-table td:nth-child(5),
 #positionsPanel .settings-table th:nth-child(6),
 #positionsPanel .settings-table td:nth-child(6) {
+  width: 96px;
+  min-width: 96px;
+  max-width: 96px;
   text-align: center;
   padding-left: 4px;
   padding-right: 4px;
@@ -703,6 +773,8 @@
   margin: 0;
   box-shadow: var(--shadow);
   z-index: 54;
+  animation: modalIn 200ms var(--ease);
+  will-change: transform, opacity;
 }
 
 .all-users-panel {
@@ -721,6 +793,13 @@
   flex: 1 1 auto;
   min-height: 0;
   max-height: none;
+}
+
+#allUsersPanel .all-users-pagination,
+#clientsPanel .all-users-pagination,
+#appointmentVipClientsPanel .all-users-pagination {
+  margin-top: auto;
+  padding-top: 10px;
 }
 
 .all-users-head {
@@ -796,11 +875,11 @@
   top: 0;
   background: #eef3fb;
   color: #334155;
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .all-users-table td {
-  font-size: 12px;
+  font-size: var(--fs-small);
 }
 
 .all-users-table thead tr,
@@ -836,6 +915,37 @@
   overflow-x: hidden;
 }
 
+#clientsPanel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100%;
+}
+
+#clientsPanel .all-users-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
+
+#appointmentVipClientsPanel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100%;
+}
+
+#appointmentVipClientsPanel .all-users-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow-x: hidden;
+}
+
+#appointmentVipClientsPanel .all-users-table {
+  min-width: 0;
+}
+
 #clientsPanel .all-users-table th,
 #clientsPanel .all-users-table td {
   overflow: hidden;
@@ -843,12 +953,7 @@
   white-space: nowrap;
 }
 
-#clientsPanel .all-users-table th {
-  font-size: 10px;
-}
-
 #clientsPanel .all-users-table td {
-  font-size: 10px;
   padding-left: 4px;
   padding-right: 4px;
 }
@@ -921,6 +1026,71 @@
   margin-right: auto;
 }
 
+#appointmentVipClientsPanel .all-users-table th:nth-child(1),
+#appointmentVipClientsPanel .all-users-table td:nth-child(1) {
+  width: 5%;
+  text-align: center;
+}
+
+#appointmentVipClientsPanel .all-users-table th:nth-child(2),
+#appointmentVipClientsPanel .all-users-table td:nth-child(2) {
+  width: 12%;
+}
+
+#appointmentVipClientsPanel .all-users-table th:nth-child(3),
+#appointmentVipClientsPanel .all-users-table td:nth-child(3),
+#appointmentVipClientsPanel .all-users-table th:nth-child(4),
+#appointmentVipClientsPanel .all-users-table td:nth-child(4) {
+  width: 12%;
+}
+
+#appointmentVipClientsPanel .all-users-table th:nth-child(5),
+#appointmentVipClientsPanel .all-users-table td:nth-child(5) {
+  width: 8%;
+}
+
+#appointmentVipClientsPanel .all-users-table th:nth-child(6),
+#appointmentVipClientsPanel .all-users-table td:nth-child(6) {
+  width: 10%;
+}
+
+#appointmentVipClientsPanel .all-users-table th:nth-child(7),
+#appointmentVipClientsPanel .all-users-table td:nth-child(7) {
+  width: 10%;
+}
+
+#appointmentVipClientsPanel .all-users-table th:nth-child(8),
+#appointmentVipClientsPanel .all-users-table td:nth-child(8) {
+  width: 5%;
+  text-align: center;
+}
+
+#appointmentVipClientsPanel .all-users-table th:nth-child(9),
+#appointmentVipClientsPanel .all-users-table td:nth-child(9) {
+  width: 9%;
+}
+
+#appointmentVipClientsPanel .all-users-table th:nth-child(10),
+#appointmentVipClientsPanel .all-users-table td:nth-child(10) {
+  width: 11%;
+  text-align: left;
+}
+
+#appointmentVipClientsPanel .all-users-table th:nth-child(11),
+#appointmentVipClientsPanel .all-users-table td:nth-child(11) {
+  width: 6%;
+  min-width: 72px;
+  max-width: 72px;
+  text-align: center;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#appointmentVipClientsPanel .all-users-table td:nth-child(11) .table-action-btn {
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .all-users-pagination {
   margin-top: 10px;
   display: flex;
@@ -931,7 +1101,6 @@
 
 #allUsersPanel .all-users-pagination {
   position: static;
-  background: transparent;
 }
 
 .all-users-pagination .header-btn {
@@ -1028,7 +1197,7 @@
 
 .appointment-specialist-btn em {
   font-style: normal;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: #334155;
 }
 
@@ -1152,14 +1321,21 @@
 }
 
 .appointment-card {
+  width: 100%;
+  height: 34px;
+  min-height: 34px;
+  box-sizing: border-box;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface-soft);
-  padding: 4px;
+  padding: 2px 4px;
   display: grid;
-  gap: 2px;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  align-content: center;
   justify-items: center;
   text-align: center;
+  overflow: hidden;
 }
 
 .appointment-card-btn {
@@ -1170,7 +1346,8 @@
 
 .appointment-client {
   margin: 0;
-  font-size: 10px;
+  font-size: var(--fs-xxs);
+  line-height: 1.1;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -1179,7 +1356,8 @@
 
 .appointment-service {
   margin: 0;
-  font-size: 10px;
+  font-size: var(--fs-xxs);
+  line-height: 1.1;
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -1190,7 +1368,7 @@
   width: fit-content;
   border-radius: 999px;
   padding: 2px 7px;
-  font-size: 10px;
+  font-size: var(--fs-xxs);
   text-transform: capitalize;
   background: rgba(148, 163, 184, 0.25);
   color: #334155;
@@ -1258,7 +1436,7 @@
   border-radius: 8px;
   background: #eff6ff;
   color: #2563eb;
-  font-size: 18px;
+  font-size: var(--fs-lg);
   font-weight: 600;
   line-height: 1;
   display: inline-flex;
@@ -1308,25 +1486,57 @@
   background: rgba(254, 202, 202, 0.4);
 }
 
-.appointment-settings-list {
-  margin-top: 10px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface);
+.appointment-break-slot {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid rgba(249, 115, 22, 0.45);
+  border-radius: 8px;
+  background: rgba(254, 215, 170, 0.55);
+  color: #c2410c;
+  font-size: var(--fs-xxs);
+  font-weight: 600;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
+  pointer-events: none;
+}
+
+.appointment-break-slot-text {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  padding: 0 4px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.appointment-settings-list {
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
 }
 
 .appointment-setting-row {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
   align-items: center;
-  gap: 10px;
-  padding: 10px;
-  border-bottom: 1px dashed var(--line);
+  gap: 8px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
 }
 
 .appointment-setting-row:last-child {
-  border-bottom: 0;
+  border-bottom: 1px solid var(--line);
 }
 
 .appointment-setting-row > label {
@@ -1334,6 +1544,7 @@
   color: var(--text-main);
   font-size: var(--fs-base);
   font-weight: 600;
+  line-height: 1.2;
 }
 
 .appointment-setting-row input,
@@ -1347,11 +1558,22 @@
   min-width: 0;
 }
 
+.appointment-setting-row .custom-select,
+.appointment-setting-row .custom-select-trigger {
+  width: 100%;
+  min-width: 0;
+}
+
+.appointment-setting-row .custom-select-trigger {
+  min-height: 34px;
+}
+
 .appointment-setting-inline {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px 10px;
   flex-wrap: wrap;
+  min-height: 34px;
 }
 
 .appointment-setting-inline span {
@@ -1361,6 +1583,86 @@
 
 .appointment-setting-inline input[type="number"] {
   width: 90px;
+}
+
+.appointment-duration-options-input {
+  width: 140px;
+}
+
+.appointment-reminder-settings-inline {
+  gap: 6px 10px;
+}
+
+.appointment-reminder-settings-inline .appointment-reminder-channels {
+  margin-left: 0;
+}
+
+.appointment-breaks-block {
+  display: grid;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.appointment-breaks-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.appointment-breaks-specialist-field {
+  min-width: 0;
+}
+
+.appointment-breaks-list {
+  display: grid;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.appointment-break-row {
+  display: grid;
+  grid-template-columns: 86px 112px minmax(96px, 1fr) minmax(96px, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.appointment-break-row input,
+.appointment-break-row select {
+  width: 100%;
+}
+
+.appointment-breaks-empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
+.appointment-breaks-delete-btn {
+  border-color: rgba(239, 68, 68, 0.45);
+  background: rgba(254, 226, 226, 0.75);
+  color: #b91c1c;
+}
+
+.appointment-breaks-delete-btn:hover {
+  border-color: rgba(239, 68, 68, 0.6);
+  background: rgba(254, 202, 202, 0.85);
+}
+
+.appointment-breaks-actions {
+  display: flex;
+  justify-content: flex-start;
 }
 
 .appointment-working-hours-grid {
@@ -1406,7 +1708,7 @@
 .appointment-reminder-channels {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -1414,8 +1716,13 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
   color: var(--text-main);
-  font-size: var(--fs-base);
+  font-size: var(--fs-small);
   font-weight: 500;
 }
 
@@ -1426,26 +1733,28 @@
 }
 
 .appointment-settings-actions {
-  display: grid;
-  justify-items: center;
-  gap: 8px;
-  padding: 12px;
-  border-top: 1px dashed var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 2px 2px 0;
+  border-top: 0;
 }
 
 .appointment-settings-actions .btn {
-  min-width: 110px;
+  min-width: 118px;
+  flex: 0 0 auto;
 }
 
 .appointment-settings-message {
   margin: 0;
-  width: min(680px, 100%);
+  width: min(720px, 100%);
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--surface-soft);
   color: var(--text-main);
-  text-align: center;
+  text-align: left;
   font-size: var(--fs-small);
   line-height: 1.25;
 }
@@ -1460,6 +1769,35 @@
   border-color: rgba(37, 99, 235, 0.35);
   background: rgba(219, 234, 254, 0.75);
   color: #1e40af;
+}
+
+@media (max-width: 980px) {
+  .appointment-setting-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .appointment-setting-row > label {
+    padding-top: 0;
+  }
+
+  .appointment-breaks-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .appointment-break-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .appointment-settings-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .appointment-settings-actions .btn,
+  .appointment-settings-message {
+    width: 100%;
+  }
 }
 
 .appointment-create-modal {
@@ -1523,6 +1861,10 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   align-items: start;
+}
+
+.appointment-create-date-time-row-vip {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .appointment-create-date-time-row .field {
@@ -1615,8 +1957,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 4px;
-  flex-wrap: nowrap;
-  overflow-x: auto;
+  flex-wrap: wrap;
+  overflow-x: visible;
 }
 
 .appointment-repeat-day-chip {
@@ -1901,20 +2243,20 @@
 }
 
 .header-avatar-inline {
-  width: 36px;
-  height: 36px;
+  width: 35px;
+  height: 35px;
   border-radius: 50%;
   overflow: hidden;
   border: 1px solid var(--line);
   background: var(--surface-soft);
   display: grid;
   place-items: center;
-  flex: 0 0 36px;
+  flex: 0 0 35px;
 }
 
 .header-avatar-image {
-  width: 100%;
-  height: 100%;
+  width: 35px;
+  height: 35px;
   object-fit: cover;
 }
 

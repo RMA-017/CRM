@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
-import { getAuthContext } from "../../lib/session.js";
 import { getProfileByAuthContext } from "../profile/profile.service.js";
 import { hasPermission } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
 import {
   createAppointmentSchedule,
   deleteAppointmentSchedulesByIds,
+  getAppointmentBreaksBySpecialist,
   getAppointmentBreaksBySpecialistAndDays,
   getAppointmentClientNoShowSummary,
   getAppointmentDayKeys,
@@ -18,6 +18,7 @@ import {
   hasAppointmentScheduleConflict,
   saveAppointmentSettings,
   toAppointmentDayNum,
+  replaceAppointmentBreaksBySpecialist,
   updateAppointmentScheduleByIdWithRepeatMeta,
   updateAppointmentSchedulesByIds,
   withAppointmentTransaction
@@ -30,6 +31,8 @@ const APPOINTMENT_STATUS_SET = new Set(["pending", "confirmed", "cancelled", "no
 const MAX_RECURRING_RANGE_DAYS = 366;
 const SCHEDULE_SCOPE_SET = new Set(["single", "future", "all"]);
 const APPOINTMENT_HISTORY_LOCK_DAYS = 10;
+const REMINDER_CHANNEL_SET = new Set(["sms", "email", "telegram"]);
+const BREAK_TYPE_SET = new Set(["lunch", "meeting", "training", "other"]);
 const DAY_NUM_TO_KEY = Object.freeze({
   1: "mon",
   2: "tue",
@@ -42,6 +45,31 @@ const DAY_NUM_TO_KEY = Object.freeze({
 
 function parsePositiveIntegerOr(value, fallback = 1) {
   return parsePositiveInteger(value) ?? fallback;
+}
+
+function parseNullableBoolean(value) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "number") {
+    if (value === 1) {
+      return true;
+    }
+    if (value === 0) {
+      return false;
+    }
+    return null;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "on"].includes(normalized)) {
+      return true;
+    }
+    if (["false", "0", "no", "off"].includes(normalized)) {
+      return false;
+    }
+  }
+  return null;
 }
 
 function normalizeVisibleWeekDays(value) {
@@ -74,6 +102,42 @@ function normalizeDurationOptions(value) {
   );
 }
 
+function normalizeReminderChannels(value) {
+  return Array.from(
+    new Set(
+      (Array.isArray(value) ? value : [])
+        .map((item) => String(item || "").trim().toLowerCase())
+        .filter((item) => REMINDER_CHANNEL_SET.has(item))
+    )
+  );
+}
+
+function normalizeBreakType(value) {
+  const normalized = String(value || "lunch").trim().toLowerCase();
+  return BREAK_TYPE_SET.has(normalized) ? normalized : "";
+}
+
+function normalizeBreakItems(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((item) => {
+    const dayOfWeekRaw = Number.parseInt(String(item?.dayOfWeek ?? "").trim(), 10);
+    const dayOfWeek = Number.isInteger(dayOfWeekRaw) && dayOfWeekRaw >= 1 && dayOfWeekRaw <= 7
+      ? dayOfWeekRaw
+      : toAppointmentDayNum(item?.dayKey);
+    return {
+      dayOfWeek,
+      breakType: normalizeBreakType(item?.breakType),
+      title: String(item?.title || "").trim(),
+      note: String(item?.note || "").trim(),
+      startTime: String(item?.startTime || "").trim(),
+      endTime: String(item?.endTime || "").trim(),
+      isActive: item?.isActive !== false
+    };
+  });
+}
+
 function normalizeWorkingHours(value) {
   const workingHours = {};
 
@@ -97,6 +161,10 @@ function normalizeScheduleScope(value) {
     return "";
   }
   return normalized;
+}
+
+function normalizeAppointmentSettingsScope(value) {
+  return String(value || "").trim().toLowerCase() === "vip" ? "vip" : "default";
 }
 
 function getHistoryLockCutoffDateYmd() {
@@ -246,8 +314,18 @@ function buildBreakRangesByDay(rows) {
     if (start === null || end === null || start >= end) {
       return;
     }
+    const title = String(row?.title || "").trim();
+    const breakTypeRaw = String(row?.breakType ?? row?.break_type ?? "").trim().toLowerCase();
+    const breakTypeLabel = breakTypeRaw
+      .split(/[\s_-]+/)
+      .filter(Boolean)
+      .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+      .join(" ")
+      .trim();
+    const reason = title || breakTypeLabel || "Break";
+
     const list = byDay.get(dayNum) || [];
-    list.push({ start, end });
+    list.push({ start, end, reason });
     byDay.set(dayNum, list);
   });
   return byDay;
@@ -270,9 +348,29 @@ function hasSpecialistBreakConflict({
   const start = toTimeMinutes(startTime);
   const end = toTimeMinutes(endTime);
   if (start === null || end === null || start >= end) {
-    return false;
+    return null;
   }
-  return ranges.some((range) => start < range.end && range.start < end);
+  const conflict = ranges.find((range) => start < range.end && range.start < end);
+  if (!conflict) {
+    return null;
+  }
+  return {
+    start: conflict.start,
+    end: conflict.end,
+    reason: String(conflict.reason || "Break").trim() || "Break"
+  };
+}
+
+function buildBreakConflictMessage({
+  conflict,
+  appointmentDate = ""
+}) {
+  const reason = String(conflict?.reason || "Break").trim() || "Break";
+  const dateValue = String(appointmentDate || "").trim();
+  if (dateValue) {
+    return `Break conflict on ${dateValue}: ${reason}.`;
+  }
+  return `Selected time conflicts with specialist break: ${reason}.`;
 }
 
 function validateSlotAgainstWorkingHours({
@@ -489,6 +587,7 @@ function validateSettingsPayload({
   appointmentDurationOptionsMinutes,
   noShowThreshold,
   reminderHours,
+  reminderChannels,
   visibleWeekDays,
   workingHours
 }) {
@@ -512,6 +611,12 @@ function validateSettingsPayload({
   }
   if (reminderHours < 1 || reminderHours > 1000) {
     return { field: "reminderHours", message: "Reminder hours must be between 1 and 1000." };
+  }
+  if (!Array.isArray(reminderChannels) || reminderChannels.length === 0) {
+    return { field: "reminderChannels", message: "Select at least one reminder channel." };
+  }
+  if (reminderChannels.some((item) => !REMINDER_CHANNEL_SET.has(item))) {
+    return { field: "reminderChannels", message: "Invalid reminder channel." };
   }
   if (!Array.isArray(visibleWeekDays) || visibleWeekDays.length === 0) {
     return { field: "visibleWeekDays", message: "At least one visible week day is required." };
@@ -544,11 +649,51 @@ function validateSettingsPayload({
   return null;
 }
 
-async function requireAppointmentsAccess(request, reply, requiredPermission = PERMISSIONS.APPOINTMENTS_READ) {
-  const authContext = getAuthContext(request, reply);
-  if (!authContext) {
-    return null;
+function validateBreaksPayload({ specialistId, items }) {
+  if (!Number.isInteger(specialistId) || specialistId <= 0) {
+    return { field: "specialistId", message: "Specialist is required." };
   }
+  if (!Array.isArray(items)) {
+    return { field: "items", message: "Break items are required." };
+  }
+  if (items.length > 200) {
+    return { field: "items", message: "Too many break items (max 200)." };
+  }
+
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index] || {};
+    const dayOfWeek = Number.parseInt(String(item.dayOfWeek ?? "").trim(), 10);
+    const breakType = normalizeBreakType(item.breakType);
+    const startTime = String(item.startTime || "").trim();
+    const endTime = String(item.endTime || "").trim();
+    const title = String(item.title || "").trim();
+    const note = String(item.note || "").trim();
+
+    if (!Number.isInteger(dayOfWeek) || dayOfWeek < 1 || dayOfWeek > 7) {
+      return { field: `items.${index}.dayOfWeek`, message: "Invalid break day." };
+    }
+    if (!breakType) {
+      return { field: `items.${index}.breakType`, message: "Invalid break type." };
+    }
+    if (!TIME_REGEX.test(startTime) || !TIME_REGEX.test(endTime)) {
+      return { field: `items.${index}.time`, message: "Invalid break time." };
+    }
+    if (startTime >= endTime) {
+      return { field: `items.${index}.time`, message: "Break end time must be after start time." };
+    }
+    if (title.length > 120) {
+      return { field: `items.${index}.title`, message: "Break title is too long (max 120)." };
+    }
+    if (note.length > 255) {
+      return { field: `items.${index}.note`, message: "Break note is too long (max 255)." };
+    }
+  }
+
+  return null;
+}
+
+async function requireAppointmentsAccess(request, reply, requiredPermission = PERMISSIONS.APPOINTMENTS_READ) {
+  const authContext = request.authContext;
 
   const requester = await getProfileByAuthContext(authContext);
   if (!requester) {
@@ -557,7 +702,7 @@ async function requireAppointmentsAccess(request, reply, requiredPermission = PE
   }
 
   if (!(await hasPermission(requester.role_id, requiredPermission))) {
-    reply.status(404).send({ message: "Not found." });
+    reply.status(403).send({ message: "Forbidden." });
     return null;
   }
 
@@ -582,7 +727,7 @@ async function appointmentSettingsRoutes(fastify) {
         const items = await getAppointmentSpecialistsByOrganization(access.authContext.organizationId);
         return reply.send({ items });
       } catch (error) {
-        console.error("Error fetching appointment specialists:", error);
+        request.log.error({ err: error }, "Error fetching appointment specialists");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -614,7 +759,86 @@ async function appointmentSettingsRoutes(fastify) {
 
         return reply.send({ item });
       } catch (error) {
-        console.error("Error fetching appointment client no-show summary:", error);
+        request.log.error({ err: error }, "Error fetching appointment client no-show summary");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.get(
+    "/breaks",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+
+      try {
+        const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_READ);
+        if (!access) {
+          return;
+        }
+
+        const specialistId = parsePositiveIntegerOr(request.query?.specialistId, 0);
+        if (!specialistId) {
+          return reply.status(400).send({ field: "specialistId", message: "Specialist is required." });
+        }
+
+        const items = await getAppointmentBreaksBySpecialist({
+          organizationId: access.authContext.organizationId,
+          specialistId
+        });
+
+        return reply.send({ items });
+      } catch (error) {
+        request.log.error({ err: error }, "Error fetching appointment breaks");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.put(
+    "/breaks",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      try {
+        const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_UPDATE);
+        if (!access) {
+          return;
+        }
+
+        const specialistId = parsePositiveIntegerOr(request.body?.specialistId, 0);
+        const items = normalizeBreakItems(request.body?.items);
+
+        const validationError = validateBreaksPayload({ specialistId, items });
+        if (validationError) {
+          return reply.status(400).send(validationError);
+        }
+
+        const savedItems = await replaceAppointmentBreaksBySpecialist({
+          organizationId: access.authContext.organizationId,
+          actorUserId: access.authContext.userId,
+          specialistId,
+          items
+        });
+
+        return reply.send({
+          message: "Appointment breaks updated.",
+          items: savedItems
+        });
+      } catch (error) {
+        if (isUniqueOrExclusionConflict(error)) {
+          return reply.status(409).send({ message: "Duplicate break slot for this specialist." });
+        }
+        if (error?.code === "23503") {
+          return reply.status(400).send({ message: "Invalid specialist." });
+        }
+        if (error?.code === "23514") {
+          return reply.status(400).send({ message: "Invalid break data." });
+        }
+        request.log.error({ err: error }, "Error updating appointment breaks");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -637,6 +861,10 @@ async function appointmentSettingsRoutes(fastify) {
         const specialistId = parsePositiveIntegerOr(request.query?.specialistId, 0);
         const dateFrom = String(request.query?.dateFrom || "").trim();
         const dateTo = String(request.query?.dateTo || "").trim();
+        const vipOnly = parseNullableBoolean(request.query?.vipOnly ?? request.query?.vip_only) === true;
+        const recurringOnly = parseNullableBoolean(
+          request.query?.recurringOnly ?? request.query?.recurring_only
+        ) === true;
 
         if (!specialistId) {
           return reply.status(400).send({ field: "specialistId", message: "Specialist is required." });
@@ -652,12 +880,14 @@ async function appointmentSettingsRoutes(fastify) {
           organizationId: access.authContext.organizationId,
           specialistId,
           dateFrom,
-          dateTo
+          dateTo,
+          vipOnly,
+          recurringOnly
         });
 
         return reply.send({ items });
       } catch (error) {
-        console.error("Error fetching appointment schedules:", error);
+        request.log.error({ err: error }, "Error fetching appointment schedules");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -686,6 +916,9 @@ async function appointmentSettingsRoutes(fastify) {
         const status = normalizeAppointmentStatus(request.body?.status || "pending");
         const note = String(request.body?.note || "").trim();
         const repeat = normalizeScheduleRepeatPayload(request.body?.repeat);
+        const settingsScope = normalizeAppointmentSettingsScope(
+          request.body?.settingsScope ?? request.query?.settingsScope
+        );
 
         const errors = validateSchedulePayload({
           specialistId,
@@ -708,7 +941,10 @@ async function appointmentSettingsRoutes(fastify) {
         }
 
         if (repeat.enabled) {
-          const settingsForRepeat = await getAppointmentSettingsByOrganization(access.authContext.organizationId);
+          const settingsForRepeat = await getAppointmentSettingsByOrganization(
+            access.authContext.organizationId,
+            { scope: settingsScope }
+          );
           const repeatDaysValidation = validateRepeatDaysAgainstVisibleWeekDays({
             repeatDayKeys: repeat.dayKeys,
             visibleWeekDayKeys: settingsForRepeat?.visibleWeekDays
@@ -776,17 +1012,23 @@ async function appointmentSettingsRoutes(fastify) {
                   throw createRouteError(400, workingHoursError);
                 }
 
-                if (hasSpecialistBreakConflict({
+                const recurringBreakConflict = hasSpecialistBreakConflict({
                   breakRangesByDay,
                   appointmentDate: recurringDate,
                   startTime,
                   endTime
-                })) {
+                });
+                if (recurringBreakConflict) {
                   if (repeat.skipConflicts) {
                     nextSkippedDates.push(recurringDate);
                     continue;
                   }
-                  throw createRouteError(409, { message: `Break conflict on ${recurringDate}.` });
+                  throw createRouteError(409, {
+                    message: buildBreakConflictMessage({
+                      conflict: recurringBreakConflict,
+                      appointmentDate: recurringDate
+                    })
+                  });
                 }
 
                 const hasConflict = await hasAppointmentScheduleConflict({
@@ -883,7 +1125,10 @@ async function appointmentSettingsRoutes(fastify) {
         }
 
         if (status === "pending" || status === "confirmed") {
-          const settingsForSlot = await getAppointmentSettingsByOrganization(access.authContext.organizationId);
+          const settingsForSlot = await getAppointmentSettingsByOrganization(
+            access.authContext.organizationId,
+            { scope: settingsScope }
+          );
           const workingHoursError = validateSlotAgainstWorkingHours({
             settings: settingsForSlot,
             appointmentDate,
@@ -901,13 +1146,16 @@ async function appointmentSettingsRoutes(fastify) {
               dayNums: collectDayNumsFromDates([appointmentDate])
             })
           );
-          if (hasSpecialistBreakConflict({
+          const breakConflict = hasSpecialistBreakConflict({
             breakRangesByDay,
             appointmentDate,
             startTime,
             endTime
-          })) {
-            return reply.status(409).send({ message: "Selected time conflicts with specialist break." });
+          });
+          if (breakConflict) {
+            return reply.status(409).send({
+              message: buildBreakConflictMessage({ conflict: breakConflict })
+            });
           }
 
           const hasConflict = await hasAppointmentScheduleConflict({
@@ -953,7 +1201,7 @@ async function appointmentSettingsRoutes(fastify) {
         if (error?.code === "23514") {
           return reply.status(400).send({ message: "Invalid appointment data." });
         }
-        console.error("Error creating appointment schedule:", error);
+        request.log.error({ err: error }, "Error creating appointment schedule");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -991,6 +1239,9 @@ async function appointmentSettingsRoutes(fastify) {
         const status = normalizeAppointmentStatus(request.body?.status || "pending");
         const note = String(request.body?.note || "").trim();
         const repeat = normalizeScheduleRepeatPayload(request.body?.repeat);
+        const settingsScope = normalizeAppointmentSettingsScope(
+          request.body?.settingsScope ?? request.query?.settingsScope
+        );
 
         const errors = validateSchedulePayload({
           specialistId,
@@ -1036,7 +1287,10 @@ async function appointmentSettingsRoutes(fastify) {
             return reply.status(400).send(repeatError);
           }
 
-          const settingsForRepeat = await getAppointmentSettingsByOrganization(access.authContext.organizationId);
+          const settingsForRepeat = await getAppointmentSettingsByOrganization(
+            access.authContext.organizationId,
+            { scope: settingsScope }
+          );
           const repeatDaysValidation = validateRepeatDaysAgainstVisibleWeekDays({
             repeatDayKeys: repeat.dayKeys,
             visibleWeekDayKeys: settingsForRepeat?.visibleWeekDays
@@ -1102,13 +1356,16 @@ async function appointmentSettingsRoutes(fastify) {
                 throw createRouteError(400, anchorWorkingHoursError);
               }
 
-              if (hasSpecialistBreakConflict({
+              const anchorBreakConflict = hasSpecialistBreakConflict({
                 breakRangesByDay,
                 appointmentDate,
                 startTime,
                 endTime
-              })) {
-                throw createRouteError(409, { message: "Selected time conflicts with specialist break." });
+              });
+              if (anchorBreakConflict) {
+                throw createRouteError(409, {
+                  message: buildBreakConflictMessage({ conflict: anchorBreakConflict })
+                });
               }
 
               const hasAnchorConflict = await hasAppointmentScheduleConflict({
@@ -1171,17 +1428,23 @@ async function appointmentSettingsRoutes(fastify) {
                   throw createRouteError(400, workingHoursError);
                 }
 
-                if (hasSpecialistBreakConflict({
+                const recurringBreakConflict = hasSpecialistBreakConflict({
                   breakRangesByDay,
                   appointmentDate: recurringDate,
                   startTime,
                   endTime
-                })) {
+                });
+                if (recurringBreakConflict) {
                   if (repeat.skipConflicts) {
                     nextSkippedDates.push(recurringDate);
                     continue;
                   }
-                  throw createRouteError(409, { message: `Break conflict on ${recurringDate}.` });
+                  throw createRouteError(409, {
+                    message: buildBreakConflictMessage({
+                      conflict: recurringBreakConflict,
+                      appointmentDate: recurringDate
+                    })
+                  });
                 }
 
                 const hasConflict = await hasAppointmentScheduleConflict({
@@ -1264,7 +1527,10 @@ async function appointmentSettingsRoutes(fastify) {
         const applyAppointmentDate = target.scope === "single";
 
         if (status === "pending" || status === "confirmed") {
-          const settingsForAvailability = await getAppointmentSettingsByOrganization(access.authContext.organizationId);
+          const settingsForAvailability = await getAppointmentSettingsByOrganization(
+            access.authContext.organizationId,
+            { scope: settingsScope }
+          );
           const validationDates = target.items.map((item) => (
             applyAppointmentDate ? appointmentDate : item.appointmentDate
           ));
@@ -1294,16 +1560,24 @@ async function appointmentSettingsRoutes(fastify) {
               return reply.status(400).send(workingHoursError);
             }
 
-            if (hasSpecialistBreakConflict({
+            const breakConflict = hasSpecialistBreakConflict({
               breakRangesByDay,
               appointmentDate: conflictDate,
               startTime,
               endTime
-            })) {
+            });
+            if (breakConflict) {
               if (target.items.length > 1) {
-                return reply.status(409).send({ message: `Break conflict on ${conflictDate}.` });
+                return reply.status(409).send({
+                  message: buildBreakConflictMessage({
+                    conflict: breakConflict,
+                    appointmentDate: conflictDate
+                  })
+                });
               }
-              return reply.status(409).send({ message: "Selected time conflicts with specialist break." });
+              return reply.status(409).send({
+                message: buildBreakConflictMessage({ conflict: breakConflict })
+              });
             }
 
             const hasConflict = await hasAppointmentScheduleConflict({
@@ -1371,7 +1645,7 @@ async function appointmentSettingsRoutes(fastify) {
         if (error?.code === "23514") {
           return reply.status(400).send({ message: "Invalid appointment data." });
         }
-        console.error("Error updating appointment schedule:", error);
+        request.log.error({ err: error }, "Error updating appointment schedule");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -1434,7 +1708,7 @@ async function appointmentSettingsRoutes(fastify) {
           }
         });
       } catch (error) {
-        console.error("Error deleting appointment schedule:", error);
+        request.log.error({ err: error }, "Error deleting appointment schedule");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -1454,12 +1728,16 @@ async function appointmentSettingsRoutes(fastify) {
           return;
         }
 
-        const settings = await getAppointmentSettingsByOrganization(access.authContext.organizationId);
+        const settingsScope = normalizeAppointmentSettingsScope(request.query?.scope);
+        const settings = await getAppointmentSettingsByOrganization(
+          access.authContext.organizationId,
+          { scope: settingsScope }
+        );
         return reply.send({
           item: settings || null
         });
       } catch (error) {
-        console.error("Error fetching appointment settings:", error);
+        request.log.error({ err: error }, "Error fetching appointment settings");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -1477,12 +1755,16 @@ async function appointmentSettingsRoutes(fastify) {
           return;
         }
 
+        const settingsScope = normalizeAppointmentSettingsScope(
+          request.query?.scope ?? request.body?.scope
+        );
         const slotIntervalMinutes = parsePositiveIntegerOr(request.body?.slotInterval, 0);
         const appointmentDurationOptionsMinutes = normalizeDurationOptions(request.body?.appointmentDurationOptions);
         const appointmentDurationMinutes = appointmentDurationOptionsMinutes[0]
           || parsePositiveIntegerOr(request.body?.appointmentDuration, 0);
         const noShowThreshold = parsePositiveIntegerOr(request.body?.noShowThreshold, 0);
         const reminderHours = parsePositiveIntegerOr(request.body?.reminderHours, 0);
+        const reminderChannels = normalizeReminderChannels(request.body?.reminderChannels);
         const visibleWeekDays = normalizeVisibleWeekDays(request.body?.visibleWeekDays);
         const workingHours = normalizeWorkingHours(request.body?.workingHours);
 
@@ -1492,8 +1774,10 @@ async function appointmentSettingsRoutes(fastify) {
           appointmentDurationOptionsMinutes,
           noShowThreshold,
           reminderHours,
+          reminderChannels,
           visibleWeekDays,
-          workingHours
+          workingHours,
+          settingsScope
         });
         if (validationError) {
           return reply.status(400).send(validationError);
@@ -1507,8 +1791,10 @@ async function appointmentSettingsRoutes(fastify) {
           appointmentDurationOptionsMinutes,
           noShowThreshold,
           reminderHours,
+          reminderChannels,
           visibleWeekDays,
-          workingHours
+          workingHours,
+          settingsScope
         });
 
         return reply.send({
@@ -1518,10 +1804,10 @@ async function appointmentSettingsRoutes(fastify) {
       } catch (error) {
         if (error?.code === "MIGRATION_REQUIRED") {
           return reply.status(500).send({
-            message: "DB migration required: add appointment_duration_minutes and appointment_duration_options_minutes columns to appointment_settings."
+            message: "DB migration required: appointment settings table is missing required columns."
           });
         }
-        console.error("Error updating appointment settings:", error);
+        request.log.error({ err: error }, "Error updating appointment settings");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }

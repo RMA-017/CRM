@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import CustomSelect from "../../components/CustomSelect.jsx";
 import { formatDateYMD } from "../../lib/formatters.js";
 import { togglePermissionCode } from "./profile.helpers.js";
@@ -73,7 +74,7 @@ function ProfileModals(props) {
     cancelPositionEdit
   } = props;
 
-  return (
+  const modalContent = (
     <>
       <section id="myProfileModal" className="my-profile-panel my-profile-modal" hidden={!myProfileModalOpen}>
         <div className="all-users-head">
@@ -237,7 +238,7 @@ function ProfileModals(props) {
                   name="email"
                   type="email"
                   autoComplete="email"
-                  placeholder="example@mail.com"
+                  placeholder="@username or user@gmail.com"
                   className={profileEdit.errorField === "email" ? "input-error" : ""}
                   value={profileEdit.form.email}
                   onInput={(event) => {
@@ -302,7 +303,7 @@ function ProfileModals(props) {
                   name="phone"
                   type="tel"
                   autoComplete="tel"
-                  placeholder="+998..."
+                  placeholder="+998977861070"
                   className={profileEdit.errorField === "phone" ? "input-error" : ""}
                   value={profileEdit.form.phone}
                   onInput={(event) => {
@@ -405,7 +406,7 @@ function ProfileModals(props) {
               name="email"
               type="email"
               autoComplete="email"
-              placeholder="user@gmail.com"
+              placeholder="@username or user@gmail.com"
               className={allUsersEdit.errors.email ? "input-error" : ""}
               value={allUsersEdit.form.email}
               onInput={(event) => {
@@ -472,7 +473,7 @@ function ProfileModals(props) {
               name="phone"
               type="tel"
               autoComplete="tel"
-              placeholder="+998954550033"
+              placeholder="+998977861070"
               className={allUsersEdit.errors.phone ? "input-error" : ""}
               value={allUsersEdit.form.phone}
               onInput={(event) => {
@@ -640,6 +641,7 @@ function ProfileModals(props) {
             <input
               id="clientsEditPhone"
               type="text"
+              placeholder="+998977861070"
               className={clientEditErrors.phone ? "input-error" : ""}
               value={clientEditForm.phone}
               onInput={(event) => {
@@ -658,6 +660,7 @@ function ProfileModals(props) {
             <input
               id="clientsEditTgMail"
               type="text"
+              placeholder="@username or user@gmail.com"
               className={clientEditErrors.tgMail ? "input-error" : ""}
               value={clientEditForm.tgMail}
               onInput={(event) => {
@@ -1006,6 +1009,12 @@ function ProfileModals(props) {
       <div className="login-overlay" hidden={!positionEditOpen} onClick={cancelPositionEdit} />
     </>
   );
+
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(modalContent, document.body);
 }
 
 export default ProfileModals;

@@ -37,6 +37,7 @@ function ProfilePage({ forcedView = "none" }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [clientsMenuOpen, setClientsMenuOpen] = useState(false);
   const [appointmentMenuOpen, setAppointmentMenuOpen] = useState(false);
+  const [appointmentVipMenuOpen, setAppointmentVipMenuOpen] = useState(false);
   const [usersMenuOpen, setUsersMenuOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -221,6 +222,11 @@ function ProfilePage({ forcedView = "none" }) {
     clientsMessage,
     clientsPage,
     clientsTotalPages,
+    vipClients,
+    vipClientsLoading,
+    vipClientsMessage,
+    vipClientsPage,
+    vipClientsTotalPages,
     clientCreateForm,
     clientCreateErrors,
     clientCreateSubmitting,
@@ -235,6 +241,7 @@ function ProfilePage({ forcedView = "none" }) {
     setClientEditForm,
     setClientEditErrors,
     loadClients,
+    loadVipClients,
     handleClientCreateSubmit,
     startClientEdit,
     handleClientEditSubmit,
@@ -356,6 +363,7 @@ function ProfilePage({ forcedView = "none" }) {
     setMenuOpen(false);
     setClientsMenuOpen(false);
     setAppointmentMenuOpen(false);
+    setAppointmentVipMenuOpen(false);
     setUsersMenuOpen(false);
     setSettingsMenuOpen(false);
   }, []);
@@ -468,6 +476,10 @@ function ProfilePage({ forcedView = "none" }) {
       loadClients(1);
       return;
     }
+    if (mainView === "appointment-vip-clients") {
+      loadVipClients(1);
+      return;
+    }
     if (mainView === "create-user") {
       if (hasSettingsMenuAccess) {
         loadOrganizations();
@@ -488,6 +500,7 @@ function ProfilePage({ forcedView = "none" }) {
   }, [
     hasSettingsMenuAccess,
     loadClients,
+    loadVipClients,
     loadAllUsers,
     loadOrganizations,
     loadPositionsSettings,
@@ -615,6 +628,10 @@ function ProfilePage({ forcedView = "none" }) {
     closeAppointmentSettingsPanel,
     openAppointmentVipRecurringPanel,
     closeAppointmentVipRecurringPanel,
+    openAppointmentVipSettingsPanel,
+    closeAppointmentVipSettingsPanel,
+    openAppointmentVipClientsPanel,
+    closeAppointmentVipClientsPanel,
     openOrganizationsPanel,
     closeOrganizationsPanel,
     openRolesPanel,
@@ -1035,6 +1052,12 @@ function ProfilePage({ forcedView = "none" }) {
           clientsPage={clientsPage}
           clientsTotalPages={clientsTotalPages}
           loadClients={loadClients}
+          vipClients={vipClients}
+          vipClientsMessage={vipClientsMessage}
+          vipClientsLoading={vipClientsLoading}
+          vipClientsPage={vipClientsPage}
+          vipClientsTotalPages={vipClientsTotalPages}
+          loadVipClients={loadVipClients}
           canCreateClients={canCreateClients}
           canUpdateClients={canUpdateClients}
           canDeleteClients={canDeleteClients}
@@ -1052,6 +1075,8 @@ function ProfilePage({ forcedView = "none" }) {
           closeAppointmentPanel={closeAppointmentPanel}
           closeAppointmentSettingsPanel={closeAppointmentSettingsPanel}
           closeAppointmentVipRecurringPanel={closeAppointmentVipRecurringPanel}
+          closeAppointmentVipSettingsPanel={closeAppointmentVipSettingsPanel}
+          closeAppointmentVipClientsPanel={closeAppointmentVipClientsPanel}
           closeOrganizationsPanel={closeOrganizationsPanel}
           closeRolesPanel={closeRolesPanel}
           closePositionsPanel={closePositionsPanel}
@@ -1205,9 +1230,13 @@ function ProfilePage({ forcedView = "none" }) {
         hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
         appointmentMenuOpen={appointmentMenuOpen}
         setAppointmentMenuOpen={setAppointmentMenuOpen}
+        appointmentVipMenuOpen={appointmentVipMenuOpen}
+        setAppointmentVipMenuOpen={setAppointmentVipMenuOpen}
         openAppointmentPanel={openAppointmentPanel}
         openAppointmentSettingsPanel={openAppointmentSettingsPanel}
         openAppointmentVipRecurringPanel={openAppointmentVipRecurringPanel}
+        openAppointmentVipSettingsPanel={openAppointmentVipSettingsPanel}
+        openAppointmentVipClientsPanel={openAppointmentVipClientsPanel}
         hasUsersMenuAccess={hasUsersMenuAccess}
         usersMenuOpen={usersMenuOpen}
         setUsersMenuOpen={setUsersMenuOpen}

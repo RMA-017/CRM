@@ -1,19 +1,36 @@
+import compress from "@fastify/compress";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import { appConfig } from "../config/app-config.js";
 
+function isAllowedCorsOrigin(origin) {
+  if (!origin) {
+    return true;
+  }
+
+  if (appConfig.allowedOrigins.includes("*")) {
+    return true;
+  }
+
+  return appConfig.allowedOrigins.includes(origin);
+}
+
 async function securityPlugin(fastify) {
   fastify.decorate("apiRateLimit", appConfig.apiRateLimit);
   fastify.decorate("loginRateLimit", appConfig.loginRateLimit);
+
+  await fastify.register(compress);
 
   await fastify.register(helmet, {
     crossOriginResourcePolicy: { policy: "cross-origin" }
   });
 
   await fastify.register(cors, {
-    origin: appConfig.allowedOrigin,
+    origin: (origin, callback) => {
+      callback(null, isAllowedCorsOrigin(origin));
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"]

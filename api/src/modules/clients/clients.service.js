@@ -25,7 +25,8 @@ export async function getClientsPage({
   search = "",
   firstName = "",
   lastName = "",
-  middleName = ""
+  middleName = "",
+  isVip = null
 }) {
   const whereParts = ["c.organization_id = $1", "o.is_active = TRUE"];
   const params = [organizationId];
@@ -46,6 +47,11 @@ export async function getClientsPage({
   if (normalizedMiddleName) {
     params.push(`${normalizedMiddleName}%`);
     whereParts.push(`LOWER(COALESCE(c.middle_name, '')) LIKE $${params.length}`);
+  }
+
+  if (typeof isVip === "boolean") {
+    params.push(isVip);
+    whereParts.push(`c.is_vip = $${params.length}`);
   }
 
   const normalizedSearch = String(search || "").trim().toLowerCase();
@@ -141,6 +147,7 @@ export async function searchClientsForSchedule({
   firstName = "",
   lastName = "",
   middleName = "",
+  isVip = null,
   limit = 50
 }) {
   const normalizedFirstName = normalizeSearchToken(firstName);
@@ -167,17 +174,19 @@ export async function searchClientsForSchedule({
        AND ($2 = '' OR LOWER(c.first_name) LIKE $2 || '%')
        AND ($3 = '' OR LOWER(c.last_name) LIKE $3 || '%')
        AND ($4 = '' OR (c.middle_name IS NOT NULL AND LOWER(c.middle_name) LIKE $4 || '%'))
+       AND ($5::boolean IS NULL OR c.is_vip = $5::boolean)
      ORDER BY
        LOWER(c.last_name) ASC,
        LOWER(c.first_name) ASC,
        LOWER(COALESCE(c.middle_name, '')) ASC,
        c.id ASC
-     LIMIT $5`,
+     LIMIT $6`,
     [
       organizationId,
       normalizedFirstName,
       normalizedLastName,
       normalizedMiddleName,
+      typeof isVip === "boolean" ? isVip : null,
       safeLimit
     ]
   );

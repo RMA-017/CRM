@@ -1,6 +1,5 @@
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
-import { getAuthContext } from "../../lib/session.js";
 import { validateBirthdayYmd } from "../../lib/date.js";
 import { hasPermission } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
@@ -184,19 +183,18 @@ async function clientsRoutes(fastify) {
     async (request, reply) => {
       setNoCacheHeaders(reply);
 
-      const authContext = getAuthContext(request, reply);
-      if (!authContext) {
-        return;
-      }
+      const authContext = request.authContext;
 
       const firstName = String(request.query?.firstName || "").trim();
       const lastName = String(request.query?.lastName || "").trim();
       const middleName = String(request.query?.middleName || "").trim();
+      const isVip = parseNullableBoolean(request.query?.isVip ?? request.query?.is_vip);
       const limitParam = Number.parseInt(String(request.query?.limit || ""), 10);
       const limit = Number.isInteger(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 50;
 
       const combinedLength = `${firstName}${lastName}${middleName}`.length;
-      if (combinedLength < 3) {
+      const isVipOnlySearch = isVip === true;
+      if (!isVipOnlySearch && combinedLength < 3) {
         return reply.send({ items: [] });
       }
 
@@ -206,7 +204,7 @@ async function clientsRoutes(fastify) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
         if (!(await hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ))) {
-          return reply.status(404).send({ message: "Not found." });
+          return reply.status(403).send({ message: "Forbidden." });
         }
 
         const rows = await searchClientsForSchedule({
@@ -214,6 +212,7 @@ async function clientsRoutes(fastify) {
           firstName,
           lastName,
           middleName,
+          isVip,
           limit
         });
 
@@ -221,7 +220,7 @@ async function clientsRoutes(fastify) {
           items: rows.map(mapClient)
         });
       } catch (error) {
-        console.error("Error searching clients:", error);
+        request.log.error({ err: error }, "Error searching clients");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -235,10 +234,7 @@ async function clientsRoutes(fastify) {
     async (request, reply) => {
       setNoCacheHeaders(reply);
 
-      const authContext = getAuthContext(request, reply);
-      if (!authContext) {
-        return;
-      }
+      const authContext = request.authContext;
 
       const pageParam = Number.parseInt(String(request.query?.page || ""), 10);
       const limitParam = Number.parseInt(String(request.query?.limit || ""), 10);
@@ -246,6 +242,7 @@ async function clientsRoutes(fastify) {
       const firstName = String(request.query?.firstName || "").trim();
       const lastName = String(request.query?.lastName || "").trim();
       const middleName = String(request.query?.middleName || "").trim();
+      const isVip = parseNullableBoolean(request.query?.isVip ?? request.query?.is_vip);
       const page = Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1;
       const limit = Number.isInteger(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 20;
 
@@ -255,7 +252,7 @@ async function clientsRoutes(fastify) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
         if (!(await hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ))) {
-          return reply.status(404).send({ message: "Not found." });
+          return reply.status(403).send({ message: "Forbidden." });
         }
 
         const { total, totalPages, rows, page: safePage } = await getClientsPage({
@@ -265,7 +262,8 @@ async function clientsRoutes(fastify) {
           search,
           firstName,
           lastName,
-          middleName
+          middleName,
+          isVip
         });
 
         return reply.send({
@@ -280,7 +278,7 @@ async function clientsRoutes(fastify) {
           }
         });
       } catch (error) {
-        console.error("Error fetching clients:", error);
+        request.log.error({ err: error }, "Error fetching clients");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -292,10 +290,7 @@ async function clientsRoutes(fastify) {
       config: { rateLimit: fastify.apiRateLimit }
     },
     async (request, reply) => {
-      const authContext = getAuthContext(request, reply);
-      if (!authContext) {
-        return;
-      }
+      const authContext = request.authContext;
 
       const input = normalizeClientPayload(request.body);
       const errors = validateClientPayload(input);
@@ -310,7 +305,7 @@ async function clientsRoutes(fastify) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
         if (!(await hasPermission(requester.role_id, PERMISSIONS.CLIENTS_CREATE))) {
-          return reply.status(404).send({ message: "Not found." });
+          return reply.status(403).send({ message: "Forbidden." });
         }
 
         const item = await createClient({
@@ -331,7 +326,7 @@ async function clientsRoutes(fastify) {
           item: mapClient(item)
         });
       } catch (error) {
-        console.error("Error creating client:", error);
+        request.log.error({ err: error }, "Error creating client");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -343,10 +338,7 @@ async function clientsRoutes(fastify) {
       config: { rateLimit: fastify.apiRateLimit }
     },
     async (request, reply) => {
-      const authContext = getAuthContext(request, reply);
-      if (!authContext) {
-        return;
-      }
+      const authContext = request.authContext;
 
       const id = parsePositiveInteger(request.params?.id);
       if (!id) {
@@ -366,7 +358,7 @@ async function clientsRoutes(fastify) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
         if (!(await hasPermission(requester.role_id, PERMISSIONS.CLIENTS_UPDATE))) {
-          return reply.status(404).send({ message: "Not found." });
+          return reply.status(403).send({ message: "Forbidden." });
         }
 
         const item = await updateClientById({
@@ -392,7 +384,7 @@ async function clientsRoutes(fastify) {
           item: mapClient(item)
         });
       } catch (error) {
-        console.error("Error updating client:", error);
+        request.log.error({ err: error }, "Error updating client");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -404,10 +396,7 @@ async function clientsRoutes(fastify) {
       config: { rateLimit: fastify.apiRateLimit }
     },
     async (request, reply) => {
-      const authContext = getAuthContext(request, reply);
-      if (!authContext) {
-        return;
-      }
+      const authContext = request.authContext;
 
       const id = parsePositiveInteger(request.params?.id);
       if (!id) {
@@ -420,7 +409,7 @@ async function clientsRoutes(fastify) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
         if (!(await hasPermission(requester.role_id, PERMISSIONS.CLIENTS_DELETE))) {
-          return reply.status(404).send({ message: "Not found." });
+          return reply.status(403).send({ message: "Forbidden." });
         }
 
         const result = await deleteClientById({ id, organizationId: authContext.organizationId });
@@ -430,7 +419,7 @@ async function clientsRoutes(fastify) {
 
         return reply.send({ message: "Client deleted." });
       } catch (error) {
-        console.error("Error deleting client:", error);
+        request.log.error({ err: error }, "Error deleting client");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }

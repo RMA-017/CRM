@@ -1,11 +1,7 @@
 import jwt from "jsonwebtoken";
 import { appConfig } from "../config/app-config.js";
 import { AUTH_COOKIE_NAME } from "./cookies.js";
-
-function normalizePositiveInteger(value) {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-}
+import { parsePositiveInteger } from "./number.js";
 
 export function signAccessToken({ userId, organizationId, organizationCode, username }) {
   return jwt.sign({
@@ -33,14 +29,22 @@ export function getAuthPayload(request, reply) {
   }
 }
 
+export async function authPreHandler(request, _reply) {
+  const authContext = getAuthContext(request, _reply);
+  if (!authContext) {
+    return; // getAuthContext already sent 401
+  }
+  request.authContext = authContext;
+}
+
 export function getAuthContext(request, reply) {
   const payload = getAuthPayload(request, reply);
   if (!payload) {
     return null;
   }
 
-  const userId = normalizePositiveInteger(payload?.userId);
-  const organizationId = normalizePositiveInteger(payload?.organizationId);
+  const userId = parsePositiveInteger(payload?.userId);
+  const organizationId = parsePositiveInteger(payload?.organizationId);
   const organizationCode = String(payload?.organizationCode || "").trim().toLowerCase();
   const username = String(payload?.username || "").trim();
 

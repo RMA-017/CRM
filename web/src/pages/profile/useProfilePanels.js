@@ -81,6 +81,22 @@ export function useProfilePanels({
     closePanel("appointment-vip-recurring");
   }, [closePanel]);
 
+  const openAppointmentVipSettingsPanel = useCallback(() => {
+    openPanel("/appointments/vip/settings", canReadAppointments);
+  }, [canReadAppointments, openPanel]);
+
+  const closeAppointmentVipSettingsPanel = useCallback(() => {
+    closePanel("appointment-vip-settings");
+  }, [closePanel]);
+
+  const openAppointmentVipClientsPanel = useCallback(() => {
+    openPanel("/appointments/vip-clients", canReadAppointments && canReadClients);
+  }, [canReadAppointments, canReadClients, openPanel]);
+
+  const closeAppointmentVipClientsPanel = useCallback(() => {
+    closePanel("appointment-vip-clients");
+  }, [closePanel]);
+
   const openOrganizationsPanel = useCallback(() => {
     openPanel("/settings/organizations", hasSettingsMenuAccess);
   }, [hasSettingsMenuAccess, openPanel]);
@@ -127,6 +143,10 @@ export function useProfilePanels({
     closeAppointmentSettingsPanel,
     openAppointmentVipRecurringPanel,
     closeAppointmentVipRecurringPanel,
+    openAppointmentVipSettingsPanel,
+    closeAppointmentVipSettingsPanel,
+    openAppointmentVipClientsPanel,
+    closeAppointmentVipClientsPanel,
     openOrganizationsPanel,
     closeOrganizationsPanel,
     openRolesPanel,

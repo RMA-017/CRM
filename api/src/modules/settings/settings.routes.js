@@ -1,7 +1,6 @@
 import { ORGANIZATION_CODE_REGEX, PERMISSION_CODE_REGEX } from "../../constants/validation.js";
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
-import { getAuthContext } from "../../lib/session.js";
 import {
   createOrganization,
   createPositionOption,
@@ -112,10 +111,7 @@ function validatePositionPayload({ label }) {
 }
 
 async function requireAdmin(request, reply) {
-  const authContext = getAuthContext(request, reply);
-  if (!authContext) {
-    return null;
-  }
+  const authContext = request.authContext;
 
   const requester = await findSettingsRequester(authContext);
   if (!requester) {
@@ -123,8 +119,8 @@ async function requireAdmin(request, reply) {
     return null;
   }
 
-  if (!Boolean(requester.is_admin)) {
-    reply.status(404).send({ message: "Not found." });
+  if (!requester.is_admin) {
+    reply.status(403).send({ message: "Forbidden." });
     return null;
   }
 
@@ -149,7 +145,7 @@ async function settingsRoutes(fastify) {
         const items = await listOrganizations();
         return reply.send({ items });
       } catch (error) {
-        console.error("Error fetching organizations:", error);
+        request.log.error({ err: error }, "Error fetching organizations:");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -189,7 +185,7 @@ async function settingsRoutes(fastify) {
         if (error?.code === "23505") {
           return reply.status(409).send({ field: "code", message: "Organization code already exists." });
         }
-        console.error("Error creating organization:", error);
+        request.log.error({ err: error }, "Error creating organization:");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -243,7 +239,7 @@ async function settingsRoutes(fastify) {
         if (error?.code === "23505") {
           return reply.status(409).send({ field: "code", message: "Organization code already exists." });
         }
-        console.error("Error updating organization:", error);
+        request.log.error({ err: error }, "Error updating organization:");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -280,7 +276,7 @@ async function settingsRoutes(fastify) {
         if (error?.code === "23503") {
           return reply.status(409).send({ message: "Organization is used by users and cannot be deleted." });
         }
-        console.error("Error deleting organization:", error);
+        request.log.error({ err: error }, "Error deleting organization:");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -306,7 +302,7 @@ async function settingsRoutes(fastify) {
         ]);
         return reply.send({ items, permissions });
       } catch (error) {
-        console.error("Error fetching roles:", error);
+        request.log.error({ err: error }, "Error fetching roles:");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -362,7 +358,7 @@ async function settingsRoutes(fastify) {
               : "Unknown permission code(s)."
           });
         }
-        console.error("Error creating role:", error);
+        request.log.error({ err: error }, "Error creating role:");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -453,7 +449,7 @@ async function settingsRoutes(fastify) {
         if (error?.code === "23503") {
           return reply.status(409).send({ message: "Role is used by users and cannot be changed." });
         }
-        console.error("Error updating role:", error);
+        request.log.error({ err: error }, "Error updating role:");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -480,7 +476,7 @@ async function settingsRoutes(fastify) {
         if (!existing) {
           return reply.status(404).send({ message: "Role not found." });
         }
-        if (Boolean(existing.isAdmin)) {
+        if (existing.isAdmin) {
           return reply.status(400).send({ message: "Admin role cannot be deleted." });
         }
 
@@ -494,7 +490,7 @@ async function settingsRoutes(fastify) {
         if (error?.code === "23503") {
           return reply.status(409).send({ message: "Role is used by users and cannot be deleted." });
         }
-        console.error("Error deleting role:", error);
+        request.log.error({ err: error }, "Error deleting role:");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -517,7 +513,7 @@ async function settingsRoutes(fastify) {
         const items = await listPositionOptionsForSettings();
         return reply.send({ items });
       } catch (error) {
-        console.error("Error fetching positions:", error);
+        request.log.error({ err: error }, "Error fetching positions:");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -557,7 +553,7 @@ async function settingsRoutes(fastify) {
         if (error?.code === "23505") {
           return reply.status(409).send({ field: "label", message: "Position label already exists." });
         }
-        console.error("Error creating position:", error);
+        request.log.error({ err: error }, "Error creating position:");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -610,7 +606,7 @@ async function settingsRoutes(fastify) {
         if (error?.code === "23503") {
           return reply.status(409).send({ message: "Position is used by users and cannot be changed." });
         }
-        console.error("Error updating position:", error);
+        request.log.error({ err: error }, "Error updating position:");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -648,7 +644,7 @@ async function settingsRoutes(fastify) {
         if (error?.code === "23503") {
           return reply.status(409).send({ message: "Position is used by users and cannot be deleted." });
         }
-        console.error("Error deleting position:", error);
+        request.log.error({ err: error }, "Error deleting position:");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }

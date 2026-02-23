@@ -11,6 +11,18 @@ function toNumber(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function toOriginList(value, fallback) {
+  const source = String(value || fallback || "").trim();
+  if (!source) {
+    return [];
+  }
+
+  return source
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
 function readRequiredEnv(name) {
   const value = String(process.env[name] || "").trim();
   if (!value) {
@@ -23,7 +35,7 @@ export const appConfig = {
   nodeEnv: String(process.env.NODE_ENV || "development").trim().toLowerCase(),
   port: toNumber(process.env.PORT, 3003),
   trustProxy: toBoolean(process.env.TRUST_PROXY, false),
-  allowedOrigin: String(process.env.WEB_ORIGIN || "http://localhost:5173").trim(),
+  allowedOrigins: toOriginList(process.env.WEB_ORIGIN, "http://localhost:5173"),
   jwtSecret: readRequiredEnv("JWT_SECRET"),
   cookieSecure: toBoolean(process.env.COOKIE_SECURE, String(process.env.NODE_ENV || "").toLowerCase() === "production"),
   apiRateLimit: {

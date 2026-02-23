@@ -42,10 +42,16 @@ export function useClientsSection({
   const [clientsMessage, setClientsMessage] = useState("");
   const [clientsPage, setClientsPage] = useState(1);
   const [clientsTotalPages, setClientsTotalPages] = useState(1);
+  const [vipClients, setVipClients] = useState([]);
+  const [vipClientsLoading, setVipClientsLoading] = useState(false);
+  const [vipClientsMessage, setVipClientsMessage] = useState("");
+  const [vipClientsPage, setVipClientsPage] = useState(1);
+  const [vipClientsTotalPages, setVipClientsTotalPages] = useState(1);
   const [clientCreateForm, setClientCreateForm] = useState({ ...EMPTY_CLIENT_CREATE_FORM });
   const [clientCreateErrors, setClientCreateErrors] = useState({});
   const [clientCreateSubmitting, setClientCreateSubmitting] = useState(false);
   const [clientEditId, setClientEditId] = useState("");
+  const [clientEditSource, setClientEditSource] = useState("all");
   const [clientEditForm, setClientEditForm] = useState({ ...EMPTY_CLIENT_EDIT_FORM });
   const [clientEditErrors, setClientEditErrors] = useState({});
   const [clientEditSubmitting, setClientEditSubmitting] = useState(false);
@@ -55,6 +61,7 @@ export function useClientsSection({
   const closeClientsEditModal = useCallback(() => {
     setClientsEditOpen(false);
     setClientEditId("");
+    setClientEditSource("all");
     setClientEditForm({ ...EMPTY_CLIENT_EDIT_FORM });
     setClientEditErrors({});
     setClientEditSubmitting(false);
@@ -215,6 +222,60 @@ export function useClientsSection({
     }
   }, [canReadClients, navigate]);
 
+  const loadVipClients = useCallback(async (requestedPage = 1) => {
+    if (!canReadClients) {
+      navigate("/404", { replace: true });
+      return;
+    }
+
+    const nextPage = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+    setVipClientsLoading(true);
+    setVipClientsMessage("Loading VIP clients...");
+
+    try {
+      const query = new URLSearchParams({
+        page: String(nextPage),
+        limit: String(ALL_USERS_LIMIT),
+        isVip: "true"
+      });
+
+      const response = await apiFetch(`/api/clients?${query.toString()}`, {
+        method: "GET",
+        cache: "no-store"
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        if (handleProtectedStatus(response, navigate)) {
+          return;
+        }
+        setVipClients([]);
+        setVipClientsMessage(data?.message || "Failed to load VIP clients.");
+        return;
+      }
+
+      const items = Array.isArray(data?.items) ? data.items : [];
+      const pagination = data?.pagination || {};
+
+      setVipClientsPage(Number(pagination.page) || 1);
+      setVipClientsTotalPages(Number(pagination.totalPages) || 1);
+
+      if (items.length === 0) {
+        setVipClients([]);
+        setVipClientsMessage("No VIP clients found.");
+        return;
+      }
+
+      setVipClients(items);
+      setVipClientsMessage("");
+    } catch {
+      setVipClients([]);
+      setVipClientsMessage("Unexpected error. Please try again.");
+    } finally {
+      setVipClientsLoading(false);
+    }
+  }, [canReadClients, navigate]);
+
   const handleClientCreateSubmit = useCallback(async (event) => {
     event.preventDefault();
 
@@ -311,8 +372,9 @@ export function useClientsSection({
     validateClientCreateForm
   ]);
 
-  const startClientEdit = useCallback((item) => {
+  const startClientEdit = useCallback((item, source = "all") => {
     setClientEditId(String(item?.id || ""));
+    setClientEditSource(source === "vip" ? "vip" : "all");
     setClientsEditOpen(true);
     setClientEditForm({
       firstName: String(item?.firstName || item?.first_name || "").trim(),
@@ -398,7 +460,11 @@ export function useClientsSection({
 
       closeClientsEditModal();
       if (canReadClients) {
-        await loadClients(clientsPage);
+        if (clientEditSource === "vip") {
+          await loadVipClients(vipClientsPage);
+        } else {
+          await loadClients(clientsPage);
+        }
       }
     } catch {
       setClientEditErrors({ firstName: "Unexpected error. Please try again." });
@@ -406,13 +472,16 @@ export function useClientsSection({
       setClientEditSubmitting(false);
     }
   }, [
+    clientEditSource,
     canReadClients,
     canUpdateClients,
     clientEditForm,
     clientsPage,
     closeClientsEditModal,
     loadClients,
+    loadVipClients,
     navigate,
+    vipClientsPage,
     validateClientEditForm
   ]);
 
@@ -515,6 +584,11 @@ export function useClientsSection({
     clientsMessage,
     clientsPage,
     clientsTotalPages,
+    vipClients,
+    vipClientsLoading,
+    vipClientsMessage,
+    vipClientsPage,
+    vipClientsTotalPages,
     clientCreateForm,
     clientCreateErrors,
     clientCreateSubmitting,
@@ -529,6 +603,7 @@ export function useClientsSection({
     setClientEditForm,
     setClientEditErrors,
     loadClients,
+    loadVipClients,
     handleClientCreateSubmit,
     startClientEdit,
     handleClientEditSave,

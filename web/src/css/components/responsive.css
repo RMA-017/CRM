@@ -71,9 +71,9 @@
   }
 
   .header-user-menu {
-    left: auto;
-    right: 0;
-    transform: none;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
   }
 
   .header-btn {
@@ -210,7 +210,9 @@
   }
 
   .header-user-menu {
-    right: 0;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
     min-width: 148px;
     max-width: calc(100vw - 20px);
   }

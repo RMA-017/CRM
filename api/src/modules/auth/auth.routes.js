@@ -64,7 +64,7 @@ async function authRoutes(fastify) {
           }
         });
       } catch (error) {
-        console.error("Error during login:", error);
+        request.log.error({ err: error }, "Error during login");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }

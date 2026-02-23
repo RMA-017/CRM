@@ -207,15 +207,7 @@ export function useSettingsSection({
     return "";
   }, []);
 
-  const validateRoleSettingsForm = useCallback((form) => {
-    const label = String(form?.label || "").trim();
-    if (!label) {
-      return "Label is required.";
-    }
-    return "";
-  }, []);
-
-  const validatePositionSettingsForm = useCallback((form) => {
+  const validateLabelSettingsForm = useCallback((form) => {
     const label = String(form?.label || "").trim();
     if (!label) {
       return "Label is required.";
@@ -381,7 +373,7 @@ export function useSettingsSection({
       sortOrder: normalizeSettingsSortOrderInput(roleCreateForm.sortOrder),
       isActive: Boolean(roleCreateForm.isActive)
     };
-    const validationError = validateRoleSettingsForm(payload);
+    const validationError = validateLabelSettingsForm(payload);
     if (validationError) {
       setRoleCreateError(validationError);
       return;
@@ -420,7 +412,7 @@ export function useSettingsSection({
     roleCreateForm.isActive,
     roleCreateForm.label,
     roleCreateForm.sortOrder,
-    validateRoleSettingsForm
+    validateLabelSettingsForm
   ]);
 
   const startRoleEdit = useCallback((item) => {
@@ -455,7 +447,7 @@ export function useSettingsSection({
       isActive: Boolean(roleEditForm.isActive),
       permissionCodes: normalizePermissionCodesInput(roleEditForm.permissionCodes)
     };
-    const validationError = validateRoleSettingsForm(payload);
+    const validationError = validateLabelSettingsForm(payload);
     if (validationError) {
       setRoleEditError(validationError);
       return;
@@ -496,7 +488,7 @@ export function useSettingsSection({
     roleEditForm.permissionCodes,
     roleEditForm.sortOrder,
     roleEditId,
-    validateRoleSettingsForm
+    validateLabelSettingsForm
   ]);
 
   const handleRoleDelete = useCallback((id, label = "") => {
@@ -516,7 +508,7 @@ export function useSettingsSection({
       sortOrder: normalizeSettingsSortOrderInput(positionCreateForm.sortOrder),
       isActive: Boolean(positionCreateForm.isActive)
     };
-    const validationError = validatePositionSettingsForm(payload);
+    const validationError = validateLabelSettingsForm(payload);
     if (validationError) {
       setPositionCreateError(validationError);
       return;
@@ -555,7 +547,7 @@ export function useSettingsSection({
     positionCreateForm.isActive,
     positionCreateForm.label,
     positionCreateForm.sortOrder,
-    validatePositionSettingsForm
+    validateLabelSettingsForm
   ]);
 
   const startPositionEdit = useCallback((item) => {
@@ -588,7 +580,7 @@ export function useSettingsSection({
       sortOrder: normalizeSettingsSortOrderInput(positionEditForm.sortOrder),
       isActive: Boolean(positionEditForm.isActive)
     };
-    const validationError = validatePositionSettingsForm(payload);
+    const validationError = validateLabelSettingsForm(payload);
     if (validationError) {
       setPositionEditError(validationError);
       return;
@@ -628,7 +620,7 @@ export function useSettingsSection({
     positionEditForm.label,
     positionEditForm.sortOrder,
     positionEditId,
-    validatePositionSettingsForm
+    validateLabelSettingsForm
   ]);
 
   const handlePositionDelete = useCallback((id, label = "") => {

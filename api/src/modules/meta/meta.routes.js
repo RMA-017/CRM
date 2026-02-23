@@ -1,5 +1,4 @@
 import { setNoCacheHeaders } from "../../lib/http.js";
-import { getAuthContext } from "../../lib/session.js";
 import { getProfileByAuthContext } from "../profile/profile.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
 import { hasPermission } from "../users/access.service.js";
@@ -14,10 +13,7 @@ async function metaRoutes(fastify) {
     async (request, reply) => {
       setNoCacheHeaders(reply);
 
-      const authContext = getAuthContext(request, reply);
-      if (!authContext) {
-        return;
-      }
+      const authContext = request.authContext;
 
       try {
         const user = await getProfileByAuthContext(authContext);
@@ -25,13 +21,13 @@ async function metaRoutes(fastify) {
           return reply.status(401).send({ message: "Unauthorized" });
         }
         if (!(await hasPermission(user.role_id, PERMISSIONS.PROFILE_READ))) {
-          return reply.status(404).send({ message: "Not found." });
+          return reply.status(403).send({ message: "Forbidden." });
         }
 
         const options = await getUserOptions();
         return reply.send(options);
       } catch (error) {
-        console.error("Error fetching user options:", error);
+        request.log.error({ err: error }, "Error fetching user options");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }

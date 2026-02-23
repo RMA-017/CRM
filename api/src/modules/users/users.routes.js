@@ -2,7 +2,6 @@ import { ORGANIZATION_CODE_REGEX } from "../../constants/validation.js";
 import { validateBirthdayYmd } from "../../lib/date.js";
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
-import { getAuthContext } from "../../lib/session.js";
 import { findActiveOrganizationByCode } from "../organizations/organizations.service.js";
 import { PERMISSIONS, USERNAME_REGEX } from "./users.constants.js";
 import { hasPermission, isAllowedPosition, isAllowedRole } from "./access.service.js";
@@ -42,10 +41,7 @@ async function usersRoutes(fastify) {
     async (request, reply) => {
       setNoCacheHeaders(reply);
 
-      const authContext = getAuthContext(request, reply);
-      if (!authContext) {
-        return;
-      }
+      const authContext = request.authContext;
 
       const pageParam = Number.parseInt(String(request.query?.page || ""), 10);
       const limitParam = Number.parseInt(String(request.query?.limit || ""), 10);
@@ -59,7 +55,7 @@ async function usersRoutes(fastify) {
           return reply.status(401).send({ message: "Unauthorized" });
         }
         if (!(await hasPermission(requester.role_id, PERMISSIONS.USERS_READ))) {
-          return reply.status(404).send({ message: "Not found." });
+          return reply.status(403).send({ message: "Forbidden." });
         }
         const isAdmin = Boolean(requester.is_admin);
 
@@ -90,7 +86,7 @@ async function usersRoutes(fastify) {
           }
         });
       } catch (error) {
-        console.error("Error fetching all users:", error);
+        request.log.error({ err: error }, "Error fetching all users");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -102,10 +98,7 @@ async function usersRoutes(fastify) {
       config: { rateLimit: fastify.apiRateLimit }
     },
     async (request, reply) => {
-      const authContext = getAuthContext(request, reply);
-      if (!authContext) {
-        return;
-      }
+      const authContext = request.authContext;
 
       const userId = Number(request.params?.id);
       if (!Number.isInteger(userId) || userId <= 0) {
@@ -159,7 +152,7 @@ async function usersRoutes(fastify) {
             errors.position = "Invalid position.";
           }
         } catch (error) {
-          console.error("Error validating position:", error);
+          request.log.error({ err: error }, "Error validating position");
           return reply.status(500).send({ message: "Internal server error." });
         }
       }
@@ -169,7 +162,7 @@ async function usersRoutes(fastify) {
           errors.role = "Invalid role.";
         }
       } catch (error) {
-        console.error("Error validating role:", error);
+        request.log.error({ err: error }, "Error validating role");
         return reply.status(500).send({ message: "Internal server error." });
       }
 
@@ -180,7 +173,7 @@ async function usersRoutes(fastify) {
       try {
         const requester = await findRequester(authContext);
         if (!requester || !(await hasPermission(requester.role_id, PERMISSIONS.USERS_UPDATE))) {
-          return reply.status(404).send({ message: "Not found." });
+          return reply.status(403).send({ message: "Forbidden." });
         }
         const isAdmin = Boolean(requester.is_admin);
 
@@ -229,7 +222,7 @@ async function usersRoutes(fastify) {
         if (error?.code === "23505") {
           return reply.status(409).send({ message: "Username or email already exists." });
         }
-        console.error("Error updating user:", error);
+        request.log.error({ err: error }, "Error updating user");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -241,10 +234,7 @@ async function usersRoutes(fastify) {
       config: { rateLimit: fastify.apiRateLimit }
     },
     async (request, reply) => {
-      const authContext = getAuthContext(request, reply);
-      if (!authContext) {
-        return;
-      }
+      const authContext = request.authContext;
 
       const userId = Number(request.params?.id);
       if (!Number.isInteger(userId) || userId <= 0) {
@@ -254,7 +244,7 @@ async function usersRoutes(fastify) {
       try {
         const requester = await findRequester(authContext);
         if (!requester || !(await hasPermission(requester.role_id, PERMISSIONS.USERS_DELETE))) {
-          return reply.status(404).send({ message: "Not found." });
+          return reply.status(403).send({ message: "Forbidden." });
         }
         const isAdmin = Boolean(requester.is_admin);
 
@@ -278,7 +268,7 @@ async function usersRoutes(fastify) {
 
         return reply.send({ message: "User deleted successfully." });
       } catch (error) {
-        console.error("Error deleting user:", error);
+        request.log.error({ err: error }, "Error deleting user");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }

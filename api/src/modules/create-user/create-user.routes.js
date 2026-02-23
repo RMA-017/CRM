@@ -1,7 +1,6 @@
 import { appConfig } from "../../config/app-config.js";
 import { ORGANIZATION_CODE_REGEX } from "../../constants/validation.js";
 import { parsePositiveInteger } from "../../lib/number.js";
-import { getAuthContext } from "../../lib/session.js";
 import { findActiveOrganizationByCode } from "../organizations/organizations.service.js";
 import { PERMISSIONS, USERNAME_REGEX } from "../users/users.constants.js";
 import { hasPermission, isAllowedRole } from "../users/access.service.js";
@@ -14,15 +13,12 @@ async function createUserRoutes(fastify) {
       config: { rateLimit: fastify.apiRateLimit }
     },
     async (request, reply) => {
+      const authContext = request.authContext;
+
       const username = String(request.body?.username || "").trim().toLowerCase();
       const fullName = String(request.body?.fullName || request.body?.full_name || "").trim();
       const roleId = parsePositiveInteger(request.body?.role);
       const organizationCode = String(request.body?.organizationCode || "").trim().toLowerCase();
-
-      const authContext = getAuthContext(request, reply);
-      if (!authContext) {
-        return;
-      }
 
       const errors = {};
       if (!USERNAME_REGEX.test(username)) {
@@ -44,7 +40,7 @@ async function createUserRoutes(fastify) {
             errors.role = "Invalid role.";
           }
         } catch (error) {
-          console.error("Error validating role:", error);
+          request.log.error({ err: error }, "Error validating role");
           return reply.status(500).send({ message: "Internal server error." });
         }
       }
@@ -59,7 +55,7 @@ async function createUserRoutes(fastify) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
         if (!(await hasPermission(actor.role_id, PERMISSIONS.USERS_CREATE))) {
-          return reply.status(404).send({ message: "Not found." });
+          return reply.status(403).send({ message: "Forbidden." });
         }
 
         let targetOrganizationId = authContext.organizationId;
@@ -75,7 +71,7 @@ async function createUserRoutes(fastify) {
           const isAdmin = Boolean(actor.is_admin);
           const selectedOrganizationId = Number(selectedOrganization.id);
           if (!isAdmin && selectedOrganizationId !== Number(authContext.organizationId)) {
-            return reply.status(404).send({ message: "Not found." });
+            return reply.status(403).send({ message: "Forbidden." });
           }
 
           targetOrganizationId = selectedOrganizationId;
@@ -83,7 +79,7 @@ async function createUserRoutes(fastify) {
 
         const defaultPassword = String(appConfig.defaultCreatedUserPassword || "");
         if (!defaultPassword) {
-          console.error("DEFAULT_CREATED_USER_PASSWORD is not configured.");
+          request.log.error("DEFAULT_CREATED_USER_PASSWORD is not configured");
           return reply.status(500).send({ message: "Server configuration error." });
         }
 
@@ -107,7 +103,7 @@ async function createUserRoutes(fastify) {
             message: "Username already exists."
           });
         }
-        console.error("Error executing SQL:", error);
+        request.log.error({ err: error }, "Error creating user");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
