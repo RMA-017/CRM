@@ -28,6 +28,17 @@ function createDayTimeMap() {
   }, {});
 }
 
+function parseDurationOptionsInput(value) {
+  return Array.from(
+    new Set(
+      String(value || "")
+        .split(",")
+        .map((item) => Number.parseInt(String(item || "").trim(), 10))
+        .filter((item) => Number.isInteger(item) && item > 0 && item <= 1440)
+    )
+  );
+}
+
 function AppointmentSettingsPanel({ canUpdateAppointments = true }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -36,6 +47,7 @@ function AppointmentSettingsPanel({ canUpdateAppointments = true }) {
 
   const [form, setForm] = useState({
     slotInterval: "30",
+    appointmentDurationOptions: "30",
     visibleWeekDays: ["mon", "tue", "wed", "thu", "fri", "sat"],
     noShowThreshold: "3",
     reminderHours: "24"
@@ -83,6 +95,9 @@ function AppointmentSettingsPanel({ canUpdateAppointments = true }) {
         setForm((prev) => ({
           ...prev,
           slotInterval: String(item.slotInterval ?? prev.slotInterval),
+          appointmentDurationOptions: Array.isArray(item.appointmentDurationOptions)
+            ? item.appointmentDurationOptions.join(",")
+            : String(item.appointmentDuration ?? prev.appointmentDurationOptions),
           visibleWeekDays: nextVisibleWeekDays.length > 0 ? nextVisibleWeekDays : prev.visibleWeekDays,
           noShowThreshold: String(item.noShowThreshold ?? prev.noShowThreshold),
           reminderHours: String(item.reminderHours ?? prev.reminderHours)
@@ -103,6 +118,9 @@ function AppointmentSettingsPanel({ canUpdateAppointments = true }) {
 
         setInitialForm({
           slotInterval: String(item.slotInterval ?? "30"),
+          appointmentDurationOptions: Array.isArray(item.appointmentDurationOptions)
+            ? item.appointmentDurationOptions.join(",")
+            : String(item.appointmentDuration ?? "30"),
           visibleWeekDays: nextVisibleWeekDays.length > 0 ? nextVisibleWeekDays : ["mon", "tue", "wed", "thu", "fri", "sat"],
           noShowThreshold: String(item.noShowThreshold ?? "3"),
           reminderHours: String(item.reminderHours ?? "24")
@@ -166,6 +184,7 @@ function AppointmentSettingsPanel({ canUpdateAppointments = true }) {
 
       const payload = {
         slotInterval: String(form.slotInterval || "").trim(),
+        appointmentDurationOptions: parseDurationOptionsInput(form.appointmentDurationOptions),
         visibleWeekDays: form.visibleWeekDays,
         workingHours,
         noShowThreshold: String(form.noShowThreshold || "").trim(),
@@ -220,7 +239,22 @@ function AppointmentSettingsPanel({ canUpdateAppointments = true }) {
       </div>
 
       <div className="appointment-setting-row">
-        <label>2. Visible Week Days</label>
+        <label htmlFor="appointmentDurationInput">2. Appointment Durations (Minutes)</label>
+        <div className="appointment-setting-inline">
+          <input
+            id="appointmentDurationInput"
+            type="text"
+            value={form.appointmentDurationOptions}
+            placeholder="30,45,60"
+            disabled={loading || !canUpdateAppointments}
+            onChange={(event) => handleFormField("appointmentDurationOptions", event.currentTarget.value)}
+          />
+          <span>comma separated</span>
+        </div>
+      </div>
+
+      <div className="appointment-setting-row">
+        <label>3. Visible Week Days</label>
         <div className="appointment-reminder-channels">
           {DAYS.map((day) => (
             <label key={day.key} htmlFor={`appointmentDay_${day.key}`}>
@@ -238,7 +272,7 @@ function AppointmentSettingsPanel({ canUpdateAppointments = true }) {
       </div>
 
       <div className="appointment-setting-row">
-        <label>3. Working Hours</label>
+        <label>4. Working Hours</label>
         <div className="appointment-working-hours-grid">
           {DAYS.map((day) => (
             <div key={day.key} className="appointment-working-hours-item">
@@ -262,7 +296,7 @@ function AppointmentSettingsPanel({ canUpdateAppointments = true }) {
       </div>
 
       <div className="appointment-setting-row">
-        <label>4. No-show Rules</label>
+        <label>5. No-show Rules</label>
         <div className="appointment-setting-inline">
           <input
             type="number"
@@ -276,7 +310,7 @@ function AppointmentSettingsPanel({ canUpdateAppointments = true }) {
       </div>
 
       <div className="appointment-setting-row">
-        <label>5. Reminder Settings</label>
+        <label>6. Reminder Settings</label>
         <div className="appointment-setting-inline">
           <input
             id="appointmentReminderHoursInput"

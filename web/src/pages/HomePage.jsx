@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiFetch } from "../lib/api.js";
-
-const LOGOUT_FLAG_KEY = "crm_just_logged_out";
+import { LOGOUT_FLAG_KEY } from "./profile/profile.constants.js";
 
 function HomePage() {
   const navigate = useNavigate();

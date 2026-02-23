@@ -19,50 +19,9 @@ import ProfileSideMenu from "./profile/ProfileSideMenu.jsx";
 import { useAllUsersSection } from "./profile/useAllUsersSection.js";
 import { useClientsSection } from "./profile/useClientsSection.js";
 import { useProfileAccess } from "./profile/useProfileAccess.js";
+import { useProfilePanels } from "./profile/useProfilePanels.js";
 import { useSettingsSection } from "./profile/useSettingsSection.js";
-
-const MIN_BIRTHDAY_YMD = "1950-01-01";
-
-function getTodayYmd() {
-  const now = new Date();
-  const year = String(now.getFullYear());
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function getBirthdayValidationMessage(value, { required = false } = {}) {
-  const raw = String(value || "").trim();
-  if (!raw) {
-    return required ? "Birthday is required." : "";
-  }
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-    return "Invalid birthday format.";
-  }
-
-  const [yearRaw, monthRaw, dayRaw] = raw.split("-");
-  const year = Number(yearRaw);
-  const month = Number(monthRaw);
-  const day = Number(dayRaw);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  const isRealDate = (
-    !Number.isNaN(date.getTime())
-    && date.getUTCFullYear() === year
-    && date.getUTCMonth() === month - 1
-    && date.getUTCDate() === day
-  );
-  if (!isRealDate) {
-    return "Invalid birthday format.";
-  }
-
-  const todayYmd = getTodayYmd();
-  if (raw < MIN_BIRTHDAY_YMD || raw > todayYmd) {
-    return "Birthday is out of allowed range.";
-  }
-
-  return "";
-}
+import { getBirthdayValidationMessage } from "./profile/profile.validators.js";
 
 function ProfilePage({ forcedView = "none" }) {
   const navigate = useNavigate();
@@ -642,106 +601,40 @@ function ProfilePage({ forcedView = "none" }) {
     };
   }, [saveAvatarFromFile]);
 
-  function openMyProfilePanel() {
-    closeMenu();
-    closeUserDropdown();
-    setMyProfileModalOpen(true);
-  }
-
-  function closeMyProfilePanel() {
-    setMyProfileModalOpen(false);
-  }
-
-  function openPanel(path, hasAccess = true) {
-    closeMenu();
-    closeUserDropdown();
-    if (!hasAccess) {
-      return;
-    }
-    navigate(path);
-  }
-
-  function closePanel(view) {
-    if (mainView === view) {
-      navigate("/profile");
-    }
-  }
-
-  function openCreateUserPanel() {
-    openPanel("/users/create", canCreateUsers);
-  }
-
-  function openAllClientsPanel() {
-    openPanel("/clients/allclients", canReadClients);
-  }
-
-  function closeAllClientsPanel() {
-    closePanel("clients-all");
-  }
-
-  function openCreateClientPanel() {
-    openPanel("/clients/create", canCreateClients);
-  }
-
-  function closeCreateClientPanel() {
-    closePanel("clients-create");
-  }
-
-  function openAppointmentPanel() {
-    openPanel("/appointments", canReadAppointments);
-  }
-
-  function closeAppointmentPanel() {
-    closePanel("appointment");
-  }
-
-  function openAppointmentSettingsPanel() {
-    openPanel("/appointments/settings", canReadAppointments);
-  }
-
-  function closeAppointmentSettingsPanel() {
-    closePanel("appointment-settings");
-  }
-
-  function openAppointmentVipRecurringPanel() {
-    openPanel("/appointments/vip-recurring", canReadAppointments);
-  }
-
-  function closeAppointmentVipRecurringPanel() {
-    closePanel("appointment-vip-recurring");
-  }
-
-  function openOrganizationsPanel() {
-    openPanel("/settings/organizations", hasSettingsMenuAccess);
-  }
-
-  function closeOrganizationsPanel() {
-    closePanel("settings-organizations");
-  }
-
-  function openRolesPanel() {
-    openPanel("/settings/roles", hasSettingsMenuAccess);
-  }
-
-  function closeRolesPanel() {
-    closePanel("settings-roles");
-  }
-
-  function openPositionsPanel() {
-    openPanel("/settings/positions", hasSettingsMenuAccess);
-  }
-
-  function closePositionsPanel() {
-    closePanel("settings-positions");
-  }
-
-  function closeCreateUserPanel() {
-    closePanel("create-user");
-  }
-
-  function closeAllUsersPanel() {
-    closePanel("all-users");
-  }
+  const {
+    openMyProfilePanel,
+    closeMyProfilePanel,
+    openCreateUserPanel,
+    openAllClientsPanel,
+    closeAllClientsPanel,
+    openCreateClientPanel,
+    closeCreateClientPanel,
+    openAppointmentPanel,
+    closeAppointmentPanel,
+    openAppointmentSettingsPanel,
+    closeAppointmentSettingsPanel,
+    openAppointmentVipRecurringPanel,
+    closeAppointmentVipRecurringPanel,
+    openOrganizationsPanel,
+    closeOrganizationsPanel,
+    openRolesPanel,
+    closeRolesPanel,
+    openPositionsPanel,
+    closePositionsPanel,
+    closeCreateUserPanel,
+    closeAllUsersPanel
+  } = useProfilePanels({
+    navigate,
+    mainView,
+    closeMenu,
+    closeUserDropdown,
+    setMyProfileModalOpen,
+    canCreateUsers,
+    canReadClients,
+    canCreateClients,
+    canReadAppointments,
+    hasSettingsMenuAccess
+  });
 
   function validateCreatePayload(payload) {
     const errors = {};

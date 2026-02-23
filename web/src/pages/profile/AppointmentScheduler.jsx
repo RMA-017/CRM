@@ -12,13 +12,6 @@ const DAY_ITEMS = [
   { key: "sun", label: "Sunday", offset: 6 }
 ];
 
-const STATUS_LABELS = {
-  confirmed: "Confirmed",
-  pending: "Pending",
-  cancelled: "Cancelled",
-  "no-show": "No Show"
-};
-
 const STATUS_OPTIONS = [
   { value: "pending", label: "Pending" },
   { value: "confirmed", label: "Confirmed" },
@@ -32,13 +25,13 @@ const EDIT_SCOPE_OPTIONS = [
   { value: "all", label: "All in series" }
 ];
 
-const SAMPLE_APPOINTMENTS = {};
 const DAY_KEYS_SET = new Set(DAY_ITEMS.map((item) => item.key));
 const MAX_REPEAT_RANGE_DAYS = 366;
 
 function createEmptyClientForm({
   appointmentDate = "",
   startTime = "",
+  durationMinutes = "30",
   repeatEnabled = false,
   repeatUntil = "",
   repeatDays = []
@@ -47,6 +40,7 @@ function createEmptyClientForm({
     clientId: "",
     appointmentDate,
     startTime,
+    durationMinutes: String(durationMinutes || "30"),
     service: "",
     status: "pending",
     note: "",
@@ -184,6 +178,15 @@ function normalizeTimeToMinutes(value) {
   return (hours * 60) + minutes;
 }
 
+function getDurationMinutesFromTimes(startTime, endTime) {
+  const start = normalizeTimeToMinutes(startTime);
+  const end = normalizeTimeToMinutes(endTime);
+  if (start === null || end === null || end <= start) {
+    return "";
+  }
+  return String(end - start);
+}
+
 function minutesToTime(totalMinutes) {
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
@@ -299,6 +302,7 @@ function AppointmentScheduler({
   const [clientNoShowLoading, setClientNoShowLoading] = useState(false);
   const [settings, setSettings] = useState({
     slotInterval: "30",
+    appointmentDurationOptions: ["30"],
     visibleWeekDays: ["mon", "tue", "wed", "thu", "fri", "sat"],
     workingHours: createDefaultWorkingHours()
   });
@@ -365,6 +369,9 @@ function AppointmentScheduler({
 
         setSettings({
           slotInterval: String(item.slotInterval || "30"),
+          appointmentDurationOptions: Array.isArray(item.appointmentDurationOptions) && item.appointmentDurationOptions.length > 0
+            ? item.appointmentDurationOptions.map((value) => String(value))
+            : [String(item.appointmentDuration || "30")],
           visibleWeekDays,
           workingHours: nextWorkingHours
         });
@@ -414,7 +421,7 @@ function AppointmentScheduler({
     })
   ), [settings.slotInterval, settings.workingHours, weekDays]);
 
-  const appointmentsByDay = appointmentsBySpecialist[selectedSpecialistId] || SAMPLE_APPOINTMENTS;
+  const appointmentsByDay = appointmentsBySpecialist[selectedSpecialistId] || {};
   const slotMinutesByValue = useMemo(() => (
     timeSlots.reduce((acc, slot) => {
       acc[slot] = normalizeTimeToMinutes(slot);
@@ -478,6 +485,27 @@ function AppointmentScheduler({
   const timeSelectOptions = useMemo(() => (
     timeSlots.map((slot) => ({ value: slot, label: slot }))
   ), [timeSlots]);
+  const durationSelectOptions = useMemo(() => {
+    const mapped = Array.isArray(settings.appointmentDurationOptions)
+      ? settings.appointmentDurationOptions
+          .map((value) => String(value || "").trim())
+          .filter((value) => /^\d+$/.test(value))
+      : [];
+    const unique = Array.from(new Set(mapped));
+    if (unique.length === 0) {
+      return [{ value: "30", label: "30 min" }];
+    }
+    return unique.map((value) => ({ value, label: `${value} min` }));
+  }, [settings.appointmentDurationOptions]);
+  useEffect(() => {
+    if (!createModal.open) {
+      return;
+    }
+    if (durationSelectOptions.some((option) => option.value === String(createForm.durationMinutes || "").trim())) {
+      return;
+    }
+    setCreateForm((prev) => ({ ...prev, durationMinutes: durationSelectOptions[0]?.value || "30" }));
+  }, [createForm.durationMinutes, createModal.open, durationSelectOptions]);
   const now = new Date();
 
   const loadSchedulesForCurrentWeek = useCallback(async () => {
@@ -539,6 +567,7 @@ function AppointmentScheduler({
           id: String(item?.id || ""),
           clientId: String(item?.clientId || ""),
           time: startTime,
+          endTime: String(item?.endTime || "").trim(),
           client: getClientCardName({
             id: item?.clientId,
             firstName: item?.clientFirstName,
@@ -619,6 +648,11 @@ function AppointmentScheduler({
     setMessage("");
     const appointmentDate = formatDateYmd(day.date);
     const startTime = String(slot || "").trim();
+    const defaultDuration = durationSelectOptions[0]?.value || "30";
+    const existingDuration = getDurationMinutesFromTimes(existingItem?.time, existingItem?.endTime);
+    const nextDuration = isEditMode && existingDuration
+      ? existingDuration
+      : defaultDuration;
 
     setCreateModal({
       open: true,
@@ -641,6 +675,7 @@ function AppointmentScheduler({
         clientId: String(existingItem?.clientId || ""),
         appointmentDate,
         startTime,
+        durationMinutes: nextDuration,
         service: String(existingItem?.service || ""),
         status: String(existingItem?.status || "pending"),
         note: String(existingItem?.note || ""),
@@ -653,6 +688,7 @@ function AppointmentScheduler({
       setCreateForm(createEmptyClientForm({
         appointmentDate,
         startTime,
+        durationMinutes: nextDuration,
         repeatEnabled: false,
         repeatUntil: "",
         repeatDays: []
@@ -871,6 +907,7 @@ function AppointmentScheduler({
     const clientId = String(value.clientId || "").trim();
     const appointmentDate = String(value.appointmentDate || "").trim();
     const startTime = String(value.startTime || "").trim();
+    const durationMinutes = Number.parseInt(String(value.durationMinutes || "").trim(), 10);
     const service = String(value.service || "").trim();
     const note = String(value.note || "").trim();
     const repeatUntil = String(value.repeatUntil || "").trim();
@@ -892,6 +929,9 @@ function AppointmentScheduler({
     }
     if (normalizeTimeToMinutes(startTime) === null) {
       errors.startTime = "Invalid start time.";
+    }
+    if (!Number.isInteger(durationMinutes) || durationMinutes <= 0) {
+      errors.durationMinutes = "Invalid duration.";
     }
     if (!service) {
       errors.service = "Service is required.";
@@ -945,6 +985,7 @@ function AppointmentScheduler({
         clientId: String(createForm.clientId || "").trim(),
         appointmentDate: String(createForm.appointmentDate || "").trim(),
         startTime: String(createForm.startTime || "").trim(),
+        durationMinutes: String(createForm.durationMinutes || "").trim(),
         service: String(createForm.service || "").trim(),
         status: String(createForm.status || "pending").trim().toLowerCase(),
         note: String(createForm.note || "").trim(),
@@ -986,15 +1027,16 @@ function AppointmentScheduler({
       const appointmentDate = nextPayload.appointmentDate;
       const startTime = nextPayload.startTime;
       const startMinutes = normalizeTimeToMinutes(startTime);
+      const durationMinutes = Number.parseInt(String(nextPayload.durationMinutes || "").trim(), 10);
       if (!appointmentDate || startMinutes === null) {
         setCreateErrors({ form: "Invalid slot. Please try again." });
         return;
       }
-      const slotIntervalMinutes = Number.parseInt(String(settings.slotInterval), 10);
-      const safeSlotIntervalMinutes = Number.isInteger(slotIntervalMinutes) && slotIntervalMinutes > 0
-        ? slotIntervalMinutes
-        : 30;
-      const endTime = minutesToTime(startMinutes + safeSlotIntervalMinutes);
+      if (!Number.isInteger(durationMinutes) || durationMinutes <= 0) {
+        setCreateErrors({ durationMinutes: "Invalid duration." });
+        return;
+      }
+      const endTime = minutesToTime(startMinutes + durationMinutes);
 
       const requestPayload = {
         specialistId,
@@ -1152,17 +1194,14 @@ function AppointmentScheduler({
   );
 
   useEffect(() => {
-    if (!createModal.open) {
-      return undefined;
+    const text = String(message || "").trim();
+    if (!text) {
+      return;
     }
 
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [createModal.open]);
+    window.alert(text);
+    setMessage("");
+  }, [message]);
 
   return (
     <section className="appointment-scheduler" aria-label="Appointment scheduler">
@@ -1382,10 +1421,10 @@ function AppointmentScheduler({
                 </div>
 
                 <div className="field">
-                  <label htmlFor="appointmentCreateTime">Time</label>
+                  <label htmlFor="appointmentCreateTime">Start Time</label>
                   <CustomSelect
                     id="appointmentCreateTime"
-                    placeholder="Select time"
+                    placeholder="Select start time"
                     value={createForm.startTime}
                     options={timeSelectOptions}
                     error={Boolean(createErrors.startTime)}
@@ -1398,6 +1437,24 @@ function AppointmentScheduler({
                   />
                   <small className="field-error">{createErrors.startTime || ""}</small>
                 </div>
+              </div>
+
+              <div className="field">
+                <label htmlFor="appointmentCreateDuration">Duration</label>
+                <CustomSelect
+                  id="appointmentCreateDuration"
+                  placeholder="Select duration"
+                  value={createForm.durationMinutes}
+                  options={durationSelectOptions}
+                  error={Boolean(createErrors.durationMinutes)}
+                  onChange={(nextValue) => {
+                    setCreateForm((prev) => ({ ...prev, durationMinutes: nextValue }));
+                    if (createErrors.durationMinutes) {
+                      setCreateErrors((prev) => ({ ...prev, durationMinutes: "" }));
+                    }
+                  }}
+                />
+                <small className="field-error">{createErrors.durationMinutes || ""}</small>
               </div>
 
               <div className="field">

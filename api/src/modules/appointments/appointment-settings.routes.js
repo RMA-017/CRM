@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { setNoCacheHeaders } from "../../lib/http.js";
+import { parsePositiveInteger } from "../../lib/number.js";
 import { getAuthContext } from "../../lib/session.js";
 import { getProfileByAuthContext } from "../profile/profile.service.js";
 import { hasPermission } from "../users/access.service.js";
@@ -38,20 +39,8 @@ const DAY_NUM_TO_KEY = Object.freeze({
   7: "sun"
 });
 
-function parseNonNegativeInteger(value, fallback = 0) {
-  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    return fallback;
-  }
-  return parsed;
-}
-
-function parsePositiveInteger(value, fallback = 1) {
-  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    return fallback;
-  }
-  return parsed;
+function parsePositiveIntegerOr(value, fallback = 1) {
+  return parsePositiveInteger(value) ?? fallback;
 }
 
 function normalizeVisibleWeekDays(value) {
@@ -68,6 +57,20 @@ function normalizeVisibleWeekDays(value) {
   );
 
   return normalized.sort((a, b) => toAppointmentDayNum(a) - toAppointmentDayNum(b));
+}
+
+function normalizeDurationOptions(value) {
+  const source = Array.isArray(value)
+    ? value
+    : String(value || "").split(",");
+
+  return Array.from(
+    new Set(
+      source
+        .map((item) => Number.parseInt(String(item ?? "").trim(), 10))
+        .filter((item) => Number.isInteger(item) && item > 0 && item <= 1440)
+    )
+  );
 }
 
 function normalizeWorkingHours(value) {
@@ -423,6 +426,8 @@ function validateSchedulePayload({
 
 function validateSettingsPayload({
   slotIntervalMinutes,
+  appointmentDurationMinutes,
+  appointmentDurationOptionsMinutes,
   noShowThreshold,
   reminderHours,
   visibleWeekDays,
@@ -430,6 +435,18 @@ function validateSettingsPayload({
 }) {
   if (slotIntervalMinutes <= 0 || slotIntervalMinutes > 1440) {
     return { field: "slotInterval", message: "Slot interval must be between 1 and 1440 minutes." };
+  }
+  if (appointmentDurationMinutes <= 0 || appointmentDurationMinutes > 1440) {
+    return { field: "appointmentDuration", message: "Appointment duration must be between 1 and 1440 minutes." };
+  }
+  if (!Array.isArray(appointmentDurationOptionsMinutes) || appointmentDurationOptionsMinutes.length === 0) {
+    return { field: "appointmentDurationOptions", message: "At least one appointment duration is required." };
+  }
+  if (appointmentDurationOptionsMinutes.length > 20) {
+    return { field: "appointmentDurationOptions", message: "Maximum 20 duration options are allowed." };
+  }
+  if (appointmentDurationOptionsMinutes.some((value) => value <= 0 || value > 1440)) {
+    return { field: "appointmentDurationOptions", message: "Each duration must be between 1 and 1440 minutes." };
   }
   if (noShowThreshold < 1 || noShowThreshold > 1000) {
     return { field: "noShowThreshold", message: "No-show threshold must be between 1 and 1000." };
@@ -526,7 +543,7 @@ async function appointmentSettingsRoutes(fastify) {
           return;
         }
 
-        const clientId = parsePositiveInteger(request.query?.clientId, 0);
+        const clientId = parsePositiveIntegerOr(request.query?.clientId, 0);
         if (!clientId) {
           return reply.status(400).send({ field: "clientId", message: "Client is required." });
         }
@@ -558,7 +575,7 @@ async function appointmentSettingsRoutes(fastify) {
           return;
         }
 
-        const specialistId = parsePositiveInteger(request.query?.specialistId, 0);
+        const specialistId = parsePositiveIntegerOr(request.query?.specialistId, 0);
         const dateFrom = String(request.query?.dateFrom || "").trim();
         const dateTo = String(request.query?.dateTo || "").trim();
 
@@ -599,8 +616,8 @@ async function appointmentSettingsRoutes(fastify) {
           return;
         }
 
-        const specialistId = parsePositiveInteger(request.body?.specialistId, 0);
-        const clientId = parsePositiveInteger(request.body?.clientId, 0);
+        const specialistId = parsePositiveIntegerOr(request.body?.specialistId, 0);
+        const clientId = parsePositiveIntegerOr(request.body?.clientId, 0);
         const appointmentDate = String(request.body?.appointmentDate || "").trim();
         const startTime = String(request.body?.startTime || "").trim();
         const endTime = String(request.body?.endTime || "").trim();
@@ -882,7 +899,7 @@ async function appointmentSettingsRoutes(fastify) {
           return;
         }
 
-        const id = parsePositiveInteger(request.params?.id, 0);
+        const id = parsePositiveIntegerOr(request.params?.id, 0);
         if (!id) {
           return reply.status(400).send({ message: "Invalid appointment id." });
         }
@@ -891,8 +908,8 @@ async function appointmentSettingsRoutes(fastify) {
           return reply.status(400).send({ field: "scope", message: "Invalid scope." });
         }
 
-        const specialistId = parsePositiveInteger(request.body?.specialistId, 0);
-        const clientId = parsePositiveInteger(request.body?.clientId, 0);
+        const specialistId = parsePositiveIntegerOr(request.body?.specialistId, 0);
+        const clientId = parsePositiveIntegerOr(request.body?.clientId, 0);
         const appointmentDate = String(request.body?.appointmentDate || "").trim();
         const startTime = String(request.body?.startTime || "").trim();
         const endTime = String(request.body?.endTime || "").trim();
@@ -1277,7 +1294,7 @@ async function appointmentSettingsRoutes(fastify) {
           return;
         }
 
-        const id = parsePositiveInteger(request.params?.id, 0);
+        const id = parsePositiveIntegerOr(request.params?.id, 0);
         if (!id) {
           return reply.status(400).send({ message: "Invalid appointment id." });
         }
@@ -1358,14 +1375,19 @@ async function appointmentSettingsRoutes(fastify) {
           return;
         }
 
-        const slotIntervalMinutes = parsePositiveInteger(request.body?.slotInterval, 0);
-        const noShowThreshold = parsePositiveInteger(request.body?.noShowThreshold, 0);
-        const reminderHours = parsePositiveInteger(request.body?.reminderHours, 0);
+        const slotIntervalMinutes = parsePositiveIntegerOr(request.body?.slotInterval, 0);
+        const appointmentDurationOptionsMinutes = normalizeDurationOptions(request.body?.appointmentDurationOptions);
+        const appointmentDurationMinutes = appointmentDurationOptionsMinutes[0]
+          || parsePositiveIntegerOr(request.body?.appointmentDuration, 0);
+        const noShowThreshold = parsePositiveIntegerOr(request.body?.noShowThreshold, 0);
+        const reminderHours = parsePositiveIntegerOr(request.body?.reminderHours, 0);
         const visibleWeekDays = normalizeVisibleWeekDays(request.body?.visibleWeekDays);
         const workingHours = normalizeWorkingHours(request.body?.workingHours);
 
         const validationError = validateSettingsPayload({
           slotIntervalMinutes,
+          appointmentDurationMinutes,
+          appointmentDurationOptionsMinutes,
           noShowThreshold,
           reminderHours,
           visibleWeekDays,
@@ -1379,6 +1401,8 @@ async function appointmentSettingsRoutes(fastify) {
           organizationId: access.authContext.organizationId,
           actorUserId: access.authContext.userId,
           slotIntervalMinutes,
+          appointmentDurationMinutes,
+          appointmentDurationOptionsMinutes,
           noShowThreshold,
           reminderHours,
           visibleWeekDays,
@@ -1390,6 +1414,11 @@ async function appointmentSettingsRoutes(fastify) {
           item
         });
       } catch (error) {
+        if (error?.code === "MIGRATION_REQUIRED") {
+          return reply.status(500).send({
+            message: "DB migration required: add appointment_duration_minutes and appointment_duration_options_minutes columns to appointment_settings."
+          });
+        }
         console.error("Error updating appointment settings:", error);
         return reply.status(500).send({ message: "Internal server error." });
       }

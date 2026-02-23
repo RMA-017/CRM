@@ -98,7 +98,11 @@ CREATE TABLE clients (
   UNIQUE (organization_id, id)
 );
 
-ALTER SEQUENCE clients_id_seq RESTART WITH 1000;
+SELECT setval(
+  pg_get_serial_sequence('clients', 'id'),
+  GREATEST(COALESCE((SELECT MAX(id) FROM clients), 999), 999),
+  true
+);
 
 CREATE INDEX idx_clients_organization_created_at ON clients (organization_id, created_at DESC);
 CREATE INDEX idx_clients_organization_name ON clients (organization_id, last_name, first_name);
@@ -115,6 +119,8 @@ CREATE TABLE appointment_settings (
   id SERIAL PRIMARY KEY,
   organization_id INTEGER NOT NULL UNIQUE REFERENCES organizations(id) ON DELETE CASCADE,
   slot_interval_minutes INTEGER NOT NULL CHECK (slot_interval_minutes > 0),
+  appointment_duration_minutes INTEGER NOT NULL DEFAULT 30 CHECK (appointment_duration_minutes > 0),
+  appointment_duration_options_minutes SMALLINT[] NOT NULL DEFAULT ARRAY[30],
   no_show_threshold INTEGER NOT NULL DEFAULT 1 CHECK (no_show_threshold >= 1),
   reminder_hours INTEGER NOT NULL DEFAULT 24 CHECK (reminder_hours >= 1),
   visible_week_days SMALLINT[] NOT NULL DEFAULT ARRAY[1,2,3,4,5,6],
@@ -125,6 +131,9 @@ CREATE TABLE appointment_settings (
   CHECK (
     array_length(visible_week_days, 1) >= 1
     AND visible_week_days <@ ARRAY[1,2,3,4,5,6,7]::SMALLINT[]
+  ),
+  CHECK (
+    array_length(appointment_duration_options_minutes, 1) >= 1
   )
 );
 

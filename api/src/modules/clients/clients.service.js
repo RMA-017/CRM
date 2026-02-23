@@ -197,51 +197,76 @@ export async function createClient({
   note,
   createdBy
 }) {
-  const { rows } = await pool.query(
-    `INSERT INTO clients (
-       organization_id,
-       first_name,
-       last_name,
-       middle_name,
-       birthday,
-       phone_number,
-       tg_mail,
-       is_vip,
-       created_by,
-       updated_by,
-       note
-     )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-     RETURNING
-       id::text AS id,
-       organization_id::text AS organization_id,
-       first_name,
-       last_name,
-       middle_name,
-       birthday,
-       phone_number,
-       tg_mail,
-       is_vip,
-       created_by::text AS created_by,
-       updated_by::text AS updated_by,
-       created_at,
-       updated_at,
-       note`,
-    [
-      organizationId,
-      firstName,
-      lastName,
-      middleName || null,
-      birthday,
-      phone || null,
-      tgMail || null,
-      Boolean(isVip),
-      createdBy || null,
-      createdBy || null,
-      note || null
-    ]
-  );
-  return rows[0] || null;
+  const createSql = `INSERT INTO clients (
+    organization_id,
+    first_name,
+    last_name,
+    middle_name,
+    birthday,
+    phone_number,
+    tg_mail,
+    is_vip,
+    created_by,
+    updated_by,
+    note
+  )
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+  RETURNING
+    id::text AS id,
+    organization_id::text AS organization_id,
+    first_name,
+    last_name,
+    middle_name,
+    birthday,
+    phone_number,
+    tg_mail,
+    is_vip,
+    created_by::text AS created_by,
+    updated_by::text AS updated_by,
+    created_at,
+    updated_at,
+    note`;
+
+  const createParams = [
+    organizationId,
+    firstName,
+    lastName,
+    middleName || null,
+    birthday,
+    phone || null,
+    tgMail || null,
+    Boolean(isVip),
+    createdBy || null,
+    createdBy || null,
+    note || null
+  ];
+
+  async function runInsert() {
+    const { rows } = await pool.query(createSql, createParams);
+    return rows[0] || null;
+  }
+
+  try {
+    return await runInsert();
+  } catch (error) {
+    const isClientPkConflict = (
+      error?.code === "23505"
+      && String(error?.constraint || "").toLowerCase() === "clients_pkey"
+    );
+    if (!isClientPkConflict) {
+      throw error;
+    }
+
+    // Auto-heal when clients sequence is behind max(id), then retry once.
+    await pool.query(
+      `SELECT setval(
+         pg_get_serial_sequence('clients', 'id'),
+         GREATEST(COALESCE((SELECT MAX(id) FROM clients), 999), 999),
+         true
+       )`
+    );
+    return runInsert();
+  }
 }
 
 export async function updateClientById({

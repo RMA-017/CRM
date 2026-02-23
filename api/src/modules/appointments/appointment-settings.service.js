@@ -22,6 +22,7 @@ const DAY_NUM_TO_KEY = Object.freeze({
 
 const DAY_KEYS = Object.freeze(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
 const SCHEDULE_SCOPE_SET = new Set(["single", "future", "all"]);
+let appointmentSettingsColumnFlagsCache = null;
 
 function toDayKey(dayNum) {
   return DAY_NUM_TO_KEY[Number(dayNum)] || "";
@@ -38,6 +39,16 @@ function mapVisibleWeekDays(value) {
   return value
     .map((dayNum) => toDayKey(dayNum))
     .filter(Boolean);
+}
+
+function mapDurationOptions(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const normalized = value
+    .map((item) => Number.parseInt(String(item ?? "").trim(), 10))
+    .filter((item) => Number.isInteger(item) && item > 0 && item <= 1440);
+  return Array.from(new Set(normalized));
 }
 
 function createEmptyWorkingHours() {
@@ -58,6 +69,8 @@ function createDefaultSettings() {
 
   return {
     slotInterval: "30",
+    appointmentDuration: "30",
+    appointmentDurationOptions: ["30"],
     visibleWeekDays: ["mon", "tue", "wed", "thu", "fri", "sat"],
     workingHours,
     noShowThreshold: "3",
@@ -85,8 +98,18 @@ function mapSettingsRow(row, workingHourRows) {
     return null;
   }
 
+  const mappedOptions = mapDurationOptions(row.appointment_duration_options_minutes);
+  const fallbackDuration = Number.parseInt(String(row.appointment_duration_minutes || "30"), 10);
+  const fallbackOptions = Number.isInteger(fallbackDuration) && fallbackDuration > 0
+    ? [fallbackDuration]
+    : [30];
+  const appointmentDurationOptions = (mappedOptions.length > 0 ? mappedOptions : fallbackOptions)
+    .map((value) => String(value));
+
   return {
     slotInterval: String(row.slot_interval_minutes || 30),
+    appointmentDuration: appointmentDurationOptions[0] || "30",
+    appointmentDurationOptions,
     visibleWeekDays: mapVisibleWeekDays(row.visible_week_days),
     workingHours: mapWorkingHours(workingHourRows),
     noShowThreshold: String(row.no_show_threshold || 1),
@@ -141,6 +164,27 @@ function normalizeScheduleIds(value) {
         .filter((id) => Number.isInteger(id) && id > 0)
     )
   );
+}
+
+async function getAppointmentSettingsColumnFlags() {
+  if (appointmentSettingsColumnFlagsCache) {
+    return appointmentSettingsColumnFlagsCache;
+  }
+
+  const { rows } = await pool.query(
+    `SELECT column_name
+       FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND table_name = 'appointment_settings'`
+  );
+
+  const set = new Set((rows || []).map((row) => String(row?.column_name || "").trim()));
+  const flags = {
+    hasAppointmentDuration: set.has("appointment_duration_minutes"),
+    hasAppointmentDurationOptions: set.has("appointment_duration_options_minutes")
+  };
+  appointmentSettingsColumnFlagsCache = flags;
+  return flags;
 }
 
 function toScheduleItem(row) {
@@ -765,55 +809,23 @@ export async function deleteAppointmentSchedulesByIds({
   return rowCount || 0;
 }
 
-export async function updateAppointmentScheduleById({
-  organizationId,
-  actorUserId,
-  id,
-  specialistId,
-  clientId,
-  appointmentDate,
-  startTime,
-  endTime,
-  serviceName,
-  status,
-  note
-}) {
-  const items = await updateAppointmentSchedulesByIds({
-    organizationId,
-    actorUserId,
-    ids: [id],
-    specialistId,
-    clientId,
-    appointmentDate,
-    startTime,
-    endTime,
-    serviceName,
-    status,
-    note,
-    applyAppointmentDate: true
-  });
-
-  return items[0] || null;
-}
-
-export async function deleteAppointmentScheduleById({
-  organizationId,
-  id
-}) {
-  const deletedCount = await deleteAppointmentSchedulesByIds({
-    organizationId,
-    ids: [id]
-  });
-  return deletedCount > 0;
-}
-
 export async function getAppointmentSettingsByOrganization(organizationId) {
+  const flags = await getAppointmentSettingsColumnFlags();
+  const appointmentDurationSelect = flags.hasAppointmentDuration
+    ? "appointment_duration_minutes,"
+    : "30::integer AS appointment_duration_minutes,";
+  const appointmentDurationOptionsSelect = flags.hasAppointmentDurationOptions
+    ? "appointment_duration_options_minutes,"
+    : "ARRAY[30]::smallint[] AS appointment_duration_options_minutes,";
+
   const [settingsResult, workingHoursResult] = await Promise.all([
     pool.query(
       `SELECT
          id,
          organization_id,
          slot_interval_minutes,
+         ${appointmentDurationSelect}
+         ${appointmentDurationOptionsSelect}
          no_show_threshold,
          reminder_hours,
          visible_week_days
@@ -843,11 +855,20 @@ export async function saveAppointmentSettings({
   organizationId,
   actorUserId,
   slotIntervalMinutes,
+  appointmentDurationMinutes,
+  appointmentDurationOptionsMinutes,
   noShowThreshold,
   reminderHours,
   visibleWeekDays,
   workingHours
 }) {
+  const flags = await getAppointmentSettingsColumnFlags();
+  if (!flags.hasAppointmentDuration || !flags.hasAppointmentDurationOptions) {
+    const error = new Error("Appointment settings migration is required.");
+    error.code = "MIGRATION_REQUIRED";
+    throw error;
+  }
+
   const client = await pool.connect();
 
   try {
@@ -856,19 +877,28 @@ export async function saveAppointmentSettings({
     const visibleWeekDayNums = visibleWeekDays
       .map((dayKey) => toDayNum(dayKey))
       .filter((dayNum) => Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 7);
+    const normalizedDurationOptions = mapDurationOptions(appointmentDurationOptionsMinutes);
+    const effectiveDurationOptions = normalizedDurationOptions.length > 0
+      ? normalizedDurationOptions
+      : [appointmentDurationMinutes];
+    const effectiveAppointmentDuration = effectiveDurationOptions[0];
 
     await client.query(
       `INSERT INTO appointment_settings (
          organization_id,
          slot_interval_minutes,
+         appointment_duration_minutes,
+         appointment_duration_options_minutes,
          no_show_threshold,
          reminder_hours,
          visible_week_days,
          created_by,
          updated_by
-       ) VALUES ($1,$2,$3,$4,$5::smallint[],$6,$6)
+       ) VALUES ($1,$2,$3,$4::smallint[],$5,$6,$7::smallint[],$8,$8)
        ON CONFLICT (organization_id) DO UPDATE SET
          slot_interval_minutes = EXCLUDED.slot_interval_minutes,
+         appointment_duration_minutes = EXCLUDED.appointment_duration_minutes,
+         appointment_duration_options_minutes = EXCLUDED.appointment_duration_options_minutes,
          no_show_threshold = EXCLUDED.no_show_threshold,
          reminder_hours = EXCLUDED.reminder_hours,
          visible_week_days = EXCLUDED.visible_week_days,
@@ -877,6 +907,8 @@ export async function saveAppointmentSettings({
       [
         organizationId,
         slotIntervalMinutes,
+        effectiveAppointmentDuration,
+        effectiveDurationOptions,
         noShowThreshold,
         reminderHours,
         visibleWeekDayNums,

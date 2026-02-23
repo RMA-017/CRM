@@ -1,0 +1,139 @@
+import { useCallback } from "react";
+
+export function useProfilePanels({
+  navigate,
+  mainView,
+  closeMenu,
+  closeUserDropdown,
+  setMyProfileModalOpen,
+  canCreateUsers,
+  canReadClients,
+  canCreateClients,
+  canReadAppointments,
+  hasSettingsMenuAccess
+}) {
+  const openPanel = useCallback((path, hasAccess = true) => {
+    closeMenu();
+    closeUserDropdown();
+    if (!hasAccess) {
+      return;
+    }
+    navigate(path);
+  }, [closeMenu, closeUserDropdown, navigate]);
+
+  const closePanel = useCallback((view) => {
+    if (mainView === view) {
+      navigate("/profile");
+    }
+  }, [mainView, navigate]);
+
+  const openMyProfilePanel = useCallback(() => {
+    closeMenu();
+    closeUserDropdown();
+    setMyProfileModalOpen(true);
+  }, [closeMenu, closeUserDropdown, setMyProfileModalOpen]);
+
+  const closeMyProfilePanel = useCallback(() => {
+    setMyProfileModalOpen(false);
+  }, [setMyProfileModalOpen]);
+
+  const openCreateUserPanel = useCallback(() => {
+    openPanel("/users/create", canCreateUsers);
+  }, [canCreateUsers, openPanel]);
+
+  const openAllClientsPanel = useCallback(() => {
+    openPanel("/clients/allclients", canReadClients);
+  }, [canReadClients, openPanel]);
+
+  const closeAllClientsPanel = useCallback(() => {
+    closePanel("clients-all");
+  }, [closePanel]);
+
+  const openCreateClientPanel = useCallback(() => {
+    openPanel("/clients/create", canCreateClients);
+  }, [canCreateClients, openPanel]);
+
+  const closeCreateClientPanel = useCallback(() => {
+    closePanel("clients-create");
+  }, [closePanel]);
+
+  const openAppointmentPanel = useCallback(() => {
+    openPanel("/appointments", canReadAppointments);
+  }, [canReadAppointments, openPanel]);
+
+  const closeAppointmentPanel = useCallback(() => {
+    closePanel("appointment");
+  }, [closePanel]);
+
+  const openAppointmentSettingsPanel = useCallback(() => {
+    openPanel("/appointments/settings", canReadAppointments);
+  }, [canReadAppointments, openPanel]);
+
+  const closeAppointmentSettingsPanel = useCallback(() => {
+    closePanel("appointment-settings");
+  }, [closePanel]);
+
+  const openAppointmentVipRecurringPanel = useCallback(() => {
+    openPanel("/appointments/vip-recurring", canReadAppointments);
+  }, [canReadAppointments, openPanel]);
+
+  const closeAppointmentVipRecurringPanel = useCallback(() => {
+    closePanel("appointment-vip-recurring");
+  }, [closePanel]);
+
+  const openOrganizationsPanel = useCallback(() => {
+    openPanel("/settings/organizations", hasSettingsMenuAccess);
+  }, [hasSettingsMenuAccess, openPanel]);
+
+  const closeOrganizationsPanel = useCallback(() => {
+    closePanel("settings-organizations");
+  }, [closePanel]);
+
+  const openRolesPanel = useCallback(() => {
+    openPanel("/settings/roles", hasSettingsMenuAccess);
+  }, [hasSettingsMenuAccess, openPanel]);
+
+  const closeRolesPanel = useCallback(() => {
+    closePanel("settings-roles");
+  }, [closePanel]);
+
+  const openPositionsPanel = useCallback(() => {
+    openPanel("/settings/positions", hasSettingsMenuAccess);
+  }, [hasSettingsMenuAccess, openPanel]);
+
+  const closePositionsPanel = useCallback(() => {
+    closePanel("settings-positions");
+  }, [closePanel]);
+
+  const closeCreateUserPanel = useCallback(() => {
+    closePanel("create-user");
+  }, [closePanel]);
+
+  const closeAllUsersPanel = useCallback(() => {
+    closePanel("all-users");
+  }, [closePanel]);
+
+  return {
+    openMyProfilePanel,
+    closeMyProfilePanel,
+    openCreateUserPanel,
+    openAllClientsPanel,
+    closeAllClientsPanel,
+    openCreateClientPanel,
+    closeCreateClientPanel,
+    openAppointmentPanel,
+    closeAppointmentPanel,
+    openAppointmentSettingsPanel,
+    closeAppointmentSettingsPanel,
+    openAppointmentVipRecurringPanel,
+    closeAppointmentVipRecurringPanel,
+    openOrganizationsPanel,
+    closeOrganizationsPanel,
+    openRolesPanel,
+    closeRolesPanel,
+    openPositionsPanel,
+    closePositionsPanel,
+    closeCreateUserPanel,
+    closeAllUsersPanel
+  };
+}
