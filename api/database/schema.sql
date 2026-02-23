@@ -195,6 +195,7 @@ CREATE TABLE appointment_schedules (
   appointment_date DATE NOT NULL,
   start_time TIME NOT NULL,
   end_time TIME NOT NULL,
+  duration_minutes INTEGER NOT NULL CHECK (duration_minutes > 0),
   service_name VARCHAR(128) NOT NULL,
   status VARCHAR(24) NOT NULL DEFAULT 'pending',
   note VARCHAR(255),
@@ -215,6 +216,7 @@ CREATE TABLE appointment_schedules (
     FOREIGN KEY (organization_id, client_id)
     REFERENCES clients(organization_id, id) ON DELETE RESTRICT,
   CHECK (start_time < end_time),
+  CHECK (duration_minutes = ((EXTRACT(EPOCH FROM (end_time - start_time)) / 60)::integer)),
   CHECK (status IN ('pending', 'confirmed', 'cancelled', 'no-show')),
   CHECK (repeat_type IN ('none', 'weekly')),
   CHECK (

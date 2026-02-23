@@ -22,7 +22,6 @@ const DAY_NUM_TO_KEY = Object.freeze({
 
 const DAY_KEYS = Object.freeze(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
 const SCHEDULE_SCOPE_SET = new Set(["single", "future", "all"]);
-let appointmentSettingsColumnFlagsCache = null;
 
 function toDayKey(dayNum) {
   return DAY_NUM_TO_KEY[Number(dayNum)] || "";
@@ -133,6 +132,24 @@ function normalizeTimeHm(value) {
   return raw ? raw.slice(0, 5) : "";
 }
 
+function toTimeMinutes(value) {
+  const raw = String(value || "").trim().slice(0, 5);
+  const match = raw.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+  if (!match) {
+    return null;
+  }
+  return (Number(match[1]) * 60) + Number(match[2]);
+}
+
+function getDurationMinutesFromTimes(startTime, endTime) {
+  const start = toTimeMinutes(startTime);
+  const end = toTimeMinutes(endTime);
+  if (start === null || end === null || end <= start) {
+    return 0;
+  }
+  return end - start;
+}
+
 function normalizeScheduleScope(value) {
   const normalized = String(value || "").trim().toLowerCase();
   return SCHEDULE_SCOPE_SET.has(normalized) ? normalized : "single";
@@ -167,10 +184,6 @@ function normalizeScheduleIds(value) {
 }
 
 async function getAppointmentSettingsColumnFlags() {
-  if (appointmentSettingsColumnFlagsCache) {
-    return appointmentSettingsColumnFlagsCache;
-  }
-
   const { rows } = await pool.query(
     `SELECT column_name
        FROM information_schema.columns
@@ -183,7 +196,6 @@ async function getAppointmentSettingsColumnFlags() {
     hasAppointmentDuration: set.has("appointment_duration_minutes"),
     hasAppointmentDurationOptions: set.has("appointment_duration_options_minutes")
   };
-  appointmentSettingsColumnFlagsCache = flags;
   return flags;
 }
 
@@ -191,6 +203,10 @@ function toScheduleItem(row) {
   const status = String(row?.status || "").trim().toLowerCase();
   const repeatType = normalizeRepeatType(row?.repeat_type);
   const repeatGroupKey = String(row?.repeat_group_key || "").trim();
+  const durationFromRow = Number.parseInt(String(row?.duration_minutes ?? "").trim(), 10);
+  const durationMinutes = Number.isInteger(durationFromRow) && durationFromRow > 0
+    ? durationFromRow
+    : getDurationMinutesFromTimes(row?.start_time, row?.end_time);
   return {
     id: String(row?.id || "").trim(),
     organizationId: String(row?.organization_id || "").trim(),
@@ -199,6 +215,7 @@ function toScheduleItem(row) {
     appointmentDate: normalizeDateYmd(row?.appointment_date),
     startTime: normalizeTimeHm(row?.start_time),
     endTime: normalizeTimeHm(row?.end_time),
+    durationMinutes: String(durationMinutes || ""),
     serviceName: String(row?.service_name || "").trim(),
     status,
     note: String(row?.note || "").trim(),
@@ -305,6 +322,7 @@ export async function getAppointmentSchedulesByRange({
        s.appointment_date,
        s.start_time,
        s.end_time,
+       s.duration_minutes,
        s.service_name,
        s.status,
        s.note,
@@ -454,6 +472,7 @@ export async function createAppointmentSchedule({
   appointmentDate,
   startTime,
   endTime,
+  durationMinutes,
   serviceName,
   status,
   note,
@@ -475,6 +494,7 @@ export async function createAppointmentSchedule({
          appointment_date,
          start_time,
          end_time,
+         duration_minutes,
          service_name,
          status,
          note,
@@ -487,7 +507,7 @@ export async function createAppointmentSchedule({
          created_by,
          updated_by
        )
-       VALUES ($1,$2,$3,$4::date,$5::time,$6::time,$7,$8,$9,$10::uuid,$11,$12::date,$13::smallint[],$14::date,$15,$16,$16)
+       VALUES ($1,$2,$3,$4::date,$5::time,$6::time,$7,$8,$9,$10,$11::uuid,$12,$13::date,$14::smallint[],$15::date,$16,$17,$17)
        RETURNING *
      )
      SELECT
@@ -498,6 +518,7 @@ export async function createAppointmentSchedule({
        i.appointment_date,
        i.start_time,
        i.end_time,
+       i.duration_minutes,
        i.service_name,
        i.status,
        i.note,
@@ -524,6 +545,7 @@ export async function createAppointmentSchedule({
       appointmentDate,
       startTime,
       endTime,
+      durationMinutes,
       serviceName,
       status,
       note || null,
@@ -625,6 +647,7 @@ export async function updateAppointmentSchedulesByIds({
   appointmentDate,
   startTime,
   endTime,
+  durationMinutes,
   serviceName,
   status,
   note,
@@ -640,16 +663,17 @@ export async function updateAppointmentSchedulesByIds({
        UPDATE appointment_schedules s
           SET specialist_id = $1,
               client_id = $2,
-              appointment_date = CASE WHEN $10::boolean THEN $3::date ELSE s.appointment_date END,
+              appointment_date = CASE WHEN $11::boolean THEN $3::date ELSE s.appointment_date END,
               start_time = $4::time,
               end_time = $5::time,
-              service_name = $6,
-              status = $7,
-              note = $8,
-              updated_by = $9,
+              duration_minutes = $6,
+              service_name = $7,
+              status = $8,
+              note = $9,
+              updated_by = $10,
               updated_at = CURRENT_TIMESTAMP
-        WHERE s.organization_id = $11
-          AND s.id = ANY($12::integer[])
+        WHERE s.organization_id = $12
+          AND s.id = ANY($13::integer[])
        RETURNING *
      )
      SELECT
@@ -660,6 +684,7 @@ export async function updateAppointmentSchedulesByIds({
        u.appointment_date,
        u.start_time,
        u.end_time,
+       u.duration_minutes,
        u.service_name,
        u.status,
        u.note,
@@ -685,6 +710,7 @@ export async function updateAppointmentSchedulesByIds({
       appointmentDate,
       startTime,
       endTime,
+      durationMinutes,
       serviceName,
       status,
       note || null,
@@ -707,6 +733,7 @@ export async function updateAppointmentScheduleByIdWithRepeatMeta({
   appointmentDate,
   startTime,
   endTime,
+  durationMinutes,
   serviceName,
   status,
   note,
@@ -725,19 +752,20 @@ export async function updateAppointmentScheduleByIdWithRepeatMeta({
               appointment_date = $3::date,
               start_time = $4::time,
               end_time = $5::time,
-              service_name = $6,
-              status = $7,
-              note = $8,
-              repeat_group_key = $9::uuid,
+              duration_minutes = $6,
+              service_name = $7,
+              status = $8,
+              note = $9,
+              repeat_group_key = $10::uuid,
               repeat_type = 'weekly',
-              repeat_until_date = $10::date,
-              repeat_days = $11::smallint[],
-              repeat_anchor_date = $12::date,
-              is_repeat_root = $13,
-              updated_by = $14,
+              repeat_until_date = $11::date,
+              repeat_days = $12::smallint[],
+              repeat_anchor_date = $13::date,
+              is_repeat_root = $14,
+              updated_by = $15,
               updated_at = CURRENT_TIMESTAMP
-        WHERE id = $15
-          AND organization_id = $16
+        WHERE id = $16
+          AND organization_id = $17
        RETURNING *
      )
      SELECT
@@ -748,6 +776,7 @@ export async function updateAppointmentScheduleByIdWithRepeatMeta({
        u.appointment_date,
        u.start_time,
        u.end_time,
+       u.duration_minutes,
        u.service_name,
        u.status,
        u.note,
@@ -773,6 +802,7 @@ export async function updateAppointmentScheduleByIdWithRepeatMeta({
       appointmentDate,
       startTime,
       endTime,
+      durationMinutes,
       serviceName,
       status,
       note || null,

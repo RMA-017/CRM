@@ -29,6 +29,7 @@ const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const APPOINTMENT_STATUS_SET = new Set(["pending", "confirmed", "cancelled", "no-show"]);
 const MAX_RECURRING_RANGE_DAYS = 366;
 const SCHEDULE_SCOPE_SET = new Set(["single", "future", "all"]);
+const APPOINTMENT_HISTORY_LOCK_DAYS = 10;
 const DAY_NUM_TO_KEY = Object.freeze({
   1: "mon",
   2: "tue",
@@ -96,6 +97,45 @@ function normalizeScheduleScope(value) {
     return "";
   }
   return normalized;
+}
+
+function getHistoryLockCutoffDateYmd() {
+  const now = new Date();
+  const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  todayUtc.setUTCDate(todayUtc.getUTCDate() - APPOINTMENT_HISTORY_LOCK_DAYS);
+  return formatUtcDateYmd(todayUtc);
+}
+
+function findLockedHistoryDate(value) {
+  const cutoffDate = getHistoryLockCutoffDateYmd();
+  const dates = Array.isArray(value) ? value : [value];
+  for (const dateValue of dates) {
+    const normalized = String(dateValue || "").trim();
+    if (!DATE_REGEX.test(normalized)) {
+      continue;
+    }
+    if (normalized <= cutoffDate) {
+      return {
+        date: normalized,
+        cutoffDate
+      };
+    }
+  }
+  return null;
+}
+
+function getHistoryLockErrorForRequester(requester, appointmentDates) {
+  if (Boolean(requester?.is_admin)) {
+    return null;
+  }
+  const locked = findLockedHistoryDate(appointmentDates);
+  if (!locked) {
+    return null;
+  }
+  return {
+    field: "appointmentDate",
+    message: `History is locked for non-admin users on or before ${locked.cutoffDate}. Requested date: ${locked.date}.`
+  };
 }
 
 function createRouteError(statusCode, payload) {
@@ -173,6 +213,15 @@ function toTimeMinutes(value) {
     return null;
   }
   return (hours * 60) + minutes;
+}
+
+function getDurationMinutesFromTimes(startTime, endTime) {
+  const start = toTimeMinutes(startTime);
+  const end = toTimeMinutes(endTime);
+  if (start === null || end === null || end <= start) {
+    return 0;
+  }
+  return end - start;
 }
 
 function collectDayNumsFromDates(dates) {
@@ -385,6 +434,7 @@ function validateSchedulePayload({
   appointmentDate,
   startTime,
   endTime,
+  durationMinutes,
   serviceName,
   status,
   note
@@ -408,6 +458,15 @@ function validateSchedulePayload({
   }
   if (TIME_REGEX.test(startTime) && TIME_REGEX.test(endTime) && startTime >= endTime) {
     errors.endTime = "End time must be after start time.";
+  }
+  if (!Number.isInteger(durationMinutes) || durationMinutes <= 0) {
+    errors.durationMinutes = "Invalid duration.";
+  }
+  if (TIME_REGEX.test(startTime) && TIME_REGEX.test(endTime) && startTime < endTime && Number.isInteger(durationMinutes) && durationMinutes > 0) {
+    const diffMinutes = getDurationMinutesFromTimes(startTime, endTime);
+    if (diffMinutes !== durationMinutes) {
+      errors.durationMinutes = "Duration must match start and end time.";
+    }
   }
   if (!serviceName) {
     errors.service = "Service is required.";
@@ -621,6 +680,8 @@ async function appointmentSettingsRoutes(fastify) {
         const appointmentDate = String(request.body?.appointmentDate || "").trim();
         const startTime = String(request.body?.startTime || "").trim();
         const endTime = String(request.body?.endTime || "").trim();
+        const requestedDurationMinutes = parsePositiveIntegerOr(request.body?.durationMinutes, 0);
+        const durationMinutes = requestedDurationMinutes || getDurationMinutesFromTimes(startTime, endTime);
         const serviceName = String(request.body?.service || request.body?.serviceName || "").trim();
         const status = normalizeAppointmentStatus(request.body?.status || "pending");
         const note = String(request.body?.note || "").trim();
@@ -632,6 +693,7 @@ async function appointmentSettingsRoutes(fastify) {
           appointmentDate,
           startTime,
           endTime,
+          durationMinutes,
           serviceName,
           status,
           note
@@ -673,6 +735,10 @@ async function appointmentSettingsRoutes(fastify) {
               field: "repeatDays",
               message: "No matching week days in selected range."
             });
+          }
+          const historyLockError = getHistoryLockErrorForRequester(access.requester, recurringDates);
+          if (historyLockError) {
+            return reply.status(403).send(historyLockError);
           }
 
           const repeatDayNums = repeatDayKeys
@@ -750,6 +816,7 @@ async function appointmentSettingsRoutes(fastify) {
                   appointmentDate: recurringDate,
                   startTime,
                   endTime,
+                  durationMinutes,
                   serviceName,
                   status,
                   note,
@@ -810,6 +877,10 @@ async function appointmentSettingsRoutes(fastify) {
             }
           });
         }
+        const historyLockError = getHistoryLockErrorForRequester(access.requester, [appointmentDate]);
+        if (historyLockError) {
+          return reply.status(403).send(historyLockError);
+        }
 
         if (status === "pending" || status === "confirmed") {
           const settingsForSlot = await getAppointmentSettingsByOrganization(access.authContext.organizationId);
@@ -859,6 +930,7 @@ async function appointmentSettingsRoutes(fastify) {
           appointmentDate,
           startTime,
           endTime,
+          durationMinutes,
           serviceName,
           status,
           note
@@ -913,6 +985,8 @@ async function appointmentSettingsRoutes(fastify) {
         const appointmentDate = String(request.body?.appointmentDate || "").trim();
         const startTime = String(request.body?.startTime || "").trim();
         const endTime = String(request.body?.endTime || "").trim();
+        const requestedDurationMinutes = parsePositiveIntegerOr(request.body?.durationMinutes, 0);
+        const durationMinutes = requestedDurationMinutes || getDurationMinutesFromTimes(startTime, endTime);
         const serviceName = String(request.body?.service || request.body?.serviceName || "").trim();
         const status = normalizeAppointmentStatus(request.body?.status || "pending");
         const note = String(request.body?.note || "").trim();
@@ -924,6 +998,7 @@ async function appointmentSettingsRoutes(fastify) {
           appointmentDate,
           startTime,
           endTime,
+          durationMinutes,
           serviceName,
           status,
           note
@@ -939,6 +1014,19 @@ async function appointmentSettingsRoutes(fastify) {
         });
         if (!Array.isArray(target.items) || target.items.length === 0) {
           return reply.status(404).send({ message: "Appointment not found." });
+        }
+        const targetHistoryLockError = getHistoryLockErrorForRequester(
+          access.requester,
+          target.items.map((item) => item.appointmentDate)
+        );
+        if (targetHistoryLockError) {
+          return reply.status(403).send(targetHistoryLockError);
+        }
+        if (target.scope === "single") {
+          const requestDateHistoryLockError = getHistoryLockErrorForRequester(access.requester, [appointmentDate]);
+          if (requestDateHistoryLockError) {
+            return reply.status(403).send(requestDateHistoryLockError);
+          }
         }
 
         const shouldConvertSingleToRepeat = repeat.enabled && target.scope === "single" && !target.isRecurring;
@@ -982,6 +1070,10 @@ async function appointmentSettingsRoutes(fastify) {
           }
           if (!recurringDates.includes(appointmentDate)) {
             recurringDates.unshift(appointmentDate);
+          }
+          const repeatHistoryLockError = getHistoryLockErrorForRequester(access.requester, recurringDates);
+          if (repeatHistoryLockError) {
+            return reply.status(403).send(repeatHistoryLockError);
           }
 
           const shouldEnforceAvailability = status === "pending" || status === "confirmed";
@@ -1042,6 +1134,7 @@ async function appointmentSettingsRoutes(fastify) {
               appointmentDate,
               startTime,
               endTime,
+              durationMinutes,
               serviceName,
               status,
               note,
@@ -1117,6 +1210,7 @@ async function appointmentSettingsRoutes(fastify) {
                   appointmentDate: recurringDate,
                   startTime,
                   endTime,
+                  durationMinutes,
                   serviceName,
                   status,
                   note,
@@ -1238,6 +1332,7 @@ async function appointmentSettingsRoutes(fastify) {
           appointmentDate,
           startTime,
           endTime,
+          durationMinutes,
           serviceName,
           status,
           note,
@@ -1310,6 +1405,13 @@ async function appointmentSettingsRoutes(fastify) {
         });
         if (!Array.isArray(target.items) || target.items.length === 0) {
           return reply.status(404).send({ message: "Appointment not found." });
+        }
+        const historyLockError = getHistoryLockErrorForRequester(
+          access.requester,
+          target.items.map((item) => item.appointmentDate)
+        );
+        if (historyLockError) {
+          return reply.status(403).send(historyLockError);
         }
 
         const deletedCount = await deleteAppointmentSchedulesByIds({

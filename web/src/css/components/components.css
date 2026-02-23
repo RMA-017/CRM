@@ -1282,6 +1282,32 @@
   cursor: default;
 }
 
+.appointment-occupied-slot {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  display: block;
+  pointer-events: none;
+}
+
+.appointment-occupied-slot.appointment-status-confirmed {
+  border-color: rgba(20, 184, 166, 0.35);
+  background: rgba(45, 212, 191, 0.18);
+}
+
+.appointment-occupied-slot.appointment-status-pending {
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(251, 191, 36, 0.15);
+}
+
+.appointment-occupied-slot.appointment-status-cancelled,
+.appointment-occupied-slot.appointment-status-no-show {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(254, 202, 202, 0.4);
+}
+
 .appointment-settings-list {
   margin-top: 10px;
   border: 1px solid var(--line);
@@ -1494,7 +1520,7 @@
 .appointment-create-date-time-row {
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   align-items: start;
 }

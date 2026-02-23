@@ -85,6 +85,31 @@ function getClientCardName(client) {
   return clientId ? `Client #${clientId}` : "Client";
 }
 
+function formatDurationLabel(value) {
+  const parsed = Number.parseInt(String(value || "").trim(), 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return "";
+  }
+  return `${parsed} min`;
+}
+
+function truncateWithEllipsis(value, maxLength = 20) {
+  const raw = String(value || "").trim();
+  if (!raw || raw.length <= maxLength) {
+    return raw;
+  }
+  return `${raw.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+}
+
+function formatServiceLine(serviceName, durationMinutes) {
+  const serviceLabel = truncateWithEllipsis(serviceName, 20);
+  const durationLabel = formatDurationLabel(durationMinutes);
+  if (!durationLabel) {
+    return serviceLabel;
+  }
+  return serviceLabel ? `${serviceLabel} • ${durationLabel}` : durationLabel;
+}
+
 function getStartOfWeek(baseDate) {
   const date = new Date(baseDate);
   const currentDay = date.getDay();
@@ -428,6 +453,12 @@ function AppointmentScheduler({
       return acc;
     }, {})
   ), [timeSlots]);
+  const slotIndexByValue = useMemo(() => (
+    timeSlots.reduce((acc, slot, index) => {
+      acc[slot] = index;
+      return acc;
+    }, {})
+  ), [timeSlots]);
   const workingHoursMinutesByDay = useMemo(() => (
     DAY_ITEMS.reduce((acc, day) => {
       const dayHours = settings.workingHours?.[day.key] || {};
@@ -452,6 +483,58 @@ function AppointmentScheduler({
       return acc;
     }, {})
   ), [appointmentsByDay, weekDays]);
+  const appointmentBlockedSlotsByDay = useMemo(() => (
+    weekDays.reduce((acc, day) => {
+      const dayItems = Array.isArray(appointmentsByDay[day.key]) ? appointmentsByDay[day.key] : [];
+      const startSlots = new Set(
+        dayItems
+          .map((event) => String(event?.time || "").trim())
+          .filter(Boolean)
+      );
+      const blockedByTime = {};
+
+      dayItems.forEach((event) => {
+        const startSlot = String(event?.time || "").trim();
+        const startMinutes = normalizeTimeToMinutes(event?.time);
+        const endMinutes = normalizeTimeToMinutes(event?.endTime);
+        if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+          return;
+        }
+
+        const status = String(event?.status || "pending").trim().toLowerCase();
+        const startIndex = slotIndexByValue[startSlot];
+        if (Number.isInteger(startIndex) && startIndex >= 0) {
+          for (let index = startIndex + 1; index < timeSlots.length; index += 1) {
+            const slot = timeSlots[index];
+            const slotMinutes = slotMinutesByValue[slot];
+            if (slotMinutes === null || slotMinutes >= endMinutes) {
+              break;
+            }
+            if (startSlots.has(slot) || blockedByTime[slot]) {
+              continue;
+            }
+            blockedByTime[slot] = { status };
+          }
+          return;
+        }
+
+        // Fallback for unexpected non-aligned start times.
+        timeSlots.forEach((slot) => {
+          const slotMinutes = slotMinutesByValue[slot];
+          if (slotMinutes === null || slotMinutes <= startMinutes || slotMinutes >= endMinutes) {
+            return;
+          }
+          if (startSlots.has(slot) || blockedByTime[slot]) {
+            return;
+          }
+          blockedByTime[slot] = { status };
+        });
+      });
+
+      acc[day.key] = blockedByTime;
+      return acc;
+    }, {})
+  ), [appointmentsByDay, slotIndexByValue, slotMinutesByValue, timeSlots, weekDays]);
   const specialistOptions = useMemo(() => (
     specialists.map((specialist) => ({
       value: specialist.id,
@@ -568,6 +651,7 @@ function AppointmentScheduler({
           clientId: String(item?.clientId || ""),
           time: startTime,
           endTime: String(item?.endTime || "").trim(),
+          durationMinutes: String(item?.durationMinutes || "").trim() || getDurationMinutesFromTimes(startTime, item?.endTime),
           client: getClientCardName({
             id: item?.clientId,
             firstName: item?.clientFirstName,
@@ -649,7 +733,8 @@ function AppointmentScheduler({
     const appointmentDate = formatDateYmd(day.date);
     const startTime = String(slot || "").trim();
     const defaultDuration = durationSelectOptions[0]?.value || "30";
-    const existingDuration = getDurationMinutesFromTimes(existingItem?.time, existingItem?.endTime);
+    const existingDuration = String(existingItem?.durationMinutes || "").trim()
+      || getDurationMinutesFromTimes(existingItem?.time, existingItem?.endTime);
     const nextDuration = isEditMode && existingDuration
       ? existingDuration
       : defaultDuration;
@@ -1044,6 +1129,7 @@ function AppointmentScheduler({
         appointmentDate,
         startTime,
         endTime,
+        durationMinutes: String(durationMinutes),
         service: nextPayload.service,
         status: nextPayload.status,
         note: nextPayload.note
@@ -1215,6 +1301,10 @@ function AppointmentScheduler({
                 placeholder={loading ? "Loading specialists..." : "Select specialist"}
                 value={selectedSpecialistId}
                 options={specialistOptions}
+                searchable
+                searchPlaceholder="Search specialist"
+                searchThreshold={20}
+                maxVisibleOptions={10}
                 error={specialistSelectError}
                 onChange={(nextValue) => {
                   setSelectedSpecialistId(nextValue);
@@ -1238,14 +1328,8 @@ function AppointmentScheduler({
         </div>
       </div>
 
-      <p className="appointment-scheduler-state" hidden={!message}>
-        {message}
-      </p>
-
       {loading ? (
-        <p className="appointment-scheduler-state">
-          Loading scheduler...
-        </p>
+        null
       ) : (
         <div className="appointment-grid-wrap">
           <table className="appointment-grid" aria-label="Appointment week table">
@@ -1279,6 +1363,7 @@ function AppointmentScheduler({
                         && slotMinutes < dayMinutes.end
                       );
                       const item = appointmentLookupByDay[day.key]?.[slot] || null;
+                      const blockedItem = appointmentBlockedSlotsByDay[day.key]?.[slot] || null;
 
                       return (
                         <td key={`${day.key}-${slot}`}>
@@ -1293,7 +1378,9 @@ function AppointmentScheduler({
                                 aria-label={`Edit appointment on ${day.label} at ${slot}`}
                               >
                                 <p className="appointment-client">{item.client}</p>
-                                <p className="appointment-service">{item.service}</p>
+                                <p className="appointment-service">
+                                  {formatServiceLine(item.service, item.durationMinutes)}
+                                </p>
                               </button>
                             ) : (
                               <div
@@ -1301,9 +1388,16 @@ function AppointmentScheduler({
                                 aria-label={`Appointment on ${day.label} at ${slot}`}
                               >
                                 <p className="appointment-client">{item.client}</p>
-                                <p className="appointment-service">{item.service}</p>
+                                <p className="appointment-service">
+                                  {formatServiceLine(item.service, item.durationMinutes)}
+                                </p>
                               </div>
                             )
+                          ) : blockedItem ? (
+                            <span
+                              className={`appointment-occupied-slot appointment-status-${blockedItem.status}`}
+                              aria-label={`Booked slot on ${day.label} at ${slot}`}
+                            />
                           ) : (
                             canCreateAppointments ? (
                               <button
@@ -1437,24 +1531,24 @@ function AppointmentScheduler({
                   />
                   <small className="field-error">{createErrors.startTime || ""}</small>
                 </div>
-              </div>
 
-              <div className="field">
-                <label htmlFor="appointmentCreateDuration">Duration</label>
-                <CustomSelect
-                  id="appointmentCreateDuration"
-                  placeholder="Select duration"
-                  value={createForm.durationMinutes}
-                  options={durationSelectOptions}
-                  error={Boolean(createErrors.durationMinutes)}
-                  onChange={(nextValue) => {
-                    setCreateForm((prev) => ({ ...prev, durationMinutes: nextValue }));
-                    if (createErrors.durationMinutes) {
-                      setCreateErrors((prev) => ({ ...prev, durationMinutes: "" }));
-                    }
-                  }}
-                />
-                <small className="field-error">{createErrors.durationMinutes || ""}</small>
+                <div className="field">
+                  <label htmlFor="appointmentCreateDuration">Duration</label>
+                  <CustomSelect
+                    id="appointmentCreateDuration"
+                    placeholder="Select duration"
+                    value={createForm.durationMinutes}
+                    options={durationSelectOptions}
+                    error={Boolean(createErrors.durationMinutes)}
+                    onChange={(nextValue) => {
+                      setCreateForm((prev) => ({ ...prev, durationMinutes: nextValue }));
+                      if (createErrors.durationMinutes) {
+                        setCreateErrors((prev) => ({ ...prev, durationMinutes: "" }));
+                      }
+                    }}
+                  />
+                  <small className="field-error">{createErrors.durationMinutes || ""}</small>
+                </div>
               </div>
 
               <div className="field">

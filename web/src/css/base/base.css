@@ -230,6 +230,30 @@ select option {
   display: none !important;
 }
 
+.custom-select-search-wrap {
+  padding: 2px;
+}
+
+.custom-select-search-input {
+  width: 100%;
+  min-height: 32px;
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  background: var(--surface-soft);
+  color: var(--text-main);
+}
+
+.custom-select-empty {
+  min-height: 32px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
 .custom-select-option {
   border: 0;
   background: transparent;

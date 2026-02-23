@@ -8,18 +8,47 @@ function CustomSelect({
   id,
   error = false,
   forceOpenDown = false,
-  maxVisibleOptions = null
+  maxVisibleOptions = null,
+  searchable = false,
+  searchPlaceholder = "Search...",
+  searchThreshold = 0
 }) {
   const wrapRef = useRef(null);
   const triggerRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [openUp, setOpenUp] = useState(false);
   const [menuMaxHeight, setMenuMaxHeight] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const normalizedOptions = Array.isArray(options) ? options : [];
+
+  const optionLabelByValue = useMemo(() => {
+    const map = new Map();
+    normalizedOptions.forEach((option) => {
+      map.set(option.value, option.label);
+    });
+    return map;
+  }, [normalizedOptions]);
+
+  const normalizedSearchThreshold = Number.isInteger(searchThreshold) && searchThreshold > 0
+    ? searchThreshold
+    : 0;
+  const shouldShowSearch = searchable && normalizedOptions.length >= normalizedSearchThreshold;
+  const filteredOptions = useMemo(() => {
+    if (!shouldShowSearch) {
+      return normalizedOptions;
+    }
+
+    const query = String(searchQuery || "").trim().toLowerCase();
+    if (!query) {
+      return normalizedOptions;
+    }
+
+    return normalizedOptions.filter((option) => String(option?.label || "").toLowerCase().includes(query));
+  }, [normalizedOptions, searchQuery, shouldShowSearch]);
 
   const selectedLabel = useMemo(() => {
-    const selected = options.find((option) => option.value === value);
-    return selected ? selected.label : placeholder;
-  }, [options, placeholder, value]);
+    return optionLabelByValue.get(value) || placeholder;
+  }, [optionLabelByValue, placeholder, value]);
 
   useEffect(() => {
     if (!open || !triggerRef.current) {
@@ -35,7 +64,7 @@ function CustomSelect({
       ? maxVisibleOptions
       : null;
     const visibleOptionsCount = normalizedMaxVisibleOptions
-      ? Math.max(1, Math.min(options.length, normalizedMaxVisibleOptions))
+      ? Math.max(1, Math.min(filteredOptions.length, normalizedMaxVisibleOptions))
       : null;
     const desiredMenuHeight = visibleOptionsCount
       ? ((visibleOptionsCount * 40) + 8)
@@ -48,7 +77,13 @@ function CustomSelect({
 
     setOpenUp(shouldOpenUp);
     setMenuMaxHeight(`${calculatedMaxHeight}px`);
-  }, [forceOpenDown, maxVisibleOptions, open, options.length]);
+  }, [filteredOptions.length, forceOpenDown, maxVisibleOptions, open]);
+
+  useEffect(() => {
+    if (!open && searchQuery) {
+      setSearchQuery("");
+    }
+  }, [open, searchQuery]);
 
   useEffect(() => {
     function handleOutside(event) {
@@ -99,20 +134,38 @@ function CustomSelect({
           event.stopPropagation();
         }}
       >
-        {options.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            className="custom-select-option"
-            aria-selected={option.value === value ? "true" : "false"}
-            onClick={() => {
-              onChange(option.value);
-              setOpen(false);
-            }}
-          >
-            {option.label}
-          </button>
-        ))}
+        {open && shouldShowSearch ? (
+          <div className="custom-select-search-wrap">
+            <input
+              type="text"
+              className="custom-select-search-input"
+              placeholder={searchPlaceholder}
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.currentTarget.value)}
+              onMouseDown={(event) => event.stopPropagation()}
+            />
+          </div>
+        ) : null}
+        {open ? (
+          filteredOptions.length > 0 ? (
+            filteredOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className="custom-select-option"
+                aria-selected={option.value === value ? "true" : "false"}
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+              >
+                {option.label}
+              </button>
+            ))
+          ) : (
+            <div className="custom-select-empty">No options found.</div>
+          )
+        ) : null}
       </div>
     </div>
   );
