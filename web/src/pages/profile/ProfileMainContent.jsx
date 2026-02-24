@@ -51,6 +51,7 @@ function ProfileMainContent({
   closeOrganizationsPanel,
   closeRolesPanel,
   closePositionsPanel,
+  closeNotificationsSettingsPanel,
   organizations,
   organizationsMessage,
   organizationCreateForm,
@@ -94,7 +95,9 @@ function ProfileMainContent({
   setCreateForm,
   setCreateErrors,
   roleOptions,
-  closeCreateUserPanel
+  closeCreateUserPanel,
+  profile,
+  onAppointmentNotification
 }) {
   const maxBirthdayYmd = new Date().toISOString().slice(0, 10);
 
@@ -492,7 +495,7 @@ function ProfileMainContent({
       {mainView === "appointment" && (
         <section id="appointmentPanel" className="all-users-panel">
           <div className="all-users-head">
-            <h3>Appointment</h3>
+            <h3>Appointment Schedule</h3>
             <button
               id="closeAppointmentBtn"
               type="button"
@@ -507,6 +510,7 @@ function ProfileMainContent({
             canCreateAppointments={canCreateAppointments}
             canUpdateAppointments={canUpdateAppointments}
             canDeleteAppointments={canDeleteAppointments}
+            onNotification={onAppointmentNotification}
           />
         </section>
       )}
@@ -525,14 +529,19 @@ function ProfileMainContent({
               ×
             </button>
           </div>
-          <AppointmentSettingsPanel canUpdateAppointments={canUpdateAppointments} panelMode="settings" />
+          <AppointmentSettingsPanel
+            canUpdateAppointments={canUpdateAppointments}
+            panelMode="settings"
+            organizations={organizations}
+            profile={profile}
+          />
         </section>
       )}
 
       {mainView === "appointment-breaks" && (
         <section id="appointmentBreaksPanel" className="all-users-panel settings-panel">
           <div className="all-users-head">
-            <h3>Breaks</h3>
+            <h3>Appointment Breaks</h3>
             <button
               id="closeAppointmentBreaksBtn"
               type="button"
@@ -543,14 +552,19 @@ function ProfileMainContent({
               ×
             </button>
           </div>
-          <AppointmentSettingsPanel canUpdateAppointments={canUpdateAppointments} panelMode="breaks" />
+          <AppointmentSettingsPanel
+            canUpdateAppointments={canUpdateAppointments}
+            panelMode="breaks"
+            organizations={organizations}
+            profile={profile}
+          />
         </section>
       )}
 
       {mainView === "appointment-vip-clients" && (
         <section id="appointmentVipClientsPanel" className="all-users-panel">
           <div className="all-users-head">
-            <h3>VIP Clients</h3>
+            <h3>Appointment VIP Clients</h3>
             <button
               id="closeAppointmentVipClientsBtn"
               type="button"
@@ -653,7 +667,7 @@ function ProfileMainContent({
       {mainView === "settings-organizations" && (
         <section id="organizationsPanel" className="all-users-panel settings-panel">
           <div className="all-users-head">
-            <h3>Organizations</h3>
+            <h3>Organization Settings</h3>
             <button
               id="closeOrganizationsBtn"
               type="button"
@@ -784,7 +798,7 @@ function ProfileMainContent({
       {mainView === "settings-roles" && (
         <section id="rolesPanel" className="all-users-panel settings-panel">
           <div className="all-users-head">
-            <h3>Roles</h3>
+            <h3>Role Settings</h3>
             <button
               id="closeRolesBtn"
               type="button"
@@ -896,7 +910,7 @@ function ProfileMainContent({
       {mainView === "settings-positions" && (
         <section id="positionsPanel" className="all-users-panel settings-panel">
           <div className="all-users-head">
-            <h3>Positions</h3>
+            <h3>Position Settings</h3>
             <button
               id="closePositionsBtn"
               type="button"
@@ -999,6 +1013,56 @@ function ProfileMainContent({
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {mainView === "settings-notifications" && (
+        <section id="notificationsSettingsPanel" className="all-users-panel settings-panel">
+          <div className="all-users-head">
+            <h3>Notification Settings</h3>
+            <button
+              id="closeNotificationsSettingsBtn"
+              type="button"
+              className="header-btn panel-close-btn"
+              aria-label="Close notifications settings panel"
+              onClick={closeNotificationsSettingsPanel}
+            >
+              ×
+            </button>
+          </div>
+
+          <p className="all-users-state">
+            Global notification routing is active for appointment changes.
+          </p>
+
+          <div className="all-users-table-wrap settings-table-wrap">
+            <table className="all-users-table settings-table" aria-label="Notification routing rules">
+              <thead>
+                <tr>
+                  <th>Trigger</th>
+                  <th>Recipient</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Specialist creates/cancels own appointment</td>
+                  <td>Manager role users</td>
+                  <td>Active</td>
+                </tr>
+                <tr>
+                  <td>Manager creates/cancels for specialist</td>
+                  <td>That specialist only</td>
+                  <td>Active</td>
+                </tr>
+                <tr>
+                  <td>Delivery channel</td>
+                  <td>SSE + Notification Inbox</td>
+                  <td>Active</td>
+                </tr>
               </tbody>
             </table>
           </div>

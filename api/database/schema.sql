@@ -241,7 +241,14 @@ CREATE TABLE appointment_schedules (
       AND array_length(repeat_days, 1) >= 1
       AND repeat_days <@ ARRAY[1,2,3,4,5,6,7]::SMALLINT[]
       AND repeat_anchor_date <= repeat_until_date)
-  )
+  ),
+  CONSTRAINT ex_appointment_schedules_active_overlap
+    EXCLUDE USING gist (
+      organization_id WITH =,
+      specialist_id WITH =,
+      tsrange(appointment_date + start_time, appointment_date + end_time, '[)') WITH &&
+    )
+    WHERE (status IN ('pending', 'confirmed'))
 );
 
 CREATE INDEX idx_appointment_schedules_org_specialist_date_time
@@ -257,41 +264,76 @@ CREATE INDEX idx_appointment_schedules_org_client_no_show
 CREATE INDEX idx_appointment_schedules_org_repeat_group_date
   ON appointment_schedules (organization_id, repeat_group_key, appointment_date);
 
-ALTER TABLE appointment_schedules
-  ADD CONSTRAINT ex_appointment_schedules_active_overlap
-  EXCLUDE USING gist (
-    organization_id WITH =,
-    specialist_id WITH =,
-    tsrange(appointment_date + start_time, appointment_date + end_time, '[)') WITH &&
-  )
-  WHERE (status IN ('pending', 'confirmed'));
-
-CREATE INDEX idx_appointment_vip_schedules_org_specialist_date_time
-  ON appointment_vip_schedules (organization_id, specialist_id, appointment_date, start_time);
-
-CREATE INDEX idx_appointment_vip_schedules_org_client_date
-  ON appointment_vip_schedules (organization_id, client_id, appointment_date DESC);
-
-CREATE INDEX idx_appointment_vip_schedules_org_client_no_show
-  ON appointment_vip_schedules (organization_id, client_id)
-  WHERE status = 'no-show';
-
-CREATE INDEX idx_appointment_vip_schedules_org_repeat_group_date
-  ON appointment_vip_schedules (organization_id, repeat_group_key, appointment_date);
-
-ALTER TABLE appointment_vip_schedules
-  ADD CONSTRAINT ex_appointment_vip_schedules_active_overlap
-  EXCLUDE USING gist (
-    organization_id WITH =,
-    specialist_id WITH =,
-    tsrange(appointment_date + start_time, appointment_date + end_time, '[)') WITH &&
-  )
-  WHERE (status IN ('pending', 'confirmed'));
-
-  
-
-
 CREATE UNIQUE INDEX uq_appointment_schedules_repeat_group_root
   ON appointment_schedules (organization_id, repeat_group_key)
   WHERE repeat_group_key IS NOT NULL
     AND is_repeat_root = TRUE;
+
+CREATE TABLE user_notifications (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL,
+  source_user_id INTEGER,
+  event_type VARCHAR(64) NOT NULL,
+  message VARCHAR(255) NOT NULL,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  read_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_user_notifications_user_org
+    FOREIGN KEY (organization_id, user_id)
+    REFERENCES users(organization_id, id) ON DELETE CASCADE,
+  CONSTRAINT fk_user_notifications_source_user_org
+    FOREIGN KEY (organization_id, source_user_id)
+    REFERENCES users(organization_id, id) ON DELETE SET NULL,
+  CHECK (LENGTH(TRIM(event_type)) > 0),
+  CHECK (LENGTH(TRIM(message)) > 0)
+);
+
+CREATE INDEX idx_user_notifications_org_user_created
+  ON user_notifications (organization_id, user_id, created_at DESC);
+
+CREATE INDEX idx_user_notifications_org_user_unread
+  ON user_notifications (organization_id, user_id, created_at DESC)
+  WHERE is_read = FALSE;
+
+CREATE TABLE outbox_events (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  event_type VARCHAR(64) NOT NULL,
+  aggregate_type VARCHAR(64) NOT NULL,
+  aggregate_id VARCHAR(64),
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  status VARCHAR(16) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed')),
+  error_message TEXT,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  processed_at TIMESTAMP,
+  CHECK (LENGTH(TRIM(event_type)) > 0),
+  CHECK (LENGTH(TRIM(aggregate_type)) > 0)
+);
+
+CREATE INDEX idx_outbox_events_pending_created
+  ON outbox_events (status, created_at ASC);
+
+CREATE INDEX idx_outbox_events_org_created
+  ON outbox_events (organization_id, created_at DESC);
+
+CREATE TABLE appointment_status_history (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  appointment_schedule_id INTEGER NOT NULL REFERENCES appointment_schedules(id) ON DELETE CASCADE,
+  previous_status VARCHAR(24),
+  next_status VARCHAR(24) NOT NULL,
+  reason VARCHAR(255),
+  changed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (previous_status IS NULL OR previous_status IN ('pending', 'confirmed', 'cancelled', 'no-show')),
+  CHECK (next_status IN ('pending', 'confirmed', 'cancelled', 'no-show'))
+);
+
+CREATE INDEX idx_appointment_status_history_schedule_created
+  ON appointment_status_history (appointment_schedule_id, created_at DESC);
+
+CREATE INDEX idx_appointment_status_history_org_created
+  ON appointment_status_history (organization_id, created_at DESC);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../lib/api.js";
 import CustomSelect from "../../components/CustomSelect.jsx";
 
@@ -29,26 +29,26 @@ const BREAK_DAY_OPTIONS = DAYS.map((day, index) => ({
 }));
 const APPOINTMENT_SPECIALIST_STORAGE_KEY = "crm_appointment_selected_specialist_id";
 const APPOINTMENT_SETTINGS_BREAKS_SPECIALIST_STORAGE_KEY = "crm_appointment_settings_selected_specialist_id";
-const APPOINTMENT_VIP_SETTINGS_BREAKS_SPECIALIST_STORAGE_KEY = "crm_appointment_vip_settings_selected_specialist_id";
+const APPOINTMENT_SETTINGS_ORGANIZATION_STORAGE_KEY = "crm_appointment_settings_selected_organization_id";
 
-function getBreaksSpecialistStorageKey(isVipScope) {
-  return isVipScope
-    ? APPOINTMENT_VIP_SETTINGS_BREAKS_SPECIALIST_STORAGE_KEY
-    : APPOINTMENT_SETTINGS_BREAKS_SPECIALIST_STORAGE_KEY;
-}
-
-function readStoredBreaksSpecialistId(isVipScope) {
+function readStoredBreaksSpecialistId() {
   if (typeof window === "undefined") {
     return "";
   }
 
-  const storageKey = getBreaksSpecialistStorageKey(isVipScope);
-  const scopedValue = String(window.localStorage.getItem(storageKey) || "").trim();
+  const scopedValue = String(window.localStorage.getItem(APPOINTMENT_SETTINGS_BREAKS_SPECIALIST_STORAGE_KEY) || "").trim();
   if (scopedValue) {
     return scopedValue;
   }
 
   return String(window.localStorage.getItem(APPOINTMENT_SPECIALIST_STORAGE_KEY) || "").trim();
+}
+
+function readStoredOrganizationId() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+  return String(window.localStorage.getItem(APPOINTMENT_SETTINGS_ORGANIZATION_STORAGE_KEY) || "").trim();
 }
 
 const DEFAULT_DAY_TIME = {
@@ -64,6 +64,7 @@ const DEFAULT_DAY_TIME = {
 function createDefaultForm() {
   return {
     slotInterval: "30",
+    slotSubDivisions: "1",
     appointmentDurationOptions: "30",
     visibleWeekDays: ["mon", "tue", "wed", "thu", "fri", "sat"],
     noShowThreshold: "3",
@@ -72,28 +73,9 @@ function createDefaultForm() {
   };
 }
 
-function createEmptyForm() {
-  return {
-    slotInterval: "",
-    appointmentDuration: "",
-    appointmentDurationOptions: "",
-    visibleWeekDays: [],
-    noShowThreshold: "",
-    reminderHours: "",
-    reminderChannels: []
-  };
-}
-
 function createDayTimeMap() {
   return DAYS.reduce((acc, day) => {
     acc[day.key] = { ...DEFAULT_DAY_TIME[day.key] };
-    return acc;
-  }, {});
-}
-
-function createEmptyDayTimeMap() {
-  return DAYS.reduce((acc, day) => {
-    acc[day.key] = { start: "", end: "" };
     return acc;
   }, {});
 }
@@ -150,24 +132,99 @@ function normalizeBreakItem(value) {
 
 function AppointmentSettingsPanel({
   canUpdateAppointments = true,
-  settingsScope = "default",
-  panelMode = "settings"
+  panelMode = "settings",
+  organizations = [],
+  profile = null
 }) {
-  const isVipScope = String(settingsScope || "").trim().toLowerCase() === "vip";
   const isBreaksMode = String(panelMode || "").trim().toLowerCase() === "breaks";
+  const currentOrganizationId = String(profile?.organizationId || "").trim();
+  const currentOrganizationName = String(profile?.organizationName || "").trim();
+  const currentOrganizationCode = String(profile?.organizationCode || "").trim();
+  const hasOrganizationsList = Array.isArray(organizations) && organizations.length > 0;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [selectedOrganizationId, setSelectedOrganizationId] = useState(() => (
+    readStoredOrganizationId() || currentOrganizationId
+  ));
 
   const [form, setForm] = useState(null);
   const [workingHours, setWorkingHours] = useState(null);
   const [breakSpecialists, setBreakSpecialists] = useState([]);
   const [selectedBreakSpecialistId, setSelectedBreakSpecialistId] = useState(() => (
-    readStoredBreaksSpecialistId(isVipScope)
+    readStoredBreaksSpecialistId()
   ));
   const [breakItems, setBreakItems] = useState([]);
   const [breaksLoading, setBreaksLoading] = useState(false);
   const [breaksSaving, setBreaksSaving] = useState(false);
+
+  const organizationOptions = useMemo(() => {
+    const fallbackLabel = currentOrganizationName && currentOrganizationCode
+      ? `${currentOrganizationName} (${currentOrganizationCode})`
+      : (currentOrganizationName || currentOrganizationCode || "Current organization");
+    const source = Array.isArray(organizations) ? organizations : [];
+    const seen = new Set();
+    const mapped = source
+      .map((item) => {
+        const value = String(item?.id || "").trim();
+        if (!value || seen.has(value)) {
+          return null;
+        }
+        seen.add(value);
+        const code = String(item?.code || "").trim();
+        const name = String(item?.name || "").trim();
+        return {
+          value,
+          label: name && code ? `${name} (${code})` : (name || code || `Organization #${value}`)
+        };
+      })
+      .filter(Boolean);
+
+    if (currentOrganizationId && !seen.has(currentOrganizationId)) {
+      mapped.unshift({
+        value: currentOrganizationId,
+        label: fallbackLabel
+      });
+    }
+    if (mapped.length === 0 && currentOrganizationId) {
+      mapped.push({
+        value: currentOrganizationId,
+        label: fallbackLabel
+      });
+    }
+    return mapped;
+  }, [currentOrganizationCode, currentOrganizationId, currentOrganizationName, organizations]);
+
+  const canSwitchOrganization = Boolean(profile?.isAdmin) && organizationOptions.length > 1;
+  const effectiveOrganizationId = String(selectedOrganizationId || currentOrganizationId || "").trim();
+
+  useEffect(() => {
+    setSelectedOrganizationId((prev) => {
+      const prevId = String(prev || "").trim();
+      if (prevId && organizationOptions.some((option) => option.value === prevId)) {
+        return prevId;
+      }
+      if (prevId && !hasOrganizationsList) {
+        return prevId;
+      }
+      if (currentOrganizationId && organizationOptions.some((option) => option.value === currentOrganizationId)) {
+        return currentOrganizationId;
+      }
+      return organizationOptions[0]?.value || currentOrganizationId || "";
+    });
+  }, [currentOrganizationId, hasOrganizationsList, organizationOptions]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const nextId = String(selectedOrganizationId || "").trim();
+    if (!nextId) {
+      window.localStorage.removeItem(APPOINTMENT_SETTINGS_ORGANIZATION_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(APPOINTMENT_SETTINGS_ORGANIZATION_STORAGE_KEY, nextId);
+  }, [selectedOrganizationId]);
 
   useEffect(() => {
     const text = String(message || "").trim();
@@ -196,8 +253,15 @@ function AppointmentSettingsPanel({
         setForm(null);
         setWorkingHours(null);
 
-        const query = isVipScope ? "?scope=vip" : "";
-        const response = await apiFetch(`/api/appointments/settings${query}`, {
+        const queryParams = new URLSearchParams();
+        if (effectiveOrganizationId) {
+          queryParams.set("organizationId", effectiveOrganizationId);
+        }
+        const requestPath = queryParams.toString()
+          ? `/api/appointments/settings?${queryParams.toString()}`
+          : "/api/appointments/settings";
+
+        const response = await apiFetch(requestPath, {
           method: "GET",
           cache: "no-store"
         });
@@ -215,7 +279,7 @@ function AppointmentSettingsPanel({
         const item = data?.item;
         const source = item && typeof item === "object"
           ? item
-          : (isVipScope ? createEmptyForm() : createDefaultForm());
+          : createDefaultForm();
 
         const nextVisibleWeekDays = Array.isArray(source.visibleWeekDays)
           ? source.visibleWeekDays
@@ -223,18 +287,18 @@ function AppointmentSettingsPanel({
               .filter((dayKey) => DAYS.some((day) => day.key === dayKey))
           : [];
 
-        const defaultVisibleWeekDays = isVipScope ? [] : ["mon", "tue", "wed", "thu", "fri", "sat"];
         const nextForm = {
           slotInterval: String(source.slotInterval ?? "30"),
+          slotSubDivisions: String(source.slotSubDivisions ?? "1"),
           appointmentDurationOptions: Array.isArray(source.appointmentDurationOptions)
             ? source.appointmentDurationOptions.join(",")
             : String(source.appointmentDuration ?? "30"),
-          visibleWeekDays: nextVisibleWeekDays.length > 0 ? nextVisibleWeekDays : defaultVisibleWeekDays,
+          visibleWeekDays: nextVisibleWeekDays.length > 0 ? nextVisibleWeekDays : ["mon", "tue", "wed", "thu", "fri", "sat"],
           noShowThreshold: String(source.noShowThreshold ?? "3"),
           reminderHours: String(source.reminderHours ?? "24"),
-          reminderChannels: normalizeReminderChannels(source.reminderChannels, { allowEmpty: isVipScope })
+          reminderChannels: normalizeReminderChannels(source.reminderChannels)
         };
-        const nextWorkingHours = isVipScope ? createEmptyDayTimeMap() : createDayTimeMap();
+        const nextWorkingHours = createDayTimeMap();
         if (source.workingHours && typeof source.workingHours === "object") {
           DAYS.forEach((day) => {
             const value = source.workingHours?.[day.key];
@@ -262,7 +326,7 @@ function AppointmentSettingsPanel({
     return () => {
       active = false;
     };
-  }, [isBreaksMode, isVipScope]);
+  }, [effectiveOrganizationId, isBreaksMode]);
 
   useEffect(() => {
     if (!isBreaksMode) {
@@ -297,7 +361,7 @@ function AppointmentSettingsPanel({
 
         setBreakSpecialists(nextSpecialists);
         setSelectedBreakSpecialistId((prev) => {
-          const persisted = readStoredBreaksSpecialistId(isVipScope);
+          const persisted = readStoredBreaksSpecialistId();
           const preferredId = String(prev || persisted || "").trim();
           if (preferredId && nextSpecialists.some((item) => item.id === preferredId)) {
             return preferredId;
@@ -316,23 +380,22 @@ function AppointmentSettingsPanel({
     return () => {
       active = false;
     };
-  }, [isBreaksMode, isVipScope]);
+  }, [isBreaksMode]);
 
   useEffect(() => {
     if (!isBreaksMode || typeof window === "undefined") {
       return;
     }
 
-    const storageKey = getBreaksSpecialistStorageKey(isVipScope);
     const specialistId = String(selectedBreakSpecialistId || "").trim();
     if (!specialistId) {
-      window.localStorage.removeItem(storageKey);
+      window.localStorage.removeItem(APPOINTMENT_SETTINGS_BREAKS_SPECIALIST_STORAGE_KEY);
       return;
     }
 
-    window.localStorage.setItem(storageKey, specialistId);
+    window.localStorage.setItem(APPOINTMENT_SETTINGS_BREAKS_SPECIALIST_STORAGE_KEY, specialistId);
     window.localStorage.setItem(APPOINTMENT_SPECIALIST_STORAGE_KEY, specialistId);
-  }, [isBreaksMode, isVipScope, selectedBreakSpecialistId]);
+  }, [isBreaksMode, selectedBreakSpecialistId]);
 
   useEffect(() => {
     if (!isBreaksMode) {
@@ -469,6 +532,7 @@ function AppointmentSettingsPanel({
       setSaving(true);
       setBreaksSaving(false);
       setMessage("");
+      const targetOrganizationId = String(effectiveOrganizationId || "").trim();
 
       if (isBreaksMode) {
         const specialistId = String(selectedBreakSpecialistId || "").trim();
@@ -501,8 +565,15 @@ function AppointmentSettingsPanel({
         return;
       }
 
+      if (!targetOrganizationId) {
+        setMessage("Organization is required.");
+        return;
+      }
+
       const payload = {
+        organizationId: targetOrganizationId,
         slotInterval: String(form.slotInterval || "").trim(),
+        slotSubDivisions: Number.parseInt(String(form.slotSubDivisions || "1"), 10) || 1,
         appointmentDurationOptions: parseDurationOptionsInput(form.appointmentDurationOptions),
         visibleWeekDays: form.visibleWeekDays,
         workingHours,
@@ -511,8 +582,7 @@ function AppointmentSettingsPanel({
         reminderChannels: Array.isArray(form.reminderChannels) ? form.reminderChannels : []
       };
 
-      const query = isVipScope ? "?scope=vip" : "";
-      const response = await apiFetch(`/api/appointments/settings${query}`, {
+      const response = await apiFetch("/api/appointments/settings", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json"
@@ -643,6 +713,22 @@ function AppointmentSettingsPanel({
   return (
     <form className="appointment-settings-list" aria-label="Appointment settings list" onSubmit={handleSave}>
       <div className="appointment-setting-row">
+        <label htmlFor="appointmentSettingsOrganizationSelect">Organization</label>
+        <div className="appointment-setting-inline appointment-settings-organization-inline">
+          <CustomSelect
+            id="appointmentSettingsOrganizationSelect"
+            placeholder="Select organization"
+            value={effectiveOrganizationId}
+            options={organizationOptions}
+            disabled={loading || saving || !canSwitchOrganization}
+            onChange={(nextValue) => {
+              setSelectedOrganizationId(String(nextValue || "").trim());
+            }}
+          />
+        </div>
+      </div>
+
+      <div className="appointment-setting-row">
         <label htmlFor="slotIntervalInput">1. Slot Interval</label>
         <div className="appointment-setting-inline">
           <input
@@ -658,7 +744,23 @@ function AppointmentSettingsPanel({
       </div>
 
       <div className="appointment-setting-row">
-        <label htmlFor="appointmentDurationInput">2. Appointment Durations</label>
+        <label htmlFor="slotSubDivisionsInput">2. Slot Sub-Divisions</label>
+        <div className="appointment-setting-inline">
+          <input
+            id="slotSubDivisionsInput"
+            type="number"
+            min="1"
+            max="60"
+            value={form.slotSubDivisions}
+            disabled={loading || !canUpdateAppointments}
+            onChange={(event) => handleFormField("slotSubDivisions", event.currentTarget.value)}
+          />
+          <span>per slot</span>
+        </div>
+      </div>
+
+      <div className="appointment-setting-row">
+        <label htmlFor="appointmentDurationInput">3. Appointment Durations</label>
         <div className="appointment-setting-inline">
           <input
             id="appointmentDurationInput"
@@ -674,7 +776,7 @@ function AppointmentSettingsPanel({
       </div>
 
       <div className="appointment-setting-row">
-        <label>3. Visible Week Days</label>
+        <label>4. Visible Week Days</label>
         <div className="appointment-reminder-channels">
           {DAYS.map((day) => (
             <label key={day.key} htmlFor={`appointmentDay_${day.key}`}>
@@ -692,7 +794,7 @@ function AppointmentSettingsPanel({
       </div>
 
       <div className="appointment-setting-row">
-        <label>4. Working Hours</label>
+        <label>5. Working Hours</label>
         <div className="appointment-working-hours-grid">
           {DAYS.map((day) => (
             <div key={day.key} className="appointment-working-hours-item">
@@ -716,7 +818,7 @@ function AppointmentSettingsPanel({
       </div>
 
       <div className="appointment-setting-row">
-        <label>5. No-show Rules</label>
+        <label>6. No-show Rules</label>
         <div className="appointment-setting-inline">
           <input
             type="number"
@@ -730,7 +832,7 @@ function AppointmentSettingsPanel({
       </div>
 
       <div className="appointment-setting-row">
-        <label>6. Reminder Settings</label>
+        <label>7. Reminder Settings</label>
         <div className="appointment-setting-inline appointment-reminder-settings-inline">
           <input
             id="appointmentReminderHoursInput"
@@ -759,7 +861,7 @@ function AppointmentSettingsPanel({
       </div>
 
       <div className="appointment-settings-actions">
-        <button className="btn" type="submit" disabled={loading || saving || !canUpdateAppointments}>
+        <button className="btn" type="submit" disabled={loading || saving || !canUpdateAppointments || !effectiveOrganizationId}>
           {saving ? "Saving..." : "Save"}
         </button>
       </div>

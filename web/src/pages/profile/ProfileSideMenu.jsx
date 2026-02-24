@@ -28,7 +28,8 @@ function ProfileSideMenu({
   settingsMenuOpen,
   openOrganizationsPanel,
   openRolesPanel,
-  openPositionsPanel
+  openPositionsPanel,
+  openNotificationsSettingsPanel
 }) {
   return (
     <>
@@ -95,14 +96,6 @@ function ProfileSideMenu({
               Appointments
             </button>
             <div id="appointmentsSubMenu" className="side-submenu" hidden={!appointmentMenuOpen}>
-              <button
-                id="openAppointmentSettingsBtn"
-                type="button"
-                className="side-submenu-link side-submenu-action"
-                onClick={openAppointmentSettingsPanel}
-              >
-                Settings
-              </button>
               <button
                 id="openAppointmentBreaksBtn"
                 type="button"
@@ -186,6 +179,14 @@ function ProfileSideMenu({
             </button>
             <div id="settingsSubMenu" className="side-submenu" hidden={!settingsMenuOpen}>
               <button
+                id="openAppointmentSettingsBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                onClick={openAppointmentSettingsPanel}
+              >
+                Appointments
+              </button>
+              <button
                 id="openOrganizationsBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
@@ -208,6 +209,14 @@ function ProfileSideMenu({
                 onClick={openPositionsPanel}
               >
                 Positions
+              </button>
+              <button
+                id="openNotificationsSettingsBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                onClick={openNotificationsSettingsPanel}
+              >
+                Notifications
               </button>
             </div>
           </div>

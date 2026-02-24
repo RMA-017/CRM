@@ -23,6 +23,8 @@ import {
   updateAppointmentSchedulesByIds,
   withAppointmentTransaction
 } from "./appointment-settings.service.js";
+import { publishAppointmentEvent, subscribeAppointmentEvents } from "./appointment-events.js";
+import { isNotificationsSchemaMissing, persistNotificationEvent } from "../notifications/notifications.service.js";
 
 const DAY_KEYS = getAppointmentDayKeys();
 const TIME_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -70,6 +72,36 @@ function parseNullableBoolean(value) {
     }
   }
   return null;
+}
+
+function parseOptionalOrganizationId(value) {
+  if (value === undefined || value === null || value === "") {
+    return { value: null };
+  }
+  const parsed = parsePositiveInteger(value);
+  if (!parsed) {
+    return {
+      error: {
+        field: "organizationId",
+        message: "Invalid organization id."
+      }
+    };
+  }
+  return { value: parsed };
+}
+
+function resolveTargetOrganizationId(access, requestedOrganizationId) {
+  const authOrganizationId = parsePositiveInteger(access?.authContext?.organizationId);
+  if (!authOrganizationId) {
+    return null;
+  }
+  if (!requestedOrganizationId || requestedOrganizationId === authOrganizationId) {
+    return authOrganizationId;
+  }
+  if (!Boolean(access?.requester?.is_admin)) {
+    return null;
+  }
+  return requestedOrganizationId;
 }
 
 function normalizeVisibleWeekDays(value) {
@@ -163,10 +195,6 @@ function normalizeScheduleScope(value) {
   return normalized;
 }
 
-function normalizeAppointmentSettingsScope(value) {
-  return String(value || "").trim().toLowerCase() === "vip" ? "vip" : "default";
-}
-
 function getHistoryLockCutoffDateYmd() {
   const now = new Date();
   const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -211,6 +239,273 @@ function createRouteError(statusCode, payload) {
   error.statusCode = statusCode;
   error.payload = payload;
   return error;
+}
+
+function normalizeRoleLabel(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isManagerRole(requester) {
+  if (Boolean(requester?.is_admin)) {
+    return true;
+  }
+  const role = normalizeRoleLabel(requester?.role);
+  return (
+    role.includes("manager")
+    || role.includes("menedj")
+    || role.includes("meneger")
+    || role.includes("menejer")
+    || role.includes("менедж")
+  );
+}
+
+function normalizeSpecialistIds(value) {
+  const source = Array.isArray(value) ? value : [value];
+  return Array.from(
+    new Set(
+      source
+        .map((item) => parsePositiveInteger(item))
+        .filter((item) => Number.isInteger(item) && item > 0)
+    )
+  );
+}
+
+function normalizeNotificationDates(value) {
+  const source = Array.isArray(value) ? value : [value];
+  return Array.from(
+    new Set(
+      source
+        .map((item) => String(item || "").trim())
+        .filter((item) => DATE_REGEX.test(item))
+    )
+  ).sort((left, right) => left.localeCompare(right));
+}
+
+function formatNotificationDateYmd(value) {
+  const raw = String(value || "").trim();
+  if (!DATE_REGEX.test(raw)) {
+    return raw;
+  }
+  const [year, month, day] = raw.split("-");
+  return `${day}.${month}.${year}`;
+}
+
+function formatNotificationDateText(action, dates) {
+  const normalizedDates = normalizeNotificationDates(dates);
+  if (normalizedDates.length === 0) {
+    return "-";
+  }
+  if (normalizedDates.length === 1) {
+    return formatNotificationDateYmd(normalizedDates[0]);
+  }
+
+  const firstDate = normalizedDates[0];
+  const lastDate = normalizedDates[normalizedDates.length - 1];
+  const firstDateText = formatNotificationDateYmd(firstDate);
+  const lastDateText = formatNotificationDateYmd(lastDate);
+  if (action === "edit") {
+    return `${firstDateText} - ${lastDateText}`;
+  }
+  if (normalizedDates.length <= 6) {
+    return normalizedDates.map((item) => formatNotificationDateYmd(item)).join(", ");
+  }
+  return `${firstDateText} - ${lastDateText}`;
+}
+
+function formatNotificationClientName(item) {
+  const firstName = String(item?.clientFirstName || item?.firstName || "").trim();
+  const lastName = String(item?.clientLastName || item?.lastName || "").trim();
+  const middleName = String(item?.clientMiddleName || item?.middleName || "").trim();
+  const fullName = [firstName, lastName, middleName].filter(Boolean).join(" ").trim();
+  if (fullName) {
+    return fullName;
+  }
+  const clientId = parsePositiveInteger(item?.clientId || item?.client_id);
+  if (clientId) {
+    return `Client #${clientId}`;
+  }
+  return "Client";
+}
+
+function formatNotificationClientText(items) {
+  const source = Array.isArray(items) ? items : [];
+  const names = Array.from(
+    new Set(
+      source
+        .map((item) => formatNotificationClientName(item))
+        .filter(Boolean)
+    )
+  );
+  if (names.length === 0) {
+    return "Client";
+  }
+  if (names.length === 1) {
+    return names[0];
+  }
+  return `${names[0]} +${names.length - 1}`;
+}
+
+function formatNotificationActorInfo(actor) {
+  let actorText = "";
+
+  if (actor && typeof actor === "object") {
+    const fullName = String(actor.full_name || actor.fullName || "").trim();
+    if (fullName) {
+      actorText = fullName;
+    } else {
+      const username = String(actor.username || "").trim();
+      if (username) {
+        actorText = username;
+      } else {
+        const userId = parsePositiveInteger(actor.userId || actor.id);
+        if (userId) {
+          actorText = `User #${userId}`;
+        }
+      }
+    }
+  } else {
+    actorText = String(actor || "").trim();
+  }
+
+  const normalizedActorText = actorText || "Unknown";
+  const firstName = normalizedActorText.split(/\s+/)[0] || normalizedActorText;
+  return {
+    fullName: normalizedActorText,
+    firstName
+  };
+}
+
+function formatNotificationActionLabel(action) {
+  if (action === "create") {
+    return "created";
+  }
+  if (action === "edit") {
+    return "edited";
+  }
+  if (action === "delete") {
+    return "deleted";
+  }
+  return String(action || "").trim().toLowerCase();
+}
+
+function buildScheduleNotification(action, items, actor) {
+  const normalizedAction = String(action || "").trim().toLowerCase();
+  const source = Array.isArray(items) ? items : [];
+  const clientText = formatNotificationClientText(source);
+  const dateText = formatNotificationDateText(
+    normalizedAction,
+    source.map((item) => item?.appointmentDate)
+  );
+  const actorInfo = formatNotificationActorInfo(actor);
+  const actionLabel = formatNotificationActionLabel(normalizedAction);
+  return {
+    message: `Client ${actionLabel} by ${actorInfo.firstName}`,
+    data: {
+      action: normalizedAction,
+      actionLabel,
+      actorFirstName: actorInfo.firstName,
+      actorFullName: actorInfo.fullName,
+      clientName: clientText,
+      appointmentDateText: dateText
+    }
+  };
+}
+
+function resolveNotificationAudience(access, specialistIds) {
+  const actorUserId = parsePositiveInteger(access?.authContext?.userId);
+  const normalizedSpecialistIds = normalizeSpecialistIds(specialistIds);
+  if (!actorUserId || normalizedSpecialistIds.length === 0) {
+    return {
+      targetUserIds: [],
+      targetRoles: []
+    };
+  }
+
+  if (normalizedSpecialistIds.includes(actorUserId)) {
+    return {
+      targetUserIds: [],
+      targetRoles: ["manager"]
+    };
+  }
+
+  if (isManagerRole(access?.requester)) {
+    return {
+      targetUserIds: normalizedSpecialistIds,
+      targetRoles: []
+    };
+  }
+
+  return {
+    targetUserIds: [],
+    targetRoles: []
+  };
+}
+
+async function broadcastAppointmentChange(access, {
+  type,
+  message,
+  specialistIds,
+  data = {}
+}) {
+  const normalizedSpecialistIds = normalizeSpecialistIds(specialistIds);
+  const normalizedData = data && typeof data === "object" ? data : {};
+  const payloadData = {
+    specialistIds: normalizedSpecialistIds,
+    ...normalizedData
+  };
+  const audience = resolveNotificationAudience(access, specialistIds);
+  if (audience.targetUserIds.length === 0 && audience.targetRoles.length === 0) {
+    return;
+  }
+
+  const organizationId = parsePositiveInteger(access?.authContext?.organizationId);
+  const sourceUserId = parsePositiveInteger(access?.authContext?.userId);
+  const sourceUsername = String(access?.authContext?.username || "").trim();
+
+  const publishFallbackEvent = () => {
+    publishAppointmentEvent({
+      organizationId,
+      type,
+      message,
+      sourceUserId,
+      sourceUsername,
+      targetUserIds: audience.targetUserIds,
+      targetRoles: audience.targetRoles,
+      data: payloadData
+    });
+  };
+
+  try {
+    const persisted = await persistNotificationEvent({
+      organizationId,
+      sourceUserId,
+      eventType: type,
+      message,
+      targetUserIds: audience.targetUserIds,
+      targetRoles: audience.targetRoles,
+      payload: payloadData
+    });
+
+    if (!Array.isArray(persisted?.recipientUserIds) || persisted.recipientUserIds.length === 0) {
+      return;
+    }
+
+    publishAppointmentEvent({
+      organizationId,
+      type,
+      message,
+      sourceUserId,
+      sourceUsername,
+      targetUserIds: persisted.recipientUserIds,
+      data: payloadData
+    });
+  } catch (error) {
+    if (isNotificationsSchemaMissing(error)) {
+      publishFallbackEvent();
+      return;
+    }
+    publishFallbackEvent();
+  }
 }
 
 function isUniqueOrExclusionConflict(error) {
@@ -274,28 +569,6 @@ function getEndOfNextWeekYmd(baseDate) {
   const daysToEndNextWeek = ((7 - dayNum) % 7) + 7;
   normalized.setUTCDate(normalized.getUTCDate() + daysToEndNextWeek);
   return formatUtcDateYmd(normalized);
-}
-
-function buildAutoVipWeeklyRepeat(appointmentDate) {
-  const date = parseDateYmdToUtcDate(appointmentDate);
-  if (!date) {
-    return null;
-  }
-
-  const dayKey = toDayKeyFromUtcDate(date);
-  const todayUtc = getTodayUtcDate();
-  const effectiveBaseDate = date > todayUtc ? date : todayUtc;
-  const untilDate = getEndOfNextWeekYmd(effectiveBaseDate);
-  if (!dayKey || !DATE_REGEX.test(untilDate)) {
-    return null;
-  }
-  return {
-    enabled: true,
-    type: "weekly",
-    untilDate,
-    dayKeys: [dayKey],
-    skipConflicts: true
-  };
 }
 
 function toDayNumFromUtcDate(value) {
@@ -788,17 +1061,13 @@ async function appointmentSettingsRoutes(fastify) {
         }
 
         const clientId = parsePositiveIntegerOr(request.query?.clientId, 0);
-        const settingsScope = normalizeAppointmentSettingsScope(
-          request.query?.settingsScope ?? request.query?.scope
-        );
         if (!clientId) {
           return reply.status(400).send({ field: "clientId", message: "Client is required." });
         }
 
         const item = await getAppointmentClientNoShowSummary({
           organizationId: access.authContext.organizationId,
-          clientId,
-          settingsScope
+          clientId
         });
 
         return reply.send({ item });
@@ -889,6 +1158,70 @@ async function appointmentSettingsRoutes(fastify) {
   );
 
   fastify.get(
+    "/events",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_READ);
+      if (!access) {
+        return;
+      }
+
+      reply.hijack();
+      reply.raw.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+      reply.raw.setHeader("Cache-Control", "no-cache, no-transform");
+      reply.raw.setHeader("Connection", "keep-alive");
+      reply.raw.setHeader("X-Accel-Buffering", "no");
+      if (typeof reply.raw.flushHeaders === "function") {
+        reply.raw.flushHeaders();
+      }
+
+      let cleaned = false;
+      const unsubscribe = subscribeAppointmentEvents(
+        {
+          organizationId: access.authContext.organizationId,
+          userId: access.authContext.userId,
+          roleLabel: access.requester?.role,
+          isAdmin: Boolean(access.requester?.is_admin),
+          listener: (eventPayload) => {
+          if (cleaned || reply.raw.writableEnded) {
+            return;
+          }
+          reply.raw.write("event: appointment-change\n");
+          reply.raw.write(`data: ${JSON.stringify(eventPayload)}\n\n`);
+          }
+        }
+      );
+
+      const pingTimer = setInterval(() => {
+        if (cleaned || reply.raw.writableEnded) {
+          return;
+        }
+        reply.raw.write(": ping\n\n");
+      }, 25000);
+
+      const cleanUp = () => {
+        if (cleaned) {
+          return;
+        }
+        cleaned = true;
+        clearInterval(pingTimer);
+        unsubscribe();
+        if (!reply.raw.writableEnded) {
+          reply.raw.end();
+        }
+      };
+
+      request.raw.on("close", cleanUp);
+      request.raw.on("error", cleanUp);
+
+      reply.raw.write("event: appointment-connected\n");
+      reply.raw.write(`data: ${JSON.stringify({ timestamp: new Date().toISOString() })}\n\n`);
+    }
+  );
+
+  fastify.get(
     "/schedules",
     {
       config: { rateLimit: fastify.apiRateLimit }
@@ -909,9 +1242,6 @@ async function appointmentSettingsRoutes(fastify) {
         const recurringOnly = parseNullableBoolean(
           request.query?.recurringOnly ?? request.query?.recurring_only
         ) === true;
-        const settingsScope = normalizeAppointmentSettingsScope(
-          request.query?.settingsScope ?? request.query?.scope
-        );
 
         if (!specialistId) {
           return reply.status(400).send({ field: "specialistId", message: "Specialist is required." });
@@ -929,8 +1259,7 @@ async function appointmentSettingsRoutes(fastify) {
           dateFrom,
           dateTo,
           vipOnly,
-          recurringOnly,
-          scheduleScope: settingsScope
+          recurringOnly
         });
 
         return reply.send({ items });
@@ -963,16 +1292,7 @@ async function appointmentSettingsRoutes(fastify) {
         const serviceName = String(request.body?.service || request.body?.serviceName || "").trim();
         const status = normalizeAppointmentStatus(request.body?.status || "pending");
         const note = String(request.body?.note || "").trim();
-        let repeat = normalizeScheduleRepeatPayload(request.body?.repeat);
-        const settingsScope = normalizeAppointmentSettingsScope(
-          request.body?.settingsScope ?? request.query?.settingsScope
-        );
-        if (settingsScope === "vip") {
-          const autoRepeat = buildAutoVipWeeklyRepeat(appointmentDate);
-          if (autoRepeat) {
-            repeat = autoRepeat;
-          }
-        }
+        const repeat = normalizeScheduleRepeatPayload(request.body?.repeat);
 
         const errors = validateSchedulePayload({
           specialistId,
@@ -996,8 +1316,7 @@ async function appointmentSettingsRoutes(fastify) {
 
         if (repeat.enabled) {
           const settingsForRepeat = await getAppointmentSettingsByOrganization(
-            access.authContext.organizationId,
-            { scope: settingsScope }
+            access.authContext.organizationId
           );
           const repeatDaysValidation = validateRepeatDaysAgainstVisibleWeekDays({
             repeatDayKeys: repeat.dayKeys,
@@ -1091,7 +1410,6 @@ async function appointmentSettingsRoutes(fastify) {
                   appointmentDate: recurringDate,
                   startTime,
                   endTime,
-                  scheduleScope: settingsScope,
                   db
                 });
                 if (hasConflict) {
@@ -1123,7 +1441,6 @@ async function appointmentSettingsRoutes(fastify) {
                   repeatDays: repeatDayNums,
                   repeatAnchorDate: appointmentDate,
                   isRepeatRoot,
-                  scheduleScope: settingsScope,
                   db
                 });
                 if (createdItem) {
@@ -1163,6 +1480,14 @@ async function appointmentSettingsRoutes(fastify) {
           const message = skippedCount > 0
             ? `${createdCount} appointments created. ${skippedCount} conflicts skipped.`
             : `${createdCount} appointments created.`;
+          const scheduleNotification = buildScheduleNotification("create", createdItems, access?.requester);
+
+          await broadcastAppointmentChange(access, {
+            type: "schedule-created",
+            message: scheduleNotification.message,
+            specialistIds: [specialistId],
+            data: scheduleNotification.data
+          });
 
           return reply.status(201).send({
             message,
@@ -1182,8 +1507,7 @@ async function appointmentSettingsRoutes(fastify) {
 
         if (status === "pending" || status === "confirmed") {
           const settingsForSlot = await getAppointmentSettingsByOrganization(
-            access.authContext.organizationId,
-            { scope: settingsScope }
+            access.authContext.organizationId
           );
           const workingHoursError = validateSlotAgainstWorkingHours({
             settings: settingsForSlot,
@@ -1219,8 +1543,7 @@ async function appointmentSettingsRoutes(fastify) {
             specialistId,
             appointmentDate,
             startTime,
-            endTime,
-            scheduleScope: settingsScope
+            endTime
           });
           if (hasConflict) {
             return reply.status(409).send({ message: "This slot conflicts with existing appointment." });
@@ -1238,8 +1561,15 @@ async function appointmentSettingsRoutes(fastify) {
           durationMinutes,
           serviceName,
           status,
-          note,
-          scheduleScope: settingsScope
+          note
+        });
+        const scheduleNotification = buildScheduleNotification("create", [item], access?.requester);
+
+        await broadcastAppointmentChange(access, {
+          type: "schedule-created",
+          message: scheduleNotification.message,
+          specialistIds: [specialistId],
+          data: scheduleNotification.data
         });
 
         return reply.status(201).send({
@@ -1297,15 +1627,6 @@ async function appointmentSettingsRoutes(fastify) {
         const status = normalizeAppointmentStatus(request.body?.status || "pending");
         const note = String(request.body?.note || "").trim();
         let repeat = normalizeScheduleRepeatPayload(request.body?.repeat);
-        const settingsScope = normalizeAppointmentSettingsScope(
-          request.body?.settingsScope ?? request.query?.settingsScope
-        );
-        if (settingsScope === "vip") {
-          const autoRepeat = buildAutoVipWeeklyRepeat(appointmentDate);
-          if (autoRepeat) {
-            repeat = autoRepeat;
-          }
-        }
 
         const errors = validateSchedulePayload({
           specialistId,
@@ -1325,8 +1646,7 @@ async function appointmentSettingsRoutes(fastify) {
         const target = await getAppointmentScheduleTargetsByScope({
           organizationId: access.authContext.organizationId,
           id,
-          scope,
-          scheduleScope: settingsScope
+          scope
         });
         if (!Array.isArray(target.items) || target.items.length === 0) {
           return reply.status(404).send({ message: "Appointment not found." });
@@ -1353,8 +1673,7 @@ async function appointmentSettingsRoutes(fastify) {
           }
 
           const settingsForRepeat = await getAppointmentSettingsByOrganization(
-            access.authContext.organizationId,
-            { scope: settingsScope }
+            access.authContext.organizationId
           );
           const repeatDaysValidation = validateRepeatDaysAgainstVisibleWeekDays({
             repeatDayKeys: repeat.dayKeys,
@@ -1440,7 +1759,6 @@ async function appointmentSettingsRoutes(fastify) {
                 startTime,
                 endTime,
                 excludeId: id,
-                scheduleScope: settingsScope,
                 db
               });
               if (hasAnchorConflict) {
@@ -1466,7 +1784,6 @@ async function appointmentSettingsRoutes(fastify) {
               repeatDays: repeatDayNums,
               repeatAnchorDate: appointmentDate,
               isRepeatRoot: true,
-              scheduleScope: settingsScope,
               db
             });
             if (!updatedAnchorItem) {
@@ -1520,7 +1837,6 @@ async function appointmentSettingsRoutes(fastify) {
                   appointmentDate: recurringDate,
                   startTime,
                   endTime,
-                  scheduleScope: settingsScope,
                   db
                 });
                 if (hasConflict) {
@@ -1551,7 +1867,6 @@ async function appointmentSettingsRoutes(fastify) {
                   repeatDays: repeatDayNums,
                   repeatAnchorDate: appointmentDate,
                   isRepeatRoot: false,
-                  scheduleScope: settingsScope,
                   db
                 });
                 if (createdItem) {
@@ -1578,6 +1893,14 @@ async function appointmentSettingsRoutes(fastify) {
           const message = skippedDates.length > 0
             ? `${affectedCount} appointments updated. ${skippedDates.length} conflicts skipped.`
             : `${affectedCount} appointments updated.`;
+          const scheduleNotification = buildScheduleNotification("edit", items, access?.requester);
+
+          await broadcastAppointmentChange(access, {
+            type: "schedule-updated",
+            message: scheduleNotification.message,
+            specialistIds: [specialistId],
+            data: scheduleNotification.data
+          });
 
           return reply.send({
             message,
@@ -1597,8 +1920,7 @@ async function appointmentSettingsRoutes(fastify) {
 
         if (status === "pending" || status === "confirmed") {
           const settingsForAvailability = await getAppointmentSettingsByOrganization(
-            access.authContext.organizationId,
-            { scope: settingsScope }
+            access.authContext.organizationId
           );
           const validationDates = target.items.map((item) => (
             applyAppointmentDate ? appointmentDate : item.appointmentDate
@@ -1655,8 +1977,7 @@ async function appointmentSettingsRoutes(fastify) {
               appointmentDate: conflictDate,
               startTime,
               endTime,
-              excludeId: item.id,
-              scheduleScope: settingsScope
+              excludeId: item.id
             });
             if (hasConflict) {
               if (target.items.length > 1) {
@@ -1680,8 +2001,7 @@ async function appointmentSettingsRoutes(fastify) {
           serviceName,
           status,
           note,
-          applyAppointmentDate,
-          scheduleScope: settingsScope
+          applyAppointmentDate
         });
 
         if (!Array.isArray(items) || items.length === 0) {
@@ -1693,6 +2013,14 @@ async function appointmentSettingsRoutes(fastify) {
         const message = target.scope === "single"
           ? "Appointment updated."
           : `${affectedCount} appointments updated.`;
+        const scheduleNotification = buildScheduleNotification("edit", items, access?.requester);
+
+        await broadcastAppointmentChange(access, {
+          type: "schedule-updated",
+          message: scheduleNotification.message,
+          specialistIds: [specialistId],
+          data: scheduleNotification.data
+        });
 
         return reply.send({
           message,
@@ -1742,15 +2070,11 @@ async function appointmentSettingsRoutes(fastify) {
         if (!scope) {
           return reply.status(400).send({ field: "scope", message: "Invalid scope." });
         }
-        const settingsScope = normalizeAppointmentSettingsScope(
-          request.query?.settingsScope ?? request.query?.scope
-        );
 
         const target = await getAppointmentScheduleTargetsByScope({
           organizationId: access.authContext.organizationId,
           id,
-          scope,
-          scheduleScope: settingsScope
+          scope
         });
         if (!Array.isArray(target.items) || target.items.length === 0) {
           return reply.status(404).send({ message: "Appointment not found." });
@@ -1765,8 +2089,7 @@ async function appointmentSettingsRoutes(fastify) {
 
         const deletedCount = await deleteAppointmentSchedulesByIds({
           organizationId: access.authContext.organizationId,
-          ids: target.items.map((item) => item.id),
-          scheduleScope: settingsScope
+          ids: target.items.map((item) => item.id)
         });
 
         if (deletedCount <= 0) {
@@ -1776,6 +2099,15 @@ async function appointmentSettingsRoutes(fastify) {
         const message = target.scope === "single"
           ? "Appointment deleted."
           : `${deletedCount} appointments deleted.`;
+        const scheduleNotification = buildScheduleNotification("delete", target.items, access?.requester);
+
+        await broadcastAppointmentChange(access, {
+          type: "schedule-deleted",
+          message: scheduleNotification.message,
+          specialistIds: target.items.map((item) => item.specialistId),
+          data: scheduleNotification.data
+        });
+
         return reply.send({
           message,
           summary: {
@@ -1804,13 +2136,23 @@ async function appointmentSettingsRoutes(fastify) {
           return;
         }
 
-        const settingsScope = normalizeAppointmentSettingsScope(request.query?.scope);
+        const { value: requestedOrganizationId, error: organizationError } = parseOptionalOrganizationId(
+          request.query?.organizationId ?? request.query?.organization_id
+        );
+        if (organizationError) {
+          return reply.status(400).send(organizationError);
+        }
+        const targetOrganizationId = resolveTargetOrganizationId(access, requestedOrganizationId);
+        if (!targetOrganizationId) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
         const settings = await getAppointmentSettingsByOrganization(
-          access.authContext.organizationId,
-          { scope: settingsScope }
+          targetOrganizationId
         );
         return reply.send({
-          item: settings || null
+          item: settings || null,
+          organizationId: String(targetOrganizationId)
         });
       } catch (error) {
         request.log.error({ err: error }, "Error fetching appointment settings");
@@ -1831,9 +2173,17 @@ async function appointmentSettingsRoutes(fastify) {
           return;
         }
 
-        const settingsScope = normalizeAppointmentSettingsScope(
-          request.query?.scope ?? request.body?.scope
+        const { value: requestedOrganizationId, error: organizationError } = parseOptionalOrganizationId(
+          request.body?.organizationId ?? request.body?.organization_id
         );
+        if (organizationError) {
+          return reply.status(400).send(organizationError);
+        }
+        const targetOrganizationId = resolveTargetOrganizationId(access, requestedOrganizationId);
+        if (!targetOrganizationId) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
         const slotIntervalMinutes = parsePositiveIntegerOr(request.body?.slotInterval, 0);
         const slotSubDivisions = parsePositiveIntegerOr(request.body?.slotSubDivisions, 1);
         const appointmentDurationOptionsMinutes = normalizeDurationOptions(request.body?.appointmentDurationOptions);
@@ -1853,15 +2203,14 @@ async function appointmentSettingsRoutes(fastify) {
           reminderHours,
           reminderChannels,
           visibleWeekDays,
-          workingHours,
-          settingsScope
+          workingHours
         });
         if (validationError) {
           return reply.status(400).send(validationError);
         }
 
         const item = await saveAppointmentSettings({
-          organizationId: access.authContext.organizationId,
+          organizationId: targetOrganizationId,
           actorUserId: access.authContext.userId,
           slotIntervalMinutes,
           slotSubDivisions,
@@ -1871,15 +2220,21 @@ async function appointmentSettingsRoutes(fastify) {
           reminderHours,
           reminderChannels,
           visibleWeekDays,
-          workingHours,
-          settingsScope
+          workingHours
         });
 
         return reply.send({
           message: "Appointment settings updated.",
-          item
+          item,
+          organizationId: String(targetOrganizationId)
         });
       } catch (error) {
+        if (error?.code === "23503") {
+          return reply.status(400).send({
+            field: "organizationId",
+            message: "Invalid organization id."
+          });
+        }
         if (error?.code === "MIGRATION_REQUIRED") {
           return reply.status(500).send({
             message: "DB migration required: appointment settings table is missing required columns."

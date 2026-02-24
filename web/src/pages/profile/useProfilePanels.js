@@ -113,6 +113,14 @@ export function useProfilePanels({
     closePanel("settings-positions");
   }, [closePanel]);
 
+  const openNotificationsSettingsPanel = useCallback(() => {
+    openPanel("/settings/notifications", hasSettingsMenuAccess);
+  }, [hasSettingsMenuAccess, openPanel]);
+
+  const closeNotificationsSettingsPanel = useCallback(() => {
+    closePanel("settings-notifications");
+  }, [closePanel]);
+
   const closeCreateUserPanel = useCallback(() => {
     closePanel("create-user");
   }, [closePanel]);
@@ -143,6 +151,8 @@ export function useProfilePanels({
     closeRolesPanel,
     openPositionsPanel,
     closePositionsPanel,
+    openNotificationsSettingsPanel,
+    closeNotificationsSettingsPanel,
     closeCreateUserPanel,
     closeAllUsersPanel
   };

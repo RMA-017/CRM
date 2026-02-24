@@ -347,12 +347,10 @@ function AppointmentScheduler({
   canDeleteAppointments = true,
   vipOnly = false,
   recurringOnly = false,
-  settingsScope = "default",
   showWeekSwitcher = true,
-  modalTitle = "To Schedule"
+  modalTitle = "To Schedule",
+  onNotification = null
 }) {
-  const isVipSettingsScope = String(settingsScope || "").trim().toLowerCase() === "vip";
-  const effectiveSettingsScope = isVipSettingsScope ? "vip" : "default";
   const isVipRecurringModal = vipOnly && recurringOnly;
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -378,6 +376,7 @@ function AppointmentScheduler({
   const [createErrors, setCreateErrors] = useState({});
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [createDeleting, setCreateDeleting] = useState(false);
+  const [clientVipOnly, setClientVipOnly] = useState(Boolean(vipOnly));
   const [clientSearch, setClientSearch] = useState(createEmptyClientSearchForm);
   const [clientSearchLoading, setClientSearchLoading] = useState(false);
   const [clientSearchMessage, setClientSearchMessage] = useState("");
@@ -387,6 +386,7 @@ function AppointmentScheduler({
   const [clientNoShowLoading, setClientNoShowLoading] = useState(false);
   const [settings, setSettings] = useState({
     slotInterval: "30",
+    slotSubDivisions: "1",
     appointmentDurationOptions: ["30"],
     visibleWeekDays: ["mon", "tue", "wed", "thu", "fri", "sat"],
     workingHours: createDefaultWorkingHours()
@@ -402,9 +402,8 @@ function AppointmentScheduler({
         setLoading(true);
         setMessage("");
 
-        const settingsQuery = isVipSettingsScope ? "?scope=vip" : "";
         const [settingsResponse, specialistsResponse] = await Promise.all([
-          apiFetch(`/api/appointments/settings${settingsQuery}`, {
+          apiFetch("/api/appointments/settings", {
             method: "GET",
             cache: "no-store"
           }),
@@ -456,6 +455,7 @@ function AppointmentScheduler({
 
         setSettings({
           slotInterval: String(item.slotInterval || "30"),
+          slotSubDivisions: String(item.slotSubDivisions || "1"),
           appointmentDurationOptions: Array.isArray(item.appointmentDurationOptions) && item.appointmentDurationOptions.length > 0
             ? item.appointmentDurationOptions.map((value) => String(value))
             : [String(item.appointmentDuration || "30")],
@@ -486,7 +486,7 @@ function AppointmentScheduler({
     return () => {
       active = false;
     };
-  }, [isVipSettingsScope]);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -516,13 +516,16 @@ function AppointmentScheduler({
       }));
   }, [settings.visibleWeekDays, weekOffset]);
 
-  const timeSlots = useMemo(() => (
-    buildTimeSlots({
+  const timeSlots = useMemo(() => {
+    const interval = Number.parseInt(String(settings.slotInterval), 10) || 30;
+    const subDivisions = Math.max(1, Number.parseInt(String(settings.slotSubDivisions), 10) || 1);
+    const effectiveInterval = Math.max(1, Math.floor(interval / subDivisions));
+    return buildTimeSlots({
       visibleDays: weekDays.map((day) => day.key),
       workingHours: settings.workingHours,
-      slotIntervalMinutes: Number.parseInt(String(settings.slotInterval), 10)
-    })
-  ), [settings.slotInterval, settings.workingHours, weekDays]);
+      slotIntervalMinutes: effectiveInterval
+    });
+  }, [settings.slotInterval, settings.slotSubDivisions, settings.workingHours, weekDays]);
 
   const appointmentsByDay = appointmentsBySpecialist[selectedSpecialistId] || {};
   const breaksForSpecialist = breaksBySpecialist[selectedSpecialistId] || [];
@@ -563,7 +566,9 @@ function AppointmentScheduler({
     }, {})
   ), [appointmentsByDay, weekDays]);
   const appointmentRowSpanByDay = useMemo(() => {
-    const slotInterval = Number.parseInt(String(settings.slotInterval), 10) || 30;
+    const interval = Number.parseInt(String(settings.slotInterval), 10) || 30;
+    const subDivisions = Math.max(1, Number.parseInt(String(settings.slotSubDivisions), 10) || 1);
+    const effectiveInterval = Math.max(1, Math.floor(interval / subDivisions));
     return weekDays.reduce((acc, day) => {
       const byTime = appointmentLookupByDay[day.key] || {};
       const spanMap = {};
@@ -576,7 +581,7 @@ function AppointmentScheduler({
           return;
         }
         const duration = Number.parseInt(String(apptItem?.durationMinutes || "30"), 10) || 30;
-        const span = Math.max(1, Math.round(duration / slotInterval));
+        const span = Math.max(1, Math.round(duration / effectiveInterval));
         spanMap[slot] = span;
         const startIndex = slotIndexByValue[slot];
         if (Number.isInteger(startIndex)) {
@@ -590,7 +595,7 @@ function AppointmentScheduler({
       acc[day.key] = spanMap;
       return acc;
     }, {});
-  }, [appointmentLookupByDay, settings.slotInterval, slotIndexByValue, timeSlots, weekDays]);
+  }, [appointmentLookupByDay, settings.slotInterval, settings.slotSubDivisions, slotIndexByValue, timeSlots, weekDays]);
   const appointmentBlockedSlotsByDay = useMemo(() => (
     weekDays.reduce((acc, day) => {
       const dayItems = Array.isArray(appointmentsByDay[day.key]) ? appointmentsByDay[day.key] : [];
@@ -768,8 +773,7 @@ function AppointmentScheduler({
       const queryParams = new URLSearchParams({
         specialistId: selectedSpecialistId,
         dateFrom,
-        dateTo,
-        settingsScope: effectiveSettingsScope
+        dateTo
       });
       if (vipOnly) {
         queryParams.set("vipOnly", "true");
@@ -848,7 +852,7 @@ function AppointmentScheduler({
       }
       setMessage("Failed to load appointments.");
     }
-  }, [effectiveSettingsScope, recurringOnly, selectedSpecialistId, vipOnly, weekDays]);
+  }, [recurringOnly, selectedSpecialistId, vipOnly, weekDays]);
 
   const loadBreaksForSelectedSpecialist = useCallback(async () => {
     if (!selectedSpecialistId) {
@@ -909,6 +913,22 @@ function AppointmentScheduler({
   }, [selectedSpecialistId]);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    const handleExternalAppointmentChange = () => {
+      loadSchedulesForCurrentWeek();
+      loadBreaksForSelectedSpecialist();
+    };
+
+    window.addEventListener("crm:appointment-change", handleExternalAppointmentChange);
+    return () => {
+      window.removeEventListener("crm:appointment-change", handleExternalAppointmentChange);
+    };
+  }, [loadBreaksForSelectedSpecialist, loadSchedulesForCurrentWeek]);
+
+  useEffect(() => {
     loadSchedulesForCurrentWeek();
   }, [loadSchedulesForCurrentWeek]);
 
@@ -933,6 +953,7 @@ function AppointmentScheduler({
     setCreateErrors({});
     setCreateSubmitting(false);
     setCreateDeleting(false);
+    setClientVipOnly(Boolean(vipOnly));
     setClientSearch(createEmptyClientSearchForm());
     setClientSearchLoading(false);
     setClientSearchMessage("");
@@ -959,6 +980,7 @@ function AppointmentScheduler({
     }
     setSpecialistSelectError(false);
     setMessage("");
+    setClientVipOnly(Boolean(vipOnly));
     const appointmentDate = formatDateYmd(day.date);
     const startTime = String(slot || "").trim();
     const defaultDuration = durationSelectOptions[0]?.value || "30";
@@ -1019,16 +1041,17 @@ function AppointmentScheduler({
     if (!createModal.open) {
       return;
     }
+    const shouldFilterVipClients = isVipRecurringModal || vipOnly || clientVipOnly;
     const trimmedFirstName = String(clientSearch.firstName || "").trim();
     const trimmedLastName = String(clientSearch.lastName || "").trim();
     const combinedLength = `${trimmedFirstName}${trimmedLastName}`.length;
-    if (!isVipRecurringModal && combinedLength === 0) {
+    if (!shouldFilterVipClients && combinedLength === 0) {
       setClientSearchLoading(false);
       setClientSearchMessage("");
       setClientOptions([]);
       return;
     }
-    if (!isVipRecurringModal && combinedLength < 3) {
+    if (!shouldFilterVipClients && combinedLength < 3) {
       setClientSearchLoading(false);
       setClientSearchMessage("Type at least 3 letters.");
       setClientOptions([]);
@@ -1044,13 +1067,13 @@ function AppointmentScheduler({
         const queryParams = new URLSearchParams({
           limit: "50"
         });
-        if (!isVipRecurringModal && trimmedFirstName) {
+        if (trimmedFirstName) {
           queryParams.set("firstName", trimmedFirstName);
         }
-        if (!isVipRecurringModal && trimmedLastName) {
+        if (trimmedLastName) {
           queryParams.set("lastName", trimmedLastName);
         }
-        if (isVipRecurringModal || vipOnly) {
+        if (shouldFilterVipClients) {
           queryParams.set("isVip", "true");
         }
 
@@ -1100,7 +1123,7 @@ function AppointmentScheduler({
         setClientMap((prev) => ({ ...prev, ...nextMap }));
         setClientOptions(nextOptions);
         if (nextOptions.length === 0) {
-          setClientSearchMessage(isVipRecurringModal ? "No VIP clients found." : "No clients found.");
+          setClientSearchMessage(shouldFilterVipClients ? "No VIP clients found." : "No clients found.");
         } else {
           setClientSearchMessage("");
         }
@@ -1120,7 +1143,7 @@ function AppointmentScheduler({
       active = false;
       window.clearTimeout(timerId);
     };
-  }, [clientSearch.firstName, clientSearch.lastName, createModal.open, isVipRecurringModal, vipOnly]);
+  }, [clientSearch.firstName, clientSearch.lastName, clientVipOnly, createModal.open, isVipRecurringModal, vipOnly]);
 
   useEffect(() => {
     if (!createModal.open) {
@@ -1140,10 +1163,7 @@ function AppointmentScheduler({
     const timerId = window.setTimeout(async () => {
       try {
         setClientNoShowLoading(true);
-        const query = new URLSearchParams({
-          clientId,
-          settingsScope: effectiveSettingsScope
-        }).toString();
+        const query = new URLSearchParams({ clientId }).toString();
         const response = await apiFetch(`/api/appointments/client-no-show-summary?${query}`, {
           method: "GET",
           cache: "no-store"
@@ -1184,7 +1204,7 @@ function AppointmentScheduler({
       active = false;
       window.clearTimeout(timerId);
     };
-  }, [createForm.clientId, createModal.open, effectiveSettingsScope]);
+  }, [createForm.clientId, createModal.open]);
 
   useEffect(() => {
     if (!createModal.open || createModal.mode === "edit") {
@@ -1380,8 +1400,7 @@ function AppointmentScheduler({
         durationMinutes: String(durationMinutes),
         service: nextPayload.service,
         status: nextPayload.status,
-        note: nextPayload.note,
-        settingsScope: effectiveSettingsScope
+        note: nextPayload.note
       };
       const shouldSendRepeat = recurringOnly
         ? (!isEditMode || !isEditRecurring)
@@ -1462,10 +1481,7 @@ function AppointmentScheduler({
       const deleteScope = EDIT_SCOPE_OPTIONS.some((option) => option.value === createForm.editScope)
         ? createForm.editScope
         : "single";
-      const query = new URLSearchParams({
-        scope: deleteScope,
-        settingsScope: effectiveSettingsScope
-      }).toString();
+      const query = new URLSearchParams({ scope: deleteScope }).toString();
       const response = await apiFetch(`/api/appointments/schedules/${encodeURIComponent(appointmentId)}?${query}`, {
         method: "DELETE"
       });
@@ -1544,9 +1560,15 @@ function AppointmentScheduler({
       return;
     }
 
+    if (typeof onNotification === "function") {
+      onNotification(text);
+      setMessage("");
+      return;
+    }
+
     window.alert(text);
     setMessage("");
-  }, [message]);
+  }, [message, onNotification]);
 
   return (
     <section className="appointment-scheduler" aria-label="Appointment scheduler">
@@ -1610,10 +1632,24 @@ function AppointmentScheduler({
             <tbody>
               {timeSlots.map((slot) => {
                 const slotMinutes = slotMinutesByValue[slot];
+                const slotSubDivisionsNum = Math.max(1, Number.parseInt(String(settings.slotSubDivisions), 10) || 1);
+                const slotIndex = slotIndexByValue[slot];
+                const isMajorSlot = slotSubDivisionsNum <= 1 || slotIndex % slotSubDivisionsNum === 0;
+                const timeColRowSpan = isMajorSlot && slotSubDivisionsNum > 1
+                  ? Math.min(slotSubDivisionsNum, timeSlots.length - slotIndex)
+                  : 1;
 
                 return (
-                  <tr key={slot}>
-                    <th className="appointment-time-col" scope="row">{slot}</th>
+                  <tr key={slot} className={isMajorSlot ? (slotSubDivisionsNum > 1 ? "appointment-row-major-slot" : undefined) : "appointment-row-sub-slot"}>
+                    {isMajorSlot ? (
+                      <th
+                        className="appointment-time-col"
+                        scope="row"
+                        rowSpan={timeColRowSpan > 1 ? timeColRowSpan : undefined}
+                      >
+                        {slot}
+                      </th>
+                    ) : null}
                     {weekDays.map((day) => {
                       const dayMinutes = workingHoursMinutesByDay[day.key] || { start: null, end: null };
                       const isInsideWorkingHours = (
@@ -1749,23 +1785,69 @@ function AppointmentScheduler({
                 </div>
               ) : null}
 
-              <div className="field">
-                <label htmlFor="appointmentCreateClientSelect">Client</label>
-                <CustomSelect
-                  id="appointmentCreateClientSelect"
-                  placeholder="Select client"
-                  value={createForm.clientId}
-                  options={clientSelectOptions}
-                  maxVisibleOptions={10}
-                  error={clientSelectHasError}
-                  onChange={(nextValue) => {
-                    setCreateForm((prev) => ({ ...prev, clientId: nextValue }));
-                    if (createErrors.clientId) {
-                      setCreateErrors((prev) => ({ ...prev, clientId: "" }));
-                    }
-                  }}
-                />
-              </div>
+              {!isVipRecurringModal ? (
+                <div className="appointment-client-select-row">
+                  <div className="field appointment-client-vip-field">
+                    <label htmlFor="appointmentClientVipOnly">VIP</label>
+                    <label
+                      className={`appointment-client-vip-toggle${(vipOnly || clientVipOnly) ? " is-active" : ""}`}
+                      htmlFor="appointmentClientVipOnly"
+                    >
+                      <input
+                        id="appointmentClientVipOnly"
+                        type="checkbox"
+                        checked={vipOnly || clientVipOnly}
+                        disabled={vipOnly || createSubmitting || createDeleting}
+                        onChange={(event) => {
+                          const checked = event.currentTarget.checked;
+                          setClientVipOnly(checked);
+                          if (checked) {
+                            setCreateForm((prev) => ({ ...prev, clientId: "" }));
+                            if (createErrors.clientId) {
+                              setCreateErrors((prev) => ({ ...prev, clientId: "" }));
+                            }
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="appointmentCreateClientSelect">Client</label>
+                    <CustomSelect
+                      id="appointmentCreateClientSelect"
+                      placeholder="Select client"
+                      value={createForm.clientId}
+                      options={clientSelectOptions}
+                      maxVisibleOptions={10}
+                      error={clientSelectHasError}
+                      onChange={(nextValue) => {
+                        setCreateForm((prev) => ({ ...prev, clientId: nextValue }));
+                        if (createErrors.clientId) {
+                          setCreateErrors((prev) => ({ ...prev, clientId: "" }));
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="field">
+                  <label htmlFor="appointmentCreateClientSelect">Client</label>
+                  <CustomSelect
+                    id="appointmentCreateClientSelect"
+                    placeholder="Select client"
+                    value={createForm.clientId}
+                    options={clientSelectOptions}
+                    maxVisibleOptions={10}
+                    error={clientSelectHasError}
+                    onChange={(nextValue) => {
+                      setCreateForm((prev) => ({ ...prev, clientId: nextValue }));
+                      if (createErrors.clientId) {
+                        setCreateErrors((prev) => ({ ...prev, clientId: "" }));
+                      }
+                    }}
+                  />
+                </div>
+              )}
 
               <div
                 className={`appointment-create-date-time-row${isVipRecurringModal ? " appointment-create-date-time-row-vip" : ""}`}

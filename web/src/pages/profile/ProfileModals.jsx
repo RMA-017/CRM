@@ -3,12 +3,60 @@ import CustomSelect from "../../components/CustomSelect.jsx";
 import { formatDateYMD } from "../../lib/formatters.js";
 import { togglePermissionCode } from "./profile.helpers.js";
 
+function formatNotificationDateTime(value) {
+  const date = new Date(String(value || ""));
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  const dateText = new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  }).format(date);
+  const timeText = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).format(date);
+  return `${dateText} • ${timeText}`;
+}
+
+function resolveNotificationDisplay(item) {
+  const message = String(item?.message || "").trim();
+  const eventType = String(item?.eventType || item?.event_type || "").trim().toLowerCase();
+  const payload = item?.payload && typeof item.payload === "object" ? item.payload : {};
+  const payloadData = payload?.data && typeof payload.data === "object" ? payload.data : payload;
+
+  const actionLabel = String(payloadData?.actionLabel || "").trim().toLowerCase();
+  const actorFirstName = String(payloadData?.actorFirstName || "").trim();
+  const clientName = String(payloadData?.clientName || "").trim();
+  const isScheduleNotification = (
+    eventType === "schedule-created"
+    || eventType === "schedule-updated"
+    || eventType === "schedule-deleted"
+  );
+
+  const title = isScheduleNotification && actionLabel && actorFirstName
+    ? `Client ${actionLabel} by ${actorFirstName}`
+    : (message || "-");
+
+  return {
+    title,
+    clientName: clientName || ""
+  };
+}
+
 function ProfileModals(props) {
   const maxBirthdayYmd = new Date().toISOString().slice(0, 10);
 
   const {
     myProfileModalOpen,
     closeMyProfilePanel,
+    notificationsModalOpen,
+    closeNotificationsPanel,
+    notifications,
+    clearNotifications,
     openAvatarPicker,
     avatarDataUrl,
     avatarFallback,
@@ -160,6 +208,57 @@ function ProfileModals(props) {
         </div>
       </section>
       <div id="myProfileOverlay" className="login-overlay" hidden={!myProfileModalOpen} onClick={closeMyProfilePanel} />
+
+      <section id="notificationsModal" className="logout-confirm-modal profile-notification-modal" hidden={!notificationsModalOpen}>
+        <div className="all-users-head">
+          <h3>Notifications</h3>
+          <button
+            id="closeNotificationsBtn"
+            type="button"
+            className="header-btn panel-close-btn"
+            aria-label="Close notifications panel"
+            onClick={closeNotificationsPanel}
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="profile-notification-list">
+          {Array.isArray(notifications) && notifications.length > 0 ? (
+            notifications.map((item) => {
+              const message = String(item?.message || "").trim();
+              const { title, clientName } = resolveNotificationDisplay(item);
+              const createdAt = formatNotificationDateTime(item?.createdAt);
+              return (
+                <article key={String(item?.id || `${message}-${createdAt}`)} className="profile-notification-item">
+                  <p className="profile-notification-title">{title}</p>
+                  <div className="profile-notification-meta">
+                    <span className="profile-notification-client">{clientName || "\u00A0"}</span>
+                    <time>{createdAt}</time>
+                  </div>
+                </article>
+              );
+            })
+          ) : (
+            <p className="all-users-state profile-notification-empty">No notifications yet.</p>
+          )}
+        </div>
+
+        <div className="profile-modal-actions">
+          <button id="clearNotificationsBtn" className="btn" type="button" onClick={clearNotifications}>
+            Clear
+          </button>
+          <button id="closeNotificationsFooterBtn" className="header-btn" type="button" onClick={closeNotificationsPanel}>
+            Close
+          </button>
+        </div>
+      </section>
+      <div
+        id="notificationsOverlay"
+        className="login-overlay"
+        hidden={!notificationsModalOpen}
+        onClick={closeNotificationsPanel}
+      />
 
       <section id="logoutConfirmModal" className="logout-confirm-modal" hidden={!logoutConfirmOpen}>
         <h3>Are you sure you want to log out?</h3>

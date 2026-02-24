@@ -52,7 +52,7 @@ export async function ensureSystemPermissions() {
          JOIN permissions p ON p.is_active = TRUE
         WHERE r.is_admin = TRUE
           AND r.is_active = TRUE
-       ON CONFLICT (role_id, permission_id) DO NOTHING`
+        ON CONFLICT (role_id, permission_id) DO NOTHING`
     );
 
     await client.query("COMMIT");

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { apiFetch } from "../lib/api.js";
+import { API_BASE_URL, apiFetch } from "../lib/api.js";
 import { formatDateForInput, getInitial, normalizeProfile } from "../lib/formatters.js";
 import {
   createEmptyProfileEditState,
@@ -41,6 +41,8 @@ function ProfilePage({ forcedView = "none" }) {
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [myProfileModalOpen, setMyProfileModalOpen] = useState(false);
+  const [notificationsModalOpen, setNotificationsModalOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
 
   const [mainView, setMainViewState] = useState("none");
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
@@ -313,6 +315,7 @@ function ProfilePage({ forcedView = "none" }) {
 
   const hasAnyModalOpen = (
     myProfileModalOpen
+    || notificationsModalOpen
     || logoutConfirmOpen
     || profileEdit.open
     || allUsersEdit.open
@@ -369,6 +372,176 @@ function ProfilePage({ forcedView = "none" }) {
   const closeUserDropdown = useCallback(() => {
     setUserMenuOpen(false);
   }, []);
+
+  const openNotificationsPanel = useCallback(() => {
+    closeMenu();
+    closeUserDropdown();
+    setNotificationsModalOpen(true);
+  }, [closeMenu, closeUserDropdown]);
+
+  const closeNotificationsPanel = useCallback(() => {
+    setNotificationsModalOpen(false);
+  }, []);
+
+  const loadNotifications = useCallback(async ({ silent = false } = {}) => {
+    if (!profile?.username) {
+      return false;
+    }
+    try {
+      const response = await apiFetch("/api/notifications?limit=100", {
+        method: "GET",
+        cache: "no-store"
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        handleProtectedStatus(response, navigate);
+        return false;
+      }
+
+      const items = Array.isArray(data?.items)
+        ? data.items.map((item) => ({
+            id: String(item?.id || "").trim(),
+            eventType: String(item?.eventType || item?.event_type || "").trim().toLowerCase(),
+            message: String(item?.message || "").trim(),
+            payload: item?.payload && typeof item.payload === "object" ? item.payload : {},
+            createdAt: item?.createdAt || item?.created_at || null
+          }))
+        : [];
+      setNotifications(items);
+      return true;
+    } catch {
+      if (!silent) {
+        setNotifications([]);
+      }
+      return false;
+    }
+  }, [navigate, profile?.username]);
+
+  const markNotificationsRead = useCallback(async () => {
+    if (!profile?.username) {
+      return;
+    }
+    try {
+      const response = await apiFetch("/api/notifications/read-all", {
+        method: "PATCH"
+      });
+      if (!response.ok) {
+        handleProtectedStatus(response, navigate);
+      }
+    } catch {
+      // Ignore notification read errors in UI.
+    }
+  }, [navigate, profile?.username]);
+
+  const clearNotifications = useCallback(async () => {
+    if (!profile?.username) {
+      setNotifications([]);
+      return;
+    }
+
+    try {
+      const response = await apiFetch("/api/notifications", {
+        method: "DELETE"
+      });
+      if (!response.ok) {
+        handleProtectedStatus(response, navigate);
+      }
+    } catch {
+      // Ignore clear errors and still clear local list.
+    } finally {
+      setNotifications([]);
+    }
+  }, [navigate, profile?.username]);
+
+  const handleAppointmentNotification = useCallback((notification) => {
+    const normalizedMessage = String(notification?.message || "").trim();
+    if (!normalizedMessage) {
+      return;
+    }
+    const eventType = String(notification?.eventType || notification?.type || "").trim().toLowerCase();
+    const payload = notification?.payload && typeof notification.payload === "object"
+      ? notification.payload
+      : {};
+    const createdAt = notification?.createdAt || notification?.timestamp || new Date().toISOString();
+
+    setNotifications((prev) => (
+      [
+        {
+          id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          eventType,
+          message: normalizedMessage,
+          payload,
+          createdAt
+        },
+        ...prev
+      ].slice(0, 50)
+    ));
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.EventSource === "undefined") {
+      return undefined;
+    }
+    if (!canReadAppointments || !profile?.username) {
+      return undefined;
+    }
+
+    const ownUsername = String(profile.username || "").trim().toLowerCase();
+    const eventSource = new window.EventSource(`${API_BASE_URL}/api/appointments/events`, {
+      withCredentials: true
+    });
+
+    const handleAppointmentChange = (event) => {
+      let payload = {};
+      try {
+        payload = JSON.parse(String(event?.data || "{}"));
+      } catch {
+        payload = {};
+      }
+
+      const sourceUsername = String(payload?.sourceUsername || "").trim().toLowerCase();
+      const isOwnChange = Boolean(ownUsername) && sourceUsername === ownUsername;
+
+      window.dispatchEvent(new window.CustomEvent("crm:appointment-change", { detail: payload }));
+
+      if (!isOwnChange) {
+        const notificationText = String(payload?.message || "").trim() || "Appointment schedule changed.";
+        const notificationPayloadData = payload?.data && typeof payload.data === "object" ? payload.data : {};
+        void loadNotifications({ silent: true }).then((loaded) => {
+          if (!loaded) {
+            handleAppointmentNotification({
+              eventType: payload?.type,
+              message: notificationText,
+              payload: { data: notificationPayloadData },
+              createdAt: payload?.timestamp || new Date().toISOString()
+            });
+          }
+        });
+      }
+    };
+
+    eventSource.addEventListener("appointment-change", handleAppointmentChange);
+
+    return () => {
+      eventSource.removeEventListener("appointment-change", handleAppointmentChange);
+      eventSource.close();
+    };
+  }, [canReadAppointments, handleAppointmentNotification, loadNotifications, profile?.username]);
+
+  useEffect(() => {
+    if (!profile?.username) {
+      return;
+    }
+    void loadNotifications({ silent: true });
+  }, [loadNotifications, profile?.username]);
+
+  useEffect(() => {
+    if (!notificationsModalOpen) {
+      return;
+    }
+    void loadNotifications({ silent: true });
+    void markNotificationsRead();
+  }, [loadNotifications, markNotificationsRead, notificationsModalOpen]);
 
   const closeProfileEditModal = useCallback(() => {
     setProfileEdit(createEmptyProfileEditState());
@@ -484,6 +657,12 @@ function ProfilePage({ forcedView = "none" }) {
       }
       return;
     }
+    if (mainView === "appointment-settings" || mainView === "appointment-breaks") {
+      if (hasSettingsMenuAccess) {
+        loadOrganizations();
+      }
+      return;
+    }
     if (mainView === "settings-organizations") {
       loadOrganizations();
       return;
@@ -494,6 +673,10 @@ function ProfilePage({ forcedView = "none" }) {
     }
     if (mainView === "settings-positions") {
       loadPositionsSettings();
+      return;
+    }
+    if (mainView === "settings-notifications") {
+      return;
     }
   }, [
     hasSettingsMenuAccess,
@@ -552,6 +735,7 @@ function ProfilePage({ forcedView = "none" }) {
       closeMenu();
       closeUserDropdown();
       setMyProfileModalOpen(false);
+      setNotificationsModalOpen(false);
       setLogoutConfirmOpen(false);
       cancelOrganizationEdit();
       cancelRoleEdit();
@@ -634,6 +818,8 @@ function ProfilePage({ forcedView = "none" }) {
     closeRolesPanel,
     openPositionsPanel,
     closePositionsPanel,
+    openNotificationsSettingsPanel,
+    closeNotificationsSettingsPanel,
     closeCreateUserPanel,
     closeAllUsersPanel
   } = useProfilePanels({
@@ -1012,11 +1198,12 @@ function ProfilePage({ forcedView = "none" }) {
                   My Profile
                 </button>
                 <button
-                  id="openSettingsBtn"
+                  id="openNotificationsBtn"
                   type="button"
                   className="header-user-menu-item"
+                  onClick={openNotificationsPanel}
                 >
-                  Settings
+                  Notification
                 </button>
               </div>
             </div>
@@ -1075,6 +1262,7 @@ function ProfilePage({ forcedView = "none" }) {
           closeOrganizationsPanel={closeOrganizationsPanel}
           closeRolesPanel={closeRolesPanel}
           closePositionsPanel={closePositionsPanel}
+          closeNotificationsSettingsPanel={closeNotificationsSettingsPanel}
           organizations={organizations}
           organizationsMessage={organizationsMessage}
           organizationCreateForm={organizationCreateForm}
@@ -1119,6 +1307,8 @@ function ProfilePage({ forcedView = "none" }) {
           setCreateErrors={setCreateErrors}
           roleOptions={roleOptions}
           closeCreateUserPanel={closeCreateUserPanel}
+          profile={profile}
+          onAppointmentNotification={handleAppointmentNotification}
         />
 
         <footer className="home-footer">
@@ -1146,6 +1336,10 @@ function ProfilePage({ forcedView = "none" }) {
         <ProfileModals
           myProfileModalOpen={myProfileModalOpen}
           closeMyProfilePanel={closeMyProfilePanel}
+          notificationsModalOpen={notificationsModalOpen}
+          closeNotificationsPanel={closeNotificationsPanel}
+          notifications={notifications}
+          clearNotifications={clearNotifications}
           openAvatarPicker={openAvatarPicker}
           avatarDataUrl={avatarDataUrl}
           avatarFallback={avatarFallback}
@@ -1243,6 +1437,7 @@ function ProfilePage({ forcedView = "none" }) {
         openOrganizationsPanel={openOrganizationsPanel}
         openRolesPanel={openRolesPanel}
         openPositionsPanel={openPositionsPanel}
+        openNotificationsSettingsPanel={openNotificationsSettingsPanel}
       />
     </>
   );

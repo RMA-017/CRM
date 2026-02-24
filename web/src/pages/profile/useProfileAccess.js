@@ -60,6 +60,7 @@ export function useProfileAccess(profile, forcedView) {
       forcedView === "settings-organizations"
       || forcedView === "settings-roles"
       || forcedView === "settings-positions"
+      || forcedView === "settings-notifications"
     ) {
       return hasSettingsMenuAccess;
     }
