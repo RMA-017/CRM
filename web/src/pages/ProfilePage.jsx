@@ -37,7 +37,6 @@ function ProfilePage({ forcedView = "none" }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [clientsMenuOpen, setClientsMenuOpen] = useState(false);
   const [appointmentMenuOpen, setAppointmentMenuOpen] = useState(false);
-  const [appointmentVipMenuOpen, setAppointmentVipMenuOpen] = useState(false);
   const [usersMenuOpen, setUsersMenuOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -363,7 +362,6 @@ function ProfilePage({ forcedView = "none" }) {
     setMenuOpen(false);
     setClientsMenuOpen(false);
     setAppointmentMenuOpen(false);
-    setAppointmentVipMenuOpen(false);
     setUsersMenuOpen(false);
     setSettingsMenuOpen(false);
   }, []);
@@ -624,12 +622,10 @@ function ProfilePage({ forcedView = "none" }) {
     closeCreateClientPanel,
     openAppointmentPanel,
     closeAppointmentPanel,
+    openAppointmentBreaksPanel,
+    closeAppointmentBreaksPanel,
     openAppointmentSettingsPanel,
     closeAppointmentSettingsPanel,
-    openAppointmentVipRecurringPanel,
-    closeAppointmentVipRecurringPanel,
-    openAppointmentVipSettingsPanel,
-    closeAppointmentVipSettingsPanel,
     openAppointmentVipClientsPanel,
     closeAppointmentVipClientsPanel,
     openOrganizationsPanel,
@@ -1073,9 +1069,8 @@ function ProfilePage({ forcedView = "none" }) {
           canUpdateAppointments={canUpdateAppointments}
           canDeleteAppointments={canDeleteAppointments}
           closeAppointmentPanel={closeAppointmentPanel}
+          closeAppointmentBreaksPanel={closeAppointmentBreaksPanel}
           closeAppointmentSettingsPanel={closeAppointmentSettingsPanel}
-          closeAppointmentVipRecurringPanel={closeAppointmentVipRecurringPanel}
-          closeAppointmentVipSettingsPanel={closeAppointmentVipSettingsPanel}
           closeAppointmentVipClientsPanel={closeAppointmentVipClientsPanel}
           closeOrganizationsPanel={closeOrganizationsPanel}
           closeRolesPanel={closeRolesPanel}
@@ -1230,12 +1225,9 @@ function ProfilePage({ forcedView = "none" }) {
         hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
         appointmentMenuOpen={appointmentMenuOpen}
         setAppointmentMenuOpen={setAppointmentMenuOpen}
-        appointmentVipMenuOpen={appointmentVipMenuOpen}
-        setAppointmentVipMenuOpen={setAppointmentVipMenuOpen}
         openAppointmentPanel={openAppointmentPanel}
+        openAppointmentBreaksPanel={openAppointmentBreaksPanel}
         openAppointmentSettingsPanel={openAppointmentSettingsPanel}
-        openAppointmentVipRecurringPanel={openAppointmentVipRecurringPanel}
-        openAppointmentVipSettingsPanel={openAppointmentVipSettingsPanel}
         openAppointmentVipClientsPanel={openAppointmentVipClientsPanel}
         hasUsersMenuAccess={hasUsersMenuAccess}
         usersMenuOpen={usersMenuOpen}

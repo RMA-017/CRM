@@ -11,12 +11,9 @@ function ProfileSideMenu({
   hasAppointmentsMenuAccess,
   appointmentMenuOpen,
   setAppointmentMenuOpen,
-  appointmentVipMenuOpen,
-  setAppointmentVipMenuOpen,
   openAppointmentPanel,
+  openAppointmentBreaksPanel,
   openAppointmentSettingsPanel,
-  openAppointmentVipRecurringPanel,
-  openAppointmentVipSettingsPanel,
   openAppointmentVipClientsPanel,
   hasUsersMenuAccess,
   usersMenuOpen,
@@ -58,7 +55,6 @@ function ProfileSideMenu({
               setUsersMenuOpen(false);
               setSettingsMenuOpen(false);
               setAppointmentMenuOpen(false);
-              setAppointmentVipMenuOpen(false);
             }}
           >
             Clients
@@ -94,7 +90,6 @@ function ProfileSideMenu({
                 setClientsMenuOpen(false);
                 setUsersMenuOpen(false);
                 setSettingsMenuOpen(false);
-                setAppointmentVipMenuOpen(false);
               }}
             >
               Appointments
@@ -109,47 +104,20 @@ function ProfileSideMenu({
                 Settings
               </button>
               <button
+                id="openAppointmentBreaksBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                onClick={openAppointmentBreaksPanel}
+              >
+                Breaks
+              </button>
+              <button
                 id="openAppointmentScheduleBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
                 onClick={openAppointmentPanel}
               >
                 Schedule
-              </button>
-            </div>
-          </div>
-          <div id="appointmentsVipMenuGroup" className="side-menu-group" hidden={!hasAppointmentsMenuAccess}>
-            <button
-              id="toggleAppointmentsVipMenuBtn"
-              type="button"
-              className="side-menu-action side-menu-parent"
-              aria-expanded={appointmentVipMenuOpen ? "true" : "false"}
-              onClick={() => {
-                setAppointmentVipMenuOpen((prev) => !prev);
-                setAppointmentMenuOpen(false);
-                setClientsMenuOpen(false);
-                setUsersMenuOpen(false);
-                setSettingsMenuOpen(false);
-              }}
-            >
-              Appointments VIP
-            </button>
-            <div id="appointmentsVipSubMenu" className="side-submenu" hidden={!appointmentVipMenuOpen}>
-              <button
-                id="openAppointmentVipSettingsBtn"
-                type="button"
-                className="side-submenu-link side-submenu-action"
-                onClick={openAppointmentVipSettingsPanel}
-              >
-                Settings
-              </button>
-              <button
-                id="openAppointmentVipScheduleBtn"
-                type="button"
-                className="side-submenu-link side-submenu-action"
-                onClick={openAppointmentVipRecurringPanel}
-              >
-                Appointment VIP
               </button>
               <button
                 id="openAppointmentVipClientsBtn"
@@ -173,7 +141,6 @@ function ProfileSideMenu({
                 setSettingsMenuOpen(false);
                 setClientsMenuOpen(false);
                 setAppointmentMenuOpen(false);
-                setAppointmentVipMenuOpen(false);
               }}
             >
               Users
@@ -213,7 +180,6 @@ function ProfileSideMenu({
                 setUsersMenuOpen(false);
                 setClientsMenuOpen(false);
                 setAppointmentMenuOpen(false);
-                setAppointmentVipMenuOpen(false);
               }}
             >
               General Settings

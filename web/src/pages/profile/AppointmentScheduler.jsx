@@ -166,6 +166,16 @@ function addDays(date, days) {
   return next;
 }
 
+function getEndOfNextWeek(date) {
+  const baseDate = date instanceof Date && !Number.isNaN(date.getTime())
+    ? new Date(date)
+    : new Date();
+  baseDate.setHours(0, 0, 0, 0);
+  const dayNum = baseDate.getDay();
+  const daysToEndNextWeek = ((7 - dayNum) % 7) + 7;
+  return addDays(baseDate, daysToEndNextWeek);
+}
+
 function formatHeaderDate(date) {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
@@ -552,6 +562,35 @@ function AppointmentScheduler({
       return acc;
     }, {})
   ), [appointmentsByDay, weekDays]);
+  const appointmentRowSpanByDay = useMemo(() => {
+    const slotInterval = Number.parseInt(String(settings.slotInterval), 10) || 30;
+    return weekDays.reduce((acc, day) => {
+      const byTime = appointmentLookupByDay[day.key] || {};
+      const spanMap = {};
+      timeSlots.forEach((slot) => {
+        if (spanMap[slot] === 0) {
+          return;
+        }
+        const apptItem = byTime[slot];
+        if (!apptItem) {
+          return;
+        }
+        const duration = Number.parseInt(String(apptItem?.durationMinutes || "30"), 10) || 30;
+        const span = Math.max(1, Math.round(duration / slotInterval));
+        spanMap[slot] = span;
+        const startIndex = slotIndexByValue[slot];
+        if (Number.isInteger(startIndex)) {
+          for (let i = startIndex + 1; i < startIndex + span && i < timeSlots.length; i++) {
+            if (!spanMap[timeSlots[i]]) {
+              spanMap[timeSlots[i]] = 0;
+            }
+          }
+        }
+      });
+      acc[day.key] = spanMap;
+      return acc;
+    }, {});
+  }, [appointmentLookupByDay, settings.slotInterval, slotIndexByValue, timeSlots, weekDays]);
   const appointmentBlockedSlotsByDay = useMemo(() => (
     weekDays.reduce((acc, day) => {
       const dayItems = Array.isArray(appointmentsByDay[day.key]) ? appointmentsByDay[day.key] : [];
@@ -729,7 +768,8 @@ function AppointmentScheduler({
       const queryParams = new URLSearchParams({
         specialistId: selectedSpecialistId,
         dateFrom,
-        dateTo
+        dateTo,
+        settingsScope: effectiveSettingsScope
       });
       if (vipOnly) {
         queryParams.set("vipOnly", "true");
@@ -808,7 +848,7 @@ function AppointmentScheduler({
       }
       setMessage("Failed to load appointments.");
     }
-  }, [recurringOnly, selectedSpecialistId, vipOnly, weekDays]);
+  }, [effectiveSettingsScope, recurringOnly, selectedSpecialistId, vipOnly, weekDays]);
 
   const loadBreaksForSelectedSpecialist = useCallback(async () => {
     if (!selectedSpecialistId) {
@@ -960,7 +1000,7 @@ function AppointmentScheduler({
       });
     } else {
       const defaultRepeatUntil = recurringOnly
-        ? formatDateYmd(addDays(day.date, 28))
+        ? formatDateYmd(getEndOfNextWeek(day.date))
         : "";
       const defaultRepeatDays = recurringOnly ? [day.key] : [];
       setCreateForm(createEmptyClientForm({
@@ -1100,7 +1140,10 @@ function AppointmentScheduler({
     const timerId = window.setTimeout(async () => {
       try {
         setClientNoShowLoading(true);
-        const query = new URLSearchParams({ clientId }).toString();
+        const query = new URLSearchParams({
+          clientId,
+          settingsScope: effectiveSettingsScope
+        }).toString();
         const response = await apiFetch(`/api/appointments/client-no-show-summary?${query}`, {
           method: "GET",
           cache: "no-store"
@@ -1141,7 +1184,7 @@ function AppointmentScheduler({
       active = false;
       window.clearTimeout(timerId);
     };
-  }, [createForm.clientId, createModal.open]);
+  }, [createForm.clientId, createModal.open, effectiveSettingsScope]);
 
   useEffect(() => {
     if (!createModal.open || createModal.mode === "edit") {
@@ -1419,7 +1462,11 @@ function AppointmentScheduler({
       const deleteScope = EDIT_SCOPE_OPTIONS.some((option) => option.value === createForm.editScope)
         ? createForm.editScope
         : "single";
-      const response = await apiFetch(`/api/appointments/schedules/${encodeURIComponent(appointmentId)}?scope=${encodeURIComponent(deleteScope)}`, {
+      const query = new URLSearchParams({
+        scope: deleteScope,
+        settingsScope: effectiveSettingsScope
+      }).toString();
+      const response = await apiFetch(`/api/appointments/schedules/${encodeURIComponent(appointmentId)}?${query}`, {
         method: "DELETE"
       });
       const data = await response.json().catch(() => ({}));
@@ -1579,16 +1626,23 @@ function AppointmentScheduler({
                       const item = appointmentLookupByDay[day.key]?.[slot] || null;
                       const blockedItem = appointmentBlockedSlotsByDay[day.key]?.[slot] || null;
                       const breakBlockedItem = appointmentBreakSlotsByDay[day.key]?.[slot] || null;
+                      const rowSpan = appointmentRowSpanByDay[day.key]?.[slot];
+
+                      if (rowSpan === 0) {
+                        return null;
+                      }
+
+                      const tdRowSpan = rowSpan && rowSpan > 1 ? rowSpan : undefined;
 
                       return (
-                        <td key={`${day.key}-${slot}`}>
+                        <td key={`${day.key}-${slot}`} rowSpan={tdRowSpan} className={tdRowSpan ? "appointment-td-multi-slot" : undefined}>
                           {!isInsideWorkingHours ? (
                             <span className="appointment-off-slot">o</span>
                           ) : item ? (
                             (canUpdateAppointments || canDeleteAppointments) ? (
                               <button
                                 type="button"
-                                className={`appointment-card appointment-card-btn appointment-status-${item.status}`}
+                                className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""} appointment-card-btn appointment-status-${item.status}`}
                                 onClick={() => openCreateModal(day, slot, item)}
                                 aria-label={`Edit appointment on ${day.label} at ${slot}`}
                               >
@@ -1599,7 +1653,7 @@ function AppointmentScheduler({
                               </button>
                             ) : (
                               <div
-                                className={`appointment-card appointment-status-${item.status}`}
+                                className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""} appointment-status-${item.status}`}
                                 aria-label={`Appointment on ${day.label} at ${slot}`}
                               >
                                 <p className="appointment-client">{item.client}</p>

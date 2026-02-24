@@ -137,9 +137,10 @@
 }
 
 .panel-close-btn {
-  width: 30px;
-  min-width: 30px;
-  height: 30px;
+  width: var(--close-btn-size);
+  min-width: var(--close-btn-size);
+  height: var(--close-btn-size);
+  min-height: var(--close-btn-size);
   padding: 0;
   font-size: 14px;
   font-weight: 700;
@@ -207,14 +208,14 @@
   justify-content: center;
   align-items: center;
   gap: 20px;
-  min-height: 48px;
+  min-height: var(--bar-height);
   border: 1.5px solid rgba(255, 255, 255, 0.80);
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.75);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   box-shadow: var(--shadow-xs);
-  padding: 10px 20px;
+  padding: 6px 14px;
 }
 
 .home-footer a {
@@ -330,7 +331,7 @@
 
 .home-login-form .btn {
   margin-top: 6px;
-  height: 42px;
+  height: var(--btn-height);
   font-size: var(--fs-base);
   border-radius: var(--radius-md);
 }
@@ -403,7 +404,7 @@
   border: 0;
   border-radius: var(--radius);
   background: transparent;
-  height: 38px;
+  height: var(--btn-height);
   padding: 0 12px;
   text-align: left;
   display: flex;
@@ -457,7 +458,9 @@
   text-decoration: none;
   border: 0;
   background: transparent;
-  padding: 8px 10px 8px 14px;
+  height: var(--btn-height);
+  min-height: var(--btn-height);
+  padding: 0 10px 0 14px;
   text-align: left;
   display: flex;
   align-items: center;

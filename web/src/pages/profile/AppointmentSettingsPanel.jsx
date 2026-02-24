@@ -23,6 +23,10 @@ const BREAK_TYPE_OPTIONS = [
   { value: "training", label: "Training" },
   { value: "other", label: "Other" }
 ];
+const BREAK_DAY_OPTIONS = DAYS.map((day, index) => ({
+  value: index + 1,
+  label: day.label
+}));
 const APPOINTMENT_SPECIALIST_STORAGE_KEY = "crm_appointment_selected_specialist_id";
 const APPOINTMENT_SETTINGS_BREAKS_SPECIALIST_STORAGE_KEY = "crm_appointment_settings_selected_specialist_id";
 const APPOINTMENT_VIP_SETTINGS_BREAKS_SPECIALIST_STORAGE_KEY = "crm_appointment_vip_settings_selected_specialist_id";
@@ -144,8 +148,13 @@ function normalizeBreakItem(value) {
   };
 }
 
-function AppointmentSettingsPanel({ canUpdateAppointments = true, settingsScope = "default" }) {
+function AppointmentSettingsPanel({
+  canUpdateAppointments = true,
+  settingsScope = "default",
+  panelMode = "settings"
+}) {
   const isVipScope = String(settingsScope || "").trim().toLowerCase() === "vip";
+  const isBreaksMode = String(panelMode || "").trim().toLowerCase() === "breaks";
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -171,6 +180,13 @@ function AppointmentSettingsPanel({ canUpdateAppointments = true, settingsScope 
   }, [message]);
 
   useEffect(() => {
+    if (isBreaksMode) {
+      setForm(null);
+      setWorkingHours(null);
+      setLoading(false);
+      return undefined;
+    }
+
     let active = true;
 
     async function loadSettings() {
@@ -246,9 +262,13 @@ function AppointmentSettingsPanel({ canUpdateAppointments = true, settingsScope 
     return () => {
       active = false;
     };
-  }, [isVipScope]);
+  }, [isBreaksMode, isVipScope]);
 
   useEffect(() => {
+    if (!isBreaksMode) {
+      return undefined;
+    }
+
     let active = true;
 
     async function loadSpecialists() {
@@ -272,7 +292,8 @@ function AppointmentSettingsPanel({ canUpdateAppointments = true, settingsScope 
             name: String(item?.name || "").trim() || "Specialist",
             role: String(item?.role || "").trim() || "Specialist"
           }))
-          .filter((item) => Boolean(item.id));
+          .filter((item) => Boolean(item.id))
+          .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 
         setBreakSpecialists(nextSpecialists);
         setSelectedBreakSpecialistId((prev) => {
@@ -295,10 +316,10 @@ function AppointmentSettingsPanel({ canUpdateAppointments = true, settingsScope 
     return () => {
       active = false;
     };
-  }, [isVipScope]);
+  }, [isBreaksMode, isVipScope]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (!isBreaksMode || typeof window === "undefined") {
       return;
     }
 
@@ -311,9 +332,13 @@ function AppointmentSettingsPanel({ canUpdateAppointments = true, settingsScope 
 
     window.localStorage.setItem(storageKey, specialistId);
     window.localStorage.setItem(APPOINTMENT_SPECIALIST_STORAGE_KEY, specialistId);
-  }, [isVipScope, selectedBreakSpecialistId]);
+  }, [isBreaksMode, isVipScope, selectedBreakSpecialistId]);
 
   useEffect(() => {
+    if (!isBreaksMode) {
+      return undefined;
+    }
+
     const specialistId = String(selectedBreakSpecialistId || "").trim();
     if (!specialistId) {
       setBreakItems([]);
@@ -356,7 +381,7 @@ function AppointmentSettingsPanel({ canUpdateAppointments = true, settingsScope 
     return () => {
       active = false;
     };
-  }, [selectedBreakSpecialistId]);
+  }, [isBreaksMode, selectedBreakSpecialistId]);
 
   const breakSpecialistOptions = breakSpecialists.map((specialist) => ({
     value: specialist.id,
@@ -428,11 +453,15 @@ function AppointmentSettingsPanel({ canUpdateAppointments = true, settingsScope 
 
   async function handleSave(event) {
     event.preventDefault();
-    if (!form || !workingHours) {
+    if (!isBreaksMode && (!form || !workingHours)) {
       return;
     }
     if (!canUpdateAppointments) {
-      setMessage("You do not have permission to update appointment settings.");
+      setMessage(
+        isBreaksMode
+          ? "You do not have permission to update appointment breaks."
+          : "You do not have permission to update appointment settings."
+      );
       return;
     }
 
@@ -441,8 +470,13 @@ function AppointmentSettingsPanel({ canUpdateAppointments = true, settingsScope 
       setBreaksSaving(false);
       setMessage("");
 
-      const specialistId = String(selectedBreakSpecialistId || "").trim();
-      if (specialistId) {
+      if (isBreaksMode) {
+        const specialistId = String(selectedBreakSpecialistId || "").trim();
+        if (!specialistId) {
+          setMessage("Specialist is required.");
+          return;
+        }
+
         setBreaksSaving(true);
         const breaksPayload = {
           specialistId,
@@ -463,6 +497,8 @@ function AppointmentSettingsPanel({ canUpdateAppointments = true, settingsScope 
 
         const nextItems = Array.isArray(breaksData?.items) ? breaksData.items.map((item) => normalizeBreakItem(item)) : [];
         setBreakItems(nextItems);
+        setMessage(breaksData?.message || "Appointment breaks updated.");
+        return;
       }
 
       const payload = {
@@ -492,15 +528,116 @@ function AppointmentSettingsPanel({ canUpdateAppointments = true, settingsScope 
 
       setMessage(data?.message || "Appointment settings updated.");
     } catch {
-      setMessage("Failed to save appointment settings.");
+      setMessage(isBreaksMode ? "Failed to save appointment breaks." : "Failed to save appointment settings.");
     } finally {
       setBreaksSaving(false);
       setSaving(false);
     }
   }
 
-  if (!form || !workingHours) {
+  if (!isBreaksMode && (!form || !workingHours)) {
     return <div className="appointment-settings-list" aria-label="Appointment settings list" />;
+  }
+
+  if (isBreaksMode) {
+    return (
+      <form
+        className="appointment-settings-list appointment-settings-list-breaks"
+        aria-label="Appointment settings list"
+        onSubmit={handleSave}
+      >
+        <div className="appointment-setting-row appointment-setting-row-breaks">
+          <div className="appointment-breaks-block">
+            <div className="appointment-breaks-toolbar">
+              <div className="appointment-breaks-specialist-field">
+                <div className="appointment-specialist-row">
+                  <span className="appointment-toolbar-label">Specialist</span>
+                  <div className="appointment-specialist-select-wrap">
+                    <CustomSelect
+                      id="appointmentBreaksSpecialistSelect"
+                      placeholder={(loading || breaksLoading) ? "Loading specialists..." : "Select specialist"}
+                      value={selectedBreakSpecialistId}
+                      options={breakSpecialistOptions}
+                      searchable
+                      searchPlaceholder="Search specialist"
+                      searchThreshold={20}
+                      maxVisibleOptions={10}
+                      onChange={(nextValue) => {
+                        setSelectedBreakSpecialistId(nextValue);
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="header-btn appointment-breaks-add-btn"
+                disabled={loading || breaksLoading || breaksSaving || !canUpdateAppointments || !selectedBreakSpecialistId}
+                onClick={handleAddBreak}
+              >
+                Add
+              </button>
+            </div>
+
+            <div className="appointment-breaks-list">
+              {breakItems.map((item, index) => (
+                <div key={`appointmentBreakRow_${index}`} className="appointment-break-row">
+                  <CustomSelect
+                    id={`appointmentBreakDay_${index}`}
+                    value={Number(item.dayOfWeek || 1)}
+                    options={BREAK_DAY_OPTIONS}
+                    disabled={loading || breaksLoading || breaksSaving || !canUpdateAppointments}
+                    onChange={(nextValue) => {
+                      handleBreakFieldChange(index, "dayOfWeek", Number.parseInt(String(nextValue || "1"), 10) || 1);
+                    }}
+                  />
+
+                  <CustomSelect
+                    id={`appointmentBreakType_${index}`}
+                    value={item.breakType}
+                    options={BREAK_TYPE_OPTIONS}
+                    disabled={loading || breaksLoading || breaksSaving || !canUpdateAppointments}
+                    onChange={(nextValue) => handleBreakFieldChange(index, "breakType", String(nextValue || "lunch"))}
+                  />
+
+                  <input
+                    type="time"
+                    value={item.startTime}
+                    disabled={loading || breaksLoading || breaksSaving || !canUpdateAppointments}
+                    onChange={(event) => handleBreakFieldChange(index, "startTime", event.currentTarget.value)}
+                  />
+                  <input
+                    type="time"
+                    value={item.endTime}
+                    disabled={loading || breaksLoading || breaksSaving || !canUpdateAppointments}
+                    onChange={(event) => handleBreakFieldChange(index, "endTime", event.currentTarget.value)}
+                  />
+
+                  <button
+                    type="button"
+                    className="header-btn appointment-breaks-delete-btn"
+                    disabled={loading || breaksLoading || breaksSaving || !canUpdateAppointments}
+                    onClick={() => handleDeleteBreak(index)}
+                  >
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="appointment-settings-actions">
+          <button
+            className="btn appointment-settings-save-sticky-btn"
+            type="submit"
+            disabled={loading || saving || breaksSaving || breaksLoading || !canUpdateAppointments}
+          >
+            {(saving || breaksSaving) ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </form>
+    );
   }
 
   return (
@@ -621,93 +758,9 @@ function AppointmentSettingsPanel({ canUpdateAppointments = true, settingsScope 
         </div>
       </div>
 
-      <div className="appointment-setting-row">
-        <label>7. Breaks</label>
-        <div className="appointment-breaks-block">
-          <div className="appointment-breaks-toolbar">
-            <div className="appointment-breaks-specialist-field">
-              <CustomSelect
-                id="appointmentBreaksSpecialistSelect"
-                placeholder="Select specialist"
-                value={selectedBreakSpecialistId}
-                options={breakSpecialistOptions}
-                searchable
-                searchPlaceholder="Search specialist"
-                searchThreshold={20}
-                maxVisibleOptions={10}
-                onChange={(nextValue) => {
-                  setSelectedBreakSpecialistId(nextValue);
-                }}
-              />
-            </div>
-            <button
-              type="button"
-              className="header-btn"
-              disabled={loading || breaksLoading || breaksSaving || !canUpdateAppointments || !selectedBreakSpecialistId}
-              onClick={handleAddBreak}
-            >
-              Add Break
-            </button>
-          </div>
-
-          <div className="appointment-breaks-list">
-            {breakItems.map((item, index) => (
-              <div key={`appointmentBreakRow_${index}`} className="appointment-break-row">
-                <select
-                  value={String(item.dayOfWeek || "1")}
-                  disabled={loading || breaksLoading || breaksSaving || !canUpdateAppointments}
-                  onChange={(event) => handleBreakFieldChange(index, "dayOfWeek", Number.parseInt(event.currentTarget.value, 10) || 1)}
-                >
-                  {DAYS.map((day, dayIndex) => (
-                    <option key={`appointmentBreakDay_${day.key}`} value={String(dayIndex + 1)}>
-                      {day.label}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={item.breakType}
-                  disabled={loading || breaksLoading || breaksSaving || !canUpdateAppointments}
-                  onChange={(event) => handleBreakFieldChange(index, "breakType", event.currentTarget.value)}
-                >
-                  {BREAK_TYPE_OPTIONS.map((option) => (
-                    <option key={`appointmentBreakType_${option.value}`} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-
-                <input
-                  type="time"
-                  value={item.startTime}
-                  disabled={loading || breaksLoading || breaksSaving || !canUpdateAppointments}
-                  onChange={(event) => handleBreakFieldChange(index, "startTime", event.currentTarget.value)}
-                />
-                <input
-                  type="time"
-                  value={item.endTime}
-                  disabled={loading || breaksLoading || breaksSaving || !canUpdateAppointments}
-                  onChange={(event) => handleBreakFieldChange(index, "endTime", event.currentTarget.value)}
-                />
-
-                <button
-                  type="button"
-                  className="header-btn appointment-breaks-delete-btn"
-                  disabled={loading || breaksLoading || breaksSaving || !canUpdateAppointments}
-                  onClick={() => handleDeleteBreak(index)}
-                >
-                  Delete
-                </button>
-              </div>
-            ))}
-          </div>
-
-        </div>
-      </div>
-
       <div className="appointment-settings-actions">
-        <button className="btn" type="submit" disabled={loading || saving || breaksSaving || breaksLoading || !canUpdateAppointments}>
-          {(saving || breaksSaving) ? "Saving..." : "Save"}
+        <button className="btn" type="submit" disabled={loading || saving || !canUpdateAppointments}>
+          {saving ? "Saving..." : "Save"}
         </button>
       </div>
     </form>

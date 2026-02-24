@@ -46,5 +46,7 @@ export const appConfig = {
     max: toNumber(process.env.LOGIN_RATE_LIMIT_MAX, 10),
     timeWindow: toNumber(process.env.LOGIN_RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000)
   },
+  vipRollingRepeatEnabled: toBoolean(process.env.VIP_ROLLING_REPEAT_ENABLED, true),
+  vipRollingRepeatIntervalMs: toNumber(process.env.VIP_ROLLING_REPEAT_INTERVAL_MS, 60 * 60 * 1000),
   defaultCreatedUserPassword: String(process.env.DEFAULT_CREATED_USER_PASSWORD || "")
 };

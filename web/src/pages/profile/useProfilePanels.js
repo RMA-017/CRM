@@ -65,28 +65,20 @@ export function useProfilePanels({
     closePanel("appointment");
   }, [closePanel]);
 
+  const openAppointmentBreaksPanel = useCallback(() => {
+    openPanel("/appointments/breaks", canReadAppointments);
+  }, [canReadAppointments, openPanel]);
+
+  const closeAppointmentBreaksPanel = useCallback(() => {
+    closePanel("appointment-breaks");
+  }, [closePanel]);
+
   const openAppointmentSettingsPanel = useCallback(() => {
     openPanel("/appointments/settings", canReadAppointments);
   }, [canReadAppointments, openPanel]);
 
   const closeAppointmentSettingsPanel = useCallback(() => {
     closePanel("appointment-settings");
-  }, [closePanel]);
-
-  const openAppointmentVipRecurringPanel = useCallback(() => {
-    openPanel("/appointments/vip-recurring", canReadAppointments);
-  }, [canReadAppointments, openPanel]);
-
-  const closeAppointmentVipRecurringPanel = useCallback(() => {
-    closePanel("appointment-vip-recurring");
-  }, [closePanel]);
-
-  const openAppointmentVipSettingsPanel = useCallback(() => {
-    openPanel("/appointments/vip/settings", canReadAppointments);
-  }, [canReadAppointments, openPanel]);
-
-  const closeAppointmentVipSettingsPanel = useCallback(() => {
-    closePanel("appointment-vip-settings");
   }, [closePanel]);
 
   const openAppointmentVipClientsPanel = useCallback(() => {
@@ -139,12 +131,10 @@ export function useProfilePanels({
     closeCreateClientPanel,
     openAppointmentPanel,
     closeAppointmentPanel,
+    openAppointmentBreaksPanel,
+    closeAppointmentBreaksPanel,
     openAppointmentSettingsPanel,
     closeAppointmentSettingsPanel,
-    openAppointmentVipRecurringPanel,
-    closeAppointmentVipRecurringPanel,
-    openAppointmentVipSettingsPanel,
-    closeAppointmentVipSettingsPanel,
     openAppointmentVipClientsPanel,
     closeAppointmentVipClientsPanel,
     openOrganizationsPanel,

@@ -258,6 +258,46 @@ function toDayKeyFromUtcDate(value) {
   return DAY_NUM_TO_KEY[dayNum] || "";
 }
 
+function getTodayUtcDate() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+function getEndOfNextWeekYmd(baseDate) {
+  const source = baseDate instanceof Date ? baseDate : getTodayUtcDate();
+  const normalized = new Date(Date.UTC(
+    source.getUTCFullYear(),
+    source.getUTCMonth(),
+    source.getUTCDate()
+  ));
+  const dayNum = normalized.getUTCDay();
+  const daysToEndNextWeek = ((7 - dayNum) % 7) + 7;
+  normalized.setUTCDate(normalized.getUTCDate() + daysToEndNextWeek);
+  return formatUtcDateYmd(normalized);
+}
+
+function buildAutoVipWeeklyRepeat(appointmentDate) {
+  const date = parseDateYmdToUtcDate(appointmentDate);
+  if (!date) {
+    return null;
+  }
+
+  const dayKey = toDayKeyFromUtcDate(date);
+  const todayUtc = getTodayUtcDate();
+  const effectiveBaseDate = date > todayUtc ? date : todayUtc;
+  const untilDate = getEndOfNextWeekYmd(effectiveBaseDate);
+  if (!dayKey || !DATE_REGEX.test(untilDate)) {
+    return null;
+  }
+  return {
+    enabled: true,
+    type: "weekly",
+    untilDate,
+    dayKeys: [dayKey],
+    skipConflicts: true
+  };
+}
+
 function toDayNumFromUtcDate(value) {
   if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
     return 0;
@@ -748,13 +788,17 @@ async function appointmentSettingsRoutes(fastify) {
         }
 
         const clientId = parsePositiveIntegerOr(request.query?.clientId, 0);
+        const settingsScope = normalizeAppointmentSettingsScope(
+          request.query?.settingsScope ?? request.query?.scope
+        );
         if (!clientId) {
           return reply.status(400).send({ field: "clientId", message: "Client is required." });
         }
 
         const item = await getAppointmentClientNoShowSummary({
           organizationId: access.authContext.organizationId,
-          clientId
+          clientId,
+          settingsScope
         });
 
         return reply.send({ item });
@@ -865,6 +909,9 @@ async function appointmentSettingsRoutes(fastify) {
         const recurringOnly = parseNullableBoolean(
           request.query?.recurringOnly ?? request.query?.recurring_only
         ) === true;
+        const settingsScope = normalizeAppointmentSettingsScope(
+          request.query?.settingsScope ?? request.query?.scope
+        );
 
         if (!specialistId) {
           return reply.status(400).send({ field: "specialistId", message: "Specialist is required." });
@@ -882,7 +929,8 @@ async function appointmentSettingsRoutes(fastify) {
           dateFrom,
           dateTo,
           vipOnly,
-          recurringOnly
+          recurringOnly,
+          scheduleScope: settingsScope
         });
 
         return reply.send({ items });
@@ -915,10 +963,16 @@ async function appointmentSettingsRoutes(fastify) {
         const serviceName = String(request.body?.service || request.body?.serviceName || "").trim();
         const status = normalizeAppointmentStatus(request.body?.status || "pending");
         const note = String(request.body?.note || "").trim();
-        const repeat = normalizeScheduleRepeatPayload(request.body?.repeat);
+        let repeat = normalizeScheduleRepeatPayload(request.body?.repeat);
         const settingsScope = normalizeAppointmentSettingsScope(
           request.body?.settingsScope ?? request.query?.settingsScope
         );
+        if (settingsScope === "vip") {
+          const autoRepeat = buildAutoVipWeeklyRepeat(appointmentDate);
+          if (autoRepeat) {
+            repeat = autoRepeat;
+          }
+        }
 
         const errors = validateSchedulePayload({
           specialistId,
@@ -1037,6 +1091,7 @@ async function appointmentSettingsRoutes(fastify) {
                   appointmentDate: recurringDate,
                   startTime,
                   endTime,
+                  scheduleScope: settingsScope,
                   db
                 });
                 if (hasConflict) {
@@ -1068,6 +1123,7 @@ async function appointmentSettingsRoutes(fastify) {
                   repeatDays: repeatDayNums,
                   repeatAnchorDate: appointmentDate,
                   isRepeatRoot,
+                  scheduleScope: settingsScope,
                   db
                 });
                 if (createdItem) {
@@ -1163,7 +1219,8 @@ async function appointmentSettingsRoutes(fastify) {
             specialistId,
             appointmentDate,
             startTime,
-            endTime
+            endTime,
+            scheduleScope: settingsScope
           });
           if (hasConflict) {
             return reply.status(409).send({ message: "This slot conflicts with existing appointment." });
@@ -1181,7 +1238,8 @@ async function appointmentSettingsRoutes(fastify) {
           durationMinutes,
           serviceName,
           status,
-          note
+          note,
+          scheduleScope: settingsScope
         });
 
         return reply.status(201).send({
@@ -1238,10 +1296,16 @@ async function appointmentSettingsRoutes(fastify) {
         const serviceName = String(request.body?.service || request.body?.serviceName || "").trim();
         const status = normalizeAppointmentStatus(request.body?.status || "pending");
         const note = String(request.body?.note || "").trim();
-        const repeat = normalizeScheduleRepeatPayload(request.body?.repeat);
+        let repeat = normalizeScheduleRepeatPayload(request.body?.repeat);
         const settingsScope = normalizeAppointmentSettingsScope(
           request.body?.settingsScope ?? request.query?.settingsScope
         );
+        if (settingsScope === "vip") {
+          const autoRepeat = buildAutoVipWeeklyRepeat(appointmentDate);
+          if (autoRepeat) {
+            repeat = autoRepeat;
+          }
+        }
 
         const errors = validateSchedulePayload({
           specialistId,
@@ -1261,7 +1325,8 @@ async function appointmentSettingsRoutes(fastify) {
         const target = await getAppointmentScheduleTargetsByScope({
           organizationId: access.authContext.organizationId,
           id,
-          scope
+          scope,
+          scheduleScope: settingsScope
         });
         if (!Array.isArray(target.items) || target.items.length === 0) {
           return reply.status(404).send({ message: "Appointment not found." });
@@ -1375,6 +1440,7 @@ async function appointmentSettingsRoutes(fastify) {
                 startTime,
                 endTime,
                 excludeId: id,
+                scheduleScope: settingsScope,
                 db
               });
               if (hasAnchorConflict) {
@@ -1400,6 +1466,7 @@ async function appointmentSettingsRoutes(fastify) {
               repeatDays: repeatDayNums,
               repeatAnchorDate: appointmentDate,
               isRepeatRoot: true,
+              scheduleScope: settingsScope,
               db
             });
             if (!updatedAnchorItem) {
@@ -1453,6 +1520,7 @@ async function appointmentSettingsRoutes(fastify) {
                   appointmentDate: recurringDate,
                   startTime,
                   endTime,
+                  scheduleScope: settingsScope,
                   db
                 });
                 if (hasConflict) {
@@ -1483,6 +1551,7 @@ async function appointmentSettingsRoutes(fastify) {
                   repeatDays: repeatDayNums,
                   repeatAnchorDate: appointmentDate,
                   isRepeatRoot: false,
+                  scheduleScope: settingsScope,
                   db
                 });
                 if (createdItem) {
@@ -1586,7 +1655,8 @@ async function appointmentSettingsRoutes(fastify) {
               appointmentDate: conflictDate,
               startTime,
               endTime,
-              excludeId: item.id
+              excludeId: item.id,
+              scheduleScope: settingsScope
             });
             if (hasConflict) {
               if (target.items.length > 1) {
@@ -1610,7 +1680,8 @@ async function appointmentSettingsRoutes(fastify) {
           serviceName,
           status,
           note,
-          applyAppointmentDate
+          applyAppointmentDate,
+          scheduleScope: settingsScope
         });
 
         if (!Array.isArray(items) || items.length === 0) {
@@ -1671,11 +1742,15 @@ async function appointmentSettingsRoutes(fastify) {
         if (!scope) {
           return reply.status(400).send({ field: "scope", message: "Invalid scope." });
         }
+        const settingsScope = normalizeAppointmentSettingsScope(
+          request.query?.settingsScope ?? request.query?.scope
+        );
 
         const target = await getAppointmentScheduleTargetsByScope({
           organizationId: access.authContext.organizationId,
           id,
-          scope
+          scope,
+          scheduleScope: settingsScope
         });
         if (!Array.isArray(target.items) || target.items.length === 0) {
           return reply.status(404).send({ message: "Appointment not found." });
@@ -1690,7 +1765,8 @@ async function appointmentSettingsRoutes(fastify) {
 
         const deletedCount = await deleteAppointmentSchedulesByIds({
           organizationId: access.authContext.organizationId,
-          ids: target.items.map((item) => item.id)
+          ids: target.items.map((item) => item.id),
+          scheduleScope: settingsScope
         });
 
         if (deletedCount <= 0) {
@@ -1759,6 +1835,7 @@ async function appointmentSettingsRoutes(fastify) {
           request.query?.scope ?? request.body?.scope
         );
         const slotIntervalMinutes = parsePositiveIntegerOr(request.body?.slotInterval, 0);
+        const slotSubDivisions = parsePositiveIntegerOr(request.body?.slotSubDivisions, 1);
         const appointmentDurationOptionsMinutes = normalizeDurationOptions(request.body?.appointmentDurationOptions);
         const appointmentDurationMinutes = appointmentDurationOptionsMinutes[0]
           || parsePositiveIntegerOr(request.body?.appointmentDuration, 0);
@@ -1787,6 +1864,7 @@ async function appointmentSettingsRoutes(fastify) {
           organizationId: access.authContext.organizationId,
           actorUserId: access.authContext.userId,
           slotIntervalMinutes,
+          slotSubDivisions,
           appointmentDurationMinutes,
           appointmentDurationOptionsMinutes,
           noShowThreshold,

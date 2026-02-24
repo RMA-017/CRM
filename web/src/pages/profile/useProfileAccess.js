@@ -51,9 +51,8 @@ export function useProfileAccess(profile, forcedView) {
     }
     if (
       forcedView === "appointment"
+      || forcedView === "appointment-breaks"
       || forcedView === "appointment-settings"
-      || forcedView === "appointment-vip-settings"
-      || forcedView === "appointment-vip-recurring"
     ) {
       return canReadAppointments;
     }

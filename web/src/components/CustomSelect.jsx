@@ -7,6 +7,7 @@ function CustomSelect({
   onChange,
   id,
   error = false,
+  disabled = false,
   forceOpenDown = false,
   maxVisibleOptions = null,
   searchable = false,
@@ -86,6 +87,12 @@ function CustomSelect({
   }, [open, searchQuery]);
 
   useEffect(() => {
+    if (disabled && open) {
+      setOpen(false);
+    }
+  }, [disabled, open]);
+
+  useEffect(() => {
     function handleOutside(event) {
       if (!wrapRef.current) {
         return;
@@ -117,7 +124,13 @@ function CustomSelect({
         className={`custom-select-trigger${error ? " input-error" : ""}`}
         aria-haspopup="listbox"
         aria-expanded={open ? "true" : "false"}
-        onClick={() => setOpen((prev) => !prev)}
+        disabled={disabled}
+        onClick={() => {
+          if (disabled) {
+            return;
+          }
+          setOpen((prev) => !prev);
+        }}
       >
         <span>{selectedLabel}</span>
       </button>

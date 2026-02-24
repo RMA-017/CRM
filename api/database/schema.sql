@@ -119,6 +119,7 @@ CREATE TABLE appointment_settings (
   id SERIAL PRIMARY KEY,
   organization_id INTEGER NOT NULL UNIQUE REFERENCES organizations(id) ON DELETE CASCADE,
   slot_interval_minutes INTEGER NOT NULL CHECK (slot_interval_minutes > 0),
+  slot_sub_divisions SMALLINT NOT NULL DEFAULT 1 CHECK (slot_sub_divisions >= 1 AND slot_sub_divisions <= 60),
   appointment_duration_minutes INTEGER NOT NULL DEFAULT 30 CHECK (appointment_duration_minutes > 0),
   appointment_duration_options_minutes SMALLINT[] NOT NULL DEFAULT ARRAY[30],
   no_show_threshold INTEGER NOT NULL DEFAULT 1 CHECK (no_show_threshold >= 1),
@@ -265,33 +266,30 @@ ALTER TABLE appointment_schedules
   )
   WHERE (status IN ('pending', 'confirmed'));
 
-  
-CREATE TABLE appointment_vip_settings (
-  id SERIAL PRIMARY KEY,
-  organization_id INTEGER NOT NULL UNIQUE REFERENCES organizations(id) ON DELETE CASCADE,
-  slot_interval_minutes INTEGER NOT NULL CHECK (slot_interval_minutes > 0),
-  appointment_duration_minutes INTEGER NOT NULL DEFAULT 30 CHECK (appointment_duration_minutes > 0),
-  appointment_duration_options_minutes SMALLINT[] NOT NULL DEFAULT ARRAY[30],
-  no_show_threshold INTEGER NOT NULL DEFAULT 1 CHECK (no_show_threshold >= 1),
-  reminder_hours INTEGER NOT NULL DEFAULT 24 CHECK (reminder_hours >= 1),
-  reminder_channels TEXT[] NOT NULL DEFAULT ARRAY['sms','email','telegram'],
-  visible_week_days SMALLINT[] NOT NULL DEFAULT ARRAY[1,2,3,4,5,6],
-  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CHECK (
-    array_length(visible_week_days, 1) >= 1
-    AND visible_week_days <@ ARRAY[1,2,3,4,5,6,7]::SMALLINT[]
-  ),
-  CHECK (
-    array_length(appointment_duration_options_minutes, 1) >= 1
-  ),
-  CHECK (
-    array_length(reminder_channels, 1) >= 1
-    AND reminder_channels <@ ARRAY['sms','email','telegram']::TEXT[]
+CREATE INDEX idx_appointment_vip_schedules_org_specialist_date_time
+  ON appointment_vip_schedules (organization_id, specialist_id, appointment_date, start_time);
+
+CREATE INDEX idx_appointment_vip_schedules_org_client_date
+  ON appointment_vip_schedules (organization_id, client_id, appointment_date DESC);
+
+CREATE INDEX idx_appointment_vip_schedules_org_client_no_show
+  ON appointment_vip_schedules (organization_id, client_id)
+  WHERE status = 'no-show';
+
+CREATE INDEX idx_appointment_vip_schedules_org_repeat_group_date
+  ON appointment_vip_schedules (organization_id, repeat_group_key, appointment_date);
+
+ALTER TABLE appointment_vip_schedules
+  ADD CONSTRAINT ex_appointment_vip_schedules_active_overlap
+  EXCLUDE USING gist (
+    organization_id WITH =,
+    specialist_id WITH =,
+    tsrange(appointment_date + start_time, appointment_date + end_time, '[)') WITH &&
   )
-);
+  WHERE (status IN ('pending', 'confirmed'));
+
+  
+
 
 CREATE UNIQUE INDEX uq_appointment_schedules_repeat_group_root
   ON appointment_schedules (organization_id, repeat_group_key)

@@ -88,7 +88,6 @@
   .home-footer {
     flex-wrap: wrap;
     gap: 12px;
-    padding: 10px;
   }
 
   .logout-confirm-modal,
@@ -225,6 +224,7 @@
   .home-footer {
     justify-content: center;
     gap: 10px;
+    padding: 5px 8px;
   }
 
   .all-users-pagination {

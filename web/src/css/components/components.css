@@ -23,10 +23,6 @@
   to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 
-.logout-confirm-modal.settings-edit-modal {
-  padding: 24px;
-}
-
 .logout-confirm-modal h3 {
   margin: 0 0 6px;
   font-size: var(--fs-base);
@@ -183,7 +179,7 @@
   background: transparent;
   color: var(--text-secondary);
   text-align: left;
-  height: 36px;
+  height: var(--btn-height);
   padding: 0 12px;
   font-size: var(--fs-small);
   font-weight: 500;
@@ -211,9 +207,10 @@
 }
 
 .profile-edit-modal h3 {
-  margin: 2px 0 14px;
+  margin: 4px 0 12px;
   font-size: var(--fs-md);
   font-weight: 700;
+  text-align: left;
   letter-spacing: -0.01em;
 }
 
@@ -231,7 +228,9 @@
 }
 
 .logout-confirm-modal.all-users-edit-modal h3 {
-  margin: 4px 0 10px;
+  margin: 4px 0 12px;
+  font-size: var(--fs-md);
+  text-align: left;
 }
 
 
@@ -399,7 +398,7 @@
 .settings-add-btn {
   width: 84px;
   min-width: 84px;
-  height: 34px;
+  height: var(--btn-height);
   margin: 0;
   justify-self: start;
 }
@@ -482,7 +481,7 @@
 
 .settings-edit-tab-btn {
   width: 116px;
-  height: 30px;
+  height: var(--btn-height);
   margin: 0;
   padding: 0;
   border: 1px solid var(--line);
@@ -505,7 +504,9 @@
 }
 
 .settings-edit-modal h3 {
-  margin: 8px 0 10px;
+  margin: 4px 0 12px;
+  font-size: var(--fs-md);
+  text-align: left;
 }
 
 #roleEditModal {
@@ -516,9 +517,6 @@
   flex-direction: column;
 }
 
-#roleEditModal h3 {
-  margin: 4px 0 8px;
-}
 
 #roleEditModal .settings-edit-form {
   display: flex;
@@ -746,7 +744,7 @@
 .settings-table td input[type="number"] {
   width: 100%;
   min-width: 0;
-  height: 26px;
+  height: var(--input-height);
   padding: 0 6px;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -1105,8 +1103,8 @@
 
 .all-users-pagination .header-btn {
   min-width: 84px;
-  height: 30px;
-  min-height: 30px;
+  height: var(--btn-height);
+  min-height: var(--btn-height);
   padding-top: 0;
   padding-bottom: 0;
 }
@@ -1162,7 +1160,7 @@
 
 .appointment-specialist-select-wrap .custom-select-trigger {
   width: 100%;
-  height: 34px;
+  height: var(--input-height);
 }
 
 .appointment-specialist-list {
@@ -1219,8 +1217,8 @@
 }
 
 .appointment-week-switcher .header-btn {
-  height: 30px;
-  min-height: 30px;
+  height: var(--btn-height);
+  min-height: var(--btn-height);
   width: 96px;
   min-width: 96px;
   padding-top: 0;
@@ -1322,8 +1320,8 @@
 
 .appointment-card {
   width: 100%;
-  height: 34px;
-  min-height: 34px;
+  height: var(--btn-height);
+  min-height: var(--btn-height);
   box-sizing: border-box;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1342,6 +1340,23 @@
   width: 100%;
   text-align: center;
   cursor: pointer;
+}
+
+.appointment-td-multi-slot {
+  position: relative;
+}
+
+.appointment-card-multi-slot {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  right: 4px;
+  bottom: 4px;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  grid-template-rows: auto auto;
+  align-content: center;
 }
 
 .appointment-client {
@@ -1524,6 +1539,22 @@
   overflow: visible;
 }
 
+#appointmentBreaksPanel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100%;
+}
+
+#appointmentBreaksPanel .appointment-settings-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  justify-content: space-between;
+  flex-direction: column;
+  overflow: auto;
+}
+
 .appointment-setting-row {
   display: grid;
   grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
@@ -1533,6 +1564,10 @@
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--surface-soft);
+}
+
+.appointment-setting-row-breaks {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .appointment-setting-row:last-child {
@@ -1549,7 +1584,7 @@
 
 .appointment-setting-row input,
 .appointment-setting-row select {
-  height: 34px;
+  height: var(--input-height);
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface-soft);
@@ -1565,7 +1600,7 @@
 }
 
 .appointment-setting-row .custom-select-trigger {
-  min-height: 34px;
+  min-height: var(--input-height);
 }
 
 .appointment-setting-inline {
@@ -1573,7 +1608,7 @@
   align-items: center;
   gap: 6px 10px;
   flex-wrap: wrap;
-  min-height: 34px;
+  min-height: var(--input-height);
 }
 
 .appointment-setting-inline span {
@@ -1611,15 +1646,23 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
+  margin-bottom: 20px;
 }
 
 .appointment-breaks-specialist-field {
   min-width: 0;
 }
 
+.appointment-breaks-block select,
+.appointment-breaks-block .appointment-specialist-select-wrap .custom-select-trigger {
+  height: var(--input-height);
+  min-height: var(--input-height);
+}
+
 .appointment-breaks-list {
   display: grid;
   gap: 6px;
+  margin-top: 5px;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -1630,7 +1673,7 @@
 .appointment-break-row {
   display: grid;
   grid-template-columns: 86px 112px minmax(96px, 1fr) minmax(96px, 1fr) auto;
-  gap: 6px;
+  gap: 5px;
   align-items: center;
   padding: 0;
   border: 0;
@@ -1639,14 +1682,24 @@
 }
 
 .appointment-break-row input,
-.appointment-break-row select {
+.appointment-break-row .custom-select,
+.appointment-break-row .custom-select-trigger {
   width: 100%;
+  min-width: 0;
+  height: var(--input-height);
+  min-height: var(--input-height);
 }
 
 .appointment-breaks-empty {
   margin: 0;
   color: var(--text-muted);
   font-size: var(--fs-small);
+}
+
+.appointment-breaks-add-btn,
+.appointment-breaks-delete-btn {
+  width: 74px;
+  min-width: 74px;
 }
 
 .appointment-breaks-delete-btn {
@@ -1737,13 +1790,18 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 2px 2px 0;
   border-top: 0;
 }
 
 .appointment-settings-actions .btn {
   min-width: 118px;
   flex: 0 0 auto;
+}
+
+.appointment-settings-save-sticky-btn {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
 }
 
 .appointment-settings-message {
@@ -1820,10 +1878,10 @@
 
 .appointment-create-close-btn {
   position: static;
-  width: 30px;
-  min-width: 30px;
-  height: 30px;
-  min-height: 30px;
+  width: var(--close-btn-size);
+  min-width: var(--close-btn-size);
+  height: var(--close-btn-size);
+  min-height: var(--close-btn-size);
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -1882,8 +1940,8 @@
 
 .appointment-create-date-time-row .field input[type="date"],
 .appointment-create-date-time-row .field .custom-select-trigger {
-  height: 34px;
-  min-height: 34px;
+  height: var(--input-height);
+  min-height: var(--input-height);
   padding-top: 0;
   padding-bottom: 0;
 }
@@ -2109,8 +2167,8 @@
 }
 
 .all-users-table .table-action-btn {
-  height: 30px;
-  min-height: 30px;
+  height: var(--btn-height);
+  min-height: var(--btn-height);
   width: 72px;
   min-width: 72px;
   padding: 0;
@@ -2255,8 +2313,8 @@
 }
 
 .header-avatar-image {
-  width: 35px;
-  height: 35px;
+  width: 34px;
+  height: 34px;
   object-fit: cover;
 }
 

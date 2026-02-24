@@ -23,8 +23,11 @@ const DAY_NUM_TO_KEY = Object.freeze({
 const DAY_KEYS = Object.freeze(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
 const SCHEDULE_SCOPE_SET = new Set(["single", "future", "all"]);
 const REMINDER_CHANNEL_SET = new Set(["sms", "email", "telegram"]);
+const APPOINTMENT_SCHEDULES_TABLE = "appointment_schedules";
+const APPOINTMENT_VIP_SCHEDULES_TABLE = "appointment_vip_schedules";
 const APPOINTMENT_SETTINGS_TABLE = "appointment_settings";
 const APPOINTMENT_VIP_SETTINGS_TABLE = "appointment_vip_settings";
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 function normalizeAppointmentSettingsScope(value) {
   return String(value || "").trim().toLowerCase() === "vip" ? "vip" : "default";
@@ -34,6 +37,24 @@ function getAppointmentSettingsTableName(scope = "default") {
   return normalizeAppointmentSettingsScope(scope) === "vip"
     ? APPOINTMENT_VIP_SETTINGS_TABLE
     : APPOINTMENT_SETTINGS_TABLE;
+}
+
+function normalizeAppointmentScheduleScope(value) {
+  return normalizeAppointmentSettingsScope(value);
+}
+
+function getAppointmentSchedulesTableName(scope = "default") {
+  return normalizeAppointmentScheduleScope(scope) === "vip"
+    ? APPOINTMENT_VIP_SCHEDULES_TABLE
+    : APPOINTMENT_SCHEDULES_TABLE;
+}
+
+function getAppointmentScheduleTableNamesForConflict(scope = "default") {
+  const activeTable = getAppointmentSchedulesTableName(scope);
+  if (activeTable === APPOINTMENT_VIP_SCHEDULES_TABLE) {
+    return [APPOINTMENT_VIP_SCHEDULES_TABLE, APPOINTMENT_SCHEDULES_TABLE];
+  }
+  return [APPOINTMENT_SCHEDULES_TABLE, APPOINTMENT_VIP_SCHEDULES_TABLE];
 }
 
 function toDayKey(dayNum) {
@@ -113,6 +134,7 @@ function createDefaultSettings() {
 
   return {
     slotInterval: "30",
+    slotSubDivisions: "1",
     appointmentDuration: "30",
     appointmentDurationOptions: ["30"],
     visibleWeekDays: ["mon", "tue", "wed", "thu", "fri", "sat"],
@@ -126,6 +148,7 @@ function createDefaultSettings() {
 function createEmptySettings() {
   return {
     slotInterval: "",
+    slotSubDivisions: "1",
     appointmentDuration: "",
     appointmentDurationOptions: [],
     visibleWeekDays: [],
@@ -166,6 +189,7 @@ function mapSettingsRow(row, workingHourRows) {
 
   return {
     slotInterval: String(row.slot_interval_minutes || 30),
+    slotSubDivisions: String(row.slot_sub_divisions || 1),
     appointmentDuration: appointmentDurationOptions[0] || "30",
     appointmentDurationOptions,
     visibleWeekDays: mapVisibleWeekDays(row.visible_week_days),
@@ -185,6 +209,132 @@ function normalizeDateYmd(value) {
   }
   const raw = String(value || "").trim();
   return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
+}
+
+function parseDateYmdToUtcDate(value) {
+  const raw = String(value || "").trim();
+  if (!DATE_REGEX.test(raw)) {
+    return null;
+  }
+
+  const [yearRaw, monthRaw, dayRaw] = raw.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    Number.isNaN(date.getTime())
+    || date.getUTCFullYear() !== year
+    || date.getUTCMonth() !== month - 1
+    || date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return date;
+}
+
+function formatUtcDateYmd(value) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+    return "";
+  }
+  const year = String(value.getUTCFullYear());
+  const month = String(value.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(value.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDaysToDateYmd(value, days = 0) {
+  const date = parseDateYmdToUtcDate(value);
+  const parsedDays = Number.parseInt(String(days ?? "").trim(), 10);
+  if (!date || !Number.isInteger(parsedDays)) {
+    return "";
+  }
+  const next = new Date(date.getTime());
+  next.setUTCDate(next.getUTCDate() + parsedDays);
+  return formatUtcDateYmd(next);
+}
+
+function toDayNumFromDateYmd(value) {
+  const date = parseDateYmdToUtcDate(value);
+  if (!date) {
+    return 0;
+  }
+  const dayNum = date.getUTCDay();
+  return dayNum === 0 ? 7 : dayNum;
+}
+
+function getTodayUtcDate() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+function getEndOfNextWeekYmd(baseDate = null) {
+  const parsedBaseDate = baseDate instanceof Date
+    ? new Date(Date.UTC(baseDate.getUTCFullYear(), baseDate.getUTCMonth(), baseDate.getUTCDate()))
+    : getTodayUtcDate();
+  const dayNum = parsedBaseDate.getUTCDay();
+  const daysToEndNextWeek = ((7 - dayNum) % 7) + 7;
+  parsedBaseDate.setUTCDate(parsedBaseDate.getUTCDate() + daysToEndNextWeek);
+  return formatUtcDateYmd(parsedBaseDate);
+}
+
+function normalizeRepeatDayNums(value, fallback = []) {
+  const source = Array.isArray(value) ? value : [];
+  const normalized = Array.from(
+    new Set(
+      source
+        .map((dayNum) => Number.parseInt(String(dayNum ?? "").trim(), 10))
+        .filter((dayNum) => Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 7)
+    )
+  ).sort((left, right) => left - right);
+
+  if (normalized.length > 0) {
+    return normalized;
+  }
+
+  return Array.from(
+    new Set(
+      (Array.isArray(fallback) ? fallback : [])
+        .map((dayNum) => Number.parseInt(String(dayNum ?? "").trim(), 10))
+        .filter((dayNum) => Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 7)
+    )
+  ).sort((left, right) => left - right);
+}
+
+function buildWeeklyRecurringDatesByDayNums({
+  startDate,
+  untilDate,
+  dayNums
+}) {
+  const start = parseDateYmdToUtcDate(startDate);
+  const end = parseDateYmdToUtcDate(untilDate);
+  if (!start || !end || end < start) {
+    return [];
+  }
+
+  const activeDayNums = new Set(
+    normalizeRepeatDayNums(dayNums).filter((dayNum) => dayNum >= 1 && dayNum <= 7)
+  );
+  if (activeDayNums.size === 0) {
+    return [];
+  }
+
+  const dates = [];
+  const cursor = new Date(start.getTime());
+  while (cursor <= end) {
+    const dayNum = cursor.getUTCDay() === 0 ? 7 : cursor.getUTCDay();
+    if (activeDayNums.has(dayNum)) {
+      dates.push(formatUtcDateYmd(cursor));
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return dates;
+}
+
+function isUniqueOrExclusionConflict(error) {
+  return error?.code === "23505" || error?.code === "23P01";
 }
 
 function normalizeTimeHm(value) {
@@ -256,7 +406,8 @@ async function getAppointmentSettingsColumnFlags(tableName = APPOINTMENT_SETTING
   const flags = {
     hasAppointmentDuration: set.has("appointment_duration_minutes"),
     hasAppointmentDurationOptions: set.has("appointment_duration_options_minutes"),
-    hasReminderChannels: set.has("reminder_channels")
+    hasReminderChannels: set.has("reminder_channels"),
+    hasSlotSubDivisions: set.has("slot_sub_divisions")
   };
   return flags;
 }
@@ -375,8 +526,10 @@ export async function getAppointmentSchedulesByRange({
   dateFrom,
   dateTo,
   vipOnly = false,
-  recurringOnly = false
+  recurringOnly = false,
+  scheduleScope = "default"
 }) {
+  const tableName = getAppointmentSchedulesTableName(scheduleScope);
   const whereParts = [
     "s.organization_id = $1",
     "s.specialist_id = $2",
@@ -415,7 +568,7 @@ export async function getAppointmentSchedulesByRange({
        c.first_name,
        c.last_name,
        c.middle_name
-      FROM appointment_schedules s
+      FROM ${tableName} s
       JOIN clients c
         ON c.id = s.client_id
        AND c.organization_id = s.organization_id
@@ -434,19 +587,23 @@ export async function getAppointmentSchedulesByRange({
 
 export async function getAppointmentClientNoShowSummary({
   organizationId,
-  clientId
+  clientId,
+  settingsScope = "default"
 }) {
+  const normalizedScope = normalizeAppointmentSettingsScope(settingsScope);
+  const settingsTableName = getAppointmentSettingsTableName(normalizedScope);
+  const schedulesTableName = getAppointmentSchedulesTableName(normalizedScope);
   const [settingsResult, countResult] = await Promise.all([
     pool.query(
       `SELECT COALESCE(no_show_threshold, 1) AS no_show_threshold
-       FROM appointment_settings
+       FROM ${settingsTableName}
        WHERE organization_id = $1
        LIMIT 1`,
       [organizationId]
     ),
     pool.query(
       `SELECT COUNT(*)::integer AS no_show_count
-       FROM appointment_schedules
+       FROM ${schedulesTableName}
        WHERE organization_id = $1
          AND client_id = $2
          AND status = 'no-show'`,
@@ -619,6 +776,7 @@ export async function hasAppointmentScheduleConflict({
   startTime,
   endTime,
   excludeId = null,
+  scheduleScope = "default",
   db = pool
 }) {
   const parsedExcludeId = Number.parseInt(String(excludeId ?? "").trim(), 10);
@@ -626,28 +784,37 @@ export async function hasAppointmentScheduleConflict({
     ? parsedExcludeId
     : null;
 
-  const { rows } = await db.query(
-    `SELECT 1
-       FROM appointment_schedules s
-      WHERE s.organization_id = $1
-        AND s.specialist_id = $2
-        AND s.appointment_date = $3::date
-        AND s.status IN ('pending', 'confirmed')
-        AND ($4::integer IS NULL OR s.id <> $4::integer)
-        AND (($3::date + $5::time) < ($3::date + s.end_time))
-        AND (($3::date + s.start_time) < ($3::date + $6::time))
-      LIMIT 1`,
-    [
-      organizationId,
-      specialistId,
-      appointmentDate,
-      normalizedExcludeId,
-      startTime,
-      endTime
-    ]
-  );
+  const tableNames = getAppointmentScheduleTableNamesForConflict(scheduleScope);
+  const activeTableName = getAppointmentSchedulesTableName(scheduleScope);
 
-  return Boolean(rows[0]);
+  for (const tableName of tableNames) {
+    const excludeIdForTable = tableName === activeTableName ? normalizedExcludeId : null;
+    const { rows } = await db.query(
+      `SELECT 1
+         FROM ${tableName} s
+        WHERE s.organization_id = $1
+          AND s.specialist_id = $2
+          AND s.appointment_date = $3::date
+          AND s.status IN ('pending', 'confirmed')
+          AND ($4::integer IS NULL OR s.id <> $4::integer)
+          AND (($3::date + $5::time) < ($3::date + s.end_time))
+          AND (($3::date + s.start_time) < ($3::date + $6::time))
+        LIMIT 1`,
+      [
+        organizationId,
+        specialistId,
+        appointmentDate,
+        excludeIdForTable,
+        startTime,
+        endTime
+      ]
+    );
+    if (rows[0]) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export async function createAppointmentSchedule({
@@ -668,12 +835,14 @@ export async function createAppointmentSchedule({
   repeatDays = null,
   repeatAnchorDate = null,
   isRepeatRoot = false,
+  scheduleScope = "default",
   db = pool
 }) {
   const normalizedRepeatType = normalizeRepeatType(repeatType);
+  const tableName = getAppointmentSchedulesTableName(scheduleScope);
   const { rows } = await db.query(
     `WITH inserted AS (
-       INSERT INTO appointment_schedules (
+       INSERT INTO ${tableName} (
          organization_id,
          specialist_id,
          client_id,
@@ -751,16 +920,18 @@ export async function createAppointmentSchedule({
 export async function getAppointmentScheduleTargetsByScope({
   organizationId,
   id,
-  scope = "single"
+  scope = "single",
+  scheduleScope = "default"
 }) {
   const normalizedScope = normalizeScheduleScope(scope);
+  const tableName = getAppointmentSchedulesTableName(scheduleScope);
   const anchorResult = await pool.query(
     `SELECT
        id,
        appointment_date,
        repeat_group_key,
        repeat_type
-      FROM appointment_schedules
+      FROM ${tableName}
       WHERE organization_id = $1
         AND id = $2
       LIMIT 1`,
@@ -787,7 +958,7 @@ export async function getAppointmentScheduleTargetsByScope({
   if (effectiveScope === "all") {
     const result = await pool.query(
       `SELECT id, appointment_date
-       FROM appointment_schedules
+       FROM ${tableName}
        WHERE organization_id = $1
          AND repeat_group_key = $2::uuid
        ORDER BY appointment_date ASC, start_time ASC, id ASC`,
@@ -797,7 +968,7 @@ export async function getAppointmentScheduleTargetsByScope({
   } else if (effectiveScope === "future") {
     const result = await pool.query(
       `SELECT id, appointment_date
-       FROM appointment_schedules
+       FROM ${tableName}
        WHERE organization_id = $1
          AND repeat_group_key = $2::uuid
          AND appointment_date >= $3::date
@@ -837,16 +1008,18 @@ export async function updateAppointmentSchedulesByIds({
   serviceName,
   status,
   note,
-  applyAppointmentDate = true
+  applyAppointmentDate = true,
+  scheduleScope = "default"
 }) {
   const normalizedIds = normalizeScheduleIds(ids);
   if (normalizedIds.length === 0) {
     return [];
   }
+  const tableName = getAppointmentSchedulesTableName(scheduleScope);
 
   const { rows } = await pool.query(
     `WITH updated AS (
-       UPDATE appointment_schedules s
+       UPDATE ${tableName} s
           SET specialist_id = $1,
               client_id = $2,
               appointment_date = CASE WHEN $11::boolean THEN $3::date ELSE s.appointment_date END,
@@ -928,11 +1101,13 @@ export async function updateAppointmentScheduleByIdWithRepeatMeta({
   repeatDays,
   repeatAnchorDate,
   isRepeatRoot = true,
+  scheduleScope = "default",
   db = pool
 }) {
+  const tableName = getAppointmentSchedulesTableName(scheduleScope);
   const { rows } = await db.query(
     `WITH updated AS (
-       UPDATE appointment_schedules
+       UPDATE ${tableName}
           SET specialist_id = $1,
               client_id = $2,
               appointment_date = $3::date,
@@ -1008,21 +1183,245 @@ export async function updateAppointmentScheduleByIdWithRepeatMeta({
 
 export async function deleteAppointmentSchedulesByIds({
   organizationId,
-  ids
+  ids,
+  scheduleScope = "default"
 }) {
   const normalizedIds = normalizeScheduleIds(ids);
   if (normalizedIds.length === 0) {
     return 0;
   }
+  const tableName = getAppointmentSchedulesTableName(scheduleScope);
 
   const { rowCount } = await pool.query(
-    `DELETE FROM appointment_schedules
+    `DELETE FROM ${tableName}
       WHERE organization_id = $1
         AND id = ANY($2::integer[])`,
     [organizationId, normalizedIds]
   );
 
   return rowCount || 0;
+}
+
+export async function ensureVipRollingSchedulesByOrganization({
+  organizationId,
+  actorUserId = null,
+  horizonDate = ""
+}) {
+  const parsedOrganizationId = Number.parseInt(String(organizationId ?? "").trim(), 10);
+  if (!Number.isInteger(parsedOrganizationId) || parsedOrganizationId <= 0) {
+    return {
+      organizationId: 0,
+      horizonDate: "",
+      updatedGroups: 0,
+      createdCount: 0,
+      skippedCount: 0
+    };
+  }
+
+  const parsedActorUserId = Number.parseInt(String(actorUserId ?? "").trim(), 10);
+  const normalizedActorUserId = Number.isInteger(parsedActorUserId) && parsedActorUserId > 0
+    ? parsedActorUserId
+    : null;
+
+  const normalizedHorizonDate = DATE_REGEX.test(String(horizonDate || "").trim())
+    ? String(horizonDate || "").trim()
+    : getEndOfNextWeekYmd();
+  if (!DATE_REGEX.test(normalizedHorizonDate)) {
+    return {
+      organizationId: parsedOrganizationId,
+      horizonDate: "",
+      updatedGroups: 0,
+      createdCount: 0,
+      skippedCount: 0
+    };
+  }
+
+  return withAppointmentTransaction(async (db) => {
+    const rootResult = await db.query(
+      `SELECT
+         id,
+         specialist_id,
+         client_id,
+         appointment_date,
+         start_time,
+         end_time,
+         duration_minutes,
+         service_name,
+         status,
+         note,
+         repeat_group_key,
+         repeat_days,
+         repeat_anchor_date,
+         repeat_until_date
+       FROM ${APPOINTMENT_VIP_SCHEDULES_TABLE}
+       WHERE organization_id = $1
+         AND repeat_type = 'weekly'
+         AND is_repeat_root = TRUE
+         AND repeat_group_key IS NOT NULL
+         AND repeat_until_date IS NOT NULL
+       ORDER BY id ASC`,
+      [parsedOrganizationId]
+    );
+
+    let updatedGroups = 0;
+    let createdCount = 0;
+    let skippedCount = 0;
+    for (const rootRow of rootResult.rows || []) {
+      const repeatGroupKey = String(rootRow?.repeat_group_key || "").trim();
+      if (!repeatGroupKey) {
+        continue;
+      }
+
+      const status = String(rootRow?.status || "pending").trim().toLowerCase();
+      if (status !== "pending" && status !== "confirmed") {
+        continue;
+      }
+
+      const currentRepeatUntil = normalizeDateYmd(rootRow?.repeat_until_date);
+      if (!DATE_REGEX.test(currentRepeatUntil) || currentRepeatUntil >= normalizedHorizonDate) {
+        continue;
+      }
+
+      const specialistId = Number.parseInt(String(rootRow?.specialist_id ?? "").trim(), 10);
+      const clientId = Number.parseInt(String(rootRow?.client_id ?? "").trim(), 10);
+      const startTime = normalizeTimeHm(rootRow?.start_time);
+      const endTime = normalizeTimeHm(rootRow?.end_time);
+      const serviceName = String(rootRow?.service_name || "").trim();
+      const durationFromRow = Number.parseInt(String(rootRow?.duration_minutes ?? "").trim(), 10);
+      const durationMinutes = Number.isInteger(durationFromRow) && durationFromRow > 0
+        ? durationFromRow
+        : getDurationMinutesFromTimes(startTime, endTime);
+      const repeatAnchorDate = normalizeDateYmd(rootRow?.repeat_anchor_date)
+        || normalizeDateYmd(rootRow?.appointment_date)
+        || currentRepeatUntil;
+      const anchorDayNum = toDayNumFromDateYmd(repeatAnchorDate);
+      const repeatDayNums = normalizeRepeatDayNums(
+        rootRow?.repeat_days,
+        anchorDayNum >= 1 && anchorDayNum <= 7 ? [anchorDayNum] : []
+      );
+      if (
+        !Number.isInteger(specialistId)
+        || specialistId <= 0
+        || !Number.isInteger(clientId)
+        || clientId <= 0
+        || !startTime
+        || !endTime
+        || !serviceName
+        || !Number.isInteger(durationMinutes)
+        || durationMinutes <= 0
+        || !DATE_REGEX.test(repeatAnchorDate)
+        || repeatDayNums.length === 0
+      ) {
+        continue;
+      }
+
+      const rangeStartDate = addDaysToDateYmd(currentRepeatUntil, 1);
+      if (!DATE_REGEX.test(rangeStartDate) || rangeStartDate > normalizedHorizonDate) {
+        continue;
+      }
+
+      const candidateDates = buildWeeklyRecurringDatesByDayNums({
+        startDate: rangeStartDate,
+        untilDate: normalizedHorizonDate,
+        dayNums: repeatDayNums
+      });
+      if (candidateDates.length > 0) {
+        const existingResult = await db.query(
+          `SELECT appointment_date
+             FROM ${APPOINTMENT_VIP_SCHEDULES_TABLE}
+            WHERE organization_id = $1
+              AND repeat_group_key = $2::uuid
+              AND appointment_date >= $3::date
+              AND appointment_date <= $4::date`,
+          [parsedOrganizationId, repeatGroupKey, rangeStartDate, normalizedHorizonDate]
+        );
+        const existingDateSet = new Set(
+          (existingResult.rows || [])
+            .map((row) => normalizeDateYmd(row?.appointment_date))
+            .filter(Boolean)
+        );
+
+        for (const appointmentDate of candidateDates) {
+          if (existingDateSet.has(appointmentDate)) {
+            continue;
+          }
+
+          const hasConflict = await hasAppointmentScheduleConflict({
+            organizationId: parsedOrganizationId,
+            specialistId,
+            appointmentDate,
+            startTime,
+            endTime,
+            scheduleScope: "vip",
+            db
+          });
+          if (hasConflict) {
+            skippedCount += 1;
+            continue;
+          }
+
+          try {
+            const createdItem = await createAppointmentSchedule({
+              organizationId: parsedOrganizationId,
+              actorUserId: normalizedActorUserId,
+              specialistId,
+              clientId,
+              appointmentDate,
+              startTime,
+              endTime,
+              durationMinutes,
+              serviceName,
+              status,
+              note: String(rootRow?.note || "").trim(),
+              repeatGroupKey,
+              repeatType: "weekly",
+              repeatUntilDate: normalizedHorizonDate,
+              repeatDays: repeatDayNums,
+              repeatAnchorDate,
+              isRepeatRoot: false,
+              scheduleScope: "vip",
+              db
+            });
+            if (createdItem) {
+              createdCount += 1;
+              existingDateSet.add(appointmentDate);
+            }
+          } catch (error) {
+            if (isUniqueOrExclusionConflict(error)) {
+              skippedCount += 1;
+              continue;
+            }
+            throw error;
+          }
+        }
+      }
+
+      await db.query(
+        `UPDATE ${APPOINTMENT_VIP_SCHEDULES_TABLE}
+            SET repeat_until_date = $3::date,
+                updated_by = COALESCE($4, updated_by),
+                updated_at = CURRENT_TIMESTAMP
+          WHERE organization_id = $1
+            AND repeat_group_key = $2::uuid
+            AND repeat_type = 'weekly'`,
+        [
+          parsedOrganizationId,
+          repeatGroupKey,
+          normalizedHorizonDate,
+          normalizedActorUserId
+        ]
+      );
+      updatedGroups += 1;
+    }
+
+    return {
+      organizationId: parsedOrganizationId,
+      horizonDate: normalizedHorizonDate,
+      updatedGroups,
+      createdCount,
+      skippedCount
+    };
+  });
 }
 
 export async function getAppointmentSettingsByOrganization(
@@ -1041,6 +1440,9 @@ export async function getAppointmentSettingsByOrganization(
   const reminderChannelsSelect = flags.hasReminderChannels
     ? "reminder_channels,"
     : "ARRAY['sms','email','telegram']::text[] AS reminder_channels,";
+  const slotSubDivisionsSelect = flags.hasSlotSubDivisions
+    ? "slot_sub_divisions,"
+    : "1::smallint AS slot_sub_divisions,";
 
   const [settingsResult, workingHoursResult] = await Promise.all([
     pool.query(
@@ -1048,6 +1450,7 @@ export async function getAppointmentSettingsByOrganization(
          id,
          organization_id,
          slot_interval_minutes,
+         ${slotSubDivisionsSelect}
          ${appointmentDurationSelect}
        ${appointmentDurationOptionsSelect}
          no_show_threshold,
@@ -1092,6 +1495,7 @@ export async function saveAppointmentSettings({
   organizationId,
   actorUserId,
   slotIntervalMinutes,
+  slotSubDivisions = 1,
   appointmentDurationMinutes,
   appointmentDurationOptionsMinutes,
   noShowThreshold,
@@ -1109,6 +1513,9 @@ export async function saveAppointmentSettings({
     error.code = "MIGRATION_REQUIRED";
     throw error;
   }
+  const normalizedSlotSubDivisions = Number.isInteger(slotSubDivisions) && slotSubDivisions >= 1 && slotSubDivisions <= 60
+    ? slotSubDivisions
+    : 1;
 
   const client = await pool.connect();
 
@@ -1125,10 +1532,16 @@ export async function saveAppointmentSettings({
     const effectiveAppointmentDuration = effectiveDurationOptions[0];
     const normalizedReminderChannels = mapReminderChannels(reminderChannels);
 
+    const subDivisionsCol = flags.hasSlotSubDivisions ? ", slot_sub_divisions" : "";
+    const subDivisionsVal = flags.hasSlotSubDivisions ? ", $10" : "";
+    const subDivisionsUpdate = flags.hasSlotSubDivisions
+      ? "slot_sub_divisions = EXCLUDED.slot_sub_divisions,"
+      : "";
     await client.query(
       `INSERT INTO ${tableName} (
          organization_id,
-         slot_interval_minutes,
+         slot_interval_minutes
+         ${subDivisionsCol},
          appointment_duration_minutes,
          appointment_duration_options_minutes,
          no_show_threshold,
@@ -1137,9 +1550,10 @@ export async function saveAppointmentSettings({
          visible_week_days,
          created_by,
          updated_by
-       ) VALUES ($1,$2,$3,$4::smallint[],$5,$6,$7::text[],$8::smallint[],$9,$9)
+       ) VALUES ($1,$2${subDivisionsVal},$3,$4::smallint[],$5,$6,$7::text[],$8::smallint[],$9,$9)
        ON CONFLICT (organization_id) DO UPDATE SET
          slot_interval_minutes = EXCLUDED.slot_interval_minutes,
+         ${subDivisionsUpdate}
          appointment_duration_minutes = EXCLUDED.appointment_duration_minutes,
          appointment_duration_options_minutes = EXCLUDED.appointment_duration_options_minutes,
          no_show_threshold = EXCLUDED.no_show_threshold,
@@ -1157,7 +1571,8 @@ export async function saveAppointmentSettings({
         reminderHours,
         normalizedReminderChannels,
         visibleWeekDayNums,
-        actorUserId
+        actorUserId,
+        ...(flags.hasSlotSubDivisions ? [normalizedSlotSubDivisions] : [])
       ]
     );
 

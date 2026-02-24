@@ -45,9 +45,8 @@ function ProfileMainContent({
   canUpdateAppointments,
   canDeleteAppointments,
   closeAppointmentPanel,
+  closeAppointmentBreaksPanel,
   closeAppointmentSettingsPanel,
-  closeAppointmentVipRecurringPanel,
-  closeAppointmentVipSettingsPanel,
   closeAppointmentVipClientsPanel,
   closeOrganizationsPanel,
   closeRolesPanel,
@@ -526,51 +525,25 @@ function ProfileMainContent({
               ×
             </button>
           </div>
-          <AppointmentSettingsPanel canUpdateAppointments={canUpdateAppointments} />
+          <AppointmentSettingsPanel canUpdateAppointments={canUpdateAppointments} panelMode="settings" />
         </section>
       )}
 
-      {mainView === "appointment-vip-recurring" && (
-        <section id="appointmentVipRecurringPanel" className="all-users-panel">
+      {mainView === "appointment-breaks" && (
+        <section id="appointmentBreaksPanel" className="all-users-panel settings-panel">
           <div className="all-users-head">
-            <h3>Appointment VIP</h3>
+            <h3>Breaks</h3>
             <button
-              id="closeAppointmentVipRecurringBtn"
+              id="closeAppointmentBreaksBtn"
               type="button"
               className="header-btn panel-close-btn"
-              aria-label="Close appointment VIP panel"
-              onClick={closeAppointmentVipRecurringPanel}
+              aria-label="Close appointment breaks panel"
+              onClick={closeAppointmentBreaksPanel}
             >
               ×
             </button>
           </div>
-          <AppointmentScheduler
-            canCreateAppointments={canCreateAppointments}
-            canUpdateAppointments={canUpdateAppointments}
-            canDeleteAppointments={canDeleteAppointments}
-            vipOnly
-            recurringOnly
-            settingsScope="vip"
-            modalTitle="To Schedule VIP"
-          />
-        </section>
-      )}
-
-      {mainView === "appointment-vip-settings" && (
-        <section id="appointmentVipSettingsPanel" className="all-users-panel settings-panel">
-          <div className="all-users-head">
-            <h3>Appointment VIP Settings</h3>
-            <button
-              id="closeAppointmentVipSettingsBtn"
-              type="button"
-              className="header-btn panel-close-btn"
-              aria-label="Close appointment VIP settings panel"
-              onClick={closeAppointmentVipSettingsPanel}
-            >
-              ×
-            </button>
-          </div>
-          <AppointmentSettingsPanel canUpdateAppointments={canUpdateAppointments} settingsScope="vip" />
+          <AppointmentSettingsPanel canUpdateAppointments={canUpdateAppointments} panelMode="breaks" />
         </section>
       )}
 

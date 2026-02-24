@@ -88,8 +88,9 @@
   --fs-lg:    18px;
 
   --bar-height:   52px;
-  --btn-height:   36px;
-  --input-height: 38px;
+  --btn-height:   34px;
+  --input-height: 36px;
+  --close-btn-size: 30px;
 
   --radius-xs: 6px;
   --radius-sm: 8px;
@@ -143,6 +144,8 @@ button {
   font-family: inherit;
   font-size: var(--fs-base);
   line-height: normal;
+  height: var(--btn-height);
+  min-height: var(--btn-height);
   -webkit-appearance: none;
   appearance: none;
 }
@@ -215,6 +218,11 @@ textarea {
     border-color var(--dur) ease,
     box-shadow var(--dur) ease,
     background var(--dur) ease;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+select {
+  height: var(--input-height);
 }
 
 input:hover:not(:focus):not(.input-error),
@@ -322,6 +330,13 @@ textarea.input-error {
   box-shadow: 0 0 0 3px var(--danger-ring);
 }
 
+.custom-select-trigger:disabled {
+  cursor: not-allowed;
+  color: var(--text-faint);
+  background: #F5F7FF;
+  box-shadow: none;
+}
+
 .custom-select-menu {
   position: absolute;
   z-index: 70;
@@ -373,7 +388,7 @@ textarea.input-error {
 
 .custom-select-search-input {
   width: 100%;
-  min-height: 34px;
+  min-height: var(--input-height);
   border: 1.5px solid var(--input-border);
   border-radius: var(--radius-sm);
   padding: 6px 10px;
@@ -398,7 +413,7 @@ textarea.input-error {
   color: var(--text-main);
   border-radius: var(--radius-sm);
   text-align: left;
-  min-height: 36px;
+  min-height: var(--btn-height);
   padding: 0 12px;
   display: flex;
   align-items: center;
