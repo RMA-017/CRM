@@ -12,6 +12,7 @@ import {
   persistNotificationEvent,
   resolveNotificationRecipientIds
 } from "./notifications.service.js";
+import { notificationsRouteSchemas } from "./notifications.route-schemas.js";
 
 function parseUnreadOnly(value) {
   if (typeof value === "boolean") {
@@ -55,7 +56,10 @@ async function notificationsRoutes(fastify) {
   fastify.get(
     "/",
     {
-      config: { rateLimit: fastify.apiRateLimit }
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        querystring: notificationsRouteSchemas.listQuery
+      }
     },
     async (request, reply) => {
       setNoCacheHeaders(reply);
@@ -160,7 +164,10 @@ async function notificationsRoutes(fastify) {
   fastify.post(
     "/send",
     {
-      config: { rateLimit: fastify.apiRateLimit }
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        body: notificationsRouteSchemas.sendBody
+      }
     },
     async (request, reply) => {
       const authContext = request.authContext;
@@ -276,5 +283,12 @@ async function notificationsRoutes(fastify) {
     }
   );
 }
+
+export const __notificationsRouteContracts = Object.freeze({
+  parseUnreadOnly,
+  parseLimit,
+  normalizeTargetUserIds,
+  normalizeTargetRoles
+});
 
 export default notificationsRoutes;

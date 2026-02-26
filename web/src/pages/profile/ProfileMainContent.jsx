@@ -271,7 +271,7 @@ function ProfileMainContent({
                   <th>Middle Name</th>
                   <th>Birthday</th>
                   <th>Phone</th>
-                  <th>Tg or Mail</th>
+                  <th>Email</th>
                   <th>VIP</th>
                   <th>Created At</th>
                   <th>Note</th>
@@ -501,12 +501,12 @@ function ProfileMainContent({
               </div>
 
               <div className="field">
-                <label htmlFor="clientCreateTelegramOrEmail">Telegram or Email</label>
+                <label htmlFor="clientCreateTelegramOrEmail">Email</label>
                 <input
                   id="clientCreateTelegramOrEmail"
                   name="telegramOrEmail"
                   type="text"
-                  placeholder="@username or user@gmail.com"
+                  placeholder="user@gmail.com"
                   className={clientCreateErrors.telegramOrEmail ? "input-error" : ""}
                   value={clientCreateForm.telegramOrEmail}
                   onInput={(event) => {
@@ -628,7 +628,7 @@ function ProfileMainContent({
                   <th>Middle Name</th>
                   <th>Birthday</th>
                   <th>Phone</th>
-                  <th>Tg or Mail</th>
+                  <th>Email</th>
                   <th>VIP</th>
                   <th>Created At</th>
                   <th>Note</th>

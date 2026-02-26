@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { apiFetch } from "../../lib/api.js";
+import { apiFetch, readApiResponseData } from "../../lib/api.js";
 import { formatDateForInput } from "../../lib/formatters.js";
 import { ALL_USERS_LIMIT, createEmptyClientsDeleteState } from "./profile.constants.js";
 import { handleProtectedStatus } from "./profile.helpers.js";
@@ -189,7 +189,7 @@ export function useClientsSection({
         method: "GET",
         cache: "no-store"
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
@@ -243,7 +243,7 @@ export function useClientsSection({
         method: "GET",
         cache: "no-store"
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
@@ -316,7 +316,7 @@ export function useClientsSection({
         },
         body: JSON.stringify(payload)
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
@@ -433,7 +433,7 @@ export function useClientsSection({
         },
         body: JSON.stringify(payload)
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
@@ -538,7 +538,7 @@ export function useClientsSection({
       const response = await apiFetch(`/api/clients/${encodeURIComponent(clientId)}`, {
         method: "DELETE"
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
@@ -614,3 +614,4 @@ export function useClientsSection({
     closeClientsDeleteModal
   };
 }
+

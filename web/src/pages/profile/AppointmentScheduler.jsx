@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import CustomSelect from "../../components/CustomSelect.jsx";
-import { apiFetch } from "../../lib/api.js";
+import { apiFetch, readApiResponseData } from "../../lib/api.js";
 
 const DAY_ITEMS = [
   { key: "mon", label: "Monday", offset: 0 },
@@ -493,8 +493,8 @@ function AppointmentScheduler({
           })
         ]);
 
-        const settingsData = await settingsResponse.json().catch(() => ({}));
-        const specialistsData = await specialistsResponse.json().catch(() => ({}));
+        const settingsData = await readApiResponseData(settingsResponse);
+        const specialistsData = await readApiResponseData(specialistsResponse);
 
         if (!active) {
           return;
@@ -1000,7 +1000,7 @@ function AppointmentScheduler({
         method: "GET",
         cache: "no-store"
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
       if (requestId !== schedulesRequestIdRef.current) {
         return;
       }
@@ -1084,7 +1084,7 @@ function AppointmentScheduler({
         method: "GET",
         cache: "no-store"
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
       if (requestId !== breaksRequestIdRef.current) {
         return;
       }
@@ -1303,7 +1303,7 @@ function AppointmentScheduler({
           method: "GET",
           cache: "no-store"
         });
-        const data = await response.json().catch(() => ({}));
+        const data = await readApiResponseData(response);
 
         if (!active) {
           return;
@@ -1390,7 +1390,7 @@ function AppointmentScheduler({
           method: "GET",
           cache: "no-store"
         });
-        const data = await response.json().catch(() => ({}));
+        const data = await readApiResponseData(response);
         if (!active) {
           return;
         }
@@ -1683,7 +1683,7 @@ function AppointmentScheduler({
         },
         body: JSON.stringify(requestPayload)
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         const serverMessage = String(data?.message || "").trim();
@@ -1745,7 +1745,7 @@ function AppointmentScheduler({
       const response = await apiFetch(`/api/appointments/schedules/${encodeURIComponent(appointmentId)}?${query}`, {
         method: "DELETE"
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         setCreateErrors({ form: data?.message || "Failed to delete appointment." });
@@ -2395,3 +2395,4 @@ function AppointmentScheduler({
 }
 
 export default AppointmentScheduler;
+

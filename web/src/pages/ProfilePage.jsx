@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { API_BASE_URL, apiFetch } from "../lib/api.js";
+import { apiFetch, getApiErrorMessage, readApiResponseData } from "../lib/api.js";
 import { formatDateForInput, getInitial, normalizeProfile } from "../lib/formatters.js";
 import {
   createEmptyProfileEditState,
@@ -19,6 +19,7 @@ import ProfileSideMenu from "./profile/ProfileSideMenu.jsx";
 import { useAllUsersSection } from "./profile/useAllUsersSection.js";
 import { useClientsSection } from "./profile/useClientsSection.js";
 import { useProfileAccess } from "./profile/useProfileAccess.js";
+import { useProfileNotifications } from "./profile/useProfileNotifications.js";
 import { useProfilePanels } from "./profile/useProfilePanels.js";
 import { useSettingsSection } from "./profile/useSettingsSection.js";
 import { getBirthdayValidationMessage } from "./profile/profile.validators.js";
@@ -28,8 +29,6 @@ function ProfilePage({ forcedView = "none" }) {
   const menuRef = useRef(null);
   const menuToggleRef = useRef(null);
   const avatarInputRef = useRef(null);
-  const notificationReloadTimerRef = useRef(null);
-  const pendingNotificationFallbackRef = useRef([]);
 
   const [profileLoading, setProfileLoading] = useState(true);
   const [profile, setProfile] = useState(null);
@@ -41,15 +40,6 @@ function ProfilePage({ forcedView = "none" }) {
   const [usersMenuOpen, setUsersMenuOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [myProfileModalOpen, setMyProfileModalOpen] = useState(false);
-  const [notificationsModalOpen, setNotificationsModalOpen] = useState(false);
-  const [notifications, setNotifications] = useState([]);
-  const [notificationSendForm, setNotificationSendForm] = useState({
-    message: "",
-    targetRole: "all"
-  });
-  const [notificationSendSubmitting, setNotificationSendSubmitting] = useState(false);
-  const [notificationSendError, setNotificationSendError] = useState("");
-  const [notificationSendSuccess, setNotificationSendSuccess] = useState("");
 
   const [mainView, setMainViewState] = useState("none");
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
@@ -98,7 +88,7 @@ function ProfilePage({ forcedView = "none" }) {
         method: "GET",
         cache: "no-store"
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
@@ -334,21 +324,6 @@ function ProfilePage({ forcedView = "none" }) {
     )
   ), [createOrganizationOptions]);
 
-  const hasAnyModalOpen = (
-    myProfileModalOpen
-    || notificationsModalOpen
-    || logoutConfirmOpen
-    || profileEdit.open
-    || allUsersEdit.open
-    || allUsersDelete.open
-    || clientsEditOpen
-    || clientsDelete.open
-    || settingsDelete.open
-    || organizationEditOpen
-    || roleEditOpen
-    || positionEditOpen
-  );
-
   const firstName = useMemo(() => {
     const rawName = String(profile?.fullName || profile?.username || "User").trim();
     return rawName.split(/\s+/)[0] || "User";
@@ -392,278 +367,44 @@ function ProfilePage({ forcedView = "none" }) {
 
   const closeUserDropdown = useCallback(() => {}, []);
 
-  const openNotificationsPanel = useCallback(() => {
-    closeMenu();
-    closeUserDropdown();
-    setNotificationsModalOpen(true);
-  }, [closeMenu, closeUserDropdown]);
+  const {
+    notificationsModalOpen,
+    notifications,
+    notificationSendForm,
+    notificationSendSubmitting,
+    notificationSendError,
+    notificationSendSuccess,
+    unreadNotificationsCount,
+    setNotificationSendForm,
+    setNotificationSendError,
+    openNotificationsPanel,
+    closeNotificationsPanel,
+    clearNotifications,
+    sendManualNotification,
+    handleAppointmentNotification
+  } = useProfileNotifications({
+    canReadAppointments,
+    canSendNotifications,
+    profileUsername: profile?.username,
+    navigate,
+    closeMenu,
+    closeUserDropdown
+  });
 
-  const closeNotificationsPanel = useCallback(() => {
-    setNotificationsModalOpen(false);
-  }, []);
-
-  const loadNotifications = useCallback(async ({ silent = false } = {}) => {
-    if (!profile?.username) {
-      return false;
-    }
-    try {
-      const response = await apiFetch("/api/notifications?limit=100", {
-        method: "GET",
-        cache: "no-store"
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        handleProtectedStatus(response, navigate);
-        return false;
-      }
-
-      const items = Array.isArray(data?.items)
-        ? data.items.map((item) => ({
-            id: String(item?.id || "").trim(),
-            eventType: String(item?.eventType || item?.event_type || "").trim().toLowerCase(),
-            message: String(item?.message || "").trim(),
-            payload: item?.payload && typeof item.payload === "object" ? item.payload : {},
-            isRead: Boolean(item?.isRead ?? item?.is_read),
-            readAt: item?.readAt || item?.read_at || null,
-            createdAt: item?.createdAt || item?.created_at || null
-          }))
-        : [];
-      setNotifications(items);
-      return true;
-    } catch {
-      if (!silent) {
-        setNotifications([]);
-      }
-      return false;
-    }
-  }, [navigate, profile?.username]);
-
-  const markNotificationsRead = useCallback(async () => {
-    if (!profile?.username) {
-      return;
-    }
-    try {
-      const response = await apiFetch("/api/notifications/read-all", {
-        method: "PATCH"
-      });
-      if (!response.ok) {
-        handleProtectedStatus(response, navigate);
-        return;
-      }
-      const readAtValue = new Date().toISOString();
-      setNotifications((prev) => (
-        Array.isArray(prev)
-          ? prev.map((item) => (
-              item?.isRead
-                ? item
-                : { ...item, isRead: true, readAt: item?.readAt || readAtValue }
-            ))
-          : []
-      ));
-    } catch {
-      // Ignore notification read errors in UI.
-    }
-  }, [navigate, profile?.username]);
-
-  const clearNotifications = useCallback(async () => {
-    if (!profile?.username) {
-      setNotifications([]);
-      return;
-    }
-
-    try {
-      const response = await apiFetch("/api/notifications", {
-        method: "DELETE"
-      });
-      if (!response.ok) {
-        handleProtectedStatus(response, navigate);
-      }
-    } catch {
-      // Ignore clear errors and still clear local list.
-    } finally {
-      setNotifications([]);
-    }
-  }, [navigate, profile?.username]);
-
-  const sendManualNotification = useCallback(async () => {
-    if (!canSendNotifications) {
-      window.alert("You do not have permission to send notifications.");
-      return;
-    }
-
-    const message = String(notificationSendForm.message || "").trim();
-    const targetRole = String(notificationSendForm.targetRole || "").trim().toLowerCase();
-    if (!message) {
-      window.alert("Message is required.");
-      return;
-    }
-    if (!targetRole) {
-      window.alert("Select recipient group.");
-      return;
-    }
-
-    try {
-      setNotificationSendSubmitting(true);
-
-      const response = await apiFetch("/api/notifications/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message,
-          targetRoles: [targetRole]
-        })
-      });
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        if (handleProtectedStatus(response, navigate)) {
-          return;
-        }
-        window.alert(data?.message || "Failed to send notification.");
-        return;
-      }
-
-      setNotificationSendForm((prev) => ({ ...prev, message: "" }));
-      window.alert(data?.message || "Notification sent.");
-    } catch {
-      window.alert("Unexpected error. Please try again.");
-    } finally {
-      setNotificationSendSubmitting(false);
-    }
-  }, [canSendNotifications, navigate, notificationSendForm.message, notificationSendForm.targetRole]);
-
-  const handleAppointmentNotification = useCallback((notification) => {
-    const normalizedMessage = String(notification?.message || "").trim();
-    if (!normalizedMessage) {
-      return;
-    }
-    const eventType = String(notification?.eventType || notification?.type || "").trim().toLowerCase();
-    const payload = notification?.payload && typeof notification.payload === "object"
-      ? notification.payload
-      : {};
-    const createdAt = notification?.createdAt || notification?.timestamp || new Date().toISOString();
-
-    setNotifications((prev) => (
-      [
-        {
-          id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-          eventType,
-          message: normalizedMessage,
-          payload,
-          isRead: false,
-          readAt: null,
-          createdAt
-        },
-        ...prev
-      ].slice(0, 50)
-    ));
-  }, []);
-
-  const unreadNotificationsCount = useMemo(() => {
-    if (!Array.isArray(notifications) || notifications.length === 0) {
-      return 0;
-    }
-    return notifications.reduce((count, item) => (
-      item?.isRead ? count : count + 1
-    ), 0);
-  }, [notifications]);
-
-  const scheduleNotificationsReload = useCallback((fallbackNotification) => {
-    if (fallbackNotification && typeof fallbackNotification === "object") {
-      pendingNotificationFallbackRef.current = [
-        ...pendingNotificationFallbackRef.current,
-        fallbackNotification
-      ].slice(-50);
-    }
-
-    if (notificationReloadTimerRef.current) {
-      clearTimeout(notificationReloadTimerRef.current);
-    }
-
-    notificationReloadTimerRef.current = setTimeout(() => {
-      notificationReloadTimerRef.current = null;
-      const queuedFallbacks = pendingNotificationFallbackRef.current;
-      pendingNotificationFallbackRef.current = [];
-
-      void loadNotifications({ silent: true }).then((loaded) => {
-        if (loaded) {
-          return;
-        }
-        queuedFallbacks.forEach((notification) => {
-          handleAppointmentNotification(notification);
-        });
-      });
-    }, 500);
-  }, [handleAppointmentNotification, loadNotifications]);
-
-  useEffect(() => () => {
-    if (notificationReloadTimerRef.current) {
-      clearTimeout(notificationReloadTimerRef.current);
-      notificationReloadTimerRef.current = null;
-    }
-    pendingNotificationFallbackRef.current = [];
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.EventSource === "undefined") {
-      return undefined;
-    }
-    if (!canReadAppointments || !profile?.username) {
-      return undefined;
-    }
-
-    const ownUsername = String(profile.username || "").trim().toLowerCase();
-    const eventSource = new window.EventSource(`${API_BASE_URL}/api/appointments/events`, {
-      withCredentials: true
-    });
-
-    const handleAppointmentChange = (event) => {
-      let payload = {};
-      try {
-        payload = JSON.parse(String(event?.data || "{}"));
-      } catch {
-        payload = {};
-      }
-
-      const sourceUsername = String(payload?.sourceUsername || "").trim().toLowerCase();
-      const isOwnChange = Boolean(ownUsername) && sourceUsername === ownUsername;
-
-      window.dispatchEvent(new window.CustomEvent("crm:appointment-change", { detail: payload }));
-
-      if (!isOwnChange) {
-        const notificationText = String(payload?.message || "").trim() || "Appointment schedule changed.";
-        const notificationPayloadData = payload?.data && typeof payload.data === "object" ? payload.data : {};
-        scheduleNotificationsReload({
-          eventType: payload?.type,
-          message: notificationText,
-          payload: { data: notificationPayloadData },
-          createdAt: payload?.timestamp || new Date().toISOString()
-        });
-      }
-    };
-
-    eventSource.addEventListener("appointment-change", handleAppointmentChange);
-
-    return () => {
-      eventSource.removeEventListener("appointment-change", handleAppointmentChange);
-      eventSource.close();
-    };
-  }, [canReadAppointments, profile?.username, scheduleNotificationsReload]);
-
-  useEffect(() => {
-    if (!profile?.username) {
-      return;
-    }
-    void loadNotifications({ silent: true });
-  }, [loadNotifications, profile?.username]);
-
-  useEffect(() => {
-    if (!notificationsModalOpen) {
-      return;
-    }
-    void loadNotifications({ silent: true });
-    void markNotificationsRead();
-  }, [loadNotifications, markNotificationsRead, notificationsModalOpen]);
+  const hasAnyModalOpen = (
+    myProfileModalOpen
+    || notificationsModalOpen
+    || logoutConfirmOpen
+    || profileEdit.open
+    || allUsersEdit.open
+    || allUsersDelete.open
+    || clientsEditOpen
+    || clientsDelete.open
+    || settingsDelete.open
+    || organizationEditOpen
+    || roleEditOpen
+    || positionEditOpen
+  );
 
   const closeProfileEditModal = useCallback(() => {
     setProfileEdit(createEmptyProfileEditState());
@@ -699,7 +440,7 @@ function ProfilePage({ forcedView = "none" }) {
           method: "GET",
           cache: "no-store"
         });
-        const data = await response.json().catch(() => ({}));
+        const data = await readApiResponseData(response);
 
         if (!active) {
           return;
@@ -848,7 +589,7 @@ function ProfilePage({ forcedView = "none" }) {
       closeMenu();
       closeUserDropdown();
       setMyProfileModalOpen(false);
-      setNotificationsModalOpen(false);
+      closeNotificationsPanel();
       setLogoutConfirmOpen(false);
       cancelOrganizationEdit();
       cancelRoleEdit();
@@ -874,6 +615,7 @@ function ProfilePage({ forcedView = "none" }) {
     closeProfileEditModal,
     closeSettingsDeleteModal,
     closeUserDropdown,
+    closeNotificationsPanel,
     cancelOrganizationEdit,
     cancelRoleEdit,
     cancelPositionEdit
@@ -1008,7 +750,7 @@ function ProfilePage({ forcedView = "none" }) {
         },
         body: JSON.stringify(payload)
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         if (data?.errors && typeof data.errors === "object") {
@@ -1016,7 +758,7 @@ function ProfilePage({ forcedView = "none" }) {
         } else if (data?.field) {
           setCreateErrors({ [data.field]: data.message || "Invalid value." });
         } else {
-          setCreateErrors({ username: data?.message || "Failed to create employee account." });
+          setCreateErrors({ username: getApiErrorMessage(response, data, "Failed to create employee account.") });
         }
         return;
       }
@@ -1121,7 +863,7 @@ function ProfilePage({ forcedView = "none" }) {
             currentPassword
           })
         });
-        const data = await response.json().catch(() => ({}));
+        const data = await readApiResponseData(response);
 
         if (!response.ok) {
           const apiField = String(data?.field || "").trim();
@@ -1131,7 +873,7 @@ function ProfilePage({ forcedView = "none" }) {
           setProfileEdit((prev) => ({
             ...prev,
             submitting: false,
-            error: data?.message || "Failed to update profile.",
+            error: getApiErrorMessage(response, data, "Failed to update profile."),
             errorField: mappedField
           }));
           return;
@@ -1199,14 +941,14 @@ function ProfilePage({ forcedView = "none" }) {
           },
           body: JSON.stringify({ field, value: nextValues[field] })
         });
-        const data = await response.json().catch(() => ({}));
+        const data = await readApiResponseData(response);
 
         if (!response.ok) {
           const apiField = String(data?.field || field || "").trim();
           setProfileEdit((prev) => ({
             ...prev,
             submitting: false,
-            error: data?.message || "Failed to update profile.",
+            error: getApiErrorMessage(response, data, "Failed to update profile."),
             errorField: apiField
           }));
           return;
@@ -1595,3 +1337,4 @@ function ProfilePage({ forcedView = "none" }) {
 }
 
 export default ProfilePage;
+

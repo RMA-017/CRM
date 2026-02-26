@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { apiFetch } from "../../lib/api.js";
+import { apiFetch, readApiResponseData } from "../../lib/api.js";
 import CustomSelect from "../../components/CustomSelect.jsx";
 
 const DAYS = [
@@ -265,7 +265,7 @@ function AppointmentSettingsPanel({
           method: "GET",
           cache: "no-store"
         });
-        const data = await response.json().catch(() => ({}));
+        const data = await readApiResponseData(response);
 
         if (!active) {
           return;
@@ -341,7 +341,7 @@ function AppointmentSettingsPanel({
           method: "GET",
           cache: "no-store"
         });
-        const data = await response.json().catch(() => ({}));
+        const data = await readApiResponseData(response);
         if (!active) {
           return;
         }
@@ -419,7 +419,7 @@ function AppointmentSettingsPanel({
           method: "GET",
           cache: "no-store"
         });
-        const data = await response.json().catch(() => ({}));
+        const data = await readApiResponseData(response);
         if (!active) {
           return;
         }
@@ -553,7 +553,7 @@ function AppointmentSettingsPanel({
           },
           body: JSON.stringify(breaksPayload)
         });
-        const breaksData = await breaksResponse.json().catch(() => ({}));
+        const breaksData = await readApiResponseData(breaksResponse);
         if (!breaksResponse.ok) {
           setMessage(breaksData?.message || "Failed to save appointment breaks.");
           return;
@@ -589,7 +589,7 @@ function AppointmentSettingsPanel({
         },
         body: JSON.stringify(payload)
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         setMessage(data?.message || "Failed to save appointment settings.");
@@ -876,3 +876,4 @@ function AppointmentSettingsPanel({
 }
 
 export default AppointmentSettingsPanel;
+

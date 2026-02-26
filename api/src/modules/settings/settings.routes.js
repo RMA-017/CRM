@@ -6,7 +6,7 @@ import {
   MIN_APPOINTMENT_HISTORY_LOCK_DAYS,
   getAppointmentHistoryLockDaysByOrganization,
   saveAppointmentHistoryLockDaysByOrganization
-} from "../appointments/appointment-settings.service.js";
+} from "../appointments/services/appointment-settings-config.service.js";
 import {
   createOrganization,
   createPositionOption,
@@ -25,6 +25,7 @@ import {
   updatePositionOption,
   updateRoleOption
 } from "./settings.service.js";
+import { settingsRouteSchemas } from "./settings.route-schemas.js";
 
 function parseSortOrder(value) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -193,7 +194,10 @@ async function settingsRoutes(fastify) {
   fastify.post(
     "/organizations",
     {
-      config: { rateLimit: fastify.apiRateLimit }
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        body: settingsRouteSchemas.organizationCreateBody
+      }
     },
     async (request, reply) => {
       try {
@@ -233,7 +237,11 @@ async function settingsRoutes(fastify) {
   fastify.patch(
     "/organizations/:id",
     {
-      config: { rateLimit: fastify.apiRateLimit }
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        params: settingsRouteSchemas.idParams,
+        body: settingsRouteSchemas.organizationUpdateBody
+      }
     },
     async (request, reply) => {
       try {
@@ -287,7 +295,10 @@ async function settingsRoutes(fastify) {
   fastify.delete(
     "/organizations/:id",
     {
-      config: { rateLimit: fastify.apiRateLimit }
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        params: settingsRouteSchemas.idParams
+      }
     },
     async (request, reply) => {
       try {
@@ -324,7 +335,10 @@ async function settingsRoutes(fastify) {
   fastify.get(
     "/admin-options",
     {
-      config: { rateLimit: fastify.apiRateLimit }
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        querystring: settingsRouteSchemas.adminOptionsQuery
+      }
     },
     async (request, reply) => {
       setNoCacheHeaders(reply);
@@ -365,7 +379,10 @@ async function settingsRoutes(fastify) {
   fastify.patch(
     "/admin-options",
     {
-      config: { rateLimit: fastify.apiRateLimit }
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        body: settingsRouteSchemas.adminOptionsPatchBody
+      }
     },
     async (request, reply) => {
       try {
@@ -457,7 +474,10 @@ async function settingsRoutes(fastify) {
   fastify.post(
     "/roles",
     {
-      config: { rateLimit: fastify.apiRateLimit }
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        body: settingsRouteSchemas.roleCreateBody
+      }
     },
     async (request, reply) => {
       try {
@@ -513,7 +533,11 @@ async function settingsRoutes(fastify) {
   fastify.patch(
     "/roles/:id",
     {
-      config: { rateLimit: fastify.apiRateLimit }
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        params: settingsRouteSchemas.idParams,
+        body: settingsRouteSchemas.roleUpdateBody
+      }
     },
     async (request, reply) => {
       try {
@@ -604,7 +628,10 @@ async function settingsRoutes(fastify) {
   fastify.delete(
     "/roles/:id",
     {
-      config: { rateLimit: fastify.apiRateLimit }
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        params: settingsRouteSchemas.idParams
+      }
     },
     async (request, reply) => {
       try {
@@ -668,7 +695,10 @@ async function settingsRoutes(fastify) {
   fastify.post(
     "/positions",
     {
-      config: { rateLimit: fastify.apiRateLimit }
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        body: settingsRouteSchemas.positionCreateBody
+      }
     },
     async (request, reply) => {
       try {
@@ -708,7 +738,11 @@ async function settingsRoutes(fastify) {
   fastify.patch(
     "/positions/:id",
     {
-      config: { rateLimit: fastify.apiRateLimit }
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        params: settingsRouteSchemas.idParams,
+        body: settingsRouteSchemas.positionUpdateBody
+      }
     },
     async (request, reply) => {
       try {
@@ -761,7 +795,10 @@ async function settingsRoutes(fastify) {
   fastify.delete(
     "/positions/:id",
     {
-      config: { rateLimit: fastify.apiRateLimit }
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        params: settingsRouteSchemas.idParams
+      }
     },
     async (request, reply) => {
       try {
@@ -796,5 +833,16 @@ async function settingsRoutes(fastify) {
     }
   );
 }
+
+export const __settingsRouteContracts = Object.freeze({
+  parseSortOrder,
+  parseIsActive,
+  parseHistoryLockDays,
+  parseOptionalOrganizationId,
+  parsePermissionCodes,
+  validateOrganizationPayload,
+  validateRolePayload,
+  validatePositionPayload
+});
 
 export default settingsRoutes;

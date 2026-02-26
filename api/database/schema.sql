@@ -89,6 +89,7 @@ CREATE TABLE clients (
   birthday DATE NOT NULL,
   phone_number VARCHAR(15),
   tg_mail VARCHAR(96),
+  tg_chat_id BIGINT,
   is_vip BOOLEAN NOT NULL DEFAULT FALSE,
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -306,6 +307,9 @@ CREATE TABLE outbox_events (
   aggregate_id VARCHAR(64),
   payload JSONB NOT NULL DEFAULT '{}'::jsonb,
   status VARCHAR(16) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed')),
+  retry_count INTEGER NOT NULL DEFAULT 0 CHECK (retry_count >= 0 AND retry_count <= 1000),
+  max_retries INTEGER NOT NULL DEFAULT 5 CHECK (max_retries >= 0 AND max_retries <= 100),
+  next_retry_at TIMESTAMP,
   error_message TEXT,
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -316,6 +320,10 @@ CREATE TABLE outbox_events (
 
 CREATE INDEX idx_outbox_events_pending_created
   ON outbox_events (status, created_at ASC);
+
+CREATE INDEX idx_outbox_events_pending_retry
+  ON outbox_events (status, next_retry_at ASC, created_at ASC)
+  WHERE status = 'pending';
 
 CREATE INDEX idx_outbox_events_org_created
   ON outbox_events (organization_id, created_at DESC);

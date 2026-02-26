@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { apiFetch } from "../lib/api.js";
+import { apiFetch, getApiErrorMessage, readApiResponseData } from "../lib/api.js";
 import { LOGOUT_FLAG_KEY } from "./profile/profile.constants.js";
 
 function HomePage() {
@@ -111,7 +111,7 @@ function HomePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         if (data?.field === "username" || data?.field === "password") {
@@ -121,7 +121,7 @@ function HomePage() {
 
         setErrors({
           username: "Username is incorrect.",
-          password: data?.message || "Invalid username or password."
+          password: getApiErrorMessage(response, data, "Invalid username or password.")
         });
         return;
       }
@@ -247,3 +247,4 @@ function HomePage() {
 }
 
 export default HomePage;
+

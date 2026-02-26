@@ -337,7 +337,7 @@ function ProfileModals(props) {
                   name="email"
                   type="email"
                   autoComplete="email"
-                  placeholder="@username or user@gmail.com"
+                  placeholder="user@gmail.com"
                   className={profileEdit.errorField === "email" ? "input-error" : ""}
                   value={profileEdit.form.email}
                   onInput={(event) => {
@@ -506,7 +506,7 @@ function ProfileModals(props) {
                 name="email"
                 type="email"
                 autoComplete="email"
-                placeholder="@username or user@gmail.com"
+                placeholder="user@gmail.com"
                 className={allUsersEdit.errors.email ? "input-error" : ""}
                 value={allUsersEdit.form.email}
                 onInput={(event) => {
@@ -782,11 +782,11 @@ function ProfileModals(props) {
             </div>
 
             <div className="field">
-              <label htmlFor="clientsEditTgMail">Telegram / Email</label>
+              <label htmlFor="clientsEditTgMail">Email</label>
               <input
                 id="clientsEditTgMail"
                 type="text"
-                placeholder="@username or user@gmail.com"
+                placeholder="user@gmail.com"
                 className={clientEditErrors.tgMail ? "input-error" : ""}
                 value={clientEditForm.tgMail}
                 onInput={(event) => {

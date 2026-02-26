@@ -2,6 +2,10 @@ import pool from "../../config/db.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 
 const MAX_NOTIFICATIONS_LIMIT = 200;
+const MAX_OUTBOX_BATCH_LIMIT = 1000;
+const MAX_OUTBOX_RETENTION_DAYS = 3650;
+const MAX_OUTBOX_RETRY_DELAY_SECONDS = 86400;
+const MAX_OUTBOX_MAX_RETRIES = 100;
 const ALL_TARGET_ROLE = "all";
 
 function normalizePositiveInteger(value) {
@@ -43,6 +47,38 @@ function normalizeNotificationLimit(value) {
   return Math.min(parsed, MAX_NOTIFICATIONS_LIMIT);
 }
 
+function normalizeOutboxBatchLimit(value, fallback = 100) {
+  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return Math.min(parsed, MAX_OUTBOX_BATCH_LIMIT);
+}
+
+function normalizeOutboxRetentionDays(value, fallback = 30) {
+  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return fallback;
+  }
+  return Math.min(parsed, MAX_OUTBOX_RETENTION_DAYS);
+}
+
+function normalizeOutboxRetryDelaySeconds(value, fallback = 30) {
+  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return Math.min(parsed, MAX_OUTBOX_RETRY_DELAY_SECONDS);
+}
+
+function normalizeOutboxMaxRetries(value, fallback = 5) {
+  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return fallback;
+  }
+  return Math.min(parsed, MAX_OUTBOX_MAX_RETRIES);
+}
+
 function toNotificationItem(row) {
   return {
     id: String(row?.id || "").trim(),
@@ -64,6 +100,16 @@ export function isNotificationsSchemaMissing(error) {
   }
   const message = String(error?.message || "").trim().toLowerCase();
   return message.includes("user_notifications") || message.includes("outbox_events");
+}
+
+function isOutboxRetryColumnMissing(error) {
+  if (error?.code !== "42703") {
+    return false;
+  }
+  const message = String(error?.message || "").trim().toLowerCase();
+  return message.includes("retry_count")
+    || message.includes("max_retries")
+    || message.includes("next_retry_at");
 }
 
 async function selectUserIdsByRoleLabel({
@@ -254,6 +300,7 @@ export async function insertOutboxEvent({
   aggregateType = "appointment",
   aggregateId = "",
   payload = {},
+  maxRetries = 5,
   createdBy = 0,
   db = pool
 }) {
@@ -267,27 +314,244 @@ export async function insertOutboxEvent({
   const payloadJson = JSON.stringify(payload && typeof payload === "object" ? payload : {});
   const normalizedCreatedBy = normalizePositiveInteger(createdBy) || null;
   const normalizedAggregateId = String(aggregateId || "").trim() || null;
+  const normalizedMaxRetries = normalizeOutboxMaxRetries(maxRetries, 5);
 
-  const { rows } = await db.query(
-    `INSERT INTO outbox_events (
-       organization_id,
-       event_type,
-       aggregate_type,
-       aggregate_id,
-       payload,
-       created_by
-     ) VALUES ($1,$2,$3,$4,$5::jsonb,$6)
-     RETURNING id`,
-    [
-      normalizedOrganizationId,
-      normalizedEventType,
-      normalizedAggregateType,
-      normalizedAggregateId,
-      payloadJson,
-      normalizedCreatedBy
-    ]
+  try {
+    const { rows } = await db.query(
+      `INSERT INTO outbox_events (
+         organization_id,
+         event_type,
+         aggregate_type,
+         aggregate_id,
+         payload,
+         max_retries,
+         created_by
+       ) VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7)
+       RETURNING id`,
+      [
+        normalizedOrganizationId,
+        normalizedEventType,
+        normalizedAggregateType,
+        normalizedAggregateId,
+        payloadJson,
+        normalizedMaxRetries,
+        normalizedCreatedBy
+      ]
+    );
+    return normalizePositiveInteger(rows?.[0]?.id);
+  } catch (error) {
+    if (!isOutboxRetryColumnMissing(error)) {
+      throw error;
+    }
+
+    const { rows } = await db.query(
+      `INSERT INTO outbox_events (
+         organization_id,
+         event_type,
+         aggregate_type,
+         aggregate_id,
+         payload,
+         created_by
+       ) VALUES ($1,$2,$3,$4,$5::jsonb,$6)
+       RETURNING id`,
+      [
+        normalizedOrganizationId,
+        normalizedEventType,
+        normalizedAggregateType,
+        normalizedAggregateId,
+        payloadJson,
+        normalizedCreatedBy
+      ]
+    );
+    return normalizePositiveInteger(rows?.[0]?.id);
+  }
+}
+
+export async function processPendingOutboxEvents({
+  limit = 100,
+  retryDelaySeconds = 30,
+  processor = null,
+  db = pool
+}) {
+  const normalizedLimit = normalizeOutboxBatchLimit(limit, 100);
+  const normalizedRetryDelaySeconds = normalizeOutboxRetryDelaySeconds(retryDelaySeconds, 30);
+  let supportsRetryColumns = true;
+  let rows = [];
+  try {
+    const result = await db.query(
+      `SELECT id, organization_id, event_type, aggregate_type, aggregate_id, payload, retry_count, max_retries
+         FROM outbox_events
+        WHERE status = 'pending'
+          AND (next_retry_at IS NULL OR next_retry_at <= CURRENT_TIMESTAMP)
+        ORDER BY created_at ASC, id ASC
+        LIMIT $1`,
+      [normalizedLimit]
+    );
+    rows = Array.isArray(result?.rows) ? result.rows : [];
+  } catch (error) {
+    if (!isOutboxRetryColumnMissing(error)) {
+      throw error;
+    }
+
+    supportsRetryColumns = false;
+    const result = await db.query(
+      `SELECT id, organization_id, event_type, aggregate_type, aggregate_id, payload
+         FROM outbox_events
+        WHERE status = 'pending'
+        ORDER BY created_at ASC, id ASC
+        LIMIT $1`,
+      [normalizedLimit]
+    );
+    rows = Array.isArray(result?.rows) ? result.rows : [];
+  }
+
+  let processedCount = 0;
+  let requeuedCount = 0;
+  let failedCount = 0;
+
+  for (const row of rows || []) {
+    const outboxEventId = normalizePositiveInteger(row?.id);
+    if (!outboxEventId) {
+      continue;
+    }
+
+    try {
+      const eventType = String(row?.event_type || "").trim().toLowerCase();
+      const aggregateType = String(row?.aggregate_type || "").trim().toLowerCase();
+      if (!eventType || !aggregateType) {
+        throw new Error("Invalid outbox event payload.");
+      }
+      const normalizedProcessor = typeof processor === "function" ? processor : null;
+      if (normalizedProcessor) {
+        await normalizedProcessor({
+          id: outboxEventId,
+          organizationId: normalizePositiveInteger(row?.organization_id),
+          eventType,
+          aggregateType,
+          aggregateId: String(row?.aggregate_id || "").trim(),
+          payload: row?.payload && typeof row.payload === "object" ? row.payload : {}
+        });
+      }
+
+      const updateResult = supportsRetryColumns
+        ? await db.query(
+          `UPDATE outbox_events
+              SET status = 'sent',
+                  error_message = NULL,
+                  next_retry_at = NULL,
+                  processed_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+              AND status = 'pending'`,
+          [outboxEventId]
+        )
+        : await db.query(
+          `UPDATE outbox_events
+              SET status = 'sent',
+                  error_message = NULL,
+                  processed_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+              AND status = 'pending'`,
+          [outboxEventId]
+        );
+      processedCount += updateResult?.rowCount || 0;
+    } catch (error) {
+      const errorMessage = String(error?.message || "Outbox processing failed.")
+        .trim()
+        .slice(0, 2048);
+      if (!supportsRetryColumns) {
+        const updateResult = await db.query(
+          `UPDATE outbox_events
+              SET status = 'failed',
+                  error_message = $2,
+                  processed_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+              AND status = 'pending'`,
+          [outboxEventId, errorMessage || "Outbox processing failed."]
+        );
+        failedCount += updateResult?.rowCount || 0;
+        continue;
+      }
+
+      const currentRetryCount = Math.max(
+        0,
+        Number.parseInt(String(row?.retry_count ?? 0).trim(), 10) || 0
+      );
+      const maxRetries = normalizeOutboxMaxRetries(row?.max_retries, 5);
+      const nextRetryCount = currentRetryCount + 1;
+
+      if (nextRetryCount > maxRetries) {
+        const updateResult = await db.query(
+          `UPDATE outbox_events
+              SET status = 'failed',
+                  retry_count = $2,
+                  error_message = $3,
+                  next_retry_at = NULL,
+                  processed_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+              AND status = 'pending'`,
+          [outboxEventId, nextRetryCount, errorMessage || "Outbox processing failed."]
+        );
+        failedCount += updateResult?.rowCount || 0;
+      } else {
+        const updateResult = await db.query(
+          `UPDATE outbox_events
+              SET status = 'pending',
+                  retry_count = $2,
+                  error_message = $3,
+                  next_retry_at = CURRENT_TIMESTAMP + ($4::integer * INTERVAL '1 second'),
+                  processed_at = NULL
+            WHERE id = $1
+              AND status = 'pending'`,
+          [
+            outboxEventId,
+            nextRetryCount,
+            errorMessage || "Outbox processing failed.",
+            normalizedRetryDelaySeconds
+          ]
+        );
+        requeuedCount += updateResult?.rowCount || 0;
+      }
+    }
+  }
+
+  return {
+    fetchedCount: Array.isArray(rows) ? rows.length : 0,
+    processedCount,
+    requeuedCount,
+    failedCount
+  };
+}
+
+export async function pruneProcessedOutboxEvents({
+  retentionDays = 30,
+  limit = 500,
+  db = pool
+}) {
+  const normalizedRetentionDays = normalizeOutboxRetentionDays(retentionDays, 30);
+  if (normalizedRetentionDays <= 0) {
+    return { deletedCount: 0 };
+  }
+
+  const normalizedLimit = normalizeOutboxBatchLimit(limit, 500);
+  const { rowCount } = await db.query(
+    `WITH deletable AS (
+       SELECT id
+         FROM outbox_events
+        WHERE status IN ('sent', 'failed')
+          AND processed_at IS NOT NULL
+          AND processed_at < (CURRENT_TIMESTAMP - ($1::integer * INTERVAL '1 day'))
+        ORDER BY processed_at ASC, id ASC
+        LIMIT $2
+     )
+     DELETE FROM outbox_events o
+     USING deletable d
+     WHERE o.id = d.id`,
+    [normalizedRetentionDays, normalizedLimit]
   );
-  return normalizePositiveInteger(rows?.[0]?.id);
+
+  return {
+    deletedCount: rowCount || 0
+  };
 }
 
 export async function persistNotificationEvent({

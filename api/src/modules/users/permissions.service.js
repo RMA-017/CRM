@@ -1,6 +1,8 @@
 import pool from "../../config/db.js";
 import { PERMISSIONS } from "./users.constants.js";
 
+const DEFAULT_PERMISSIONS_SYNC_LOCK_KEY = 41003001;
+
 const BASE_PERMISSION_DEFINITIONS = [
   { code: PERMISSIONS.PROFILE_READ, label: "Read Profile", sortOrder: 10 },
   { code: PERMISSIONS.PROFILE_UPDATE, label: "Update Profile", sortOrder: 20 },
@@ -51,11 +53,58 @@ const LEGACY_PERMISSION_CODE_PATTERNS = Object.freeze([
   "notifications.schedule.%"
 ]);
 
-export async function ensureSystemPermissions() {
+function toBoundedInteger(value, fallback, min, max) {
+  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
+  if (!Number.isInteger(parsed)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, parsed));
+}
+
+function toBoolean(value, fallback) {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+  const normalized = String(value).trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
+}
+
+export async function ensureSystemPermissions(options = {}) {
+  const useAdvisoryLock = toBoolean(options?.useAdvisoryLock, true);
+  const advisoryLockKey = toBoundedInteger(
+    options?.advisoryLockKey,
+    DEFAULT_PERMISSIONS_SYNC_LOCK_KEY,
+    1,
+    2147483647
+  );
+  const skipIfLockUnavailable = toBoolean(options?.skipIfLockUnavailable, true);
+  const logger = options?.logger && typeof options.logger === "object" ? options.logger : null;
   const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
+
+    if (useAdvisoryLock) {
+      const { rows } = await client.query(
+        "SELECT pg_try_advisory_xact_lock($1::bigint) AS acquired",
+        [advisoryLockKey]
+      );
+      const acquired = Boolean(rows?.[0]?.acquired);
+      if (!acquired) {
+        if (skipIfLockUnavailable) {
+          await client.query("ROLLBACK");
+          logger?.info?.(
+            { advisoryLockKey },
+            "Skipped permissions sync because advisory lock is held by another instance"
+          );
+          return {
+            skipped: true,
+            reason: "lock-unavailable"
+          };
+        }
+        throw new Error("Permissions sync lock is held by another instance.");
+      }
+    }
 
     const valuesSql = [];
     const params = [];
@@ -125,6 +174,9 @@ export async function ensureSystemPermissions() {
     );
 
     await client.query("COMMIT");
+    return {
+      skipped: false
+    };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     throw error;

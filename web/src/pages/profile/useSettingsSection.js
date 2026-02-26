@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { apiFetch } from "../../lib/api.js";
+import { apiFetch, readApiResponseData } from "../../lib/api.js";
 import {
   createEmptySettingsDeleteState,
   EMPTY_ORGANIZATION_FORM,
@@ -94,7 +94,7 @@ export function useSettingsSection({
         method: "GET",
         cache: "no-store"
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
@@ -130,7 +130,7 @@ export function useSettingsSection({
         method: "GET",
         cache: "no-store"
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
@@ -180,7 +180,7 @@ export function useSettingsSection({
         method: "GET",
         cache: "no-store"
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
@@ -228,7 +228,7 @@ export function useSettingsSection({
         method: "GET",
         cache: "no-store"
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
@@ -318,7 +318,7 @@ export function useSettingsSection({
           appointmentHistoryLockDays
         })
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
@@ -379,7 +379,7 @@ export function useSettingsSection({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
@@ -450,7 +450,7 @@ export function useSettingsSection({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
@@ -524,7 +524,7 @@ export function useSettingsSection({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
@@ -598,7 +598,7 @@ export function useSettingsSection({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
@@ -659,7 +659,7 @@ export function useSettingsSection({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
@@ -731,7 +731,7 @@ export function useSettingsSection({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
@@ -799,7 +799,7 @@ export function useSettingsSection({
       }
 
       const response = await apiFetch(endpoint, { method: "DELETE" });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiResponseData(response);
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
@@ -938,3 +938,4 @@ export function useSettingsSection({
     handleSettingsDeleteConfirm
   };
 }
+
