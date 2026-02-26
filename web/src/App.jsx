@@ -42,6 +42,7 @@ function App() {
       <Route path="/settings/organizations" element={<ProfilePage forcedView="settings-organizations" />} />
       <Route path="/settings/roles" element={<ProfilePage forcedView="settings-roles" />} />
       <Route path="/settings/positions" element={<ProfilePage forcedView="settings-positions" />} />
+      <Route path="/settings/admin-options" element={<ProfilePage forcedView="settings-admin-options" />} />
       <Route path="/settings/notifications" element={<ProfilePage forcedView="settings-notifications" />} />
       <Route path="/profile/my-profile" element={<Navigate to="/profile" replace />} />
       <Route path="/profile/users" element={<Navigate to="/profile" replace />} />
@@ -57,6 +58,7 @@ function App() {
       <Route path="/profile/settings/organizations" element={<Navigate to="/settings/organizations" replace />} />
       <Route path="/profile/settings/roles" element={<Navigate to="/settings/roles" replace />} />
       <Route path="/profile/settings/positions" element={<Navigate to="/settings/positions" replace />} />
+      <Route path="/profile/settings/admin-options" element={<Navigate to="/settings/admin-options" replace />} />
       <Route path="/profile/settings/notifications" element={<Navigate to="/settings/notifications" replace />} />
       <Route path="/home" element={<Navigate to="/" replace />} />
       <Route path="*" element={<NotFoundPage />} />

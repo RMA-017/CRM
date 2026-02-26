@@ -55,6 +55,7 @@ export function normalizeProfile(profile) {
     : [];
 
   return {
+    id: String(profile.id || profile.userId || profile.user_id || ""),
     username: profile.username || "",
     organizationId: profile.organizationId || profile.organization_id || "",
     organizationCode: profile.organizationCode || profile.organization_code || "",

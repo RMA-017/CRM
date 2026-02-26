@@ -670,18 +670,24 @@ function AppointmentSettingsPanel({
                     onChange={(nextValue) => handleBreakFieldChange(index, "breakType", String(nextValue || "lunch"))}
                   />
 
-                  <input
-                    type="time"
-                    value={item.startTime}
-                    disabled={loading || breaksLoading || breaksSaving || !canUpdateAppointments}
-                    onChange={(event) => handleBreakFieldChange(index, "startTime", event.currentTarget.value)}
-                  />
-                  <input
-                    type="time"
-                    value={item.endTime}
-                    disabled={loading || breaksLoading || breaksSaving || !canUpdateAppointments}
-                    onChange={(event) => handleBreakFieldChange(index, "endTime", event.currentTarget.value)}
-                  />
+                  <div className="appointment-break-time-field">
+                    <span className="appointment-break-time-label">From</span>
+                    <input
+                      type="time"
+                      value={item.startTime}
+                      disabled={loading || breaksLoading || breaksSaving || !canUpdateAppointments}
+                      onChange={(event) => handleBreakFieldChange(index, "startTime", event.currentTarget.value)}
+                    />
+                  </div>
+                  <div className="appointment-break-time-field">
+                    <span className="appointment-break-time-label">To</span>
+                    <input
+                      type="time"
+                      value={item.endTime}
+                      disabled={loading || breaksLoading || breaksSaving || !canUpdateAppointments}
+                      onChange={(event) => handleBreakFieldChange(index, "endTime", event.currentTarget.value)}
+                    />
+                  </div>
 
                   <button
                     type="button"

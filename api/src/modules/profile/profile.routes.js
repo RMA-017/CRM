@@ -40,6 +40,7 @@ function validateOwnProfileUpdate(field, value, currentPassword) {
 
 function mapProfile(user, permissions) {
   return {
+    id: user.id,
     roleId: user.role_id,
     positionId: user.position_id,
     username: user.username,

@@ -19,6 +19,7 @@
 }
 
 @media (max-width: 860px) {
+  /* Layout shell */
   body {
     padding: 12px;
   }
@@ -70,12 +71,6 @@
     max-width: clamp(78px, 24vw, 140px);
   }
 
-  .header-user-menu {
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-  }
-
   .header-btn {
     padding: 0 10px;
     white-space: nowrap;
@@ -85,16 +80,44 @@
     padding: 12px;
   }
 
+  .side-menu {
+    width: min(208px, 74vw);
+  }
+
   .home-footer {
     flex-wrap: wrap;
     gap: 12px;
   }
 
+  /* Modals */
   .logout-confirm-modal,
   .home-login-panel,
   .all-users-edit-modal {
     width: calc(100vw - 30px);
     max-height: calc(100dvh - 24px);
+  }
+
+  .logout-confirm-modal.all-users-edit-modal {
+    height: 70dvh;
+    max-height: 70dvh;
+    overflow: hidden;
+  }
+
+  .logout-confirm-modal,
+  .all-users-edit-modal {
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .appointment-create-modal {
+    width: calc(100vw - 30px);
+    max-height: calc(100dvh - 72px);
+    padding: 20px 20px 8px 20px;
+    overflow-y: hidden;
+    overflow-x: hidden;
+    --appointment-repeat-chip-height: 32px;
+    --appointment-repeat-chip-padding-x: 4px;
+    --appointment-repeat-chip-font-size: 11px;
   }
 
   #roleEditModal {
@@ -116,40 +139,244 @@
     padding: 14px;
   }
 
-  .settings-create-form {
+  .my-profile-panel.my-profile-modal {
+    padding: 20px;
+  }
+
+  /* Data tables */
+  :is(#clientsPanel, #appointmentVipClientsPanel) .all-users-table-wrap {
     overflow-x: auto;
+    overflow-y: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
-  .appointment-specialist-list {
-    grid-template-columns: 1fr;
+  :is(#clientsPanel, #appointmentVipClientsPanel) .all-users-table {
+    width: max-content;
+    min-width: 1280px;
+    table-layout: auto;
   }
 
+  :is(#clientsPanel, #appointmentVipClientsPanel) .all-users-table th,
+  :is(#clientsPanel, #appointmentVipClientsPanel) .all-users-table td {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
+  }
+
+  /* Appointment scheduler */
   .appointment-week-switcher {
-    flex-wrap: wrap;
-    justify-content: center;
+    flex-wrap: nowrap;
+    justify-content: space-between;
   }
 
   .appointment-week-switcher .header-btn {
-    width: 96px;
-    min-width: 96px;
+    width: 80px;
+    min-width: 80px;
   }
 
   .appointment-week-range {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .appointment-create-modal .appointment-modal-section {
+    gap: 8px;
+  }
+
+  .appointment-create-modal .auth-form {
+    overflow: hidden;
+  }
+
+  .appointment-create-modal .appointment-create-fields {
+    padding-right: 8px;
+  }
+
+  .appointment-create-modal .appointment-client-search-row,
+  .appointment-create-modal .appointment-client-select-row,
+  .appointment-create-modal .appointment-create-date-time-row,
+  .appointment-create-modal .appointment-create-date-time-row-vip,
+  .appointment-create-modal .appointment-repeat-head-row,
+  .appointment-create-modal .appointment-status-note-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .appointment-create-modal .appointment-client-select-row {
+    align-items: stretch;
+  }
+
+  .appointment-create-modal .appointment-repeat-days {
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    gap: 0;
+    overflow-x: hidden;
+  }
+
+  .appointment-create-modal .appointment-repeat-day-chip {
+    width: auto;
+    min-width: 0;
+    flex: 1 1 0;
+    height: var(--appointment-repeat-chip-height);
+    min-height: var(--appointment-repeat-chip-height);
+    padding: 0 var(--appointment-repeat-chip-padding-x);
+    gap: 0;
+    font-size: 0;
+  }
+
+  .appointment-create-modal .appointment-repeat-day-chip input[type="checkbox"] {
+    width: 10px;
+    min-width: 10px;
+    height: 10px;
+    min-height: 10px;
+  }
+
+  .appointment-create-modal .appointment-repeat-day-chip span {
+    font-size: var(--appointment-repeat-chip-font-size);
+  }
+
+  .appointment-create-modal .appointment-create-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 5px 0 5px 0;
+  }
+
+  /* Appointment settings / breaks */
+  .appointment-setting-row {
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: 6px;
+    padding: 10px;
+    border-radius: 12px;
+    --appointment-reminder-gap: 4px;
+    --appointment-reminder-label-padding-x: 4px;
+    --appointment-reminder-label-gap: 3px;
+    --appointment-reminder-label-font-size: 11px;
+    --appointment-reminder-day-height: 34px;
+    --appointment-reminder-checkbox-size: 10px;
+    --appointment-reminder-day-checkbox-size: 8px;
+  }
+
+  .appointment-setting-row > label {
+    margin-left: 2px;
+    font-size: var(--fs-small);
+    line-height: 1.25;
+  }
+
+  .appointment-setting-row .appointment-reminder-channels {
+    width: 100%;
+    min-width: 0;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    gap: var(--appointment-reminder-gap);
+  }
+
+  .appointment-setting-row .appointment-reminder-channels label {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+    padding: 0 var(--appointment-reminder-label-padding-x);
+    gap: var(--appointment-reminder-label-gap);
+    font-size: var(--appointment-reminder-label-font-size);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .appointment-setting-row .appointment-reminder-channels label[for^="appointmentDay_"] {
+    width: auto;
+    min-width: 0;
+    height: var(--appointment-reminder-day-height);
+    min-height: var(--appointment-reminder-day-height);
+  }
+
+  .appointment-setting-row .appointment-reminder-channels input[type="checkbox"] {
+    width: var(--appointment-reminder-checkbox-size);
+    height: var(--appointment-reminder-checkbox-size);
+  }
+
+  .appointment-setting-row .appointment-reminder-channels label[for^="appointmentDay_"] input[type="checkbox"] {
+    width: var(--appointment-reminder-day-checkbox-size);
+    height: var(--appointment-reminder-day-checkbox-size);
+  }
+
+  .appointment-setting-row-breaks {
+    gap: 8px;
+  }
+
+  .appointment-setting-row-breaks .appointment-breaks-toolbar {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .appointment-setting-row-breaks .appointment-breaks-add-btn {
+    width: 100%;
+    min-width: var(--btn-compact-width);
+    justify-self: stretch;
+  }
+
+  .appointment-setting-row-breaks .appointment-specialist-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    align-items: stretch;
+  }
+
+  .appointment-setting-row-breaks .appointment-specialist-select-wrap,
+  .appointment-setting-row-breaks .appointment-specialist-select-wrap .custom-select {
     width: 100%;
     max-width: 100%;
   }
 
-  .appointment-setting-row {
-    grid-template-columns: 1fr;
-    align-items: start;
+  .appointment-setting-row-breaks .appointment-specialist-select-wrap .custom-select-trigger {
+    width: 100%;
+  }
+
+  .appointment-setting-row-breaks .appointment-toolbar-label {
+    margin: 0 0 0 2px;
+  }
+
+  .appointment-setting-row-breaks .appointment-break-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    align-items: stretch;
+  }
+
+  .appointment-setting-row-breaks .appointment-break-row > * {
+    min-width: 0;
+  }
+
+  .appointment-setting-row-breaks .appointment-break-row .appointment-break-time-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    min-width: 0;
+    overflow: hidden;
+    align-self: stretch;
+  }
+
+  .appointment-setting-row-breaks .appointment-break-row input[type="time"] {
+    width: 100%;
+    min-width: 0;
+    min-inline-size: 0;
+    flex: 1;
+  }
+
+  .appointment-break-time-label {
+    display: block;
+  }
+
+  .appointment-setting-row-breaks .appointment-break-row > .appointment-breaks-delete-btn {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 
   .appointment-specialist-row {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .appointment-specialist-schedule-card header {
     flex-direction: column;
     align-items: flex-start;
   }
@@ -159,9 +386,26 @@
     gap: 8px;
   }
 
+  /* Panels */
+  .create-user-panel {
+    padding: 18px;
+  }
+
+}
+
+@media (max-width: 700px) {
+  #headerUserNameText {
+    display: none;
+  }
+
+  .user-name-btn {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
 }
 
 @media (max-width: 560px) {
+  /* Layout shell */
   body {
     padding: 10px;
   }
@@ -208,17 +452,13 @@
     max-width: clamp(74px, 28vw, 130px);
   }
 
-  .header-user-menu {
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-    min-width: 148px;
-    max-width: calc(100vw - 20px);
-  }
-
   .home-main {
     padding: 10px;
     border-radius: 14px;
+  }
+
+  .side-menu {
+    width: min(188px, 72vw);
   }
 
   .home-footer {
@@ -231,12 +471,31 @@
     justify-content: center;
   }
 
+  /* Modals */
   .logout-confirm-modal,
   .home-login-panel,
   .all-users-edit-modal {
     width: calc(100vw - 24px);
     max-height: calc(100dvh - 20px);
-    overflow: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .logout-confirm-modal.all-users-edit-modal {
+    height: 70dvh;
+    max-height: 70dvh;
+    overflow: hidden;
+  }
+
+  .appointment-create-modal {
+    width: calc(100vw - 24px);
+    max-height: calc(100dvh - 84px);
+    padding: 20px 20px 6px 20px;
+    overflow-y: hidden;
+    overflow-x: hidden;
+    --appointment-repeat-chip-height: 30px;
+    --appointment-repeat-chip-padding-x: 3px;
+    --appointment-repeat-chip-font-size: 10px;
   }
 
   #roleEditModal {
@@ -254,9 +513,10 @@
     padding: 12px;
   }
 
+  /* Settings + tables */
   .settings-add-btn {
-    width: 84px;
-    justify-self: start;
+    width: 100%;
+    justify-self: stretch;
   }
 
   .settings-permissions-grid {
@@ -307,5 +567,63 @@
     justify-self: end;
   }
 
-}
+  /* Create panels */
+  .create-user-panel {
+    padding: 14px;
+  }
 
+  .settings-form-grid,
+  .settings-form-grid-org,
+  .settings-form-grid-notify,
+  .settings-form-grid-org-with-active {
+    grid-template-columns: 1fr;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .settings-spacer-label {
+    display: none;
+  }
+
+  .settings-action-field > label {
+    display: none;
+  }
+
+  .settings-form-grid .settings-inline-control .settings-checkbox .settings-checkbox-text,
+  .settings-form-grid-org .settings-inline-control .settings-checkbox .settings-checkbox-text {
+    display: inline;
+    margin-left: 6px;
+  }
+
+  /* Appointment settings / breaks */
+  .appointment-breaks-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .appointment-breaks-add-btn {
+    width: 100%;
+    min-width: var(--btn-compact-width);
+    justify-self: stretch;
+  }
+
+  /* Delete button spans both columns in 2-col break row */
+  .appointment-break-row > .appointment-breaks-delete-btn {
+    grid-column: 1 / -1;
+  }
+
+  .appointment-setting-row,
+  .appointment-setting-row-breaks {
+    padding: 8px;
+  }
+
+  .appointment-setting-row {
+    --appointment-reminder-gap: 2px;
+    --appointment-reminder-label-padding-x: 3px;
+    --appointment-reminder-label-gap: 2px;
+    --appointment-reminder-label-font-size: 10px;
+    --appointment-reminder-day-height: 32px;
+    --appointment-reminder-checkbox-size: 9px;
+    --appointment-reminder-day-checkbox-size: 7px;
+  }
+
+}

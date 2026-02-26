@@ -124,6 +124,7 @@ CREATE TABLE appointment_settings (
   appointment_duration_options_minutes SMALLINT[] NOT NULL DEFAULT ARRAY[30],
   no_show_threshold INTEGER NOT NULL DEFAULT 1 CHECK (no_show_threshold >= 1),
   reminder_hours INTEGER NOT NULL DEFAULT 24 CHECK (reminder_hours >= 1),
+  history_lock_days INTEGER NOT NULL DEFAULT 10 CHECK (history_lock_days >= 0 AND history_lock_days <= 3650),
   reminder_channels TEXT[] NOT NULL DEFAULT ARRAY['sms','email','telegram'],
   visible_week_days SMALLINT[] NOT NULL DEFAULT ARRAY[1,2,3,4,5,6],
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -319,21 +320,21 @@ CREATE INDEX idx_outbox_events_pending_created
 CREATE INDEX idx_outbox_events_org_created
   ON outbox_events (organization_id, created_at DESC);
 
-CREATE TABLE appointment_status_history (
-  id BIGSERIAL PRIMARY KEY,
-  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  appointment_schedule_id INTEGER NOT NULL REFERENCES appointment_schedules(id) ON DELETE CASCADE,
-  previous_status VARCHAR(24),
-  next_status VARCHAR(24) NOT NULL,
-  reason VARCHAR(255),
-  changed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CHECK (previous_status IS NULL OR previous_status IN ('pending', 'confirmed', 'cancelled', 'no-show')),
-  CHECK (next_status IN ('pending', 'confirmed', 'cancelled', 'no-show'))
-);
+-- CREATE TABLE appointment_status_history (
+--   id BIGSERIAL PRIMARY KEY,
+--   organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+--   appointment_schedule_id INTEGER NOT NULL REFERENCES appointment_schedules(id) ON DELETE CASCADE,
+--   previous_status VARCHAR(24),
+--   next_status VARCHAR(24) NOT NULL,
+--   reason VARCHAR(255),
+--   changed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+--   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--   CHECK (previous_status IS NULL OR previous_status IN ('pending', 'confirmed', 'cancelled', 'no-show')),
+--   CHECK (next_status IN ('pending', 'confirmed', 'cancelled', 'no-show'))
+-- );
 
-CREATE INDEX idx_appointment_status_history_schedule_created
-  ON appointment_status_history (appointment_schedule_id, created_at DESC);
+-- CREATE INDEX idx_appointment_status_history_schedule_created
+--   ON appointment_status_history (appointment_schedule_id, created_at DESC);
 
-CREATE INDEX idx_appointment_status_history_org_created
-  ON appointment_status_history (organization_id, created_at DESC);
+-- CREATE INDEX idx_appointment_status_history_org_created
+--   ON appointment_status_history (organization_id, created_at DESC);

@@ -9,10 +9,7 @@ function normalizeRoleLabel(value) {
   return String(value || "").trim().toLowerCase();
 }
 
-function isManagerRole({ roleLabel, isAdmin }) {
-  if (Boolean(isAdmin)) {
-    return true;
-  }
+function isManagerRole({ roleLabel }) {
   const normalizedRole = normalizeRoleLabel(roleLabel);
   return (
     normalizedRole.includes("manager")
@@ -83,7 +80,7 @@ export function subscribeAppointmentEvents({
   const subscriber = {
     userId: normalizedUserId,
     roleLabel: normalizeRoleLabel(roleLabel),
-    isManager: isManagerRole({ roleLabel, isAdmin: Boolean(isAdmin) }),
+    isManager: isManagerRole({ roleLabel }),
     listener
   };
 

@@ -5,12 +5,14 @@ import { getProfileByAuthContext } from "../profile/profile.service.js";
 import { hasPermission } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
 import {
+  DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS,
   createAppointmentSchedule,
   deleteAppointmentSchedulesByIds,
   getAppointmentBreaksBySpecialist,
   getAppointmentBreaksBySpecialistAndDays,
   getAppointmentClientNoShowSummary,
   getAppointmentDayKeys,
+  getAppointmentHistoryLockDaysByOrganization,
   getAppointmentScheduleTargetsByScope,
   getAppointmentSchedulesByRange,
   getAppointmentSettingsByOrganization,
@@ -25,6 +27,7 @@ import {
 } from "./appointment-settings.service.js";
 import { publishAppointmentEvent, subscribeAppointmentEvents } from "./appointment-events.js";
 import { isNotificationsSchemaMissing, persistNotificationEvent } from "../notifications/notifications.service.js";
+import { isAllowedCorsOrigin } from "../../plugins/security.js";
 
 const DAY_KEYS = getAppointmentDayKeys();
 const TIME_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -32,7 +35,6 @@ const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const APPOINTMENT_STATUS_SET = new Set(["pending", "confirmed", "cancelled", "no-show"]);
 const MAX_RECURRING_RANGE_DAYS = 366;
 const SCHEDULE_SCOPE_SET = new Set(["single", "future", "all"]);
-const APPOINTMENT_HISTORY_LOCK_DAYS = 10;
 const REMINDER_CHANNEL_SET = new Set(["sms", "email", "telegram"]);
 const BREAK_TYPE_SET = new Set(["lunch", "meeting", "training", "other"]);
 const DAY_NUM_TO_KEY = Object.freeze({
@@ -195,15 +197,19 @@ function normalizeScheduleScope(value) {
   return normalized;
 }
 
-function getHistoryLockCutoffDateYmd() {
+function getHistoryLockCutoffDateYmd(historyLockDays = DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS) {
+  const parsedHistoryLockDays = Number.parseInt(String(historyLockDays ?? ""), 10);
+  const normalizedHistoryLockDays = Number.isInteger(parsedHistoryLockDays) && parsedHistoryLockDays >= 0
+    ? parsedHistoryLockDays
+    : DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS;
   const now = new Date();
   const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  todayUtc.setUTCDate(todayUtc.getUTCDate() - APPOINTMENT_HISTORY_LOCK_DAYS);
+  todayUtc.setUTCDate(todayUtc.getUTCDate() - normalizedHistoryLockDays);
   return formatUtcDateYmd(todayUtc);
 }
 
-function findLockedHistoryDate(value) {
-  const cutoffDate = getHistoryLockCutoffDateYmd();
+function findLockedHistoryDate(value, historyLockDays) {
+  const cutoffDate = getHistoryLockCutoffDateYmd(historyLockDays);
   const dates = Array.isArray(value) ? value : [value];
   for (const dateValue of dates) {
     const normalized = String(dateValue || "").trim();
@@ -220,11 +226,11 @@ function findLockedHistoryDate(value) {
   return null;
 }
 
-function getHistoryLockErrorForRequester(requester, appointmentDates) {
+function getHistoryLockErrorForRequester(requester, appointmentDates, historyLockDays) {
   if (Boolean(requester?.is_admin)) {
     return null;
   }
-  const locked = findLockedHistoryDate(appointmentDates);
+  const locked = findLockedHistoryDate(appointmentDates, historyLockDays);
   if (!locked) {
     return null;
   }
@@ -256,6 +262,16 @@ function isManagerRole(requester) {
     || role.includes("meneger")
     || role.includes("menejer")
     || role.includes("менедж")
+  );
+}
+
+function isSpecialistRole(requester) {
+  const role = normalizeRoleLabel(requester?.role);
+  return (
+    role.includes("specialist")
+    || role.includes("spetsialist")
+    || role.includes("mutaxassis")
+    || role.includes("специалист")
   );
 }
 
@@ -411,27 +427,58 @@ function buildScheduleNotification(action, items, actor) {
   };
 }
 
-function resolveNotificationAudience(access, specialistIds) {
+async function resolveNotificationAudience(access, specialistIds) {
   const actorUserId = parsePositiveInteger(access?.authContext?.userId);
+  const actorRoleId = parsePositiveInteger(access?.requester?.role_id || access?.requester?.roleId);
   const normalizedSpecialistIds = normalizeSpecialistIds(specialistIds);
-  if (!actorUserId || normalizedSpecialistIds.length === 0) {
+  if (!actorUserId || !actorRoleId || normalizedSpecialistIds.length === 0) {
     return {
       targetUserIds: [],
       targetRoles: []
-    };
-  }
-
-  if (normalizedSpecialistIds.includes(actorUserId)) {
-    return {
-      targetUserIds: [],
-      targetRoles: ["manager"]
     };
   }
 
   if (isManagerRole(access?.requester)) {
+    const canNotifySpecialists = await hasPermission(
+      actorRoleId,
+      PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_SPECIALIST
+    );
+    if (!canNotifySpecialists) {
+      return {
+        targetUserIds: [],
+        targetRoles: []
+      };
+    }
+
+    const targetSpecialistIds = normalizedSpecialistIds.filter((id) => id !== actorUserId);
+    if (targetSpecialistIds.length === 0) {
+      return {
+        targetUserIds: [],
+        targetRoles: []
+      };
+    }
+
     return {
-      targetUserIds: normalizedSpecialistIds,
+      targetUserIds: targetSpecialistIds,
       targetRoles: []
+    };
+  }
+
+  if (isSpecialistRole(access?.requester) || normalizedSpecialistIds.includes(actorUserId)) {
+    const canNotifyManagers = await hasPermission(
+      actorRoleId,
+      PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_MANAGER
+    );
+    if (!canNotifyManagers) {
+      return {
+        targetUserIds: [],
+        targetRoles: []
+      };
+    }
+
+    return {
+      targetUserIds: [],
+      targetRoles: ["manager"]
     };
   }
 
@@ -453,7 +500,7 @@ async function broadcastAppointmentChange(access, {
     specialistIds: normalizedSpecialistIds,
     ...normalizedData
   };
-  const audience = resolveNotificationAudience(access, specialistIds);
+  const audience = await resolveNotificationAudience(access, specialistIds);
   if (audience.targetUserIds.length === 0 && audience.targetRoles.length === 0) {
     return;
   }
@@ -1168,7 +1215,17 @@ async function appointmentSettingsRoutes(fastify) {
         return;
       }
 
+      const requestOrigin = String(request.headers?.origin || "").trim();
+      if (requestOrigin && !isAllowedCorsOrigin(requestOrigin)) {
+        return reply.status(403).send({ message: "Forbidden origin." });
+      }
+
       reply.hijack();
+      if (requestOrigin) {
+        reply.raw.setHeader("Access-Control-Allow-Origin", requestOrigin);
+        reply.raw.setHeader("Access-Control-Allow-Credentials", "true");
+        reply.raw.setHeader("Vary", "Origin");
+      }
       reply.raw.setHeader("Content-Type", "text/event-stream; charset=utf-8");
       reply.raw.setHeader("Cache-Control", "no-cache, no-transform");
       reply.raw.setHeader("Connection", "keep-alive");
@@ -1313,6 +1370,9 @@ async function appointmentSettingsRoutes(fastify) {
         if (repeatError) {
           return reply.status(400).send(repeatError);
         }
+        const historyLockDays = await getAppointmentHistoryLockDaysByOrganization(
+          access.authContext.organizationId
+        );
 
         if (repeat.enabled) {
           const settingsForRepeat = await getAppointmentSettingsByOrganization(
@@ -1345,7 +1405,7 @@ async function appointmentSettingsRoutes(fastify) {
               message: "No matching week days in selected range."
             });
           }
-          const historyLockError = getHistoryLockErrorForRequester(access.requester, recurringDates);
+          const historyLockError = getHistoryLockErrorForRequester(access.requester, recurringDates, historyLockDays);
           if (historyLockError) {
             return reply.status(403).send(historyLockError);
           }
@@ -1500,7 +1560,7 @@ async function appointmentSettingsRoutes(fastify) {
             }
           });
         }
-        const historyLockError = getHistoryLockErrorForRequester(access.requester, [appointmentDate]);
+        const historyLockError = getHistoryLockErrorForRequester(access.requester, [appointmentDate], historyLockDays);
         if (historyLockError) {
           return reply.status(403).send(historyLockError);
         }
@@ -1651,15 +1711,23 @@ async function appointmentSettingsRoutes(fastify) {
         if (!Array.isArray(target.items) || target.items.length === 0) {
           return reply.status(404).send({ message: "Appointment not found." });
         }
+        const historyLockDays = await getAppointmentHistoryLockDaysByOrganization(
+          access.authContext.organizationId
+        );
         const targetHistoryLockError = getHistoryLockErrorForRequester(
           access.requester,
-          target.items.map((item) => item.appointmentDate)
+          target.items.map((item) => item.appointmentDate),
+          historyLockDays
         );
         if (targetHistoryLockError) {
           return reply.status(403).send(targetHistoryLockError);
         }
         if (target.scope === "single") {
-          const requestDateHistoryLockError = getHistoryLockErrorForRequester(access.requester, [appointmentDate]);
+          const requestDateHistoryLockError = getHistoryLockErrorForRequester(
+            access.requester,
+            [appointmentDate],
+            historyLockDays
+          );
           if (requestDateHistoryLockError) {
             return reply.status(403).send(requestDateHistoryLockError);
           }
@@ -1709,7 +1777,11 @@ async function appointmentSettingsRoutes(fastify) {
           if (!recurringDates.includes(appointmentDate)) {
             recurringDates.unshift(appointmentDate);
           }
-          const repeatHistoryLockError = getHistoryLockErrorForRequester(access.requester, recurringDates);
+          const repeatHistoryLockError = getHistoryLockErrorForRequester(
+            access.requester,
+            recurringDates,
+            historyLockDays
+          );
           if (repeatHistoryLockError) {
             return reply.status(403).send(repeatHistoryLockError);
           }
@@ -2079,9 +2151,13 @@ async function appointmentSettingsRoutes(fastify) {
         if (!Array.isArray(target.items) || target.items.length === 0) {
           return reply.status(404).send({ message: "Appointment not found." });
         }
+        const historyLockDays = await getAppointmentHistoryLockDaysByOrganization(
+          access.authContext.organizationId
+        );
         const historyLockError = getHistoryLockErrorForRequester(
           access.requester,
-          target.items.map((item) => item.appointmentDate)
+          target.items.map((item) => item.appointmentDate),
+          historyLockDays
         );
         if (historyLockError) {
           return reply.status(403).send(historyLockError);

@@ -2,8 +2,7 @@ import pool from "../../config/db.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 
 const MAX_NOTIFICATIONS_LIMIT = 200;
-const MANAGER_TARGET_ROLE = "manager";
-const MANAGER_ROLE_PATTERNS = ["%manager%", "%menedj%", "%meneger%", "%menejer%", "%менедж%"];
+const ALL_TARGET_ROLE = "all";
 
 function normalizePositiveInteger(value) {
   const parsed = parsePositiveInteger(value);
@@ -31,7 +30,7 @@ function normalizeTargetRoles(value) {
     new Set(
       source
         .map((item) => normalizeRoleLabel(item))
-        .filter((item) => item === MANAGER_TARGET_ROLE)
+        .filter((item) => item.length > 0)
     )
   );
 }
@@ -67,12 +66,14 @@ export function isNotificationsSchemaMissing(error) {
   return message.includes("user_notifications") || message.includes("outbox_events");
 }
 
-async function selectManagerUserIdsByOrganization({
+async function selectUserIdsByRoleLabel({
   organizationId,
+  roleLabel,
   db = pool
 }) {
   const normalizedOrganizationId = normalizePositiveInteger(organizationId);
-  if (!normalizedOrganizationId) {
+  const normalizedLabel = String(roleLabel || "").trim().toLowerCase();
+  if (!normalizedOrganizationId || !normalizedLabel) {
     return [];
   }
 
@@ -82,11 +83,28 @@ async function selectManagerUserIdsByOrganization({
        JOIN role_options r ON r.id = u.role_id
       WHERE u.organization_id = $1
         AND r.is_active = TRUE
-        AND (
-          r.is_admin = TRUE
-          OR LOWER(TRIM(r.label)) LIKE ANY($2::text[])
-        )`,
-    [normalizedOrganizationId, MANAGER_ROLE_PATTERNS]
+        AND LOWER(TRIM(r.label)) = $2`,
+    [normalizedOrganizationId, normalizedLabel]
+  );
+  return (rows || [])
+    .map((row) => normalizePositiveInteger(row?.id))
+    .filter((id) => id > 0);
+}
+
+async function selectAllUserIdsByOrganization({
+  organizationId,
+  db = pool
+}) {
+  const normalizedOrganizationId = normalizePositiveInteger(organizationId);
+  if (!normalizedOrganizationId) {
+    return [];
+  }
+
+  const { rows } = await db.query(
+    `SELECT id
+       FROM users
+      WHERE organization_id = $1`,
+    [normalizedOrganizationId]
   );
   return (rows || [])
     .map((row) => normalizePositiveInteger(row?.id))
@@ -130,17 +148,30 @@ export async function resolveNotificationRecipientIds({
 
   const normalizedTargetUserIds = normalizeTargetUserIds(targetUserIds);
   const normalizedTargetRoles = normalizeTargetRoles(targetRoles);
-  const shouldIncludeManagers = normalizedTargetRoles.includes(MANAGER_TARGET_ROLE);
+  const shouldIncludeAllUsers = normalizedTargetRoles.includes(ALL_TARGET_ROLE);
+  const customRoles = normalizedTargetRoles.filter((r) => r !== ALL_TARGET_ROLE);
 
-  let managerIds = [];
-  if (shouldIncludeManagers) {
-    managerIds = await selectManagerUserIdsByOrganization({
+  let allUserIds = [];
+  if (shouldIncludeAllUsers) {
+    allUserIds = await selectAllUserIdsByOrganization({
       organizationId: normalizedOrganizationId,
       db
     });
   }
 
-  const candidateUserIds = Array.from(new Set([...normalizedTargetUserIds, ...managerIds]));
+  const roleUserIds = [];
+  for (const roleLabel of customRoles) {
+    const ids = await selectUserIdsByRoleLabel({
+      organizationId: normalizedOrganizationId,
+      roleLabel,
+      db
+    });
+    roleUserIds.push(...ids);
+  }
+
+  const candidateUserIds = Array.from(
+    new Set([...normalizedTargetUserIds, ...allUserIds, ...roleUserIds])
+  );
   if (candidateUserIds.length === 0) {
     return [];
   }
@@ -266,7 +297,9 @@ export async function persistNotificationEvent({
   message = "",
   targetUserIds = [],
   targetRoles = [],
-  payload = {}
+  payload = {},
+  aggregateType = "appointment",
+  aggregateId = ""
 }) {
   const normalizedOrganizationId = normalizePositiveInteger(organizationId);
   const normalizedSourceUserId = normalizePositiveInteger(sourceUserId);
@@ -323,8 +356,8 @@ export async function persistNotificationEvent({
     const outboxEventId = await insertOutboxEvent({
       organizationId: normalizedOrganizationId,
       eventType: normalizedEventType,
-      aggregateType: "appointment",
-      aggregateId: "",
+      aggregateType,
+      aggregateId,
       payload: fullPayload,
       createdBy: normalizedSourceUserId,
       db: client

@@ -9,8 +9,11 @@ export function useProfilePanels({
   canCreateUsers,
   canReadClients,
   canCreateClients,
-  canReadAppointments,
-  hasSettingsMenuAccess
+  canOpenAppointmentSchedule,
+  canOpenAppointmentBreaks,
+  canOpenAppointmentVipClients,
+  hasSettingsMenuAccess,
+  hasNotificationsSettingsAccess
 }) {
   const openPanel = useCallback((path, hasAccess = true) => {
     closeMenu();
@@ -58,32 +61,32 @@ export function useProfilePanels({
   }, [closePanel]);
 
   const openAppointmentPanel = useCallback(() => {
-    openPanel("/appointments", canReadAppointments);
-  }, [canReadAppointments, openPanel]);
+    openPanel("/appointments", canOpenAppointmentSchedule);
+  }, [canOpenAppointmentSchedule, openPanel]);
 
   const closeAppointmentPanel = useCallback(() => {
     closePanel("appointment");
   }, [closePanel]);
 
   const openAppointmentBreaksPanel = useCallback(() => {
-    openPanel("/appointments/breaks", canReadAppointments);
-  }, [canReadAppointments, openPanel]);
+    openPanel("/appointments/breaks", canOpenAppointmentBreaks);
+  }, [canOpenAppointmentBreaks, openPanel]);
 
   const closeAppointmentBreaksPanel = useCallback(() => {
     closePanel("appointment-breaks");
   }, [closePanel]);
 
   const openAppointmentSettingsPanel = useCallback(() => {
-    openPanel("/appointments/settings", canReadAppointments);
-  }, [canReadAppointments, openPanel]);
+    openPanel("/appointments/settings", hasSettingsMenuAccess);
+  }, [hasSettingsMenuAccess, openPanel]);
 
   const closeAppointmentSettingsPanel = useCallback(() => {
     closePanel("appointment-settings");
   }, [closePanel]);
 
   const openAppointmentVipClientsPanel = useCallback(() => {
-    openPanel("/appointments/vip-clients", canReadAppointments && canReadClients);
-  }, [canReadAppointments, canReadClients, openPanel]);
+    openPanel("/appointments/vip-clients", canOpenAppointmentVipClients);
+  }, [canOpenAppointmentVipClients, openPanel]);
 
   const closeAppointmentVipClientsPanel = useCallback(() => {
     closePanel("appointment-vip-clients");
@@ -113,9 +116,17 @@ export function useProfilePanels({
     closePanel("settings-positions");
   }, [closePanel]);
 
-  const openNotificationsSettingsPanel = useCallback(() => {
-    openPanel("/settings/notifications", hasSettingsMenuAccess);
+  const openAdminOptionsPanel = useCallback(() => {
+    openPanel("/settings/admin-options", hasSettingsMenuAccess);
   }, [hasSettingsMenuAccess, openPanel]);
+
+  const closeAdminOptionsPanel = useCallback(() => {
+    closePanel("settings-admin-options");
+  }, [closePanel]);
+
+  const openNotificationsSettingsPanel = useCallback(() => {
+    openPanel("/settings/notifications", hasNotificationsSettingsAccess);
+  }, [hasNotificationsSettingsAccess, openPanel]);
 
   const closeNotificationsSettingsPanel = useCallback(() => {
     closePanel("settings-notifications");
@@ -151,6 +162,8 @@ export function useProfilePanels({
     closeRolesPanel,
     openPositionsPanel,
     closePositionsPanel,
+    openAdminOptionsPanel,
+    closeAdminOptionsPanel,
     openNotificationsSettingsPanel,
     closeNotificationsSettingsPanel,
     closeCreateUserPanel,

@@ -203,7 +203,11 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
-        if (!(await hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ))) {
+        const [canReadClients, canSearchAppointmentClients] = await Promise.all([
+          hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
+          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_CLIENT_SEARCH)
+        ]);
+        if (!canReadClients && !canSearchAppointmentClients) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 

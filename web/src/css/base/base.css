@@ -32,6 +32,9 @@
   /* Borders & Lines */
   --line:           #E4E9F8;
   --line-strong:    #CDD5F0;
+  --table-head-bg:  #EEF3FB;
+  --table-head-text:#334155;
+  --table-side-bg:  #F7FAFF;
 
   /* Inputs */
   --input-bg:           #ffffff;
@@ -91,6 +94,33 @@
   --btn-height:   34px;
   --input-height: 36px;
   --close-btn-size: 30px;
+  --btn-fixed-width: 100px;
+  --btn-compact-width: 74px;
+  --time-col-width: 74px;
+  --scrollbar-size: 10px;
+  --modal-padding: 20px;
+  --panel-padding: 10px;
+  --panel-padding-wide: 14px;
+
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 10px;
+  --space-6: 12px;
+  --space-7: 14px;
+  --space-8: 16px;
+  --space-9: 20px;
+
+  --z-layout-header: 3;
+  --z-menu-overlay: 20;
+  --z-side-menu: 30;
+  --z-overlay-backdrop: 45;
+  --z-modal-login: 50;
+  --z-modal: 55;
+  --z-modal-top: 56;
+  --z-dropdown: 60;
+  --z-popover: 70;
 
   --radius-xs: 6px;
   --radius-sm: 8px;
@@ -125,6 +155,8 @@ html, body {
 
 html {
   scrollbar-gutter: stable;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 @supports not (scrollbar-gutter: stable) {
@@ -174,7 +206,7 @@ body {
    Scrollbar
    ============================================= */
 
-::-webkit-scrollbar        { width: 8px; height: 8px; }
+::-webkit-scrollbar        { width: var(--scrollbar-size); height: var(--scrollbar-size); }
 ::-webkit-scrollbar-track  { background: var(--scroll-track); border-radius: 8px; }
 ::-webkit-scrollbar-thumb  { background: var(--scroll-thumb); border-radius: 8px; border: 2px solid var(--scroll-track); }
 ::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover); }
@@ -191,6 +223,7 @@ body {
 .field {
   display: grid;
   gap: 5px;
+  min-width: 0;
 }
 
 label {
@@ -225,6 +258,43 @@ select {
   height: var(--input-height);
 }
 
+input[type="date"] {
+  display: block;
+  min-width: 0;
+  min-inline-size: 0;
+  max-width: 100%;
+  width: 100%;
+  height: var(--input-height);
+  min-height: var(--input-height);
+  padding: 0 12px;
+  -webkit-appearance: none;
+  appearance: none;
+  line-height: var(--input-height);
+}
+
+input[type="date"]::-webkit-datetime-edit {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  line-height: normal;
+}
+
+input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+input[type="date"]::-webkit-date-and-time-value {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  margin: 0;
+  line-height: normal;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  margin: 0;
+  align-self: center;
+}
+
 input:hover:not(:focus):not(.input-error),
 select:hover:not(:focus):not(.input-error) {
   border-color: var(--input-border-hover);
@@ -250,7 +320,7 @@ input:not([type="checkbox"]):not([type="radio"]):focus,
 select:focus,
 textarea:focus {
   border-color: var(--brand);
-  box-shadow: 0 0 0 3px var(--focus-ring);
+  box-shadow: 0 0 0 1.5px var(--focus-ring);
   background: #FAFBFF;
 }
 
@@ -258,7 +328,17 @@ input.input-error,
 select.input-error,
 textarea.input-error {
   border-color: var(--danger);
-  box-shadow: 0 0 0 3px var(--danger-ring);
+  box-shadow: 0 0 0 1.5px var(--danger-ring);
+}
+
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea,
+  .custom-select-trigger,
+  .custom-select-search-input {
+    font-size: 16px;
+  }
 }
 
 .field-error {
@@ -279,6 +359,8 @@ textarea.input-error {
 
 .custom-select {
   position: relative;
+  width: 100%;
+  min-width: 0;
 }
 
 .custom-select-trigger {
@@ -322,12 +404,12 @@ textarea.input-error {
 
 .custom-select-trigger:focus {
   border-color: var(--brand);
-  box-shadow: 0 0 0 3px var(--focus-ring);
+  box-shadow: 0 0 0 1.5px var(--focus-ring);
 }
 
 .custom-select-trigger.input-error {
   border-color: var(--danger);
-  box-shadow: 0 0 0 3px var(--danger-ring);
+  box-shadow: 0 0 0 1.5px var(--danger-ring);
 }
 
 .custom-select-trigger:disabled {
@@ -339,7 +421,7 @@ textarea.input-error {
 
 .custom-select-menu {
   position: absolute;
-  z-index: 70;
+  z-index: var(--z-popover);
   top: calc(100% + 6px);
   left: 0;
   right: 0;
@@ -399,7 +481,7 @@ textarea.input-error {
 }
 
 .custom-select-empty {
-  min-height: 36px;
+  min-height: var(--input-height);
   padding: 0 12px;
   display: flex;
   align-items: center;

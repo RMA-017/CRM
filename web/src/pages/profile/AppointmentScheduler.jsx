@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import CustomSelect from "../../components/CustomSelect.jsx";
 import { apiFetch } from "../../lib/api.js";
 
@@ -34,6 +35,8 @@ const DAY_NUM_TO_KEY = Object.freeze(
 );
 const MAX_REPEAT_RANGE_DAYS = 366;
 const APPOINTMENT_SPECIALIST_STORAGE_KEY = "crm_appointment_selected_specialist_id";
+const ACTIVE_SCHEDULE_STATUSES = new Set(["pending", "confirmed"]);
+const FULL_CELL_BREAK_TYPES = new Set(["lunch", "meeting", "training", "other"]);
 
 function readStoredSpecialistId() {
   if (typeof window === "undefined") {
@@ -99,12 +102,12 @@ function getClientCardName(client) {
   return clientId ? `Client #${clientId}` : "Client";
 }
 
-function formatDurationLabel(value) {
+function formatBookingDurationLabel(value) {
   const parsed = Number.parseInt(String(value || "").trim(), 10);
   if (!Number.isInteger(parsed) || parsed <= 0) {
     return "";
   }
-  return `${parsed} min`;
+  return `${parsed}min`;
 }
 
 function truncateWithEllipsis(value, maxLength = 20) {
@@ -117,11 +120,11 @@ function truncateWithEllipsis(value, maxLength = 20) {
 
 function formatServiceLine(serviceName, durationMinutes) {
   const serviceLabel = truncateWithEllipsis(serviceName, 20);
-  const durationLabel = formatDurationLabel(durationMinutes);
-  if (!durationLabel) {
+  const bookingDuration = formatBookingDurationLabel(durationMinutes);
+  if (!bookingDuration) {
     return serviceLabel;
   }
-  return serviceLabel ? `${serviceLabel} • ${durationLabel}` : durationLabel;
+  return serviceLabel ? `${serviceLabel} • ${bookingDuration}` : bookingDuration;
 }
 
 function formatBreakReason(item) {
@@ -180,6 +183,15 @@ function formatHeaderDate(date) {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+function formatDayMonth(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return "";
+  }
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${day}.${month}`;
+}
+
 function formatDateYmd(date) {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
     return "";
@@ -226,11 +238,14 @@ function getDayKeyFromDateYmd(value) {
   return map[date.getDay()] || "";
 }
 
-function formatWeekRange(days) {
+function formatWeekRange(days, { compact = false } = {}) {
   const first = days[0]?.date;
   const last = days[days.length - 1]?.date;
   if (!(first instanceof Date) || !(last instanceof Date)) {
     return "";
+  }
+  if (compact) {
+    return `${formatDayMonth(first)} - ${formatDayMonth(last)}`;
   }
   return `${first.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })} - ${last.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}`;
 }
@@ -254,6 +269,21 @@ function normalizeTimeToMinutes(value) {
   return (hours * 60) + minutes;
 }
 
+function isInsideWorkingHoursByMinutes(slotMinutes, dayMinutes) {
+  return (
+    slotMinutes !== null
+    && dayMinutes?.start !== null
+    && dayMinutes?.end !== null
+    && slotMinutes >= dayMinutes.start
+    && slotMinutes < dayMinutes.end
+  );
+}
+
+function isEligibleBreakTypeForFullCell(breakType) {
+  const normalizedType = String(breakType || "").trim().toLowerCase();
+  return FULL_CELL_BREAK_TYPES.has(normalizedType);
+}
+
 function getDurationMinutesFromTimes(startTime, endTime) {
   const start = normalizeTimeToMinutes(startTime);
   const end = normalizeTimeToMinutes(endTime);
@@ -267,6 +297,14 @@ function minutesToTime(totalMinutes) {
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function showImmediateAlert(text) {
+  const message = String(text || "").trim();
+  if (!message || typeof window === "undefined" || typeof window.alert !== "function") {
+    return;
+  }
+  window.alert(message);
 }
 
 function createDefaultWorkingHours() {
@@ -345,6 +383,8 @@ function AppointmentScheduler({
   canCreateAppointments = true,
   canUpdateAppointments = true,
   canDeleteAppointments = true,
+  currentUserId = "",
+  restrictCreateToOwnSpecialist = false,
   vipOnly = false,
   recurringOnly = false,
   showWeekSwitcher = true,
@@ -355,6 +395,12 @@ function AppointmentScheduler({
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [weekOffset, setWeekOffset] = useState(0);
+  const [compactWeekRange, setCompactWeekRange] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    return window.matchMedia("(max-width: 860px)").matches;
+  });
   const [specialists, setSpecialists] = useState([]);
   const [selectedSpecialistId, setSelectedSpecialistId] = useState(readStoredSpecialistId);
   const [specialistSelectError, setSpecialistSelectError] = useState(false);
@@ -393,6 +439,40 @@ function AppointmentScheduler({
   });
   const schedulesRequestIdRef = useRef(0);
   const breaksRequestIdRef = useRef(0);
+  const normalizedCurrentUserId = String(currentUserId || "").trim();
+  const normalizedSelectedSpecialistId = String(selectedSpecialistId || "").trim();
+  const canMutateSelectedSpecialist = (
+    !restrictCreateToOwnSpecialist
+    || (Boolean(normalizedCurrentUserId) && normalizedCurrentUserId === normalizedSelectedSpecialistId)
+  );
+  const canCreateOnSelectedSpecialist = canCreateAppointments && (
+    canMutateSelectedSpecialist
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    const mediaQuery = window.matchMedia("(max-width: 860px)");
+    const handleCompactWeekRange = () => {
+      setCompactWeekRange(mediaQuery.matches);
+    };
+
+    handleCompactWeekRange();
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handleCompactWeekRange);
+      return () => {
+        mediaQuery.removeEventListener("change", handleCompactWeekRange);
+      };
+    }
+
+    mediaQuery.addListener(handleCompactWeekRange);
+    return () => {
+      mediaQuery.removeListener(handleCompactWeekRange);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -700,6 +780,140 @@ function AppointmentScheduler({
       return acc;
     }, {})
   ), [breaksForSpecialist, slotMinutesByValue, timeSlots, weekDays]);
+  const specialCellRowSpanByDay = useMemo(() => {
+    const subDivisions = Math.max(1, Number.parseInt(String(settings.slotSubDivisions), 10) || 1);
+    if (subDivisions <= 1) {
+      return weekDays.reduce((acc, day) => {
+        acc[day.key] = {};
+        return acc;
+      }, {});
+    }
+
+    return weekDays.reduce((acc, day) => {
+      const spanMap = {};
+      const appointmentSpanMap = appointmentRowSpanByDay[day.key] || {};
+      const dayAppointments = appointmentLookupByDay[day.key] || {};
+      const dayBlockedSlots = appointmentBlockedSlotsByDay[day.key] || {};
+      const dayBreakSlots = appointmentBreakSlotsByDay[day.key] || {};
+      const dayMinutes = workingHoursMinutesByDay[day.key] || { start: null, end: null };
+
+      for (let startIndex = 0; startIndex < timeSlots.length; startIndex += subDivisions) {
+        const groupEnd = Math.min(startIndex + subDivisions, timeSlots.length);
+        const groupSlots = timeSlots.slice(startIndex, groupEnd);
+        if (groupSlots.length <= 1) {
+          continue;
+        }
+
+        const firstSlot = groupSlots[0];
+        if (appointmentSpanMap[firstSlot] === 0 || dayAppointments[firstSlot]) {
+          continue;
+        }
+
+        const canMergeOffSlots = groupSlots.every((groupSlot) => {
+          if (appointmentSpanMap[groupSlot] === 0) {
+            return false;
+          }
+          if (dayAppointments[groupSlot] || dayBlockedSlots[groupSlot] || dayBreakSlots[groupSlot]) {
+            return false;
+          }
+          const slotMinutes = slotMinutesByValue[groupSlot];
+          return !isInsideWorkingHoursByMinutes(slotMinutes, dayMinutes);
+        });
+
+        if (canMergeOffSlots) {
+          spanMap[firstSlot] = groupSlots.length;
+          groupSlots.slice(1).forEach((groupSlot) => {
+            spanMap[groupSlot] = 0;
+          });
+          continue;
+        }
+
+        const firstBreakType = String(dayBreakSlots[firstSlot]?.breakType || "").trim().toLowerCase();
+        if (!isEligibleBreakTypeForFullCell(firstBreakType)) {
+          continue;
+        }
+
+        const canMergeBreakSlots = groupSlots.every((groupSlot) => {
+          if (appointmentSpanMap[groupSlot] === 0) {
+            return false;
+          }
+          if (dayAppointments[groupSlot] || dayBlockedSlots[groupSlot]) {
+            return false;
+          }
+          const breakType = String(dayBreakSlots[groupSlot]?.breakType || "").trim().toLowerCase();
+          return isEligibleBreakTypeForFullCell(breakType) && breakType === firstBreakType;
+        });
+
+        if (canMergeBreakSlots) {
+          spanMap[firstSlot] = groupSlots.length;
+          groupSlots.slice(1).forEach((groupSlot) => {
+            spanMap[groupSlot] = 0;
+          });
+        }
+      }
+
+      acc[day.key] = spanMap;
+      return acc;
+    }, {});
+  }, [
+    appointmentBlockedSlotsByDay,
+    appointmentBreakSlotsByDay,
+    appointmentLookupByDay,
+    appointmentRowSpanByDay,
+    settings.slotSubDivisions,
+    slotMinutesByValue,
+    timeSlots,
+    weekDays,
+    workingHoursMinutesByDay
+  ]);
+  const findLocalScheduleConflict = useCallback(({
+    appointmentDate,
+    startTime,
+    endTime,
+    excludeAppointmentId = ""
+  }) => {
+    const dayKey = getDayKeyFromDateYmd(appointmentDate);
+    if (!dayKey) {
+      return null;
+    }
+    const rangeStart = normalizeTimeToMinutes(startTime);
+    const rangeEnd = normalizeTimeToMinutes(endTime);
+    if (rangeStart === null || rangeEnd === null || rangeEnd <= rangeStart) {
+      return null;
+    }
+
+    const excludedId = String(excludeAppointmentId || "").trim();
+    const dayItems = Array.isArray(appointmentsByDay[dayKey]) ? appointmentsByDay[dayKey] : [];
+    const hit = dayItems.find((item) => {
+      const itemId = String(item?.id || "").trim();
+      if (excludedId && itemId && itemId === excludedId) {
+        return false;
+      }
+
+      const status = String(item?.status || "pending").trim().toLowerCase();
+      if (!ACTIVE_SCHEDULE_STATUSES.has(status)) {
+        return false;
+      }
+
+      const itemStart = normalizeTimeToMinutes(item?.time);
+      const itemEnd = normalizeTimeToMinutes(item?.endTime);
+      if (itemStart === null || itemEnd === null || itemEnd <= itemStart) {
+        return false;
+      }
+
+      return rangeStart < itemEnd && itemStart < rangeEnd;
+    });
+
+    if (!hit) {
+      return null;
+    }
+
+    return {
+      startTime: String(hit?.time || "").trim(),
+      endTime: String(hit?.endTime || "").trim(),
+      client: String(hit?.client || "").trim()
+    };
+  }, [appointmentsByDay]);
   const specialistOptions = useMemo(() => (
     specialists.map((specialist) => ({
       value: specialist.id,
@@ -965,12 +1179,20 @@ function AppointmentScheduler({
   function openCreateModal(day, slot, existingItem = null) {
     const isEditMode = Boolean(existingItem);
     if (isEditMode) {
+      if (!canMutateSelectedSpecialist) {
+        setMessage("You can only edit appointments in your own schedule.");
+        return;
+      }
       if (!canUpdateAppointments && !canDeleteAppointments) {
         setMessage("You do not have permission to edit appointments.");
         return;
       }
-    } else if (!canCreateAppointments) {
-      setMessage("You do not have permission to create appointments.");
+    } else if (!canCreateOnSelectedSpecialist) {
+      setMessage(
+        canCreateAppointments
+          ? "You can only create appointments in your own schedule."
+          : "You do not have permission to create appointments."
+      );
       return;
     }
 
@@ -1319,12 +1541,20 @@ function AppointmentScheduler({
     if (!createModal.open) {
       return;
     }
-    if (!isEditMode && !canCreateAppointments) {
-      setCreateErrors({ form: "You do not have permission to create appointments." });
+    if (!isEditMode && !canCreateOnSelectedSpecialist) {
+      setCreateErrors({
+        form: canCreateAppointments
+          ? "You can only create appointments in your own schedule."
+          : "You do not have permission to create appointments."
+      });
       return;
     }
     if (isEditMode && !canUpdateAppointments) {
       setCreateErrors({ form: "You do not have permission to update appointments." });
+      return;
+    }
+    if (isEditMode && !canMutateSelectedSpecialist) {
+      setCreateErrors({ form: "You can only edit appointments in your own schedule." });
       return;
     }
 
@@ -1390,6 +1620,29 @@ function AppointmentScheduler({
         return;
       }
       const endTime = minutesToTime(startMinutes + durationMinutes);
+      const shouldShowImmediateAlert = typeof onNotification === "function";
+      const normalizedStatus = String(nextPayload.status || "").trim().toLowerCase();
+      if (ACTIVE_SCHEDULE_STATUSES.has(normalizedStatus)) {
+        const localConflict = findLocalScheduleConflict({
+          appointmentDate,
+          startTime,
+          endTime,
+          excludeAppointmentId: isEditMode ? String(createModal.appointmentId || "").trim() : ""
+        });
+        if (localConflict) {
+          const localConflictTime = [localConflict.startTime, localConflict.endTime].filter(Boolean).join(" - ");
+          const localConflictClient = localConflict.client ? ` (${localConflict.client})` : "";
+          const conflictMessage = localConflictTime
+            ? `This slot is already occupied at ${localConflictTime}${localConflictClient}.`
+            : "This slot is already occupied.";
+          setCreateErrors({ form: conflictMessage });
+          setMessage(conflictMessage);
+          if (shouldShowImmediateAlert) {
+            showImmediateAlert(conflictMessage);
+          }
+          return;
+        }
+      }
 
       const requestPayload = {
         specialistId,
@@ -1436,6 +1689,9 @@ function AppointmentScheduler({
         const serverMessage = String(data?.message || "").trim();
         if (response.status === 409 && serverMessage) {
           setMessage(serverMessage);
+          if (shouldShowImmediateAlert) {
+            showImmediateAlert(serverMessage);
+          }
         }
         if (data?.errors && typeof data.errors === "object") {
           setCreateErrors(data.errors);
@@ -1461,6 +1717,10 @@ function AppointmentScheduler({
 
   async function handleDeleteAppointment() {
     if (!createModal.open || createModal.mode !== "edit") {
+      return;
+    }
+    if (!canMutateSelectedSpecialist) {
+      setCreateErrors({ form: "You can only edit appointments in your own schedule." });
       return;
     }
     if (!canDeleteAppointments) {
@@ -1601,9 +1861,9 @@ function AppointmentScheduler({
         {showWeekSwitcher ? (
           <div className="appointment-toolbar-block appointment-week-switcher">
             <button type="button" className="header-btn" onClick={() => setWeekOffset((prev) => prev - 1)}>
-              Previous
+              Prev
             </button>
-            <p className="appointment-week-range">{formatWeekRange(weekDays)}</p>
+            <p className="appointment-week-range">{formatWeekRange(weekDays, { compact: compactWeekRange })}</p>
             <button type="button" className="header-btn" onClick={() => setWeekOffset((prev) => prev + 1)}>
               Next
             </button>
@@ -1662,40 +1922,71 @@ function AppointmentScheduler({
                       const item = appointmentLookupByDay[day.key]?.[slot] || null;
                       const blockedItem = appointmentBlockedSlotsByDay[day.key]?.[slot] || null;
                       const breakBlockedItem = appointmentBreakSlotsByDay[day.key]?.[slot] || null;
-                      const rowSpan = appointmentRowSpanByDay[day.key]?.[slot];
+                      const appointmentRowSpan = appointmentRowSpanByDay[day.key]?.[slot];
+                      const specialCellRowSpan = specialCellRowSpanByDay[day.key]?.[slot];
 
-                      if (rowSpan === 0) {
+                      if (appointmentRowSpan === 0 || specialCellRowSpan === 0) {
                         return null;
                       }
 
-                      const tdRowSpan = rowSpan && rowSpan > 1 ? rowSpan : undefined;
+                      const effectiveRowSpan = (
+                        appointmentRowSpan && appointmentRowSpan > 1
+                          ? appointmentRowSpan
+                          : (specialCellRowSpan && specialCellRowSpan > 1 ? specialCellRowSpan : 1)
+                      );
+                      const tdRowSpan = effectiveRowSpan > 1 ? effectiveRowSpan : undefined;
+                      const reachesBottom = Boolean(
+                        tdRowSpan
+                        && Number.isInteger(slotIndex)
+                        && (slotIndex + effectiveRowSpan >= timeSlots.length)
+                      );
+                      const appointmentSpan = Number.parseInt(String(appointmentRowSpan || "1").trim(), 10) || 1;
+                      const canShowAppointmentDetails = appointmentSpan > 1;
+                      const isAddSlotCell = (
+                        isInsideWorkingHours
+                        && !item
+                        && !blockedItem
+                        && !breakBlockedItem
+                      );
+                      const isOffSlotCell = !isInsideWorkingHours;
+                      const tdClassName = [
+                        tdRowSpan ? "appointment-td-multi-slot" : "",
+                        reachesBottom ? "appointment-td-reaches-bottom" : "",
+                        isAddSlotCell ? "appointment-add-slot-td" : "",
+                        isOffSlotCell ? "appointment-off-slot-td" : "",
+                        breakBlockedItem ? `appointment-break-type-${breakBlockedItem.breakType}-td` : "",
+                      ].filter(Boolean).join(" ") || undefined;
 
                       return (
-                        <td key={`${day.key}-${slot}`} rowSpan={tdRowSpan} className={tdRowSpan ? "appointment-td-multi-slot" : undefined}>
+                        <td key={`${day.key}-${slot}`} rowSpan={tdRowSpan} className={tdClassName}>
                           {!isInsideWorkingHours ? (
                             <span className="appointment-off-slot">o</span>
                           ) : item ? (
-                            (canUpdateAppointments || canDeleteAppointments) ? (
+                            (canMutateSelectedSpecialist && (canUpdateAppointments || canDeleteAppointments)) ? (
                               <button
                                 type="button"
-                                className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""} appointment-card-btn appointment-status-${item.status}`}
+                                className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""}${canShowAppointmentDetails ? "" : " appointment-card-compact"} appointment-card-btn appointment-status-${item.status}`}
                                 onClick={() => openCreateModal(day, slot, item)}
                                 aria-label={`Edit appointment on ${day.label} at ${slot}`}
                               >
                                 <p className="appointment-client">{item.client}</p>
-                                <p className="appointment-service">
-                                  {formatServiceLine(item.service, item.durationMinutes)}
-                                </p>
+                                {canShowAppointmentDetails ? (
+                                  <p className="appointment-service">
+                                    {formatServiceLine(item.service, item.durationMinutes)}
+                                  </p>
+                                ) : null}
                               </button>
                             ) : (
                               <div
-                                className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""} appointment-status-${item.status}`}
+                                className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""}${canShowAppointmentDetails ? "" : " appointment-card-compact"} appointment-status-${item.status}`}
                                 aria-label={`Appointment on ${day.label} at ${slot}`}
                               >
                                 <p className="appointment-client">{item.client}</p>
-                                <p className="appointment-service">
-                                  {formatServiceLine(item.service, item.durationMinutes)}
-                                </p>
+                                {canShowAppointmentDetails ? (
+                                  <p className="appointment-service">
+                                    {formatServiceLine(item.service, item.durationMinutes)}
+                                  </p>
+                                ) : null}
                               </div>
                             )
                           ) : blockedItem ? (
@@ -1712,7 +2003,7 @@ function AppointmentScheduler({
                               <span className="appointment-break-slot-text">{breakBlockedItem.reasonShort}</span>
                             </span>
                           ) : (
-                            canCreateAppointments ? (
+                            canCreateOnSelectedSpecialist ? (
                               <button
                                 type="button"
                                 className="appointment-add-slot"
@@ -1736,11 +2027,12 @@ function AppointmentScheduler({
         </div>
       )}
 
-      {createModal.open && (
-        <>
+      {createModal.open && (() => {
+        const modalContent = (
+          <>
           <section id="appointmentCreateClientModal" className="logout-confirm-modal appointment-create-modal">
             <div className="appointment-create-head">
-                <h3>{modalTitle}</h3>
+              <h3>{modalTitle}</h3>
               <button
                 id="appointmentCreateCloseBtn"
                 type="button"
@@ -1752,65 +2044,87 @@ function AppointmentScheduler({
                 ×
               </button>
             </div>
-            <form className="auth-form" noValidate onSubmit={handleCreateSubmit}>
-              {!isVipRecurringModal ? (
-                <div className="appointment-client-search-row">
-                  <div className="field">
-                    <label htmlFor="appointmentClientSearchFirst">First</label>
-                    <input
-                      id="appointmentClientSearchFirst"
-                      type="text"
-                      placeholder="First name"
-                      value={clientSearch.firstName}
-                      onInput={(event) => {
-                        const nextValue = event.currentTarget.value;
-                        setClientSearch((prev) => ({ ...prev, firstName: nextValue }));
-                      }}
-                    />
-                  </div>
+            <form className="auth-form appointment-create-form" noValidate onSubmit={handleCreateSubmit}>
+              <div className="appointment-create-fields">
 
-                  <div className="field">
-                    <label htmlFor="appointmentClientSearchLast">Last</label>
-                    <input
-                      id="appointmentClientSearchLast"
-                      type="text"
-                      placeholder="Last name"
-                      value={clientSearch.lastName}
-                      onInput={(event) => {
-                        const nextValue = event.currentTarget.value;
-                        setClientSearch((prev) => ({ ...prev, lastName: nextValue }));
-                      }}
-                    />
-                  </div>
-                </div>
-              ) : null}
-
-              {!isVipRecurringModal ? (
-                <div className="appointment-client-select-row">
-                  <div className="field appointment-client-vip-field">
-                    <label htmlFor="appointmentClientVipOnly">VIP</label>
-                    <label
-                      className={`appointment-client-vip-toggle${(vipOnly || clientVipOnly) ? " is-active" : ""}`}
-                      htmlFor="appointmentClientVipOnly"
-                    >
+              {/* ── Client ── */}
+              <div className="appointment-modal-section">
+                {!isVipRecurringModal ? (
+                  <div className="appointment-client-search-row">
+                    <div className="field">
+                      <label htmlFor="appointmentClientSearchFirst">First name</label>
                       <input
-                        id="appointmentClientVipOnly"
-                        type="checkbox"
-                        checked={vipOnly || clientVipOnly}
-                        disabled={vipOnly || createSubmitting || createDeleting}
-                        onChange={(event) => {
-                          const checked = event.currentTarget.checked;
-                          setClientVipOnly(checked);
-                          if (checked) {
-                            setCreateForm((prev) => ({ ...prev, clientId: "" }));
-                            if (createErrors.clientId) {
-                              setCreateErrors((prev) => ({ ...prev, clientId: "" }));
+                        id="appointmentClientSearchFirst"
+                        type="text"
+                        placeholder="First name"
+                        value={clientSearch.firstName}
+                        onInput={(event) => {
+                          const nextValue = event.currentTarget.value;
+                          setClientSearch((prev) => ({ ...prev, firstName: nextValue }));
+                        }}
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="appointmentClientSearchLast">Last name</label>
+                      <input
+                        id="appointmentClientSearchLast"
+                        type="text"
+                        placeholder="Last name"
+                        value={clientSearch.lastName}
+                        onInput={(event) => {
+                          const nextValue = event.currentTarget.value;
+                          setClientSearch((prev) => ({ ...prev, lastName: nextValue }));
+                        }}
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                {!isVipRecurringModal ? (
+                  <div className="appointment-client-select-row">
+                    <div className="field appointment-client-vip-field">
+                      <label htmlFor="appointmentClientVipOnly">VIP</label>
+                      <label
+                        className={`appointment-client-vip-toggle${(vipOnly || clientVipOnly) ? " is-active" : ""}`}
+                        htmlFor="appointmentClientVipOnly"
+                      >
+                        <input
+                          id="appointmentClientVipOnly"
+                          type="checkbox"
+                          checked={vipOnly || clientVipOnly}
+                          disabled={vipOnly || createSubmitting || createDeleting}
+                          onChange={(event) => {
+                            const checked = event.currentTarget.checked;
+                            setClientVipOnly(checked);
+                            if (checked) {
+                              setCreateForm((prev) => ({ ...prev, clientId: "" }));
+                              if (createErrors.clientId) {
+                                setCreateErrors((prev) => ({ ...prev, clientId: "" }));
+                              }
                             }
+                          }}
+                        />
+                      </label>
+                    </div>
+                    <div className="field">
+                      <label htmlFor="appointmentCreateClientSelect">Client</label>
+                      <CustomSelect
+                        id="appointmentCreateClientSelect"
+                        placeholder="Select client"
+                        value={createForm.clientId}
+                        options={clientSelectOptions}
+                        maxVisibleOptions={10}
+                        error={clientSelectHasError}
+                        onChange={(nextValue) => {
+                          setCreateForm((prev) => ({ ...prev, clientId: nextValue }));
+                          if (createErrors.clientId) {
+                            setCreateErrors((prev) => ({ ...prev, clientId: "" }));
                           }
                         }}
                       />
-                    </label>
+                    </div>
                   </div>
+                ) : (
                   <div className="field">
                     <label htmlFor="appointmentCreateClientSelect">Client</label>
                     <CustomSelect
@@ -1828,227 +2142,225 @@ function AppointmentScheduler({
                       }}
                     />
                   </div>
-                </div>
-              ) : (
-                <div className="field">
-                  <label htmlFor="appointmentCreateClientSelect">Client</label>
-                  <CustomSelect
-                    id="appointmentCreateClientSelect"
-                    placeholder="Select client"
-                    value={createForm.clientId}
-                    options={clientSelectOptions}
-                    maxVisibleOptions={10}
-                    error={clientSelectHasError}
-                    onChange={(nextValue) => {
-                      setCreateForm((prev) => ({ ...prev, clientId: nextValue }));
-                      if (createErrors.clientId) {
-                        setCreateErrors((prev) => ({ ...prev, clientId: "" }));
-                      }
-                    }}
-                  />
-                </div>
-              )}
-
-              <div
-                className={`appointment-create-date-time-row${isVipRecurringModal ? " appointment-create-date-time-row-vip" : ""}`}
-              >
-                {!isVipRecurringModal ? (
-                  <div className="field">
-                    <label htmlFor="appointmentCreateDate">Date</label>
-                    <input
-                      id="appointmentCreateDate"
-                      type="date"
-                      className={createErrors.appointmentDate ? "input-error" : ""}
-                      value={createForm.appointmentDate}
-                      disabled={shouldLockEditDate}
-                      onInput={(event) => {
-                        const nextValue = event.currentTarget.value;
-                        setCreateForm((prev) => {
-                          const nextForm = { ...prev, appointmentDate: nextValue };
-                          if (!prev.repeatUntil || prev.repeatUntil < nextValue) {
-                            nextForm.repeatUntil = nextValue;
-                          }
-                          return nextForm;
-                        });
-                        if (createErrors.appointmentDate || createErrors.repeatUntil) {
-                          setCreateErrors((prev) => ({ ...prev, appointmentDate: "", repeatUntil: "" }));
-                        }
-                      }}
-                    />
-                    <small className="field-error">{createErrors.appointmentDate || ""}</small>
-                  </div>
-                ) : null}
-
-                <div className="field">
-                  <label htmlFor="appointmentCreateTime">Start Time</label>
-                  <CustomSelect
-                    id="appointmentCreateTime"
-                    placeholder="Select start time"
-                    value={createForm.startTime}
-                    options={timeSelectOptions}
-                    error={Boolean(createErrors.startTime)}
-                    onChange={(nextValue) => {
-                      setCreateForm((prev) => ({ ...prev, startTime: nextValue }));
-                      if (createErrors.startTime) {
-                        setCreateErrors((prev) => ({ ...prev, startTime: "" }));
-                      }
-                    }}
-                  />
-                  <small className="field-error">{createErrors.startTime || ""}</small>
-                </div>
-
-                <div className="field">
-                  <label htmlFor="appointmentCreateDuration">Duration</label>
-                  <CustomSelect
-                    id="appointmentCreateDuration"
-                    placeholder="Select duration"
-                    value={createForm.durationMinutes}
-                    options={durationSelectOptions}
-                    error={Boolean(createErrors.durationMinutes)}
-                    onChange={(nextValue) => {
-                      setCreateForm((prev) => ({ ...prev, durationMinutes: nextValue }));
-                      if (createErrors.durationMinutes) {
-                        setCreateErrors((prev) => ({ ...prev, durationMinutes: "" }));
-                      }
-                    }}
-                  />
-                  <small className="field-error">{createErrors.durationMinutes || ""}</small>
-                </div>
+                )}
               </div>
 
-              <div className="field">
-                <label htmlFor="appointmentCreateService">Service</label>
-                <input
-                  id="appointmentCreateService"
-                  type="text"
-                  className={createErrors.service ? "input-error" : ""}
-                  value={createForm.service}
-                  onInput={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setCreateForm((prev) => ({ ...prev, service: nextValue }));
-                    if (createErrors.service) {
-                      setCreateErrors((prev) => ({ ...prev, service: "" }));
-                    }
-                  }}
-                />
-                <small className="field-error">{createErrors.service || ""}</small>
-              </div>
-
-              {!isVipRecurringModal && !isEditRecurring ? (
-                <div className="appointment-repeat-block">
-                  <div className="appointment-create-date-time-row appointment-repeat-head-row">
-                    <div className="field appointment-repeat-until-field">
-                      <label htmlFor="appointmentCreateRepeatUntil">Repeat Until</label>
+              {/* ── Date / Time / Service ── */}
+              <div className="appointment-modal-section">
+                <div
+                  className={`appointment-create-date-time-row${isVipRecurringModal ? " appointment-create-date-time-row-vip" : ""}`}
+                >
+                  {!isVipRecurringModal ? (
+                    <div className="field">
+                      <label htmlFor="appointmentCreateDate">Date</label>
                       <input
-                        id="appointmentCreateRepeatUntil"
+                        id="appointmentCreateDate"
                         type="date"
-                        className={createErrors.repeatUntil ? "input-error" : ""}
-                        value={createForm.repeatUntil}
-                        min={createForm.appointmentDate || undefined}
+                        className={createErrors.appointmentDate ? "input-error" : ""}
+                        value={createForm.appointmentDate}
+                        disabled={shouldLockEditDate}
                         onInput={(event) => {
                           const nextValue = event.currentTarget.value;
-                          setCreateForm((prev) => ({ ...prev, repeatUntil: nextValue }));
-                          if (createErrors.repeatUntil) {
-                            setCreateErrors((prev) => ({ ...prev, repeatUntil: "" }));
+                          setCreateForm((prev) => {
+                            const nextForm = { ...prev, appointmentDate: nextValue };
+                            if (!prev.repeatUntil || prev.repeatUntil < nextValue) {
+                              nextForm.repeatUntil = nextValue;
+                            }
+                            return nextForm;
+                          });
+                          if (createErrors.appointmentDate || createErrors.repeatUntil) {
+                            setCreateErrors((prev) => ({ ...prev, appointmentDate: "", repeatUntil: "" }));
                           }
                         }}
                       />
+                      <small className="field-error">{createErrors.appointmentDate || ""}</small>
                     </div>
-                    <div className="field appointment-repeat-title-field">
-                      <label>Repeat weekly</label>
-                      <div className="appointment-repeat-days" role="group" aria-label="Repeat weekdays">
-                        {visibleRepeatDayItems.map((day) => {
-                          const checked = Array.isArray(createForm.repeatDays) && createForm.repeatDays.includes(day.key);
-                          return (
-                            <label
-                              key={day.key}
-                              className={`appointment-repeat-day-chip${checked ? " is-active" : ""}`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => toggleRepeatDay(day.key)}
-                              />
-                              <span>{day.label.slice(0, 3)}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                  <small className="field-error">{createErrors.repeatDays || createErrors.repeatUntil || ""}</small>
-                </div>
-              ) : null}
+                  ) : null}
 
-              {createModal.mode === "edit" && isEditRecurring ? (
-                <div className="field appointment-edit-scope-field">
-                  <label htmlFor="appointmentEditScope">Apply to</label>
-                  <CustomSelect
-                    id="appointmentEditScope"
-                    placeholder="Select scope"
-                    value={normalizedEditScope}
-                    options={EDIT_SCOPE_OPTIONS}
-                    onChange={(nextValue) => {
-                      const nextScope = EDIT_SCOPE_OPTIONS.some((option) => option.value === nextValue)
-                        ? nextValue
-                        : "single";
-                      setCreateForm((prev) => ({ ...prev, editScope: nextScope }));
+                  <div className="field">
+                    <label htmlFor="appointmentCreateTime">Start Time</label>
+                    <CustomSelect
+                      id="appointmentCreateTime"
+                      placeholder="Select start time"
+                      value={createForm.startTime}
+                      options={timeSelectOptions}
+                      error={Boolean(createErrors.startTime)}
+                      onChange={(nextValue) => {
+                        setCreateForm((prev) => ({ ...prev, startTime: nextValue }));
+                        if (createErrors.startTime) {
+                          setCreateErrors((prev) => ({ ...prev, startTime: "" }));
+                        }
+                      }}
+                    />
+                    <small className="field-error">{createErrors.startTime || ""}</small>
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor="appointmentCreateDuration">Duration</label>
+                    <CustomSelect
+                      id="appointmentCreateDuration"
+                      placeholder="Select duration"
+                      value={createForm.durationMinutes}
+                      options={durationSelectOptions}
+                      error={Boolean(createErrors.durationMinutes)}
+                      onChange={(nextValue) => {
+                        setCreateForm((prev) => ({ ...prev, durationMinutes: nextValue }));
+                        if (createErrors.durationMinutes) {
+                          setCreateErrors((prev) => ({ ...prev, durationMinutes: "" }));
+                        }
+                      }}
+                    />
+                    <small className="field-error">{createErrors.durationMinutes || ""}</small>
+                  </div>
+                </div>
+
+                <div className="field">
+                  <label htmlFor="appointmentCreateService">Service</label>
+                  <input
+                    id="appointmentCreateService"
+                    type="text"
+                    className={createErrors.service ? "input-error" : ""}
+                    value={createForm.service}
+                    onInput={(event) => {
+                      const nextValue = event.currentTarget.value;
+                      setCreateForm((prev) => ({ ...prev, service: nextValue }));
+                      if (createErrors.service) {
+                        setCreateErrors((prev) => ({ ...prev, service: "" }));
+                      }
                     }}
                   />
+                  <small className="field-error">{createErrors.service || ""}</small>
+                </div>
+              </div>
+
+              {/* ── Repeat ── */}
+              {!isVipRecurringModal && !isEditRecurring ? (
+                <div className="appointment-modal-section">
+                  <div className="appointment-repeat-block">
+                    <div className="appointment-create-date-time-row appointment-repeat-head-row">
+                      <div className="field appointment-repeat-until-field">
+                        <label htmlFor="appointmentCreateRepeatUntil">Repeat Until</label>
+                        <input
+                          id="appointmentCreateRepeatUntil"
+                          type="date"
+                          className={createErrors.repeatUntil ? "input-error" : ""}
+                          value={createForm.repeatUntil}
+                          min={createForm.appointmentDate || undefined}
+                          onInput={(event) => {
+                            const nextValue = event.currentTarget.value;
+                            setCreateForm((prev) => ({ ...prev, repeatUntil: nextValue }));
+                            if (createErrors.repeatUntil) {
+                              setCreateErrors((prev) => ({ ...prev, repeatUntil: "" }));
+                            }
+                          }}
+                        />
+                      </div>
+                      <div className="field appointment-repeat-title-field">
+                        <label>Repeat weekly</label>
+                        <div className="appointment-repeat-days" role="group" aria-label="Repeat weekdays">
+                          {visibleRepeatDayItems.map((day) => {
+                            const checked = Array.isArray(createForm.repeatDays) && createForm.repeatDays.includes(day.key);
+                            return (
+                              <label
+                                key={day.key}
+                                className={`appointment-repeat-day-chip${checked ? " is-active" : ""}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleRepeatDay(day.key)}
+                                />
+                                <span>{day.label.slice(0, 3)}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                    <small className="field-error">{createErrors.repeatDays || createErrors.repeatUntil || ""}</small>
+                  </div>
                 </div>
               ) : null}
 
-              <div className="appointment-status-note-row">
-                <div className="field">
-                  <label htmlFor="appointmentCreateStatus">Status</label>
-                  <div className="appointment-status-inline-select">
+              {/* ── Edit scope (recurring only) ── */}
+              {createModal.mode === "edit" && isEditRecurring ? (
+                <div className="appointment-modal-section">
+                  <div className="field appointment-edit-scope-field">
+                    <label htmlFor="appointmentEditScope">Apply to</label>
                     <CustomSelect
-                      id="appointmentCreateStatus"
-                      placeholder="Select status"
-                      value={createForm.status}
-                      options={STATUS_OPTIONS}
-                      forceOpenDown
+                      id="appointmentEditScope"
+                      placeholder="Select scope"
+                      value={normalizedEditScope}
+                      options={EDIT_SCOPE_OPTIONS}
                       onChange={(nextValue) => {
-                        setCreateForm((prev) => ({ ...prev, status: nextValue }));
+                        const nextScope = EDIT_SCOPE_OPTIONS.some((option) => option.value === nextValue)
+                          ? nextValue
+                          : "single";
+                        setCreateForm((prev) => ({ ...prev, editScope: nextScope }));
                       }}
                     />
                   </div>
                 </div>
-
-                <div className="field">
-                  <label htmlFor="appointmentCreateNote">Note</label>
-                  <input
-                    id="appointmentCreateNote"
-                    type="text"
-                    className={createErrors.note ? "input-error" : ""}
-                    value={createForm.note}
-                    onInput={(event) => {
-                      const nextValue = event.currentTarget.value;
-                      setCreateForm((prev) => ({ ...prev, note: nextValue }));
-                      if (createErrors.note) {
-                        setCreateErrors((prev) => ({ ...prev, note: "" }));
-                      }
-                    }}
-                  />
-                  <small className="field-error">{createErrors.note || ""}</small>
-                </div>
-              </div>
-
-              {showNoShowWarning ? (
-                <p className="appointment-create-warning" role="status" aria-live="polite">
-                  Warning: this client has {clientNoShowSummary.noShowCount} no-shows.
-                </p>
               ) : null}
 
-              <small className="field-error">{createErrors.form || ""}</small>
-              <div className="edit-actions">
+              {/* ── Status / Note ── */}
+              <div className="appointment-modal-section">
+                <div className="appointment-status-note-row">
+                  <div className="field">
+                    <label htmlFor="appointmentCreateStatus">Status</label>
+                    <div className="appointment-status-inline-select">
+                      <CustomSelect
+                        id="appointmentCreateStatus"
+                        placeholder="Select status"
+                        value={createForm.status}
+                        options={STATUS_OPTIONS}
+                        onChange={(nextValue) => {
+                          setCreateForm((prev) => ({ ...prev, status: nextValue }));
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor="appointmentCreateNote">Note</label>
+                    <input
+                      id="appointmentCreateNote"
+                      type="text"
+                      className={createErrors.note ? "input-error" : ""}
+                      value={createForm.note}
+                      onInput={(event) => {
+                        const nextValue = event.currentTarget.value;
+                        setCreateForm((prev) => ({ ...prev, note: nextValue }));
+                        if (createErrors.note) {
+                          setCreateErrors((prev) => ({ ...prev, note: "" }));
+                        }
+                      }}
+                    />
+                    <small className="field-error">{createErrors.note || ""}</small>
+                  </div>
+                </div>
+
+                {showNoShowWarning ? (
+                  <p className="appointment-create-warning" role="status" aria-live="polite">
+                    Warning: this client has {clientNoShowSummary.noShowCount} no-shows.
+                  </p>
+                ) : null}
+
+                {createErrors.form ? (
+                  <small className="field-error appointment-form-error">{createErrors.form}</small>
+                ) : null}
+              </div>
+              </div>
+
+              {/* ── Actions ── */}
+              <div className="edit-actions appointment-create-actions">
                 <button
                   className="btn"
                   type="submit"
                   disabled={
                     createSubmitting
                     || createDeleting
-                    || (createModal.mode === "edit" ? !canUpdateAppointments : !canCreateAppointments)
+                    || (createModal.mode === "edit" ? (!canUpdateAppointments || !canMutateSelectedSpecialist) : !canCreateOnSelectedSpecialist)
                   }
                 >
                   {createSubmitting ? "Saving..." : "Save"}
@@ -2056,12 +2368,13 @@ function AppointmentScheduler({
                 <button
                   className="header-btn logout-confirm-yes"
                   type="button"
-                  disabled={createModal.mode !== "edit" || createSubmitting || createDeleting || !canDeleteAppointments}
+                  disabled={createModal.mode !== "edit" || createSubmitting || createDeleting || !canDeleteAppointments || !canMutateSelectedSpecialist}
                   onClick={handleDeleteAppointment}
                 >
                   {createDeleting ? "Deleting..." : "Delete"}
                 </button>
               </div>
+
             </form>
           </section>
           <div
@@ -2069,8 +2382,13 @@ function AppointmentScheduler({
             className="login-overlay"
             onClick={closeCreateModal}
           />
-        </>
-      )}
+          </>
+        );
+        if (typeof document !== "undefined") {
+          return createPortal(modalContent, document.body);
+        }
+        return modalContent;
+      })()}
 
     </section>
   );

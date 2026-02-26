@@ -216,7 +216,20 @@ export async function getRoleOptionById(id) {
 
 export async function listPermissionOptionsForSettings() {
   const { rows } = await pool.query(
-    "SELECT id, code, label, sort_order, is_active, created_at FROM permissions ORDER BY sort_order ASC, id ASC"
+    `SELECT id, code, label, sort_order, is_active, created_at
+       FROM permissions
+      WHERE LOWER(code) <> ALL($1::text[])
+        AND LOWER(code) NOT LIKE ANY($2::text[])
+      ORDER BY sort_order ASC, id ASC`,
+    [[
+      "appointments.notify.to-manager",
+      "appointments.notify.to-specialist",
+      "notifications.schedule.to-manager",
+      "notifications.schedule.to-specialist"
+    ], [
+      "appointments.notify.%",
+      "notifications.schedule.%"
+    ]]
   );
   return rows.map(mapPermissionOption);
 }

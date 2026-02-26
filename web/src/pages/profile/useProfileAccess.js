@@ -25,10 +25,49 @@ export function useProfileAccess(profile, forcedView) {
   const canCreateAppointments = permissionSet.has(PERMISSIONS.APPOINTMENTS_CREATE);
   const canUpdateAppointments = permissionSet.has(PERMISSIONS.APPOINTMENTS_UPDATE);
   const canDeleteAppointments = permissionSet.has(PERMISSIONS.APPOINTMENTS_DELETE);
-  const hasClientsMenuAccess = canReadClients || canCreateClients;
-  const hasAppointmentsMenuAccess = canReadAppointments;
+  const canSendNotifications = permissionSet.has(PERMISSIONS.NOTIFICATIONS_SEND);
+  const canSearchAppointmentClients = (
+    permissionSet.has(PERMISSIONS.APPOINTMENTS_CLIENT_SEARCH)
+    || canReadClients
+  );
+
+  const usesAdvancedMenuPermissions = (
+    permissionSet.has(PERMISSIONS.CLIENTS_MENU)
+    || permissionSet.has(PERMISSIONS.APPOINTMENTS_MENU)
+    || permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE)
+    || permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_BREAKS)
+    || permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_VIP_CLIENTS)
+  );
+
+  const canOpenClientsMenu = usesAdvancedMenuPermissions
+    ? permissionSet.has(PERMISSIONS.CLIENTS_MENU)
+    : (canReadClients || canCreateClients);
+  const hasClientsMenuAccess = canOpenClientsMenu && (canReadClients || canCreateClients);
+
+  const canOpenAppointmentSchedule = canReadAppointments && (
+    usesAdvancedMenuPermissions
+      ? permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE)
+      : true
+  );
+  const canOpenAppointmentBreaks = canReadAppointments && (
+    usesAdvancedMenuPermissions
+      ? permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_BREAKS)
+      : true
+  );
+  const canOpenAppointmentVipClients = canReadAppointments && canReadClients && (
+    usesAdvancedMenuPermissions
+      ? permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_VIP_CLIENTS)
+      : true
+  );
+
+  const canOpenAppointmentsMenu = usesAdvancedMenuPermissions
+    ? permissionSet.has(PERMISSIONS.APPOINTMENTS_MENU)
+    : canReadAppointments;
+  const hasAppointmentsMenuAccess = canOpenAppointmentsMenu
+    && (canOpenAppointmentSchedule || canOpenAppointmentBreaks || canOpenAppointmentVipClients);
   const hasUsersMenuAccess = canReadUsers || canCreateUsers;
   const hasSettingsMenuAccess = Boolean(profile?.isAdmin);
+  const hasNotificationsSettingsAccess = hasSettingsMenuAccess || canSendNotifications;
 
   const canAccessForcedView = useMemo(() => {
     if (forcedView === "none") {
@@ -41,28 +80,33 @@ export function useProfileAccess(profile, forcedView) {
       return canCreateUsers;
     }
     if (forcedView === "clients" || forcedView === "clients-all") {
-      return canReadClients;
+      return hasClientsMenuAccess && canReadClients;
     }
     if (forcedView === "clients-create") {
-      return canCreateClients;
+      return hasClientsMenuAccess && canCreateClients;
     }
     if (forcedView === "appointment-vip-clients") {
-      return canReadAppointments && canReadClients;
+      return canOpenAppointmentVipClients;
     }
-    if (
-      forcedView === "appointment"
-      || forcedView === "appointment-breaks"
-      || forcedView === "appointment-settings"
-    ) {
-      return canReadAppointments;
+    if (forcedView === "appointment") {
+      return canOpenAppointmentSchedule;
+    }
+    if (forcedView === "appointment-breaks") {
+      return canOpenAppointmentBreaks;
+    }
+    if (forcedView === "appointment-settings") {
+      return hasSettingsMenuAccess;
     }
     if (
       forcedView === "settings-organizations"
       || forcedView === "settings-roles"
       || forcedView === "settings-positions"
-      || forcedView === "settings-notifications"
+      || forcedView === "settings-admin-options"
     ) {
       return hasSettingsMenuAccess;
+    }
+    if (forcedView === "settings-notifications") {
+      return hasNotificationsSettingsAccess;
     }
     return true;
   }, [
@@ -70,8 +114,13 @@ export function useProfileAccess(profile, forcedView) {
     canReadAppointments,
     canReadClients,
     canCreateClients,
+    canOpenAppointmentBreaks,
+    canOpenAppointmentSchedule,
+    canOpenAppointmentVipClients,
+    hasClientsMenuAccess,
     canReadUsers,
     forcedView,
+    hasNotificationsSettingsAccess,
     hasSettingsMenuAccess
   ]);
 
@@ -84,14 +133,20 @@ export function useProfileAccess(profile, forcedView) {
     canCreateClients,
     canUpdateClients,
     canDeleteClients,
+    canSearchAppointmentClients,
     hasClientsMenuAccess,
     canReadAppointments,
     canCreateAppointments,
     canUpdateAppointments,
     canDeleteAppointments,
+    canSendNotifications,
+    canOpenAppointmentSchedule,
+    canOpenAppointmentBreaks,
+    canOpenAppointmentVipClients,
     hasAppointmentsMenuAccess,
     hasUsersMenuAccess,
     hasSettingsMenuAccess,
+    hasNotificationsSettingsAccess,
     canAccessForcedView
   };
 }

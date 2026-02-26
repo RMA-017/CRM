@@ -25,10 +25,11 @@ import { getBirthdayValidationMessage } from "./profile/profile.validators.js";
 
 function ProfilePage({ forcedView = "none" }) {
   const navigate = useNavigate();
-  const userMenuWrapRef = useRef(null);
   const menuRef = useRef(null);
   const menuToggleRef = useRef(null);
   const avatarInputRef = useRef(null);
+  const notificationReloadTimerRef = useRef(null);
+  const pendingNotificationFallbackRef = useRef([]);
 
   const [profileLoading, setProfileLoading] = useState(true);
   const [profile, setProfile] = useState(null);
@@ -39,10 +40,16 @@ function ProfilePage({ forcedView = "none" }) {
   const [appointmentMenuOpen, setAppointmentMenuOpen] = useState(false);
   const [usersMenuOpen, setUsersMenuOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [myProfileModalOpen, setMyProfileModalOpen] = useState(false);
   const [notificationsModalOpen, setNotificationsModalOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [notificationSendForm, setNotificationSendForm] = useState({
+    message: "",
+    targetRole: "all"
+  });
+  const [notificationSendSubmitting, setNotificationSendSubmitting] = useState(false);
+  const [notificationSendError, setNotificationSendError] = useState("");
+  const [notificationSendSuccess, setNotificationSendSuccess] = useState("");
 
   const [mainView, setMainViewState] = useState("none");
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
@@ -74,9 +81,14 @@ function ProfilePage({ forcedView = "none" }) {
     canCreateAppointments,
     canUpdateAppointments,
     canDeleteAppointments,
+    canSendNotifications,
+    canOpenAppointmentSchedule,
+    canOpenAppointmentBreaks,
+    canOpenAppointmentVipClients,
     hasAppointmentsMenuAccess,
     hasUsersMenuAccess,
     hasSettingsMenuAccess,
+    hasNotificationsSettingsAccess,
     canAccessForcedView
   } = useProfileAccess(profile, forcedView);
 
@@ -148,6 +160,11 @@ function ProfilePage({ forcedView = "none" }) {
     positionEditError,
     positionEditSubmitting,
     positionDeletingId,
+    adminOptionsForm,
+    adminOptionsLoading,
+    adminOptionsMessage,
+    adminOptionsError,
+    adminOptionsSubmitting,
     setOrganizationCreateForm,
     setOrganizationCreateError,
     setOrganizationEditForm,
@@ -160,9 +177,12 @@ function ProfilePage({ forcedView = "none" }) {
     setPositionCreateError,
     setPositionEditForm,
     setPositionEditError,
+    setAdminOptionsForm,
+    setAdminOptionsError,
     loadOrganizations,
     loadRolesSettings,
     loadPositionsSettings,
+    loadAdminOptions,
     handleOrganizationCreateSubmit,
     startOrganizationEdit,
     cancelOrganizationEdit,
@@ -178,6 +198,7 @@ function ProfilePage({ forcedView = "none" }) {
     cancelPositionEdit,
     handlePositionEditSave,
     handlePositionDelete,
+    handleAdminOptionsSubmit,
     closeSettingsDeleteModal,
     handleSettingsDeleteConfirm
   } = useSettingsSection({
@@ -369,9 +390,7 @@ function ProfilePage({ forcedView = "none" }) {
     setSettingsMenuOpen(false);
   }, []);
 
-  const closeUserDropdown = useCallback(() => {
-    setUserMenuOpen(false);
-  }, []);
+  const closeUserDropdown = useCallback(() => {}, []);
 
   const openNotificationsPanel = useCallback(() => {
     closeMenu();
@@ -404,6 +423,8 @@ function ProfilePage({ forcedView = "none" }) {
             eventType: String(item?.eventType || item?.event_type || "").trim().toLowerCase(),
             message: String(item?.message || "").trim(),
             payload: item?.payload && typeof item.payload === "object" ? item.payload : {},
+            isRead: Boolean(item?.isRead ?? item?.is_read),
+            readAt: item?.readAt || item?.read_at || null,
             createdAt: item?.createdAt || item?.created_at || null
           }))
         : [];
@@ -427,7 +448,18 @@ function ProfilePage({ forcedView = "none" }) {
       });
       if (!response.ok) {
         handleProtectedStatus(response, navigate);
+        return;
       }
+      const readAtValue = new Date().toISOString();
+      setNotifications((prev) => (
+        Array.isArray(prev)
+          ? prev.map((item) => (
+              item?.isRead
+                ? item
+                : { ...item, isRead: true, readAt: item?.readAt || readAtValue }
+            ))
+          : []
+      ));
     } catch {
       // Ignore notification read errors in UI.
     }
@@ -453,6 +485,53 @@ function ProfilePage({ forcedView = "none" }) {
     }
   }, [navigate, profile?.username]);
 
+  const sendManualNotification = useCallback(async () => {
+    if (!canSendNotifications) {
+      window.alert("You do not have permission to send notifications.");
+      return;
+    }
+
+    const message = String(notificationSendForm.message || "").trim();
+    const targetRole = String(notificationSendForm.targetRole || "").trim().toLowerCase();
+    if (!message) {
+      window.alert("Message is required.");
+      return;
+    }
+    if (!targetRole) {
+      window.alert("Select recipient group.");
+      return;
+    }
+
+    try {
+      setNotificationSendSubmitting(true);
+
+      const response = await apiFetch("/api/notifications/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message,
+          targetRoles: [targetRole]
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        if (handleProtectedStatus(response, navigate)) {
+          return;
+        }
+        window.alert(data?.message || "Failed to send notification.");
+        return;
+      }
+
+      setNotificationSendForm((prev) => ({ ...prev, message: "" }));
+      window.alert(data?.message || "Notification sent.");
+    } catch {
+      window.alert("Unexpected error. Please try again.");
+    } finally {
+      setNotificationSendSubmitting(false);
+    }
+  }, [canSendNotifications, navigate, notificationSendForm.message, notificationSendForm.targetRole]);
+
   const handleAppointmentNotification = useCallback((notification) => {
     const normalizedMessage = String(notification?.message || "").trim();
     if (!normalizedMessage) {
@@ -471,11 +550,58 @@ function ProfilePage({ forcedView = "none" }) {
           eventType,
           message: normalizedMessage,
           payload,
+          isRead: false,
+          readAt: null,
           createdAt
         },
         ...prev
       ].slice(0, 50)
     ));
+  }, []);
+
+  const unreadNotificationsCount = useMemo(() => {
+    if (!Array.isArray(notifications) || notifications.length === 0) {
+      return 0;
+    }
+    return notifications.reduce((count, item) => (
+      item?.isRead ? count : count + 1
+    ), 0);
+  }, [notifications]);
+
+  const scheduleNotificationsReload = useCallback((fallbackNotification) => {
+    if (fallbackNotification && typeof fallbackNotification === "object") {
+      pendingNotificationFallbackRef.current = [
+        ...pendingNotificationFallbackRef.current,
+        fallbackNotification
+      ].slice(-50);
+    }
+
+    if (notificationReloadTimerRef.current) {
+      clearTimeout(notificationReloadTimerRef.current);
+    }
+
+    notificationReloadTimerRef.current = setTimeout(() => {
+      notificationReloadTimerRef.current = null;
+      const queuedFallbacks = pendingNotificationFallbackRef.current;
+      pendingNotificationFallbackRef.current = [];
+
+      void loadNotifications({ silent: true }).then((loaded) => {
+        if (loaded) {
+          return;
+        }
+        queuedFallbacks.forEach((notification) => {
+          handleAppointmentNotification(notification);
+        });
+      });
+    }, 500);
+  }, [handleAppointmentNotification, loadNotifications]);
+
+  useEffect(() => () => {
+    if (notificationReloadTimerRef.current) {
+      clearTimeout(notificationReloadTimerRef.current);
+      notificationReloadTimerRef.current = null;
+    }
+    pendingNotificationFallbackRef.current = [];
   }, []);
 
   useEffect(() => {
@@ -507,15 +633,11 @@ function ProfilePage({ forcedView = "none" }) {
       if (!isOwnChange) {
         const notificationText = String(payload?.message || "").trim() || "Appointment schedule changed.";
         const notificationPayloadData = payload?.data && typeof payload.data === "object" ? payload.data : {};
-        void loadNotifications({ silent: true }).then((loaded) => {
-          if (!loaded) {
-            handleAppointmentNotification({
-              eventType: payload?.type,
-              message: notificationText,
-              payload: { data: notificationPayloadData },
-              createdAt: payload?.timestamp || new Date().toISOString()
-            });
-          }
+        scheduleNotificationsReload({
+          eventType: payload?.type,
+          message: notificationText,
+          payload: { data: notificationPayloadData },
+          createdAt: payload?.timestamp || new Date().toISOString()
         });
       }
     };
@@ -526,7 +648,7 @@ function ProfilePage({ forcedView = "none" }) {
       eventSource.removeEventListener("appointment-change", handleAppointmentChange);
       eventSource.close();
     };
-  }, [canReadAppointments, handleAppointmentNotification, loadNotifications, profile?.username]);
+  }, [canReadAppointments, profile?.username, scheduleNotificationsReload]);
 
   useEffect(() => {
     if (!profile?.username) {
@@ -675,7 +797,13 @@ function ProfilePage({ forcedView = "none" }) {
       loadPositionsSettings();
       return;
     }
+    if (mainView === "settings-admin-options") {
+      loadOrganizations();
+      loadAdminOptions();
+      return;
+    }
     if (mainView === "settings-notifications") {
+      loadRolesSettings();
       return;
     }
   }, [
@@ -683,6 +811,7 @@ function ProfilePage({ forcedView = "none" }) {
     loadClients,
     loadVipClients,
     loadAllUsers,
+    loadAdminOptions,
     loadOrganizations,
     loadPositionsSettings,
     loadRolesSettings,
@@ -710,22 +839,6 @@ function ProfilePage({ forcedView = "none" }) {
       };
     });
   }, [allowedCreateOrganizationCodes, createOrganizationOptions, profile?.organizationCode]);
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (!userMenuWrapRef.current) {
-        return;
-      }
-      if (!userMenuWrapRef.current.contains(event.target)) {
-        setUserMenuOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
 
   useEffect(() => {
     function handleEscape(event) {
@@ -818,6 +931,8 @@ function ProfilePage({ forcedView = "none" }) {
     closeRolesPanel,
     openPositionsPanel,
     closePositionsPanel,
+    openAdminOptionsPanel,
+    closeAdminOptionsPanel,
     openNotificationsSettingsPanel,
     closeNotificationsSettingsPanel,
     closeCreateUserPanel,
@@ -831,8 +946,11 @@ function ProfilePage({ forcedView = "none" }) {
     canCreateUsers,
     canReadClients,
     canCreateClients,
-    canReadAppointments,
-    hasSettingsMenuAccess
+    canOpenAppointmentSchedule,
+    canOpenAppointmentBreaks,
+    canOpenAppointmentVipClients,
+    hasSettingsMenuAccess,
+    hasNotificationsSettingsAccess
   });
 
   function validateCreatePayload(payload) {
@@ -1157,13 +1275,37 @@ function ProfilePage({ forcedView = "none" }) {
           </div>
 
           <nav className="header-actions" aria-label="Header actions">
-            <div ref={userMenuWrapRef} className="user-menu-wrap">
+            <button
+              id="headerNotificationsBtn"
+              type="button"
+              className={`header-btn header-notification-btn${unreadNotificationsCount > 0 ? " has-unread" : ""}`}
+              aria-label="Open notifications"
+              title="Notifications"
+              onClick={openNotificationsPanel}
+            >
+              <span className="header-notification-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" focusable="false">
+                  <path
+                    d="M15 17H9M18 17V11C18 8.23858 15.7614 6 13 6H11C8.23858 6 6 8.23858 6 11V17M18 17H6M18 17H20M6 17H4M14 20C14 21.1046 13.1046 22 12 22C10.8954 22 10 21.1046 10 20"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
+              {unreadNotificationsCount > 0 ? (
+                <span className="header-notification-badge" aria-hidden="true">
+                  {unreadNotificationsCount > 99 ? "99+" : String(unreadNotificationsCount)}
+                </span>
+              ) : null}
+            </button>
+            <div className="user-menu-wrap">
               <button
                 id="headerUserNameBtn"
                 type="button"
                 className="header-btn user-name-btn"
-                aria-expanded={userMenuOpen ? "true" : "false"}
-                onClick={() => setUserMenuOpen((prev) => !prev)}
+                onClick={openMyProfilePanel}
               >
                 <span className="header-avatar-inline">
                   <img
@@ -1192,20 +1334,6 @@ function ProfilePage({ forcedView = "none" }) {
                   event.currentTarget.value = "";
                 }}
               />
-
-              <div id="headerUserMenu" className="header-user-menu" hidden={!userMenuOpen}>
-                <button id="openMyProfileBtn" type="button" className="header-user-menu-item" onClick={openMyProfilePanel}>
-                  My Profile
-                </button>
-                <button
-                  id="openNotificationsBtn"
-                  type="button"
-                  className="header-user-menu-item"
-                  onClick={openNotificationsPanel}
-                >
-                  Notification
-                </button>
-              </div>
             </div>
 
             <button id="headerLogoutBtn" type="button" className="header-btn" onClick={() => setLogoutConfirmOpen(true)}>
@@ -1262,7 +1390,16 @@ function ProfilePage({ forcedView = "none" }) {
           closeOrganizationsPanel={closeOrganizationsPanel}
           closeRolesPanel={closeRolesPanel}
           closePositionsPanel={closePositionsPanel}
+          closeAdminOptionsPanel={closeAdminOptionsPanel}
           closeNotificationsSettingsPanel={closeNotificationsSettingsPanel}
+          canSendNotifications={canSendNotifications}
+          notificationSendForm={notificationSendForm}
+          notificationSendSubmitting={notificationSendSubmitting}
+          notificationSendError={notificationSendError}
+          notificationSendSuccess={notificationSendSuccess}
+          setNotificationSendForm={setNotificationSendForm}
+          setNotificationSendError={setNotificationSendError}
+          sendManualNotification={sendManualNotification}
           organizations={organizations}
           organizationsMessage={organizationsMessage}
           organizationCreateForm={organizationCreateForm}
@@ -1296,6 +1433,15 @@ function ProfilePage({ forcedView = "none" }) {
           startPositionEdit={startPositionEdit}
           positionDeletingId={positionDeletingId}
           handlePositionDelete={handlePositionDelete}
+          adminOptionsForm={adminOptionsForm}
+          adminOptionsLoading={adminOptionsLoading}
+          adminOptionsMessage={adminOptionsMessage}
+          adminOptionsError={adminOptionsError}
+          adminOptionsSubmitting={adminOptionsSubmitting}
+          setAdminOptionsForm={setAdminOptionsForm}
+          setAdminOptionsError={setAdminOptionsError}
+          loadAdminOptions={loadAdminOptions}
+          handleAdminOptionsSubmit={handleAdminOptionsSubmit}
           canCreateUsers={canCreateUsers}
           handleCreateUserSubmit={handleCreateUserSubmit}
           createForm={createForm}
@@ -1417,6 +1563,9 @@ function ProfilePage({ forcedView = "none" }) {
         openAllClientsPanel={openAllClientsPanel}
         openCreateClientPanel={openCreateClientPanel}
         hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
+        canOpenAppointmentSchedule={canOpenAppointmentSchedule}
+        canOpenAppointmentBreaks={canOpenAppointmentBreaks}
+        canOpenAppointmentVipClients={canOpenAppointmentVipClients}
         appointmentMenuOpen={appointmentMenuOpen}
         setAppointmentMenuOpen={setAppointmentMenuOpen}
         openAppointmentPanel={openAppointmentPanel}
@@ -1433,10 +1582,12 @@ function ProfilePage({ forcedView = "none" }) {
         canCreateUsers={canCreateUsers}
         openCreateUserPanel={openCreateUserPanel}
         hasSettingsMenuAccess={hasSettingsMenuAccess}
+        hasNotificationsSettingsAccess={hasNotificationsSettingsAccess}
         settingsMenuOpen={settingsMenuOpen}
         openOrganizationsPanel={openOrganizationsPanel}
         openRolesPanel={openRolesPanel}
         openPositionsPanel={openPositionsPanel}
+        openAdminOptionsPanel={openAdminOptionsPanel}
         openNotificationsSettingsPanel={openNotificationsSettingsPanel}
       />
     </>
@@ -1444,4 +1595,3 @@ function ProfilePage({ forcedView = "none" }) {
 }
 
 export default ProfilePage;
-

@@ -1,10 +1,16 @@
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
+import { publishAppointmentEvent } from "../appointments/appointment-events.js";
+import { getProfileByAuthContext } from "../profile/profile.service.js";
+import { hasPermission } from "../users/access.service.js";
+import { PERMISSIONS } from "../users/users.constants.js";
 import {
   clearAllUserNotifications,
   isNotificationsSchemaMissing,
   listUserNotifications,
-  markAllUserNotificationsRead
+  markAllUserNotificationsRead,
+  persistNotificationEvent,
+  resolveNotificationRecipientIds
 } from "./notifications.service.js";
 
 function parseUnreadOnly(value) {
@@ -21,6 +27,28 @@ function parseLimit(value) {
     return 50;
   }
   return Math.min(parsed, 200);
+}
+
+function normalizeTargetUserIds(value) {
+  const source = Array.isArray(value) ? value : [value];
+  return Array.from(
+    new Set(
+      source
+        .map((item) => parsePositiveInteger(item))
+        .filter((item) => Number.isInteger(item) && item > 0)
+    )
+  );
+}
+
+function normalizeTargetRoles(value) {
+  const source = Array.isArray(value) ? value : [value];
+  return Array.from(
+    new Set(
+      source
+        .map((item) => String(item || "").trim().toLowerCase())
+        .filter((item) => item.length > 0 && item.length <= 100)
+    )
+  );
 }
 
 async function notificationsRoutes(fastify) {
@@ -124,6 +152,125 @@ async function notificationsRoutes(fastify) {
           });
         }
         request.log.error({ err: error }, "Error clearing notifications");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.post(
+    "/send",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      const authContext = request.authContext;
+      const organizationId = authContext?.organizationId;
+      const userId = authContext?.userId;
+      if (!organizationId || !userId) {
+        return reply.status(401).send({ message: "Unauthorized." });
+      }
+
+      const requester = await getProfileByAuthContext(authContext);
+      if (!requester) {
+        return reply.status(401).send({ message: "Unauthorized." });
+      }
+
+      const canSendNotifications = Boolean(requester.is_admin)
+        || (await hasPermission(requester.role_id, PERMISSIONS.NOTIFICATIONS_SEND));
+      if (!canSendNotifications) {
+        return reply.status(403).send({ message: "Forbidden." });
+      }
+
+      const message = String(request.body?.message || "").trim();
+      if (!message) {
+        return reply.status(400).send({
+          field: "message",
+          message: "Message is required."
+        });
+      }
+      if (message.length > 255) {
+        return reply.status(400).send({
+          field: "message",
+          message: "Message is too long (max 255)."
+        });
+      }
+
+      const targetUserIds = normalizeTargetUserIds(request.body?.targetUserIds);
+      const targetRoles = normalizeTargetRoles(request.body?.targetRoles);
+      if (targetUserIds.length === 0 && targetRoles.length === 0) {
+        return reply.status(400).send({
+          field: "target",
+          message: "Provide at least one target user or role."
+        });
+      }
+
+      const payloadData = request.body?.payload && typeof request.body.payload === "object"
+        ? request.body.payload
+        : {};
+
+      try {
+        const persisted = await persistNotificationEvent({
+          organizationId,
+          sourceUserId: userId,
+          eventType: "notification-manual",
+          message,
+          targetUserIds,
+          targetRoles,
+          payload: payloadData,
+          aggregateType: "notification",
+          aggregateId: ""
+        });
+
+        const recipientUserIds = Array.isArray(persisted?.recipientUserIds)
+          ? persisted.recipientUserIds
+          : [];
+        if (recipientUserIds.length === 0) {
+          return reply.status(400).send({ message: "No matching recipients found." });
+        }
+
+        publishAppointmentEvent({
+          organizationId,
+          type: "notification-manual",
+          message,
+          sourceUserId: userId,
+          sourceUsername: String(authContext.username || "").trim(),
+          targetUserIds: recipientUserIds,
+          data: payloadData
+        });
+
+        return reply.status(201).send({
+          message: "Notification sent.",
+          recipientCount: recipientUserIds.length
+        });
+      } catch (error) {
+        if (isNotificationsSchemaMissing(error)) {
+          const recipientUserIds = await resolveNotificationRecipientIds({
+            organizationId,
+            targetUserIds,
+            targetRoles,
+            excludeUserId: userId
+          });
+
+          if (recipientUserIds.length > 0) {
+            publishAppointmentEvent({
+              organizationId,
+              type: "notification-manual",
+              message,
+              sourceUserId: userId,
+              sourceUsername: String(authContext.username || "").trim(),
+              targetUserIds: recipientUserIds,
+              data: payloadData
+            });
+          }
+
+          return reply.status(201).send({
+            message: "Notification sent.",
+            recipientCount: recipientUserIds.length,
+            schemaReady: false
+          });
+        }
+
+        request.log.error({ err: error }, "Error sending notifications");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }

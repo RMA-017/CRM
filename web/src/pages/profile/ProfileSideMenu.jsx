@@ -9,6 +9,9 @@ function ProfileSideMenu({
   openAllClientsPanel,
   openCreateClientPanel,
   hasAppointmentsMenuAccess,
+  canOpenAppointmentSchedule,
+  canOpenAppointmentBreaks,
+  canOpenAppointmentVipClients,
   appointmentMenuOpen,
   setAppointmentMenuOpen,
   openAppointmentPanel,
@@ -25,10 +28,12 @@ function ProfileSideMenu({
   canCreateUsers,
   openCreateUserPanel,
   hasSettingsMenuAccess,
+  hasNotificationsSettingsAccess,
   settingsMenuOpen,
   openOrganizationsPanel,
   openRolesPanel,
   openPositionsPanel,
+  openAdminOptionsPanel,
   openNotificationsSettingsPanel
 }) {
   return (
@@ -53,9 +58,6 @@ function ProfileSideMenu({
             aria-expanded={clientsMenuOpen ? "true" : "false"}
             onClick={() => {
               setClientsMenuOpen((prev) => !prev);
-              setUsersMenuOpen(false);
-              setSettingsMenuOpen(false);
-              setAppointmentMenuOpen(false);
             }}
           >
             Clients
@@ -88,9 +90,6 @@ function ProfileSideMenu({
               aria-expanded={appointmentMenuOpen ? "true" : "false"}
               onClick={() => {
                 setAppointmentMenuOpen((prev) => !prev);
-                setClientsMenuOpen(false);
-                setUsersMenuOpen(false);
-                setSettingsMenuOpen(false);
               }}
             >
               Appointments
@@ -100,6 +99,7 @@ function ProfileSideMenu({
                 id="openAppointmentBreaksBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
+                hidden={!canOpenAppointmentBreaks}
                 onClick={openAppointmentBreaksPanel}
               >
                 Breaks
@@ -108,6 +108,7 @@ function ProfileSideMenu({
                 id="openAppointmentScheduleBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
+                hidden={!canOpenAppointmentSchedule}
                 onClick={openAppointmentPanel}
               >
                 Schedule
@@ -116,7 +117,7 @@ function ProfileSideMenu({
                 id="openAppointmentVipClientsBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
-                hidden={!canReadClients}
+                hidden={!canOpenAppointmentVipClients}
                 onClick={openAppointmentVipClientsPanel}
               >
                 VIP Clients
@@ -131,9 +132,6 @@ function ProfileSideMenu({
               aria-expanded={usersMenuOpen ? "true" : "false"}
               onClick={() => {
                 setUsersMenuOpen((prev) => !prev);
-                setSettingsMenuOpen(false);
-                setClientsMenuOpen(false);
-                setAppointmentMenuOpen(false);
               }}
             >
               Users
@@ -162,7 +160,7 @@ function ProfileSideMenu({
               </button>
             </div>
           </div>
-          <div id="settingsMenuGroup" className="side-menu-group" hidden={!hasSettingsMenuAccess}>
+          <div id="settingsMenuGroup" className="side-menu-group" hidden={!hasSettingsMenuAccess && !hasNotificationsSettingsAccess}>
             <button
               id="toggleSettingsMenuBtn"
               type="button"
@@ -170,9 +168,6 @@ function ProfileSideMenu({
               aria-expanded={settingsMenuOpen ? "true" : "false"}
               onClick={() => {
                 setSettingsMenuOpen((prev) => !prev);
-                setUsersMenuOpen(false);
-                setClientsMenuOpen(false);
-                setAppointmentMenuOpen(false);
               }}
             >
               General Settings
@@ -182,6 +177,7 @@ function ProfileSideMenu({
                 id="openAppointmentSettingsBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
+                hidden={!hasSettingsMenuAccess}
                 onClick={openAppointmentSettingsPanel}
               >
                 Appointments
@@ -190,6 +186,7 @@ function ProfileSideMenu({
                 id="openOrganizationsBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
+                hidden={!hasSettingsMenuAccess}
                 onClick={openOrganizationsPanel}
               >
                 Organizations
@@ -198,6 +195,7 @@ function ProfileSideMenu({
                 id="openRolesBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
+                hidden={!hasSettingsMenuAccess}
                 onClick={openRolesPanel}
               >
                 Roles
@@ -206,14 +204,25 @@ function ProfileSideMenu({
                 id="openPositionsBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
+                hidden={!hasSettingsMenuAccess}
                 onClick={openPositionsPanel}
               >
                 Positions
               </button>
               <button
+                id="openAdminOptionsBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                hidden={!hasSettingsMenuAccess}
+                onClick={openAdminOptionsPanel}
+              >
+                Admin Options
+              </button>
+              <button
                 id="openNotificationsSettingsBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
+                hidden={!hasNotificationsSettingsAccess}
                 onClick={openNotificationsSettingsPanel}
               >
                 Notifications

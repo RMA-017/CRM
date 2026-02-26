@@ -5,6 +5,7 @@ export { USERNAME_REGEX };
 export const PERMISSIONS = Object.freeze({
   PROFILE_READ: "profile.read",
   PROFILE_UPDATE: "profile.update",
+  CLIENTS_MENU: "clients.menu",
   USERS_READ: "users.read",
   USERS_CREATE: "users.create",
   USERS_UPDATE: "users.update",
@@ -13,8 +14,16 @@ export const PERMISSIONS = Object.freeze({
   CLIENTS_CREATE: "clients.create",
   CLIENTS_UPDATE: "clients.update",
   CLIENTS_DELETE: "clients.delete",
+  APPOINTMENTS_MENU: "appointments.menu",
   APPOINTMENTS_READ: "appointments.read",
   APPOINTMENTS_CREATE: "appointments.create",
   APPOINTMENTS_UPDATE: "appointments.update",
-  APPOINTMENTS_DELETE: "appointments.delete"
+  APPOINTMENTS_DELETE: "appointments.delete",
+  APPOINTMENTS_SUBMENU_SCHEDULE: "appointments.schedule",
+  APPOINTMENTS_SUBMENU_BREAKS: "appointments.breaks",
+  APPOINTMENTS_SUBMENU_VIP_CLIENTS: "appointments.vip-clients",
+  APPOINTMENTS_CLIENT_SEARCH: "appointments.client-search",
+  NOTIFICATIONS_SEND: "notifications.send",
+  NOTIFICATIONS_NOTIFY_TO_MANAGER: "notifications.notify.to-manager",
+  NOTIFICATIONS_NOTIFY_TO_SPECIALIST: "notifications.notify.to-specialist"
 });

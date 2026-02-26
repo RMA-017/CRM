@@ -4,6 +4,7 @@ import { PERMISSIONS } from "./users.constants.js";
 const BASE_PERMISSION_DEFINITIONS = [
   { code: PERMISSIONS.PROFILE_READ, label: "Read Profile", sortOrder: 10 },
   { code: PERMISSIONS.PROFILE_UPDATE, label: "Update Profile", sortOrder: 20 },
+  { code: PERMISSIONS.CLIENTS_MENU, label: "Open Clients Menu", sortOrder: 25 },
   { code: PERMISSIONS.USERS_READ, label: "Read Users", sortOrder: 30 },
   { code: PERMISSIONS.USERS_CREATE, label: "Create Users", sortOrder: 31 },
   { code: PERMISSIONS.USERS_UPDATE, label: "Update Users", sortOrder: 32 },
@@ -12,11 +13,43 @@ const BASE_PERMISSION_DEFINITIONS = [
   { code: PERMISSIONS.CLIENTS_CREATE, label: "Create Clients", sortOrder: 41 },
   { code: PERMISSIONS.CLIENTS_UPDATE, label: "Update Clients", sortOrder: 42 },
   { code: PERMISSIONS.CLIENTS_DELETE, label: "Delete Clients", sortOrder: 43 },
+  { code: PERMISSIONS.APPOINTMENTS_MENU, label: "Open Appointments Menu", sortOrder: 49 },
   { code: PERMISSIONS.APPOINTMENTS_READ, label: "Read Appointments", sortOrder: 50 },
   { code: PERMISSIONS.APPOINTMENTS_CREATE, label: "Create Appointments", sortOrder: 51 },
   { code: PERMISSIONS.APPOINTMENTS_UPDATE, label: "Update Appointments", sortOrder: 52 },
-  { code: PERMISSIONS.APPOINTMENTS_DELETE, label: "Delete Appointments", sortOrder: 53 }
+  { code: PERMISSIONS.APPOINTMENTS_DELETE, label: "Delete Appointments", sortOrder: 53 },
+  { code: PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE, label: "Appointments Schedule Submenu", sortOrder: 54 },
+  { code: PERMISSIONS.APPOINTMENTS_SUBMENU_BREAKS, label: "Appointments Breaks Submenu", sortOrder: 55 },
+  { code: PERMISSIONS.APPOINTMENTS_SUBMENU_VIP_CLIENTS, label: "Appointments VIP Clients Submenu", sortOrder: 56 },
+  { code: PERMISSIONS.APPOINTMENTS_CLIENT_SEARCH, label: "Search Clients In Appointments", sortOrder: 57 },
+  { code: PERMISSIONS.NOTIFICATIONS_SEND, label: "Send Notifications", sortOrder: 58 },
+  { code: PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_MANAGER, label: "Notify To Manager", sortOrder: 59 },
+  { code: PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_SPECIALIST, label: "Notify To Specialist", sortOrder: 60 }
 ];
+
+const LEGACY_PERMISSION_CODE_MIGRATIONS = Object.freeze([
+  {
+    from: "appointments.notify.to-manager",
+    to: PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_MANAGER
+  },
+  {
+    from: "appointments.notify.to-specialist",
+    to: PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_SPECIALIST
+  },
+  {
+    from: "notifications.schedule.to-manager",
+    to: PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_MANAGER
+  },
+  {
+    from: "notifications.schedule.to-specialist",
+    to: PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_SPECIALIST
+  }
+]);
+
+const LEGACY_PERMISSION_CODE_PATTERNS = Object.freeze([
+  "appointments.notify.%",
+  "notifications.schedule.%"
+]);
 
 export async function ensureSystemPermissions() {
   const client = await pool.connect();
@@ -39,10 +72,46 @@ export async function ensureSystemPermissions() {
          VALUES ${valuesSql.join(", ")}
          ON CONFLICT (code) DO UPDATE
            SET label = EXCLUDED.label,
-               sort_order = EXCLUDED.sort_order`,
+               sort_order = EXCLUDED.sort_order,
+               is_active = TRUE`,
         params
       );
     }
+
+    await client.query(
+      `UPDATE permissions
+          SET is_active = TRUE
+        WHERE LOWER(code) = ANY($1::text[])`,
+      [BASE_PERMISSION_DEFINITIONS.map((permission) => String(permission.code || "").trim().toLowerCase())]
+    );
+
+    for (const migration of LEGACY_PERMISSION_CODE_MIGRATIONS) {
+      await client.query(
+        `INSERT INTO role_permissions (role_id, permission_id)
+         SELECT rp.role_id, target_permission.id
+           FROM role_permissions rp
+           JOIN permissions legacy_permission ON legacy_permission.id = rp.permission_id
+           JOIN permissions target_permission ON target_permission.code = $2
+          WHERE legacy_permission.code = $1
+         ON CONFLICT (role_id, permission_id) DO NOTHING`,
+        [migration.from, migration.to]
+      );
+    }
+
+    await client.query(
+      `UPDATE permissions
+          SET is_active = FALSE
+        WHERE LOWER(code) LIKE ANY($1::text[])`,
+      [LEGACY_PERMISSION_CODE_PATTERNS]
+    );
+
+    await client.query(
+      `DELETE FROM role_permissions rp
+       USING permissions p
+       WHERE p.id = rp.permission_id
+         AND LOWER(p.code) LIKE ANY($1::text[])`,
+      [LEGACY_PERMISSION_CODE_PATTERNS]
+    );
 
     // Keep admin roles aligned with all active permissions.
     await client.query(

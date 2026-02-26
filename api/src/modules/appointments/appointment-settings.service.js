@@ -26,6 +26,9 @@ const REMINDER_CHANNEL_SET = new Set(["sms", "email", "telegram"]);
 const APPOINTMENT_SCHEDULES_TABLE = "appointment_schedules";
 const APPOINTMENT_SETTINGS_TABLE = "appointment_settings";
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+export const DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS = 10;
+export const MIN_APPOINTMENT_HISTORY_LOCK_DAYS = 0;
+export const MAX_APPOINTMENT_HISTORY_LOCK_DAYS = 3650;
 
 function getAppointmentSchedulesTableName() {
   return APPOINTMENT_SCHEDULES_TABLE;
@@ -69,6 +72,18 @@ function mapReminderChannels(value) {
         .filter((item) => REMINDER_CHANNEL_SET.has(item))
     )
   );
+}
+
+function normalizeHistoryLockDays(value, fallback = DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS) {
+  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
+  if (
+    Number.isInteger(parsed)
+    && parsed >= MIN_APPOINTMENT_HISTORY_LOCK_DAYS
+    && parsed <= MAX_APPOINTMENT_HISTORY_LOCK_DAYS
+  ) {
+    return parsed;
+  }
+  return fallback;
 }
 
 function toBreakItem(row) {
@@ -115,7 +130,8 @@ function createDefaultSettings() {
     workingHours,
     noShowThreshold: "3",
     reminderHours: "24",
-    reminderChannels: ["sms", "email", "telegram"]
+    reminderChannels: ["sms", "email", "telegram"],
+    historyLockDays: String(DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS)
   };
 }
 
@@ -129,7 +145,8 @@ function createEmptySettings() {
     workingHours: createEmptyWorkingHours(),
     noShowThreshold: "",
     reminderHours: "",
-    reminderChannels: []
+    reminderChannels: [],
+    historyLockDays: String(DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS)
   };
 }
 
@@ -170,7 +187,8 @@ function mapSettingsRow(row, workingHourRows) {
     workingHours: mapWorkingHours(workingHourRows),
     noShowThreshold: String(row.no_show_threshold || 1),
     reminderHours: String(row.reminder_hours || 24),
-    reminderChannels: mapReminderChannels(row.reminder_channels)
+    reminderChannels: mapReminderChannels(row.reminder_channels),
+    historyLockDays: String(normalizeHistoryLockDays(row.history_lock_days))
   };
 }
 
@@ -259,7 +277,8 @@ async function getAppointmentSettingsColumnFlags(tableName = APPOINTMENT_SETTING
     hasAppointmentDuration: set.has("appointment_duration_minutes"),
     hasAppointmentDurationOptions: set.has("appointment_duration_options_minutes"),
     hasReminderChannels: set.has("reminder_channels"),
-    hasSlotSubDivisions: set.has("slot_sub_divisions")
+    hasSlotSubDivisions: set.has("slot_sub_divisions"),
+    hasHistoryLockDays: set.has("history_lock_days")
   };
   return flags;
 }
@@ -1098,6 +1117,9 @@ export async function getAppointmentSettingsByOrganization(organizationId) {
   const slotSubDivisionsSelect = flags.hasSlotSubDivisions
     ? "slot_sub_divisions,"
     : "1::smallint AS slot_sub_divisions,";
+  const historyLockDaysSelect = flags.hasHistoryLockDays
+    ? "history_lock_days,"
+    : `${DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS}::integer AS history_lock_days,`;
 
   const [settingsResult, workingHoursResult] = await Promise.all([
     pool.query(
@@ -1111,6 +1133,7 @@ export async function getAppointmentSettingsByOrganization(organizationId) {
          no_show_threshold,
          reminder_hours,
          ${reminderChannelsSelect}
+         ${historyLockDaysSelect}
          visible_week_days
        FROM ${tableName}
        WHERE organization_id = $1
@@ -1267,4 +1290,92 @@ export async function saveAppointmentSettings({
   }
 
   return getAppointmentSettingsByOrganization(organizationId);
+}
+
+export async function getAppointmentHistoryLockDaysByOrganization(organizationId) {
+  const tableName = APPOINTMENT_SETTINGS_TABLE;
+  const flags = await getAppointmentSettingsColumnFlags(tableName);
+  if (!flags.hasHistoryLockDays) {
+    return DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS;
+  }
+
+  const { rows } = await pool.query(
+    `SELECT history_lock_days
+       FROM ${tableName}
+      WHERE organization_id = $1
+      LIMIT 1`,
+    [organizationId]
+  );
+
+  const row = rows[0] || null;
+  if (!row) {
+    return DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS;
+  }
+
+  return normalizeHistoryLockDays(row.history_lock_days);
+}
+
+export async function saveAppointmentHistoryLockDaysByOrganization({
+  organizationId,
+  actorUserId,
+  historyLockDays
+}) {
+  const normalizedHistoryLockDays = normalizeHistoryLockDays(historyLockDays, Number.NaN);
+  if (
+    !Number.isInteger(normalizedHistoryLockDays)
+    || normalizedHistoryLockDays < MIN_APPOINTMENT_HISTORY_LOCK_DAYS
+    || normalizedHistoryLockDays > MAX_APPOINTMENT_HISTORY_LOCK_DAYS
+  ) {
+    const error = new Error("Invalid history lock days.");
+    error.code = "INVALID_HISTORY_LOCK_DAYS";
+    throw error;
+  }
+
+  const tableName = APPOINTMENT_SETTINGS_TABLE;
+  const flags = await getAppointmentSettingsColumnFlags(tableName);
+  if (!flags.hasHistoryLockDays) {
+    const error = new Error("Appointment settings migration is required.");
+    error.code = "MIGRATION_REQUIRED";
+    throw error;
+  }
+
+  const existingResult = await pool.query(
+    `SELECT organization_id
+       FROM ${tableName}
+      WHERE organization_id = $1
+      LIMIT 1`,
+    [organizationId]
+  );
+
+  if ((existingResult.rowCount || 0) === 0) {
+    const defaults = createDefaultSettings();
+    const defaultDurationOptions = mapDurationOptions(
+      defaults.appointmentDurationOptions.map((value) => Number.parseInt(String(value), 10))
+    );
+
+    await saveAppointmentSettings({
+      organizationId,
+      actorUserId,
+      slotIntervalMinutes: Number.parseInt(String(defaults.slotInterval || "30"), 10) || 30,
+      slotSubDivisions: Number.parseInt(String(defaults.slotSubDivisions || "1"), 10) || 1,
+      appointmentDurationMinutes: defaultDurationOptions[0] || 30,
+      appointmentDurationOptionsMinutes: defaultDurationOptions,
+      noShowThreshold: Number.parseInt(String(defaults.noShowThreshold || "1"), 10) || 1,
+      reminderHours: Number.parseInt(String(defaults.reminderHours || "24"), 10) || 24,
+      reminderChannels: defaults.reminderChannels,
+      visibleWeekDays: defaults.visibleWeekDays,
+      workingHours: defaults.workingHours
+    });
+  }
+
+  await pool.query(
+    `UPDATE ${tableName}
+        SET history_lock_days = $1,
+            updated_by = $2,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE organization_id = $3`,
+    [normalizedHistoryLockDays, actorUserId || null, organizationId]
+  );
+
+  return getAppointmentHistoryLockDaysByOrganization(organizationId);
 }

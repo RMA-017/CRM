@@ -4,6 +4,7 @@ import pool from "../../config/db.js";
 export async function getProfileByAuthContext({ userId, organizationId }) {
   const { rows } = await pool.query(
     `SELECT
+       u.id,
        u.role_id,
        u.position_id,
        u.username,

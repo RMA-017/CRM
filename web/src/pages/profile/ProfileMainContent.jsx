@@ -51,7 +51,13 @@ function ProfileMainContent({
   closeOrganizationsPanel,
   closeRolesPanel,
   closePositionsPanel,
+  closeAdminOptionsPanel,
   closeNotificationsSettingsPanel,
+  canSendNotifications,
+  notificationSendForm,
+  notificationSendSubmitting,
+  setNotificationSendForm,
+  sendManualNotification,
   organizations,
   organizationsMessage,
   organizationCreateForm,
@@ -85,6 +91,13 @@ function ProfileMainContent({
   startPositionEdit,
   positionDeletingId,
   handlePositionDelete,
+  adminOptionsForm,
+  adminOptionsLoading,
+  adminOptionsSubmitting,
+  setAdminOptionsForm,
+  setAdminOptionsError,
+  loadAdminOptions,
+  handleAdminOptionsSubmit,
   canCreateUsers,
   handleCreateUserSubmit,
   createForm,
@@ -100,6 +113,24 @@ function ProfileMainContent({
   onAppointmentNotification
 }) {
   const maxBirthdayYmd = new Date().toISOString().slice(0, 10);
+  const profileRoleText = `${String(profile?.role || "").trim().toLowerCase()} ${String(profile?.position || "").trim().toLowerCase()}`;
+  const isSpecialistUser = profileRoleText.includes("specialist") || profileRoleText.includes("spetsialist");
+  const adminOptionsOrganizationOptions = Array.isArray(organizations)
+    ? organizations
+        .map((item) => {
+          const id = String(item?.id || "").trim();
+          if (!id) {
+            return null;
+          }
+          const name = String(item?.name || "").trim();
+          const code = String(item?.code || "").trim().toLowerCase();
+          const label = name && code
+            ? `${name} (${code})`
+            : (name || code || `Organization #${id}`);
+          return { value: id, label };
+        })
+        .filter(Boolean)
+    : [];
 
   return (
     <main className={`home-main${(mainView === "create-user" || mainView === "clients-create") ? " home-main-centered" : ""}`} aria-label="Main content">
@@ -406,26 +437,47 @@ function ProfileMainContent({
                 <small className="field-error">{clientCreateErrors.middleName || ""}</small>
               </div>
 
-              <div className="field">
-                <label htmlFor="clientCreateBirthday">Birthday</label>
-                <input
-                  id="clientCreateBirthday"
-                  name="birthday"
-                  type="date"
-                  required
-                  min="1950-01-01"
-                  max={maxBirthdayYmd}
-                  className={clientCreateErrors.birthday ? "input-error" : ""}
-                  value={clientCreateForm.birthday}
-                  onInput={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setClientCreateForm((prev) => ({ ...prev, birthday: nextValue }));
-                    if (clientCreateErrors.birthday) {
-                      setClientCreateErrors((prev) => ({ ...prev, birthday: "" }));
-                    }
-                  }}
-                />
-                <small className="field-error">{clientCreateErrors.birthday || ""}</small>
+              <div className="client-birthday-vip-row">
+                <div className="field">
+                  <label htmlFor="clientCreateBirthday">Birthday</label>
+                  <input
+                    id="clientCreateBirthday"
+                    name="birthday"
+                    type="date"
+                    required
+                    min="1950-01-01"
+                    max={maxBirthdayYmd}
+                    className={clientCreateErrors.birthday ? "input-error" : ""}
+                    value={clientCreateForm.birthday}
+                    onInput={(event) => {
+                      const nextValue = event.currentTarget.value;
+                      setClientCreateForm((prev) => ({ ...prev, birthday: nextValue }));
+                      if (clientCreateErrors.birthday) {
+                        setClientCreateErrors((prev) => ({ ...prev, birthday: "" }));
+                      }
+                    }}
+                  />
+                  <small className="field-error">{clientCreateErrors.birthday || ""}</small>
+                </div>
+
+                <div className="field clients-create-vip-field">
+                  <label htmlFor="clientCreateIsVip">VIP</label>
+                  <label
+                    className={`clients-create-vip-toggle${clientCreateForm.isVip ? " is-active" : ""}`}
+                    htmlFor="clientCreateIsVip"
+                  >
+                    <input
+                      id="clientCreateIsVip"
+                      type="checkbox"
+                      checked={Boolean(clientCreateForm.isVip)}
+                      onChange={(event) => {
+                        const checked = event.currentTarget.checked;
+                        setClientCreateForm((prev) => ({ ...prev, isVip: checked }));
+                      }}
+                    />
+                  </label>
+                  <small className="field-error">{clientCreateErrors.isVip || ""}</small>
+                </div>
               </div>
 
               <div className="field">
@@ -468,22 +520,6 @@ function ProfileMainContent({
                 <small className="field-error">{clientCreateErrors.telegramOrEmail || ""}</small>
               </div>
 
-              <div className="field clients-create-vip-field">
-                <label htmlFor="clientCreateIsVip">VIP Client</label>
-                <label className="settings-checkbox clients-create-vip-checkbox" htmlFor="clientCreateIsVip">
-                  <input
-                    id="clientCreateIsVip"
-                    type="checkbox"
-                    checked={Boolean(clientCreateForm.isVip)}
-                    onChange={(event) => {
-                      const checked = event.currentTarget.checked;
-                      setClientCreateForm((prev) => ({ ...prev, isVip: checked }));
-                    }}
-                  />
-                </label>
-                <small className="field-error">{clientCreateErrors.isVip || ""}</small>
-              </div>
-
               <button id="createClientBtn" className="btn" type="submit" disabled={clientCreateSubmitting}>
                 Create
               </button>
@@ -510,6 +546,8 @@ function ProfileMainContent({
             canCreateAppointments={canCreateAppointments}
             canUpdateAppointments={canUpdateAppointments}
             canDeleteAppointments={canDeleteAppointments}
+            currentUserId={String(profile?.id || "").trim()}
+            restrictCreateToOwnSpecialist={isSpecialistUser}
             onNotification={onAppointmentNotification}
           />
         </section>
@@ -680,7 +718,7 @@ function ProfileMainContent({
           </div>
 
           <form className="auth-form settings-create-form" noValidate onSubmit={handleOrganizationCreateSubmit}>
-            <div className="settings-form-grid settings-form-grid-org">
+            <div className="settings-form-grid settings-form-grid-org settings-form-grid-org-with-active">
               <div className="field">
                 <label htmlFor="organizationCodeInput">Code</label>
                 <input
@@ -728,6 +766,7 @@ function ProfileMainContent({
                       setOrganizationCreateForm((prev) => ({ ...prev, isActive: checked }));
                     }}
                   />
+                  <span className="settings-checkbox-text">Active</span>
                 </label>
               </div>
               <div className="field settings-inline-control settings-action-field">
@@ -842,6 +881,7 @@ function ProfileMainContent({
                       setRoleCreateForm((prev) => ({ ...prev, isActive: checked }));
                     }}
                   />
+                  <span className="settings-checkbox-text">Active</span>
                 </label>
               </div>
               <div className="field settings-inline-control settings-action-field">
@@ -954,6 +994,7 @@ function ProfileMainContent({
                       setPositionCreateForm((prev) => ({ ...prev, isActive: checked }));
                     }}
                   />
+                  <span className="settings-checkbox-text">Active</span>
                 </label>
               </div>
               <div className="field settings-inline-control settings-action-field">
@@ -1034,38 +1075,132 @@ function ProfileMainContent({
             </button>
           </div>
 
-          <p className="all-users-state">
-            Global notification routing is active for appointment changes.
-          </p>
+          <form
+            className="auth-form settings-create-form"
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              void sendManualNotification();
+            }}
+            hidden={!canSendNotifications}
+          >
+            <div className="settings-form-grid settings-form-grid-notify">
+              <div className="field">
+                <label htmlFor="notificationTargetRole">Recipients</label>
+                <CustomSelect
+                  id="notificationTargetRole"
+                  value={String(notificationSendForm?.targetRole || "all")}
+                  options={[
+                    { value: "all", label: "All Users" },
+                    ...(rolesSettings || [])
+                      .filter((r) => r.isActive)
+                      .map((r) => ({
+                        value: String(r.label || "").trim().toLowerCase(),
+                        label: String(r.label || "").trim()
+                      }))
+                  ]}
+                  onChange={(nextValue) => {
+                    setNotificationSendForm((prev) => ({ ...prev, targetRole: nextValue }));
+                  }}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="notificationMessageInput">Message</label>
+                <textarea
+                  id="notificationMessageInput"
+                  name="message"
+                  maxLength={255}
+                  placeholder="Write notification message"
+                  className="notify-textarea"
+                  rows={1}
+                  value={String(notificationSendForm?.message || "")}
+                  onInput={(event) => {
+                    const el = event.currentTarget;
+                    el.style.height = "auto";
+                    el.style.height = `${el.scrollHeight}px`;
+                    const nextValue = el.value;
+                    setNotificationSendForm((prev) => ({ ...prev, message: nextValue }));
+                  }}
+                />
+              </div>
+              <div className="field settings-inline-control settings-action-field">
+                <label aria-hidden="true">&nbsp;</label>
+                <button className="btn settings-add-btn" type="submit" disabled={notificationSendSubmitting}>
+                  {notificationSendSubmitting ? "Sending..." : "Send"}
+                </button>
+              </div>
+            </div>
+          </form>
+        </section>
+      )}
 
-          <div className="all-users-table-wrap settings-table-wrap">
-            <table className="all-users-table settings-table" aria-label="Notification routing rules">
-              <thead>
-                <tr>
-                  <th>Trigger</th>
-                  <th>Recipient</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>Specialist creates/cancels own appointment</td>
-                  <td>Manager role users</td>
-                  <td>Active</td>
-                </tr>
-                <tr>
-                  <td>Manager creates/cancels for specialist</td>
-                  <td>That specialist only</td>
-                  <td>Active</td>
-                </tr>
-                <tr>
-                  <td>Delivery channel</td>
-                  <td>SSE + Notification Inbox</td>
-                  <td>Active</td>
-                </tr>
-              </tbody>
-            </table>
+      {mainView === "settings-admin-options" && (
+        <section id="adminOptionsPanel" className="all-users-panel settings-panel">
+          <div className="all-users-head">
+            <h3>Admin Options</h3>
+            <button
+              id="closeAdminOptionsBtn"
+              type="button"
+              className="header-btn panel-close-btn"
+              aria-label="Close admin options panel"
+              onClick={closeAdminOptionsPanel}
+            >
+              ×
+            </button>
           </div>
+
+          <form className="auth-form settings-create-form" noValidate onSubmit={handleAdminOptionsSubmit}>
+            <div className="settings-form-grid settings-form-grid-org">
+              <div className="field">
+                <label htmlFor="adminOptionsOrganizationSelect">Organization</label>
+                <CustomSelect
+                  id="adminOptionsOrganizationSelect"
+                  value={String(adminOptionsForm?.organizationId || "")}
+                  placeholder={adminOptionsOrganizationOptions.length === 0 ? "No organizations" : "Select organization"}
+                  options={adminOptionsOrganizationOptions}
+                  onChange={(nextValue) => {
+                    const nextOrganizationId = String(nextValue || "").trim();
+                    setAdminOptionsForm((prev) => ({
+                      ...prev,
+                      organizationId: nextOrganizationId
+                    }));
+                    setAdminOptionsError("");
+                    if (nextOrganizationId) {
+                      void loadAdminOptions(nextOrganizationId);
+                    }
+                  }}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="adminOptionsHistoryLockDaysInput">Schedule Edit Lock (days)</label>
+                <input
+                  id="adminOptionsHistoryLockDaysInput"
+                  name="appointmentHistoryLockDays"
+                  type="number"
+                  min={0}
+                  max={3650}
+                  step={1}
+                  value={String(adminOptionsForm?.appointmentHistoryLockDays || "")}
+                  onInput={(event) => {
+                    const nextValue = event.currentTarget.value;
+                    setAdminOptionsForm((prev) => ({
+                      ...prev,
+                      appointmentHistoryLockDays: nextValue
+                    }));
+                    if (adminOptionsError) {
+                      setAdminOptionsError("");
+                    }
+                  }}
+                />
+              </div>
+              <div className="field settings-inline-control settings-action-field">
+                <label aria-hidden="true">&nbsp;</label>
+                <button className="btn settings-add-btn" type="submit" disabled={adminOptionsSubmitting || adminOptionsLoading}>
+                  {adminOptionsSubmitting ? "Saving..." : "Save"}
+                </button>
+              </div>
+            </div>
+          </form>
         </section>
       )}
 

@@ -2,6 +2,12 @@ import { ORGANIZATION_CODE_REGEX, PERMISSION_CODE_REGEX } from "../../constants/
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 import {
+  MAX_APPOINTMENT_HISTORY_LOCK_DAYS,
+  MIN_APPOINTMENT_HISTORY_LOCK_DAYS,
+  getAppointmentHistoryLockDaysByOrganization,
+  saveAppointmentHistoryLockDaysByOrganization
+} from "../appointments/appointment-settings.service.js";
+import {
   createOrganization,
   createPositionOption,
   createRoleOption,
@@ -40,6 +46,39 @@ function parseIsActive(value, fallback = true) {
     return false;
   }
   return fallback;
+}
+
+function parseHistoryLockDays(value) {
+  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
+  if (
+    !Number.isInteger(parsed)
+    || parsed < MIN_APPOINTMENT_HISTORY_LOCK_DAYS
+    || parsed > MAX_APPOINTMENT_HISTORY_LOCK_DAYS
+  ) {
+    return {
+      error: {
+        field: "appointmentHistoryLockDays",
+        message: `History lock days must be an integer between ${MIN_APPOINTMENT_HISTORY_LOCK_DAYS} and ${MAX_APPOINTMENT_HISTORY_LOCK_DAYS}.`
+      }
+    };
+  }
+  return { value: parsed };
+}
+
+function parseOptionalOrganizationId(value) {
+  if (value === undefined || value === null || value === "") {
+    return { value: null };
+  }
+  const parsed = parsePositiveInteger(value);
+  if (!parsed) {
+    return {
+      error: {
+        field: "organizationId",
+        message: "Invalid organization id."
+      }
+    };
+  }
+  return { value: parsed };
 }
 
 function parsePermissionCodes(value) {
@@ -277,6 +316,113 @@ async function settingsRoutes(fastify) {
           return reply.status(409).send({ message: "Organization is used by users and cannot be deleted." });
         }
         request.log.error({ err: error }, "Error deleting organization:");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.get(
+    "/admin-options",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+
+      try {
+        const adminContext = await requireAdmin(request, reply);
+        if (!adminContext) {
+          return;
+        }
+
+        const { value: requestedOrganizationId, error: organizationError } = parseOptionalOrganizationId(
+          request.query?.organizationId ?? request.query?.organization_id
+        );
+        if (organizationError) {
+          return reply.status(400).send(organizationError);
+        }
+
+        const targetOrganizationId = requestedOrganizationId || adminContext.authContext.organizationId;
+        const appointmentHistoryLockDays = await getAppointmentHistoryLockDaysByOrganization(targetOrganizationId);
+
+        return reply.send({
+          item: {
+            organizationId: String(targetOrganizationId),
+            appointmentHistoryLockDays: String(appointmentHistoryLockDays)
+          },
+          bounds: {
+            min: MIN_APPOINTMENT_HISTORY_LOCK_DAYS,
+            max: MAX_APPOINTMENT_HISTORY_LOCK_DAYS
+          }
+        });
+      } catch (error) {
+        request.log.error({ err: error }, "Error fetching admin options:");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.patch(
+    "/admin-options",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      try {
+        const adminContext = await requireAdmin(request, reply);
+        if (!adminContext) {
+          return;
+        }
+
+        const { value: requestedOrganizationId, error: organizationError } = parseOptionalOrganizationId(
+          request.body?.organizationId ?? request.body?.organization_id
+        );
+        if (organizationError) {
+          return reply.status(400).send(organizationError);
+        }
+
+        const parsedHistoryLockDays = parseHistoryLockDays(
+          request.body?.appointmentHistoryLockDays
+          ?? request.body?.historyLockDays
+          ?? request.body?.appointment_history_lock_days
+        );
+        if (parsedHistoryLockDays.error) {
+          return reply.status(400).send(parsedHistoryLockDays.error);
+        }
+
+        const targetOrganizationId = requestedOrganizationId || adminContext.authContext.organizationId;
+        const appointmentHistoryLockDays = await saveAppointmentHistoryLockDaysByOrganization({
+          organizationId: targetOrganizationId,
+          actorUserId: adminContext.authContext.userId,
+          historyLockDays: parsedHistoryLockDays.value
+        });
+
+        return reply.send({
+          message: "Admin options updated.",
+          item: {
+            organizationId: String(targetOrganizationId),
+            appointmentHistoryLockDays: String(appointmentHistoryLockDays)
+          }
+        });
+      } catch (error) {
+        if (error?.code === "23503") {
+          return reply.status(400).send({
+            field: "organizationId",
+            message: "Invalid organization id."
+          });
+        }
+        if (error?.code === "INVALID_HISTORY_LOCK_DAYS") {
+          return reply.status(400).send({
+            field: "appointmentHistoryLockDays",
+            message: `History lock days must be an integer between ${MIN_APPOINTMENT_HISTORY_LOCK_DAYS} and ${MAX_APPOINTMENT_HISTORY_LOCK_DAYS}.`
+          });
+        }
+        if (error?.code === "MIGRATION_REQUIRED") {
+          return reply.status(500).send({
+            message: "DB migration required: appointment settings table is missing required columns."
+          });
+        }
+        request.log.error({ err: error }, "Error updating admin options:");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }

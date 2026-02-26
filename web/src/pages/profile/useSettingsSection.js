@@ -62,6 +62,14 @@ export function useSettingsSection({
   const [positionEditError, setPositionEditError] = useState("");
   const [positionEditSubmitting, setPositionEditSubmitting] = useState(false);
   const [positionDeletingId, setPositionDeletingId] = useState("");
+  const [adminOptionsForm, setAdminOptionsForm] = useState({
+    organizationId: "",
+    appointmentHistoryLockDays: ""
+  });
+  const [adminOptionsLoading, setAdminOptionsLoading] = useState(false);
+  const [adminOptionsMessage, setAdminOptionsMessage] = useState("");
+  const [adminOptionsError, setAdminOptionsError] = useState("");
+  const [adminOptionsSubmitting, setAdminOptionsSubmitting] = useState(false);
 
   const groupedRolePermissionOptions = useMemo(
     () => groupRolePermissionOptions(rolePermissionOptions),
@@ -194,6 +202,63 @@ export function useSettingsSection({
     }
   }, [hasSettingsMenuAccess, navigate]);
 
+  const loadAdminOptions = useCallback(async (organizationId = "") => {
+    if (!hasSettingsMenuAccess) {
+      navigate("/404", { replace: true });
+      return;
+    }
+
+    setAdminOptionsLoading(true);
+    setAdminOptionsError("");
+    setAdminOptionsMessage("");
+
+    try {
+      const requestedOrganizationId = String(
+        organizationId || adminOptionsForm.organizationId || ""
+      ).trim();
+      const query = new URLSearchParams();
+      if (requestedOrganizationId) {
+        query.set("organizationId", requestedOrganizationId);
+      }
+      const queryText = query.toString();
+      const endpoint = queryText
+        ? `/api/settings/admin-options?${queryText}`
+        : "/api/settings/admin-options";
+      const response = await apiFetch(endpoint, {
+        method: "GET",
+        cache: "no-store"
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        if (handleProtectedStatus(response, navigate)) {
+          return;
+        }
+        setAdminOptionsMessage("");
+        setAdminOptionsError("");
+        window.alert(data?.message || "Failed to load admin options.");
+        return;
+      }
+
+      const item = data?.item && typeof data.item === "object" ? data.item : {};
+      const nextOrganizationId = String(item?.organizationId || requestedOrganizationId || "").trim();
+      const nextHistoryLockDays = String(item?.appointmentHistoryLockDays ?? "").trim();
+      setAdminOptionsForm((prev) => ({
+        ...prev,
+        organizationId: nextOrganizationId,
+        appointmentHistoryLockDays: nextHistoryLockDays
+      }));
+      setAdminOptionsMessage("");
+      setAdminOptionsError("");
+    } catch {
+      setAdminOptionsMessage("");
+      setAdminOptionsError("");
+      window.alert("Unexpected error. Please try again.");
+    } finally {
+      setAdminOptionsLoading(false);
+    }
+  }, [adminOptionsForm.organizationId, hasSettingsMenuAccess, navigate]);
+
   const validateOrganizationForm = useCallback((form) => {
     const code = String(form?.code || "").trim().toLowerCase();
     const name = String(form?.name || "").trim();
@@ -214,6 +279,78 @@ export function useSettingsSection({
     }
     return "";
   }, []);
+
+  const handleAdminOptionsSubmit = useCallback(async (event) => {
+    event.preventDefault();
+
+    if (!hasSettingsMenuAccess) {
+      setAdminOptionsError("");
+      window.alert("You do not have permission to manage settings.");
+      return;
+    }
+
+    const organizationIdRaw = String(adminOptionsForm.organizationId || "").trim();
+    const appointmentHistoryLockDaysRaw = String(adminOptionsForm.appointmentHistoryLockDays || "").trim();
+    const organizationId = Number.parseInt(organizationIdRaw, 10);
+    const appointmentHistoryLockDays = Number.parseInt(appointmentHistoryLockDaysRaw, 10);
+
+    if (!Number.isInteger(organizationId) || organizationId <= 0) {
+      setAdminOptionsError("");
+      window.alert("Select organization.");
+      return;
+    }
+    if (!Number.isInteger(appointmentHistoryLockDays) || appointmentHistoryLockDays < 0 || appointmentHistoryLockDays > 3650) {
+      setAdminOptionsError("");
+      window.alert("History lock days must be an integer between 0 and 3650.");
+      return;
+    }
+
+    try {
+      setAdminOptionsSubmitting(true);
+      setAdminOptionsError("");
+      setAdminOptionsMessage("");
+
+      const response = await apiFetch("/api/settings/admin-options", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          appointmentHistoryLockDays
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        if (handleProtectedStatus(response, navigate)) {
+          return;
+        }
+        setAdminOptionsError("");
+        window.alert(data?.message || "Failed to save admin options.");
+        return;
+      }
+
+      const item = data?.item && typeof data.item === "object" ? data.item : {};
+      setAdminOptionsForm((prev) => ({
+        ...prev,
+        organizationId: String(item?.organizationId || organizationId),
+        appointmentHistoryLockDays: String(item?.appointmentHistoryLockDays ?? appointmentHistoryLockDays)
+      }));
+      setAdminOptionsMessage("");
+      setAdminOptionsError("");
+      window.alert(data?.message || "Admin options updated.");
+    } catch {
+      setAdminOptionsError("");
+      setAdminOptionsMessage("");
+      window.alert("Unexpected error. Please try again.");
+    } finally {
+      setAdminOptionsSubmitting(false);
+    }
+  }, [
+    adminOptionsForm.appointmentHistoryLockDays,
+    adminOptionsForm.organizationId,
+    hasSettingsMenuAccess,
+    navigate
+  ]);
 
   const handleOrganizationCreateSubmit = useCallback(async (event) => {
     event.preventDefault();
@@ -758,6 +895,11 @@ export function useSettingsSection({
     positionEditError,
     positionEditSubmitting,
     positionDeletingId,
+    adminOptionsForm,
+    adminOptionsLoading,
+    adminOptionsMessage,
+    adminOptionsError,
+    adminOptionsSubmitting,
     setOrganizationCreateForm,
     setOrganizationCreateError,
     setOrganizationEditForm,
@@ -770,9 +912,12 @@ export function useSettingsSection({
     setPositionCreateError,
     setPositionEditForm,
     setPositionEditError,
+    setAdminOptionsForm,
+    setAdminOptionsError,
     loadOrganizations,
     loadRolesSettings,
     loadPositionsSettings,
+    loadAdminOptions,
     handleOrganizationCreateSubmit,
     startOrganizationEdit,
     cancelOrganizationEdit,
@@ -788,6 +933,7 @@ export function useSettingsSection({
     cancelPositionEdit,
     handlePositionEditSave,
     handlePositionDelete,
+    handleAdminOptionsSubmit,
     closeSettingsDeleteModal,
     handleSettingsDeleteConfirm
   };

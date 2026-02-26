@@ -200,10 +200,10 @@ function ProfileModals(props) {
         </dl>
         <div className="profile-modal-actions">
           <button id="openProfileEditBtn" className="btn" type="button" onClick={openProfileEditModal}>
-            Edit Profile
+            Edit
           </button>
           <button id="openPasswordEditBtn" className="header-btn" type="button" onClick={openPasswordEditModal}>
-            Change Password
+            Change
           </button>
         </div>
       </section>
@@ -457,193 +457,195 @@ function ProfileModals(props) {
       <section id="allUsersEditModal" className="logout-confirm-modal all-users-edit-modal" hidden={!allUsersEdit.open}>
         <h3>Edit User</h3>
         <form id="allUsersEditForm" className="auth-form" noValidate onSubmit={handleAllUsersEditSubmit}>
-          <div className="field">
-            <label htmlFor="allUsersEditOrganizationSelect">Organisation</label>
-            <CustomSelect
-              id="allUsersEditOrganizationSelect"
-              placeholder={organizationsLoading ? "Loading organisations..." : "Select organisation"}
-              value={allUsersEdit.form.organizationCode}
-              options={createOrganizationOptions}
-              error={Boolean(allUsersEdit.errors.organizationCode)}
-              onChange={(nextCode) => {
-                setAllUsersEdit((prev) => ({
-                  ...prev,
-                  form: { ...prev.form, organizationCode: nextCode },
-                  errors: { ...prev.errors, organizationCode: "" }
-                }));
-              }}
-            />
-            <small id="allUsersEditOrganizationError" className="field-error">{allUsersEdit.errors.organizationCode || ""}</small>
-          </div>
+          <div className="all-users-edit-fields">
+            <div className="field">
+              <label htmlFor="allUsersEditOrganizationSelect">Organisation</label>
+              <CustomSelect
+                id="allUsersEditOrganizationSelect"
+                placeholder={organizationsLoading ? "Loading organisations..." : "Select organisation"}
+                value={allUsersEdit.form.organizationCode}
+                options={createOrganizationOptions}
+                error={Boolean(allUsersEdit.errors.organizationCode)}
+                onChange={(nextCode) => {
+                  setAllUsersEdit((prev) => ({
+                    ...prev,
+                    form: { ...prev.form, organizationCode: nextCode },
+                    errors: { ...prev.errors, organizationCode: "" }
+                  }));
+                }}
+              />
+              <small id="allUsersEditOrganizationError" className="field-error">{allUsersEdit.errors.organizationCode || ""}</small>
+            </div>
 
-          <div className="field">
-            <label htmlFor="allUsersEditUsername">Username</label>
-            <input
-              id="allUsersEditUsername"
-              name="username"
-              type="text"
-              autoComplete="username"
-              required
-              className={allUsersEdit.errors.username ? "input-error" : ""}
-              value={allUsersEdit.form.username}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setAllUsersEdit((prev) => ({
-                  ...prev,
-                  form: { ...prev.form, username: nextValue },
-                  errors: { ...prev.errors, username: "" }
-                }));
-              }}
-            />
-            <small id="allUsersEditUsernameError" className="field-error">{allUsersEdit.errors.username || ""}</small>
-          </div>
+            <div className="field">
+              <label htmlFor="allUsersEditUsername">Username</label>
+              <input
+                id="allUsersEditUsername"
+                name="username"
+                type="text"
+                autoComplete="username"
+                required
+                className={allUsersEdit.errors.username ? "input-error" : ""}
+                value={allUsersEdit.form.username}
+                onInput={(event) => {
+                  const nextValue = event.currentTarget.value;
+                  setAllUsersEdit((prev) => ({
+                    ...prev,
+                    form: { ...prev.form, username: nextValue },
+                    errors: { ...prev.errors, username: "" }
+                  }));
+                }}
+              />
+              <small id="allUsersEditUsernameError" className="field-error">{allUsersEdit.errors.username || ""}</small>
+            </div>
 
-          <div className="field">
-            <label htmlFor="allUsersEditEmail">Email</label>
-            <input
-              id="allUsersEditEmail"
-              name="email"
-              type="email"
-              autoComplete="email"
-              placeholder="@username or user@gmail.com"
-              className={allUsersEdit.errors.email ? "input-error" : ""}
-              value={allUsersEdit.form.email}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setAllUsersEdit((prev) => ({
-                  ...prev,
-                  form: { ...prev.form, email: nextValue },
-                  errors: { ...prev.errors, email: "" }
-                }));
-              }}
-            />
-            <small id="allUsersEditEmailError" className="field-error">{allUsersEdit.errors.email || ""}</small>
-          </div>
+            <div className="field">
+              <label htmlFor="allUsersEditEmail">Email</label>
+              <input
+                id="allUsersEditEmail"
+                name="email"
+                type="email"
+                autoComplete="email"
+                placeholder="@username or user@gmail.com"
+                className={allUsersEdit.errors.email ? "input-error" : ""}
+                value={allUsersEdit.form.email}
+                onInput={(event) => {
+                  const nextValue = event.currentTarget.value;
+                  setAllUsersEdit((prev) => ({
+                    ...prev,
+                    form: { ...prev.form, email: nextValue },
+                    errors: { ...prev.errors, email: "" }
+                  }));
+                }}
+              />
+              <small id="allUsersEditEmailError" className="field-error">{allUsersEdit.errors.email || ""}</small>
+            </div>
 
-          <div className="field">
-            <label htmlFor="allUsersEditFullName">Full Name</label>
-            <input
-              id="allUsersEditFullName"
-              name="fullName"
-              type="text"
-              autoComplete="name"
-              required
-              className={allUsersEdit.errors.fullName ? "input-error" : ""}
-              value={allUsersEdit.form.fullName}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setAllUsersEdit((prev) => ({
-                  ...prev,
-                  form: { ...prev.form, fullName: nextValue },
-                  errors: { ...prev.errors, fullName: "" }
-                }));
-              }}
-            />
-            <small id="allUsersEditFullNameError" className="field-error">{allUsersEdit.errors.fullName || ""}</small>
-          </div>
+            <div className="field">
+              <label htmlFor="allUsersEditFullName">Full Name</label>
+              <input
+                id="allUsersEditFullName"
+                name="fullName"
+                type="text"
+                autoComplete="name"
+                required
+                className={allUsersEdit.errors.fullName ? "input-error" : ""}
+                value={allUsersEdit.form.fullName}
+                onInput={(event) => {
+                  const nextValue = event.currentTarget.value;
+                  setAllUsersEdit((prev) => ({
+                    ...prev,
+                    form: { ...prev.form, fullName: nextValue },
+                    errors: { ...prev.errors, fullName: "" }
+                  }));
+                }}
+              />
+              <small id="allUsersEditFullNameError" className="field-error">{allUsersEdit.errors.fullName || ""}</small>
+            </div>
 
-          <div className="field">
-            <label htmlFor="allUsersEditBirthday">Birthday</label>
-            <input
-              id="allUsersEditBirthday"
-              name="birthday"
-              type="date"
-              min="1950-01-01"
-              max={maxBirthdayYmd}
-              autoComplete="bday"
-              className={allUsersEdit.errors.birthday ? "input-error" : ""}
-              value={allUsersEdit.form.birthday}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setAllUsersEdit((prev) => ({
-                  ...prev,
-                  form: { ...prev.form, birthday: nextValue },
-                  errors: { ...prev.errors, birthday: "" }
-                }));
-              }}
-            />
-            <small id="allUsersEditBirthdayError" className="field-error">{allUsersEdit.errors.birthday || ""}</small>
-          </div>
+            <div className="field">
+              <label htmlFor="allUsersEditBirthday">Birthday</label>
+              <input
+                id="allUsersEditBirthday"
+                name="birthday"
+                type="date"
+                min="1950-01-01"
+                max={maxBirthdayYmd}
+                autoComplete="bday"
+                className={allUsersEdit.errors.birthday ? "input-error" : ""}
+                value={allUsersEdit.form.birthday}
+                onInput={(event) => {
+                  const nextValue = event.currentTarget.value;
+                  setAllUsersEdit((prev) => ({
+                    ...prev,
+                    form: { ...prev.form, birthday: nextValue },
+                    errors: { ...prev.errors, birthday: "" }
+                  }));
+                }}
+              />
+              <small id="allUsersEditBirthdayError" className="field-error">{allUsersEdit.errors.birthday || ""}</small>
+            </div>
 
-          <div className="field">
-            <label htmlFor="allUsersEditPhone">Phone</label>
-            <input
-              id="allUsersEditPhone"
-              name="phone"
-              type="tel"
-              autoComplete="tel"
-              placeholder="+998977861070"
-              className={allUsersEdit.errors.phone ? "input-error" : ""}
-              value={allUsersEdit.form.phone}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setAllUsersEdit((prev) => ({
-                  ...prev,
-                  form: { ...prev.form, phone: nextValue },
-                  errors: { ...prev.errors, phone: "" }
-                }));
-              }}
-            />
-            <small id="allUsersEditPhoneError" className="field-error">{allUsersEdit.errors.phone || ""}</small>
-          </div>
+            <div className="field">
+              <label htmlFor="allUsersEditPhone">Phone</label>
+              <input
+                id="allUsersEditPhone"
+                name="phone"
+                type="tel"
+                autoComplete="tel"
+                placeholder="+998977861070"
+                className={allUsersEdit.errors.phone ? "input-error" : ""}
+                value={allUsersEdit.form.phone}
+                onInput={(event) => {
+                  const nextValue = event.currentTarget.value;
+                  setAllUsersEdit((prev) => ({
+                    ...prev,
+                    form: { ...prev.form, phone: nextValue },
+                    errors: { ...prev.errors, phone: "" }
+                  }));
+                }}
+              />
+              <small id="allUsersEditPhoneError" className="field-error">{allUsersEdit.errors.phone || ""}</small>
+            </div>
 
-          <div className="field">
-            <label htmlFor="allUsersEditPositionSelect">Position</label>
-            <CustomSelect
-              id="allUsersEditPositionSelect"
-              placeholder="Select position"
-              value={allUsersEdit.form.position}
-              options={positionOptions}
-              error={Boolean(allUsersEdit.errors.position)}
-              onChange={(nextValue) => {
-                setAllUsersEdit((prev) => ({
-                  ...prev,
-                  form: { ...prev.form, position: nextValue },
-                  errors: { ...prev.errors, position: "" }
-                }));
-              }}
-            />
-            <small id="allUsersEditPositionError" className="field-error">{allUsersEdit.errors.position || ""}</small>
-          </div>
+            <div className="field">
+              <label htmlFor="allUsersEditPositionSelect">Position</label>
+              <CustomSelect
+                id="allUsersEditPositionSelect"
+                placeholder="Select position"
+                value={allUsersEdit.form.position}
+                options={positionOptions}
+                error={Boolean(allUsersEdit.errors.position)}
+                onChange={(nextValue) => {
+                  setAllUsersEdit((prev) => ({
+                    ...prev,
+                    form: { ...prev.form, position: nextValue },
+                    errors: { ...prev.errors, position: "" }
+                  }));
+                }}
+              />
+              <small id="allUsersEditPositionError" className="field-error">{allUsersEdit.errors.position || ""}</small>
+            </div>
 
-          <div className="field">
-            <label htmlFor="allUsersEditRoleSelect">Role</label>
-            <CustomSelect
-              id="allUsersEditRoleSelect"
-              placeholder="Select role"
-              value={allUsersEdit.form.role}
-              options={roleOptions}
-              error={Boolean(allUsersEdit.errors.role)}
-              onChange={(nextValue) => {
-                setAllUsersEdit((prev) => ({
-                  ...prev,
-                  form: { ...prev.form, role: nextValue },
-                  errors: { ...prev.errors, role: "" }
-                }));
-              }}
-            />
-            <small id="allUsersEditRoleError" className="field-error">{allUsersEdit.errors.role || ""}</small>
-          </div>
+            <div className="field">
+              <label htmlFor="allUsersEditRoleSelect">Role</label>
+              <CustomSelect
+                id="allUsersEditRoleSelect"
+                placeholder="Select role"
+                value={allUsersEdit.form.role}
+                options={roleOptions}
+                error={Boolean(allUsersEdit.errors.role)}
+                onChange={(nextValue) => {
+                  setAllUsersEdit((prev) => ({
+                    ...prev,
+                    form: { ...prev.form, role: nextValue },
+                    errors: { ...prev.errors, role: "" }
+                  }));
+                }}
+              />
+              <small id="allUsersEditRoleError" className="field-error">{allUsersEdit.errors.role || ""}</small>
+            </div>
 
-          <div className="field">
-            <label htmlFor="allUsersEditPassword">New Password (optional)</label>
-            <input
-              id="allUsersEditPassword"
-              name="password"
-              type="password"
-              autoComplete="new-password"
-              className={allUsersEdit.errors.password ? "input-error" : ""}
-              value={allUsersEdit.form.password}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setAllUsersEdit((prev) => ({
-                  ...prev,
-                  form: { ...prev.form, password: nextValue },
-                  errors: { ...prev.errors, password: "" }
-                }));
-              }}
-            />
-            <small id="allUsersEditPasswordError" className="field-error">{allUsersEdit.errors.password || ""}</small>
+            <div className="field">
+              <label htmlFor="allUsersEditPassword">New Password (optional)</label>
+              <input
+                id="allUsersEditPassword"
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                className={allUsersEdit.errors.password ? "input-error" : ""}
+                value={allUsersEdit.form.password}
+                onInput={(event) => {
+                  const nextValue = event.currentTarget.value;
+                  setAllUsersEdit((prev) => ({
+                    ...prev,
+                    form: { ...prev.form, password: nextValue },
+                    errors: { ...prev.errors, password: "" }
+                  }));
+                }}
+              />
+              <small id="allUsersEditPasswordError" className="field-error">{allUsersEdit.errors.password || ""}</small>
+            </div>
           </div>
 
           <div className="edit-actions">
@@ -661,153 +663,160 @@ function ProfileModals(props) {
       <section id="clientsEditModal" className="logout-confirm-modal all-users-edit-modal" hidden={!clientsEditOpen}>
         <h3>Edit Client</h3>
         <form id="clientsEditForm" className="auth-form" noValidate onSubmit={handleClientEditSubmit}>
-          <div className="field">
-            <label htmlFor="clientsEditFirstName">First Name</label>
-            <input
-              id="clientsEditFirstName"
-              type="text"
-              className={clientEditErrors.firstName ? "input-error" : ""}
-              value={clientEditForm.firstName}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setClientEditForm((prev) => ({ ...prev, firstName: nextValue }));
-                if (clientEditErrors.firstName) {
-                  setClientEditErrors((prev) => ({ ...prev, firstName: "" }));
-                }
-              }}
-            />
-            <small className="field-error">{clientEditErrors.firstName || ""}</small>
-          </div>
-
-          <div className="field">
-            <label htmlFor="clientsEditLastName">Last Name</label>
-            <input
-              id="clientsEditLastName"
-              type="text"
-              className={clientEditErrors.lastName ? "input-error" : ""}
-              value={clientEditForm.lastName}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setClientEditForm((prev) => ({ ...prev, lastName: nextValue }));
-                if (clientEditErrors.lastName) {
-                  setClientEditErrors((prev) => ({ ...prev, lastName: "" }));
-                }
-              }}
-            />
-            <small className="field-error">{clientEditErrors.lastName || ""}</small>
-          </div>
-
-          <div className="field">
-            <label htmlFor="clientsEditMiddleName">Middle Name</label>
-            <input
-              id="clientsEditMiddleName"
-              type="text"
-              className={clientEditErrors.middleName ? "input-error" : ""}
-              value={clientEditForm.middleName}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setClientEditForm((prev) => ({ ...prev, middleName: nextValue }));
-                if (clientEditErrors.middleName) {
-                  setClientEditErrors((prev) => ({ ...prev, middleName: "" }));
-                }
-              }}
-            />
-            <small className="field-error">{clientEditErrors.middleName || ""}</small>
-          </div>
-
-          <div className="field">
-            <label htmlFor="clientsEditBirthday">Birthday</label>
-            <input
-              id="clientsEditBirthday"
-              type="date"
-              min="1950-01-01"
-              max={maxBirthdayYmd}
-              className={clientEditErrors.birthday ? "input-error" : ""}
-              value={clientEditForm.birthday}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setClientEditForm((prev) => ({ ...prev, birthday: nextValue }));
-                if (clientEditErrors.birthday) {
-                  setClientEditErrors((prev) => ({ ...prev, birthday: "" }));
-                }
-              }}
-            />
-            <small className="field-error">{clientEditErrors.birthday || ""}</small>
-          </div>
-
-          <div className="field">
-            <label htmlFor="clientsEditPhone">Phone Number</label>
-            <input
-              id="clientsEditPhone"
-              type="text"
-              placeholder="+998977861070"
-              className={clientEditErrors.phone ? "input-error" : ""}
-              value={clientEditForm.phone}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setClientEditForm((prev) => ({ ...prev, phone: nextValue }));
-                if (clientEditErrors.phone) {
-                  setClientEditErrors((prev) => ({ ...prev, phone: "" }));
-                }
-              }}
-            />
-            <small className="field-error">{clientEditErrors.phone || ""}</small>
-          </div>
-
-          <div className="field">
-            <label htmlFor="clientsEditTgMail">Telegram / Email</label>
-            <input
-              id="clientsEditTgMail"
-              type="text"
-              placeholder="@username or user@gmail.com"
-              className={clientEditErrors.tgMail ? "input-error" : ""}
-              value={clientEditForm.tgMail}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setClientEditForm((prev) => ({ ...prev, tgMail: nextValue }));
-                if (clientEditErrors.tgMail) {
-                  setClientEditErrors((prev) => ({ ...prev, tgMail: "" }));
-                }
-              }}
-            />
-            <small className="field-error">{clientEditErrors.tgMail || ""}</small>
-          </div>
-
-          <div className="field clients-edit-vip-field">
-            <label htmlFor="clientsEditIsVip">VIP Client</label>
-            <label className="settings-checkbox clients-edit-vip-checkbox" htmlFor="clientsEditIsVip">
+          <div className="all-users-edit-fields">
+            <div className="field">
+              <label htmlFor="clientsEditFirstName">First Name</label>
               <input
-                id="clientsEditIsVip"
-                type="checkbox"
-                checked={Boolean(clientEditForm.isVip)}
-                onChange={(event) => {
-                  const checked = event.currentTarget.checked;
-                  setClientEditForm((prev) => ({ ...prev, isVip: checked }));
-                  if (clientEditErrors.isVip) {
-                    setClientEditErrors((prev) => ({ ...prev, isVip: "" }));
+                id="clientsEditFirstName"
+                type="text"
+                className={clientEditErrors.firstName ? "input-error" : ""}
+                value={clientEditForm.firstName}
+                onInput={(event) => {
+                  const nextValue = event.currentTarget.value;
+                  setClientEditForm((prev) => ({ ...prev, firstName: nextValue }));
+                  if (clientEditErrors.firstName) {
+                    setClientEditErrors((prev) => ({ ...prev, firstName: "" }));
                   }
                 }}
               />
-            </label>
-            <small className="field-error">{clientEditErrors.isVip || ""}</small>
-          </div>
+              <small className="field-error">{clientEditErrors.firstName || ""}</small>
+            </div>
 
-          <div className="field">
-            <label htmlFor="clientsEditNote">Note</label>
-            <input
-              id="clientsEditNote"
-              type="text"
-              className={clientEditErrors.note ? "input-error" : ""}
-              value={clientEditForm.note}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setClientEditForm((prev) => ({ ...prev, note: nextValue }));
-                if (clientEditErrors.note) {
-                  setClientEditErrors((prev) => ({ ...prev, note: "" }));
-                }
-              }}
-            />
-            <small className="field-error">{clientEditErrors.note || ""}</small>
+            <div className="field">
+              <label htmlFor="clientsEditLastName">Last Name</label>
+              <input
+                id="clientsEditLastName"
+                type="text"
+                className={clientEditErrors.lastName ? "input-error" : ""}
+                value={clientEditForm.lastName}
+                onInput={(event) => {
+                  const nextValue = event.currentTarget.value;
+                  setClientEditForm((prev) => ({ ...prev, lastName: nextValue }));
+                  if (clientEditErrors.lastName) {
+                    setClientEditErrors((prev) => ({ ...prev, lastName: "" }));
+                  }
+                }}
+              />
+              <small className="field-error">{clientEditErrors.lastName || ""}</small>
+            </div>
+
+            <div className="field">
+              <label htmlFor="clientsEditMiddleName">Middle Name</label>
+              <input
+                id="clientsEditMiddleName"
+                type="text"
+                className={clientEditErrors.middleName ? "input-error" : ""}
+                value={clientEditForm.middleName}
+                onInput={(event) => {
+                  const nextValue = event.currentTarget.value;
+                  setClientEditForm((prev) => ({ ...prev, middleName: nextValue }));
+                  if (clientEditErrors.middleName) {
+                    setClientEditErrors((prev) => ({ ...prev, middleName: "" }));
+                  }
+                }}
+              />
+              <small className="field-error">{clientEditErrors.middleName || ""}</small>
+            </div>
+
+            <div className="client-birthday-vip-row">
+              <div className="field">
+                <label htmlFor="clientsEditBirthday">Birthday</label>
+                <input
+                  id="clientsEditBirthday"
+                  type="date"
+                  min="1950-01-01"
+                  max={maxBirthdayYmd}
+                  className={clientEditErrors.birthday ? "input-error" : ""}
+                  value={clientEditForm.birthday}
+                  onInput={(event) => {
+                    const nextValue = event.currentTarget.value;
+                    setClientEditForm((prev) => ({ ...prev, birthday: nextValue }));
+                    if (clientEditErrors.birthday) {
+                      setClientEditErrors((prev) => ({ ...prev, birthday: "" }));
+                    }
+                  }}
+                />
+                <small className="field-error">{clientEditErrors.birthday || ""}</small>
+              </div>
+
+              <div className="field clients-edit-vip-field">
+                <label htmlFor="clientsEditIsVip">VIP</label>
+                <label
+                  className={`clients-create-vip-toggle${clientEditForm.isVip ? " is-active" : ""}`}
+                  htmlFor="clientsEditIsVip"
+                >
+                  <input
+                    id="clientsEditIsVip"
+                    type="checkbox"
+                    checked={Boolean(clientEditForm.isVip)}
+                    onChange={(event) => {
+                      const checked = event.currentTarget.checked;
+                      setClientEditForm((prev) => ({ ...prev, isVip: checked }));
+                      if (clientEditErrors.isVip) {
+                        setClientEditErrors((prev) => ({ ...prev, isVip: "" }));
+                      }
+                    }}
+                  />
+                </label>
+                <small className="field-error">{clientEditErrors.isVip || ""}</small>
+              </div>
+            </div>
+
+            <div className="field">
+              <label htmlFor="clientsEditPhone">Phone Number</label>
+              <input
+                id="clientsEditPhone"
+                type="text"
+                placeholder="+998977861070"
+                className={clientEditErrors.phone ? "input-error" : ""}
+                value={clientEditForm.phone}
+                onInput={(event) => {
+                  const nextValue = event.currentTarget.value;
+                  setClientEditForm((prev) => ({ ...prev, phone: nextValue }));
+                  if (clientEditErrors.phone) {
+                    setClientEditErrors((prev) => ({ ...prev, phone: "" }));
+                  }
+                }}
+              />
+              <small className="field-error">{clientEditErrors.phone || ""}</small>
+            </div>
+
+            <div className="field">
+              <label htmlFor="clientsEditTgMail">Telegram / Email</label>
+              <input
+                id="clientsEditTgMail"
+                type="text"
+                placeholder="@username or user@gmail.com"
+                className={clientEditErrors.tgMail ? "input-error" : ""}
+                value={clientEditForm.tgMail}
+                onInput={(event) => {
+                  const nextValue = event.currentTarget.value;
+                  setClientEditForm((prev) => ({ ...prev, tgMail: nextValue }));
+                  if (clientEditErrors.tgMail) {
+                    setClientEditErrors((prev) => ({ ...prev, tgMail: "" }));
+                  }
+                }}
+              />
+              <small className="field-error">{clientEditErrors.tgMail || ""}</small>
+            </div>
+
+            <div className="field">
+              <label htmlFor="clientsEditNote">Note</label>
+              <input
+                id="clientsEditNote"
+                type="text"
+                className={clientEditErrors.note ? "input-error" : ""}
+                value={clientEditForm.note}
+                onInput={(event) => {
+                  const nextValue = event.currentTarget.value;
+                  setClientEditForm((prev) => ({ ...prev, note: nextValue }));
+                  if (clientEditErrors.note) {
+                    setClientEditErrors((prev) => ({ ...prev, note: "" }));
+                  }
+                }}
+              />
+              <small className="field-error">{clientEditErrors.note || ""}</small>
+            </div>
           </div>
 
           <div className="edit-actions">
