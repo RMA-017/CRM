@@ -17,7 +17,6 @@ export function useAllUsersSection({
   getBirthdayValidationMessage
 }) {
   const [allUsers, setAllUsers] = useState([]);
-  const [allUsersLoading, setAllUsersLoading] = useState(false);
   const [allUsersMessage, setAllUsersMessage] = useState("");
   const [allUsersPage, setAllUsersPage] = useState(1);
   const [allUsersTotalPages, setAllUsersTotalPages] = useState(1);
@@ -39,8 +38,7 @@ export function useAllUsersSection({
     }
 
     const nextPage = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
-    setAllUsersLoading(true);
-    setAllUsersMessage("Loading users...");
+    setAllUsersMessage("");
 
     try {
       const query = new URLSearchParams({
@@ -79,8 +77,6 @@ export function useAllUsersSection({
     } catch {
       setAllUsers([]);
       setAllUsersMessage("Unexpected error. Please try again.");
-    } finally {
-      setAllUsersLoading(false);
     }
   }, [canReadUsers, navigate]);
 
@@ -282,7 +278,6 @@ export function useAllUsersSection({
 
   return {
     allUsers,
-    allUsersLoading,
     allUsersMessage,
     allUsersPage,
     allUsersTotalPages,

@@ -13,20 +13,17 @@ function ProfileMainContent({
   openAllUsersDeleteModal,
   allUsersPage,
   allUsersTotalPages,
-  allUsersLoading,
   loadAllUsers,
   closeAllUsersPanel,
   closeAllClientsPanel,
   closeCreateClientPanel,
   clients,
   clientsMessage,
-  clientsLoading,
   clientsPage,
   clientsTotalPages,
   loadClients,
   vipClients,
   vipClientsMessage,
-  vipClientsLoading,
   vipClientsPage,
   vipClientsTotalPages,
   loadVipClients,
@@ -46,6 +43,7 @@ function ProfileMainContent({
   canDeleteAppointments,
   closeAppointmentPanel,
   closeAppointmentBreaksPanel,
+  closeAppointmentVipSchedulePanel,
   closeAppointmentSettingsPanel,
   closeAppointmentVipClientsPanel,
   closeOrganizationsPanel,
@@ -92,7 +90,7 @@ function ProfileMainContent({
   positionDeletingId,
   handlePositionDelete,
   adminOptionsForm,
-  adminOptionsLoading,
+  adminOptionsError,
   adminOptionsSubmitting,
   setAdminOptionsForm,
   setAdminOptionsError,
@@ -103,7 +101,6 @@ function ProfileMainContent({
   createForm,
   createErrors,
   createSubmitting,
-  organizationsLoading,
   createOrganizationOptions,
   setCreateForm,
   setCreateErrors,
@@ -221,7 +218,7 @@ function ProfileMainContent({
               id="allUsersPrevBtn"
               type="button"
               className="header-btn"
-              disabled={allUsersPage <= 1 || allUsersLoading}
+              disabled={allUsersPage <= 1}
               onClick={() => loadAllUsers(allUsersPage - 1)}
             >
               Previous
@@ -233,7 +230,7 @@ function ProfileMainContent({
               id="allUsersNextBtn"
               type="button"
               className="header-btn"
-              disabled={allUsersPage >= allUsersTotalPages || allUsersLoading}
+              disabled={allUsersPage >= allUsersTotalPages}
               onClick={() => loadAllUsers(allUsersPage + 1)}
             >
               Next
@@ -336,7 +333,7 @@ function ProfileMainContent({
             <button
               type="button"
               className="header-btn"
-              disabled={clientsPage <= 1 || clientsLoading}
+              disabled={clientsPage <= 1}
               onClick={() => loadClients(clientsPage - 1)}
             >
               Previous
@@ -347,7 +344,7 @@ function ProfileMainContent({
             <button
               type="button"
               className="header-btn"
-              disabled={clientsPage >= clientsTotalPages || clientsLoading}
+              disabled={clientsPage >= clientsTotalPages}
               onClick={() => loadClients(clientsPage + 1)}
             >
               Next
@@ -576,6 +573,32 @@ function ProfileMainContent({
         </section>
       )}
 
+      {mainView === "appointment-vip-schedule" && (
+        <section id="appointmentVipSchedulePanel" className="all-users-panel">
+          <div className="all-users-head">
+            <h3>Appointment VIP Schedule</h3>
+            <button
+              id="closeAppointmentVipScheduleBtn"
+              type="button"
+              className="header-btn panel-close-btn"
+              aria-label="Close VIP schedule panel"
+              onClick={closeAppointmentVipSchedulePanel}
+            >
+              ×
+            </button>
+          </div>
+          <AppointmentScheduler
+            canCreateAppointments={canCreateAppointments}
+            canUpdateAppointments={canUpdateAppointments}
+            canDeleteAppointments={canDeleteAppointments}
+            currentUserId={String(profile?.id || "").trim()}
+            restrictCreateToOwnSpecialist={isSpecialistUser}
+            vipOnly
+            onNotification={onAppointmentNotification}
+          />
+        </section>
+      )}
+
       {mainView === "appointment-breaks" && (
         <section id="appointmentBreaksPanel" className="all-users-panel settings-panel">
           <div className="all-users-head">
@@ -682,7 +705,7 @@ function ProfileMainContent({
             <button
               type="button"
               className="header-btn"
-              disabled={vipClientsPage <= 1 || vipClientsLoading}
+              disabled={vipClientsPage <= 1}
               onClick={() => loadVipClients(vipClientsPage - 1)}
             >
               Previous
@@ -693,7 +716,7 @@ function ProfileMainContent({
             <button
               type="button"
               className="header-btn"
-              disabled={vipClientsPage >= vipClientsTotalPages || vipClientsLoading}
+              disabled={vipClientsPage >= vipClientsTotalPages}
               onClick={() => loadVipClients(vipClientsPage + 1)}
             >
               Next
@@ -1195,7 +1218,7 @@ function ProfileMainContent({
               </div>
               <div className="field settings-inline-control settings-action-field">
                 <label aria-hidden="true">&nbsp;</label>
-                <button className="btn settings-add-btn" type="submit" disabled={adminOptionsSubmitting || adminOptionsLoading}>
+                <button className="btn settings-add-btn" type="submit" disabled={adminOptionsSubmitting}>
                   {adminOptionsSubmitting ? "Saving..." : "Save"}
                 </button>
               </div>
@@ -1227,7 +1250,7 @@ function ProfileMainContent({
                 <label htmlFor="createUserOrganizationCode">Organisation</label>
                 <CustomSelect
                   id="createUserOrganizationCode"
-                  placeholder={organizationsLoading ? "Loading organisations..." : "Select organisation"}
+                  placeholder="Select organisation"
                   value={createForm.organizationCode}
                   options={createOrganizationOptions}
                   error={Boolean(createErrors.organizationCode)}

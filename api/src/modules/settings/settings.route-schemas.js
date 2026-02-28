@@ -84,12 +84,18 @@ export const settingsRouteSchemas = Object.freeze({
       organization_id: positiveIntegerLikeSchema,
       appointmentHistoryLockDays: integerLikeSchema,
       historyLockDays: integerLikeSchema,
-      appointment_history_lock_days: integerLikeSchema
+      appointment_history_lock_days: integerLikeSchema,
+      appointmentSlotCellHeightPx: integerLikeSchema,
+      slotCellHeightPx: integerLikeSchema,
+      appointment_slot_cell_height_px: integerLikeSchema
     },
     anyOf: [
       { required: ["appointmentHistoryLockDays"] },
       { required: ["historyLockDays"] },
-      { required: ["appointment_history_lock_days"] }
+      { required: ["appointment_history_lock_days"] },
+      { required: ["appointmentSlotCellHeightPx"] },
+      { required: ["slotCellHeightPx"] },
+      { required: ["appointment_slot_cell_height_px"] }
     ]
   },
   roleCreateBody: roleBodySchema,
@@ -97,4 +103,3 @@ export const settingsRouteSchemas = Object.freeze({
   positionCreateBody: positionBodySchema,
   positionUpdateBody: positionBodySchema
 });
-

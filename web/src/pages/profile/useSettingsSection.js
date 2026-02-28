@@ -24,7 +24,6 @@ export function useSettingsSection({
   const [settingsDelete, setSettingsDelete] = useState(createEmptySettingsDeleteState);
 
   const [organizations, setOrganizations] = useState([]);
-  const [organizationsLoading, setOrganizationsLoading] = useState(false);
   const [organizationsMessage, setOrganizationsMessage] = useState("");
   const [organizationCreateForm, setOrganizationCreateForm] = useState({ ...EMPTY_ORGANIZATION_FORM });
   const [organizationCreateError, setOrganizationCreateError] = useState("");
@@ -37,7 +36,6 @@ export function useSettingsSection({
   const [organizationDeletingId, setOrganizationDeletingId] = useState("");
 
   const [rolesSettings, setRolesSettings] = useState([]);
-  const [rolesSettingsLoading, setRolesSettingsLoading] = useState(false);
   const [rolesSettingsMessage, setRolesSettingsMessage] = useState("");
   const [rolePermissionOptions, setRolePermissionOptions] = useState([]);
   const [roleCreateForm, setRoleCreateForm] = useState({ ...EMPTY_ROLE_CREATE_FORM });
@@ -51,7 +49,6 @@ export function useSettingsSection({
   const [roleDeletingId, setRoleDeletingId] = useState("");
 
   const [positionsSettings, setPositionsSettings] = useState([]);
-  const [positionsSettingsLoading, setPositionsSettingsLoading] = useState(false);
   const [positionsSettingsMessage, setPositionsSettingsMessage] = useState("");
   const [positionCreateForm, setPositionCreateForm] = useState({ ...EMPTY_SETTINGS_OPTION_FORM });
   const [positionCreateError, setPositionCreateError] = useState("");
@@ -66,7 +63,6 @@ export function useSettingsSection({
     organizationId: "",
     appointmentHistoryLockDays: ""
   });
-  const [adminOptionsLoading, setAdminOptionsLoading] = useState(false);
   const [adminOptionsMessage, setAdminOptionsMessage] = useState("");
   const [adminOptionsError, setAdminOptionsError] = useState("");
   const [adminOptionsSubmitting, setAdminOptionsSubmitting] = useState(false);
@@ -86,8 +82,7 @@ export function useSettingsSection({
       return;
     }
 
-    setOrganizationsLoading(true);
-    setOrganizationsMessage("Loading organizations...");
+    setOrganizationsMessage("");
 
     try {
       const response = await apiFetch("/api/settings/organizations", {
@@ -111,8 +106,6 @@ export function useSettingsSection({
     } catch {
       setOrganizations([]);
       setOrganizationsMessage("Unexpected error. Please try again.");
-    } finally {
-      setOrganizationsLoading(false);
     }
   }, [hasSettingsMenuAccess, navigate]);
 
@@ -122,8 +115,7 @@ export function useSettingsSection({
       return;
     }
 
-    setRolesSettingsLoading(true);
-    setRolesSettingsMessage("Loading roles...");
+    setRolesSettingsMessage("");
 
     try {
       const response = await apiFetch("/api/settings/roles", {
@@ -161,8 +153,6 @@ export function useSettingsSection({
       setRolesSettings([]);
       setRolePermissionOptions([]);
       setRolesSettingsMessage("Unexpected error. Please try again.");
-    } finally {
-      setRolesSettingsLoading(false);
     }
   }, [hasSettingsMenuAccess, navigate]);
 
@@ -172,8 +162,7 @@ export function useSettingsSection({
       return;
     }
 
-    setPositionsSettingsLoading(true);
-    setPositionsSettingsMessage("Loading positions...");
+    setPositionsSettingsMessage("");
 
     try {
       const response = await apiFetch("/api/settings/positions", {
@@ -197,8 +186,6 @@ export function useSettingsSection({
     } catch {
       setPositionsSettings([]);
       setPositionsSettingsMessage("Unexpected error. Please try again.");
-    } finally {
-      setPositionsSettingsLoading(false);
     }
   }, [hasSettingsMenuAccess, navigate]);
 
@@ -208,7 +195,6 @@ export function useSettingsSection({
       return;
     }
 
-    setAdminOptionsLoading(true);
     setAdminOptionsError("");
     setAdminOptionsMessage("");
 
@@ -254,8 +240,6 @@ export function useSettingsSection({
       setAdminOptionsMessage("");
       setAdminOptionsError("");
       window.alert("Unexpected error. Please try again.");
-    } finally {
-      setAdminOptionsLoading(false);
     }
   }, [adminOptionsForm.organizationId, hasSettingsMenuAccess, navigate]);
 
@@ -304,7 +288,6 @@ export function useSettingsSection({
       window.alert("History lock days must be an integer between 0 and 3650.");
       return;
     }
-
     try {
       setAdminOptionsSubmitting(true);
       setAdminOptionsError("");
@@ -861,7 +844,6 @@ export function useSettingsSection({
   return {
     settingsDelete,
     organizations,
-    organizationsLoading,
     organizationsMessage,
     organizationCreateForm,
     organizationCreateError,
@@ -872,7 +854,6 @@ export function useSettingsSection({
     organizationEditSubmitting,
     organizationDeletingId,
     rolesSettings,
-    rolesSettingsLoading,
     rolesSettingsMessage,
     rolePermissionOptions,
     groupedRolePermissionOptions,
@@ -885,7 +866,6 @@ export function useSettingsSection({
     roleEditSubmitting,
     roleDeletingId,
     positionsSettings,
-    positionsSettingsLoading,
     positionsSettingsMessage,
     positionCreateForm,
     positionCreateError,
@@ -896,7 +876,6 @@ export function useSettingsSection({
     positionEditSubmitting,
     positionDeletingId,
     adminOptionsForm,
-    adminOptionsLoading,
     adminOptionsMessage,
     adminOptionsError,
     adminOptionsSubmitting,

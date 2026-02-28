@@ -92,6 +92,14 @@ export function useProfilePanels({
     closePanel("appointment-vip-clients");
   }, [closePanel]);
 
+  const openAppointmentVipSchedulePanel = useCallback(() => {
+    openPanel("/appointments/vip-schedule", canOpenAppointmentSchedule);
+  }, [canOpenAppointmentSchedule, openPanel]);
+
+  const closeAppointmentVipSchedulePanel = useCallback(() => {
+    closePanel("appointment-vip-schedule");
+  }, [closePanel]);
+
   const openOrganizationsPanel = useCallback(() => {
     openPanel("/settings/organizations", hasSettingsMenuAccess);
   }, [hasSettingsMenuAccess, openPanel]);
@@ -156,6 +164,8 @@ export function useProfilePanels({
     closeAppointmentSettingsPanel,
     openAppointmentVipClientsPanel,
     closeAppointmentVipClientsPanel,
+    openAppointmentVipSchedulePanel,
+    closeAppointmentVipSchedulePanel,
     openOrganizationsPanel,
     closeOrganizationsPanel,
     openRolesPanel,

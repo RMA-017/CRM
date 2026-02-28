@@ -73,7 +73,6 @@ function ProfileModals(props) {
     closeProfileEditModal,
     allUsersEdit,
     handleAllUsersEditSubmit,
-    organizationsLoading,
     createOrganizationOptions,
     setAllUsersEdit,
     roleOptions,
@@ -462,7 +461,7 @@ function ProfileModals(props) {
               <label htmlFor="allUsersEditOrganizationSelect">Organisation</label>
               <CustomSelect
                 id="allUsersEditOrganizationSelect"
-                placeholder={organizationsLoading ? "Loading organisations..." : "Select organisation"}
+                placeholder="Select organisation"
                 value={allUsersEdit.form.organizationCode}
                 options={createOrganizationOptions}
                 error={Boolean(allUsersEdit.errors.organizationCode)}

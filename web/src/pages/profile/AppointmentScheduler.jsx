@@ -35,14 +35,53 @@ const DAY_NUM_TO_KEY = Object.freeze(
 );
 const MAX_REPEAT_RANGE_DAYS = 366;
 const APPOINTMENT_SPECIALIST_STORAGE_KEY = "crm_appointment_selected_specialist_id";
+const APPOINTMENT_VIP_CLIENT_STORAGE_KEY = "crm_appointment_selected_vip_client_id";
 const ACTIVE_SCHEDULE_STATUSES = new Set(["pending", "confirmed"]);
 const FULL_CELL_BREAK_TYPES = new Set(["lunch", "meeting", "training", "other"]);
+const DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 18;
+const MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 12;
+const MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 72;
 
-function readStoredSpecialistId() {
+const SKEL_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const SKEL_ROWS = [
+  { t: true,  c: [0, 1, 0, 0, 0, 0, 0] },
+  { t: false, c: [0, 0, 0, 1, 0, 0, 0] },
+  { t: true,  c: [0, 0, 0, 0, 1, 0, 0] },
+  { t: false, c: [1, 0, 0, 0, 0, 0, 0] },
+  { t: true,  c: [0, 0, 1, 0, 0, 0, 0] },
+  { t: false, c: [0, 0, 0, 0, 0, 1, 0] },
+  { t: true,  c: [0, 1, 0, 0, 0, 0, 0] },
+  { t: false, c: [0, 0, 0, 1, 0, 0, 1] },
+  { t: true,  c: [0, 0, 1, 0, 0, 0, 0] },
+  { t: false, c: [1, 0, 0, 0, 1, 0, 0] },
+  { t: true,  c: [0, 0, 0, 0, 0, 1, 0] },
+  { t: false, c: [0, 1, 0, 1, 0, 0, 0] },
+  { t: true,  c: [0, 0, 0, 0, 1, 0, 0] },
+  { t: false, c: [0, 0, 1, 0, 0, 0, 1] },
+  { t: true,  c: [0, 1, 0, 0, 0, 0, 0] },
+  { t: false, c: [0, 0, 0, 0, 0, 0, 0] },
+];
+
+function normalizeBreakTypeKey(value) {
+  const normalizedType = String(value || "").trim().toLowerCase();
+  if (normalizedType === "launch") {
+    return "lunch";
+  }
+  return normalizedType;
+}
+
+function getSchedulerSelectionStorageKey(vipOnly = false) {
+  return vipOnly
+    ? APPOINTMENT_VIP_CLIENT_STORAGE_KEY
+    : APPOINTMENT_SPECIALIST_STORAGE_KEY;
+}
+
+function readStoredSchedulerSelectionId(vipOnly = false) {
   if (typeof window === "undefined") {
     return "";
   }
-  return String(window.localStorage.getItem(APPOINTMENT_SPECIALIST_STORAGE_KEY) || "").trim();
+  const storageKey = getSchedulerSelectionStorageKey(vipOnly);
+  return String(window.localStorage.getItem(storageKey) || "").trim();
 }
 
 function createEmptyClientForm({
@@ -127,6 +166,38 @@ function formatServiceLine(serviceName, durationMinutes) {
   return serviceLabel ? `${serviceLabel} • ${bookingDuration}` : bookingDuration;
 }
 
+function isGenericVipPrimaryLabel(value) {
+  const raw = String(value || "").trim();
+  const normalized = raw.toLowerCase();
+  return (
+    normalized === ""
+    || normalized === "specialist"
+    || normalized === "spetsialist"
+    || /^\d+$/.test(raw)
+  );
+}
+
+function isGenericVipServiceLabel(value) {
+  const raw = String(value || "").trim();
+  return raw === "" || /^\d+$/.test(raw);
+}
+
+function formatVipServiceLine(specialistPosition, serviceName, durationMinutes, fallbackPosition = "") {
+  const positionText = truncateWithEllipsis(specialistPosition, 24);
+  const fallbackPositionText = truncateWithEllipsis(fallbackPosition, 24);
+  const serviceText = truncateWithEllipsis(serviceName, 20);
+  const primaryText = !isGenericVipPrimaryLabel(positionText)
+    ? positionText
+    : (!isGenericVipPrimaryLabel(fallbackPositionText)
+      ? fallbackPositionText
+      : (!isGenericVipServiceLabel(serviceText) ? serviceText : "Specialist"));
+  const bookingDuration = formatBookingDurationLabel(durationMinutes);
+  if (!bookingDuration) {
+    return primaryText;
+  }
+  return primaryText ? `${primaryText} • ${bookingDuration}` : bookingDuration;
+}
+
 function formatBreakReason(item) {
   const title = String(item?.title || "").trim();
   if (title) {
@@ -136,7 +207,7 @@ function formatBreakReason(item) {
     };
   }
 
-  const breakType = String(item?.breakType || "break").trim().toLowerCase();
+  const breakType = normalizeBreakTypeKey(item?.breakType || "break");
   if (!breakType) {
     return { full: "Break", short: "Break" };
   }
@@ -280,7 +351,7 @@ function isInsideWorkingHoursByMinutes(slotMinutes, dayMinutes) {
 }
 
 function isEligibleBreakTypeForFullCell(breakType) {
-  const normalizedType = String(breakType || "").trim().toLowerCase();
+  const normalizedType = normalizeBreakTypeKey(breakType);
   return FULL_CELL_BREAK_TYPES.has(normalizedType);
 }
 
@@ -297,6 +368,26 @@ function minutesToTime(totalMinutes) {
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function formatAppointmentTimeRangeLabel(startTime, endTime, durationMinutes = "") {
+  const startMinutes = normalizeTimeToMinutes(startTime);
+  if (startMinutes === null) {
+    return "";
+  }
+
+  let endMinutes = normalizeTimeToMinutes(endTime);
+  if (endMinutes === null || endMinutes <= startMinutes) {
+    const duration = Number.parseInt(String(durationMinutes || "").trim(), 10);
+    if (Number.isInteger(duration) && duration > 0) {
+      endMinutes = startMinutes + duration;
+    }
+  }
+
+  if (endMinutes === null || endMinutes <= startMinutes) {
+    return minutesToTime(startMinutes);
+  }
+  return `${minutesToTime(startMinutes)} - ${minutesToTime(endMinutes)}`;
 }
 
 function showImmediateAlert(text) {
@@ -340,6 +431,32 @@ function normalizeVisibleDays(days) {
   return DAY_ITEMS
     .map((item) => item.key)
     .filter((key) => normalized.includes(key));
+}
+
+function mapSchedulerSettingsFromApiItem(item) {
+  const normalizedItem = item && typeof item === "object" ? item : {};
+  const visibleWeekDays = normalizeVisibleDays(normalizedItem.visibleWeekDays);
+  const nextWorkingHours = createDefaultWorkingHours();
+  if (normalizedItem.workingHours && typeof normalizedItem.workingHours === "object") {
+    DAY_ITEMS.forEach((day) => {
+      nextWorkingHours[day.key] = {
+        start: String(normalizedItem.workingHours?.[day.key]?.start || ""),
+        end: String(normalizedItem.workingHours?.[day.key]?.end || "")
+      };
+    });
+  }
+
+  return {
+    slotInterval: String(normalizedItem.slotInterval || "30"),
+    slotSubDivisions: String(normalizedItem.slotSubDivisions || "1"),
+    appointmentDurationOptions: Array.isArray(normalizedItem.appointmentDurationOptions)
+      && normalizedItem.appointmentDurationOptions.length > 0
+      ? normalizedItem.appointmentDurationOptions.map((value) => String(value))
+      : [String(normalizedItem.appointmentDuration || "30")],
+    visibleWeekDays,
+    workingHours: nextWorkingHours,
+    slotCellHeightPx: String(normalizedItem.slotCellHeightPx || DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX)
+  };
 }
 
 function buildTimeSlots({ visibleDays, workingHours, slotIntervalMinutes }) {
@@ -392,7 +509,9 @@ function AppointmentScheduler({
   onNotification = null
 }) {
   const isVipRecurringModal = vipOnly && recurringOnly;
-  const [loading, setLoading] = useState(true);
+  const specialistLabel = vipOnly ? "VIP Client" : "Specialist";
+  const specialistSelectPlaceholder = vipOnly ? "Select VIP client" : "Select specialist";
+  const specialistSearchPlaceholder = vipOnly ? "Search VIP client" : "Search specialist";
   const [message, setMessage] = useState("");
   const [weekOffset, setWeekOffset] = useState(0);
   const [compactWeekRange, setCompactWeekRange] = useState(() => {
@@ -401,10 +520,15 @@ function AppointmentScheduler({
     }
     return window.matchMedia("(max-width: 860px)").matches;
   });
+  const [isSchedulerInitialized, setIsSchedulerInitialized] = useState(false);
   const [specialists, setSpecialists] = useState([]);
-  const [selectedSpecialistId, setSelectedSpecialistId] = useState(readStoredSpecialistId);
+  const [specialistRoleById, setSpecialistRoleById] = useState(() => ({}));
+  const [selectedSpecialistId, setSelectedSpecialistId] = useState(
+    () => readStoredSchedulerSelectionId(vipOnly)
+  );
   const [specialistSelectError, setSpecialistSelectError] = useState(false);
   const [appointmentsBySpecialist, setAppointmentsBySpecialist] = useState(() => ({}));
+  const [appointmentsWeekKeyBySpecialist, setAppointmentsWeekKeyBySpecialist] = useState(() => ({}));
   const [breaksBySpecialist, setBreaksBySpecialist] = useState(() => ({}));
   const [createModal, setCreateModal] = useState({
     open: false,
@@ -424,30 +548,59 @@ function AppointmentScheduler({
   const [createDeleting, setCreateDeleting] = useState(false);
   const [clientVipOnly, setClientVipOnly] = useState(Boolean(vipOnly));
   const [clientSearch, setClientSearch] = useState(createEmptyClientSearchForm);
-  const [clientSearchLoading, setClientSearchLoading] = useState(false);
   const [clientSearchMessage, setClientSearchMessage] = useState("");
   const [clientOptions, setClientOptions] = useState([]);
   const [clientMap, setClientMap] = useState({});
   const [clientNoShowSummary, setClientNoShowSummary] = useState(null);
-  const [clientNoShowLoading, setClientNoShowLoading] = useState(false);
   const [settings, setSettings] = useState({
     slotInterval: "30",
     slotSubDivisions: "1",
     appointmentDurationOptions: ["30"],
     visibleWeekDays: ["mon", "tue", "wed", "thu", "fri", "sat"],
-    workingHours: createDefaultWorkingHours()
+    workingHours: createDefaultWorkingHours(),
+    slotCellHeightPx: String(DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX)
   });
   const schedulesRequestIdRef = useRef(0);
   const breaksRequestIdRef = useRef(0);
   const normalizedCurrentUserId = String(currentUserId || "").trim();
   const normalizedSelectedSpecialistId = String(selectedSpecialistId || "").trim();
-  const canMutateSelectedSpecialist = (
-    !restrictCreateToOwnSpecialist
-    || (Boolean(normalizedCurrentUserId) && normalizedCurrentUserId === normalizedSelectedSpecialistId)
+  const canMutateSpecialistId = useCallback((value) => {
+    if (!restrictCreateToOwnSpecialist) {
+      return true;
+    }
+    return Boolean(normalizedCurrentUserId) && normalizedCurrentUserId === String(value || "").trim();
+  }, [normalizedCurrentUserId, restrictCreateToOwnSpecialist]);
+  const canMutateSelectedSpecialist = vipOnly
+    ? true
+    : canMutateSpecialistId(normalizedSelectedSpecialistId);
+  const canCreateOnSelectedSpecialist = !vipOnly
+    && canCreateAppointments
+    && canMutateSelectedSpecialist;
+  const canMutateAppointmentSpecialist = useCallback(
+    (item) => canMutateSpecialistId(item?.specialistId),
+    [canMutateSpecialistId]
   );
-  const canCreateOnSelectedSpecialist = canCreateAppointments && (
-    canMutateSelectedSpecialist
-  );
+  const loadAppointmentSettings = useCallback(async ({ silent = false } = {}) => {
+    try {
+      const response = await apiFetch("/api/appointments/settings", {
+        method: "GET",
+        cache: "no-store"
+      });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        if (!silent) {
+          setMessage(data?.message || "Failed to load appointment settings.");
+        }
+        return;
+      }
+
+      setSettings(mapSchedulerSettingsFromApiItem(data?.item));
+    } catch {
+      if (!silent) {
+        setMessage("Failed to load appointment settings.");
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -479,22 +632,30 @@ function AppointmentScheduler({
 
     async function loadData() {
       try {
-        setLoading(true);
         setMessage("");
 
-        const [settingsResponse, specialistsResponse] = await Promise.all([
+        const [settingsResponse, specialistsResponse, specialistRolesResponse] = await Promise.all([
           apiFetch("/api/appointments/settings", {
             method: "GET",
             cache: "no-store"
           }),
-          apiFetch("/api/appointments/specialists", {
+          apiFetch(vipOnly ? "/api/clients/search?isVip=true&limit=100" : "/api/appointments/specialists", {
             method: "GET",
             cache: "no-store"
-          })
+          }),
+          vipOnly
+            ? apiFetch("/api/appointments/specialists", {
+                method: "GET",
+                cache: "no-store"
+              })
+            : Promise.resolve(null)
         ]);
 
         const settingsData = await readApiResponseData(settingsResponse);
         const specialistsData = await readApiResponseData(specialistsResponse);
+        const specialistRolesData = specialistRolesResponse
+          ? await readApiResponseData(specialistRolesResponse)
+          : null;
 
         if (!active) {
           return;
@@ -506,7 +667,7 @@ function AppointmentScheduler({
         }
 
         if (!specialistsResponse.ok) {
-          setMessage(specialistsData?.message || "Failed to load specialists.");
+          setMessage(specialistsData?.message || (vipOnly ? "Failed to load VIP clients." : "Failed to load specialists."));
           return;
         }
 
@@ -514,37 +675,44 @@ function AppointmentScheduler({
           ? settingsData.item
           : {};
 
-        const visibleWeekDays = normalizeVisibleDays(item.visibleWeekDays);
-        const nextWorkingHours = createDefaultWorkingHours();
-        if (item.workingHours && typeof item.workingHours === "object") {
-          DAY_ITEMS.forEach((day) => {
-            nextWorkingHours[day.key] = {
-              start: String(item.workingHours?.[day.key]?.start || ""),
-              end: String(item.workingHours?.[day.key]?.end || "")
-            };
-          });
-        }
-
         const nextSpecialists = Array.isArray(specialistsData?.items)
-          ? specialistsData.items.map((itemValue) => ({
-              id: String(itemValue?.id || ""),
-              name: String(itemValue?.name || "").trim() || "Specialist",
-              role: String(itemValue?.role || "").trim() || "Specialist"
-            })).filter((itemValue) => Boolean(itemValue.id))
+          ? (
+            vipOnly
+              ? specialistsData.items.map((itemValue) => ({
+                  id: String(itemValue?.id || ""),
+                  firstName: String(itemValue?.firstName || itemValue?.first_name || "").trim(),
+                  lastName: String(itemValue?.lastName || itemValue?.last_name || "").trim(),
+                  middleName: String(itemValue?.middleName || itemValue?.middle_name || "").trim(),
+                  phone: String(itemValue?.phone || itemValue?.phone_number || "").trim()
+                }))
+              : specialistsData.items.map((itemValue) => ({
+                  id: String(itemValue?.id || ""),
+                  name: String(itemValue?.name || "").trim() || "Specialist",
+                  role: String(itemValue?.role || "").trim() || "Specialist"
+                }))
+          ).filter((itemValue) => Boolean(itemValue.id))
           : [];
+        const nextSpecialistRoleById = (
+          vipOnly
+          && specialistRolesResponse
+          && specialistRolesResponse.ok
+          && Array.isArray(specialistRolesData?.items)
+        )
+          ? specialistRolesData.items.reduce((acc, itemValue) => {
+              const id = String(itemValue?.id || "").trim();
+              const roleLabel = String(itemValue?.role || "").trim();
+              if (id && roleLabel) {
+                acc[id] = roleLabel;
+              }
+              return acc;
+            }, {})
+          : {};
 
-        setSettings({
-          slotInterval: String(item.slotInterval || "30"),
-          slotSubDivisions: String(item.slotSubDivisions || "1"),
-          appointmentDurationOptions: Array.isArray(item.appointmentDurationOptions) && item.appointmentDurationOptions.length > 0
-            ? item.appointmentDurationOptions.map((value) => String(value))
-            : [String(item.appointmentDuration || "30")],
-          visibleWeekDays,
-          workingHours: nextWorkingHours
-        });
+        setSettings(mapSchedulerSettingsFromApiItem(item));
         setSpecialists(nextSpecialists);
+        setSpecialistRoleById(nextSpecialistRoleById);
         setSelectedSpecialistId((prev) => {
-          const persisted = readStoredSpecialistId();
+          const persisted = readStoredSchedulerSelectionId(vipOnly);
           const preferredId = String(prev || persisted || "").trim();
           if (preferredId && nextSpecialists.some((itemValue) => itemValue.id === preferredId)) {
             return preferredId;
@@ -557,7 +725,7 @@ function AppointmentScheduler({
         }
       } finally {
         if (active) {
-          setLoading(false);
+          setIsSchedulerInitialized(true);
         }
       }
     }
@@ -566,21 +734,22 @@ function AppointmentScheduler({
     return () => {
       active = false;
     };
-  }, []);
+  }, [vipOnly]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
 
+    const storageKey = getSchedulerSelectionStorageKey(vipOnly);
     const specialistId = String(selectedSpecialistId || "").trim();
     if (!specialistId) {
-      window.localStorage.removeItem(APPOINTMENT_SPECIALIST_STORAGE_KEY);
+      window.localStorage.removeItem(storageKey);
       return;
     }
 
-    window.localStorage.setItem(APPOINTMENT_SPECIALIST_STORAGE_KEY, specialistId);
-  }, [selectedSpecialistId]);
+    window.localStorage.setItem(storageKey, specialistId);
+  }, [selectedSpecialistId, vipOnly]);
 
   const weekDays = useMemo(() => {
     const baseStart = getStartOfWeek(new Date());
@@ -595,6 +764,27 @@ function AppointmentScheduler({
         date: addDays(targetStart, day.offset)
       }));
   }, [settings.visibleWeekDays, weekOffset]);
+  const weekDataKey = useMemo(() => (
+    weekDays.map((day) => `${day.key}:${formatDateYmd(day.date)}`).join("|")
+  ), [weekDays]);
+  const weekRenderKey = useMemo(() => (
+    `${String(selectedSpecialistId || "").trim()}:${weekDays.map((day) => `${day.key}:${formatDateYmd(day.date)}`).join("|")}`
+  ), [selectedSpecialistId, weekDays]);
+  const slotCellHeightPx = useMemo(() => {
+    const parsed = Number.parseInt(String(settings.slotCellHeightPx || "").trim(), 10);
+    if (
+      Number.isInteger(parsed)
+      && parsed >= MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX
+      && parsed <= MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX
+    ) {
+      return parsed;
+    }
+    return DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX;
+  }, [settings.slotCellHeightPx]);
+  const slotRowHeightStyle = useMemo(() => ({
+    height: `${slotCellHeightPx}px`,
+    minHeight: `${slotCellHeightPx}px`
+  }), [slotCellHeightPx]);
 
   const timeSlots = useMemo(() => {
     const interval = Number.parseInt(String(settings.slotInterval), 10) || 30;
@@ -607,8 +797,14 @@ function AppointmentScheduler({
     });
   }, [settings.slotInterval, settings.slotSubDivisions, settings.workingHours, weekDays]);
 
-  const appointmentsByDay = appointmentsBySpecialist[selectedSpecialistId] || {};
-  const breaksForSpecialist = breaksBySpecialist[selectedSpecialistId] || [];
+  const appointmentsByDay = (
+    appointmentsWeekKeyBySpecialist[selectedSpecialistId] === weekDataKey
+      ? (appointmentsBySpecialist[selectedSpecialistId] || {})
+      : {}
+  );
+  const breaksForSpecialist = vipOnly
+    ? []
+    : (breaksBySpecialist[selectedSpecialistId] || []);
   const slotMinutesByValue = useMemo(() => (
     timeSlots.reduce((acc, slot) => {
       acc[slot] = normalizeTimeToMinutes(slot);
@@ -732,6 +928,16 @@ function AppointmentScheduler({
     weekDays.reduce((acc, day) => {
       const blockedByTime = {};
       const ranges = [];
+      const slotStepMinutes = (() => {
+        for (let index = 1; index < timeSlots.length; index += 1) {
+          const prev = slotMinutesByValue[timeSlots[index - 1]];
+          const next = slotMinutesByValue[timeSlots[index]];
+          if (Number.isInteger(prev) && Number.isInteger(next) && next > prev) {
+            return next - prev;
+          }
+        }
+        return 30;
+      })();
 
       (Array.isArray(breaksForSpecialist) ? breaksForSpecialist : []).forEach((item) => {
         if (item?.isActive === false) {
@@ -754,18 +960,25 @@ function AppointmentScheduler({
         ranges.push({
           start,
           end,
-          breakType: String(item?.breakType || "break").trim().toLowerCase(),
+          breakType: normalizeBreakTypeKey(item?.breakType || "break"),
           reason: formatBreakReason(item)
         });
       });
 
       if (ranges.length > 0) {
-        timeSlots.forEach((slot) => {
+        timeSlots.forEach((slot, slotIndex) => {
           const slotMinutes = slotMinutesByValue[slot];
           if (slotMinutes === null) {
             return;
           }
-          const hit = ranges.find((range) => slotMinutes >= range.start && slotMinutes < range.end);
+          const nextSlot = timeSlots[slotIndex + 1];
+          const nextSlotMinutes = nextSlot ? slotMinutesByValue[nextSlot] : null;
+          const slotEndMinutes = (
+            Number.isInteger(nextSlotMinutes) && nextSlotMinutes > slotMinutes
+              ? nextSlotMinutes
+              : (slotMinutes + slotStepMinutes)
+          );
+          const hit = ranges.find((range) => slotMinutes < range.end && slotEndMinutes > range.start);
           if (hit) {
             blockedByTime[slot] = {
               breakType: hit.breakType,
@@ -782,12 +995,6 @@ function AppointmentScheduler({
   ), [breaksForSpecialist, slotMinutesByValue, timeSlots, weekDays]);
   const specialCellRowSpanByDay = useMemo(() => {
     const subDivisions = Math.max(1, Number.parseInt(String(settings.slotSubDivisions), 10) || 1);
-    if (subDivisions <= 1) {
-      return weekDays.reduce((acc, day) => {
-        acc[day.key] = {};
-        return acc;
-      }, {});
-    }
 
     return weekDays.reduce((acc, day) => {
       const spanMap = {};
@@ -797,58 +1004,77 @@ function AppointmentScheduler({
       const dayBreakSlots = appointmentBreakSlotsByDay[day.key] || {};
       const dayMinutes = workingHoursMinutesByDay[day.key] || { start: null, end: null };
 
-      for (let startIndex = 0; startIndex < timeSlots.length; startIndex += subDivisions) {
-        const groupEnd = Math.min(startIndex + subDivisions, timeSlots.length);
-        const groupSlots = timeSlots.slice(startIndex, groupEnd);
-        if (groupSlots.length <= 1) {
-          continue;
-        }
-
-        const firstSlot = groupSlots[0];
-        if (appointmentSpanMap[firstSlot] === 0 || dayAppointments[firstSlot]) {
-          continue;
-        }
-
-        const canMergeOffSlots = groupSlots.every((groupSlot) => {
-          if (appointmentSpanMap[groupSlot] === 0) {
-            return false;
+      // Keep off-slot merges aligned to the configured sub-division group.
+      if (subDivisions > 1) {
+        for (let startIndex = 0; startIndex < timeSlots.length; startIndex += subDivisions) {
+          const groupEnd = Math.min(startIndex + subDivisions, timeSlots.length);
+          const groupSlots = timeSlots.slice(startIndex, groupEnd);
+          if (groupSlots.length <= 1) {
+            continue;
           }
-          if (dayAppointments[groupSlot] || dayBlockedSlots[groupSlot] || dayBreakSlots[groupSlot]) {
-            return false;
-          }
-          const slotMinutes = slotMinutesByValue[groupSlot];
-          return !isInsideWorkingHoursByMinutes(slotMinutes, dayMinutes);
-        });
 
-        if (canMergeOffSlots) {
-          spanMap[firstSlot] = groupSlots.length;
-          groupSlots.slice(1).forEach((groupSlot) => {
-            spanMap[groupSlot] = 0;
+          const firstSlot = groupSlots[0];
+          if (appointmentSpanMap[firstSlot] === 0 || dayAppointments[firstSlot]) {
+            continue;
+          }
+
+          const canMergeOffSlots = groupSlots.every((groupSlot) => {
+            if (appointmentSpanMap[groupSlot] === 0) {
+              return false;
+            }
+            if (dayAppointments[groupSlot] || dayBlockedSlots[groupSlot] || dayBreakSlots[groupSlot]) {
+              return false;
+            }
+            const slotMinutes = slotMinutesByValue[groupSlot];
+            return !isInsideWorkingHoursByMinutes(slotMinutes, dayMinutes);
           });
+
+          if (canMergeOffSlots) {
+            spanMap[firstSlot] = groupSlots.length;
+            groupSlots.slice(1).forEach((groupSlot) => {
+              spanMap[groupSlot] = 0;
+            });
+          }
+        }
+      }
+
+      // Merge break slots by contiguous time coverage (duration), not only by one sub-division group.
+      for (let startIndex = 0; startIndex < timeSlots.length; startIndex += 1) {
+        const firstSlot = timeSlots[startIndex];
+        if (!firstSlot || spanMap[firstSlot] === 0) {
+          continue;
+        }
+        if (appointmentSpanMap[firstSlot] === 0 || dayAppointments[firstSlot] || dayBlockedSlots[firstSlot]) {
           continue;
         }
 
-        const firstBreakType = String(dayBreakSlots[firstSlot]?.breakType || "").trim().toLowerCase();
+        const firstBreakType = normalizeBreakTypeKey(dayBreakSlots[firstSlot]?.breakType || "");
         if (!isEligibleBreakTypeForFullCell(firstBreakType)) {
           continue;
         }
 
-        const canMergeBreakSlots = groupSlots.every((groupSlot) => {
-          if (appointmentSpanMap[groupSlot] === 0) {
-            return false;
+        let span = 1;
+        for (let nextIndex = startIndex + 1; nextIndex < timeSlots.length; nextIndex += 1) {
+          const nextSlot = timeSlots[nextIndex];
+          if (!nextSlot || appointmentSpanMap[nextSlot] === 0 || dayAppointments[nextSlot] || dayBlockedSlots[nextSlot]) {
+            break;
           }
-          if (dayAppointments[groupSlot] || dayBlockedSlots[groupSlot]) {
-            return false;
+          const nextBreakType = normalizeBreakTypeKey(dayBreakSlots[nextSlot]?.breakType || "");
+          if (!isEligibleBreakTypeForFullCell(nextBreakType) || nextBreakType !== firstBreakType) {
+            break;
           }
-          const breakType = String(dayBreakSlots[groupSlot]?.breakType || "").trim().toLowerCase();
-          return isEligibleBreakTypeForFullCell(breakType) && breakType === firstBreakType;
-        });
+          span += 1;
+        }
 
-        if (canMergeBreakSlots) {
-          spanMap[firstSlot] = groupSlots.length;
-          groupSlots.slice(1).forEach((groupSlot) => {
-            spanMap[groupSlot] = 0;
-          });
+        if (span > 1) {
+          spanMap[firstSlot] = span;
+          for (let offset = 1; offset < span; offset += 1) {
+            const coveredSlot = timeSlots[startIndex + offset];
+            if (coveredSlot) {
+              spanMap[coveredSlot] = 0;
+            }
+          }
+          startIndex += span - 1;
         }
       }
 
@@ -917,9 +1143,11 @@ function AppointmentScheduler({
   const specialistOptions = useMemo(() => (
     specialists.map((specialist) => ({
       value: specialist.id,
-      label: `${specialist.name} (${specialist.role})`
+      label: vipOnly
+        ? getClientDisplayName(specialist)
+        : `${specialist.name} (${specialist.role})`
     }))
-  ), [specialists]);
+  ), [specialists, vipOnly]);
   const visibleRepeatDayKeys = useMemo(
     () => normalizeVisibleDays(settings.visibleWeekDays),
     [settings.visibleWeekDays]
@@ -985,10 +1213,14 @@ function AppointmentScheduler({
 
     try {
       const queryParams = new URLSearchParams({
-        specialistId: selectedSpecialistId,
         dateFrom,
         dateTo
       });
+      if (vipOnly) {
+        queryParams.set("clientId", selectedSpecialistId);
+      } else {
+        queryParams.set("specialistId", selectedSpecialistId);
+      }
       if (vipOnly) {
         queryParams.set("vipOnly", "true");
       }
@@ -1010,6 +1242,10 @@ function AppointmentScheduler({
         setAppointmentsBySpecialist((prev) => ({
           ...prev,
           [selectedSpecialistId]: {}
+        }));
+        setAppointmentsWeekKeyBySpecialist((prev) => ({
+          ...prev,
+          [selectedSpecialistId]: weekDataKey
         }));
         return;
       }
@@ -1033,6 +1269,10 @@ function AppointmentScheduler({
 
         const nextCard = {
           id: String(item?.id || ""),
+          specialistId: String(item?.specialistId || "").trim(),
+          specialist: String(item?.specialistName || "").trim()
+            || (String(item?.specialistId || "").trim() ? `Specialist #${String(item?.specialistId || "").trim()}` : "Specialist"),
+          specialistPosition: String(item?.specialistPosition || "").trim(),
           clientId: String(item?.clientId || ""),
           time: startTime,
           endTime: String(item?.endTime || "").trim(),
@@ -1060,16 +1300,28 @@ function AppointmentScheduler({
         ...prev,
         [selectedSpecialistId]: byDay
       }));
+      setAppointmentsWeekKeyBySpecialist((prev) => ({
+        ...prev,
+        [selectedSpecialistId]: weekDataKey
+      }));
     } catch {
       if (requestId !== schedulesRequestIdRef.current) {
         return;
       }
       setMessage("Failed to load appointments.");
+      setAppointmentsBySpecialist((prev) => ({
+        ...prev,
+        [selectedSpecialistId]: {}
+      }));
+      setAppointmentsWeekKeyBySpecialist((prev) => ({
+        ...prev,
+        [selectedSpecialistId]: weekDataKey
+      }));
     }
-  }, [recurringOnly, selectedSpecialistId, vipOnly, weekDays]);
+  }, [recurringOnly, selectedSpecialistId, vipOnly, weekDataKey, weekDays]);
 
   const loadBreaksForSelectedSpecialist = useCallback(async () => {
-    if (!selectedSpecialistId) {
+    if (vipOnly || !selectedSpecialistId) {
       return;
     }
 
@@ -1102,7 +1354,7 @@ function AppointmentScheduler({
       const normalizedItems = items.map((item) => ({
         dayKey: String(item?.dayKey || "").trim().toLowerCase(),
         dayOfWeek: Number.parseInt(String(item?.dayOfWeek ?? "").trim(), 10) || 0,
-        breakType: String(item?.breakType || "").trim().toLowerCase(),
+        breakType: normalizeBreakTypeKey(item?.breakType || ""),
         title: String(item?.title || "").trim(),
         note: String(item?.note || "").trim(),
         startTime: String(item?.startTime || "").trim(),
@@ -1124,7 +1376,7 @@ function AppointmentScheduler({
         [selectedSpecialistId]: []
       }));
     }
-  }, [selectedSpecialistId]);
+  }, [selectedSpecialistId, vipOnly]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -1134,13 +1386,14 @@ function AppointmentScheduler({
     const handleExternalAppointmentChange = () => {
       loadSchedulesForCurrentWeek();
       loadBreaksForSelectedSpecialist();
+      void loadAppointmentSettings({ silent: true });
     };
 
     window.addEventListener("crm:appointment-change", handleExternalAppointmentChange);
     return () => {
       window.removeEventListener("crm:appointment-change", handleExternalAppointmentChange);
     };
-  }, [loadBreaksForSelectedSpecialist, loadSchedulesForCurrentWeek]);
+  }, [loadAppointmentSettings, loadBreaksForSelectedSpecialist, loadSchedulesForCurrentWeek]);
 
   useEffect(() => {
     loadSchedulesForCurrentWeek();
@@ -1169,17 +1422,18 @@ function AppointmentScheduler({
     setCreateDeleting(false);
     setClientVipOnly(Boolean(vipOnly));
     setClientSearch(createEmptyClientSearchForm());
-    setClientSearchLoading(false);
     setClientSearchMessage("");
     setClientOptions([]);
     setClientNoShowSummary(null);
-    setClientNoShowLoading(false);
   }
 
   function openCreateModal(day, slot, existingItem = null) {
     const isEditMode = Boolean(existingItem);
+    const slotSpecialistId = isEditMode
+      ? String(existingItem?.specialistId || "").trim()
+      : String(selectedSpecialistId || "").trim();
     if (isEditMode) {
-      if (!canMutateSelectedSpecialist) {
+      if (!canMutateSpecialistId(slotSpecialistId)) {
         setMessage("You can only edit appointments in your own schedule.");
         return;
       }
@@ -1187,6 +1441,8 @@ function AppointmentScheduler({
         setMessage("You do not have permission to edit appointments.");
         return;
       }
+    } else if (vipOnly) {
+      return;
     } else if (!canCreateOnSelectedSpecialist) {
       setMessage(
         canCreateAppointments
@@ -1196,7 +1452,7 @@ function AppointmentScheduler({
       return;
     }
 
-    if (!selectedSpecialistId) {
+    if (!slotSpecialistId) {
       setSpecialistSelectError(true);
       return;
     }
@@ -1216,7 +1472,7 @@ function AppointmentScheduler({
       open: true,
       mode: existingItem ? "edit" : "create",
       appointmentId: String(existingItem?.id || ""),
-      specialistId: selectedSpecialistId,
+      specialistId: slotSpecialistId,
       dayKey: day.key,
       dayLabel: day.label,
       date: day.date,
@@ -1263,18 +1519,21 @@ function AppointmentScheduler({
     if (!createModal.open) {
       return;
     }
+    if (vipOnly) {
+      setClientSearchMessage("");
+      setClientOptions([]);
+      return;
+    }
     const shouldFilterVipClients = isVipRecurringModal || vipOnly || clientVipOnly;
     const trimmedFirstName = String(clientSearch.firstName || "").trim();
     const trimmedLastName = String(clientSearch.lastName || "").trim();
     const combinedLength = `${trimmedFirstName}${trimmedLastName}`.length;
     if (!shouldFilterVipClients && combinedLength === 0) {
-      setClientSearchLoading(false);
       setClientSearchMessage("");
       setClientOptions([]);
       return;
     }
     if (!shouldFilterVipClients && combinedLength < 3) {
-      setClientSearchLoading(false);
       setClientSearchMessage("Type at least 3 letters.");
       setClientOptions([]);
       return;
@@ -1283,7 +1542,6 @@ function AppointmentScheduler({
     let active = true;
     const timerId = window.setTimeout(async () => {
       try {
-        setClientSearchLoading(true);
         setClientSearchMessage("");
 
         const queryParams = new URLSearchParams({
@@ -1354,10 +1612,6 @@ function AppointmentScheduler({
           setClientOptions([]);
           setClientSearchMessage("Failed to load clients.");
         }
-      } finally {
-        if (active) {
-          setClientSearchLoading(false);
-        }
       }
     }, 250);
 
@@ -1370,21 +1624,18 @@ function AppointmentScheduler({
   useEffect(() => {
     if (!createModal.open) {
       setClientNoShowSummary(null);
-      setClientNoShowLoading(false);
       return;
     }
 
     const clientId = String(createForm.clientId || "").trim();
     if (!clientId) {
       setClientNoShowSummary(null);
-      setClientNoShowLoading(false);
       return;
     }
 
     let active = true;
     const timerId = window.setTimeout(async () => {
       try {
-        setClientNoShowLoading(true);
         const query = new URLSearchParams({ clientId }).toString();
         const response = await apiFetch(`/api/appointments/client-no-show-summary?${query}`, {
           method: "GET",
@@ -1414,10 +1665,6 @@ function AppointmentScheduler({
       } catch {
         if (active) {
           setClientNoShowSummary(null);
-        }
-      } finally {
-        if (active) {
-          setClientNoShowLoading(false);
         }
       }
     }, 150);
@@ -1504,9 +1751,6 @@ function AppointmentScheduler({
     if (!Number.isInteger(durationMinutes) || durationMinutes <= 0) {
       errors.durationMinutes = "Invalid duration.";
     }
-    if (!service) {
-      errors.service = "Service is required.";
-    }
     if (note.length > 255) {
       errors.note = "Note is too long.";
     }
@@ -1553,11 +1797,6 @@ function AppointmentScheduler({
       setCreateErrors({ form: "You do not have permission to update appointments." });
       return;
     }
-    if (isEditMode && !canMutateSelectedSpecialist) {
-      setCreateErrors({ form: "You can only edit appointments in your own schedule." });
-      return;
-    }
-
     try {
       setCreateSubmitting(true);
       setCreateErrors({});
@@ -1599,7 +1838,15 @@ function AppointmentScheduler({
 
       const specialistId = String(createModal.specialistId || "");
       if (!specialistId) {
-        setCreateErrors({ form: "Invalid slot. Please try again." });
+        setCreateErrors({ specialistId: "Specialist is required." });
+        return;
+      }
+      if (!canMutateSpecialistId(specialistId)) {
+        setCreateErrors({
+          specialistId: isEditMode
+            ? "You can only edit appointments in your own schedule."
+            : "You can only create appointments in your own schedule."
+        });
         return;
       }
       if (!nextPayload.clientId) {
@@ -1651,7 +1898,7 @@ function AppointmentScheduler({
         startTime,
         endTime,
         durationMinutes: String(durationMinutes),
-        service: nextPayload.service,
+        service: nextPayload.service || "Service",
         status: nextPayload.status,
         note: nextPayload.note
       };
@@ -1719,7 +1966,8 @@ function AppointmentScheduler({
     if (!createModal.open || createModal.mode !== "edit") {
       return;
     }
-    if (!canMutateSelectedSpecialist) {
+    const targetSpecialistId = String(createModal.specialistId || "").trim();
+    if (!canMutateSpecialistId(targetSpecialistId)) {
       setCreateErrors({ form: "You can only edit appointments in your own schedule." });
       return;
     }
@@ -1809,10 +2057,10 @@ function AppointmentScheduler({
 
   const showNoShowWarning = Boolean(
     createForm.clientId
-    && !clientNoShowLoading
     && clientNoShowSummary
     && clientNoShowSummary.noShowCount >= clientNoShowSummary.noShowThreshold
   );
+  const canMutateModalSpecialist = canMutateSpecialistId(createModal.specialistId);
 
   useEffect(() => {
     const text = String(message || "").trim();
@@ -1831,19 +2079,19 @@ function AppointmentScheduler({
   }, [message, onNotification]);
 
   return (
-    <section className="appointment-scheduler" aria-label="Appointment scheduler">
+    <section className={`appointment-scheduler${vipOnly ? " is-vip-schedule" : ""}`} aria-label="Appointment scheduler">
       <div className="appointment-toolbar">
         <div className="appointment-toolbar-block">
           <div className="appointment-specialist-row">
-            <span className="appointment-toolbar-label">Specialist</span>
+            <span className="appointment-toolbar-label">{specialistLabel}</span>
             <div className="appointment-specialist-select-wrap">
               <CustomSelect
                 id="appointmentSpecialistSelect"
-                placeholder={loading ? "Loading specialists..." : "Select specialist"}
+                placeholder={specialistSelectPlaceholder}
                 value={selectedSpecialistId}
                 options={specialistOptions}
                 searchable
-                searchPlaceholder="Search specialist"
+                searchPlaceholder={specialistSearchPlaceholder}
                 searchThreshold={20}
                 maxVisibleOptions={10}
                 error={specialistSelectError}
@@ -1871,22 +2119,30 @@ function AppointmentScheduler({
         ) : null}
       </div>
 
-      {loading ? (
-        null
-      ) : (
-        <div className="appointment-grid-wrap">
-          <table className="appointment-grid" aria-label="Appointment week table">
+      {isSchedulerInitialized ? (
+        <div className="appointment-grid-wrap" key={weekRenderKey}>
+          <table
+            className="appointment-grid"
+            aria-label="Appointment week table"
+          >
             <thead>
               <tr>
                 <th className="appointment-time-col">Time</th>
-                {weekDays.map((day) => (
-                  <th key={day.key} className={isSameDate(day.date, now) ? "appointment-day-is-today" : ""}>
+                {weekDays.map((day) => {
+                  const dayHeaderClassName = [
+                    "appointment-day-head-col-gap",
+                    isSameDate(day.date, now) ? "appointment-day-is-today" : ""
+                  ].filter(Boolean).join(" ") || undefined;
+
+                  return (
+                  <th key={day.key} className={dayHeaderClassName}>
                     <div className="appointment-day-head">
                       <span>{day.label}</span>
                       <small>{formatHeaderDate(day.date)}</small>
                     </div>
                   </th>
-                ))}
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -1900,7 +2156,11 @@ function AppointmentScheduler({
                   : 1;
 
                 return (
-                  <tr key={slot} className={isMajorSlot ? (slotSubDivisionsNum > 1 ? "appointment-row-major-slot" : undefined) : "appointment-row-sub-slot"}>
+                  <tr
+                    key={slot}
+                    className={isMajorSlot ? (slotSubDivisionsNum > 1 ? "appointment-row-major-slot" : undefined) : "appointment-row-sub-slot"}
+                    style={slotRowHeightStyle}
+                  >
                     {isMajorSlot ? (
                       <th
                         className="appointment-time-col"
@@ -1940,53 +2200,100 @@ function AppointmentScheduler({
                         && Number.isInteger(slotIndex)
                         && (slotIndex + effectiveRowSpan >= timeSlots.length)
                       );
-                      const appointmentSpan = Number.parseInt(String(appointmentRowSpan || "1").trim(), 10) || 1;
-                      const canShowAppointmentDetails = appointmentSpan > 1;
-                      const isAddSlotCell = (
+                      const cardPrimaryText = vipOnly
+                        ? String(item?.specialist || "").trim() || "Specialist"
+                        : String(item?.client || "").trim() || "Client";
+                      const specialistRoleFallback = vipOnly
+                        ? String(specialistRoleById[String(item?.specialistId || "").trim()] || "").trim()
+                        : "";
+                      const cardSecondaryText = vipOnly
+                        ? formatVipServiceLine(
+                          item?.specialistPosition,
+                          item?.service,
+                          item?.durationMinutes,
+                          specialistRoleFallback
+                        )
+                        : (String(item?.service || "").trim() || "Service");
+                      const cardTimeRangeLabel = item
+                        ? formatAppointmentTimeRangeLabel(
+                          item?.time || slot,
+                          item?.endTime,
+                          item?.durationMinutes
+                        )
+                        : "";
+                      const cardDurationLabel = item
+                        ? (
+                          formatBookingDurationLabel(item?.durationMinutes)
+                          || formatBookingDurationLabel(getDurationMinutesFromTimes(item?.time || slot, item?.endTime))
+                        )
+                        : "";
+                      const timeHoverCellClassName = cardTimeRangeLabel
+                        ? "appointment-booked-time-td"
+                        : "";
+                      const isOffSlotCell = !isInsideWorkingHours;
+                      const normalizedStatus = String(
+                        item?.status ?? blockedItem?.status ?? ""
+                      ).trim().toLowerCase();
+                      const statusKey = normalizedStatus === "no_show" ? "no-show" : normalizedStatus;
+                      const statusCellClassName = (
+                        statusKey === "confirmed"
+                        || statusKey === "pending"
+                        || statusKey === "cancelled"
+                        || statusKey === "no-show"
+                      )
+                        ? `appointment-status-cell-${statusKey}`
+                        : "";
+                      const canOpenCreateFromCell = (
                         isInsideWorkingHours
                         && !item
                         && !blockedItem
                         && !breakBlockedItem
                       );
-                      const isOffSlotCell = !isInsideWorkingHours;
                       const tdClassName = [
+                        "appointment-day-col-gap",
+                        canOpenCreateFromCell ? "appointment-create-slot-td" : "",
+                        timeHoverCellClassName,
                         tdRowSpan ? "appointment-td-multi-slot" : "",
                         reachesBottom ? "appointment-td-reaches-bottom" : "",
-                        isAddSlotCell ? "appointment-add-slot-td" : "",
                         isOffSlotCell ? "appointment-off-slot-td" : "",
+                        statusCellClassName,
                         breakBlockedItem ? `appointment-break-type-${breakBlockedItem.breakType}-td` : "",
                       ].filter(Boolean).join(" ") || undefined;
 
                       return (
-                        <td key={`${day.key}-${slot}`} rowSpan={tdRowSpan} className={tdClassName}>
+                        <td
+                          key={`${day.key}-${slot}`}
+                          rowSpan={tdRowSpan}
+                          className={tdClassName}
+                          data-slot-label={canOpenCreateFromCell ? slot : undefined}
+                          data-time-range={cardTimeRangeLabel || undefined}
+                          data-duration-label={cardDurationLabel || undefined}
+                          onClick={canOpenCreateFromCell ? () => openCreateModal(day, slot) : undefined}
+                        >
                           {!isInsideWorkingHours ? (
-                            <span className="appointment-off-slot">o</span>
+                            null
                           ) : item ? (
-                            (canMutateSelectedSpecialist && (canUpdateAppointments || canDeleteAppointments)) ? (
+                            (!vipOnly && canMutateAppointmentSpecialist(item) && (canUpdateAppointments || canDeleteAppointments)) ? (
                               <button
                                 type="button"
-                                className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""}${canShowAppointmentDetails ? "" : " appointment-card-compact"} appointment-card-btn appointment-status-${item.status}`}
+                                className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""} appointment-card-btn appointment-status-${item.status}`}
                                 onClick={() => openCreateModal(day, slot, item)}
                                 aria-label={`Edit appointment on ${day.label} at ${slot}`}
                               >
-                                <p className="appointment-client">{item.client}</p>
-                                {canShowAppointmentDetails ? (
-                                  <p className="appointment-service">
-                                    {formatServiceLine(item.service, item.durationMinutes)}
-                                  </p>
-                                ) : null}
+                                <p className="appointment-client">{cardPrimaryText}</p>
+                                <p className="appointment-service">
+                                  {cardSecondaryText}
+                                </p>
                               </button>
                             ) : (
                               <div
-                                className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""}${canShowAppointmentDetails ? "" : " appointment-card-compact"} appointment-status-${item.status}`}
+                                className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""} appointment-status-${item.status}`}
                                 aria-label={`Appointment on ${day.label} at ${slot}`}
                               >
-                                <p className="appointment-client">{item.client}</p>
-                                {canShowAppointmentDetails ? (
-                                  <p className="appointment-service">
-                                    {formatServiceLine(item.service, item.durationMinutes)}
-                                  </p>
-                                ) : null}
+                                <p className="appointment-client">{cardPrimaryText}</p>
+                                <p className="appointment-service">
+                                  {cardSecondaryText}
+                                </p>
                               </div>
                             )
                           ) : blockedItem ? (
@@ -1996,26 +2303,13 @@ function AppointmentScheduler({
                             />
                           ) : breakBlockedItem ? (
                             <span
-                              className={`appointment-break-slot appointment-break-type-${breakBlockedItem.breakType}`}
+                              className="appointment-break-text-only"
                               aria-label={`Break slot on ${day.label} at ${slot}`}
                               title={String(breakBlockedItem.reasonFull || "").trim() || undefined}
                             >
                               <span className="appointment-break-slot-text">{breakBlockedItem.reasonShort}</span>
                             </span>
-                          ) : (
-                            canCreateOnSelectedSpecialist ? (
-                              <button
-                                type="button"
-                                className="appointment-add-slot"
-                                aria-label={`Add appointment on ${day.label} at ${slot}`}
-                                onClick={() => openCreateModal(day, slot)}
-                              >
-                                +
-                              </button>
-                            ) : (
-                              <span className="appointment-add-slot appointment-add-slot-disabled">+</span>
-                            )
-                          )}
+                          ) : null}
                         </td>
                       );
                     })}
@@ -2025,9 +2319,43 @@ function AppointmentScheduler({
             </tbody>
           </table>
         </div>
+      ) : (
+        <div className="appointment-grid-wrap" aria-hidden="true">
+          <table className="appointment-grid">
+            <thead>
+              <tr>
+                <th className="appointment-time-col">
+                  <div className="skel skel-time-head" />
+                </th>
+                {SKEL_DAYS.map((d) => (
+                  <th key={d} className="appointment-day-head-col-gap">
+                    <div className="appointment-day-head">
+                      <div className="skel skel-day-name" />
+                      <div className="skel skel-day-date" />
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {SKEL_ROWS.map((row, i) => (
+                <tr key={i}>
+                  <th className="appointment-time-col">
+                    {row.t ? <div className="skel skel-time" /> : null}
+                  </th>
+                  {row.c.map((has, j) => (
+                    <td key={j} className="appointment-day-col-gap skel-cell">
+                      {has ? <div className="skel skel-appt" /> : null}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
-      {createModal.open && (() => {
+      {createModal.open && !vipOnly && (() => {
         const modalContent = (
           <>
           <section id="appointmentCreateClientModal" className="logout-confirm-modal appointment-create-modal">
@@ -2049,7 +2377,7 @@ function AppointmentScheduler({
 
               {/* ── Client ── */}
               <div className="appointment-modal-section">
-                {!isVipRecurringModal ? (
+                {!vipOnly && !isVipRecurringModal ? (
                   <div className="appointment-client-search-row">
                     <div className="field">
                       <label htmlFor="appointmentClientSearchFirst">First name</label>
@@ -2080,7 +2408,7 @@ function AppointmentScheduler({
                   </div>
                 ) : null}
 
-                {!isVipRecurringModal ? (
+                {!vipOnly ? (
                   <div className="appointment-client-select-row">
                     <div className="field appointment-client-vip-field">
                       <label htmlFor="appointmentClientVipOnly">VIP</label>
@@ -2124,25 +2452,7 @@ function AppointmentScheduler({
                       />
                     </div>
                   </div>
-                ) : (
-                  <div className="field">
-                    <label htmlFor="appointmentCreateClientSelect">Client</label>
-                    <CustomSelect
-                      id="appointmentCreateClientSelect"
-                      placeholder="Select client"
-                      value={createForm.clientId}
-                      options={clientSelectOptions}
-                      maxVisibleOptions={10}
-                      error={clientSelectHasError}
-                      onChange={(nextValue) => {
-                        setCreateForm((prev) => ({ ...prev, clientId: nextValue }));
-                        if (createErrors.clientId) {
-                          setCreateErrors((prev) => ({ ...prev, clientId: "" }));
-                        }
-                      }}
-                    />
-                  </div>
-                )}
+                ) : null}
               </div>
 
               {/* ── Date / Time / Service ── */}
@@ -2314,6 +2624,9 @@ function AppointmentScheduler({
                         placeholder="Select status"
                         value={createForm.status}
                         options={STATUS_OPTIONS}
+                        menuPortal
+                        forceOpenDown={!compactWeekRange}
+                        forceOpenUp={compactWeekRange}
                         onChange={(nextValue) => {
                           setCreateForm((prev) => ({ ...prev, status: nextValue }));
                         }}
@@ -2360,7 +2673,7 @@ function AppointmentScheduler({
                   disabled={
                     createSubmitting
                     || createDeleting
-                    || (createModal.mode === "edit" ? (!canUpdateAppointments || !canMutateSelectedSpecialist) : !canCreateOnSelectedSpecialist)
+                    || (createModal.mode === "edit" ? (!canUpdateAppointments || !canMutateModalSpecialist) : !canCreateOnSelectedSpecialist)
                   }
                 >
                   {createSubmitting ? "Saving..." : "Save"}
@@ -2368,7 +2681,7 @@ function AppointmentScheduler({
                 <button
                   className="header-btn logout-confirm-yes"
                   type="button"
-                  disabled={createModal.mode !== "edit" || createSubmitting || createDeleting || !canDeleteAppointments || !canMutateSelectedSpecialist}
+                  disabled={createModal.mode !== "edit" || createSubmitting || createDeleting || !canDeleteAppointments || !canMutateModalSpecialist}
                   onClick={handleDeleteAppointment}
                 >
                   {createDeleting ? "Deleting..." : "Delete"}

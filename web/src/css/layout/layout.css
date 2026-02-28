@@ -5,12 +5,11 @@
 /* ---- Home Page ---- */
 
 .home-layout {
-  width: 100%;
-  min-width: 0;
-  min-height: calc(100dvh - 32px);
   display: grid;
   grid-template-rows: auto 1fr auto;
-  gap: 12px;
+  gap: 10px;
+  width: 100%;
+  min-height: calc(100dvh - 10px);
   max-width: 1480px;
   margin: 0 auto;
 }
@@ -31,7 +30,7 @@
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  padding: 6px 14px;
+  padding: 10px;
 }
 
 /* ---- Brand ---- */
@@ -223,7 +222,7 @@
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   box-shadow: var(--shadow-xs);
-  padding: 6px 14px;
+  padding: 10px;
 }
 
 .home-footer a {
@@ -506,8 +505,6 @@
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
   z-index: var(--z-menu-overlay);
   animation: overlayIn 180ms ease;
 }

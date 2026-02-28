@@ -2,10 +2,15 @@ import { ORGANIZATION_CODE_REGEX, PERMISSION_CODE_REGEX } from "../../constants/
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 import {
+  DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
+  MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
   MAX_APPOINTMENT_HISTORY_LOCK_DAYS,
+  MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
   MIN_APPOINTMENT_HISTORY_LOCK_DAYS,
   getAppointmentHistoryLockDaysByOrganization,
-  saveAppointmentHistoryLockDaysByOrganization
+  getAppointmentSlotCellHeightPxByOrganization,
+  saveAppointmentHistoryLockDaysByOrganization,
+  saveAppointmentSlotCellHeightPxByOrganization
 } from "../appointments/services/appointment-settings-config.service.js";
 import {
   createOrganization,
@@ -60,6 +65,23 @@ function parseHistoryLockDays(value) {
       error: {
         field: "appointmentHistoryLockDays",
         message: `History lock days must be an integer between ${MIN_APPOINTMENT_HISTORY_LOCK_DAYS} and ${MAX_APPOINTMENT_HISTORY_LOCK_DAYS}.`
+      }
+    };
+  }
+  return { value: parsed };
+}
+
+function parseSlotCellHeightPx(value) {
+  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
+  if (
+    !Number.isInteger(parsed)
+    || parsed < MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX
+    || parsed > MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX
+  ) {
+    return {
+      error: {
+        field: "appointmentSlotCellHeightPx",
+        message: `Slot cell height must be an integer between ${MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX} and ${MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX}.`
       }
     };
   }
@@ -357,16 +379,25 @@ async function settingsRoutes(fastify) {
         }
 
         const targetOrganizationId = requestedOrganizationId || adminContext.authContext.organizationId;
-        const appointmentHistoryLockDays = await getAppointmentHistoryLockDaysByOrganization(targetOrganizationId);
+        const [appointmentHistoryLockDays, appointmentSlotCellHeightPx] = await Promise.all([
+          getAppointmentHistoryLockDaysByOrganization(targetOrganizationId),
+          getAppointmentSlotCellHeightPxByOrganization(targetOrganizationId)
+        ]);
 
         return reply.send({
           item: {
             organizationId: String(targetOrganizationId),
-            appointmentHistoryLockDays: String(appointmentHistoryLockDays)
+            appointmentHistoryLockDays: String(appointmentHistoryLockDays),
+            appointmentSlotCellHeightPx: String(appointmentSlotCellHeightPx)
           },
           bounds: {
             min: MIN_APPOINTMENT_HISTORY_LOCK_DAYS,
-            max: MAX_APPOINTMENT_HISTORY_LOCK_DAYS
+            max: MAX_APPOINTMENT_HISTORY_LOCK_DAYS,
+            slotCellHeightPx: {
+              min: MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
+              max: MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
+              default: DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX
+            }
           }
         });
       } catch (error) {
@@ -398,27 +429,65 @@ async function settingsRoutes(fastify) {
           return reply.status(400).send(organizationError);
         }
 
-        const parsedHistoryLockDays = parseHistoryLockDays(
-          request.body?.appointmentHistoryLockDays
-          ?? request.body?.historyLockDays
-          ?? request.body?.appointment_history_lock_days
+        const hasHistoryLockDays = (
+          request.body?.appointmentHistoryLockDays !== undefined
+          || request.body?.historyLockDays !== undefined
+          || request.body?.appointment_history_lock_days !== undefined
         );
-        if (parsedHistoryLockDays.error) {
-          return reply.status(400).send(parsedHistoryLockDays.error);
+        const hasSlotCellHeightPx = (
+          request.body?.appointmentSlotCellHeightPx !== undefined
+          || request.body?.slotCellHeightPx !== undefined
+          || request.body?.appointment_slot_cell_height_px !== undefined
+        );
+
+        let parsedHistoryLockDays = { value: null };
+        if (hasHistoryLockDays) {
+          parsedHistoryLockDays = parseHistoryLockDays(
+            request.body?.appointmentHistoryLockDays
+            ?? request.body?.historyLockDays
+            ?? request.body?.appointment_history_lock_days
+          );
+          if (parsedHistoryLockDays.error) {
+            return reply.status(400).send(parsedHistoryLockDays.error);
+          }
+        }
+
+        let parsedSlotCellHeightPx = { value: null };
+        if (hasSlotCellHeightPx) {
+          parsedSlotCellHeightPx = parseSlotCellHeightPx(
+            request.body?.appointmentSlotCellHeightPx
+            ?? request.body?.slotCellHeightPx
+            ?? request.body?.appointment_slot_cell_height_px
+          );
+          if (parsedSlotCellHeightPx.error) {
+            return reply.status(400).send(parsedSlotCellHeightPx.error);
+          }
         }
 
         const targetOrganizationId = requestedOrganizationId || adminContext.authContext.organizationId;
-        const appointmentHistoryLockDays = await saveAppointmentHistoryLockDaysByOrganization({
-          organizationId: targetOrganizationId,
-          actorUserId: adminContext.authContext.userId,
-          historyLockDays: parsedHistoryLockDays.value
-        });
+        const [appointmentHistoryLockDays, appointmentSlotCellHeightPx] = await Promise.all([
+          hasHistoryLockDays
+            ? saveAppointmentHistoryLockDaysByOrganization({
+                organizationId: targetOrganizationId,
+                actorUserId: adminContext.authContext.userId,
+                historyLockDays: parsedHistoryLockDays.value
+              })
+            : getAppointmentHistoryLockDaysByOrganization(targetOrganizationId),
+          hasSlotCellHeightPx
+            ? saveAppointmentSlotCellHeightPxByOrganization({
+                organizationId: targetOrganizationId,
+                actorUserId: adminContext.authContext.userId,
+                slotCellHeightPx: parsedSlotCellHeightPx.value
+              })
+            : getAppointmentSlotCellHeightPxByOrganization(targetOrganizationId)
+        ]);
 
         return reply.send({
           message: "Admin options updated.",
           item: {
             organizationId: String(targetOrganizationId),
-            appointmentHistoryLockDays: String(appointmentHistoryLockDays)
+            appointmentHistoryLockDays: String(appointmentHistoryLockDays),
+            appointmentSlotCellHeightPx: String(appointmentSlotCellHeightPx)
           }
         });
       } catch (error) {
@@ -432,6 +501,12 @@ async function settingsRoutes(fastify) {
           return reply.status(400).send({
             field: "appointmentHistoryLockDays",
             message: `History lock days must be an integer between ${MIN_APPOINTMENT_HISTORY_LOCK_DAYS} and ${MAX_APPOINTMENT_HISTORY_LOCK_DAYS}.`
+          });
+        }
+        if (error?.code === "INVALID_SLOT_CELL_HEIGHT_PX") {
+          return reply.status(400).send({
+            field: "appointmentSlotCellHeightPx",
+            message: `Slot cell height must be an integer between ${MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX} and ${MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX}.`
           });
         }
         if (error?.code === "MIGRATION_REQUIRED") {

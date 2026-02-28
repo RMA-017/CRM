@@ -95,9 +95,14 @@ export const appointmentRouteSchemas = Object.freeze({
   schedulesQuery: {
     type: "object",
     additionalProperties: true,
-    required: ["specialistId", "dateFrom", "dateTo"],
+    required: ["dateFrom", "dateTo"],
+    anyOf: [
+      { required: ["specialistId"] },
+      { required: ["clientId"] }
+    ],
     properties: {
       specialistId: positiveIntegerLikeSchema,
+      clientId: positiveIntegerLikeSchema,
       dateFrom: dateYmdSchema,
       dateTo: dateYmdSchema,
       vipOnly: booleanLikeSchema,
@@ -181,6 +186,9 @@ export const appointmentRouteSchemas = Object.freeze({
       organization_id: positiveIntegerLikeSchema,
       slotInterval: positiveIntegerLikeSchema,
       slotSubDivisions: positiveIntegerLikeSchema,
+      slotCellHeightPx: positiveIntegerLikeSchema,
+      appointmentSlotCellHeightPx: positiveIntegerLikeSchema,
+      slot_cell_height_px: positiveIntegerLikeSchema,
       appointmentDuration: positiveIntegerLikeSchema,
       appointmentDurationOptions: {
         type: "array",
@@ -206,4 +214,3 @@ export const appointmentRouteSchemas = Object.freeze({
     }
   }
 });
-

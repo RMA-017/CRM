@@ -62,6 +62,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         }
 
         const specialistId = parsePositiveIntegerOr(request.query?.specialistId, 0);
+        const clientId = parsePositiveIntegerOr(request.query?.clientId, 0);
         const dateFrom = String(request.query?.dateFrom || "").trim();
         const dateTo = String(request.query?.dateTo || "").trim();
         const vipOnly = parseNullableBoolean(request.query?.vipOnly ?? request.query?.vip_only) === true;
@@ -69,8 +70,8 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           request.query?.recurringOnly ?? request.query?.recurring_only
         ) === true;
 
-        if (!specialistId) {
-          return reply.status(400).send({ field: "specialistId", message: "Specialist is required." });
+        if (!specialistId && !clientId) {
+          return reply.status(400).send({ field: "specialistId", message: "Specialist or client is required." });
         }
         if (!DATE_REGEX.test(dateFrom) || !DATE_REGEX.test(dateTo)) {
           return reply.status(400).send({ field: "dateRange", message: "Invalid date range." });
@@ -82,6 +83,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const items = await getAppointmentSchedulesByRange({
           organizationId: access.authContext.organizationId,
           specialistId,
+          clientId,
           dateFrom,
           dateTo,
           vipOnly,

@@ -16,6 +16,7 @@ function ProfileSideMenu({
   setAppointmentMenuOpen,
   openAppointmentPanel,
   openAppointmentBreaksPanel,
+  openAppointmentVipSchedulePanel,
   openAppointmentSettingsPanel,
   openAppointmentVipClientsPanel,
   hasUsersMenuAccess,
@@ -111,7 +112,16 @@ function ProfileSideMenu({
                 hidden={!canOpenAppointmentSchedule}
                 onClick={openAppointmentPanel}
               >
-                Schedule
+                Planner
+              </button>
+              <button
+                id="openAppointmentVipScheduleBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                hidden={!canOpenAppointmentSchedule}
+                onClick={openAppointmentVipSchedulePanel}
+              >
+                VIP Planner
               </button>
               <button
                 id="openAppointmentVipClientsBtn"

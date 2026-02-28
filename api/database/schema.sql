@@ -126,6 +126,7 @@ CREATE TABLE appointment_settings (
   no_show_threshold INTEGER NOT NULL DEFAULT 1 CHECK (no_show_threshold >= 1),
   reminder_hours INTEGER NOT NULL DEFAULT 24 CHECK (reminder_hours >= 1),
   history_lock_days INTEGER NOT NULL DEFAULT 10 CHECK (history_lock_days >= 0 AND history_lock_days <= 3650),
+  slot_cell_height_px INTEGER NOT NULL DEFAULT 18 CHECK (slot_cell_height_px >= 12 AND slot_cell_height_px <= 72),
   reminder_channels TEXT[] NOT NULL DEFAULT ARRAY['sms','email','telegram'],
   visible_week_days SMALLINT[] NOT NULL DEFAULT ARRAY[1,2,3,4,5,6],
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,

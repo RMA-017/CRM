@@ -38,12 +38,10 @@ export function useClientsSection({
   getBirthdayValidationMessage
 }) {
   const [clients, setClients] = useState([]);
-  const [clientsLoading, setClientsLoading] = useState(false);
   const [clientsMessage, setClientsMessage] = useState("");
   const [clientsPage, setClientsPage] = useState(1);
   const [clientsTotalPages, setClientsTotalPages] = useState(1);
   const [vipClients, setVipClients] = useState([]);
-  const [vipClientsLoading, setVipClientsLoading] = useState(false);
   const [vipClientsMessage, setVipClientsMessage] = useState("");
   const [vipClientsPage, setVipClientsPage] = useState(1);
   const [vipClientsTotalPages, setVipClientsTotalPages] = useState(1);
@@ -176,8 +174,7 @@ export function useClientsSection({
     }
 
     const nextPage = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
-    setClientsLoading(true);
-    setClientsMessage("Loading clients...");
+    setClientsMessage("");
 
     try {
       const query = new URLSearchParams({
@@ -217,8 +214,6 @@ export function useClientsSection({
     } catch {
       setClients([]);
       setClientsMessage("Unexpected error. Please try again.");
-    } finally {
-      setClientsLoading(false);
     }
   }, [canReadClients, navigate]);
 
@@ -229,8 +224,7 @@ export function useClientsSection({
     }
 
     const nextPage = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
-    setVipClientsLoading(true);
-    setVipClientsMessage("Loading VIP clients...");
+    setVipClientsMessage("");
 
     try {
       const query = new URLSearchParams({
@@ -271,8 +265,6 @@ export function useClientsSection({
     } catch {
       setVipClients([]);
       setVipClientsMessage("Unexpected error. Please try again.");
-    } finally {
-      setVipClientsLoading(false);
     }
   }, [canReadClients, navigate]);
 
@@ -580,12 +572,10 @@ export function useClientsSection({
 
   return {
     clients,
-    clientsLoading,
     clientsMessage,
     clientsPage,
     clientsTotalPages,
     vipClients,
-    vipClientsLoading,
     vipClientsMessage,
     vipClientsPage,
     vipClientsTotalPages,

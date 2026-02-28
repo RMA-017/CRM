@@ -5,6 +5,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
     setNoCacheHeaders,
     requireAppointmentsAccess,
     PERMISSIONS,
+    DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
     parseOptionalOrganizationId,
     resolveTargetOrganizationId,
     parsePositiveIntegerOr,
@@ -87,6 +88,12 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
 
         const slotIntervalMinutes = parsePositiveIntegerOr(request.body?.slotInterval, 0);
         const slotSubDivisions = parsePositiveIntegerOr(request.body?.slotSubDivisions, 1);
+        const slotCellHeightPx = parsePositiveIntegerOr(
+          request.body?.slotCellHeightPx
+          ?? request.body?.appointmentSlotCellHeightPx
+          ?? request.body?.slot_cell_height_px,
+          DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX
+        );
         const appointmentDurationOptionsMinutes = normalizeDurationOptions(request.body?.appointmentDurationOptions);
         const appointmentDurationMinutes = appointmentDurationOptionsMinutes[0]
           || parsePositiveIntegerOr(request.body?.appointmentDuration, 0);
@@ -98,6 +105,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
 
         const validationError = validateSettingsPayload({
           slotIntervalMinutes,
+          slotCellHeightPx,
           appointmentDurationMinutes,
           appointmentDurationOptionsMinutes,
           noShowThreshold,
@@ -115,6 +123,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
           actorUserId: access.authContext.userId,
           slotIntervalMinutes,
           slotSubDivisions,
+          slotCellHeightPx,
           appointmentDurationMinutes,
           appointmentDurationOptionsMinutes,
           noShowThreshold,

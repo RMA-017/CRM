@@ -88,6 +88,9 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "appointment-vip-clients") {
       return canOpenAppointmentVipClients;
     }
+    if (forcedView === "appointment-vip-schedule") {
+      return canOpenAppointmentSchedule;
+    }
     if (forcedView === "appointment") {
       return canOpenAppointmentSchedule;
     }

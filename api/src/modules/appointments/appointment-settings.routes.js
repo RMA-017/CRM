@@ -6,6 +6,9 @@ import { hasPermission } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
 import {
   DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS,
+  DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
+  MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
+  MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
   getAppointmentDayKeys,
   getAppointmentHistoryLockDaysByOrganization,
   getAppointmentSettingsByOrganization,
@@ -935,9 +938,7 @@ function validateSchedulePayload({
       errors.durationMinutes = "Duration must match start and end time.";
     }
   }
-  if (!serviceName) {
-    errors.service = "Service is required.";
-  } else if (serviceName.length > 128) {
+  if (serviceName.length > 128) {
     errors.service = "Service is too long (max 128).";
   }
   if (!APPOINTMENT_STATUS_SET.has(status)) {
@@ -952,6 +953,7 @@ function validateSchedulePayload({
 
 function validateSettingsPayload({
   slotIntervalMinutes,
+  slotCellHeightPx,
   appointmentDurationMinutes,
   appointmentDurationOptionsMinutes,
   noShowThreshold,
@@ -962,6 +964,12 @@ function validateSettingsPayload({
 }) {
   if (slotIntervalMinutes <= 0 || slotIntervalMinutes > 1440) {
     return { field: "slotInterval", message: "Slot interval must be between 1 and 1440 minutes." };
+  }
+  if (!Number.isInteger(slotCellHeightPx) || slotCellHeightPx < MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX || slotCellHeightPx > MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX) {
+    return {
+      field: "slotCellHeightPx",
+      message: `Slot cell height must be between ${MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX} and ${MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX}.`
+    };
   }
   if (appointmentDurationMinutes <= 0 || appointmentDurationMinutes > 1440) {
     return { field: "appointmentDuration", message: "Appointment duration must be between 1 and 1440 minutes." };
@@ -1084,6 +1092,7 @@ async function appointmentSettingsRoutes(fastify) {
     setNoCacheHeaders,
     requireAppointmentsAccess,
     PERMISSIONS,
+    DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
     parsePositiveIntegerOr,
     parseNullableBoolean,
     parseOptionalOrganizationId,

@@ -30,7 +30,6 @@ function ProfilePage({ forcedView = "none" }) {
   const menuToggleRef = useRef(null);
   const avatarInputRef = useRef(null);
 
-  const [profileLoading, setProfileLoading] = useState(true);
   const [profile, setProfile] = useState(null);
   const [avatarDataUrl, setAvatarDataUrl] = useState("");
 
@@ -119,7 +118,6 @@ function ProfilePage({ forcedView = "none" }) {
   const {
     settingsDelete,
     organizations,
-    organizationsLoading,
     organizationsMessage,
     organizationCreateForm,
     organizationCreateError,
@@ -151,7 +149,6 @@ function ProfilePage({ forcedView = "none" }) {
     positionEditSubmitting,
     positionDeletingId,
     adminOptionsForm,
-    adminOptionsLoading,
     adminOptionsMessage,
     adminOptionsError,
     adminOptionsSubmitting,
@@ -198,14 +195,13 @@ function ProfilePage({ forcedView = "none" }) {
   });
 
   const ensureOrganizationsLoaded = useCallback(() => {
-    if (hasSettingsMenuAccess && !organizationsLoading && organizations.length === 0) {
+    if (hasSettingsMenuAccess && organizations.length === 0) {
       loadOrganizations();
     }
-  }, [hasSettingsMenuAccess, organizations.length, organizationsLoading, loadOrganizations]);
+  }, [hasSettingsMenuAccess, organizations.length, loadOrganizations]);
 
   const {
     allUsers,
-    allUsersLoading,
     allUsersMessage,
     allUsersPage,
     allUsersTotalPages,
@@ -230,12 +226,10 @@ function ProfilePage({ forcedView = "none" }) {
 
   const {
     clients,
-    clientsLoading,
     clientsMessage,
     clientsPage,
     clientsTotalPages,
     vipClients,
-    vipClientsLoading,
     vipClientsMessage,
     vipClientsPage,
     vipClientsTotalPages,
@@ -456,10 +450,6 @@ function ProfilePage({ forcedView = "none" }) {
         if (active) {
           navigate("/", { replace: true });
         }
-      } finally {
-        if (active) {
-          setProfileLoading(false);
-        }
       }
     }
 
@@ -470,11 +460,11 @@ function ProfilePage({ forcedView = "none" }) {
   }, [navigate]);
 
   useEffect(() => {
-    if (profileLoading || !profile?.username) {
+    if (!profile?.username) {
       return;
     }
     loadUserOptions();
-  }, [loadUserOptions, profile?.username, profileLoading]);
+  }, [loadUserOptions, profile?.username]);
 
   useEffect(() => {
     if (!avatarStorageKey) {
@@ -489,16 +479,16 @@ function ProfilePage({ forcedView = "none" }) {
   }, [forcedView, setMainView]);
 
   useEffect(() => {
-    if (profileLoading || !profile?.username) {
+    if (!profile?.username) {
       return;
     }
     if (!canAccessForcedView) {
       navigate("/404", { replace: true });
     }
-  }, [canAccessForcedView, navigate, profile?.username, profileLoading]);
+  }, [canAccessForcedView, navigate, profile?.username]);
 
   useEffect(() => {
-    if (profileLoading || !profile?.username) {
+    if (!profile?.username) {
       return;
     }
 
@@ -557,8 +547,7 @@ function ProfilePage({ forcedView = "none" }) {
     loadPositionsSettings,
     loadRolesSettings,
     mainView,
-    profile?.username,
-    profileLoading
+    profile?.username
   ]);
 
   useEffect(() => {
@@ -663,6 +652,8 @@ function ProfilePage({ forcedView = "none" }) {
     closeAppointmentPanel,
     openAppointmentBreaksPanel,
     closeAppointmentBreaksPanel,
+    openAppointmentVipSchedulePanel,
+    closeAppointmentVipSchedulePanel,
     openAppointmentSettingsPanel,
     closeAppointmentSettingsPanel,
     openAppointmentVipClientsPanel,
@@ -1061,7 +1052,7 @@ function ProfilePage({ forcedView = "none" }) {
                     {avatarFallback}
                   </span>
                 </span>
-                <span id="headerUserNameText">{profileLoading ? "-" : firstName}</span>
+                <span id="headerUserNameText">{firstName}</span>
               </button>
 
               <input
@@ -1094,20 +1085,17 @@ function ProfilePage({ forcedView = "none" }) {
           openAllUsersDeleteModal={openAllUsersDeleteModal}
           allUsersPage={allUsersPage}
           allUsersTotalPages={allUsersTotalPages}
-          allUsersLoading={allUsersLoading}
           loadAllUsers={loadAllUsers}
           closeAllUsersPanel={closeAllUsersPanel}
           closeAllClientsPanel={closeAllClientsPanel}
           closeCreateClientPanel={closeCreateClientPanel}
           clients={clients}
           clientsMessage={clientsMessage}
-          clientsLoading={clientsLoading}
           clientsPage={clientsPage}
           clientsTotalPages={clientsTotalPages}
           loadClients={loadClients}
           vipClients={vipClients}
           vipClientsMessage={vipClientsMessage}
-          vipClientsLoading={vipClientsLoading}
           vipClientsPage={vipClientsPage}
           vipClientsTotalPages={vipClientsTotalPages}
           loadVipClients={loadVipClients}
@@ -1127,6 +1115,7 @@ function ProfilePage({ forcedView = "none" }) {
           canDeleteAppointments={canDeleteAppointments}
           closeAppointmentPanel={closeAppointmentPanel}
           closeAppointmentBreaksPanel={closeAppointmentBreaksPanel}
+          closeAppointmentVipSchedulePanel={closeAppointmentVipSchedulePanel}
           closeAppointmentSettingsPanel={closeAppointmentSettingsPanel}
           closeAppointmentVipClientsPanel={closeAppointmentVipClientsPanel}
           closeOrganizationsPanel={closeOrganizationsPanel}
@@ -1176,7 +1165,6 @@ function ProfilePage({ forcedView = "none" }) {
           positionDeletingId={positionDeletingId}
           handlePositionDelete={handlePositionDelete}
           adminOptionsForm={adminOptionsForm}
-          adminOptionsLoading={adminOptionsLoading}
           adminOptionsMessage={adminOptionsMessage}
           adminOptionsError={adminOptionsError}
           adminOptionsSubmitting={adminOptionsSubmitting}
@@ -1189,7 +1177,6 @@ function ProfilePage({ forcedView = "none" }) {
           createForm={createForm}
           createErrors={createErrors}
           createSubmitting={createSubmitting}
-          organizationsLoading={organizationsLoading}
           createOrganizationOptions={createOrganizationOptions}
           setCreateForm={setCreateForm}
           setCreateErrors={setCreateErrors}
@@ -1244,7 +1231,6 @@ function ProfilePage({ forcedView = "none" }) {
           closeProfileEditModal={closeProfileEditModal}
           allUsersEdit={allUsersEdit}
           handleAllUsersEditSubmit={handleAllUsersEditSubmit}
-          organizationsLoading={organizationsLoading}
           createOrganizationOptions={createOrganizationOptions}
           setAllUsersEdit={setAllUsersEdit}
           roleOptions={roleOptions}
@@ -1312,6 +1298,7 @@ function ProfilePage({ forcedView = "none" }) {
         setAppointmentMenuOpen={setAppointmentMenuOpen}
         openAppointmentPanel={openAppointmentPanel}
         openAppointmentBreaksPanel={openAppointmentBreaksPanel}
+        openAppointmentVipSchedulePanel={openAppointmentVipSchedulePanel}
         openAppointmentSettingsPanel={openAppointmentSettingsPanel}
         openAppointmentVipClientsPanel={openAppointmentVipClientsPanel}
         hasUsersMenuAccess={hasUsersMenuAccess}

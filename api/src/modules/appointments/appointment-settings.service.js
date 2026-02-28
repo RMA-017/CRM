@@ -29,6 +29,9 @@ const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 export const DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS = 10;
 export const MIN_APPOINTMENT_HISTORY_LOCK_DAYS = 0;
 export const MAX_APPOINTMENT_HISTORY_LOCK_DAYS = 3650;
+export const DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 18;
+export const MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 12;
+export const MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 72;
 
 function getAppointmentSchedulesTableName() {
   return APPOINTMENT_SCHEDULES_TABLE;
@@ -86,6 +89,18 @@ function normalizeHistoryLockDays(value, fallback = DEFAULT_APPOINTMENT_HISTORY_
   return fallback;
 }
 
+function normalizeSlotCellHeightPx(value, fallback = DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX) {
+  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
+  if (
+    Number.isInteger(parsed)
+    && parsed >= MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX
+    && parsed <= MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX
+  ) {
+    return parsed;
+  }
+  return fallback;
+}
+
 function toBreakItem(row) {
   const dayOfWeek = Number.parseInt(String(row?.day_of_week ?? "").trim(), 10) || 0;
   return {
@@ -131,7 +146,8 @@ function createDefaultSettings() {
     noShowThreshold: "3",
     reminderHours: "24",
     reminderChannels: ["sms", "email", "telegram"],
-    historyLockDays: String(DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS)
+    historyLockDays: String(DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS),
+    slotCellHeightPx: String(DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX)
   };
 }
 
@@ -146,7 +162,8 @@ function createEmptySettings() {
     noShowThreshold: "",
     reminderHours: "",
     reminderChannels: [],
-    historyLockDays: String(DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS)
+    historyLockDays: String(DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS),
+    slotCellHeightPx: String(DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX)
   };
 }
 
@@ -179,16 +196,17 @@ function mapSettingsRow(row, workingHourRows) {
     .map((value) => String(value));
 
   return {
-    slotInterval: String(row.slot_interval_minutes || 30),
+    slotInterval: String(row.slot_interval_minutes ?? ""),
     slotSubDivisions: String(row.slot_sub_divisions || 1),
-    appointmentDuration: appointmentDurationOptions[0] || "30",
+    appointmentDuration: appointmentDurationOptions[0] || "",
     appointmentDurationOptions,
     visibleWeekDays: mapVisibleWeekDays(row.visible_week_days),
     workingHours: mapWorkingHours(workingHourRows),
-    noShowThreshold: String(row.no_show_threshold || 1),
-    reminderHours: String(row.reminder_hours || 24),
+    noShowThreshold: String(row.no_show_threshold ?? ""),
+    reminderHours: String(row.reminder_hours ?? ""),
     reminderChannels: mapReminderChannels(row.reminder_channels),
-    historyLockDays: String(normalizeHistoryLockDays(row.history_lock_days))
+    historyLockDays: String(normalizeHistoryLockDays(row.history_lock_days)),
+    slotCellHeightPx: String(normalizeSlotCellHeightPx(row.slot_cell_height_px))
   };
 }
 
@@ -278,7 +296,8 @@ async function getAppointmentSettingsColumnFlags(tableName = APPOINTMENT_SETTING
     hasAppointmentDurationOptions: set.has("appointment_duration_options_minutes"),
     hasReminderChannels: set.has("reminder_channels"),
     hasSlotSubDivisions: set.has("slot_sub_divisions"),
-    hasHistoryLockDays: set.has("history_lock_days")
+    hasHistoryLockDays: set.has("history_lock_days"),
+    hasSlotCellHeightPx: set.has("slot_cell_height_px")
   };
   return flags;
 }
@@ -295,6 +314,8 @@ function toScheduleItem(row) {
     id: String(row?.id || "").trim(),
     organizationId: String(row?.organization_id || "").trim(),
     specialistId: String(row?.specialist_id || "").trim(),
+    specialistName: String(row?.specialist_name || "").trim(),
+    specialistPosition: String(row?.specialist_position || "").trim(),
     clientId: String(row?.client_id || "").trim(),
     appointmentDate: normalizeDateYmd(row?.appointment_date),
     startTime: normalizeTimeHm(row?.start_time),
@@ -394,6 +415,7 @@ export async function getAppointmentSpecialistsByOrganization(organizationId) {
 export async function getAppointmentSchedulesByRange({
   organizationId,
   specialistId,
+  clientId,
   dateFrom,
   dateTo,
   vipOnly = false,
@@ -401,11 +423,21 @@ export async function getAppointmentSchedulesByRange({
   scheduleScope = "default"
 }) {
   const tableName = getAppointmentSchedulesTableName(scheduleScope);
+  const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
+  const normalizedClientId = Number.parseInt(String(clientId || "").trim(), 10) || 0;
+  const params = [organizationId, dateFrom, dateTo];
   const whereParts = [
     "s.organization_id = $1",
-    "s.specialist_id = $2",
-    "s.appointment_date BETWEEN $3::date AND $4::date"
+    "s.appointment_date BETWEEN $2::date AND $3::date"
   ];
+  if (normalizedSpecialistId > 0) {
+    params.push(normalizedSpecialistId);
+    whereParts.push(`s.specialist_id = $${params.length}`);
+  }
+  if (normalizedClientId > 0) {
+    params.push(normalizedClientId);
+    whereParts.push(`s.client_id = $${params.length}`);
+  }
 
   if (vipOnly) {
     whereParts.push("c.is_vip = TRUE");
@@ -434,12 +466,21 @@ export async function getAppointmentSchedulesByRange({
        s.repeat_days,
        s.repeat_anchor_date,
        s.is_repeat_root,
-       s.created_at,
-       s.updated_at,
-       c.first_name,
-       c.last_name,
-       c.middle_name
+      s.created_at,
+      s.updated_at,
+      COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('Specialist #', s.specialist_id::text)) AS specialist_name,
+      COALESCE(NULLIF(TRIM(p.label), ''), NULLIF(TRIM(r.label), ''), '') AS specialist_position,
+      c.first_name,
+      c.last_name,
+      c.middle_name
       FROM ${tableName} s
+      LEFT JOIN users u
+        ON u.id = s.specialist_id
+       AND u.organization_id = s.organization_id
+      LEFT JOIN role_options r
+        ON r.id = u.role_id
+      LEFT JOIN position_options p
+        ON p.id = u.position_id
       JOIN clients c
         ON c.id = s.client_id
        AND c.organization_id = s.organization_id
@@ -450,7 +491,7 @@ export async function getAppointmentSchedulesByRange({
         CASE WHEN s.status IN ('pending', 'confirmed') THEN 0 ELSE 1 END ASC,
         s.updated_at DESC,
         s.id DESC`,
-    [organizationId, specialistId, dateFrom, dateTo]
+    params
   );
 
   return (rows || []).map(toScheduleItem);
@@ -1120,6 +1161,9 @@ export async function getAppointmentSettingsByOrganization(organizationId) {
   const historyLockDaysSelect = flags.hasHistoryLockDays
     ? "history_lock_days,"
     : `${DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS}::integer AS history_lock_days,`;
+  const slotCellHeightSelect = flags.hasSlotCellHeightPx
+    ? "slot_cell_height_px,"
+    : `${DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX}::integer AS slot_cell_height_px,`;
 
   const [settingsResult, workingHoursResult] = await Promise.all([
     pool.query(
@@ -1134,6 +1178,7 @@ export async function getAppointmentSettingsByOrganization(organizationId) {
          reminder_hours,
          ${reminderChannelsSelect}
          ${historyLockDaysSelect}
+         ${slotCellHeightSelect}
          visible_week_days
        FROM ${tableName}
        WHERE organization_id = $1
@@ -1152,11 +1197,11 @@ export async function getAppointmentSettingsByOrganization(organizationId) {
   const row = settingsResult.rows[0] || null;
   if (!row) {
     const workingHoursRows = workingHoursResult.rows || [];
-    const defaults = createDefaultSettings();
+    const empty = createEmptySettings();
     if (workingHoursRows.length > 0) {
-      defaults.workingHours = mapWorkingHours(workingHoursRows);
+      empty.workingHours = mapWorkingHours(workingHoursRows);
     }
-    return defaults;
+    return empty;
   }
 
   return mapSettingsRow(row, workingHoursResult.rows || []);
@@ -1167,6 +1212,7 @@ export async function saveAppointmentSettings({
   actorUserId,
   slotIntervalMinutes,
   slotSubDivisions = 1,
+  slotCellHeightPx = DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
   appointmentDurationMinutes,
   appointmentDurationOptionsMinutes,
   noShowThreshold,
@@ -1185,6 +1231,7 @@ export async function saveAppointmentSettings({
   const normalizedSlotSubDivisions = Number.isInteger(slotSubDivisions) && slotSubDivisions >= 1 && slotSubDivisions <= 60
     ? slotSubDivisions
     : 1;
+  const normalizedSlotCellHeightPx = normalizeSlotCellHeightPx(slotCellHeightPx);
 
   const client = await pool.connect();
 
@@ -1206,11 +1253,19 @@ export async function saveAppointmentSettings({
     const subDivisionsUpdate = flags.hasSlotSubDivisions
       ? "slot_sub_divisions = EXCLUDED.slot_sub_divisions,"
       : "";
+    const slotCellHeightCol = flags.hasSlotCellHeightPx ? ", slot_cell_height_px" : "";
+    const slotCellHeightVal = flags.hasSlotCellHeightPx
+      ? `, $${flags.hasSlotSubDivisions ? 11 : 10}`
+      : "";
+    const slotCellHeightUpdate = flags.hasSlotCellHeightPx
+      ? "slot_cell_height_px = EXCLUDED.slot_cell_height_px,"
+      : "";
     await client.query(
       `INSERT INTO ${tableName} (
          organization_id,
          slot_interval_minutes
-         ${subDivisionsCol},
+         ${subDivisionsCol}
+         ${slotCellHeightCol},
          appointment_duration_minutes,
          appointment_duration_options_minutes,
          no_show_threshold,
@@ -1219,13 +1274,14 @@ export async function saveAppointmentSettings({
          visible_week_days,
          created_by,
          updated_by
-       ) VALUES ($1,$2${subDivisionsVal},$3,$4::smallint[],$5,$6,$7::text[],$8::smallint[],$9,$9)
+       ) VALUES ($1,$2${subDivisionsVal}${slotCellHeightVal},$3,$4::smallint[],$5,$6,$7::text[],$8::smallint[],$9,$9)
        ON CONFLICT (organization_id) DO UPDATE SET
-         slot_interval_minutes = EXCLUDED.slot_interval_minutes,
-         ${subDivisionsUpdate}
-         appointment_duration_minutes = EXCLUDED.appointment_duration_minutes,
-         appointment_duration_options_minutes = EXCLUDED.appointment_duration_options_minutes,
-         no_show_threshold = EXCLUDED.no_show_threshold,
+          slot_interval_minutes = EXCLUDED.slot_interval_minutes,
+          ${subDivisionsUpdate}
+          ${slotCellHeightUpdate}
+          appointment_duration_minutes = EXCLUDED.appointment_duration_minutes,
+          appointment_duration_options_minutes = EXCLUDED.appointment_duration_options_minutes,
+          no_show_threshold = EXCLUDED.no_show_threshold,
          reminder_hours = EXCLUDED.reminder_hours,
          reminder_channels = EXCLUDED.reminder_channels,
          visible_week_days = EXCLUDED.visible_week_days,
@@ -1241,7 +1297,8 @@ export async function saveAppointmentSettings({
         normalizedReminderChannels,
         visibleWeekDayNums,
         actorUserId,
-        ...(flags.hasSlotSubDivisions ? [normalizedSlotSubDivisions] : [])
+        ...(flags.hasSlotSubDivisions ? [normalizedSlotSubDivisions] : []),
+        ...(flags.hasSlotCellHeightPx ? [normalizedSlotCellHeightPx] : [])
       ]
     );
 
@@ -1315,6 +1372,29 @@ export async function getAppointmentHistoryLockDaysByOrganization(organizationId
   return normalizeHistoryLockDays(row.history_lock_days);
 }
 
+export async function getAppointmentSlotCellHeightPxByOrganization(organizationId) {
+  const tableName = APPOINTMENT_SETTINGS_TABLE;
+  const flags = await getAppointmentSettingsColumnFlags(tableName);
+  if (!flags.hasSlotCellHeightPx) {
+    return DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX;
+  }
+
+  const { rows } = await pool.query(
+    `SELECT slot_cell_height_px
+       FROM ${tableName}
+      WHERE organization_id = $1
+      LIMIT 1`,
+    [organizationId]
+  );
+
+  const row = rows[0] || null;
+  if (!row) {
+    return DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX;
+  }
+
+  return normalizeSlotCellHeightPx(row.slot_cell_height_px);
+}
+
 export async function saveAppointmentHistoryLockDaysByOrganization({
   organizationId,
   actorUserId,
@@ -1358,12 +1438,18 @@ export async function saveAppointmentHistoryLockDaysByOrganization({
       actorUserId,
       slotIntervalMinutes: Number.parseInt(String(defaults.slotInterval || "30"), 10) || 30,
       slotSubDivisions: Number.parseInt(String(defaults.slotSubDivisions || "1"), 10) || 1,
+      slotCellHeightPx: Number.parseInt(String(defaults.slotCellHeightPx || DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX), 10)
+        || DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
       appointmentDurationMinutes: defaultDurationOptions[0] || 30,
       appointmentDurationOptionsMinutes: defaultDurationOptions,
       noShowThreshold: Number.parseInt(String(defaults.noShowThreshold || "1"), 10) || 1,
       reminderHours: Number.parseInt(String(defaults.reminderHours || "24"), 10) || 24,
-      reminderChannels: defaults.reminderChannels,
-      visibleWeekDays: defaults.visibleWeekDays,
+      reminderChannels: Array.isArray(defaults.reminderChannels) && defaults.reminderChannels.length > 0
+        ? defaults.reminderChannels
+        : ["sms", "email", "telegram"],
+      visibleWeekDays: Array.isArray(defaults.visibleWeekDays) && defaults.visibleWeekDays.length > 0
+        ? defaults.visibleWeekDays
+        : ["mon", "tue", "wed", "thu", "fri", "sat"],
       workingHours: defaults.workingHours
     });
   }
@@ -1378,4 +1464,74 @@ export async function saveAppointmentHistoryLockDaysByOrganization({
   );
 
   return getAppointmentHistoryLockDaysByOrganization(organizationId);
+}
+
+export async function saveAppointmentSlotCellHeightPxByOrganization({
+  organizationId,
+  actorUserId,
+  slotCellHeightPx
+}) {
+  const normalizedSlotCellHeightPx = normalizeSlotCellHeightPx(slotCellHeightPx, Number.NaN);
+  if (
+    !Number.isInteger(normalizedSlotCellHeightPx)
+    || normalizedSlotCellHeightPx < MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX
+    || normalizedSlotCellHeightPx > MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX
+  ) {
+    const error = new Error("Invalid slot cell height.");
+    error.code = "INVALID_SLOT_CELL_HEIGHT_PX";
+    throw error;
+  }
+
+  const tableName = APPOINTMENT_SETTINGS_TABLE;
+  const flags = await getAppointmentSettingsColumnFlags(tableName);
+  if (!flags.hasSlotCellHeightPx) {
+    const error = new Error("Appointment settings migration is required.");
+    error.code = "MIGRATION_REQUIRED";
+    throw error;
+  }
+
+  const existingResult = await pool.query(
+    `SELECT organization_id
+       FROM ${tableName}
+      WHERE organization_id = $1
+      LIMIT 1`,
+    [organizationId]
+  );
+
+  if ((existingResult.rowCount || 0) === 0) {
+    const defaults = createDefaultSettings();
+    const defaultDurationOptions = mapDurationOptions(
+      defaults.appointmentDurationOptions.map((value) => Number.parseInt(String(value), 10))
+    );
+
+    await saveAppointmentSettings({
+      organizationId,
+      actorUserId,
+      slotIntervalMinutes: Number.parseInt(String(defaults.slotInterval || "30"), 10) || 30,
+      slotSubDivisions: Number.parseInt(String(defaults.slotSubDivisions || "1"), 10) || 1,
+      slotCellHeightPx: normalizedSlotCellHeightPx,
+      appointmentDurationMinutes: defaultDurationOptions[0] || 30,
+      appointmentDurationOptionsMinutes: defaultDurationOptions,
+      noShowThreshold: Number.parseInt(String(defaults.noShowThreshold || "1"), 10) || 1,
+      reminderHours: Number.parseInt(String(defaults.reminderHours || "24"), 10) || 24,
+      reminderChannels: Array.isArray(defaults.reminderChannels) && defaults.reminderChannels.length > 0
+        ? defaults.reminderChannels
+        : ["sms", "email", "telegram"],
+      visibleWeekDays: Array.isArray(defaults.visibleWeekDays) && defaults.visibleWeekDays.length > 0
+        ? defaults.visibleWeekDays
+        : ["mon", "tue", "wed", "thu", "fri", "sat"],
+      workingHours: defaults.workingHours
+    });
+  }
+
+  await pool.query(
+    `UPDATE ${tableName}
+        SET slot_cell_height_px = $1,
+            updated_by = $2,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE organization_id = $3`,
+    [normalizedSlotCellHeightPx, actorUserId || null, organizationId]
+  );
+
+  return getAppointmentSlotCellHeightPxByOrganization(organizationId);
 }

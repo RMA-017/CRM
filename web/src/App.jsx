@@ -37,6 +37,7 @@ function App() {
       <Route path="/clients" element={<Navigate to="/clients/allclients" replace />} />
       <Route path="/appointments" element={<ProfilePage forcedView="appointment" />} />
       <Route path="/appointments/breaks" element={<ProfilePage forcedView="appointment-breaks" />} />
+      <Route path="/appointments/vip-schedule" element={<ProfilePage forcedView="appointment-vip-schedule" />} />
       <Route path="/appointments/vip-clients" element={<ProfilePage forcedView="appointment-vip-clients" />} />
       <Route path="/appointments/settings" element={<ProfilePage forcedView="appointment-settings" />} />
       <Route path="/settings/organizations" element={<ProfilePage forcedView="settings-organizations" />} />
@@ -53,6 +54,7 @@ function App() {
       <Route path="/profile/clients/create" element={<Navigate to="/clients/create" replace />} />
       <Route path="/profile/appointments" element={<Navigate to="/appointments" replace />} />
       <Route path="/profile/appointments/breaks" element={<Navigate to="/appointments/breaks" replace />} />
+      <Route path="/profile/appointments/vip-schedule" element={<Navigate to="/appointments/vip-schedule" replace />} />
       <Route path="/profile/appointments/vip-clients" element={<Navigate to="/appointments/vip-clients" replace />} />
       <Route path="/profile/appointments/settings" element={<Navigate to="/appointments/settings" replace />} />
       <Route path="/profile/settings/organizations" element={<Navigate to="/settings/organizations" replace />} />
