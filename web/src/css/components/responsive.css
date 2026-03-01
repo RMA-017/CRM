@@ -1,21 +1,21 @@
 /* Responsive */
 @media (max-width: 1200px) {
   /* Clients tables */
-  :is(#clientsPanel, #appointmentVipClientsPanel) .all-users-table-wrap {
+  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table-wrap {
     overflow-x: auto;
     overflow-y: auto;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
   }
 
-  :is(#clientsPanel, #appointmentVipClientsPanel) .all-users-table {
+  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table {
     width: max-content;
     min-width: 1280px;
     table-layout: auto;
   }
 
-  :is(#clientsPanel, #appointmentVipClientsPanel) .all-users-table th,
-  :is(#clientsPanel, #appointmentVipClientsPanel) .all-users-table td {
+  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table th,
+  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table td {
     overflow: visible;
     text-overflow: clip;
     white-space: nowrap;
@@ -41,28 +41,28 @@
   }
 
   /* Clients tables */
-  :is(#clientsPanel, #appointmentVipClientsPanel) .all-users-table-wrap {
+  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table-wrap {
     overflow-x: auto;
     overflow-y: auto;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
   }
 
-  :is(#clientsPanel, #appointmentVipClientsPanel) .all-users-table {
+  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table {
     width: max-content;
     min-width: 1280px;
     table-layout: auto;
   }
 
-  :is(#clientsPanel, #appointmentVipClientsPanel) .all-users-table th,
-  :is(#clientsPanel, #appointmentVipClientsPanel) .all-users-table td {
+  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table th,
+  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table td {
     overflow: visible;
     text-overflow: clip;
     white-space: nowrap;
   }
 
-  :is(#clientsPanel, #appointmentVipClientsPanel) .all-users-table th:nth-child(11),
-  :is(#clientsPanel, #appointmentVipClientsPanel) .all-users-table td:nth-child(11),
+  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table th:nth-child(11),
+  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table td:nth-child(11),
   #clientsPanel .all-users-table th:nth-child(12),
   #clientsPanel .all-users-table td:nth-child(12) {
     width: 90px;
@@ -197,21 +197,21 @@
   }
 
   /* Data tables */
-  :is(#clientsPanel, #appointmentVipClientsPanel) .all-users-table-wrap {
+  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table-wrap {
     overflow-x: auto;
     overflow-y: auto;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
   }
 
-  :is(#clientsPanel, #appointmentVipClientsPanel) .all-users-table {
+  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table {
     width: max-content;
     min-width: 1280px;
     table-layout: auto;
   }
 
-  :is(#clientsPanel, #appointmentVipClientsPanel) .all-users-table th,
-  :is(#clientsPanel, #appointmentVipClientsPanel) .all-users-table td {
+  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table th,
+  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table td {
     overflow: visible;
     text-overflow: clip;
     white-space: nowrap;
@@ -367,33 +367,6 @@
     margin-bottom: 12px;
   }
 
-  .appointment-setting-row-breaks .appointment-breaks-add-btn {
-    width: 100%;
-    min-width: var(--btn-compact-width);
-    justify-self: stretch;
-  }
-
-  .appointment-setting-row-breaks .appointment-specialist-row {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 10px;
-    align-items: stretch;
-  }
-
-  .appointment-setting-row-breaks .appointment-specialist-select-wrap,
-  .appointment-setting-row-breaks .appointment-specialist-select-wrap .custom-select {
-    width: 100%;
-    max-width: 100%;
-  }
-
-  .appointment-setting-row-breaks .appointment-specialist-select-wrap .custom-select-trigger {
-    width: 100%;
-  }
-
-  .appointment-setting-row-breaks .appointment-toolbar-label {
-    margin: 0 0 0 2px;
-  }
-
   .appointment-setting-row-breaks .appointment-break-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
@@ -429,7 +402,7 @@
     width: 100%;
   }
 
-  .appointment-specialist-row {
+  .appointment-specialist-control {
     flex-direction: column;
     align-items: flex-start;
   }
@@ -679,4 +652,38 @@
     --appointment-reminder-day-checkbox-size: 7px;
   }
 
+}
+
+@media (max-width: 860px) {
+  .vip-attendance-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .vip-attendance-summary {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 560px) {
+  .vip-attendance-edit-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .vip-attendance-summary .vip-attendance-filter-btn {
+    width: 100%;
+  }
+
+  .vip-attendance-period-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #appointmentVipAttendancePanel .vip-attendance-actions {
+    flex-wrap: wrap;
+  }
+
+  #appointmentVipAttendancePanel .vip-attendance-actions .table-action-btn {
+    width: 100%;
+    min-width: 0;
+  }
 }

@@ -116,6 +116,139 @@ CREATE INDEX idx_clients_org_middle_name_prefix
 CREATE INDEX idx_clients_org_phone_prefix
   ON clients (organization_id, phone_number text_pattern_ops);
 
+CREATE TABLE vip_client_attendance (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  client_id INTEGER NOT NULL,
+  attendance_date DATE NOT NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'absent'
+    CHECK (status IN ('present', 'absent')),
+  arrived_at TIMESTAMP,
+  left_at TIMESTAMP,
+  note VARCHAR(255),
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_vip_client_attendance_client_org
+    FOREIGN KEY (organization_id, client_id)
+    REFERENCES clients(organization_id, id) ON DELETE CASCADE,
+  UNIQUE (organization_id, client_id, attendance_date),
+  CHECK (
+    (status = 'present' AND arrived_at IS NOT NULL)
+    OR
+    (status = 'absent' AND arrived_at IS NULL AND left_at IS NULL)
+  ),
+  CHECK (left_at IS NULL OR arrived_at IS NULL OR left_at >= arrived_at)
+);
+
+CREATE INDEX idx_vip_client_attendance_org_date_client
+  ON vip_client_attendance (organization_id, attendance_date, client_id);
+
+CREATE TABLE vip_class_teacher_assignments (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  class_name VARCHAR(64) NOT NULL,
+  teacher_user_id INTEGER NOT NULL,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_vip_class_teacher_assignments_teacher_org
+    FOREIGN KEY (organization_id, teacher_user_id)
+    REFERENCES users(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT uq_vip_class_teacher_assignments_class_org
+    UNIQUE (organization_id, class_name),
+  CONSTRAINT uq_vip_class_teacher_assignments_org_id
+    UNIQUE (organization_id, id)
+);
+
+CREATE INDEX idx_vip_class_teacher_assignments_org_class
+  ON vip_class_teacher_assignments (organization_id, class_name, id);
+
+CREATE INDEX idx_vip_class_teacher_assignments_org_teacher
+  ON vip_class_teacher_assignments (organization_id, teacher_user_id);
+
+CREATE TABLE vip_class_teacher_assignment_history (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  class_assignment_id BIGINT,
+  class_name VARCHAR(64) NOT NULL,
+  teacher_user_id INTEGER,
+  assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  changed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  changed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_vip_class_teacher_assignment_history_class_org
+    FOREIGN KEY (organization_id, class_assignment_id)
+    REFERENCES vip_class_teacher_assignments(organization_id, id) ON DELETE SET NULL,
+  CONSTRAINT fk_vip_class_teacher_assignment_history_teacher_org
+    FOREIGN KEY (organization_id, teacher_user_id)
+    REFERENCES users(organization_id, id) ON DELETE SET NULL
+);
+
+CREATE INDEX idx_vip_class_teacher_assignment_history_org_assignment_changed
+  ON vip_class_teacher_assignment_history (organization_id, class_assignment_id, changed_at DESC, id DESC);
+
+CREATE INDEX idx_vip_class_teacher_assignment_history_org_class_changed
+  ON vip_class_teacher_assignment_history (organization_id, class_name, changed_at DESC, id DESC);
+
+CREATE TABLE vip_client_tutor_assignments (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  client_id INTEGER NOT NULL,
+  class_assignment_id BIGINT NOT NULL,
+  tutor_user_id INTEGER NOT NULL,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_vip_client_tutor_assignments_client_org
+    FOREIGN KEY (organization_id, client_id)
+    REFERENCES clients(organization_id, id) ON DELETE CASCADE,
+  CONSTRAINT fk_vip_client_tutor_assignments_class_org
+    FOREIGN KEY (organization_id, class_assignment_id)
+    REFERENCES vip_class_teacher_assignments(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fk_vip_client_tutor_assignments_tutor_org
+    FOREIGN KEY (organization_id, tutor_user_id)
+    REFERENCES users(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT uq_vip_client_tutor_assignments_client_org
+    UNIQUE (organization_id, client_id)
+);
+
+CREATE INDEX idx_vip_client_tutor_assignments_org_class
+  ON vip_client_tutor_assignments (organization_id, class_assignment_id, client_id);
+
+CREATE INDEX idx_vip_client_tutor_assignments_org_tutor
+  ON vip_client_tutor_assignments (organization_id, tutor_user_id, client_id);
+
+CREATE TABLE vip_client_tutor_assignment_history (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  client_id INTEGER NOT NULL,
+  class_assignment_id BIGINT NOT NULL,
+  tutor_user_id INTEGER NOT NULL,
+  assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  changed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  changed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_vip_client_tutor_assignment_history_client_org
+    FOREIGN KEY (organization_id, client_id)
+    REFERENCES clients(organization_id, id) ON DELETE CASCADE,
+  CONSTRAINT fk_vip_client_tutor_assignment_history_class_org
+    FOREIGN KEY (organization_id, class_assignment_id)
+    REFERENCES vip_class_teacher_assignments(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fk_vip_client_tutor_assignment_history_tutor_org
+    FOREIGN KEY (organization_id, tutor_user_id)
+    REFERENCES users(organization_id, id) ON DELETE RESTRICT
+);
+
+CREATE INDEX idx_vip_client_tutor_assignment_history_org_client_changed
+  ON vip_client_tutor_assignment_history (organization_id, client_id, changed_at DESC, id DESC);
+
+CREATE INDEX idx_vip_client_tutor_assignment_history_org_class_changed
+  ON vip_client_tutor_assignment_history (organization_id, class_assignment_id, changed_at DESC, id DESC);
+
 CREATE TABLE appointment_settings (
   id SERIAL PRIMARY KEY,
   organization_id INTEGER NOT NULL UNIQUE REFERENCES organizations(id) ON DELETE CASCADE,

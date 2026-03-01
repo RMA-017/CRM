@@ -219,6 +219,12 @@ async function usersRoutes(fastify) {
           user: mapUser(user)
         });
       } catch (error) {
+        if (error?.code === "ROLE_CHANGE_BLOCKED_TEACHER_ASSIGNED") {
+          return reply.status(409).send({
+            field: error?.field || "role",
+            message: error?.message || "Cannot change role while user is assigned as class teacher."
+          });
+        }
         if (error?.code === "23505") {
           return reply.status(409).send({ message: "Username or email already exists." });
         }

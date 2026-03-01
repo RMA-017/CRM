@@ -1037,6 +1037,7 @@ function validateBreaksPayload({ specialistId, items }) {
     return { field: "items", message: "Too many break items (max 200)." };
   }
 
+  const rangesByDay = new Map();
   for (let index = 0; index < items.length; index += 1) {
     const item = items[index] || {};
     const dayOfWeek = Number.parseInt(String(item.dayOfWeek ?? "").trim(), 10);
@@ -1063,6 +1064,45 @@ function validateBreaksPayload({ specialistId, items }) {
     }
     if (note.length > 255) {
       return { field: `items.${index}.note`, message: "Break note is too long (max 255)." };
+    }
+
+    if (item?.isActive !== false) {
+      const startMinutes = toTimeMinutes(startTime);
+      const endMinutes = toTimeMinutes(endTime);
+      const dayRanges = rangesByDay.get(dayOfWeek) || [];
+      dayRanges.push({
+        index,
+        start: startMinutes,
+        end: endMinutes,
+        startTime,
+        endTime
+      });
+      rangesByDay.set(dayOfWeek, dayRanges);
+    }
+  }
+
+  for (const [dayOfWeek, dayRanges] of rangesByDay.entries()) {
+    if (!Array.isArray(dayRanges) || dayRanges.length < 2) {
+      continue;
+    }
+    const sorted = [...dayRanges].sort((a, b) => (
+      (a.start - b.start)
+      || (a.end - b.end)
+      || (a.index - b.index)
+    ));
+    let previous = sorted[0];
+    for (let index = 1; index < sorted.length; index += 1) {
+      const current = sorted[index];
+      if (current.start < previous.end) {
+        const dayLabel = DAY_KEYS[dayOfWeek - 1] || `day ${dayOfWeek}`;
+        return {
+          field: `items.${current.index}.time`,
+          message: `Break time overlaps with another break on ${dayLabel}.`
+        };
+      }
+      if (current.end > previous.end) {
+        previous = current;
+      }
     }
   }
 

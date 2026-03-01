@@ -8,15 +8,23 @@ function ProfileSideMenu({
   setClientsMenuOpen,
   openAllClientsPanel,
   openCreateClientPanel,
+  vipClientsMenuOpen,
+  setVipClientsMenuOpen,
+  assignmentsMenuOpen,
+  setAssignmentsMenuOpen,
   hasAppointmentsMenuAccess,
   canOpenAppointmentSchedule,
   canOpenAppointmentBreaks,
   canOpenAppointmentVipClients,
+  canOpenAppointmentVipAssignments,
   appointmentMenuOpen,
   setAppointmentMenuOpen,
   openAppointmentPanel,
   openAppointmentBreaksPanel,
   openAppointmentVipSchedulePanel,
+  openAppointmentVipAttendancePanel,
+  openAppointmentVipAssignmentsPanel,
+  openAppointmentVipTutorAssignmentsPanel,
   openAppointmentSettingsPanel,
   openAppointmentVipClientsPanel,
   hasUsersMenuAccess,
@@ -83,6 +91,77 @@ function ProfileSideMenu({
               Create Client
             </button>
           </div>
+          <button
+            id="toggleVipClientsMenuBtn"
+            type="button"
+            className="side-menu-action side-menu-parent"
+            hidden={!canOpenAppointmentSchedule && !canOpenAppointmentVipClients}
+            aria-expanded={vipClientsMenuOpen ? "true" : "false"}
+            onClick={() => {
+              setVipClientsMenuOpen((prev) => !prev);
+            }}
+          >
+            VIP Clients
+          </button>
+          <div id="vipClientsSubMenu" className="side-submenu" hidden={!vipClientsMenuOpen}>
+            <button
+              id="openVipPlannerBtn"
+              type="button"
+              className="side-submenu-link side-submenu-action"
+              hidden={!canOpenAppointmentSchedule}
+              onClick={openAppointmentVipSchedulePanel}
+            >
+              VIP Planner
+            </button>
+            <button
+              id="openVipClientsBtn"
+              type="button"
+              className="side-submenu-link side-submenu-action"
+              hidden={!canOpenAppointmentVipClients}
+              onClick={openAppointmentVipClientsPanel}
+            >
+              All
+            </button>
+            <button
+              id="openVipAttendanceBtn"
+              type="button"
+              className="side-submenu-link side-submenu-action"
+              hidden={!canOpenAppointmentVipClients}
+              onClick={openAppointmentVipAttendancePanel}
+            >
+              Attendance
+            </button>
+          </div>
+          <button
+            id="toggleAssignmentsMenuBtn"
+            type="button"
+            className="side-menu-action side-menu-parent"
+            hidden={!canOpenAppointmentVipAssignments}
+            aria-expanded={assignmentsMenuOpen ? "true" : "false"}
+            onClick={() => {
+              setAssignmentsMenuOpen((prev) => !prev);
+            }}
+          >
+            Assignments
+          </button>
+          <div id="assignmentsSubMenu" className="side-submenu" hidden={!assignmentsMenuOpen || !canOpenAppointmentVipAssignments}>
+            <button
+              id="openVipAssignmentsBtn"
+              type="button"
+              className="side-submenu-link side-submenu-action"
+              onClick={openAppointmentVipAssignmentsPanel}
+            >
+              Class
+            </button>
+            <button
+              id="openVipTutorAssignmentsBtn"
+              type="button"
+              className="side-submenu-link side-submenu-action"
+              onClick={openAppointmentVipTutorAssignmentsPanel}
+            >
+              Tutor
+            </button>
+          </div>
           <div id="appointmentsMenuGroup" className="side-menu-group" hidden={!hasAppointmentsMenuAccess}>
             <button
               id="toggleAppointmentsMenuBtn"
@@ -113,24 +192,6 @@ function ProfileSideMenu({
                 onClick={openAppointmentPanel}
               >
                 Planner
-              </button>
-              <button
-                id="openAppointmentVipScheduleBtn"
-                type="button"
-                className="side-submenu-link side-submenu-action"
-                hidden={!canOpenAppointmentSchedule}
-                onClick={openAppointmentVipSchedulePanel}
-              >
-                VIP Planner
-              </button>
-              <button
-                id="openAppointmentVipClientsBtn"
-                type="button"
-                className="side-submenu-link side-submenu-action"
-                hidden={!canOpenAppointmentVipClients}
-                onClick={openAppointmentVipClientsPanel}
-              >
-                VIP Clients
               </button>
             </div>
           </div>

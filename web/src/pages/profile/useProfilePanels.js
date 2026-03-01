@@ -12,6 +12,7 @@ export function useProfilePanels({
   canOpenAppointmentSchedule,
   canOpenAppointmentBreaks,
   canOpenAppointmentVipClients,
+  canOpenAppointmentVipAssignments,
   hasSettingsMenuAccess,
   hasNotificationsSettingsAccess
 }) {
@@ -92,6 +93,30 @@ export function useProfilePanels({
     closePanel("appointment-vip-clients");
   }, [closePanel]);
 
+  const openAppointmentVipAttendancePanel = useCallback(() => {
+    openPanel("/appointments/vip-attendance", canOpenAppointmentVipClients);
+  }, [canOpenAppointmentVipClients, openPanel]);
+
+  const closeAppointmentVipAttendancePanel = useCallback(() => {
+    closePanel("appointment-vip-attendance");
+  }, [closePanel]);
+
+  const openAppointmentVipAssignmentsPanel = useCallback(() => {
+    openPanel("/appointments/vip-assignments", canOpenAppointmentVipAssignments);
+  }, [canOpenAppointmentVipAssignments, openPanel]);
+
+  const closeAppointmentVipAssignmentsPanel = useCallback(() => {
+    closePanel("appointment-vip-assignments");
+  }, [closePanel]);
+
+  const openAppointmentVipTutorAssignmentsPanel = useCallback(() => {
+    openPanel("/appointments/vip-tutor-assignments", canOpenAppointmentVipAssignments);
+  }, [canOpenAppointmentVipAssignments, openPanel]);
+
+  const closeAppointmentVipTutorAssignmentsPanel = useCallback(() => {
+    closePanel("appointment-vip-tutor-assignments");
+  }, [closePanel]);
+
   const openAppointmentVipSchedulePanel = useCallback(() => {
     openPanel("/appointments/vip-schedule", canOpenAppointmentSchedule);
   }, [canOpenAppointmentSchedule, openPanel]);
@@ -164,6 +189,12 @@ export function useProfilePanels({
     closeAppointmentSettingsPanel,
     openAppointmentVipClientsPanel,
     closeAppointmentVipClientsPanel,
+    openAppointmentVipAttendancePanel,
+    closeAppointmentVipAttendancePanel,
+    openAppointmentVipAssignmentsPanel,
+    closeAppointmentVipAssignmentsPanel,
+    openAppointmentVipTutorAssignmentsPanel,
+    closeAppointmentVipTutorAssignmentsPanel,
     openAppointmentVipSchedulePanel,
     closeAppointmentVipSchedulePanel,
     openOrganizationsPanel,

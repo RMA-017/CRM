@@ -465,6 +465,8 @@ function ProfileModals(props) {
                 value={allUsersEdit.form.organizationCode}
                 options={createOrganizationOptions}
                 error={Boolean(allUsersEdit.errors.organizationCode)}
+                menuPortal
+                maxVisibleOptions={6}
                 onChange={(nextCode) => {
                   setAllUsersEdit((prev) => ({
                     ...prev,
@@ -595,6 +597,8 @@ function ProfileModals(props) {
                 value={allUsersEdit.form.position}
                 options={positionOptions}
                 error={Boolean(allUsersEdit.errors.position)}
+                menuPortal
+                maxVisibleOptions={6}
                 onChange={(nextValue) => {
                   setAllUsersEdit((prev) => ({
                     ...prev,
@@ -614,6 +618,8 @@ function ProfileModals(props) {
                 value={allUsersEdit.form.role}
                 options={roleOptions}
                 error={Boolean(allUsersEdit.errors.role)}
+                menuPortal
+                maxVisibleOptions={6}
                 onChange={(nextValue) => {
                   setAllUsersEdit((prev) => ({
                     ...prev,

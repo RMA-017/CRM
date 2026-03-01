@@ -8,6 +8,9 @@ function getDefaultApiBaseUrl() {
 
 const runtimeBaseUrl = getDefaultApiBaseUrl();
 export const API_BASE_URL = (typeof window !== "undefined" && window.CRM_API_BASE_URL) || runtimeBaseUrl;
+const STARTUP_RETRY_STATUS_CODES = new Set([502, 503, 504]);
+const MAX_STARTUP_RETRIES = 5;
+const STARTUP_RETRY_DELAY_MS = 350;
 
 const DEFAULT_ERROR_MESSAGES = Object.freeze({
   400: "Bad request.",
@@ -19,11 +22,55 @@ const DEFAULT_ERROR_MESSAGES = Object.freeze({
   500: "Internal server error."
 });
 
+function shouldRetryApiRequest({ method, status, attempt, error }) {
+  if (attempt >= MAX_STARTUP_RETRIES) {
+    return false;
+  }
+  if (method !== "GET" && method !== "HEAD") {
+    return false;
+  }
+  if (error) {
+    return true;
+  }
+  return STARTUP_RETRY_STATUS_CODES.has(status);
+}
+
+function wait(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 export async function apiFetch(path, options = {}) {
-  return fetch(`${API_BASE_URL}${path}`, {
+  const requestOptions = {
     credentials: "include",
     ...options
-  });
+  };
+  const method = String(requestOptions.method || "GET").trim().toUpperCase();
+  const url = `${API_BASE_URL}${path}`;
+
+  for (let attempt = 0; attempt <= MAX_STARTUP_RETRIES; attempt += 1) {
+    try {
+      const response = await fetch(url, requestOptions);
+      if (!shouldRetryApiRequest({
+        method,
+        status: Number(response?.status || 0),
+        attempt,
+        error: null
+      })) {
+        return response;
+      }
+    } catch (error) {
+      if (!shouldRetryApiRequest({ method, status: 0, attempt, error })) {
+        throw error;
+      }
+    }
+
+    const delayMs = STARTUP_RETRY_DELAY_MS * (attempt + 1);
+    await wait(delayMs);
+  }
+
+  return fetch(url, requestOptions);
 }
 
 export async function readApiResponseData(response) {

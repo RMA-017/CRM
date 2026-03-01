@@ -46,9 +46,13 @@
   gap: 10px;
 }
 
-.logout-confirm-actions .header-btn {
-  flex: 0 0 var(--btn-fixed-width);
-  width: var(--btn-fixed-width);
+.logout-confirm-actions .header-btn,
+.logout-confirm-actions .table-action-btn,
+.logout-confirm-actions .btn {
+  flex: 0 0 72px;
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
   height: var(--btn-height);
   padding: 0;
   display: inline-flex;
@@ -73,7 +77,9 @@
 #logoutConfirmNo,
 #allUsersDeleteNoBtn,
 #clientsDeleteNoBtn,
-#settingsDeleteNoBtn {
+#settingsDeleteNoBtn,
+#appointmentBreaksDeleteNoBtn,
+#vipClassDeleteNoBtn {
   color: var(--on-brand);
   border: 0;
   background: var(--brand-gradient);
@@ -84,7 +90,9 @@
 #logoutConfirmNo:hover,
 #allUsersDeleteNoBtn:hover,
 #clientsDeleteNoBtn:hover,
-#settingsDeleteNoBtn:hover {
+#settingsDeleteNoBtn:hover,
+#appointmentBreaksDeleteNoBtn:hover,
+#vipClassDeleteNoBtn:hover {
   filter: brightness(1.08);
 }
 
@@ -926,7 +934,9 @@
 #allUsersPanel,
 #clientsPanel,
 #appointmentVipClientsPanel,
-#appointmentBreaksPanel {
+#appointmentVipAttendancePanel,
+#appointmentBreaksPanel,
+#appointmentVipTutorAssignmentsPanel {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -935,14 +945,18 @@
 
 #allUsersPanel .all-users-table-wrap,
 #clientsPanel .all-users-table-wrap,
-#appointmentVipClientsPanel .all-users-table-wrap {
+#appointmentVipClientsPanel .all-users-table-wrap,
+#appointmentVipAttendancePanel .all-users-table-wrap,
+#appointmentVipTutorAssignmentsPanel .all-users-table-wrap {
   flex: 1 1 auto;
   min-height: 0;
   max-height: none;
 }
 
 #clientsPanel .all-users-table-wrap,
-#appointmentVipClientsPanel .all-users-table-wrap {
+#appointmentVipClientsPanel .all-users-table-wrap,
+#appointmentVipAttendancePanel .all-users-table-wrap,
+#appointmentVipTutorAssignmentsPanel .all-users-table-wrap {
   overflow-x: auto;
   overscroll-behavior-x: contain;
 }
@@ -1035,6 +1049,48 @@
   height: 30px;
 }
 
+.appointment-breaks-table-wrap.all-users-table-wrap {
+  overflow-x: auto;
+  overflow-y: auto;
+  overscroll-behavior-x: contain;
+}
+
+.appointment-breaks-table-wrap.all-users-table-wrap .all-users-table {
+  width: 100%;
+  min-width: 980px;
+  table-layout: fixed;
+}
+
+.appointment-breaks-table-wrap.all-users-table-wrap .all-users-table th,
+.appointment-breaks-table-wrap.all-users-table-wrap .all-users-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appointment-breaks-table-wrap.all-users-table-wrap .all-users-table th:first-child,
+.appointment-breaks-table-wrap.all-users-table-wrap .all-users-table td:first-child {
+  width: 80px;
+  min-width: 80px;
+  max-width: 80px;
+  text-align: center;
+}
+
+.appointment-breaks-table-wrap.all-users-table-wrap .all-users-table th:last-child,
+.appointment-breaks-table-wrap.all-users-table-wrap .all-users-table td:last-child {
+  width: 90px;
+  min-width: 90px;
+  max-width: 90px;
+  text-align: center;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.appointment-breaks-table-wrap.all-users-table-wrap .all-users-table td:last-child .table-action-btn {
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .all-users-table th:nth-child(11),
 .all-users-table td:nth-child(11),
 .all-users-table th:nth-child(12),
@@ -1056,6 +1112,274 @@
 #clientsPanel .all-users-table,
 #appointmentVipClientsPanel .all-users-table {
   min-width: 0;
+}
+
+#appointmentVipAttendancePanel .all-users-table {
+  min-width: 0;
+  width: 100%;
+  table-layout: fixed;
+}
+
+#appointmentVipAttendancePanel .all-users-table th,
+#appointmentVipAttendancePanel .all-users-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#appointmentVipAttendancePanel .all-users-table th:nth-child(1),
+#appointmentVipAttendancePanel .all-users-table td:nth-child(1) {
+  width: 6%;
+  text-align: center;
+}
+
+#appointmentVipAttendancePanel .all-users-table th:nth-child(2),
+#appointmentVipAttendancePanel .all-users-table td:nth-child(2) {
+  width: 22%;
+}
+
+#appointmentVipAttendancePanel .all-users-table th:nth-child(3),
+#appointmentVipAttendancePanel .all-users-table td:nth-child(3) {
+  width: 16%;
+}
+
+#appointmentVipAttendancePanel .all-users-table th:nth-child(4),
+#appointmentVipAttendancePanel .all-users-table td:nth-child(4),
+#appointmentVipAttendancePanel .all-users-table th:nth-child(5),
+#appointmentVipAttendancePanel .all-users-table td:nth-child(5),
+#appointmentVipAttendancePanel .all-users-table th:nth-child(6),
+#appointmentVipAttendancePanel .all-users-table td:nth-child(6) {
+  width: 16%;
+}
+
+#appointmentVipAttendancePanel .all-users-table th:nth-child(4),
+#appointmentVipAttendancePanel .all-users-table td:nth-child(4),
+#appointmentVipAttendancePanel .all-users-table th:nth-child(5),
+#appointmentVipAttendancePanel .all-users-table td:nth-child(5),
+#appointmentVipAttendancePanel .all-users-table th:nth-child(6),
+#appointmentVipAttendancePanel .all-users-table td:nth-child(6) {
+  text-align: center;
+}
+
+#appointmentVipAttendancePanel .all-users-table th:nth-child(7),
+#appointmentVipAttendancePanel .all-users-table td:nth-child(7) {
+  width: 8%;
+  min-width: 90px;
+  text-align: center;
+}
+
+#appointmentVipAttendancePanel .all-users-table td.vip-attendance-note-cell {
+  overflow: hidden;
+  text-align: center;
+}
+
+#appointmentVipAttendancePanel .vip-attendance-note-inline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+#appointmentVipAttendancePanel .vip-attendance-note-text {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+}
+
+#appointmentVipAttendancePanel .vip-attendance-note-inline .table-action-btn {
+  width: 72px;
+  min-width: 72px;
+}
+
+.vip-attendance-toolbar {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: 300px 300px 260px auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: end;
+  justify-content: start;
+}
+
+.vip-attendance-teacher-field,
+.vip-attendance-client-field {
+  margin: 0;
+}
+
+.vip-attendance-teacher-field .custom-select,
+.vip-attendance-teacher-field .custom-select-trigger,
+.vip-attendance-client-field .custom-select,
+.vip-attendance-client-field .custom-select-trigger {
+  width: 300px;
+  max-width: 100%;
+}
+
+.vip-attendance-period-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+  max-width: 280px;
+}
+
+.vip-attendance-date-field {
+  margin: 0;
+}
+
+.vip-attendance-summary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  width: 100%;
+  gap: 8px;
+  min-height: var(--btn-height);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
+.vip-attendance-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 106px;
+  min-width: 106px;
+  height: var(--btn-height);
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-main);
+  font: inherit;
+  font-size: var(--fs-small);
+  text-align: center;
+  cursor: pointer;
+}
+
+.vip-attendance-filter-btn.is-active {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: var(--brand-light);
+}
+
+.vip-attendance-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.vip-attendance-actions .table-action-btn {
+  width: 72px;
+  min-width: 72px;
+}
+
+.vip-attendance-actions .table-action-btn.is-active {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: var(--brand-light);
+}
+
+.vip-attendance-actions .table-action-btn.table-action-btn-danger.is-active {
+  border-color: var(--danger-border);
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.vip-attendance-absent-modal {
+  width: min(460px, calc(100vw - 32px));
+  min-height: 0;
+  max-height: calc(100dvh - 24px);
+  padding: 10px;
+  overflow-y: auto;
+}
+
+.vip-attendance-absent-modal .all-users-head {
+  margin-bottom: 10px;
+}
+
+.vip-attendance-absent-modal .all-users-head h3 {
+  margin: 0;
+}
+
+.vip-attendance-absent-modal .field {
+  margin: 0;
+}
+
+.vip-attendance-absent-textarea {
+  min-height: 84px;
+  max-height: 200px;
+  resize: vertical;
+}
+
+.vip-attendance-absent-reason-count {
+  margin: 4px 2px 0;
+  text-align: right;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.vip-attendance-absent-actions {
+  margin-top: 10px;
+  justify-content: flex-end;
+}
+
+.vip-attendance-absent-actions .btn {
+  min-width: var(--btn-fixed-width);
+}
+
+.vip-attendance-edit-modal {
+  width: min(560px, calc(100vw - 32px));
+  min-height: 0;
+  max-height: calc(100dvh - 24px);
+  padding: 10px;
+  overflow-y: auto;
+}
+
+.vip-attendance-edit-modal .all-users-head {
+  margin-bottom: 10px;
+}
+
+.vip-attendance-edit-modal .all-users-head h3 {
+  margin: 0;
+}
+
+.vip-attendance-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.vip-attendance-edit-grid .field,
+.vip-attendance-edit-modal .field {
+  margin: 0;
+}
+
+.vip-attendance-edit-textarea {
+  min-height: 84px;
+  max-height: 200px;
+  resize: vertical;
+}
+
+.vip-attendance-edit-note-count {
+  margin: 4px 2px 0;
+  text-align: right;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.vip-attendance-edit-actions {
+  margin-top: 10px;
+  justify-content: flex-end;
+}
+
+.vip-attendance-edit-actions .btn {
+  min-width: var(--btn-fixed-width);
 }
 
 #clientsPanel .all-users-table {
@@ -1257,7 +1581,7 @@
   white-space: nowrap;
 }
 
-.appointment-specialist-row {
+.appointment-specialist-control {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1896,7 +2220,7 @@
   padding: 0 4px;
 }
 
-.appointment-settings-list {
+.appointment-settings-form {
   margin-top: 8px;
   display: grid;
   gap: 8px;
@@ -1906,13 +2230,736 @@
   overflow: visible;
 }
 
-#appointmentBreaksPanel .appointment-settings-list {
+:is(#appointmentBreaksPanel, #appointmentVipTutorAssignmentsPanel) .appointment-breaks-view {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   justify-content: space-between;
   flex-direction: column;
   overflow: visible;
+}
+
+:is(#appointmentBreaksPanel, #appointmentVipTutorAssignmentsPanel) .appointment-breaks-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
+
+#appointmentBreaksPanel .appointment-breaks-toolbar-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: 10px 0 0;
+}
+
+#appointmentBreaksPanel .appointment-breaks-add-icon-btn {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+#vipClassAddModal .appointment-breaks-add-modal-head,
+#vipTutorEditModal .appointment-breaks-add-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+#vipClassAddModal .appointment-breaks-add-modal-head h3,
+#vipTutorEditModal .appointment-breaks-add-modal-head h3 {
+  margin: 0;
+  text-align: left;
+}
+
+#vipClassAddModal .appointment-breaks-add-modal-form,
+#vipTutorEditModal .appointment-breaks-add-modal-form {
+  display: grid;
+  gap: 10px;
+}
+
+#vipClassAddModal .vip-class-add-grid,
+#vipTutorEditModal .vip-class-add-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: repeat(2, auto);
+  gap: 8px;
+}
+
+#vipClassAddModal .appointment-breaks-add-field,
+#vipTutorEditModal .appointment-breaks-add-field {
+  display: grid;
+  gap: 4px;
+}
+
+#vipClassAddModal .appointment-breaks-add-field span,
+#vipTutorEditModal .appointment-breaks-add-field span {
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+#vipClassAddModal .appointment-breaks-add-field input,
+#vipClassAddModal .appointment-breaks-add-field .custom-select,
+#vipTutorEditModal .appointment-breaks-add-field input,
+#vipTutorEditModal .appointment-breaks-add-field .custom-select {
+  width: 100%;
+  min-width: 0;
+}
+
+#vipClassAddModal .appointment-breaks-add-field .custom-select-trigger,
+#vipClassAddModal .appointment-breaks-add-field input,
+#vipTutorEditModal .appointment-breaks-add-field .custom-select-trigger,
+#vipTutorEditModal .appointment-breaks-add-field input {
+  height: var(--input-height);
+  min-height: var(--input-height);
+}
+
+#vipClassAddModal .appointment-breaks-add-modal-actions,
+#vipTutorEditModal .appointment-breaks-add-modal-actions {
+  margin: 0;
+  justify-content: center;
+}
+
+#vipClassAddModal #saveVipClassAddModalBtn,
+#vipTutorEditModal #saveVipTutorEditModalBtn {
+  width: 100px;
+  min-width: 100px;
+  height: var(--btn-height);
+  border: 0;
+  color: var(--on-brand);
+  background: var(--brand-gradient);
+  box-shadow: 0 2px 8px rgba(67, 97, 238, 0.28);
+}
+
+.logout-confirm-modal.settings-edit-modal.appointment-breaks-add-modal {
+  width: min(980px, calc(100vw - 40px));
+  max-width: calc(100vw - 40px);
+  max-height: calc(100dvh - 28px);
+  padding: 10px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.logout-confirm-modal.settings-edit-modal.appointment-breaks-add-modal.vip-class-add-modal {
+  width: min(560px, calc(100vw - 40px));
+  max-width: calc(100vw - 40px);
+  max-height: min(520px, calc(100dvh - 80px));
+  padding: 8px 10px;
+  overflow: hidden;
+}
+
+#appointmentBreaksAddModal h3 {
+  margin: 2px 0 10px;
+  font-size: var(--fs-md);
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-modal-head h3 {
+  margin: 0;
+  text-align: left;
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-modal-head .panel-close-btn {
+  flex: 0 0 auto;
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-modal-form {
+  display: grid;
+  gap: 10px;
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-rows {
+  display: grid;
+  gap: 8px;
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-rows.appointment-breaks-add-rows-scroll .appointment-breaks-add-row {
+  max-height: min(52dvh, 440px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-row {
+  display: grid;
+  gap: 8px;
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-row-line {
+  display: grid;
+  gap: 8px;
+  align-items: end;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-row-line-top {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-row-line-bottom {
+  gap: 8px;
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-row-line-bottom-item {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr)) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-row-line-bottom-item + .appointment-breaks-add-row-line-bottom-item {
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-field span {
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-field .custom-select,
+#appointmentBreaksAddModal .appointment-breaks-add-field input[type="time"] {
+  width: 100%;
+  min-width: 0;
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-field .custom-select {
+  min-height: var(--input-height);
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-field .custom-select-trigger {
+  min-height: var(--input-height);
+  height: var(--input-height);
+  border-radius: var(--radius);
+  padding: 0 36px 0 12px;
+  font-size: var(--fs-small);
+  font-family: inherit;
+  color: var(--text-main);
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-field-with-action {
+  min-width: 0;
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-field-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-field-inline .custom-select {
+  flex: 1 1 auto;
+}
+
+#appointmentBreaksAddModal .appointment-breaks-inline-add-btn {
+  width: 70px;
+  min-width: 70px;
+  height: var(--input-height);
+  padding: 0;
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-field input[type="time"] {
+  height: var(--input-height);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 0 8px;
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-inline-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  align-self: end;
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-inline-actions .header-btn,
+#appointmentBreaksAddModal .appointment-breaks-add-inline-actions .table-action-btn {
+  width: 70px;
+  min-width: 70px;
+  height: var(--input-height);
+  padding: 0;
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-modal-actions {
+  margin: 0;
+  justify-content: center;
+  gap: 8px;
+}
+
+#appointmentBreaksAddModal .appointment-breaks-add-modal-actions .header-btn {
+  width: 96px;
+  min-width: 96px;
+  height: var(--btn-height);
+  padding: 0;
+}
+
+#appointmentBreaksAddModal #appointmentBreaksAddSaveBtn {
+  width: 100px;
+  min-width: 100px;
+  border: 0;
+  color: var(--on-brand);
+  background: var(--brand-gradient);
+  box-shadow: 0 2px 8px rgba(67, 97, 238, 0.28);
+}
+
+#appointmentBreaksAddModal #appointmentBreaksAddSaveBtn:hover {
+  filter: brightness(1.08);
+}
+
+@media (max-width: 980px) {
+  :is(#appointmentBreaksPanel, #appointmentVipTutorAssignmentsPanel) .appointment-breaks-table-wrap {
+    max-height: calc(100dvh - 230px);
+    overflow-y: auto;
+  }
+
+  #appointmentBreaksAddModal .appointment-breaks-add-row-line-top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #appointmentBreaksAddModal .appointment-breaks-add-row-line-bottom-item {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #appointmentBreaksAddModal .appointment-breaks-add-inline-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 620px) {
+  .logout-confirm-modal.settings-edit-modal.appointment-breaks-add-modal,
+  .logout-confirm-modal.settings-edit-modal.appointment-breaks-edit-modal {
+    width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px);
+    max-height: calc(100dvh - 12px);
+    overflow: hidden;
+  }
+
+  #appointmentBreaksAddModal .appointment-breaks-add-row-line-bottom-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #appointmentBreaksAddModal .appointment-breaks-add-rows.appointment-breaks-add-rows-scroll .appointment-breaks-add-row {
+    max-height: calc(100dvh - 220px);
+  }
+
+  #appointmentBreaksAddModal .appointment-breaks-add-inline-actions {
+    justify-content: center;
+  }
+
+  #appointmentBreaksAddModal .appointment-breaks-inline-add-btn {
+    display: none;
+  }
+
+  #appointmentBreaksAddModal .appointment-breaks-add-modal-actions {
+    justify-content: center;
+  }
+
+  .logout-confirm-modal.settings-edit-modal.appointment-breaks-add-modal.vip-class-add-modal {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 96px);
+    padding: 8px;
+  }
+}
+
+.logout-confirm-modal.settings-edit-modal.appointment-breaks-edit-modal {
+  width: min(980px, calc(100vw - 40px));
+  max-width: calc(100vw - 40px);
+  max-height: calc(100dvh - 28px);
+  padding: 10px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+#appointmentBreaksEditModal h3 {
+  margin: 2px 0 10px;
+  font-size: var(--fs-md);
+}
+
+#appointmentBreaksEditModal .appointment-breaks-add-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+#appointmentBreaksEditModal .appointment-breaks-add-modal-head h3 {
+  margin: 0;
+  text-align: left;
+}
+
+#appointmentBreaksEditModal .appointment-breaks-add-modal-head .panel-close-btn {
+  flex: 0 0 auto;
+}
+
+#appointmentBreaksEditModal .appointment-breaks-add-modal-form {
+  display: grid;
+  gap: 10px;
+}
+
+#appointmentBreaksEditModal .appointment-breaks-add-row {
+  display: grid;
+  gap: 8px;
+}
+
+#appointmentBreaksEditModal .appointment-breaks-add-row-line {
+  display: grid;
+  gap: 8px;
+  align-items: end;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+
+#appointmentBreaksEditModal .appointment-breaks-add-row-line-top {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+#appointmentBreaksEditModal .appointment-breaks-add-row-line-bottom {
+  gap: 8px;
+}
+
+#appointmentBreaksEditModal .appointment-breaks-add-row-line-bottom-item {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 8px;
+  align-items: end;
+}
+
+#appointmentBreaksEditModal .appointment-breaks-add-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+#appointmentBreaksEditModal .appointment-breaks-add-field span {
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+#appointmentBreaksEditModal .appointment-breaks-add-field .custom-select,
+#appointmentBreaksEditModal .appointment-breaks-add-field input[type="time"] {
+  width: 100%;
+  min-width: 0;
+}
+
+#appointmentBreaksEditModal .appointment-breaks-add-field .custom-select {
+  min-height: var(--input-height);
+}
+
+#appointmentBreaksEditModal .appointment-breaks-add-field .custom-select-trigger {
+  min-height: var(--input-height);
+  height: var(--input-height);
+  border-radius: var(--radius);
+  padding: 0 36px 0 12px;
+  font-size: var(--fs-small);
+  font-family: inherit;
+  color: var(--text-main);
+}
+
+#appointmentBreaksEditModal .appointment-breaks-add-field-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+#appointmentBreaksEditModal .appointment-breaks-add-field-inline .custom-select {
+  flex: 1 1 auto;
+}
+
+#appointmentBreaksEditModal .appointment-breaks-add-field input[type="time"] {
+  height: var(--input-height);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-main);
+  padding: 0 8px;
+}
+
+#appointmentBreaksEditModal .appointment-breaks-add-modal-actions {
+  margin: 0;
+  justify-content: center;
+  gap: 8px;
+}
+
+#appointmentBreaksEditModal .appointment-breaks-edit-modal-actions .table-action-btn,
+#appointmentBreaksEditModal .appointment-breaks-edit-modal-actions .header-btn,
+#appointmentBreaksEditModal .appointment-breaks-add-modal-actions .header-btn {
+  width: 100px;
+  min-width: 100px;
+  height: var(--btn-height);
+  padding: 0;
+}
+
+#appointmentBreaksEditModal #appointmentBreaksEditSaveBtn {
+  border: 0;
+  color: var(--on-brand);
+  background: var(--brand-gradient);
+  box-shadow: 0 2px 8px rgba(67, 97, 238, 0.28);
+}
+
+#appointmentBreaksEditModal #appointmentBreaksEditSaveBtn:hover {
+  filter: brightness(1.08);
+}
+
+@media (max-width: 620px) {
+  .logout-confirm-modal.settings-edit-modal.appointment-breaks-edit-modal {
+    max-height: calc(100dvh - 12px);
+  }
+
+  #appointmentBreaksEditModal .appointment-breaks-add-row-line-bottom-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #appointmentBreaksEditModal .appointment-breaks-add-modal-actions {
+    justify-content: center;
+  }
+}
+
+#appointmentBreaksPanel .appointment-breaks-table {
+  min-width: 1120px;
+  table-layout: fixed;
+}
+
+#appointmentBreaksPanel .appointment-breaks-table th,
+#appointmentBreaksPanel .appointment-breaks-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 5px;
+  height: 30px;
+  min-height: 30px;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+#appointmentBreaksPanel .appointment-breaks-table th:nth-child(1),
+#appointmentBreaksPanel .appointment-breaks-table td:nth-child(1) {
+  width: 6%;
+  text-align: center;
+}
+
+#appointmentBreaksPanel .appointment-breaks-table th:nth-child(2),
+#appointmentBreaksPanel .appointment-breaks-table td:nth-child(2) {
+  width: 22%;
+}
+
+#appointmentBreaksPanel .appointment-breaks-table th:nth-child(3),
+#appointmentBreaksPanel .appointment-breaks-table td:nth-child(3) {
+  width: 12%;
+}
+
+#appointmentBreaksPanel .appointment-breaks-table th:nth-child(4),
+#appointmentBreaksPanel .appointment-breaks-table td:nth-child(4) {
+  width: 9%;
+  text-align: center;
+}
+
+#appointmentBreaksPanel .appointment-breaks-table th:nth-child(5),
+#appointmentBreaksPanel .appointment-breaks-table td:nth-child(5) {
+  width: 10%;
+  text-align: center;
+}
+
+#appointmentBreaksPanel .appointment-breaks-table th:nth-child(6),
+#appointmentBreaksPanel .appointment-breaks-table td:nth-child(6) {
+  width: 10%;
+  text-align: center;
+}
+
+#appointmentBreaksPanel .appointment-breaks-table th:nth-child(7),
+#appointmentBreaksPanel .appointment-breaks-table td:nth-child(7) {
+  width: 15%;
+}
+
+#appointmentBreaksPanel .appointment-breaks-table th:nth-child(8),
+#appointmentBreaksPanel .appointment-breaks-table td:nth-child(8) {
+  width: 90px;
+  min-width: 90px;
+  max-width: 90px;
+  text-align: center;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#appointmentBreaksPanel .appointment-breaks-table th:nth-child(9),
+#appointmentBreaksPanel .appointment-breaks-table td:nth-child(9) {
+  width: 90px;
+  min-width: 90px;
+  max-width: 90px;
+  text-align: center;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#appointmentBreaksPanel .appointment-breaks-table td:nth-child(8) .table-action-btn,
+#appointmentBreaksPanel .appointment-breaks-table td:nth-child(9) .table-action-btn {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#appointmentBreaksPanel .break-edit-select,
+#appointmentBreaksPanel .break-edit-input {
+  width: 100%;
+  min-width: 0;
+  height: var(--input-height);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--text-main);
+  padding: 0 8px;
+}
+
+#appointmentBreaksPanel .appointment-breaks-status {
+  margin: 10px 0 4px;
+}
+
+#appointmentBreaksPanel .appointment-breaks-empty {
+  text-align: center;
+  color: var(--text-muted);
+}
+
+#appointmentBreaksPanel .class-assignments-table {
+  min-width: 1080px;
+  table-layout: fixed;
+}
+
+#appointmentBreaksPanel .class-assignments-table th:nth-child(1),
+#appointmentBreaksPanel .class-assignments-table td:nth-child(1) {
+  width: 52px;
+  min-width: 52px;
+  max-width: 52px;
+  text-align: center;
+}
+
+#appointmentBreaksPanel .class-assignments-table th:nth-child(2),
+#appointmentBreaksPanel .class-assignments-table td:nth-child(2) {
+  width: 24%;
+}
+
+#appointmentBreaksPanel .class-assignments-table th:nth-child(3),
+#appointmentBreaksPanel .class-assignments-table td:nth-child(3) {
+  width: 26%;
+  text-align: left;
+  padding-left: 2px;
+}
+
+#appointmentBreaksPanel .class-assignments-table th:nth-child(4),
+#appointmentBreaksPanel .class-assignments-table td:nth-child(4) {
+  width: 28%;
+  min-width: 140px;
+  text-align: center;
+}
+
+#appointmentBreaksPanel .class-assignments-table th:nth-child(5),
+#appointmentBreaksPanel .class-assignments-table td:nth-child(5) {
+  width: 64px;
+  min-width: 64px;
+  max-width: 64px;
+  text-align: center;
+}
+
+#appointmentBreaksPanel .class-assignments-table th:nth-child(6),
+#appointmentBreaksPanel .class-assignments-table td:nth-child(6) {
+  width: 64px;
+  min-width: 64px;
+  max-width: 64px;
+  text-align: center;
+}
+
+#appointmentBreaksPanel .class-assignments-table td:nth-child(5) .table-action-btn {
+  width: 64px;
+  min-width: 64px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#appointmentBreaksPanel .class-assignments-table td:nth-child(6) .table-action-btn {
+  width: 64px;
+  min-width: 64px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#appointmentVipTutorAssignmentsPanel .tutor-assignments-table {
+  min-width: 980px;
+  table-layout: fixed;
+}
+
+#appointmentVipTutorAssignmentsPanel .tutor-assignments-table th:nth-child(1),
+#appointmentVipTutorAssignmentsPanel .tutor-assignments-table td:nth-child(1) {
+  width: 80px;
+  min-width: 80px;
+  max-width: 80px;
+  text-align: center;
+}
+
+#appointmentVipTutorAssignmentsPanel .tutor-assignments-table th:nth-child(2),
+#appointmentVipTutorAssignmentsPanel .tutor-assignments-table td:nth-child(2) {
+  width: 34%;
+}
+
+#appointmentVipTutorAssignmentsPanel .tutor-assignments-table th:nth-child(3),
+#appointmentVipTutorAssignmentsPanel .tutor-assignments-table td:nth-child(3) {
+  width: 24%;
+}
+
+#appointmentVipTutorAssignmentsPanel .tutor-assignments-table th:nth-child(4),
+#appointmentVipTutorAssignmentsPanel .tutor-assignments-table td:nth-child(4) {
+  width: 22%;
+}
+
+#appointmentVipTutorAssignmentsPanel .tutor-assignments-table th:nth-child(5),
+#appointmentVipTutorAssignmentsPanel .tutor-assignments-table td:nth-child(5) {
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+  text-align: center;
+}
+
+#appointmentVipTutorAssignmentsPanel .tutor-assignments-table td:nth-child(5) .table-action-btn {
+  width: 72px;
+  min-width: 72px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .appointment-setting-row {
@@ -2056,13 +3103,57 @@
 
 .appointment-break-row {
   display: grid;
-  grid-template-columns: 86px 112px minmax(96px, 1fr) minmax(96px, 1fr) auto;
+  grid-template-columns: 80px 100px minmax(100px, 1fr) minmax(0, 1.5fr) auto;
   gap: 5px;
   align-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   background: transparent;
+}
+
+.appointment-breaks-status {
+  padding: 10px 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.appointment-break-cell {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: var(--input-height);
+  font-size: var(--fs-sm);
+  color: var(--text-base);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.appointment-break-cell-title {
+  color: var(--text-muted);
+}
+
+.appointment-break-add-modal {
+  width: min(360px, calc(100vw - 32px));
+}
+
+.appointment-break-add-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.appointment-break-add-modal-head h3 {
+  margin: 0;
+  font-size: var(--fs-md);
+}
+
+.appointment-break-add-modal .edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
 }
 
 .appointment-break-row input,
@@ -2204,6 +3295,11 @@
 }
 
 @media (max-width: 980px) {
+  .table-action-btn.table-action-btn-danger {
+    width: 100%;
+    min-width: 0;
+  }
+
   .appointment-setting-row {
     grid-template-columns: minmax(0, 1fr);
     gap: 8px;

@@ -1,8 +1,11 @@
 import Fastify from "fastify";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { appConfig } from "./config/app-config.js";
 import pool from "./config/db.js";
 import securityPlugin from "./plugins/security.js";
 import { authPreHandler } from "./lib/session.js";
+import { createErrorFileLogger } from "./lib/error-file-logger.js";
 import appointmentSettingsRoutes from "./modules/appointments/appointment-settings.routes.js";
 import authRoutes from "./modules/auth/auth.routes.js";
 import clientsRoutes from "./modules/clients/clients.routes.js";
@@ -66,8 +69,13 @@ function mapValidationErrors(error) {
 }
 
 export async function buildApp() {
+  const appFilePath = fileURLToPath(import.meta.url);
+  const appDirPath = dirname(appFilePath);
+  const errorLogFilePath = resolve(appDirPath, "..", "logs", "errors.log");
   const app = Fastify({
-    logger: true,
+    loggerInstance: createErrorFileLogger({
+      filePath: errorLogFilePath
+    }),
     trustProxy: appConfig.trustProxy
   });
   const outboxWorker = createOutboxWorker({

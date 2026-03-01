@@ -2039,6 +2039,13 @@ function AppointmentScheduler({
   }
 
   useEffect(() => {
+    document.body.style.overflow = createModal.open ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [createModal.open]);
+
+  useEffect(() => {
     if (!createModal.open) {
       return;
     }
@@ -2082,7 +2089,7 @@ function AppointmentScheduler({
     <section className={`appointment-scheduler${vipOnly ? " is-vip-schedule" : ""}`} aria-label="Appointment scheduler">
       <div className="appointment-toolbar">
         <div className="appointment-toolbar-block">
-          <div className="appointment-specialist-row">
+          <div className="appointment-specialist-control">
             <span className="appointment-toolbar-label">{specialistLabel}</span>
             <div className="appointment-specialist-select-wrap">
               <CustomSelect
@@ -2708,4 +2715,3 @@ function AppointmentScheduler({
 }
 
 export default AppointmentScheduler;
-

@@ -39,6 +39,9 @@ function App() {
       <Route path="/appointments/breaks" element={<ProfilePage forcedView="appointment-breaks" />} />
       <Route path="/appointments/vip-schedule" element={<ProfilePage forcedView="appointment-vip-schedule" />} />
       <Route path="/appointments/vip-clients" element={<ProfilePage forcedView="appointment-vip-clients" />} />
+      <Route path="/appointments/vip-attendance" element={<ProfilePage forcedView="appointment-vip-attendance" />} />
+      <Route path="/appointments/vip-assignments" element={<ProfilePage forcedView="appointment-vip-assignments" />} />
+      <Route path="/appointments/vip-tutor-assignments" element={<ProfilePage forcedView="appointment-vip-tutor-assignments" />} />
       <Route path="/appointments/settings" element={<ProfilePage forcedView="appointment-settings" />} />
       <Route path="/settings/organizations" element={<ProfilePage forcedView="settings-organizations" />} />
       <Route path="/settings/roles" element={<ProfilePage forcedView="settings-roles" />} />
@@ -56,6 +59,9 @@ function App() {
       <Route path="/profile/appointments/breaks" element={<Navigate to="/appointments/breaks" replace />} />
       <Route path="/profile/appointments/vip-schedule" element={<Navigate to="/appointments/vip-schedule" replace />} />
       <Route path="/profile/appointments/vip-clients" element={<Navigate to="/appointments/vip-clients" replace />} />
+      <Route path="/profile/appointments/vip-attendance" element={<Navigate to="/appointments/vip-attendance" replace />} />
+      <Route path="/profile/appointments/vip-assignments" element={<Navigate to="/appointments/vip-assignments" replace />} />
+      <Route path="/profile/appointments/vip-tutor-assignments" element={<Navigate to="/appointments/vip-tutor-assignments" replace />} />
       <Route path="/profile/appointments/settings" element={<Navigate to="/appointments/settings" replace />} />
       <Route path="/profile/settings/organizations" element={<Navigate to="/settings/organizations" replace />} />
       <Route path="/profile/settings/roles" element={<Navigate to="/settings/roles" replace />} />

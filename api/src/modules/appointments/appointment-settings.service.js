@@ -107,6 +107,7 @@ function toBreakItem(row) {
     id: String(row?.id || "").trim(),
     organizationId: String(row?.organization_id || "").trim(),
     specialistId: String(row?.specialist_id || "").trim(),
+    specialistName: String(row?.specialist_name || "").trim(),
     dayOfWeek,
     dayKey: toDayKey(dayOfWeek),
     breakType: String(row?.break_type || "lunch").trim().toLowerCase(),
@@ -115,6 +116,7 @@ function toBreakItem(row) {
     startTime: normalizeTimeHm(row?.start_time),
     endTime: normalizeTimeHm(row?.end_time),
     isActive: Boolean(row?.is_active),
+    createdBy: String(row?.created_by_name || row?.created_by || "").trim(),
     createdAt: row?.created_at || null,
     updatedAt: row?.updated_at || null
   };
@@ -578,22 +580,31 @@ export async function getAppointmentBreaksBySpecialist({
 }) {
   const { rows } = await db.query(
     `SELECT
-       id,
-       organization_id,
-       specialist_id,
-       day_of_week,
-       break_type,
-       title,
-       note,
-       start_time,
-       end_time,
-       is_active,
-       created_at,
-       updated_at
-      FROM appointment_breaks
-      WHERE organization_id = $1
-        AND specialist_id = $2
-      ORDER BY day_of_week ASC, start_time ASC, id ASC`,
+       ab.id,
+       ab.organization_id,
+       ab.specialist_id,
+       COALESCE(NULLIF(TRIM(s.full_name), ''), NULLIF(TRIM(s.username), ''), CONCAT('Specialist #', ab.specialist_id::text)) AS specialist_name,
+       ab.day_of_week,
+       ab.break_type,
+       ab.title,
+       ab.note,
+       ab.start_time,
+       ab.end_time,
+       ab.is_active,
+       ab.created_by,
+       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', ab.created_by::text)) AS created_by_name,
+       ab.created_at,
+       ab.updated_at
+      FROM appointment_breaks ab
+      LEFT JOIN users u
+        ON u.id = ab.created_by
+       AND u.organization_id = ab.organization_id
+      LEFT JOIN users s
+        ON s.id = ab.specialist_id
+       AND s.organization_id = ab.organization_id
+      WHERE ab.organization_id = $1
+        AND ab.specialist_id = $2
+      ORDER BY ab.day_of_week ASC, ab.start_time ASC, ab.id ASC`,
     [organizationId, specialistId]
   );
 
@@ -618,7 +629,6 @@ export async function replaceAppointmentBreaksBySpecialist({
       [organizationId, specialistId]
     );
 
-    const inserted = [];
     for (const item of normalizedItems) {
       const dayOfWeek = Number.parseInt(String(item?.dayOfWeek ?? "").trim(), 10);
       const breakType = String(item?.breakType || "lunch").trim().toLowerCase();
@@ -628,7 +638,7 @@ export async function replaceAppointmentBreaksBySpecialist({
       const endTime = normalizeTimeHm(item?.endTime);
       const isActive = item?.isActive !== false;
 
-      const { rows } = await trx.query(
+      await trx.query(
         `INSERT INTO appointment_breaks (
            organization_id,
            specialist_id,
@@ -642,20 +652,7 @@ export async function replaceAppointmentBreaksBySpecialist({
            created_by,
            updated_by
          )
-         VALUES ($1,$2,$3,$4,$5,$6,$7::time,$8::time,$9,$10,$10)
-         RETURNING
-           id,
-           organization_id,
-           specialist_id,
-           day_of_week,
-           break_type,
-           title,
-           note,
-           start_time,
-           end_time,
-           is_active,
-           created_at,
-           updated_at`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7::time,$8::time,$9,$10,$10)`,
         [
           organizationId,
           specialistId,
@@ -669,13 +666,13 @@ export async function replaceAppointmentBreaksBySpecialist({
           actorUserId || null
         ]
       );
-
-      if (rows[0]) {
-        inserted.push(toBreakItem(rows[0]));
-      }
     }
 
-    return inserted;
+    return getAppointmentBreaksBySpecialist({
+      organizationId,
+      specialistId,
+      db: trx
+    });
   });
 }
 

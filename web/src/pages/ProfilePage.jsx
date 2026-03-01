@@ -24,6 +24,179 @@ import { useProfilePanels } from "./profile/useProfilePanels.js";
 import { useSettingsSection } from "./profile/useSettingsSection.js";
 import { getBirthdayValidationMessage } from "./profile/profile.validators.js";
 
+function normalizeVipAttendanceStatus(value, fallback = "unmarked") {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "present" || normalized === "absent") {
+    return normalized;
+  }
+  return fallback;
+}
+
+function mapVipAttendanceClient(item) {
+  const id = String(item?.id || "").trim();
+  const firstName = String(item?.firstName || item?.first_name || "").trim();
+  const lastName = String(item?.lastName || item?.last_name || "").trim();
+  const middleName = String(item?.middleName || item?.middle_name || "").trim();
+  const teacherId = String(item?.teacherId || item?.teacher_id || "").trim();
+  const teacherName = String(item?.teacherName || item?.teacher_name || "").trim();
+  const tutorName = String(
+    item?.tutorName
+    || item?.tutor_name
+    || item?.teacherName
+    || item?.teacher_name
+    || item?.specialistName
+    || item?.specialist_name
+    || item?.specialistFullName
+    || item?.specialist_full_name
+    || teacherName
+    || ""
+  ).trim();
+  const phone = String(item?.phone || item?.phone_number || "").trim();
+  const attendanceNote = String(item?.attendanceNote || item?.attendance_note || "").trim();
+  const note = attendanceNote;
+  const attendanceStatusRaw = item?.attendanceStatus ?? item?.attendance_status ?? item?.attendance_state;
+  const arrivedAtRaw = item?.arrivedAt ?? item?.arrived_at ?? item?.checkInAt ?? item?.check_in_at;
+  const leftAtRaw = item?.leftAt ?? item?.left_at ?? item?.checkOutAt ?? item?.check_out_at;
+  const attendanceStatus = normalizeVipAttendanceStatus(attendanceStatusRaw, "unmarked");
+  const arrivedAt = normalizeVipAttendanceDateTime(arrivedAtRaw);
+  const leftAt = normalizeVipAttendanceDateTime(leftAtRaw);
+  const hasAttendanceData = attendanceStatus !== "unmarked"
+    || Boolean(arrivedAt)
+    || Boolean(leftAt)
+    || Boolean(attendanceNote);
+  return {
+    id,
+    firstName,
+    lastName,
+    middleName,
+    teacherId,
+    teacherName,
+    tutorName,
+    phone,
+    note,
+    attendanceStatus,
+    arrivedAt,
+    leftAt,
+    hasAttendanceData
+  };
+}
+
+function resolveVipAttendanceDate(period, fallbackYmd) {
+  const from = String(period?.from || "").trim();
+  const to = String(period?.to || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    return to;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(from)) {
+    return from;
+  }
+  return String(fallbackYmd || "").trim();
+}
+
+function normalizeVipAttendanceDraftEntry(value) {
+  if (value && typeof value === "object") {
+    const status = normalizeVipAttendanceStatus(value.status, "unmarked");
+    const arrivedAt = String(value.arrivedAt || "").trim();
+    const leftAt = String(value.leftAt || "").trim();
+    const note = String(value.note || "").trim();
+    return {
+      status,
+      arrivedAt: status === "present" ? arrivedAt : "",
+      leftAt: status === "present" ? leftAt : "",
+      note
+    };
+  }
+  const status = normalizeVipAttendanceStatus(value, "unmarked");
+  return { status, arrivedAt: "", leftAt: "", note: "" };
+}
+
+function normalizeVipAttendanceDateTime(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return "";
+  }
+  const directMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})/);
+  if (directMatch) {
+    const [, year, month, day, hours, minutes] = directMatch;
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  }
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+  const year = String(parsed.getFullYear()).padStart(4, "0");
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  const hours = String(parsed.getHours()).padStart(2, "0");
+  const minutes = String(parsed.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function mapVipClassItem(item) {
+  const id = String(item?.id || item?.classId || item?.class_id || "").trim();
+  const className = String(item?.className || item?.class_name || "").trim();
+  const teacherId = String(item?.teacherId || item?.teacher_id || "").trim();
+  const teacherName = String(item?.teacherName || item?.teacher_name || "").trim();
+  const childrenCountRaw = Number.parseInt(String(item?.childrenCount || item?.children_count || "0"), 10);
+  const childrenCount = Number.isInteger(childrenCountRaw) && childrenCountRaw > 0 ? childrenCountRaw : 0;
+  return {
+    id,
+    classId: id,
+    className,
+    teacherId,
+    teacherName,
+    childrenCount
+  };
+}
+
+function mapVipAssignmentItem(item) {
+  const id = String(item?.id || "").trim();
+  const firstName = String(item?.firstName || item?.first_name || "").trim();
+  const lastName = String(item?.lastName || item?.last_name || "").trim();
+  const middleName = String(item?.middleName || item?.middle_name || "").trim();
+  const classId = String(item?.classId || item?.class_id || item?.classAssignmentId || item?.class_assignment_id || "").trim();
+  const className = String(item?.className || item?.class_name || "").trim();
+  const teacherId = String(item?.teacherId || item?.teacher_id || "").trim();
+  const teacherName = String(item?.teacherName || item?.teacher_name || "").trim();
+  const tutorId = String(item?.tutorId || item?.tutor_id || "").trim();
+  const tutorName = String(item?.tutorName || item?.tutor_name || "").trim();
+  const updatedBy = String(
+    item?.updatedBy
+    || item?.updated_by
+    || item?.updatedByName
+    || item?.updated_by_name
+    || ""
+  ).trim();
+  const updatedAt = item?.updatedAt || item?.updated_at || null;
+  return {
+    id,
+    firstName,
+    lastName,
+    middleName,
+    classId,
+    className,
+    teacherId,
+    teacherName,
+    tutorId,
+    tutorName,
+    updatedBy,
+    updatedAt
+  };
+}
+
+function normalizeVipAssignmentDraftEntry(value) {
+  if (value && typeof value === "object") {
+    return {
+      classId: String(value.classId || "").trim(),
+      tutorId: String(value.tutorId || "").trim()
+    };
+  }
+  return {
+    classId: "",
+    tutorId: ""
+  };
+}
+
 function ProfilePage({ forcedView = "none" }) {
   const navigate = useNavigate();
   const menuRef = useRef(null);
@@ -35,6 +208,8 @@ function ProfilePage({ forcedView = "none" }) {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [clientsMenuOpen, setClientsMenuOpen] = useState(false);
+  const [vipClientsMenuOpen, setVipClientsMenuOpen] = useState(false);
+  const [assignmentsMenuOpen, setAssignmentsMenuOpen] = useState(false);
   const [appointmentMenuOpen, setAppointmentMenuOpen] = useState(false);
   const [usersMenuOpen, setUsersMenuOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
@@ -74,6 +249,7 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenAppointmentSchedule,
     canOpenAppointmentBreaks,
     canOpenAppointmentVipClients,
+    canOpenAppointmentVipAssignments,
     hasAppointmentsMenuAccess,
     hasUsersMenuAccess,
     hasSettingsMenuAccess,
@@ -263,6 +439,686 @@ function ProfilePage({ forcedView = "none" }) {
     navigate,
     getBirthdayValidationMessage
   });
+  const todayYmd = formatDateForInput(new Date());
+  const [vipAttendancePeriod, setVipAttendancePeriod] = useState(() => ({
+    from: todayYmd,
+    to: todayYmd
+  }));
+  const [vipAttendanceItems, setVipAttendanceItems] = useState([]);
+  const [vipAttendanceTeacherOptions, setVipAttendanceTeacherOptions] = useState([]);
+  const [vipAttendanceDraftByClientId, setVipAttendanceDraftByClientId] = useState({});
+  const [vipAttendanceMessage, setVipAttendanceMessage] = useState("");
+  const [vipAttendanceLoading, setVipAttendanceLoading] = useState(false);
+  const [vipAttendanceSavingByClientId, setVipAttendanceSavingByClientId] = useState({});
+  const [vipClassItems, setVipClassItems] = useState([]);
+  const [vipClassTeachers, setVipClassTeachers] = useState([]);
+  const [vipClassMessage, setVipClassMessage] = useState("");
+  const [vipClassLoading, setVipClassLoading] = useState(false);
+  const [vipClassSavingById, setVipClassSavingById] = useState({});
+  const [vipAssignmentItems, setVipAssignmentItems] = useState([]);
+  const [vipAssignmentDraftByClientId, setVipAssignmentDraftByClientId] = useState({});
+  const [vipAssignmentClasses, setVipAssignmentClasses] = useState([]);
+  const [vipAssignmentTutors, setVipAssignmentTutors] = useState([]);
+  const [vipAssignmentMessage, setVipAssignmentMessage] = useState("");
+  const [vipAssignmentLoading, setVipAssignmentLoading] = useState(false);
+  const [vipAssignmentSavingByClientId, setVipAssignmentSavingByClientId] = useState({});
+  const setVipAttendancePeriodField = useCallback((field, nextDate) => {
+    const normalizedField = String(field || "").trim().toLowerCase();
+    if (normalizedField !== "from" && normalizedField !== "to") {
+      return;
+    }
+    const normalizedDate = String(nextDate || "").trim() || todayYmd;
+    setVipAttendancePeriod((prev) => {
+      const base = prev && typeof prev === "object"
+        ? prev
+        : { from: todayYmd, to: todayYmd };
+      const next = {
+        from: String(base.from || "").trim() || todayYmd,
+        to: String(base.to || "").trim() || todayYmd
+      };
+      next[normalizedField] = normalizedDate;
+      if (next.from && next.to && next.from > next.to) {
+        if (normalizedField === "from") {
+          next.to = next.from;
+        } else {
+          next.from = next.to;
+        }
+      }
+      return next;
+    });
+    setVipAttendanceDraftByClientId({});
+  }, [todayYmd]);
+
+  const loadVipAttendanceTeachers = useCallback(async () => {
+    if (!canOpenAppointmentVipClients) {
+      setVipAttendanceTeacherOptions([]);
+      return;
+    }
+
+    try {
+      const response = await apiFetch("/api/clients/vip-attendance/teachers", {
+        method: "GET",
+        cache: "no-store"
+      });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        if (handleProtectedStatus(response, navigate)) {
+          return;
+        }
+        setVipAttendanceTeacherOptions([]);
+        return;
+      }
+      const nextItems = (Array.isArray(data?.items) ? data.items : [])
+        .map((item) => ({
+          id: String(item?.id || "").trim(),
+          name: String(item?.name || "").trim()
+        }))
+        .filter((item) => Boolean(item.id))
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+      setVipAttendanceTeacherOptions(nextItems);
+    } catch {
+      setVipAttendanceTeacherOptions([]);
+    }
+  }, [canOpenAppointmentVipClients, navigate]);
+
+  const loadVipAttendance = useCallback(async () => {
+    if (!canOpenAppointmentVipClients) {
+      setVipAttendanceItems([]);
+      setVipAttendanceTeacherOptions([]);
+      setVipAttendanceDraftByClientId({});
+      setVipAttendanceMessage("You do not have permission to view VIP attendance.");
+      return;
+    }
+
+    setVipAttendanceLoading(true);
+    setVipAttendanceMessage("");
+    try {
+      const attendanceDate = resolveVipAttendanceDate(vipAttendancePeriod, todayYmd);
+      const query = new URLSearchParams({
+        isVip: "true",
+        limit: "100",
+        attendanceDate
+      });
+      const response = await apiFetch(`/api/clients/search?${query.toString()}`, {
+        method: "GET",
+        cache: "no-store"
+      });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        if (handleProtectedStatus(response, navigate)) {
+          return;
+        }
+        setVipAttendanceItems([]);
+        setVipAttendanceDraftByClientId({});
+        setVipAttendanceMessage(data?.message || "Failed to load VIP attendance clients.");
+        return;
+      }
+
+      const nextItems = (Array.isArray(data?.items) ? data.items : [])
+        .map((item) => mapVipAttendanceClient(item))
+        .filter((item) => Boolean(item.id))
+        .sort((a, b) => {
+          const nameA = `${a.firstName} ${a.lastName} ${a.middleName}`.trim();
+          const nameB = `${b.firstName} ${b.lastName} ${b.middleName}`.trim();
+          return nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
+        });
+
+      setVipAttendanceItems(nextItems);
+      setVipAttendanceDraftByClientId((prev) => {
+        const next = {};
+        nextItems.forEach((item) => {
+          const previous = normalizeVipAttendanceDraftEntry(prev[item.id]);
+          const fromServer = normalizeVipAttendanceDraftEntry({
+            status: item.attendanceStatus,
+            arrivedAt: item.arrivedAt,
+            leftAt: item.leftAt,
+            note: item.note
+          });
+          const source = item.hasAttendanceData ? fromServer : previous;
+          const nextStatus = normalizeVipAttendanceStatus(source.status, "unmarked");
+          const normalizedSourceNote = String(source.note || "").trim();
+          const normalizedItemNote = String(item.note || "").trim();
+          next[item.id] = {
+            status: nextStatus,
+            arrivedAt: nextStatus === "present" ? String(source.arrivedAt || "").trim() : "",
+            leftAt: nextStatus === "present" ? String(source.leftAt || "").trim() : "",
+            note: normalizedSourceNote || normalizedItemNote
+          };
+        });
+        return next;
+      });
+      if (nextItems.length === 0) {
+        setVipAttendanceMessage("No VIP clients found.");
+      }
+    } catch {
+      setVipAttendanceItems([]);
+      setVipAttendanceDraftByClientId({});
+      setVipAttendanceMessage("Failed to load VIP attendance clients.");
+    } finally {
+      setVipAttendanceLoading(false);
+    }
+  }, [canOpenAppointmentVipClients, navigate, vipAttendancePeriod, todayYmd]);
+
+  const saveVipAttendanceRecord = useCallback(async ({
+    clientId,
+    status,
+    note = "",
+    markLeft = false,
+    arrivedAt = "",
+    leftAt = "",
+    reset = false
+  }) => {
+    const normalizedClientId = String(clientId || "").trim();
+    if (!normalizedClientId) {
+      return { ok: false, message: "Client is required." };
+    }
+
+    const shouldReset = reset === true;
+    const normalizedStatus = ["present", "absent"].includes(String(status || "").trim().toLowerCase())
+      ? String(status || "").trim().toLowerCase()
+      : (shouldReset ? "unmarked" : "");
+    if (!shouldReset && !normalizedStatus) {
+      return { ok: false, message: "Invalid attendance status." };
+    }
+
+    const normalizedNote = String(note || "").trim();
+    const normalizedArrivedAt = String(arrivedAt || "").trim();
+    const normalizedLeftAt = String(leftAt || "").trim();
+    const attendanceDate = resolveVipAttendanceDate(vipAttendancePeriod, todayYmd);
+    setVipAttendanceSavingByClientId((prev) => ({ ...prev, [normalizedClientId]: true }));
+    setVipAttendanceMessage("");
+
+    try {
+      const response = await apiFetch("/api/clients/vip-attendance", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          clientId: normalizedClientId,
+          attendanceDate,
+          status: shouldReset ? null : normalizedStatus,
+          note: normalizedNote,
+          markLeft: markLeft === true,
+          arrivedAt: shouldReset ? null : (normalizedArrivedAt || null),
+          leftAt: shouldReset ? null : (normalizedLeftAt || null),
+          reset: shouldReset
+        })
+      });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        if (handleProtectedStatus(response, navigate)) {
+          return { ok: false, message: "Unauthorized." };
+        }
+        const message = getApiErrorMessage(response, data, "Failed to save VIP attendance.");
+        setVipAttendanceMessage(message);
+        return { ok: false, message };
+      }
+
+      const item = data?.item && typeof data.item === "object" ? data.item : {};
+      const nextStatus = normalizeVipAttendanceStatus(
+        item?.attendanceStatus || normalizedStatus,
+        shouldReset ? "unmarked" : normalizedStatus
+      );
+      const nextArrivedAt = normalizeVipAttendanceDateTime(item?.arrivedAt || item?.arrived_at);
+      const nextLeftAt = normalizeVipAttendanceDateTime(item?.leftAt || item?.left_at);
+      const nextNote = String(item?.attendanceNote || item?.attendance_note || item?.note || normalizedNote).trim();
+
+      setVipAttendanceDraftByClientId((prev) => ({
+        ...prev,
+        [normalizedClientId]: {
+          status: nextStatus,
+          arrivedAt: nextStatus === "present" ? nextArrivedAt : "",
+          leftAt: nextStatus === "present" ? nextLeftAt : "",
+          note: nextStatus === "unmarked" ? "" : nextNote
+        }
+      }));
+
+      return {
+        ok: true,
+        status: nextStatus,
+        arrivedAt: nextArrivedAt,
+        leftAt: nextLeftAt,
+        note: nextStatus === "unmarked" ? "" : nextNote
+      };
+    } catch {
+      const message = "Failed to save VIP attendance.";
+      setVipAttendanceMessage(message);
+      return { ok: false, message };
+    } finally {
+      setVipAttendanceSavingByClientId((prev) => {
+        if (!Object.prototype.hasOwnProperty.call(prev, normalizedClientId)) {
+          return prev;
+        }
+        const next = { ...prev };
+        delete next[normalizedClientId];
+        return next;
+      });
+    }
+  }, [navigate, todayYmd, vipAttendancePeriod]);
+
+  const markVipAttendancePresent = useCallback(async (clientId) => {
+    const result = await saveVipAttendanceRecord({
+      clientId,
+      status: "present"
+    });
+    return result;
+  }, [saveVipAttendanceRecord]);
+
+  const saveVipAttendanceAbsentReason = useCallback(async (clientId, reason) => {
+    const result = await saveVipAttendanceRecord({
+      clientId,
+      status: "absent",
+      note: reason
+    });
+    return result;
+  }, [saveVipAttendanceRecord]);
+
+  const markVipAttendanceLeft = useCallback(async (clientId) => {
+    const result = await saveVipAttendanceRecord({
+      clientId,
+      status: "present",
+      markLeft: true
+    });
+    return result;
+  }, [saveVipAttendanceRecord]);
+
+  const saveVipAttendanceEdit = useCallback(async (clientId, {
+    arrivedAt = "",
+    leftAt = "",
+    note = ""
+  } = {}) => {
+    const normalizedArrivedAt = String(arrivedAt || "").trim();
+    const normalizedLeftAt = String(leftAt || "").trim();
+    const normalizedNote = String(note || "").trim();
+
+    if (normalizedLeftAt && !normalizedArrivedAt) {
+      return { ok: false, message: "Arrival time is required when departure time is set." };
+    }
+    if (normalizedArrivedAt && normalizedLeftAt && normalizedLeftAt < normalizedArrivedAt) {
+      return { ok: false, message: "Departure time must be later than arrival time." };
+    }
+    if (!normalizedArrivedAt && !normalizedNote) {
+      return saveVipAttendanceRecord({
+        clientId,
+        reset: true
+      });
+    }
+
+    const nextStatus = normalizedArrivedAt ? "present" : "absent";
+
+    return saveVipAttendanceRecord({
+      clientId,
+      status: nextStatus,
+      note: normalizedNote,
+      arrivedAt: normalizedArrivedAt,
+      leftAt: normalizedLeftAt
+    });
+  }, [saveVipAttendanceRecord]);
+
+  const loadVipClassAssignments = useCallback(async () => {
+    if (!canOpenAppointmentVipAssignments) {
+      setVipClassItems([]);
+      setVipClassTeachers([]);
+      setVipClassMessage("You do not have permission to manage VIP class assignments.");
+      return;
+    }
+
+    setVipClassLoading(true);
+    setVipClassMessage("");
+    try {
+      const query = new URLSearchParams({
+        limit: "300"
+      });
+      const response = await apiFetch(`/api/clients/vip-class-assignments?${query.toString()}`, {
+        method: "GET",
+        cache: "no-store"
+      });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        if (handleProtectedStatus(response, navigate)) {
+          return;
+        }
+        setVipClassItems([]);
+        setVipClassTeachers([]);
+        setVipClassMessage(data?.message || "Failed to load class assignments.");
+        return;
+      }
+
+      const nextItems = (Array.isArray(data?.items) ? data.items : [])
+        .map((item) => mapVipClassItem(item))
+        .filter((item) => Boolean(item.id))
+        .sort((a, b) => String(a.className || "").localeCompare(String(b.className || ""), undefined, { sensitivity: "base" }));
+      const nextTeachers = (Array.isArray(data?.teachers) ? data.teachers : [])
+        .map((item) => ({
+          id: String(item?.id || "").trim(),
+          name: String(item?.name || "").trim()
+        }))
+        .filter((item) => Boolean(item.id));
+
+      setVipClassItems(nextItems);
+      setVipClassTeachers(nextTeachers);
+      setVipAssignmentClasses(nextItems.map((item) => ({
+        id: String(item.id || "").trim(),
+        className: String(item.className || "").trim(),
+        teacherId: String(item.teacherId || "").trim(),
+        teacherName: String(item.teacherName || "").trim()
+      })));
+      if (nextItems.length === 0) {
+        setVipClassMessage("No classes found.");
+      }
+    } catch {
+      setVipClassItems([]);
+      setVipClassTeachers([]);
+      setVipClassMessage("Failed to load class assignments.");
+    } finally {
+      setVipClassLoading(false);
+    }
+  }, [canOpenAppointmentVipAssignments, navigate]);
+
+  const saveVipClassAssignment = useCallback(async ({
+    classId = "",
+    className = "",
+    teacherId = ""
+  } = {}) => {
+    const normalizedClassId = String(classId || "").trim();
+    const normalizedClassName = String(className || "").trim();
+    const normalizedTeacherId = String(teacherId || "").trim();
+
+    if (!normalizedClassName) {
+      const message = "Class name is required.";
+      setVipClassMessage(message);
+      return { ok: false, message };
+    }
+    if (normalizedClassName.length > 64) {
+      const message = "Class name is too long (max 64).";
+      setVipClassMessage(message);
+      return { ok: false, message };
+    }
+    if (!normalizedTeacherId) {
+      const message = "Teacher is required.";
+      setVipClassMessage(message);
+      return { ok: false, message };
+    }
+
+    const savingKey = normalizedClassId || "__new__";
+    setVipClassSavingById((prev) => ({ ...prev, [savingKey]: true }));
+    setVipClassMessage("");
+
+    try {
+      const response = await apiFetch("/api/clients/vip-class-assignments", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          classId: normalizedClassId || null,
+          className: normalizedClassName,
+          teacherId: normalizedTeacherId
+        })
+      });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        if (handleProtectedStatus(response, navigate)) {
+          return { ok: false, message: "Unauthorized." };
+        }
+        const message = getApiErrorMessage(response, data, "Failed to save class assignment.");
+        setVipClassMessage(message);
+        return { ok: false, message };
+      }
+
+      const item = mapVipClassItem(data?.item || {});
+      setVipClassItems((prev) => {
+        const filtered = prev.filter((row) => String(row?.id || "") !== String(item.id || ""));
+        filtered.push(item);
+        filtered.sort((a, b) => String(a.className || "").localeCompare(String(b.className || ""), undefined, { sensitivity: "base" }));
+        return filtered;
+      });
+      setVipAssignmentClasses((prev) => {
+        const filtered = prev.filter((row) => String(row?.id || "") !== String(item.id || ""));
+        filtered.push({
+          id: String(item.id || ""),
+          className: String(item.className || ""),
+          teacherId: String(item.teacherId || ""),
+          teacherName: String(item.teacherName || "")
+        });
+        filtered.sort((a, b) => String(a.className || "").localeCompare(String(b.className || ""), undefined, { sensitivity: "base" }));
+        return filtered;
+      });
+
+      return { ok: true, item };
+    } catch {
+      const message = "Failed to save class assignment.";
+      setVipClassMessage(message);
+      return { ok: false, message };
+    } finally {
+      setVipClassSavingById((prev) => {
+        if (!Object.prototype.hasOwnProperty.call(prev, savingKey)) {
+          return prev;
+        }
+        const next = { ...prev };
+        delete next[savingKey];
+        return next;
+      });
+    }
+  }, [navigate]);
+
+  const deleteVipClassAssignment = useCallback(async (classId) => {
+    const normalizedClassId = String(classId || "").trim();
+    if (!normalizedClassId) {
+      return { ok: false, message: "Class is required." };
+    }
+
+    setVipClassSavingById((prev) => ({ ...prev, [normalizedClassId]: true }));
+    setVipClassMessage("");
+    try {
+      const response = await apiFetch(`/api/clients/vip-class-assignments/${encodeURIComponent(normalizedClassId)}`, {
+        method: "DELETE"
+      });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        if (handleProtectedStatus(response, navigate)) {
+          return { ok: false, message: "Unauthorized." };
+        }
+        const message = getApiErrorMessage(response, data, "Failed to delete class assignment.");
+        setVipClassMessage(message);
+        return { ok: false, message };
+      }
+      setVipClassItems((prev) => prev.filter((row) => String(row?.id || "") !== normalizedClassId));
+      setVipAssignmentClasses((prev) => prev.filter((row) => String(row?.id || "") !== normalizedClassId));
+      return { ok: true };
+    } catch {
+      const message = "Failed to delete class assignment.";
+      setVipClassMessage(message);
+      return { ok: false, message };
+    } finally {
+      setVipClassSavingById((prev) => {
+        if (!Object.prototype.hasOwnProperty.call(prev, normalizedClassId)) {
+          return prev;
+        }
+        const next = { ...prev };
+        delete next[normalizedClassId];
+        return next;
+      });
+    }
+  }, [navigate]);
+
+  const loadVipAssignments = useCallback(async () => {
+    if (!canOpenAppointmentVipAssignments) {
+      setVipAssignmentItems([]);
+      setVipAssignmentDraftByClientId({});
+      setVipAssignmentClasses([]);
+      setVipAssignmentTutors([]);
+      setVipAssignmentMessage("You do not have permission to manage VIP tutor assignments.");
+      return;
+    }
+
+    setVipAssignmentLoading(true);
+    setVipAssignmentMessage("");
+    try {
+      const query = new URLSearchParams({
+        limit: "300"
+      });
+      const response = await apiFetch(`/api/clients/vip-tutor-assignments?${query.toString()}`, {
+        method: "GET",
+        cache: "no-store"
+      });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        if (handleProtectedStatus(response, navigate)) {
+          return;
+        }
+        setVipAssignmentItems([]);
+        setVipAssignmentDraftByClientId({});
+        setVipAssignmentClasses([]);
+        setVipAssignmentTutors([]);
+        setVipAssignmentMessage(data?.message || "Failed to load VIP tutor assignments.");
+        return;
+      }
+
+      const nextItems = (Array.isArray(data?.items) ? data.items : [])
+        .map((item) => mapVipAssignmentItem(item))
+        .filter((item) => Boolean(item.id))
+        .sort((a, b) => {
+          const nameA = `${a.firstName} ${a.lastName} ${a.middleName}`.trim();
+          const nameB = `${b.firstName} ${b.lastName} ${b.middleName}`.trim();
+          return nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
+        });
+      const nextClasses = (Array.isArray(data?.classes) ? data.classes : [])
+        .map((item) => ({
+          id: String(item?.id || "").trim(),
+          className: String(item?.className || item?.class_name || "").trim(),
+          teacherId: String(item?.teacherId || item?.teacher_id || "").trim(),
+          teacherName: String(item?.teacherName || item?.teacher_name || "").trim()
+        }))
+        .filter((item) => Boolean(item.id));
+      const nextTutors = (Array.isArray(data?.tutors) ? data.tutors : [])
+        .map((item) => ({
+          id: String(item?.id || "").trim(),
+          name: String(item?.name || "").trim()
+        }))
+        .filter((item) => Boolean(item.id));
+
+      setVipAssignmentItems(nextItems);
+      setVipAssignmentClasses(nextClasses);
+      setVipAssignmentTutors(nextTutors);
+      setVipAssignmentDraftByClientId((prev) => {
+        const next = {};
+        nextItems.forEach((item) => {
+          const previous = normalizeVipAssignmentDraftEntry(prev[item.id]);
+          const source = item.classId || item.tutorId
+            ? {
+                classId: item.classId,
+                tutorId: item.tutorId
+              }
+            : previous;
+          next[item.id] = normalizeVipAssignmentDraftEntry(source);
+        });
+        return next;
+      });
+      if (nextItems.length === 0) {
+        setVipAssignmentMessage("No VIP clients found.");
+      }
+    } catch {
+      setVipAssignmentItems([]);
+      setVipAssignmentDraftByClientId({});
+      setVipAssignmentClasses([]);
+      setVipAssignmentTutors([]);
+      setVipAssignmentMessage("Failed to load VIP tutor assignments.");
+    } finally {
+      setVipAssignmentLoading(false);
+    }
+  }, [canOpenAppointmentVipAssignments, navigate]);
+
+  const saveVipAssignment = useCallback(async (clientId, {
+    classId = "",
+    tutorId = ""
+  } = {}) => {
+    const normalizedClientId = String(clientId || "").trim();
+    if (!normalizedClientId) {
+      const message = "Client is required.";
+      setVipAssignmentMessage(message);
+      return { ok: false, message };
+    }
+    const normalizedClassId = String(classId || "").trim();
+    const normalizedTutorId = String(tutorId || "").trim();
+    if (!normalizedClassId) {
+      const message = "Class is required.";
+      setVipAssignmentMessage(message);
+      return { ok: false, message };
+    }
+    if (!normalizedTutorId) {
+      const message = "Tutor is required.";
+      setVipAssignmentMessage(message);
+      return { ok: false, message };
+    }
+
+    setVipAssignmentSavingByClientId((prev) => ({ ...prev, [normalizedClientId]: true }));
+    setVipAssignmentMessage("");
+    try {
+      const response = await apiFetch("/api/clients/vip-tutor-assignments", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          clientId: normalizedClientId,
+          classId: normalizedClassId,
+          tutorId: normalizedTutorId
+        })
+      });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        if (handleProtectedStatus(response, navigate)) {
+          return { ok: false, message: "Unauthorized." };
+        }
+        const message = getApiErrorMessage(response, data, "Failed to save VIP tutor assignment.");
+        setVipAssignmentMessage(message);
+        return { ok: false, message };
+      }
+
+      const item = mapVipAssignmentItem(data?.item || {});
+      setVipAssignmentItems((prev) => prev.map((row) => {
+        if (String(row?.id || "") !== normalizedClientId) {
+          return row;
+        }
+        return {
+          ...row,
+          classId: item.classId || normalizedClassId,
+          className: item.className || row.className,
+          teacherId: item.teacherId || row.teacherId,
+          teacherName: item.teacherName || row.teacherName,
+          tutorId: item.tutorId || normalizedTutorId,
+          tutorName: item.tutorName || row.tutorName,
+          updatedBy: item.updatedBy || row.updatedBy,
+          updatedAt: item.updatedAt || row.updatedAt
+        };
+      }));
+      setVipAssignmentDraftByClientId((prev) => ({
+        ...prev,
+        [normalizedClientId]: {
+          classId: item.classId || normalizedClassId,
+          tutorId: item.tutorId || normalizedTutorId
+        }
+      }));
+      return {
+        ok: true
+      };
+    } catch {
+      const message = "Failed to save VIP tutor assignment.";
+      setVipAssignmentMessage(message);
+      return { ok: false, message };
+    } finally {
+      setVipAssignmentSavingByClientId((prev) => {
+        if (!Object.prototype.hasOwnProperty.call(prev, normalizedClientId)) {
+          return prev;
+        }
+        const next = { ...prev };
+        delete next[normalizedClientId];
+        return next;
+      });
+    }
+  }, [navigate]);
 
   const allowedRoleValues = useMemo(() => (
     new Set(
@@ -354,6 +1210,8 @@ function ProfilePage({ forcedView = "none" }) {
     }
     setMenuOpen(false);
     setClientsMenuOpen(false);
+    setVipClientsMenuOpen(false);
+    setAssignmentsMenuOpen(false);
     setAppointmentMenuOpen(false);
     setUsersMenuOpen(false);
     setSettingsMenuOpen(false);
@@ -399,6 +1257,13 @@ function ProfilePage({ forcedView = "none" }) {
     || roleEditOpen
     || positionEditOpen
   );
+
+  useEffect(() => {
+    document.body.style.overflow = hasAnyModalOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [hasAnyModalOpen]);
 
   const closeProfileEditModal = useCallback(() => {
     setProfileEdit(createEmptyProfileEditState());
@@ -504,6 +1369,19 @@ function ProfilePage({ forcedView = "none" }) {
       loadVipClients(1);
       return;
     }
+    if (mainView === "appointment-vip-attendance") {
+      loadVipAttendance();
+      loadVipAttendanceTeachers();
+      return;
+    }
+    if (mainView === "appointment-vip-assignments") {
+      loadVipClassAssignments();
+      return;
+    }
+    if (mainView === "appointment-vip-tutor-assignments") {
+      loadVipAssignments();
+      return;
+    }
     if (mainView === "create-user") {
       if (hasSettingsMenuAccess) {
         loadOrganizations();
@@ -541,6 +1419,10 @@ function ProfilePage({ forcedView = "none" }) {
     hasSettingsMenuAccess,
     loadClients,
     loadVipClients,
+    loadVipAttendance,
+    loadVipAttendanceTeachers,
+    loadVipClassAssignments,
+    loadVipAssignments,
     loadAllUsers,
     loadAdminOptions,
     loadOrganizations,
@@ -654,6 +1536,12 @@ function ProfilePage({ forcedView = "none" }) {
     closeAppointmentBreaksPanel,
     openAppointmentVipSchedulePanel,
     closeAppointmentVipSchedulePanel,
+    openAppointmentVipAttendancePanel,
+    closeAppointmentVipAttendancePanel,
+    openAppointmentVipAssignmentsPanel,
+    closeAppointmentVipAssignmentsPanel,
+    openAppointmentVipTutorAssignmentsPanel,
+    closeAppointmentVipTutorAssignmentsPanel,
     openAppointmentSettingsPanel,
     closeAppointmentSettingsPanel,
     openAppointmentVipClientsPanel,
@@ -682,6 +1570,7 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenAppointmentSchedule,
     canOpenAppointmentBreaks,
     canOpenAppointmentVipClients,
+    canOpenAppointmentVipAssignments,
     hasSettingsMenuAccess,
     hasNotificationsSettingsAccess
   });
@@ -1099,6 +1988,33 @@ function ProfilePage({ forcedView = "none" }) {
           vipClientsPage={vipClientsPage}
           vipClientsTotalPages={vipClientsTotalPages}
           loadVipClients={loadVipClients}
+          vipAttendancePeriod={vipAttendancePeriod}
+          setVipAttendancePeriodField={setVipAttendancePeriodField}
+          vipAttendanceItems={vipAttendanceItems}
+          vipAttendanceTeacherOptions={vipAttendanceTeacherOptions}
+          vipAttendanceDraftByClientId={vipAttendanceDraftByClientId}
+          vipAttendanceMessage={vipAttendanceMessage}
+          vipAttendanceLoading={vipAttendanceLoading}
+          vipAttendanceSavingByClientId={vipAttendanceSavingByClientId}
+          markVipAttendancePresent={markVipAttendancePresent}
+          markVipAttendanceLeft={markVipAttendanceLeft}
+          saveVipAttendanceAbsentReason={saveVipAttendanceAbsentReason}
+          saveVipAttendanceEdit={saveVipAttendanceEdit}
+          loadVipAttendance={loadVipAttendance}
+          vipClassItems={vipClassItems}
+          vipClassTeachers={vipClassTeachers}
+          vipClassMessage={vipClassMessage}
+          vipClassLoading={vipClassLoading}
+          vipClassSavingById={vipClassSavingById}
+          saveVipClassAssignment={saveVipClassAssignment}
+          deleteVipClassAssignment={deleteVipClassAssignment}
+          vipAssignmentItems={vipAssignmentItems}
+          vipAssignmentClasses={vipAssignmentClasses}
+          vipAssignmentTutors={vipAssignmentTutors}
+          vipAssignmentMessage={vipAssignmentMessage}
+          vipAssignmentLoading={vipAssignmentLoading}
+          vipAssignmentSavingByClientId={vipAssignmentSavingByClientId}
+          saveVipAssignment={saveVipAssignment}
           canCreateClients={canCreateClients}
           canUpdateClients={canUpdateClients}
           canDeleteClients={canDeleteClients}
@@ -1116,6 +2032,9 @@ function ProfilePage({ forcedView = "none" }) {
           closeAppointmentPanel={closeAppointmentPanel}
           closeAppointmentBreaksPanel={closeAppointmentBreaksPanel}
           closeAppointmentVipSchedulePanel={closeAppointmentVipSchedulePanel}
+          closeAppointmentVipAttendancePanel={closeAppointmentVipAttendancePanel}
+          closeAppointmentVipAssignmentsPanel={closeAppointmentVipAssignmentsPanel}
+          closeAppointmentVipTutorAssignmentsPanel={closeAppointmentVipTutorAssignmentsPanel}
           closeAppointmentSettingsPanel={closeAppointmentSettingsPanel}
           closeAppointmentVipClientsPanel={closeAppointmentVipClientsPanel}
           closeOrganizationsPanel={closeOrganizationsPanel}
@@ -1290,15 +2209,23 @@ function ProfilePage({ forcedView = "none" }) {
         setClientsMenuOpen={setClientsMenuOpen}
         openAllClientsPanel={openAllClientsPanel}
         openCreateClientPanel={openCreateClientPanel}
+        vipClientsMenuOpen={vipClientsMenuOpen}
+        setVipClientsMenuOpen={setVipClientsMenuOpen}
+        assignmentsMenuOpen={assignmentsMenuOpen}
+        setAssignmentsMenuOpen={setAssignmentsMenuOpen}
         hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
         canOpenAppointmentSchedule={canOpenAppointmentSchedule}
         canOpenAppointmentBreaks={canOpenAppointmentBreaks}
         canOpenAppointmentVipClients={canOpenAppointmentVipClients}
+        canOpenAppointmentVipAssignments={canOpenAppointmentVipAssignments}
         appointmentMenuOpen={appointmentMenuOpen}
         setAppointmentMenuOpen={setAppointmentMenuOpen}
         openAppointmentPanel={openAppointmentPanel}
         openAppointmentBreaksPanel={openAppointmentBreaksPanel}
         openAppointmentVipSchedulePanel={openAppointmentVipSchedulePanel}
+        openAppointmentVipAttendancePanel={openAppointmentVipAttendancePanel}
+        openAppointmentVipAssignmentsPanel={openAppointmentVipAssignmentsPanel}
+        openAppointmentVipTutorAssignmentsPanel={openAppointmentVipTutorAssignmentsPanel}
         openAppointmentSettingsPanel={openAppointmentSettingsPanel}
         openAppointmentVipClientsPanel={openAppointmentVipClientsPanel}
         hasUsersMenuAccess={hasUsersMenuAccess}
@@ -1324,4 +2251,3 @@ function ProfilePage({ forcedView = "none" }) {
 }
 
 export default ProfilePage;
-

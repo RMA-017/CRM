@@ -1,6 +1,67 @@
 import argon2 from "argon2";
 import pool from "../../config/db.js";
 
+const VIP_CLASS_TEACHER_ASSIGNMENTS_TABLE_NAME = "public.vip_class_teacher_assignments";
+const VIP_CLASS_TEACHER_ASSIGNMENTS_TABLE_CACHE_TTL_MS = 60_000;
+let vipClassTeacherAssignmentsTableCache = {
+  value: null,
+  checkedAt: 0
+};
+
+function normalizeRoleLabel(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isTutorRoleLabel(roleLabel) {
+  return normalizeRoleLabel(roleLabel).includes("tutor");
+}
+
+async function getRoleLabelById(client, roleId) {
+  const { rows } = await client.query(
+    "SELECT label FROM role_options WHERE id = $1 LIMIT 1",
+    [roleId]
+  );
+  return String(rows[0]?.label || "").trim();
+}
+
+async function vipClassTeacherAssignmentsTableExists(client) {
+  const now = Date.now();
+  if (
+    typeof vipClassTeacherAssignmentsTableCache.value === "boolean"
+    && now - vipClassTeacherAssignmentsTableCache.checkedAt < VIP_CLASS_TEACHER_ASSIGNMENTS_TABLE_CACHE_TTL_MS
+  ) {
+    return vipClassTeacherAssignmentsTableCache.value;
+  }
+
+  const { rows } = await client.query(
+    "SELECT to_regclass($1) IS NOT NULL AS exists",
+    [VIP_CLASS_TEACHER_ASSIGNMENTS_TABLE_NAME]
+  );
+  const exists = Boolean(rows[0]?.exists);
+  vipClassTeacherAssignmentsTableCache = {
+    value: exists,
+    checkedAt: now
+  };
+  return exists;
+}
+
+async function isAssignedAsVipClassTeacher(client, { organizationId, userId }) {
+  if (!(await vipClassTeacherAssignmentsTableExists(client))) {
+    return false;
+  }
+
+  const { rows } = await client.query(
+    `SELECT EXISTS (
+       SELECT 1
+         FROM vip_class_teacher_assignments
+        WHERE organization_id = $1
+          AND teacher_user_id = $2
+     ) AS assigned`,
+    [organizationId, userId]
+  );
+  return Boolean(rows[0]?.assigned);
+}
+
 export async function findRequester({ userId, organizationId }) {
   const { rows } = await pool.query(
     `SELECT u.id, u.role_id, r.is_admin, u.organization_id
@@ -114,6 +175,40 @@ export async function updateUserByAdmin({
     const targetOrganizationId = Number.isInteger(parsedNextOrganizationId) && parsedNextOrganizationId > 0
       ? parsedNextOrganizationId
       : Number(currentOrganizationId);
+    const scopedOrganizationId = Number(currentOrganizationId);
+
+    const currentUserResult = await client.query(
+      `SELECT role_id
+         FROM users
+        WHERE id = $1
+          AND organization_id = $2
+        LIMIT 1
+        FOR UPDATE`,
+      [userId, scopedOrganizationId]
+    );
+    const currentUser = currentUserResult.rows[0] || null;
+    if (!currentUser) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const currentRoleId = Number(currentUser.role_id);
+    const nextRoleLabel = await getRoleLabelById(client, roleId);
+    const isRoleChangingToTutor = Number(roleId) !== currentRoleId && isTutorRoleLabel(nextRoleLabel);
+    if (isRoleChangingToTutor) {
+      const isTeacherAssigned = await isAssignedAsVipClassTeacher(client, {
+        organizationId: scopedOrganizationId,
+        userId
+      });
+      if (isTeacherAssigned) {
+        const conflictError = new Error(
+          "Cannot change role to Tutor while this user is assigned as a class teacher."
+        );
+        conflictError.code = "ROLE_CHANGE_BLOCKED_TEACHER_ASSIGNED";
+        conflictError.field = "role";
+        throw conflictError;
+      }
+    }
 
     const updateResult = await client.query(
       `UPDATE users
@@ -139,7 +234,7 @@ export async function updateUserByAdmin({
         positionId,
         roleId,
         userId,
-        currentOrganizationId,
+        scopedOrganizationId,
         actorUserId || null
       ]
     );

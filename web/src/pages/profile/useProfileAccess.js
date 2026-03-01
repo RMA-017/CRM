@@ -59,6 +59,11 @@ export function useProfileAccess(profile, forcedView) {
       ? permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_VIP_CLIENTS)
       : true
   );
+  const rolePositionText = `${String(profile?.role || "").trim().toLowerCase()} ${String(profile?.position || "").trim().toLowerCase()}`;
+  const isDirectorLike = rolePositionText.includes("director") || rolePositionText.includes("direktor");
+  const canOpenAppointmentVipAssignments = canReadAppointments
+    && canReadClients
+    && (Boolean(profile?.isAdmin) || isDirectorLike);
 
   const canOpenAppointmentsMenu = usesAdvancedMenuPermissions
     ? permissionSet.has(PERMISSIONS.APPOINTMENTS_MENU)
@@ -87,6 +92,15 @@ export function useProfileAccess(profile, forcedView) {
     }
     if (forcedView === "appointment-vip-clients") {
       return canOpenAppointmentVipClients;
+    }
+    if (forcedView === "appointment-vip-attendance") {
+      return canOpenAppointmentVipClients;
+    }
+    if (forcedView === "appointment-vip-assignments") {
+      return canOpenAppointmentVipAssignments;
+    }
+    if (forcedView === "appointment-vip-tutor-assignments") {
+      return canOpenAppointmentVipAssignments;
     }
     if (forcedView === "appointment-vip-schedule") {
       return canOpenAppointmentSchedule;
@@ -120,6 +134,7 @@ export function useProfileAccess(profile, forcedView) {
     canOpenAppointmentBreaks,
     canOpenAppointmentSchedule,
     canOpenAppointmentVipClients,
+    canOpenAppointmentVipAssignments,
     hasClientsMenuAccess,
     canReadUsers,
     forcedView,
@@ -146,6 +161,7 @@ export function useProfileAccess(profile, forcedView) {
     canOpenAppointmentSchedule,
     canOpenAppointmentBreaks,
     canOpenAppointmentVipClients,
+    canOpenAppointmentVipAssignments,
     hasAppointmentsMenuAccess,
     hasUsersMenuAccess,
     hasSettingsMenuAccess,
