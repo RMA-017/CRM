@@ -46,6 +46,7 @@ export const appConfig = {
   gracefulShutdownTimeoutMs: toBoundedInteger(process.env.GRACEFUL_SHUTDOWN_TIMEOUT_MS, 10000, 1000, 120000),
   allowedOrigins: toOriginList(process.env.WEB_ORIGIN, "http://localhost:5173"),
   jwtSecret: readRequiredEnv("JWT_SECRET"),
+  jwtExpiresIn: String(process.env.JWT_EXPIRES_IN || "7d").trim(),
   cookieSecure: toBoolean(process.env.COOKIE_SECURE, String(process.env.NODE_ENV || "").toLowerCase() === "production"),
   apiRateLimit: {
     max: toNumber(process.env.API_RATE_LIMIT_MAX, 300),
@@ -68,7 +69,9 @@ export const appConfig = {
     retryDelaySeconds: toBoundedInteger(process.env.OUTBOX_WORKER_RETRY_DELAY_SECONDS, 30, 1, 86400),
     retentionDays: toBoundedInteger(process.env.OUTBOX_WORKER_RETENTION_DAYS, 30, 0, 3650),
     retentionLimit: toBoundedInteger(process.env.OUTBOX_WORKER_RETENTION_LIMIT, 500, 1, 5000),
-    retentionEveryCycles: toBoundedInteger(process.env.OUTBOX_WORKER_RETENTION_EVERY_CYCLES, 120, 1, 10000)
+    retentionEveryCycles: toBoundedInteger(process.env.OUTBOX_WORKER_RETENTION_EVERY_CYCLES, 120, 1, 10000),
+    userNotificationsRetentionDays: toBoundedInteger(process.env.USER_NOTIFICATIONS_RETENTION_DAYS, 0, 0, 3650),
+    userNotificationsRetentionLimit: toBoundedInteger(process.env.USER_NOTIFICATIONS_RETENTION_LIMIT, 500, 1, 5000)
   },
   defaultCreatedUserPassword: String(process.env.DEFAULT_CREATED_USER_PASSWORD || "")
 };

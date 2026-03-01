@@ -1,51 +1,19 @@
-import { processPendingOutboxEvents, pruneProcessedOutboxEvents } from "./notifications.service.js";
-
-function toPositiveNumber(value, fallback) {
-  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    return fallback;
-  }
-  return parsed;
-}
-
-function toNonNegativeNumber(value, fallback) {
-  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    return fallback;
-  }
-  return parsed;
-}
-
-function toBoolean(value, fallback = true) {
-  if (value === undefined || value === null || value === "") {
-    return fallback;
-  }
-  const normalized = String(value).trim().toLowerCase();
-  return normalized === "1" || normalized === "true" || normalized === "yes";
-}
+import { processPendingOutboxEvents, pruneProcessedOutboxEvents, pruneUserNotifications } from "./notifications.service.js";
 
 export function createOutboxWorker(options = {}) {
-  const {
-    enabled = true,
-    pollIntervalMs = 5000,
-    processLimit = 100,
-    retryDelaySeconds = 30,
-    retentionDays = 30,
-    retentionLimit = 500,
-    retentionEveryCycles = 120,
-    processor = null,
-    logger = null
-  } = options;
-
   const config = {
-    enabled: toBoolean(enabled, true),
-    pollIntervalMs: toPositiveNumber(pollIntervalMs, 5000),
-    processLimit: toPositiveNumber(processLimit, 100),
-    retryDelaySeconds: toPositiveNumber(retryDelaySeconds, 30),
-    retentionDays: toNonNegativeNumber(retentionDays, 30),
-    retentionLimit: toPositiveNumber(retentionLimit, 500),
-    retentionEveryCycles: toPositiveNumber(retentionEveryCycles, 120)
+    enabled:                         options.enabled ?? true,
+    pollIntervalMs:                  options.pollIntervalMs ?? 5000,
+    processLimit:                    options.processLimit ?? 100,
+    retryDelaySeconds:               options.retryDelaySeconds ?? 30,
+    retentionDays:                   options.retentionDays ?? 30,
+    retentionLimit:                  options.retentionLimit ?? 500,
+    retentionEveryCycles:            options.retentionEveryCycles ?? 120,
+    userNotificationsRetentionDays:  options.userNotificationsRetentionDays ?? 0,
+    userNotificationsRetentionLimit: options.userNotificationsRetentionLimit ?? 500
   };
+  const processor = options.processor ?? null;
+  const logger = options.logger ?? null;
 
   let timer = null;
   let cycleCount = 0;
@@ -69,26 +37,33 @@ export function createOutboxWorker(options = {}) {
         cycleCount += 1;
 
         let pruned = { deletedCount: 0 };
-        const shouldRunRetention = config.retentionDays > 0
-          && cycleCount % config.retentionEveryCycles === 0;
-        if (shouldRunRetention) {
-          pruned = await pruneProcessedOutboxEvents({
-            retentionDays: config.retentionDays,
-            limit: config.retentionLimit
-          });
+        let notificationsPruned = { deletedCount: 0 };
+        if (cycleCount % config.retentionEveryCycles === 0) {
+          [pruned, notificationsPruned] = await Promise.all([
+            pruneProcessedOutboxEvents({
+              retentionDays: config.retentionDays,
+              limit: config.retentionLimit
+            }),
+            pruneUserNotifications({
+              retentionDays: config.userNotificationsRetentionDays,
+              limit: config.userNotificationsRetentionLimit
+            })
+          ]);
         }
 
         const processedCount = Number(processed?.processedCount || 0);
         const requeuedCount = Number(processed?.requeuedCount || 0);
         const failedCount = Number(processed?.failedCount || 0);
         const deletedCount = Number(pruned?.deletedCount || 0);
+        const notificationsDeletedCount = Number(notificationsPruned?.deletedCount || 0);
 
-        if (processedCount > 0 || requeuedCount > 0 || failedCount > 0 || deletedCount > 0) {
+        if (processedCount > 0 || requeuedCount > 0 || failedCount > 0 || deletedCount > 0 || notificationsDeletedCount > 0) {
           logger?.info?.({
             processedCount,
             requeuedCount,
             failedCount,
-            deletedCount
+            deletedCount,
+            notificationsDeletedCount
           }, "Outbox worker cycle completed");
         }
       } catch (error) {
@@ -131,4 +106,3 @@ export function createOutboxWorker(options = {}) {
     }
   };
 }
-

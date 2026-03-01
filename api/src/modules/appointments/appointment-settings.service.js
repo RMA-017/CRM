@@ -1,4 +1,5 @@
 import pool from "../../config/db.js";
+import { isUniqueOrExclusionConflict } from "../../lib/db-utils.js";
 
 const DAY_KEY_TO_NUM = Object.freeze({
   mon: 1,
@@ -223,10 +224,6 @@ function normalizeDateYmd(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
 }
 
-function isUniqueOrExclusionConflict(error) {
-  return error?.code === "23505" || error?.code === "23P01";
-}
-
 function normalizeTimeHm(value) {
   const raw = String(value || "").trim();
   return raw ? raw.slice(0, 5) : "";
@@ -384,34 +381,11 @@ export async function getAppointmentSpecialistsByOrganization(organizationId) {
          OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%spetsialist%'
        )
      ORDER BY
-       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), u.id::text) ASC`,
+      COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), u.id::text) ASC`,
     [organizationId]
   );
 
-  if (Array.isArray(rows) && rows.length > 0) {
-    return rows;
-  }
-
-  // Fallback: if explicit specialist labels are not configured, return active non-admin users.
-  const fallbackResult = await pool.query(
-    `SELECT
-       u.id::text AS id,
-       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS name,
-       COALESCE(NULLIF(TRIM(p.label), ''), NULLIF(TRIM(r.label), ''), 'User') AS role
-      FROM users u
-      JOIN organizations o ON o.id = u.organization_id
-      JOIN role_options r ON r.id = u.role_id
-      LEFT JOIN position_options p ON p.id = u.position_id
-      WHERE u.organization_id = $1
-        AND o.is_active = TRUE
-        AND r.is_active = TRUE
-        AND r.is_admin = FALSE
-      ORDER BY
-        COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), u.id::text) ASC`,
-    [organizationId]
-  );
-
-  return fallbackResult.rows || [];
+  return rows || [];
 }
 
 export async function getAppointmentSchedulesByRange({

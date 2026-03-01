@@ -61,7 +61,9 @@ export function useSettingsSection({
   const [positionDeletingId, setPositionDeletingId] = useState("");
   const [adminOptionsForm, setAdminOptionsForm] = useState({
     organizationId: "",
-    appointmentHistoryLockDays: ""
+    appointmentHistoryLockDays: "",
+    outboxWorkerRetentionDays: "",
+    userNotificationsRetentionDays: ""
   });
   const [adminOptionsMessage, setAdminOptionsMessage] = useState("");
   const [adminOptionsError, setAdminOptionsError] = useState("");
@@ -229,10 +231,14 @@ export function useSettingsSection({
       const item = data?.item && typeof data.item === "object" ? data.item : {};
       const nextOrganizationId = String(item?.organizationId || requestedOrganizationId || "").trim();
       const nextHistoryLockDays = String(item?.appointmentHistoryLockDays ?? "").trim();
+      const nextOutboxWorkerRetentionDays = String(item?.outboxWorkerRetentionDays ?? "").trim();
+      const nextUserNotificationsRetentionDays = String(item?.userNotificationsRetentionDays ?? "").trim();
       setAdminOptionsForm((prev) => ({
         ...prev,
         organizationId: nextOrganizationId,
-        appointmentHistoryLockDays: nextHistoryLockDays
+        appointmentHistoryLockDays: nextHistoryLockDays,
+        outboxWorkerRetentionDays: nextOutboxWorkerRetentionDays,
+        userNotificationsRetentionDays: nextUserNotificationsRetentionDays
       }));
       setAdminOptionsMessage("");
       setAdminOptionsError("");
@@ -275,8 +281,12 @@ export function useSettingsSection({
 
     const organizationIdRaw = String(adminOptionsForm.organizationId || "").trim();
     const appointmentHistoryLockDaysRaw = String(adminOptionsForm.appointmentHistoryLockDays || "").trim();
+    const outboxWorkerRetentionDaysRaw = String(adminOptionsForm.outboxWorkerRetentionDays || "").trim();
+    const userNotificationsRetentionDaysRaw = String(adminOptionsForm.userNotificationsRetentionDays || "").trim();
     const organizationId = Number.parseInt(organizationIdRaw, 10);
     const appointmentHistoryLockDays = Number.parseInt(appointmentHistoryLockDaysRaw, 10);
+    const outboxWorkerRetentionDays = Number.parseInt(outboxWorkerRetentionDaysRaw, 10);
+    const userNotificationsRetentionDays = Number.parseInt(userNotificationsRetentionDaysRaw, 10);
 
     if (!Number.isInteger(organizationId) || organizationId <= 0) {
       setAdminOptionsError("");
@@ -286,6 +296,20 @@ export function useSettingsSection({
     if (!Number.isInteger(appointmentHistoryLockDays) || appointmentHistoryLockDays < 0 || appointmentHistoryLockDays > 3650) {
       setAdminOptionsError("");
       window.alert("History lock days must be an integer between 0 and 3650.");
+      return;
+    }
+    if (!Number.isInteger(outboxWorkerRetentionDays) || outboxWorkerRetentionDays < 0 || outboxWorkerRetentionDays > 3650) {
+      setAdminOptionsError("");
+      window.alert("Outbox retention days must be an integer between 0 and 3650.");
+      return;
+    }
+    if (
+      !Number.isInteger(userNotificationsRetentionDays)
+      || userNotificationsRetentionDays < 0
+      || userNotificationsRetentionDays > 3650
+    ) {
+      setAdminOptionsError("");
+      window.alert("User notifications retention days must be an integer between 0 and 3650.");
       return;
     }
     try {
@@ -298,7 +322,9 @@ export function useSettingsSection({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           organizationId,
-          appointmentHistoryLockDays
+          appointmentHistoryLockDays,
+          outboxWorkerRetentionDays,
+          userNotificationsRetentionDays
         })
       });
       const data = await readApiResponseData(response);
@@ -316,7 +342,9 @@ export function useSettingsSection({
       setAdminOptionsForm((prev) => ({
         ...prev,
         organizationId: String(item?.organizationId || organizationId),
-        appointmentHistoryLockDays: String(item?.appointmentHistoryLockDays ?? appointmentHistoryLockDays)
+        appointmentHistoryLockDays: String(item?.appointmentHistoryLockDays ?? appointmentHistoryLockDays),
+        outboxWorkerRetentionDays: String(item?.outboxWorkerRetentionDays ?? outboxWorkerRetentionDays),
+        userNotificationsRetentionDays: String(item?.userNotificationsRetentionDays ?? userNotificationsRetentionDays)
       }));
       setAdminOptionsMessage("");
       setAdminOptionsError("");
@@ -330,6 +358,8 @@ export function useSettingsSection({
     }
   }, [
     adminOptionsForm.appointmentHistoryLockDays,
+    adminOptionsForm.outboxWorkerRetentionDays,
+    adminOptionsForm.userNotificationsRetentionDays,
     adminOptionsForm.organizationId,
     hasSettingsMenuAccess,
     navigate
@@ -340,7 +370,7 @@ export function useSettingsSection({
 
     if (!hasSettingsMenuAccess) {
       setOrganizationCreateError("You do not have permission to manage settings.");
-      return;
+      return false;
     }
 
     const payload = {
@@ -351,7 +381,7 @@ export function useSettingsSection({
     const validationError = validateOrganizationForm(payload);
     if (validationError) {
       setOrganizationCreateError(validationError);
-      return;
+      return false;
     }
 
     try {
@@ -366,16 +396,18 @@ export function useSettingsSection({
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
-          return;
+          return false;
         }
         setOrganizationCreateError(data?.message || "Failed to create organization.");
-        return;
+        return false;
       }
 
       setOrganizationCreateForm({ ...EMPTY_ORGANIZATION_FORM });
       await loadOrganizations();
+      return true;
     } catch {
       setOrganizationCreateError("Unexpected error. Please try again.");
+      return false;
     } finally {
       setOrganizationCreateSubmitting(false);
     }
@@ -485,7 +517,7 @@ export function useSettingsSection({
 
     if (!hasSettingsMenuAccess) {
       setRoleCreateError("You do not have permission to manage settings.");
-      return;
+      return false;
     }
 
     const payload = {
@@ -496,7 +528,7 @@ export function useSettingsSection({
     const validationError = validateLabelSettingsForm(payload);
     if (validationError) {
       setRoleCreateError(validationError);
-      return;
+      return false;
     }
 
     try {
@@ -511,16 +543,18 @@ export function useSettingsSection({
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
-          return;
+          return false;
         }
         setRoleCreateError(data?.message || "Failed to create role.");
-        return;
+        return false;
       }
 
       setRoleCreateForm({ ...EMPTY_ROLE_CREATE_FORM });
       await Promise.all([loadRolesSettings(), loadUserOptions()]);
+      return true;
     } catch {
       setRoleCreateError("Unexpected error. Please try again.");
+      return false;
     } finally {
       setRoleCreateSubmitting(false);
     }
@@ -620,7 +654,7 @@ export function useSettingsSection({
 
     if (!hasSettingsMenuAccess) {
       setPositionCreateError("You do not have permission to manage settings.");
-      return;
+      return false;
     }
 
     const payload = {
@@ -631,7 +665,7 @@ export function useSettingsSection({
     const validationError = validateLabelSettingsForm(payload);
     if (validationError) {
       setPositionCreateError(validationError);
-      return;
+      return false;
     }
 
     try {
@@ -646,16 +680,18 @@ export function useSettingsSection({
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
-          return;
+          return false;
         }
         setPositionCreateError(data?.message || "Failed to create position.");
-        return;
+        return false;
       }
 
       setPositionCreateForm({ ...EMPTY_SETTINGS_OPTION_FORM });
       await Promise.all([loadPositionsSettings(), loadUserOptions()]);
+      return true;
     } catch {
       setPositionCreateError("Unexpected error. Please try again.");
+      return false;
     } finally {
       setPositionCreateSubmitting(false);
     }

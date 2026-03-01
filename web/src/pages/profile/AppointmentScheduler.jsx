@@ -390,6 +390,15 @@ function formatAppointmentTimeRangeLabel(startTime, endTime, durationMinutes = "
   return `${minutesToTime(startMinutes)} - ${minutesToTime(endMinutes)}`;
 }
 
+function formatAppointmentStatusLabel(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  const match = STATUS_OPTIONS.find((option) => option.value === normalized);
+  if (match) {
+    return match.label;
+  }
+  return normalized ? `${normalized.slice(0, 1).toUpperCase()}${normalized.slice(1)}` : "-";
+}
+
 function showImmediateAlert(text) {
   const message = String(text || "").trim();
   if (!message || typeof window === "undefined" || typeof window.alert !== "function") {
@@ -505,13 +514,13 @@ function AppointmentScheduler({
   vipOnly = false,
   recurringOnly = false,
   showWeekSwitcher = true,
-  modalTitle = "To Schedule",
+  modalTitle = "To Planner",
   onNotification = null
 }) {
   const isVipRecurringModal = vipOnly && recurringOnly;
-  const specialistLabel = vipOnly ? "VIP Client" : "Specialist";
-  const specialistSelectPlaceholder = vipOnly ? "Select VIP client" : "Select specialist";
-  const specialistSearchPlaceholder = vipOnly ? "Search VIP client" : "Search specialist";
+  const specialistLabel = vipOnly ? "Class" : "Specialist";
+  const specialistSelectPlaceholder = vipOnly ? "Select class" : "Select specialist";
+  const specialistSearchPlaceholder = vipOnly ? "Search class" : "Search specialist";
   const [message, setMessage] = useState("");
   const [weekOffset, setWeekOffset] = useState(0);
   const [compactWeekRange, setCompactWeekRange] = useState(() => {
@@ -521,8 +530,13 @@ function AppointmentScheduler({
     return window.matchMedia("(max-width: 860px)").matches;
   });
   const [isSchedulerInitialized, setIsSchedulerInitialized] = useState(false);
+  const [vipSchedulesReady, setVipSchedulesReady] = useState(!vipOnly);
   const [specialists, setSpecialists] = useState([]);
   const [specialistRoleById, setSpecialistRoleById] = useState(() => ({}));
+  const [vipClientsByClassId, setVipClientsByClassId] = useState(() => ({}));
+  const [vipSchedulesByClass, setVipSchedulesByClass] = useState(() => ({}));
+  const [vipSchedulesWeekKeyByClass, setVipSchedulesWeekKeyByClass] = useState(() => ({}));
+  const [vipConfirmingByAppointmentId, setVipConfirmingByAppointmentId] = useState(() => ({}));
   const [selectedSpecialistId, setSelectedSpecialistId] = useState(
     () => readStoredSchedulerSelectionId(vipOnly)
   );
@@ -639,7 +653,7 @@ function AppointmentScheduler({
             method: "GET",
             cache: "no-store"
           }),
-          apiFetch(vipOnly ? "/api/clients/search?isVip=true&limit=100" : "/api/appointments/specialists", {
+          apiFetch(vipOnly ? "/api/clients/vip-tutor-assignments?limit=500" : "/api/appointments/specialists", {
             method: "GET",
             cache: "no-store"
           }),
@@ -652,7 +666,7 @@ function AppointmentScheduler({
         ]);
 
         const settingsData = await readApiResponseData(settingsResponse);
-        const specialistsData = await readApiResponseData(specialistsResponse);
+        let specialistsData = await readApiResponseData(specialistsResponse);
         const specialistRolesData = specialistRolesResponse
           ? await readApiResponseData(specialistRolesResponse)
           : null;
@@ -667,31 +681,132 @@ function AppointmentScheduler({
         }
 
         if (!specialistsResponse.ok) {
-          setMessage(specialistsData?.message || (vipOnly ? "Failed to load VIP clients." : "Failed to load specialists."));
-          return;
+          if (!vipOnly) {
+            setMessage(specialistsData?.message || "Failed to load specialists.");
+            return;
+          }
+          try {
+            const fallbackResponse = await apiFetch("/api/clients/search?isVip=true&limit=100", {
+              method: "GET",
+              cache: "no-store"
+            });
+            const fallbackData = await readApiResponseData(fallbackResponse);
+            if (!fallbackResponse.ok) {
+              setMessage(specialistsData?.message || fallbackData?.message || "Failed to load VIP classes.");
+              return;
+            }
+            specialistsData = {
+              items: Array.isArray(fallbackData?.items) ? fallbackData.items : [],
+              classes: []
+            };
+          } catch {
+            setMessage(specialistsData?.message || "Failed to load VIP classes.");
+            return;
+          }
         }
 
         const item = settingsData?.item && typeof settingsData.item === "object"
           ? settingsData.item
           : {};
 
-        const nextSpecialists = Array.isArray(specialistsData?.items)
-          ? (
-            vipOnly
-              ? specialistsData.items.map((itemValue) => ({
-                  id: String(itemValue?.id || ""),
-                  firstName: String(itemValue?.firstName || itemValue?.first_name || "").trim(),
-                  lastName: String(itemValue?.lastName || itemValue?.last_name || "").trim(),
-                  middleName: String(itemValue?.middleName || itemValue?.middle_name || "").trim(),
-                  phone: String(itemValue?.phone || itemValue?.phone_number || "").trim()
-                }))
-              : specialistsData.items.map((itemValue) => ({
-                  id: String(itemValue?.id || ""),
-                  name: String(itemValue?.name || "").trim() || "Specialist",
-                  role: String(itemValue?.role || "").trim() || "Specialist"
-                }))
-          ).filter((itemValue) => Boolean(itemValue.id))
-          : [];
+        const nextVipClientsByClassId = {};
+        const fallbackClassLabelById = {};
+        const nextSpecialists = (
+          vipOnly
+            ? (Array.isArray(specialistsData?.classes) ? specialistsData.classes : []).map((itemValue) => ({
+                id: String(itemValue?.id || itemValue?.classId || "").trim(),
+                className: String(itemValue?.className || itemValue?.class_name || "").trim(),
+                teacherId: String(itemValue?.teacherId || itemValue?.teacher_id || "").trim(),
+                teacherName: String(itemValue?.teacherName || itemValue?.teacher_name || "").trim()
+              }))
+            : (Array.isArray(specialistsData?.items) ? specialistsData.items : []).map((itemValue) => ({
+                id: String(itemValue?.id || ""),
+                name: String(itemValue?.name || "").trim() || "Specialist",
+                role: String(itemValue?.role || "").trim() || "Specialist"
+            }))
+        ).filter((itemValue) => Boolean(itemValue.id));
+
+        if (vipOnly && nextSpecialists.length === 0) {
+          const fallbackItems = Array.isArray(specialistsData?.items) ? specialistsData.items : [];
+          fallbackItems.forEach((itemValue) => {
+            const className = String(itemValue?.className || itemValue?.class_name || "").trim();
+            if (!className) {
+              return;
+            }
+            const classId = `class-name:${className.toLowerCase()}`;
+            if (!fallbackClassLabelById[classId]) {
+              fallbackClassLabelById[classId] = className;
+            }
+          });
+
+          Object.keys(fallbackClassLabelById).forEach((classId) => {
+            nextSpecialists.push({
+              id: classId,
+              className: fallbackClassLabelById[classId],
+              teacherId: "",
+              teacherName: ""
+            });
+          });
+        }
+
+        if (vipOnly) {
+          nextSpecialists.sort((left, right) => (
+            String(left?.className || "").localeCompare(String(right?.className || ""))
+          ));
+        }
+
+        if (vipOnly) {
+          nextSpecialists.forEach((itemValue) => {
+            const classId = String(itemValue?.id || "").trim();
+            if (classId && !Array.isArray(nextVipClientsByClassId[classId])) {
+              nextVipClientsByClassId[classId] = [];
+            }
+          });
+
+          const assignmentItems = Array.isArray(specialistsData?.items) ? specialistsData.items : [];
+          assignmentItems.forEach((itemValue) => {
+            const directClassId = String(itemValue?.classId || itemValue?.class_id || "").trim();
+            const className = String(itemValue?.className || itemValue?.class_name || "").trim();
+            const fallbackClassId = className ? `class-name:${className.toLowerCase()}` : "";
+            const classId = directClassId || fallbackClassId;
+            const clientId = String(itemValue?.id || itemValue?.clientId || itemValue?.client_id || "").trim();
+            const teacherId = String(itemValue?.teacherId || itemValue?.teacher_id || "").trim();
+            const tutorId = String(itemValue?.tutorId || itemValue?.tutor_id || "").trim();
+            if (!classId || !clientId) {
+              return;
+            }
+            if (!Array.isArray(nextVipClientsByClassId[classId])) {
+              nextVipClientsByClassId[classId] = [];
+            }
+            const existingClient = nextVipClientsByClassId[classId]
+              .find((clientItem) => String(clientItem?.id || "").trim() === clientId);
+            if (existingClient) {
+              if (!String(existingClient?.teacherId || "").trim() && teacherId) {
+                existingClient.teacherId = teacherId;
+              }
+              if (!String(existingClient?.tutorId || "").trim() && tutorId) {
+                existingClient.tutorId = tutorId;
+              }
+              return;
+            }
+
+            nextVipClientsByClassId[classId].push({
+              id: clientId,
+              firstName: String(itemValue?.firstName || itemValue?.first_name || "").trim(),
+              lastName: String(itemValue?.lastName || itemValue?.last_name || "").trim(),
+              middleName: String(itemValue?.middleName || itemValue?.middle_name || "").trim(),
+              teacherId,
+              tutorId
+            });
+          });
+
+          Object.keys(nextVipClientsByClassId).forEach((classId) => {
+            nextVipClientsByClassId[classId].sort((left, right) => (
+              getClientDisplayName(left).localeCompare(getClientDisplayName(right))
+            ));
+          });
+        }
+
         const nextSpecialistRoleById = (
           vipOnly
           && specialistRolesResponse
@@ -711,6 +826,11 @@ function AppointmentScheduler({
         setSettings(mapSchedulerSettingsFromApiItem(item));
         setSpecialists(nextSpecialists);
         setSpecialistRoleById(nextSpecialistRoleById);
+        setVipClientsByClassId(vipOnly ? nextVipClientsByClassId : {});
+        if (vipOnly) {
+          setVipSchedulesByClass({});
+          setVipSchedulesWeekKeyByClass({});
+        }
         setSelectedSpecialistId((prev) => {
           const persisted = readStoredSchedulerSelectionId(vipOnly);
           const preferredId = String(prev || persisted || "").trim();
@@ -721,7 +841,7 @@ function AppointmentScheduler({
         });
       } catch {
         if (active) {
-          setMessage("Failed to load appointment scheduler.");
+          setMessage("Failed to load appointment planner.");
         }
       } finally {
         if (active) {
@@ -1144,7 +1264,11 @@ function AppointmentScheduler({
     specialists.map((specialist) => ({
       value: specialist.id,
       label: vipOnly
-        ? getClientDisplayName(specialist)
+        ? (
+          String(specialist?.teacherName || "").trim()
+            ? `${String(specialist?.className || "").trim() || `Class #${String(specialist?.id || "").trim()}`} (${String(specialist?.teacherName || "").trim()})`
+            : (String(specialist?.className || "").trim() || `Class #${String(specialist?.id || "").trim()}`)
+        )
         : `${specialist.name} (${specialist.role})`
     }))
   ), [specialists, vipOnly]);
@@ -1196,10 +1320,95 @@ function AppointmentScheduler({
     }
     setCreateForm((prev) => ({ ...prev, durationMinutes: durationSelectOptions[0]?.value || "30" }));
   }, [createForm.durationMinutes, createModal.open, durationSelectOptions]);
+  const selectedVipClassClients = useMemo(() => {
+    if (!vipOnly) {
+      return [];
+    }
+    const classId = String(selectedSpecialistId || "").trim();
+    if (!classId) {
+      return [];
+    }
+    return Array.isArray(vipClientsByClassId[classId]) ? vipClientsByClassId[classId] : [];
+  }, [selectedSpecialistId, vipClientsByClassId, vipOnly]);
+  const selectedVipClassTeacherId = useMemo(() => {
+    if (!vipOnly) {
+      return "";
+    }
+    const classId = String(selectedSpecialistId || "").trim();
+    if (!classId) {
+      return "";
+    }
+    const selectedClass = specialists.find((item) => String(item?.id || "").trim() === classId);
+    return String(selectedClass?.teacherId || "").trim();
+  }, [selectedSpecialistId, specialists, vipOnly]);
+  const { vipWeeklyClientRows, vipWeeklyLessonsTotal } = useMemo(() => {
+    if (!vipOnly) {
+      return {
+        vipWeeklyClientRows: [],
+        vipWeeklyLessonsTotal: 0
+      };
+    }
+
+    const classId = String(selectedSpecialistId || "").trim();
+    const schedulesByClient = (
+      classId
+      && vipSchedulesWeekKeyByClass[classId] === weekDataKey
+      && vipSchedulesByClass[classId]
+      && typeof vipSchedulesByClass[classId] === "object"
+    )
+      ? vipSchedulesByClass[classId]
+      : {};
+
+    let total = 0;
+    const rows = selectedVipClassClients
+      .map((client) => {
+        const clientId = String(client?.id || "").trim();
+        if (!clientId) {
+          return null;
+        }
+        const clientSchedules = (
+          schedulesByClient[clientId]
+          && typeof schedulesByClient[clientId] === "object"
+        )
+          ? schedulesByClient[clientId]
+          : {};
+        const dayItemsByKey = {};
+        let lessonsCount = 0;
+        weekDays.forEach((day) => {
+          const dayKey = String(day?.key || "").trim().toLowerCase();
+          const dayItems = Array.isArray(clientSchedules[dayKey]) ? clientSchedules[dayKey] : [];
+          dayItemsByKey[dayKey] = dayItems;
+          lessonsCount += dayItems.length;
+          total += dayItems.length;
+        });
+        return {
+          clientId,
+          clientName: getClientDisplayName(client),
+          teacherId: String(client?.teacherId || "").trim(),
+          tutorId: String(client?.tutorId || "").trim(),
+          dayItemsByKey,
+          lessonsCount
+        };
+      })
+      .filter(Boolean);
+
+    return {
+      vipWeeklyClientRows: rows,
+      vipWeeklyLessonsTotal: total
+    };
+  }, [
+    selectedSpecialistId,
+    selectedVipClassClients,
+    vipOnly,
+    vipSchedulesByClass,
+    vipSchedulesWeekKeyByClass,
+    weekDataKey,
+    weekDays
+  ]);
   const now = new Date();
 
   const loadSchedulesForCurrentWeek = useCallback(async () => {
-    if (!selectedSpecialistId || weekDays.length === 0) {
+    if (!isSchedulerInitialized || !selectedSpecialistId || weekDays.length === 0) {
       return;
     }
 
@@ -1210,20 +1419,162 @@ function AppointmentScheduler({
     }
     const requestId = schedulesRequestIdRef.current + 1;
     schedulesRequestIdRef.current = requestId;
+    const selectedId = String(selectedSpecialistId || "").trim();
+    const buildEmptyByDay = () => weekDays.reduce((acc, day) => {
+      acc[day.key] = [];
+      return acc;
+    }, {});
 
     try {
+      if (vipOnly) {
+        const classClients = Array.isArray(vipClientsByClassId[selectedId]) ? vipClientsByClassId[selectedId] : [];
+        if (classClients.length === 0) {
+          setVipSchedulesByClass((prev) => ({
+            ...prev,
+            [selectedId]: {}
+          }));
+          setVipSchedulesWeekKeyByClass((prev) => ({
+            ...prev,
+            [selectedId]: weekDataKey
+          }));
+          setMessage("");
+          setVipSchedulesReady(true);
+          return;
+        }
+
+        const classSchedules = await Promise.all(
+          classClients.map(async (client) => {
+            const clientId = String(client?.id || "").trim();
+            if (!clientId) {
+              return null;
+            }
+            const queryParams = new URLSearchParams({
+              dateFrom,
+              dateTo,
+              clientId,
+              vipOnly: "true"
+            });
+            if (recurringOnly) {
+              queryParams.set("recurringOnly", "true");
+            }
+
+            try {
+              const response = await apiFetch(`/api/appointments/schedules?${queryParams.toString()}`, {
+                method: "GET",
+                cache: "no-store"
+              });
+              const data = await readApiResponseData(response);
+              if (!response.ok) {
+                return {
+                  clientId,
+                  items: [],
+                  error: String(data?.message || "Failed to load appointments.").trim()
+                };
+              }
+              return {
+                clientId,
+                items: Array.isArray(data?.items) ? data.items : [],
+                error: ""
+              };
+            } catch {
+              return {
+                clientId,
+                items: [],
+                error: "Failed to load appointments."
+              };
+            }
+          })
+        );
+
+        if (requestId !== schedulesRequestIdRef.current) {
+          return;
+        }
+
+        let failedCount = 0;
+        const schedulesByClient = {};
+        classSchedules.filter(Boolean).forEach((entry) => {
+          const clientId = String(entry?.clientId || "").trim();
+          if (!clientId) {
+            return;
+          }
+
+          if (entry?.error) {
+            failedCount += 1;
+          }
+
+          const byDay = buildEmptyByDay();
+          const items = Array.isArray(entry?.items) ? entry.items : [];
+          items.forEach((item, index) => {
+            const dayKey = getDayKeyFromDateYmd(item?.appointmentDate);
+            if (!dayKey || !Array.isArray(byDay[dayKey])) {
+              return;
+            }
+            const startTime = String(item?.startTime || "").trim();
+            if (!startTime) {
+              return;
+            }
+            const specialistId = String(item?.specialistId || "").trim();
+            const specialistRoleFallback = String(specialistRoleById[specialistId] || "").trim();
+            const serviceText = formatVipServiceLine(
+              item?.specialistPosition,
+              item?.serviceName,
+              "",
+              specialistRoleFallback
+            );
+            const timeLabel = formatAppointmentTimeRangeLabel(startTime, item?.endTime, item?.durationMinutes) || startTime;
+
+            byDay[dayKey].push({
+              id: String(item?.id || "").trim() || `${dayKey}-${startTime}-${index}`,
+              appointmentId: String(item?.id || "").trim(),
+              startMinutes: normalizeTimeToMinutes(startTime),
+              timeLabel,
+              primaryText: String(item?.specialistName || "").trim()
+                || (specialistId ? `Specialist #${specialistId}` : "Specialist"),
+              secondaryText: serviceText || String(item?.serviceName || "").trim() || "Service",
+              status: String(item?.status || "").trim().toLowerCase().replace(/_/g, "-"),
+              specialistId,
+              clientId: String(item?.clientId || "").trim(),
+              appointmentDate: String(item?.appointmentDate || "").trim(),
+              startTime,
+              endTime: String(item?.endTime || "").trim(),
+              durationMinutes: String(item?.durationMinutes || "").trim(),
+              serviceName: String(item?.serviceName || "").trim(),
+              note: String(item?.note || "").trim()
+            });
+          });
+
+          Object.keys(byDay).forEach((dayKey) => {
+            byDay[dayKey].sort((left, right) => {
+              const leftStart = Number.isInteger(left?.startMinutes) ? left.startMinutes : Number.MAX_SAFE_INTEGER;
+              const rightStart = Number.isInteger(right?.startMinutes) ? right.startMinutes : Number.MAX_SAFE_INTEGER;
+              if (leftStart !== rightStart) {
+                return leftStart - rightStart;
+              }
+              return String(left?.id || "").localeCompare(String(right?.id || ""));
+            });
+          });
+
+          schedulesByClient[clientId] = byDay;
+        });
+
+        setVipSchedulesByClass((prev) => ({
+          ...prev,
+          [selectedId]: schedulesByClient
+        }));
+        setVipSchedulesWeekKeyByClass((prev) => ({
+          ...prev,
+          [selectedId]: weekDataKey
+        }));
+        setMessage(failedCount > 0 ? `Some client schedules failed to load (${failedCount}).` : "");
+        setVipSchedulesReady(true);
+        return;
+      }
+
       const queryParams = new URLSearchParams({
         dateFrom,
-        dateTo
+        dateTo,
+        specialistId: selectedId
       });
-      if (vipOnly) {
-        queryParams.set("clientId", selectedSpecialistId);
-      } else {
-        queryParams.set("specialistId", selectedSpecialistId);
-      }
-      if (vipOnly) {
-        queryParams.set("vipOnly", "true");
-      }
       if (recurringOnly) {
         queryParams.set("recurringOnly", "true");
       }
@@ -1241,20 +1592,16 @@ function AppointmentScheduler({
         setMessage(data?.message || "Failed to load appointments.");
         setAppointmentsBySpecialist((prev) => ({
           ...prev,
-          [selectedSpecialistId]: {}
+          [selectedId]: {}
         }));
         setAppointmentsWeekKeyBySpecialist((prev) => ({
           ...prev,
-          [selectedSpecialistId]: weekDataKey
+          [selectedId]: weekDataKey
         }));
         return;
       }
 
-      const byDay = weekDays.reduce((acc, day) => {
-        acc[day.key] = [];
-        return acc;
-      }, {});
-
+      const byDay = buildEmptyByDay();
       const items = Array.isArray(data?.items) ? data.items : [];
       items.forEach((item) => {
         const dayKey = getDayKeyFromDateYmd(item?.appointmentDate);
@@ -1298,27 +1645,48 @@ function AppointmentScheduler({
 
       setAppointmentsBySpecialist((prev) => ({
         ...prev,
-        [selectedSpecialistId]: byDay
+        [selectedId]: byDay
       }));
       setAppointmentsWeekKeyBySpecialist((prev) => ({
         ...prev,
-        [selectedSpecialistId]: weekDataKey
+        [selectedId]: weekDataKey
       }));
     } catch {
       if (requestId !== schedulesRequestIdRef.current) {
         return;
       }
       setMessage("Failed to load appointments.");
-      setAppointmentsBySpecialist((prev) => ({
-        ...prev,
-        [selectedSpecialistId]: {}
-      }));
-      setAppointmentsWeekKeyBySpecialist((prev) => ({
-        ...prev,
-        [selectedSpecialistId]: weekDataKey
-      }));
+      if (vipOnly) {
+        setVipSchedulesByClass((prev) => ({
+          ...prev,
+          [selectedId]: {}
+        }));
+        setVipSchedulesWeekKeyByClass((prev) => ({
+          ...prev,
+          [selectedId]: weekDataKey
+        }));
+        setVipSchedulesReady(true);
+      } else {
+        setAppointmentsBySpecialist((prev) => ({
+          ...prev,
+          [selectedId]: {}
+        }));
+        setAppointmentsWeekKeyBySpecialist((prev) => ({
+          ...prev,
+          [selectedId]: weekDataKey
+        }));
+      }
     }
-  }, [recurringOnly, selectedSpecialistId, vipOnly, weekDataKey, weekDays]);
+  }, [
+    isSchedulerInitialized,
+    recurringOnly,
+    selectedSpecialistId,
+    specialistRoleById,
+    vipClientsByClassId,
+    vipOnly,
+    weekDataKey,
+    weekDays
+  ]);
 
   const loadBreaksForSelectedSpecialist = useCallback(async () => {
     if (vipOnly || !selectedSpecialistId) {
@@ -1434,7 +1802,7 @@ function AppointmentScheduler({
       : String(selectedSpecialistId || "").trim();
     if (isEditMode) {
       if (!canMutateSpecialistId(slotSpecialistId)) {
-        setMessage("You can only edit appointments in your own schedule.");
+        setMessage("You can only edit appointments in your own planner.");
         return;
       }
       if (!canUpdateAppointments && !canDeleteAppointments) {
@@ -1446,7 +1814,7 @@ function AppointmentScheduler({
     } else if (!canCreateOnSelectedSpecialist) {
       setMessage(
         canCreateAppointments
-          ? "You can only create appointments in your own schedule."
+          ? "You can only create appointments in your own planner."
           : "You do not have permission to create appointments."
       );
       return;
@@ -1788,7 +2156,7 @@ function AppointmentScheduler({
     if (!isEditMode && !canCreateOnSelectedSpecialist) {
       setCreateErrors({
         form: canCreateAppointments
-          ? "You can only create appointments in your own schedule."
+          ? "You can only create appointments in your own planner."
           : "You do not have permission to create appointments."
       });
       return;
@@ -1844,8 +2212,8 @@ function AppointmentScheduler({
       if (!canMutateSpecialistId(specialistId)) {
         setCreateErrors({
           specialistId: isEditMode
-            ? "You can only edit appointments in your own schedule."
-            : "You can only create appointments in your own schedule."
+            ? "You can only edit appointments in your own planner."
+            : "You can only create appointments in your own planner."
         });
         return;
       }
@@ -1954,7 +2322,7 @@ function AppointmentScheduler({
       if (isEditMode) {
         setMessage("");
       } else {
-        setMessage(String(data?.message || "Client added to schedule."));
+        setMessage(String(data?.message || "Client added to planner."));
       }
       closeCreateModal();
     } finally {
@@ -1968,7 +2336,7 @@ function AppointmentScheduler({
     }
     const targetSpecialistId = String(createModal.specialistId || "").trim();
     if (!canMutateSpecialistId(targetSpecialistId)) {
-      setCreateErrors({ form: "You can only edit appointments in your own schedule." });
+      setCreateErrors({ form: "You can only edit appointments in your own planner." });
       return;
     }
     if (!canDeleteAppointments) {
@@ -2084,9 +2452,104 @@ function AppointmentScheduler({
     window.alert(text);
     setMessage("");
   }, [message, onNotification]);
+  const canCurrentUserConfirmVipPending = useCallback((row) => {
+    if (!vipOnly || !canUpdateAppointments) {
+      return false;
+    }
+    const userId = String(normalizedCurrentUserId || "").trim();
+    if (!userId) {
+      return false;
+    }
+    const teacherId = String(row?.teacherId || selectedVipClassTeacherId || "").trim();
+    const tutorId = String(row?.tutorId || "").trim();
+    const isAssignedTeacherOrTutor = (teacherId && teacherId === userId) || (tutorId && tutorId === userId);
+    if (isAssignedTeacherOrTutor) {
+      return true;
+    }
+
+    // Admin-level users can confirm when they have update access.
+    return !restrictCreateToOwnSpecialist;
+  }, [
+    canUpdateAppointments,
+    normalizedCurrentUserId,
+    restrictCreateToOwnSpecialist,
+    selectedVipClassTeacherId,
+    vipOnly
+  ]);
+
+  const confirmVipPendingAppointment = useCallback(async (item, row) => {
+    if (!canCurrentUserConfirmVipPending(row)) {
+      return;
+    }
+    if (String(item?.status || "").trim().toLowerCase() !== "pending") {
+      return;
+    }
+
+    const appointmentId = String(item?.appointmentId || item?.id || "").trim();
+    const specialistId = String(item?.specialistId || "").trim();
+    const clientId = String(item?.clientId || "").trim();
+    const appointmentDate = String(item?.appointmentDate || "").trim();
+    const startTime = String(item?.startTime || "").trim();
+    const endTime = String(item?.endTime || "").trim();
+    const serviceName = String(item?.serviceName || "").trim() || "Service";
+    const durationMinutes = String(item?.durationMinutes || "").trim() || getDurationMinutesFromTimes(startTime, endTime);
+    const note = String(item?.note || "").trim();
+
+    if (!appointmentId || !specialistId || !clientId || !appointmentDate || !startTime || !endTime || !durationMinutes) {
+      setMessage("Failed to confirm lesson.");
+      return;
+    }
+    if (vipConfirmingByAppointmentId[appointmentId]) {
+      return;
+    }
+
+    try {
+      setVipConfirmingByAppointmentId((prev) => ({
+        ...prev,
+        [appointmentId]: true
+      }));
+
+      const response = await apiFetch(
+        `/api/appointments/schedules/${encodeURIComponent(appointmentId)}?scope=single`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            specialistId,
+            clientId,
+            appointmentDate,
+            startTime,
+            endTime,
+            durationMinutes,
+            service: serviceName,
+            status: "confirmed",
+            note
+          })
+        }
+      );
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        setMessage(String(data?.message || "Failed to confirm lesson.").trim());
+        return;
+      }
+
+      await loadSchedulesForCurrentWeek();
+      setMessage(String(data?.message || "Lesson confirmed.").trim());
+    } catch {
+      setMessage("Failed to confirm lesson.");
+    } finally {
+      setVipConfirmingByAppointmentId((prev) => {
+        const next = { ...prev };
+        delete next[appointmentId];
+        return next;
+      });
+    }
+  }, [canCurrentUserConfirmVipPending, loadSchedulesForCurrentWeek, vipConfirmingByAppointmentId]);
 
   return (
-    <section className={`appointment-scheduler${vipOnly ? " is-vip-schedule" : ""}`} aria-label="Appointment scheduler">
+    <section className={`appointment-scheduler${vipOnly ? " is-vip-schedule" : ""}`} aria-label="Appointment planner">
       <div className="appointment-toolbar">
         <div className="appointment-toolbar-block">
           <div className="appointment-specialist-control">
@@ -2126,7 +2589,111 @@ function AppointmentScheduler({
         ) : null}
       </div>
 
-      {isSchedulerInitialized ? (
+      {isSchedulerInitialized && vipSchedulesReady ? (
+        vipOnly ? (
+          <div className="appointment-vip-booked-wrap" key={weekRenderKey}>
+            <p className="all-users-state" hidden={Boolean(selectedSpecialistId) && vipWeeklyClientRows.length > 0}>
+              {selectedSpecialistId ? "No VIP clients found in selected class." : "Select class to view schedules."}
+            </p>
+            <div className="appointment-vip-weekly-grid-wrap" hidden={!selectedSpecialistId || vipWeeklyClientRows.length === 0}>
+              <table className="appointment-vip-weekly-grid" aria-label="VIP class weekly schedule table">
+                <thead>
+                  <tr>
+                    {weekDays.map((day) => {
+                      const dayHeaderClassName = isSameDate(day.date, now) ? "appointment-day-is-today" : undefined;
+                      return (
+                        <th key={day.key} className={dayHeaderClassName}>
+                          <div className="appointment-day-head">
+                            <span>{day.label}</span>
+                            <small>{formatHeaderDate(day.date)}</small>
+                          </div>
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {vipWeeklyClientRows.map((row) => (
+                    <tr key={row.clientId}>
+                      <td className="appointment-vip-client-wrap-cell" colSpan={weekDays.length}>
+                        <div className="appointment-vip-client-wrap">
+                          <p className="appointment-vip-client-name">{row.clientName || "-"}</p>
+                          <div
+                            className="appointment-vip-client-days-grid"
+                            style={{ gridTemplateColumns: `repeat(${Math.max(1, weekDays.length)}, minmax(0, 1fr))` }}
+                          >
+                            {weekDays.map((day) => {
+                              const dayItems = Array.isArray(row?.dayItemsByKey?.[day.key])
+                                ? row.dayItemsByKey[day.key]
+                                : [];
+                              const dayCellClassName = [
+                                "appointment-vip-client-day",
+                                isSameDate(day.date, now) ? "appointment-day-is-today" : ""
+                              ].filter(Boolean).join(" ") || undefined;
+
+                              return (
+                                <div key={`${row.clientId}-${day.key}`} className={dayCellClassName}>
+                                  {dayItems.length > 0 ? (
+                                    <div className="appointment-vip-weekly-list">
+                                      {dayItems.map((item) => {
+                                        const cardStatusClassName = (
+                                          item.status === "confirmed"
+                                          || item.status === "pending"
+                                          || item.status === "cancelled"
+                                          || item.status === "no-show"
+                                        )
+                                          ? `appointment-status-${item.status}`
+                                          : "";
+                                        const statusLabel = formatAppointmentStatusLabel(item.status);
+                                        const isPending = item.status === "pending";
+                                        const canConfirmPending = isPending && canCurrentUserConfirmVipPending(row);
+                                        const itemIdKey = String(item?.appointmentId || item?.id || "").trim();
+                                        const isConfirming = Boolean(itemIdKey && vipConfirmingByAppointmentId[itemIdKey]);
+                                        const cardClassName = [
+                                          "appointment-vip-weekly-card",
+                                          cardStatusClassName,
+                                          canConfirmPending ? "appointment-vip-pending-confirmable" : "",
+                                          isConfirming ? "is-loading" : ""
+                                        ].filter(Boolean).join(" ");
+                                        const statusClassName = [
+                                          "appointment-vip-weekly-status",
+                                          cardStatusClassName ? `appointment-vip-weekly-status-${item.status}` : ""
+                                        ].filter(Boolean).join(" ");
+                                        return (
+                                          <article
+                                            key={item.id}
+                                            className={cardClassName}
+                                            onDoubleClick={canConfirmPending && !isConfirming ? () => confirmVipPendingAppointment(item, row) : undefined}
+                                            title={canConfirmPending ? "Double-click to confirm attendance" : undefined}
+                                          >
+                                            <div className="appointment-vip-weekly-row appointment-vip-weekly-row-top">
+                                              <p className="appointment-vip-weekly-primary">{item.primaryText || "-"}</p>
+                                              <p className={statusClassName}>{isConfirming ? "Saving..." : statusLabel}</p>
+                                            </div>
+                                            <div className="appointment-vip-weekly-row appointment-vip-weekly-row-bottom">
+                                              <p className="appointment-vip-weekly-time">{item.timeLabel || "-"}</p>
+                                              <p className="appointment-vip-weekly-secondary">{item.secondaryText || "-"}</p>
+                                            </div>
+                                          </article>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : (
+                                    <p className="appointment-vip-weekly-empty">-</p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
         <div className="appointment-grid-wrap" key={weekRenderKey}>
           <table
             className="appointment-grid"
@@ -2326,6 +2893,7 @@ function AppointmentScheduler({
             </tbody>
           </table>
         </div>
+        )
       ) : (
         <div className="appointment-grid-wrap" aria-hidden="true">
           <table className="appointment-grid">
@@ -2372,7 +2940,7 @@ function AppointmentScheduler({
                 id="appointmentCreateCloseBtn"
                 type="button"
                 className="header-btn panel-close-btn appointment-create-close-btn"
-                aria-label="Close to schedule modal"
+                aria-label="Close planner modal"
                 onClick={closeCreateModal}
                 disabled={createSubmitting || createDeleting}
               >

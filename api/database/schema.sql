@@ -249,6 +249,63 @@ CREATE INDEX idx_vip_client_tutor_assignment_history_org_client_changed
 CREATE INDEX idx_vip_client_tutor_assignment_history_org_class_changed
   ON vip_client_tutor_assignment_history (organization_id, class_assignment_id, changed_at DESC, id DESC);
 
+CREATE TABLE vip_client_daily_routines (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  client_id INTEGER NOT NULL,
+  day_of_week SMALLINT NOT NULL CHECK (day_of_week BETWEEN 1 AND 7),
+  activity_type VARCHAR(16) NOT NULL CHECK (activity_type IN ('lesson', 'sleep')),
+  title VARCHAR(128) NOT NULL,
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  note VARCHAR(255),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order INTEGER NOT NULL DEFAULT 100 CHECK (sort_order >= 0 AND sort_order <= 10000),
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_vip_client_daily_routines_client_org
+    FOREIGN KEY (organization_id, client_id)
+    REFERENCES clients(organization_id, id) ON DELETE CASCADE,
+  CONSTRAINT uq_vip_client_daily_routines_exact_slot
+    UNIQUE (organization_id, client_id, day_of_week, start_time, end_time, activity_type),
+  CHECK (start_time < end_time)
+);
+
+CREATE INDEX idx_vip_client_daily_routines_org_client_day_time
+  ON vip_client_daily_routines (organization_id, client_id, day_of_week, start_time, id);
+
+CREATE INDEX idx_vip_client_daily_routines_org_day_active
+  ON vip_client_daily_routines (organization_id, day_of_week, is_active, sort_order, start_time, id);
+
+CREATE TABLE vip_class_daily_routines (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  class_assignment_id BIGINT NOT NULL,
+  day_of_week SMALLINT NOT NULL CHECK (day_of_week BETWEEN 1 AND 7),
+  activity_type VARCHAR(16) NOT NULL CHECK (activity_type IN ('lesson', 'sleep', 'meal', 'other')),
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  note VARCHAR(255),
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_vip_class_daily_routines_class_org
+    FOREIGN KEY (organization_id, class_assignment_id)
+    REFERENCES vip_class_teacher_assignments(organization_id, id) ON DELETE CASCADE,
+  CONSTRAINT uq_vip_class_daily_routines_exact_slot
+    UNIQUE (organization_id, class_assignment_id, day_of_week, start_time, end_time, activity_type),
+  CHECK (start_time < end_time)
+);
+
+CREATE INDEX idx_vip_class_daily_routines_org_class_day_time
+  ON vip_class_daily_routines (organization_id, class_assignment_id, day_of_week, start_time, id);
+
+CREATE INDEX idx_vip_class_daily_routines_org_day_time
+  ON vip_class_daily_routines (organization_id, day_of_week, start_time, id);
+
 CREATE TABLE appointment_settings (
   id SERIAL PRIMARY KEY,
   organization_id INTEGER NOT NULL UNIQUE REFERENCES organizations(id) ON DELETE CASCADE,

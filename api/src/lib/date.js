@@ -1,6 +1,6 @@
 export const MIN_BIRTHDAY_YMD = "1950-01-01";
 
-function getTodayYmd() {
+export function getTodayYmd() {
   const now = new Date();
   const year = String(now.getFullYear());
   const month = String(now.getMonth() + 1).padStart(2, "0");

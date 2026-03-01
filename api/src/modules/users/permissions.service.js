@@ -20,13 +20,24 @@ const BASE_PERMISSION_DEFINITIONS = [
   { code: PERMISSIONS.APPOINTMENTS_CREATE, label: "Create Appointments", sortOrder: 51 },
   { code: PERMISSIONS.APPOINTMENTS_UPDATE, label: "Update Appointments", sortOrder: 52 },
   { code: PERMISSIONS.APPOINTMENTS_DELETE, label: "Delete Appointments", sortOrder: 53 },
-  { code: PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE, label: "Appointments Schedule Submenu", sortOrder: 54 },
+  { code: PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE, label: "Appointments Planner Submenu", sortOrder: 54 },
   { code: PERMISSIONS.APPOINTMENTS_SUBMENU_BREAKS, label: "Appointments Breaks Submenu", sortOrder: 55 },
   { code: PERMISSIONS.APPOINTMENTS_SUBMENU_VIP_CLIENTS, label: "Appointments VIP Clients Submenu", sortOrder: 56 },
-  { code: PERMISSIONS.APPOINTMENTS_CLIENT_SEARCH, label: "Search Clients In Appointments", sortOrder: 57 },
-  { code: PERMISSIONS.NOTIFICATIONS_SEND, label: "Send Notifications", sortOrder: 58 },
-  { code: PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_MANAGER, label: "Notify To Manager", sortOrder: 59 },
-  { code: PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_SPECIALIST, label: "Notify To Specialist", sortOrder: 60 }
+  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_READ, label: "VIP Clients Read", sortOrder: 57 },
+  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_CREATE, label: "VIP Clients Create", sortOrder: 58 },
+  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_UPDATE, label: "VIP Clients Update", sortOrder: 59 },
+  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DELETE, label: "VIP Clients Delete", sortOrder: 60 },
+  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN, label: "My VIP Children Access", sortOrder: 61 },
+  { code: PERMISSIONS.APPOINTMENTS_SUBMENU_ASSIGNMENTS, label: "Appointments Assignments Submenu", sortOrder: 62 },
+  { code: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_READ, label: "Assignments Read", sortOrder: 63 },
+  { code: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CREATE, label: "Assignments Create", sortOrder: 64 },
+  { code: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_UPDATE, label: "Assignments Update", sortOrder: 65 },
+  { code: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_DELETE, label: "Assignments Delete", sortOrder: 66 },
+  { code: PERMISSIONS.APPOINTMENTS_SUBMENU_STATISTICS, label: "Appointments Statistics Submenu", sortOrder: 67 },
+  { code: PERMISSIONS.APPOINTMENTS_CLIENT_SEARCH, label: "Search Clients In Appointments", sortOrder: 68 },
+  { code: PERMISSIONS.NOTIFICATIONS_SEND, label: "Send Notifications", sortOrder: 69 },
+  { code: PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_MANAGER, label: "Notify To Manager", sortOrder: 70 },
+  { code: PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_SPECIALIST, label: "Notify To Specialist", sortOrder: 71 }
 ];
 
 const LEGACY_PERMISSION_CODE_MIGRATIONS = Object.freeze([

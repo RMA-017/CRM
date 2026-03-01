@@ -25,6 +25,15 @@ export function useProfileAccess(profile, forcedView) {
   const canCreateAppointments = permissionSet.has(PERMISSIONS.APPOINTMENTS_CREATE);
   const canUpdateAppointments = permissionSet.has(PERMISSIONS.APPOINTMENTS_UPDATE);
   const canDeleteAppointments = permissionSet.has(PERMISSIONS.APPOINTMENTS_DELETE);
+  const canReadVipClientsPermission = permissionSet.has(PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_READ);
+  const canCreateVipClientsPermission = permissionSet.has(PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_CREATE);
+  const canUpdateVipClientsPermission = permissionSet.has(PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_UPDATE);
+  const canDeleteVipClientsPermission = permissionSet.has(PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DELETE);
+  const canMyChildrenPermission = permissionSet.has(PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN);
+  const canReadAssignmentsPermission = permissionSet.has(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_READ);
+  const canCreateAssignmentsPermission = permissionSet.has(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CREATE);
+  const canUpdateAssignmentsPermission = permissionSet.has(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_UPDATE);
+  const canDeleteAssignmentsPermission = permissionSet.has(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_DELETE);
   const canSendNotifications = permissionSet.has(PERMISSIONS.NOTIFICATIONS_SEND);
   const canSearchAppointmentClients = (
     permissionSet.has(PERMISSIONS.APPOINTMENTS_CLIENT_SEARCH)
@@ -37,6 +46,17 @@ export function useProfileAccess(profile, forcedView) {
     || permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE)
     || permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_BREAKS)
     || permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_VIP_CLIENTS)
+    || canReadVipClientsPermission
+    || canCreateVipClientsPermission
+    || canUpdateVipClientsPermission
+    || canDeleteVipClientsPermission
+    || canMyChildrenPermission
+    || permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_ASSIGNMENTS)
+    || canReadAssignmentsPermission
+    || canCreateAssignmentsPermission
+    || canUpdateAssignmentsPermission
+    || canDeleteAssignmentsPermission
+    || permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_STATISTICS)
   );
 
   const canOpenClientsMenu = usesAdvancedMenuPermissions
@@ -54,16 +74,65 @@ export function useProfileAccess(profile, forcedView) {
       ? permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_BREAKS)
       : true
   );
-  const canOpenAppointmentVipClients = canReadAppointments && canReadClients && (
-    usesAdvancedMenuPermissions
-      ? permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_VIP_CLIENTS)
-      : true
-  );
   const rolePositionText = `${String(profile?.role || "").trim().toLowerCase()} ${String(profile?.position || "").trim().toLowerCase()}`;
   const isDirectorLike = rolePositionText.includes("director") || rolePositionText.includes("direktor");
-  const canOpenAppointmentVipAssignments = canReadAppointments
+  const canReadAppointmentVipClients = (
+    usesAdvancedMenuPermissions
+      ? canReadVipClientsPermission
+      : canReadClients
+  );
+  const canCreateAppointmentVipClients = (
+    usesAdvancedMenuPermissions
+      ? canCreateVipClientsPermission
+      : canReadClients
+  );
+  const canUpdateAppointmentVipClients = (
+    usesAdvancedMenuPermissions
+      ? canUpdateVipClientsPermission
+      : canReadClients
+  );
+  const canDeleteAppointmentVipClients = (
+    usesAdvancedMenuPermissions
+      ? canDeleteVipClientsPermission
+      : canReadClients
+  );
+  const canOpenAppointmentVipClients = (
+    usesAdvancedMenuPermissions
+      ? (permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_VIP_CLIENTS) && canReadVipClientsPermission)
+      : canReadClients
+  );
+  const canOpenMyChildren = (
+    usesAdvancedMenuPermissions
+      ? (canMyChildrenPermission || canOpenAppointmentVipClients)
+      : canReadClients
+  );
+
+  const legacyCanReadAssignments = canReadClients && (Boolean(profile?.isAdmin) || isDirectorLike);
+  const legacyCanManageAssignments = canUpdateClients && (Boolean(profile?.isAdmin) || isDirectorLike);
+  const canReadAppointmentVipAssignments = usesAdvancedMenuPermissions
+    ? canReadAssignmentsPermission
+    : legacyCanReadAssignments;
+  const canCreateAppointmentVipAssignments = usesAdvancedMenuPermissions
+    ? canCreateAssignmentsPermission
+    : legacyCanManageAssignments;
+  const canUpdateAppointmentVipAssignments = usesAdvancedMenuPermissions
+    ? canUpdateAssignmentsPermission
+    : legacyCanManageAssignments;
+  const canDeleteAppointmentVipAssignments = usesAdvancedMenuPermissions
+    ? canDeleteAssignmentsPermission
+    : legacyCanManageAssignments;
+  const canOpenAppointmentVipAssignments = (
+    usesAdvancedMenuPermissions
+      ? (permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_ASSIGNMENTS) && canReadAssignmentsPermission)
+      : legacyCanReadAssignments
+  );
+  const canOpenAppointmentStatistics = canReadAppointments
     && canReadClients
-    && (Boolean(profile?.isAdmin) || isDirectorLike);
+    && (
+      usesAdvancedMenuPermissions
+        ? permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_STATISTICS)
+        : canOpenAppointmentVipClients
+    );
 
   const canOpenAppointmentsMenu = usesAdvancedMenuPermissions
     ? permissionSet.has(PERMISSIONS.APPOINTMENTS_MENU)
@@ -87,13 +156,13 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "clients" || forcedView === "clients-all") {
       return hasClientsMenuAccess && canReadClients;
     }
-    if (forcedView === "clients-create") {
-      return hasClientsMenuAccess && canCreateClients;
-    }
-    if (forcedView === "appointment-vip-clients") {
+    if (forcedView === "appointment-vip-attendance") {
       return canOpenAppointmentVipClients;
     }
-    if (forcedView === "appointment-vip-attendance") {
+    if (forcedView === "appointment-vip-my-children") {
+      return canOpenAppointmentVipClients;
+    }
+    if (forcedView === "appointment-vip-daily-routines") {
       return canOpenAppointmentVipClients;
     }
     if (forcedView === "appointment-vip-assignments") {
@@ -125,16 +194,27 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "settings-notifications") {
       return hasNotificationsSettingsAccess;
     }
+    if (forcedView === "statistics" || forcedView === "statistics-class") {
+      return canOpenAppointmentStatistics;
+    }
     return true;
   }, [
     canCreateUsers,
-    canReadAppointments,
-    canReadClients,
     canCreateClients,
     canOpenAppointmentBreaks,
     canOpenAppointmentSchedule,
     canOpenAppointmentVipClients,
+    canOpenMyChildren,
+    canReadAppointmentVipClients,
+    canCreateAppointmentVipClients,
+    canUpdateAppointmentVipClients,
+    canDeleteAppointmentVipClients,
     canOpenAppointmentVipAssignments,
+    canReadAppointmentVipAssignments,
+    canCreateAppointmentVipAssignments,
+    canUpdateAppointmentVipAssignments,
+    canDeleteAppointmentVipAssignments,
+    canOpenAppointmentStatistics,
     hasClientsMenuAccess,
     canReadUsers,
     forcedView,
@@ -161,7 +241,17 @@ export function useProfileAccess(profile, forcedView) {
     canOpenAppointmentSchedule,
     canOpenAppointmentBreaks,
     canOpenAppointmentVipClients,
+    canOpenMyChildren,
+    canReadAppointmentVipClients,
+    canCreateAppointmentVipClients,
+    canUpdateAppointmentVipClients,
+    canDeleteAppointmentVipClients,
     canOpenAppointmentVipAssignments,
+    canReadAppointmentVipAssignments,
+    canCreateAppointmentVipAssignments,
+    canUpdateAppointmentVipAssignments,
+    canDeleteAppointmentVipAssignments,
+    canOpenAppointmentStatistics,
     hasAppointmentsMenuAccess,
     hasUsersMenuAccess,
     hasSettingsMenuAccess,
@@ -169,3 +259,4 @@ export function useProfileAccess(profile, forcedView) {
     canAccessForcedView
   };
 }
+

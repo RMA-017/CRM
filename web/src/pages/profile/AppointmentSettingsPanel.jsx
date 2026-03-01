@@ -1633,18 +1633,14 @@ function AppointmentSettingsPanel({
     return (
       <>
         <div className="appointment-breaks-view" aria-label="Appointment breaks list">
-          <div className="appointment-breaks-toolbar-actions">
-            <button
-              id="appointmentBreaksAddBtn"
-              type="button"
-              className="header-btn appointment-breaks-add-icon-btn"
-              aria-label="Add break"
-              title="Add break"
-              onClick={openAddBreakModal}
-            >
-              +
-            </button>
-          </div>
+          <button
+            id="appointmentBreaksAddBtn"
+            type="button"
+            hidden
+            aria-hidden="true"
+            tabIndex={-1}
+            onClick={openAddBreakModal}
+          />
           <div className="appointment-breaks-table-wrap all-users-table-wrap">
             {breaksLoading && (
               <div className="appointment-breaks-status all-users-state">Loading...</div>
@@ -1778,7 +1774,7 @@ function AppointmentSettingsPanel({
       </div>
 
       <div className="appointment-setting-row">
-        <label htmlFor="slotCellHeightPxInput">3. Scheduler Cell Height</label>
+        <label htmlFor="slotCellHeightPxInput">3. Planner Cell Height</label>
         <div className="appointment-setting-inline">
           <input
             id="slotCellHeightPxInput"

@@ -3,11 +3,9 @@ function ProfileSideMenu({
   menuOpen,
   hasClientsMenuAccess,
   canReadClients,
-  canCreateClients,
   clientsMenuOpen,
   setClientsMenuOpen,
   openAllClientsPanel,
-  openCreateClientPanel,
   vipClientsMenuOpen,
   setVipClientsMenuOpen,
   assignmentsMenuOpen,
@@ -16,17 +14,23 @@ function ProfileSideMenu({
   canOpenAppointmentSchedule,
   canOpenAppointmentBreaks,
   canOpenAppointmentVipClients,
+  canOpenMyChildren,
   canOpenAppointmentVipAssignments,
+  canOpenAppointmentStatistics,
   appointmentMenuOpen,
   setAppointmentMenuOpen,
   openAppointmentPanel,
   openAppointmentBreaksPanel,
   openAppointmentVipSchedulePanel,
   openAppointmentVipAttendancePanel,
+  openAppointmentVipMyChildrenPanel,
+  openAppointmentVipDailyRoutinesPanel,
   openAppointmentVipAssignmentsPanel,
   openAppointmentVipTutorAssignmentsPanel,
   openAppointmentSettingsPanel,
-  openAppointmentVipClientsPanel,
+  statisticsMenuOpen,
+  setStatisticsMenuOpen,
+  openStatisticsClassPanel,
   hasUsersMenuAccess,
   usersMenuOpen,
   setUsersMenuOpen,
@@ -34,8 +38,6 @@ function ProfileSideMenu({
   canReadUsers,
   closeMenu,
   navigate,
-  canCreateUsers,
-  openCreateUserPanel,
   hasSettingsMenuAccess,
   hasNotificationsSettingsAccess,
   settingsMenuOpen,
@@ -43,7 +45,8 @@ function ProfileSideMenu({
   openRolesPanel,
   openPositionsPanel,
   openAdminOptionsPanel,
-  openNotificationsSettingsPanel
+  openNotificationsSettingsPanel,
+  openMonitoringPanel
 }) {
   return (
     <>
@@ -81,15 +84,6 @@ function ProfileSideMenu({
             >
               All Clients
             </button>
-            <button
-              id="openCreateClientBtn"
-              type="button"
-              className="side-submenu-link side-submenu-action"
-              hidden={!canCreateClients}
-              onClick={openCreateClientPanel}
-            >
-              Create Client
-            </button>
           </div>
           <button
             id="toggleVipClientsMenuBtn"
@@ -114,15 +108,6 @@ function ProfileSideMenu({
               VIP Planner
             </button>
             <button
-              id="openVipClientsBtn"
-              type="button"
-              className="side-submenu-link side-submenu-action"
-              hidden={!canOpenAppointmentVipClients}
-              onClick={openAppointmentVipClientsPanel}
-            >
-              All
-            </button>
-            <button
               id="openVipAttendanceBtn"
               type="button"
               className="side-submenu-link side-submenu-action"
@@ -130,6 +115,33 @@ function ProfileSideMenu({
               onClick={openAppointmentVipAttendancePanel}
             >
               Attendance
+            </button>
+            <button
+              id="openVipMyChildrenBtn"
+              type="button"
+              className="side-submenu-link side-submenu-action"
+              hidden={!canOpenMyChildren}
+              onClick={openAppointmentVipMyChildrenPanel}
+            >
+              My Children
+            </button>
+            <button
+              id="openVipDailyRoutinesBtn"
+              type="button"
+              className="side-submenu-link side-submenu-action"
+              hidden={!canOpenAppointmentVipClients}
+              onClick={openAppointmentVipDailyRoutinesPanel}
+            >
+              Daily Routines
+            </button>
+            <button
+              id="openVipMyClassBtn"
+              type="button"
+              className="side-submenu-link side-submenu-action"
+              hidden={!canOpenAppointmentVipClients}
+              disabled
+            >
+              My Class
             </button>
           </div>
           <button
@@ -220,14 +232,28 @@ function ProfileSideMenu({
               >
                 All Users
               </button>
+            </div>
+          </div>
+          <div id="statisticsMenuGroup" className="side-menu-group" hidden={!canOpenAppointmentStatistics}>
+            <button
+              id="toggleStatisticsMenuBtn"
+              type="button"
+              className="side-menu-action side-menu-parent"
+              aria-expanded={statisticsMenuOpen ? "true" : "false"}
+              onClick={() => {
+                setStatisticsMenuOpen((prev) => !prev);
+              }}
+            >
+              Statistics
+            </button>
+            <div id="statisticsSubMenu" className="side-submenu" hidden={!statisticsMenuOpen}>
               <button
-                id="openCreateUserBtn"
+                id="openStatisticsClassBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
-                hidden={!canCreateUsers}
-                onClick={openCreateUserPanel}
+                onClick={openStatisticsClassPanel}
               >
-                Create User
+                Class
               </button>
             </div>
           </div>
@@ -297,6 +323,15 @@ function ProfileSideMenu({
                 onClick={openNotificationsSettingsPanel}
               >
                 Notifications
+              </button>
+              <button
+                id="openMonitoringBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                hidden={!hasSettingsMenuAccess}
+                onClick={openMonitoringPanel}
+              >
+                Monitoring
               </button>
             </div>
           </div>

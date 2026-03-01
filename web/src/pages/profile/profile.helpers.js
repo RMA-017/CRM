@@ -42,6 +42,43 @@ function toTitleWords(value) {
     .join(" ");
 }
 
+function normalizePermissionSegment(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-");
+}
+
+function resolvePermissionGroupMeta(code) {
+  const parts = String(code || "")
+    .trim()
+    .toLowerCase()
+    .split(".")
+    .filter(Boolean)
+    .map((part) => normalizePermissionSegment(part));
+
+  const moduleKey = parts[0] || "other";
+  const subModuleKey = parts[1] || "";
+
+  if (moduleKey === "appointments") {
+    if (subModuleKey === "vip-clients" || subModuleKey === "vip-client" || subModuleKey === "vipclients") {
+      return { key: "vip-clients", label: "VIP Clients", actionStartIndex: 2 };
+    }
+    if (subModuleKey === "assignments" || subModuleKey === "assignment") {
+      return { key: "assignments", label: "Assignments", actionStartIndex: 2 };
+    }
+    if (subModuleKey === "statistics" || subModuleKey === "statistic" || subModuleKey === "statistcs") {
+      return { key: "statistics", label: "Statistics", actionStartIndex: 2 };
+    }
+  }
+
+  return {
+    key: moduleKey,
+    label: toTitleWords(moduleKey),
+    actionStartIndex: 1
+  };
+}
+
 export function mapValueLabelOptions(items, getValue, getLabel) {
   if (!Array.isArray(items)) {
     return [];
@@ -57,10 +94,22 @@ export function mapValueLabelOptions(items, getValue, getLabel) {
 
 export function groupRolePermissionOptions(rolePermissionOptions) {
   const actionOrder = new Map([
+    ["open", 0],
+    ["menu", 0],
     ["read", 1],
     ["create", 2],
     ["update", 3],
     ["delete", 4]
+  ]);
+  const groupOrder = new Map([
+    ["profile", 10],
+    ["users", 20],
+    ["clients", 30],
+    ["appointments", 40],
+    ["vip-clients", 41],
+    ["assignments", 42],
+    ["statistics", 43],
+    ["notifications", 50]
   ]);
   const groups = new Map();
 
@@ -70,27 +119,43 @@ export function groupRolePermissionOptions(rolePermissionOptions) {
       return;
     }
 
-    const parts = code.split(".").filter(Boolean);
-    const moduleKey = parts[0] || "other";
-    const actionKey = parts.slice(1).join(".") || code;
+    const parts = code
+      .split(".")
+      .filter(Boolean)
+      .map((part) => normalizePermissionSegment(part));
+    const groupMeta = resolvePermissionGroupMeta(code);
+    const moduleKey = groupMeta.key;
+    const actionKey = parts.slice(groupMeta.actionStartIndex).join(".")
+      || (groupMeta.actionStartIndex > 1 ? "menu" : code);
 
     if (!groups.has(moduleKey)) {
       groups.set(moduleKey, {
         key: moduleKey,
-        label: toTitleWords(moduleKey),
+        label: groupMeta.label,
         permissions: []
       });
     }
 
+    const displayActionLabel = actionKey === "schedule"
+      ? "Planner"
+      : (toTitleWords(actionKey) || String(permission?.label || "").trim() || code);
+
     groups.get(moduleKey).permissions.push({
       code,
       actionKey,
-      actionLabel: toTitleWords(actionKey) || String(permission?.label || "").trim() || code
+      actionLabel: displayActionLabel
     });
   });
 
   return Array.from(groups.values())
-    .sort((left, right) => left.label.localeCompare(right.label))
+    .sort((left, right) => {
+      const leftRank = groupOrder.get(left.key) ?? 99;
+      const rightRank = groupOrder.get(right.key) ?? 99;
+      if (leftRank !== rightRank) {
+        return leftRank - rightRank;
+      }
+      return left.label.localeCompare(right.label);
+    })
     .map((group) => ({
       ...group,
       permissions: group.permissions.sort((left, right) => {

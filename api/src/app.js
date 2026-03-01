@@ -11,6 +11,8 @@ import authRoutes from "./modules/auth/auth.routes.js";
 import clientsRoutes from "./modules/clients/clients.routes.js";
 import createUserRoutes from "./modules/create-user/create-user.routes.js";
 import metaRoutes from "./modules/meta/meta.routes.js";
+import monitoringRoutes from "./modules/monitoring/monitoring.routes.js";
+import { recordRequest } from "./modules/monitoring/monitoring.store.js";
 import notificationsRoutes from "./modules/notifications/notifications.routes.js";
 import { createOutboxWorker } from "./modules/notifications/outbox.worker.js";
 import profileRoutes from "./modules/profile/profile.routes.js";
@@ -141,6 +143,7 @@ export async function buildApp() {
     await fastify.register(appointmentSettingsRoutes, { prefix: "/api/appointments" });
     await fastify.register(notificationsRoutes, { prefix: "/api/notifications" });
     await fastify.register(settingsRoutes, { prefix: "/api/settings" });
+    await fastify.register(monitoringRoutes, { prefix: "/api/monitoring" });
   });
 
   app.setErrorHandler((error, request, reply) => {
@@ -168,6 +171,20 @@ export async function buildApp() {
 
   app.setNotFoundHandler((_request, reply) => {
     reply.status(404).send({ message: "Not Found." });
+  });
+
+  app.addHook("onResponse", (request, reply, done) => {
+    const route = request.routeOptions?.url || "";
+    if (route && route !== "/" && route !== "/health" && route !== "/ready") {
+      const elapsedTime = Number(reply.elapsedTime);
+      recordRequest({
+        method: request.method,
+        route,
+        statusCode: reply.statusCode,
+        responseTimeMs: Number.isFinite(elapsedTime) ? Math.round(elapsedTime) : 0
+      });
+    }
+    done();
   });
 
   app.addHook("onReady", async () => {

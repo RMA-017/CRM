@@ -2,6 +2,7 @@ import { getClearCookieOptions, AUTH_COOKIE_NAME } from "../../lib/cookies.js";
 import { validateBirthdayYmd } from "../../lib/date.js";
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
+import { EMAIL_REGEX, PHONE_REGEX } from "../../constants/validation.js";
 import { findAuthUserById, verifyPassword } from "../auth/auth.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
 import { getRolePermissions, hasPermission, isAllowedPosition } from "../users/access.service.js";
@@ -20,7 +21,7 @@ function validateOwnProfileUpdate(field, value, currentPassword) {
   if (field === "password" && value.length < 6) {
     return { field: "password", message: "Password must be at least 6 characters." };
   }
-  if (field === "email" && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+  if (field === "email" && value && !EMAIL_REGEX.test(value)) {
     return { field: "email", message: "Invalid email format." };
   }
   if (field === "fullName" && !value) {
@@ -32,7 +33,7 @@ function validateOwnProfileUpdate(field, value, currentPassword) {
       return { field: "birthday", message: birthdayError };
     }
   }
-  if (field === "phone" && value && !/^\+?[0-9]{7,15}$/.test(value)) {
+  if (field === "phone" && value && !PHONE_REGEX.test(value)) {
     return { field: "phone", message: "Invalid phone number." };
   }
   return null;

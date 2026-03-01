@@ -2,6 +2,21 @@ import pool from "../../config/db.js";
 
 let vipAttendanceSchemaInitPromise = null;
 let vipAssignmentsSchemaInitPromise = null;
+let vipDailyRoutinesSchemaInitPromise = null;
+let vipClassDailyRoutinesSchemaInitPromise = null;
+let appointmentCalendarTablesReadyPromise = null;
+
+const VIP_DAILY_ROUTINE_ACTIVITY_SET = new Set(["lesson", "sleep"]);
+const VIP_CLASS_DAILY_ROUTINE_ACTIVITY_SET = new Set(["lesson", "sleep", "meal", "other"]);
+const VIP_DAILY_ROUTINE_DAY_NUM_TO_KEY = Object.freeze({
+  1: "mon",
+  2: "tue",
+  3: "wed",
+  4: "thu",
+  5: "fri",
+  6: "sat",
+  7: "sun"
+});
 
 async function ensureVipAttendanceSchema() {
   if (!vipAttendanceSchemaInitPromise) {
@@ -334,6 +349,103 @@ async function ensureVipAssignmentsSchema() {
   return vipAssignmentsSchemaInitPromise;
 }
 
+async function ensureVipDailyRoutinesSchema() {
+  if (!vipDailyRoutinesSchemaInitPromise) {
+    vipDailyRoutinesSchemaInitPromise = (async () => {
+      await pool.query(
+        `CREATE TABLE IF NOT EXISTS vip_client_daily_routines (
+           id BIGSERIAL PRIMARY KEY,
+           organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+           client_id INTEGER NOT NULL,
+           day_of_week SMALLINT NOT NULL CHECK (day_of_week BETWEEN 1 AND 7),
+           activity_type VARCHAR(16) NOT NULL CHECK (activity_type IN ('lesson', 'sleep')),
+           title VARCHAR(128) NOT NULL,
+           start_time TIME NOT NULL,
+           end_time TIME NOT NULL,
+           note VARCHAR(255),
+           is_active BOOLEAN NOT NULL DEFAULT TRUE,
+           sort_order INTEGER NOT NULL DEFAULT 100 CHECK (sort_order >= 0 AND sort_order <= 10000),
+           created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+           updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+           CONSTRAINT fk_vip_client_daily_routines_client_org
+             FOREIGN KEY (organization_id, client_id)
+             REFERENCES clients(organization_id, id) ON DELETE CASCADE,
+           CONSTRAINT uq_vip_client_daily_routines_exact_slot
+             UNIQUE (organization_id, client_id, day_of_week, start_time, end_time, activity_type),
+           CHECK (start_time < end_time)
+         )`
+      );
+      await pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_vip_client_daily_routines_org_client_day_time
+           ON vip_client_daily_routines (organization_id, client_id, day_of_week, start_time, id)`
+      );
+      await pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_vip_client_daily_routines_org_day_active
+           ON vip_client_daily_routines (organization_id, day_of_week, is_active, sort_order, start_time, id)`
+      );
+    })().catch((error) => {
+      vipDailyRoutinesSchemaInitPromise = null;
+      throw error;
+    });
+  }
+
+  return vipDailyRoutinesSchemaInitPromise;
+}
+
+async function ensureVipClassDailyRoutinesSchema() {
+  if (!vipClassDailyRoutinesSchemaInitPromise) {
+    vipClassDailyRoutinesSchemaInitPromise = (async () => {
+      await ensureVipAssignmentsSchema();
+      await pool.query(
+        `CREATE TABLE IF NOT EXISTS vip_class_daily_routines (
+           id BIGSERIAL PRIMARY KEY,
+           organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+           class_assignment_id BIGINT NOT NULL,
+           day_of_week SMALLINT NOT NULL CHECK (day_of_week BETWEEN 1 AND 7),
+           activity_type VARCHAR(16) NOT NULL CHECK (activity_type IN ('lesson', 'sleep', 'meal', 'other')),
+           start_time TIME NOT NULL,
+           end_time TIME NOT NULL,
+           note VARCHAR(255),
+           created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+           updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+           CONSTRAINT fk_vip_class_daily_routines_class_org
+             FOREIGN KEY (organization_id, class_assignment_id)
+             REFERENCES vip_class_teacher_assignments(organization_id, id) ON DELETE CASCADE,
+           CONSTRAINT uq_vip_class_daily_routines_exact_slot
+             UNIQUE (organization_id, class_assignment_id, day_of_week, start_time, end_time, activity_type),
+           CHECK (start_time < end_time)
+         )`
+      );
+      await pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_vip_class_daily_routines_org_class_day_time
+           ON vip_class_daily_routines (organization_id, class_assignment_id, day_of_week, start_time, id)`
+      );
+      await pool.query(
+        `DROP INDEX IF EXISTS idx_vip_class_daily_routines_org_day_active`
+      );
+      await pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_vip_class_daily_routines_org_day_time
+           ON vip_class_daily_routines (organization_id, day_of_week, start_time, id)`
+      );
+      await pool.query(
+        `ALTER TABLE vip_class_daily_routines
+           DROP COLUMN IF EXISTS title,
+           DROP COLUMN IF EXISTS is_active,
+           DROP COLUMN IF EXISTS sort_order`
+      );
+    })().catch((error) => {
+      vipClassDailyRoutinesSchemaInitPromise = null;
+      throw error;
+    });
+  }
+
+  return vipClassDailyRoutinesSchemaInitPromise;
+}
+
 export async function findClientsRequester({ userId, organizationId }) {
   const { rows } = await pool.query(
     `SELECT
@@ -406,6 +518,33 @@ export async function getVipAttendanceTeachersByOrganization(organizationId) {
     "o'qituvchi",
     "ustoz"
   ]);
+}
+
+export async function getVipClientOptionsByOrganization({
+  organizationId,
+  limit = 1000
+}) {
+  const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 2000) : 1000;
+  const { rows } = await pool.query(
+    `SELECT
+       c.id::text AS id,
+       c.first_name,
+       c.last_name,
+       c.middle_name
+      FROM clients c
+      JOIN organizations o ON o.id = c.organization_id
+      WHERE c.organization_id = $1
+        AND c.is_vip = TRUE
+        AND o.is_active = TRUE
+      ORDER BY
+        LOWER(c.last_name) ASC,
+        LOWER(c.first_name) ASC,
+        LOWER(COALESCE(c.middle_name, '')) ASC,
+        c.id ASC
+      LIMIT $2`,
+    [organizationId, safeLimit]
+  );
+  return rows || [];
 }
 
 export async function getVipAssignmentOptionsByOrganization(organizationId) {
@@ -899,6 +1038,736 @@ export async function getVipTutorAssignmentHistory({
   return rows || [];
 }
 
+export async function getVipDailyRoutines({
+  organizationId,
+  clientId = null,
+  dayOfWeek = null,
+  includeInactive = true,
+  limit = 1000
+}) {
+  await ensureVipDailyRoutinesSchema();
+  await ensureVipAssignmentsSchema();
+
+  const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 3000) : 1000;
+  const whereParts = [
+    "r.organization_id = $1",
+    "o.is_active = TRUE",
+    "c.is_vip = TRUE"
+  ];
+  const params = [organizationId];
+
+  if (Number.isInteger(clientId) && clientId > 0) {
+    params.push(clientId);
+    whereParts.push(`r.client_id = $${params.length}`);
+  }
+
+  if (Number.isInteger(dayOfWeek) && dayOfWeek >= 1 && dayOfWeek <= 7) {
+    params.push(dayOfWeek);
+    whereParts.push(`r.day_of_week = $${params.length}`);
+  }
+
+  if (includeInactive !== true) {
+    whereParts.push("r.is_active = TRUE");
+  }
+
+  params.push(safeLimit);
+
+  const { rows } = await pool.query(
+    `SELECT
+       r.id::text AS id,
+       r.client_id::text AS client_id,
+       c.first_name,
+       c.last_name,
+       c.middle_name,
+       r.day_of_week,
+       r.activity_type,
+       r.title,
+       TO_CHAR(r.start_time, 'HH24:MI') AS start_time,
+       TO_CHAR(r.end_time, 'HH24:MI') AS end_time,
+       r.note,
+       r.is_active,
+       r.sort_order,
+       r.created_by::text AS created_by,
+       r.updated_by::text AS updated_by,
+       r.created_at,
+       r.updated_at,
+       vta.class_assignment_id::text AS class_assignment_id,
+       vcta.class_name,
+       vcta.teacher_user_id::text AS teacher_user_id,
+       COALESCE(NULLIF(TRIM(teacher_u.full_name), ''), NULLIF(TRIM(teacher_u.username), ''), '') AS teacher_name,
+       vta.tutor_user_id::text AS tutor_user_id,
+       COALESCE(NULLIF(TRIM(tutor_u.full_name), ''), NULLIF(TRIM(tutor_u.username), ''), '') AS tutor_name
+      FROM vip_client_daily_routines r
+      JOIN clients c
+        ON c.organization_id = r.organization_id
+       AND c.id = r.client_id
+      JOIN organizations o ON o.id = r.organization_id
+      LEFT JOIN vip_client_tutor_assignments vta
+        ON vta.organization_id = r.organization_id
+       AND vta.client_id = r.client_id
+      LEFT JOIN vip_class_teacher_assignments vcta
+        ON vcta.organization_id = r.organization_id
+       AND vcta.id = vta.class_assignment_id
+      LEFT JOIN users teacher_u
+        ON teacher_u.id = vcta.teacher_user_id
+       AND teacher_u.organization_id = r.organization_id
+      LEFT JOIN users tutor_u
+        ON tutor_u.id = vta.tutor_user_id
+       AND tutor_u.organization_id = r.organization_id
+      WHERE ${whereParts.join(" AND ")}
+      ORDER BY
+        LOWER(c.last_name) ASC,
+        LOWER(c.first_name) ASC,
+        LOWER(COALESCE(c.middle_name, '')) ASC,
+        r.day_of_week ASC,
+        r.sort_order ASC,
+        r.start_time ASC,
+        r.id ASC
+      LIMIT $${params.length}`,
+    params
+  );
+
+  return rows || [];
+}
+
+export async function upsertVipDailyRoutine({
+  organizationId,
+  routineId = null,
+  clientId,
+  dayOfWeek,
+  activityType,
+  title,
+  startTime,
+  endTime,
+  note = "",
+  isActive = true,
+  sortOrder = 100,
+  updatedBy
+}) {
+  await ensureVipDailyRoutinesSchema();
+  await ensureVipAssignmentsSchema();
+
+  const normalizedRoutineId = Number.parseInt(String(routineId || "").trim(), 10) || 0;
+  const normalizedClientId = Number.parseInt(String(clientId || "").trim(), 10) || 0;
+  const normalizedDayOfWeek = normalizeVipDailyRoutineDayOfWeek(dayOfWeek);
+  const normalizedActivityType = normalizeVipDailyRoutineActivityType(activityType);
+  const normalizedTitle = String(title || "").trim();
+  const normalizedStartTime = String(startTime || "").trim();
+  const normalizedEndTime = String(endTime || "").trim();
+  const normalizedNote = String(note || "").trim();
+  const parsedSortOrder = Number.parseInt(String(sortOrder ?? "").trim(), 10);
+  const normalizedSortOrder = Number.isInteger(parsedSortOrder)
+    ? Math.min(10000, Math.max(0, parsedSortOrder))
+    : 100;
+  const normalizedIsActive = isActive !== false;
+
+  if (
+    !normalizedClientId
+    || !normalizedDayOfWeek
+    || !normalizedActivityType
+    || !normalizedTitle
+    || !normalizedStartTime
+    || !normalizedEndTime
+  ) {
+    return null;
+  }
+
+  if (normalizedRoutineId > 0) {
+    const { rows } = await pool.query(
+      `WITH target_client AS (
+         SELECT c.id
+           FROM clients c
+           JOIN organizations o ON o.id = c.organization_id
+          WHERE c.organization_id = $1
+            AND c.id = $3
+            AND c.is_vip = TRUE
+            AND o.is_active = TRUE
+          LIMIT 1
+       ),
+       updated AS (
+         UPDATE vip_client_daily_routines r
+            SET client_id = tc.id,
+                day_of_week = $4::smallint,
+                activity_type = $5::text,
+                title = $6::text,
+                start_time = $7::time,
+                end_time = $8::time,
+                note = NULLIF($9::text, ''),
+                is_active = $10::boolean,
+                sort_order = $11::integer,
+                updated_by = $12::integer,
+                updated_at = CURRENT_TIMESTAMP
+           FROM target_client tc
+          WHERE r.organization_id = $1
+            AND r.id = $2
+          RETURNING r.*
+       )
+       SELECT
+         u.id::text AS id,
+         u.client_id::text AS client_id,
+         c.first_name,
+         c.last_name,
+         c.middle_name,
+         u.day_of_week,
+         u.activity_type,
+         u.title,
+         TO_CHAR(u.start_time, 'HH24:MI') AS start_time,
+         TO_CHAR(u.end_time, 'HH24:MI') AS end_time,
+         u.note,
+         u.is_active,
+         u.sort_order,
+         u.created_by::text AS created_by,
+         u.updated_by::text AS updated_by,
+         u.created_at,
+         u.updated_at,
+         vta.class_assignment_id::text AS class_assignment_id,
+         vcta.class_name,
+         vcta.teacher_user_id::text AS teacher_user_id,
+         COALESCE(NULLIF(TRIM(teacher_u.full_name), ''), NULLIF(TRIM(teacher_u.username), ''), '') AS teacher_name,
+         vta.tutor_user_id::text AS tutor_user_id,
+         COALESCE(NULLIF(TRIM(tutor_u.full_name), ''), NULLIF(TRIM(tutor_u.username), ''), '') AS tutor_name
+        FROM updated u
+        JOIN clients c
+          ON c.organization_id = $1
+         AND c.id = u.client_id
+        LEFT JOIN vip_client_tutor_assignments vta
+          ON vta.organization_id = $1
+         AND vta.client_id = u.client_id
+        LEFT JOIN vip_class_teacher_assignments vcta
+          ON vcta.organization_id = $1
+         AND vcta.id = vta.class_assignment_id
+        LEFT JOIN users teacher_u
+          ON teacher_u.id = vcta.teacher_user_id
+         AND teacher_u.organization_id = $1
+        LEFT JOIN users tutor_u
+          ON tutor_u.id = vta.tutor_user_id
+         AND tutor_u.organization_id = $1`,
+      [
+        organizationId,
+        normalizedRoutineId,
+        normalizedClientId,
+        normalizedDayOfWeek,
+        normalizedActivityType,
+        normalizedTitle,
+        normalizedStartTime,
+        normalizedEndTime,
+        normalizedNote,
+        normalizedIsActive,
+        normalizedSortOrder,
+        updatedBy || null
+      ]
+    );
+
+    return rows[0] || null;
+  }
+
+  const { rows } = await pool.query(
+    `WITH target_client AS (
+       SELECT c.id
+         FROM clients c
+         JOIN organizations o ON o.id = c.organization_id
+        WHERE c.organization_id = $1
+          AND c.id = $2
+          AND c.is_vip = TRUE
+          AND o.is_active = TRUE
+        LIMIT 1
+     ),
+     inserted AS (
+       INSERT INTO vip_client_daily_routines (
+         organization_id,
+         client_id,
+         day_of_week,
+         activity_type,
+         title,
+         start_time,
+         end_time,
+         note,
+         is_active,
+         sort_order,
+         created_by,
+         updated_by
+       )
+       SELECT
+         $1,
+         tc.id,
+         $3::smallint,
+         $4::text,
+         $5::text,
+         $6::time,
+         $7::time,
+         NULLIF($8::text, ''),
+         $9::boolean,
+         $10::integer,
+         $11::integer,
+         $11::integer
+       FROM target_client tc
+       RETURNING *
+     )
+     SELECT
+       i.id::text AS id,
+       i.client_id::text AS client_id,
+       c.first_name,
+       c.last_name,
+       c.middle_name,
+       i.day_of_week,
+       i.activity_type,
+       i.title,
+       TO_CHAR(i.start_time, 'HH24:MI') AS start_time,
+       TO_CHAR(i.end_time, 'HH24:MI') AS end_time,
+       i.note,
+       i.is_active,
+       i.sort_order,
+       i.created_by::text AS created_by,
+       i.updated_by::text AS updated_by,
+       i.created_at,
+       i.updated_at,
+       vta.class_assignment_id::text AS class_assignment_id,
+       vcta.class_name,
+       vcta.teacher_user_id::text AS teacher_user_id,
+       COALESCE(NULLIF(TRIM(teacher_u.full_name), ''), NULLIF(TRIM(teacher_u.username), ''), '') AS teacher_name,
+       vta.tutor_user_id::text AS tutor_user_id,
+       COALESCE(NULLIF(TRIM(tutor_u.full_name), ''), NULLIF(TRIM(tutor_u.username), ''), '') AS tutor_name
+      FROM inserted i
+      JOIN clients c
+        ON c.organization_id = $1
+       AND c.id = i.client_id
+      LEFT JOIN vip_client_tutor_assignments vta
+        ON vta.organization_id = $1
+       AND vta.client_id = i.client_id
+      LEFT JOIN vip_class_teacher_assignments vcta
+        ON vcta.organization_id = $1
+       AND vcta.id = vta.class_assignment_id
+      LEFT JOIN users teacher_u
+        ON teacher_u.id = vcta.teacher_user_id
+       AND teacher_u.organization_id = $1
+      LEFT JOIN users tutor_u
+        ON tutor_u.id = vta.tutor_user_id
+       AND tutor_u.organization_id = $1`,
+    [
+      organizationId,
+      normalizedClientId,
+      normalizedDayOfWeek,
+      normalizedActivityType,
+      normalizedTitle,
+      normalizedStartTime,
+      normalizedEndTime,
+      normalizedNote,
+      normalizedIsActive,
+      normalizedSortOrder,
+      updatedBy || null
+    ]
+  );
+
+  return rows[0] || null;
+}
+
+export async function deleteVipDailyRoutine({
+  organizationId,
+  routineId
+}) {
+  await ensureVipDailyRoutinesSchema();
+  return pool.query(
+    `DELETE FROM vip_client_daily_routines
+      WHERE organization_id = $1
+        AND id = $2`,
+    [organizationId, routineId]
+  );
+}
+
+export async function getVipClassDailyRoutines({
+  organizationId,
+  classId = null,
+  dayOfWeek = null,
+  limit = 1000
+}) {
+  await ensureVipClassDailyRoutinesSchema();
+
+  const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 3000) : 1000;
+  const whereParts = [
+    "r.organization_id = $1",
+    "o.is_active = TRUE"
+  ];
+  const params = [organizationId];
+
+  if (Number.isInteger(classId) && classId > 0) {
+    params.push(classId);
+    whereParts.push(`r.class_assignment_id = $${params.length}`);
+  }
+
+  if (Number.isInteger(dayOfWeek) && dayOfWeek >= 1 && dayOfWeek <= 7) {
+    params.push(dayOfWeek);
+    whereParts.push(`r.day_of_week = $${params.length}`);
+  }
+
+  params.push(safeLimit);
+
+  const { rows } = await pool.query(
+    `SELECT
+       r.id::text AS id,
+       r.class_assignment_id::text AS class_assignment_id,
+       vcta.class_name,
+       vcta.teacher_user_id::text AS teacher_user_id,
+       COALESCE(NULLIF(TRIM(teacher_u.full_name), ''), NULLIF(TRIM(teacher_u.username), ''), '') AS teacher_name,
+       (
+         SELECT COUNT(*)
+           FROM vip_client_tutor_assignments vta
+          WHERE vta.organization_id = r.organization_id
+            AND vta.class_assignment_id = r.class_assignment_id
+       )::integer AS children_count,
+       r.day_of_week,
+       r.activity_type,
+       CASE
+         WHEN r.activity_type = 'lesson' THEN 'Group lesson'
+         WHEN r.activity_type = 'sleep' THEN 'Sleep time'
+         WHEN r.activity_type = 'meal' THEN 'Meal'
+         WHEN r.activity_type = 'other' THEN 'Other'
+         ELSE ''
+       END AS title,
+       TO_CHAR(r.start_time, 'HH24:MI') AS start_time,
+       TO_CHAR(r.end_time, 'HH24:MI') AS end_time,
+       r.note,
+       TRUE AS is_active,
+       100::integer AS sort_order,
+       r.created_by::text AS created_by,
+       r.updated_by::text AS updated_by,
+       r.created_at,
+       r.updated_at
+      FROM vip_class_daily_routines r
+      JOIN organizations o ON o.id = r.organization_id
+      JOIN vip_class_teacher_assignments vcta
+        ON vcta.organization_id = r.organization_id
+       AND vcta.id = r.class_assignment_id
+      LEFT JOIN users teacher_u
+        ON teacher_u.id = vcta.teacher_user_id
+       AND teacher_u.organization_id = r.organization_id
+      WHERE ${whereParts.join(" AND ")}
+      ORDER BY
+        LOWER(vcta.class_name) ASC,
+        r.day_of_week ASC,
+        r.start_time ASC,
+        r.id ASC
+      LIMIT $${params.length}`,
+    params
+  );
+
+  return rows || [];
+}
+
+export async function upsertVipClassDailyRoutine({
+  organizationId,
+  routineId = null,
+  classId,
+  dayOfWeek,
+  activityType,
+  startTime,
+  endTime,
+  note = "",
+  updatedBy
+}) {
+  await ensureVipClassDailyRoutinesSchema();
+
+  const normalizedRoutineId = Number.parseInt(String(routineId || "").trim(), 10) || 0;
+  const normalizedClassId = Number.parseInt(String(classId || "").trim(), 10) || 0;
+  const normalizedDayOfWeek = normalizeVipDailyRoutineDayOfWeek(dayOfWeek);
+  const normalizedActivityType = normalizeVipClassDailyRoutineActivityType(activityType);
+  const normalizedStartTime = String(startTime || "").trim();
+  const normalizedEndTime = String(endTime || "").trim();
+  const normalizedNote = String(note || "").trim();
+
+  if (
+    !normalizedClassId
+    || !normalizedDayOfWeek
+    || !normalizedActivityType
+    || !normalizedStartTime
+    || !normalizedEndTime
+  ) {
+    return null;
+  }
+
+  if (normalizedRoutineId > 0) {
+    const { rows } = await pool.query(
+      `WITH target_class AS (
+         SELECT va.id
+           FROM vip_class_teacher_assignments va
+           JOIN organizations o ON o.id = va.organization_id
+          WHERE va.organization_id = $1
+            AND va.id = $3
+            AND o.is_active = TRUE
+          LIMIT 1
+       ),
+       updated AS (
+         UPDATE vip_class_daily_routines r
+            SET class_assignment_id = tc.id,
+                day_of_week = $4::smallint,
+                activity_type = $5::text,
+                start_time = $6::time,
+                end_time = $7::time,
+                note = NULLIF($8::text, ''),
+                updated_by = $9::integer,
+                updated_at = CURRENT_TIMESTAMP
+           FROM target_class tc
+          WHERE r.organization_id = $1
+            AND r.id = $2
+          RETURNING r.*
+       )
+       SELECT
+         u.id::text AS id,
+         u.class_assignment_id::text AS class_assignment_id,
+         vcta.class_name,
+         vcta.teacher_user_id::text AS teacher_user_id,
+         COALESCE(NULLIF(TRIM(teacher_u.full_name), ''), NULLIF(TRIM(teacher_u.username), ''), '') AS teacher_name,
+         (
+           SELECT COUNT(*)
+             FROM vip_client_tutor_assignments vta
+            WHERE vta.organization_id = $1
+              AND vta.class_assignment_id = u.class_assignment_id
+         )::integer AS children_count,
+         u.day_of_week,
+         u.activity_type,
+         CASE
+           WHEN u.activity_type = 'lesson' THEN 'Group lesson'
+           WHEN u.activity_type = 'sleep' THEN 'Sleep time'
+           WHEN u.activity_type = 'meal' THEN 'Meal'
+           WHEN u.activity_type = 'other' THEN 'Other'
+           ELSE ''
+         END AS title,
+         TO_CHAR(u.start_time, 'HH24:MI') AS start_time,
+         TO_CHAR(u.end_time, 'HH24:MI') AS end_time,
+         u.note,
+         TRUE AS is_active,
+         100::integer AS sort_order,
+         u.created_by::text AS created_by,
+         u.updated_by::text AS updated_by,
+         u.created_at,
+         u.updated_at
+        FROM updated u
+        JOIN vip_class_teacher_assignments vcta
+          ON vcta.organization_id = $1
+         AND vcta.id = u.class_assignment_id
+        LEFT JOIN users teacher_u
+          ON teacher_u.id = vcta.teacher_user_id
+         AND teacher_u.organization_id = $1`,
+      [
+        organizationId,
+        normalizedRoutineId,
+        normalizedClassId,
+        normalizedDayOfWeek,
+        normalizedActivityType,
+        normalizedStartTime,
+        normalizedEndTime,
+        normalizedNote,
+        updatedBy || null
+      ]
+    );
+
+    return rows[0] || null;
+  }
+
+  const { rows } = await pool.query(
+    `WITH target_class AS (
+       SELECT va.id
+         FROM vip_class_teacher_assignments va
+         JOIN organizations o ON o.id = va.organization_id
+        WHERE va.organization_id = $1
+          AND va.id = $2
+          AND o.is_active = TRUE
+        LIMIT 1
+     ),
+     inserted AS (
+       INSERT INTO vip_class_daily_routines (
+         organization_id,
+         class_assignment_id,
+         day_of_week,
+         activity_type,
+         start_time,
+         end_time,
+         note,
+         created_by,
+         updated_by
+       )
+       SELECT
+         $1,
+         tc.id,
+         $3::smallint,
+         $4::text,
+         $5::time,
+         $6::time,
+         NULLIF($7::text, ''),
+         $8::integer,
+         $8::integer
+       FROM target_class tc
+       RETURNING *
+     )
+     SELECT
+       i.id::text AS id,
+       i.class_assignment_id::text AS class_assignment_id,
+       vcta.class_name,
+       vcta.teacher_user_id::text AS teacher_user_id,
+       COALESCE(NULLIF(TRIM(teacher_u.full_name), ''), NULLIF(TRIM(teacher_u.username), ''), '') AS teacher_name,
+       (
+         SELECT COUNT(*)
+           FROM vip_client_tutor_assignments vta
+          WHERE vta.organization_id = $1
+            AND vta.class_assignment_id = i.class_assignment_id
+       )::integer AS children_count,
+       i.day_of_week,
+       i.activity_type,
+       CASE
+         WHEN i.activity_type = 'lesson' THEN 'Group lesson'
+         WHEN i.activity_type = 'sleep' THEN 'Sleep time'
+         WHEN i.activity_type = 'meal' THEN 'Meal'
+         WHEN i.activity_type = 'other' THEN 'Other'
+         ELSE ''
+       END AS title,
+       TO_CHAR(i.start_time, 'HH24:MI') AS start_time,
+       TO_CHAR(i.end_time, 'HH24:MI') AS end_time,
+       i.note,
+       TRUE AS is_active,
+       100::integer AS sort_order,
+       i.created_by::text AS created_by,
+       i.updated_by::text AS updated_by,
+       i.created_at,
+       i.updated_at
+      FROM inserted i
+      JOIN vip_class_teacher_assignments vcta
+        ON vcta.organization_id = $1
+       AND vcta.id = i.class_assignment_id
+      LEFT JOIN users teacher_u
+        ON teacher_u.id = vcta.teacher_user_id
+       AND teacher_u.organization_id = $1`,
+    [
+      organizationId,
+      normalizedClassId,
+      normalizedDayOfWeek,
+      normalizedActivityType,
+      normalizedStartTime,
+      normalizedEndTime,
+      normalizedNote,
+      updatedBy || null
+    ]
+  );
+
+  return rows[0] || null;
+}
+
+export async function deleteVipClassDailyRoutine({
+  organizationId,
+  routineId
+}) {
+  await ensureVipClassDailyRoutinesSchema();
+  return pool.query(
+    `DELETE FROM vip_class_daily_routines
+      WHERE organization_id = $1
+        AND id = $2`,
+    [organizationId, routineId]
+  );
+}
+
+export async function getVipAttendanceHistory({
+  organizationId,
+  fromDate = null,
+  toDate = null,
+  classId = null,
+  teacherId = null,
+  tutorId = null,
+  clientId = null,
+  limit = 1000
+}) {
+  await ensureVipAttendanceSchema();
+  await ensureVipAssignmentsSchema();
+
+  const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 3000) : 1000;
+  const whereParts = [
+    "vca.organization_id = $1",
+    "o.is_active = TRUE",
+    "c.is_vip = TRUE"
+  ];
+  const params = [organizationId];
+
+  const normalizedFromDate = String(fromDate || "").trim();
+  if (normalizedFromDate) {
+    params.push(normalizedFromDate);
+    whereParts.push(`vca.attendance_date >= $${params.length}::date`);
+  }
+
+  const normalizedToDate = String(toDate || "").trim();
+  if (normalizedToDate) {
+    params.push(normalizedToDate);
+    whereParts.push(`vca.attendance_date <= $${params.length}::date`);
+  }
+
+  if (Number.isInteger(classId) && classId > 0) {
+    params.push(classId);
+    whereParts.push(`vcta.id = $${params.length}`);
+  }
+
+  if (Number.isInteger(teacherId) && teacherId > 0) {
+    params.push(teacherId);
+    whereParts.push(`vcta.teacher_user_id = $${params.length}`);
+  }
+
+  if (Number.isInteger(tutorId) && tutorId > 0) {
+    params.push(tutorId);
+    whereParts.push(`vta.tutor_user_id = $${params.length}`);
+  }
+
+  if (Number.isInteger(clientId) && clientId > 0) {
+    params.push(clientId);
+    whereParts.push(`c.id = $${params.length}`);
+  }
+
+  params.push(safeLimit);
+
+  const { rows } = await pool.query(
+    `SELECT
+       vca.id::text AS id,
+       vca.client_id::text AS client_id,
+       c.first_name,
+       c.last_name,
+       c.middle_name,
+       vcta.id::text AS class_id,
+       vcta.class_name,
+       vcta.teacher_user_id::text AS teacher_user_id,
+       COALESCE(NULLIF(TRIM(teacher_u.full_name), ''), NULLIF(TRIM(teacher_u.username), ''), '') AS teacher_name,
+       vta.tutor_user_id::text AS tutor_user_id,
+       COALESCE(NULLIF(TRIM(tutor_u.full_name), ''), NULLIF(TRIM(tutor_u.username), ''), '') AS tutor_name,
+       vca.attendance_date,
+       vca.status,
+       vca.arrived_at,
+       vca.left_at,
+       vca.note,
+       vca.updated_at
+      FROM vip_client_attendance vca
+      JOIN clients c
+        ON c.organization_id = vca.organization_id
+       AND c.id = vca.client_id
+      JOIN organizations o ON o.id = vca.organization_id
+      LEFT JOIN vip_client_tutor_assignments vta
+        ON vta.organization_id = c.organization_id
+       AND vta.client_id = c.id
+      LEFT JOIN vip_class_teacher_assignments vcta
+        ON vcta.organization_id = vta.organization_id
+       AND vcta.id = vta.class_assignment_id
+      LEFT JOIN users teacher_u
+        ON teacher_u.id = vcta.teacher_user_id
+       AND teacher_u.organization_id = c.organization_id
+      LEFT JOIN users tutor_u
+        ON tutor_u.id = vta.tutor_user_id
+       AND tutor_u.organization_id = c.organization_id
+      WHERE ${whereParts.join(" AND ")}
+      ORDER BY
+        vca.attendance_date DESC,
+        LOWER(c.last_name) ASC,
+        LOWER(c.first_name) ASC,
+        LOWER(COALESCE(c.middle_name, '')) ASC,
+        vca.id DESC
+      LIMIT $${params.length}`,
+    params
+  );
+
+  return rows || [];
+}
+
 function normalizeSearchToken(value) {
   return String(value || "").trim().toLowerCase();
 }
@@ -913,6 +1782,131 @@ function getTodayYmd() {
 
 function isDateYmd(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value || "").trim());
+}
+
+function normalizeVipDailyRoutineActivityType(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return VIP_DAILY_ROUTINE_ACTIVITY_SET.has(normalized) ? normalized : "";
+}
+
+function normalizeVipClassDailyRoutineActivityType(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return VIP_CLASS_DAILY_ROUTINE_ACTIVITY_SET.has(normalized) ? normalized : "";
+}
+
+function normalizeVipDailyRoutineDayOfWeek(value) {
+  const parsed = Number.parseInt(String(value || "").trim(), 10);
+  if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 7) {
+    return parsed;
+  }
+  return 0;
+}
+
+async function hasAppointmentCalendarTables() {
+  if (!appointmentCalendarTablesReadyPromise) {
+    appointmentCalendarTablesReadyPromise = pool.query(
+      `SELECT
+         to_regclass('public.appointment_settings') IS NOT NULL AS has_settings_table,
+         to_regclass('public.appointment_working_hours') IS NOT NULL AS has_working_hours_table`
+    )
+      .then((result) => {
+        const row = result?.rows?.[0] || {};
+        return Boolean(row.has_settings_table) && Boolean(row.has_working_hours_table);
+      })
+      .catch(() => {
+        appointmentCalendarTablesReadyPromise = null;
+        return false;
+      });
+  }
+  return appointmentCalendarTablesReadyPromise;
+}
+
+function getUtcDayOfWeekFromYmd(value) {
+  const normalized = String(value || "").trim();
+  if (!isDateYmd(normalized)) {
+    return 0;
+  }
+  const [yearRaw, monthRaw, dayRaw] = normalized.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    Number.isNaN(date.getTime())
+    || date.getUTCFullYear() !== year
+    || date.getUTCMonth() !== month - 1
+    || date.getUTCDate() !== day
+  ) {
+    return 0;
+  }
+  const utcDay = date.getUTCDay();
+  return utcDay === 0 ? 7 : utcDay;
+}
+
+async function shouldBackfillVipAttendanceAbsentForDate({ organizationId, attendanceDate }) {
+  const normalizedDate = String(attendanceDate || "").trim();
+  if (!isDateYmd(normalizedDate)) {
+    return false;
+  }
+
+  const canUseCalendarTables = await hasAppointmentCalendarTables();
+  if (!canUseCalendarTables) {
+    // Keep legacy behavior when appointment calendar tables are unavailable.
+    return true;
+  }
+
+  const dayOfWeek = getUtcDayOfWeekFromYmd(normalizedDate);
+  if (!dayOfWeek) {
+    return false;
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `WITH settings AS (
+         SELECT visible_week_days
+           FROM appointment_settings
+          WHERE organization_id = $1
+          LIMIT 1
+       )
+       SELECT
+         COALESCE(
+           (SELECT visible_week_days FROM settings),
+           ARRAY[1,2,3,4,5,6]::smallint[]
+         ) AS visible_week_days,
+         awh.is_active,
+         awh.start_time,
+         awh.end_time
+       FROM (SELECT 1) seed
+       LEFT JOIN appointment_working_hours awh
+         ON awh.organization_id = $1
+        AND awh.day_of_week = $2
+       LIMIT 1`,
+      [organizationId, dayOfWeek]
+    );
+
+    const row = rows?.[0] || null;
+    const visibleWeekDays = Array.isArray(row?.visible_week_days)
+      ? row.visible_week_days
+          .map((item) => Number.parseInt(String(item ?? "").trim(), 10))
+          .filter((item) => Number.isInteger(item) && item >= 1 && item <= 7)
+      : [1, 2, 3, 4, 5, 6];
+    if (!visibleWeekDays.includes(dayOfWeek)) {
+      return false;
+    }
+
+    const hasWorkingHoursRow = row?.is_active === true || row?.is_active === false;
+    if (!hasWorkingHoursRow) {
+      // Strict mode: missing working-hours row means day is not eligible for auto-backfill.
+      return false;
+    }
+
+    const startTime = row?.start_time ? String(row.start_time).slice(0, 5) : "";
+    const endTime = row?.end_time ? String(row.end_time).slice(0, 5) : "";
+    return row.is_active === true && Boolean(startTime) && Boolean(endTime) && startTime < endTime;
+  } catch {
+    // Do not block attendance processing if calendar lookup fails.
+    return true;
+  }
 }
 
 async function backfillVipAttendanceAbsentForDate({ organizationId, attendanceDate }) {
@@ -948,6 +1942,41 @@ async function backfillVipAttendanceAbsentForDate({ organizationId, attendanceDa
     ON CONFLICT (organization_id, client_id, attendance_date)
     DO NOTHING`,
     [organizationId, normalizedDate]
+  );
+}
+
+async function backfillVipAttendanceLeftByWorkingHoursForDate({ organizationId, attendanceDate }) {
+  const normalizedDate = String(attendanceDate || "").trim();
+  if (!isDateYmd(normalizedDate)) {
+    return;
+  }
+
+  const dayOfWeek = getUtcDayOfWeekFromYmd(normalizedDate);
+  if (!dayOfWeek) {
+    return;
+  }
+
+  await pool.query(
+    `UPDATE vip_client_attendance vca
+        SET left_at = CASE
+              WHEN ($2::date + awh.end_time) >= vca.arrived_at
+                THEN ($2::date + awh.end_time)
+              ELSE vca.arrived_at
+            END,
+            updated_at = CURRENT_TIMESTAMP
+       FROM appointment_working_hours awh
+      WHERE vca.organization_id = $1
+        AND awh.organization_id = vca.organization_id
+        AND awh.day_of_week = $3
+        AND awh.is_active = TRUE
+        AND awh.start_time IS NOT NULL
+        AND awh.end_time IS NOT NULL
+        AND awh.start_time < awh.end_time
+        AND vca.attendance_date = $2::date
+        AND vca.status = 'present'
+        AND vca.arrived_at IS NOT NULL
+        AND vca.left_at IS NULL`,
+    [organizationId, normalizedDate, dayOfWeek]
   );
 }
 
@@ -1082,6 +2111,7 @@ export async function searchClientsForSchedule({
   middleName = "",
   isVip = null,
   attendanceDate = null,
+  assignedUserId = null,
   limit = 50
 }) {
   await ensureVipAttendanceSchema();
@@ -1091,13 +2121,27 @@ export async function searchClientsForSchedule({
   const normalizedLastName = normalizeSearchToken(lastName);
   const normalizedMiddleName = normalizeSearchToken(middleName);
   const normalizedAttendanceDate = String(attendanceDate || "").trim() || null;
-  const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 50;
+  const parsedAssignedUserId = Number.parseInt(String(assignedUserId || "").trim(), 10);
+  const normalizedAssignedUserId = Number.isInteger(parsedAssignedUserId) && parsedAssignedUserId > 0
+    ? parsedAssignedUserId
+    : null;
+  const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 500) : 50;
   const isVipOnlySearch = isVip === true;
   if (isVipOnlySearch && isDateYmd(normalizedAttendanceDate) && normalizedAttendanceDate < getTodayYmd()) {
-    await backfillVipAttendanceAbsentForDate({
+    const shouldBackfill = await shouldBackfillVipAttendanceAbsentForDate({
       organizationId,
       attendanceDate: normalizedAttendanceDate
     });
+    if (shouldBackfill) {
+      await backfillVipAttendanceAbsentForDate({
+        organizationId,
+        attendanceDate: normalizedAttendanceDate
+      });
+      await backfillVipAttendanceLeftByWorkingHoursForDate({
+        organizationId,
+        attendanceDate: normalizedAttendanceDate
+      });
+    }
   }
 
   const { rows } = await pool.query(
@@ -1158,6 +2202,11 @@ export async function searchClientsForSchedule({
        AND ($3 = '' OR LOWER(c.last_name) LIKE $3 || '%')
        AND ($4 = '' OR (c.middle_name IS NOT NULL AND LOWER(c.middle_name) LIKE $4 || '%'))
        AND ($5::boolean IS NULL OR c.is_vip = $5::boolean)
+       AND (
+         $8::integer IS NULL
+         OR vcta.teacher_user_id = $8::integer
+         OR vta.tutor_user_id = $8::integer
+       )
      ORDER BY
        LOWER(c.last_name) ASC,
        LOWER(c.first_name) ASC,
@@ -1171,7 +2220,8 @@ export async function searchClientsForSchedule({
       normalizedMiddleName,
       typeof isVip === "boolean" ? isVip : null,
       normalizedAttendanceDate,
-      safeLimit
+      safeLimit,
+      normalizedAssignedUserId
     ]
   );
 

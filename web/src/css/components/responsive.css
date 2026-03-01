@@ -1,21 +1,21 @@
 /* Responsive */
 @media (max-width: 1200px) {
   /* Clients tables */
-  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table-wrap {
+  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table-wrap {
     overflow-x: auto;
     overflow-y: auto;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
   }
 
-  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table {
+  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table {
     width: max-content;
     min-width: 1280px;
     table-layout: auto;
   }
 
-  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table th,
-  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table td {
+  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table th,
+  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table td {
     overflow: visible;
     text-overflow: clip;
     white-space: nowrap;
@@ -41,28 +41,28 @@
   }
 
   /* Clients tables */
-  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table-wrap {
+  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table-wrap {
     overflow-x: auto;
     overflow-y: auto;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
   }
 
-  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table {
+  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table {
     width: max-content;
     min-width: 1280px;
     table-layout: auto;
   }
 
-  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table th,
-  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table td {
+  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table th,
+  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table td {
     overflow: visible;
     text-overflow: clip;
     white-space: nowrap;
   }
 
-  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table th:nth-child(11),
-  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table td:nth-child(11),
+  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table th:nth-child(11),
+  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table td:nth-child(11),
   #clientsPanel .all-users-table th:nth-child(12),
   #clientsPanel .all-users-table td:nth-child(12) {
     width: 90px;
@@ -197,21 +197,21 @@
   }
 
   /* Data tables */
-  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table-wrap {
+  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table-wrap {
     overflow-x: auto;
     overflow-y: auto;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
   }
 
-  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table {
+  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table {
     width: max-content;
     min-width: 1280px;
     table-layout: auto;
   }
 
-  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table th,
-  :is(#clientsPanel, #appointmentVipClientsPanel, #appointmentVipAttendancePanel) .all-users-table td {
+  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table th,
+  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table td {
     overflow: visible;
     text-overflow: clip;
     white-space: nowrap;
@@ -550,10 +550,14 @@
   }
 
   .appointment-toolbar-block {
-    padding: 8px;
+    padding: 5px 10px;
   }
 
   .appointment-grid {
+    min-width: 760px;
+  }
+
+  .appointment-vip-weekly-grid {
     min-width: 760px;
   }
 
@@ -656,12 +660,13 @@
 
 @media (max-width: 860px) {
   .vip-attendance-toolbar {
-    grid-template-columns: minmax(0, 1fr);
+    flex-direction: column;
     align-items: stretch;
   }
 
   .vip-attendance-summary {
     justify-content: flex-start;
+    margin-left: 0;
   }
 }
 

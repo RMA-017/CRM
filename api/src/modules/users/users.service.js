@@ -1,5 +1,6 @@
 import argon2 from "argon2";
 import pool from "../../config/db.js";
+import { executeTransaction } from "../../lib/db-utils.js";
 
 const VIP_CLASS_TEACHER_ASSIGNMENTS_TABLE_NAME = "public.vip_class_teacher_assignments";
 const VIP_CLASS_TEACHER_ASSIGNMENTS_TABLE_CACHE_TTL_MS = 60_000;
@@ -167,10 +168,7 @@ export async function updateUserByAdmin({
   roleId,
   password
 }) {
-  let client = null;
-  try {
-    client = await pool.connect();
-    await client.query("BEGIN");
+  return executeTransaction(async (client) => {
     const parsedNextOrganizationId = Number(nextOrganizationId);
     const targetOrganizationId = Number.isInteger(parsedNextOrganizationId) && parsedNextOrganizationId > 0
       ? parsedNextOrganizationId
@@ -188,7 +186,6 @@ export async function updateUserByAdmin({
     );
     const currentUser = currentUserResult.rows[0] || null;
     if (!currentUser) {
-      await client.query("ROLLBACK");
       return null;
     }
 
@@ -240,7 +237,6 @@ export async function updateUserByAdmin({
     );
 
     if (updateResult.rowCount === 0) {
-      await client.query("ROLLBACK");
       return null;
     }
 
@@ -276,25 +272,9 @@ export async function updateUserByAdmin({
          AND u.organization_id = $2`,
       [userId, targetOrganizationId]
     );
-    const user = rows[0] || null;
 
-    if (!user) {
-      await client.query("ROLLBACK");
-      return null;
-    }
-
-    await client.query("COMMIT");
-    return user;
-  } catch (error) {
-    if (client) {
-      await client.query("ROLLBACK").catch(() => {});
-    }
-    throw error;
-  } finally {
-    if (client) {
-      client.release();
-    }
-  }
+    return rows[0] || null;
+  });
 }
 
 export async function deleteUserById(userId, organizationId) {

@@ -1,6 +1,7 @@
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
-import { isValidDateYmd, validateBirthdayYmd } from "../../lib/date.js";
+import { getTodayYmd, isValidDateYmd, validateBirthdayYmd } from "../../lib/date.js";
+import { PHONE_REGEX } from "../../constants/validation.js";
 import { hasPermission } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
 import {
@@ -13,26 +14,24 @@ import {
   getVipClassAssignmentHistory,
   getVipClassAssignmentOptions,
   getVipClassAssignments,
+  getVipClassDailyRoutines,
+  getVipAttendanceHistory,
+  getVipClientOptionsByOrganization,
+  getVipDailyRoutines,
   getVipAttendanceTeachersByOrganization,
   getVipTutorAssignmentHistory,
   getVipTutorAssignments,
+  deleteVipClassDailyRoutine,
+  deleteVipDailyRoutine,
   resetVipClientAttendanceByDate,
   searchClientsForSchedule,
   upsertVipClassAssignment,
+  upsertVipClassDailyRoutine,
+  upsertVipDailyRoutine,
   upsertVipTutorAssignment,
   upsertVipClientAttendance,
   updateClientById
 } from "./clients.service.js";
-
-const PHONE_REGEX = /^\+?[0-9]{7,15}$/;
-
-function getTodayYmd() {
-  const now = new Date();
-  const year = String(now.getFullYear()).padStart(4, "0");
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
 
 function splitLegacyFullName(value) {
   const tokens = String(value || "").trim().split(/\s+/).filter(Boolean);
@@ -114,6 +113,42 @@ function parseAttendanceDateTime(value) {
   return { value: normalized };
 }
 
+function toYmdFromDateObject(value) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+    return "";
+  }
+  const year = String(value.getFullYear()).padStart(4, "0");
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function normalizeDateYmdValue(value) {
+  if (!value) {
+    return "";
+  }
+
+  if (value instanceof Date) {
+    return toYmdFromDateObject(value);
+  }
+
+  const raw = String(value).trim();
+  if (!raw) {
+    return "";
+  }
+
+  const ymdMatch = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (ymdMatch && isValidDateYmd(ymdMatch[1])) {
+    return ymdMatch[1];
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+  return toYmdFromDateObject(parsed);
+}
+
 function isTeacherLike(...parts) {
   const normalized = parts
     .map((part) => String(part || "").trim().toLowerCase())
@@ -139,6 +174,192 @@ function isDirectorLikeRequester(requester) {
   return normalized.includes("director") || normalized.includes("direktor");
 }
 
+const VIP_DAILY_ROUTINE_DAY_KEY_TO_NUM = Object.freeze({
+  mon: 1,
+  tue: 2,
+  wed: 3,
+  thu: 4,
+  fri: 5,
+  sat: 6,
+  sun: 7,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6,
+  sunday: 7,
+  dushanba: 1,
+  seshanba: 2,
+  chorshanba: 3,
+  payshanba: 4,
+  juma: 5,
+  shanba: 6,
+  yakshanba: 7
+});
+
+const VIP_DAILY_ROUTINE_DAY_NUM_TO_KEY = Object.freeze({
+  1: "mon",
+  2: "tue",
+  3: "wed",
+  4: "thu",
+  5: "fri",
+  6: "sat",
+  7: "sun"
+});
+
+const VIP_DAILY_ROUTINE_ACTIVITY_ALIASES = Object.freeze({
+  lesson: "lesson",
+  dars: "lesson",
+  class: "lesson",
+  study: "lesson",
+  sleep: "sleep",
+  nap: "sleep",
+  uxlash: "sleep",
+  uyqu: "sleep"
+});
+
+const VIP_CLASS_DAILY_ROUTINE_ACTIVITY_ALIASES = Object.freeze({
+  lesson: "lesson",
+  dars: "lesson",
+  class: "lesson",
+  study: "lesson",
+  sleep: "sleep",
+  nap: "sleep",
+  uxlash: "sleep",
+  uyqu: "sleep",
+  meal: "meal",
+  food: "meal",
+  breakfast: "meal",
+  lunch: "meal",
+  dinner: "meal",
+  snack: "meal",
+  poldnik: "meal",
+  nonushta: "meal",
+  tushlik: "meal",
+  ovqat: "meal",
+  other: "other",
+  boshqa: "other"
+});
+
+function parseVipDailyRoutineDayOfWeek(value) {
+  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
+  if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 7) {
+    return parsed;
+  }
+
+  const normalized = String(value || "").trim().toLowerCase();
+  return VIP_DAILY_ROUTINE_DAY_KEY_TO_NUM[normalized] || 0;
+}
+
+function normalizeVipDailyRoutineActivityType(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return VIP_DAILY_ROUTINE_ACTIVITY_ALIASES[normalized] || "";
+}
+
+function normalizeVipClassDailyRoutineActivityType(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return VIP_CLASS_DAILY_ROUTINE_ACTIVITY_ALIASES[normalized] || "";
+}
+
+function normalizeHmTime(value) {
+  const raw = String(value || "").trim();
+  const match = raw.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+  if (!match) {
+    return "";
+  }
+  return `${match[1]}:${match[2]}`;
+}
+
+function toHmMinutes(value) {
+  const normalized = normalizeHmTime(value);
+  if (!normalized) {
+    return null;
+  }
+  const [hourRaw, minuteRaw] = normalized.split(":");
+  return (Number(hourRaw) * 60) + Number(minuteRaw);
+}
+
+const ADVANCED_APPOINTMENT_MENU_PERMISSIONS = Object.freeze([
+  PERMISSIONS.CLIENTS_MENU,
+  PERMISSIONS.APPOINTMENTS_MENU,
+  PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE,
+  PERMISSIONS.APPOINTMENTS_SUBMENU_BREAKS,
+  PERMISSIONS.APPOINTMENTS_SUBMENU_VIP_CLIENTS,
+  PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_READ,
+  PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_CREATE,
+  PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_UPDATE,
+  PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DELETE,
+  PERMISSIONS.APPOINTMENTS_SUBMENU_ASSIGNMENTS,
+  PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_READ,
+  PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CREATE,
+  PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_UPDATE,
+  PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_DELETE,
+  PERMISSIONS.APPOINTMENTS_SUBMENU_STATISTICS
+]);
+
+async function hasAdvancedAppointmentMenuPermissions(roleId) {
+  const checks = await Promise.all(
+    ADVANCED_APPOINTMENT_MENU_PERMISSIONS.map((code) => hasPermission(roleId, code))
+  );
+  return checks.some(Boolean);
+}
+
+async function getVipClientsPermissionSnapshot(roleId) {
+  const [
+    usesAdvancedMenuPermissions,
+    canOpenVipClients,
+    canReadVipClients,
+    canCreateVipClients,
+    canUpdateVipClients,
+    canDeleteVipClients,
+    canAccessMyChildren
+  ] = await Promise.all([
+    hasAdvancedAppointmentMenuPermissions(roleId),
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_SUBMENU_VIP_CLIENTS),
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_READ),
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_CREATE),
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_UPDATE),
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DELETE),
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN)
+  ]);
+  return {
+    usesAdvancedMenuPermissions,
+    canOpenVipClients,
+    canReadVipClients,
+    canCreateVipClients,
+    canUpdateVipClients,
+    canDeleteVipClients,
+    canAccessMyChildren
+  };
+}
+
+async function getAssignmentsPermissionSnapshot(roleId) {
+  const [
+    usesAdvancedMenuPermissions,
+    canOpenAssignments,
+    canReadAssignments,
+    canCreateAssignments,
+    canUpdateAssignments,
+    canDeleteAssignments
+  ] = await Promise.all([
+    hasAdvancedAppointmentMenuPermissions(roleId),
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_SUBMENU_ASSIGNMENTS),
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_READ),
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CREATE),
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_UPDATE),
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_DELETE)
+  ]);
+  return {
+    usesAdvancedMenuPermissions,
+    canOpenAssignments,
+    canReadAssignments,
+    canCreateAssignments,
+    canUpdateAssignments,
+    canDeleteAssignments
+  };
+}
+
 function normalizeClientPayload(body) {
   const payload = body && typeof body === "object" ? body : {};
   const legacyFullName = String(payload?.fullName || "").trim();
@@ -162,7 +383,7 @@ function mapClient(row) {
   const firstName = String(row.first_name || "").trim();
   const lastName = String(row.last_name || "").trim();
   const middleName = String(row.middle_name || "").trim();
-  const birthday = row.birthday ? String(row.birthday).slice(0, 10) : "";
+  const birthday = normalizeDateYmdValue(row?.birthday);
   const tgMail = String(row.tg_mail || "").trim();
   const note = String(row.note || "").trim();
   const attendanceNote = String(row.attendance_note || "").trim();
@@ -170,7 +391,7 @@ function mapClient(row) {
   const attendanceStatus = attendanceStatusRaw === "present" || attendanceStatusRaw === "absent"
     ? attendanceStatusRaw
     : "";
-  const attendanceDate = row.attendance_date ? String(row.attendance_date).slice(0, 10) : "";
+  const attendanceDate = normalizeDateYmdValue(row?.attendance_date);
   const assignedTeacherId = String(row.teacher_id || row.teacher_user_id || "").trim();
   const assignedTeacherName = String(row.teacher_name || "").trim();
   const assignedTutorId = String(row.tutor_id || row.tutor_user_id || "").trim();
@@ -271,12 +492,63 @@ function mapVipAttendanceRecord(row) {
   const note = String(row?.note || "").trim();
   return {
     clientId: String(row?.client_id || "").trim(),
-    attendanceDate: row?.attendance_date ? String(row.attendance_date).slice(0, 10) : "",
+    attendanceDate: normalizeDateYmdValue(row?.attendance_date),
     attendanceStatus: status === "present" ? "present" : "absent",
     arrivedAt: row?.arrived_at || null,
     leftAt: row?.left_at || null,
     attendanceNote: note,
     note
+  };
+}
+
+function mapVipAttendanceHistoryRecord(row) {
+  const statusRaw = String(row?.status || row?.attendance_status || "").trim().toLowerCase();
+  const attendanceStatus = statusRaw === "present" ? "present" : "absent";
+  const attendanceDate = normalizeDateYmdValue(row?.attendance_date);
+  const note = String(row?.note || row?.attendance_note || "").trim();
+  const classId = String(row?.class_id || row?.class_assignment_id || row?.classId || "").trim();
+  const className = String(row?.class_name || row?.className || "").trim();
+  const teacherId = String(row?.teacher_user_id || row?.teacher_id || row?.teacherId || "").trim();
+  const teacherName = String(row?.teacher_name || row?.teacherName || "").trim();
+  const tutorId = String(row?.tutor_user_id || row?.tutor_id || row?.tutorId || "").trim();
+  const tutorName = String(row?.tutor_name || row?.tutorName || "").trim();
+  const clientId = String(row?.client_id || row?.clientId || "").trim();
+  const firstName = String(row?.first_name || row?.firstName || "").trim();
+  const lastName = String(row?.last_name || row?.lastName || "").trim();
+  const middleName = String(row?.middle_name || row?.middleName || "").trim();
+  return {
+    id: String(row?.id || "").trim(),
+    clientId,
+    client_id: clientId,
+    firstName,
+    first_name: firstName,
+    lastName,
+    last_name: lastName,
+    middleName,
+    middle_name: middleName,
+    classId,
+    class_id: classId,
+    className,
+    class_name: className,
+    teacherId,
+    teacher_id: teacherId,
+    teacherName,
+    teacher_name: teacherName,
+    tutorId,
+    tutor_id: tutorId,
+    tutorName,
+    tutor_name: tutorName,
+    attendanceDate,
+    attendance_date: attendanceDate,
+    attendanceStatus,
+    attendance_status: attendanceStatus,
+    arrivedAt: row?.arrived_at || row?.arrivedAt || null,
+    arrived_at: row?.arrived_at || row?.arrivedAt || null,
+    leftAt: row?.left_at || row?.leftAt || null,
+    left_at: row?.left_at || row?.leftAt || null,
+    note,
+    attendanceNote: note,
+    attendance_note: note
   };
 }
 
@@ -459,6 +731,132 @@ function mapVipTutorAssignmentHistoryRecord(row) {
   };
 }
 
+function mapVipDailyRoutineRecord(row) {
+  const id = String(row?.id || "").trim();
+  const clientId = String(row?.client_id || row?.clientId || "").trim();
+  const firstName = String(row?.first_name || row?.firstName || "").trim();
+  const lastName = String(row?.last_name || row?.lastName || "").trim();
+  const middleName = String(row?.middle_name || row?.middleName || "").trim();
+  const dayOfWeek = Number.parseInt(String(row?.day_of_week || row?.dayOfWeek || ""), 10) || 0;
+  const dayKey = VIP_DAILY_ROUTINE_DAY_NUM_TO_KEY[dayOfWeek] || "";
+  const activityType = normalizeVipDailyRoutineActivityType(row?.activity_type || row?.activityType);
+  const title = String(row?.title || "").trim();
+  const startTime = normalizeHmTime(row?.start_time || row?.startTime);
+  const endTime = normalizeHmTime(row?.end_time || row?.endTime);
+  const note = String(row?.note || "").trim();
+  const isActive = row?.is_active === false ? false : row?.isActive !== false;
+  const sortOrderRaw = Number.parseInt(String(row?.sort_order ?? row?.sortOrder ?? "100"), 10);
+  const sortOrder = Number.isInteger(sortOrderRaw) ? sortOrderRaw : 100;
+  const classId = String(row?.class_assignment_id || row?.class_id || row?.classId || "").trim();
+  const className = String(row?.class_name || row?.className || "").trim();
+  const teacherId = String(row?.teacher_user_id || row?.teacher_id || row?.teacherId || "").trim();
+  const teacherName = String(row?.teacher_name || row?.teacherName || "").trim();
+  const tutorId = String(row?.tutor_user_id || row?.tutor_id || row?.tutorId || "").trim();
+  const tutorName = String(row?.tutor_name || row?.tutorName || "").trim();
+  const createdAt = row?.created_at || row?.createdAt || null;
+  const updatedAt = row?.updated_at || row?.updatedAt || null;
+
+  return {
+    id,
+    clientId,
+    client_id: clientId,
+    firstName,
+    first_name: firstName,
+    lastName,
+    last_name: lastName,
+    middleName,
+    middle_name: middleName,
+    dayOfWeek,
+    day_of_week: dayOfWeek,
+    dayKey,
+    day_key: dayKey,
+    activityType,
+    activity_type: activityType,
+    title,
+    startTime,
+    start_time: startTime,
+    endTime,
+    end_time: endTime,
+    note,
+    isActive,
+    is_active: isActive,
+    sortOrder,
+    sort_order: sortOrder,
+    classId,
+    class_id: classId,
+    className,
+    class_name: className,
+    teacherId,
+    teacher_id: teacherId,
+    teacherName,
+    teacher_name: teacherName,
+    tutorId,
+    tutor_id: tutorId,
+    tutorName,
+    tutor_name: tutorName,
+    createdAt,
+    created_at: createdAt,
+    updatedAt,
+    updated_at: updatedAt
+  };
+}
+
+function mapVipClassDailyRoutineRecord(row) {
+  const id = String(row?.id || "").trim();
+  const classId = String(row?.class_assignment_id || row?.classId || row?.class_id || "").trim();
+  const className = String(row?.class_name || row?.className || "").trim();
+  const teacherId = String(row?.teacher_user_id || row?.teacher_id || row?.teacherId || "").trim();
+  const teacherName = String(row?.teacher_name || row?.teacherName || "").trim();
+  const childrenCountRaw = Number.parseInt(String(row?.children_count ?? row?.childrenCount ?? "0"), 10);
+  const childrenCount = Number.isInteger(childrenCountRaw) && childrenCountRaw > 0 ? childrenCountRaw : 0;
+  const dayOfWeek = Number.parseInt(String(row?.day_of_week || row?.dayOfWeek || ""), 10) || 0;
+  const dayKey = VIP_DAILY_ROUTINE_DAY_NUM_TO_KEY[dayOfWeek] || "";
+  const activityType = normalizeVipClassDailyRoutineActivityType(row?.activity_type || row?.activityType);
+  const title = String(row?.title || "").trim();
+  const startTime = normalizeHmTime(row?.start_time || row?.startTime);
+  const endTime = normalizeHmTime(row?.end_time || row?.endTime);
+  const note = String(row?.note || "").trim();
+  const isActive = row?.is_active === false ? false : row?.isActive !== false;
+  const sortOrderRaw = Number.parseInt(String(row?.sort_order ?? row?.sortOrder ?? "100"), 10);
+  const sortOrder = Number.isInteger(sortOrderRaw) ? sortOrderRaw : 100;
+  const createdAt = row?.created_at || row?.createdAt || null;
+  const updatedAt = row?.updated_at || row?.updatedAt || null;
+
+  return {
+    id,
+    classId,
+    class_id: classId,
+    className,
+    class_name: className,
+    teacherId,
+    teacher_id: teacherId,
+    teacherName,
+    teacher_name: teacherName,
+    childrenCount,
+    children_count: childrenCount,
+    dayOfWeek,
+    day_of_week: dayOfWeek,
+    dayKey,
+    day_key: dayKey,
+    activityType,
+    activity_type: activityType,
+    title,
+    startTime,
+    start_time: startTime,
+    endTime,
+    end_time: endTime,
+    note,
+    isActive,
+    is_active: isActive,
+    sortOrder,
+    sort_order: sortOrder,
+    createdAt,
+    created_at: createdAt,
+    updatedAt,
+    updated_at: updatedAt
+  };
+}
+
 async function clientsRoutes(fastify) {
   fastify.get(
     "/vip-attendance/teachers",
@@ -474,11 +872,14 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
-        const [canReadClients, canReadAppointments] = await Promise.all([
+        const [canReadClients, vipPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_READ)
+          getVipClientsPermissionSnapshot(requester.role_id)
         ]);
-        if (!canReadClients || !canReadAppointments) {
+        const canReadVipAttendance = vipPermissions.usesAdvancedMenuPermissions
+          ? (vipPermissions.canOpenVipClients && vipPermissions.canReadVipClients)
+          : canReadClients;
+        if (!canReadVipAttendance) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
@@ -491,6 +892,122 @@ async function clientsRoutes(fastify) {
         });
       } catch (error) {
         request.log.error({ err: error }, "Error fetching VIP attendance teachers");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.get(
+    "/vip-attendance/history",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+
+      const authContext = request.authContext;
+      const fromRaw = String(
+        request.query?.from
+        ?? request.query?.fromDate
+        ?? request.query?.from_date
+        ?? ""
+      ).trim();
+      const toRaw = String(
+        request.query?.to
+        ?? request.query?.toDate
+        ?? request.query?.to_date
+        ?? ""
+      ).trim();
+      const fromDate = fromRaw ? fromRaw : null;
+      const toDate = toRaw ? toRaw : null;
+      if (fromDate && !isValidDateYmd(fromDate)) {
+        return reply.status(400).send({ field: "from", message: "From date must be YYYY-MM-DD." });
+      }
+      if (toDate && !isValidDateYmd(toDate)) {
+        return reply.status(400).send({ field: "to", message: "To date must be YYYY-MM-DD." });
+      }
+      if (fromDate && toDate && fromDate > toDate) {
+        return reply.status(400).send({ field: "from", message: "From date must be earlier than To date." });
+      }
+
+      const classId = parsePositiveInteger(request.query?.classId ?? request.query?.class_id);
+      const teacherId = parsePositiveInteger(request.query?.teacherId ?? request.query?.teacher_id);
+      const tutorId = parsePositiveInteger(request.query?.tutorId ?? request.query?.tutor_id);
+      const clientId = parsePositiveInteger(request.query?.clientId ?? request.query?.client_id);
+      const limitParam = Number.parseInt(String(request.query?.limit || ""), 10);
+      const limit = Number.isInteger(limitParam) && limitParam > 0 ? Math.min(limitParam, 3000) : 1000;
+
+      try {
+        const requester = await findClientsRequester(authContext);
+        if (!requester) {
+          return reply.status(401).send({ message: "Unauthorized." });
+        }
+        const [canReadClients, canReadAppointments, usesAdvancedMenuPermissions, canOpenStatistics] = await Promise.all([
+          hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
+          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_READ),
+          hasAdvancedAppointmentMenuPermissions(requester.role_id),
+          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_SUBMENU_STATISTICS)
+        ]);
+        if (!canReadClients || !canReadAppointments || (usesAdvancedMenuPermissions && !canOpenStatistics)) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const [rows, classOptions, teacherOptions, clientOptions, assignmentOptions] = await Promise.all([
+          getVipAttendanceHistory({
+            organizationId: authContext.organizationId,
+            fromDate,
+            toDate,
+            classId: classId || null,
+            teacherId: teacherId || null,
+            tutorId: tutorId || null,
+            clientId: clientId || null,
+            limit
+          }),
+          getVipClassAssignmentOptions({
+            organizationId: authContext.organizationId,
+            limit: 1000
+          }),
+          getVipAttendanceTeachersByOrganization(authContext.organizationId),
+          getVipClientOptionsByOrganization({
+            organizationId: authContext.organizationId,
+            limit: 2000
+          }),
+          getVipAssignmentOptionsByOrganization(authContext.organizationId)
+        ]);
+
+        return reply.send({
+          items: (Array.isArray(rows) ? rows : []).map(mapVipAttendanceHistoryRecord),
+          classes: (Array.isArray(classOptions) ? classOptions : [])
+            .map((item) => ({
+              id: String(item?.id || "").trim(),
+              className: String(item?.class_name || item?.className || "").trim(),
+              teacherId: String(item?.teacher_user_id || item?.teacherId || "").trim(),
+              teacherName: String(item?.teacher_name || item?.teacherName || "").trim()
+            }))
+            .filter((item) => Boolean(item.id)),
+          teachers: (Array.isArray(teacherOptions) ? teacherOptions : [])
+            .map((item) => ({
+              id: String(item?.id || "").trim(),
+              name: String(item?.name || "").trim()
+            }))
+            .filter((item) => Boolean(item.id)),
+          tutors: (Array.isArray(assignmentOptions?.tutors) ? assignmentOptions.tutors : [])
+            .map((item) => ({
+              id: String(item?.id || "").trim(),
+              name: String(item?.name || "").trim()
+            }))
+            .filter((item) => Boolean(item.id)),
+          clients: (Array.isArray(clientOptions) ? clientOptions : [])
+            .map((item) => ({
+              id: String(item?.id || "").trim(),
+              firstName: String(item?.first_name || item?.firstName || "").trim(),
+              lastName: String(item?.last_name || item?.lastName || "").trim(),
+              middleName: String(item?.middle_name || item?.middleName || "").trim()
+            }))
+            .filter((item) => Boolean(item.id))
+        });
+      } catch (error) {
+        request.log.error({ err: error }, "Error fetching VIP attendance history");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
@@ -513,11 +1030,14 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
-        const [canReadClients, canReadAppointments] = await Promise.all([
+        const [canReadClients, assignmentsPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_READ)
+          getAssignmentsPermissionSnapshot(requester.role_id)
         ]);
-        if (!canReadClients || !canReadAppointments || !isDirectorLikeRequester(requester)) {
+        const canReadAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
+          ? (assignmentsPermissions.canOpenAssignments && assignmentsPermissions.canReadAssignments)
+          : (canReadClients && isDirectorLikeRequester(requester));
+        if (!canReadAssignments) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
@@ -565,11 +1085,14 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
-        const [canReadClients, canReadAppointments] = await Promise.all([
+        const [canReadClients, assignmentsPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_READ)
+          getAssignmentsPermissionSnapshot(requester.role_id)
         ]);
-        if (!canReadClients || !canReadAppointments || !isDirectorLikeRequester(requester)) {
+        const canReadAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
+          ? (assignmentsPermissions.canOpenAssignments && assignmentsPermissions.canReadAssignments)
+          : (canReadClients && isDirectorLikeRequester(requester));
+        if (!canReadAssignments) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
@@ -616,11 +1139,18 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
-        const [canUpdateClients, canReadAppointments] = await Promise.all([
+        const [canUpdateClients, assignmentsPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_UPDATE),
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_READ)
+          getAssignmentsPermissionSnapshot(requester.role_id)
         ]);
-        if (!canUpdateClients || !canReadAppointments || !isDirectorLikeRequester(requester)) {
+        const isEditMode = Boolean(classId);
+        const canWriteAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
+          ? (
+            assignmentsPermissions.canOpenAssignments
+            && (isEditMode ? assignmentsPermissions.canUpdateAssignments : assignmentsPermissions.canCreateAssignments)
+          )
+          : (canUpdateClients && isDirectorLikeRequester(requester));
+        if (!canWriteAssignments) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
@@ -673,11 +1203,14 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
-        const [canUpdateClients, canReadAppointments] = await Promise.all([
+        const [canUpdateClients, assignmentsPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_UPDATE),
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_READ)
+          getAssignmentsPermissionSnapshot(requester.role_id)
         ]);
-        if (!canUpdateClients || !canReadAppointments || !isDirectorLikeRequester(requester)) {
+        const canDeleteAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
+          ? (assignmentsPermissions.canOpenAssignments && assignmentsPermissions.canDeleteAssignments)
+          : (canUpdateClients && isDirectorLikeRequester(requester));
+        if (!canDeleteAssignments) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
@@ -716,11 +1249,14 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
-        const [canReadClients, canReadAppointments] = await Promise.all([
+        const [canReadClients, assignmentsPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_READ)
+          getAssignmentsPermissionSnapshot(requester.role_id)
         ]);
-        if (!canReadClients || !canReadAppointments || !isDirectorLikeRequester(requester)) {
+        const canReadAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
+          ? (assignmentsPermissions.canOpenAssignments && assignmentsPermissions.canReadAssignments)
+          : (canReadClients && isDirectorLikeRequester(requester));
+        if (!canReadAssignments) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
@@ -774,11 +1310,14 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
-        const [canReadClients, canReadAppointments] = await Promise.all([
+        const [canReadClients, assignmentsPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_READ)
+          getAssignmentsPermissionSnapshot(requester.role_id)
         ]);
-        if (!canReadClients || !canReadAppointments || !isDirectorLikeRequester(requester)) {
+        const canReadAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
+          ? (assignmentsPermissions.canOpenAssignments && assignmentsPermissions.canReadAssignments)
+          : (canReadClients && isDirectorLikeRequester(requester));
+        if (!canReadAssignments) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
@@ -831,11 +1370,17 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
-        const [canUpdateClients, canReadAppointments] = await Promise.all([
+        const [canUpdateClients, assignmentsPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_UPDATE),
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_READ)
+          getAssignmentsPermissionSnapshot(requester.role_id)
         ]);
-        if (!canUpdateClients || !canReadAppointments || !isDirectorLikeRequester(requester)) {
+        const canWriteAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
+          ? (
+            assignmentsPermissions.canOpenAssignments
+            && (assignmentsPermissions.canCreateAssignments || assignmentsPermissions.canUpdateAssignments)
+          )
+          : (canUpdateClients && isDirectorLikeRequester(requester));
+        if (!canWriteAssignments) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
@@ -882,6 +1427,518 @@ async function clientsRoutes(fastify) {
   );
 
   fastify.get(
+    "/vip-daily-routines",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+
+      const authContext = request.authContext;
+      const clientId = parsePositiveInteger(request.query?.clientId ?? request.query?.client_id);
+      const dayOfWeekRaw = request.query?.dayOfWeek ?? request.query?.day_of_week ?? request.query?.day ?? "";
+      const dayOfWeek = parseVipDailyRoutineDayOfWeek(dayOfWeekRaw);
+      if (String(dayOfWeekRaw || "").trim() && !dayOfWeek) {
+        return reply.status(400).send({ field: "dayOfWeek", message: "Day of week must be between 1 and 7." });
+      }
+
+      const includeInactiveRaw = request.query?.includeInactive ?? request.query?.include_inactive;
+      const includeInactiveParsed = includeInactiveRaw === undefined
+        ? true
+        : parseNullableBoolean(includeInactiveRaw);
+      if (includeInactiveRaw !== undefined && includeInactiveParsed === null) {
+        return reply.status(400).send({
+          field: "includeInactive",
+          message: "includeInactive must be boolean."
+        });
+      }
+      const includeInactive = includeInactiveParsed !== false;
+      const limitParam = Number.parseInt(String(request.query?.limit || ""), 10);
+      const limit = Number.isInteger(limitParam) && limitParam > 0 ? Math.min(limitParam, 3000) : 1000;
+
+      try {
+        const requester = await findClientsRequester(authContext);
+        if (!requester) {
+          return reply.status(401).send({ message: "Unauthorized." });
+        }
+        const [canReadClients, vipPermissions] = await Promise.all([
+          hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
+          getVipClientsPermissionSnapshot(requester.role_id)
+        ]);
+        const canReadVipDailyRoutines = vipPermissions.usesAdvancedMenuPermissions
+          ? (vipPermissions.canOpenVipClients && vipPermissions.canReadVipClients)
+          : canReadClients;
+        if (!canReadVipDailyRoutines) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const [rows, clientOptions] = await Promise.all([
+          getVipDailyRoutines({
+            organizationId: authContext.organizationId,
+            clientId: clientId || null,
+            dayOfWeek: dayOfWeek || null,
+            includeInactive,
+            limit
+          }),
+          getVipClientOptionsByOrganization({
+            organizationId: authContext.organizationId,
+            limit: 2000
+          })
+        ]);
+
+        return reply.send({
+          items: (Array.isArray(rows) ? rows : []).map(mapVipDailyRoutineRecord),
+          clients: (Array.isArray(clientOptions) ? clientOptions : [])
+            .map((item) => ({
+              id: String(item?.id || "").trim(),
+              firstName: String(item?.first_name || item?.firstName || "").trim(),
+              lastName: String(item?.last_name || item?.lastName || "").trim(),
+              middleName: String(item?.middle_name || item?.middleName || "").trim()
+            }))
+            .filter((item) => Boolean(item.id))
+        });
+      } catch (error) {
+        request.log.error({ err: error }, "Error fetching VIP daily routines");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.put(
+    "/vip-daily-routines",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      const authContext = request.authContext;
+      const payload = request.body && typeof request.body === "object" ? request.body : {};
+
+      const routineId = parsePositiveInteger(payload?.id ?? payload?.routineId ?? payload?.routine_id);
+      const clientId = parsePositiveInteger(payload?.clientId ?? payload?.client_id);
+      if (!clientId) {
+        return reply.status(400).send({ field: "clientId", message: "VIP client is required." });
+      }
+
+      const dayOfWeek = parseVipDailyRoutineDayOfWeek(
+        payload?.dayOfWeek
+        ?? payload?.day_of_week
+        ?? payload?.day
+        ?? payload?.dayKey
+        ?? payload?.day_key
+      );
+      if (!dayOfWeek) {
+        return reply.status(400).send({
+          field: "dayOfWeek",
+          message: "Day of week must be between 1 and 7."
+        });
+      }
+
+      const activityType = normalizeVipDailyRoutineActivityType(
+        payload?.activityType
+        ?? payload?.activity_type
+        ?? payload?.type
+      );
+      if (!activityType) {
+        return reply.status(400).send({
+          field: "activityType",
+          message: "Activity type must be lesson or sleep."
+        });
+      }
+
+      const title = String(payload?.title || payload?.serviceName || payload?.service_name || "").trim();
+      if (!title) {
+        return reply.status(400).send({ field: "title", message: "Title is required." });
+      }
+      if (title.length > 128) {
+        return reply.status(400).send({ field: "title", message: "Title is too long (max 128)." });
+      }
+
+      const startTime = normalizeHmTime(payload?.startTime ?? payload?.start_time);
+      const endTime = normalizeHmTime(payload?.endTime ?? payload?.end_time);
+      if (!startTime) {
+        return reply.status(400).send({ field: "startTime", message: "Start time must be HH:mm." });
+      }
+      if (!endTime) {
+        return reply.status(400).send({ field: "endTime", message: "End time must be HH:mm." });
+      }
+      const startMinutes = toHmMinutes(startTime);
+      const endMinutes = toHmMinutes(endTime);
+      if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+        return reply.status(400).send({
+          field: "endTime",
+          message: "End time must be later than start time."
+        });
+      }
+
+      const note = String(payload?.note || "").trim();
+      if (note.length > 255) {
+        return reply.status(400).send({ field: "note", message: "Note is too long (max 255)." });
+      }
+
+      const sortOrderRaw = payload?.sortOrder ?? payload?.sort_order ?? 100;
+      const parsedSortOrder = Number.parseInt(String(sortOrderRaw ?? "").trim(), 10);
+      if (!Number.isInteger(parsedSortOrder) || parsedSortOrder < 0 || parsedSortOrder > 10000) {
+        return reply.status(400).send({
+          field: "sortOrder",
+          message: "Sort order must be integer between 0 and 10000."
+        });
+      }
+
+      const hasIsActiveField = Object.prototype.hasOwnProperty.call(payload, "isActive")
+        || Object.prototype.hasOwnProperty.call(payload, "is_active");
+      const parsedIsActive = hasIsActiveField
+        ? parseNullableBoolean(payload?.isActive ?? payload?.is_active)
+        : true;
+      if (hasIsActiveField && parsedIsActive === null) {
+        return reply.status(400).send({ field: "isActive", message: "isActive must be boolean." });
+      }
+
+      try {
+        const requester = await findClientsRequester(authContext);
+        if (!requester) {
+          return reply.status(401).send({ message: "Unauthorized." });
+        }
+        const [canUpdateClients, vipPermissions] = await Promise.all([
+          hasPermission(requester.role_id, PERMISSIONS.CLIENTS_UPDATE),
+          getVipClientsPermissionSnapshot(requester.role_id)
+        ]);
+        const isEditMode = Boolean(routineId);
+        const canWriteVipDailyRoutines = vipPermissions.usesAdvancedMenuPermissions
+          ? (
+            vipPermissions.canOpenVipClients
+            && (isEditMode ? vipPermissions.canUpdateVipClients : vipPermissions.canCreateVipClients)
+          )
+          : (canUpdateClients && isDirectorLikeRequester(requester));
+        if (!canWriteVipDailyRoutines) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const item = await upsertVipDailyRoutine({
+          organizationId: authContext.organizationId,
+          routineId: routineId || null,
+          clientId,
+          dayOfWeek,
+          activityType,
+          title,
+          startTime,
+          endTime,
+          note,
+          isActive: parsedIsActive !== false,
+          sortOrder: parsedSortOrder,
+          updatedBy: authContext.userId
+        });
+        if (!item) {
+          return reply.status(404).send({ message: "VIP client or routine not found." });
+        }
+
+        return reply.send({
+          message: routineId ? "VIP daily routine updated." : "VIP daily routine saved.",
+          item: mapVipDailyRoutineRecord(item)
+        });
+      } catch (error) {
+        if (error?.code === "23505") {
+          return reply.status(409).send({
+            field: "time",
+            message: "A routine with the same time slot already exists."
+          });
+        }
+        if (error?.code === "23514" || error?.code === "22P02") {
+          return reply.status(400).send({ message: "Invalid daily routine data." });
+        }
+        request.log.error({ err: error }, "Error saving VIP daily routine");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.delete(
+    "/vip-daily-routines/:id",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      const authContext = request.authContext;
+      const routineId = parsePositiveInteger(request.params?.id);
+      if (!routineId) {
+        return reply.status(400).send({ message: "Invalid routine id." });
+      }
+
+      try {
+        const requester = await findClientsRequester(authContext);
+        if (!requester) {
+          return reply.status(401).send({ message: "Unauthorized." });
+        }
+        const [canUpdateClients, vipPermissions] = await Promise.all([
+          hasPermission(requester.role_id, PERMISSIONS.CLIENTS_UPDATE),
+          getVipClientsPermissionSnapshot(requester.role_id)
+        ]);
+        const canDeleteVipDailyRoutines = vipPermissions.usesAdvancedMenuPermissions
+          ? (vipPermissions.canOpenVipClients && vipPermissions.canDeleteVipClients)
+          : (canUpdateClients && isDirectorLikeRequester(requester));
+        if (!canDeleteVipDailyRoutines) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const result = await deleteVipDailyRoutine({
+          organizationId: authContext.organizationId,
+          routineId
+        });
+        if ((result?.rowCount || 0) === 0) {
+          return reply.status(404).send({ message: "Routine not found." });
+        }
+        return reply.send({ message: "VIP daily routine deleted." });
+      } catch (error) {
+        request.log.error({ err: error }, "Error deleting VIP daily routine");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.get(
+    "/vip-class-daily-routines",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+
+      const authContext = request.authContext;
+      const classId = parsePositiveInteger(request.query?.classId ?? request.query?.class_id);
+      const dayOfWeekRaw = request.query?.dayOfWeek ?? request.query?.day_of_week ?? request.query?.day ?? "";
+      const dayOfWeek = parseVipDailyRoutineDayOfWeek(dayOfWeekRaw);
+      if (String(dayOfWeekRaw || "").trim() && !dayOfWeek) {
+        return reply.status(400).send({ field: "dayOfWeek", message: "Day of week must be between 1 and 7." });
+      }
+
+      const includeInactiveRaw = request.query?.includeInactive ?? request.query?.include_inactive;
+      const includeInactiveParsed = includeInactiveRaw === undefined
+        ? true
+        : parseNullableBoolean(includeInactiveRaw);
+      if (includeInactiveRaw !== undefined && includeInactiveParsed === null) {
+        return reply.status(400).send({
+          field: "includeInactive",
+          message: "includeInactive must be boolean."
+        });
+      }
+      const includeInactive = includeInactiveParsed !== false;
+      const limitParam = Number.parseInt(String(request.query?.limit || ""), 10);
+      const limit = Number.isInteger(limitParam) && limitParam > 0 ? Math.min(limitParam, 3000) : 1000;
+
+      try {
+        const requester = await findClientsRequester(authContext);
+        if (!requester) {
+          return reply.status(401).send({ message: "Unauthorized." });
+        }
+        const [canReadClients, vipPermissions] = await Promise.all([
+          hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
+          getVipClientsPermissionSnapshot(requester.role_id)
+        ]);
+        const canReadVipClassDailyRoutines = vipPermissions.usesAdvancedMenuPermissions
+          ? (vipPermissions.canOpenVipClients && vipPermissions.canReadVipClients)
+          : canReadClients;
+        if (!canReadVipClassDailyRoutines) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const [rows, classOptions] = await Promise.all([
+          getVipClassDailyRoutines({
+            organizationId: authContext.organizationId,
+            classId: classId || null,
+            dayOfWeek: dayOfWeek || null,
+            includeInactive,
+            limit
+          }),
+          getVipClassAssignmentOptions({
+            organizationId: authContext.organizationId,
+            limit: 2000
+          })
+        ]);
+
+        return reply.send({
+          items: (Array.isArray(rows) ? rows : []).map(mapVipClassDailyRoutineRecord),
+          classes: (Array.isArray(classOptions) ? classOptions : [])
+            .map((item) => ({
+              id: String(item?.id || "").trim(),
+              className: String(item?.class_name || item?.className || "").trim(),
+              teacherId: String(item?.teacher_user_id || item?.teacherId || "").trim(),
+              teacherName: String(item?.teacher_name || item?.teacherName || "").trim()
+            }))
+            .filter((item) => Boolean(item.id))
+        });
+      } catch (error) {
+        request.log.error({ err: error }, "Error fetching VIP class daily routines");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.put(
+    "/vip-class-daily-routines",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      const authContext = request.authContext;
+      const payload = request.body && typeof request.body === "object" ? request.body : {};
+
+      const routineId = parsePositiveInteger(payload?.id ?? payload?.routineId ?? payload?.routine_id);
+      const classId = parsePositiveInteger(
+        payload?.classId
+        ?? payload?.class_id
+        ?? payload?.classAssignmentId
+        ?? payload?.class_assignment_id
+      );
+      if (!classId) {
+        return reply.status(400).send({ field: "classId", message: "Class is required." });
+      }
+
+      const dayOfWeek = parseVipDailyRoutineDayOfWeek(
+        payload?.dayOfWeek
+        ?? payload?.day_of_week
+        ?? payload?.day
+        ?? payload?.dayKey
+        ?? payload?.day_key
+      );
+      if (!dayOfWeek) {
+        return reply.status(400).send({
+          field: "dayOfWeek",
+          message: "Day of week must be between 1 and 7."
+        });
+      }
+
+      const activityType = normalizeVipClassDailyRoutineActivityType(
+        payload?.activityType
+        ?? payload?.activity_type
+        ?? payload?.type
+      );
+      if (!activityType) {
+        return reply.status(400).send({
+          field: "activityType",
+          message: "Activity type must be lesson, sleep, meal or other."
+        });
+      }
+
+      const startTime = normalizeHmTime(payload?.startTime ?? payload?.start_time);
+      const endTime = normalizeHmTime(payload?.endTime ?? payload?.end_time);
+      if (!startTime) {
+        return reply.status(400).send({ field: "startTime", message: "Start time must be HH:mm." });
+      }
+      if (!endTime) {
+        return reply.status(400).send({ field: "endTime", message: "End time must be HH:mm." });
+      }
+      const startMinutes = toHmMinutes(startTime);
+      const endMinutes = toHmMinutes(endTime);
+      if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+        return reply.status(400).send({
+          field: "endTime",
+          message: "End time must be later than start time."
+        });
+      }
+
+      const note = String(payload?.note || "").trim();
+      if (note.length > 255) {
+        return reply.status(400).send({ field: "note", message: "Note is too long (max 255)." });
+      }
+
+      try {
+        const requester = await findClientsRequester(authContext);
+        if (!requester) {
+          return reply.status(401).send({ message: "Unauthorized." });
+        }
+        const [canUpdateClients, vipPermissions] = await Promise.all([
+          hasPermission(requester.role_id, PERMISSIONS.CLIENTS_UPDATE),
+          getVipClientsPermissionSnapshot(requester.role_id)
+        ]);
+        const isEditMode = Boolean(routineId);
+        const canWriteVipClassDailyRoutines = vipPermissions.usesAdvancedMenuPermissions
+          ? (
+            vipPermissions.canOpenVipClients
+            && (isEditMode ? vipPermissions.canUpdateVipClients : vipPermissions.canCreateVipClients)
+          )
+          : (canUpdateClients && isDirectorLikeRequester(requester));
+        if (!canWriteVipClassDailyRoutines) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const item = await upsertVipClassDailyRoutine({
+          organizationId: authContext.organizationId,
+          routineId: routineId || null,
+          classId,
+          dayOfWeek,
+          activityType,
+          startTime,
+          endTime,
+          note,
+          updatedBy: authContext.userId
+        });
+        if (!item) {
+          return reply.status(404).send({ message: "Class or routine not found." });
+        }
+
+        return reply.send({
+          message: routineId ? "VIP class daily routine updated." : "VIP class daily routine saved.",
+          item: mapVipClassDailyRoutineRecord(item)
+        });
+      } catch (error) {
+        if (error?.code === "23505") {
+          return reply.status(409).send({
+            field: "time",
+            message: "A routine with the same time slot already exists."
+          });
+        }
+        if (error?.code === "23514" || error?.code === "22P02") {
+          return reply.status(400).send({ message: "Invalid daily routine data." });
+        }
+        request.log.error({ err: error }, "Error saving VIP class daily routine");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.delete(
+    "/vip-class-daily-routines/:id",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      const authContext = request.authContext;
+      const routineId = parsePositiveInteger(request.params?.id);
+      if (!routineId) {
+        return reply.status(400).send({ message: "Invalid routine id." });
+      }
+
+      try {
+        const requester = await findClientsRequester(authContext);
+        if (!requester) {
+          return reply.status(401).send({ message: "Unauthorized." });
+        }
+        const [canUpdateClients, vipPermissions] = await Promise.all([
+          hasPermission(requester.role_id, PERMISSIONS.CLIENTS_UPDATE),
+          getVipClientsPermissionSnapshot(requester.role_id)
+        ]);
+        const canDeleteVipClassDailyRoutines = vipPermissions.usesAdvancedMenuPermissions
+          ? (vipPermissions.canOpenVipClients && vipPermissions.canDeleteVipClients)
+          : (canUpdateClients && isDirectorLikeRequester(requester));
+        if (!canDeleteVipClassDailyRoutines) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const result = await deleteVipClassDailyRoutine({
+          organizationId: authContext.organizationId,
+          routineId
+        });
+        if ((result?.rowCount || 0) === 0) {
+          return reply.status(404).send({ message: "Routine not found." });
+        }
+        return reply.send({ message: "VIP class daily routine deleted." });
+      } catch (error) {
+        request.log.error({ err: error }, "Error deleting VIP class daily routine");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.get(
     "/search",
     {
       config: { rateLimit: fastify.apiRateLimit }
@@ -895,6 +1952,13 @@ async function clientsRoutes(fastify) {
       const lastName = String(request.query?.lastName || "").trim();
       const middleName = String(request.query?.middleName || "").trim();
       const isVip = parseNullableBoolean(request.query?.isVip ?? request.query?.is_vip);
+      const assignmentScope = String(
+        request.query?.assignmentScope
+        ?? request.query?.scope
+        ?? ""
+      ).trim().toLowerCase();
+      const mineOnly = assignmentScope === "mine"
+        || parseNullableBoolean(request.query?.mineOnly ?? request.query?.onlyMine) === true;
       const attendanceDateRaw = String(request.query?.attendanceDate ?? request.query?.attendance_date ?? "").trim();
       const attendanceDate = isValidDateYmd(attendanceDateRaw)
         ? attendanceDateRaw
@@ -904,6 +1968,7 @@ async function clientsRoutes(fastify) {
 
       const combinedLength = `${firstName}${lastName}${middleName}`.length;
       const isVipOnlySearch = isVip === true;
+      const assignedUserId = mineOnly && isVipOnlySearch ? authContext.userId : null;
       if (!isVipOnlySearch && combinedLength < 3) {
         return reply.send({ items: [] });
       }
@@ -913,11 +1978,21 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
-        const [canReadClients, canSearchAppointmentClients] = await Promise.all([
+        const [canReadClients, canSearchAppointmentClients, vipPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_CLIENT_SEARCH)
+          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_CLIENT_SEARCH),
+          getVipClientsPermissionSnapshot(requester.role_id)
         ]);
-        if (!canReadClients && !canSearchAppointmentClients) {
+        const canSearchVipClients = vipPermissions.usesAdvancedMenuPermissions
+          ? (vipPermissions.canOpenVipClients && vipPermissions.canReadVipClients)
+          : canReadClients;
+        const canSearchMyChildren = vipPermissions.usesAdvancedMenuPermissions
+          ? vipPermissions.canAccessMyChildren
+          : canReadClients;
+        if (isVipOnlySearch && !canSearchVipClients && !(mineOnly && canSearchMyChildren)) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+        if (!isVipOnlySearch && !canReadClients && !canSearchAppointmentClients) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
@@ -928,6 +2003,7 @@ async function clientsRoutes(fastify) {
           middleName,
           isVip,
           attendanceDate,
+          assignedUserId,
           limit
         });
 
@@ -995,8 +2071,8 @@ async function clientsRoutes(fastify) {
         : getTodayYmd();
 
       const note = String(payload?.note || "").trim();
-      if (!resetAttendance && note.length > 255) {
-        return reply.status(400).send({ field: "note", message: "Reason is too long (max 255)." });
+      if (!resetAttendance && note.length > 128) {
+        return reply.status(400).send({ field: "note", message: "Reason is too long (max 128)." });
       }
       if (!resetAttendance && status === "absent" && !note) {
         return reply.status(400).send({ field: "note", message: "Reason is required for absent." });
@@ -1008,11 +2084,18 @@ async function clientsRoutes(fastify) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
 
-        const [canReadClients, canReadAppointments] = await Promise.all([
+        const [canReadClients, vipPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_READ)
+          getVipClientsPermissionSnapshot(requester.role_id)
         ]);
-        if (!canReadClients || !canReadAppointments) {
+        if (vipPermissions.usesAdvancedMenuPermissions) {
+          const canWriteVipAttendance = resetAttendance
+            ? vipPermissions.canDeleteVipClients
+            : (vipPermissions.canCreateVipClients || vipPermissions.canUpdateVipClients);
+          if (!vipPermissions.canOpenVipClients || !canWriteVipAttendance) {
+            return reply.status(403).send({ message: "Forbidden." });
+          }
+        } else if (!canReadClients) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 

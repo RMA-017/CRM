@@ -1,4 +1,4 @@
-import { ORGANIZATION_CODE_REGEX } from "../../constants/validation.js";
+import { EMAIL_REGEX, ORGANIZATION_CODE_REGEX, PHONE_REGEX } from "../../constants/validation.js";
 import { validateBirthdayYmd } from "../../lib/date.js";
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
@@ -127,7 +127,7 @@ async function usersRoutes(fastify) {
       if (!USERNAME_REGEX.test(username)) {
         errors.username = "Username must be 3-30 chars and contain letters, numbers, ., _, -";
       }
-      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      if (email && !EMAIL_REGEX.test(email)) {
         errors.email = "Invalid email format.";
       }
       if (!fullName) {
@@ -137,7 +137,7 @@ async function usersRoutes(fastify) {
       if (birthdayError) {
         errors.birthday = birthdayError;
       }
-      if (phone && !/^\+?[0-9]{7,15}$/.test(phone)) {
+      if (phone && !PHONE_REGEX.test(phone)) {
         errors.phone = "Invalid phone number.";
       }
       if (password && password.length < 6) {

@@ -31,38 +31,31 @@ export async function getProfileByAuthContext({ userId, organizationId }) {
   return rows[0] || null;
 }
 
-export async function updateOwnProfileField({ userId, organizationId, actorUserId, field, value }) {
-  let sql = "";
-  let values = [];
+const FIELD_CONFIG = {
+  email:    { column: "email",        setExpr: "LOWER($1)", nullify: true  },
+  fullName: { column: "full_name",    setExpr: "$1",        nullify: false },
+  birthday: { column: "birthday",     setExpr: "$1",        nullify: true  },
+  phone:    { column: "phone_number", setExpr: "$1",        nullify: true  },
+  position: { column: "position_id",  setExpr: "$1::int",   nullify: true  },
+};
 
+export async function updateOwnProfileField({ userId, organizationId, actorUserId, field, value }) {
   if (field === "password") {
     const passwordHash = await argon2.hash(value);
-    sql = "UPDATE users SET password_hash = $1, updated_by = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 AND organization_id = $4";
-    values = [passwordHash, actorUserId || null, userId, organizationId];
-  } else if (field === "email") {
-    sql = "UPDATE users SET email = LOWER($1), updated_by = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 AND organization_id = $4";
-    values = [value || null, actorUserId || null, userId, organizationId];
-  } else if (field === "fullName") {
-    sql = "UPDATE users SET full_name = $1, updated_by = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 AND organization_id = $4";
-    values = [value, actorUserId || null, userId, organizationId];
-  } else if (field === "birthday") {
-    sql = "UPDATE users SET birthday = $1, updated_by = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 AND organization_id = $4";
-    values = [value || null, actorUserId || null, userId, organizationId];
-  } else if (field === "phone") {
-    sql = "UPDATE users SET phone_number = $1, updated_by = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 AND organization_id = $4";
-    values = [value || null, actorUserId || null, userId, organizationId];
-  } else if (field === "position") {
-    sql = `UPDATE users
-              SET position_id = CASE WHEN $1::int IS NULL THEN NULL ELSE $1::int END
-                , updated_by = $2
-                , updated_at = CURRENT_TIMESTAMP
-            WHERE id = $3 AND organization_id = $4`;
-    values = [value || null, actorUserId || null, userId, organizationId];
+    return pool.query(
+      "UPDATE users SET password_hash = $1, updated_by = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 AND organization_id = $4",
+      [passwordHash, actorUserId || null, userId, organizationId]
+    );
   }
 
-  if (!sql) {
+  const config = FIELD_CONFIG[field];
+  if (!config) {
     throw new Error("Unsupported profile field.");
   }
 
-  return pool.query(sql, values);
+  const dbValue = config.nullify ? (value || null) : value;
+  return pool.query(
+    `UPDATE users SET ${config.column} = ${config.setExpr}, updated_by = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 AND organization_id = $4`,
+    [dbValue, actorUserId || null, userId, organizationId]
+  );
 }

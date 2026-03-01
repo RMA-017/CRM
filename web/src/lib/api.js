@@ -3,6 +3,11 @@ function getDefaultApiBaseUrl() {
     return "http://localhost:3003";
   }
 
+  // In local Vite dev, route API calls through the dev proxy to avoid CORS issues.
+  if (window.location.port === "5173") {
+    return "";
+  }
+
   return `${window.location.protocol}//${window.location.hostname}:3003`;
 }
 

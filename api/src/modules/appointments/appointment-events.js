@@ -1,7 +1,9 @@
+import { parsePositiveInteger } from "../../lib/number.js";
+
 const listenersByOrganization = new Map();
 
 function normalizePositiveInteger(value) {
-  const parsed = Number.parseInt(String(value || "").trim(), 10);
+  const parsed = parsePositiveInteger(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
 }
 

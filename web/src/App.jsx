@@ -33,41 +33,49 @@ function App() {
       <Route path="/users/allusers" element={<ProfilePage forcedView="all-users" />} />
       <Route path="/users/create" element={<ProfilePage forcedView="create-user" />} />
       <Route path="/clients/allclients" element={<ProfilePage forcedView="clients-all" />} />
-      <Route path="/clients/create" element={<ProfilePage forcedView="clients-create" />} />
+      <Route path="/clients/create" element={<Navigate to="/clients/allclients" replace />} />
       <Route path="/clients" element={<Navigate to="/clients/allclients" replace />} />
       <Route path="/appointments" element={<ProfilePage forcedView="appointment" />} />
       <Route path="/appointments/breaks" element={<ProfilePage forcedView="appointment-breaks" />} />
       <Route path="/appointments/vip-schedule" element={<ProfilePage forcedView="appointment-vip-schedule" />} />
-      <Route path="/appointments/vip-clients" element={<ProfilePage forcedView="appointment-vip-clients" />} />
       <Route path="/appointments/vip-attendance" element={<ProfilePage forcedView="appointment-vip-attendance" />} />
+      <Route path="/appointments/vip-my-children" element={<ProfilePage forcedView="appointment-vip-my-children" />} />
+      <Route path="/appointments/vip-daily-routines" element={<ProfilePage forcedView="appointment-vip-daily-routines" />} />
       <Route path="/appointments/vip-assignments" element={<ProfilePage forcedView="appointment-vip-assignments" />} />
       <Route path="/appointments/vip-tutor-assignments" element={<ProfilePage forcedView="appointment-vip-tutor-assignments" />} />
       <Route path="/appointments/settings" element={<ProfilePage forcedView="appointment-settings" />} />
+      <Route path="/statistics" element={<Navigate to="/statistics/class" replace />} />
+      <Route path="/statistics/class" element={<ProfilePage forcedView="statistics-class" />} />
       <Route path="/settings/organizations" element={<ProfilePage forcedView="settings-organizations" />} />
       <Route path="/settings/roles" element={<ProfilePage forcedView="settings-roles" />} />
       <Route path="/settings/positions" element={<ProfilePage forcedView="settings-positions" />} />
       <Route path="/settings/admin-options" element={<ProfilePage forcedView="settings-admin-options" />} />
       <Route path="/settings/notifications" element={<ProfilePage forcedView="settings-notifications" />} />
+      <Route path="/settings/monitoring" element={<ProfilePage forcedView="settings-monitoring" />} />
       <Route path="/profile/my-profile" element={<Navigate to="/profile" replace />} />
       <Route path="/profile/users" element={<Navigate to="/profile" replace />} />
       <Route path="/profile/users/allusers" element={<Navigate to="/users/allusers" replace />} />
       <Route path="/profile/users/create" element={<Navigate to="/users/create" replace />} />
       <Route path="/profile/clients" element={<Navigate to="/clients/allclients" replace />} />
       <Route path="/profile/clients/allclients" element={<Navigate to="/clients/allclients" replace />} />
-      <Route path="/profile/clients/create" element={<Navigate to="/clients/create" replace />} />
+      <Route path="/profile/clients/create" element={<Navigate to="/clients/allclients" replace />} />
       <Route path="/profile/appointments" element={<Navigate to="/appointments" replace />} />
       <Route path="/profile/appointments/breaks" element={<Navigate to="/appointments/breaks" replace />} />
       <Route path="/profile/appointments/vip-schedule" element={<Navigate to="/appointments/vip-schedule" replace />} />
-      <Route path="/profile/appointments/vip-clients" element={<Navigate to="/appointments/vip-clients" replace />} />
       <Route path="/profile/appointments/vip-attendance" element={<Navigate to="/appointments/vip-attendance" replace />} />
+      <Route path="/profile/appointments/vip-my-children" element={<Navigate to="/appointments/vip-my-children" replace />} />
+      <Route path="/profile/appointments/vip-daily-routines" element={<Navigate to="/appointments/vip-daily-routines" replace />} />
       <Route path="/profile/appointments/vip-assignments" element={<Navigate to="/appointments/vip-assignments" replace />} />
       <Route path="/profile/appointments/vip-tutor-assignments" element={<Navigate to="/appointments/vip-tutor-assignments" replace />} />
       <Route path="/profile/appointments/settings" element={<Navigate to="/appointments/settings" replace />} />
+      <Route path="/profile/statistics" element={<Navigate to="/statistics/class" replace />} />
+      <Route path="/profile/statistics/class" element={<Navigate to="/statistics/class" replace />} />
       <Route path="/profile/settings/organizations" element={<Navigate to="/settings/organizations" replace />} />
       <Route path="/profile/settings/roles" element={<Navigate to="/settings/roles" replace />} />
       <Route path="/profile/settings/positions" element={<Navigate to="/settings/positions" replace />} />
       <Route path="/profile/settings/admin-options" element={<Navigate to="/settings/admin-options" replace />} />
       <Route path="/profile/settings/notifications" element={<Navigate to="/settings/notifications" replace />} />
+      <Route path="/profile/settings/monitoring" element={<Navigate to="/settings/monitoring" replace />} />
       <Route path="/home" element={<Navigate to="/" replace />} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

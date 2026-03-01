@@ -10,7 +10,7 @@ export function signAccessToken({ userId, organizationId, organizationCode, user
     organizationCode,
     username
   }, appConfig.jwtSecret, {
-    expiresIn: "7d"
+    expiresIn: appConfig.jwtExpiresIn
   });
 }
 

@@ -1,3 +1,11 @@
+export function getTodayYmd() {
+  const now = new Date();
+  const year = String(now.getFullYear());
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function getInitial(text) {
   const value = String(text || "").trim();
   return (value[0] || "U").toUpperCase();
@@ -14,9 +22,13 @@ export function formatDateYMD(value) {
     return `${day}.${month}.${year}`;
   }
 
+  if (!/^\d{4}-\d{2}-\d{2}(?:[T\s].*)?$/.test(raw)) {
+    return "-";
+  }
+
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) {
-    return raw;
+    return "-";
   }
 
   const day = String(date.getDate()).padStart(2, "0");

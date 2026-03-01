@@ -7,6 +7,11 @@ const MAX_OUTBOX_RETENTION_DAYS = 3650;
 const MAX_OUTBOX_RETRY_DELAY_SECONDS = 86400;
 const MAX_OUTBOX_MAX_RETRIES = 100;
 const ALL_TARGET_ROLE = "all";
+const APPOINTMENT_SETTINGS_TABLE = "appointment_settings";
+const DEFAULT_OUTBOX_RETENTION_DAYS = 30;
+const DEFAULT_USER_NOTIFICATIONS_RETENTION_DAYS = 0;
+
+let appointmentRetentionColumnsInitPromise = null;
 
 function normalizePositiveInteger(value) {
   const parsed = parsePositiveInteger(value);
@@ -61,6 +66,64 @@ function normalizeOutboxRetentionDays(value, fallback = 30) {
     return fallback;
   }
   return Math.min(parsed, MAX_OUTBOX_RETENTION_DAYS);
+}
+
+async function ensureNotificationRetentionColumnsInAppointmentSettings() {
+  if (!appointmentRetentionColumnsInitPromise) {
+    appointmentRetentionColumnsInitPromise = (async () => {
+      await pool.query(
+        `ALTER TABLE ${APPOINTMENT_SETTINGS_TABLE}
+           ADD COLUMN IF NOT EXISTS outbox_retention_days INTEGER NOT NULL DEFAULT ${DEFAULT_OUTBOX_RETENTION_DAYS}
+             CHECK (outbox_retention_days >= 0 AND outbox_retention_days <= ${MAX_OUTBOX_RETENTION_DAYS})`
+      );
+      await pool.query(
+        `ALTER TABLE ${APPOINTMENT_SETTINGS_TABLE}
+           ADD COLUMN IF NOT EXISTS user_notifications_retention_days INTEGER NOT NULL DEFAULT ${DEFAULT_USER_NOTIFICATIONS_RETENTION_DAYS}
+             CHECK (user_notifications_retention_days >= 0 AND user_notifications_retention_days <= ${MAX_OUTBOX_RETENTION_DAYS})`
+      );
+
+      const legacyTableResult = await pool.query(
+        "SELECT to_regclass('notification_retention_settings')::text AS table_name"
+      );
+      const legacyTableName = String(legacyTableResult?.rows?.[0]?.table_name || "").trim();
+      if (!legacyTableName) {
+        return;
+      }
+
+      await pool.query(
+        `UPDATE ${APPOINTMENT_SETTINGS_TABLE} s
+            SET outbox_retention_days = nrs.outbox_retention_days,
+                user_notifications_retention_days = nrs.user_notifications_retention_days
+           FROM notification_retention_settings nrs
+          WHERE nrs.organization_id = s.organization_id`
+      );
+      await pool.query(
+        `INSERT INTO ${APPOINTMENT_SETTINGS_TABLE} (
+           organization_id,
+           slot_interval_minutes,
+           outbox_retention_days,
+           user_notifications_retention_days
+         )
+         SELECT
+           nrs.organization_id,
+           30,
+           nrs.outbox_retention_days,
+           nrs.user_notifications_retention_days
+         FROM notification_retention_settings nrs
+         LEFT JOIN ${APPOINTMENT_SETTINGS_TABLE} s
+           ON s.organization_id = nrs.organization_id
+         WHERE s.organization_id IS NULL
+         ON CONFLICT (organization_id) DO UPDATE SET
+           outbox_retention_days = EXCLUDED.outbox_retention_days,
+           user_notifications_retention_days = EXCLUDED.user_notifications_retention_days`
+      );
+    })().catch((error) => {
+      appointmentRetentionColumnsInitPromise = null;
+      throw error;
+    });
+  }
+
+  return appointmentRetentionColumnsInitPromise;
 }
 
 function normalizeOutboxRetryDelaySeconds(value, fallback = 30) {
@@ -523,24 +586,29 @@ export async function processPendingOutboxEvents({
 }
 
 export async function pruneProcessedOutboxEvents({
-  retentionDays = 30,
+  retentionDays = DEFAULT_OUTBOX_RETENTION_DAYS,
   limit = 500,
   db = pool
 }) {
-  const normalizedRetentionDays = normalizeOutboxRetentionDays(retentionDays, 30);
-  if (normalizedRetentionDays <= 0) {
-    return { deletedCount: 0 };
-  }
+  await ensureNotificationRetentionColumnsInAppointmentSettings();
+  const normalizedRetentionDays = normalizeOutboxRetentionDays(retentionDays, DEFAULT_OUTBOX_RETENTION_DAYS);
 
   const normalizedLimit = normalizeOutboxBatchLimit(limit, 500);
   const { rowCount } = await db.query(
     `WITH deletable AS (
-       SELECT id
-         FROM outbox_events
-        WHERE status IN ('sent', 'failed')
-          AND processed_at IS NOT NULL
-          AND processed_at < (CURRENT_TIMESTAMP - ($1::integer * INTERVAL '1 day'))
-        ORDER BY processed_at ASC, id ASC
+       SELECT o.id
+         FROM outbox_events o
+         LEFT JOIN appointment_settings aps
+           ON aps.organization_id = o.organization_id
+        WHERE o.status IN ('sent', 'failed')
+          AND o.processed_at IS NOT NULL
+          AND COALESCE(aps.outbox_retention_days, $1::integer) > 0
+          AND o.processed_at < (
+            CURRENT_TIMESTAMP - (
+              COALESCE(aps.outbox_retention_days, $1::integer) * INTERVAL '1 day'
+            )
+          )
+        ORDER BY o.processed_at ASC, o.id ASC
         LIMIT $2
      )
      DELETE FROM outbox_events o
@@ -551,6 +619,157 @@ export async function pruneProcessedOutboxEvents({
 
   return {
     deletedCount: rowCount || 0
+  };
+}
+
+export async function pruneUserNotifications({
+  retentionDays = DEFAULT_USER_NOTIFICATIONS_RETENTION_DAYS,
+  limit = 500,
+  db = pool
+}) {
+  await ensureNotificationRetentionColumnsInAppointmentSettings();
+  const normalizedRetentionDays = normalizeOutboxRetentionDays(
+    retentionDays,
+    DEFAULT_USER_NOTIFICATIONS_RETENTION_DAYS
+  );
+
+  const normalizedLimit = normalizeOutboxBatchLimit(limit, 500);
+  const { rowCount } = await db.query(
+    `WITH deletable AS (
+       SELECT n.id
+         FROM user_notifications n
+         LEFT JOIN appointment_settings aps
+           ON aps.organization_id = n.organization_id
+        WHERE COALESCE(aps.user_notifications_retention_days, $1::integer) > 0
+          AND n.created_at < (
+            CURRENT_TIMESTAMP - (
+              COALESCE(aps.user_notifications_retention_days, $1::integer) * INTERVAL '1 day'
+            )
+          )
+        ORDER BY n.created_at ASC, n.id ASC
+        LIMIT $2
+     )
+     DELETE FROM user_notifications n
+     USING deletable d
+     WHERE n.id = d.id`,
+    [normalizedRetentionDays, normalizedLimit]
+  );
+
+  return {
+    deletedCount: rowCount || 0
+  };
+}
+
+export async function getNotificationRetentionSettingsByOrganization({
+  organizationId,
+  defaultOutboxRetentionDays = DEFAULT_OUTBOX_RETENTION_DAYS,
+  defaultUserNotificationsRetentionDays = DEFAULT_USER_NOTIFICATIONS_RETENTION_DAYS,
+  db = pool
+}) {
+  const normalizedOrganizationId = normalizePositiveInteger(organizationId);
+  if (!normalizedOrganizationId) {
+    return null;
+  }
+  await ensureNotificationRetentionColumnsInAppointmentSettings();
+
+  const fallbackOutboxRetentionDays = normalizeOutboxRetentionDays(
+    defaultOutboxRetentionDays,
+    DEFAULT_OUTBOX_RETENTION_DAYS
+  );
+  const fallbackUserNotificationsRetentionDays = normalizeOutboxRetentionDays(
+    defaultUserNotificationsRetentionDays,
+    DEFAULT_USER_NOTIFICATIONS_RETENTION_DAYS
+  );
+
+  const { rows } = await db.query(
+    `SELECT outbox_retention_days, user_notifications_retention_days
+       FROM appointment_settings
+      WHERE organization_id = $1
+      LIMIT 1`,
+    [normalizedOrganizationId]
+  );
+  const row = rows[0] || null;
+
+  return {
+    organizationId: String(normalizedOrganizationId),
+    outboxRetentionDays: String(
+      normalizeOutboxRetentionDays(
+        row?.outbox_retention_days,
+        fallbackOutboxRetentionDays
+      )
+    ),
+    userNotificationsRetentionDays: String(
+      normalizeOutboxRetentionDays(
+        row?.user_notifications_retention_days,
+        fallbackUserNotificationsRetentionDays
+      )
+    )
+  };
+}
+
+export async function saveNotificationRetentionSettingsByOrganization({
+  organizationId,
+  outboxRetentionDays = DEFAULT_OUTBOX_RETENTION_DAYS,
+  userNotificationsRetentionDays = DEFAULT_USER_NOTIFICATIONS_RETENTION_DAYS,
+  db = pool
+}) {
+  const normalizedOrganizationId = normalizePositiveInteger(organizationId);
+  if (!normalizedOrganizationId) {
+    const error = new Error("Invalid organization id.");
+    error.code = "INVALID_NOTIFICATION_RETENTION_ORGANIZATION_ID";
+    throw error;
+  }
+
+  const normalizedOutboxRetentionDays = normalizeOutboxRetentionDays(outboxRetentionDays, Number.NaN);
+  if (!Number.isInteger(normalizedOutboxRetentionDays)) {
+    const error = new Error("Invalid outbox retention days.");
+    error.code = "INVALID_OUTBOX_RETENTION_DAYS";
+    throw error;
+  }
+
+  const normalizedUserNotificationsRetentionDays = normalizeOutboxRetentionDays(
+    userNotificationsRetentionDays,
+    Number.NaN
+  );
+  if (!Number.isInteger(normalizedUserNotificationsRetentionDays)) {
+    const error = new Error("Invalid user notifications retention days.");
+    error.code = "INVALID_USER_NOTIFICATIONS_RETENTION_DAYS";
+    throw error;
+  }
+
+  await ensureNotificationRetentionColumnsInAppointmentSettings();
+  const { rows } = await db.query(
+    `INSERT INTO appointment_settings (
+       organization_id,
+       slot_interval_minutes,
+       outbox_retention_days,
+       user_notifications_retention_days
+     ) VALUES ($1,30,$2,$3)
+     ON CONFLICT (organization_id) DO UPDATE SET
+       outbox_retention_days = EXCLUDED.outbox_retention_days,
+       user_notifications_retention_days = EXCLUDED.user_notifications_retention_days
+     RETURNING organization_id, outbox_retention_days, user_notifications_retention_days`,
+    [
+      normalizedOrganizationId,
+      normalizedOutboxRetentionDays,
+      normalizedUserNotificationsRetentionDays
+    ]
+  );
+  const row = rows[0] || {};
+  return {
+    organizationId: String(row?.organization_id || normalizedOrganizationId),
+    outboxRetentionDays: String(
+      normalizeOutboxRetentionDays(
+        row?.outbox_retention_days,
+        normalizedOutboxRetentionDays
+      )
+    ),
+    userNotificationsRetentionDays: String(
+      normalizeOutboxRetentionDays(
+        row?.user_notifications_retention_days,
+        normalizedUserNotificationsRetentionDays
+      )
+    )
   };
 }
 

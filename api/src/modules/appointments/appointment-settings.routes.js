@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
+import { isUniqueOrExclusionConflict } from "../../lib/db-utils.js";
 import { getProfileByAuthContext } from "../profile/profile.service.js";
 import { hasPermission } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
@@ -565,10 +566,6 @@ async function broadcastAppointmentChange(access, {
     }
     publishFallbackEvent();
   }
-}
-
-function isUniqueOrExclusionConflict(error) {
-  return error?.code === "23505" || error?.code === "23P01";
 }
 
 function parseDateYmdToUtcDate(value) {

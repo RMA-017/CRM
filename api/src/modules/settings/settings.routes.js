@@ -1,4 +1,5 @@
 import { ORGANIZATION_CODE_REGEX, PERMISSION_CODE_REGEX } from "../../constants/validation.js";
+import { appConfig } from "../../config/app-config.js";
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 import {
@@ -30,7 +31,14 @@ import {
   updatePositionOption,
   updateRoleOption
 } from "./settings.service.js";
+import {
+  getNotificationRetentionSettingsByOrganization,
+  saveNotificationRetentionSettingsByOrganization
+} from "../notifications/notifications.service.js";
 import { settingsRouteSchemas } from "./settings.route-schemas.js";
+
+const MIN_NOTIFICATION_RETENTION_DAYS = 0;
+const MAX_NOTIFICATION_RETENTION_DAYS = 3650;
 
 function parseSortOrder(value) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -82,6 +90,23 @@ function parseSlotCellHeightPx(value) {
       error: {
         field: "appointmentSlotCellHeightPx",
         message: `Slot cell height must be an integer between ${MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX} and ${MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX}.`
+      }
+    };
+  }
+  return { value: parsed };
+}
+
+function parseNotificationRetentionDays(value, field) {
+  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
+  if (
+    !Number.isInteger(parsed)
+    || parsed < MIN_NOTIFICATION_RETENTION_DAYS
+    || parsed > MAX_NOTIFICATION_RETENTION_DAYS
+  ) {
+    return {
+      error: {
+        field,
+        message: `Retention days must be an integer between ${MIN_NOTIFICATION_RETENTION_DAYS} and ${MAX_NOTIFICATION_RETENTION_DAYS}.`
       }
     };
   }
@@ -379,20 +404,42 @@ async function settingsRoutes(fastify) {
         }
 
         const targetOrganizationId = requestedOrganizationId || adminContext.authContext.organizationId;
-        const [appointmentHistoryLockDays, appointmentSlotCellHeightPx] = await Promise.all([
+        const defaultOutboxRetentionDays = Number.parseInt(
+          String(appConfig?.outboxWorker?.retentionDays ?? 30),
+          10
+        );
+        const defaultUserNotificationsRetentionDays = Number.parseInt(
+          String(appConfig?.outboxWorker?.userNotificationsRetentionDays ?? 0),
+          10
+        );
+
+        const [appointmentHistoryLockDays, appointmentSlotCellHeightPx, notificationRetention] = await Promise.all([
           getAppointmentHistoryLockDaysByOrganization(targetOrganizationId),
-          getAppointmentSlotCellHeightPxByOrganization(targetOrganizationId)
+          getAppointmentSlotCellHeightPxByOrganization(targetOrganizationId),
+          getNotificationRetentionSettingsByOrganization({
+            organizationId: targetOrganizationId,
+            defaultOutboxRetentionDays,
+            defaultUserNotificationsRetentionDays
+          })
         ]);
 
         return reply.send({
           item: {
             organizationId: String(targetOrganizationId),
             appointmentHistoryLockDays: String(appointmentHistoryLockDays),
-            appointmentSlotCellHeightPx: String(appointmentSlotCellHeightPx)
+            appointmentSlotCellHeightPx: String(appointmentSlotCellHeightPx),
+            outboxWorkerRetentionDays: String(notificationRetention?.outboxRetentionDays ?? defaultOutboxRetentionDays),
+            userNotificationsRetentionDays: String(
+              notificationRetention?.userNotificationsRetentionDays ?? defaultUserNotificationsRetentionDays
+            )
           },
           bounds: {
             min: MIN_APPOINTMENT_HISTORY_LOCK_DAYS,
             max: MAX_APPOINTMENT_HISTORY_LOCK_DAYS,
+            retentionDays: {
+              min: MIN_NOTIFICATION_RETENTION_DAYS,
+              max: MAX_NOTIFICATION_RETENTION_DAYS
+            },
             slotCellHeightPx: {
               min: MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
               max: MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
@@ -439,6 +486,15 @@ async function settingsRoutes(fastify) {
           || request.body?.slotCellHeightPx !== undefined
           || request.body?.appointment_slot_cell_height_px !== undefined
         );
+        const hasOutboxWorkerRetentionDays = (
+          request.body?.outboxWorkerRetentionDays !== undefined
+          || request.body?.outboxRetentionDays !== undefined
+          || request.body?.outbox_worker_retention_days !== undefined
+        );
+        const hasUserNotificationsRetentionDays = (
+          request.body?.userNotificationsRetentionDays !== undefined
+          || request.body?.user_notifications_retention_days !== undefined
+        );
 
         let parsedHistoryLockDays = { value: null };
         if (hasHistoryLockDays) {
@@ -464,8 +520,53 @@ async function settingsRoutes(fastify) {
           }
         }
 
+        let parsedOutboxWorkerRetentionDays = { value: null };
+        if (hasOutboxWorkerRetentionDays) {
+          parsedOutboxWorkerRetentionDays = parseNotificationRetentionDays(
+            request.body?.outboxWorkerRetentionDays
+            ?? request.body?.outboxRetentionDays
+            ?? request.body?.outbox_worker_retention_days,
+            "outboxWorkerRetentionDays"
+          );
+          if (parsedOutboxWorkerRetentionDays.error) {
+            return reply.status(400).send(parsedOutboxWorkerRetentionDays.error);
+          }
+        }
+
+        let parsedUserNotificationsRetentionDays = { value: null };
+        if (hasUserNotificationsRetentionDays) {
+          parsedUserNotificationsRetentionDays = parseNotificationRetentionDays(
+            request.body?.userNotificationsRetentionDays
+            ?? request.body?.user_notifications_retention_days,
+            "userNotificationsRetentionDays"
+          );
+          if (parsedUserNotificationsRetentionDays.error) {
+            return reply.status(400).send(parsedUserNotificationsRetentionDays.error);
+          }
+        }
+
         const targetOrganizationId = requestedOrganizationId || adminContext.authContext.organizationId;
-        const [appointmentHistoryLockDays, appointmentSlotCellHeightPx] = await Promise.all([
+        const defaultOutboxRetentionDays = Number.parseInt(
+          String(appConfig?.outboxWorker?.retentionDays ?? 30),
+          10
+        );
+        const defaultUserNotificationsRetentionDays = Number.parseInt(
+          String(appConfig?.outboxWorker?.userNotificationsRetentionDays ?? 0),
+          10
+        );
+        const shouldReadCurrentNotificationRetention = (
+          hasOutboxWorkerRetentionDays
+          || hasUserNotificationsRetentionDays
+        ) && !(hasOutboxWorkerRetentionDays && hasUserNotificationsRetentionDays);
+        const currentNotificationRetention = shouldReadCurrentNotificationRetention
+          ? await getNotificationRetentionSettingsByOrganization({
+              organizationId: targetOrganizationId,
+              defaultOutboxRetentionDays,
+              defaultUserNotificationsRetentionDays
+            })
+          : null;
+
+        const [appointmentHistoryLockDays, appointmentSlotCellHeightPx, notificationRetention] = await Promise.all([
           hasHistoryLockDays
             ? saveAppointmentHistoryLockDaysByOrganization({
                 organizationId: targetOrganizationId,
@@ -479,7 +580,26 @@ async function settingsRoutes(fastify) {
                 actorUserId: adminContext.authContext.userId,
                 slotCellHeightPx: parsedSlotCellHeightPx.value
               })
-            : getAppointmentSlotCellHeightPxByOrganization(targetOrganizationId)
+            : getAppointmentSlotCellHeightPxByOrganization(targetOrganizationId),
+          (hasOutboxWorkerRetentionDays || hasUserNotificationsRetentionDays)
+            ? saveNotificationRetentionSettingsByOrganization({
+                organizationId: targetOrganizationId,
+                actorUserId: adminContext.authContext.userId,
+                outboxRetentionDays: hasOutboxWorkerRetentionDays
+                  ? parsedOutboxWorkerRetentionDays.value
+                  : Number.parseInt(String(currentNotificationRetention?.outboxRetentionDays ?? defaultOutboxRetentionDays), 10),
+                userNotificationsRetentionDays: hasUserNotificationsRetentionDays
+                  ? parsedUserNotificationsRetentionDays.value
+                  : Number.parseInt(
+                      String(currentNotificationRetention?.userNotificationsRetentionDays ?? defaultUserNotificationsRetentionDays),
+                      10
+                    )
+              })
+            : getNotificationRetentionSettingsByOrganization({
+              organizationId: targetOrganizationId,
+              defaultOutboxRetentionDays,
+              defaultUserNotificationsRetentionDays
+            })
         ]);
 
         return reply.send({
@@ -487,7 +607,11 @@ async function settingsRoutes(fastify) {
           item: {
             organizationId: String(targetOrganizationId),
             appointmentHistoryLockDays: String(appointmentHistoryLockDays),
-            appointmentSlotCellHeightPx: String(appointmentSlotCellHeightPx)
+            appointmentSlotCellHeightPx: String(appointmentSlotCellHeightPx),
+            outboxWorkerRetentionDays: String(notificationRetention?.outboxRetentionDays ?? defaultOutboxRetentionDays),
+            userNotificationsRetentionDays: String(
+              notificationRetention?.userNotificationsRetentionDays ?? defaultUserNotificationsRetentionDays
+            )
           }
         });
       } catch (error) {
@@ -512,6 +636,18 @@ async function settingsRoutes(fastify) {
         if (error?.code === "MIGRATION_REQUIRED") {
           return reply.status(500).send({
             message: "DB migration required: appointment settings table is missing required columns."
+          });
+        }
+        if (error?.code === "INVALID_OUTBOX_RETENTION_DAYS") {
+          return reply.status(400).send({
+            field: "outboxWorkerRetentionDays",
+            message: `Retention days must be an integer between ${MIN_NOTIFICATION_RETENTION_DAYS} and ${MAX_NOTIFICATION_RETENTION_DAYS}.`
+          });
+        }
+        if (error?.code === "INVALID_USER_NOTIFICATIONS_RETENTION_DAYS") {
+          return reply.status(400).send({
+            field: "userNotificationsRetentionDays",
+            message: `Retention days must be an integer between ${MIN_NOTIFICATION_RETENTION_DAYS} and ${MAX_NOTIFICATION_RETENTION_DAYS}.`
           });
         }
         request.log.error({ err: error }, "Error updating admin options:");
@@ -913,6 +1049,7 @@ export const __settingsRouteContracts = Object.freeze({
   parseSortOrder,
   parseIsActive,
   parseHistoryLockDays,
+  parseNotificationRetentionDays,
   parseOptionalOrganizationId,
   parsePermissionCodes,
   validateOrganizationPayload,

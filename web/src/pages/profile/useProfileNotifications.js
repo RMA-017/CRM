@@ -278,7 +278,7 @@ export function useProfileNotifications({
       window.dispatchEvent(new window.CustomEvent("crm:appointment-change", { detail: payload }));
 
       if (!isOwnChange) {
-        const notificationText = String(payload?.message || "").trim() || "Appointment schedule changed.";
+        const notificationText = String(payload?.message || "").trim() || "Appointment planner changed.";
         const notificationPayloadData = payload?.data && typeof payload.data === "object" ? payload.data : {};
         scheduleNotificationsReload({
           eventType: payload?.type,
@@ -330,4 +330,3 @@ export function useProfileNotifications({
     handleAppointmentNotification
   };
 }
-

@@ -1,4 +1,5 @@
 import pool from "../../config/db.js";
+import { executeTransaction } from "../../lib/db-utils.js";
 import { clearRolePermissionsCache } from "../users/access.service.js";
 
 function mapOrganization(row) {
@@ -235,12 +236,8 @@ export async function listPermissionOptionsForSettings() {
 }
 
 export async function createRoleOption({ label, sortOrder, isActive, permissionCodes = [], actorUserId = null }) {
-  let client = null;
-
-  try {
-    client = await pool.connect();
-    await client.query("BEGIN");
-
+  let roleId = null;
+  const item = await executeTransaction(async (client) => {
     const insertResult = await client.query(
       `INSERT INTO role_options (label, sort_order, is_active, is_admin, created_by, updated_by)
        VALUES ($1, $2, $3, FALSE, $4, $4)
@@ -248,38 +245,21 @@ export async function createRoleOption({ label, sortOrder, isActive, permissionC
       [label, sortOrder, isActive, actorUserId]
     );
 
-    const roleId = Number(insertResult.rows[0]?.id || 0);
+    roleId = Number(insertResult.rows[0]?.id || 0);
     if (!roleId) {
-      await client.query("ROLLBACK");
       return null;
     }
 
     const permissionIds = await resolvePermissionIdsByCodes(client, permissionCodes);
     await replaceRolePermissions(client, roleId, permissionIds, actorUserId);
-
-    const item = await getRoleOptionByIdWithDb(client, roleId);
-    await client.query("COMMIT");
-    clearRolePermissionsCache(roleId);
-    return item;
-  } catch (error) {
-    if (client) {
-      await client.query("ROLLBACK").catch(() => {});
-    }
-    throw error;
-  } finally {
-    if (client) {
-      client.release();
-    }
-  }
+    return getRoleOptionByIdWithDb(client, roleId);
+  });
+  if (roleId) clearRolePermissionsCache(roleId);
+  return item;
 }
 
 export async function updateRoleOption({ id, label, sortOrder, isActive, permissionCodes = [], actorUserId = null }) {
-  let client = null;
-
-  try {
-    client = await pool.connect();
-    await client.query("BEGIN");
-
+  const item = await executeTransaction(async (client) => {
     const updateResult = await client.query(
       `UPDATE role_options
           SET label = $1,
@@ -293,27 +273,15 @@ export async function updateRoleOption({ id, label, sortOrder, isActive, permiss
     );
 
     if (updateResult.rowCount === 0) {
-      await client.query("ROLLBACK");
       return null;
     }
 
     const permissionIds = await resolvePermissionIdsByCodes(client, permissionCodes);
     await replaceRolePermissions(client, id, permissionIds, actorUserId);
-
-    const item = await getRoleOptionByIdWithDb(client, id);
-    await client.query("COMMIT");
-    clearRolePermissionsCache(id);
-    return item;
-  } catch (error) {
-    if (client) {
-      await client.query("ROLLBACK").catch(() => {});
-    }
-    throw error;
-  } finally {
-    if (client) {
-      client.release();
-    }
-  }
+    return getRoleOptionByIdWithDb(client, id);
+  });
+  if (item) clearRolePermissionsCache(id);
+  return item;
 }
 
 export async function deleteRoleOptionById(id) {
