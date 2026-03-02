@@ -137,7 +137,19 @@ async function replaceRolePermissions(db, roleId, permissionIds, actorUserId = n
   );
 }
 
-export async function findSettingsRequester({ userId, organizationId }) {
+export async function findSettingsRequester(authContext = {}) {
+  const cachedRequester = authContext?.requester;
+  if (cachedRequester) {
+    const roleLabel = String(cachedRequester.role || cachedRequester.role_label || "").trim();
+    return {
+      id: cachedRequester.id,
+      role_id: cachedRequester.role_id,
+      role: roleLabel,
+      is_admin: Boolean(cachedRequester.is_admin)
+    };
+  }
+
+  const { userId, organizationId } = authContext;
   const { rows } = await pool.query(
     `SELECT u.id, u.role_id, r.label AS role, r.is_admin
        FROM users u
@@ -219,17 +231,21 @@ export async function listPermissionOptionsForSettings() {
   const { rows } = await pool.query(
     `SELECT id, code, label, sort_order, is_active, created_at
        FROM permissions
-      WHERE LOWER(code) <> ALL($1::text[])
+      WHERE is_active = TRUE
+        AND LOWER(code) <> ALL($1::text[])
         AND LOWER(code) NOT LIKE ANY($2::text[])
       ORDER BY sort_order ASC, id ASC`,
     [[
       "appointments.notify.to-manager",
       "appointments.notify.to-specialist",
       "notifications.schedule.to-manager",
-      "notifications.schedule.to-specialist"
+      "notifications.schedule.to-specialist",
+      "appointments.schedule.scope.all",
+      "appointments.schedule.scope.assigned"
     ], [
       "appointments.notify.%",
-      "notifications.schedule.%"
+      "notifications.schedule.%",
+      "appointments.schedule.scope.%"
     ]]
   );
   return rows.map(mapPermissionOption);

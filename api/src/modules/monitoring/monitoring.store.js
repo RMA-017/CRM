@@ -1,5 +1,34 @@
 // In-memory request metrics store (resets on server restart)
 
+// ── Active user activity (15-minute window) ──────────────────────────────────
+const ACTIVITY_TTL_MS = 15 * 60 * 1000;
+const userActivity = new Map(); // userId → { username, fullName, method, route, ip, lastSeen }
+
+export function trackUserActivity({ userId, username, fullName, method, route, ip }) {
+  userActivity.set(userId, {
+    username: String(username || ""),
+    fullName: String(fullName || ""),
+    method: String(method || "").toUpperCase(),
+    route: String(route || ""),
+    ip: String(ip || ""),
+    lastSeen: Date.now()
+  });
+}
+
+export function getActiveUsers() {
+  const cutoff = Date.now() - ACTIVITY_TTL_MS;
+  const result = [];
+  for (const [userId, entry] of userActivity) {
+    if (entry.lastSeen >= cutoff) {
+      result.push({ userId, ...entry });
+    } else {
+      userActivity.delete(userId);
+    }
+  }
+  return result.sort((a, b) => b.lastSeen - a.lastSeen);
+}
+
+// ── Request metrics ───────────────────────────────────────────────────────────
 const MAX_RECORDS = 1000;
 const records = [];
 let totalCount = 0;

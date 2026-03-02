@@ -1,7 +1,6 @@
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 import { publishAppointmentEvent } from "../appointments/appointment-events.js";
-import { getProfileByAuthContext } from "../profile/profile.service.js";
 import { hasPermission } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
 import {
@@ -177,7 +176,7 @@ async function notificationsRoutes(fastify) {
         return reply.status(401).send({ message: "Unauthorized." });
       }
 
-      const requester = await getProfileByAuthContext(authContext);
+      const requester = authContext?.requester;
       if (!requester) {
         return reply.status(401).send({ message: "Unauthorized." });
       }

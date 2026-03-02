@@ -41,6 +41,7 @@ const FULL_CELL_BREAK_TYPES = new Set(["lunch", "meeting", "training", "other"])
 const DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 18;
 const MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 12;
 const MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 72;
+const DEFAULT_APPOINTMENT_SERVICE_NAME = "Consultation";
 
 const SKEL_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const SKEL_ROWS = [
@@ -60,6 +61,13 @@ const SKEL_ROWS = [
   { t: false, c: [0, 0, 1, 0, 0, 0, 1] },
   { t: true,  c: [0, 1, 0, 0, 0, 0, 0] },
   { t: false, c: [0, 0, 0, 0, 0, 0, 0] },
+];
+
+const VIP_SKEL_ROWS = [
+  { c: [1, 1, 0, 1, 0, 0, 1] },
+  { c: [0, 1, 1, 0, 1, 0, 0] },
+  { c: [1, 0, 0, 1, 0, 1, 0] },
+  { c: [0, 1, 1, 0, 0, 1, 0] },
 ];
 
 function normalizeBreakTypeKey(value) {
@@ -97,7 +105,7 @@ function createEmptyClientForm({
     appointmentDate,
     startTime,
     durationMinutes: String(durationMinutes || "30"),
-    service: "",
+    service: DEFAULT_APPOINTMENT_SERVICE_NAME,
     status: "pending",
     note: "",
     editScope: "single",
@@ -399,6 +407,39 @@ function formatAppointmentStatusLabel(value) {
   return normalized ? `${normalized.slice(0, 1).toUpperCase()}${normalized.slice(1)}` : "-";
 }
 
+function formatVipDailyRoutineActivityLabel(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "lesson") {
+    return "Group lesson";
+  }
+  if (normalized === "sleep") {
+    return "Sleep time";
+  }
+  if (normalized === "meal") {
+    return "Meal";
+  }
+  if (normalized === "other") {
+    return "Other";
+  }
+  return "Daily routine";
+}
+
+function compareVipWeeklyItems(left, right) {
+  const leftStart = Number.isInteger(left?.startMinutes) ? left.startMinutes : Number.MAX_SAFE_INTEGER;
+  const rightStart = Number.isInteger(right?.startMinutes) ? right.startMinutes : Number.MAX_SAFE_INTEGER;
+  if (leftStart !== rightStart) {
+    return leftStart - rightStart;
+  }
+
+  const leftTypeRank = String(left?.itemType || "").trim().toLowerCase() === "daily-routine" ? 0 : 1;
+  const rightTypeRank = String(right?.itemType || "").trim().toLowerCase() === "daily-routine" ? 0 : 1;
+  if (leftTypeRank !== rightTypeRank) {
+    return leftTypeRank - rightTypeRank;
+  }
+
+  return String(left?.id || "").localeCompare(String(right?.id || ""));
+}
+
 function showImmediateAlert(text) {
   const message = String(text || "").trim();
   if (!message || typeof window === "undefined" || typeof window.alert !== "function") {
@@ -515,6 +556,7 @@ function AppointmentScheduler({
   recurringOnly = false,
   showWeekSwitcher = true,
   modalTitle = "To Planner",
+  vipClassDailyRoutines = [],
   onNotification = null
 }) {
   const isVipRecurringModal = vipOnly && recurringOnly;
@@ -537,6 +579,8 @@ function AppointmentScheduler({
   const [vipSchedulesByClass, setVipSchedulesByClass] = useState(() => ({}));
   const [vipSchedulesWeekKeyByClass, setVipSchedulesWeekKeyByClass] = useState(() => ({}));
   const [vipConfirmingByAppointmentId, setVipConfirmingByAppointmentId] = useState(() => ({}));
+  const [selectedPlannerClientFilterId, setSelectedPlannerClientFilterId] = useState("");
+  const [selectedVipClientFilterId, setSelectedVipClientFilterId] = useState("");
   const [selectedSpecialistId, setSelectedSpecialistId] = useState(
     () => readStoredSchedulerSelectionId(vipOnly)
   );
@@ -917,11 +961,92 @@ function AppointmentScheduler({
     });
   }, [settings.slotInterval, settings.slotSubDivisions, settings.workingHours, weekDays]);
 
-  const appointmentsByDay = (
+  const rawAppointmentsByDay = (
     appointmentsWeekKeyBySpecialist[selectedSpecialistId] === weekDataKey
       ? (appointmentsBySpecialist[selectedSpecialistId] || {})
       : {}
   );
+  const nonVipSchedulesReady = (
+    !String(selectedSpecialistId || "").trim()
+    || appointmentsWeekKeyBySpecialist[selectedSpecialistId] === weekDataKey
+  );
+  const vipWeekDataReady = (
+    !String(selectedSpecialistId || "").trim()
+    || vipSchedulesWeekKeyByClass[selectedSpecialistId] === weekDataKey
+  );
+  const canRenderPlannerData = (
+    isSchedulerInitialized
+    && (
+      vipOnly
+        ? (!String(selectedSpecialistId || "").trim() || (vipSchedulesReady && vipWeekDataReady))
+        : nonVipSchedulesReady
+    )
+  );
+  const plannerClientFilterOptions = useMemo(() => {
+    if (vipOnly) {
+      return [];
+    }
+
+    const optionMap = new Map();
+    weekDays.forEach((day) => {
+      const dayItems = Array.isArray(rawAppointmentsByDay[day.key]) ? rawAppointmentsByDay[day.key] : [];
+      dayItems.forEach((item) => {
+        const clientId = String(item?.clientId || "").trim();
+        if (!clientId || optionMap.has(clientId)) {
+          return;
+        }
+        const clientLabel = String(item?.client || "").trim() || `Client #${clientId}`;
+        optionMap.set(clientId, clientLabel);
+      });
+    });
+
+    const sortedItems = [...optionMap.entries()]
+      .sort((left, right) => left[1].localeCompare(right[1]))
+      .map(([value, label]) => ({ value, label }));
+
+    return [
+      { value: "", label: "All clients" },
+      ...sortedItems
+    ];
+  }, [rawAppointmentsByDay, vipOnly, weekDays]);
+  useEffect(() => {
+    if (vipOnly) {
+      if (selectedPlannerClientFilterId) {
+        setSelectedPlannerClientFilterId("");
+      }
+      return;
+    }
+
+    const normalizedClientId = String(selectedPlannerClientFilterId || "").trim();
+    if (!normalizedClientId) {
+      return;
+    }
+
+    const isStillVisible = plannerClientFilterOptions.some(
+      (option) => String(option?.value || "").trim() === normalizedClientId
+    );
+    if (!isStillVisible) {
+      setSelectedPlannerClientFilterId("");
+    }
+  }, [plannerClientFilterOptions, selectedPlannerClientFilterId, vipOnly]);
+  const appointmentsByDay = useMemo(() => {
+    if (vipOnly) {
+      return {};
+    }
+
+    const normalizedClientId = String(selectedPlannerClientFilterId || "").trim();
+    if (!normalizedClientId) {
+      return rawAppointmentsByDay;
+    }
+
+    return weekDays.reduce((acc, day) => {
+      const dayItems = Array.isArray(rawAppointmentsByDay[day.key]) ? rawAppointmentsByDay[day.key] : [];
+      acc[day.key] = dayItems.filter(
+        (item) => String(item?.clientId || "").trim() === normalizedClientId
+      );
+      return acc;
+    }, {});
+  }, [rawAppointmentsByDay, selectedPlannerClientFilterId, vipOnly, weekDays]);
   const breaksForSpecialist = vipOnly
     ? []
     : (breaksBySpecialist[selectedSpecialistId] || []);
@@ -994,13 +1119,14 @@ function AppointmentScheduler({
   }, [appointmentLookupByDay, settings.slotInterval, settings.slotSubDivisions, slotIndexByValue, timeSlots, weekDays]);
   const appointmentBlockedSlotsByDay = useMemo(() => (
     weekDays.reduce((acc, day) => {
-      const dayItems = Array.isArray(appointmentsByDay[day.key]) ? appointmentsByDay[day.key] : [];
+      const dayItems = Array.isArray(rawAppointmentsByDay[day.key]) ? rawAppointmentsByDay[day.key] : [];
       const startSlots = new Set(
         dayItems
           .map((event) => String(event?.time || "").trim())
           .filter(Boolean)
       );
       const blockedByTime = {};
+      const selectedClientId = String(selectedPlannerClientFilterId || "").trim();
 
       dayItems.forEach((event) => {
         const startSlot = String(event?.time || "").trim();
@@ -1011,6 +1137,14 @@ function AppointmentScheduler({
         }
 
         const status = String(event?.status || "pending").trim().toLowerCase();
+        const eventClientId = String(event?.clientId || "").trim();
+        const isHiddenByClientFilter = Boolean(selectedClientId) && eventClientId !== selectedClientId;
+        const blockedPayload = isHiddenByClientFilter
+          ? { status, hiddenByFilter: true }
+          : { status, hiddenByFilter: false };
+        if (isHiddenByClientFilter && startSlot && !blockedByTime[startSlot]) {
+          blockedByTime[startSlot] = blockedPayload;
+        }
         const startIndex = slotIndexByValue[startSlot];
         if (Number.isInteger(startIndex) && startIndex >= 0) {
           for (let index = startIndex + 1; index < timeSlots.length; index += 1) {
@@ -1022,7 +1156,7 @@ function AppointmentScheduler({
             if (startSlots.has(slot) || blockedByTime[slot]) {
               continue;
             }
-            blockedByTime[slot] = { status };
+            blockedByTime[slot] = blockedPayload;
           }
           return;
         }
@@ -1036,14 +1170,14 @@ function AppointmentScheduler({
           if (startSlots.has(slot) || blockedByTime[slot]) {
             return;
           }
-          blockedByTime[slot] = { status };
+          blockedByTime[slot] = blockedPayload;
         });
       });
 
       acc[day.key] = blockedByTime;
       return acc;
     }, {})
-  ), [appointmentsByDay, slotIndexByValue, slotMinutesByValue, timeSlots, weekDays]);
+  ), [rawAppointmentsByDay, selectedPlannerClientFilterId, slotIndexByValue, slotMinutesByValue, timeSlots, weekDays]);
   const appointmentBreakSlotsByDay = useMemo(() => (
     weekDays.reduce((acc, day) => {
       const blockedByTime = {};
@@ -1229,7 +1363,7 @@ function AppointmentScheduler({
     }
 
     const excludedId = String(excludeAppointmentId || "").trim();
-    const dayItems = Array.isArray(appointmentsByDay[dayKey]) ? appointmentsByDay[dayKey] : [];
+    const dayItems = Array.isArray(rawAppointmentsByDay[dayKey]) ? rawAppointmentsByDay[dayKey] : [];
     const hit = dayItems.find((item) => {
       const itemId = String(item?.id || "").trim();
       if (excludedId && itemId && itemId === excludedId) {
@@ -1259,7 +1393,7 @@ function AppointmentScheduler({
       endTime: String(hit?.endTime || "").trim(),
       client: String(hit?.client || "").trim()
     };
-  }, [appointmentsByDay]);
+  }, [rawAppointmentsByDay]);
   const specialistOptions = useMemo(() => (
     specialists.map((specialist) => ({
       value: specialist.id,
@@ -1341,6 +1475,42 @@ function AppointmentScheduler({
     const selectedClass = specialists.find((item) => String(item?.id || "").trim() === classId);
     return String(selectedClass?.teacherId || "").trim();
   }, [selectedSpecialistId, specialists, vipOnly]);
+  const vipClientFilterOptions = useMemo(() => {
+    if (!vipOnly) {
+      return [];
+    }
+    const classClientOptions = selectedVipClassClients.map((client) => ({
+      value: String(client?.id || "").trim(),
+      label: getClientDisplayName(client)
+    })).filter((option) => Boolean(option.value));
+
+    return [
+      { value: "", label: "All clients" },
+      ...classClientOptions
+    ];
+  }, [selectedVipClassClients, vipOnly]);
+
+  useEffect(() => {
+    if (!vipOnly) {
+      if (selectedVipClientFilterId) {
+        setSelectedVipClientFilterId("");
+      }
+      return;
+    }
+
+    const normalizedClientId = String(selectedVipClientFilterId || "").trim();
+    if (!normalizedClientId) {
+      return;
+    }
+
+    const isStillVisible = selectedVipClassClients.some(
+      (client) => String(client?.id || "").trim() === normalizedClientId
+    );
+    if (!isStillVisible) {
+      setSelectedVipClientFilterId("");
+    }
+  }, [selectedVipClassClients, selectedVipClientFilterId, vipOnly]);
+
   const { vipWeeklyClientRows, vipWeeklyLessonsTotal } = useMemo(() => {
     if (!vipOnly) {
       return {
@@ -1358,9 +1528,69 @@ function AppointmentScheduler({
     )
       ? vipSchedulesByClass[classId]
       : {};
+    const routineItemsByDay = weekDays.reduce((acc, day) => {
+      acc[day.key] = [];
+      return acc;
+    }, {});
+
+    if (classId) {
+      const classRoutines = Array.isArray(vipClassDailyRoutines) ? vipClassDailyRoutines : [];
+      classRoutines.forEach((routine, index) => {
+        const routineClassId = String(routine?.classId || routine?.class_assignment_id || "").trim();
+        if (!routineClassId || routineClassId !== classId) {
+          return;
+        }
+        const dayOfWeek = Number.parseInt(String(routine?.dayOfWeek ?? routine?.day_of_week ?? "").trim(), 10);
+        const dayKey = DAY_NUM_TO_KEY[dayOfWeek] || "";
+        if (!dayKey || !Array.isArray(routineItemsByDay[dayKey])) {
+          return;
+        }
+        const startTime = String(routine?.startTime || routine?.start_time || "").trim();
+        const endTime = String(routine?.endTime || routine?.end_time || "").trim();
+        if (!startTime) {
+          return;
+        }
+
+        const routineId = String(routine?.id || "").trim() || `${classId}-${dayKey}-${startTime}-${index}`;
+        const activityLabel = formatVipDailyRoutineActivityLabel(routine?.activityType || routine?.activity_type);
+        const note = String(routine?.note || "").trim();
+        const timeLabel = formatAppointmentTimeRangeLabel(startTime, endTime) || startTime;
+        const startMinutes = normalizeTimeToMinutes(startTime);
+
+        routineItemsByDay[dayKey].push({
+          id: `routine-${routineId}`,
+          itemType: "daily-routine",
+          appointmentId: "",
+          startMinutes,
+          timeLabel,
+          primaryText: activityLabel,
+          secondaryText: note || "Daily routine",
+          status: "routine",
+          specialistId: "",
+          clientId: "",
+          appointmentDate: "",
+          startTime,
+          endTime,
+          durationMinutes: getDurationMinutesFromTimes(startTime, endTime),
+          serviceName: activityLabel,
+          note
+        });
+      });
+    }
+
+    Object.keys(routineItemsByDay).forEach((dayKey) => {
+      routineItemsByDay[dayKey].sort(compareVipWeeklyItems);
+    });
 
     let total = 0;
     const rows = selectedVipClassClients
+      .filter((client) => {
+        const normalizedClientId = String(selectedVipClientFilterId || "").trim();
+        if (!normalizedClientId) {
+          return true;
+        }
+        return String(client?.id || "").trim() === normalizedClientId;
+      })
       .map((client) => {
         const clientId = String(client?.id || "").trim();
         if (!clientId) {
@@ -1376,7 +1606,10 @@ function AppointmentScheduler({
         let lessonsCount = 0;
         weekDays.forEach((day) => {
           const dayKey = String(day?.key || "").trim().toLowerCase();
-          const dayItems = Array.isArray(clientSchedules[dayKey]) ? clientSchedules[dayKey] : [];
+          const scheduledDayItems = Array.isArray(clientSchedules[dayKey]) ? clientSchedules[dayKey] : [];
+          const routineDayItems = Array.isArray(routineItemsByDay[dayKey]) ? routineItemsByDay[dayKey] : [];
+          const dayItems = [...scheduledDayItems, ...routineDayItems];
+          dayItems.sort(compareVipWeeklyItems);
           dayItemsByKey[dayKey] = dayItems;
           lessonsCount += dayItems.length;
           total += dayItems.length;
@@ -1399,7 +1632,9 @@ function AppointmentScheduler({
   }, [
     selectedSpecialistId,
     selectedVipClassClients,
+    selectedVipClientFilterId,
     vipOnly,
+    vipClassDailyRoutines,
     vipSchedulesByClass,
     vipSchedulesWeekKeyByClass,
     weekDataKey,
@@ -1442,119 +1677,123 @@ function AppointmentScheduler({
           return;
         }
 
-        const classSchedules = await Promise.all(
-          classClients.map(async (client) => {
-            const clientId = String(client?.id || "").trim();
-            if (!clientId) {
-              return null;
-            }
-            const queryParams = new URLSearchParams({
-              dateFrom,
-              dateTo,
-              clientId,
-              vipOnly: "true"
-            });
-            if (recurringOnly) {
-              queryParams.set("recurringOnly", "true");
-            }
+        const queryParams = new URLSearchParams({
+          dateFrom,
+          dateTo,
+          classId: selectedId,
+          vipOnly: "true"
+        });
+        if (recurringOnly) {
+          queryParams.set("recurringOnly", "true");
+        }
 
-            try {
-              const response = await apiFetch(`/api/appointments/schedules?${queryParams.toString()}`, {
-                method: "GET",
-                cache: "no-store"
-              });
-              const data = await readApiResponseData(response);
-              if (!response.ok) {
-                return {
-                  clientId,
-                  items: [],
-                  error: String(data?.message || "Failed to load appointments.").trim()
-                };
-              }
-              return {
-                clientId,
-                items: Array.isArray(data?.items) ? data.items : [],
-                error: ""
-              };
-            } catch {
-              return {
-                clientId,
-                items: [],
-                error: "Failed to load appointments."
-              };
+        let scheduleItems = [];
+        try {
+          const response = await apiFetch(`/api/appointments/schedules?${queryParams.toString()}`, {
+            method: "GET",
+            cache: "no-store"
+          });
+          const data = await readApiResponseData(response);
+          if (!response.ok) {
+            if (requestId !== schedulesRequestIdRef.current) {
+              return;
             }
-          })
-        );
+            setVipSchedulesByClass((prev) => ({
+              ...prev,
+              [selectedId]: {}
+            }));
+            setVipSchedulesWeekKeyByClass((prev) => ({
+              ...prev,
+              [selectedId]: weekDataKey
+            }));
+            setMessage(String(data?.message || "Failed to load appointments.").trim());
+            setVipSchedulesReady(true);
+            return;
+          }
+          scheduleItems = Array.isArray(data?.items) ? data.items : [];
+        } catch {
+          if (requestId !== schedulesRequestIdRef.current) {
+            return;
+          }
+          setVipSchedulesByClass((prev) => ({
+            ...prev,
+            [selectedId]: {}
+          }));
+          setVipSchedulesWeekKeyByClass((prev) => ({
+            ...prev,
+            [selectedId]: weekDataKey
+          }));
+          setMessage("Failed to load appointments.");
+          setVipSchedulesReady(true);
+          return;
+        }
 
         if (requestId !== schedulesRequestIdRef.current) {
           return;
         }
 
-        let failedCount = 0;
         const schedulesByClient = {};
-        classSchedules.filter(Boolean).forEach((entry) => {
-          const clientId = String(entry?.clientId || "").trim();
+        classClients.forEach((client) => {
+          const clientId = String(client?.id || "").trim();
+          if (clientId) {
+            schedulesByClient[clientId] = buildEmptyByDay();
+          }
+        });
+
+        scheduleItems.forEach((item, index) => {
+          const clientId = String(item?.clientId || "").trim();
           if (!clientId) {
             return;
           }
-
-          if (entry?.error) {
-            failedCount += 1;
+          if (!schedulesByClient[clientId]) {
+            schedulesByClient[clientId] = buildEmptyByDay();
           }
 
-          const byDay = buildEmptyByDay();
-          const items = Array.isArray(entry?.items) ? entry.items : [];
-          items.forEach((item, index) => {
-            const dayKey = getDayKeyFromDateYmd(item?.appointmentDate);
-            if (!dayKey || !Array.isArray(byDay[dayKey])) {
-              return;
-            }
-            const startTime = String(item?.startTime || "").trim();
-            if (!startTime) {
-              return;
-            }
-            const specialistId = String(item?.specialistId || "").trim();
-            const specialistRoleFallback = String(specialistRoleById[specialistId] || "").trim();
-            const serviceText = formatVipServiceLine(
-              item?.specialistPosition,
-              item?.serviceName,
-              "",
-              specialistRoleFallback
-            );
-            const timeLabel = formatAppointmentTimeRangeLabel(startTime, item?.endTime, item?.durationMinutes) || startTime;
+          const dayKey = getDayKeyFromDateYmd(item?.appointmentDate);
+          const byDay = schedulesByClient[clientId];
+          if (!dayKey || !Array.isArray(byDay[dayKey])) {
+            return;
+          }
+          const startTime = String(item?.startTime || "").trim();
+          if (!startTime) {
+            return;
+          }
+          const specialistId = String(item?.specialistId || "").trim();
+          const specialistRoleFallback = String(specialistRoleById[specialistId] || "").trim();
+          const serviceText = formatVipServiceLine(
+            item?.specialistPosition,
+            item?.serviceName,
+            "",
+            specialistRoleFallback
+          );
+          const timeLabel = formatAppointmentTimeRangeLabel(startTime, item?.endTime, item?.durationMinutes) || startTime;
 
-            byDay[dayKey].push({
-              id: String(item?.id || "").trim() || `${dayKey}-${startTime}-${index}`,
-              appointmentId: String(item?.id || "").trim(),
-              startMinutes: normalizeTimeToMinutes(startTime),
-              timeLabel,
-              primaryText: String(item?.specialistName || "").trim()
-                || (specialistId ? `Specialist #${specialistId}` : "Specialist"),
-              secondaryText: serviceText || String(item?.serviceName || "").trim() || "Service",
-              status: String(item?.status || "").trim().toLowerCase().replace(/_/g, "-"),
-              specialistId,
-              clientId: String(item?.clientId || "").trim(),
-              appointmentDate: String(item?.appointmentDate || "").trim(),
-              startTime,
-              endTime: String(item?.endTime || "").trim(),
-              durationMinutes: String(item?.durationMinutes || "").trim(),
-              serviceName: String(item?.serviceName || "").trim(),
-              note: String(item?.note || "").trim()
-            });
+          byDay[dayKey].push({
+            id: String(item?.id || "").trim() || `${dayKey}-${startTime}-${index}`,
+            itemType: "appointment",
+            appointmentId: String(item?.id || "").trim(),
+            startMinutes: normalizeTimeToMinutes(startTime),
+            timeLabel,
+            primaryText: String(item?.specialistName || "").trim()
+              || (specialistId ? `Specialist #${specialistId}` : "Specialist"),
+            secondaryText: serviceText || String(item?.serviceName || "").trim() || "Service",
+            status: String(item?.status || "").trim().toLowerCase().replace(/_/g, "-"),
+            specialistId,
+            clientId,
+            appointmentDate: String(item?.appointmentDate || "").trim(),
+            startTime,
+            endTime: String(item?.endTime || "").trim(),
+            durationMinutes: String(item?.durationMinutes || "").trim(),
+            serviceName: String(item?.serviceName || "").trim(),
+            note: String(item?.note || "").trim()
           });
+        });
 
+        Object.keys(schedulesByClient).forEach((clientId) => {
+          const byDay = schedulesByClient[clientId];
           Object.keys(byDay).forEach((dayKey) => {
-            byDay[dayKey].sort((left, right) => {
-              const leftStart = Number.isInteger(left?.startMinutes) ? left.startMinutes : Number.MAX_SAFE_INTEGER;
-              const rightStart = Number.isInteger(right?.startMinutes) ? right.startMinutes : Number.MAX_SAFE_INTEGER;
-              if (leftStart !== rightStart) {
-                return leftStart - rightStart;
-              }
-              return String(left?.id || "").localeCompare(String(right?.id || ""));
-            });
+            byDay[dayKey].sort(compareVipWeeklyItems);
           });
-
-          schedulesByClient[clientId] = byDay;
         });
 
         setVipSchedulesByClass((prev) => ({
@@ -1565,7 +1804,7 @@ function AppointmentScheduler({
           ...prev,
           [selectedId]: weekDataKey
         }));
-        setMessage(failedCount > 0 ? `Some client schedules failed to load (${failedCount}).` : "");
+        setMessage("");
         setVipSchedulesReady(true);
         return;
       }
@@ -1858,7 +2097,7 @@ function AppointmentScheduler({
         appointmentDate,
         startTime,
         durationMinutes: nextDuration,
-        service: String(existingItem?.service || ""),
+        service: String(existingItem?.service || DEFAULT_APPOINTMENT_SERVICE_NAME),
         status: String(existingItem?.status || "pending"),
         note: String(existingItem?.note || ""),
         editScope: "single",
@@ -2266,7 +2505,7 @@ function AppointmentScheduler({
         startTime,
         endTime,
         durationMinutes: String(durationMinutes),
-        service: nextPayload.service || "Service",
+        service: nextPayload.service || DEFAULT_APPOINTMENT_SERVICE_NAME,
         status: nextPayload.status,
         note: nextPayload.note
       };
@@ -2576,6 +2815,54 @@ function AppointmentScheduler({
           </div>
         </div>
 
+        {!vipOnly ? (
+          <div className="appointment-toolbar-block">
+            <div className="appointment-specialist-control">
+              <span className="appointment-toolbar-label">Client</span>
+              <div className="appointment-specialist-select-wrap">
+                <CustomSelect
+                  id="appointmentPlannerClientFilterSelect"
+                  placeholder="Select client"
+                  value={selectedPlannerClientFilterId}
+                  options={plannerClientFilterOptions}
+                  searchable
+                  searchPlaceholder="Search client"
+                  searchThreshold={8}
+                  maxVisibleOptions={10}
+                  disabled={!selectedSpecialistId || plannerClientFilterOptions.length <= 1}
+                  onChange={(nextValue) => {
+                    setSelectedPlannerClientFilterId(String(nextValue || "").trim());
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {vipOnly ? (
+          <div className="appointment-toolbar-block">
+            <div className="appointment-specialist-control">
+              <span className="appointment-toolbar-label">Client</span>
+              <div className="appointment-specialist-select-wrap">
+                <CustomSelect
+                  id="appointmentVipClientFilterSelect"
+                  placeholder="Select client"
+                  value={selectedVipClientFilterId}
+                  options={vipClientFilterOptions}
+                  searchable
+                  searchPlaceholder="Search client"
+                  searchThreshold={8}
+                  maxVisibleOptions={10}
+                  disabled={!selectedSpecialistId || vipClientFilterOptions.length <= 1}
+                  onChange={(nextValue) => {
+                    setSelectedVipClientFilterId(String(nextValue || "").trim());
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {showWeekSwitcher ? (
           <div className="appointment-toolbar-block appointment-week-switcher">
             <button type="button" className="header-btn" onClick={() => setWeekOffset((prev) => prev - 1)}>
@@ -2589,13 +2876,17 @@ function AppointmentScheduler({
         ) : null}
       </div>
 
-      {isSchedulerInitialized && vipSchedulesReady ? (
+      {canRenderPlannerData ? (
         vipOnly ? (
-          <div className="appointment-vip-booked-wrap" key={weekRenderKey}>
+          <>
             <p className="all-users-state" hidden={Boolean(selectedSpecialistId) && vipWeeklyClientRows.length > 0}>
               {selectedSpecialistId ? "No VIP clients found in selected class." : "Select class to view schedules."}
             </p>
-            <div className="appointment-vip-weekly-grid-wrap" hidden={!selectedSpecialistId || vipWeeklyClientRows.length === 0}>
+            <div
+              className="appointment-vip-weekly-grid-wrap"
+              key={weekRenderKey}
+              hidden={!selectedSpecialistId || vipWeeklyClientRows.length === 0}
+            >
               <table className="appointment-vip-weekly-grid" aria-label="VIP class weekly schedule table">
                 <thead>
                   <tr>
@@ -2692,7 +2983,7 @@ function AppointmentScheduler({
                 </tbody>
               </table>
             </div>
-          </div>
+          </>
         ) : (
         <div className="appointment-grid-wrap" key={weekRenderKey}>
           <table
@@ -2805,8 +3096,13 @@ function AppointmentScheduler({
                         ? "appointment-booked-time-td"
                         : "";
                       const isOffSlotCell = !isInsideWorkingHours;
+                      const blockedStatus = (
+                        blockedItem && blockedItem.hiddenByFilter !== true
+                          ? String(blockedItem.status || "")
+                          : ""
+                      );
                       const normalizedStatus = String(
-                        item?.status ?? blockedItem?.status ?? ""
+                        item?.status ?? blockedStatus ?? ""
                       ).trim().toLowerCase();
                       const statusKey = normalizedStatus === "no_show" ? "no-show" : normalizedStatus;
                       const statusCellClassName = (
@@ -2870,7 +3166,7 @@ function AppointmentScheduler({
                                 </p>
                               </div>
                             )
-                          ) : blockedItem ? (
+                          ) : (blockedItem && blockedItem.hiddenByFilter !== true) ? (
                             <span
                               className={`appointment-occupied-slot appointment-status-${blockedItem.status}`}
                               aria-label={`Booked slot on ${day.label} at ${slot}`}
@@ -2895,39 +3191,83 @@ function AppointmentScheduler({
         </div>
         )
       ) : (
-        <div className="appointment-grid-wrap" aria-hidden="true">
-          <table className="appointment-grid">
-            <thead>
-              <tr>
-                <th className="appointment-time-col">
-                  <div className="skel skel-time-head" />
-                </th>
-                {SKEL_DAYS.map((d) => (
-                  <th key={d} className="appointment-day-head-col-gap">
-                    <div className="appointment-day-head">
-                      <div className="skel skel-day-name" />
-                      <div className="skel skel-day-date" />
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {SKEL_ROWS.map((row, i) => (
-                <tr key={i}>
-                  <th className="appointment-time-col">
-                    {row.t ? <div className="skel skel-time" /> : null}
-                  </th>
-                  {row.c.map((has, j) => (
-                    <td key={j} className="appointment-day-col-gap skel-cell">
-                      {has ? <div className="skel skel-appt" /> : null}
-                    </td>
+        vipOnly ? (
+          <div className="appointment-vip-weekly-grid-wrap" aria-hidden="true">
+            <table className="appointment-vip-weekly-grid">
+              <thead>
+                <tr>
+                  {SKEL_DAYS.map((d) => (
+                    <th key={d}>
+                      <div className="appointment-day-head">
+                        <div className="skel skel-day-name" />
+                        <div className="skel skel-day-date" />
+                      </div>
+                    </th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {VIP_SKEL_ROWS.map((row, i) => (
+                  <tr key={i}>
+                    <td className="appointment-vip-client-wrap-cell" colSpan={SKEL_DAYS.length}>
+                      <div className="appointment-vip-client-wrap">
+                        <div className="skel skel-vip-client-name" />
+                        <div
+                          className="appointment-vip-client-days-grid"
+                          style={{ gridTemplateColumns: `repeat(${SKEL_DAYS.length}, minmax(0, 1fr))` }}
+                        >
+                          {row.c.map((has, j) => (
+                            <div key={j} className="appointment-vip-client-day">
+                              {has ? (
+                                <div className="appointment-vip-weekly-list">
+                                  <div className="skel skel-vip-card" />
+                                </div>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="appointment-grid-wrap" aria-hidden="true">
+            <table className="appointment-grid">
+              <thead>
+                <tr>
+                  <th className="appointment-time-col">
+                    <div className="skel skel-time-head" />
+                  </th>
+                  {SKEL_DAYS.map((d) => (
+                    <th key={d} className="appointment-day-head-col-gap">
+                      <div className="appointment-day-head">
+                        <div className="skel skel-day-name" />
+                        <div className="skel skel-day-date" />
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {SKEL_ROWS.map((row, i) => (
+                  <tr key={i}>
+                    <th className="appointment-time-col">
+                      {row.t ? <div className="skel skel-time" /> : null}
+                    </th>
+                    {row.c.map((has, j) => (
+                      <td key={j} className="appointment-day-col-gap skel-cell">
+                        {has ? <div className="skel skel-appt" /> : null}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
       )}
 
       {createModal.open && !vipOnly && (() => {

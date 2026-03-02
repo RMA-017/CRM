@@ -91,7 +91,7 @@ export function useProfilePanels({
   }, [closePanel, mainView, navigate]);
 
   const openAppointmentVipAttendancePanel = useCallback(() => {
-    openPanel("/appointments/vip-attendance", canOpenAppointmentVipClients);
+    openPanel("/vip-clients/attendance", canOpenAppointmentVipClients);
   }, [canOpenAppointmentVipClients, openPanel]);
 
   const closeAppointmentVipAttendancePanel = useCallback(() => {
@@ -103,7 +103,7 @@ export function useProfilePanels({
   }, [closePanel, mainView, navigate]);
 
   const openAppointmentVipMyChildrenPanel = useCallback(() => {
-    openPanel("/appointments/vip-my-children", canOpenMyChildren);
+    openPanel("/vip-clients/my-children", canOpenMyChildren);
   }, [canOpenMyChildren, openPanel]);
 
   const closeAppointmentVipMyChildrenPanel = useCallback(() => {
@@ -111,7 +111,7 @@ export function useProfilePanels({
   }, [closeAppointmentVipAttendancePanel]);
 
   const openAppointmentVipDailyRoutinesPanel = useCallback(() => {
-    openPanel("/appointments/vip-daily-routines", canOpenAppointmentVipClients);
+    openPanel("/vip-clients/daily-routines", canOpenAppointmentVipClients);
   }, [canOpenAppointmentVipClients, openPanel]);
 
   const closeAppointmentVipDailyRoutinesPanel = useCallback(() => {
@@ -135,7 +135,7 @@ export function useProfilePanels({
   }, [closePanel]);
 
   const openAppointmentVipSchedulePanel = useCallback(() => {
-    openPanel("/appointments/vip-schedule", canOpenAppointmentSchedule);
+    openPanel("/vip-clients/my-class", canOpenAppointmentSchedule);
   }, [canOpenAppointmentSchedule, openPanel]);
 
   const closeAppointmentVipSchedulePanel = useCallback(() => {

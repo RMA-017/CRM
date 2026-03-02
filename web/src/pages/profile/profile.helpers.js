@@ -92,6 +92,47 @@ export function mapValueLabelOptions(items, getValue, getLabel) {
     .filter((option) => option.value && option.label);
 }
 
+export function compareTextInsensitive(left, right) {
+  return String(left || "").trim().localeCompare(String(right || "").trim(), undefined, {
+    sensitivity: "base"
+  });
+}
+
+export function mapVipClassAssignmentOption(item) {
+  const id = String(item?.id || item?.classId || item?.class_id || "").trim();
+  if (!id) {
+    return null;
+  }
+  return {
+    id,
+    className: String(item?.className || item?.class_name || "").trim(),
+    teacherId: String(item?.teacherId || item?.teacher_id || "").trim(),
+    teacherName: String(item?.teacherName || item?.teacher_name || "").trim()
+  };
+}
+
+export function sortVipClassDailyRoutineRows(items) {
+  const rows = Array.isArray(items) ? [...items] : [];
+  return rows.sort((a, b) => {
+    const classCompare = compareTextInsensitive(a?.className, b?.className);
+    if (classCompare !== 0) {
+      return classCompare;
+    }
+
+    const dayCompare = Number(a?.dayOfWeek || 0) - Number(b?.dayOfWeek || 0);
+    if (dayCompare !== 0) {
+      return dayCompare;
+    }
+
+    const startCompare = String(a?.startTime || "").localeCompare(String(b?.startTime || ""));
+    if (startCompare !== 0) {
+      return startCompare;
+    }
+
+    return String(a?.id || "").localeCompare(String(b?.id || ""));
+  });
+}
+
 export function groupRolePermissionOptions(rolePermissionOptions) {
   const actionOrder = new Map([
     ["open", 0],

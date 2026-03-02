@@ -70,7 +70,7 @@ async function profileRoutes(fastify) {
       const authContext = request.authContext;
 
       try {
-        const user = await getProfileByAuthContext(authContext);
+        const user = authContext?.requester;
         if (!user) {
           reply.clearCookie(AUTH_COOKIE_NAME, getClearCookieOptions());
           return reply.status(401).send({ message: "Unauthorized" });
@@ -106,7 +106,7 @@ async function profileRoutes(fastify) {
       }
 
       try {
-        const currentUser = await getProfileByAuthContext(authContext);
+        const currentUser = authContext?.requester;
         if (!currentUser) {
           return reply.status(404).send({ message: "User not found." });
         }

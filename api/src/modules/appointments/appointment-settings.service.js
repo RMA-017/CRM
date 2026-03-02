@@ -25,6 +25,7 @@ const DAY_KEYS = Object.freeze(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 const SCHEDULE_SCOPE_SET = new Set(["single", "future", "all"]);
 const REMINDER_CHANNEL_SET = new Set(["sms", "email", "telegram"]);
 const APPOINTMENT_SCHEDULES_TABLE = "appointment_schedules";
+const APPOINTMENT_STATUS_HISTORY_TABLE = "appointment_status_history";
 const APPOINTMENT_SETTINGS_TABLE = "appointment_settings";
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 export const DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS = 10;
@@ -33,6 +34,159 @@ export const MAX_APPOINTMENT_HISTORY_LOCK_DAYS = 3650;
 export const DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 18;
 export const MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 12;
 export const MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 72;
+let appointmentStatusHistorySchemaInitPromise = null;
+
+function buildScheduleSnapshotSql(alias, previousPrefix = "") {
+  const col = (name) => `${alias}.${previousPrefix}${name}`;
+  return `jsonb_build_object(
+    'specialistId', ${col("specialist_id")},
+    'clientId', ${col("client_id")},
+    'appointmentDate', ${col("appointment_date")},
+    'startTime', ${col("start_time")},
+    'endTime', ${col("end_time")},
+    'status', ${col("status")}
+  )`;
+}
+
+function buildScheduleChangedFieldsSql(alias, previousPrefix = "prev_") {
+  const prev = (name) => `${alias}.${previousPrefix}${name}`;
+  const next = (name) => `${alias}.${name}`;
+  return `ARRAY_REMOVE(ARRAY[
+    CASE WHEN ${prev("specialist_id")} IS DISTINCT FROM ${next("specialist_id")} THEN 'specialist_id' END,
+    CASE WHEN ${prev("client_id")} IS DISTINCT FROM ${next("client_id")} THEN 'client_id' END,
+    CASE WHEN ${prev("appointment_date")} IS DISTINCT FROM ${next("appointment_date")} THEN 'appointment_date' END,
+    CASE WHEN ${prev("start_time")} IS DISTINCT FROM ${next("start_time")} THEN 'start_time' END,
+    CASE WHEN ${prev("end_time")} IS DISTINCT FROM ${next("end_time")} THEN 'end_time' END,
+    CASE WHEN ${prev("status")} IS DISTINCT FROM ${next("status")} THEN 'status' END
+  ]::text[], NULL)`;
+}
+
+async function ensureAppointmentStatusHistorySchema() {
+  if (!appointmentStatusHistorySchemaInitPromise) {
+    appointmentStatusHistorySchemaInitPromise = (async () => {
+      await pool.query(
+        `CREATE TABLE IF NOT EXISTS ${APPOINTMENT_STATUS_HISTORY_TABLE} (
+           id BIGSERIAL PRIMARY KEY,
+           organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+           appointment_schedule_id INTEGER NOT NULL,
+           event_type VARCHAR(24) NOT NULL DEFAULT 'updated',
+           previous_status VARCHAR(24),
+           next_status VARCHAR(24),
+           changed_fields TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+           details JSONB NOT NULL DEFAULT '{}'::jsonb,
+           changed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+           changed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+         )`
+      );
+      await pool.query(
+        `ALTER TABLE ${APPOINTMENT_STATUS_HISTORY_TABLE}
+           ADD COLUMN IF NOT EXISTS event_type VARCHAR(24),
+           ADD COLUMN IF NOT EXISTS previous_status VARCHAR(24),
+           ADD COLUMN IF NOT EXISTS next_status VARCHAR(24),
+           ADD COLUMN IF NOT EXISTS changed_fields TEXT[] DEFAULT ARRAY[]::TEXT[],
+           ADD COLUMN IF NOT EXISTS details JSONB DEFAULT '{}'::jsonb,
+           ADD COLUMN IF NOT EXISTS changed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+           ADD COLUMN IF NOT EXISTS changed_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP`
+      );
+      await pool.query(
+        `DO $$
+         BEGIN
+           IF EXISTS (
+             SELECT 1
+             FROM information_schema.columns
+             WHERE table_schema = current_schema()
+               AND table_name = '${APPOINTMENT_STATUS_HISTORY_TABLE}'
+               AND column_name = 'created_at'
+           ) THEN
+             EXECUTE 'UPDATE ${APPOINTMENT_STATUS_HISTORY_TABLE}
+                         SET changed_at = COALESCE(changed_at, created_at, CURRENT_TIMESTAMP)
+                       WHERE changed_at IS NULL';
+           ELSE
+             EXECUTE 'UPDATE ${APPOINTMENT_STATUS_HISTORY_TABLE}
+                         SET changed_at = COALESCE(changed_at, CURRENT_TIMESTAMP)
+                       WHERE changed_at IS NULL';
+           END IF;
+         END $$`
+      );
+      await pool.query(
+        `UPDATE ${APPOINTMENT_STATUS_HISTORY_TABLE}
+            SET event_type = CASE
+              WHEN previous_status IS NULL AND next_status IS NOT NULL THEN 'created'
+              WHEN previous_status IS NOT NULL AND next_status IS NULL THEN 'deleted'
+              WHEN previous_status IS DISTINCT FROM next_status THEN 'status-changed'
+              ELSE 'updated'
+            END
+          WHERE event_type IS NULL
+             OR LENGTH(TRIM(event_type)) = 0`
+      );
+      await pool.query(
+        `UPDATE ${APPOINTMENT_STATUS_HISTORY_TABLE}
+            SET changed_fields = ARRAY[]::TEXT[]
+          WHERE changed_fields IS NULL`
+      );
+      await pool.query(
+        `UPDATE ${APPOINTMENT_STATUS_HISTORY_TABLE}
+            SET details = '{}'::jsonb
+          WHERE details IS NULL`
+      );
+      await pool.query(
+        `ALTER TABLE ${APPOINTMENT_STATUS_HISTORY_TABLE}
+           ALTER COLUMN event_type SET NOT NULL,
+           ALTER COLUMN event_type SET DEFAULT 'updated',
+           ALTER COLUMN changed_fields SET NOT NULL,
+           ALTER COLUMN changed_fields SET DEFAULT ARRAY[]::TEXT[],
+           ALTER COLUMN details SET NOT NULL,
+           ALTER COLUMN details SET DEFAULT '{}'::jsonb,
+           ALTER COLUMN changed_at SET NOT NULL,
+           ALTER COLUMN changed_at SET DEFAULT CURRENT_TIMESTAMP`
+      );
+      await pool.query(
+        `DO $$
+         DECLARE constraint_rec RECORD;
+         BEGIN
+           FOR constraint_rec IN
+             SELECT c.conname
+             FROM pg_constraint c
+             JOIN pg_class table_ref ON table_ref.oid = c.conrelid
+             JOIN pg_namespace table_ns ON table_ns.oid = table_ref.relnamespace
+             JOIN pg_class target_ref ON target_ref.oid = c.confrelid
+             WHERE table_ns.nspname = current_schema()
+               AND table_ref.relname = '${APPOINTMENT_STATUS_HISTORY_TABLE}'
+               AND c.contype = 'f'
+               AND target_ref.relname = '${APPOINTMENT_SCHEDULES_TABLE}'
+           LOOP
+             EXECUTE format(
+               'ALTER TABLE ${APPOINTMENT_STATUS_HISTORY_TABLE} DROP CONSTRAINT %I',
+               constraint_rec.conname
+             );
+           END LOOP;
+         END $$`
+      );
+      await pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_appointment_status_history_org_schedule_changed
+           ON ${APPOINTMENT_STATUS_HISTORY_TABLE} (
+             organization_id,
+             appointment_schedule_id,
+             changed_at DESC,
+             id DESC
+           )`
+      );
+      await pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_appointment_status_history_org_changed
+           ON ${APPOINTMENT_STATUS_HISTORY_TABLE} (
+             organization_id,
+             changed_at DESC,
+             id DESC
+           )`
+      );
+    })().catch((error) => {
+      appointmentStatusHistorySchemaInitPromise = null;
+      throw error;
+    });
+  }
+
+  return appointmentStatusHistorySchemaInitPromise;
+}
 
 function getAppointmentSchedulesTableName() {
   return APPOINTMENT_SCHEDULES_TABLE;
@@ -388,12 +542,51 @@ export async function getAppointmentSpecialistsByOrganization(organizationId) {
   return rows || [];
 }
 
+export async function isVipClassAssignedToUser({
+  organizationId,
+  classId,
+  userId
+}) {
+  const normalizedClassId = Number.parseInt(String(classId || "").trim(), 10);
+  const normalizedUserId = Number.parseInt(String(userId || "").trim(), 10);
+  if (!Number.isInteger(normalizedClassId) || normalizedClassId <= 0) {
+    return false;
+  }
+  if (!Number.isInteger(normalizedUserId) || normalizedUserId <= 0) {
+    return false;
+  }
+
+  const { rows } = await pool.query(
+    `SELECT 1
+       FROM vip_class_teacher_assignments vcta
+      WHERE vcta.organization_id = $1
+        AND vcta.id = $2
+        AND (
+          vcta.teacher_user_id = $3
+          OR EXISTS (
+            SELECT 1
+              FROM vip_client_tutor_assignments vta
+             WHERE vta.organization_id = vcta.organization_id
+               AND vta.class_assignment_id = vcta.id
+               AND vta.tutor_user_id = $3
+          )
+        )
+      LIMIT 1`,
+    [organizationId, normalizedClassId, normalizedUserId]
+  );
+
+  return rows.length > 0;
+}
+
 export async function getAppointmentSchedulesByRange({
   organizationId,
   specialistId,
   clientId,
+  classId,
+  assignedUserId = null,
   dateFrom,
   dateTo,
+  lightMode = false,
   vipOnly = false,
   recurringOnly = false,
   scheduleScope = "default"
@@ -401,6 +594,8 @@ export async function getAppointmentSchedulesByRange({
   const tableName = getAppointmentSchedulesTableName(scheduleScope);
   const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
   const normalizedClientId = Number.parseInt(String(clientId || "").trim(), 10) || 0;
+  const normalizedClassId = Number.parseInt(String(classId || "").trim(), 10) || 0;
+  const normalizedAssignedUserId = Number.parseInt(String(assignedUserId || "").trim(), 10) || 0;
   const params = [organizationId, dateFrom, dateTo];
   const whereParts = [
     "s.organization_id = $1",
@@ -414,14 +609,54 @@ export async function getAppointmentSchedulesByRange({
     params.push(normalizedClientId);
     whereParts.push(`s.client_id = $${params.length}`);
   }
+  if (normalizedClassId > 0) {
+    params.push(normalizedClassId);
+    whereParts.push(
+      `EXISTS (
+         SELECT 1
+           FROM vip_client_tutor_assignments vta
+          WHERE vta.organization_id = s.organization_id
+            AND vta.client_id = s.client_id
+            AND vta.class_assignment_id = $${params.length}
+       )`
+    );
+  }
 
   if (vipOnly) {
     whereParts.push("c.is_vip = TRUE");
+    if (normalizedAssignedUserId > 0) {
+      params.push(normalizedAssignedUserId);
+      whereParts.push(
+        `EXISTS (
+           SELECT 1
+             FROM vip_client_tutor_assignments vta_scope
+             JOIN vip_class_teacher_assignments vcta_scope
+               ON vcta_scope.organization_id = vta_scope.organization_id
+              AND vcta_scope.id = vta_scope.class_assignment_id
+            WHERE vta_scope.organization_id = s.organization_id
+              AND vta_scope.client_id = s.client_id
+              AND (
+                vcta_scope.teacher_user_id = $${params.length}
+                OR vta_scope.tutor_user_id = $${params.length}
+              )
+         )`
+      );
+    }
   }
   if (recurringOnly) {
     whereParts.push("s.repeat_type = 'weekly'");
     whereParts.push("s.repeat_group_key IS NOT NULL");
   }
+
+  const specialistPositionSelect = lightMode
+    ? "''::text AS specialist_position,"
+    : "COALESCE(NULLIF(TRIM(p.label), ''), NULLIF(TRIM(r.label), ''), '') AS specialist_position,";
+  const specialistPositionJoin = lightMode
+    ? ""
+    : `LEFT JOIN role_options r
+        ON r.id = u.role_id
+      LEFT JOIN position_options p
+        ON p.id = u.position_id`;
 
   const { rows } = await pool.query(
     `SELECT
@@ -445,7 +680,7 @@ export async function getAppointmentSchedulesByRange({
       s.created_at,
       s.updated_at,
       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('Specialist #', s.specialist_id::text)) AS specialist_name,
-      COALESCE(NULLIF(TRIM(p.label), ''), NULLIF(TRIM(r.label), ''), '') AS specialist_position,
+      ${specialistPositionSelect}
       c.first_name,
       c.last_name,
       c.middle_name
@@ -453,10 +688,7 @@ export async function getAppointmentSchedulesByRange({
       LEFT JOIN users u
         ON u.id = s.specialist_id
        AND u.organization_id = s.organization_id
-      LEFT JOIN role_options r
-        ON r.id = u.role_id
-      LEFT JOIN position_options p
-        ON p.id = u.position_id
+      ${specialistPositionJoin}
       JOIN clients c
         ON c.id = s.client_id
        AND c.organization_id = s.organization_id
@@ -596,6 +828,65 @@ export async function replaceAppointmentBreaksBySpecialist({
   const executor = db === pool ? withAppointmentTransaction : async (callback) => callback(db);
 
   return executor(async (trx) => {
+    const breaksPayloadJson = JSON.stringify(normalizedItems);
+    const { rows: conflictRows } = await trx.query(
+      `WITH incoming AS (
+         SELECT
+           (item->>'dayOfWeek')::smallint AS day_of_week,
+           NULLIF(TRIM(item->>'startTime'), '')::time AS start_time,
+           NULLIF(TRIM(item->>'endTime'), '')::time AS end_time,
+           COALESCE((item->>'isActive')::boolean, TRUE) AS is_active
+         FROM jsonb_array_elements($3::jsonb) AS item
+       ),
+       active_incoming AS (
+         SELECT
+           i.day_of_week,
+           i.start_time,
+           i.end_time
+         FROM incoming i
+         WHERE i.is_active = TRUE
+           AND i.day_of_week BETWEEN 1 AND 7
+           AND i.start_time IS NOT NULL
+           AND i.end_time IS NOT NULL
+           AND i.start_time < i.end_time
+       )
+       SELECT
+         s.id AS appointment_id,
+         s.appointment_date,
+         TO_CHAR(s.start_time, 'HH24:MI') AS appointment_start_time,
+         TO_CHAR(s.end_time, 'HH24:MI') AS appointment_end_time,
+         ai.day_of_week,
+         TO_CHAR(ai.start_time, 'HH24:MI') AS break_start_time,
+         TO_CHAR(ai.end_time, 'HH24:MI') AS break_end_time
+       FROM active_incoming ai
+       JOIN appointment_schedules s
+         ON s.organization_id = $1
+        AND s.specialist_id = $2
+        AND s.status IN ('pending', 'confirmed')
+        AND s.appointment_date >= TIMEZONE('Asia/Tashkent', NOW())::date
+        AND EXTRACT(ISODOW FROM s.appointment_date)::smallint = ai.day_of_week
+        AND (($4::date + ai.start_time) < ($4::date + s.end_time))
+        AND (($4::date + s.start_time) < ($4::date + ai.end_time))
+       ORDER BY s.appointment_date ASC, s.start_time ASC, s.id ASC
+       LIMIT 1`,
+      [
+        organizationId,
+        specialistId,
+        breaksPayloadJson,
+        "2000-01-01"
+      ]
+    );
+
+    const conflict = conflictRows?.[0] || null;
+    if (conflict) {
+      const breakStart = String(conflict.break_start_time || "").trim();
+      const breakEnd = String(conflict.break_end_time || "").trim();
+      const error = new Error(`This time slot already has an appointment (${breakStart}-${breakEnd}).`);
+      error.statusCode = 409;
+      error.code = "APPOINTMENT_BREAK_CONFLICT";
+      throw error;
+    }
+
     await trx.query(
       `DELETE FROM appointment_breaks
         WHERE organization_id = $1
@@ -709,6 +1000,8 @@ export async function createAppointmentSchedule({
   scheduleScope = "default",
   db = pool
 }) {
+  await ensureAppointmentStatusHistorySchema();
+
   const normalizedRepeatType = normalizeRepeatType(repeatType);
   const tableName = getAppointmentSchedulesTableName(scheduleScope);
   const { rows } = await db.query(
@@ -735,6 +1028,38 @@ export async function createAppointmentSchedule({
        )
        VALUES ($1,$2,$3,$4::date,$5::time,$6::time,$7,$8,$9,$10,$11::uuid,$12,$13::date,$14::smallint[],$15::date,$16,$17,$17)
        RETURNING *
+     ),
+     history_inserted AS (
+       INSERT INTO ${APPOINTMENT_STATUS_HISTORY_TABLE} (
+         organization_id,
+         appointment_schedule_id,
+         event_type,
+         previous_status,
+         next_status,
+         changed_fields,
+         details,
+         changed_by
+       )
+       SELECT
+         i.organization_id,
+         i.id,
+         'created',
+         NULL,
+         i.status,
+         ARRAY[
+           'specialist_id',
+           'client_id',
+           'appointment_date',
+           'start_time',
+           'end_time',
+           'status'
+         ]::text[],
+         jsonb_build_object(
+           'before', NULL,
+           'after', ${buildScheduleSnapshotSql("i")}
+         ),
+         $17::integer
+       FROM inserted i
      )
      SELECT
        i.id,
@@ -923,14 +1248,42 @@ export async function updateAppointmentSchedulesByIds({
   applyAppointmentDate = true,
   scheduleScope = "default"
 }) {
+  await ensureAppointmentStatusHistorySchema();
+
   const normalizedIds = normalizeScheduleIds(ids);
   if (normalizedIds.length === 0) {
     return [];
   }
   const tableName = getAppointmentSchedulesTableName(scheduleScope);
+  const changedFieldsSql = buildScheduleChangedFieldsSql("u");
+  const previousSnapshotSql = buildScheduleSnapshotSql("u", "prev_");
+  const nextSnapshotSql = buildScheduleSnapshotSql("u");
 
   const { rows } = await pool.query(
-    `WITH updated AS (
+    `WITH target AS (
+       SELECT
+         s.id,
+         s.organization_id,
+         s.specialist_id,
+         s.client_id,
+         s.appointment_date,
+         s.start_time,
+         s.end_time,
+         s.duration_minutes,
+         s.service_name,
+         s.status,
+         s.note,
+         s.repeat_group_key,
+         s.repeat_type,
+         s.repeat_until_date,
+         s.repeat_days,
+         s.repeat_anchor_date,
+         s.is_repeat_root
+       FROM ${tableName} s
+       WHERE s.organization_id = $12
+         AND s.id = ANY($13::integer[])
+     ),
+     updated AS (
        UPDATE ${tableName} s
           SET specialist_id = $1,
               client_id = $2,
@@ -943,9 +1296,67 @@ export async function updateAppointmentSchedulesByIds({
               note = $9,
               updated_by = $10,
               updated_at = CURRENT_TIMESTAMP
-        WHERE s.organization_id = $12
-          AND s.id = ANY($13::integer[])
-       RETURNING *
+         FROM target t
+        WHERE s.organization_id = t.organization_id
+          AND s.id = t.id
+       RETURNING
+         s.*,
+         t.specialist_id AS prev_specialist_id,
+         t.client_id AS prev_client_id,
+         t.appointment_date AS prev_appointment_date,
+         t.start_time AS prev_start_time,
+         t.end_time AS prev_end_time,
+         t.duration_minutes AS prev_duration_minutes,
+         t.service_name AS prev_service_name,
+         t.status AS prev_status,
+         t.note AS prev_note,
+         t.repeat_group_key AS prev_repeat_group_key,
+         t.repeat_type AS prev_repeat_type,
+         t.repeat_until_date AS prev_repeat_until_date,
+         t.repeat_days AS prev_repeat_days,
+         t.repeat_anchor_date AS prev_repeat_anchor_date,
+         t.is_repeat_root AS prev_is_repeat_root
+     ),
+     history_rows AS (
+       SELECT
+         u.organization_id,
+         u.id AS appointment_schedule_id,
+         CASE
+           WHEN u.prev_status IS DISTINCT FROM u.status THEN 'status-changed'
+           ELSE 'updated'
+         END AS event_type,
+         u.prev_status AS previous_status,
+         u.status AS next_status,
+         ${changedFieldsSql} AS changed_fields,
+         jsonb_build_object(
+           'before', ${previousSnapshotSql},
+           'after', ${nextSnapshotSql}
+         ) AS details,
+         $10::integer AS changed_by
+       FROM updated u
+     ),
+     history_inserted AS (
+       INSERT INTO ${APPOINTMENT_STATUS_HISTORY_TABLE} (
+         organization_id,
+         appointment_schedule_id,
+         event_type,
+         previous_status,
+         next_status,
+         changed_fields,
+         details,
+         changed_by
+       )
+       SELECT
+         h.organization_id,
+         h.appointment_schedule_id,
+         h.event_type,
+         h.previous_status,
+         h.next_status,
+         h.changed_fields,
+         h.details,
+         h.changed_by
+       FROM history_rows h
+       WHERE CARDINALITY(h.changed_fields) > 0
      )
      SELECT
        u.id,
@@ -1016,10 +1427,40 @@ export async function updateAppointmentScheduleByIdWithRepeatMeta({
   scheduleScope = "default",
   db = pool
 }) {
+  await ensureAppointmentStatusHistorySchema();
+
   const tableName = getAppointmentSchedulesTableName(scheduleScope);
+  const changedFieldsSql = buildScheduleChangedFieldsSql("u");
+  const previousSnapshotSql = buildScheduleSnapshotSql("u", "prev_");
+  const nextSnapshotSql = buildScheduleSnapshotSql("u");
+
   const { rows } = await db.query(
-    `WITH updated AS (
-       UPDATE ${tableName}
+    `WITH target AS (
+       SELECT
+         s.id,
+         s.organization_id,
+         s.specialist_id,
+         s.client_id,
+         s.appointment_date,
+         s.start_time,
+         s.end_time,
+         s.duration_minutes,
+         s.service_name,
+         s.status,
+         s.note,
+         s.repeat_group_key,
+         s.repeat_type,
+         s.repeat_until_date,
+         s.repeat_days,
+         s.repeat_anchor_date,
+         s.is_repeat_root
+       FROM ${tableName} s
+       WHERE s.id = $16
+         AND s.organization_id = $17
+       LIMIT 1
+     ),
+     updated AS (
+       UPDATE ${tableName} s
           SET specialist_id = $1,
               client_id = $2,
               appointment_date = $3::date,
@@ -1037,9 +1478,67 @@ export async function updateAppointmentScheduleByIdWithRepeatMeta({
               is_repeat_root = $14,
               updated_by = $15,
               updated_at = CURRENT_TIMESTAMP
-        WHERE id = $16
-          AND organization_id = $17
-       RETURNING *
+         FROM target t
+        WHERE s.id = t.id
+          AND s.organization_id = t.organization_id
+       RETURNING
+         s.*,
+         t.specialist_id AS prev_specialist_id,
+         t.client_id AS prev_client_id,
+         t.appointment_date AS prev_appointment_date,
+         t.start_time AS prev_start_time,
+         t.end_time AS prev_end_time,
+         t.duration_minutes AS prev_duration_minutes,
+         t.service_name AS prev_service_name,
+         t.status AS prev_status,
+         t.note AS prev_note,
+         t.repeat_group_key AS prev_repeat_group_key,
+         t.repeat_type AS prev_repeat_type,
+         t.repeat_until_date AS prev_repeat_until_date,
+         t.repeat_days AS prev_repeat_days,
+         t.repeat_anchor_date AS prev_repeat_anchor_date,
+         t.is_repeat_root AS prev_is_repeat_root
+     ),
+     history_rows AS (
+       SELECT
+         u.organization_id,
+         u.id AS appointment_schedule_id,
+         CASE
+           WHEN u.prev_status IS DISTINCT FROM u.status THEN 'status-changed'
+           ELSE 'updated'
+         END AS event_type,
+         u.prev_status AS previous_status,
+         u.status AS next_status,
+         ${changedFieldsSql} AS changed_fields,
+         jsonb_build_object(
+           'before', ${previousSnapshotSql},
+           'after', ${nextSnapshotSql}
+         ) AS details,
+         $15::integer AS changed_by
+       FROM updated u
+     ),
+     history_inserted AS (
+       INSERT INTO ${APPOINTMENT_STATUS_HISTORY_TABLE} (
+         organization_id,
+         appointment_schedule_id,
+         event_type,
+         previous_status,
+         next_status,
+         changed_fields,
+         details,
+         changed_by
+       )
+       SELECT
+         h.organization_id,
+         h.appointment_schedule_id,
+         h.event_type,
+         h.previous_status,
+         h.next_status,
+         h.changed_fields,
+         h.details,
+         h.changed_by
+       FROM history_rows h
+       WHERE CARDINALITY(h.changed_fields) > 0
      )
      SELECT
        u.id,
@@ -1096,22 +1595,56 @@ export async function updateAppointmentScheduleByIdWithRepeatMeta({
 export async function deleteAppointmentSchedulesByIds({
   organizationId,
   ids,
+  actorUserId = null,
   scheduleScope = "default"
 }) {
+  await ensureAppointmentStatusHistorySchema();
+
   const normalizedIds = normalizeScheduleIds(ids);
   if (normalizedIds.length === 0) {
     return 0;
   }
   const tableName = getAppointmentSchedulesTableName(scheduleScope);
+  const previousSnapshotSql = buildScheduleSnapshotSql("d");
 
-  const { rowCount } = await pool.query(
-    `DELETE FROM ${tableName}
-      WHERE organization_id = $1
-        AND id = ANY($2::integer[])`,
-    [organizationId, normalizedIds]
+  const { rows } = await pool.query(
+    `WITH deleted AS (
+       DELETE FROM ${tableName}
+        WHERE organization_id = $1
+          AND id = ANY($2::integer[])
+       RETURNING *
+     ),
+     history_inserted AS (
+       INSERT INTO ${APPOINTMENT_STATUS_HISTORY_TABLE} (
+         organization_id,
+         appointment_schedule_id,
+         event_type,
+         previous_status,
+         next_status,
+         changed_fields,
+         details,
+         changed_by
+       )
+       SELECT
+         d.organization_id,
+         d.id,
+         'deleted',
+         d.status,
+         NULL,
+         ARRAY['deleted']::text[],
+         jsonb_build_object(
+           'before', ${previousSnapshotSql},
+           'after', NULL
+         ),
+         $3::integer
+       FROM deleted d
+     )
+     SELECT COUNT(*)::integer AS deleted_count
+       FROM deleted`,
+    [organizationId, normalizedIds, actorUserId || null]
   );
 
-  return rowCount || 0;
+  return Number.parseInt(String(rows?.[0]?.deleted_count ?? "0"), 10) || 0;
 }
 
 export async function getAppointmentSettingsByOrganization(organizationId) {

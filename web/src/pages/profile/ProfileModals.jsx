@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import CustomSelect from "../../components/CustomSelect.jsx";
 import { formatDateYMD } from "../../lib/formatters.js";
@@ -120,6 +121,39 @@ function ProfileModals(props) {
     positionEditSubmitting,
     cancelPositionEdit
   } = props;
+
+  useEffect(() => {
+    const message = String(organizationEditError || "").trim();
+    if (!message) {
+      return;
+    }
+    if (typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert(message);
+    }
+    setOrganizationEditError("");
+  }, [organizationEditError, setOrganizationEditError]);
+
+  useEffect(() => {
+    const message = String(roleEditError || "").trim();
+    if (!message) {
+      return;
+    }
+    if (typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert(message);
+    }
+    setRoleEditError("");
+  }, [roleEditError, setRoleEditError]);
+
+  useEffect(() => {
+    const message = String(positionEditError || "").trim();
+    if (!message) {
+      return;
+    }
+    if (typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert(message);
+    }
+    setPositionEditError("");
+  }, [positionEditError, setPositionEditError]);
 
   const modalContent = (
     <>
@@ -976,7 +1010,6 @@ function ProfileModals(props) {
               />
             </label>
           </div>
-          <small className="field-error settings-error">{organizationEditError}</small>
           <div className="edit-actions">
             <button className="btn" type="submit" disabled={organizationEditSubmitting}>Save</button>
             <button className="header-btn" type="button" onClick={cancelOrganizationEdit}>Cancel</button>
@@ -1064,7 +1097,6 @@ function ProfileModals(props) {
           <p className="all-users-state" hidden={groupedRolePermissionOptions.length > 0}>
             No permissions found.
           </p>
-          <small className="field-error settings-error">{roleEditError}</small>
           <div className="edit-actions">
             <button className="btn" type="submit" disabled={roleEditSubmitting}>Save</button>
             <button className="header-btn" type="button" onClick={cancelRoleEdit}>Cancel</button>
@@ -1112,7 +1144,6 @@ function ProfileModals(props) {
               />
             </label>
           </div>
-          <small className="field-error settings-error">{positionEditError}</small>
           <div className="edit-actions">
             <button className="btn" type="submit" disabled={positionEditSubmitting}>Save</button>
             <button className="header-btn" type="button" onClick={cancelPositionEdit}>Cancel</button>

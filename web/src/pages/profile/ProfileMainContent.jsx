@@ -5,16 +5,22 @@ import { formatDateYMD } from "../../lib/formatters.js";
 import AppointmentScheduler from "./AppointmentScheduler.jsx";
 import AppointmentSettingsPanel from "./AppointmentSettingsPanel.jsx";
 import MonitoringPanel from "./MonitoringPanel.jsx";
+import { sortVipClassDailyRoutineRows } from "./profile.helpers.js";
+import StatisticsClassPanel from "./panels/StatisticsClassPanel.jsx";
+import VipDailyRoutinesPanel from "./panels/VipDailyRoutinesPanel.jsx";
 
 function formatAttendanceDateTime(value) {
   const normalized = String(value || "").trim();
   if (!normalized) {
     return "-";
   }
-  const directMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})/);
-  if (directMatch) {
-    const [, year, month, day, hours, minutes] = directMatch;
-    return `${day}.${month}.${year} ${hours}:${minutes}`;
+  const hasExplicitTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized);
+  if (!hasExplicitTimezone) {
+    const directMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})/);
+    if (directMatch) {
+      const [, year, month, day, hours, minutes] = directMatch;
+      return `${day}.${month}.${year} ${hours}:${minutes}`;
+    }
   }
   const parsed = new Date(normalized);
   if (Number.isNaN(parsed.getTime())) {
@@ -93,13 +99,6 @@ const VIP_DAILY_ROUTINE_ACTIVITY_OPTIONS = [
   { value: "sleep-time", label: "Sleep time" },
   { value: "other", label: "Other" }
 ];
-const VIP_DAILY_ROUTINE_ACTIVITY_LABEL_BY_VALUE = Object.freeze(
-  VIP_DAILY_ROUTINE_ACTIVITY_OPTIONS.reduce((acc, item) => {
-    acc[String(item.value || "").trim().toLowerCase()] = String(item.label || "").trim();
-    return acc;
-  }, {})
-);
-const VIP_DAILY_ROUTINE_TITLE_MAX_LENGTH = 128;
 const VIP_DAILY_ROUTINE_NOTE_MAX_LENGTH = 255;
 
 function formatVipDailyRoutineDayLabel(dayOfWeek) {
@@ -141,9 +140,8 @@ function normalizeVipDailyRoutineActivityForSave(value) {
   return "";
 }
 
-function inferVipDailyRoutineActivitySelectValue(activityType, title = "") {
+function inferVipDailyRoutineActivitySelectValue(activityType) {
   const normalizedActivity = String(activityType || "").trim().toLowerCase();
-  const normalizedTitle = String(title || "").trim().toLowerCase();
   if (normalizedActivity === "lesson") {
     return "group-lesson";
   }
@@ -151,23 +149,12 @@ function inferVipDailyRoutineActivitySelectValue(activityType, title = "") {
     return "sleep-time";
   }
   if (normalizedActivity === "meal") {
-    if (normalizedTitle.includes("lunch")) {
-      return "lunch";
-    }
-    if (normalizedTitle.includes("afternoon") || normalizedTitle.includes("snack")) {
-      return "afternoon-snack";
-    }
     return "breakfast";
   }
   if (normalizedActivity === "other") {
     return "other";
   }
   return "group-lesson";
-}
-
-function getVipDailyRoutineTitleFromActivityValue(activityValue) {
-  const normalized = String(activityValue || "").trim().toLowerCase();
-  return VIP_DAILY_ROUTINE_ACTIVITY_LABEL_BY_VALUE[normalized] || "";
 }
 
 function formatVipDailyRoutineClassLabel(item) {
@@ -186,6 +173,7 @@ function formatVipDailyRoutineClassLabel(item) {
 function ProfileMainContent({
   mainView,
   allUsersMessage,
+  allUsersLoading,
   allUsers,
   canUpdateUsers,
   canDeleteUsers,
@@ -197,6 +185,7 @@ function ProfileMainContent({
   closeAllUsersPanel,
   closeAllClientsPanel,
   clients,
+  clientsLoading,
   clientsMessage,
   clientsPage,
   clientsTotalPages,
@@ -211,6 +200,7 @@ function ProfileMainContent({
   markVipAttendanceLeft,
   saveVipAttendanceAbsentReason,
   saveVipAttendanceEdit,
+  myChildrenIsCompact,
   myChildrenDateYmd,
   myChildrenOptions,
   myChildrenSelectedClientId,
@@ -373,20 +363,15 @@ function ProfileMainContent({
     classId: "",
     dayOfWeek: "1",
     activityType: "group-lesson",
-    title: "",
     startTime: "",
     endTime: "",
     note: "",
-    isActive: true,
-    sortOrder: "100",
     error: ""
   });
   const [vipDailyRoutineEditSaving, setVipDailyRoutineEditSaving] = useState(false);
   const [vipDailyRoutineDeleteModal, setVipDailyRoutineDeleteModal] = useState({
     open: false,
-    id: "",
-    title: "",
-    error: ""
+    id: ""
   });
   const [vipDailyRoutineDeleteSaving, setVipDailyRoutineDeleteSaving] = useState(false);
   const [vipClassDraft, setVipClassDraft] = useState({
@@ -435,6 +420,72 @@ function ProfileMainContent({
   ].join(":");
 
   useEffect(() => {
+    const message = String(vipAttendanceAbsentModal.error || "").trim();
+    if (!message) {
+      return;
+    }
+    if (typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert(message);
+    }
+    setVipAttendanceAbsentModal((prev) => ({ ...prev, error: "" }));
+  }, [vipAttendanceAbsentModal.error]);
+
+  useEffect(() => {
+    const message = String(vipAttendanceEditModal.error || "").trim();
+    if (!message) {
+      return;
+    }
+    if (typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert(message);
+    }
+    setVipAttendanceEditModal((prev) => ({ ...prev, error: "" }));
+  }, [vipAttendanceEditModal.error]);
+
+  useEffect(() => {
+    const message = String(vipClassDeleteModal.error || "").trim();
+    if (!message) {
+      return;
+    }
+    if (typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert(message);
+    }
+    setVipClassDeleteModal((prev) => ({ ...prev, error: "" }));
+  }, [vipClassDeleteModal.error]);
+
+  useEffect(() => {
+    const message = String(organizationCreateError || "").trim();
+    if (!message) {
+      return;
+    }
+    if (typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert(message);
+    }
+    setOrganizationCreateError("");
+  }, [organizationCreateError, setOrganizationCreateError]);
+
+  useEffect(() => {
+    const message = String(roleCreateError || "").trim();
+    if (!message) {
+      return;
+    }
+    if (typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert(message);
+    }
+    setRoleCreateError("");
+  }, [roleCreateError, setRoleCreateError]);
+
+  useEffect(() => {
+    const message = String(positionCreateError || "").trim();
+    if (!message) {
+      return;
+    }
+    if (typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert(message);
+    }
+    setPositionCreateError("");
+  }, [positionCreateError, setPositionCreateError]);
+
+  useEffect(() => {
     if (mainView === "appointment-vip-assignments") {
       return;
     }
@@ -480,20 +531,15 @@ function ProfileMainContent({
       classId: "",
       dayOfWeek: "1",
       activityType: "group-lesson",
-      title: "",
       startTime: "",
       endTime: "",
       note: "",
-      isActive: true,
-      sortOrder: "100",
       error: ""
     });
     setVipDailyRoutineEditSaving(false);
     setVipDailyRoutineDeleteModal({
       open: false,
-      id: "",
-      title: "",
-      error: ""
+      id: ""
     });
     setVipDailyRoutineDeleteSaving(false);
   }, [mainView]);
@@ -946,19 +992,19 @@ function ProfileMainContent({
     const normalizedNote = String(vipAttendanceEditModal.note || "").trim();
 
     if (!isAbsentMode && normalizedDepartureTime && !normalizedArrivalTime) {
-      setVipAttendanceEditModal((prev) => ({ ...prev, error: "Arrival time is required when departure time is set." }));
+      setVipAttendanceEditModalError("Arrival time is required when departure time is set.");
       return;
     }
     if (!isAbsentMode && normalizedArrivalTime && normalizedDepartureTime && normalizedDepartureTime < normalizedArrivalTime) {
-      setVipAttendanceEditModal((prev) => ({ ...prev, error: "Departure time must be later than arrival time." }));
+      setVipAttendanceEditModalError("Departure time must be later than arrival time.");
       return;
     }
     if (!isPresentMode && normalizedNote.length > VIP_ATTENDANCE_EDIT_NOTE_MAX_LENGTH) {
-      setVipAttendanceEditModal((prev) => ({ ...prev, error: `Note is too long (max ${VIP_ATTENDANCE_EDIT_NOTE_MAX_LENGTH}).` }));
+      setVipAttendanceEditModalError(`Note is too long (max ${VIP_ATTENDANCE_EDIT_NOTE_MAX_LENGTH}).`);
       return;
     }
     if (isAbsentMode && !normalizedNote) {
-      setVipAttendanceEditModal((prev) => ({ ...prev, error: "Reason is required for absent." }));
+      setVipAttendanceEditModalError("Reason is required for absent.");
       return;
     }
 
@@ -971,10 +1017,7 @@ function ProfileMainContent({
       note: isPresentMode ? "" : normalizedNote
     });
     if (!saveResult?.ok) {
-      setVipAttendanceEditModal((prev) => ({
-        ...prev,
-        error: String(saveResult?.message || "Failed to save VIP attendance.").trim()
-      }));
+      setVipAttendanceEditModalError(String(saveResult?.message || "Failed to save VIP attendance.").trim());
       setVipAttendanceEditSaving(false);
       return;
     }
@@ -991,10 +1034,7 @@ function ProfileMainContent({
     setVipAttendanceEditSaving(true);
     const resetResult = await saveVipAttendanceEdit(normalizedClientId, { reset: true });
     if (!resetResult?.ok) {
-      setVipAttendanceEditModal((prev) => ({
-        ...prev,
-        error: String(resetResult?.message || "Failed to reset VIP attendance.").trim()
-      }));
+      setVipAttendanceEditModalError(String(resetResult?.message || "Failed to reset VIP attendance.").trim());
       setVipAttendanceEditSaving(false);
       setVipAttendanceEditAction("save");
       return;
@@ -1050,26 +1090,7 @@ function ProfileMainContent({
       };
     })
     .filter(Boolean);
-  const vipDailyRoutineRows = (Array.isArray(vipDailyRoutineItems) ? vipDailyRoutineItems : [])
-    .sort((a, b) => {
-      const classCompare = String(a.className || "").localeCompare(String(b.className || ""), undefined, { sensitivity: "base" });
-      if (classCompare !== 0) {
-        return classCompare;
-      }
-      const dayCompare = Number(a.dayOfWeek || 0) - Number(b.dayOfWeek || 0);
-      if (dayCompare !== 0) {
-        return dayCompare;
-      }
-      const timeCompare = String(a.startTime || "").localeCompare(String(b.startTime || ""));
-      if (timeCompare !== 0) {
-        return timeCompare;
-      }
-      const sortCompare = Number(a.sortOrder || 0) - Number(b.sortOrder || 0);
-      if (sortCompare !== 0) {
-        return sortCompare;
-      }
-      return String(a.id || "").localeCompare(String(b.id || ""));
-    });
+  const vipDailyRoutineRows = sortVipClassDailyRoutineRows(vipDailyRoutineItems);
 
   function openVipDailyRoutineAddModal() {
     const preferredClassId = String(vipDailyRoutineClassOptions[0]?.value || "").trim();
@@ -1079,12 +1100,9 @@ function ProfileMainContent({
       classId: preferredClassId,
       dayOfWeek: "1",
       activityType: "group-lesson",
-      title: "",
       startTime: "",
       endTime: "",
       note: "",
-      isActive: true,
-      sortOrder: "100",
       error: ""
     });
     setVipDailyRoutineEditSaving(false);
@@ -1100,13 +1118,10 @@ function ProfileMainContent({
       id: routineId,
       classId: String(row?.classId || "").trim(),
       dayOfWeek: String(row?.dayOfWeek || "").trim() || "1",
-      activityType: inferVipDailyRoutineActivitySelectValue(row?.activityType, row?.title),
-      title: String(row?.title || "").trim(),
+      activityType: inferVipDailyRoutineActivitySelectValue(row?.activityType),
       startTime: String(row?.startTime || "").trim(),
       endTime: String(row?.endTime || "").trim(),
       note: String(row?.note || "").trim(),
-      isActive: row?.isActive !== false,
-      sortOrder: String(row?.sortOrder ?? "100").trim() || "100",
       error: ""
     });
     setVipDailyRoutineEditSaving(false);
@@ -1119,12 +1134,9 @@ function ProfileMainContent({
       classId: "",
       dayOfWeek: "1",
       activityType: "group-lesson",
-      title: "",
       startTime: "",
       endTime: "",
       note: "",
-      isActive: true,
-      sortOrder: "100",
       error: ""
     });
     setVipDailyRoutineEditSaving(false);
@@ -1137,9 +1149,7 @@ function ProfileMainContent({
     }
     setVipDailyRoutineDeleteModal({
       open: true,
-      id: routineId,
-      title: String(row?.title || "").trim() || "Routine",
-      error: ""
+      id: routineId
     });
     setVipDailyRoutineDeleteSaving(false);
   }
@@ -1147,9 +1157,7 @@ function ProfileMainContent({
   function closeVipDailyRoutineDeleteModal() {
     setVipDailyRoutineDeleteModal({
       open: false,
-      id: "",
-      title: "",
-      error: ""
+      id: ""
     });
     setVipDailyRoutineDeleteSaving(false);
   }
@@ -1162,6 +1170,11 @@ function ProfileMainContent({
     if (typeof window !== "undefined" && typeof window.alert === "function") {
       window.alert(normalizedMessage);
     }
+  }
+
+  function setVipAttendanceEditModalError(message) {
+    const normalizedMessage = String(message || "").trim();
+    setVipAttendanceEditModal((prev) => ({ ...prev, error: normalizedMessage }));
   }
 
   function setVipDailyRoutineModalError(message) {
@@ -1189,11 +1202,9 @@ function ProfileMainContent({
     const dayOfWeek = String(vipDailyRoutineEditModal.dayOfWeek || "").trim();
     const activityValue = String(vipDailyRoutineEditModal.activityType || "").trim().toLowerCase();
     const activityType = normalizeVipDailyRoutineActivityForSave(activityValue);
-    const title = getVipDailyRoutineTitleFromActivityValue(activityValue);
     const startTime = String(vipDailyRoutineEditModal.startTime || "").trim();
     const endTime = String(vipDailyRoutineEditModal.endTime || "").trim();
     const note = String(vipDailyRoutineEditModal.note || "").trim();
-    const sortOrder = String(vipDailyRoutineEditModal.sortOrder || "").trim();
 
     if (!classId) {
       setVipDailyRoutineModalError("Class is required.");
@@ -1205,10 +1216,6 @@ function ProfileMainContent({
     }
     if (!activityType) {
       setVipDailyRoutineModalError("Activity is required.");
-      return;
-    }
-    if (title.length > VIP_DAILY_ROUTINE_TITLE_MAX_LENGTH) {
-      setVipDailyRoutineModalError(`Title is too long (max ${VIP_DAILY_ROUTINE_TITLE_MAX_LENGTH}).`);
       return;
     }
     if (!/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime)) {
@@ -1224,24 +1231,15 @@ function ProfileMainContent({
       return;
     }
 
-    const parsedSortOrder = Number.parseInt(sortOrder, 10);
-    if (!Number.isInteger(parsedSortOrder) || parsedSortOrder < 0 || parsedSortOrder > 10000) {
-      setVipDailyRoutineModalError("Sort order must be between 0 and 10000.");
-      return;
-    }
-
     setVipDailyRoutineEditSaving(true);
     const saveResult = await saveVipDailyRoutine({
       id: isEditMode ? routineId : "",
       classId,
       dayOfWeek: Number.parseInt(dayOfWeek, 10),
       activityType,
-      title,
       startTime,
       endTime,
-      note,
-      isActive: vipDailyRoutineEditModal.isActive !== false,
-      sortOrder: parsedSortOrder
+      note
     });
     if (!saveResult?.ok) {
       setVipDailyRoutineModalError(saveResult?.message || "Failed to save routine.");
@@ -1260,10 +1258,7 @@ function ProfileMainContent({
     setVipDailyRoutineDeleteSaving(true);
     const result = await deleteVipDailyRoutine(routineId);
     if (!result?.ok) {
-      setVipDailyRoutineDeleteModal((prev) => ({
-        ...prev,
-        error: String(result?.message || "Failed to delete routine.").trim()
-      }));
+      showVipClassModalAlert(result?.message || "Failed to delete routine.");
       setVipDailyRoutineDeleteSaving(false);
       return;
     }
@@ -1597,10 +1592,6 @@ function ProfileMainContent({
           {vipAttendanceAbsentModal.reason.length}/{VIP_ATTENDANCE_ABSENT_REASON_MAX_LENGTH}
         </p>
 
-        <p className="settings-error" hidden={!vipAttendanceAbsentModal.error}>
-          {vipAttendanceAbsentModal.error}
-        </p>
-
         <div className="edit-actions vip-attendance-absent-actions">
           <button
             id="saveVipAttendanceAbsentReasonBtn"
@@ -1712,10 +1703,6 @@ function ProfileMainContent({
             </>
           );
         })()}
-
-        <p className="settings-error" hidden={!vipAttendanceEditModal.error}>
-          {vipAttendanceEditModal.error}
-        </p>
 
         <div className="edit-actions vip-attendance-edit-actions">
           <button
@@ -1925,12 +1912,7 @@ function ProfileMainContent({
       >
         <h3>Delete this routine?</h3>
         <p className="all-users-state">
-          {vipDailyRoutineDeleteModal.title
-            ? `Routine: ${vipDailyRoutineDeleteModal.title}`
-            : "This action cannot be undone."}
-        </p>
-        <p className="settings-error" hidden={!vipDailyRoutineDeleteModal.error}>
-          {vipDailyRoutineDeleteModal.error}
+          This action cannot be undone.
         </p>
         <div className="logout-confirm-actions">
           <button
@@ -1942,12 +1924,12 @@ function ProfileMainContent({
               void confirmVipDailyRoutineDelete();
             }}
           >
-            {vipDailyRoutineDeleteSaving ? "Deleting..." : "Delete"}
+            {vipDailyRoutineDeleteSaving ? "Deleting..." : "Yes"}
           </button>
           <button
             id="vipDailyRoutineDeleteNoBtn"
             type="button"
-            className="header-btn"
+            className="btn header-btn"
             disabled={vipDailyRoutineDeleteSaving}
             onClick={closeVipDailyRoutineDeleteModal}
           >
@@ -2079,9 +2061,6 @@ function ProfileMainContent({
             ? `Class: ${vipClassDeleteModal.className}`
             : "This action cannot be undone."}
         </p>
-        <p className="settings-error" hidden={!vipClassDeleteModal.error}>
-          {vipClassDeleteModal.error}
-        </p>
         <div className="logout-confirm-actions">
           <button
             id="vipClassDeleteConfirmBtn"
@@ -2092,12 +2071,12 @@ function ProfileMainContent({
               void confirmVipClassDelete();
             }}
           >
-            {vipClassDeleteSaving ? "Deleting..." : "Delete"}
+            {vipClassDeleteSaving ? "Deleting..." : "Yes"}
           </button>
           <button
             id="vipClassDeleteNoBtn"
             type="button"
-            className="header-btn"
+            className="btn header-btn"
             disabled={vipClassDeleteSaving}
             onClick={closeVipClassDeleteModal}
           >
@@ -2288,7 +2267,6 @@ function ProfileMainContent({
               />
             </label>
           </div>
-          <small className="field-error settings-error">{organizationCreateError}</small>
           <div className="edit-actions">
             <button className="btn" type="submit" disabled={organizationCreateSubmitting}>
               {organizationCreateSubmitting ? "Saving..." : "Save"}
@@ -2676,7 +2654,6 @@ function ProfileMainContent({
               />
             </label>
           </div>
-          <small className="field-error settings-error">{roleCreateError}</small>
           <div className="edit-actions">
             <button className="btn" type="submit" disabled={roleCreateSubmitting}>
               {roleCreateSubmitting ? "Saving..." : "Save"}
@@ -2752,7 +2729,6 @@ function ProfileMainContent({
               />
             </label>
           </div>
-          <small className="field-error settings-error">{positionCreateError}</small>
           <div className="edit-actions">
             <button className="btn" type="submit" disabled={positionCreateSubmitting}>
               {positionCreateSubmitting ? "Saving..." : "Save"}
@@ -2803,7 +2779,7 @@ function ProfileMainContent({
             {allUsersMessage}
           </p>
 
-          <div id="allUsersTableWrap" className="all-users-table-wrap" hidden={allUsers.length === 0}>
+          <div id="allUsersTableWrap" className="all-users-table-wrap">
             <table className="all-users-table" aria-label="All users table">
               <thead>
                 <tr>
@@ -2822,7 +2798,13 @@ function ProfileMainContent({
                 </tr>
               </thead>
               <tbody id="allUsersTableBody">
-                {allUsers.map((user) => {
+                {allUsersLoading ? (
+                  [0, 1, 2, 3, 4].map((i) => (
+                    <tr key={i} aria-hidden="true">
+                      <td colSpan="12" className="skel" />
+                    </tr>
+                  ))
+                ) : allUsers.map((user) => {
                   return (
                     <tr key={String(user.id)}>
                       <td>{user.id || "-"}</td>
@@ -2866,7 +2848,7 @@ function ProfileMainContent({
             </table>
           </div>
 
-          <div id="allUsersPagination" className="all-users-pagination" hidden={allUsers.length === 0}>
+          <div id="allUsersPagination" className="all-users-pagination" hidden={allUsersLoading || allUsers.length === 0}>
             <button
               id="allUsersPrevBtn"
               type="button"
@@ -2924,7 +2906,7 @@ function ProfileMainContent({
             {clientsMessage}
           </p>
 
-          <div className="all-users-table-wrap" hidden={clients.length === 0}>
+          <div className="all-users-table-wrap">
             <table className="all-users-table" aria-label="Clients table">
               <thead>
                 <tr>
@@ -2943,7 +2925,13 @@ function ProfileMainContent({
                 </tr>
               </thead>
               <tbody>
-                {clients.map((item) => {
+                {clientsLoading ? (
+                  [0, 1, 2, 3, 4].map((i) => (
+                    <tr key={i} aria-hidden="true">
+                      <td colSpan="12" className="skel" />
+                    </tr>
+                  ))
+                ) : clients.map((item) => {
                   const rowId = String(item.id || "");
                   const firstName = String(item.firstName || item.first_name || "").trim();
                   const lastName = String(item.lastName || item.last_name || "").trim();
@@ -2995,7 +2983,7 @@ function ProfileMainContent({
             </table>
           </div>
 
-          <div className="all-users-pagination" hidden={clients.length === 0}>
+          <div className="all-users-pagination" hidden={clientsLoading || clients.length === 0}>
             <button
               type="button"
               className="header-btn"
@@ -3070,12 +3058,12 @@ function ProfileMainContent({
       {mainView === "appointment-vip-schedule" && (
         <section id="appointmentVipSchedulePanel" className="all-users-panel">
           <div className="all-users-head">
-            <h3>VIP Planner</h3>
+            <h3>My Class</h3>
             <button
               id="closeAppointmentVipScheduleBtn"
               type="button"
               className="header-btn panel-close-btn"
-              aria-label="Close VIP planner panel"
+              aria-label="Close my class panel"
               onClick={closeAppointmentVipSchedulePanel}
             >
               ×
@@ -3088,6 +3076,7 @@ function ProfileMainContent({
             currentUserId={String(profile?.id || "").trim()}
             restrictCreateToOwnSpecialist={isSpecialistUser}
             vipOnly
+            vipClassDailyRoutines={vipDailyRoutineItems}
             onNotification={onAppointmentNotification}
           />
         </section>
@@ -3207,7 +3196,7 @@ function ProfileMainContent({
               </button>
             </div>
 
-            <div className="my-children-toolbar">
+            <div className="vip-attendance-toolbar">
               <label className="field vip-attendance-class-field" htmlFor="vipAttendanceClassFilterSelect">
                 <span>Class</span>
                 <CustomSelect
@@ -3251,13 +3240,6 @@ function ProfileMainContent({
               </div>
             </div>
 
-            <div className="vip-attendance-skeleton" hidden={!showVipAttendanceSkeleton} aria-hidden={!showVipAttendanceSkeleton}>
-              <div className="skel vip-attendance-skeleton-line" />
-              <div className="skel vip-attendance-skeleton-line" />
-              <div className="skel vip-attendance-skeleton-line" />
-              <div className="skel vip-attendance-skeleton-line" />
-            </div>
-
             <p className="all-users-state" hidden={showVipAttendanceSkeleton || !vipAttendanceMessage}>
               {vipAttendanceMessage}
             </p>
@@ -3265,7 +3247,7 @@ function ProfileMainContent({
               No children in selected filter.
             </p>
 
-            <div className="all-users-table-wrap" hidden={showVipAttendanceSkeleton || filteredAttendanceItems.length === 0}>
+            <div className="all-users-table-wrap" hidden={!showVipAttendanceSkeleton && filteredAttendanceItems.length === 0}>
               <table className="all-users-table" aria-label="VIP attendance table">
                 <thead>
                   <tr>
@@ -3279,7 +3261,13 @@ function ProfileMainContent({
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredAttendanceItems.map((item) => {
+                  {showVipAttendanceSkeleton ? (
+                    [0, 1, 2, 3, 4].map((i) => (
+                      <tr key={i} aria-hidden="true">
+                        <td colSpan="7" className="skel" />
+                      </tr>
+                    ))
+                  ) : filteredAttendanceItems.map((item) => {
                     const rowId = String(item.id || "").trim();
                     const fullName = `${String(item.firstName || "").trim()} ${String(item.lastName || "").trim()} ${String(item.middleName || "").trim()}`
                       .replace(/\s+/g, " ")
@@ -3369,7 +3357,7 @@ function ProfileMainContent({
                       </tr>
                     );
                   })}
-                </tbody>
+                  </tbody>
               </table>
             </div>
 
@@ -3389,7 +3377,23 @@ function ProfileMainContent({
             .filter((item) => Boolean(item.value))
         ];
         const hasAssignedChildren = childOptions.length > 1;
-        const selectedDateLabel = formatDateYMD(myChildrenDateYmd) || myChildrenDateYmd || "-";
+        const currentDate = /^\d{4}-\d{2}-\d{2}$/.test(myChildrenDateYmd)
+          ? new Date(`${myChildrenDateYmd}T00:00:00`)
+          : null;
+        const weekEndDate = (!myChildrenIsCompact && currentDate)
+          ? new Date(currentDate.getTime() + 6 * 24 * 60 * 60 * 1000)
+          : null;
+        const fmtDM = (d) => `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+        const selectedDateLabel = (() => {
+          if (!currentDate) {
+            return myChildrenDateYmd || "-";
+          }
+          if (myChildrenIsCompact) {
+            const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+            return `${fmtDM(currentDate)} ${dayNames[currentDate.getDay()]}`;
+          }
+          return `${currentDate.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })} - ${weekEndDate.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}`;
+        })();
         const showMyChildrenSkeleton = Boolean(myChildrenScheduleLoading);
         const myChildrenRows = Array.isArray(myChildrenScheduleItems) ? myChildrenScheduleItems : [];
 
@@ -3408,22 +3412,26 @@ function ProfileMainContent({
               </button>
             </div>
 
-            <div className="vip-attendance-toolbar">
-              <label className="field vip-attendance-class-field" htmlFor="myChildrenClientSelect">
-                <span>Child</span>
-                <CustomSelect
-                  id="myChildrenClientSelect"
-                  value={normalizedSelectedClientId}
-                  options={childOptions}
-                  placeholder="Select child"
-                  searchable
-                  searchThreshold={8}
-                  onChange={(nextValue) => {
-                    setMyChildrenSelectedClientId(String(nextValue || "").trim());
-                  }}
-                />
-              </label>
-              <div className="vip-attendance-summary">
+            <div className="appointment-toolbar">
+              <div className="appointment-toolbar-block">
+                <div className="appointment-specialist-control">
+                  <span className="appointment-toolbar-label">Child</span>
+                  <div className="appointment-specialist-select-wrap">
+                    <CustomSelect
+                      id="myChildrenClientSelect"
+                      placeholder="Select child"
+                      value={normalizedSelectedClientId}
+                      options={childOptions}
+                      searchable
+                      searchThreshold={8}
+                      onChange={(nextValue) => {
+                        setMyChildrenSelectedClientId(String(nextValue || "").trim());
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="appointment-toolbar-block appointment-week-switcher">
                 <button
                   id="myChildrenPrevDayBtn"
                   type="button"
@@ -3432,7 +3440,7 @@ function ProfileMainContent({
                 >
                   Prev
                 </button>
-                <span className="all-users-page-info">{selectedDateLabel}</span>
+                <p className="appointment-week-range">{selectedDateLabel}</p>
                 <button
                   id="myChildrenNextDayBtn"
                   type="button"
@@ -3444,24 +3452,18 @@ function ProfileMainContent({
               </div>
             </div>
 
-            <div className="vip-attendance-skeleton" hidden={!showMyChildrenSkeleton} aria-hidden={!showMyChildrenSkeleton}>
-              <div className="skel vip-attendance-skeleton-line" />
-              <div className="skel vip-attendance-skeleton-line" />
-              <div className="skel vip-attendance-skeleton-line" />
-              <div className="skel vip-attendance-skeleton-line" />
-            </div>
-
             <p className="all-users-state" hidden={showMyChildrenSkeleton || !myChildrenScheduleMessage}>
               {myChildrenScheduleMessage}
             </p>
             <p className="all-users-state" hidden={showMyChildrenSkeleton || !hasAssignedChildren || myChildrenRows.length > 0 || Boolean(myChildrenScheduleMessage)}>
-              No lessons scheduled for selected day.
+              {myChildrenIsCompact ? "No lessons scheduled for selected day." : "No lessons scheduled for selected week."}
             </p>
 
-            <div className="all-users-table-wrap" hidden={showMyChildrenSkeleton || myChildrenRows.length === 0}>
+            <div className="all-users-table-wrap" hidden={!showMyChildrenSkeleton && myChildrenRows.length === 0}>
               <table className="all-users-table" aria-label="My children schedule table">
                 <thead>
                   <tr>
+                    {!myChildrenIsCompact && <th>Date</th>}
                     <th>Time</th>
                     <th>Teacher</th>
                     <th>Service</th>
@@ -3470,8 +3472,26 @@ function ProfileMainContent({
                   </tr>
                 </thead>
                 <tbody>
-                  {myChildrenRows.map((item) => {
+                  {showMyChildrenSkeleton ? (
+                    [0, 1, 2, 3, 4].map((i) => (
+                      <tr key={i} aria-hidden="true">
+                        <td colSpan={myChildrenIsCompact ? 5 : 6} className="skel" />
+                      </tr>
+                    ))
+                  ) : myChildrenRows.map((item) => {
                     const rowId = String(item?.id || "").trim();
+                    const rawDate = String(item?.appointmentDate || "").trim();
+                    const dateLabel = (() => {
+                      if (!/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+                        return rawDate || "-";
+                      }
+                      const d = new Date(`${rawDate}T00:00:00`);
+                      if (Number.isNaN(d.getTime())) {
+                        return rawDate;
+                      }
+                      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+                      return `${fmtDM(d)} ${dayNames[d.getDay()]}`;
+                    })();
                     const startTime = String(item?.startTime || "").trim();
                     const endTime = String(item?.endTime || "").trim();
                     const timeRange = startTime && endTime
@@ -3483,6 +3503,7 @@ function ProfileMainContent({
                     const note = String(item?.note || "").trim() || "-";
                     return (
                       <tr key={`myChildrenScheduleRow_${rowId}`}>
+                        {!myChildrenIsCompact && <td>{dateLabel}</td>}
                         <td>{timeRange}</td>
                         <td>{teacherName}</td>
                         <td>{serviceName}</td>
@@ -3491,7 +3512,7 @@ function ProfileMainContent({
                       </tr>
                     );
                   })}
-                </tbody>
+                  </tbody>
               </table>
             </div>
           </section>
@@ -3499,107 +3520,21 @@ function ProfileMainContent({
       })()}
 
       {mainView === "appointment-vip-daily-routines" && (
-        <section id="appointmentVipDailyRoutinesPanel" className="all-users-panel">
-          <div className="all-users-head">
-            <h3>VIP Daily Routines</h3>
-            <div className="all-users-head-actions">
-              <button
-                id="openVipDailyRoutineAddBtn"
-                type="button"
-                className="header-btn appointment-breaks-add-icon-btn"
-                aria-label="Add daily routine"
-                title="Add daily routine"
-                disabled={!canCreateAppointmentVipClients}
-                onClick={openVipDailyRoutineAddModal}
-              >
-                +
-              </button>
-              <button
-                id="closeAppointmentVipDailyRoutinesBtn"
-                type="button"
-                className="header-btn panel-close-btn"
-                aria-label="Close VIP daily routines panel"
-                onClick={closeAppointmentVipDailyRoutinesPanel}
-              >
-                ×
-              </button>
-            </div>
-          </div>
-
-          <div className="vip-attendance-skeleton" hidden={!vipDailyRoutineLoading} aria-hidden={!vipDailyRoutineLoading}>
-            <div className="skel vip-attendance-skeleton-line" />
-            <div className="skel vip-attendance-skeleton-line" />
-            <div className="skel vip-attendance-skeleton-line" />
-            <div className="skel vip-attendance-skeleton-line" />
-          </div>
-
-          <p className="all-users-state" hidden={vipDailyRoutineLoading || !vipDailyRoutineMessage}>
-            {vipDailyRoutineMessage}
-          </p>
-          <p className="all-users-state" hidden={vipDailyRoutineLoading || vipDailyRoutineRows.length > 0 || Boolean(vipDailyRoutineMessage)}>
-            No daily routines found.
-          </p>
-
-          <div className="all-users-table-wrap" hidden={vipDailyRoutineLoading || vipDailyRoutineRows.length === 0}>
-            <table className="all-users-table" aria-label="VIP daily routines table">
-              <thead>
-                <tr>
-                  <th>Class</th>
-                  <th>Teacher</th>
-                  <th>Children</th>
-                  <th>Day</th>
-                  <th>Time</th>
-                  <th>Activity</th>
-                  <th>Note</th>
-                  <th>Edit</th>
-                  <th>Delete</th>
-                </tr>
-              </thead>
-              <tbody>
-                {vipDailyRoutineRows.map((row, index) => {
-                  const rowId = String(row?.id || "").trim();
-                  const className = String(row?.className || "").trim();
-                  const classLabel = className || (row?.classId ? `Class #${String(row.classId).trim()}` : "-");
-                  const timeRange = row?.startTime && row?.endTime
-                    ? `${row.startTime} - ${row.endTime}`
-                    : (String(row?.startTime || row?.endTime || "").trim() || "-");
-                  const isRowSaving = Boolean(vipDailyRoutineSavingById?.[rowId]);
-                  return (
-                    <tr key={`vipDailyRoutineRow_${rowId || index}`}>
-                      <td>{classLabel}</td>
-                      <td>{String(row?.teacherName || "").trim() || "-"}</td>
-                      <td>{Number.parseInt(String(row?.childrenCount || "0"), 10) || 0}</td>
-                      <td>{formatVipDailyRoutineDayLabel(row?.dayOfWeek)}</td>
-                      <td>{timeRange}</td>
-                      <td>{formatVipDailyRoutineActivityLabel(row?.activityType)}</td>
-                      <td>{String(row?.note || "").trim() || "-"}</td>
-                      <td>
-                        <button
-                          type="button"
-                          className="table-action-btn"
-                          disabled={isRowSaving || !canUpdateAppointmentVipClients}
-                          onClick={() => openVipDailyRoutineEditModal(row)}
-                        >
-                          Edit
-                        </button>
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className="table-action-btn table-action-btn-danger"
-                          disabled={isRowSaving || !canDeleteAppointmentVipClients}
-                          onClick={() => openVipDailyRoutineDeleteModal(row)}
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <VipDailyRoutinesPanel
+          canCreateAppointmentVipClients={canCreateAppointmentVipClients}
+          canUpdateAppointmentVipClients={canUpdateAppointmentVipClients}
+          canDeleteAppointmentVipClients={canDeleteAppointmentVipClients}
+          closeAppointmentVipDailyRoutinesPanel={closeAppointmentVipDailyRoutinesPanel}
+          vipDailyRoutineLoading={vipDailyRoutineLoading}
+          vipDailyRoutineMessage={vipDailyRoutineMessage}
+          vipDailyRoutineRows={vipDailyRoutineRows}
+          vipDailyRoutineSavingById={vipDailyRoutineSavingById}
+          openVipDailyRoutineAddModal={openVipDailyRoutineAddModal}
+          openVipDailyRoutineEditModal={openVipDailyRoutineEditModal}
+          openVipDailyRoutineDeleteModal={openVipDailyRoutineDeleteModal}
+          formatVipDailyRoutineDayLabel={formatVipDailyRoutineDayLabel}
+          formatVipDailyRoutineActivityLabel={formatVipDailyRoutineActivityLabel}
+        />
       )}
 
       {mainView === "appointment-vip-assignments" && (
@@ -3630,28 +3565,31 @@ function ProfileMainContent({
             </div>
           </div>
 
+          {vipClassMessage && (
+            <p className="form-error" style={{ marginTop: "12px" }}>{vipClassMessage}</p>
+          )}
+
           <div className="appointment-breaks-view" aria-label="Class assignments list">
             <div className="appointment-breaks-table-wrap all-users-table-wrap">
-              {!vipClassLoading && (
-                <table className="appointment-breaks-table class-assignments-table all-users-table" aria-label="Class table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Class</th>
-                      <th>Teacher</th>
-                      <th>Children</th>
-                      <th>Edit</th>
-                      <th>Delete</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {vipClassRows.length === 0 ? (
-                      <tr>
-                        <td colSpan="6" className="appointment-breaks-empty">
-                          No classes found.
-                        </td>
+              <table className="appointment-breaks-table class-assignments-table all-users-table" aria-label="Class table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Class</th>
+                    <th>Teacher</th>
+                    <th>Children</th>
+                    <th>Edit</th>
+                    <th>Delete</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vipClassLoading ? (
+                    [0, 1, 2, 3].map((i) => (
+                      <tr key={i} aria-hidden="true">
+                        <td colSpan="6" className="skel" />
                       </tr>
-                    ) : vipClassRows.map((row, index) => {
+                    ))
+                  ) : vipClassRows.map((row, index) => {
                       const classId = String(row?.id || "").trim();
                       const isClassSaving = Boolean(vipClassSavingById?.[classId]);
                       return (
@@ -3684,10 +3622,9 @@ function ProfileMainContent({
                         </td>
                       </tr>
                     );
-                    })}
-                  </tbody>
-                </table>
-              )}
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         </section>
@@ -3708,27 +3645,30 @@ function ProfileMainContent({
             </button>
           </div>
 
+          {vipAssignmentMessage && (
+            <p className="form-error" style={{ marginTop: "12px" }}>{vipAssignmentMessage}</p>
+          )}
+
           <div className="appointment-breaks-view" aria-label="VIP tutor assignments list">
             <div className="appointment-breaks-table-wrap all-users-table-wrap">
-              {!vipAssignmentLoading && (
-                <table className="appointment-breaks-table tutor-assignments-table all-users-table" aria-label="Tutor assignments table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Child</th>
-                      <th>Class</th>
-                      <th>Tutor</th>
-                      <th>Edit</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {vipAssignmentItems.length === 0 ? (
-                      <tr>
-                        <td colSpan="5" className="appointment-breaks-empty">
-                          No VIP clients found.
-                        </td>
+              <table className="appointment-breaks-table tutor-assignments-table all-users-table" aria-label="Tutor assignments table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Child</th>
+                    <th>Class</th>
+                    <th>Tutor</th>
+                    <th>Edit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vipAssignmentLoading ? (
+                    [0, 1, 2, 3].map((i) => (
+                      <tr key={i} aria-hidden="true">
+                        <td colSpan="5" className="skel" />
                       </tr>
-                    ) : vipAssignmentItems.map((row, index) => {
+                    ))
+                  ) : vipAssignmentItems.map((row, index) => {
                       const rowId = String(row?.id || "").trim();
                       const fullName = [row?.lastName, row?.firstName, row?.middleName]
                         .map((part) => String(part || "").trim())
@@ -3753,10 +3693,9 @@ function ProfileMainContent({
                           </td>
                         </tr>
                       );
-                    })}
-                  </tbody>
-                </table>
-              )}
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         </section>
@@ -4004,208 +3943,28 @@ function ProfileMainContent({
         </section>
       )}
 
-      {mainView === "statistics-class" && (() => {
-        const classOptions = [
-          { value: "all", label: "All" },
-          ...(Array.isArray(statisticsVipAttendanceHistoryFilters?.classes) ? statisticsVipAttendanceHistoryFilters.classes : [])
-            .map((item) => ({
-              value: String(item?.id || "").trim(),
-              label: String(item?.className || item?.class_name || "").trim()
-            }))
-            .filter((item) => Boolean(item.value) && Boolean(item.label))
-        ];
-        const teacherOptions = [
-          { value: "all", label: "All" },
-          ...(Array.isArray(statisticsVipAttendanceHistoryFilters?.teachers) ? statisticsVipAttendanceHistoryFilters.teachers : [])
-            .map((item) => ({
-              value: String(item?.id || "").trim(),
-              label: String(item?.name || "").trim()
-            }))
-            .filter((item) => Boolean(item.value) && Boolean(item.label))
-        ];
-        const tutorOptions = [
-          { value: "all", label: "All" },
-          ...(Array.isArray(statisticsVipAttendanceHistoryFilters?.tutors) ? statisticsVipAttendanceHistoryFilters.tutors : [])
-            .map((item) => ({
-              value: String(item?.id || "").trim(),
-              label: String(item?.name || "").trim()
-            }))
-            .filter((item) => Boolean(item.value) && Boolean(item.label))
-        ];
-        const clientOptions = [
-          { value: "all", label: "All" },
-          ...(Array.isArray(statisticsVipAttendanceHistoryFilters?.clients) ? statisticsVipAttendanceHistoryFilters.clients : [])
-            .map((item) => {
-              const clientId = String(item?.id || "").trim();
-              const firstName = String(item?.firstName || item?.first_name || "").trim();
-              const lastName = String(item?.lastName || item?.last_name || "").trim();
-              const middleName = String(item?.middleName || item?.middle_name || "").trim();
-              const fullName = [lastName, firstName, middleName].filter(Boolean).join(" ").trim();
-              return {
-                value: clientId,
-                label: fullName || `Client #${clientId}`
-              };
-            })
-            .filter((item) => Boolean(item.value) && Boolean(item.label))
-        ];
-        const showStatisticsLoadingText = statisticsVipAttendanceHistoryLoading && !showStatisticsBootstrapSkeleton;
-
-        return (
-          <section id="statisticsClassPanel" className="all-users-panel">
-            <div className="all-users-head">
-              <h3>Statistics / Class</h3>
-              <button
-                id="closeStatisticsBtn"
-                type="button"
-                className="header-btn panel-close-btn"
-                aria-label="Close statistics panel"
-                onClick={closeStatisticsPanel}
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="vip-attendance-toolbar statistics-history-toolbar">
-              <label className="field" htmlFor="statisticsClassFilterSelect">
-                <span>Class</span>
-                <CustomSelect
-                  id="statisticsClassFilterSelect"
-                  value={statisticsHistoryClassId}
-                  options={classOptions}
-                  placeholder="All"
-                  searchable
-                  searchThreshold={8}
-                  onChange={(nextValue) => {
-                    setStatisticsHistoryClassId(String(nextValue || "").trim() || "all");
-                  }}
-                />
-              </label>
-              <label className="field" htmlFor="statisticsTeacherFilterSelect">
-                <span>Teacher</span>
-                <CustomSelect
-                  id="statisticsTeacherFilterSelect"
-                  value={statisticsHistoryTeacherId}
-                  options={teacherOptions}
-                  placeholder="All"
-                  searchable
-                  searchThreshold={8}
-                  onChange={(nextValue) => {
-                    setStatisticsHistoryTeacherId(String(nextValue || "").trim() || "all");
-                  }}
-                />
-              </label>
-              <label className="field" htmlFor="statisticsTutorFilterSelect">
-                <span>Tutor</span>
-                <CustomSelect
-                  id="statisticsTutorFilterSelect"
-                  value={statisticsHistoryTutorId}
-                  options={tutorOptions}
-                  placeholder="All"
-                  searchable
-                  searchThreshold={8}
-                  onChange={(nextValue) => {
-                    setStatisticsHistoryTutorId(String(nextValue || "").trim() || "all");
-                  }}
-                />
-              </label>
-              <label className="field" htmlFor="statisticsClientFilterSelect">
-                <span>VIP Client</span>
-                <CustomSelect
-                  id="statisticsClientFilterSelect"
-                  value={statisticsHistoryClientId}
-                  options={clientOptions}
-                  placeholder="All"
-                  searchable
-                  searchThreshold={8}
-                  onChange={(nextValue) => {
-                    setStatisticsHistoryClientId(String(nextValue || "").trim() || "all");
-                  }}
-                />
-              </label>
-              <label className="field statistics-period-field" htmlFor="statisticsPeriodFromInput">
-                <span>From</span>
-                <input
-                  id="statisticsPeriodFromInput"
-                  type="date"
-                  value={statisticsHistoryPeriod.from}
-                  max={statisticsHistoryPeriod.to || undefined}
-                  onChange={(event) => {
-                    setStatisticsHistoryPeriodField("from", event.currentTarget.value);
-                  }}
-                />
-              </label>
-              <label className="field statistics-period-field" htmlFor="statisticsPeriodToInput">
-                <span>To</span>
-                <input
-                  id="statisticsPeriodToInput"
-                  type="date"
-                  value={statisticsHistoryPeriod.to}
-                  min={statisticsHistoryPeriod.from || undefined}
-                  onChange={(event) => {
-                    setStatisticsHistoryPeriodField("to", event.currentTarget.value);
-                  }}
-                />
-              </label>
-              <button
-                id="statisticsHistoryReloadBtn"
-                type="button"
-                className="header-btn statistics-history-reload-btn"
-                onClick={reloadStatisticsHistory}
-                disabled={statisticsVipAttendanceHistoryLoading || showStatisticsBootstrapSkeleton}
-              >
-                {showStatisticsLoadingText ? "Loading..." : "Reload"}
-              </button>
-            </div>
-
-            <div className="statistics-history-skeleton" hidden={!showStatisticsBootstrapSkeleton} aria-hidden={!showStatisticsBootstrapSkeleton}>
-              <div className="skel statistics-history-skeleton-line" />
-              <div className="skel statistics-history-skeleton-line" />
-              <div className="skel statistics-history-skeleton-line" />
-            </div>
-
-            <div className="all-users-table-wrap" hidden={showStatisticsBootstrapSkeleton || statisticsVipAttendanceHistoryItems.length === 0}>
-              <table className="all-users-table" aria-label="Statistics class attendance history table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Class</th>
-                    <th>Teacher</th>
-                    <th>Tutor</th>
-                    <th>VIP Client</th>
-                    <th>Arrival</th>
-                    <th>Departure</th>
-                    <th>Absent</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {statisticsVipAttendanceHistoryItems.map((item, index) => {
-                    const firstName = String(item?.firstName || item?.first_name || "").trim();
-                    const lastName = String(item?.lastName || item?.last_name || "").trim();
-                    const middleName = String(item?.middleName || item?.middle_name || "").trim();
-                    const fullName = [lastName, firstName, middleName].filter(Boolean).join(" ").trim();
-                    const status = String(item?.attendanceStatus || item?.attendance_status || "").trim().toLowerCase() === "present"
-                      ? "Present"
-                      : "Absent";
-                    const note = String(item?.note || item?.attendanceNote || item?.attendance_note || "").trim();
-                    return (
-                      <tr key={`statisticsHistoryRow_${String(item?.id || index)}`}>
-                        <td>{formatDateYMD(item?.attendanceDate || item?.attendance_date)}</td>
-                        <td>{String(item?.className || item?.class_name || "").trim() || "-"}</td>
-                        <td>{String(item?.teacherName || item?.teacher_name || "").trim() || "-"}</td>
-                        <td>{String(item?.tutorName || item?.tutor_name || "").trim() || "-"}</td>
-                        <td>{fullName || "-"}</td>
-                        <td>{formatAttendanceDateTime(item?.arrivedAt || item?.arrived_at)}</td>
-                        <td>{formatAttendanceDateTime(item?.leftAt || item?.left_at)}</td>
-                        <td>{status === "Absent" ? (note || "Absent") : "-"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        );
-      })()}
+      {mainView === "statistics-class" && (
+        <StatisticsClassPanel
+          closeStatisticsPanel={closeStatisticsPanel}
+          statisticsVipAttendanceHistoryFilters={statisticsVipAttendanceHistoryFilters}
+          statisticsHistoryClassId={statisticsHistoryClassId}
+          statisticsHistoryTeacherId={statisticsHistoryTeacherId}
+          statisticsHistoryTutorId={statisticsHistoryTutorId}
+          statisticsHistoryClientId={statisticsHistoryClientId}
+          statisticsHistoryPeriod={statisticsHistoryPeriod}
+          setStatisticsHistoryClassId={setStatisticsHistoryClassId}
+          setStatisticsHistoryTeacherId={setStatisticsHistoryTeacherId}
+          setStatisticsHistoryTutorId={setStatisticsHistoryTutorId}
+          setStatisticsHistoryClientId={setStatisticsHistoryClientId}
+          setStatisticsHistoryPeriodField={setStatisticsHistoryPeriodField}
+          reloadStatisticsHistory={reloadStatisticsHistory}
+          statisticsVipAttendanceHistoryLoading={statisticsVipAttendanceHistoryLoading}
+          showStatisticsBootstrapSkeleton={showStatisticsBootstrapSkeleton}
+          statisticsVipAttendanceHistoryItems={statisticsVipAttendanceHistoryItems}
+          canUpdateAppointments={canUpdateAppointments}
+          canDeleteAppointments={canDeleteAppointments}
+        />
+      )}
 
       {mainView === "settings-notifications" && (
         <section id="notificationsSettingsPanel" className="all-users-panel settings-panel">

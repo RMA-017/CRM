@@ -28,6 +28,8 @@ const BASE_PERMISSION_DEFINITIONS = [
   { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_UPDATE, label: "VIP Clients Update", sortOrder: 59 },
   { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DELETE, label: "VIP Clients Delete", sortOrder: 60 },
   { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN, label: "My VIP Children Access", sortOrder: 61 },
+  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_SCOPE_ALL, label: "VIP Clients Scope: All", sortOrder: 74 },
+  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_SCOPE_ASSIGNED, label: "VIP Clients Scope: Assigned", sortOrder: 75 },
   { code: PERMISSIONS.APPOINTMENTS_SUBMENU_ASSIGNMENTS, label: "Appointments Assignments Submenu", sortOrder: 62 },
   { code: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_READ, label: "Assignments Read", sortOrder: 63 },
   { code: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CREATE, label: "Assignments Create", sortOrder: 64 },
@@ -56,12 +58,22 @@ const LEGACY_PERMISSION_CODE_MIGRATIONS = Object.freeze([
   {
     from: "notifications.schedule.to-specialist",
     to: PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_SPECIALIST
+  },
+  {
+    from: "appointments.schedule.scope.all",
+    to: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_SCOPE_ALL
+  },
+  {
+    from: "appointments.schedule.scope.assigned",
+    to: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_SCOPE_ASSIGNED
   }
 ]);
 
 const LEGACY_PERMISSION_CODE_PATTERNS = Object.freeze([
   "appointments.notify.%",
-  "notifications.schedule.%"
+  "notifications.schedule.%",
+  "appointments.schedule.scope.all",
+  "appointments.schedule.scope.assigned"
 ]);
 
 function toBoundedInteger(value, fallback, min, max) {

@@ -1,7 +1,18 @@
 import argon2 from "argon2";
 import pool from "../../config/db.js";
 
-export async function getActorForCreate({ userId, organizationId }) {
+export async function getActorForCreate(authContext = {}) {
+  const cachedRequester = authContext?.requester;
+  if (cachedRequester) {
+    return {
+      id: cachedRequester.id,
+      role_id: cachedRequester.role_id,
+      is_admin: Boolean(cachedRequester.is_admin),
+      organization_id: cachedRequester.organization_id
+    };
+  }
+
+  const { userId, organizationId } = authContext;
   const { rows } = await pool.query(
     `SELECT u.id, u.role_id, r.is_admin, u.organization_id
        FROM users u

@@ -63,7 +63,18 @@ async function isAssignedAsVipClassTeacher(client, { organizationId, userId }) {
   return Boolean(rows[0]?.assigned);
 }
 
-export async function findRequester({ userId, organizationId }) {
+export async function findRequester(authContext = {}) {
+  const cachedRequester = authContext?.requester;
+  if (cachedRequester) {
+    return {
+      id: cachedRequester.id,
+      role_id: cachedRequester.role_id,
+      is_admin: Boolean(cachedRequester.is_admin),
+      organization_id: cachedRequester.organization_id
+    };
+  }
+
+  const { userId, organizationId } = authContext;
   const { rows } = await pool.query(
     `SELECT u.id, u.role_id, r.is_admin, u.organization_id
        FROM users u

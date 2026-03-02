@@ -9,14 +9,12 @@
   --brand: #4361EE;
   --brand-dark: #3451D1;
   --brand-light: #EEF1FF;
-  --brand-2: #4361EE;
   --brand-gradient: linear-gradient(135deg, #4361EE 0%, #6C63FF 100%);
   --on-brand: #ffffff;
 
   /* Surfaces */
   --surface: #ffffff;
   --surface-soft: #F8FAFF;
-  --surface-raised: #ffffff;
 
   /* Backgrounds */
   --bg-0: #F0F4FF;
@@ -47,11 +45,6 @@
   --danger-soft: rgba(239, 68, 68, 0.08);
   --danger-border: rgba(239, 68, 68, 0.3);
   --danger-ring: rgba(239, 68, 68, 0.15);
-
-  --success: #10B981;
-  --success-soft: rgba(16, 185, 129, 0.1);
-  --warning: #F59E0B;
-  --warning-soft: rgba(245, 158, 11, 0.1);
 
   /* Focus */
   --focus-ring: rgba(67, 97, 238, 0.22);
@@ -371,7 +364,7 @@ textarea.input-error {
 }
 
 .field-error:not(:empty) {
-  display: block;
+  display: none;
 }
 
 /* =============================================
@@ -540,15 +533,19 @@ textarea.input-error {
   color: var(--text-main);
   border-radius: var(--radius-sm);
   text-align: left;
+  width: 100%;
   min-height: var(--btn-height);
   padding: 0 12px;
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   font: inherit;
   font-size: var(--fs-small);
-  line-height: 1;
+  font-weight: 500;
+  line-height: 1.2;
   cursor: pointer;
   transition: background var(--dur) ease, color var(--dur) ease;
+  transform: none;
 }
 
 .custom-select-option:hover {
@@ -556,10 +553,13 @@ textarea.input-error {
   color: var(--brand);
 }
 
+.custom-select-option:active {
+  transform: none;
+}
+
 .custom-select-option[aria-selected="true"] {
   background: var(--brand-light);
   color: var(--brand);
-  font-weight: 600;
 }
 
 /* =============================================

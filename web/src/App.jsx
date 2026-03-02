@@ -37,10 +37,14 @@ function App() {
       <Route path="/clients" element={<Navigate to="/clients/allclients" replace />} />
       <Route path="/appointments" element={<ProfilePage forcedView="appointment" />} />
       <Route path="/appointments/breaks" element={<ProfilePage forcedView="appointment-breaks" />} />
-      <Route path="/appointments/vip-schedule" element={<ProfilePage forcedView="appointment-vip-schedule" />} />
-      <Route path="/appointments/vip-attendance" element={<ProfilePage forcedView="appointment-vip-attendance" />} />
-      <Route path="/appointments/vip-my-children" element={<ProfilePage forcedView="appointment-vip-my-children" />} />
-      <Route path="/appointments/vip-daily-routines" element={<ProfilePage forcedView="appointment-vip-daily-routines" />} />
+      <Route path="/vip-clients/my-class" element={<ProfilePage forcedView="appointment-vip-schedule" />} />
+      <Route path="/vip-clients/attendance" element={<ProfilePage forcedView="appointment-vip-attendance" />} />
+      <Route path="/vip-clients/my-children" element={<ProfilePage forcedView="appointment-vip-my-children" />} />
+      <Route path="/vip-clients/daily-routines" element={<ProfilePage forcedView="appointment-vip-daily-routines" />} />
+      <Route path="/appointments/vip-schedule" element={<Navigate to="/vip-clients/my-class" replace />} />
+      <Route path="/appointments/vip-attendance" element={<Navigate to="/vip-clients/attendance" replace />} />
+      <Route path="/appointments/vip-my-children" element={<Navigate to="/vip-clients/my-children" replace />} />
+      <Route path="/appointments/vip-daily-routines" element={<Navigate to="/vip-clients/daily-routines" replace />} />
       <Route path="/appointments/vip-assignments" element={<ProfilePage forcedView="appointment-vip-assignments" />} />
       <Route path="/appointments/vip-tutor-assignments" element={<ProfilePage forcedView="appointment-vip-tutor-assignments" />} />
       <Route path="/appointments/settings" element={<ProfilePage forcedView="appointment-settings" />} />
@@ -59,12 +63,17 @@ function App() {
       <Route path="/profile/clients" element={<Navigate to="/clients/allclients" replace />} />
       <Route path="/profile/clients/allclients" element={<Navigate to="/clients/allclients" replace />} />
       <Route path="/profile/clients/create" element={<Navigate to="/clients/allclients" replace />} />
+      <Route path="/profile/vip-clients" element={<Navigate to="/vip-clients/my-class" replace />} />
+      <Route path="/profile/vip-clients/my-class" element={<Navigate to="/vip-clients/my-class" replace />} />
+      <Route path="/profile/vip-clients/attendance" element={<Navigate to="/vip-clients/attendance" replace />} />
+      <Route path="/profile/vip-clients/my-children" element={<Navigate to="/vip-clients/my-children" replace />} />
+      <Route path="/profile/vip-clients/daily-routines" element={<Navigate to="/vip-clients/daily-routines" replace />} />
       <Route path="/profile/appointments" element={<Navigate to="/appointments" replace />} />
       <Route path="/profile/appointments/breaks" element={<Navigate to="/appointments/breaks" replace />} />
-      <Route path="/profile/appointments/vip-schedule" element={<Navigate to="/appointments/vip-schedule" replace />} />
-      <Route path="/profile/appointments/vip-attendance" element={<Navigate to="/appointments/vip-attendance" replace />} />
-      <Route path="/profile/appointments/vip-my-children" element={<Navigate to="/appointments/vip-my-children" replace />} />
-      <Route path="/profile/appointments/vip-daily-routines" element={<Navigate to="/appointments/vip-daily-routines" replace />} />
+      <Route path="/profile/appointments/vip-schedule" element={<Navigate to="/vip-clients/my-class" replace />} />
+      <Route path="/profile/appointments/vip-attendance" element={<Navigate to="/vip-clients/attendance" replace />} />
+      <Route path="/profile/appointments/vip-my-children" element={<Navigate to="/vip-clients/my-children" replace />} />
+      <Route path="/profile/appointments/vip-daily-routines" element={<Navigate to="/vip-clients/daily-routines" replace />} />
       <Route path="/profile/appointments/vip-assignments" element={<Navigate to="/appointments/vip-assignments" replace />} />
       <Route path="/profile/appointments/vip-tutor-assignments" element={<Navigate to="/appointments/vip-tutor-assignments" replace />} />
       <Route path="/profile/appointments/settings" element={<Navigate to="/appointments/settings" replace />} />

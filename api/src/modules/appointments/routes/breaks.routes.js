@@ -83,6 +83,9 @@ export function registerAppointmentBreakRoutes(fastify, context) {
           items: savedItems
         });
       } catch (error) {
+        if (error?.statusCode === 409) {
+          return reply.status(409).send({ message: String(error?.message || "Break conflicts with existing appointment.") });
+        }
         if (isUniqueOrExclusionConflict(error)) {
           return reply.status(409).send({ message: "Duplicate break slot for this specialist." });
         }

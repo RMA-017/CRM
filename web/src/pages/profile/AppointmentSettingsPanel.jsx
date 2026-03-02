@@ -191,6 +191,7 @@ function AppointmentSettingsPanel({
   const [breakSpecialists, setBreakSpecialists] = useState([]);
   const [breakItems, setBreakItems] = useState([]);
   const [breaksLoading, setBreaksLoading] = useState(false);
+  const [breaksSpecialistsLoaded, setBreaksSpecialistsLoaded] = useState(false);
   const [breaksMutating, setBreaksMutating] = useState(false);
   const [editingBreakIndex, setEditingBreakIndex] = useState(-1);
   const [editingBreakDraft, setEditingBreakDraft] = useState(null);
@@ -441,10 +442,13 @@ function AppointmentSettingsPanel({
 
   useEffect(() => {
     if (!isBreaksMode) {
+      setBreaksSpecialistsLoaded(false);
       return undefined;
     }
 
     let active = true;
+    setBreaksSpecialistsLoaded(false);
+    setBreaksLoading(true);
 
     async function loadSpecialists() {
       try {
@@ -458,6 +462,7 @@ function AppointmentSettingsPanel({
         }
         if (!response.ok) {
           setBreakSpecialists([]);
+          setBreaksSpecialistsLoaded(true);
           return;
         }
 
@@ -483,15 +488,17 @@ function AppointmentSettingsPanel({
             window.localStorage.removeItem(APPOINTMENT_SETTINGS_BREAKS_SPECIALIST_STORAGE_KEY);
           }
         }
+        setBreaksSpecialistsLoaded(true);
       } catch {
-      if (active) {
-        setBreakSpecialists([]);
-        if (typeof window !== "undefined") {
-          window.localStorage.removeItem(APPOINTMENT_SETTINGS_BREAKS_SPECIALIST_STORAGE_KEY);
+        if (active) {
+          setBreakSpecialists([]);
+          if (typeof window !== "undefined") {
+            window.localStorage.removeItem(APPOINTMENT_SETTINGS_BREAKS_SPECIALIST_STORAGE_KEY);
+          }
+          setBreaksSpecialistsLoaded(true);
         }
       }
     }
-  }
 
     loadSpecialists();
     return () => {
@@ -501,6 +508,9 @@ function AppointmentSettingsPanel({
 
   useEffect(() => {
     if (!isBreaksMode) {
+      return undefined;
+    }
+    if (!breaksSpecialistsLoaded) {
       return undefined;
     }
 
@@ -576,7 +586,7 @@ function AppointmentSettingsPanel({
     return () => {
       active = false;
     };
-  }, [breakSpecialists, isBreaksMode]);
+  }, [breakSpecialists, breaksSpecialistsLoaded, isBreaksMode]);
 
   function handleFormField(field, value) {
     if (!form) {
@@ -1301,6 +1311,8 @@ function AppointmentSettingsPanel({
     )
       ? breakItems[editingBreakIndex]
       : null;
+    const hasBreakItems = Array.isArray(breakItems) && breakItems.length > 0;
+    const showBreaksSkeleton = breaksLoading || !breaksSpecialistsLoaded;
     const addBreakModalContent = (
       <>
         <section
@@ -1604,12 +1616,12 @@ function AppointmentSettingsPanel({
                 void confirmDeleteBreak();
               }}
             >
-              Delete
+              Yes
             </button>
             <button
               id="appointmentBreaksDeleteNoBtn"
               type="button"
-              className="header-btn"
+              className="btn header-btn"
               disabled={breaksMutating}
               onClick={closeDeleteBreakModal}
             >
@@ -1642,33 +1654,29 @@ function AppointmentSettingsPanel({
             onClick={openAddBreakModal}
           />
           <div className="appointment-breaks-table-wrap all-users-table-wrap">
-            {breaksLoading && (
-              <div className="appointment-breaks-status all-users-state">Loading...</div>
-            )}
-            {!breaksLoading && (
-              <table className="appointment-breaks-table all-users-table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Specialist name</th>
-                    <th>Break type</th>
-                    <th>Day of week</th>
-                    <th>Start time</th>
-                    <th>End time</th>
-                    <th>Created by</th>
-                    <th>Edit</th>
-                    <th>Delete</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {breakItems.length === 0 && (
-                    <tr>
-                      <td colSpan="9" className="appointment-breaks-empty">
-                        {breakSpecialists.length > 0 ? "No breaks saved." : "No specialist found."}
-                      </td>
+            <table className="appointment-breaks-table all-users-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Specialist name</th>
+                  <th>Break type</th>
+                  <th>Day of week</th>
+                  <th>Start time</th>
+                  <th>End time</th>
+                  <th>Created by</th>
+                  <th>Edit</th>
+                  <th>Delete</th>
+                </tr>
+              </thead>
+              <tbody>
+                {showBreaksSkeleton ? (
+                  [0, 1, 2, 3].map((i) => (
+                    <tr key={i} aria-hidden="true">
+                      <td colSpan="9" className="skel" />
                     </tr>
-                  )}
-                  {breakItems.map((item, index) => (
+                  ))
+                ) : hasBreakItems ? (
+                  breakItems.map((item, index) => (
                     <tr key={`appointmentBreakRow_${item.id ?? index}`}>
                       <td>{item.id ?? "-"}</td>
                       <td>{item.specialistName || "-"}</td>
@@ -1698,10 +1706,14 @@ function AppointmentSettingsPanel({
                         </button>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="9" className="all-users-state">No records found.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
         {typeof document !== "undefined"

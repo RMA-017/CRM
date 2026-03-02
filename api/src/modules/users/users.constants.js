@@ -27,6 +27,8 @@ export const PERMISSIONS = Object.freeze({
   APPOINTMENTS_VIP_CLIENTS_UPDATE: "appointments.vip-clients.update",
   APPOINTMENTS_VIP_CLIENTS_DELETE: "appointments.vip-clients.delete",
   APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip-clients.my-children",
+  APPOINTMENTS_VIP_CLIENTS_SCOPE_ALL: "appointments.vip-clients.scope.all",
+  APPOINTMENTS_VIP_CLIENTS_SCOPE_ASSIGNED: "appointments.vip-clients.scope.assigned",
   APPOINTMENTS_SUBMENU_ASSIGNMENTS: "appointments.assignments",
   APPOINTMENTS_ASSIGNMENTS_READ: "appointments.assignments.read",
   APPOINTMENTS_ASSIGNMENTS_CREATE: "appointments.assignments.create",

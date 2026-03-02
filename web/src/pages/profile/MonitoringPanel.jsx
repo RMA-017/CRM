@@ -24,6 +24,16 @@ function formatTimestamp(ts) {
   }
 }
 
+function formatTimeAgo(ms) {
+  const diff = Math.max(0, Date.now() - ms);
+  const seconds = Math.floor(diff / 1000);
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ago`;
+}
+
 function SpeedBadge({ avgMs }) {
   if (avgMs >= 1000) {
     return <span className="monitoring-badge monitoring-badge-slow">Slow</span>;
@@ -97,6 +107,27 @@ function MonitoringPanel({ onClose }) {
         )}
       </div>
 
+      {loading && !data && (
+        <div className="monitoring-skeleton" aria-hidden="true">
+          <div className="monitoring-skeleton-grid">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="skel monitoring-skeleton-card" />
+            ))}
+          </div>
+          <div className="monitoring-skeleton-section">
+            <div className="skel monitoring-skeleton-title" />
+            <div className="skel monitoring-skeleton-row" />
+            <div className="skel monitoring-skeleton-row" />
+            <div className="skel monitoring-skeleton-row" />
+          </div>
+          <div className="monitoring-skeleton-section">
+            <div className="skel monitoring-skeleton-title" />
+            <div className="skel monitoring-skeleton-row" />
+            <div className="skel monitoring-skeleton-row" />
+          </div>
+        </div>
+      )}
+
       {message && (
         <p className="form-error" style={{ marginTop: "12px" }}>{message}</p>
       )}
@@ -106,15 +137,15 @@ function MonitoringPanel({ onClose }) {
           {/* ── Server info cards ── */}
           <div className="monitoring-grid">
             <div className="monitoring-card">
-              <div className="monitoring-card-label">Uptime</div>
-              <div className="monitoring-card-value">{formatUptime(data.uptime)}</div>
-            </div>
-
-            <div className="monitoring-card">
               <div className="monitoring-card-label">Database</div>
               <div className={`monitoring-card-value monitoring-status-${data.db === "up" ? "ok" : "error"}`}>
                 {data.db === "up" ? "Connected" : "Disconnected"}
               </div>
+            </div>
+
+            <div className="monitoring-card">
+              <div className="monitoring-card-label">Uptime</div>
+              <div className="monitoring-card-value">{formatUptime(data.uptime)}</div>
             </div>
 
             <div className="monitoring-card">
@@ -141,11 +172,46 @@ function MonitoringPanel({ onClose }) {
                 <span className="monitoring-card-sub"> ({data.requests.errors} errors)</span>
               </div>
             </div>
+          </div>
 
-            <div className="monitoring-card">
-              <div className="monitoring-card-label">Node.js</div>
-              <div className="monitoring-card-value">{data.nodeVersion}</div>
-            </div>
+          {/* ── Active users ── */}
+          <div className="monitoring-section">
+            <h4 className="monitoring-section-title">
+              Active Users
+              <span className="monitoring-card-sub"> (last 15 min)</span>
+            </h4>
+            {data.activeUsers.length === 0 ? (
+              <p className="monitoring-empty">No active users.</p>
+            ) : (
+              <div className="monitoring-table-wrap">
+                <table className="monitoring-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Username</th>
+                      <th>Last Action</th>
+                      <th>Last Seen</th>
+                      <th>IP</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.activeUsers.map((u) => (
+                      <tr key={u.userId}>
+                        <td>{u.fullName || "-"}</td>
+                        <td>{u.username}</td>
+                        <td>
+                          <span className="monitoring-method">{u.method}</span>
+                          {" "}
+                          <span className="monitoring-route">{u.route}</span>
+                        </td>
+                        <td className="monitoring-ts">{formatTimeAgo(u.lastSeen)}</td>
+                        <td>{u.ip || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* ── Slow routes ── */}

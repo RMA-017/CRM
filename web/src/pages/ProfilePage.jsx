@@ -22,246 +22,21 @@ import { useProfileAccess } from "./profile/useProfileAccess.js";
 import { useProfileNotifications } from "./profile/useProfileNotifications.js";
 import { useProfilePanels } from "./profile/useProfilePanels.js";
 import { useSettingsSection } from "./profile/useSettingsSection.js";
+import { useVipDailyRoutinesSection } from "./profile/useVipDailyRoutinesSection.js";
 import { getBirthdayValidationMessage } from "./profile/profile.validators.js";
-
-function normalizeVipAttendanceStatus(value, fallback = "unmarked") {
-  const normalized = String(value || "").trim().toLowerCase();
-  if (normalized === "present" || normalized === "absent") {
-    return normalized;
-  }
-  return fallback;
-}
-
-function mapVipAttendanceClient(item) {
-  const id = String(item?.id || "").trim();
-  const firstName = String(item?.firstName || item?.first_name || "").trim();
-  const lastName = String(item?.lastName || item?.last_name || "").trim();
-  const middleName = String(item?.middleName || item?.middle_name || "").trim();
-  const className = String(item?.className || item?.class_name || "").trim();
-  const teacherId = String(item?.teacherId || item?.teacher_id || "").trim();
-  const teacherName = String(item?.teacherName || item?.teacher_name || "").trim();
-  const tutorName = String(item?.tutorName || item?.tutor_name || "").trim();
-  const phone = String(item?.phone || item?.phone_number || "").trim();
-  const attendanceNote = String(item?.attendanceNote || item?.attendance_note || "").trim();
-  const note = attendanceNote;
-  const attendanceStatusRaw = item?.attendanceStatus ?? item?.attendance_status ?? item?.attendance_state;
-  const arrivedAtRaw = item?.arrivedAt ?? item?.arrived_at ?? item?.checkInAt ?? item?.check_in_at;
-  const leftAtRaw = item?.leftAt ?? item?.left_at ?? item?.checkOutAt ?? item?.check_out_at;
-  const attendanceStatus = normalizeVipAttendanceStatus(attendanceStatusRaw, "unmarked");
-  const arrivedAt = normalizeVipAttendanceDateTime(arrivedAtRaw);
-  const leftAt = normalizeVipAttendanceDateTime(leftAtRaw);
-  const hasAttendanceData = attendanceStatus !== "unmarked"
-    || Boolean(arrivedAt)
-    || Boolean(leftAt)
-    || Boolean(attendanceNote);
-  return {
-    id,
-    firstName,
-    lastName,
-    middleName,
-    className,
-    teacherId,
-    teacherName,
-    tutorName,
-    phone,
-    note,
-    attendanceStatus,
-    arrivedAt,
-    leftAt,
-    hasAttendanceData
-  };
-}
-
-function resolveVipAttendanceDate(period, fallbackYmd) {
-  const from = String(period?.from || "").trim();
-  const to = String(period?.to || "").trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(to)) {
-    return to;
-  }
-  if (/^\d{4}-\d{2}-\d{2}$/.test(from)) {
-    return from;
-  }
-  return String(fallbackYmd || "").trim();
-}
-
-function normalizeVipAttendanceDraftEntry(value) {
-  if (value && typeof value === "object") {
-    const status = normalizeVipAttendanceStatus(value.status, "unmarked");
-    const arrivedAt = String(value.arrivedAt || "").trim();
-    const leftAt = String(value.leftAt || "").trim();
-    const note = String(value.note || "").trim();
-    return {
-      status,
-      arrivedAt: status === "present" ? arrivedAt : "",
-      leftAt: status === "present" ? leftAt : "",
-      note
-    };
-  }
-  const status = normalizeVipAttendanceStatus(value, "unmarked");
-  return { status, arrivedAt: "", leftAt: "", note: "" };
-}
-
-function normalizeVipAttendanceDateTime(value) {
-  const normalized = String(value || "").trim();
-  if (!normalized) {
-    return "";
-  }
-  const directMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})/);
-  if (directMatch) {
-    const [, year, month, day, hours, minutes] = directMatch;
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
-  }
-  const parsed = new Date(normalized);
-  if (Number.isNaN(parsed.getTime())) {
-    return "";
-  }
-  const year = String(parsed.getFullYear()).padStart(4, "0");
-  const month = String(parsed.getMonth() + 1).padStart(2, "0");
-  const day = String(parsed.getDate()).padStart(2, "0");
-  const hours = String(parsed.getHours()).padStart(2, "0");
-  const minutes = String(parsed.getMinutes()).padStart(2, "0");
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
-}
-
-function mapVipClassItem(item) {
-  const id = String(item?.id || item?.classId || item?.class_id || "").trim();
-  const className = String(item?.className || item?.class_name || "").trim();
-  const teacherId = String(item?.teacherId || item?.teacher_id || "").trim();
-  const teacherName = String(item?.teacherName || item?.teacher_name || "").trim();
-  const childrenCountRaw = Number.parseInt(String(item?.childrenCount || item?.children_count || "0"), 10);
-  const childrenCount = Number.isInteger(childrenCountRaw) && childrenCountRaw > 0 ? childrenCountRaw : 0;
-  return {
-    id,
-    classId: id,
-    className,
-    teacherId,
-    teacherName,
-    childrenCount
-  };
-}
-
-function mapVipAssignmentItem(item) {
-  const id = String(item?.id || "").trim();
-  const firstName = String(item?.firstName || item?.first_name || "").trim();
-  const lastName = String(item?.lastName || item?.last_name || "").trim();
-  const middleName = String(item?.middleName || item?.middle_name || "").trim();
-  const classId = String(item?.classId || item?.class_id || item?.classAssignmentId || item?.class_assignment_id || "").trim();
-  const className = String(item?.className || item?.class_name || "").trim();
-  const teacherId = String(item?.teacherId || item?.teacher_id || "").trim();
-  const teacherName = String(item?.teacherName || item?.teacher_name || "").trim();
-  const tutorId = String(item?.tutorId || item?.tutor_id || "").trim();
-  const tutorName = String(item?.tutorName || item?.tutor_name || "").trim();
-  const updatedBy = String(
-    item?.updatedBy
-    || item?.updated_by
-    || item?.updatedByName
-    || item?.updated_by_name
-    || ""
-  ).trim();
-  const updatedAt = item?.updatedAt || item?.updated_at || null;
-  return {
-    id,
-    firstName,
-    lastName,
-    middleName,
-    classId,
-    className,
-    teacherId,
-    teacherName,
-    tutorId,
-    tutorName,
-    updatedBy,
-    updatedAt
-  };
-}
-
-function formatMyChildrenOptionLabel(item) {
-  const firstName = String(item?.firstName || item?.first_name || "").trim();
-  const lastName = String(item?.lastName || item?.last_name || "").trim();
-  const middleName = String(item?.middleName || item?.middle_name || "").trim();
-  const fullName = `${firstName} ${lastName} ${middleName}`.replace(/\s+/g, " ").trim();
-  const clientId = String(item?.id || "").trim();
-  return {
-    id: clientId,
-    label: fullName || (clientId ? `Child #${clientId}` : "Child")
-  };
-}
-
-function mapMyChildrenScheduleItem(item) {
-  return {
-    id: String(item?.id || "").trim(),
-    appointmentDate: String(item?.appointmentDate || item?.appointment_date || "").trim(),
-    startTime: String(item?.startTime || item?.start_time || "").trim(),
-    endTime: String(item?.endTime || item?.end_time || "").trim(),
-    status: String(item?.status || "").trim().toLowerCase(),
-    serviceName: String(item?.serviceName || item?.service_name || "").trim(),
-    specialistName: String(item?.specialistName || item?.specialist_name || "").trim(),
-    specialistPosition: String(item?.specialistPosition || item?.specialist_position || "").trim(),
-    note: String(item?.note || "").trim()
-  };
-}
-
-function mapVipDailyRoutineItem(item) {
-  const id = String(item?.id || "").trim();
-  const classId = String(item?.classId || item?.class_id || item?.class_assignment_id || "").trim();
-  const className = String(item?.className || item?.class_name || "").trim();
-  const teacherId = String(item?.teacherId || item?.teacher_id || item?.teacher_user_id || "").trim();
-  const teacherName = String(item?.teacherName || item?.teacher_name || "").trim();
-  const childrenCountRaw = Number.parseInt(String(item?.childrenCount ?? item?.children_count ?? "0"), 10);
-  const childrenCount = Number.isInteger(childrenCountRaw) && childrenCountRaw > 0 ? childrenCountRaw : 0;
-  const dayOfWeekRaw = Number.parseInt(String(item?.dayOfWeek ?? item?.day_of_week ?? "0"), 10);
-  const dayOfWeek = Number.isInteger(dayOfWeekRaw) ? dayOfWeekRaw : 0;
-  const activityType = String(item?.activityType || item?.activity_type || "").trim().toLowerCase();
-  const title = String(item?.title || "").trim();
-  const startTime = String(item?.startTime || item?.start_time || "").trim();
-  const endTime = String(item?.endTime || item?.end_time || "").trim();
-  const note = String(item?.note || "").trim();
-  const isActive = item?.isActive === false ? false : item?.is_active !== false;
-  const sortOrderRaw = Number.parseInt(String(item?.sortOrder ?? item?.sort_order ?? "100"), 10);
-  const sortOrder = Number.isInteger(sortOrderRaw) ? sortOrderRaw : 100;
-  return {
-    id,
-    classId,
-    className,
-    teacherId,
-    teacherName,
-    childrenCount,
-    dayOfWeek,
-    activityType,
-    title,
-    startTime,
-    endTime,
-    note,
-    isActive,
-    sortOrder
-  };
-}
-
-function shiftDateYmd(value, offsetDays = 0, fallbackYmd = "") {
-  const baseRaw = String(value || "").trim();
-  const baseDate = /^\d{4}-\d{2}-\d{2}$/.test(baseRaw)
-    ? new Date(`${baseRaw}T00:00:00`)
-    : new Date(`${String(fallbackYmd || "").trim() || formatDateForInput(new Date())}T00:00:00`);
-  if (Number.isNaN(baseDate.getTime())) {
-    return String(fallbackYmd || "").trim() || formatDateForInput(new Date());
-  }
-  const safeOffset = Number.isInteger(offsetDays) ? offsetDays : 0;
-  baseDate.setDate(baseDate.getDate() + safeOffset);
-  return formatDateForInput(baseDate);
-}
-
-function normalizeVipAssignmentDraftEntry(value) {
-  if (value && typeof value === "object") {
-    return {
-      classId: String(value.classId || "").trim(),
-      tutorId: String(value.tutorId || "").trim()
-    };
-  }
-  return {
-    classId: "",
-    tutorId: ""
-  };
-}
+import {
+  formatMyChildrenOptionLabel,
+  mapMyChildrenScheduleItem,
+  mapVipAssignmentItem,
+  mapVipAttendanceClient,
+  mapVipClassItem,
+  normalizeVipAssignmentDraftEntry,
+  normalizeVipAttendanceDateTime,
+  normalizeVipAttendanceDraftEntry,
+  normalizeVipAttendanceStatus,
+  resolveVipAttendanceDate,
+  shiftDateYmd
+} from "./profile/profile.vip-utils.js";
 
 function ProfilePage({ forcedView = "none" }) {
   const navigate = useNavigate();
@@ -455,6 +230,7 @@ function ProfilePage({ forcedView = "none" }) {
 
   const {
     allUsers,
+    allUsersLoading,
     allUsersMessage,
     allUsersPage,
     allUsersTotalPages,
@@ -479,6 +255,7 @@ function ProfilePage({ forcedView = "none" }) {
 
   const {
     clients,
+    clientsLoading,
     clientsMessage,
     clientsPage,
     clientsTotalPages,
@@ -522,17 +299,39 @@ function ProfilePage({ forcedView = "none" }) {
   const [vipAttendanceMessage, setVipAttendanceMessage] = useState("");
   const [vipAttendanceLoading, setVipAttendanceLoading] = useState(false);
   const [vipAttendanceSavingByClientId, setVipAttendanceSavingByClientId] = useState({});
-  const [myChildrenDateYmd, setMyChildrenDateYmd] = useState(() => todayYmd);
+  const [myChildrenIsCompact, setMyChildrenIsCompact] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches
+  );
+  const [myChildrenDateYmd, setMyChildrenDateYmd] = useState(() => {
+    const isCompact = typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches;
+    if (isCompact) {
+      return formatDateForInput(new Date());
+    }
+    const d = new Date();
+    d.setDate(d.getDate() - (d.getDay() + 6) % 7);
+    return formatDateForInput(d);
+  });
   const [myChildrenOptions, setMyChildrenOptions] = useState([]);
   const [myChildrenSelectedClientId, setMyChildrenSelectedClientId] = useState("");
   const [myChildrenScheduleItems, setMyChildrenScheduleItems] = useState([]);
   const [myChildrenScheduleLoading, setMyChildrenScheduleLoading] = useState(false);
   const [myChildrenScheduleMessage, setMyChildrenScheduleMessage] = useState("");
-  const [vipDailyRoutineItems, setVipDailyRoutineItems] = useState([]);
-  const [vipDailyRoutineClasses, setVipDailyRoutineClasses] = useState([]);
-  const [vipDailyRoutineMessage, setVipDailyRoutineMessage] = useState("");
-  const [vipDailyRoutineLoading, setVipDailyRoutineLoading] = useState(false);
-  const [vipDailyRoutineSavingById, setVipDailyRoutineSavingById] = useState({});
+  const {
+    vipDailyRoutineItems,
+    vipDailyRoutineClasses,
+    vipDailyRoutineMessage,
+    vipDailyRoutineLoading,
+    vipDailyRoutineSavingById,
+    loadVipDailyRoutines,
+    saveVipDailyRoutine,
+    deleteVipDailyRoutine
+  } = useVipDailyRoutinesSection({
+    canReadAppointmentVipClients,
+    canCreateAppointmentVipClients,
+    canUpdateAppointmentVipClients,
+    canDeleteAppointmentVipClients,
+    navigate
+  });
   const [vipClassItems, setVipClassItems] = useState([]);
   const [vipClassTeachers, setVipClassTeachers] = useState([]);
   const [vipClassMessage, setVipClassMessage] = useState("");
@@ -915,7 +714,8 @@ function ProfilePage({ forcedView = "none" }) {
     }
 
     const normalizedClientId = String(clientId || "").trim();
-    const normalizedDateYmd = String(dateYmd || "").trim() || todayYmd;
+    const dateFromYmd = String(dateYmd || "").trim() || todayYmd;
+    const dateToYmd = myChildrenIsCompact ? dateFromYmd : shiftDateYmd(dateFromYmd, 6, todayYmd);
     if (!normalizedClientId) {
       setMyChildrenScheduleItems([]);
       const hasChildren = Array.isArray(myChildrenOptions) && myChildrenOptions.length > 0;
@@ -928,9 +728,10 @@ function ProfilePage({ forcedView = "none" }) {
     try {
       const query = new URLSearchParams({
         clientId: normalizedClientId,
-        dateFrom: normalizedDateYmd,
-        dateTo: normalizedDateYmd,
-        vipOnly: "true"
+        dateFrom: dateFromYmd,
+        dateTo: dateToYmd,
+        vipOnly: "true",
+        light: "true"
       });
       const response = await apiFetch(`/api/appointments/schedules?${query.toString()}`, {
         method: "GET",
@@ -951,6 +752,10 @@ function ProfilePage({ forcedView = "none" }) {
         .filter((item) => Boolean(item.id))
         .filter((item) => item.status !== "cancelled")
         .sort((a, b) => {
+          const dateCompare = String(a.appointmentDate || "").localeCompare(String(b.appointmentDate || ""));
+          if (dateCompare !== 0) {
+            return dateCompare;
+          }
           const startCompare = String(a.startTime || "").localeCompare(String(b.startTime || ""));
           if (startCompare !== 0) {
             return startCompare;
@@ -960,7 +765,7 @@ function ProfilePage({ forcedView = "none" }) {
 
       setMyChildrenScheduleItems(nextItems);
       if (nextItems.length === 0) {
-        setMyChildrenScheduleMessage("No lessons scheduled for selected day.");
+        setMyChildrenScheduleMessage(myChildrenIsCompact ? "No lessons scheduled for selected day." : "No lessons scheduled for selected week.");
       }
     } catch {
       setMyChildrenScheduleItems([]);
@@ -968,310 +773,15 @@ function ProfilePage({ forcedView = "none" }) {
     } finally {
       setMyChildrenScheduleLoading(false);
     }
-  }, [canOpenMyChildren, myChildrenOptions, navigate, todayYmd]);
-
-  const loadVipDailyRoutines = useCallback(async ({
-    classId = "",
-    dayOfWeek = "",
-    includeInactive = true
-  } = {}) => {
-    if (!canReadAppointmentVipClients) {
-      setVipDailyRoutineItems([]);
-      setVipDailyRoutineClasses([]);
-      setVipDailyRoutineMessage("You do not have permission to view VIP daily routines.");
-      return;
-    }
-
-    const normalizedClassId = String(classId || "").trim();
-    const parsedDayOfWeek = Number.parseInt(String(dayOfWeek || "").trim(), 10);
-    const normalizedDayOfWeek = Number.isInteger(parsedDayOfWeek) && parsedDayOfWeek >= 1 && parsedDayOfWeek <= 7
-      ? String(parsedDayOfWeek)
-      : "";
-
-    const query = new URLSearchParams({
-      limit: "2000",
-      includeInactive: includeInactive === false ? "false" : "true"
-    });
-    if (normalizedClassId) {
-      query.set("classId", normalizedClassId);
-    }
-    if (normalizedDayOfWeek) {
-      query.set("dayOfWeek", normalizedDayOfWeek);
-    }
-
-    setVipDailyRoutineLoading(true);
-    setVipDailyRoutineMessage("");
-    try {
-      const response = await apiFetch(`/api/clients/vip-class-daily-routines?${query.toString()}`, {
-        method: "GET",
-        cache: "no-store"
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        if (handleProtectedStatus(response, navigate)) {
-          return;
-        }
-        setVipDailyRoutineItems([]);
-        setVipDailyRoutineClasses([]);
-        setVipDailyRoutineMessage(data?.message || "Failed to load VIP daily routines.");
-        return;
-      }
-
-      const nextClasses = (Array.isArray(data?.classes) ? data.classes : [])
-        .map((item) => ({
-          id: String(item?.id || "").trim(),
-          className: String(item?.className || item?.class_name || "").trim(),
-          teacherId: String(item?.teacherId || item?.teacher_id || "").trim(),
-          teacherName: String(item?.teacherName || item?.teacher_name || "").trim()
-        }))
-        .filter((item) => Boolean(item.id))
-        .sort((a, b) => {
-          const labelA = String(a.className || "").trim();
-          const labelB = String(b.className || "").trim();
-          return labelA.localeCompare(labelB, undefined, { sensitivity: "base" });
-        });
-
-      const nextItems = (Array.isArray(data?.items) ? data.items : [])
-        .map((item) => mapVipDailyRoutineItem(item))
-        .filter((item) => Boolean(item.id) && Boolean(item.classId))
-        .sort((a, b) => {
-          const classCompare = String(a.className || "").localeCompare(String(b.className || ""), undefined, { sensitivity: "base" });
-          if (classCompare !== 0) {
-            return classCompare;
-          }
-          const dayCompare = Number(a.dayOfWeek || 0) - Number(b.dayOfWeek || 0);
-          if (dayCompare !== 0) {
-            return dayCompare;
-          }
-          const startCompare = String(a.startTime || "").localeCompare(String(b.startTime || ""));
-          if (startCompare !== 0) {
-            return startCompare;
-          }
-          const sortCompare = Number(a.sortOrder || 0) - Number(b.sortOrder || 0);
-          if (sortCompare !== 0) {
-            return sortCompare;
-          }
-          return String(a.id || "").localeCompare(String(b.id || ""));
-        });
-
-      setVipDailyRoutineClasses(nextClasses);
-      setVipDailyRoutineItems(nextItems);
-      if (nextItems.length === 0) {
-        setVipDailyRoutineMessage("No daily routines found.");
-      }
-    } catch {
-      setVipDailyRoutineItems([]);
-      setVipDailyRoutineClasses([]);
-      setVipDailyRoutineMessage("Failed to load VIP daily routines.");
-    } finally {
-      setVipDailyRoutineLoading(false);
-    }
-  }, [canReadAppointmentVipClients, navigate]);
-
-  const saveVipDailyRoutine = useCallback(async ({
-    id = "",
-    classId = "",
-    dayOfWeek = 0,
-    activityType = "",
-    title = "",
-    startTime = "",
-    endTime = "",
-    note = "",
-    isActive = true,
-    sortOrder = 100
-  } = {}) => {
-    const normalizedId = String(id || "").trim();
-    const isEditMode = Boolean(normalizedId);
-    if (isEditMode && !canUpdateAppointmentVipClients) {
-      const message = "You do not have permission to update VIP daily routines.";
-      setVipDailyRoutineMessage(message);
-      return { ok: false, message };
-    }
-    if (!isEditMode && !canCreateAppointmentVipClients) {
-      const message = "You do not have permission to create VIP daily routines.";
-      setVipDailyRoutineMessage(message);
-      return { ok: false, message };
-    }
-
-    const normalizedClassId = String(classId || "").trim();
-    const parsedDayOfWeek = Number.parseInt(String(dayOfWeek || "").trim(), 10);
-    const normalizedActivityType = ["lesson", "sleep", "meal", "other"].includes(String(activityType || "").trim().toLowerCase())
-      ? String(activityType || "").trim().toLowerCase()
-      : "";
-    const normalizedTitle = String(title || "").trim();
-    const normalizedStartTime = String(startTime || "").trim();
-    const normalizedEndTime = String(endTime || "").trim();
-    const normalizedNote = String(note || "").trim();
-    const parsedSortOrder = Number.parseInt(String(sortOrder ?? "").trim(), 10);
-
-    if (!normalizedClassId) {
-      return { ok: false, message: "Class is required." };
-    }
-    if (!Number.isInteger(parsedDayOfWeek) || parsedDayOfWeek < 1 || parsedDayOfWeek > 7) {
-      return { ok: false, message: "Day must be between 1 and 7." };
-    }
-    if (!normalizedActivityType) {
-      return { ok: false, message: "Activity must be lesson, sleep, meal or other." };
-    }
-    if (!normalizedTitle) {
-      return { ok: false, message: "Title is required." };
-    }
-    if (!/^\d{2}:\d{2}$/.test(normalizedStartTime) || !/^\d{2}:\d{2}$/.test(normalizedEndTime)) {
-      return { ok: false, message: "Start and end time must be HH:mm." };
-    }
-    if (normalizedEndTime <= normalizedStartTime) {
-      return { ok: false, message: "End time must be later than start time." };
-    }
-    if (!Number.isInteger(parsedSortOrder) || parsedSortOrder < 0 || parsedSortOrder > 10000) {
-      return { ok: false, message: "Sort order must be between 0 and 10000." };
-    }
-
-    const savingKey = normalizedId || "__new__";
-    setVipDailyRoutineSavingById((prev) => ({ ...prev, [savingKey]: true }));
-    setVipDailyRoutineMessage("");
-
-    try {
-      const response = await apiFetch("/api/clients/vip-class-daily-routines", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          id: normalizedId || null,
-          classId: normalizedClassId,
-          dayOfWeek: parsedDayOfWeek,
-          activityType: normalizedActivityType,
-          title: normalizedTitle,
-          startTime: normalizedStartTime,
-          endTime: normalizedEndTime,
-          note: normalizedNote,
-          isActive: isActive !== false,
-          sortOrder: parsedSortOrder
-        })
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        if (handleProtectedStatus(response, navigate)) {
-          return { ok: false, message: "Unauthorized." };
-        }
-        const message = getApiErrorMessage(response, data, "Failed to save VIP daily routine.");
-        setVipDailyRoutineMessage(message);
-        return { ok: false, message };
-      }
-
-      const nextItem = mapVipDailyRoutineItem(data?.item || {});
-      setVipDailyRoutineItems((prev) => {
-        const filtered = prev.filter((item) => String(item?.id || "") !== String(nextItem.id || ""));
-        filtered.push(nextItem);
-        filtered.sort((a, b) => {
-          const classCompare = String(a.className || "").localeCompare(String(b.className || ""), undefined, { sensitivity: "base" });
-          if (classCompare !== 0) {
-            return classCompare;
-          }
-          const dayCompare = Number(a.dayOfWeek || 0) - Number(b.dayOfWeek || 0);
-          if (dayCompare !== 0) {
-            return dayCompare;
-          }
-          const startCompare = String(a.startTime || "").localeCompare(String(b.startTime || ""));
-          if (startCompare !== 0) {
-            return startCompare;
-          }
-          const sortCompare = Number(a.sortOrder || 0) - Number(b.sortOrder || 0);
-          if (sortCompare !== 0) {
-            return sortCompare;
-          }
-          return String(a.id || "").localeCompare(String(b.id || ""));
-        });
-        return filtered;
-      });
-      setVipDailyRoutineClasses((prev) => {
-        const normalized = Array.isArray(prev) ? prev : [];
-        const existing = normalized.some((item) => String(item?.id || "").trim() === String(nextItem.classId || "").trim());
-        if (existing || !nextItem.classId) {
-          return normalized;
-        }
-        return [
-          ...normalized,
-          {
-            id: nextItem.classId,
-            className: nextItem.className,
-            teacherId: nextItem.teacherId,
-            teacherName: nextItem.teacherName
-          }
-        ].sort((a, b) => {
-          const labelA = String(a.className || "").trim();
-          const labelB = String(b.className || "").trim();
-          return labelA.localeCompare(labelB, undefined, { sensitivity: "base" });
-        });
-      });
-
-      return { ok: true, item: nextItem };
-    } catch {
-      const message = "Failed to save VIP daily routine.";
-      setVipDailyRoutineMessage(message);
-      return { ok: false, message };
-    } finally {
-      setVipDailyRoutineSavingById((prev) => {
-        if (!Object.prototype.hasOwnProperty.call(prev, savingKey)) {
-          return prev;
-        }
-        const next = { ...prev };
-        delete next[savingKey];
-        return next;
-      });
-    }
-  }, [canCreateAppointmentVipClients, canUpdateAppointmentVipClients, navigate]);
-
-  const deleteVipDailyRoutine = useCallback(async (routineId) => {
-    const normalizedRoutineId = String(routineId || "").trim();
-    if (!normalizedRoutineId) {
-      return { ok: false, message: "Routine is required." };
-    }
-    if (!canDeleteAppointmentVipClients) {
-      return { ok: false, message: "You do not have permission to delete VIP daily routines." };
-    }
-
-    setVipDailyRoutineSavingById((prev) => ({ ...prev, [normalizedRoutineId]: true }));
-    setVipDailyRoutineMessage("");
-    try {
-      const response = await apiFetch(`/api/clients/vip-class-daily-routines/${encodeURIComponent(normalizedRoutineId)}`, {
-        method: "DELETE"
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        if (handleProtectedStatus(response, navigate)) {
-          return { ok: false, message: "Unauthorized." };
-        }
-        const message = getApiErrorMessage(response, data, "Failed to delete VIP daily routine.");
-        setVipDailyRoutineMessage(message);
-        return { ok: false, message };
-      }
-
-      setVipDailyRoutineItems((prev) => prev.filter((item) => String(item?.id || "") !== normalizedRoutineId));
-      return { ok: true };
-    } catch {
-      const message = "Failed to delete VIP daily routine.";
-      setVipDailyRoutineMessage(message);
-      return { ok: false, message };
-    } finally {
-      setVipDailyRoutineSavingById((prev) => {
-        if (!Object.prototype.hasOwnProperty.call(prev, normalizedRoutineId)) {
-          return prev;
-        }
-        const next = { ...prev };
-        delete next[normalizedRoutineId];
-        return next;
-      });
-    }
-  }, [canDeleteAppointmentVipClients, navigate]);
+  }, [canOpenMyChildren, myChildrenIsCompact, myChildrenOptions, navigate, todayYmd]);
 
   const goToPreviousMyChildrenDay = useCallback(() => {
-    setMyChildrenDateYmd((prev) => shiftDateYmd(prev, -1, todayYmd));
-  }, [todayYmd]);
+    setMyChildrenDateYmd((prev) => shiftDateYmd(prev, myChildrenIsCompact ? -1 : -7, todayYmd));
+  }, [myChildrenIsCompact, todayYmd]);
 
   const goToNextMyChildrenDay = useCallback(() => {
-    setMyChildrenDateYmd((prev) => shiftDateYmd(prev, 1, todayYmd));
-  }, [todayYmd]);
+    setMyChildrenDateYmd((prev) => shiftDateYmd(prev, myChildrenIsCompact ? 1 : 7, todayYmd));
+  }, [myChildrenIsCompact, todayYmd]);
 
   const saveVipAttendanceRecord = useCallback(async ({
     clientId,
@@ -2110,6 +1620,10 @@ function ProfilePage({ forcedView = "none" }) {
       loadClients(1);
       return;
     }
+    if (mainView === "appointment-vip-schedule") {
+      loadVipDailyRoutines();
+      return;
+    }
     if (mainView === "appointment-vip-attendance") {
       loadVipAttendance();
       loadVipAttendanceTeachers();
@@ -2221,6 +1735,28 @@ function ProfilePage({ forcedView = "none" }) {
       };
     });
   }, [allowedCreateOrganizationCodes, createOrganizationOptions, profile?.organizationCode]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const mq = window.matchMedia("(max-width: 860px)");
+    const handler = (e) => {
+      setMyChildrenIsCompact(e.matches);
+      if (!e.matches) {
+        setMyChildrenDateYmd((prev) => {
+          const d = new Date(`${prev}T00:00:00`);
+          if (Number.isNaN(d.getTime())) {
+            return prev;
+          }
+          d.setDate(d.getDate() - (d.getDay() + 6) % 7);
+          return formatDateForInput(d);
+        });
+      }
+    };
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
   useEffect(() => {
     function handleEscape(event) {
@@ -2743,6 +2279,7 @@ function ProfilePage({ forcedView = "none" }) {
         <ProfileMainContent
           mainView={mainView}
           allUsersMessage={allUsersMessage}
+          allUsersLoading={allUsersLoading}
           allUsers={allUsers}
           canUpdateUsers={canUpdateUsers}
           canDeleteUsers={canDeleteUsers}
@@ -2754,6 +2291,7 @@ function ProfilePage({ forcedView = "none" }) {
           closeAllUsersPanel={closeAllUsersPanel}
           closeAllClientsPanel={closeAllClientsPanel}
           clients={clients}
+          clientsLoading={clientsLoading}
           clientsMessage={clientsMessage}
           clientsPage={clientsPage}
           clientsTotalPages={clientsTotalPages}
@@ -2771,6 +2309,7 @@ function ProfilePage({ forcedView = "none" }) {
           saveVipAttendanceAbsentReason={saveVipAttendanceAbsentReason}
           saveVipAttendanceEdit={saveVipAttendanceEdit}
           loadVipAttendance={loadVipAttendance}
+          myChildrenIsCompact={myChildrenIsCompact}
           myChildrenDateYmd={myChildrenDateYmd}
           myChildrenOptions={myChildrenOptions}
           myChildrenSelectedClientId={myChildrenSelectedClientId}

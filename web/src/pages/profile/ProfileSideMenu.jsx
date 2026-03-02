@@ -105,7 +105,7 @@ function ProfileSideMenu({
               hidden={!canOpenAppointmentSchedule}
               onClick={openAppointmentVipSchedulePanel}
             >
-              VIP Planner
+              My Class
             </button>
             <button
               id="openVipAttendanceBtn"
@@ -133,15 +133,6 @@ function ProfileSideMenu({
               onClick={openAppointmentVipDailyRoutinesPanel}
             >
               Daily Routines
-            </button>
-            <button
-              id="openVipMyClassBtn"
-              type="button"
-              className="side-submenu-link side-submenu-action"
-              hidden={!canOpenAppointmentVipClients}
-              disabled
-            >
-              My Class
             </button>
           </div>
           <button

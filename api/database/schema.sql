@@ -226,7 +226,7 @@ CREATE TABLE vip_client_tutor_assignment_history (
   id BIGSERIAL PRIMARY KEY,
   organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   client_id INTEGER NOT NULL,
-  class_assignment_id BIGINT NOT NULL,
+  class_assignment_id BIGINT,
   tutor_user_id INTEGER NOT NULL,
   assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -248,36 +248,6 @@ CREATE INDEX idx_vip_client_tutor_assignment_history_org_client_changed
 
 CREATE INDEX idx_vip_client_tutor_assignment_history_org_class_changed
   ON vip_client_tutor_assignment_history (organization_id, class_assignment_id, changed_at DESC, id DESC);
-
-CREATE TABLE vip_client_daily_routines (
-  id BIGSERIAL PRIMARY KEY,
-  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  client_id INTEGER NOT NULL,
-  day_of_week SMALLINT NOT NULL CHECK (day_of_week BETWEEN 1 AND 7),
-  activity_type VARCHAR(16) NOT NULL CHECK (activity_type IN ('lesson', 'sleep')),
-  title VARCHAR(128) NOT NULL,
-  start_time TIME NOT NULL,
-  end_time TIME NOT NULL,
-  note VARCHAR(255),
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  sort_order INTEGER NOT NULL DEFAULT 100 CHECK (sort_order >= 0 AND sort_order <= 10000),
-  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_vip_client_daily_routines_client_org
-    FOREIGN KEY (organization_id, client_id)
-    REFERENCES clients(organization_id, id) ON DELETE CASCADE,
-  CONSTRAINT uq_vip_client_daily_routines_exact_slot
-    UNIQUE (organization_id, client_id, day_of_week, start_time, end_time, activity_type),
-  CHECK (start_time < end_time)
-);
-
-CREATE INDEX idx_vip_client_daily_routines_org_client_day_time
-  ON vip_client_daily_routines (organization_id, client_id, day_of_week, start_time, id);
-
-CREATE INDEX idx_vip_client_daily_routines_org_day_active
-  ON vip_client_daily_routines (organization_id, day_of_week, is_active, sort_order, start_time, id);
 
 CREATE TABLE vip_class_daily_routines (
   id BIGSERIAL PRIMARY KEY,
@@ -447,6 +417,9 @@ CREATE TABLE appointment_schedules (
 CREATE INDEX idx_appointment_schedules_org_specialist_date_time
   ON appointment_schedules (organization_id, specialist_id, appointment_date, start_time);
 
+CREATE INDEX idx_appointment_schedules_org_created_at
+  ON appointment_schedules (organization_id, created_at DESC);
+
 CREATE INDEX idx_appointment_schedules_org_client_date
   ON appointment_schedules (organization_id, client_id, appointment_date DESC);
 
@@ -519,21 +492,25 @@ CREATE INDEX idx_outbox_events_pending_retry
 CREATE INDEX idx_outbox_events_org_created
   ON outbox_events (organization_id, created_at DESC);
 
--- CREATE TABLE appointment_status_history (
---   id BIGSERIAL PRIMARY KEY,
---   organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
---   appointment_schedule_id INTEGER NOT NULL REFERENCES appointment_schedules(id) ON DELETE CASCADE,
---   previous_status VARCHAR(24),
---   next_status VARCHAR(24) NOT NULL,
---   reason VARCHAR(255),
---   changed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
---   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
---   CHECK (previous_status IS NULL OR previous_status IN ('pending', 'confirmed', 'cancelled', 'no-show')),
---   CHECK (next_status IN ('pending', 'confirmed', 'cancelled', 'no-show'))
--- );
+CREATE TABLE appointment_status_history (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  appointment_schedule_id INTEGER NOT NULL,
+  event_type VARCHAR(24) NOT NULL DEFAULT 'updated'
+    CHECK (event_type IN ('created', 'updated', 'status-changed', 'deleted')),
+  previous_status VARCHAR(24),
+  next_status VARCHAR(24),
+  changed_fields TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  details JSONB NOT NULL DEFAULT '{}'::jsonb,
+  changed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (appointment_schedule_id > 0),
+  CHECK (previous_status IS NULL OR previous_status IN ('pending', 'confirmed', 'cancelled', 'no-show')),
+  CHECK (next_status IS NULL OR next_status IN ('pending', 'confirmed', 'cancelled', 'no-show'))
+);
 
--- CREATE INDEX idx_appointment_status_history_schedule_created
---   ON appointment_status_history (appointment_schedule_id, created_at DESC);
+CREATE INDEX idx_appointment_status_history_org_schedule_changed
+  ON appointment_status_history (organization_id, appointment_schedule_id, changed_at DESC, id DESC);
 
--- CREATE INDEX idx_appointment_status_history_org_created
---   ON appointment_status_history (organization_id, created_at DESC);
+CREATE INDEX idx_appointment_status_history_org_changed
+  ON appointment_status_history (organization_id, changed_at DESC, id DESC);

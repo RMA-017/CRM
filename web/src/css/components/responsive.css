@@ -40,27 +40,6 @@
     width: min(100%, 640px);
   }
 
-  /* Clients tables */
-  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table-wrap {
-    overflow-x: auto;
-    overflow-y: auto;
-    overscroll-behavior-x: contain;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table {
-    width: max-content;
-    min-width: 1280px;
-    table-layout: auto;
-  }
-
-  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table th,
-  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table td {
-    overflow: visible;
-    text-overflow: clip;
-    white-space: nowrap;
-  }
-
   :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table th:nth-child(11),
   :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table td:nth-child(11),
   #clientsPanel .all-users-table th:nth-child(12),

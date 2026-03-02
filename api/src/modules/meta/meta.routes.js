@@ -1,5 +1,4 @@
 import { setNoCacheHeaders } from "../../lib/http.js";
-import { getProfileByAuthContext } from "../profile/profile.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
 import { hasPermission } from "../users/access.service.js";
 import { getUserOptions } from "./meta.service.js";
@@ -16,7 +15,7 @@ async function metaRoutes(fastify) {
       const authContext = request.authContext;
 
       try {
-        const user = await getProfileByAuthContext(authContext);
+        const user = authContext?.requester;
         if (!user) {
           return reply.status(401).send({ message: "Unauthorized" });
         }

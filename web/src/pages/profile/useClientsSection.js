@@ -38,6 +38,7 @@ export function useClientsSection({
   getBirthdayValidationMessage
 }) {
   const [clients, setClients] = useState([]);
+  const [clientsLoading, setClientsLoading] = useState(false);
   const [clientsMessage, setClientsMessage] = useState("");
   const [clientsPage, setClientsPage] = useState(1);
   const [clientsTotalPages, setClientsTotalPages] = useState(1);
@@ -169,6 +170,7 @@ export function useClientsSection({
 
     const nextPage = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
     setClientsMessage("");
+    setClientsLoading(true);
 
     try {
       const query = new URLSearchParams({
@@ -208,6 +210,8 @@ export function useClientsSection({
     } catch {
       setClients([]);
       setClientsMessage("Unexpected error. Please try again.");
+    } finally {
+      setClientsLoading(false);
     }
   }, [canReadClients, navigate]);
 
@@ -509,6 +513,7 @@ export function useClientsSection({
 
   return {
     clients,
+    clientsLoading,
     clientsMessage,
     clientsPage,
     clientsTotalPages,

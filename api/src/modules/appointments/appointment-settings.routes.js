@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 import { isUniqueOrExclusionConflict } from "../../lib/db-utils.js";
-import { getProfileByAuthContext } from "../profile/profile.service.js";
 import { hasPermission } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
 import {
@@ -27,6 +26,7 @@ import {
   getAppointmentScheduleTargetsByScope,
   getAppointmentSchedulesByRange,
   getAppointmentSpecialistsByOrganization,
+  isVipClassAssignedToUser,
   hasAppointmentScheduleConflict,
   toAppointmentDayNum,
   updateAppointmentScheduleByIdWithRepeatMeta,
@@ -1109,7 +1109,7 @@ function validateBreaksPayload({ specialistId, items }) {
 async function requireAppointmentsAccess(request, reply, requiredPermission = PERMISSIONS.APPOINTMENTS_READ) {
   const authContext = request.authContext;
 
-  const requester = await getProfileByAuthContext(authContext);
+  const requester = authContext?.requester;
   if (!requester) {
     reply.status(401).send({ message: "Unauthorized." });
     return null;
@@ -1128,6 +1128,7 @@ async function appointmentSettingsRoutes(fastify) {
     randomUUID,
     setNoCacheHeaders,
     requireAppointmentsAccess,
+    hasPermission,
     PERMISSIONS,
     DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
     parsePositiveIntegerOr,
@@ -1167,6 +1168,7 @@ async function appointmentSettingsRoutes(fastify) {
     subscribeAppointmentEvents,
     isAllowedCorsOrigin,
     getAppointmentSchedulesByRange,
+    isVipClassAssignedToUser,
     getAppointmentHistoryLockDaysByOrganization,
     getAppointmentSettingsByOrganization,
     getAppointmentBreaksBySpecialistAndDays,

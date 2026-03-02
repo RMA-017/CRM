@@ -298,7 +298,7 @@ export async function resolveNotificationRecipientIds({
   return existingUserIds.filter((userId) => !excludedUserId || userId !== excludedUserId);
 }
 
-export async function insertUserNotifications({
+async function insertUserNotifications({
   organizationId,
   recipientUserIds,
   sourceUserId = 0,
@@ -357,7 +357,7 @@ export async function insertUserNotifications({
     .filter((id) => id > 0);
 }
 
-export async function insertOutboxEvent({
+async function insertOutboxEvent({
   organizationId,
   eventType = "",
   aggregateType = "appointment",

@@ -98,15 +98,19 @@ export const appointmentRouteSchemas = Object.freeze({
     required: ["dateFrom", "dateTo"],
     anyOf: [
       { required: ["specialistId"] },
-      { required: ["clientId"] }
+      { required: ["clientId"] },
+      { required: ["classId"] }
     ],
     properties: {
       specialistId: positiveIntegerLikeSchema,
       clientId: positiveIntegerLikeSchema,
+      classId: positiveIntegerLikeSchema,
       dateFrom: dateYmdSchema,
       dateTo: dateYmdSchema,
       vipOnly: booleanLikeSchema,
       vip_only: booleanLikeSchema,
+      light: booleanLikeSchema,
+      lite: booleanLikeSchema,
       recurringOnly: booleanLikeSchema,
       recurring_only: booleanLikeSchema
     }

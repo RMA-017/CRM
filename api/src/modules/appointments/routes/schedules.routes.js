@@ -1,10 +1,75 @@
+import { createTtlCache } from "../../../lib/ttl-cache.js";
 import { appointmentRouteSchemas } from "./appointment.route-schemas.js";
+
+function toBoundedInteger(value, fallback, min, max) {
+  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
+  if (!Number.isInteger(parsed)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, parsed));
+}
+
+const schedulesReadCache = createTtlCache({
+  maxEntries: toBoundedInteger(process.env.APPOINTMENT_SCHEDULES_CACHE_MAX, 5000, 100, 50_000),
+  defaultTtlMs: toBoundedInteger(process.env.APPOINTMENT_SCHEDULES_CACHE_TTL_MS, 5000, 500, 60_000)
+});
+
+function buildSchedulesReadCacheKey({
+  organizationId,
+  specialistId,
+  clientId,
+  classId,
+  dateFrom,
+  dateTo,
+  vipOnly,
+  recurringOnly,
+  lightMode
+}) {
+  return [
+    `org:${organizationId}`,
+    `sp:${specialistId || 0}`,
+    `cl:${clientId || 0}`,
+    `class:${classId || 0}`,
+    `from:${dateFrom}`,
+    `to:${dateTo}`,
+    `vip:${vipOnly ? 1 : 0}`,
+    `rec:${recurringOnly ? 1 : 0}`,
+    `light:${lightMode ? 1 : 0}`
+  ].join("|");
+}
+
+function isDirectorLikeRequester(requester) {
+  if (requester?.is_admin === true) {
+    return true;
+  }
+  const normalized = `${String(requester?.role_label || requester?.role || "").trim().toLowerCase()} ${String(requester?.position_label || requester?.position || "").trim().toLowerCase()}`;
+  return (
+    normalized.includes("director")
+    || normalized.includes("direktor")
+    || normalized.includes("директор")
+  );
+}
+
+async function resolveScheduleReadScope({ hasPermission, roleId, requester, PERMISSIONS }) {
+  const [canReadAllScope, canReadAssignedScope] = await Promise.all([
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_SCOPE_ALL),
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_SCOPE_ASSIGNED)
+  ]);
+  if (canReadAllScope) {
+    return "all";
+  }
+  if (canReadAssignedScope) {
+    return "assigned";
+  }
+  return isDirectorLikeRequester(requester) ? "all" : "assigned";
+}
 
 export function registerAppointmentScheduleRoutes(fastify, context) {
   const {
     randomUUID,
     setNoCacheHeaders,
     requireAppointmentsAccess,
+    hasPermission,
     PERMISSIONS,
     parsePositiveIntegerOr,
     parseNullableBoolean,
@@ -29,6 +94,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     createRouteError,
     isUniqueOrExclusionConflict,
     getAppointmentSchedulesByRange,
+    isVipClassAssignedToUser,
     getAppointmentHistoryLockDaysByOrganization,
     getAppointmentSettingsByOrganization,
     getAppointmentBreaksBySpecialistAndDays,
@@ -63,15 +129,20 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
 
         const specialistId = parsePositiveIntegerOr(request.query?.specialistId, 0);
         const clientId = parsePositiveIntegerOr(request.query?.clientId, 0);
+        const classId = parsePositiveIntegerOr(request.query?.classId, 0);
         const dateFrom = String(request.query?.dateFrom || "").trim();
         const dateTo = String(request.query?.dateTo || "").trim();
         const vipOnly = parseNullableBoolean(request.query?.vipOnly ?? request.query?.vip_only) === true;
+        const lightMode = parseNullableBoolean(request.query?.light ?? request.query?.lite) === true;
         const recurringOnly = parseNullableBoolean(
           request.query?.recurringOnly ?? request.query?.recurring_only
         ) === true;
 
-        if (!specialistId && !clientId) {
-          return reply.status(400).send({ field: "specialistId", message: "Specialist or client is required." });
+        if (!specialistId && !clientId && !classId) {
+          return reply.status(400).send({ field: "specialistId", message: "Specialist, client or class is required." });
+        }
+        if (classId && !vipOnly) {
+          return reply.status(400).send({ field: "vipOnly", message: "classId requires vipOnly=true." });
         }
         if (!DATE_REGEX.test(dateFrom) || !DATE_REGEX.test(dateTo)) {
           return reply.status(400).send({ field: "dateRange", message: "Invalid date range." });
@@ -79,16 +150,65 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         if (dateFrom > dateTo) {
           return reply.status(400).send({ field: "dateRange", message: "Invalid date range." });
         }
+        const enforceVipScope = vipOnly || classId > 0;
+        const scheduleReadScope = enforceVipScope
+          ? await resolveScheduleReadScope({
+              hasPermission,
+              roleId: access.requester?.role_id,
+              requester: access.requester,
+              PERMISSIONS
+            })
+          : "all";
+        const assignedUserId = scheduleReadScope === "all"
+          ? 0
+          : parsePositiveIntegerOr(access.authContext?.userId, 0);
+        if (enforceVipScope && scheduleReadScope !== "all" && !assignedUserId) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+        if (classId && scheduleReadScope !== "all") {
+          const requesterUserId = parsePositiveIntegerOr(access.authContext?.userId, 0);
+          if (!requesterUserId) {
+            return reply.status(403).send({ message: "Forbidden." });
+          }
+          const isAssignedClass = await isVipClassAssignedToUser({
+            organizationId: access.authContext.organizationId,
+            classId,
+            userId: requesterUserId
+          });
+          if (!isAssignedClass) {
+            return reply.status(403).send({ message: "Forbidden." });
+          }
+        }
+
+        const cacheKey = buildSchedulesReadCacheKey({
+          organizationId: access.authContext.organizationId,
+          specialistId,
+          clientId,
+          classId,
+          dateFrom,
+          dateTo,
+          vipOnly,
+          recurringOnly,
+          lightMode
+        });
+        const cachedItems = schedulesReadCache.get(cacheKey);
+        if (cachedItems) {
+          return reply.send({ items: cachedItems });
+        }
 
         const items = await getAppointmentSchedulesByRange({
           organizationId: access.authContext.organizationId,
           specialistId,
           clientId,
+          classId,
+          assignedUserId: assignedUserId || null,
           dateFrom,
           dateTo,
+          lightMode,
           vipOnly,
           recurringOnly
         });
+        schedulesReadCache.set(cacheKey, items);
 
         return reply.send({ items });
       } catch (error) {
@@ -322,6 +442,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             specialistIds: [specialistId],
             data: scheduleNotification.data
           });
+          schedulesReadCache.clear();
 
           return reply.status(201).send({
             message,
@@ -405,6 +526,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           specialistIds: [specialistId],
           data: scheduleNotification.data
         });
+        schedulesReadCache.clear();
 
         return reply.status(201).send({
           message: "Appointment created.",
@@ -752,6 +874,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             specialistIds: [specialistId],
             data: scheduleNotification.data
           });
+          schedulesReadCache.clear();
 
           return reply.send({
             message,
@@ -872,6 +995,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           specialistIds: [specialistId],
           data: scheduleNotification.data
         });
+        schedulesReadCache.clear();
 
         return reply.send({
           message,
@@ -948,7 +1072,8 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
 
         const deletedCount = await deleteAppointmentSchedulesByIds({
           organizationId: access.authContext.organizationId,
-          ids: target.items.map((item) => item.id)
+          ids: target.items.map((item) => item.id),
+          actorUserId: access.authContext.userId
         });
 
         if (deletedCount <= 0) {
@@ -966,6 +1091,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           specialistIds: target.items.map((item) => item.specialistId),
           data: scheduleNotification.data
         });
+        schedulesReadCache.clear();
 
         return reply.send({
           message,

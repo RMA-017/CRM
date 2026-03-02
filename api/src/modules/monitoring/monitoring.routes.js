@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import pool from "../../config/db.js";
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { findSettingsRequester } from "../settings/settings.service.js";
-import { getRequestStats } from "./monitoring.store.js";
+import { getActiveUsers, getRequestStats } from "./monitoring.store.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const LOG_FILE_PATH = resolve(__dirname, "../../../logs/errors.log");
@@ -75,6 +75,7 @@ async function monitoringRoutes(fastify) {
           readRecentErrors(),
           Promise.resolve(getRequestStats())
         ]);
+        const activeUsers = getActiveUsers();
 
         return reply.send({
           uptime: {
@@ -92,7 +93,8 @@ async function monitoringRoutes(fastify) {
           nodeVersion: process.version,
           timestamp: new Date().toISOString(),
           requests: requestStats,
-          recentErrors
+          recentErrors,
+          activeUsers
         });
       } catch (error) {
         request.log.error({ err: error }, "Error fetching monitoring health");
