@@ -50,6 +50,7 @@ function App() {
       <Route path="/appointments/settings" element={<ProfilePage forcedView="appointment-settings" />} />
       <Route path="/statistics" element={<Navigate to="/statistics/class" replace />} />
       <Route path="/statistics/class" element={<ProfilePage forcedView="statistics-class" />} />
+      <Route path="/statistics/planner-report" element={<ProfilePage forcedView="statistics-planner-report" />} />
       <Route path="/settings/organizations" element={<ProfilePage forcedView="settings-organizations" />} />
       <Route path="/settings/roles" element={<ProfilePage forcedView="settings-roles" />} />
       <Route path="/settings/positions" element={<ProfilePage forcedView="settings-positions" />} />
@@ -79,6 +80,7 @@ function App() {
       <Route path="/profile/appointments/settings" element={<Navigate to="/appointments/settings" replace />} />
       <Route path="/profile/statistics" element={<Navigate to="/statistics/class" replace />} />
       <Route path="/profile/statistics/class" element={<Navigate to="/statistics/class" replace />} />
+      <Route path="/profile/statistics/planner-report" element={<Navigate to="/statistics/planner-report" replace />} />
       <Route path="/profile/settings/organizations" element={<Navigate to="/settings/organizations" replace />} />
       <Route path="/profile/settings/roles" element={<Navigate to="/settings/roles" replace />} />
       <Route path="/profile/settings/positions" element={<Navigate to="/settings/positions" replace />} />

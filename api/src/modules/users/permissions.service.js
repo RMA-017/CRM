@@ -27,7 +27,9 @@ const BASE_PERMISSION_DEFINITIONS = [
   { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_CREATE, label: "VIP Clients Create", sortOrder: 58 },
   { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_UPDATE, label: "VIP Clients Update", sortOrder: 59 },
   { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DELETE, label: "VIP Clients Delete", sortOrder: 60 },
+  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS, label: "VIP Clients My Class", sortOrder: 61 },
   { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN, label: "My VIP Children Access", sortOrder: 61 },
+  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DAILY_ROUTINES, label: "VIP Clients Daily Routines", sortOrder: 62 },
   { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_SCOPE_ALL, label: "VIP Clients Scope: All", sortOrder: 74 },
   { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_SCOPE_ASSIGNED, label: "VIP Clients Scope: Assigned", sortOrder: 75 },
   { code: PERMISSIONS.APPOINTMENTS_SUBMENU_ASSIGNMENTS, label: "Appointments Assignments Submenu", sortOrder: 62 },
@@ -66,6 +68,17 @@ const LEGACY_PERMISSION_CODE_MIGRATIONS = Object.freeze([
   {
     from: "appointments.schedule.scope.assigned",
     to: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_SCOPE_ASSIGNED
+  }
+]);
+
+const ROLE_PERMISSION_COPY_MIGRATIONS = Object.freeze([
+  {
+    from: PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE,
+    to: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS
+  },
+  {
+    from: PERMISSIONS.APPOINTMENTS_SUBMENU_VIP_CLIENTS,
+    to: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DAILY_ROUTINES
   }
 ]);
 
@@ -165,6 +178,19 @@ export async function ensureSystemPermissions(options = {}) {
            JOIN permissions legacy_permission ON legacy_permission.id = rp.permission_id
            JOIN permissions target_permission ON target_permission.code = $2
           WHERE legacy_permission.code = $1
+         ON CONFLICT (role_id, permission_id) DO NOTHING`,
+        [migration.from, migration.to]
+      );
+    }
+
+    for (const migration of ROLE_PERMISSION_COPY_MIGRATIONS) {
+      await client.query(
+        `INSERT INTO role_permissions (role_id, permission_id)
+         SELECT rp.role_id, target_permission.id
+           FROM role_permissions rp
+           JOIN permissions source_permission ON source_permission.id = rp.permission_id
+           JOIN permissions target_permission ON target_permission.code = $2
+          WHERE source_permission.code = $1
          ON CONFLICT (role_id, permission_id) DO NOTHING`,
         [migration.from, migration.to]
       );

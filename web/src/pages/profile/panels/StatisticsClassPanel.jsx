@@ -423,7 +423,7 @@ function StatisticsClassPanel({
   return (
     <section id="statisticsClassPanel" className="all-users-panel">
       <div className="all-users-head">
-        <h3>Statistics / Class</h3>
+        <h3>Statistics / VIP Class Attendance Report</h3>
         <button
           id="closeStatisticsBtn"
           type="button"
@@ -519,7 +519,7 @@ function StatisticsClassPanel({
         <button
           id="statisticsHistoryReloadBtn"
           type="button"
-          className="header-btn statistics-history-reload-btn"
+          className="btn statistics-history-reload-btn"
           onClick={reloadStatisticsHistory}
           disabled={statisticsVipAttendanceHistoryLoading || showStatisticsBootstrapSkeleton}
         >

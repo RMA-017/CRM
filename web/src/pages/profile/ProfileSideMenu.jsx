@@ -12,9 +12,11 @@ function ProfileSideMenu({
   setAssignmentsMenuOpen,
   hasAppointmentsMenuAccess,
   canOpenAppointmentSchedule,
+  canOpenAppointmentVipMyClass,
   canOpenAppointmentBreaks,
   canOpenAppointmentVipClients,
   canOpenMyChildren,
+  canOpenAppointmentVipDailyRoutines,
   canOpenAppointmentVipAssignments,
   canOpenAppointmentStatistics,
   appointmentMenuOpen,
@@ -31,6 +33,7 @@ function ProfileSideMenu({
   statisticsMenuOpen,
   setStatisticsMenuOpen,
   openStatisticsClassPanel,
+  openStatisticsPlannerReportPanel,
   hasUsersMenuAccess,
   usersMenuOpen,
   setUsersMenuOpen,
@@ -89,7 +92,7 @@ function ProfileSideMenu({
             id="toggleVipClientsMenuBtn"
             type="button"
             className="side-menu-action side-menu-parent"
-            hidden={!canOpenAppointmentSchedule && !canOpenAppointmentVipClients}
+            hidden={!canOpenAppointmentVipMyClass && !canOpenAppointmentVipClients && !canOpenMyChildren && !canOpenAppointmentVipDailyRoutines}
             aria-expanded={vipClientsMenuOpen ? "true" : "false"}
             onClick={() => {
               setVipClientsMenuOpen((prev) => !prev);
@@ -102,7 +105,7 @@ function ProfileSideMenu({
               id="openVipPlannerBtn"
               type="button"
               className="side-submenu-link side-submenu-action"
-              hidden={!canOpenAppointmentSchedule}
+              hidden={!canOpenAppointmentVipMyClass}
               onClick={openAppointmentVipSchedulePanel}
             >
               My Class
@@ -129,7 +132,7 @@ function ProfileSideMenu({
               id="openVipDailyRoutinesBtn"
               type="button"
               className="side-submenu-link side-submenu-action"
-              hidden={!canOpenAppointmentVipClients}
+              hidden={!canOpenAppointmentVipDailyRoutines}
               onClick={openAppointmentVipDailyRoutinesPanel}
             >
               Daily Routines
@@ -244,7 +247,15 @@ function ProfileSideMenu({
                 className="side-submenu-link side-submenu-action"
                 onClick={openStatisticsClassPanel}
               >
-                Class
+                VIP Class Attendance Report
+              </button>
+              <button
+                id="openStatisticsPlannerReportBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                onClick={openStatisticsPlannerReportPanel}
+              >
+                Lesson Status Report
               </button>
             </div>
           </div>

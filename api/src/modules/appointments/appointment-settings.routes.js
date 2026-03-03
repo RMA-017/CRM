@@ -4,6 +4,7 @@ import { parsePositiveInteger } from "../../lib/number.js";
 import { isUniqueOrExclusionConflict } from "../../lib/db-utils.js";
 import { hasPermission } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
+import { isVipClientAssignedToUser } from "../clients/clients.service.js";
 import {
   DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS,
   DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
@@ -23,6 +24,8 @@ import {
   createAppointmentSchedule,
   deleteAppointmentSchedulesByIds,
   getAppointmentClientNoShowSummary,
+  getAppointmentPlannerReportFilters,
+  getAppointmentPlannerReport,
   getAppointmentScheduleTargetsByScope,
   getAppointmentSchedulesByRange,
   getAppointmentSpecialistsByOrganization,
@@ -1162,6 +1165,8 @@ async function appointmentSettingsRoutes(fastify) {
     createRouteError,
     isUniqueOrExclusionConflict,
     getAppointmentSpecialistsByOrganization,
+    getAppointmentPlannerReportFilters,
+    getAppointmentPlannerReport,
     getAppointmentClientNoShowSummary,
     getAppointmentBreaksBySpecialist,
     replaceAppointmentBreaksBySpecialist,
@@ -1169,6 +1174,7 @@ async function appointmentSettingsRoutes(fastify) {
     isAllowedCorsOrigin,
     getAppointmentSchedulesByRange,
     isVipClassAssignedToUser,
+    isVipClientAssignedToUser,
     getAppointmentHistoryLockDaysByOrganization,
     getAppointmentSettingsByOrganization,
     getAppointmentBreaksBySpecialistAndDays,

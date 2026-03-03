@@ -4,6 +4,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
   const {
     setNoCacheHeaders,
     requireAppointmentsAccess,
+    hasPermission,
     PERMISSIONS,
     DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
     parseOptionalOrganizationId,
@@ -30,10 +31,25 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
       setNoCacheHeaders(reply);
 
       try {
-        const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_READ);
-        if (!access) {
-          return;
+        const authContext = request.authContext;
+        const requester = authContext?.requester;
+        if (!requester) {
+          return reply.status(401).send({ message: "Unauthorized." });
         }
+
+        const [
+          canReadAppointments,
+          canAccessMyClass,
+          canAccessMyChildren
+        ] = await Promise.all([
+          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_READ),
+          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS),
+          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN)
+        ]);
+        if (!canReadAppointments && !canAccessMyClass && !canAccessMyChildren) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+        const access = { authContext, requester };
 
         const { value: requestedOrganizationId, error: organizationError } = parseOptionalOrganizationId(
           request.query?.organizationId ?? request.query?.organization_id

@@ -1406,9 +1406,16 @@
 
 .statistics-history-toolbar .statistics-history-reload-btn {
   flex: 0 0 auto;
-  height: var(--input-height);
-  min-width: 88px;
+  width: 100px;
+  height: 34px;
+  min-width: 100px;
   align-self: flex-end;
+  box-shadow: none;
+}
+
+.statistics-history-toolbar .statistics-history-reload-btn:hover:not(:disabled),
+.statistics-history-toolbar .statistics-history-reload-btn:active:not(:disabled) {
+  box-shadow: none;
 }
 
 
@@ -1434,6 +1441,245 @@
 
 .statistics-history-skeleton-line:nth-child(3) {
   width: 88%;
+}
+
+.planner-report-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.planner-report-field {
+  min-width: 140px;
+}
+
+.planner-report-field-vip {
+  flex: 0 0 150px;
+}
+
+.planner-report-field-specialist {
+  min-width: min(260px, 100%);
+  flex: 1 1 220px;
+}
+
+.planner-report-field-client,
+.planner-report-field-service {
+  min-width: min(280px, 100%);
+  flex: 1 1 240px;
+}
+
+.planner-report-field .custom-select,
+.planner-report-field .custom-select-trigger,
+.planner-report-field input {
+  width: 100%;
+}
+
+.planner-report-load-btn {
+  width: 100px;
+  min-width: 100px;
+  height: 34px;
+  box-shadow: none;
+}
+
+.planner-report-load-btn:hover:not(:disabled),
+.planner-report-load-btn:active:not(:disabled) {
+  box-shadow: none;
+}
+
+.planner-report-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.planner-report-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid #d8e4f2;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fbfdff 0%, #f4f8fd 100%);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+}
+
+.planner-report-summary-card.is-total {
+  border-color: #c8d9ef;
+  background: linear-gradient(180deg, #f6faff 0%, #ecf3fb 100%);
+}
+
+.planner-report-summary-card.is-confirmed {
+  border-color: rgba(5, 150, 105, 0.72);
+  background: linear-gradient(180deg, rgba(204, 251, 241, 0.78) 0%, rgba(240, 253, 250, 0.95) 100%);
+}
+
+.planner-report-summary-card.is-pending {
+  border-color: rgba(217, 119, 6, 0.72);
+  background: linear-gradient(180deg, rgba(254, 243, 199, 0.78) 0%, rgba(255, 251, 235, 0.95) 100%);
+}
+
+.planner-report-summary-card.is-cancelled {
+  border-color: rgba(220, 38, 38, 0.55);
+  background: linear-gradient(180deg, rgba(254, 226, 226, 0.86) 0%, rgba(254, 242, 242, 0.95) 100%);
+}
+
+.planner-report-summary-card.is-no-show {
+  border-color: rgba(185, 28, 28, 0.72);
+  background: linear-gradient(180deg, rgba(254, 202, 202, 0.85) 0%, rgba(254, 242, 242, 0.95) 100%);
+}
+
+.planner-report-summary-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.planner-report-summary-value {
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--text-main);
+}
+
+.planner-report-section-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.planner-report-section {
+  border: 1px solid #d8e4f2;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fbfdff 0%, #f6f9fd 100%);
+  padding: 10px 10px 0;
+  overflow: hidden;
+}
+
+.planner-report-section .all-users-table-wrap {
+  width: calc(100% + 20px);
+  max-width: none;
+  margin-left: -10px;
+  margin-right: -10px;
+  border-left: 0;
+  border-right: 0;
+  border-radius: 0;
+}
+
+.planner-report-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.planner-report-section-head h4,
+.planner-report-section-head p {
+  margin: 0;
+}
+
+.planner-report-section-head h4 {
+  font-size: 1rem;
+  color: var(--text-main);
+}
+
+.planner-report-section-head p {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.planner-report-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.planner-report-table th:first-child,
+.planner-report-table td:first-child {
+  width: calc(30% - 10px);
+  padding-left: 10px;
+}
+
+.planner-report-table th:nth-child(n + 2),
+.planner-report-table td:nth-child(n + 2) {
+  width: 14%;
+  text-align: center;
+}
+
+.planner-report-cell-confirmed {
+  color: #0f7a4a;
+  font-weight: 700;
+}
+
+.planner-report-cell-pending {
+  color: #a46300;
+  font-weight: 700;
+}
+
+.planner-report-cell-cancelled {
+  color: #b42318;
+  font-weight: 700;
+}
+
+.planner-report-cell-no-show {
+  color: #6b5b4d;
+  font-weight: 700;
+}
+
+.planner-report-skeleton {
+  margin-top: 14px;
+}
+
+.planner-report-summary-skeleton {
+  height: 86px;
+  border-radius: 14px;
+}
+
+.planner-report-table-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.planner-report-line-skeleton {
+  height: 36px;
+  border-radius: 10px;
+}
+
+@media (max-width: 1100px) {
+  .planner-report-summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .planner-report-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .planner-report-toolbar {
+    align-items: stretch;
+  }
+
+  .planner-report-field,
+  .planner-report-field-vip,
+  .planner-report-field-client,
+  .planner-report-field-service,
+  .planner-report-field-specialist,
+  .planner-report-load-btn {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .planner-report-section-head {
+    flex-direction: column;
+  }
+
+  .planner-report-section-head p {
+    text-align: left;
+  }
 }
 
 .vip-attendance-skeleton {
@@ -1828,6 +2074,74 @@
   align-items: center;
 }
 
+.panel-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.panel-search-input {
+  flex: 1 1 auto;
+  width: 0;
+  min-width: 0;
+  height: var(--btn-height);
+  padding: 0 10px;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--input-bg, #fff);
+  color: var(--text-color, #333);
+  font-size: 0.85rem;
+}
+
+.panel-search-input:focus {
+  outline: none;
+  border-color: var(--accent-color, #6366f1);
+}
+
+.panel-search-select {
+  flex: 0 1 clamp(88px, 26vw, 120px);
+  width: clamp(88px, 26vw, 120px);
+  min-width: 88px;
+}
+
+.panel-search-select .custom-select {
+  width: 100%;
+}
+
+.panel-search-select .custom-select-trigger {
+  min-height: var(--btn-height);
+  height: var(--btn-height);
+  padding: 0 30px 0 10px;
+  border-radius: var(--radius);
+  background: var(--input-bg);
+  box-shadow: none;
+}
+
+.panel-search-select .custom-select-trigger span {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel-search-select .custom-select-menu {
+  min-width: 100%;
+}
+
+.panel-search-btn {
+  width: 72px;
+  min-width: 72px;
+  height: var(--btn-height);
+  padding: 0 14px;
+  flex-shrink: 0;
+}
+
 .all-users-pagination {
   margin-top: 10px;
   display: flex;
@@ -1865,7 +2179,7 @@
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 10px;
+  gap: 5px;
 }
 
 .appointment-toolbar-block {
@@ -2041,10 +2355,11 @@
   overflow-y: auto;
   scrollbar-gutter: stable;
   border: 1px solid #c9dbef;
-  border-radius: 12px 12px 0 0;
+  border-radius: 12px;
   background: #f4f9ff;
   box-sizing: border-box;
   background-clip: padding-box;
+  padding-bottom: 0;
 }
 
 .appointment-vip-weekly-grid {
@@ -2126,6 +2441,8 @@
 
 .appointment-vip-client-day.appointment-day-is-today {
   background: linear-gradient(180deg, #f6fbff 0%, #edf5ff 100%) !important;
+  box-shadow: none !important;
+  border-bottom: none;
 }
 
 .appointment-vip-weekly-grid tbody td {
@@ -2205,28 +2522,35 @@
   background: linear-gradient(180deg, rgba(254, 202, 202, 0.85) 0%, rgba(254, 242, 242, 0.95) 100%);
 }
 
-.appointment-vip-weekly-row {
+.appointment-vip-weekly-row,
+.appointment-vip-my-children-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
 
-.appointment-vip-weekly-row-top {
+.appointment-vip-weekly-row-top,
+.appointment-vip-my-children-row-top {
   margin-bottom: 1px;
 }
 
 .appointment-vip-weekly-time,
 .appointment-vip-weekly-primary,
 .appointment-vip-weekly-secondary,
-.appointment-vip-weekly-status {
+.appointment-vip-weekly-status,
+.appointment-vip-my-children-teacher,
+.appointment-vip-my-children-time,
+.appointment-vip-my-children-service,
+.appointment-vip-my-children-status {
   margin: 0;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.appointment-vip-weekly-time {
+.appointment-vip-weekly-time,
+.appointment-vip-my-children-time {
   white-space: nowrap;
   flex: 0 0 auto;
   font-size: 11px;
@@ -2234,7 +2558,8 @@
   color: #1e4f96;
 }
 
-.appointment-vip-weekly-primary {
+.appointment-vip-weekly-primary,
+.appointment-vip-my-children-teacher {
   white-space: nowrap;
   flex: 1 1 auto;
   font-size: 12px;
@@ -2242,7 +2567,8 @@
   color: #1f2b3d;
 }
 
-.appointment-vip-weekly-secondary {
+.appointment-vip-weekly-secondary,
+.appointment-vip-my-children-service {
   white-space: nowrap;
   flex: 1 1 auto;
   font-size: 11px;
@@ -2250,7 +2576,8 @@
   text-align: right;
 }
 
-.appointment-vip-weekly-status {
+.appointment-vip-weekly-status,
+.appointment-vip-my-children-status {
   white-space: nowrap;
   flex: 0 0 auto;
   max-width: 45%;
@@ -2284,6 +2611,170 @@
   font-size: 11px;
   color: #6e8aaa;
   text-align: center;
+}
+
+.appointment-vip-my-children-board {
+  margin-top: 10px;
+  border: 1px solid #c9dbef;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f8fbff 0%, #f3f8ff 100%);
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 8px 24px rgba(15, 23, 42, 0.06),
+    0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+.appointment-vip-my-children-board-head {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #d5e2f3;
+  background: linear-gradient(180deg, #eef6ff 0%, #e6f0fd 100%);
+}
+
+.appointment-vip-my-children-summary {
+  min-width: 0;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.appointment-vip-my-children-name {
+  margin: 0;
+  font-size: 13px;
+  text-align: left;
+}
+
+.appointment-vip-my-children-meta {
+  margin: 0;
+  font-size: 11px;
+  color: #5e7189;
+}
+
+.appointment-vip-my-children-date {
+  flex: 0 0 auto;
+  min-width: 220px;
+  padding: 8px 12px;
+  border: 1px solid #c8d9ef;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.appointment-vip-my-children-date .appointment-day-head {
+  min-height: auto;
+  align-items: flex-end;
+}
+
+.appointment-vip-weekly-list,
+.appointment-vip-my-children-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 36px;
+}
+
+.appointment-vip-my-children-list {
+  padding: 5px;
+}
+
+.appointment-vip-my-children-card.appointment-status-pending {
+  padding: 3px 5px;
+}
+
+.appointment-vip-my-children-note {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #5e7189;
+}
+
+.appointment-vip-my-children-mobile-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.appointment-vip-my-children-mobile-title {
+  margin: 0;
+  text-align: left;
+}
+
+.appointment-vip-my-children-mobile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.appointment-vip-my-children-loading-card {
+  height: 38px;
+  border-radius: 0;
+}
+
+@media (max-width: 860px) {
+  .appointment-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .appointment-toolbar > .appointment-toolbar-block {
+    width: 100%;
+    flex: 1 1 auto;
+  }
+
+  .appointment-specialist-control {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .appointment-specialist-select-wrap {
+    width: 100%;
+  }
+
+  .appointment-week-switcher {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 6px;
+  }
+
+  .appointment-week-switcher .header-btn {
+    width: 100%;
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+
+  .appointment-week-range {
+    flex: 0 0 auto;
+    min-width: 0;
+    text-align: center;
+  }
+
+  .appointment-vip-my-children-board-head {
+    flex-direction: column;
+  }
+
+  .appointment-vip-my-children-summary {
+    display: none;
+  }
+
+  .appointment-vip-my-children-date {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .appointment-vip-my-children-date .appointment-day-head {
+    align-items: flex-start;
+  }
+
+  .appointment-vip-my-children-status {
+    max-width: 40%;
+  }
 }
 
 .appointment-grid th.appointment-day-head-col-gap,
@@ -3181,6 +3672,12 @@
 }
 
 @media (max-width: 980px) {
+  .appointment-vip-weekly-grid-wrap.appointment-vip-my-children-grid-wrap {
+    max-height: clamp(280px, calc(100dvh - 300px), 600px);
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
   :is(#appointmentBreaksPanel, #appointmentVipTutorAssignmentsPanel) .appointment-breaks-table-wrap {
     max-height: calc(100dvh - 230px);
     overflow-y: auto;

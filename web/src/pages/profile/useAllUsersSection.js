@@ -21,6 +21,7 @@ export function useAllUsersSection({
   const [allUsersMessage, setAllUsersMessage] = useState("");
   const [allUsersPage, setAllUsersPage] = useState(1);
   const [allUsersTotalPages, setAllUsersTotalPages] = useState(1);
+  const [allUsersSearch, setAllUsersSearch] = useState("");
   const [allUsersEdit, setAllUsersEdit] = useState(createEmptyAllUsersEditState);
   const [allUsersDelete, setAllUsersDelete] = useState(createEmptyAllUsersDeleteState);
 
@@ -32,7 +33,7 @@ export function useAllUsersSection({
     setAllUsersDelete(createEmptyAllUsersDeleteState());
   }, []);
 
-  const loadAllUsers = useCallback(async (requestedPage = 1) => {
+  const loadAllUsers = useCallback(async (requestedPage = 1, searchOverride) => {
     if (!canReadUsers) {
       navigate("/404", { replace: true });
       return;
@@ -47,6 +48,10 @@ export function useAllUsersSection({
         page: String(nextPage),
         limit: String(ALL_USERS_LIMIT)
       });
+      const trimmedSearch = String(searchOverride !== undefined ? searchOverride : (allUsersSearch || "")).trim();
+      if (trimmedSearch) {
+        query.set("q", trimmedSearch);
+      }
 
       const response = await apiFetch(`/api/users?${query.toString()}`, {
         method: "GET",
@@ -82,7 +87,7 @@ export function useAllUsersSection({
     } finally {
       setAllUsersLoading(false);
     }
-  }, [canReadUsers, navigate]);
+  }, [allUsersSearch, canReadUsers, navigate]);
 
   const openAllUsersEditModal = useCallback((userId) => {
     if (!canUpdateUsers) {
@@ -286,6 +291,8 @@ export function useAllUsersSection({
     allUsersMessage,
     allUsersPage,
     allUsersTotalPages,
+    allUsersSearch,
+    setAllUsersSearch,
     allUsersEdit,
     allUsersDelete,
     setAllUsersEdit,

@@ -29,7 +29,9 @@ export function useProfileAccess(profile, forcedView) {
   const canCreateVipClientsPermission = permissionSet.has(PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_CREATE);
   const canUpdateVipClientsPermission = permissionSet.has(PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_UPDATE);
   const canDeleteVipClientsPermission = permissionSet.has(PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DELETE);
+  const canMyClassPermission = permissionSet.has(PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS);
   const canMyChildrenPermission = permissionSet.has(PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN);
+  const canDailyRoutinesPermission = permissionSet.has(PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DAILY_ROUTINES);
   const canReadAssignmentsPermission = permissionSet.has(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_READ);
   const canCreateAssignmentsPermission = permissionSet.has(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CREATE);
   const canUpdateAssignmentsPermission = permissionSet.has(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_UPDATE);
@@ -50,7 +52,9 @@ export function useProfileAccess(profile, forcedView) {
     || canCreateVipClientsPermission
     || canUpdateVipClientsPermission
     || canDeleteVipClientsPermission
+    || canMyClassPermission
     || canMyChildrenPermission
+    || canDailyRoutinesPermission
     || permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_ASSIGNMENTS)
     || canReadAssignmentsPermission
     || canCreateAssignmentsPermission
@@ -101,9 +105,19 @@ export function useProfileAccess(profile, forcedView) {
       ? (permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_VIP_CLIENTS) && canReadVipClientsPermission)
       : canReadClients
   );
+  const canOpenAppointmentVipMyClass = (
+    usesAdvancedMenuPermissions
+      ? (canReadAppointments && (canMyClassPermission || permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE)))
+      : canOpenAppointmentSchedule
+  );
   const canOpenMyChildren = (
     usesAdvancedMenuPermissions
       ? (canMyChildrenPermission || canOpenAppointmentVipClients)
+      : canReadClients
+  );
+  const canOpenAppointmentVipDailyRoutines = (
+    usesAdvancedMenuPermissions
+      ? (canDailyRoutinesPermission && canReadVipClientsPermission)
       : canReadClients
   );
 
@@ -160,10 +174,10 @@ export function useProfileAccess(profile, forcedView) {
       return canOpenAppointmentVipClients;
     }
     if (forcedView === "appointment-vip-my-children") {
-      return canOpenAppointmentVipClients;
+      return canOpenMyChildren;
     }
     if (forcedView === "appointment-vip-daily-routines") {
-      return canOpenAppointmentVipClients;
+      return canOpenAppointmentVipDailyRoutines;
     }
     if (forcedView === "appointment-vip-assignments") {
       return canOpenAppointmentVipAssignments;
@@ -172,7 +186,7 @@ export function useProfileAccess(profile, forcedView) {
       return canOpenAppointmentVipAssignments;
     }
     if (forcedView === "appointment-vip-schedule") {
-      return canOpenAppointmentSchedule;
+      return canOpenAppointmentVipMyClass;
     }
     if (forcedView === "appointment") {
       return canOpenAppointmentSchedule;
@@ -194,7 +208,11 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "settings-notifications") {
       return hasNotificationsSettingsAccess;
     }
-    if (forcedView === "statistics" || forcedView === "statistics-class") {
+    if (
+      forcedView === "statistics"
+      || forcedView === "statistics-class"
+      || forcedView === "statistics-planner-report"
+    ) {
       return canOpenAppointmentStatistics;
     }
     return true;
@@ -203,8 +221,10 @@ export function useProfileAccess(profile, forcedView) {
     canCreateClients,
     canOpenAppointmentBreaks,
     canOpenAppointmentSchedule,
+    canOpenAppointmentVipMyClass,
     canOpenAppointmentVipClients,
     canOpenMyChildren,
+    canOpenAppointmentVipDailyRoutines,
     canReadAppointmentVipClients,
     canCreateAppointmentVipClients,
     canUpdateAppointmentVipClients,
@@ -239,9 +259,11 @@ export function useProfileAccess(profile, forcedView) {
     canDeleteAppointments,
     canSendNotifications,
     canOpenAppointmentSchedule,
+    canOpenAppointmentVipMyClass,
     canOpenAppointmentBreaks,
     canOpenAppointmentVipClients,
     canOpenMyChildren,
+    canOpenAppointmentVipDailyRoutines,
     canReadAppointmentVipClients,
     canCreateAppointmentVipClients,
     canUpdateAppointmentVipClients,
@@ -259,4 +281,3 @@ export function useProfileAccess(profile, forcedView) {
     canAccessForcedView
   };
 }
-

@@ -35,6 +35,7 @@ export const DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 18;
 export const MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 12;
 export const MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 72;
 let appointmentStatusHistorySchemaInitPromise = null;
+let appointmentPlannerReportIndexInitPromise = null;
 
 function buildScheduleSnapshotSql(alias, previousPrefix = "") {
   const col = (name) => `${alias}.${previousPrefix}${name}`;
@@ -186,6 +187,26 @@ async function ensureAppointmentStatusHistorySchema() {
   }
 
   return appointmentStatusHistorySchemaInitPromise;
+}
+
+async function ensureAppointmentPlannerReportIndexes() {
+  if (!appointmentPlannerReportIndexInitPromise) {
+    appointmentPlannerReportIndexInitPromise = (async () => {
+      await pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_appointment_schedules_org_date_specialist
+           ON ${APPOINTMENT_SCHEDULES_TABLE} (
+             organization_id,
+             appointment_date,
+             specialist_id
+           )`
+      );
+    })().catch((error) => {
+      appointmentPlannerReportIndexInitPromise = null;
+      throw error;
+    });
+  }
+
+  return appointmentPlannerReportIndexInitPromise;
 }
 
 function getAppointmentSchedulesTableName() {
@@ -648,12 +669,8 @@ export async function getAppointmentSchedulesByRange({
     whereParts.push("s.repeat_group_key IS NOT NULL");
   }
 
-  const specialistPositionSelect = lightMode
-    ? "''::text AS specialist_position,"
-    : "COALESCE(NULLIF(TRIM(p.label), ''), NULLIF(TRIM(r.label), ''), '') AS specialist_position,";
-  const specialistPositionJoin = lightMode
-    ? ""
-    : `LEFT JOIN role_options r
+  const specialistPositionSelect = "COALESCE(NULLIF(TRIM(p.label), ''), NULLIF(TRIM(r.label), ''), '') AS specialist_position,";
+  const specialistPositionJoin = `LEFT JOIN role_options r
         ON r.id = u.role_id
       LEFT JOIN position_options p
         ON p.id = u.position_id`;
@@ -1127,6 +1144,12 @@ export async function getAppointmentScheduleTargetsByScope({
        s.specialist_id,
        s.client_id,
        s.appointment_date,
+       s.start_time,
+       s.end_time,
+       s.duration_minutes,
+       s.service_name,
+       s.status,
+       s.note,
        s.repeat_group_key,
        s.repeat_type,
        c.first_name,
@@ -1166,6 +1189,12 @@ export async function getAppointmentScheduleTargetsByScope({
          s.specialist_id,
          s.client_id,
          s.appointment_date,
+         s.start_time,
+         s.end_time,
+         s.duration_minutes,
+         s.service_name,
+         s.status,
+         s.note,
          c.first_name,
          c.last_name,
          c.middle_name
@@ -1186,6 +1215,12 @@ export async function getAppointmentScheduleTargetsByScope({
          s.specialist_id,
          s.client_id,
          s.appointment_date,
+         s.start_time,
+         s.end_time,
+         s.duration_minutes,
+         s.service_name,
+         s.status,
+         s.note,
          c.first_name,
          c.last_name,
          c.middle_name
@@ -1216,6 +1251,12 @@ export async function getAppointmentScheduleTargetsByScope({
         specialistId: Number.parseInt(String(row?.specialist_id || ""), 10),
         clientId: Number.parseInt(String(row?.client_id || ""), 10),
         appointmentDate: normalizeDateYmd(row?.appointment_date),
+        startTime: normalizeTimeHm(row?.start_time),
+        endTime: normalizeTimeHm(row?.end_time),
+        durationMinutes: Number.parseInt(String(row?.duration_minutes || ""), 10) || getDurationMinutesFromTimes(row?.start_time, row?.end_time),
+        serviceName: String(row?.service_name || "").trim(),
+        status: String(row?.status || "").trim().toLowerCase(),
+        note: String(row?.note || "").trim(),
         clientFirstName: String(row?.first_name || "").trim(),
         clientLastName: String(row?.last_name || "").trim(),
         clientMiddleName: String(row?.middle_name || "").trim()
@@ -2038,4 +2079,216 @@ export async function saveAppointmentSlotCellHeightPxByOrganization({
   );
 
   return getAppointmentSlotCellHeightPxByOrganization(organizationId);
+}
+
+export async function getAppointmentPlannerReport({
+  organizationId,
+  from,
+  to,
+  specialistId = null,
+  clientId = null,
+  isVip = null,
+  serviceName = ""
+}) {
+  await ensureAppointmentPlannerReportIndexes();
+
+  const params = [organizationId, from, to];
+  let specialistFilterSql = "";
+  let clientFilterSql = "";
+  let vipFilterSql = "";
+  let serviceFilterSql = "";
+  if (specialistId) {
+    params.push(specialistId);
+    specialistFilterSql = `AND s.specialist_id = $${params.length}`;
+  }
+  if (clientId) {
+    params.push(clientId);
+    clientFilterSql = `AND s.client_id = $${params.length}`;
+  }
+  if (typeof isVip === "boolean") {
+    params.push(isVip);
+    vipFilterSql = `AND c.is_vip = $${params.length}`;
+  }
+  if (String(serviceName || "").trim()) {
+    params.push(String(serviceName || "").trim());
+    serviceFilterSql = `AND LOWER(TRIM(s.service_name)) = LOWER(TRIM($${params.length}::text))`;
+  }
+
+  const [{ rows }, specialistRows] = await Promise.all([
+    pool.query(
+      `SELECT
+         s.appointment_date::text AS appointment_date,
+         LOWER(TRIM(s.status)) AS status,
+         s.specialist_id::text AS specialist_id,
+         COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), 'Specialist #' || u.id::text) AS specialist_name,
+         COUNT(*)::int AS count
+       FROM appointment_schedules s
+       JOIN clients c
+         ON c.id = s.client_id
+        AND c.organization_id = s.organization_id
+       JOIN users u
+         ON u.id = s.specialist_id
+        AND u.organization_id = s.organization_id
+       WHERE s.organization_id = $1
+         AND s.appointment_date BETWEEN $2::date AND $3::date
+         ${specialistFilterSql}
+         ${clientFilterSql}
+         ${vipFilterSql}
+         ${serviceFilterSql}
+       GROUP BY s.appointment_date, LOWER(TRIM(s.status)), s.specialist_id, u.full_name, u.username, u.id
+       ORDER BY s.appointment_date ASC, specialist_name ASC`,
+      params
+    ),
+    getAppointmentSpecialistsByOrganization(organizationId)
+  ]);
+
+  const summary = {
+    total: 0,
+    confirmed: 0,
+    pending: 0,
+    cancelled: 0,
+    noShow: 0
+  };
+  const byDateMap = new Map();
+  const bySpecialistMap = new Map();
+
+  for (const row of rows) {
+    const count = Number.parseInt(String(row?.count || "0"), 10) || 0;
+    const status = String(row?.status || "").trim().toLowerCase();
+    const appointmentDate = String(row?.appointment_date || "").trim();
+    const currentSpecialistId = String(row?.specialist_id || "").trim();
+    const specialistName = String(row?.specialist_name || "").trim();
+
+    summary.total += count;
+    if (status === "confirmed") {
+      summary.confirmed += count;
+    } else if (status === "pending") {
+      summary.pending += count;
+    } else if (status === "cancelled") {
+      summary.cancelled += count;
+    } else if (status === "no-show") {
+      summary.noShow += count;
+    }
+
+    if (!byDateMap.has(appointmentDate)) {
+      byDateMap.set(appointmentDate, {
+        date: appointmentDate,
+        total: 0,
+        confirmed: 0,
+        pending: 0,
+        cancelled: 0,
+        noShow: 0
+      });
+    }
+    const byDateEntry = byDateMap.get(appointmentDate);
+    byDateEntry.total += count;
+    if (status === "confirmed") {
+      byDateEntry.confirmed += count;
+    } else if (status === "pending") {
+      byDateEntry.pending += count;
+    } else if (status === "cancelled") {
+      byDateEntry.cancelled += count;
+    } else if (status === "no-show") {
+      byDateEntry.noShow += count;
+    }
+
+    if (!bySpecialistMap.has(currentSpecialistId)) {
+      bySpecialistMap.set(currentSpecialistId, {
+        specialistId: currentSpecialistId,
+        specialistName,
+        total: 0,
+        confirmed: 0,
+        pending: 0,
+        cancelled: 0,
+        noShow: 0
+      });
+    }
+    const bySpecialistEntry = bySpecialistMap.get(currentSpecialistId);
+    bySpecialistEntry.total += count;
+    if (status === "confirmed") {
+      bySpecialistEntry.confirmed += count;
+    } else if (status === "pending") {
+      bySpecialistEntry.pending += count;
+    } else if (status === "cancelled") {
+      bySpecialistEntry.cancelled += count;
+    } else if (status === "no-show") {
+      bySpecialistEntry.noShow += count;
+    }
+  }
+
+  return {
+    summary,
+    byDate: Array.from(byDateMap.values()),
+    bySpecialist: Array.from(bySpecialistMap.values())
+      .sort((left, right) => left.specialistName.localeCompare(right.specialistName, undefined, { sensitivity: "base" })),
+    specialists: (Array.isArray(specialistRows) ? specialistRows : [])
+      .map((item) => ({
+        id: String(item?.id || "").trim(),
+        name: String(item?.name || "").trim()
+      }))
+      .filter((item) => Boolean(item.id) && Boolean(item.name))
+      .sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: "base" })),
+    period: { from, to }
+  };
+}
+
+export async function getAppointmentPlannerReportFilters({
+  organizationId
+}) {
+  await ensureAppointmentPlannerReportIndexes();
+
+  const [specialistRows, clientRowsResult, serviceRowsResult] = await Promise.all([
+    getAppointmentSpecialistsByOrganization(organizationId),
+    pool.query(
+      `SELECT
+         c.id::text AS id,
+         c.first_name,
+         c.last_name,
+         c.middle_name,
+         c.is_vip
+       FROM appointment_schedules s
+       JOIN clients c
+         ON c.id = s.client_id
+        AND c.organization_id = s.organization_id
+      WHERE s.organization_id = $1
+      GROUP BY c.id, c.first_name, c.last_name, c.middle_name, c.is_vip
+      ORDER BY
+        LOWER(TRIM(c.last_name)) ASC,
+        LOWER(TRIM(c.first_name)) ASC,
+        LOWER(TRIM(COALESCE(c.middle_name, ''))) ASC,
+        c.id ASC`,
+      [organizationId]
+    ),
+    pool.query(
+      `SELECT
+         MIN(TRIM(s.service_name)) AS service_name
+       FROM appointment_schedules s
+      WHERE s.organization_id = $1
+        AND NULLIF(TRIM(s.service_name), '') IS NOT NULL
+      GROUP BY LOWER(TRIM(s.service_name))
+      ORDER BY LOWER(MIN(TRIM(s.service_name))) ASC`,
+      [organizationId]
+    )
+  ]);
+
+  return {
+    specialists: (Array.isArray(specialistRows) ? specialistRows : [])
+      .map((item) => ({
+        id: String(item?.id || "").trim(),
+        name: String(item?.name || "").trim()
+      }))
+      .filter((item) => Boolean(item.id) && Boolean(item.name)),
+    clients: (Array.isArray(clientRowsResult?.rows) ? clientRowsResult.rows : [])
+      .map((row) => ({
+        id: String(row?.id || "").trim(),
+        firstName: String(row?.first_name || "").trim(),
+        lastName: String(row?.last_name || "").trim(),
+        middleName: String(row?.middle_name || "").trim(),
+        isVip: Boolean(row?.is_vip)
+      }))
+      .filter((item) => Boolean(item.id)),
+    serviceNames: (Array.isArray(serviceRowsResult?.rows) ? serviceRowsResult.rows : [])
+      .map((row) => String(row?.service_name || "").trim())
+      .filter(Boolean)
+  };
 }

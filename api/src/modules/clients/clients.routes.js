@@ -286,6 +286,8 @@ const ADVANCED_APPOINTMENT_MENU_PERMISSIONS = Object.freeze([
   PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_CREATE,
   PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_UPDATE,
   PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DELETE,
+  PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS,
+  PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DAILY_ROUTINES,
   PERMISSIONS.APPOINTMENTS_SUBMENU_ASSIGNMENTS,
   PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_READ,
   PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CREATE,
@@ -310,6 +312,7 @@ async function getVipClientsPermissionSnapshot(roleId) {
     canUpdateVipClients,
     canDeleteVipClients,
     canAccessMyChildren,
+    canAccessDailyRoutines,
     canReadVipScopeAll,
     canReadVipScopeAssigned
   ] = await Promise.all([
@@ -320,6 +323,7 @@ async function getVipClientsPermissionSnapshot(roleId) {
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_UPDATE),
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DELETE),
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN),
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DAILY_ROUTINES),
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_SCOPE_ALL),
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_SCOPE_ASSIGNED)
   ]);
@@ -331,6 +335,7 @@ async function getVipClientsPermissionSnapshot(roleId) {
     canUpdateVipClients,
     canDeleteVipClients,
     canAccessMyChildren,
+    canAccessDailyRoutines,
     canReadVipScopeAll,
     canReadVipScopeAssigned
   };
@@ -408,6 +413,7 @@ function mapClient(row) {
   const assignedTeacherName = String(row.teacher_name || "").trim();
   const assignedTutorId = String(row.tutor_id || row.tutor_user_id || "").trim();
   const assignedTutorName = String(row.tutor_name || "").trim();
+  const assignedClassId = String(row.class_id || row.class_assignment_id || "").trim();
   const vipClassName = String(row.vip_class_name || row.class_name || "").trim();
   const createdById = String(row.created_by || "").trim();
   const createdByName = String(row.created_by_name || row.created_by || "-").trim() || "-";
@@ -437,6 +443,8 @@ function mapClient(row) {
     updatedById: row.updated_by,
     updatedByName: row.updated_by_name || row.updated_by || "-",
     updatedBy: row.updated_by_name || row.updated_by || "-",
+    classId: assignedClassId,
+    class_id: assignedClassId,
     className: vipClassName,
     class_name: vipClassName,
     teacherId,
@@ -1483,7 +1491,10 @@ async function clientsRoutes(fastify) {
           getVipClientsPermissionSnapshot(requester.role_id)
         ]);
         const canReadVipClassDailyRoutines = vipPermissions.usesAdvancedMenuPermissions
-          ? (vipPermissions.canOpenVipClients && vipPermissions.canReadVipClients)
+          ? (
+            (vipPermissions.canAccessDailyRoutines && vipPermissions.canReadVipClients)
+            || vipPermissions.canAccessMyChildren
+          )
           : canReadClients;
         if (!canReadVipClassDailyRoutines) {
           return reply.status(403).send({ message: "Forbidden." });
@@ -1606,7 +1617,7 @@ async function clientsRoutes(fastify) {
         const isEditMode = Boolean(routineId);
         const canWriteVipClassDailyRoutines = vipPermissions.usesAdvancedMenuPermissions
           ? (
-            vipPermissions.canOpenVipClients
+            vipPermissions.canAccessDailyRoutines
             && (isEditMode ? vipPermissions.canUpdateVipClients : vipPermissions.canCreateVipClients)
           )
           : (canUpdateClients && isDirectorLikeRequester(requester));
@@ -1671,7 +1682,10 @@ async function clientsRoutes(fastify) {
           getVipClientsPermissionSnapshot(requester.role_id)
         ]);
         const canDeleteVipClassDailyRoutines = vipPermissions.usesAdvancedMenuPermissions
-          ? (vipPermissions.canOpenVipClients && vipPermissions.canDeleteVipClients)
+          ? (
+            vipPermissions.canAccessDailyRoutines
+            && vipPermissions.canDeleteVipClients
+          )
           : (canUpdateClients && isDirectorLikeRequester(requester));
         if (!canDeleteVipClassDailyRoutines) {
           return reply.status(403).send({ message: "Forbidden." });

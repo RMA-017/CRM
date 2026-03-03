@@ -1,5 +1,55 @@
 import { formatDateForInput } from "../../lib/formatters.js";
 
+export const MY_CHILDREN_DAY_ITEMS = Object.freeze([
+  { key: "mon", label: "Monday", offset: 0 },
+  { key: "tue", label: "Tuesday", offset: 1 },
+  { key: "wed", label: "Wednesday", offset: 2 },
+  { key: "thu", label: "Thursday", offset: 3 },
+  { key: "fri", label: "Friday", offset: 4 },
+  { key: "sat", label: "Saturday", offset: 5 },
+  { key: "sun", label: "Sunday", offset: 6 }
+]);
+
+export const MY_CHILDREN_DEFAULT_VISIBLE_WEEK_DAYS = Object.freeze(["mon", "tue", "wed", "thu", "fri", "sat"]);
+
+export const MY_CHILDREN_DAY_NUM_TO_KEY = Object.freeze(
+  MY_CHILDREN_DAY_ITEMS.reduce((acc, item, index) => {
+    acc[index + 1] = item.key;
+    return acc;
+  }, {})
+);
+
+export function getMyChildrenWeekStartYmd(value = "", fallbackYmd = "") {
+  const normalized = String(value || "").trim();
+  const baseDate = /^\d{4}-\d{2}-\d{2}$/.test(normalized)
+    ? new Date(`${normalized}T00:00:00`)
+    : new Date(`${String(fallbackYmd || "").trim() || formatDateForInput(new Date())}T00:00:00`);
+  if (Number.isNaN(baseDate.getTime())) {
+    return String(fallbackYmd || "").trim() || formatDateForInput(new Date());
+  }
+  baseDate.setDate(baseDate.getDate() - (baseDate.getDay() + 6) % 7);
+  return formatDateForInput(baseDate);
+}
+
+export function normalizeMyChildrenVisibleWeekDays(days) {
+  const validKeys = new Set(MY_CHILDREN_DAY_ITEMS.map((item) => item.key));
+  const normalized = Array.from(
+    new Set(
+      (Array.isArray(days) ? days : [])
+        .map((day) => String(day || "").trim().toLowerCase())
+        .filter((day) => validKeys.has(day))
+    )
+  );
+
+  if (normalized.length === 0) {
+    return [...MY_CHILDREN_DEFAULT_VISIBLE_WEEK_DAYS];
+  }
+
+  return MY_CHILDREN_DAY_ITEMS
+    .map((item) => item.key)
+    .filter((key) => normalized.includes(key));
+}
+
 export function normalizeVipAttendanceStatus(value, fallback = "unmarked") {
   const normalized = String(value || "").trim().toLowerCase();
   if (normalized === "present" || normalized === "absent") {
@@ -160,11 +210,13 @@ export function formatMyChildrenOptionLabel(item) {
   const middleName = String(item?.middleName || item?.middle_name || "").trim();
   const fullName = `${firstName} ${lastName} ${middleName}`.replace(/\s+/g, " ").trim();
   const clientId = String(item?.id || "").trim();
+  const classId = String(item?.classId || item?.class_id || item?.classAssignmentId || item?.class_assignment_id || "").trim();
   const className = String(item?.className || item?.class_name || "").trim();
   const tutorName = String(item?.tutorName || item?.tutor_name || "").trim();
   return {
     id: clientId,
     label: fullName || (clientId ? `Child #${clientId}` : "Child"),
+    classId,
     className,
     tutorName
   };
@@ -173,9 +225,12 @@ export function formatMyChildrenOptionLabel(item) {
 export function mapMyChildrenScheduleItem(item) {
   return {
     id: String(item?.id || "").trim(),
+    specialistId: String(item?.specialistId || item?.specialist_id || "").trim(),
+    clientId: String(item?.clientId || item?.client_id || "").trim(),
     appointmentDate: String(item?.appointmentDate || item?.appointment_date || "").trim(),
     startTime: String(item?.startTime || item?.start_time || "").trim(),
     endTime: String(item?.endTime || item?.end_time || "").trim(),
+    durationMinutes: String(item?.durationMinutes || item?.duration_minutes || "").trim(),
     status: String(item?.status || "").trim().toLowerCase(),
     serviceName: String(item?.serviceName || item?.service_name || "").trim(),
     specialistName: String(item?.specialistName || item?.specialist_name || "").trim(),

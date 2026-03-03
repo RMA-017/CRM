@@ -10,6 +10,7 @@ import { mapVipClassDailyRoutineItem } from "./profile.vip-utils.js";
 
 export function useVipDailyRoutinesSection({
   canReadAppointmentVipClients,
+  canOpenMyChildren,
   canCreateAppointmentVipClients,
   canUpdateAppointmentVipClients,
   canDeleteAppointmentVipClients,
@@ -20,12 +21,13 @@ export function useVipDailyRoutinesSection({
   const [vipDailyRoutineMessage, setVipDailyRoutineMessage] = useState("");
   const [vipDailyRoutineLoading, setVipDailyRoutineLoading] = useState(false);
   const [vipDailyRoutineSavingById, setVipDailyRoutineSavingById] = useState({});
+  const canReadVipDailyRoutines = Boolean(canReadAppointmentVipClients || canOpenMyChildren);
 
   const loadVipDailyRoutines = useCallback(async ({
     classId = "",
     dayOfWeek = ""
   } = {}) => {
-    if (!canReadAppointmentVipClients) {
+    if (!canReadVipDailyRoutines) {
       setVipDailyRoutineItems([]);
       setVipDailyRoutineClasses([]);
       setVipDailyRoutineMessage("You do not have permission to view VIP daily routines.");
@@ -89,7 +91,7 @@ export function useVipDailyRoutinesSection({
     } finally {
       setVipDailyRoutineLoading(false);
     }
-  }, [canReadAppointmentVipClients, navigate]);
+  }, [canReadVipDailyRoutines, navigate]);
 
   const saveVipDailyRoutine = useCallback(async ({
     id = "",

@@ -1739,9 +1739,15 @@ export async function getClientsPage({
 
   const normalizedSearch = String(search || "").trim().toLowerCase();
   if (normalizedSearch) {
+    const isNumericSearch = /^\d+$/.test(normalizedSearch);
     const usePrefixOnly = normalizedSearch.length < 4;
     params.push(`${normalizedSearch}%`);
     const prefixParamIndex = params.length;
+    let numericSearchParamIndex = 0;
+    if (isNumericSearch) {
+      params.push(Number.parseInt(normalizedSearch, 10));
+      numericSearchParamIndex = params.length;
+    }
 
     if (usePrefixOnly) {
       whereParts.push(`(
@@ -1749,6 +1755,7 @@ export async function getClientsPage({
         OR LOWER(COALESCE(c.last_name, '')) LIKE $${prefixParamIndex}
         OR LOWER(COALESCE(c.middle_name, '')) LIKE $${prefixParamIndex}
         OR COALESCE(c.phone_number, '') LIKE $${prefixParamIndex}
+        ${numericSearchParamIndex ? `OR c.id = $${numericSearchParamIndex}` : ""}
       )`);
     } else {
       params.push(`%${normalizedSearch}%`);
@@ -1760,6 +1767,7 @@ export async function getClientsPage({
         OR COALESCE(c.phone_number, '') LIKE $${prefixParamIndex}
         OR LOWER(COALESCE(c.tg_mail, '')) LIKE $${containsParamIndex}
         OR LOWER(COALESCE(c.note, '')) LIKE $${containsParamIndex}
+        ${numericSearchParamIndex ? `OR c.id = $${numericSearchParamIndex}` : ""}
       )`);
     }
   }
@@ -1879,6 +1887,7 @@ export async function searchClientsForSchedule({
          ) AS created_by_name,
          COALESCE(NULLIF(TRIM(cr.label), ''), '') AS creator_role_label,
          COALESCE(NULLIF(TRIM(cp.label), ''), '') AS creator_position_label,
+         vcta.id::text AS class_id,
          vcta.class_name AS vip_class_name,
          vcta.teacher_user_id::text AS teacher_id,
          COALESCE(NULLIF(TRIM(vat.full_name), ''), NULLIF(TRIM(vat.username), ''), '') AS teacher_name,
@@ -1968,6 +1977,7 @@ export async function searchClientsForSchedule({
        ) AS created_by_name,
        COALESCE(NULLIF(TRIM(cr.label), ''), '') AS creator_role_label,
        COALESCE(NULLIF(TRIM(cp.label), ''), '') AS creator_position_label,
+       vcta.id::text AS class_id,
        vcta.class_name AS vip_class_name,
        vcta.teacher_user_id::text AS teacher_id,
        COALESCE(NULLIF(TRIM(vat.full_name), ''), NULLIF(TRIM(vat.username), ''), '') AS teacher_name,

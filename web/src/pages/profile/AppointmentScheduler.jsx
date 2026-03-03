@@ -1485,7 +1485,7 @@ function AppointmentScheduler({
     })).filter((option) => Boolean(option.value));
 
     return [
-      { value: "", label: "All clients" },
+      { value: "", label: "All" },
       ...classClientOptions
     ];
   }, [selectedVipClassClients, vipOnly]);
@@ -2842,15 +2842,15 @@ function AppointmentScheduler({
         {vipOnly ? (
           <div className="appointment-toolbar-block">
             <div className="appointment-specialist-control">
-              <span className="appointment-toolbar-label">Client</span>
+              <span className="appointment-toolbar-label">Child</span>
               <div className="appointment-specialist-select-wrap">
                 <CustomSelect
                   id="appointmentVipClientFilterSelect"
-                  placeholder="Select client"
+                  placeholder="All"
                   value={selectedVipClientFilterId}
                   options={vipClientFilterOptions}
                   searchable
-                  searchPlaceholder="Search client"
+                  searchPlaceholder="Search child"
                   searchThreshold={8}
                   maxVisibleOptions={10}
                   disabled={!selectedSpecialistId || vipClientFilterOptions.length <= 1}

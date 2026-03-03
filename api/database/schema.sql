@@ -417,6 +417,9 @@ CREATE TABLE appointment_schedules (
 CREATE INDEX idx_appointment_schedules_org_specialist_date_time
   ON appointment_schedules (organization_id, specialist_id, appointment_date, start_time);
 
+CREATE INDEX idx_appointment_schedules_org_date_specialist
+  ON appointment_schedules (organization_id, appointment_date, specialist_id);
+
 CREATE INDEX idx_appointment_schedules_org_created_at
   ON appointment_schedules (organization_id, created_at DESC);
 

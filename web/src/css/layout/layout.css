@@ -102,10 +102,12 @@
     box-shadow var(--dur) ease;
 }
 
-.header-btn:hover {
-  border-color: var(--brand);
-  color: var(--brand);
-  background: var(--brand-light);
+@media (hover: hover) {
+  .header-btn:hover {
+    border-color: var(--brand);
+    color: var(--brand);
+    background: var(--brand-light);
+  }
 }
 
 .profile-link {
@@ -116,12 +118,14 @@
   box-shadow: 0 2px 10px rgba(67, 97, 238, 0.32);
 }
 
-.profile-link:hover {
-  filter: brightness(1.09);
-  box-shadow: 0 4px 16px rgba(67, 97, 238, 0.40);
-  color: var(--on-brand);
-  background: var(--brand-gradient);
-  border: 0;
+@media (hover: hover) {
+  .profile-link:hover {
+    filter: brightness(1.09);
+    box-shadow: 0 4px 16px rgba(67, 97, 238, 0.40);
+    color: var(--on-brand);
+    background: var(--brand-gradient);
+    border: 0;
+  }
 }
 
 #headerLogoutBtn,

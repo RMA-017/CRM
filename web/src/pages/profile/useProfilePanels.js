@@ -9,9 +9,11 @@ export function useProfilePanels({
   canCreateUsers,
   canReadClients,
   canOpenAppointmentSchedule,
+  canOpenAppointmentVipMyClass,
   canOpenAppointmentBreaks,
   canOpenAppointmentVipClients,
   canOpenMyChildren,
+  canOpenAppointmentVipDailyRoutines,
   canOpenAppointmentVipAssignments,
   canOpenAppointmentStatistics,
   hasSettingsMenuAccess,
@@ -82,8 +84,16 @@ export function useProfilePanels({
     openPanel("/statistics/class", canOpenAppointmentStatistics);
   }, [canOpenAppointmentStatistics, openPanel]);
 
+  const openStatisticsPlannerReportPanel = useCallback(() => {
+    openPanel("/statistics/planner-report", canOpenAppointmentStatistics);
+  }, [canOpenAppointmentStatistics, openPanel]);
+
   const closeStatisticsPanel = useCallback(() => {
-    if (mainView === "statistics" || mainView === "statistics-class") {
+    if (
+      mainView === "statistics"
+      || mainView === "statistics-class"
+      || mainView === "statistics-planner-report"
+    ) {
       navigate("/profile");
       return;
     }
@@ -111,8 +121,8 @@ export function useProfilePanels({
   }, [closeAppointmentVipAttendancePanel]);
 
   const openAppointmentVipDailyRoutinesPanel = useCallback(() => {
-    openPanel("/vip-clients/daily-routines", canOpenAppointmentVipClients);
-  }, [canOpenAppointmentVipClients, openPanel]);
+    openPanel("/vip-clients/daily-routines", canOpenAppointmentVipDailyRoutines);
+  }, [canOpenAppointmentVipDailyRoutines, openPanel]);
 
   const closeAppointmentVipDailyRoutinesPanel = useCallback(() => {
     closePanel("appointment-vip-daily-routines");
@@ -135,8 +145,8 @@ export function useProfilePanels({
   }, [closePanel]);
 
   const openAppointmentVipSchedulePanel = useCallback(() => {
-    openPanel("/vip-clients/my-class", canOpenAppointmentSchedule);
-  }, [canOpenAppointmentSchedule, openPanel]);
+    openPanel("/vip-clients/my-class", canOpenAppointmentVipMyClass);
+  }, [canOpenAppointmentVipMyClass, openPanel]);
 
   const closeAppointmentVipSchedulePanel = useCallback(() => {
     closePanel("appointment-vip-schedule");
@@ -215,6 +225,7 @@ export function useProfilePanels({
     openAppointmentSettingsPanel,
     closeAppointmentSettingsPanel,
     openStatisticsClassPanel,
+    openStatisticsPlannerReportPanel,
     closeStatisticsPanel,
     openAppointmentVipAttendancePanel,
     closeAppointmentVipAttendancePanel,

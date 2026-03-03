@@ -26,10 +26,13 @@ import { useVipDailyRoutinesSection } from "./profile/useVipDailyRoutinesSection
 import { getBirthdayValidationMessage } from "./profile/profile.validators.js";
 import {
   formatMyChildrenOptionLabel,
+  getMyChildrenWeekStartYmd,
   mapMyChildrenScheduleItem,
+  MY_CHILDREN_DEFAULT_VISIBLE_WEEK_DAYS,
   mapVipAssignmentItem,
   mapVipAttendanceClient,
   mapVipClassItem,
+  normalizeMyChildrenVisibleWeekDays,
   normalizeVipAssignmentDraftEntry,
   normalizeVipAttendanceDateTime,
   normalizeVipAttendanceDraftEntry,
@@ -37,6 +40,10 @@ import {
   resolveVipAttendanceDate,
   shiftDateYmd
 } from "./profile/profile.vip-utils.js";
+
+function getInitialMyChildrenIsCompact() {
+  return typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches;
+}
 
 function ProfilePage({ forcedView = "none" }) {
   const navigate = useNavigate();
@@ -89,9 +96,11 @@ function ProfilePage({ forcedView = "none" }) {
     canDeleteAppointments,
     canSendNotifications,
     canOpenAppointmentSchedule,
+    canOpenAppointmentVipMyClass,
     canOpenAppointmentBreaks,
     canOpenAppointmentVipClients,
     canOpenMyChildren,
+    canOpenAppointmentVipDailyRoutines,
     canReadAppointmentVipClients,
     canCreateAppointmentVipClients,
     canUpdateAppointmentVipClients,
@@ -234,6 +243,8 @@ function ProfilePage({ forcedView = "none" }) {
     allUsersMessage,
     allUsersPage,
     allUsersTotalPages,
+    allUsersSearch,
+    setAllUsersSearch,
     allUsersEdit,
     allUsersDelete,
     setAllUsersEdit,
@@ -259,6 +270,10 @@ function ProfilePage({ forcedView = "none" }) {
     clientsMessage,
     clientsPage,
     clientsTotalPages,
+    clientsSearch,
+    setClientsSearch,
+    clientsIsVip,
+    setClientsIsVip,
     clientCreateForm,
     clientCreateErrors,
     clientCreateSubmitting,
@@ -299,23 +314,21 @@ function ProfilePage({ forcedView = "none" }) {
   const [vipAttendanceMessage, setVipAttendanceMessage] = useState("");
   const [vipAttendanceLoading, setVipAttendanceLoading] = useState(false);
   const [vipAttendanceSavingByClientId, setVipAttendanceSavingByClientId] = useState({});
-  const [myChildrenIsCompact, setMyChildrenIsCompact] = useState(() =>
-    typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches
-  );
-  const [myChildrenDateYmd, setMyChildrenDateYmd] = useState(() => {
-    const isCompact = typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches;
-    if (isCompact) {
-      return formatDateForInput(new Date());
-    }
-    const d = new Date();
-    d.setDate(d.getDate() - (d.getDay() + 6) % 7);
-    return formatDateForInput(d);
-  });
+  const [myChildrenIsCompact, setMyChildrenIsCompact] = useState(getInitialMyChildrenIsCompact);
+  const [myChildrenDateYmd, setMyChildrenDateYmd] = useState(() => (
+    getInitialMyChildrenIsCompact()
+      ? todayYmd
+      : getMyChildrenWeekStartYmd(todayYmd, todayYmd)
+  ));
+  const [myChildrenVisibleWeekDays, setMyChildrenVisibleWeekDays] = useState(() => [...MY_CHILDREN_DEFAULT_VISIBLE_WEEK_DAYS]);
   const [myChildrenOptions, setMyChildrenOptions] = useState([]);
+  const [myChildrenOptionsLoading, setMyChildrenOptionsLoading] = useState(false);
+  const [myChildrenOptionsReady, setMyChildrenOptionsReady] = useState(false);
   const [myChildrenSelectedClientId, setMyChildrenSelectedClientId] = useState("");
   const [myChildrenScheduleItems, setMyChildrenScheduleItems] = useState([]);
   const [myChildrenScheduleLoading, setMyChildrenScheduleLoading] = useState(false);
   const [myChildrenScheduleMessage, setMyChildrenScheduleMessage] = useState("");
+  const [myChildrenConfirmingByAppointmentId, setMyChildrenConfirmingByAppointmentId] = useState({});
   const {
     vipDailyRoutineItems,
     vipDailyRoutineClasses,
@@ -327,6 +340,7 @@ function ProfilePage({ forcedView = "none" }) {
     deleteVipDailyRoutine
   } = useVipDailyRoutinesSection({
     canReadAppointmentVipClients,
+    canOpenMyChildren,
     canCreateAppointmentVipClients,
     canUpdateAppointmentVipClients,
     canDeleteAppointmentVipClients,
@@ -647,6 +661,8 @@ function ProfilePage({ forcedView = "none" }) {
 
   const loadMyChildrenOptions = useCallback(async () => {
     if (!canOpenMyChildren) {
+      setMyChildrenOptionsLoading(false);
+      setMyChildrenOptionsReady(true);
       setMyChildrenOptions([]);
       setMyChildrenSelectedClientId("");
       setMyChildrenScheduleItems([]);
@@ -654,6 +670,8 @@ function ProfilePage({ forcedView = "none" }) {
       return;
     }
 
+    setMyChildrenOptionsLoading(true);
+    setMyChildrenOptionsReady(false);
     setMyChildrenScheduleMessage("");
     try {
       const query = new URLSearchParams({
@@ -688,20 +706,46 @@ function ProfilePage({ forcedView = "none" }) {
         if (current && nextOptions.some((item) => item.id === current)) {
           return current;
         }
-        return String(nextOptions[0]?.id || "").trim();
+        return "";
       });
 
       if (nextOptions.length === 0) {
         setMyChildrenScheduleItems([]);
-        setMyChildrenScheduleMessage("No assigned children found.");
+        setMyChildrenScheduleMessage("");
       }
     } catch {
       setMyChildrenOptions([]);
       setMyChildrenSelectedClientId("");
       setMyChildrenScheduleItems([]);
       setMyChildrenScheduleMessage("Failed to load assigned children.");
+    } finally {
+      setMyChildrenOptionsLoading(false);
+      setMyChildrenOptionsReady(true);
     }
   }, [canOpenMyChildren, navigate]);
+
+  const loadMyChildrenVisibleWeekDays = useCallback(async () => {
+    if (!canOpenMyChildren) {
+      setMyChildrenVisibleWeekDays([...MY_CHILDREN_DEFAULT_VISIBLE_WEEK_DAYS]);
+      return;
+    }
+
+    try {
+      const response = await apiFetch("/api/appointments/settings", {
+        method: "GET",
+        cache: "no-store"
+      });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        setMyChildrenVisibleWeekDays([...MY_CHILDREN_DEFAULT_VISIBLE_WEEK_DAYS]);
+        return;
+      }
+
+      setMyChildrenVisibleWeekDays(normalizeMyChildrenVisibleWeekDays(data?.item?.visibleWeekDays));
+    } catch {
+      setMyChildrenVisibleWeekDays([...MY_CHILDREN_DEFAULT_VISIBLE_WEEK_DAYS]);
+    }
+  }, [canOpenMyChildren]);
 
   const loadMyChildrenSchedule = useCallback(async ({
     clientId = "",
@@ -716,10 +760,10 @@ function ProfilePage({ forcedView = "none" }) {
     const normalizedClientId = String(clientId || "").trim();
     const dateFromYmd = String(dateYmd || "").trim() || todayYmd;
     const dateToYmd = myChildrenIsCompact ? dateFromYmd : shiftDateYmd(dateFromYmd, 6, todayYmd);
-    if (!normalizedClientId) {
+    const hasChildren = Array.isArray(myChildrenOptions) && myChildrenOptions.length > 0;
+    if (!normalizedClientId && !hasChildren) {
       setMyChildrenScheduleItems([]);
-      const hasChildren = Array.isArray(myChildrenOptions) && myChildrenOptions.length > 0;
-      setMyChildrenScheduleMessage(hasChildren ? "Select a child." : "No assigned children found.");
+      setMyChildrenScheduleMessage("");
       return;
     }
 
@@ -727,12 +771,15 @@ function ProfilePage({ forcedView = "none" }) {
     setMyChildrenScheduleMessage("");
     try {
       const query = new URLSearchParams({
-        clientId: normalizedClientId,
         dateFrom: dateFromYmd,
         dateTo: dateToYmd,
         vipOnly: "true",
         light: "true"
       });
+      if (normalizedClientId) {
+        query.set("clientId", normalizedClientId);
+      }
+
       const response = await apiFetch(`/api/appointments/schedules?${query.toString()}`, {
         method: "GET",
         cache: "no-store"
@@ -782,6 +829,88 @@ function ProfilePage({ forcedView = "none" }) {
   const goToNextMyChildrenDay = useCallback(() => {
     setMyChildrenDateYmd((prev) => shiftDateYmd(prev, myChildrenIsCompact ? 1 : 7, todayYmd));
   }, [myChildrenIsCompact, todayYmd]);
+
+  const confirmMyChildrenPendingAppointment = useCallback(async (item) => {
+    const status = String(item?.status || "").trim().toLowerCase();
+    if (status !== "pending") {
+      return;
+    }
+
+    const appointmentId = String(item?.id || item?.appointmentId || "").trim();
+    const specialistId = String(item?.specialistId || item?.specialist_id || "").trim();
+    const clientId = String(item?.clientId || item?.client_id || "").trim();
+    const appointmentDate = String(item?.appointmentDate || item?.appointment_date || "").trim();
+    const startTime = String(item?.startTime || item?.start_time || "").trim();
+    const endTime = String(item?.endTime || item?.end_time || "").trim();
+    const durationMinutes = String(item?.durationMinutes || item?.duration_minutes || "").trim();
+    const serviceName = String(item?.serviceName || item?.service_name || "").trim() || "Service";
+    const note = String(item?.note || "").trim();
+
+    if (!appointmentId || !specialistId || !clientId || !appointmentDate || !startTime || !endTime || !durationMinutes) {
+      if (typeof window !== "undefined" && typeof window.alert === "function") {
+        window.alert("Failed to confirm lesson.");
+      }
+      return;
+    }
+    if (myChildrenConfirmingByAppointmentId[appointmentId]) {
+      return;
+    }
+
+    try {
+      setMyChildrenConfirmingByAppointmentId((prev) => ({
+        ...prev,
+        [appointmentId]: true
+      }));
+
+      const response = await apiFetch(
+        `/api/appointments/schedules/${encodeURIComponent(appointmentId)}?scope=single`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            specialistId,
+            clientId,
+            appointmentDate,
+            startTime,
+            endTime,
+            durationMinutes,
+            service: serviceName,
+            status: "confirmed",
+            note
+          })
+        }
+      );
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        if (typeof window !== "undefined" && typeof window.alert === "function") {
+          window.alert(String(data?.message || "Failed to confirm lesson.").trim());
+        }
+        return;
+      }
+
+      await loadMyChildrenSchedule({
+        clientId: myChildrenSelectedClientId,
+        dateYmd: myChildrenDateYmd
+      });
+    } catch {
+      if (typeof window !== "undefined" && typeof window.alert === "function") {
+        window.alert("Failed to confirm lesson.");
+      }
+    } finally {
+      setMyChildrenConfirmingByAppointmentId((prev) => {
+        const next = { ...prev };
+        delete next[appointmentId];
+        return next;
+      });
+    }
+  }, [
+    loadMyChildrenSchedule,
+    myChildrenConfirmingByAppointmentId,
+    myChildrenDateYmd,
+    myChildrenSelectedClientId
+  ]);
 
   const saveVipAttendanceRecord = useCallback(async ({
     clientId,
@@ -1631,6 +1760,7 @@ function ProfilePage({ forcedView = "none" }) {
     }
     if (mainView === "appointment-vip-my-children") {
       loadMyChildrenOptions();
+      loadVipDailyRoutines();
       return;
     }
     if (mainView === "appointment-vip-daily-routines") {
@@ -1704,6 +1834,9 @@ function ProfilePage({ forcedView = "none" }) {
     if (!profile?.username || mainView !== "appointment-vip-my-children") {
       return;
     }
+    if (!myChildrenOptionsReady) {
+      return;
+    }
     loadMyChildrenSchedule({
       clientId: myChildrenSelectedClientId,
       dateYmd: myChildrenDateYmd
@@ -1712,6 +1845,7 @@ function ProfilePage({ forcedView = "none" }) {
     loadMyChildrenSchedule,
     mainView,
     myChildrenDateYmd,
+    myChildrenOptionsReady,
     myChildrenSelectedClientId,
     profile?.username
   ]);
@@ -1741,22 +1875,21 @@ function ProfilePage({ forcedView = "none" }) {
       return;
     }
     const mq = window.matchMedia("(max-width: 860px)");
-    const handler = (e) => {
-      setMyChildrenIsCompact(e.matches);
-      if (!e.matches) {
-        setMyChildrenDateYmd((prev) => {
-          const d = new Date(`${prev}T00:00:00`);
-          if (Number.isNaN(d.getTime())) {
-            return prev;
-          }
-          d.setDate(d.getDate() - (d.getDay() + 6) % 7);
-          return formatDateForInput(d);
-        });
+    const handleViewportChange = (event) => {
+      setMyChildrenIsCompact(event.matches);
+      if (!event.matches) {
+        setMyChildrenDateYmd((prev) => getMyChildrenWeekStartYmd(prev, todayYmd));
       }
     };
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
+    mq.addEventListener("change", handleViewportChange);
+    return () => {
+      mq.removeEventListener("change", handleViewportChange);
+    };
+  }, [todayYmd]);
+
+  useEffect(() => {
+    void loadMyChildrenVisibleWeekDays();
+  }, [loadMyChildrenVisibleWeekDays]);
 
   useEffect(() => {
     function handleEscape(event) {
@@ -1852,6 +1985,7 @@ function ProfilePage({ forcedView = "none" }) {
     openAppointmentSettingsPanel,
     closeAppointmentSettingsPanel,
     openStatisticsClassPanel,
+    openStatisticsPlannerReportPanel,
     closeStatisticsPanel,
     openOrganizationsPanel,
     closeOrganizationsPanel,
@@ -1876,9 +2010,11 @@ function ProfilePage({ forcedView = "none" }) {
     canCreateUsers,
     canReadClients,
     canOpenAppointmentSchedule,
+    canOpenAppointmentVipMyClass,
     canOpenAppointmentBreaks,
     canOpenAppointmentVipClients,
     canOpenMyChildren,
+    canOpenAppointmentVipDailyRoutines,
     canOpenAppointmentVipAssignments,
     canOpenAppointmentStatistics,
     hasSettingsMenuAccess,
@@ -2287,6 +2423,8 @@ function ProfilePage({ forcedView = "none" }) {
           openAllUsersDeleteModal={openAllUsersDeleteModal}
           allUsersPage={allUsersPage}
           allUsersTotalPages={allUsersTotalPages}
+          allUsersSearch={allUsersSearch}
+          setAllUsersSearch={setAllUsersSearch}
           loadAllUsers={loadAllUsers}
           closeAllUsersPanel={closeAllUsersPanel}
           closeAllClientsPanel={closeAllClientsPanel}
@@ -2295,6 +2433,10 @@ function ProfilePage({ forcedView = "none" }) {
           clientsMessage={clientsMessage}
           clientsPage={clientsPage}
           clientsTotalPages={clientsTotalPages}
+          clientsSearch={clientsSearch}
+          setClientsSearch={setClientsSearch}
+          clientsIsVip={clientsIsVip}
+          setClientsIsVip={setClientsIsVip}
           loadClients={loadClients}
           vipAttendancePeriod={vipAttendancePeriod}
           setVipAttendancePeriodField={setVipAttendancePeriodField}
@@ -2311,12 +2453,16 @@ function ProfilePage({ forcedView = "none" }) {
           loadVipAttendance={loadVipAttendance}
           myChildrenIsCompact={myChildrenIsCompact}
           myChildrenDateYmd={myChildrenDateYmd}
+          myChildrenVisibleWeekDays={myChildrenVisibleWeekDays}
           myChildrenOptions={myChildrenOptions}
+          myChildrenOptionsLoading={myChildrenOptionsLoading}
           myChildrenSelectedClientId={myChildrenSelectedClientId}
           setMyChildrenSelectedClientId={setMyChildrenSelectedClientId}
           myChildrenScheduleItems={myChildrenScheduleItems}
           myChildrenScheduleLoading={myChildrenScheduleLoading}
           myChildrenScheduleMessage={myChildrenScheduleMessage}
+          myChildrenConfirmingByAppointmentId={myChildrenConfirmingByAppointmentId}
+          confirmMyChildrenPendingAppointment={confirmMyChildrenPendingAppointment}
           goToPreviousMyChildrenDay={goToPreviousMyChildrenDay}
           goToNextMyChildrenDay={goToNextMyChildrenDay}
           vipDailyRoutineItems={vipDailyRoutineItems}
@@ -2553,9 +2699,11 @@ function ProfilePage({ forcedView = "none" }) {
         setAssignmentsMenuOpen={setAssignmentsMenuOpen}
         hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
         canOpenAppointmentSchedule={canOpenAppointmentSchedule}
+        canOpenAppointmentVipMyClass={canOpenAppointmentVipMyClass}
         canOpenAppointmentBreaks={canOpenAppointmentBreaks}
         canOpenAppointmentVipClients={canOpenAppointmentVipClients}
         canOpenMyChildren={canOpenMyChildren}
+        canOpenAppointmentVipDailyRoutines={canOpenAppointmentVipDailyRoutines}
         canOpenAppointmentVipAssignments={canOpenAppointmentVipAssignments}
         canOpenAppointmentStatistics={canOpenAppointmentStatistics}
         appointmentMenuOpen={appointmentMenuOpen}
@@ -2572,6 +2720,7 @@ function ProfilePage({ forcedView = "none" }) {
         statisticsMenuOpen={statisticsMenuOpen}
         setStatisticsMenuOpen={setStatisticsMenuOpen}
         openStatisticsClassPanel={openStatisticsClassPanel}
+        openStatisticsPlannerReportPanel={openStatisticsPlannerReportPanel}
         hasUsersMenuAccess={hasUsersMenuAccess}
         usersMenuOpen={usersMenuOpen}
         setUsersMenuOpen={setUsersMenuOpen}

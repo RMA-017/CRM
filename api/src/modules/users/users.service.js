@@ -93,7 +93,8 @@ export async function getUsersPage({
   page,
   limit,
   canReadAllOrganizations = false,
-  organizationCode = ""
+  organizationCode = "",
+  search = ""
 }) {
   const baseParams = [];
   const whereParts = ["o.is_active = TRUE"];
@@ -107,6 +108,25 @@ export async function getUsersPage({
   } else {
     baseParams.push(organizationId);
     whereParts.push(`u.organization_id = $${baseParams.length}`);
+  }
+
+  const normalizedSearch = String(search || "").trim();
+  if (normalizedSearch) {
+    const isNumericSearch = /^\d+$/.test(normalizedSearch);
+    baseParams.push(`%${normalizedSearch}%`);
+    const textSearchParamIndex = baseParams.length;
+    let numericSearchParamIndex = 0;
+    if (isNumericSearch) {
+      baseParams.push(Number.parseInt(normalizedSearch, 10));
+      numericSearchParamIndex = baseParams.length;
+    }
+    whereParts.push(`(
+      u.username ILIKE $${textSearchParamIndex}
+      OR u.email ILIKE $${textSearchParamIndex}
+      OR u.full_name ILIKE $${textSearchParamIndex}
+      OR u.phone_number ILIKE $${textSearchParamIndex}
+      ${numericSearchParamIndex ? `OR u.id = $${numericSearchParamIndex}` : ""}
+    )`);
   }
 
   const whereSql = `WHERE ${whereParts.join(" AND ")}`;

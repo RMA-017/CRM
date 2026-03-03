@@ -42,6 +42,8 @@ export function useClientsSection({
   const [clientsMessage, setClientsMessage] = useState("");
   const [clientsPage, setClientsPage] = useState(1);
   const [clientsTotalPages, setClientsTotalPages] = useState(1);
+  const [clientsSearch, setClientsSearch] = useState("");
+  const [clientsIsVip, setClientsIsVip] = useState("");
   const [clientCreateForm, setClientCreateForm] = useState({ ...EMPTY_CLIENT_CREATE_FORM });
   const [clientCreateErrors, setClientCreateErrors] = useState({});
   const [clientCreateSubmitting, setClientCreateSubmitting] = useState(false);
@@ -162,7 +164,7 @@ export function useClientsSection({
     return errors;
   }, [getBirthdayValidationMessage]);
 
-  const loadClients = useCallback(async (requestedPage = 1) => {
+  const loadClients = useCallback(async (requestedPage = 1, searchOverride, isVipOverride) => {
     if (!canReadClients) {
       navigate("/404", { replace: true });
       return;
@@ -177,6 +179,14 @@ export function useClientsSection({
         page: String(nextPage),
         limit: String(ALL_USERS_LIMIT)
       });
+      const trimmedSearch = String(searchOverride !== undefined ? searchOverride : (clientsSearch || "")).trim();
+      if (trimmedSearch) {
+        query.set("q", trimmedSearch);
+      }
+      const vipFilter = isVipOverride !== undefined ? isVipOverride : clientsIsVip;
+      if (vipFilter === "true" || vipFilter === "false") {
+        query.set("isVip", vipFilter);
+      }
 
       const response = await apiFetch(`/api/clients?${query.toString()}`, {
         method: "GET",
@@ -213,7 +223,7 @@ export function useClientsSection({
     } finally {
       setClientsLoading(false);
     }
-  }, [canReadClients, navigate]);
+  }, [canReadClients, clientsIsVip, clientsSearch, navigate]);
 
   const handleClientCreateSubmit = useCallback(async (event) => {
     event.preventDefault();
@@ -517,6 +527,10 @@ export function useClientsSection({
     clientsMessage,
     clientsPage,
     clientsTotalPages,
+    clientsSearch,
+    setClientsSearch,
+    clientsIsVip,
+    setClientsIsVip,
     clientCreateForm,
     clientCreateErrors,
     clientCreateSubmitting,

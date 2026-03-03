@@ -19,6 +19,7 @@ function buildSchedulesReadCacheKey({
   specialistId,
   clientId,
   classId,
+  assignedUserId,
   dateFrom,
   dateTo,
   vipOnly,
@@ -30,6 +31,7 @@ function buildSchedulesReadCacheKey({
     `sp:${specialistId || 0}`,
     `cl:${clientId || 0}`,
     `class:${classId || 0}`,
+    `au:${assignedUserId || 0}`,
     `from:${dateFrom}`,
     `to:${dateTo}`,
     `vip:${vipOnly ? 1 : 0}`,
@@ -93,6 +95,8 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     buildScheduleNotification,
     createRouteError,
     isUniqueOrExclusionConflict,
+    getAppointmentPlannerReportFilters,
+    getAppointmentPlannerReport,
     getAppointmentSchedulesByRange,
     isVipClassAssignedToUser,
     getAppointmentHistoryLockDaysByOrganization,
@@ -106,9 +110,76 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     deleteAppointmentSchedulesByIds,
     withAppointmentTransaction,
     toAppointmentDayNum,
+    isVipClientAssignedToUser,
     broadcastAppointmentChange,
     DATE_REGEX
   } = context;
+
+  fastify.get(
+    "/report/filters",
+    { config: { rateLimit: fastify.apiRateLimit } },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+
+      const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_SUBMENU_STATISTICS);
+      if (!access) {
+        return;
+      }
+
+      try {
+        const data = await getAppointmentPlannerReportFilters({
+          organizationId: access.authContext.organizationId
+        });
+        return reply.send(data);
+      } catch (error) {
+        request.log.error({ err: error }, "Error fetching appointment planner report filters");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.get(
+    "/report",
+    { config: { rateLimit: fastify.apiRateLimit } },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+
+      const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_SUBMENU_STATISTICS);
+      if (!access) {
+        return;
+      }
+
+      const fromRaw = String(request.query?.from || "").trim();
+      const toRaw = String(request.query?.to || "").trim();
+      if (!DATE_REGEX.test(fromRaw) || !DATE_REGEX.test(toRaw)) {
+        return reply.status(400).send({ message: "Invalid date range. Use YYYY-MM-DD format." });
+      }
+      if (fromRaw > toRaw) {
+        return reply.status(400).send({ message: "'from' must not be after 'to'." });
+      }
+
+      const specialistId = parsePositiveIntegerOr(request.query?.specialistId, 0) || null;
+      const clientId = parsePositiveIntegerOr(request.query?.clientId, 0) || null;
+      const isVip = parseNullableBoolean(request.query?.isVip ?? request.query?.is_vip);
+      const serviceName = String(request.query?.serviceName ?? request.query?.service_name ?? "").trim();
+
+      try {
+        const data = await getAppointmentPlannerReport({
+          organizationId: access.authContext.organizationId,
+          from: fromRaw,
+          to: toRaw,
+          specialistId,
+          clientId,
+          isVip,
+          serviceName
+        });
+        return reply.send(data);
+      } catch (error) {
+        request.log.error({ err: error }, "Error fetching appointment planner report");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
 
   fastify.get(
     "/schedules",
@@ -122,9 +193,10 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
       setNoCacheHeaders(reply);
 
       try {
-        const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_READ);
-        if (!access) {
-          return;
+        const authContext = request.authContext;
+        const requester = authContext?.requester;
+        if (!requester) {
+          return reply.status(401).send({ message: "Unauthorized." });
         }
 
         const specialistId = parsePositiveIntegerOr(request.query?.specialistId, 0);
@@ -137,8 +209,21 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const recurringOnly = parseNullableBoolean(
           request.query?.recurringOnly ?? request.query?.recurring_only
         ) === true;
+        const isMyChildrenScheduleRequest = vipOnly && !specialistId && !classId;
 
-        if (!specialistId && !clientId && !classId) {
+        const [canReadAppointments, canAccessMyChildren] = await Promise.all([
+          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_READ),
+          isMyChildrenScheduleRequest
+            ? hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN)
+            : Promise.resolve(false)
+        ]);
+        if (!canReadAppointments && !canAccessMyChildren) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const access = { authContext, requester };
+
+        if (!specialistId && !clientId && !classId && !isMyChildrenScheduleRequest) {
           return reply.status(400).send({ field: "specialistId", message: "Specialist, client or class is required." });
         }
         if (classId && !vipOnly) {
@@ -159,10 +244,15 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               PERMISSIONS
             })
           : "all";
-        const assignedUserId = scheduleReadScope === "all"
-          ? 0
-          : parsePositiveIntegerOr(access.authContext?.userId, 0);
-        if (enforceVipScope && scheduleReadScope !== "all" && !assignedUserId) {
+        const requesterUserId = parsePositiveIntegerOr(access.authContext?.userId, 0);
+        const assignedUserId = isMyChildrenScheduleRequest
+          ? requesterUserId
+          : (
+            scheduleReadScope === "all"
+              ? 0
+              : requesterUserId
+          );
+        if ((enforceVipScope && scheduleReadScope !== "all" && !assignedUserId) || (isMyChildrenScheduleRequest && !assignedUserId)) {
           return reply.status(403).send({ message: "Forbidden." });
         }
         if (classId && scheduleReadScope !== "all") {
@@ -185,6 +275,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           specialistId,
           clientId,
           classId,
+          assignedUserId,
           dateFrom,
           dateTo,
           vipOnly,
@@ -563,10 +654,21 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     },
     async (request, reply) => {
       try {
-        const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_UPDATE);
-        if (!access) {
-          return;
+        const authContext = request.authContext;
+        const requester = authContext?.requester;
+        if (!requester) {
+          return reply.status(401).send({ message: "Unauthorized." });
         }
+
+        const [canUpdateAppointments, canAccessMyChildren] = await Promise.all([
+          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_UPDATE),
+          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN)
+        ]);
+        if (!canUpdateAppointments && !canAccessMyChildren) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+        const access = { authContext, requester };
+        const isMyChildrenConfirmOnly = !canUpdateAppointments && canAccessMyChildren;
 
         const id = parsePositiveIntegerOr(request.params?.id, 0);
         if (!id) {
@@ -575,6 +677,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const scope = normalizeScheduleScope(request.query?.scope);
         if (!scope) {
           return reply.status(400).send({ field: "scope", message: "Invalid scope." });
+        }
+        if (isMyChildrenConfirmOnly && scope !== "single") {
+          return reply.status(403).send({ message: "Forbidden." });
         }
 
         const specialistId = parsePositiveIntegerOr(request.body?.specialistId, 0);
@@ -588,6 +693,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const status = normalizeAppointmentStatus(request.body?.status || "pending");
         const note = String(request.body?.note || "").trim();
         let repeat = normalizeScheduleRepeatPayload(request.body?.repeat);
+        if (isMyChildrenConfirmOnly && status !== "confirmed") {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
 
         const errors = validateSchedulePayload({
           specialistId,
@@ -611,6 +719,39 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         });
         if (!Array.isArray(target.items) || target.items.length === 0) {
           return reply.status(404).send({ message: "Appointment not found." });
+        }
+        if (isMyChildrenConfirmOnly) {
+          if (target.scope !== "single" || target.items.length !== 1) {
+            return reply.status(403).send({ message: "Forbidden." });
+          }
+          const targetItem = target.items[0];
+          const requesterUserId = parsePositiveIntegerOr(access.authContext?.userId, 0);
+          if (!requesterUserId) {
+            return reply.status(403).send({ message: "Forbidden." });
+          }
+          const isAssigned = await isVipClientAssignedToUser({
+            organizationId: access.authContext.organizationId,
+            clientId: targetItem?.clientId,
+            userId: requesterUserId
+          });
+          if (!isAssigned) {
+            return reply.status(403).send({ message: "Forbidden." });
+          }
+          const targetDurationMinutes = String(targetItem?.durationMinutes || "").trim();
+          const requestDurationMinutes = String(durationMinutes || "").trim();
+          const isSameSchedule = (
+            Number(targetItem?.specialistId || 0) === specialistId
+            && Number(targetItem?.clientId || 0) === clientId
+            && String(targetItem?.appointmentDate || "").trim() === appointmentDate
+            && String(targetItem?.startTime || "").trim() === startTime
+            && String(targetItem?.endTime || "").trim() === endTime
+            && targetDurationMinutes === requestDurationMinutes
+            && String(targetItem?.serviceName || "").trim() === serviceName
+            && String(targetItem?.note || "").trim() === note
+          );
+          if (!isSameSchedule || String(targetItem?.status || "").trim().toLowerCase() !== "pending") {
+            return reply.status(403).send({ message: "Forbidden." });
+          }
         }
         const historyLockDays = await getAppointmentHistoryLockDaysByOrganization(
           access.authContext.organizationId
@@ -1106,4 +1247,5 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
       }
     }
   );
+
 }
