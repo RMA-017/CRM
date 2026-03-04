@@ -17,6 +17,7 @@ function mapOption(row) {
     id: String(row.id),
     label: row.label,
     sortOrder: Number(row.sort_order || 0),
+    organizationId: String(row.organization_id || ""),
     isActive: Boolean(row.is_active),
     createdAt: row.created_at
   };
@@ -61,6 +62,7 @@ function mapRoleOption(row) {
     id: String(row.id),
     label: row.label,
     sortOrder: Number(row.sort_order || 0),
+    organizationId: String(row.organization_id || ""),
     isAdmin: Boolean(row.is_admin),
     isActive: Boolean(row.is_active),
     createdAt: row.created_at,
@@ -68,10 +70,19 @@ function mapRoleOption(row) {
   };
 }
 
-async function getRoleOptionByIdWithDb(db, id) {
+async function getRoleOptionByIdWithDb(db, id, organizationId = null, allowGlobal = true) {
+  const params = [id];
+  let scopeSql = "";
+  if (organizationId) {
+    params.push(organizationId);
+    scopeSql = allowGlobal
+      ? "AND (r.organization_id = $2 OR r.organization_id IS NULL)"
+      : "AND r.organization_id = $2";
+  }
   const { rows } = await db.query(
     `SELECT
        r.id,
+       r.organization_id,
        r.label,
        r.sort_order,
        r.is_admin,
@@ -86,9 +97,10 @@ async function getRoleOptionByIdWithDb(db, id) {
      LEFT JOIN role_permissions rp ON rp.role_id = r.id
      LEFT JOIN permissions p ON p.id = rp.permission_id
     WHERE r.id = $1
+      ${scopeSql}
     GROUP BY r.id
     LIMIT 1`,
-    [id]
+    params
   );
 
   return rows[0] ? mapRoleOption(rows[0]) : null;
@@ -145,13 +157,21 @@ export async function findSettingsRequester(authContext = {}) {
       id: cachedRequester.id,
       role_id: cachedRequester.role_id,
       role: roleLabel,
-      is_admin: Boolean(cachedRequester.is_admin)
+      is_admin: Boolean(cachedRequester.is_admin),
+      is_platform_admin: Boolean(cachedRequester.is_platform_admin),
+      organization_id: cachedRequester.organization_id
     };
   }
 
   const { userId, organizationId } = authContext;
   const { rows } = await pool.query(
-    `SELECT u.id, u.role_id, r.label AS role, r.is_admin
+    `SELECT
+       u.id,
+       u.role_id,
+       r.label AS role,
+       (COALESCE(u.is_platform_admin, FALSE) OR COALESCE(r.is_admin, FALSE)) AS is_admin,
+       COALESCE(u.is_platform_admin, FALSE) AS is_platform_admin,
+       u.organization_id
        FROM users u
        JOIN organizations o ON o.id = u.organization_id
        JOIN role_options r ON r.id = u.role_id
@@ -200,10 +220,11 @@ export async function deleteOrganizationById(id) {
   return pool.query("DELETE FROM organizations WHERE id = $1", [id]);
 }
 
-export async function listRoleOptionsForSettings() {
+export async function listRoleOptionsForSettings(organizationId) {
   const { rows } = await pool.query(
     `SELECT
        r.id,
+       r.organization_id,
        r.label,
        r.sort_order,
        r.is_admin,
@@ -217,14 +238,16 @@ export async function listRoleOptionsForSettings() {
      FROM role_options r
      LEFT JOIN role_permissions rp ON rp.role_id = r.id
      LEFT JOIN permissions p ON p.id = rp.permission_id
+    WHERE r.organization_id = $1
     GROUP BY r.id
-    ORDER BY r.sort_order ASC, r.id ASC`
+    ORDER BY r.sort_order ASC, r.id ASC`,
+    [organizationId]
   );
   return rows.map(mapRoleOption);
 }
 
-export async function getRoleOptionById(id) {
-  return getRoleOptionByIdWithDb(pool, id);
+export async function getRoleOptionById(id, organizationId = null, allowGlobal = true) {
+  return getRoleOptionByIdWithDb(pool, id, organizationId, allowGlobal);
 }
 
 export async function listPermissionOptionsForSettings() {
@@ -236,6 +259,11 @@ export async function listPermissionOptionsForSettings() {
         AND LOWER(code) NOT LIKE ANY($2::text[])
       ORDER BY sort_order ASC, id ASC`,
     [[
+      "clients.menu",
+      "appointments.menu",
+      "appointments.vip-clients",
+      "appointments.assignments",
+      "appointments.statistics",
       "appointments.notify.to-manager",
       "appointments.notify.to-specialist",
       "notifications.schedule.to-manager",
@@ -251,14 +279,14 @@ export async function listPermissionOptionsForSettings() {
   return rows.map(mapPermissionOption);
 }
 
-export async function createRoleOption({ label, sortOrder, isActive, permissionCodes = [], actorUserId = null }) {
+export async function createRoleOption({ organizationId, label, sortOrder, isActive, permissionCodes = [], actorUserId = null }) {
   let roleId = null;
   const item = await executeTransaction(async (client) => {
     const insertResult = await client.query(
-      `INSERT INTO role_options (label, sort_order, is_active, is_admin, created_by, updated_by)
-       VALUES ($1, $2, $3, FALSE, $4, $4)
+      `INSERT INTO role_options (organization_id, label, sort_order, is_active, is_admin, created_by, updated_by)
+       VALUES ($1, $2, $3, $4, FALSE, $5, $5)
        RETURNING id`,
-      [label, sortOrder, isActive, actorUserId]
+      [organizationId, label, sortOrder, isActive, actorUserId]
     );
 
     roleId = Number(insertResult.rows[0]?.id || 0);
@@ -268,13 +296,13 @@ export async function createRoleOption({ label, sortOrder, isActive, permissionC
 
     const permissionIds = await resolvePermissionIdsByCodes(client, permissionCodes);
     await replaceRolePermissions(client, roleId, permissionIds, actorUserId);
-    return getRoleOptionByIdWithDb(client, roleId);
+    return getRoleOptionByIdWithDb(client, roleId, organizationId);
   });
   if (roleId) clearRolePermissionsCache(roleId);
   return item;
 }
 
-export async function updateRoleOption({ id, label, sortOrder, isActive, permissionCodes = [], actorUserId = null }) {
+export async function updateRoleOption({ id, organizationId, label, sortOrder, isActive, permissionCodes = [], actorUserId = null }) {
   const item = await executeTransaction(async (client) => {
     const updateResult = await client.query(
       `UPDATE role_options
@@ -283,9 +311,10 @@ export async function updateRoleOption({ id, label, sortOrder, isActive, permiss
               is_active = $3,
               updated_by = $4,
               updated_at = CURRENT_TIMESTAMP
-        WHERE id = $5
+      WHERE id = $5
+        AND organization_id = $6
         RETURNING id`,
-      [label, sortOrder, isActive, actorUserId, id]
+      [label, sortOrder, isActive, actorUserId, id, organizationId]
     );
 
     if (updateResult.rowCount === 0) {
@@ -294,46 +323,65 @@ export async function updateRoleOption({ id, label, sortOrder, isActive, permiss
 
     const permissionIds = await resolvePermissionIdsByCodes(client, permissionCodes);
     await replaceRolePermissions(client, id, permissionIds, actorUserId);
-    return getRoleOptionByIdWithDb(client, id);
+    return getRoleOptionByIdWithDb(client, id, organizationId);
   });
   if (item) clearRolePermissionsCache(id);
   return item;
 }
 
-export async function deleteRoleOptionById(id) {
-  const result = await pool.query("DELETE FROM role_options WHERE id = $1", [id]);
+export async function deleteRoleOptionById(id, organizationId) {
+  const result = await pool.query(
+    "DELETE FROM role_options WHERE id = $1 AND organization_id = $2",
+    [id, organizationId]
+  );
   if ((result?.rowCount || 0) > 0) {
     clearRolePermissionsCache(id);
   }
   return result;
 }
 
-export async function listPositionOptionsForSettings() {
+export async function listPositionOptionsForSettings(organizationId) {
   const { rows } = await pool.query(
-    "SELECT id, label, sort_order, is_active, created_at FROM position_options ORDER BY sort_order ASC, id ASC"
+    `SELECT id, organization_id, label, sort_order, is_active, created_at
+       FROM position_options
+      WHERE organization_id = $1
+      ORDER BY sort_order ASC, id ASC`,
+    [organizationId]
   );
   return rows.map(mapOption);
 }
 
-export async function getPositionOptionById(id) {
+export async function getPositionOptionById(id, organizationId, allowGlobal = true) {
+  const params = [id];
+  let scopeSql = "";
+  if (organizationId) {
+    params.push(organizationId);
+    scopeSql = allowGlobal
+      ? "AND (organization_id = $2 OR organization_id IS NULL)"
+      : "AND organization_id = $2";
+  }
   const { rows } = await pool.query(
-    "SELECT id, label, sort_order, is_active, created_at FROM position_options WHERE id = $1 LIMIT 1",
-    [id]
+    `SELECT id, organization_id, label, sort_order, is_active, created_at
+       FROM position_options
+      WHERE id = $1
+        ${scopeSql}
+      LIMIT 1`,
+    params
   );
   return rows[0] ? mapOption(rows[0]) : null;
 }
 
-export async function createPositionOption({ label, sortOrder, isActive, actorUserId = null }) {
+export async function createPositionOption({ organizationId, label, sortOrder, isActive, actorUserId = null }) {
   const { rows } = await pool.query(
-    `INSERT INTO position_options (label, sort_order, is_active, created_by, updated_by)
-     VALUES ($1, $2, $3, $4, $4)
-     RETURNING id, label, sort_order, is_active, created_at`,
-    [label, sortOrder, isActive, actorUserId]
+    `INSERT INTO position_options (organization_id, label, sort_order, is_active, created_by, updated_by)
+     VALUES ($1, $2, $3, $4, $5, $5)
+     RETURNING id, organization_id, label, sort_order, is_active, created_at`,
+    [organizationId, label, sortOrder, isActive, actorUserId]
   );
   return rows[0] ? mapOption(rows[0]) : null;
 }
 
-export async function updatePositionOption({ id, label, sortOrder, isActive, actorUserId = null }) {
+export async function updatePositionOption({ id, organizationId, label, sortOrder, isActive, actorUserId = null }) {
   const { rows } = await pool.query(
     `UPDATE position_options
         SET label = $1,
@@ -342,12 +390,13 @@ export async function updatePositionOption({ id, label, sortOrder, isActive, act
             updated_by = $4,
             updated_at = CURRENT_TIMESTAMP
       WHERE id = $5
-      RETURNING id, label, sort_order, is_active, created_at`,
-    [label, sortOrder, isActive, actorUserId, id]
+        AND organization_id = $6
+      RETURNING id, organization_id, label, sort_order, is_active, created_at`,
+    [label, sortOrder, isActive, actorUserId, id, organizationId]
   );
   return rows[0] ? mapOption(rows[0]) : null;
 }
 
-export async function deletePositionOptionById(id) {
-  return pool.query("DELETE FROM position_options WHERE id = $1", [id]);
+export async function deletePositionOptionById(id, organizationId) {
+  return pool.query("DELETE FROM position_options WHERE id = $1 AND organization_id = $2", [id, organizationId]);
 }

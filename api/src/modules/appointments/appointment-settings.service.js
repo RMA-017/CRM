@@ -1758,6 +1758,7 @@ export async function saveAppointmentSettings({
   slotIntervalMinutes,
   slotSubDivisions = 1,
   slotCellHeightPx = DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
+  historyLockDays = DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS,
   appointmentDurationMinutes,
   appointmentDurationOptionsMinutes,
   noShowThreshold,
@@ -1768,7 +1769,7 @@ export async function saveAppointmentSettings({
 }) {
   const tableName = APPOINTMENT_SETTINGS_TABLE;
   const flags = await getAppointmentSettingsColumnFlags(tableName);
-  if (!flags.hasAppointmentDuration || !flags.hasAppointmentDurationOptions || !flags.hasReminderChannels) {
+  if (!flags.hasAppointmentDuration || !flags.hasAppointmentDurationOptions || !flags.hasReminderChannels || !flags.hasHistoryLockDays) {
     const error = new Error("Appointment settings migration is required.");
     error.code = "MIGRATION_REQUIRED";
     throw error;
@@ -1777,6 +1778,7 @@ export async function saveAppointmentSettings({
     ? slotSubDivisions
     : 1;
   const normalizedSlotCellHeightPx = normalizeSlotCellHeightPx(slotCellHeightPx);
+  const normalizedHistoryLockDays = normalizeHistoryLockDays(historyLockDays);
 
   const client = await pool.connect();
 
@@ -1805,12 +1807,14 @@ export async function saveAppointmentSettings({
     const slotCellHeightUpdate = flags.hasSlotCellHeightPx
       ? "slot_cell_height_px = EXCLUDED.slot_cell_height_px,"
       : "";
+    const historyLockDaysVal = `, $${9 + (flags.hasSlotSubDivisions ? 1 : 0) + (flags.hasSlotCellHeightPx ? 1 : 0) + 1}`;
     await client.query(
       `INSERT INTO ${tableName} (
          organization_id,
          slot_interval_minutes
          ${subDivisionsCol}
          ${slotCellHeightCol},
+         history_lock_days,
          appointment_duration_minutes,
          appointment_duration_options_minutes,
          no_show_threshold,
@@ -1819,11 +1823,12 @@ export async function saveAppointmentSettings({
          visible_week_days,
          created_by,
          updated_by
-       ) VALUES ($1,$2${subDivisionsVal}${slotCellHeightVal},$3,$4::smallint[],$5,$6,$7::text[],$8::smallint[],$9,$9)
+       ) VALUES ($1,$2${subDivisionsVal}${slotCellHeightVal}${historyLockDaysVal},$3,$4::smallint[],$5,$6,$7::text[],$8::smallint[],$9,$9)
        ON CONFLICT (organization_id) DO UPDATE SET
           slot_interval_minutes = EXCLUDED.slot_interval_minutes,
           ${subDivisionsUpdate}
           ${slotCellHeightUpdate}
+          history_lock_days = EXCLUDED.history_lock_days,
           appointment_duration_minutes = EXCLUDED.appointment_duration_minutes,
           appointment_duration_options_minutes = EXCLUDED.appointment_duration_options_minutes,
           no_show_threshold = EXCLUDED.no_show_threshold,
@@ -1843,7 +1848,8 @@ export async function saveAppointmentSettings({
         visibleWeekDayNums,
         actorUserId,
         ...(flags.hasSlotSubDivisions ? [normalizedSlotSubDivisions] : []),
-        ...(flags.hasSlotCellHeightPx ? [normalizedSlotCellHeightPx] : [])
+        ...(flags.hasSlotCellHeightPx ? [normalizedSlotCellHeightPx] : []),
+        normalizedHistoryLockDays
       ]
     );
 
@@ -2087,8 +2093,7 @@ export async function getAppointmentPlannerReport({
   to,
   specialistId = null,
   clientId = null,
-  isVip = null,
-  serviceName = ""
+  isVip = null
 }) {
   await ensureAppointmentPlannerReportIndexes();
 
@@ -2096,7 +2101,6 @@ export async function getAppointmentPlannerReport({
   let specialistFilterSql = "";
   let clientFilterSql = "";
   let vipFilterSql = "";
-  let serviceFilterSql = "";
   if (specialistId) {
     params.push(specialistId);
     specialistFilterSql = `AND s.specialist_id = $${params.length}`;
@@ -2105,23 +2109,45 @@ export async function getAppointmentPlannerReport({
     params.push(clientId);
     clientFilterSql = `AND s.client_id = $${params.length}`;
   }
-  if (typeof isVip === "boolean") {
-    params.push(isVip);
+  if (isVip === true) {
+    params.push(true);
     vipFilterSql = `AND c.is_vip = $${params.length}`;
   }
-  if (String(serviceName || "").trim()) {
-    params.push(String(serviceName || "").trim());
-    serviceFilterSql = `AND LOWER(TRIM(s.service_name)) = LOWER(TRIM($${params.length}::text))`;
-  }
 
-  const [{ rows }, specialistRows] = await Promise.all([
+  const [summaryRowsResult, specialistRows, detailRowsResult] = await Promise.all([
     pool.query(
       `SELECT
+         LOWER(TRIM(s.status)) AS status,
+         COUNT(*)::int AS count
+       FROM appointment_schedules s
+       JOIN clients c
+         ON c.id = s.client_id
+        AND c.organization_id = s.organization_id
+       WHERE s.organization_id = $1
+         AND s.appointment_date BETWEEN $2::date AND $3::date
+         ${specialistFilterSql}
+         ${clientFilterSql}
+         ${vipFilterSql}
+       GROUP BY LOWER(TRIM(s.status))
+       ORDER BY LOWER(TRIM(s.status)) ASC`,
+      params
+    ),
+    getAppointmentSpecialistsByOrganization(organizationId),
+    pool.query(
+      `SELECT
+         s.id::text AS appointment_id,
          s.appointment_date::text AS appointment_date,
+         COALESCE(TO_CHAR(s.start_time, 'HH24:MI'), '') AS start_time,
+         COALESCE(TO_CHAR(s.end_time, 'HH24:MI'), '') AS end_time,
+         s.duration_minutes::int AS duration_minutes,
          LOWER(TRIM(s.status)) AS status,
          s.specialist_id::text AS specialist_id,
          COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), 'Specialist #' || u.id::text) AS specialist_name,
-         COUNT(*)::int AS count
+         s.client_id::text AS client_id,
+         c.first_name,
+         c.last_name,
+         c.middle_name,
+         COALESCE(NULLIF(TRIM(s.service_name), ''), 'Service') AS service_name
        FROM appointment_schedules s
        JOIN clients c
          ON c.id = s.client_id
@@ -2134,12 +2160,18 @@ export async function getAppointmentPlannerReport({
          ${specialistFilterSql}
          ${clientFilterSql}
          ${vipFilterSql}
-         ${serviceFilterSql}
-       GROUP BY s.appointment_date, LOWER(TRIM(s.status)), s.specialist_id, u.full_name, u.username, u.id
-       ORDER BY s.appointment_date ASC, specialist_name ASC`,
+       ORDER BY
+         s.appointment_date ASC,
+         s.start_time ASC,
+         s.end_time ASC,
+         specialist_name ASC,
+         LOWER(TRIM(c.last_name)) ASC,
+         LOWER(TRIM(c.first_name)) ASC,
+         LOWER(TRIM(COALESCE(c.middle_name, ''))) ASC,
+         COALESCE(NULLIF(TRIM(s.service_name), ''), 'Service') ASC,
+         s.id ASC`,
       params
-    ),
-    getAppointmentSpecialistsByOrganization(organizationId)
+    )
   ]);
 
   const summary = {
@@ -2149,15 +2181,9 @@ export async function getAppointmentPlannerReport({
     cancelled: 0,
     noShow: 0
   };
-  const byDateMap = new Map();
-  const bySpecialistMap = new Map();
-
-  for (const row of rows) {
+  for (const row of Array.isArray(summaryRowsResult?.rows) ? summaryRowsResult.rows : []) {
     const count = Number.parseInt(String(row?.count || "0"), 10) || 0;
     const status = String(row?.status || "").trim().toLowerCase();
-    const appointmentDate = String(row?.appointment_date || "").trim();
-    const currentSpecialistId = String(row?.specialist_id || "").trim();
-    const specialistName = String(row?.specialist_name || "").trim();
 
     summary.total += count;
     if (status === "confirmed") {
@@ -2169,58 +2195,69 @@ export async function getAppointmentPlannerReport({
     } else if (status === "no-show") {
       summary.noShow += count;
     }
-
-    if (!byDateMap.has(appointmentDate)) {
-      byDateMap.set(appointmentDate, {
-        date: appointmentDate,
-        total: 0,
-        confirmed: 0,
-        pending: 0,
-        cancelled: 0,
-        noShow: 0
-      });
-    }
-    const byDateEntry = byDateMap.get(appointmentDate);
-    byDateEntry.total += count;
-    if (status === "confirmed") {
-      byDateEntry.confirmed += count;
-    } else if (status === "pending") {
-      byDateEntry.pending += count;
-    } else if (status === "cancelled") {
-      byDateEntry.cancelled += count;
-    } else if (status === "no-show") {
-      byDateEntry.noShow += count;
-    }
-
-    if (!bySpecialistMap.has(currentSpecialistId)) {
-      bySpecialistMap.set(currentSpecialistId, {
-        specialistId: currentSpecialistId,
-        specialistName,
-        total: 0,
-        confirmed: 0,
-        pending: 0,
-        cancelled: 0,
-        noShow: 0
-      });
-    }
-    const bySpecialistEntry = bySpecialistMap.get(currentSpecialistId);
-    bySpecialistEntry.total += count;
-    if (status === "confirmed") {
-      bySpecialistEntry.confirmed += count;
-    } else if (status === "pending") {
-      bySpecialistEntry.pending += count;
-    } else if (status === "cancelled") {
-      bySpecialistEntry.cancelled += count;
-    } else if (status === "no-show") {
-      bySpecialistEntry.noShow += count;
-    }
   }
 
   return {
     summary,
-    byDate: Array.from(byDateMap.values()),
-    bySpecialist: Array.from(bySpecialistMap.values())
-      .sort((left, right) => left.specialistName.localeCompare(right.specialistName, undefined, { sensitivity: "base" })),
+    details: (Array.isArray(detailRowsResult?.rows) ? detailRowsResult.rows : [])
+      .map((row) => {
+        const appointmentId = String(row?.appointment_id || "").trim();
+        const appointmentDate = String(row?.appointment_date || "").trim();
+        const startTime = String(row?.start_time || "").trim();
+        const endTime = String(row?.end_time || "").trim();
+        const durationMinutes = Number.parseInt(String(row?.duration_minutes || "0"), 10) || 0;
+        const currentSpecialistId = String(row?.specialist_id || "").trim();
+        const currentClientId = String(row?.client_id || "").trim();
+        const status = String(row?.status || "").trim().toLowerCase();
+        return {
+          appointmentId,
+          appointmentDate,
+          startTime,
+          endTime,
+          durationMinutes,
+          specialistId: currentSpecialistId,
+          specialistName: String(row?.specialist_name || "").trim() || `Specialist #${currentSpecialistId}`,
+          clientId: currentClientId,
+          clientName: [
+            String(row?.last_name || "").trim(),
+            String(row?.first_name || "").trim(),
+            String(row?.middle_name || "").trim()
+          ].filter(Boolean).join(" ").trim() || `Client #${currentClientId}`,
+          serviceName: String(row?.service_name || "").trim() || "Service",
+          status
+        };
+      })
+      .sort((left, right) => {
+        const dateCompare = left.appointmentDate.localeCompare(right.appointmentDate);
+        if (dateCompare !== 0) {
+          return dateCompare;
+        }
+        const startTimeCompare = left.startTime.localeCompare(right.startTime);
+        if (startTimeCompare !== 0) {
+          return startTimeCompare;
+        }
+        const endTimeCompare = left.endTime.localeCompare(right.endTime);
+        if (endTimeCompare !== 0) {
+          return endTimeCompare;
+        }
+        const specialistCompare = left.specialistName.localeCompare(right.specialistName, undefined, { sensitivity: "base" });
+        if (specialistCompare !== 0) {
+          return specialistCompare;
+        }
+        const clientCompare = left.clientName.localeCompare(right.clientName, undefined, { sensitivity: "base" });
+        if (clientCompare !== 0) {
+          return clientCompare;
+        }
+        const serviceCompare = left.serviceName.localeCompare(right.serviceName, undefined, { sensitivity: "base" });
+        if (serviceCompare !== 0) {
+          return serviceCompare;
+        }
+        const statusCompare = left.status.localeCompare(right.status, undefined, { sensitivity: "base" });
+        if (statusCompare !== 0) {
+          return statusCompare;
+        }
+        return left.appointmentId.localeCompare(right.appointmentId, undefined, { numeric: true, sensitivity: "base" });
+      }),
     specialists: (Array.isArray(specialistRows) ? specialistRows : [])
       .map((item) => ({
         id: String(item?.id || "").trim(),
@@ -2237,7 +2274,7 @@ export async function getAppointmentPlannerReportFilters({
 }) {
   await ensureAppointmentPlannerReportIndexes();
 
-  const [specialistRows, clientRowsResult, serviceRowsResult] = await Promise.all([
+  const [specialistRows, clientRowsResult] = await Promise.all([
     getAppointmentSpecialistsByOrganization(organizationId),
     pool.query(
       `SELECT
@@ -2258,16 +2295,6 @@ export async function getAppointmentPlannerReportFilters({
         LOWER(TRIM(COALESCE(c.middle_name, ''))) ASC,
         c.id ASC`,
       [organizationId]
-    ),
-    pool.query(
-      `SELECT
-         MIN(TRIM(s.service_name)) AS service_name
-       FROM appointment_schedules s
-      WHERE s.organization_id = $1
-        AND NULLIF(TRIM(s.service_name), '') IS NOT NULL
-      GROUP BY LOWER(TRIM(s.service_name))
-      ORDER BY LOWER(MIN(TRIM(s.service_name))) ASC`,
-      [organizationId]
     )
   ]);
 
@@ -2287,8 +2314,5 @@ export async function getAppointmentPlannerReportFilters({
         isVip: Boolean(row?.is_vip)
       }))
       .filter((item) => Boolean(item.id)),
-    serviceNames: (Array.isArray(serviceRowsResult?.rows) ? serviceRowsResult.rows : [])
-      .map((row) => String(row?.service_name || "").trim())
-      .filter(Boolean)
   };
 }

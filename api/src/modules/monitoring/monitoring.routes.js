@@ -57,7 +57,7 @@ async function monitoringRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
-        if (!requester.is_admin) {
+        if (!requester.is_platform_admin) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 

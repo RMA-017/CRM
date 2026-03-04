@@ -1,9 +1,11 @@
-import { getClearCookieOptions, AUTH_COOKIE_NAME } from "../../lib/cookies.js";
+import { getAuthCookieOptions, getClearCookieOptions, AUTH_COOKIE_NAME } from "../../lib/cookies.js";
 import { validateBirthdayYmd } from "../../lib/date.js";
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 import { EMAIL_REGEX, PHONE_REGEX } from "../../constants/validation.js";
+import { signAccessToken } from "../../lib/session.js";
 import { findAuthUserById, verifyPassword } from "../auth/auth.service.js";
+import { findActiveOrganizationByCode, findActiveOrganizationById } from "../organizations/organizations.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
 import { getRolePermissions, hasPermission, isAllowedPosition } from "../users/access.service.js";
 import { getProfileByAuthContext, updateOwnProfileField } from "./profile.service.js";
@@ -50,6 +52,8 @@ function mapProfile(user, permissions) {
     birthday: user.birthday,
     role: user.role,
     isAdmin: Boolean(user.is_admin),
+    isPlatformAdmin: Boolean(user.is_platform_admin),
+    isOrganizationAdmin: Boolean(user.is_organization_admin),
     phone: user.phone_number,
     position: user.position,
     organizationId: user.organization_id,
@@ -116,7 +120,9 @@ async function profileRoutes(fastify) {
         if (field === "position" && value && !positionId) {
           return reply.status(400).send({ field: "position", message: "Invalid position." });
         }
-        if (field === "position" && positionId && !(await isAllowedPosition(positionId))) {
+        if (field === "position" && positionId && !(await isAllowedPosition(positionId, {
+          organizationId: authContext.organizationId
+        }))) {
           return reply.status(400).send({ field: "position", message: "Invalid position." });
         }
 
@@ -146,7 +152,8 @@ async function profileRoutes(fastify) {
           organizationId: authContext.organizationId,
           actorUserId: authContext.userId,
           field,
-          value: field === "position" ? (positionId ? String(positionId) : "") : normalizedValue
+          value: field === "position" ? (positionId ? String(positionId) : "") : normalizedValue,
+          allowCrossOrganization: Boolean(currentUser.is_platform_admin)
         });
         if (result.rowCount === 0) {
           return reply.status(404).send({ message: "User not found." });
@@ -167,6 +174,67 @@ async function profileRoutes(fastify) {
           return reply.status(409).send({ field: "email", message: "Email already exists." });
         }
         request.log.error({ err: error }, "Error updating profile");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.post(
+    "/organization-context",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      const authContext = request.authContext;
+
+      try {
+        const requester = authContext?.requester;
+        if (!requester) {
+          return reply.status(401).send({ message: "Unauthorized." });
+        }
+        if (!requester.is_platform_admin) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const organizationId = parsePositiveInteger(
+          request.body?.organizationId ?? request.body?.organization_id
+        );
+        const organizationCode = String(
+          request.body?.organizationCode ?? request.body?.organization_code ?? ""
+        ).trim().toLowerCase();
+
+        let organization = null;
+        if (organizationId) {
+          organization = await findActiveOrganizationById(organizationId);
+        } else if (organizationCode) {
+          organization = await findActiveOrganizationByCode(organizationCode);
+        }
+
+        if (!organization) {
+          return reply.status(400).send({
+            field: organizationId ? "organizationId" : "organizationCode",
+            message: "Organization not found or inactive."
+          });
+        }
+
+        const token = signAccessToken({
+          userId: authContext.userId,
+          organizationId: organization.id,
+          organizationCode: organization.code,
+          username: authContext.username
+        });
+        reply.setCookie(AUTH_COOKIE_NAME, token, getAuthCookieOptions());
+
+        return reply.send({
+          message: "Organization context updated.",
+          item: {
+            organizationId: String(organization.id),
+            organizationCode: String(organization.code || "").trim().toLowerCase(),
+            organizationName: String(organization.name || "").trim()
+          }
+        });
+      } catch (error) {
+        request.log.error({ err: error }, "Error switching organization context");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }

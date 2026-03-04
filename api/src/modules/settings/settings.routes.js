@@ -197,7 +197,7 @@ function validatePositionPayload({ label }) {
   return null;
 }
 
-async function requireAdmin(request, reply) {
+async function requireOrganizationAdmin(request, reply) {
   const authContext = request.authContext;
 
   const requester = await findSettingsRequester(authContext);
@@ -214,6 +214,18 @@ async function requireAdmin(request, reply) {
   return { authContext, requester };
 }
 
+async function requirePlatformAdmin(request, reply) {
+  const adminContext = await requireOrganizationAdmin(request, reply);
+  if (!adminContext) {
+    return null;
+  }
+  if (!adminContext.requester.is_platform_admin) {
+    reply.status(403).send({ message: "Forbidden." });
+    return null;
+  }
+  return adminContext;
+}
+
 async function settingsRoutes(fastify) {
   fastify.get(
     "/organizations",
@@ -224,7 +236,7 @@ async function settingsRoutes(fastify) {
       setNoCacheHeaders(reply);
 
       try {
-        const adminContext = await requireAdmin(request, reply);
+        const adminContext = await requirePlatformAdmin(request, reply);
         if (!adminContext) {
           return;
         }
@@ -248,7 +260,7 @@ async function settingsRoutes(fastify) {
     },
     async (request, reply) => {
       try {
-        const adminContext = await requireAdmin(request, reply);
+        const adminContext = await requirePlatformAdmin(request, reply);
         if (!adminContext) {
           return;
         }
@@ -292,7 +304,7 @@ async function settingsRoutes(fastify) {
     },
     async (request, reply) => {
       try {
-        const adminContext = await requireAdmin(request, reply);
+        const adminContext = await requirePlatformAdmin(request, reply);
         if (!adminContext) {
           return;
         }
@@ -349,7 +361,7 @@ async function settingsRoutes(fastify) {
     },
     async (request, reply) => {
       try {
-        const adminContext = await requireAdmin(request, reply);
+        const adminContext = await requirePlatformAdmin(request, reply);
         if (!adminContext) {
           return;
         }
@@ -391,7 +403,7 @@ async function settingsRoutes(fastify) {
       setNoCacheHeaders(reply);
 
       try {
-        const adminContext = await requireAdmin(request, reply);
+        const adminContext = await requireOrganizationAdmin(request, reply);
         if (!adminContext) {
           return;
         }
@@ -403,7 +415,17 @@ async function settingsRoutes(fastify) {
           return reply.status(400).send(organizationError);
         }
 
-        const targetOrganizationId = requestedOrganizationId || adminContext.authContext.organizationId;
+        if (
+          requestedOrganizationId
+          && !adminContext.requester.is_platform_admin
+          && requestedOrganizationId !== Number(adminContext.authContext.organizationId)
+        ) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const targetOrganizationId = adminContext.requester.is_platform_admin
+          ? (requestedOrganizationId || adminContext.authContext.organizationId)
+          : adminContext.authContext.organizationId;
         const defaultOutboxRetentionDays = Number.parseInt(
           String(appConfig?.outboxWorker?.retentionDays ?? 30),
           10
@@ -464,7 +486,7 @@ async function settingsRoutes(fastify) {
     },
     async (request, reply) => {
       try {
-        const adminContext = await requireAdmin(request, reply);
+        const adminContext = await requireOrganizationAdmin(request, reply);
         if (!adminContext) {
           return;
         }
@@ -545,7 +567,17 @@ async function settingsRoutes(fastify) {
           }
         }
 
-        const targetOrganizationId = requestedOrganizationId || adminContext.authContext.organizationId;
+        if (
+          requestedOrganizationId
+          && !adminContext.requester.is_platform_admin
+          && requestedOrganizationId !== Number(adminContext.authContext.organizationId)
+        ) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const targetOrganizationId = adminContext.requester.is_platform_admin
+          ? (requestedOrganizationId || adminContext.authContext.organizationId)
+          : adminContext.authContext.organizationId;
         const defaultOutboxRetentionDays = Number.parseInt(
           String(appConfig?.outboxWorker?.retentionDays ?? 30),
           10
@@ -665,13 +697,13 @@ async function settingsRoutes(fastify) {
       setNoCacheHeaders(reply);
 
       try {
-        const adminContext = await requireAdmin(request, reply);
+        const adminContext = await requireOrganizationAdmin(request, reply);
         if (!adminContext) {
           return;
         }
 
         const [items, permissions] = await Promise.all([
-          listRoleOptionsForSettings(),
+          listRoleOptionsForSettings(adminContext.authContext.organizationId),
           listPermissionOptionsForSettings()
         ]);
         return reply.send({ items, permissions });
@@ -692,7 +724,7 @@ async function settingsRoutes(fastify) {
     },
     async (request, reply) => {
       try {
-        const adminContext = await requireAdmin(request, reply);
+        const adminContext = await requireOrganizationAdmin(request, reply);
         if (!adminContext) {
           return;
         }
@@ -712,6 +744,7 @@ async function settingsRoutes(fastify) {
         const permissionCodes = Array.isArray(parsedPermissions.codes) ? parsedPermissions.codes : [];
 
         const item = await createRoleOption({
+          organizationId: adminContext.authContext.organizationId,
           label,
           sortOrder,
           isActive,
@@ -752,7 +785,7 @@ async function settingsRoutes(fastify) {
     },
     async (request, reply) => {
       try {
-        const adminContext = await requireAdmin(request, reply);
+        const adminContext = await requireOrganizationAdmin(request, reply);
         if (!adminContext) {
           return;
         }
@@ -762,7 +795,7 @@ async function settingsRoutes(fastify) {
           return reply.status(400).send({ message: "Invalid role id." });
         }
 
-        const existing = await getRoleOptionById(id);
+        const existing = await getRoleOptionById(id, adminContext.authContext.organizationId, false);
         if (!existing) {
           return reply.status(404).send({ message: "Role not found." });
         }
@@ -800,6 +833,7 @@ async function settingsRoutes(fastify) {
 
         const item = await updateRoleOption({
           id,
+          organizationId: adminContext.authContext.organizationId,
           label,
           sortOrder,
           isActive,
@@ -846,7 +880,7 @@ async function settingsRoutes(fastify) {
     },
     async (request, reply) => {
       try {
-        const adminContext = await requireAdmin(request, reply);
+        const adminContext = await requireOrganizationAdmin(request, reply);
         if (!adminContext) {
           return;
         }
@@ -856,7 +890,7 @@ async function settingsRoutes(fastify) {
           return reply.status(400).send({ message: "Invalid role id." });
         }
 
-        const existing = await getRoleOptionById(id);
+        const existing = await getRoleOptionById(id, adminContext.authContext.organizationId, false);
         if (!existing) {
           return reply.status(404).send({ message: "Role not found." });
         }
@@ -864,7 +898,7 @@ async function settingsRoutes(fastify) {
           return reply.status(400).send({ message: "Admin role cannot be deleted." });
         }
 
-        const result = await deleteRoleOptionById(id);
+        const result = await deleteRoleOptionById(id, adminContext.authContext.organizationId);
         if (result.rowCount === 0) {
           return reply.status(404).send({ message: "Role not found." });
         }
@@ -889,12 +923,12 @@ async function settingsRoutes(fastify) {
       setNoCacheHeaders(reply);
 
       try {
-        const adminContext = await requireAdmin(request, reply);
+        const adminContext = await requireOrganizationAdmin(request, reply);
         if (!adminContext) {
           return;
         }
 
-        const items = await listPositionOptionsForSettings();
+        const items = await listPositionOptionsForSettings(adminContext.authContext.organizationId);
         return reply.send({ items });
       } catch (error) {
         request.log.error({ err: error }, "Error fetching positions:");
@@ -913,7 +947,7 @@ async function settingsRoutes(fastify) {
     },
     async (request, reply) => {
       try {
-        const adminContext = await requireAdmin(request, reply);
+        const adminContext = await requireOrganizationAdmin(request, reply);
         if (!adminContext) {
           return;
         }
@@ -927,6 +961,7 @@ async function settingsRoutes(fastify) {
         }
 
         const item = await createPositionOption({
+          organizationId: adminContext.authContext.organizationId,
           label,
           sortOrder,
           isActive,
@@ -957,7 +992,7 @@ async function settingsRoutes(fastify) {
     },
     async (request, reply) => {
       try {
-        const adminContext = await requireAdmin(request, reply);
+        const adminContext = await requireOrganizationAdmin(request, reply);
         if (!adminContext) {
           return;
         }
@@ -977,6 +1012,7 @@ async function settingsRoutes(fastify) {
 
         const item = await updatePositionOption({
           id,
+          organizationId: adminContext.authContext.organizationId,
           label,
           sortOrder,
           isActive,
@@ -1013,7 +1049,7 @@ async function settingsRoutes(fastify) {
     },
     async (request, reply) => {
       try {
-        const adminContext = await requireAdmin(request, reply);
+        const adminContext = await requireOrganizationAdmin(request, reply);
         if (!adminContext) {
           return;
         }
@@ -1023,12 +1059,12 @@ async function settingsRoutes(fastify) {
           return reply.status(400).send({ message: "Invalid position id." });
         }
 
-        const existing = await getPositionOptionById(id);
+        const existing = await getPositionOptionById(id, adminContext.authContext.organizationId, false);
         if (!existing) {
           return reply.status(404).send({ message: "Position not found." });
         }
 
-        const result = await deletePositionOptionById(id);
+        const result = await deletePositionOptionById(id, adminContext.authContext.organizationId);
         if (result.rowCount === 0) {
           return reply.status(404).send({ message: "Position not found." });
         }

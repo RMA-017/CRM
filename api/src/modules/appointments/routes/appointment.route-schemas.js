@@ -193,6 +193,24 @@ export const appointmentRouteSchemas = Object.freeze({
       slotCellHeightPx: positiveIntegerLikeSchema,
       appointmentSlotCellHeightPx: positiveIntegerLikeSchema,
       slot_cell_height_px: positiveIntegerLikeSchema,
+      historyLockDays: {
+        anyOf: [
+          { type: "integer", minimum: 0 },
+          { type: "string", pattern: "^\\d+$" }
+        ]
+      },
+      appointmentHistoryLockDays: {
+        anyOf: [
+          { type: "integer", minimum: 0 },
+          { type: "string", pattern: "^\\d+$" }
+        ]
+      },
+      history_lock_days: {
+        anyOf: [
+          { type: "integer", minimum: 0 },
+          { type: "string", pattern: "^\\d+$" }
+        ]
+      },
       appointmentDuration: positiveIntegerLikeSchema,
       appointmentDurationOptions: {
         type: "array",

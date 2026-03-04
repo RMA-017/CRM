@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import CustomSelect from "../components/CustomSelect.jsx";
 import { apiFetch, getApiErrorMessage, readApiResponseData } from "../lib/api.js";
 import { formatDateForInput, getInitial, normalizeProfile } from "../lib/formatters.js";
 import {
@@ -53,6 +54,10 @@ function ProfilePage({ forcedView = "none" }) {
 
   const [profile, setProfile] = useState(null);
   const [avatarDataUrl, setAvatarDataUrl] = useState("");
+  const [organizationContextSwitching, setOrganizationContextSwitching] = useState(false);
+  const [faceEnrolled, setFaceEnrolled] = useState(false);
+  const [faceEnrolledAt, setFaceEnrolledAt] = useState(null);
+  const [faceEnrollOpen, setFaceEnrollOpen] = useState(false);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [clientsMenuOpen, setClientsMenuOpen] = useState(false);
@@ -62,6 +67,7 @@ function ProfilePage({ forcedView = "none" }) {
   const [usersMenuOpen, setUsersMenuOpen] = useState(false);
   const [statisticsMenuOpen, setStatisticsMenuOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const [adminSettingsMenuOpen, setAdminSettingsMenuOpen] = useState(false);
   const [myProfileModalOpen, setMyProfileModalOpen] = useState(false);
 
   const [mainView, setMainViewState] = useState("none");
@@ -114,16 +120,25 @@ function ProfilePage({ forcedView = "none" }) {
     hasAppointmentsMenuAccess,
     hasUsersMenuAccess,
     hasSettingsMenuAccess,
+    hasAdminSettingsAccess,
     hasNotificationsSettingsAccess,
     canAccessForcedView
   } = useProfileAccess(profile, forcedView);
 
-  const loadUserOptions = useCallback(async () => {
+  const loadUserOptions = useCallback(async (organizationCode = "") => {
     try {
-      const response = await apiFetch("/api/meta/user-options", {
+      const query = new URLSearchParams();
+      const normalizedOrganizationCode = String(organizationCode || "").trim().toLowerCase();
+      if (normalizedOrganizationCode) {
+        query.set("organizationCode", normalizedOrganizationCode);
+      }
+      const response = await apiFetch(
+        query.toString() ? `/api/meta/user-options?${query.toString()}` : "/api/meta/user-options",
+        {
         method: "GET",
         cache: "no-store"
-      });
+        }
+      );
       const data = await readApiResponseData(response);
 
       if (!response.ok) {
@@ -227,15 +242,16 @@ function ProfilePage({ forcedView = "none" }) {
     handleSettingsDeleteConfirm
   } = useSettingsSection({
     hasSettingsMenuAccess,
+    hasAdminSettingsAccess,
     navigate,
     loadUserOptions
   });
 
   const ensureOrganizationsLoaded = useCallback(() => {
-    if (hasSettingsMenuAccess && organizations.length === 0) {
+    if (hasAdminSettingsAccess && organizations.length === 0) {
       loadOrganizations();
     }
-  }, [hasSettingsMenuAccess, organizations.length, loadOrganizations]);
+  }, [hasAdminSettingsAccess, organizations.length, loadOrganizations]);
 
   const {
     allUsers,
@@ -1515,7 +1531,7 @@ function ProfilePage({ forcedView = "none" }) {
     const currentCode = String(profile?.organizationCode || "").trim().toLowerCase();
     const currentName = String(profile?.organizationName || "").trim();
 
-    if (!hasSettingsMenuAccess) {
+    if (!hasAdminSettingsAccess) {
       return currentCode
         ? [{ value: currentCode, label: currentName ? `${currentName} (${currentCode})` : currentCode }]
         : [];
@@ -1547,7 +1563,7 @@ function ProfilePage({ forcedView = "none" }) {
     }
 
     return activeItems;
-  }, [hasSettingsMenuAccess, organizations, profile?.organizationCode, profile?.organizationName]);
+  }, [hasAdminSettingsAccess, organizations, profile?.organizationCode, profile?.organizationName]);
 
   const allowedCreateOrganizationCodes = useMemo(() => (
     new Set(
@@ -1556,6 +1572,27 @@ function ProfilePage({ forcedView = "none" }) {
         .filter(Boolean)
     )
   ), [createOrganizationOptions]);
+
+  const activeUserOptionsOrganizationCode = useMemo(() => {
+    const editOrganizationCode = allUsersEdit.open
+      ? String(allUsersEdit.form.organizationCode || "").trim().toLowerCase()
+      : "";
+    if (editOrganizationCode) {
+      return editOrganizationCode;
+    }
+
+    if (mainView === "create-user") {
+      return String(createForm.organizationCode || "").trim().toLowerCase();
+    }
+
+    return String(profile?.organizationCode || "").trim().toLowerCase();
+  }, [
+    allUsersEdit.form.organizationCode,
+    allUsersEdit.open,
+    createForm.organizationCode,
+    mainView,
+    profile?.organizationCode
+  ]);
 
   const firstName = useMemo(() => {
     const rawName = String(profile?.fullName || profile?.username || "User").trim();
@@ -1599,6 +1636,7 @@ function ProfilePage({ forcedView = "none" }) {
     setUsersMenuOpen(false);
     setStatisticsMenuOpen(false);
     setSettingsMenuOpen(false);
+    setAdminSettingsMenuOpen(false);
   }, []);
 
   const closeUserDropdown = useCallback(() => {}, []);
@@ -1657,6 +1695,32 @@ function ProfilePage({ forcedView = "none" }) {
     avatarInputRef.current?.click();
   }, []);
 
+  const handleFaceCapture = useCallback(async (descriptor) => {
+    setFaceEnrollOpen(false);
+    try {
+      const res = await apiFetch("/api/staff-attendance/me/face", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ descriptor })
+      });
+      const data = await readApiResponseData(res);
+      setFaceEnrolled(Boolean(data?.enrolled));
+      setFaceEnrolledAt(data?.enrolledAt || null);
+    } catch {
+      // non-critical
+    }
+  }, []);
+
+  const handleFaceDelete = useCallback(async () => {
+    try {
+      await apiFetch("/api/staff-attendance/me/face", { method: "DELETE" });
+      setFaceEnrolled(false);
+      setFaceEnrolledAt(null);
+    } catch {
+      // non-critical
+    }
+  }, []);
+
   const saveAvatarFromFile = useCallback((file) => {
     if (!file || !avatarStorageKey) {
       return;
@@ -1712,8 +1776,26 @@ function ProfilePage({ forcedView = "none" }) {
     if (!profile?.username) {
       return;
     }
-    loadUserOptions();
-  }, [loadUserOptions, profile?.username]);
+    loadUserOptions(activeUserOptionsOrganizationCode);
+  }, [activeUserOptionsOrganizationCode, loadUserOptions, profile?.username]);
+
+  useEffect(() => {
+    if (!profile?.username || !hasAdminSettingsAccess || organizations.length > 0) {
+      return;
+    }
+    loadOrganizations();
+  }, [hasAdminSettingsAccess, loadOrganizations, organizations.length, profile?.username]);
+
+  useEffect(() => {
+    if (!profile?.username) return;
+    apiFetch("/api/staff-attendance/me/face")
+      .then((res) => readApiResponseData(res))
+      .then((data) => {
+        setFaceEnrolled(Boolean(data?.enrolled));
+        setFaceEnrolledAt(data?.enrolledAt || null);
+      })
+      .catch(() => {});
+  }, [profile?.username]);
 
   useEffect(() => {
     if (!avatarStorageKey) {
@@ -1779,19 +1861,21 @@ function ProfilePage({ forcedView = "none" }) {
       if (canReadUsers) {
         loadAllUsers(1);
       }
-      if (hasSettingsMenuAccess) {
+      if (hasAdminSettingsAccess) {
         loadOrganizations();
       }
       return;
     }
     if (mainView === "appointment-settings" || mainView === "appointment-breaks") {
-      if (hasSettingsMenuAccess) {
+      if (hasAdminSettingsAccess) {
         loadOrganizations();
       }
       return;
     }
     if (mainView === "settings-organizations") {
-      loadOrganizations();
+      if (hasAdminSettingsAccess) {
+        loadOrganizations();
+      }
       return;
     }
     if (mainView === "settings-roles") {
@@ -1803,7 +1887,9 @@ function ProfilePage({ forcedView = "none" }) {
       return;
     }
     if (mainView === "settings-admin-options") {
-      loadOrganizations();
+      if (hasAdminSettingsAccess) {
+        loadOrganizations();
+      }
       loadAdminOptions();
       return;
     }
@@ -1813,7 +1899,7 @@ function ProfilePage({ forcedView = "none" }) {
     }
   }, [
     canReadUsers,
-    hasSettingsMenuAccess,
+    hasAdminSettingsAccess,
     loadClients,
     loadVipAttendance,
     loadVipAttendanceTeachers,
@@ -1999,6 +2085,10 @@ function ProfilePage({ forcedView = "none" }) {
     closeNotificationsSettingsPanel,
     openMonitoringPanel,
     closeMonitoringPanel,
+    openStaffAttendancePanel,
+    closeStaffAttendancePanel,
+    openStaffAttendanceAdminPanel,
+    closeStaffAttendanceAdminPanel,
     closeCreateUserPanel,
     closeAllUsersPanel
   } = useProfilePanels({
@@ -2018,8 +2108,44 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenAppointmentVipAssignments,
     canOpenAppointmentStatistics,
     hasSettingsMenuAccess,
+    hasAdminSettingsAccess,
     hasNotificationsSettingsAccess
   });
+
+  const handleOrganizationContextSwitch = useCallback(async (nextOrganizationCode) => {
+    const normalizedNextCode = String(nextOrganizationCode || "").trim().toLowerCase();
+    const currentCode = String(profile?.organizationCode || "").trim().toLowerCase();
+    if (!hasAdminSettingsAccess || !normalizedNextCode || normalizedNextCode === currentCode) {
+      return;
+    }
+
+    try {
+      setOrganizationContextSwitching(true);
+      const response = await apiFetch("/api/profile/organization-context", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          organizationCode: normalizedNextCode
+        })
+      });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        if (handleProtectedStatus(response, navigate)) {
+          return;
+        }
+        window.alert(getApiErrorMessage(data, "Failed to switch organization."));
+        return;
+      }
+
+      window.location.reload();
+    } catch {
+      window.alert("Failed to switch organization.");
+    } finally {
+      setOrganizationContextSwitching(false);
+    }
+  }, [hasAdminSettingsAccess, navigate, profile?.organizationCode]);
 
   function validateCreatePayload(payload) {
     const errors = {};
@@ -2345,6 +2471,23 @@ function ProfilePage({ forcedView = "none" }) {
           </div>
 
           <nav className="header-actions" aria-label="Header actions">
+            {hasAdminSettingsAccess ? (
+              <div className="header-org-switch">
+                <span className="header-org-switch-label">Organization</span>
+                <CustomSelect
+                  id="headerOrganizationContextSelect"
+                  value={String(profile?.organizationCode || "").trim().toLowerCase()}
+                  placeholder="Select organization"
+                  options={createOrganizationOptions}
+                  disabled={organizationContextSwitching || createOrganizationOptions.length === 0}
+                  menuPortal
+                  searchable
+                  searchThreshold={8}
+                  searchPlaceholder="Search organization"
+                  onChange={handleOrganizationContextSwitch}
+                />
+              </div>
+            ) : null}
             <button
               id="headerNotificationsBtn"
               type="button"
@@ -2521,6 +2664,8 @@ function ProfilePage({ forcedView = "none" }) {
           closeAdminOptionsPanel={closeAdminOptionsPanel}
           closeNotificationsSettingsPanel={closeNotificationsSettingsPanel}
           closeMonitoringPanel={closeMonitoringPanel}
+          closeStaffAttendancePanel={closeStaffAttendancePanel}
+          closeStaffAttendanceAdminPanel={closeStaffAttendanceAdminPanel}
           closeStatisticsPanel={closeStatisticsPanel}
           statisticsVipAttendanceHistoryItems={statisticsVipAttendanceHistoryItems}
           statisticsVipAttendanceHistoryFilters={statisticsVipAttendanceHistoryFilters}
@@ -2623,6 +2768,13 @@ function ProfilePage({ forcedView = "none" }) {
           openAvatarPicker={openAvatarPicker}
           avatarDataUrl={avatarDataUrl}
           avatarFallback={avatarFallback}
+          faceEnrolled={faceEnrolled}
+          faceEnrolledAt={faceEnrolledAt}
+          faceEnrollOpen={faceEnrollOpen}
+          openFaceEnroll={() => setFaceEnrollOpen(true)}
+          closeFaceEnroll={() => setFaceEnrollOpen(false)}
+          handleFaceCapture={handleFaceCapture}
+          handleFaceDelete={handleFaceDelete}
           profile={profile}
           openProfileEditModal={openProfileEditModal}
           openPasswordEditModal={openPasswordEditModal}
@@ -2725,10 +2877,13 @@ function ProfilePage({ forcedView = "none" }) {
         usersMenuOpen={usersMenuOpen}
         setUsersMenuOpen={setUsersMenuOpen}
         setSettingsMenuOpen={setSettingsMenuOpen}
+        adminSettingsMenuOpen={adminSettingsMenuOpen}
+        setAdminSettingsMenuOpen={setAdminSettingsMenuOpen}
         canReadUsers={canReadUsers}
         closeMenu={closeMenu}
         navigate={navigate}
         hasSettingsMenuAccess={hasSettingsMenuAccess}
+        hasAdminSettingsAccess={hasAdminSettingsAccess}
         hasNotificationsSettingsAccess={hasNotificationsSettingsAccess}
         settingsMenuOpen={settingsMenuOpen}
         openOrganizationsPanel={openOrganizationsPanel}
@@ -2737,6 +2892,8 @@ function ProfilePage({ forcedView = "none" }) {
         openAdminOptionsPanel={openAdminOptionsPanel}
         openNotificationsSettingsPanel={openNotificationsSettingsPanel}
         openMonitoringPanel={openMonitoringPanel}
+        openStaffAttendancePanel={openStaffAttendancePanel}
+        openStaffAttendanceAdminPanel={openStaffAttendanceAdminPanel}
       />
     </>
   );

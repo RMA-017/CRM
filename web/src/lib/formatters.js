@@ -75,6 +75,8 @@ export function normalizeProfile(profile) {
     roleId: String(profile.roleId || profile.role_id || ""),
     positionId: String(profile.positionId || profile.position_id || ""),
     isAdmin: Boolean(profile.isAdmin || profile.is_admin),
+    isPlatformAdmin: Boolean(profile.isPlatformAdmin || profile.is_platform_admin),
+    isOrganizationAdmin: Boolean(profile.isOrganizationAdmin || profile.is_organization_admin),
     email: profile.email || "",
     fullName: profile.fullName || profile.full_name || profile.name || "",
     birthday: profile.birthday || "",

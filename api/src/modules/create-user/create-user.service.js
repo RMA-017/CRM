@@ -8,13 +8,19 @@ export async function getActorForCreate(authContext = {}) {
       id: cachedRequester.id,
       role_id: cachedRequester.role_id,
       is_admin: Boolean(cachedRequester.is_admin),
+      is_platform_admin: Boolean(cachedRequester.is_platform_admin),
       organization_id: cachedRequester.organization_id
     };
   }
 
   const { userId, organizationId } = authContext;
   const { rows } = await pool.query(
-    `SELECT u.id, u.role_id, r.is_admin, u.organization_id
+    `SELECT
+       u.id,
+       u.role_id,
+       (COALESCE(u.is_platform_admin, FALSE) OR COALESCE(r.is_admin, FALSE)) AS is_admin,
+       COALESCE(u.is_platform_admin, FALSE) AS is_platform_admin,
+       u.organization_id
        FROM users u
        JOIN organizations o ON o.id = u.organization_id
        JOIN role_options r ON r.id = u.role_id

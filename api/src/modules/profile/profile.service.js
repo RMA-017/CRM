@@ -12,18 +12,20 @@ export async function getProfileByAuthContext({ userId, organizationId }) {
        u.full_name,
        u.birthday,
        r.label AS role,
-       r.is_admin,
+       (COALESCE(u.is_platform_admin, FALSE) OR COALESCE(r.is_admin, FALSE)) AS is_admin,
+       COALESCE(u.is_platform_admin, FALSE) AS is_platform_admin,
+       COALESCE(r.is_admin, FALSE) AS is_organization_admin,
        u.phone_number,
        p.label AS position,
        o.id AS organization_id,
        o.code AS organization_code,
        o.name AS organization_name
      FROM users u
-     JOIN organizations o ON o.id = u.organization_id
+     JOIN organizations o ON o.id = $2
      JOIN role_options r ON r.id = u.role_id
      LEFT JOIN position_options p ON p.id = u.position_id
      WHERE u.id = $1
-       AND u.organization_id = $2
+       AND (u.organization_id = $2 OR COALESCE(u.is_platform_admin, FALSE) = TRUE)
        AND o.is_active = TRUE
      LIMIT 1`,
     [userId, organizationId]
@@ -39,12 +41,24 @@ const FIELD_CONFIG = {
   position: { column: "position_id",  setExpr: "$1::int",   nullify: true  },
 };
 
-export async function updateOwnProfileField({ userId, organizationId, actorUserId, field, value }) {
+export async function updateOwnProfileField({
+  userId,
+  organizationId,
+  actorUserId,
+  field,
+  value,
+  allowCrossOrganization = false
+}) {
   if (field === "password") {
     const passwordHash = await argon2.hash(value);
     return pool.query(
-      "UPDATE users SET password_hash = $1, updated_by = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 AND organization_id = $4",
-      [passwordHash, actorUserId || null, userId, organizationId]
+      `UPDATE users
+          SET password_hash = $1,
+              updated_by = $2,
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = $3
+          AND ($5::boolean = TRUE OR organization_id = $4)`,
+      [passwordHash, actorUserId || null, userId, organizationId, allowCrossOrganization]
     );
   }
 
@@ -55,7 +69,12 @@ export async function updateOwnProfileField({ userId, organizationId, actorUserI
 
   const dbValue = config.nullify ? (value || null) : value;
   return pool.query(
-    `UPDATE users SET ${config.column} = ${config.setExpr}, updated_by = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 AND organization_id = $4`,
-    [dbValue, actorUserId || null, userId, organizationId]
+    `UPDATE users
+        SET ${config.column} = ${config.setExpr},
+            updated_by = $2,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3
+        AND ($5::boolean = TRUE OR organization_id = $4)`,
+    [dbValue, actorUserId || null, userId, organizationId, allowCrossOrganization]
   );
 }

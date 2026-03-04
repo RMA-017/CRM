@@ -136,7 +136,6 @@ export function sortVipClassDailyRoutineRows(items) {
 export function groupRolePermissionOptions(rolePermissionOptions) {
   const actionOrder = new Map([
     ["open", 0],
-    ["menu", 0],
     ["read", 1],
     ["create", 2],
     ["update", 3],

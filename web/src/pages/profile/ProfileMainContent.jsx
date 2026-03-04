@@ -11,6 +11,8 @@ import {
   MY_CHILDREN_DAY_NUM_TO_KEY,
   normalizeMyChildrenVisibleWeekDays
 } from "./profile.vip-utils.js";
+import StaffAttendanceAdminPanel from "./panels/StaffAttendanceAdminPanel.jsx";
+import StaffAttendancePanel from "./panels/StaffAttendancePanel.jsx";
 import StatisticsClassPanel from "./panels/StatisticsClassPanel.jsx";
 import StatisticsPlannerReportPanel from "./panels/StatisticsPlannerReportPanel.jsx";
 import VipDailyRoutinesPanel from "./panels/VipDailyRoutinesPanel.jsx";
@@ -328,6 +330,8 @@ function ProfileMainContent({
   closeAdminOptionsPanel,
   closeNotificationsSettingsPanel,
   closeMonitoringPanel,
+  closeStaffAttendancePanel,
+  closeStaffAttendanceAdminPanel,
   closeStatisticsPanel,
   statisticsVipAttendanceHistoryItems,
   statisticsVipAttendanceHistoryFilters,
@@ -1597,22 +1601,37 @@ function ProfileMainContent({
     setPositionCreateModalOpen(false);
   }
 
-  const adminOptionsOrganizationOptions = Array.isArray(organizations)
-    ? organizations
-        .map((item) => {
-          const id = String(item?.id || "").trim();
-          if (!id) {
-            return null;
-          }
-          const name = String(item?.name || "").trim();
-          const code = String(item?.code || "").trim().toLowerCase();
-          const label = name && code
-            ? `${name} (${code})`
-            : (name || code || `Organization #${id}`);
-          return { value: id, label };
-        })
-        .filter(Boolean)
-    : [];
+  const adminOptionsOrganizationOptions = (() => {
+    const seen = new Set();
+    const mapped = (Array.isArray(organizations) ? organizations : [])
+      .map((item) => {
+        const id = String(item?.id || "").trim();
+        if (!id || seen.has(id)) {
+          return null;
+        }
+        seen.add(id);
+        const name = String(item?.name || "").trim();
+        const code = String(item?.code || "").trim().toLowerCase();
+        const label = name && code
+          ? `${name} (${code})`
+          : (name || code || `Organization #${id}`);
+        return { value: id, label };
+      })
+      .filter(Boolean);
+
+    const currentOrganizationId = String(profile?.organizationId || "").trim();
+    if (currentOrganizationId && !seen.has(currentOrganizationId)) {
+      const currentOrganizationName = String(profile?.organizationName || "").trim();
+      const currentOrganizationCode = String(profile?.organizationCode || "").trim().toLowerCase();
+      mapped.unshift({
+        value: currentOrganizationId,
+        label: currentOrganizationName && currentOrganizationCode
+          ? `${currentOrganizationName} (${currentOrganizationCode})`
+          : (currentOrganizationName || currentOrganizationCode || `Organization #${currentOrganizationId}`)
+      });
+    }
+    return mapped;
+  })();
 
   const vipAttendanceAbsentModalLayer = (
     <>
@@ -4499,28 +4518,6 @@ function ProfileMainContent({
                 />
               </div>
               <div className="field">
-                <label htmlFor="adminOptionsHistoryLockDaysInput">Planner Edit Lock (days)</label>
-                <input
-                  id="adminOptionsHistoryLockDaysInput"
-                  name="appointmentHistoryLockDays"
-                  type="number"
-                  min={0}
-                  max={3650}
-                  step={1}
-                  value={String(adminOptionsForm?.appointmentHistoryLockDays ?? "")}
-                  onInput={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setAdminOptionsForm((prev) => ({
-                      ...prev,
-                      appointmentHistoryLockDays: nextValue
-                    }));
-                    if (adminOptionsError) {
-                      setAdminOptionsError("");
-                    }
-                  }}
-                />
-              </div>
-              <div className="field">
                 <label htmlFor="adminOptionsOutboxRetentionDaysInput">Outbox Retention (days)</label>
                 <input
                   id="adminOptionsOutboxRetentionDaysInput"
@@ -4577,6 +4574,14 @@ function ProfileMainContent({
 
       {mainView === "settings-monitoring" && (
         <MonitoringPanel onClose={closeMonitoringPanel} />
+      )}
+
+      {mainView === "staff-attendance" && (
+        <StaffAttendancePanel onClose={closeStaffAttendancePanel} />
+      )}
+
+      {mainView === "staff-attendance-admin" && (
+        <StaffAttendanceAdminPanel onClose={closeStaffAttendanceAdminPanel} />
       )}
 
       </main>

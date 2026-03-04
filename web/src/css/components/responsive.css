@@ -449,6 +449,18 @@
     padding-right: 6px;
   }
 
+  .header-org-switch {
+    min-width: 124px;
+  }
+
+  .header-org-switch-label {
+    display: none;
+  }
+
+  .header-org-switch .custom-select-trigger {
+    width: clamp(124px, 34vw, 180px);
+  }
+
   .user-menu-wrap {
     max-width: min(56vw, 190px);
   }

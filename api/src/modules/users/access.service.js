@@ -12,6 +12,10 @@ function normalizePositionId(value) {
   return parsePositiveInteger(value);
 }
 
+function normalizeOrganizationId(value) {
+  return parsePositiveInteger(value);
+}
+
 function normalizePermissionCode(value) {
   return String(value || "").trim().toLowerCase();
 }
@@ -44,39 +48,75 @@ export function clearRolePermissionsCache(roleId = null) {
   rolePermissionsCache.clear();
 }
 
-async function selectRoleById(roleId) {
+async function selectRoleById(roleId, organizationId = null, allowGlobal = true) {
   const normalizedRoleId = normalizeRoleId(roleId);
   if (!normalizedRoleId) {
     return null;
   }
 
+  const normalizedOrganizationId = normalizeOrganizationId(organizationId);
+  const params = [normalizedRoleId];
+  let scopeSql = "";
+  if (normalizedOrganizationId) {
+    params.push(normalizedOrganizationId);
+    scopeSql = allowGlobal
+      ? "AND (organization_id = $2 OR organization_id IS NULL)"
+      : "AND organization_id = $2";
+  }
+
   const { rows } = await pool.query(
-    "SELECT id, label, is_admin, is_active FROM role_options WHERE id = $1 LIMIT 1",
-    [normalizedRoleId]
+    `SELECT id, organization_id, label, is_admin, is_active
+       FROM role_options
+      WHERE id = $1
+        ${scopeSql}
+      LIMIT 1`,
+    params
   );
   return rows[0] || null;
 }
 
-async function selectPositionById(positionId) {
+async function selectPositionById(positionId, organizationId = null, allowGlobal = true) {
   const normalizedPositionId = normalizePositionId(positionId);
   if (!normalizedPositionId) {
     return null;
   }
 
+  const normalizedOrganizationId = normalizeOrganizationId(organizationId);
+  const params = [normalizedPositionId];
+  let scopeSql = "";
+  if (normalizedOrganizationId) {
+    params.push(normalizedOrganizationId);
+    scopeSql = allowGlobal
+      ? "AND (organization_id = $2 OR organization_id IS NULL)"
+      : "AND organization_id = $2";
+  }
+
   const { rows } = await pool.query(
-    "SELECT id, label, is_active FROM position_options WHERE id = $1 LIMIT 1",
-    [normalizedPositionId]
+    `SELECT id, organization_id, label, is_active
+       FROM position_options
+      WHERE id = $1
+        ${scopeSql}
+      LIMIT 1`,
+    params
   );
   return rows[0] || null;
 }
 
-export async function isAllowedRole(roleId) {
-  const role = await selectRoleById(roleId);
+export async function isAllowedRole(roleId, options = {}) {
+  const role = await selectRoleById(
+    roleId,
+    options?.organizationId ?? null,
+    options?.allowGlobal !== false
+  );
   return Boolean(role && role.is_active);
 }
 
-export async function isAllowedPosition(positionId) {
-  const position = await selectPositionById(positionId);
+export async function isAllowedPosition(positionId, options = {}) {
+  const position = await selectPositionById(
+    positionId,
+    options?.organizationId ?? null,
+    options?.allowGlobal !== false
+  );
   return Boolean(position && position.is_active);
 }
 

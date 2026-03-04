@@ -121,7 +121,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     async (request, reply) => {
       setNoCacheHeaders(reply);
 
-      const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_SUBMENU_STATISTICS);
+      const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_STATISTICS_READ);
       if (!access) {
         return;
       }
@@ -144,7 +144,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     async (request, reply) => {
       setNoCacheHeaders(reply);
 
-      const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_SUBMENU_STATISTICS);
+      const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_STATISTICS_READ);
       if (!access) {
         return;
       }
@@ -161,7 +161,6 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
       const specialistId = parsePositiveIntegerOr(request.query?.specialistId, 0) || null;
       const clientId = parsePositiveIntegerOr(request.query?.clientId, 0) || null;
       const isVip = parseNullableBoolean(request.query?.isVip ?? request.query?.is_vip);
-      const serviceName = String(request.query?.serviceName ?? request.query?.service_name ?? "").trim();
 
       try {
         const data = await getAppointmentPlannerReport({
@@ -170,8 +169,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           to: toRaw,
           specialistId,
           clientId,
-          isVip,
-          serviceName
+          isVip
         });
         return reply.send(data);
       } catch (error) {

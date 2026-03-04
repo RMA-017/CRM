@@ -36,6 +36,7 @@ export function useProfileAccess(profile, forcedView) {
   const canCreateAssignmentsPermission = permissionSet.has(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CREATE);
   const canUpdateAssignmentsPermission = permissionSet.has(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_UPDATE);
   const canDeleteAssignmentsPermission = permissionSet.has(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_DELETE);
+  const canReadStatisticsPermission = permissionSet.has(PERMISSIONS.APPOINTMENTS_STATISTICS_READ);
   const canSendNotifications = permissionSet.has(PERMISSIONS.NOTIFICATIONS_SEND);
   const canSearchAppointmentClients = (
     permissionSet.has(PERMISSIONS.APPOINTMENTS_CLIENT_SEARCH)
@@ -43,11 +44,8 @@ export function useProfileAccess(profile, forcedView) {
   );
 
   const usesAdvancedMenuPermissions = (
-    permissionSet.has(PERMISSIONS.CLIENTS_MENU)
-    || permissionSet.has(PERMISSIONS.APPOINTMENTS_MENU)
-    || permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE)
+    permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE)
     || permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_BREAKS)
-    || permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_VIP_CLIENTS)
     || canReadVipClientsPermission
     || canCreateVipClientsPermission
     || canUpdateVipClientsPermission
@@ -55,18 +53,14 @@ export function useProfileAccess(profile, forcedView) {
     || canMyClassPermission
     || canMyChildrenPermission
     || canDailyRoutinesPermission
-    || permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_ASSIGNMENTS)
     || canReadAssignmentsPermission
     || canCreateAssignmentsPermission
     || canUpdateAssignmentsPermission
     || canDeleteAssignmentsPermission
-    || permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_STATISTICS)
+    || canReadStatisticsPermission
   );
 
-  const canOpenClientsMenu = usesAdvancedMenuPermissions
-    ? permissionSet.has(PERMISSIONS.CLIENTS_MENU)
-    : (canReadClients || canCreateClients);
-  const hasClientsMenuAccess = canOpenClientsMenu && (canReadClients || canCreateClients);
+  const hasClientsMenuAccess = canReadClients;
 
   const canOpenAppointmentSchedule = canReadAppointments && (
     usesAdvancedMenuPermissions
@@ -102,7 +96,7 @@ export function useProfileAccess(profile, forcedView) {
   );
   const canOpenAppointmentVipClients = (
     usesAdvancedMenuPermissions
-      ? (permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_VIP_CLIENTS) && canReadVipClientsPermission)
+      ? canReadVipClientsPermission
       : canReadClients
   );
   const canOpenAppointmentVipMyClass = (
@@ -137,24 +131,22 @@ export function useProfileAccess(profile, forcedView) {
     : legacyCanManageAssignments;
   const canOpenAppointmentVipAssignments = (
     usesAdvancedMenuPermissions
-      ? (permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_ASSIGNMENTS) && canReadAssignmentsPermission)
+      ? canReadAssignmentsPermission
       : legacyCanReadAssignments
   );
   const canOpenAppointmentStatistics = canReadAppointments
     && canReadClients
     && (
       usesAdvancedMenuPermissions
-        ? permissionSet.has(PERMISSIONS.APPOINTMENTS_SUBMENU_STATISTICS)
+        ? canReadStatisticsPermission
         : canOpenAppointmentVipClients
     );
 
-  const canOpenAppointmentsMenu = usesAdvancedMenuPermissions
-    ? permissionSet.has(PERMISSIONS.APPOINTMENTS_MENU)
-    : canReadAppointments;
-  const hasAppointmentsMenuAccess = canOpenAppointmentsMenu
+  const hasAppointmentsMenuAccess = canReadAppointments
     && (canOpenAppointmentSchedule || canOpenAppointmentBreaks || canOpenAppointmentVipClients);
   const hasUsersMenuAccess = canReadUsers || canCreateUsers;
   const hasSettingsMenuAccess = Boolean(profile?.isAdmin);
+  const hasAdminSettingsAccess = Boolean(profile?.isPlatformAdmin);
   const hasNotificationsSettingsAccess = hasSettingsMenuAccess || canSendNotifications;
 
   const canAccessForcedView = useMemo(() => {
@@ -197,11 +189,14 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "appointment-settings") {
       return hasSettingsMenuAccess;
     }
+    if (forcedView === "settings-organizations" || forcedView === "settings-monitoring") {
+      return hasAdminSettingsAccess;
+    }
     if (
-      forcedView === "settings-organizations"
-      || forcedView === "settings-roles"
+      forcedView === "settings-roles"
       || forcedView === "settings-positions"
       || forcedView === "settings-admin-options"
+      || forcedView === "staff-attendance-admin"
     ) {
       return hasSettingsMenuAccess;
     }
@@ -235,9 +230,11 @@ export function useProfileAccess(profile, forcedView) {
     canUpdateAppointmentVipAssignments,
     canDeleteAppointmentVipAssignments,
     canOpenAppointmentStatistics,
+    canReadStatisticsPermission,
     hasClientsMenuAccess,
     canReadUsers,
     forcedView,
+    hasAdminSettingsAccess,
     hasNotificationsSettingsAccess,
     hasSettingsMenuAccess
   ]);
@@ -277,6 +274,7 @@ export function useProfileAccess(profile, forcedView) {
     hasAppointmentsMenuAccess,
     hasUsersMenuAccess,
     hasSettingsMenuAccess,
+    hasAdminSettingsAccess,
     hasNotificationsSettingsAccess,
     canAccessForcedView
   };

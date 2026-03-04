@@ -6,7 +6,6 @@ const DEFAULT_PERMISSIONS_SYNC_LOCK_KEY = 41003001;
 const BASE_PERMISSION_DEFINITIONS = [
   { code: PERMISSIONS.PROFILE_READ, label: "Read Profile", sortOrder: 10 },
   { code: PERMISSIONS.PROFILE_UPDATE, label: "Update Profile", sortOrder: 20 },
-  { code: PERMISSIONS.CLIENTS_MENU, label: "Open Clients Menu", sortOrder: 25 },
   { code: PERMISSIONS.USERS_READ, label: "Read Users", sortOrder: 30 },
   { code: PERMISSIONS.USERS_CREATE, label: "Create Users", sortOrder: 31 },
   { code: PERMISSIONS.USERS_UPDATE, label: "Update Users", sortOrder: 32 },
@@ -15,29 +14,26 @@ const BASE_PERMISSION_DEFINITIONS = [
   { code: PERMISSIONS.CLIENTS_CREATE, label: "Create Clients", sortOrder: 41 },
   { code: PERMISSIONS.CLIENTS_UPDATE, label: "Update Clients", sortOrder: 42 },
   { code: PERMISSIONS.CLIENTS_DELETE, label: "Delete Clients", sortOrder: 43 },
-  { code: PERMISSIONS.APPOINTMENTS_MENU, label: "Open Appointments Menu", sortOrder: 49 },
   { code: PERMISSIONS.APPOINTMENTS_READ, label: "Read Appointments", sortOrder: 50 },
   { code: PERMISSIONS.APPOINTMENTS_CREATE, label: "Create Appointments", sortOrder: 51 },
   { code: PERMISSIONS.APPOINTMENTS_UPDATE, label: "Update Appointments", sortOrder: 52 },
   { code: PERMISSIONS.APPOINTMENTS_DELETE, label: "Delete Appointments", sortOrder: 53 },
   { code: PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE, label: "Appointments Planner Submenu", sortOrder: 54 },
   { code: PERMISSIONS.APPOINTMENTS_SUBMENU_BREAKS, label: "Appointments Breaks Submenu", sortOrder: 55 },
-  { code: PERMISSIONS.APPOINTMENTS_SUBMENU_VIP_CLIENTS, label: "Appointments VIP Clients Submenu", sortOrder: 56 },
-  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_READ, label: "VIP Clients Read", sortOrder: 57 },
-  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_CREATE, label: "VIP Clients Create", sortOrder: 58 },
-  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_UPDATE, label: "VIP Clients Update", sortOrder: 59 },
-  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DELETE, label: "VIP Clients Delete", sortOrder: 60 },
-  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS, label: "VIP Clients My Class", sortOrder: 61 },
+  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_READ, label: "VIP Clients Read", sortOrder: 56 },
+  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_CREATE, label: "VIP Clients Create", sortOrder: 57 },
+  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_UPDATE, label: "VIP Clients Update", sortOrder: 58 },
+  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DELETE, label: "VIP Clients Delete", sortOrder: 59 },
+  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS, label: "VIP Clients My Class", sortOrder: 60 },
   { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN, label: "My VIP Children Access", sortOrder: 61 },
   { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DAILY_ROUTINES, label: "VIP Clients Daily Routines", sortOrder: 62 },
   { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_SCOPE_ALL, label: "VIP Clients Scope: All", sortOrder: 74 },
   { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_SCOPE_ASSIGNED, label: "VIP Clients Scope: Assigned", sortOrder: 75 },
-  { code: PERMISSIONS.APPOINTMENTS_SUBMENU_ASSIGNMENTS, label: "Appointments Assignments Submenu", sortOrder: 62 },
   { code: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_READ, label: "Assignments Read", sortOrder: 63 },
   { code: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CREATE, label: "Assignments Create", sortOrder: 64 },
   { code: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_UPDATE, label: "Assignments Update", sortOrder: 65 },
   { code: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_DELETE, label: "Assignments Delete", sortOrder: 66 },
-  { code: PERMISSIONS.APPOINTMENTS_SUBMENU_STATISTICS, label: "Appointments Statistics Submenu", sortOrder: 67 },
+  { code: PERMISSIONS.APPOINTMENTS_STATISTICS_READ, label: "Statistics Read", sortOrder: 67 },
   { code: PERMISSIONS.APPOINTMENTS_CLIENT_SEARCH, label: "Search Clients In Appointments", sortOrder: 68 },
   { code: PERMISSIONS.NOTIFICATIONS_SEND, label: "Send Notifications", sortOrder: 69 },
   { code: PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_MANAGER, label: "Notify To Manager", sortOrder: 70 },
@@ -45,6 +41,26 @@ const BASE_PERMISSION_DEFINITIONS = [
 ];
 
 const LEGACY_PERMISSION_CODE_MIGRATIONS = Object.freeze([
+  {
+    from: "clients.menu",
+    to: PERMISSIONS.CLIENTS_READ
+  },
+  {
+    from: "appointments.menu",
+    to: PERMISSIONS.APPOINTMENTS_READ
+  },
+  {
+    from: "appointments.vip-clients",
+    to: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_READ
+  },
+  {
+    from: "appointments.assignments",
+    to: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_READ
+  },
+  {
+    from: "appointments.statistics",
+    to: PERMISSIONS.APPOINTMENTS_STATISTICS_READ
+  },
   {
     from: "appointments.notify.to-manager",
     to: PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_MANAGER
@@ -77,9 +93,23 @@ const ROLE_PERMISSION_COPY_MIGRATIONS = Object.freeze([
     to: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS
   },
   {
-    from: PERMISSIONS.APPOINTMENTS_SUBMENU_VIP_CLIENTS,
+    from: "appointments.vip-clients",
     to: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DAILY_ROUTINES
   }
+]);
+
+const LEGACY_PERMISSION_CODES = Object.freeze([
+  "clients.menu",
+  "appointments.menu",
+  "appointments.vip-clients",
+  "appointments.assignments",
+  "appointments.statistics",
+  "appointments.notify.to-manager",
+  "appointments.notify.to-specialist",
+  "notifications.schedule.to-manager",
+  "notifications.schedule.to-specialist",
+  "appointments.schedule.scope.all",
+  "appointments.schedule.scope.assigned"
 ]);
 
 const LEGACY_PERMISSION_CODE_PATTERNS = Object.freeze([
@@ -199,16 +229,20 @@ export async function ensureSystemPermissions(options = {}) {
     await client.query(
       `UPDATE permissions
           SET is_active = FALSE
-        WHERE LOWER(code) LIKE ANY($1::text[])`,
-      [LEGACY_PERMISSION_CODE_PATTERNS]
+        WHERE LOWER(code) = ANY($1::text[])
+           OR LOWER(code) LIKE ANY($2::text[])`,
+      [LEGACY_PERMISSION_CODES, LEGACY_PERMISSION_CODE_PATTERNS]
     );
 
     await client.query(
       `DELETE FROM role_permissions rp
        USING permissions p
        WHERE p.id = rp.permission_id
-         AND LOWER(p.code) LIKE ANY($1::text[])`,
-      [LEGACY_PERMISSION_CODE_PATTERNS]
+         AND (
+           LOWER(p.code) = ANY($1::text[])
+           OR LOWER(p.code) LIKE ANY($2::text[])
+         )`,
+      [LEGACY_PERMISSION_CODES, LEGACY_PERMISSION_CODE_PATTERNS]
     );
 
     // Keep admin roles aligned with all active permissions.

@@ -8,7 +8,9 @@ import { isVipClientAssignedToUser } from "../clients/clients.service.js";
 import {
   DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS,
   DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
+  MAX_APPOINTMENT_HISTORY_LOCK_DAYS,
   MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
+  MIN_APPOINTMENT_HISTORY_LOCK_DAYS,
   MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
   getAppointmentDayKeys,
   getAppointmentHistoryLockDaysByOrganization,
@@ -116,7 +118,7 @@ function resolveTargetOrganizationId(access, requestedOrganizationId) {
   if (!requestedOrganizationId || requestedOrganizationId === authOrganizationId) {
     return authOrganizationId;
   }
-  if (!Boolean(access?.requester?.is_admin)) {
+  if (!Boolean(access?.requester?.is_platform_admin)) {
     return null;
   }
   return requestedOrganizationId;
@@ -954,6 +956,7 @@ function validateSchedulePayload({
 function validateSettingsPayload({
   slotIntervalMinutes,
   slotCellHeightPx,
+  historyLockDays,
   appointmentDurationMinutes,
   appointmentDurationOptionsMinutes,
   noShowThreshold,
@@ -969,6 +972,16 @@ function validateSettingsPayload({
     return {
       field: "slotCellHeightPx",
       message: `Slot cell height must be between ${MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX} and ${MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX}.`
+    };
+  }
+  if (
+    !Number.isInteger(historyLockDays)
+    || historyLockDays < MIN_APPOINTMENT_HISTORY_LOCK_DAYS
+    || historyLockDays > MAX_APPOINTMENT_HISTORY_LOCK_DAYS
+  ) {
+    return {
+      field: "historyLockDays",
+      message: `History lock days must be between ${MIN_APPOINTMENT_HISTORY_LOCK_DAYS} and ${MAX_APPOINTMENT_HISTORY_LOCK_DAYS}.`
     };
   }
   if (appointmentDurationMinutes <= 0 || appointmentDurationMinutes > 1440) {

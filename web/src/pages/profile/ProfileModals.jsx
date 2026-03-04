@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import FaceCapture from "../../components/FaceCapture.jsx";
 import CustomSelect from "../../components/CustomSelect.jsx";
 import { formatDateYMD } from "../../lib/formatters.js";
 import { togglePermissionCode } from "./profile.helpers.js";
@@ -50,6 +51,19 @@ function resolveNotificationDisplay(item) {
 
 function ProfileModals(props) {
   const maxBirthdayYmd = new Date().toISOString().slice(0, 10);
+  const [showPhotoMenu, setShowPhotoMenu] = useState(false);
+  const photoWrapRef = useRef(null);
+
+  useEffect(() => {
+    if (!showPhotoMenu) return;
+    function handleClick(e) {
+      if (photoWrapRef.current && !photoWrapRef.current.contains(e.target)) {
+        setShowPhotoMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showPhotoMenu]);
 
   const {
     myProfileModalOpen,
@@ -61,6 +75,13 @@ function ProfileModals(props) {
     openAvatarPicker,
     avatarDataUrl,
     avatarFallback,
+    faceEnrolled,
+    faceEnrolledAt,
+    faceEnrollOpen,
+    openFaceEnroll,
+    closeFaceEnroll,
+    handleFaceCapture,
+    handleFaceDelete,
     profile,
     openProfileEditModal,
     openPasswordEditModal,
@@ -171,30 +192,62 @@ function ProfileModals(props) {
           </button>
         </div>
 
-        <div
-          className="profile-modal-photo"
-          id="myProfilePhoto"
-          role="button"
-          tabIndex={0}
-          aria-label="Upload profile photo"
-          onClick={openAvatarPicker}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              openAvatarPicker();
-            }
-          }}
-        >
-          <img
-            id="myProfilePhotoImage"
-            className="profile-modal-photo-image"
-            alt="My profile photo"
-            hidden={!avatarDataUrl}
-            src={avatarDataUrl || undefined}
-          />
-          <span id="myProfilePhotoFallback" hidden={Boolean(avatarDataUrl)}>
-            {avatarFallback}
-          </span>
+        <div className="profile-photo-wrap" ref={photoWrapRef}>
+          <div
+            className="profile-modal-photo"
+            id="myProfilePhoto"
+            role="button"
+            tabIndex={0}
+            aria-label="Photo options"
+            onClick={() => setShowPhotoMenu((prev) => !prev)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setShowPhotoMenu((prev) => !prev);
+              }
+            }}
+          >
+            <img
+              id="myProfilePhotoImage"
+              className="profile-modal-photo-image"
+              alt="My profile photo"
+              hidden={!avatarDataUrl}
+              src={avatarDataUrl || undefined}
+            />
+            <span id="myProfilePhotoFallback" hidden={Boolean(avatarDataUrl)}>
+              {avatarFallback}
+            </span>
+          </div>
+
+          {showPhotoMenu && (
+            <div className="profile-photo-menu">
+              <button
+                type="button"
+                className="profile-photo-menu-btn"
+                onClick={() => { openAvatarPicker(); setShowPhotoMenu(false); }}
+              >
+                Upload Photo
+              </button>
+              <button
+                type="button"
+                className="profile-photo-menu-btn"
+                onClick={() => { openFaceEnroll(); setShowPhotoMenu(false); }}
+              >
+                {faceEnrolled ? "Re-enroll Face" : "Enroll Face"}
+              </button>
+              {faceEnrolled && (
+                <button
+                  type="button"
+                  className="profile-photo-menu-btn"
+                  style={{ color: "#ef4444" }}
+                  onClick={() => { handleFaceDelete(); setShowPhotoMenu(false); }}
+                >
+                  Remove Face ID
+                </button>
+              )}
+            </div>
+          )}
+
         </div>
 
         <dl className="profile-modal-list">
@@ -1158,7 +1211,17 @@ function ProfileModals(props) {
     return null;
   }
 
-  return createPortal(modalContent, document.body);
+  return (
+    <>
+      {createPortal(modalContent, document.body)}
+      <FaceCapture
+        isOpen={faceEnrollOpen}
+        onClose={closeFaceEnroll}
+        onCapture={handleFaceCapture}
+        title="Enroll Face"
+      />
+    </>
+  );
 }
 
 export default ProfileModals;

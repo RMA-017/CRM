@@ -11,7 +11,9 @@ export async function findAuthUserForLogin({ username }) {
        u.username,
        u.password_hash,
        r.label AS role,
-       r.is_admin,
+       (COALESCE(u.is_platform_admin, FALSE) OR COALESCE(r.is_admin, FALSE)) AS is_admin,
+       COALESCE(u.is_platform_admin, FALSE) AS is_platform_admin,
+       COALESCE(r.is_admin, FALSE) AS is_organization_admin,
        o.code AS organization_code,
        o.name AS organization_name
       FROM users u
@@ -27,12 +29,20 @@ export async function findAuthUserForLogin({ username }) {
 
 export async function findAuthUserById(userId, organizationId) {
   const { rows } = await pool.query(
-    `SELECT u.id, u.role_id, u.username, u.password_hash, r.label AS role, r.is_admin
+    `SELECT
+       u.id,
+       u.role_id,
+       u.username,
+       u.password_hash,
+       r.label AS role,
+       (COALESCE(u.is_platform_admin, FALSE) OR COALESCE(r.is_admin, FALSE)) AS is_admin,
+       COALESCE(u.is_platform_admin, FALSE) AS is_platform_admin,
+       COALESCE(r.is_admin, FALSE) AS is_organization_admin
        FROM users u
-       JOIN organizations o ON o.id = u.organization_id
+       JOIN organizations o ON o.id = $2
        JOIN role_options r ON r.id = u.role_id
       WHERE u.id = $1
-        AND u.organization_id = $2
+        AND (u.organization_id = $2 OR COALESCE(u.is_platform_admin, FALSE) = TRUE)
         AND o.is_active = TRUE`,
     [userId, organizationId]
   );

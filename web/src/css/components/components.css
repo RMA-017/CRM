@@ -171,6 +171,25 @@
   box-sizing: border-box;
 }
 
+.header-org-switch {
+  display: grid;
+  gap: 4px;
+  min-width: 180px;
+}
+
+.header-org-switch-label {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--text-muted);
+  padding-left: 2px;
+}
+
+.header-org-switch .custom-select-trigger {
+  width: clamp(180px, 22vw, 240px);
+  justify-content: space-between;
+}
+
 .user-name-btn {
   min-width: 120px;
   height: var(--btn-height);
@@ -869,7 +888,7 @@
   max-height: none;
   overflow-x: auto;
   overflow-y: visible;
-  padding-bottom: 6px;
+  padding-bottom: 0;
 }
 
 .all-users-table.settings-table {
@@ -1454,19 +1473,46 @@
   min-width: 140px;
 }
 
-.planner-report-field-vip {
-  flex: 0 0 150px;
-}
-
 .planner-report-field-specialist {
   min-width: min(260px, 100%);
   flex: 1 1 220px;
 }
 
-.planner-report-field-client,
-.planner-report-field-service {
+.planner-report-field-client {
   min-width: min(280px, 100%);
   flex: 1 1 240px;
+}
+
+.planner-report-field-vip {
+  flex: 0 0 100px;
+  min-width: 100px;
+  width: 100px;
+}
+
+.planner-report-vip-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100px;
+  min-height: var(--input-height);
+  padding: 0 10px;
+  border: 1.5px solid var(--input-border);
+  border-radius: var(--radius);
+  background: var(--input-bg);
+  color: var(--text-main);
+  transition: border-color var(--dur) ease, box-shadow var(--dur) ease;
+}
+
+.planner-report-vip-toggle:hover {
+  border-color: var(--input-border-hover);
+}
+
+.planner-report-vip-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
 }
 
 .planner-report-field .custom-select,
@@ -1595,15 +1641,40 @@
   table-layout: fixed;
 }
 
-.planner-report-table th:first-child,
-.planner-report-table td:first-child {
-  width: calc(30% - 10px);
+.planner-report-table.is-detail-report th:nth-child(1),
+.planner-report-table.is-detail-report td:nth-child(1) {
+  width: calc(10% - 10px);
   padding-left: 10px;
 }
 
-.planner-report-table th:nth-child(n + 2),
-.planner-report-table td:nth-child(n + 2) {
-  width: 14%;
+.planner-report-table.is-detail-report th:nth-child(2),
+.planner-report-table.is-detail-report td:nth-child(2) {
+  width: 10%;
+}
+
+.planner-report-table.is-detail-report th:nth-child(3),
+.planner-report-table.is-detail-report td:nth-child(3) {
+  width: 10%;
+}
+
+.planner-report-table.is-detail-report th:nth-child(4),
+.planner-report-table.is-detail-report td:nth-child(4) {
+  width: 20%;
+}
+
+.planner-report-table.is-detail-report th:nth-child(5),
+.planner-report-table.is-detail-report td:nth-child(5) {
+  width: 20%;
+}
+
+.planner-report-table.is-detail-report th:nth-child(6),
+.planner-report-table.is-detail-report td:nth-child(6) {
+  width: 20%;
+}
+
+.planner-report-table.is-detail-report th:nth-child(7),
+.planner-report-table.is-detail-report td:nth-child(7) {
+  width: 10%;
   text-align: center;
 }
 
@@ -1664,10 +1735,9 @@
   }
 
   .planner-report-field,
-  .planner-report-field-vip,
   .planner-report-field-client,
-  .planner-report-field-service,
   .planner-report-field-specialist,
+  .planner-report-vip-toggle,
   .planner-report-load-btn {
     width: 100%;
     max-width: 100%;
@@ -4937,10 +5007,10 @@ button[id*="save"]:active,
 .profile-modal-photo {
   position: relative;
   overflow: hidden;
-  width: 85px;
-  height: 85px;
+  width: 100px;
+  height: 100px;
   border-radius: 50%;
-  margin: 0px auto 14px;
+  margin: 0 auto;
   display: grid;
   place-items: center;
   font-weight: 700;
@@ -5318,3 +5388,199 @@ button[id*="save"]:active,
 .monitoring-badge-ok   { background: #dcfce7; color: #15803d; }
 .monitoring-badge-warn { background: #fef9c3; color: #92400e; }
 .monitoring-badge-slow { background: #fee2e2; color: #b91c1c; }
+
+/* ── Attendance Panel ───────────────────────────────────────────── */
+.att-today-card {
+  background: var(--card-bg, #f8fafc);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+.att-today-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.att-today-label { color: var(--text-muted, #64748b); font-size: 0.85rem; min-width: 48px; }
+.att-today-date  { font-weight: 600; }
+.att-today-val   { font-weight: 600; font-size: 1rem; }
+.att-today-pending { color: var(--text-muted, #94a3b8); }
+.att-today-rows  { margin-top: 8px; }
+.att-today-status { margin-top: 8px; font-weight: 600; color: var(--text-muted, #64748b); }
+.att-status-absent { color: #ef4444; }
+.att-settings-hint { margin-top: 10px; font-size: 0.8rem; color: var(--text-muted, #94a3b8); }
+
+.att-badge         { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; }
+.att-badge-ok      { background: #dcfce7; color: #15803d; }
+.att-badge-late    { background: #fee2e2; color: #b91c1c; }
+
+.att-action-card {
+  background: var(--card-bg, #f8fafc);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.att-gps-btn    { align-self: flex-start; }
+.att-gps-hint   { font-size: 0.85rem; color: var(--text-muted, #64748b); }
+.att-gps-error  { color: #ef4444; }
+.att-btn-row    { display: flex; gap: 10px; flex-wrap: wrap; }
+.att-checkin-btn  { background: #22c55e; color: #fff; border-color: #16a34a; }
+.att-checkin-btn:hover:not(:disabled)  { background: #16a34a; }
+.att-checkout-btn { background: #f59e0b; color: #fff; border-color: #d97706; }
+.att-checkout-btn:hover:not(:disabled) { background: #d97706; }
+.att-cancel-btn   { background: transparent; color: var(--text-muted, #64748b); }
+
+.att-msg         { margin: 8px 0; font-size: 0.9rem; }
+.att-msg-error   { color: #ef4444; }
+.att-msg-done    { color: #16a34a; font-weight: 600; }
+
+.att-history         { margin-top: 8px; }
+.att-history-title   { font-size: 0.95rem; font-weight: 600; margin-bottom: 10px; }
+
+/* ── Attendance Admin Panel ─────────────────────────────────────── */
+.att-admin-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid var(--border-color, #e2e8f0);
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.att-admin-tab-btn {
+  padding: 8px 18px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-muted, #64748b);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.att-admin-tab-btn:hover   { color: var(--text, #1e293b); }
+.att-admin-tab-btn.active  { color: var(--primary, #3b82f6); border-bottom-color: var(--primary, #3b82f6); font-weight: 600; }
+
+.att-admin-tab      { padding: 0 2px; }
+
+.att-admin-filters {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 16px;
+}
+.att-admin-filter-group { display: flex; flex-direction: column; gap: 4px; }
+.att-admin-filter-group label { font-size: 0.8rem; color: var(--text-muted, #64748b); }
+.att-admin-filter-group input,
+.att-admin-filter-group select { padding: 6px 10px; border: 1px solid var(--border-color, #e2e8f0); border-radius: 6px; font-size: 0.88rem; }
+
+.att-admin-stats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.att-stat-card {
+  background: var(--card-bg, #f8fafc);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  padding: 12px 20px;
+  min-width: 100px;
+  text-align: center;
+}
+.att-stat-val    { font-size: 1.5rem; font-weight: 700; }
+.att-stat-label  { font-size: 0.78rem; color: var(--text-muted, #64748b); margin-top: 2px; }
+.att-stat-ok     { border-color: #86efac; }
+.att-stat-ok .att-stat-val   { color: #15803d; }
+.att-stat-late   { border-color: #fca5a5; }
+.att-stat-late .att-stat-val { color: #b91c1c; }
+.att-stat-warn   { border-color: #fcd34d; }
+.att-stat-warn .att-stat-val { color: #92400e; }
+
+.att-settings-form  { display: flex; flex-direction: column; gap: 16px; }
+.att-fieldset       { border: 1px solid var(--border-color, #e2e8f0); border-radius: 8px; padding: 16px 20px; }
+.att-fieldset legend { font-weight: 600; font-size: 0.9rem; padding: 0 6px; }
+.att-fieldset-hint  { font-size: 0.8rem; color: var(--text-muted, #94a3b8); margin: 4px 0 0; }
+.att-form-row       { display: flex; gap: 16px; flex-wrap: wrap; }
+.att-form-row .field { flex: 1; min-width: 160px; }
+
+.att-user-row { cursor: pointer; }
+.att-user-row:hover td { background: var(--hover-bg, #f1f5f9); }
+
+/* ── Face Capture Modal ─────────────────────────────────────────── */
+.face-capture-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.face-capture-modal {
+  background: var(--panel-bg, #fff);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 480px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  overflow: hidden;
+}
+.face-capture-video-wrap {
+  position: relative;
+  background: #0f172a;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 0;
+}
+.face-capture-video {
+  width: 100%;
+  max-height: 320px;
+  object-fit: cover;
+  display: block;
+}
+.face-capture-actions {
+  padding-top: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ── Face enrollment status in profile photo area ───────────────── */
+.profile-photo-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--panel-bg, #fff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  min-width: 160px;
+  overflow: hidden;
+}
+.profile-photo-menu-btn {
+  background: none;
+  border: none;
+  padding: 10px 18px;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text, #1e293b);
+  white-space: nowrap;
+}
+.profile-photo-menu-btn:hover { background: var(--hover-bg, #f1f5f9); }
+.profile-photo-wrap { position: relative; align-self: center; }

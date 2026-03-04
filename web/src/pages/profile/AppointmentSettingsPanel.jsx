@@ -63,6 +63,7 @@ function createDefaultForm() {
     slotInterval: "",
     slotSubDivisions: "1",
     slotCellHeightPx: "18",
+    historyLockDays: "10",
     appointmentDurationOptions: "",
     visibleWeekDays: [],
     noShowThreshold: "",
@@ -263,7 +264,7 @@ function AppointmentSettingsPanel({
       return sum + (lineCount > 0 ? lineCount : 1);
     }, 0)
   ), [addBreakDraftRows]);
-  const canSwitchOrganization = Boolean(profile?.isAdmin) && organizationOptions.length > 1;
+  const canSwitchOrganization = Boolean(profile?.isPlatformAdmin) && organizationOptions.length > 1;
   const effectiveOrganizationId = String(selectedOrganizationId || currentOrganizationId || "").trim();
 
   useEffect(() => {
@@ -406,6 +407,7 @@ function AppointmentSettingsPanel({
           slotInterval: String(source.slotInterval ?? ""),
           slotSubDivisions: String(source.slotSubDivisions ?? "1"),
           slotCellHeightPx: String(source.slotCellHeightPx ?? "18"),
+          historyLockDays: String(source.historyLockDays ?? "10"),
           appointmentDurationOptions: Array.isArray(source.appointmentDurationOptions)
             ? source.appointmentDurationOptions.join(",")
             : String(source.appointmentDuration ?? ""),
@@ -1258,11 +1260,13 @@ function AppointmentSettingsPanel({
         return;
       }
 
+      const parsedHistoryLockDays = Number.parseInt(String(form.historyLockDays || "").trim(), 10);
       const payload = {
         organizationId: targetOrganizationId,
         slotInterval: String(form.slotInterval || "").trim(),
         slotSubDivisions: Number.parseInt(String(form.slotSubDivisions || "1"), 10) || 1,
         slotCellHeightPx: Number.parseInt(String(form.slotCellHeightPx || "18"), 10) || 18,
+        historyLockDays: Number.isInteger(parsedHistoryLockDays) ? parsedHistoryLockDays : 10,
         appointmentDurationOptions: parseDurationOptionsInput(form.appointmentDurationOptions),
         visibleWeekDays: form.visibleWeekDays,
         workingHours,
@@ -1802,7 +1806,23 @@ function AppointmentSettingsPanel({
       </div>
 
       <div className="appointment-setting-row">
-        <label htmlFor="appointmentDurationInput">4. Appointment Durations</label>
+        <label htmlFor="historyLockDaysInput">4. Planner Edit Lock (days)</label>
+        <div className="appointment-setting-inline">
+          <input
+            id="historyLockDaysInput"
+            type="number"
+            min="0"
+            max="3650"
+            value={form.historyLockDays}
+            disabled={!canUpdateAppointments}
+            onChange={(event) => handleFormField("historyLockDays", event.currentTarget.value)}
+          />
+          <span>days</span>
+        </div>
+      </div>
+
+      <div className="appointment-setting-row">
+        <label htmlFor="appointmentDurationInput">5. Appointment Durations</label>
         <div className="appointment-setting-inline">
           <input
             id="appointmentDurationInput"
@@ -1818,7 +1838,7 @@ function AppointmentSettingsPanel({
       </div>
 
       <div className="appointment-setting-row">
-        <label>5. Visible Week Days</label>
+        <label>6. Visible Week Days</label>
         <div className="appointment-reminder-channels">
           {DAYS.map((day) => (
             <label key={day.key} htmlFor={`appointmentDay_${day.key}`}>
@@ -1836,7 +1856,7 @@ function AppointmentSettingsPanel({
       </div>
 
       <div className="appointment-setting-row">
-        <label>6. Working Hours</label>
+        <label>7. Working Hours</label>
         <div className="appointment-working-hours-grid">
           {DAYS.map((day) => (
             <div key={day.key} className="appointment-working-hours-item">
@@ -1860,7 +1880,7 @@ function AppointmentSettingsPanel({
       </div>
 
       <div className="appointment-setting-row">
-        <label>7. No-show Rules</label>
+        <label>8. No-show Rules</label>
         <div className="appointment-setting-inline">
           <input
             type="number"
@@ -1874,7 +1894,7 @@ function AppointmentSettingsPanel({
       </div>
 
       <div className="appointment-setting-row">
-        <label>8. Reminder Settings</label>
+        <label>9. Reminder Settings</label>
         <div className="appointment-setting-inline appointment-reminder-settings-inline">
           <input
             id="appointmentReminderHoursInput"

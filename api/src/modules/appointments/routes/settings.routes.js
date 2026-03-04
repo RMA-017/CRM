@@ -110,6 +110,15 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
           ?? request.body?.slot_cell_height_px,
           DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX
         );
+        const historyLockDays = Number.parseInt(
+          String(
+            request.body?.historyLockDays
+            ?? request.body?.appointmentHistoryLockDays
+            ?? request.body?.history_lock_days
+            ?? DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS
+          ).trim(),
+          10
+        );
         const appointmentDurationOptionsMinutes = normalizeDurationOptions(request.body?.appointmentDurationOptions);
         const appointmentDurationMinutes = appointmentDurationOptionsMinutes[0]
           || parsePositiveIntegerOr(request.body?.appointmentDuration, 0);
@@ -122,6 +131,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
         const validationError = validateSettingsPayload({
           slotIntervalMinutes,
           slotCellHeightPx,
+          historyLockDays,
           appointmentDurationMinutes,
           appointmentDurationOptionsMinutes,
           noShowThreshold,
@@ -140,6 +150,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
           slotIntervalMinutes,
           slotSubDivisions,
           slotCellHeightPx,
+          historyLockDays,
           appointmentDurationMinutes,
           appointmentDurationOptionsMinutes,
           noShowThreshold,

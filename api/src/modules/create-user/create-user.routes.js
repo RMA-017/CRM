@@ -34,17 +34,6 @@ async function createUserRoutes(fastify) {
         errors.organizationCode = "Invalid organisation.";
       }
 
-      if (roleId) {
-        try {
-          if (!(await isAllowedRole(roleId))) {
-            errors.role = "Invalid role.";
-          }
-        } catch (error) {
-          request.log.error({ err: error }, "Error validating role");
-          return reply.status(500).send({ message: "Internal server error." });
-        }
-      }
-
       if (Object.keys(errors).length > 0) {
         return reply.status(400).send({ errors });
       }
@@ -58,7 +47,7 @@ async function createUserRoutes(fastify) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
-        let targetOrganizationId = authContext.organizationId;
+        let targetOrganizationId = Number(authContext.organizationId);
         if (organizationCode) {
           const selectedOrganization = await findActiveOrganizationByCode(organizationCode);
           if (!selectedOrganization) {
@@ -68,13 +57,27 @@ async function createUserRoutes(fastify) {
             });
           }
 
-          const isAdmin = Boolean(actor.is_admin);
           const selectedOrganizationId = Number(selectedOrganization.id);
-          if (!isAdmin && selectedOrganizationId !== Number(authContext.organizationId)) {
+          if (!actor.is_platform_admin && selectedOrganizationId !== Number(authContext.organizationId)) {
             return reply.status(403).send({ message: "Forbidden." });
           }
 
           targetOrganizationId = selectedOrganizationId;
+        }
+
+        if (roleId) {
+          try {
+            if (!(await isAllowedRole(roleId, { organizationId: targetOrganizationId }))) {
+              return reply.status(400).send({
+                errors: {
+                  role: "Invalid role."
+                }
+              });
+            }
+          } catch (error) {
+            request.log.error({ err: error }, "Error validating role");
+            return reply.status(500).send({ message: "Internal server error." });
+          }
         }
 
         const defaultPassword = String(appConfig.defaultCreatedUserPassword || "");

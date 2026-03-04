@@ -58,7 +58,7 @@ async function usersRoutes(fastify) {
         if (!(await hasPermission(requester.role_id, PERMISSIONS.USERS_READ))) {
           return reply.status(403).send({ message: "Forbidden." });
         }
-        const isAdmin = Boolean(requester.is_admin);
+        const canReadAllOrganizations = Boolean(requester.is_platform_admin);
 
         if (organizationCodeParam && organizationCodeParam !== "all" && !ORGANIZATION_CODE_REGEX.test(organizationCodeParam)) {
           return reply.status(400).send({ field: "organizationCode", message: "Invalid organisation." });
@@ -68,8 +68,8 @@ async function usersRoutes(fastify) {
           organizationId: authContext.organizationId,
           page,
           limit,
-          canReadAllOrganizations: isAdmin,
-          organizationCode: isAdmin
+          canReadAllOrganizations,
+          organizationCode: canReadAllOrganizations
             ? organizationCodeParam
             : String(authContext.organizationCode || "").trim().toLowerCase(),
           search
@@ -148,24 +148,6 @@ async function usersRoutes(fastify) {
 
       if (String(request.body?.position || "").trim() && !positionId) {
         errors.position = "Invalid position.";
-      } else if (positionId) {
-        try {
-          if (!(await isAllowedPosition(positionId))) {
-            errors.position = "Invalid position.";
-          }
-        } catch (error) {
-          request.log.error({ err: error }, "Error validating position");
-          return reply.status(500).send({ message: "Internal server error." });
-        }
-      }
-
-      try {
-        if (roleId && !(await isAllowedRole(roleId))) {
-          errors.role = "Invalid role.";
-        }
-      } catch (error) {
-        request.log.error({ err: error }, "Error validating role");
-        return reply.status(500).send({ message: "Internal server error." });
       }
 
       if (Object.keys(errors).length > 0) {
@@ -177,24 +159,49 @@ async function usersRoutes(fastify) {
         if (!requester || !(await hasPermission(requester.role_id, PERMISSIONS.USERS_UPDATE))) {
           return reply.status(403).send({ message: "Forbidden." });
         }
-        const isAdmin = Boolean(requester.is_admin);
 
-        let scopedOrganizationId = authContext.organizationId;
+        const targetUser = await getUserScopeById(userId);
+        if (!targetUser) {
+          return reply.status(404).send({ message: "User not found." });
+        }
+
+        const scopedOrganizationId = Number(targetUser.organization_id);
+        if (!requester.is_platform_admin && scopedOrganizationId !== Number(authContext.organizationId)) {
+          return reply.status(404).send({ message: "User not found." });
+        }
+
         let nextOrganizationId = null;
-        if (isAdmin) {
-          const targetUser = await getUserScopeById(userId);
-          if (!targetUser) {
-            return reply.status(404).send({ message: "User not found." });
+        if (organizationCode) {
+          const targetOrganization = await findActiveOrganizationByCode(organizationCode);
+          if (!targetOrganization) {
+            return reply.status(400).send({ field: "organizationCode", message: "Invalid organisation." });
           }
-          scopedOrganizationId = Number(targetUser.organization_id);
 
-          if (organizationCode) {
-            const targetOrganization = await findActiveOrganizationByCode(organizationCode);
-            if (!targetOrganization) {
-              return reply.status(400).send({ field: "organizationCode", message: "Invalid organisation." });
-            }
-            nextOrganizationId = Number(targetOrganization.id);
+          const resolvedOrganizationId = Number(targetOrganization.id);
+          if (!requester.is_platform_admin && resolvedOrganizationId !== Number(authContext.organizationId)) {
+            return reply.status(403).send({ message: "Forbidden." });
           }
+          nextOrganizationId = resolvedOrganizationId;
+        }
+
+        const validationOrganizationId = nextOrganizationId || scopedOrganizationId;
+        if (positionId) {
+          try {
+            if (!(await isAllowedPosition(positionId, { organizationId: validationOrganizationId }))) {
+              return reply.status(400).send({ errors: { position: "Invalid position." } });
+            }
+          } catch (error) {
+            request.log.error({ err: error }, "Error validating position");
+            return reply.status(500).send({ message: "Internal server error." });
+          }
+        }
+        try {
+          if (roleId && !(await isAllowedRole(roleId, { organizationId: validationOrganizationId }))) {
+            return reply.status(400).send({ errors: { role: "Invalid role." } });
+          }
+        } catch (error) {
+          request.log.error({ err: error }, "Error validating role");
+          return reply.status(500).send({ message: "Internal server error." });
         }
 
         const user = await updateUserByAdmin({
@@ -254,19 +261,18 @@ async function usersRoutes(fastify) {
         if (!requester || !(await hasPermission(requester.role_id, PERMISSIONS.USERS_DELETE))) {
           return reply.status(403).send({ message: "Forbidden." });
         }
-        const isAdmin = Boolean(requester.is_admin);
 
         if (Number(requester.id) === userId) {
           return reply.status(400).send({ message: "You cannot delete your own account." });
         }
 
-        let scopedOrganizationId = authContext.organizationId;
-        if (isAdmin) {
-          const targetUser = await getUserScopeById(userId);
-          if (!targetUser) {
-            return reply.status(404).send({ message: "User not found." });
-          }
-          scopedOrganizationId = Number(targetUser.organization_id);
+        const targetUser = await getUserScopeById(userId);
+        if (!targetUser) {
+          return reply.status(404).send({ message: "User not found." });
+        }
+        const scopedOrganizationId = Number(targetUser.organization_id);
+        if (!requester.is_platform_admin && scopedOrganizationId !== Number(authContext.organizationId)) {
+          return reply.status(404).send({ message: "User not found." });
         }
 
         const deleteResult = await deleteUserById(userId, scopedOrganizationId);

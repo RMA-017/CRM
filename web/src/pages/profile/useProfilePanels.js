@@ -17,6 +17,7 @@ export function useProfilePanels({
   canOpenAppointmentVipAssignments,
   canOpenAppointmentStatistics,
   hasSettingsMenuAccess,
+  hasAdminSettingsAccess,
   hasNotificationsSettingsAccess
 }) {
   const openPanel = useCallback((path, hasAccess = true) => {
@@ -57,7 +58,7 @@ export function useProfilePanels({
   }, [closePanel]);
 
   const openAppointmentPanel = useCallback(() => {
-    openPanel("/appointments", canOpenAppointmentSchedule);
+    openPanel("/appointments/planner", canOpenAppointmentSchedule);
   }, [canOpenAppointmentSchedule, openPanel]);
 
   const closeAppointmentPanel = useCallback(() => {
@@ -73,7 +74,7 @@ export function useProfilePanels({
   }, [closePanel]);
 
   const openAppointmentSettingsPanel = useCallback(() => {
-    openPanel("/appointments/settings", hasSettingsMenuAccess);
+    openPanel("/settings/appointments", hasSettingsMenuAccess);
   }, [hasSettingsMenuAccess, openPanel]);
 
   const closeAppointmentSettingsPanel = useCallback(() => {
@@ -81,7 +82,7 @@ export function useProfilePanels({
   }, [closePanel]);
 
   const openStatisticsClassPanel = useCallback(() => {
-    openPanel("/statistics/class", canOpenAppointmentStatistics);
+    openPanel("/statistics/vip-class-attendance-report", canOpenAppointmentStatistics);
   }, [canOpenAppointmentStatistics, openPanel]);
 
   const openStatisticsPlannerReportPanel = useCallback(() => {
@@ -129,7 +130,7 @@ export function useProfilePanels({
   }, [closePanel]);
 
   const openAppointmentVipAssignmentsPanel = useCallback(() => {
-    openPanel("/appointments/vip-assignments", canOpenAppointmentVipAssignments);
+    openPanel("/assignments/class", canOpenAppointmentVipAssignments);
   }, [canOpenAppointmentVipAssignments, openPanel]);
 
   const closeAppointmentVipAssignmentsPanel = useCallback(() => {
@@ -137,7 +138,7 @@ export function useProfilePanels({
   }, [closePanel]);
 
   const openAppointmentVipTutorAssignmentsPanel = useCallback(() => {
-    openPanel("/appointments/vip-tutor-assignments", canOpenAppointmentVipAssignments);
+    openPanel("/assignments/tutor", canOpenAppointmentVipAssignments);
   }, [canOpenAppointmentVipAssignments, openPanel]);
 
   const closeAppointmentVipTutorAssignmentsPanel = useCallback(() => {
@@ -153,8 +154,8 @@ export function useProfilePanels({
   }, [closePanel]);
 
   const openOrganizationsPanel = useCallback(() => {
-    openPanel("/settings/organizations", hasSettingsMenuAccess);
-  }, [hasSettingsMenuAccess, openPanel]);
+    openPanel("/admin-settings/organizations", hasAdminSettingsAccess);
+  }, [hasAdminSettingsAccess, openPanel]);
 
   const closeOrganizationsPanel = useCallback(() => {
     closePanel("settings-organizations");
@@ -193,11 +194,27 @@ export function useProfilePanels({
   }, [closePanel]);
 
   const openMonitoringPanel = useCallback(() => {
-    openPanel("/settings/monitoring", hasSettingsMenuAccess);
-  }, [hasSettingsMenuAccess, openPanel]);
+    openPanel("/admin-settings/monitoring", hasAdminSettingsAccess);
+  }, [hasAdminSettingsAccess, openPanel]);
 
   const closeMonitoringPanel = useCallback(() => {
     closePanel("settings-monitoring");
+  }, [closePanel]);
+
+  const openStaffAttendancePanel = useCallback(() => {
+    openPanel("/staff-attendance");
+  }, [openPanel]);
+
+  const closeStaffAttendancePanel = useCallback(() => {
+    closePanel("staff-attendance");
+  }, [closePanel]);
+
+  const openStaffAttendanceAdminPanel = useCallback(() => {
+    openPanel("/settings/attendance-admin", hasSettingsMenuAccess);
+  }, [hasSettingsMenuAccess, openPanel]);
+
+  const closeStaffAttendanceAdminPanel = useCallback(() => {
+    closePanel("staff-attendance-admin");
   }, [closePanel]);
 
   const closeCreateUserPanel = useCallback(() => {
@@ -251,6 +268,10 @@ export function useProfilePanels({
     closeNotificationsSettingsPanel,
     openMonitoringPanel,
     closeMonitoringPanel,
+    openStaffAttendancePanel,
+    closeStaffAttendancePanel,
+    openStaffAttendanceAdminPanel,
+    closeStaffAttendanceAdminPanel,
     closeCreateUserPanel,
     closeAllUsersPanel
   };

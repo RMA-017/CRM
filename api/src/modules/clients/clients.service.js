@@ -439,6 +439,7 @@ export async function findClientsRequester(authContext = {}) {
       id: cachedRequester.id,
       role_id: cachedRequester.role_id,
       is_admin: Boolean(cachedRequester.is_admin),
+      is_platform_admin: Boolean(cachedRequester.is_platform_admin),
       role_label: roleLabel,
       position_label: positionLabel
     };
@@ -449,7 +450,8 @@ export async function findClientsRequester(authContext = {}) {
     `SELECT
        u.id,
        u.role_id,
-       COALESCE(r.is_admin, FALSE) AS is_admin,
+       (COALESCE(u.is_platform_admin, FALSE) OR COALESCE(r.is_admin, FALSE)) AS is_admin,
+       COALESCE(u.is_platform_admin, FALSE) AS is_platform_admin,
        COALESCE(NULLIF(TRIM(r.label), ''), '') AS role_label,
        COALESCE(NULLIF(TRIM(p.label), ''), '') AS position_label
        FROM users u

@@ -7,6 +7,7 @@ import securityPlugin from "./plugins/security.js";
 import { authPreHandler } from "./lib/session.js";
 import { createErrorFileLogger } from "./lib/error-file-logger.js";
 import appointmentSettingsRoutes from "./modules/appointments/appointment-settings.routes.js";
+import staffAttendanceRoutes from "./modules/attendance/staff-attendance.routes.js";
 import authRoutes from "./modules/auth/auth.routes.js";
 import clientsRoutes from "./modules/clients/clients.routes.js";
 import createUserRoutes from "./modules/create-user/create-user.routes.js";
@@ -143,6 +144,7 @@ export async function buildApp() {
     await fastify.register(appointmentSettingsRoutes, { prefix: "/api/appointments" });
     await fastify.register(notificationsRoutes, { prefix: "/api/notifications" });
     await fastify.register(settingsRoutes, { prefix: "/api/settings" });
+    await fastify.register(staffAttendanceRoutes, { prefix: "/api/staff-attendance" });
     await fastify.register(monitoringRoutes, { prefix: "/api/monitoring" });
   });
 

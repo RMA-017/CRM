@@ -38,10 +38,13 @@ function ProfileSideMenu({
   usersMenuOpen,
   setUsersMenuOpen,
   setSettingsMenuOpen,
+  adminSettingsMenuOpen,
+  setAdminSettingsMenuOpen,
   canReadUsers,
   closeMenu,
   navigate,
   hasSettingsMenuAccess,
+  hasAdminSettingsAccess,
   hasNotificationsSettingsAccess,
   settingsMenuOpen,
   openOrganizationsPanel,
@@ -49,7 +52,9 @@ function ProfileSideMenu({
   openPositionsPanel,
   openAdminOptionsPanel,
   openNotificationsSettingsPanel,
-  openMonitoringPanel
+  openMonitoringPanel,
+  openStaffAttendancePanel,
+  openStaffAttendanceAdminPanel
 }) {
   return (
     <>
@@ -259,6 +264,37 @@ function ProfileSideMenu({
               </button>
             </div>
           </div>
+          <div id="adminSettingsMenuGroup" className="side-menu-group" hidden={!hasAdminSettingsAccess}>
+            <button
+              id="toggleAdminSettingsMenuBtn"
+              type="button"
+              className="side-menu-action side-menu-parent"
+              aria-expanded={adminSettingsMenuOpen ? "true" : "false"}
+              onClick={() => {
+                setAdminSettingsMenuOpen((prev) => !prev);
+              }}
+            >
+              Admin Settings
+            </button>
+            <div id="adminSettingsSubMenu" className="side-submenu" hidden={!adminSettingsMenuOpen}>
+              <button
+                id="openOrganizationsBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                onClick={openOrganizationsPanel}
+              >
+                Organizations
+              </button>
+              <button
+                id="openMonitoringBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                onClick={openMonitoringPanel}
+              >
+                Monitoring
+              </button>
+            </div>
+          </div>
           <div id="settingsMenuGroup" className="side-menu-group" hidden={!hasSettingsMenuAccess && !hasNotificationsSettingsAccess}>
             <button
               id="toggleSettingsMenuBtn"
@@ -280,15 +316,6 @@ function ProfileSideMenu({
                 onClick={openAppointmentSettingsPanel}
               >
                 Appointments
-              </button>
-              <button
-                id="openOrganizationsBtn"
-                type="button"
-                className="side-submenu-link side-submenu-action"
-                hidden={!hasSettingsMenuAccess}
-                onClick={openOrganizationsPanel}
-              >
-                Organizations
               </button>
               <button
                 id="openRolesBtn"
@@ -327,16 +354,24 @@ function ProfileSideMenu({
                 Notifications
               </button>
               <button
-                id="openMonitoringBtn"
+                id="openAttendanceAdminBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
                 hidden={!hasSettingsMenuAccess}
-                onClick={openMonitoringPanel}
+                onClick={openStaffAttendanceAdminPanel}
               >
-                Monitoring
+                Attendance Admin
               </button>
             </div>
           </div>
+          <button
+            id="openAttendanceBtn"
+            type="button"
+            className="side-menu-action"
+            onClick={openStaffAttendancePanel}
+          >
+            Staff Attendance
+          </button>
         </nav>
       </aside>
 

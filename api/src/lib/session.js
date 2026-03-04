@@ -42,7 +42,9 @@ async function getRequesterByAuthContext({ userId, organizationId }) {
        u.full_name,
        u.birthday,
        COALESCE(NULLIF(TRIM(r.label), ''), '') AS role,
-       COALESCE(r.is_admin, FALSE) AS is_admin,
+       (COALESCE(u.is_platform_admin, FALSE) OR COALESCE(r.is_admin, FALSE)) AS is_admin,
+       COALESCE(u.is_platform_admin, FALSE) AS is_platform_admin,
+       COALESCE(r.is_admin, FALSE) AS is_organization_admin,
        u.phone_number,
        COALESCE(NULLIF(TRIM(p.label), ''), '') AS position,
        o.id AS organization_id,
@@ -51,11 +53,11 @@ async function getRequesterByAuthContext({ userId, organizationId }) {
        COALESCE(NULLIF(TRIM(r.label), ''), '') AS role_label,
        COALESCE(NULLIF(TRIM(p.label), ''), '') AS position_label
       FROM users u
-      JOIN organizations o ON o.id = u.organization_id
+      JOIN organizations o ON o.id = $2
       LEFT JOIN role_options r ON r.id = u.role_id
       LEFT JOIN position_options p ON p.id = u.position_id
      WHERE u.id = $1
-       AND u.organization_id = $2
+       AND (u.organization_id = $2 OR COALESCE(u.is_platform_admin, FALSE) = TRUE)
        AND o.is_active = TRUE
      LIMIT 1`,
     [userId, organizationId]

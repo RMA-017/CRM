@@ -277,23 +277,19 @@ function toHmMinutes(value) {
 }
 
 const ADVANCED_APPOINTMENT_MENU_PERMISSIONS = Object.freeze([
-  PERMISSIONS.CLIENTS_MENU,
-  PERMISSIONS.APPOINTMENTS_MENU,
   PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE,
   PERMISSIONS.APPOINTMENTS_SUBMENU_BREAKS,
-  PERMISSIONS.APPOINTMENTS_SUBMENU_VIP_CLIENTS,
   PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_READ,
   PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_CREATE,
   PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_UPDATE,
   PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DELETE,
   PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS,
   PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DAILY_ROUTINES,
-  PERMISSIONS.APPOINTMENTS_SUBMENU_ASSIGNMENTS,
   PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_READ,
   PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CREATE,
   PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_UPDATE,
   PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_DELETE,
-  PERMISSIONS.APPOINTMENTS_SUBMENU_STATISTICS
+  PERMISSIONS.APPOINTMENTS_STATISTICS_READ
 ]);
 
 async function hasAdvancedAppointmentMenuPermissions(roleId) {
@@ -306,7 +302,6 @@ async function hasAdvancedAppointmentMenuPermissions(roleId) {
 async function getVipClientsPermissionSnapshot(roleId) {
   const [
     usesAdvancedMenuPermissions,
-    canOpenVipClients,
     canReadVipClients,
     canCreateVipClients,
     canUpdateVipClients,
@@ -317,7 +312,6 @@ async function getVipClientsPermissionSnapshot(roleId) {
     canReadVipScopeAssigned
   ] = await Promise.all([
     hasAdvancedAppointmentMenuPermissions(roleId),
-    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_SUBMENU_VIP_CLIENTS),
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_READ),
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_CREATE),
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_UPDATE),
@@ -329,7 +323,6 @@ async function getVipClientsPermissionSnapshot(roleId) {
   ]);
   return {
     usesAdvancedMenuPermissions,
-    canOpenVipClients,
     canReadVipClients,
     canCreateVipClients,
     canUpdateVipClients,
@@ -354,14 +347,12 @@ function resolveVipClientReadScope(vipPermissions, requester) {
 async function getAssignmentsPermissionSnapshot(roleId) {
   const [
     usesAdvancedMenuPermissions,
-    canOpenAssignments,
     canReadAssignments,
     canCreateAssignments,
     canUpdateAssignments,
     canDeleteAssignments
   ] = await Promise.all([
     hasAdvancedAppointmentMenuPermissions(roleId),
-    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_SUBMENU_ASSIGNMENTS),
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_READ),
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CREATE),
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_UPDATE),
@@ -369,7 +360,6 @@ async function getAssignmentsPermissionSnapshot(roleId) {
   ]);
   return {
     usesAdvancedMenuPermissions,
-    canOpenAssignments,
     canReadAssignments,
     canCreateAssignments,
     canUpdateAssignments,
@@ -829,7 +819,7 @@ async function clientsRoutes(fastify) {
           getVipClientsPermissionSnapshot(requester.role_id)
         ]);
         const canReadVipAttendance = vipPermissions.usesAdvancedMenuPermissions
-          ? (vipPermissions.canOpenVipClients && vipPermissions.canReadVipClients)
+          ? vipPermissions.canReadVipClients
           : canReadClients;
         if (!canReadVipAttendance) {
           return reply.status(403).send({ message: "Forbidden." });
@@ -894,14 +884,14 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
-        const [canReadClients, canReadAppointments, usesAdvancedMenuPermissions, canOpenStatistics, vipPermissions] = await Promise.all([
+        const [canReadClients, canReadAppointments, usesAdvancedMenuPermissions, canReadStatistics, vipPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
           hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_READ),
           hasAdvancedAppointmentMenuPermissions(requester.role_id),
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_SUBMENU_STATISTICS),
+          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_STATISTICS_READ),
           getVipClientsPermissionSnapshot(requester.role_id)
         ]);
-        if (!canReadClients || !canReadAppointments || (usesAdvancedMenuPermissions && !canOpenStatistics)) {
+        if (!canReadClients || !canReadAppointments || (usesAdvancedMenuPermissions && !canReadStatistics)) {
           return reply.status(403).send({ message: "Forbidden." });
         }
         const vipReadScope = resolveVipClientReadScope(vipPermissions, requester);
@@ -1053,7 +1043,7 @@ async function clientsRoutes(fastify) {
           getAssignmentsPermissionSnapshot(requester.role_id)
         ]);
         const canReadAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
-          ? (assignmentsPermissions.canOpenAssignments && assignmentsPermissions.canReadAssignments)
+          ? assignmentsPermissions.canReadAssignments
           : (canReadClients && isDirectorLikeRequester(requester));
         if (!canReadAssignments) {
           return reply.status(403).send({ message: "Forbidden." });
@@ -1108,7 +1098,7 @@ async function clientsRoutes(fastify) {
           getAssignmentsPermissionSnapshot(requester.role_id)
         ]);
         const canReadAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
-          ? (assignmentsPermissions.canOpenAssignments && assignmentsPermissions.canReadAssignments)
+          ? assignmentsPermissions.canReadAssignments
           : (canReadClients && isDirectorLikeRequester(requester));
         if (!canReadAssignments) {
           return reply.status(403).send({ message: "Forbidden." });
@@ -1164,7 +1154,7 @@ async function clientsRoutes(fastify) {
         const isEditMode = Boolean(classId);
         const canWriteAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
           ? (
-            assignmentsPermissions.canOpenAssignments
+            assignmentsPermissions.canReadAssignments
             && (isEditMode ? assignmentsPermissions.canUpdateAssignments : assignmentsPermissions.canCreateAssignments)
           )
           : (canUpdateClients && isDirectorLikeRequester(requester));
@@ -1226,7 +1216,7 @@ async function clientsRoutes(fastify) {
           getAssignmentsPermissionSnapshot(requester.role_id)
         ]);
         const canDeleteAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
-          ? (assignmentsPermissions.canOpenAssignments && assignmentsPermissions.canDeleteAssignments)
+          ? (assignmentsPermissions.canReadAssignments && assignmentsPermissions.canDeleteAssignments)
           : (canUpdateClients && isDirectorLikeRequester(requester));
         if (!canDeleteAssignments) {
           return reply.status(403).send({ message: "Forbidden." });
@@ -1273,7 +1263,7 @@ async function clientsRoutes(fastify) {
           getVipClientsPermissionSnapshot(requester.role_id)
         ]);
         const canReadAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
-          ? (assignmentsPermissions.canOpenAssignments && assignmentsPermissions.canReadAssignments)
+          ? assignmentsPermissions.canReadAssignments
           : (canReadClients && isDirectorLikeRequester(requester));
         if (!canReadAssignments) {
           return reply.status(403).send({ message: "Forbidden." });
@@ -1340,7 +1330,7 @@ async function clientsRoutes(fastify) {
           getAssignmentsPermissionSnapshot(requester.role_id)
         ]);
         const canReadAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
-          ? (assignmentsPermissions.canOpenAssignments && assignmentsPermissions.canReadAssignments)
+          ? assignmentsPermissions.canReadAssignments
           : (canReadClients && isDirectorLikeRequester(requester));
         if (!canReadAssignments) {
           return reply.status(403).send({ message: "Forbidden." });
@@ -1401,7 +1391,7 @@ async function clientsRoutes(fastify) {
         ]);
         const canWriteAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
           ? (
-            assignmentsPermissions.canOpenAssignments
+            assignmentsPermissions.canReadAssignments
             && (assignmentsPermissions.canCreateAssignments || assignmentsPermissions.canUpdateAssignments)
           )
           : (canUpdateClients && isDirectorLikeRequester(requester));
@@ -1758,7 +1748,7 @@ async function clientsRoutes(fastify) {
           getVipClientsPermissionSnapshot(requester.role_id)
         ]);
         const canSearchVipClients = vipPermissions.usesAdvancedMenuPermissions
-          ? (vipPermissions.canOpenVipClients && vipPermissions.canReadVipClients)
+          ? vipPermissions.canReadVipClients
           : canReadClients;
         const canSearchMyChildren = vipPermissions.usesAdvancedMenuPermissions
           ? vipPermissions.canAccessMyChildren
@@ -1897,7 +1887,7 @@ async function clientsRoutes(fastify) {
           const canWriteVipAttendance = resetAttendance
             ? vipPermissions.canDeleteVipClients
             : (vipPermissions.canCreateVipClients || vipPermissions.canUpdateVipClients);
-          if (!vipPermissions.canOpenVipClients || !canWriteVipAttendance) {
+          if (!vipPermissions.canReadVipClients || !canWriteVipAttendance) {
             return reply.status(403).send({ message: "Forbidden." });
           }
         } else {

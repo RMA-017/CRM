@@ -18,6 +18,7 @@ import {
 
 export function useSettingsSection({
   hasSettingsMenuAccess,
+  hasAdminSettingsAccess,
   navigate,
   loadUserOptions
 }) {
@@ -61,7 +62,6 @@ export function useSettingsSection({
   const [positionDeletingId, setPositionDeletingId] = useState("");
   const [adminOptionsForm, setAdminOptionsForm] = useState({
     organizationId: "",
-    appointmentHistoryLockDays: "",
     outboxWorkerRetentionDays: "",
     userNotificationsRetentionDays: ""
   });
@@ -79,7 +79,7 @@ export function useSettingsSection({
   }, []);
 
   const loadOrganizations = useCallback(async () => {
-    if (!hasSettingsMenuAccess) {
+    if (!hasAdminSettingsAccess) {
       navigate("/404", { replace: true });
       return;
     }
@@ -109,7 +109,7 @@ export function useSettingsSection({
       setOrganizations([]);
       setOrganizationsMessage("Unexpected error. Please try again.");
     }
-  }, [hasSettingsMenuAccess, navigate]);
+  }, [hasAdminSettingsAccess, navigate]);
 
   const loadRolesSettings = useCallback(async () => {
     if (!hasSettingsMenuAccess) {
@@ -230,13 +230,11 @@ export function useSettingsSection({
 
       const item = data?.item && typeof data.item === "object" ? data.item : {};
       const nextOrganizationId = String(item?.organizationId || requestedOrganizationId || "").trim();
-      const nextHistoryLockDays = String(item?.appointmentHistoryLockDays ?? "").trim();
       const nextOutboxWorkerRetentionDays = String(item?.outboxWorkerRetentionDays ?? "").trim();
       const nextUserNotificationsRetentionDays = String(item?.userNotificationsRetentionDays ?? "").trim();
       setAdminOptionsForm((prev) => ({
         ...prev,
         organizationId: nextOrganizationId,
-        appointmentHistoryLockDays: nextHistoryLockDays,
         outboxWorkerRetentionDays: nextOutboxWorkerRetentionDays,
         userNotificationsRetentionDays: nextUserNotificationsRetentionDays
       }));
@@ -280,22 +278,15 @@ export function useSettingsSection({
     }
 
     const organizationIdRaw = String(adminOptionsForm.organizationId || "").trim();
-    const appointmentHistoryLockDaysRaw = String(adminOptionsForm.appointmentHistoryLockDays || "").trim();
     const outboxWorkerRetentionDaysRaw = String(adminOptionsForm.outboxWorkerRetentionDays || "").trim();
     const userNotificationsRetentionDaysRaw = String(adminOptionsForm.userNotificationsRetentionDays || "").trim();
     const organizationId = Number.parseInt(organizationIdRaw, 10);
-    const appointmentHistoryLockDays = Number.parseInt(appointmentHistoryLockDaysRaw, 10);
     const outboxWorkerRetentionDays = Number.parseInt(outboxWorkerRetentionDaysRaw, 10);
     const userNotificationsRetentionDays = Number.parseInt(userNotificationsRetentionDaysRaw, 10);
 
     if (!Number.isInteger(organizationId) || organizationId <= 0) {
       setAdminOptionsError("");
       window.alert("Select organization.");
-      return;
-    }
-    if (!Number.isInteger(appointmentHistoryLockDays) || appointmentHistoryLockDays < 0 || appointmentHistoryLockDays > 3650) {
-      setAdminOptionsError("");
-      window.alert("History lock days must be an integer between 0 and 3650.");
       return;
     }
     if (!Number.isInteger(outboxWorkerRetentionDays) || outboxWorkerRetentionDays < 0 || outboxWorkerRetentionDays > 3650) {
@@ -322,7 +313,6 @@ export function useSettingsSection({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           organizationId,
-          appointmentHistoryLockDays,
           outboxWorkerRetentionDays,
           userNotificationsRetentionDays
         })
@@ -342,7 +332,6 @@ export function useSettingsSection({
       setAdminOptionsForm((prev) => ({
         ...prev,
         organizationId: String(item?.organizationId || organizationId),
-        appointmentHistoryLockDays: String(item?.appointmentHistoryLockDays ?? appointmentHistoryLockDays),
         outboxWorkerRetentionDays: String(item?.outboxWorkerRetentionDays ?? outboxWorkerRetentionDays),
         userNotificationsRetentionDays: String(item?.userNotificationsRetentionDays ?? userNotificationsRetentionDays)
       }));
@@ -357,7 +346,6 @@ export function useSettingsSection({
       setAdminOptionsSubmitting(false);
     }
   }, [
-    adminOptionsForm.appointmentHistoryLockDays,
     adminOptionsForm.outboxWorkerRetentionDays,
     adminOptionsForm.userNotificationsRetentionDays,
     adminOptionsForm.organizationId,
@@ -368,8 +356,8 @@ export function useSettingsSection({
   const handleOrganizationCreateSubmit = useCallback(async (event) => {
     event.preventDefault();
 
-    if (!hasSettingsMenuAccess) {
-      setOrganizationCreateError("You do not have permission to manage settings.");
+    if (!hasAdminSettingsAccess) {
+      setOrganizationCreateError("You do not have permission to manage organizations.");
       return false;
     }
 
@@ -412,7 +400,7 @@ export function useSettingsSection({
       setOrganizationCreateSubmitting(false);
     }
   }, [
-    hasSettingsMenuAccess,
+    hasAdminSettingsAccess,
     loadOrganizations,
     navigate,
     organizationCreateForm.code,
@@ -443,6 +431,10 @@ export function useSettingsSection({
   const handleOrganizationEditSave = useCallback(async () => {
     const id = String(organizationEditId || "").trim();
     if (!id) {
+      return;
+    }
+    if (!hasAdminSettingsAccess) {
+      setOrganizationEditError("You do not have permission to manage organizations.");
       return;
     }
 
@@ -484,6 +476,7 @@ export function useSettingsSection({
     }
   }, [
     cancelOrganizationEdit,
+    hasAdminSettingsAccess,
     loadOrganizations,
     navigate,
     organizationEditForm.code,
@@ -801,6 +794,14 @@ export function useSettingsSection({
       let endpoint = "";
       let fallbackError = "Failed to delete item.";
       if (deleteType === "organization") {
+        if (!hasAdminSettingsAccess) {
+          setSettingsDelete((prev) => ({
+            ...prev,
+            error: "You do not have permission to manage organizations.",
+            submitting: false
+          }));
+          return;
+        }
         endpoint = `/api/settings/organizations/${rowId}`;
         fallbackError = "Failed to delete organization.";
         setOrganizationDeletingId(rowId);
@@ -865,6 +866,7 @@ export function useSettingsSection({
     cancelPositionEdit,
     cancelRoleEdit,
     closeSettingsDeleteModal,
+    hasAdminSettingsAccess,
     loadOrganizations,
     loadPositionsSettings,
     loadRolesSettings,

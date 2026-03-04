@@ -1,12 +1,23 @@
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
+CREATE TABLE organizations (
+  id SERIAL PRIMARY KEY,
+  code VARCHAR(64) NOT NULL UNIQUE,
+  name VARCHAR(128) NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by INTEGER,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_by INTEGER,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE role_options (
   id SERIAL PRIMARY KEY,
+  organization_id INTEGER REFERENCES organizations(id) ON DELETE CASCADE,
   label VARCHAR(64) NOT NULL,
   sort_order INTEGER NOT NULL DEFAULT 0,
   is_admin BOOLEAN NOT NULL DEFAULT FALSE,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  UNIQUE (label),
   created_by INTEGER,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_by INTEGER,
@@ -37,26 +48,21 @@ CREATE TABLE role_permissions (
 
 CREATE TABLE position_options (
   id SERIAL PRIMARY KEY,
+  organization_id INTEGER REFERENCES organizations(id) ON DELETE CASCADE,
   label VARCHAR(96) NOT NULL,
   sort_order INTEGER NOT NULL DEFAULT 0,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  UNIQUE (label),
   created_by INTEGER,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_by INTEGER,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE organizations (
-  id SERIAL PRIMARY KEY,
-  code VARCHAR(64) NOT NULL UNIQUE,
-  name VARCHAR(128) NOT NULL,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_by INTEGER,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_by INTEGER,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+CREATE UNIQUE INDEX uq_role_options_org_label_ci
+  ON role_options (COALESCE(organization_id, 0), LOWER(label));
+
+CREATE UNIQUE INDEX uq_position_options_org_label_ci
+  ON position_options (COALESCE(organization_id, 0), LOWER(label));
 
 CREATE TABLE users (
   id SERIAL PRIMARY KEY,
@@ -69,6 +75,9 @@ CREATE TABLE users (
   phone_number VARCHAR(15),
   position_id INTEGER REFERENCES position_options(id),
   role_id INTEGER NOT NULL REFERENCES role_options(id),
+  is_platform_admin BOOLEAN NOT NULL DEFAULT FALSE,
+  face_descriptor JSONB,
+  face_enrolled_at TIMESTAMP,
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -517,3 +526,54 @@ CREATE INDEX idx_appointment_status_history_org_schedule_changed
 
 CREATE INDEX idx_appointment_status_history_org_changed
   ON appointment_status_history (organization_id, changed_at DESC, id DESC);
+
+-- Staff attendance settings per organization
+CREATE TABLE staff_attendance_settings (
+  id SERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  work_start TIME NOT NULL DEFAULT '08:00:00',
+  work_end TIME NOT NULL DEFAULT '18:00:00',
+  late_threshold_minutes INTEGER NOT NULL DEFAULT 15,
+  location_lat DOUBLE PRECISION,
+  location_lng DOUBLE PRECISION,
+  location_radius_meters INTEGER NOT NULL DEFAULT 100,
+  face_check_frequency INTEGER NOT NULL DEFAULT 5,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (organization_id)
+);
+
+-- Per-user work schedule override
+CREATE TABLE staff_attendance_user_settings (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  work_start TIME,
+  work_end TIME,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (user_id, organization_id)
+);
+
+-- Staff attendance records
+CREATE TABLE staff_attendance (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  date DATE NOT NULL,
+  check_in_at TIMESTAMPTZ,
+  check_out_at TIMESTAMPTZ,
+  check_in_lat DOUBLE PRECISION,
+  check_in_lng DOUBLE PRECISION,
+  check_in_accuracy DOUBLE PRECISION,
+  check_out_lat DOUBLE PRECISION,
+  check_out_lng DOUBLE PRECISION,
+  check_out_accuracy DOUBLE PRECISION,
+  face_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  status VARCHAR(20) NOT NULL DEFAULT 'on_time',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (user_id, date)
+);
+
+CREATE INDEX idx_staff_attendance_org_date ON staff_attendance (organization_id, date);
+CREATE INDEX idx_staff_attendance_user_date ON staff_attendance (user_id, date);
