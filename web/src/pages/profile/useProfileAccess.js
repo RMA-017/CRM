@@ -192,11 +192,12 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "settings-organizations" || forcedView === "settings-monitoring") {
       return hasAdminSettingsAccess;
     }
+    if (forcedView === "settings-roles") {
+      return hasSettingsMenuAccess || hasAdminSettingsAccess;
+    }
     if (
-      forcedView === "settings-roles"
-      || forcedView === "settings-positions"
+      forcedView === "settings-positions"
       || forcedView === "settings-admin-options"
-      || forcedView === "staff-attendance-admin"
     ) {
       return hasSettingsMenuAccess;
     }

@@ -162,8 +162,8 @@ export function useProfilePanels({
   }, [closePanel]);
 
   const openRolesPanel = useCallback(() => {
-    openPanel("/settings/roles", hasSettingsMenuAccess);
-  }, [hasSettingsMenuAccess, openPanel]);
+    openPanel("/settings/roles", hasSettingsMenuAccess || hasAdminSettingsAccess);
+  }, [hasAdminSettingsAccess, hasSettingsMenuAccess, openPanel]);
 
   const closeRolesPanel = useCallback(() => {
     closePanel("settings-roles");
@@ -199,22 +199,6 @@ export function useProfilePanels({
 
   const closeMonitoringPanel = useCallback(() => {
     closePanel("settings-monitoring");
-  }, [closePanel]);
-
-  const openStaffAttendancePanel = useCallback(() => {
-    openPanel("/staff-attendance");
-  }, [openPanel]);
-
-  const closeStaffAttendancePanel = useCallback(() => {
-    closePanel("staff-attendance");
-  }, [closePanel]);
-
-  const openStaffAttendanceAdminPanel = useCallback(() => {
-    openPanel("/settings/attendance-admin", hasSettingsMenuAccess);
-  }, [hasSettingsMenuAccess, openPanel]);
-
-  const closeStaffAttendanceAdminPanel = useCallback(() => {
-    closePanel("staff-attendance-admin");
   }, [closePanel]);
 
   const closeCreateUserPanel = useCallback(() => {
@@ -268,10 +252,6 @@ export function useProfilePanels({
     closeNotificationsSettingsPanel,
     openMonitoringPanel,
     closeMonitoringPanel,
-    openStaffAttendancePanel,
-    closeStaffAttendancePanel,
-    openStaffAttendanceAdminPanel,
-    closeStaffAttendanceAdminPanel,
     closeCreateUserPanel,
     closeAllUsersPanel
   };

@@ -129,7 +129,7 @@ function MonitoringPanel({ onClose }) {
       )}
 
       {message && (
-        <p className="form-error" style={{ marginTop: "12px" }}>{message}</p>
+        <p style={{ marginTop: "12px", color: "var(--danger)" }}>{message}</p>
       )}
 
       {data && (

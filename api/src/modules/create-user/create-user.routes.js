@@ -3,7 +3,7 @@ import { ORGANIZATION_CODE_REGEX } from "../../constants/validation.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 import { findActiveOrganizationByCode } from "../organizations/organizations.service.js";
 import { PERMISSIONS, USERNAME_REGEX } from "../users/users.constants.js";
-import { hasPermission, isAllowedRole } from "../users/access.service.js";
+import { hasPermission, isAdminRole, isAllowedRole } from "../users/access.service.js";
 import { createBasicUser, getActorForCreate } from "./create-user.service.js";
 
 async function createUserRoutes(fastify) {
@@ -72,6 +72,15 @@ async function createUserRoutes(fastify) {
                 errors: {
                   role: "Invalid role."
                 }
+              });
+            }
+            if (
+              !actor.is_platform_admin
+              && (await isAdminRole(roleId, { organizationId: targetOrganizationId, allowGlobal: false }))
+            ) {
+              return reply.status(403).send({
+                field: "role",
+                message: "Only platform admin can assign admin role."
               });
             }
           } catch (error) {

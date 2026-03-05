@@ -1,5 +1,19 @@
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
+CREATE OR REPLACE FUNCTION is_smallint_array_within_bounds(
+  arr SMALLINT[],
+  min_value INTEGER,
+  max_value INTEGER
+)
+RETURNS BOOLEAN
+LANGUAGE SQL
+IMMUTABLE
+RETURNS NULL ON NULL INPUT
+AS $$
+  SELECT COALESCE(bool_and(v BETWEEN min_value AND max_value), FALSE)
+  FROM unnest(arr) AS v;
+$$;
+
 CREATE TABLE organizations (
   id SERIAL PRIMARY KEY,
   code VARCHAR(64) NOT NULL UNIQUE,
@@ -21,7 +35,8 @@ CREATE TABLE role_options (
   created_by INTEGER,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_by INTEGER,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT uq_role_options_org_id UNIQUE (organization_id, id)
 );
 
 CREATE TABLE permissions (
@@ -55,7 +70,8 @@ CREATE TABLE position_options (
   created_by INTEGER,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_by INTEGER,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT uq_position_options_org_id UNIQUE (organization_id, id)
 );
 
 CREATE UNIQUE INDEX uq_role_options_org_label_ci
@@ -73,15 +89,19 @@ CREATE TABLE users (
   birthday DATE,
   password_hash VARCHAR(255) NOT NULL,
   phone_number VARCHAR(15),
-  position_id INTEGER REFERENCES position_options(id),
-  role_id INTEGER NOT NULL REFERENCES role_options(id),
+  position_id INTEGER,
+  role_id INTEGER NOT NULL,
   is_platform_admin BOOLEAN NOT NULL DEFAULT FALSE,
-  face_descriptor JSONB,
-  face_enrolled_at TIMESTAMP,
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_users_position_org
+    FOREIGN KEY (organization_id, position_id)
+    REFERENCES position_options(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fk_users_role_org
+    FOREIGN KEY (organization_id, role_id)
+    REFERENCES role_options(organization_id, id) ON DELETE RESTRICT,
   UNIQUE (organization_id, id)
 );
 
@@ -276,6 +296,13 @@ CREATE TABLE vip_class_daily_routines (
     REFERENCES vip_class_teacher_assignments(organization_id, id) ON DELETE CASCADE,
   CONSTRAINT uq_vip_class_daily_routines_exact_slot
     UNIQUE (organization_id, class_assignment_id, day_of_week, start_time, end_time, activity_type),
+  CONSTRAINT ex_vip_class_daily_routines_no_overlap
+    EXCLUDE USING gist (
+      organization_id WITH =,
+      class_assignment_id WITH =,
+      day_of_week WITH =,
+      tsrange(DATE '2000-01-01' + start_time, DATE '2000-01-01' + end_time, '[)') WITH &&
+    ),
   CHECK (start_time < end_time)
 );
 
@@ -308,6 +335,9 @@ CREATE TABLE appointment_settings (
   ),
   CHECK (
     array_length(appointment_duration_options_minutes, 1) >= 1
+  ),
+  CHECK (
+    is_smallint_array_within_bounds(appointment_duration_options_minutes, 1, 1440)
   ),
   CHECK (
     array_length(reminder_channels, 1) >= 1
@@ -356,7 +386,15 @@ CREATE TABLE appointment_breaks (
   CHECK (start_time < end_time),
   CONSTRAINT fk_appointment_breaks_specialist_org
     FOREIGN KEY (organization_id, specialist_id)
-    REFERENCES users(organization_id, id) ON DELETE RESTRICT
+    REFERENCES users(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT ex_appointment_breaks_no_overlap
+    EXCLUDE USING gist (
+      organization_id WITH =,
+      specialist_id WITH =,
+      day_of_week WITH =,
+      tsrange(DATE '2000-01-01' + start_time, DATE '2000-01-01' + end_time, '[)') WITH &&
+    )
+    WHERE (is_active)
 );
 
 CREATE INDEX idx_appointment_breaks_specialist_week
@@ -526,54 +564,3 @@ CREATE INDEX idx_appointment_status_history_org_schedule_changed
 
 CREATE INDEX idx_appointment_status_history_org_changed
   ON appointment_status_history (organization_id, changed_at DESC, id DESC);
-
--- Staff attendance settings per organization
-CREATE TABLE staff_attendance_settings (
-  id SERIAL PRIMARY KEY,
-  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  work_start TIME NOT NULL DEFAULT '08:00:00',
-  work_end TIME NOT NULL DEFAULT '18:00:00',
-  late_threshold_minutes INTEGER NOT NULL DEFAULT 15,
-  location_lat DOUBLE PRECISION,
-  location_lng DOUBLE PRECISION,
-  location_radius_meters INTEGER NOT NULL DEFAULT 100,
-  face_check_frequency INTEGER NOT NULL DEFAULT 5,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (organization_id)
-);
-
--- Per-user work schedule override
-CREATE TABLE staff_attendance_user_settings (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  work_start TIME,
-  work_end TIME,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (user_id, organization_id)
-);
-
--- Staff attendance records
-CREATE TABLE staff_attendance (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  date DATE NOT NULL,
-  check_in_at TIMESTAMPTZ,
-  check_out_at TIMESTAMPTZ,
-  check_in_lat DOUBLE PRECISION,
-  check_in_lng DOUBLE PRECISION,
-  check_in_accuracy DOUBLE PRECISION,
-  check_out_lat DOUBLE PRECISION,
-  check_out_lng DOUBLE PRECISION,
-  check_out_accuracy DOUBLE PRECISION,
-  face_verified BOOLEAN NOT NULL DEFAULT FALSE,
-  status VARCHAR(20) NOT NULL DEFAULT 'on_time',
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (user_id, date)
-);
-
-CREATE INDEX idx_staff_attendance_org_date ON staff_attendance (organization_id, date);
-CREATE INDEX idx_staff_attendance_user_date ON staff_attendance (user_id, date);

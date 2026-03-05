@@ -813,11 +813,9 @@ async function settingsRoutes(fastify) {
         }
 
         const isAdminRole = Boolean(existing.isAdmin);
-        if (isAdminRole && String(existing.label || "").trim() !== label) {
-          return reply.status(400).send({ field: "label", message: "Admin role label cannot be changed." });
-        }
-        if (isAdminRole && !isActive) {
-          return reply.status(400).send({ field: "isActive", message: "Admin role cannot be deactivated." });
+        const isPlatformAdminRequester = Boolean(adminContext.requester?.is_platform_admin);
+        if (isAdminRole && !isPlatformAdminRequester) {
+          return reply.status(403).send({ message: "Only platform admin can modify admin roles." });
         }
 
         let permissionCodes = Array.isArray(parsedPermissions.codes)

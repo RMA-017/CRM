@@ -52,9 +52,7 @@ function ProfileSideMenu({
   openPositionsPanel,
   openAdminOptionsPanel,
   openNotificationsSettingsPanel,
-  openMonitoringPanel,
-  openStaffAttendancePanel,
-  openStaffAttendanceAdminPanel
+  openMonitoringPanel
 }) {
   return (
     <>
@@ -206,7 +204,7 @@ function ProfileSideMenu({
               </button>
             </div>
           </div>
-          <div id="usersMenuGroup" className="side-menu-group" hidden={!hasUsersMenuAccess}>
+          <div id="usersMenuGroup" className="side-menu-group" hidden={!hasUsersMenuAccess && !hasAdminSettingsAccess}>
             <button
               id="toggleUsersMenuBtn"
               type="button"
@@ -223,7 +221,7 @@ function ProfileSideMenu({
                 id="openAllUsersBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
-                hidden={!canReadUsers}
+                hidden={!canReadUsers && !hasAdminSettingsAccess}
                 onClick={() => {
                   closeMenu();
                   navigate("/users/allusers");
@@ -353,25 +351,8 @@ function ProfileSideMenu({
               >
                 Notifications
               </button>
-              <button
-                id="openAttendanceAdminBtn"
-                type="button"
-                className="side-submenu-link side-submenu-action"
-                hidden={!hasSettingsMenuAccess}
-                onClick={openStaffAttendanceAdminPanel}
-              >
-                Attendance Admin
-              </button>
             </div>
           </div>
-          <button
-            id="openAttendanceBtn"
-            type="button"
-            className="side-menu-action"
-            onClick={openStaffAttendancePanel}
-          >
-            Staff Attendance
-          </button>
         </nav>
       </aside>
 

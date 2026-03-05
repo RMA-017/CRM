@@ -60,7 +60,6 @@ function App() {
       <Route path="/settings/roles" element={<ProfilePage forcedView="settings-roles" />} />
       <Route path="/settings/positions" element={<ProfilePage forcedView="settings-positions" />} />
       <Route path="/settings/admin-options" element={<ProfilePage forcedView="settings-admin-options" />} />
-      <Route path="/settings/attendance-admin" element={<ProfilePage forcedView="staff-attendance-admin" />} />
       <Route path="/settings/notifications" element={<ProfilePage forcedView="settings-notifications" />} />
       <Route path="/admin-settings/monitoring" element={<ProfilePage forcedView="settings-monitoring" />} />
       <Route path="/settings/organizations" element={<Navigate to="/admin-settings/organizations" replace />} />
@@ -102,13 +101,8 @@ function App() {
       <Route path="/profile/settings/roles" element={<Navigate to="/settings/roles" replace />} />
       <Route path="/profile/settings/positions" element={<Navigate to="/settings/positions" replace />} />
       <Route path="/profile/settings/admin-options" element={<Navigate to="/settings/admin-options" replace />} />
-      <Route path="/profile/settings/admin" element={<Navigate to="/settings/attendance-admin" replace />} />
-      <Route path="/profile/settings/attendance-admin" element={<Navigate to="/settings/attendance-admin" replace />} />
       <Route path="/profile/settings/notifications" element={<Navigate to="/settings/notifications" replace />} />
       <Route path="/profile/settings/monitoring" element={<Navigate to="/admin-settings/monitoring" replace />} />
-      <Route path="/staff-attendance" element={<ProfilePage forcedView="staff-attendance" />} />
-      <Route path="/settings/admin" element={<Navigate to="/settings/attendance-admin" replace />} />
-      <Route path="/staff-attendance/admin" element={<Navigate to="/settings/attendance-admin" replace />} />
       <Route path="/home" element={<Navigate to="/" replace />} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

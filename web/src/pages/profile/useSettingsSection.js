@@ -22,6 +22,7 @@ export function useSettingsSection({
   navigate,
   loadUserOptions
 }) {
+  const hasRoleSettingsAccess = hasSettingsMenuAccess || hasAdminSettingsAccess;
   const [settingsDelete, setSettingsDelete] = useState(createEmptySettingsDeleteState);
 
   const [organizations, setOrganizations] = useState([]);
@@ -112,7 +113,7 @@ export function useSettingsSection({
   }, [hasAdminSettingsAccess, navigate]);
 
   const loadRolesSettings = useCallback(async () => {
-    if (!hasSettingsMenuAccess) {
+    if (!hasRoleSettingsAccess) {
       navigate("/404", { replace: true });
       return;
     }
@@ -156,7 +157,7 @@ export function useSettingsSection({
       setRolePermissionOptions([]);
       setRolesSettingsMessage("Unexpected error. Please try again.");
     }
-  }, [hasSettingsMenuAccess, navigate]);
+  }, [hasRoleSettingsAccess, navigate]);
 
   const loadPositionsSettings = useCallback(async () => {
     if (!hasSettingsMenuAccess) {
@@ -508,7 +509,7 @@ export function useSettingsSection({
   const handleRoleCreateSubmit = useCallback(async (event) => {
     event.preventDefault();
 
-    if (!hasSettingsMenuAccess) {
+    if (!hasRoleSettingsAccess) {
       setRoleCreateError("You do not have permission to manage settings.");
       return false;
     }
@@ -552,7 +553,7 @@ export function useSettingsSection({
       setRoleCreateSubmitting(false);
     }
   }, [
-    hasSettingsMenuAccess,
+    hasRoleSettingsAccess,
     loadRolesSettings,
     loadUserOptions,
     navigate,
@@ -585,6 +586,10 @@ export function useSettingsSection({
   const handleRoleEditSave = useCallback(async () => {
     const id = String(roleEditId || "").trim();
     if (!id) {
+      return;
+    }
+    if (!hasRoleSettingsAccess) {
+      setRoleEditError("You do not have permission to manage settings.");
       return;
     }
 
@@ -627,6 +632,7 @@ export function useSettingsSection({
     }
   }, [
     cancelRoleEdit,
+    hasRoleSettingsAccess,
     loadRolesSettings,
     loadUserOptions,
     navigate,
@@ -806,6 +812,14 @@ export function useSettingsSection({
         fallbackError = "Failed to delete organization.";
         setOrganizationDeletingId(rowId);
       } else if (deleteType === "role") {
+        if (!hasRoleSettingsAccess) {
+          setSettingsDelete((prev) => ({
+            ...prev,
+            error: "You do not have permission to manage settings.",
+            submitting: false
+          }));
+          return;
+        }
         endpoint = `/api/settings/roles/${rowId}`;
         fallbackError = "Failed to delete role.";
         setRoleDeletingId(rowId);
@@ -866,6 +880,7 @@ export function useSettingsSection({
     cancelPositionEdit,
     cancelRoleEdit,
     closeSettingsDeleteModal,
+    hasRoleSettingsAccess,
     hasAdminSettingsAccess,
     loadOrganizations,
     loadPositionsSettings,

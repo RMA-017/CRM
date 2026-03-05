@@ -4,7 +4,7 @@ import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 import { findActiveOrganizationByCode } from "../organizations/organizations.service.js";
 import { PERMISSIONS, USERNAME_REGEX } from "./users.constants.js";
-import { hasPermission, isAllowedPosition, isAllowedRole } from "./access.service.js";
+import { hasPermission, isAdminRole, isAllowedPosition, isAllowedRole } from "./access.service.js";
 import {
   deleteUserById,
   findRequester,
@@ -70,7 +70,7 @@ async function usersRoutes(fastify) {
           limit,
           canReadAllOrganizations,
           organizationCode: canReadAllOrganizations
-            ? organizationCodeParam
+            ? (organizationCodeParam || String(authContext.organizationCode || "").trim().toLowerCase())
             : String(authContext.organizationCode || "").trim().toLowerCase(),
           search
         });
@@ -198,6 +198,18 @@ async function usersRoutes(fastify) {
         try {
           if (roleId && !(await isAllowedRole(roleId, { organizationId: validationOrganizationId }))) {
             return reply.status(400).send({ errors: { role: "Invalid role." } });
+          }
+          const currentRoleId = parsePositiveInteger(targetUser.role_id);
+          if (
+            !requester.is_platform_admin
+            && roleId
+            && (await isAdminRole(roleId, { organizationId: validationOrganizationId, allowGlobal: false }))
+            && Number(roleId) !== Number(currentRoleId)
+          ) {
+            return reply.status(403).send({
+              field: "role",
+              message: "Only platform admin can assign admin role."
+            });
           }
         } catch (error) {
           request.log.error({ err: error }, "Error validating role");

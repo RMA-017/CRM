@@ -46,6 +46,56 @@ function getInitialMyChildrenIsCompact() {
   return typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches;
 }
 
+const AVATAR_STORAGE_PREFIX = "crm_avatar_";
+
+function isStorageQuotaExceeded(error) {
+  if (!error) {
+    return false;
+  }
+  const code = Number(error.code);
+  return error.name === "QuotaExceededError"
+    || error.name === "NS_ERROR_DOM_QUOTA_REACHED"
+    || code === 22
+    || code === 1014;
+}
+
+function removeStoredAvatarsExcept(currentKey = "") {
+  const keysToRemove = [];
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key || !key.startsWith(AVATAR_STORAGE_PREFIX)) {
+      continue;
+    }
+    if (key === currentKey) {
+      continue;
+    }
+    keysToRemove.push(key);
+  }
+
+  keysToRemove.forEach((key) => {
+    localStorage.removeItem(key);
+  });
+}
+
+function persistAvatarDataUrl(storageKey, dataUrl) {
+  try {
+    localStorage.setItem(storageKey, dataUrl);
+    return true;
+  } catch (error) {
+    if (!isStorageQuotaExceeded(error)) {
+      return false;
+    }
+  }
+
+  try {
+    removeStoredAvatarsExcept(storageKey);
+    localStorage.setItem(storageKey, dataUrl);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function ProfilePage({ forcedView = "none" }) {
   const navigate = useNavigate();
   const menuRef = useRef(null);
@@ -55,10 +105,6 @@ function ProfilePage({ forcedView = "none" }) {
   const [profile, setProfile] = useState(null);
   const [avatarDataUrl, setAvatarDataUrl] = useState("");
   const [organizationContextSwitching, setOrganizationContextSwitching] = useState(false);
-  const [faceEnrolled, setFaceEnrolled] = useState(false);
-  const [faceEnrolledAt, setFaceEnrolledAt] = useState(null);
-  const [faceEnrollOpen, setFaceEnrollOpen] = useState(false);
-
   const [menuOpen, setMenuOpen] = useState(false);
   const [clientsMenuOpen, setClientsMenuOpen] = useState(false);
   const [vipClientsMenuOpen, setVipClientsMenuOpen] = useState(false);
@@ -1529,11 +1575,10 @@ function ProfilePage({ forcedView = "none" }) {
 
   const createOrganizationOptions = useMemo(() => {
     const currentCode = String(profile?.organizationCode || "").trim().toLowerCase();
-    const currentName = String(profile?.organizationName || "").trim();
 
     if (!hasAdminSettingsAccess) {
       return currentCode
-        ? [{ value: currentCode, label: currentName ? `${currentName} (${currentCode})` : currentCode }]
+        ? [{ value: currentCode, label: currentCode }]
         : [];
     }
 
@@ -1542,13 +1587,12 @@ function ProfilePage({ forcedView = "none" }) {
           .filter((item) => Boolean(item?.isActive))
           .map((item) => {
             const code = String(item?.code || "").trim().toLowerCase();
-            const name = String(item?.name || "").trim();
             if (!code) {
               return null;
             }
             return {
               value: code,
-              label: name ? `${name} (${code})` : code
+              label: code
             };
           })
           .filter(Boolean)
@@ -1558,12 +1602,12 @@ function ProfilePage({ forcedView = "none" }) {
     if (!hasCurrent && currentCode) {
       activeItems.unshift({
         value: currentCode,
-        label: currentName ? `${currentName} (${currentCode})` : currentCode
+        label: currentCode
       });
     }
 
     return activeItems;
-  }, [hasAdminSettingsAccess, organizations, profile?.organizationCode, profile?.organizationName]);
+  }, [hasAdminSettingsAccess, organizations, profile?.organizationCode]);
 
   const allowedCreateOrganizationCodes = useMemo(() => (
     new Set(
@@ -1695,32 +1739,6 @@ function ProfilePage({ forcedView = "none" }) {
     avatarInputRef.current?.click();
   }, []);
 
-  const handleFaceCapture = useCallback(async (descriptor) => {
-    setFaceEnrollOpen(false);
-    try {
-      const res = await apiFetch("/api/staff-attendance/me/face", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ descriptor })
-      });
-      const data = await readApiResponseData(res);
-      setFaceEnrolled(Boolean(data?.enrolled));
-      setFaceEnrolledAt(data?.enrolledAt || null);
-    } catch {
-      // non-critical
-    }
-  }, []);
-
-  const handleFaceDelete = useCallback(async () => {
-    try {
-      await apiFetch("/api/staff-attendance/me/face", { method: "DELETE" });
-      setFaceEnrolled(false);
-      setFaceEnrolledAt(null);
-    } catch {
-      // non-critical
-    }
-  }, []);
-
   const saveAvatarFromFile = useCallback((file) => {
     if (!file || !avatarStorageKey) {
       return;
@@ -1732,8 +1750,11 @@ function ProfilePage({ forcedView = "none" }) {
       if (!dataUrl) {
         return;
       }
-      localStorage.setItem(avatarStorageKey, dataUrl);
       setAvatarDataUrl(dataUrl);
+      const isStored = persistAvatarDataUrl(avatarStorageKey, dataUrl);
+      if (!isStored) {
+        window.alert("Avatar saqlash uchun browser xotirasi yetarli emas.");
+      }
     };
     reader.readAsDataURL(file);
   }, [avatarStorageKey]);
@@ -1787,22 +1808,15 @@ function ProfilePage({ forcedView = "none" }) {
   }, [hasAdminSettingsAccess, loadOrganizations, organizations.length, profile?.username]);
 
   useEffect(() => {
-    if (!profile?.username) return;
-    apiFetch("/api/staff-attendance/me/face")
-      .then((res) => readApiResponseData(res))
-      .then((data) => {
-        setFaceEnrolled(Boolean(data?.enrolled));
-        setFaceEnrolledAt(data?.enrolledAt || null);
-      })
-      .catch(() => {});
-  }, [profile?.username]);
-
-  useEffect(() => {
     if (!avatarStorageKey) {
       setAvatarDataUrl("");
       return;
     }
-    setAvatarDataUrl(localStorage.getItem(avatarStorageKey) || "");
+    try {
+      setAvatarDataUrl(localStorage.getItem(avatarStorageKey) || "");
+    } catch {
+      setAvatarDataUrl("");
+    }
   }, [avatarStorageKey]);
 
   useEffect(() => {
@@ -2085,10 +2099,6 @@ function ProfilePage({ forcedView = "none" }) {
     closeNotificationsSettingsPanel,
     openMonitoringPanel,
     closeMonitoringPanel,
-    openStaffAttendancePanel,
-    closeStaffAttendancePanel,
-    openStaffAttendanceAdminPanel,
-    closeStaffAttendanceAdminPanel,
     closeCreateUserPanel,
     closeAllUsersPanel
   } = useProfilePanels({
@@ -2473,7 +2483,6 @@ function ProfilePage({ forcedView = "none" }) {
           <nav className="header-actions" aria-label="Header actions">
             {hasAdminSettingsAccess ? (
               <div className="header-org-switch">
-                <span className="header-org-switch-label">Organization</span>
                 <CustomSelect
                   id="headerOrganizationContextSelect"
                   value={String(profile?.organizationCode || "").trim().toLowerCase()}
@@ -2664,8 +2673,6 @@ function ProfilePage({ forcedView = "none" }) {
           closeAdminOptionsPanel={closeAdminOptionsPanel}
           closeNotificationsSettingsPanel={closeNotificationsSettingsPanel}
           closeMonitoringPanel={closeMonitoringPanel}
-          closeStaffAttendancePanel={closeStaffAttendancePanel}
-          closeStaffAttendanceAdminPanel={closeStaffAttendanceAdminPanel}
           closeStatisticsPanel={closeStatisticsPanel}
           statisticsVipAttendanceHistoryItems={statisticsVipAttendanceHistoryItems}
           statisticsVipAttendanceHistoryFilters={statisticsVipAttendanceHistoryFilters}
@@ -2691,6 +2698,7 @@ function ProfilePage({ forcedView = "none" }) {
           startOrganizationEdit={startOrganizationEdit}
           organizationDeletingId={organizationDeletingId}
           handleOrganizationDelete={handleOrganizationDelete}
+          hasAdminSettingsAccess={hasAdminSettingsAccess}
           rolesSettings={rolesSettings}
           rolesSettingsMessage={rolesSettingsMessage}
           roleCreateForm={roleCreateForm}
@@ -2768,13 +2776,6 @@ function ProfilePage({ forcedView = "none" }) {
           openAvatarPicker={openAvatarPicker}
           avatarDataUrl={avatarDataUrl}
           avatarFallback={avatarFallback}
-          faceEnrolled={faceEnrolled}
-          faceEnrolledAt={faceEnrolledAt}
-          faceEnrollOpen={faceEnrollOpen}
-          openFaceEnroll={() => setFaceEnrollOpen(true)}
-          closeFaceEnroll={() => setFaceEnrollOpen(false)}
-          handleFaceCapture={handleFaceCapture}
-          handleFaceDelete={handleFaceDelete}
           profile={profile}
           openProfileEditModal={openProfileEditModal}
           openPasswordEditModal={openPasswordEditModal}
@@ -2892,8 +2893,6 @@ function ProfilePage({ forcedView = "none" }) {
         openAdminOptionsPanel={openAdminOptionsPanel}
         openNotificationsSettingsPanel={openNotificationsSettingsPanel}
         openMonitoringPanel={openMonitoringPanel}
-        openStaffAttendancePanel={openStaffAttendancePanel}
-        openStaffAttendanceAdminPanel={openStaffAttendanceAdminPanel}
       />
     </>
   );

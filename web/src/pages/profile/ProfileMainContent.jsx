@@ -11,8 +11,6 @@ import {
   MY_CHILDREN_DAY_NUM_TO_KEY,
   normalizeMyChildrenVisibleWeekDays
 } from "./profile.vip-utils.js";
-import StaffAttendanceAdminPanel from "./panels/StaffAttendanceAdminPanel.jsx";
-import StaffAttendancePanel from "./panels/StaffAttendancePanel.jsx";
 import StatisticsClassPanel from "./panels/StatisticsClassPanel.jsx";
 import StatisticsPlannerReportPanel from "./panels/StatisticsPlannerReportPanel.jsx";
 import VipDailyRoutinesPanel from "./panels/VipDailyRoutinesPanel.jsx";
@@ -330,8 +328,6 @@ function ProfileMainContent({
   closeAdminOptionsPanel,
   closeNotificationsSettingsPanel,
   closeMonitoringPanel,
-  closeStaffAttendancePanel,
-  closeStaffAttendanceAdminPanel,
   closeStatisticsPanel,
   statisticsVipAttendanceHistoryItems,
   statisticsVipAttendanceHistoryFilters,
@@ -354,6 +350,7 @@ function ProfileMainContent({
   startOrganizationEdit,
   organizationDeletingId,
   handleOrganizationDelete,
+  hasAdminSettingsAccess,
   rolesSettings,
   rolesSettingsMessage,
   roleCreateForm,
@@ -3999,7 +3996,7 @@ function ProfileMainContent({
           </div>
 
           {vipClassMessage && (
-            <p className="form-error" style={{ marginTop: "12px" }}>{vipClassMessage}</p>
+            <p style={{ marginTop: "12px", color: "var(--danger)" }}>{vipClassMessage}</p>
           )}
 
           <div className="appointment-breaks-view" aria-label="Class assignments list">
@@ -4079,7 +4076,7 @@ function ProfileMainContent({
           </div>
 
           {vipAssignmentMessage && (
-            <p className="form-error" style={{ marginTop: "12px" }}>{vipAssignmentMessage}</p>
+            <p style={{ marginTop: "12px", color: "var(--danger)" }}>{vipAssignmentMessage}</p>
           )}
 
           <div className="appointment-breaks-view" aria-label="VIP tutor assignments list">
@@ -4265,13 +4262,14 @@ function ProfileMainContent({
                   return (
                     <tr key={rowId}>
                       <td>{rowId}</td>
-                      <td>{item.label || "-"}</td>
+                      <td>{item.label || "-"}{item.isAdmin ? " (Admin)" : ""}</td>
                       <td>{item.isActive ? "Yes" : "No"}</td>
                       <td>{formatDateYMD(item.createdAt)}</td>
                       <td>
                         <button
                           type="button"
                           className="table-action-btn table-action-btn-role-permissions"
+                          hidden={item.isAdmin && !hasAdminSettingsAccess}
                           onClick={() => startRoleEdit(item)}
                         >
                           Edit
@@ -4281,6 +4279,7 @@ function ProfileMainContent({
                         <button
                           type="button"
                           className="table-action-btn table-action-btn-danger"
+                          hidden={item.isAdmin && !hasAdminSettingsAccess}
                           disabled={roleDeletingId === rowId}
                           onClick={() => handleRoleDelete(rowId, item?.label || rowId)}
                         >
@@ -4576,13 +4575,6 @@ function ProfileMainContent({
         <MonitoringPanel onClose={closeMonitoringPanel} />
       )}
 
-      {mainView === "staff-attendance" && (
-        <StaffAttendancePanel onClose={closeStaffAttendancePanel} />
-      )}
-
-      {mainView === "staff-attendance-admin" && (
-        <StaffAttendanceAdminPanel onClose={closeStaffAttendanceAdminPanel} />
-      )}
 
       </main>
       {typeof document !== "undefined" ? createPortal(vipAttendanceAbsentModalLayer, document.body) : null}

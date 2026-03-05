@@ -3340,9 +3340,13 @@ function AppointmentScheduler({
                             const checked = event.currentTarget.checked;
                             setClientVipOnly(checked);
                             if (checked) {
-                              setCreateForm((prev) => ({ ...prev, clientId: "" }));
-                              if (createErrors.clientId) {
-                                setCreateErrors((prev) => ({ ...prev, clientId: "" }));
+                              setCreateForm((prev) => ({
+                                ...prev,
+                                clientId: "",
+                                service: DEFAULT_APPOINTMENT_SERVICE_NAME
+                              }));
+                              if (createErrors.clientId || createErrors.service) {
+                                setCreateErrors((prev) => ({ ...prev, clientId: "", service: "" }));
                               }
                             }
                           }}
@@ -3446,6 +3450,7 @@ function AppointmentScheduler({
                     type="text"
                     className={createErrors.service ? "input-error" : ""}
                     value={createForm.service}
+                    disabled={clientVipOnly || createSubmitting || createDeleting}
                     onInput={(event) => {
                       const nextValue = event.currentTarget.value;
                       setCreateForm((prev) => ({ ...prev, service: nextValue }));

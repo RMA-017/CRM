@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import FaceCapture from "../../components/FaceCapture.jsx";
 import CustomSelect from "../../components/CustomSelect.jsx";
 import { formatDateYMD } from "../../lib/formatters.js";
 import { togglePermissionCode } from "./profile.helpers.js";
@@ -75,13 +74,6 @@ function ProfileModals(props) {
     openAvatarPicker,
     avatarDataUrl,
     avatarFallback,
-    faceEnrolled,
-    faceEnrolledAt,
-    faceEnrollOpen,
-    openFaceEnroll,
-    closeFaceEnroll,
-    handleFaceCapture,
-    handleFaceDelete,
     profile,
     openProfileEditModal,
     openPasswordEditModal,
@@ -228,23 +220,6 @@ function ProfileModals(props) {
               >
                 Upload Photo
               </button>
-              <button
-                type="button"
-                className="profile-photo-menu-btn"
-                onClick={() => { openFaceEnroll(); setShowPhotoMenu(false); }}
-              >
-                {faceEnrolled ? "Re-enroll Face" : "Enroll Face"}
-              </button>
-              {faceEnrolled && (
-                <button
-                  type="button"
-                  className="profile-photo-menu-btn"
-                  style={{ color: "#ef4444" }}
-                  onClick={() => { handleFaceDelete(); setShowPhotoMenu(false); }}
-                >
-                  Remove Face ID
-                </button>
-              )}
             </div>
           )}
 
@@ -1214,12 +1189,6 @@ function ProfileModals(props) {
   return (
     <>
       {createPortal(modalContent, document.body)}
-      <FaceCapture
-        isOpen={faceEnrollOpen}
-        onClose={closeFaceEnroll}
-        onCapture={handleFaceCapture}
-        title="Enroll Face"
-      />
     </>
   );
 }

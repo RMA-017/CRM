@@ -6,6 +6,7 @@
 		"quality": "pnpm run lint && pnpm run test",
 		"migrate": "node --env-file=.env scripts/migrate.mjs",
 		"migrate:status": "node --env-file=.env scripts/migrate.mjs --status",
+		"admin:bootstrap": "node --env-file=.env scripts/bootstrap-platform-admin.mjs",
 		"pm2:start": "pm2 start ecosystem.config.cjs --env production",
 		"pm2:reload": "pm2 reload ecosystem.config.cjs --env production",
 		"pm2:stop": "pm2 stop crm-api",

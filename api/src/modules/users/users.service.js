@@ -185,7 +185,13 @@ export async function getUsersPage({
 
 export async function getUserScopeById(userId) {
   const { rows } = await pool.query(
-    "SELECT id::text AS id, organization_id::text AS organization_id FROM users WHERE id = $1 LIMIT 1",
+    `SELECT
+       id::text AS id,
+       organization_id::text AS organization_id,
+       role_id::text AS role_id
+      FROM users
+      WHERE id = $1
+      LIMIT 1`,
     [userId]
   );
   return rows[0] || null;

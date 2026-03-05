@@ -450,15 +450,11 @@
   }
 
   .header-org-switch {
-    min-width: 124px;
-  }
-
-  .header-org-switch-label {
-    display: none;
+    min-width: 62px;
   }
 
   .header-org-switch .custom-select-trigger {
-    width: clamp(124px, 34vw, 180px);
+    width: clamp(62px, 17vw, 90px);
   }
 
   .user-menu-wrap {

@@ -111,6 +111,15 @@ export async function isAllowedRole(roleId, options = {}) {
   return Boolean(role && role.is_active);
 }
 
+export async function isAdminRole(roleId, options = {}) {
+  const role = await selectRoleById(
+    roleId,
+    options?.organizationId ?? null,
+    options?.allowGlobal !== false
+  );
+  return Boolean(role && role.is_active && role.is_admin);
+}
+
 export async function isAllowedPosition(positionId, options = {}) {
   const position = await selectPositionById(
     positionId,
