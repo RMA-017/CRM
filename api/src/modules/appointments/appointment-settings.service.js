@@ -24,6 +24,8 @@ const DAY_NUM_TO_KEY = Object.freeze({
 const DAY_KEYS = Object.freeze(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
 const SCHEDULE_SCOPE_SET = new Set(["single", "future", "all"]);
 const REMINDER_CHANNEL_SET = new Set(["sms", "email", "telegram"]);
+const WORK_SCHEDULE_SCOPE_SET = new Set(["weekly", "exception"]);
+const TIME_HM_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
 const APPOINTMENT_SCHEDULES_TABLE = "appointment_schedules";
 const APPOINTMENT_STATUS_HISTORY_TABLE = "appointment_status_history";
 const APPOINTMENT_SETTINGS_TABLE = "appointment_settings";
@@ -422,6 +424,57 @@ function getDurationMinutesFromTimes(startTime, endTime) {
   return end - start;
 }
 
+function normalizeWorkScheduleScope(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return WORK_SCHEDULE_SCOPE_SET.has(normalized) ? normalized : "";
+}
+
+function normalizeWorkScheduleReason(value) {
+  return String(value || "").trim().slice(0, 120);
+}
+
+function normalizeWorkScheduleDate(value) {
+  const normalized = normalizeDateYmd(value);
+  return DATE_REGEX.test(normalized) ? normalized : "";
+}
+
+function normalizeWorkScheduleDayOfWeek(value) {
+  const parsed = Number.parseInt(String(value || "").trim(), 10);
+  if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 7) {
+    return parsed;
+  }
+  return 0;
+}
+
+function normalizeWorkScheduleTime(value) {
+  const normalized = normalizeTimeHm(value);
+  return TIME_HM_REGEX.test(normalized) ? normalized : "";
+}
+
+function mapWorkScheduleItem(row) {
+  const dayOfWeekNum = normalizeWorkScheduleDayOfWeek(row?.day_of_week);
+  const ruleScope = normalizeWorkScheduleScope(row?.rule_scope) || "weekly";
+  return {
+    id: String(row?.id || "").trim(),
+    organizationId: String(row?.organization_id || "").trim(),
+    userId: String(row?.user_id || "").trim(),
+    userName: String(row?.user_name || "").trim(),
+    userUsername: String(row?.user_username || "").trim(),
+    ruleScope,
+    dayOfWeek: dayOfWeekNum ? String(dayOfWeekNum) : "",
+    dayKey: dayOfWeekNum ? (toDayKey(dayOfWeekNum) || "") : "",
+    workDate: normalizeWorkScheduleDate(row?.work_date),
+    isActive: Boolean(row?.is_active),
+    startTime: normalizeTimeHm(row?.start_time),
+    endTime: normalizeTimeHm(row?.end_time),
+    reason: String(row?.reason || "").trim(),
+    createdBy: String(row?.created_by || "").trim(),
+    updatedBy: String(row?.updated_by || "").trim(),
+    createdAt: row?.created_at || null,
+    updatedAt: row?.updated_at || null
+  };
+}
+
 function normalizeScheduleScope(value) {
   const normalized = String(value || "").trim().toLowerCase();
   return SCHEDULE_SCOPE_SET.has(normalized) ? normalized : "single";
@@ -561,6 +614,362 @@ export async function getAppointmentSpecialistsByOrganization(organizationId) {
   );
 
   return rows || [];
+}
+
+export async function listAppointmentWorkScheduleStaffByOrganization(organizationId) {
+  const { rows } = await pool.query(
+    `SELECT
+       u.id::text AS id,
+       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS name,
+       COALESCE(NULLIF(TRIM(u.username), ''), CONCAT('user_', u.id::text)) AS username
+      FROM users u
+      JOIN organizations o ON o.id = u.organization_id
+     WHERE u.organization_id = $1
+       AND o.is_active = TRUE
+     ORDER BY
+       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), u.id::text) ASC,
+       u.id ASC`,
+    [organizationId]
+  );
+
+  return (rows || []).map((row) => ({
+    id: String(row?.id || "").trim(),
+    name: String(row?.name || "").trim() || `User #${String(row?.id || "").trim()}`,
+    username: String(row?.username || "").trim()
+  }));
+}
+
+export async function listAppointmentWorkSchedule({
+  organizationId,
+  userId = null,
+  ruleScope = null
+}) {
+  const normalizedUserId = Number.parseInt(String(userId || "").trim(), 10) || null;
+  const normalizedScope = normalizeWorkScheduleScope(ruleScope) || null;
+
+  const { rows } = await pool.query(
+    `SELECT
+       awh.id,
+       awh.organization_id,
+       awh.user_id,
+       awh.rule_scope,
+       awh.day_of_week,
+       awh.work_date,
+       awh.is_active,
+       awh.start_time,
+       awh.end_time,
+       awh.reason,
+       awh.created_by,
+       awh.updated_by,
+       awh.created_at,
+       awh.updated_at,
+       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), '') AS user_name,
+       COALESCE(NULLIF(TRIM(u.username), ''), '') AS user_username
+      FROM appointment_working_hours awh
+      LEFT JOIN users u
+        ON u.id = awh.user_id
+       AND u.organization_id = awh.organization_id
+     WHERE awh.organization_id = $1
+       AND ($2::integer IS NULL OR awh.user_id = $2::integer)
+       AND ($3::text IS NULL OR awh.rule_scope = $3::text)
+     ORDER BY
+       CASE awh.rule_scope WHEN 'weekly' THEN 0 ELSE 1 END ASC,
+       LOWER(TRIM(COALESCE(NULLIF(u.username, ''), NULLIF(u.full_name, ''), COALESCE(awh.user_id::text, '')))) ASC,
+       awh.day_of_week ASC NULLS LAST,
+       awh.work_date ASC NULLS LAST,
+       awh.id ASC`,
+    [organizationId, normalizedUserId, normalizedScope]
+  );
+
+  return (rows || []).map(mapWorkScheduleItem);
+}
+
+export async function replaceAppointmentDefaultWeeklyWorkSchedule({
+  organizationId,
+  actorUserId = null,
+  items = []
+}) {
+  const byDay = new Map();
+  (Array.isArray(items) ? items : []).forEach((item) => {
+    const dayOfWeek = normalizeWorkScheduleDayOfWeek(item?.dayOfWeek ?? item?.day_of_week);
+    if (!dayOfWeek) {
+      return;
+    }
+
+    const normalizedIsActive = item?.isActive === true;
+    const startTime = normalizeWorkScheduleTime(item?.startTime ?? item?.start_time);
+    const endTime = normalizeWorkScheduleTime(item?.endTime ?? item?.end_time);
+    const hasValidTimeRange = Boolean(startTime && endTime && startTime < endTime);
+    byDay.set(dayOfWeek, {
+      isActive: normalizedIsActive && hasValidTimeRange,
+      startTime: normalizedIsActive && hasValidTimeRange ? startTime : null,
+      endTime: normalizedIsActive && hasValidTimeRange ? endTime : null,
+      reason: normalizeWorkScheduleReason(item?.reason)
+    });
+  });
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    for (let dayOfWeek = 1; dayOfWeek <= 7; dayOfWeek += 1) {
+      const payload = byDay.get(dayOfWeek) || {
+        isActive: false,
+        startTime: null,
+        endTime: null,
+        reason: ""
+      };
+
+      await client.query(
+        `INSERT INTO appointment_working_hours (
+           organization_id,
+           user_id,
+           rule_scope,
+           day_of_week,
+           work_date,
+           is_active,
+           start_time,
+           end_time,
+           reason,
+           created_by,
+           updated_by
+         )
+         VALUES (
+           $1,
+           NULL,
+           'weekly',
+           $2,
+           NULL,
+           $3,
+           $4::time,
+           $5::time,
+           NULLIF($6::text, ''),
+           $7::integer,
+           $7::integer
+         )
+         ON CONFLICT (organization_id, day_of_week)
+           WHERE user_id IS NULL AND rule_scope = 'weekly'
+         DO UPDATE SET
+           is_active = EXCLUDED.is_active,
+           start_time = EXCLUDED.start_time,
+           end_time = EXCLUDED.end_time,
+           reason = EXCLUDED.reason,
+           updated_by = EXCLUDED.updated_by,
+           updated_at = CURRENT_TIMESTAMP`,
+        [
+          organizationId,
+          dayOfWeek,
+          payload.isActive,
+          payload.startTime,
+          payload.endTime,
+          payload.reason,
+          actorUserId || null
+        ]
+      );
+    }
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  const { rows } = await pool.query(
+    `SELECT
+       awh.id,
+       awh.organization_id,
+       awh.user_id,
+       awh.rule_scope,
+       awh.day_of_week,
+       awh.work_date,
+       awh.is_active,
+       awh.start_time,
+       awh.end_time,
+       awh.reason,
+       awh.created_by,
+       awh.updated_by,
+       awh.created_at,
+       awh.updated_at,
+       ''::text AS user_name,
+       ''::text AS user_username
+      FROM appointment_working_hours awh
+     WHERE awh.organization_id = $1
+       AND awh.rule_scope = 'weekly'
+       AND awh.user_id IS NULL
+     ORDER BY awh.day_of_week ASC, awh.id ASC`,
+    [organizationId]
+  );
+
+  return (rows || []).map(mapWorkScheduleItem);
+}
+
+export async function createAppointmentWorkScheduleEntry({
+  organizationId,
+  actorUserId = null,
+  userId = null,
+  ruleScope,
+  dayOfWeek = null,
+  workDate = null,
+  isActive = false,
+  startTime = null,
+  endTime = null,
+  reason = ""
+}) {
+  const normalizedScope = normalizeWorkScheduleScope(ruleScope);
+  const normalizedUserId = Number.parseInt(String(userId || "").trim(), 10) || null;
+  const normalizedDayOfWeek = normalizeWorkScheduleDayOfWeek(dayOfWeek);
+  const normalizedWorkDate = normalizeWorkScheduleDate(workDate);
+  const normalizedIsActive = isActive === true;
+  const normalizedStartTime = normalizeWorkScheduleTime(startTime);
+  const normalizedEndTime = normalizeWorkScheduleTime(endTime);
+  const hasValidTimeRange = Boolean(normalizedStartTime && normalizedEndTime && normalizedStartTime < normalizedEndTime);
+
+  const finalStartTime = normalizedIsActive && hasValidTimeRange ? normalizedStartTime : null;
+  const finalEndTime = normalizedIsActive && hasValidTimeRange ? normalizedEndTime : null;
+  const finalReason = normalizeWorkScheduleReason(reason);
+
+  const finalDayOfWeek = normalizedScope === "weekly" ? (normalizedDayOfWeek || null) : null;
+  const finalWorkDate = normalizedScope === "exception" ? (normalizedWorkDate || null) : null;
+
+  const { rows } = await pool.query(
+    `WITH inserted AS (
+       INSERT INTO appointment_working_hours (
+         organization_id,
+         user_id,
+         rule_scope,
+         day_of_week,
+         work_date,
+         is_active,
+         start_time,
+         end_time,
+         reason,
+         created_by,
+         updated_by
+       )
+       VALUES (
+         $1,
+         $2::integer,
+         $3::text,
+         $4::smallint,
+         $5::date,
+         $6::boolean,
+         $7::time,
+         $8::time,
+         NULLIF($9::text, ''),
+         $10::integer,
+         $10::integer
+       )
+       RETURNING *
+     )
+     SELECT
+       i.*,
+       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), '') AS user_name,
+       COALESCE(NULLIF(TRIM(u.username), ''), '') AS user_username
+      FROM inserted i
+      LEFT JOIN users u
+        ON u.id = i.user_id
+       AND u.organization_id = i.organization_id`,
+    [
+      organizationId,
+      normalizedUserId,
+      normalizedScope,
+      finalDayOfWeek,
+      finalWorkDate,
+      normalizedIsActive,
+      finalStartTime,
+      finalEndTime,
+      finalReason,
+      actorUserId || null
+    ]
+  );
+
+  return rows[0] ? mapWorkScheduleItem(rows[0]) : null;
+}
+
+export async function updateAppointmentWorkScheduleEntryById({
+  id,
+  organizationId,
+  actorUserId = null,
+  userId = null,
+  ruleScope,
+  dayOfWeek = null,
+  workDate = null,
+  isActive = false,
+  startTime = null,
+  endTime = null,
+  reason = ""
+}) {
+  const normalizedScope = normalizeWorkScheduleScope(ruleScope);
+  const normalizedUserId = Number.parseInt(String(userId || "").trim(), 10) || null;
+  const normalizedDayOfWeek = normalizeWorkScheduleDayOfWeek(dayOfWeek);
+  const normalizedWorkDate = normalizeWorkScheduleDate(workDate);
+  const normalizedIsActive = isActive === true;
+  const normalizedStartTime = normalizeWorkScheduleTime(startTime);
+  const normalizedEndTime = normalizeWorkScheduleTime(endTime);
+  const hasValidTimeRange = Boolean(normalizedStartTime && normalizedEndTime && normalizedStartTime < normalizedEndTime);
+
+  const finalStartTime = normalizedIsActive && hasValidTimeRange ? normalizedStartTime : null;
+  const finalEndTime = normalizedIsActive && hasValidTimeRange ? normalizedEndTime : null;
+  const finalReason = normalizeWorkScheduleReason(reason);
+
+  const finalDayOfWeek = normalizedScope === "weekly" ? (normalizedDayOfWeek || null) : null;
+  const finalWorkDate = normalizedScope === "exception" ? (normalizedWorkDate || null) : null;
+
+  const { rows } = await pool.query(
+    `WITH updated AS (
+       UPDATE appointment_working_hours awh
+          SET user_id = $1::integer,
+              rule_scope = $2::text,
+              day_of_week = $3::smallint,
+              work_date = $4::date,
+              is_active = $5::boolean,
+              start_time = $6::time,
+              end_time = $7::time,
+              reason = NULLIF($8::text, ''),
+              updated_by = $9::integer,
+              updated_at = CURRENT_TIMESTAMP
+        WHERE awh.id = $10
+          AND awh.organization_id = $11
+       RETURNING awh.*
+     )
+     SELECT
+       u.*,
+       COALESCE(NULLIF(TRIM(user_ref.full_name), ''), NULLIF(TRIM(user_ref.username), ''), '') AS user_name,
+       COALESCE(NULLIF(TRIM(user_ref.username), ''), '') AS user_username
+      FROM updated u
+      LEFT JOIN users user_ref
+        ON user_ref.id = u.user_id
+       AND user_ref.organization_id = u.organization_id`,
+    [
+      normalizedUserId,
+      normalizedScope,
+      finalDayOfWeek,
+      finalWorkDate,
+      normalizedIsActive,
+      finalStartTime,
+      finalEndTime,
+      finalReason,
+      actorUserId || null,
+      id,
+      organizationId
+    ]
+  );
+
+  return rows[0] ? mapWorkScheduleItem(rows[0]) : null;
+}
+
+export async function deleteAppointmentWorkScheduleEntryById({
+  id,
+  organizationId
+}) {
+  return pool.query(
+    `DELETE FROM appointment_working_hours
+      WHERE id = $1
+        AND organization_id = $2`,
+    [id, organizationId]
+  );
 }
 
 export async function isVipClassAssignedToUser({
@@ -1734,6 +2143,8 @@ export async function getAppointmentSettingsByOrganization(organizationId) {
       `SELECT day_of_week, is_active, start_time, end_time
        FROM appointment_working_hours
        WHERE organization_id = $1
+         AND user_id IS NULL
+         AND rule_scope = 'weekly'
        ORDER BY day_of_week ASC`,
       [organizationId]
     )
@@ -1764,8 +2175,7 @@ export async function saveAppointmentSettings({
   noShowThreshold,
   reminderHours,
   reminderChannels,
-  visibleWeekDays,
-  workingHours
+  visibleWeekDays
 }) {
   const tableName = APPOINTMENT_SETTINGS_TABLE;
   const flags = await getAppointmentSettingsColumnFlags(tableName);
@@ -1852,42 +2262,6 @@ export async function saveAppointmentSettings({
         normalizedHistoryLockDays
       ]
     );
-
-    for (const dayKey of DAY_KEYS) {
-      const dayNum = toDayNum(dayKey);
-      const dayValue = workingHours?.[dayKey] || {};
-      const startTime = String(dayValue.start || "").trim();
-      const endTime = String(dayValue.end || "").trim();
-      const isVisible = visibleWeekDays.includes(dayKey);
-      const isCompleteTime = Boolean(startTime && endTime);
-      const isActive = isVisible && isCompleteTime;
-
-      await client.query(
-        `INSERT INTO appointment_working_hours (
-           organization_id,
-           day_of_week,
-           is_active,
-           start_time,
-           end_time,
-           created_by,
-           updated_by
-         ) VALUES ($1,$2,$3,$4::time,$5::time,$6,$6)
-         ON CONFLICT (organization_id, day_of_week) DO UPDATE SET
-            is_active = EXCLUDED.is_active,
-            start_time = EXCLUDED.start_time,
-            end_time = EXCLUDED.end_time,
-            updated_by = EXCLUDED.updated_by,
-            updated_at = CURRENT_TIMESTAMP`,
-        [
-          organizationId,
-          dayNum,
-          isActive,
-          isActive ? startTime : null,
-          isActive ? endTime : null,
-          actorUserId
-        ]
-      );
-    }
 
     await client.query("COMMIT");
   } catch (error) {
@@ -2000,8 +2374,7 @@ export async function saveAppointmentHistoryLockDaysByOrganization({
         : ["sms", "email", "telegram"],
       visibleWeekDays: Array.isArray(defaults.visibleWeekDays) && defaults.visibleWeekDays.length > 0
         ? defaults.visibleWeekDays
-        : ["mon", "tue", "wed", "thu", "fri", "sat"],
-      workingHours: defaults.workingHours
+        : ["mon", "tue", "wed", "thu", "fri", "sat"]
     });
   }
 
@@ -2070,8 +2443,7 @@ export async function saveAppointmentSlotCellHeightPxByOrganization({
         : ["sms", "email", "telegram"],
       visibleWeekDays: Array.isArray(defaults.visibleWeekDays) && defaults.visibleWeekDays.length > 0
         ? defaults.visibleWeekDays
-        : ["mon", "tue", "wed", "thu", "fri", "sat"],
-      workingHours: defaults.workingHours
+        : ["mon", "tue", "wed", "thu", "fri", "sat"]
     });
   }
 

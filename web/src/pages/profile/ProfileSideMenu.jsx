@@ -17,12 +17,17 @@ function ProfileSideMenu({
   canOpenAppointmentVipClients,
   canOpenMyChildren,
   canOpenAppointmentVipDailyRoutines,
+  canOpenAppointmentVipClassAssignments,
+  canOpenAppointmentVipTutorAssignments,
   canOpenAppointmentVipAssignments,
   canOpenAppointmentStatistics,
+  canOpenStatisticsClassAttendance,
+  canOpenStatisticsPlannerReport,
   appointmentMenuOpen,
   setAppointmentMenuOpen,
   openAppointmentPanel,
   openAppointmentBreaksPanel,
+  openAppointmentWorkSchedulePanel,
   openAppointmentVipSchedulePanel,
   openAppointmentVipAttendancePanel,
   openAppointmentVipMyChildrenPanel,
@@ -158,6 +163,7 @@ function ProfileSideMenu({
               id="openVipAssignmentsBtn"
               type="button"
               className="side-submenu-link side-submenu-action"
+              hidden={!canOpenAppointmentVipClassAssignments}
               onClick={openAppointmentVipAssignmentsPanel}
             >
               Class
@@ -166,6 +172,7 @@ function ProfileSideMenu({
               id="openVipTutorAssignmentsBtn"
               type="button"
               className="side-submenu-link side-submenu-action"
+              hidden={!canOpenAppointmentVipTutorAssignments}
               onClick={openAppointmentVipTutorAssignmentsPanel}
             >
               Tutor
@@ -201,6 +208,15 @@ function ProfileSideMenu({
                 onClick={openAppointmentPanel}
               >
                 Planner
+              </button>
+              <button
+                id="openAppointmentUserWeeklyOverridesBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                hidden={!hasSettingsMenuAccess}
+                onClick={openAppointmentWorkSchedulePanel}
+              >
+                Work Schedule
               </button>
             </div>
           </div>
@@ -248,6 +264,7 @@ function ProfileSideMenu({
                 id="openStatisticsClassBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
+                hidden={!canOpenStatisticsClassAttendance}
                 onClick={openStatisticsClassPanel}
               >
                 VIP Class Attendance Report
@@ -256,6 +273,7 @@ function ProfileSideMenu({
                 id="openStatisticsPlannerReportBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
+                hidden={!canOpenStatisticsPlannerReport}
                 onClick={openStatisticsPlannerReportPanel}
               >
                 Lesson Status Report
@@ -303,7 +321,7 @@ function ProfileSideMenu({
                 setSettingsMenuOpen((prev) => !prev);
               }}
             >
-              General Settings
+              Settings
             </button>
             <div id="settingsSubMenu" className="side-submenu" hidden={!settingsMenuOpen}>
               <button

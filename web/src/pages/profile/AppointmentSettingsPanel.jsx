@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { apiFetch, readApiResponseData } from "../../lib/api.js";
 import CustomSelect from "../../components/CustomSelect.jsx";
+import WorkSchedulePanel from "./WorkSchedulePanel.jsx";
 
 const DAYS = [
   { key: "mon", label: "Mon" },
@@ -26,7 +27,6 @@ const BREAK_TYPE_OPTIONS = [
 ];
 const APPOINTMENT_SPECIALIST_STORAGE_KEY = "crm_appointment_selected_specialist_id";
 const APPOINTMENT_SETTINGS_BREAKS_SPECIALIST_STORAGE_KEY = "crm_appointment_settings_selected_specialist_id";
-const APPOINTMENT_SETTINGS_ORGANIZATION_STORAGE_KEY = "crm_appointment_settings_selected_organization_id";
 
 function readStoredBreaksSpecialistId() {
   if (typeof window === "undefined") {
@@ -40,23 +40,6 @@ function readStoredBreaksSpecialistId() {
 
   return String(window.localStorage.getItem(APPOINTMENT_SPECIALIST_STORAGE_KEY) || "").trim();
 }
-
-function readStoredOrganizationId() {
-  if (typeof window === "undefined") {
-    return "";
-  }
-  return String(window.localStorage.getItem(APPOINTMENT_SETTINGS_ORGANIZATION_STORAGE_KEY) || "").trim();
-}
-
-const DEFAULT_DAY_TIME = {
-  mon: { start: "", end: "" },
-  tue: { start: "", end: "" },
-  wed: { start: "", end: "" },
-  thu: { start: "", end: "" },
-  fri: { start: "", end: "" },
-  sat: { start: "", end: "" },
-  sun: { start: "", end: "" }
-};
 
 function createDefaultForm() {
   return {
@@ -72,11 +55,30 @@ function createDefaultForm() {
   };
 }
 
-function createDayTimeMap() {
-  return DAYS.reduce((acc, day) => {
-    acc[day.key] = { ...DEFAULT_DAY_TIME[day.key] };
-    return acc;
-  }, {});
+function mapSettingsItemToForm(source) {
+  const normalizedSource = source && typeof source === "object"
+    ? source
+    : createDefaultForm();
+
+  const nextVisibleWeekDays = Array.isArray(normalizedSource.visibleWeekDays)
+    ? normalizedSource.visibleWeekDays
+        .map((dayKey) => String(dayKey || "").trim().toLowerCase())
+        .filter((dayKey) => DAYS.some((day) => day.key === dayKey))
+    : [];
+
+  return {
+    slotInterval: String(normalizedSource.slotInterval ?? ""),
+    slotSubDivisions: String(normalizedSource.slotSubDivisions ?? "1"),
+    slotCellHeightPx: String(normalizedSource.slotCellHeightPx ?? "18"),
+    historyLockDays: String(normalizedSource.historyLockDays ?? "10"),
+    appointmentDurationOptions: Array.isArray(normalizedSource.appointmentDurationOptions)
+      ? normalizedSource.appointmentDurationOptions.join(",")
+      : String(normalizedSource.appointmentDuration ?? ""),
+    visibleWeekDays: nextVisibleWeekDays,
+    noShowThreshold: String(normalizedSource.noShowThreshold ?? ""),
+    reminderHours: String(normalizedSource.reminderHours ?? ""),
+    reminderChannels: normalizeReminderChannels(normalizedSource.reminderChannels)
+  };
 }
 
 function parseDurationOptionsInput(value) {
@@ -173,22 +175,14 @@ function createAddBreakDraftItem({ specialistId = "" } = {}) {
 function AppointmentSettingsPanel({
   canUpdateAppointments = true,
   panelMode = "settings",
-  organizations = [],
   profile = null
 }) {
   const isBreaksMode = String(panelMode || "").trim().toLowerCase() === "breaks";
   const currentOrganizationId = String(profile?.organizationId || "").trim();
-  const currentOrganizationName = String(profile?.organizationName || "").trim();
-  const currentOrganizationCode = String(profile?.organizationCode || "").trim();
-  const hasOrganizationsList = Array.isArray(organizations) && organizations.length > 0;
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
-  const [selectedOrganizationId, setSelectedOrganizationId] = useState(() => (
-    readStoredOrganizationId() || currentOrganizationId
-  ));
 
   const [form, setForm] = useState(null);
-  const [workingHours, setWorkingHours] = useState(null);
   const [breakSpecialists, setBreakSpecialists] = useState([]);
   const [breakItems, setBreakItems] = useState([]);
   const [breaksLoading, setBreaksLoading] = useState(false);
@@ -200,43 +194,6 @@ function AppointmentSettingsPanel({
   const [isAddBreakModalOpen, setIsAddBreakModalOpen] = useState(false);
   const [deletingBreakItem, setDeletingBreakItem] = useState(null);
   const [addBreakDraftRows, setAddBreakDraftRows] = useState(() => [createAddBreakDraftItem()]);
-
-  const organizationOptions = useMemo(() => {
-    const fallbackLabel = currentOrganizationName && currentOrganizationCode
-      ? `${currentOrganizationName} (${currentOrganizationCode})`
-      : (currentOrganizationName || currentOrganizationCode || "Current organization");
-    const source = Array.isArray(organizations) ? organizations : [];
-    const seen = new Set();
-    const mapped = source
-      .map((item) => {
-        const value = String(item?.id || "").trim();
-        if (!value || seen.has(value)) {
-          return null;
-        }
-        seen.add(value);
-        const code = String(item?.code || "").trim();
-        const name = String(item?.name || "").trim();
-        return {
-          value,
-          label: name && code ? `${name} (${code})` : (name || code || `Organization #${value}`)
-        };
-      })
-      .filter(Boolean);
-
-    if (currentOrganizationId && !seen.has(currentOrganizationId)) {
-      mapped.unshift({
-        value: currentOrganizationId,
-        label: fallbackLabel
-      });
-    }
-    if (mapped.length === 0 && currentOrganizationId) {
-      mapped.push({
-        value: currentOrganizationId,
-        label: fallbackLabel
-      });
-    }
-    return mapped;
-  }, [currentOrganizationCode, currentOrganizationId, currentOrganizationName, organizations]);
   const breakSpecialistOptions = useMemo(() => (
     breakSpecialists.map((item) => ({
       value: String(item.id || "").trim(),
@@ -264,36 +221,7 @@ function AppointmentSettingsPanel({
       return sum + (lineCount > 0 ? lineCount : 1);
     }, 0)
   ), [addBreakDraftRows]);
-  const canSwitchOrganization = Boolean(profile?.isPlatformAdmin) && organizationOptions.length > 1;
-  const effectiveOrganizationId = String(selectedOrganizationId || currentOrganizationId || "").trim();
-
-  useEffect(() => {
-    setSelectedOrganizationId((prev) => {
-      const prevId = String(prev || "").trim();
-      if (prevId && organizationOptions.some((option) => option.value === prevId)) {
-        return prevId;
-      }
-      if (prevId && !hasOrganizationsList) {
-        return prevId;
-      }
-      if (currentOrganizationId && organizationOptions.some((option) => option.value === currentOrganizationId)) {
-        return currentOrganizationId;
-      }
-      return organizationOptions[0]?.value || currentOrganizationId || "";
-    });
-  }, [currentOrganizationId, hasOrganizationsList, organizationOptions]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const nextId = String(selectedOrganizationId || "").trim();
-    if (!nextId) {
-      window.localStorage.removeItem(APPOINTMENT_SETTINGS_ORGANIZATION_STORAGE_KEY);
-      return;
-    }
-    window.localStorage.setItem(APPOINTMENT_SETTINGS_ORGANIZATION_STORAGE_KEY, nextId);
-  }, [selectedOrganizationId]);
+  const effectiveOrganizationId = currentOrganizationId;
 
   useEffect(() => {
     const text = String(message || "").trim();
@@ -357,7 +285,6 @@ function AppointmentSettingsPanel({
   useEffect(() => {
     if (isBreaksMode) {
       setForm(null);
-      setWorkingHours(null);
       return undefined;
     }
 
@@ -367,7 +294,6 @@ function AppointmentSettingsPanel({
       try {
         setMessage("");
         setForm(null);
-        setWorkingHours(null);
 
         const queryParams = new URLSearchParams();
         if (effectiveOrganizationId) {
@@ -392,43 +318,7 @@ function AppointmentSettingsPanel({
           return;
         }
 
-        const item = data?.item;
-        const source = item && typeof item === "object"
-          ? item
-          : createDefaultForm();
-
-        const nextVisibleWeekDays = Array.isArray(source.visibleWeekDays)
-          ? source.visibleWeekDays
-              .map((dayKey) => String(dayKey || "").trim().toLowerCase())
-              .filter((dayKey) => DAYS.some((day) => day.key === dayKey))
-          : [];
-
-        const nextForm = {
-          slotInterval: String(source.slotInterval ?? ""),
-          slotSubDivisions: String(source.slotSubDivisions ?? "1"),
-          slotCellHeightPx: String(source.slotCellHeightPx ?? "18"),
-          historyLockDays: String(source.historyLockDays ?? "10"),
-          appointmentDurationOptions: Array.isArray(source.appointmentDurationOptions)
-            ? source.appointmentDurationOptions.join(",")
-            : String(source.appointmentDuration ?? ""),
-          visibleWeekDays: nextVisibleWeekDays,
-          noShowThreshold: String(source.noShowThreshold ?? ""),
-          reminderHours: String(source.reminderHours ?? ""),
-          reminderChannels: normalizeReminderChannels(source.reminderChannels)
-        };
-        const nextWorkingHours = createDayTimeMap();
-        if (source.workingHours && typeof source.workingHours === "object") {
-          DAYS.forEach((day) => {
-            const value = source.workingHours?.[day.key];
-            nextWorkingHours[day.key] = {
-              start: String(value?.start || ""),
-              end: String(value?.end || "")
-            };
-          });
-        }
-
-        setForm(nextForm);
-        setWorkingHours(nextWorkingHours);
+        setForm(mapSettingsItemToForm(data?.item));
       } catch {
         if (active) {
           setMessage("Failed to load appointment settings.");
@@ -625,16 +515,6 @@ function AppointmentSettingsPanel({
       }
       return { ...prev, reminderChannels: Array.from(existing) };
     });
-  }
-
-  function handleDayTimeChange(setter, dayKey, field, value) {
-    setter((prev) => ({
-      ...prev,
-      [dayKey]: {
-        ...prev[dayKey],
-        [field]: value
-      }
-    }));
   }
 
   function toBreakPayloadItem(item) {
@@ -1242,7 +1122,7 @@ function AppointmentSettingsPanel({
 
   async function handleSave(event) {
     event.preventDefault();
-    if (!form || !workingHours) {
+    if (!form) {
       return;
     }
     if (!canUpdateAppointments) {
@@ -1269,7 +1149,6 @@ function AppointmentSettingsPanel({
         historyLockDays: Number.isInteger(parsedHistoryLockDays) ? parsedHistoryLockDays : 10,
         appointmentDurationOptions: parseDurationOptionsInput(form.appointmentDurationOptions),
         visibleWeekDays: form.visibleWeekDays,
-        workingHours,
         noShowThreshold: String(form.noShowThreshold || "").trim(),
         reminderHours: String(form.reminderHours || "").trim(),
         reminderChannels: Array.isArray(form.reminderChannels) ? form.reminderChannels : []
@@ -1297,6 +1176,7 @@ function AppointmentSettingsPanel({
           }
         }));
       }
+      setForm(mapSettingsItemToForm(data?.item));
       setMessage(data?.message || "Appointment settings updated.");
     } catch {
       setMessage("Failed to save appointment settings.");
@@ -1305,7 +1185,7 @@ function AppointmentSettingsPanel({
     }
   }
 
-  if (!isBreaksMode && (!form || !workingHours)) {
+  if (!isBreaksMode && !form) {
     return <div className="appointment-settings-form" aria-label="Appointment settings list" />;
   }
 
@@ -1741,193 +1621,162 @@ function AppointmentSettingsPanel({
   }
 
   return (
-    <form className="appointment-settings-form" aria-label="Appointment settings list" onSubmit={handleSave}>
-      <div className="appointment-setting-row">
-        <label htmlFor="appointmentSettingsOrganizationSelect">Organization</label>
-        <div className="appointment-setting-inline appointment-settings-organization-inline">
-          <CustomSelect
-            id="appointmentSettingsOrganizationSelect"
-            placeholder="Select organization"
-            value={effectiveOrganizationId}
-            options={organizationOptions}
-            disabled={saving || !canSwitchOrganization}
-            onChange={(nextValue) => {
-              setSelectedOrganizationId(String(nextValue || "").trim());
-            }}
-          />
+      <form className="appointment-settings-form" aria-label="Appointment settings list" onSubmit={handleSave}>
+        <div className="appointment-setting-row">
+          <label htmlFor="slotIntervalInput">1. Slot Interval</label>
+          <div className="appointment-setting-inline">
+            <input
+              id="slotIntervalInput"
+              type="number"
+              min="1"
+              value={form.slotInterval}
+              disabled={!canUpdateAppointments}
+              onChange={(event) => handleFormField("slotInterval", event.currentTarget.value)}
+            />
+            <span>minutes</span>
+          </div>
         </div>
-      </div>
 
-      <div className="appointment-setting-row">
-        <label htmlFor="slotIntervalInput">1. Slot Interval</label>
-        <div className="appointment-setting-inline">
-          <input
-            id="slotIntervalInput"
-            type="number"
-            min="1"
-            value={form.slotInterval}
-            disabled={!canUpdateAppointments}
-            onChange={(event) => handleFormField("slotInterval", event.currentTarget.value)}
-          />
-          <span>minutes</span>
+        <div className="appointment-setting-row">
+          <label htmlFor="slotSubDivisionsInput">2. Slot Sub-Divisions</label>
+          <div className="appointment-setting-inline">
+            <input
+              id="slotSubDivisionsInput"
+              type="number"
+              min="1"
+              max="60"
+              value={form.slotSubDivisions}
+              disabled={!canUpdateAppointments}
+              onChange={(event) => handleFormField("slotSubDivisions", event.currentTarget.value)}
+            />
+            <span>per slot</span>
+          </div>
         </div>
-      </div>
 
-      <div className="appointment-setting-row">
-        <label htmlFor="slotSubDivisionsInput">2. Slot Sub-Divisions</label>
-        <div className="appointment-setting-inline">
-          <input
-            id="slotSubDivisionsInput"
-            type="number"
-            min="1"
-            max="60"
-            value={form.slotSubDivisions}
-            disabled={!canUpdateAppointments}
-            onChange={(event) => handleFormField("slotSubDivisions", event.currentTarget.value)}
-          />
-          <span>per slot</span>
+        <div className="appointment-setting-row">
+          <label htmlFor="slotCellHeightPxInput">3. Planner Cell Height</label>
+          <div className="appointment-setting-inline">
+            <input
+              id="slotCellHeightPxInput"
+              type="number"
+              min="12"
+              max="72"
+              value={form.slotCellHeightPx}
+              disabled={!canUpdateAppointments}
+              onChange={(event) => handleFormField("slotCellHeightPx", event.currentTarget.value)}
+            />
+            <span>px</span>
+          </div>
         </div>
-      </div>
 
-      <div className="appointment-setting-row">
-        <label htmlFor="slotCellHeightPxInput">3. Planner Cell Height</label>
-        <div className="appointment-setting-inline">
-          <input
-            id="slotCellHeightPxInput"
-            type="number"
-            min="12"
-            max="72"
-            value={form.slotCellHeightPx}
-            disabled={!canUpdateAppointments}
-            onChange={(event) => handleFormField("slotCellHeightPx", event.currentTarget.value)}
-          />
-          <span>px</span>
+        <div className="appointment-setting-row">
+          <label htmlFor="historyLockDaysInput">4. Planner Edit Lock (days)</label>
+          <div className="appointment-setting-inline">
+            <input
+              id="historyLockDaysInput"
+              type="number"
+              min="0"
+              max="3650"
+              value={form.historyLockDays}
+              disabled={!canUpdateAppointments}
+              onChange={(event) => handleFormField("historyLockDays", event.currentTarget.value)}
+            />
+            <span>days</span>
+          </div>
         </div>
-      </div>
 
-      <div className="appointment-setting-row">
-        <label htmlFor="historyLockDaysInput">4. Planner Edit Lock (days)</label>
-        <div className="appointment-setting-inline">
-          <input
-            id="historyLockDaysInput"
-            type="number"
-            min="0"
-            max="3650"
-            value={form.historyLockDays}
-            disabled={!canUpdateAppointments}
-            onChange={(event) => handleFormField("historyLockDays", event.currentTarget.value)}
-          />
-          <span>days</span>
+        <div className="appointment-setting-row">
+          <label htmlFor="appointmentDurationInput">5. Appointment Durations</label>
+          <div className="appointment-setting-inline">
+            <input
+              id="appointmentDurationInput"
+              className="appointment-duration-options-input"
+              type="text"
+              value={form.appointmentDurationOptions}
+              placeholder="30,45,60"
+              disabled={!canUpdateAppointments}
+              onChange={(event) => handleFormField("appointmentDurationOptions", event.currentTarget.value)}
+            />
+            <span>minutes</span>
+          </div>
         </div>
-      </div>
 
-      <div className="appointment-setting-row">
-        <label htmlFor="appointmentDurationInput">5. Appointment Durations</label>
-        <div className="appointment-setting-inline">
-          <input
-            id="appointmentDurationInput"
-            className="appointment-duration-options-input"
-            type="text"
-            value={form.appointmentDurationOptions}
-            placeholder="30,45,60"
-            disabled={!canUpdateAppointments}
-            onChange={(event) => handleFormField("appointmentDurationOptions", event.currentTarget.value)}
-          />
-          <span>minutes</span>
-        </div>
-      </div>
-
-      <div className="appointment-setting-row">
-        <label>6. Visible Week Days</label>
-        <div className="appointment-reminder-channels">
-          {DAYS.map((day) => (
-            <label key={day.key} htmlFor={`appointmentDay_${day.key}`}>
-                <input
-                  id={`appointmentDay_${day.key}`}
-                  type="checkbox"
-                  checked={form.visibleWeekDays.includes(day.key)}
-                  disabled={!canUpdateAppointments}
-                  onChange={(event) => handleDayToggle(day.key, event.currentTarget.checked)}
-                />
-              {day.label}
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <div className="appointment-setting-row">
-        <label>7. Working Hours</label>
-        <div className="appointment-working-hours-grid">
-          {DAYS.map((day) => (
-            <div key={day.key} className="appointment-working-hours-item">
-              <strong>{day.label}</strong>
-              <input
-                type="time"
-                value={workingHours[day.key].start}
-                disabled={!canUpdateAppointments}
-                onChange={(event) => handleDayTimeChange(setWorkingHours, day.key, "start", event.currentTarget.value)}
-              />
-              <span>-</span>
-              <input
-                type="time"
-                value={workingHours[day.key].end}
-                disabled={!canUpdateAppointments}
-                onChange={(event) => handleDayTimeChange(setWorkingHours, day.key, "end", event.currentTarget.value)}
-              />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="appointment-setting-row">
-        <label>8. No-show Rules</label>
-        <div className="appointment-setting-inline">
-          <input
-            type="number"
-            min="1"
-            value={form.noShowThreshold}
-            disabled={!canUpdateAppointments}
-            onChange={(event) => handleFormField("noShowThreshold", event.currentTarget.value)}
-          />
-          <span>count threshold</span>
-        </div>
-      </div>
-
-      <div className="appointment-setting-row">
-        <label>9. Reminder Settings</label>
-        <div className="appointment-setting-inline appointment-reminder-settings-inline">
-          <input
-            id="appointmentReminderHoursInput"
-            type="number"
-            min="1"
-            value={form.reminderHours}
-            disabled={!canUpdateAppointments}
-            onChange={(event) => handleFormField("reminderHours", event.currentTarget.value)}
-          />
-          <span>hours before appointment</span>
+        <div className="appointment-setting-row">
+          <label>6. Visible Week Days</label>
           <div className="appointment-reminder-channels">
-            {REMINDER_CHANNEL_OPTIONS.map((channel) => (
-              <label key={channel.key} htmlFor={`appointmentReminderChannel_${channel.key}`}>
-                <input
-                  id={`appointmentReminderChannel_${channel.key}`}
-                  type="checkbox"
-                  checked={Array.isArray(form.reminderChannels) && form.reminderChannels.includes(channel.key)}
-                  disabled={!canUpdateAppointments}
-                  onChange={(event) => handleReminderChannelToggle(channel.key, event.currentTarget.checked)}
-                />
-                {channel.label}
+            {DAYS.map((day) => (
+              <label key={day.key} htmlFor={`appointmentDay_${day.key}`}>
+                  <input
+                    id={`appointmentDay_${day.key}`}
+                    type="checkbox"
+                    checked={form.visibleWeekDays.includes(day.key)}
+                    disabled={!canUpdateAppointments}
+                    onChange={(event) => handleDayToggle(day.key, event.currentTarget.checked)}
+                  />
+                {day.label}
               </label>
             ))}
           </div>
         </div>
-      </div>
 
-      <div className="appointment-settings-actions">
-        <button className="btn" type="submit" disabled={saving || !canUpdateAppointments || !effectiveOrganizationId}>
-          {saving ? "Saving..." : "Save"}
-        </button>
-      </div>
-    </form>
+        <div className="appointment-setting-row">
+          <label>7. No-show Rules</label>
+          <div className="appointment-setting-inline">
+            <input
+              type="number"
+              min="1"
+              value={form.noShowThreshold}
+              disabled={!canUpdateAppointments}
+              onChange={(event) => handleFormField("noShowThreshold", event.currentTarget.value)}
+            />
+            <span>count threshold</span>
+          </div>
+        </div>
+
+        <div className="appointment-setting-row">
+          <label>8. Reminder Settings</label>
+          <div className="appointment-setting-inline appointment-reminder-settings-inline">
+            <input
+              id="appointmentReminderHoursInput"
+              type="number"
+              min="1"
+              value={form.reminderHours}
+              disabled={!canUpdateAppointments}
+              onChange={(event) => handleFormField("reminderHours", event.currentTarget.value)}
+            />
+            <span>hours before appointment</span>
+            <div className="appointment-reminder-channels">
+              {REMINDER_CHANNEL_OPTIONS.map((channel) => (
+                <label key={channel.key} htmlFor={`appointmentReminderChannel_${channel.key}`}>
+                  <input
+                    id={`appointmentReminderChannel_${channel.key}`}
+                    type="checkbox"
+                    checked={Array.isArray(form.reminderChannels) && form.reminderChannels.includes(channel.key)}
+                    disabled={!canUpdateAppointments}
+                    onChange={(event) => handleReminderChannelToggle(channel.key, event.currentTarget.checked)}
+                  />
+                  {channel.label}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <WorkSchedulePanel
+          canUpdateAppointments={canUpdateAppointments}
+          organizationId={effectiveOrganizationId}
+          profile={profile}
+          showDefaultWeekly
+          showUserWeeklyOverrides={false}
+          defaultWeeklyTitle="9. Default Weekly Schedule"
+        />
+
+        <div className="appointment-settings-actions">
+          <button className="btn" type="submit" disabled={saving || !canUpdateAppointments || !effectiveOrganizationId}>
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </form>
   );
 }
 

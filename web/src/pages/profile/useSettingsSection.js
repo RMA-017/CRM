@@ -9,6 +9,7 @@ import {
   ORGANIZATION_CODE_REGEX
 } from "./profile.constants.js";
 import {
+  filterPermissionsByOrgFeatures,
   groupRolePermissionOptions,
   handleProtectedStatus,
   mapValueLabelOptions,
@@ -20,7 +21,8 @@ export function useSettingsSection({
   hasSettingsMenuAccess,
   hasAdminSettingsAccess,
   navigate,
-  loadUserOptions
+  loadUserOptions,
+  orgFeatures
 }) {
   const hasRoleSettingsAccess = hasSettingsMenuAccess || hasAdminSettingsAccess;
   const [settingsDelete, setSettingsDelete] = useState(createEmptySettingsDeleteState);
@@ -71,8 +73,8 @@ export function useSettingsSection({
   const [adminOptionsSubmitting, setAdminOptionsSubmitting] = useState(false);
 
   const groupedRolePermissionOptions = useMemo(
-    () => groupRolePermissionOptions(rolePermissionOptions),
-    [rolePermissionOptions]
+    () => groupRolePermissionOptions(filterPermissionsByOrgFeatures(rolePermissionOptions, orgFeatures)),
+    [rolePermissionOptions, orgFeatures]
   );
 
   const closeSettingsDeleteModal = useCallback(() => {
@@ -365,7 +367,8 @@ export function useSettingsSection({
     const payload = {
       code: String(organizationCreateForm.code || "").trim().toLowerCase(),
       name: String(organizationCreateForm.name || "").trim(),
-      isActive: Boolean(organizationCreateForm.isActive)
+      isActive: Boolean(organizationCreateForm.isActive),
+      allowedFeatures: Array.isArray(organizationCreateForm.allowedFeatures) ? organizationCreateForm.allowedFeatures : null
     };
     const validationError = validateOrganizationForm(payload);
     if (validationError) {
@@ -404,6 +407,7 @@ export function useSettingsSection({
     hasAdminSettingsAccess,
     loadOrganizations,
     navigate,
+    organizationCreateForm.allowedFeatures,
     organizationCreateForm.code,
     organizationCreateForm.isActive,
     organizationCreateForm.name,
@@ -415,7 +419,8 @@ export function useSettingsSection({
     setOrganizationEditForm({
       code: String(item?.code || ""),
       name: String(item?.name || ""),
-      isActive: Boolean(item?.isActive)
+      isActive: Boolean(item?.isActive),
+      allowedFeatures: Array.isArray(item?.allowedFeatures) ? item.allowedFeatures : null
     });
     setOrganizationEditError("");
     setOrganizationEditOpen(true);
@@ -442,7 +447,8 @@ export function useSettingsSection({
     const payload = {
       code: String(organizationEditForm.code || "").trim().toLowerCase(),
       name: String(organizationEditForm.name || "").trim(),
-      isActive: Boolean(organizationEditForm.isActive)
+      isActive: Boolean(organizationEditForm.isActive),
+      allowedFeatures: Array.isArray(organizationEditForm.allowedFeatures) ? organizationEditForm.allowedFeatures : null
     };
     const validationError = validateOrganizationForm(payload);
     if (validationError) {
@@ -480,6 +486,7 @@ export function useSettingsSection({
     hasAdminSettingsAccess,
     loadOrganizations,
     navigate,
+    organizationEditForm.allowedFeatures,
     organizationEditForm.code,
     organizationEditForm.isActive,
     organizationEditForm.name,
@@ -517,7 +524,8 @@ export function useSettingsSection({
     const payload = {
       label: String(roleCreateForm.label || "").trim(),
       sortOrder: normalizeSettingsSortOrderInput(roleCreateForm.sortOrder),
-      isActive: Boolean(roleCreateForm.isActive)
+      isActive: Boolean(roleCreateForm.isActive),
+      isAdmin: Boolean(roleCreateForm.isAdmin)
     };
     const validationError = validateLabelSettingsForm(payload);
     if (validationError) {
@@ -558,6 +566,7 @@ export function useSettingsSection({
     loadUserOptions,
     navigate,
     roleCreateForm.isActive,
+    roleCreateForm.isAdmin,
     roleCreateForm.label,
     roleCreateForm.sortOrder,
     validateLabelSettingsForm

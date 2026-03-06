@@ -62,6 +62,25 @@ function parseIsActive(value, fallback = true) {
   return fallback;
 }
 
+const ALLOWED_FEATURE_KEYS = new Set([
+  "users", "users.all_users",
+  "clients", "clients.all_clients",
+  "appointments", "appointments.planner", "appointments.breaks",
+  "vip_clients", "vip_clients.my_class", "vip_clients.attendance", "vip_clients.my_children", "vip_clients.daily_routines",
+  "assignments", "assignments.class", "assignments.tutor",
+  "statistics", "statistics.class_attendance", "statistics.planner_report"
+]);
+
+function parseAllowedFeatures(value) {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  const features = value
+    .map((f) => String(f || "").trim().toLowerCase())
+    .filter((f) => ALLOWED_FEATURE_KEYS.has(f));
+  return features.length > 0 ? features : null;
+}
+
 function parseHistoryLockDays(value) {
   const parsed = Number.parseInt(String(value ?? "").trim(), 10);
   if (
@@ -268,6 +287,7 @@ async function settingsRoutes(fastify) {
         const code = String(request.body?.code || "").trim().toLowerCase();
         const name = String(request.body?.name || "").trim();
         const isActive = parseIsActive(request.body?.isActive, true);
+        const allowedFeatures = parseAllowedFeatures(request.body?.allowedFeatures);
         const validationError = validateOrganizationPayload({ code, name });
         if (validationError) {
           return reply.status(400).send(validationError);
@@ -277,6 +297,7 @@ async function settingsRoutes(fastify) {
           code,
           name,
           isActive,
+          allowedFeatures,
           actorUserId: adminContext.authContext.userId
         });
         return reply.status(201).send({
@@ -317,6 +338,7 @@ async function settingsRoutes(fastify) {
         const code = String(request.body?.code || "").trim().toLowerCase();
         const name = String(request.body?.name || "").trim();
         const isActive = parseIsActive(request.body?.isActive, true);
+        const allowedFeatures = parseAllowedFeatures(request.body?.allowedFeatures);
         const validationError = validateOrganizationPayload({ code, name });
         if (validationError) {
           return reply.status(400).send(validationError);
@@ -331,6 +353,7 @@ async function settingsRoutes(fastify) {
           code,
           name,
           isActive,
+          allowedFeatures,
           actorUserId: adminContext.authContext.userId
         });
         if (!item) {
@@ -742,12 +765,15 @@ async function settingsRoutes(fastify) {
         }
 
         const permissionCodes = Array.isArray(parsedPermissions.codes) ? parsedPermissions.codes : [];
+        const isPlatformAdminRequester = Boolean(adminContext.requester?.is_platform_admin);
+        const isAdmin = isPlatformAdminRequester && Boolean(request.body?.isAdmin);
 
         const item = await createRoleOption({
           organizationId: adminContext.authContext.organizationId,
           label,
           sortOrder,
           isActive,
+          isAdmin,
           permissionCodes,
           actorUserId: adminContext.authContext.userId
         });
@@ -818,16 +844,9 @@ async function settingsRoutes(fastify) {
           return reply.status(403).send({ message: "Only platform admin can modify admin roles." });
         }
 
-        let permissionCodes = Array.isArray(parsedPermissions.codes)
+        const permissionCodes = Array.isArray(parsedPermissions.codes)
           ? parsedPermissions.codes
           : (Array.isArray(existing.permissionCodes) ? existing.permissionCodes : []);
-        if (isAdminRole) {
-          const permissions = await listPermissionOptionsForSettings();
-          permissionCodes = permissions
-            .filter((permission) => Boolean(permission.isActive))
-            .map((permission) => String(permission.code || "").trim().toLowerCase())
-            .filter(Boolean);
-        }
 
         const item = await updateRoleOption({
           id,

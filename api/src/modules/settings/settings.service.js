@@ -8,6 +8,7 @@ function mapOrganization(row) {
     code: row.code,
     name: row.name,
     isActive: Boolean(row.is_active),
+    allowedFeatures: Array.isArray(row.allowed_features) ? row.allowed_features : null,
     createdAt: row.created_at
   };
 }
@@ -186,32 +187,33 @@ export async function findSettingsRequester(authContext = {}) {
 
 export async function listOrganizations() {
   const { rows } = await pool.query(
-    "SELECT id, code, name, is_active, created_at FROM organizations ORDER BY created_at DESC, id DESC"
+    "SELECT id, code, name, is_active, allowed_features, created_at FROM organizations ORDER BY created_at DESC, id DESC"
   );
   return rows.map(mapOrganization);
 }
 
-export async function createOrganization({ code, name, isActive, actorUserId = null }) {
+export async function createOrganization({ code, name, isActive, allowedFeatures = null, actorUserId = null }) {
   const { rows } = await pool.query(
-    `INSERT INTO organizations (code, name, is_active, created_by, updated_by)
-     VALUES ($1, $2, $3, $4, $4)
-     RETURNING id, code, name, is_active, created_at`,
-    [code, name, isActive, actorUserId]
+    `INSERT INTO organizations (code, name, is_active, allowed_features, created_by, updated_by)
+     VALUES ($1, $2, $3, $4, $5, $5)
+     RETURNING id, code, name, is_active, allowed_features, created_at`,
+    [code, name, isActive, allowedFeatures, actorUserId]
   );
   return rows[0] ? mapOrganization(rows[0]) : null;
 }
 
-export async function updateOrganization({ id, code, name, isActive, actorUserId = null }) {
+export async function updateOrganization({ id, code, name, isActive, allowedFeatures = null, actorUserId = null }) {
   const { rows } = await pool.query(
     `UPDATE organizations
         SET code = $1,
             name = $2,
             is_active = $3,
-            updated_by = $4,
+            allowed_features = $4,
+            updated_by = $5,
             updated_at = CURRENT_TIMESTAMP
-      WHERE id = $5
-      RETURNING id, code, name, is_active, created_at`,
-    [code, name, isActive, actorUserId, id]
+      WHERE id = $6
+      RETURNING id, code, name, is_active, allowed_features, created_at`,
+    [code, name, isActive, allowedFeatures, actorUserId, id]
   );
   return rows[0] ? mapOrganization(rows[0]) : null;
 }
@@ -279,14 +281,14 @@ export async function listPermissionOptionsForSettings() {
   return rows.map(mapPermissionOption);
 }
 
-export async function createRoleOption({ organizationId, label, sortOrder, isActive, permissionCodes = [], actorUserId = null }) {
+export async function createRoleOption({ organizationId, label, sortOrder, isActive, isAdmin = false, permissionCodes = [], actorUserId = null }) {
   let roleId = null;
   const item = await executeTransaction(async (client) => {
     const insertResult = await client.query(
       `INSERT INTO role_options (organization_id, label, sort_order, is_active, is_admin, created_by, updated_by)
-       VALUES ($1, $2, $3, $4, FALSE, $5, $5)
+       VALUES ($1, $2, $3, $4, $5, $6, $6)
        RETURNING id`,
-      [organizationId, label, sortOrder, isActive, actorUserId]
+      [organizationId, label, sortOrder, isActive, Boolean(isAdmin), actorUserId]
     );
 
     roleId = Number(insertResult.rows[0]?.id || 0);

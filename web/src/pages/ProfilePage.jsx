@@ -157,12 +157,16 @@ function ProfilePage({ forcedView = "none" }) {
     canCreateAppointmentVipClients,
     canUpdateAppointmentVipClients,
     canDeleteAppointmentVipClients,
+    canOpenAppointmentVipClassAssignments,
+    canOpenAppointmentVipTutorAssignments,
     canOpenAppointmentVipAssignments,
     canReadAppointmentVipAssignments,
     canCreateAppointmentVipAssignments,
     canUpdateAppointmentVipAssignments,
     canDeleteAppointmentVipAssignments,
     canOpenAppointmentStatistics,
+    canOpenStatisticsClassAttendance,
+    canOpenStatisticsPlannerReport,
     hasAppointmentsMenuAccess,
     hasUsersMenuAccess,
     hasSettingsMenuAccess,
@@ -290,7 +294,8 @@ function ProfilePage({ forcedView = "none" }) {
     hasSettingsMenuAccess,
     hasAdminSettingsAccess,
     navigate,
-    loadUserOptions
+    loadUserOptions,
+    orgFeatures: profile?.orgFeatures ?? null
   });
 
   const ensureOrganizationsLoaded = useCallback(() => {
@@ -1229,9 +1234,6 @@ function ProfilePage({ forcedView = "none" }) {
         teacherId: String(item.teacherId || "").trim(),
         teacherName: String(item.teacherName || "").trim()
       })));
-      if (nextItems.length === 0) {
-        setVipClassMessage("No classes found.");
-      }
     } catch {
       setVipClassItems([]);
       setVipClassTeachers([]);
@@ -2084,6 +2086,8 @@ function ProfilePage({ forcedView = "none" }) {
     closeAppointmentVipTutorAssignmentsPanel,
     openAppointmentSettingsPanel,
     closeAppointmentSettingsPanel,
+    openAppointmentWorkSchedulePanel,
+    closeAppointmentWorkSchedulePanel,
     openStatisticsClassPanel,
     openStatisticsPlannerReportPanel,
     closeStatisticsPanel,
@@ -2667,6 +2671,7 @@ function ProfilePage({ forcedView = "none" }) {
           closeAppointmentVipAssignmentsPanel={closeAppointmentVipAssignmentsPanel}
           closeAppointmentVipTutorAssignmentsPanel={closeAppointmentVipTutorAssignmentsPanel}
           closeAppointmentSettingsPanel={closeAppointmentSettingsPanel}
+          closeAppointmentWorkSchedulePanel={closeAppointmentWorkSchedulePanel}
           closeOrganizationsPanel={closeOrganizationsPanel}
           closeRolesPanel={closeRolesPanel}
           closePositionsPanel={closePositionsPanel}
@@ -2857,8 +2862,12 @@ function ProfilePage({ forcedView = "none" }) {
         canOpenAppointmentVipClients={canOpenAppointmentVipClients}
         canOpenMyChildren={canOpenMyChildren}
         canOpenAppointmentVipDailyRoutines={canOpenAppointmentVipDailyRoutines}
+        canOpenAppointmentVipClassAssignments={canOpenAppointmentVipClassAssignments}
+        canOpenAppointmentVipTutorAssignments={canOpenAppointmentVipTutorAssignments}
         canOpenAppointmentVipAssignments={canOpenAppointmentVipAssignments}
         canOpenAppointmentStatistics={canOpenAppointmentStatistics}
+        canOpenStatisticsClassAttendance={canOpenStatisticsClassAttendance}
+        canOpenStatisticsPlannerReport={canOpenStatisticsPlannerReport}
         appointmentMenuOpen={appointmentMenuOpen}
         setAppointmentMenuOpen={setAppointmentMenuOpen}
         openAppointmentPanel={openAppointmentPanel}
@@ -2870,6 +2879,7 @@ function ProfilePage({ forcedView = "none" }) {
         openAppointmentVipAssignmentsPanel={openAppointmentVipAssignmentsPanel}
         openAppointmentVipTutorAssignmentsPanel={openAppointmentVipTutorAssignmentsPanel}
         openAppointmentSettingsPanel={openAppointmentSettingsPanel}
+        openAppointmentWorkSchedulePanel={openAppointmentWorkSchedulePanel}
         statisticsMenuOpen={statisticsMenuOpen}
         setStatisticsMenuOpen={setStatisticsMenuOpen}
         openStatisticsClassPanel={openStatisticsClassPanel}

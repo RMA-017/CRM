@@ -724,7 +724,8 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  min-height: 30px;
+  min-height: 0;
+  height: 22px;
   margin: 0;
   padding: 0 1px;
   font-size: var(--fs-small);
@@ -765,6 +766,42 @@
   width: var(--btn-fixed-width);
   min-width: var(--btn-fixed-width);
   height: var(--btn-height);
+}
+
+#organizationEditModal {
+  max-height: min(560px, calc(100dvh - 28px));
+  overflow: hidden;
+}
+
+#organizationEditModal .all-users-head h3 {
+  margin: 0;
+}
+
+#organizationEditModal .settings-permissions-section {
+  max-height: min(340px, calc(100dvh - 220px));
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+}
+
+#organizationEditModal .settings-permissions-section::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+}
+
+#organizationEditModal .settings-permissions-section::-webkit-scrollbar-track {
+  background: var(--scroll-track);
+  border-radius: var(--scrollbar-size);
+}
+
+#organizationEditModal .settings-permissions-section::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: var(--scrollbar-size);
+  border: 2px solid var(--surface);
+}
+
+#organizationEditModal .settings-permissions-section::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
 }
 
 #roleEditModal {
@@ -1099,6 +1136,10 @@
   scrollbar-color: var(--scroll-thumb) var(--scroll-track);
 }
 
+.all-users-table-wrap.ws-user-overrides-table-wrap {
+  margin-top: 0;
+}
+
 .all-users-table-wrap::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -1143,6 +1184,252 @@
 .all-users-table tbody tr {
   height: 30px;
 }
+
+/* =============================================
+   Work Schedule Panel
+   ============================================= */
+.appointment-settings-work-schedule .all-users-head {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.appointment-settings-work-schedule .all-users-head h4 {
+  margin: 0;
+}
+
+.appointment-settings-work-schedule .all-users-table-wrap {
+  max-height: none;
+  overflow-x: auto;
+}
+
+.ws-org-bar {
+  margin-bottom: 14px;
+}
+
+.ws-org-bar .field {
+  margin: 0;
+  max-width: 260px;
+}
+
+.ws-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  margin-bottom: 10px;
+}
+
+.ws-form-row .field {
+  margin: 0;
+  gap: 3px;
+}
+
+.ws-form-row .ws-field-role {
+  flex: 1 1 130px;
+  max-width: 220px;
+}
+
+.ws-form-row .ws-field-role select {
+  width: 100%;
+}
+
+.ws-form-row .ws-field-user {
+  flex: 1 1 130px;
+  max-width: 220px;
+}
+
+.ws-form-row .ws-field-user select,
+.ws-form-row .ws-field-user .custom-select,
+.ws-form-row .ws-field-user .custom-select-trigger {
+  width: 100%;
+  min-width: 0;
+}
+
+.ws-form-row .ws-field-day {
+  flex: 0 0 76px;
+}
+
+.ws-form-row .ws-field-day select,
+.ws-form-row .ws-field-day .custom-select,
+.ws-form-row .ws-field-day .custom-select-trigger {
+  width: 100%;
+  min-width: 0;
+}
+
+.ws-form-row .ws-field-date {
+  flex: 0 0 128px;
+}
+
+.ws-form-row .ws-field-date input {
+  width: 128px;
+}
+
+.ws-form-row .ws-field-active {
+  flex: 0 0 46px;
+}
+
+.ws-form-row .ws-field-time {
+  flex: 0 0 75px;
+}
+
+.ws-form-row .ws-field-time input {
+  width: 75px;
+}
+
+.ws-form-row .ws-field-reason {
+  flex: 1 1 100px;
+  max-width: 200px;
+}
+
+.ws-form-row .ws-field-reason input {
+  width: 100%;
+}
+
+.ws-field-action {
+  flex: 0 0 auto;
+  align-self: flex-end;
+}
+
+.ws-default-form {
+  margin-top: 0;
+  gap: 6px;
+}
+
+.ws-default-form > .appointment-setting-row {
+  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+  gap: 8px 10px;
+  padding: 10px;
+}
+
+.ws-default-group-body {
+  display: grid;
+  gap: 6px;
+}
+
+.ws-default-day-row {
+  display: grid;
+  grid-template-columns: 40px 200px 200px;
+  gap: 10px;
+  align-items: center;
+}
+
+.ws-default-day-label {
+  font-size: var(--fs-small);
+  font-weight: 600;
+  text-align: left;
+  color: var(--text-main);
+  line-height: 1.2;
+}
+
+.ws-default-time-field {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 5px;
+  align-items: center;
+  width: 200px;
+  min-width: 0;
+  margin: 0;
+}
+
+.ws-default-time-field span {
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.ws-default-time-field input {
+  width: 100%;
+  min-width: 0;
+}
+
+.ws-default-saving {
+  margin: 4px 0 0;
+  min-height: 16px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
+.ws-default-saving[hidden] {
+  display: none !important;
+}
+
+.ws-default-table td:nth-child(1) {
+  width: 50px;
+  min-width: 50px;
+  font-weight: 500;
+}
+
+.ws-default-table td:nth-child(2) {
+  width: 52px;
+  min-width: 52px;
+  text-align: center;
+}
+
+.ws-default-table td:nth-child(3),
+.ws-default-table td:nth-child(4) {
+  width: 102px;
+  min-width: 102px;
+}
+
+.ws-default-table .ws-time-input {
+  width: 88px;
+  padding-left: 4px;
+  padding-right: 2px;
+}
+
+.ws-default-table .ws-reason-input {
+  width: 100%;
+  min-width: 80px;
+}
+
+.ws-override-table {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 640px;
+}
+
+.ws-override-table th,
+.ws-override-table td {
+  vertical-align: middle;
+}
+
+.ws-override-table th:nth-child(1),
+.ws-override-table td:nth-child(1) {
+  width: 25%;
+  text-align: left;
+}
+
+.ws-override-table th:nth-child(2),
+.ws-override-table td:nth-child(2) {
+  width: 10%;
+  text-align: center;
+}
+
+.ws-override-table th:nth-child(3),
+.ws-override-table td:nth-child(3),
+.ws-override-table th:nth-child(4),
+.ws-override-table td:nth-child(4) {
+  width: 10%;
+  text-align: center;
+}
+
+.ws-override-table th:nth-child(5),
+.ws-override-table td:nth-child(5) {
+  width: 31%;
+  text-align: center;
+}
+
+.ws-override-table th:nth-child(6),
+.ws-override-table td:nth-child(6),
+.ws-override-table th:nth-child(7),
+.ws-override-table td:nth-child(7) {
+  width: 7%;
+  text-align: center;
+}
+
+/* =============================================
+   (end Work Schedule Panel)
+   ============================================= */
 
 .appointment-breaks-table-wrap.all-users-table-wrap {
   overflow-x: auto;
@@ -3356,7 +3643,7 @@
 }
 
 .appointment-settings-form {
-  margin-top: 8px;
+  margin: 0;
   display: grid;
   gap: 8px;
   border: 0;
@@ -3386,7 +3673,7 @@
   margin: 10px 0 0;
 }
 
-:is(#appointmentBreaksPanel, #appointmentVipDailyRoutinesPanel, #organizationsPanel, #rolesPanel, #positionsPanel, #clientsPanel, #allUsersPanel) .appointment-breaks-add-icon-btn {
+:is(#appointmentBreaksPanel, #appointmentVipDailyRoutinesPanel, #appointmentWorkSchedulePanel, #organizationsPanel, #rolesPanel, #positionsPanel, #clientsPanel, #allUsersPanel) .appointment-breaks-add-icon-btn {
   width: 30px;
   min-width: 30px;
   height: 30px;
@@ -3551,12 +3838,79 @@
   overflow-y: auto;
 }
 
-#appointmentBreaksAddModal h3 {
+#workScheduleUserOverridesModal .ws-user-overrides-modal-body {
+  min-height: 0;
+  width: 100%;
+}
+
+#workScheduleUserOverridesModal .ws-form-row {
+  display: grid;
+  margin-bottom: 0;
+  width: 100%;
+}
+
+#workScheduleUserOverridesModal .ws-form-row-full {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+#workScheduleUserOverridesModal .ws-field-user {
+  max-width: none;
+  width: 100%;
+}
+
+#workScheduleUserOverridesModal .ws-field-user select,
+#workScheduleUserOverridesModal .ws-field-user .custom-select,
+#workScheduleUserOverridesModal .ws-field-user .custom-select-trigger {
+  width: 100%;
+  min-width: 0;
+}
+
+#workScheduleUserOverridesModal .ws-form-row-wide {
+  display: grid;
+  grid-template-columns: 88px 100px 100px minmax(0, 1fr);
+  align-items: end;
+}
+
+#workScheduleUserOverridesModal .ws-form-row-wide .field {
+  width: 100%;
+  min-width: 0;
+}
+
+#workScheduleUserOverridesModal .ws-form-row-wide .ws-field-time input {
+  width: 100%;
+  min-width: 100px;
+}
+
+#workScheduleUserOverridesModal .ws-form-row-wide .ws-field-day,
+#workScheduleUserOverridesModal .ws-form-row-wide .ws-field-time,
+#workScheduleUserOverridesModal .ws-form-row-wide .ws-field-reason {
+  max-width: none;
+  width: 100%;
+}
+
+#workScheduleUserOverridesModal .ws-form-row-wide .ws-field-reason {
+  max-width: none;
+  min-width: 0;
+}
+
+@media (max-width: 520px) {
+  #workScheduleUserOverridesModal .ws-form-row-wide {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #workScheduleUserOverridesModal .ws-form-row-wide .ws-field-reason {
+    grid-column: 1 / -1;
+  }
+}
+
+#appointmentBreaksAddModal h3,
+#workScheduleUserOverridesModal h3 {
   margin: 2px 0 10px;
   font-size: var(--fs-md);
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-modal-head {
+#appointmentBreaksAddModal .appointment-breaks-add-modal-head,
+#workScheduleUserOverridesModal .appointment-breaks-add-modal-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3564,16 +3918,19 @@
   margin-bottom: 10px;
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-modal-head h3 {
+#appointmentBreaksAddModal .appointment-breaks-add-modal-head h3,
+#workScheduleUserOverridesModal .appointment-breaks-add-modal-head h3 {
   margin: 0;
   text-align: left;
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-modal-head .panel-close-btn {
+#appointmentBreaksAddModal .appointment-breaks-add-modal-head .panel-close-btn,
+#workScheduleUserOverridesModal .appointment-breaks-add-modal-head .panel-close-btn {
   flex: 0 0 auto;
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-modal-form {
+#appointmentBreaksAddModal .appointment-breaks-add-modal-form,
+#workScheduleUserOverridesModal .appointment-breaks-add-modal-form {
   display: grid;
   gap: 10px;
 }
@@ -3707,20 +4064,23 @@
   padding: 0;
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-modal-actions {
+#appointmentBreaksAddModal .appointment-breaks-add-modal-actions,
+#workScheduleUserOverridesModal .appointment-breaks-add-modal-actions {
   margin: 0;
   justify-content: center;
   gap: 8px;
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-modal-actions .header-btn {
+#appointmentBreaksAddModal .appointment-breaks-add-modal-actions .header-btn,
+#workScheduleUserOverridesModal .appointment-breaks-add-modal-actions .header-btn {
   width: 72px;
   min-width: 72px;
   height: var(--btn-height);
   padding: 0;
 }
 
-#appointmentBreaksAddModal #appointmentBreaksAddSaveBtn {
+#appointmentBreaksAddModal #appointmentBreaksAddSaveBtn,
+#workScheduleUserOverridesModal #saveWorkScheduleUserOverridesModalBtn {
   width: 72px;
   min-width: 72px;
   border: 0;
@@ -3729,7 +4089,8 @@
   box-shadow: 0 2px 8px rgba(67, 97, 238, 0.28);
 }
 
-#appointmentBreaksAddModal #appointmentBreaksAddSaveBtn:hover {
+#appointmentBreaksAddModal #appointmentBreaksAddSaveBtn:hover,
+#workScheduleUserOverridesModal #saveWorkScheduleUserOverridesModalBtn:hover {
   filter: brightness(1.08);
 }
 
@@ -4509,6 +4870,19 @@
 
   .appointment-setting-row>label {
     padding-top: 0;
+  }
+
+  .ws-default-form > .appointment-setting-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ws-default-form > .appointment-setting-row > label {
+    min-height: auto;
+    text-align: left;
+  }
+
+  .ws-default-day-row {
+    grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr);
   }
 
   .appointment-breaks-toolbar {
@@ -5440,7 +5814,7 @@ button[id*="save"]:active,
   display: flex;
   gap: 4px;
   border-bottom: 2px solid var(--border-color, #e2e8f0);
-  margin-bottom: 20px;
+  margin-bottom: 5px;
   flex-wrap: wrap;
 }
 .att-admin-tab-btn {

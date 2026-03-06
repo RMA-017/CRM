@@ -71,16 +71,23 @@ test("appointments routes expose stable contract", async () => {
 
   assert.deepEqual(toRouteSignatures(recorder.routes), [
     "DELETE /schedules/:id",
+    "DELETE /work-schedule/:id",
     "GET /breaks",
     "GET /client-no-show-summary",
     "GET /events",
+    "GET /report",
+    "GET /report/filters",
     "GET /schedules",
     "GET /settings",
     "GET /specialists",
+    "GET /work-schedule",
     "PATCH /schedules/:id",
     "PATCH /settings",
+    "PATCH /work-schedule/:id",
     "POST /schedules",
-    "PUT /breaks"
+    "POST /work-schedule",
+    "PUT /breaks",
+    "PUT /work-schedule/default-weekly"
   ]);
 
   const schedulesGet = findRoute(recorder.routes, "GET", "/schedules");
@@ -100,6 +107,29 @@ test("appointments routes expose stable contract", async () => {
 
   const settingsPatch = findRoute(recorder.routes, "PATCH", "/settings");
   assert.equal(typeof settingsPatch?.options?.schema?.body, "object");
+
+  const workScheduleGet = findRoute(recorder.routes, "GET", "/work-schedule");
+  assert.equal(typeof workScheduleGet?.options?.schema?.querystring, "object");
+
+  const workScheduleDefaultWeeklyPut = findRoute(recorder.routes, "PUT", "/work-schedule/default-weekly");
+  assert.equal(typeof workScheduleDefaultWeeklyPut?.options?.schema?.body, "object");
+
+  const workSchedulePost = findRoute(recorder.routes, "POST", "/work-schedule");
+  assert.equal(typeof workSchedulePost?.options?.schema?.body, "object");
+
+  const workSchedulePatch = findRoute(recorder.routes, "PATCH", "/work-schedule/:id");
+  assert.equal(typeof workSchedulePatch?.options?.schema?.params, "object");
+  assert.equal(typeof workSchedulePatch?.options?.schema?.body, "object");
+
+  const workScheduleDelete = findRoute(recorder.routes, "DELETE", "/work-schedule/:id");
+  assert.equal(typeof workScheduleDelete?.options?.schema?.params, "object");
+  assert.equal(typeof workScheduleDelete?.options?.schema?.querystring, "object");
+
+  const reportGet = findRoute(recorder.routes, "GET", "/report");
+  assert.equal(typeof reportGet?.handler, "function");
+
+  const reportFiltersGet = findRoute(recorder.routes, "GET", "/report/filters");
+  assert.equal(typeof reportFiltersGet?.handler, "function");
 });
 
 test("settings routes expose stable contract", async () => {

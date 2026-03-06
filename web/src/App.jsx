@@ -38,6 +38,7 @@ function App() {
       <Route path="/appointments" element={<Navigate to="/appointments/planner" replace />} />
       <Route path="/appointments/planner" element={<ProfilePage forcedView="appointment" />} />
       <Route path="/appointments/breaks" element={<ProfilePage forcedView="appointment-breaks" />} />
+      <Route path="/appointments/work-schedule" element={<ProfilePage forcedView="appointment-work-schedule" />} />
       <Route path="/vip-clients/my-class" element={<ProfilePage forcedView="appointment-vip-schedule" />} />
       <Route path="/vip-clients/attendance" element={<ProfilePage forcedView="appointment-vip-attendance" />} />
       <Route path="/vip-clients/my-children" element={<ProfilePage forcedView="appointment-vip-my-children" />} />
@@ -52,6 +53,7 @@ function App() {
       <Route path="/appointments/vip-assignments" element={<Navigate to="/assignments/class" replace />} />
       <Route path="/appointments/vip-tutor-assignments" element={<Navigate to="/assignments/tutor" replace />} />
       <Route path="/settings/appointments" element={<ProfilePage forcedView="appointment-settings" />} />
+      <Route path="/settings/work-schedule" element={<Navigate to="/appointments/work-schedule" replace />} />
       <Route path="/statistics" element={<Navigate to="/statistics/vip-class-attendance-report" replace />} />
       <Route path="/statistics/vip-class-attendance-report" element={<ProfilePage forcedView="statistics-class" />} />
       <Route path="/statistics/planner-report" element={<ProfilePage forcedView="statistics-planner-report" />} />
@@ -89,6 +91,7 @@ function App() {
       <Route path="/profile/appointments/vip-assignments" element={<Navigate to="/assignments/class" replace />} />
       <Route path="/profile/appointments/vip-tutor-assignments" element={<Navigate to="/assignments/tutor" replace />} />
       <Route path="/profile/appointments/settings" element={<Navigate to="/settings/appointments" replace />} />
+      <Route path="/profile/settings/work-schedule" element={<Navigate to="/appointments/work-schedule" replace />} />
       <Route path="/profile/statistics" element={<Navigate to="/statistics/vip-class-attendance-report" replace />} />
       <Route path="/profile/statistics/vip-class-attendance-report" element={<Navigate to="/statistics/vip-class-attendance-report" replace />} />
       <Route path="/profile/statistics/class" element={<Navigate to="/statistics/vip-class-attendance-report" replace />} />
@@ -96,6 +99,7 @@ function App() {
       <Route path="/profile/admin-settings/organizations" element={<Navigate to="/admin-settings/organizations" replace />} />
       <Route path="/profile/admin-settings/monitoring" element={<Navigate to="/admin-settings/monitoring" replace />} />
       <Route path="/appointments/settings" element={<Navigate to="/settings/appointments" replace />} />
+      <Route path="/profile/appointments/work-schedule" element={<Navigate to="/appointments/work-schedule" replace />} />
       <Route path="/profile/settings/organizations" element={<Navigate to="/admin-settings/organizations" replace />} />
       <Route path="/profile/settings/appointments" element={<Navigate to="/settings/appointments" replace />} />
       <Route path="/profile/settings/roles" element={<Navigate to="/settings/roles" replace />} />

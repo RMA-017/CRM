@@ -3,6 +3,33 @@ export function normalizeSettingsSortOrderInput(value) {
   return Number.isInteger(parsed) ? parsed : 0;
 }
 
+function getFeatureForPermissionCode(code) {
+  if (code.startsWith("clients.")) return "clients";
+  if (code.startsWith("users.")) return "users";
+  if (code.startsWith("appointments.vip-clients.")) return "vip_clients";
+  if (code.startsWith("appointments.assignments.")) return "assignments";
+  if (code.startsWith("appointments.statistics.")) return "statistics";
+  if (code.startsWith("appointments.")) return "appointments";
+  return null; // profile.*, notifications.* — always shown
+}
+
+export function filterPermissionsByOrgFeatures(permissions, orgFeatures) {
+  if (!Array.isArray(orgFeatures)) return permissions;
+  const featureSet = new Set(orgFeatures);
+  const hasFeature = (feature) => {
+    if (featureSet.has(feature)) return true;
+    const dot = feature.indexOf(".");
+    if (dot !== -1 && featureSet.has(feature.slice(0, dot))) return true;
+    return false;
+  };
+  return permissions.filter((permission) => {
+    const code = String(permission?.value || "").trim().toLowerCase();
+    const feature = getFeatureForPermissionCode(code);
+    if (feature === null) return true;
+    return hasFeature(feature);
+  });
+}
+
 export function normalizePermissionCodesInput(value) {
   if (!Array.isArray(value)) {
     return [];

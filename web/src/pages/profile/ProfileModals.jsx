@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import CustomSelect from "../../components/CustomSelect.jsx";
 import { formatDateYMD } from "../../lib/formatters.js";
 import { togglePermissionCode } from "./profile.helpers.js";
+import { ORG_FEATURE_TREE, ALL_ORG_FEATURE_KEYS } from "./profile.constants.js";
 
 function formatNotificationDateTime(value) {
   const date = new Date(String(value || ""));
@@ -52,6 +53,7 @@ function ProfileModals(props) {
   const maxBirthdayYmd = new Date().toISOString().slice(0, 10);
   const [showPhotoMenu, setShowPhotoMenu] = useState(false);
   const photoWrapRef = useRef(null);
+  const [orgEditTab, setOrgEditTab] = useState("edit");
 
   useEffect(() => {
     if (!showPhotoMenu) return;
@@ -134,6 +136,12 @@ function ProfileModals(props) {
     positionEditSubmitting,
     cancelPositionEdit
   } = props;
+
+  useEffect(() => {
+    if (organizationEditOpen) {
+      setOrgEditTab("edit");
+    }
+  }, [organizationEditOpen]);
 
   useEffect(() => {
     const message = String(organizationEditError || "").trim();
@@ -985,7 +993,33 @@ function ProfileModals(props) {
       <div id="settingsDeleteOverlay" className="login-overlay" hidden={!settingsDelete.open} onClick={closeSettingsDeleteModal} />
 
       <section id="organizationEditModal" className="logout-confirm-modal settings-edit-modal" hidden={!organizationEditOpen}>
-        <h3>Edit Organization</h3>
+        <div className="all-users-head">
+          <h3>Edit Organization</h3>
+          <button
+            type="button"
+            className="header-btn panel-close-btn"
+            aria-label="Close edit organization modal"
+            onClick={cancelOrganizationEdit}
+          >
+            ×
+          </button>
+        </div>
+        <div className="att-admin-tabs">
+          <button
+            type="button"
+            className={`att-admin-tab-btn${orgEditTab === "edit" ? " active" : ""}`}
+            onClick={() => setOrgEditTab("edit")}
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            className={`att-admin-tab-btn${orgEditTab === "features" ? " active" : ""}`}
+            onClick={() => setOrgEditTab("features")}
+          >
+            Features
+          </button>
+        </div>
         <form
           className="auth-form settings-edit-form"
           noValidate
@@ -994,53 +1028,116 @@ function ProfileModals(props) {
             handleOrganizationEditSave();
           }}
         >
-          <div className="field">
-            <label htmlFor="organizationEditCodeInput">Code</label>
-            <input
-              id="organizationEditCodeInput"
-              type="text"
-              value={organizationEditForm.code}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setOrganizationEditForm((prev) => ({ ...prev, code: nextValue }));
-                if (organizationEditError) {
-                  setOrganizationEditError("");
-                }
-              }}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="organizationEditNameInput">Name</label>
-            <input
-              id="organizationEditNameInput"
-              type="text"
-              value={organizationEditForm.name}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setOrganizationEditForm((prev) => ({ ...prev, name: nextValue }));
-                if (organizationEditError) {
-                  setOrganizationEditError("");
-                }
-              }}
-            />
-          </div>
-          <div className="field settings-inline-control">
-            <label htmlFor="organizationEditIsActiveInput">Active</label>
-            <label className="settings-checkbox settings-checkbox-inline" htmlFor="organizationEditIsActiveInput">
+          <div hidden={orgEditTab !== "edit"}>
+            <div className="field">
+              <label htmlFor="organizationEditCodeInput">Code</label>
               <input
-                id="organizationEditIsActiveInput"
-                type="checkbox"
-                checked={Boolean(organizationEditForm.isActive)}
-                onChange={(event) => {
-                  const checked = event.currentTarget.checked;
-                  setOrganizationEditForm((prev) => ({ ...prev, isActive: checked }));
+                id="organizationEditCodeInput"
+                type="text"
+                value={organizationEditForm.code}
+                onInput={(event) => {
+                  const nextValue = event.currentTarget.value;
+                  setOrganizationEditForm((prev) => ({ ...prev, code: nextValue }));
+                  if (organizationEditError) {
+                    setOrganizationEditError("");
+                  }
                 }}
               />
-            </label>
+            </div>
+            <div className="field">
+              <label htmlFor="organizationEditNameInput">Name</label>
+              <input
+                id="organizationEditNameInput"
+                type="text"
+                value={organizationEditForm.name}
+                onInput={(event) => {
+                  const nextValue = event.currentTarget.value;
+                  setOrganizationEditForm((prev) => ({ ...prev, name: nextValue }));
+                  if (organizationEditError) {
+                    setOrganizationEditError("");
+                  }
+                }}
+              />
+            </div>
+            <div className="field settings-inline-control">
+              <label htmlFor="organizationEditIsActiveInput">Active</label>
+              <label className="settings-checkbox settings-checkbox-inline" htmlFor="organizationEditIsActiveInput">
+                <input
+                  id="organizationEditIsActiveInput"
+                  type="checkbox"
+                  checked={Boolean(organizationEditForm.isActive)}
+                  onChange={(event) => {
+                    const checked = event.currentTarget.checked;
+                    setOrganizationEditForm((prev) => ({ ...prev, isActive: checked }));
+                  }}
+                />
+              </label>
+            </div>
+          </div>
+          <div className="org-edit-features-tab" hidden={orgEditTab !== "features"}>
+            <div className="settings-permissions-section">
+              <div className="settings-permission-groups">
+                {ORG_FEATURE_TREE.map(({ key: parentKey, label: parentLabel, children }) => {
+                  const childKeys = children.map((c) => c.key);
+                  const current = organizationEditForm.allowedFeatures === null ? [...ALL_ORG_FEATURE_KEYS] : organizationEditForm.allowedFeatures;
+                  const parentChecked = current.includes(parentKey);
+                  return (
+                    <div key={parentKey} className="settings-permission-group">
+                      <label className="settings-permission-item" htmlFor={`orgEditFeatureP_${parentKey}`}>
+                        <input
+                          id={`orgEditFeatureP_${parentKey}`}
+                          type="checkbox"
+                          checked={parentChecked}
+                          onChange={(event) => {
+                            const checked = event.currentTarget.checked;
+                            setOrganizationEditForm((prev) => {
+                              const cur = prev.allowedFeatures === null ? [...ALL_ORG_FEATURE_KEYS] : [...prev.allowedFeatures];
+                              const next = checked
+                                ? [...new Set([...cur, parentKey, ...childKeys])]
+                                : cur.filter((k) => k !== parentKey && !childKeys.includes(k));
+                              return { ...prev, allowedFeatures: next.length === ALL_ORG_FEATURE_KEYS.length ? null : next };
+                            });
+                          }}
+                        />
+                        <strong>{parentLabel}</strong>
+                      </label>
+                      <div className="settings-permissions-grid settings-permissions-grid-group">
+                        {children.map(({ key: childKey, label: childLabel }) => (
+                          <label key={childKey} className="settings-permission-item" htmlFor={`orgEditFeatureC_${childKey}`}>
+                            <input
+                              id={`orgEditFeatureC_${childKey}`}
+                              type="checkbox"
+                              checked={current.includes(childKey)}
+                              onChange={(event) => {
+                                const checked = event.currentTarget.checked;
+                                setOrganizationEditForm((prev) => {
+                                  const cur = prev.allowedFeatures === null ? [...ALL_ORG_FEATURE_KEYS] : [...prev.allowedFeatures];
+                                  let next;
+                                  if (checked) {
+                                    next = [...new Set([...cur, childKey, parentKey])];
+                                  } else {
+                                    next = cur.filter((k) => k !== childKey);
+                                    const anyChildLeft = childKeys.some((k) => next.includes(k));
+                                    if (!anyChildLeft) next = next.filter((k) => k !== parentKey);
+                                  }
+                                  return { ...prev, allowedFeatures: next.length === ALL_ORG_FEATURE_KEYS.length ? null : next };
+                                });
+                              }}
+                            />
+                            <span>{childLabel}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
           <div className="edit-actions">
-            <button className="btn" type="submit" disabled={organizationEditSubmitting}>Save</button>
-            <button className="header-btn" type="button" onClick={cancelOrganizationEdit}>Cancel</button>
+            <button className="btn" type="submit" disabled={organizationEditSubmitting}>
+              {organizationEditSubmitting ? "Saving..." : "Save"}
+            </button>
           </div>
         </form>
       </section>

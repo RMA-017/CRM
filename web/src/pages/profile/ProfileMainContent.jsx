@@ -4,8 +4,10 @@ import CustomSelect from "../../components/CustomSelect.jsx";
 import { formatDateYMD } from "../../lib/formatters.js";
 import AppointmentScheduler from "./AppointmentScheduler.jsx";
 import AppointmentSettingsPanel from "./AppointmentSettingsPanel.jsx";
+import WorkSchedulePanel from "./WorkSchedulePanel.jsx";
 import MonitoringPanel from "./MonitoringPanel.jsx";
 import { sortVipClassDailyRoutineRows } from "./profile.helpers.js";
+import { ORG_FEATURE_TREE, ALL_ORG_FEATURE_KEYS } from "./profile.constants.js";
 import {
   MY_CHILDREN_DAY_ITEMS,
   MY_CHILDREN_DAY_NUM_TO_KEY,
@@ -322,6 +324,7 @@ function ProfileMainContent({
   closeAppointmentVipAssignmentsPanel,
   closeAppointmentVipTutorAssignmentsPanel,
   closeAppointmentSettingsPanel,
+  closeAppointmentWorkSchedulePanel,
   closeOrganizationsPanel,
   closeRolesPanel,
   closePositionsPanel,
@@ -446,6 +449,7 @@ function ProfileMainContent({
   });
   const [vipClassFormError, setVipClassFormError] = useState("");
   const [vipClassAddModalOpen, setVipClassAddModalOpen] = useState(false);
+  const [workScheduleUserOverridesModalOpen, setWorkScheduleUserOverridesModalOpen] = useState(false);
   const [vipClassModalMode, setVipClassModalMode] = useState("add");
   const [vipClassModalSaving, setVipClassModalSaving] = useState(false);
   const [vipClassDeleteModal, setVipClassDeleteModal] = useState({
@@ -2347,6 +2351,65 @@ function ProfileMainContent({
               />
             </label>
           </div>
+          <div className="settings-permissions-section">
+            <p className="settings-permissions-title">Features</p>
+            <div className="settings-permission-groups">
+              {ORG_FEATURE_TREE.map(({ key: parentKey, label: parentLabel, children }) => {
+                const childKeys = children.map((c) => c.key);
+                const current = organizationCreateForm.allowedFeatures === null ? [...ALL_ORG_FEATURE_KEYS] : organizationCreateForm.allowedFeatures;
+                const parentChecked = current.includes(parentKey);
+                return (
+                  <div key={parentKey} className="settings-permission-group">
+                    <label className="settings-permission-item" htmlFor={`orgCreateFeatureP_${parentKey}`}>
+                      <input
+                        id={`orgCreateFeatureP_${parentKey}`}
+                        type="checkbox"
+                        checked={parentChecked}
+                        onChange={(event) => {
+                          const checked = event.currentTarget.checked;
+                          setOrganizationCreateForm((prev) => {
+                            const cur = prev.allowedFeatures === null ? [...ALL_ORG_FEATURE_KEYS] : [...prev.allowedFeatures];
+                            const next = checked
+                              ? [...new Set([...cur, parentKey, ...childKeys])]
+                              : cur.filter((k) => k !== parentKey && !childKeys.includes(k));
+                            return { ...prev, allowedFeatures: next.length === ALL_ORG_FEATURE_KEYS.length ? null : next };
+                          });
+                        }}
+                      />
+                      <strong>{parentLabel}</strong>
+                    </label>
+                    <div className="settings-permissions-grid settings-permissions-grid-group">
+                      {children.map(({ key: childKey, label: childLabel }) => (
+                        <label key={childKey} className="settings-permission-item" htmlFor={`orgCreateFeatureC_${childKey}`}>
+                          <input
+                            id={`orgCreateFeatureC_${childKey}`}
+                            type="checkbox"
+                            checked={current.includes(childKey)}
+                            onChange={(event) => {
+                              const checked = event.currentTarget.checked;
+                              setOrganizationCreateForm((prev) => {
+                                const cur = prev.allowedFeatures === null ? [...ALL_ORG_FEATURE_KEYS] : [...prev.allowedFeatures];
+                                let next;
+                                if (checked) {
+                                  next = [...new Set([...cur, childKey, parentKey])];
+                                } else {
+                                  next = cur.filter((k) => k !== childKey);
+                                  const anyChildLeft = childKeys.some((k) => next.includes(k));
+                                  if (!anyChildLeft) next = next.filter((k) => k !== parentKey);
+                                }
+                                return { ...prev, allowedFeatures: next.length === ALL_ORG_FEATURE_KEYS.length ? null : next };
+                              });
+                            }}
+                          />
+                          <span>{childLabel}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
           <div className="edit-actions">
             <button className="btn" type="submit" disabled={organizationCreateSubmitting}>
               {organizationCreateSubmitting ? "Saving..." : "Save"}
@@ -2730,6 +2793,20 @@ function ProfileMainContent({
                 onChange={(event) => {
                   const checked = event.currentTarget.checked;
                   setRoleCreateForm((prev) => ({ ...prev, isActive: checked }));
+                }}
+              />
+            </label>
+          </div>
+          <div className="field settings-inline-control" hidden={!hasAdminSettingsAccess}>
+            <label htmlFor="roleCreateModalIsAdminInput">Admin role</label>
+            <label className="settings-checkbox settings-checkbox-inline" htmlFor="roleCreateModalIsAdminInput">
+              <input
+                id="roleCreateModalIsAdminInput"
+                type="checkbox"
+                checked={Boolean(roleCreateForm.isAdmin)}
+                onChange={(event) => {
+                  const checked = event.currentTarget.checked;
+                  setRoleCreateForm((prev) => ({ ...prev, isAdmin: checked }));
                 }}
               />
             </label>
@@ -3179,6 +3256,49 @@ function ProfileMainContent({
             panelMode="settings"
             organizations={organizations}
             profile={profile}
+          />
+        </section>
+      )}
+
+      {mainView === "appointment-work-schedule" && (
+        <section id="appointmentWorkSchedulePanel" className="all-users-panel settings-panel">
+          <div className="all-users-head">
+            <h3>Work Schedule</h3>
+            <div className="all-users-head-actions">
+              <button
+                id="openWorkScheduleUserOverridesModalBtn"
+                type="button"
+                className="header-btn appointment-breaks-add-icon-btn"
+                aria-label="Open user weekly overrides modal"
+                title="User weekly overrides"
+                disabled={!canUpdateAppointments}
+                onClick={() => setWorkScheduleUserOverridesModalOpen(true)}
+              >
+                +
+              </button>
+              <button
+                id="closeAppointmentWorkScheduleBtn"
+                type="button"
+                className="header-btn panel-close-btn"
+                aria-label="Close work schedule panel"
+                onClick={() => {
+                  setWorkScheduleUserOverridesModalOpen(false);
+                  closeAppointmentWorkSchedulePanel();
+                }}
+              >
+                ×
+              </button>
+            </div>
+          </div>
+          <WorkSchedulePanel
+            canUpdateAppointments={canUpdateAppointments}
+            profile={profile}
+            showDefaultWeekly={false}
+            showUserWeeklyOverrides
+            showUserWeeklyOverridesLauncher={false}
+            isUserWeeklyOverridesModalOpen={workScheduleUserOverridesModalOpen}
+            onOpenUserWeeklyOverridesModal={() => setWorkScheduleUserOverridesModalOpen(true)}
+            onCloseUserWeeklyOverridesModal={() => setWorkScheduleUserOverridesModalOpen(false)}
           />
         </section>
       )}

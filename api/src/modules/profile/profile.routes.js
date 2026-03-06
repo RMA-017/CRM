@@ -58,6 +58,7 @@ function mapProfile(user, permissions) {
     organizationId: user.organization_id,
     organizationCode: user.organization_code,
     organizationName: user.organization_name,
+    orgFeatures: Array.isArray(user.organization_allowed_features) ? user.organization_allowed_features : null,
     permissions
   };
 }

@@ -228,11 +228,151 @@ export const appointmentRouteSchemas = Object.freeze({
       visibleWeekDays: {
         type: "array",
         items: dayKeySchema
-      },
-      workingHours: {
-        type: "object",
-        additionalProperties: true
       }
+    }
+  },
+  workScheduleQuery: {
+    type: "object",
+    additionalProperties: true,
+    properties: {
+      organizationId: positiveIntegerLikeSchema,
+      organization_id: positiveIntegerLikeSchema,
+      userId: positiveIntegerLikeSchema,
+      user_id: positiveIntegerLikeSchema,
+      ruleScope: {
+        type: "string",
+        enum: ["weekly", "exception", "all"]
+      },
+      rule_scope: {
+        type: "string",
+        enum: ["weekly", "exception", "all"]
+      }
+    }
+  },
+  workScheduleDefaultWeeklyBody: {
+    type: "object",
+    additionalProperties: true,
+    required: ["items"],
+    properties: {
+      organizationId: positiveIntegerLikeSchema,
+      organization_id: positiveIntegerLikeSchema,
+      items: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: true,
+          properties: {
+            dayOfWeek: {
+              anyOf: [
+                { type: "integer", minimum: 1, maximum: 7 },
+                { type: "string", pattern: "^[1-7]$" }
+              ]
+            },
+            day_of_week: {
+              anyOf: [
+                { type: "integer", minimum: 1, maximum: 7 },
+                { type: "string", pattern: "^[1-7]$" }
+              ]
+            },
+            dayKey: dayKeySchema,
+            isActive: booleanLikeSchema,
+            is_active: booleanLikeSchema,
+            startTime: timeHmSchema,
+            start_time: timeHmSchema,
+            endTime: timeHmSchema,
+            end_time: timeHmSchema,
+            reason: { type: "string", maxLength: 120 }
+          }
+        }
+      }
+    }
+  },
+  workScheduleCreateBody: {
+    type: "object",
+    additionalProperties: true,
+    properties: {
+      organizationId: positiveIntegerLikeSchema,
+      organization_id: positiveIntegerLikeSchema,
+      userId: positiveIntegerLikeSchema,
+      user_id: positiveIntegerLikeSchema,
+      ruleScope: {
+        type: "string",
+        enum: ["weekly", "exception"]
+      },
+      rule_scope: {
+        type: "string",
+        enum: ["weekly", "exception"]
+      },
+      dayOfWeek: {
+        anyOf: [
+          { type: "integer", minimum: 1, maximum: 7 },
+          { type: "string", pattern: "^[1-7]$" }
+        ]
+      },
+      day_of_week: {
+        anyOf: [
+          { type: "integer", minimum: 1, maximum: 7 },
+          { type: "string", pattern: "^[1-7]$" }
+        ]
+      },
+      dayKey: dayKeySchema,
+      workDate: dateYmdSchema,
+      work_date: dateYmdSchema,
+      isActive: booleanLikeSchema,
+      is_active: booleanLikeSchema,
+      startTime: timeHmSchema,
+      start_time: timeHmSchema,
+      endTime: timeHmSchema,
+      end_time: timeHmSchema,
+      reason: { type: "string", maxLength: 120 }
+    }
+  },
+  workScheduleUpdateBody: {
+    type: "object",
+    additionalProperties: true,
+    properties: {
+      organizationId: positiveIntegerLikeSchema,
+      organization_id: positiveIntegerLikeSchema,
+      userId: positiveIntegerLikeSchema,
+      user_id: positiveIntegerLikeSchema,
+      ruleScope: {
+        type: "string",
+        enum: ["weekly", "exception"]
+      },
+      rule_scope: {
+        type: "string",
+        enum: ["weekly", "exception"]
+      },
+      dayOfWeek: {
+        anyOf: [
+          { type: "integer", minimum: 1, maximum: 7 },
+          { type: "string", pattern: "^[1-7]$" }
+        ]
+      },
+      day_of_week: {
+        anyOf: [
+          { type: "integer", minimum: 1, maximum: 7 },
+          { type: "string", pattern: "^[1-7]$" }
+        ]
+      },
+      dayKey: dayKeySchema,
+      workDate: dateYmdSchema,
+      work_date: dateYmdSchema,
+      isActive: booleanLikeSchema,
+      is_active: booleanLikeSchema,
+      startTime: timeHmSchema,
+      start_time: timeHmSchema,
+      endTime: timeHmSchema,
+      end_time: timeHmSchema,
+      reason: { type: "string", maxLength: 120 }
+    }
+  },
+  workScheduleIdParams: {
+    type: "object",
+    additionalProperties: true,
+    required: ["id"],
+    properties: {
+      id: positiveIntegerLikeSchema
     }
   }
 });

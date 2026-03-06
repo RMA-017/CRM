@@ -11,10 +11,60 @@ export const EMPTY_PROFILE_EDIT_FORM = {
   position: ""
 };
 
+export const ORG_FEATURE_TREE = [
+  {
+    key: "clients",
+    label: "Clients",
+    children: [{ key: "clients.all_clients", label: "All Clients" }]
+  },
+  {
+    key: "vip_clients",
+    label: "VIP Clients",
+    children: [
+      { key: "vip_clients.my_class", label: "My Class" },
+      { key: "vip_clients.attendance", label: "Attendance" },
+      { key: "vip_clients.my_children", label: "My Children" },
+      { key: "vip_clients.daily_routines", label: "Daily Routines" }
+    ]
+  },
+  {
+    key: "assignments",
+    label: "Assignments",
+    children: [
+      { key: "assignments.class", label: "Class" },
+      { key: "assignments.tutor", label: "Tutor" }
+    ]
+  },
+  {
+    key: "appointments",
+    label: "Appointments",
+    children: [
+      { key: "appointments.planner", label: "Planner" },
+      { key: "appointments.breaks", label: "Breaks" }
+    ]
+  },
+  {
+    key: "users",
+    label: "Users",
+    children: [{ key: "users.all_users", label: "All Users" }]
+  },
+  {
+    key: "statistics",
+    label: "Statistics",
+    children: [
+      { key: "statistics.class_attendance", label: "VIP Class Attendance" },
+      { key: "statistics.planner_report", label: "Lesson Status Report" }
+    ]
+  }
+];
+
+export const ALL_ORG_FEATURE_KEYS = ORG_FEATURE_TREE.flatMap(({ key, children }) => [key, ...children.map((c) => c.key)]);
+
 export const EMPTY_ORGANIZATION_FORM = {
   code: "",
   name: "",
-  isActive: true
+  isActive: true,
+  allowedFeatures: null
 };
 
 export const EMPTY_SETTINGS_OPTION_FORM = {
@@ -23,7 +73,7 @@ export const EMPTY_SETTINGS_OPTION_FORM = {
   isActive: true
 };
 
-export const EMPTY_ROLE_CREATE_FORM = { ...EMPTY_SETTINGS_OPTION_FORM };
+export const EMPTY_ROLE_CREATE_FORM = { ...EMPTY_SETTINGS_OPTION_FORM, isAdmin: false };
 
 export const EMPTY_ROLE_EDIT_FORM = {
   ...EMPTY_SETTINGS_OPTION_FORM,

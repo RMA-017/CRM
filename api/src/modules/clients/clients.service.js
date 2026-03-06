@@ -1603,6 +1603,8 @@ async function shouldBackfillVipAttendanceAbsentForDate({ organizationId, attend
        LEFT JOIN appointment_working_hours awh
          ON awh.organization_id = $1
         AND awh.day_of_week = $2
+        AND awh.user_id IS NULL
+        AND awh.rule_scope = 'weekly'
        LIMIT 1`,
       [organizationId, dayOfWeek]
     );
@@ -1690,7 +1692,9 @@ async function backfillVipAttendanceLeftByWorkingHoursForDate({ organizationId, 
        FROM appointment_working_hours awh
       WHERE vca.organization_id = $1
         AND awh.organization_id = vca.organization_id
-        AND awh.day_of_week = $3
+       AND awh.day_of_week = $3
+       AND awh.user_id IS NULL
+       AND awh.rule_scope = 'weekly'
         AND awh.is_active = TRUE
         AND awh.start_time IS NOT NULL
         AND awh.end_time IS NOT NULL
@@ -2502,50 +2506,184 @@ export async function updateClientById({
   note,
   updatedBy
 }) {
-  const { rows } = await pool.query(
-    `UPDATE clients
-        SET first_name = $1,
-            last_name = $2,
-            middle_name = $3,
-            birthday = $4,
-            phone_number = $5,
-            tg_mail = $6,
-            note = $7,
-            is_vip = COALESCE($8, is_vip),
-            updated_by = $9,
-            updated_at = CURRENT_TIMESTAMP
-      WHERE id = $10
-        AND organization_id = $11
-      RETURNING
-        id::text AS id,
-        organization_id::text AS organization_id,
-        first_name,
-        last_name,
-        middle_name,
+  const db = await pool.connect();
+  try {
+    await db.query("BEGIN");
+
+    const { rows } = await db.query(
+      `WITH existing AS (
+         SELECT c.id, c.is_vip
+           FROM clients c
+          WHERE c.id = $10
+            AND c.organization_id = $11
+          FOR UPDATE
+       ),
+       updated AS (
+         UPDATE clients c
+            SET first_name = $1,
+                last_name = $2,
+                middle_name = $3,
+                birthday = $4,
+                phone_number = $5,
+                tg_mail = $6,
+                note = $7,
+                is_vip = COALESCE($8, c.is_vip),
+                updated_by = $9,
+                updated_at = CURRENT_TIMESTAMP
+           FROM existing e
+          WHERE c.id = e.id
+            AND c.organization_id = $11
+         RETURNING
+           c.id::text AS id,
+           c.organization_id::text AS organization_id,
+           c.first_name,
+           c.last_name,
+           c.middle_name,
+           c.birthday,
+           c.phone_number,
+           c.tg_mail,
+           c.is_vip,
+           c.created_by::text AS created_by,
+           c.updated_by::text AS updated_by,
+           c.created_at,
+           c.updated_at,
+           c.note,
+           e.is_vip AS previous_is_vip
+       )
+       SELECT * FROM updated`,
+      [
+        firstName,
+        lastName,
+        middleName || null,
         birthday,
-        phone_number,
-        tg_mail,
-        is_vip,
-        created_by::text AS created_by,
-        updated_by::text AS updated_by,
-        created_at,
-        updated_at,
-        note`,
-    [
-      firstName,
-      lastName,
-      middleName || null,
-      birthday,
-      phone || null,
-      tgMail || null,
-      note || null,
-      isVip ?? null,
-      updatedBy || null,
-      id,
-      organizationId
-    ]
-  );
-  return rows[0] || null;
+        phone || null,
+        tgMail || null,
+        note || null,
+        isVip ?? null,
+        updatedBy || null,
+        id,
+        organizationId
+      ]
+    );
+
+    const item = rows[0] || null;
+    if (!item) {
+      await db.query("ROLLBACK");
+      return null;
+    }
+
+    const wasVip = item.previous_is_vip === true;
+    const nowVip = item.is_vip === true;
+    if (wasVip && !nowVip) {
+      const tableCheckResult = await db.query(
+        `SELECT
+           to_regclass('public.appointment_schedules') IS NOT NULL AS has_schedules_table,
+           to_regclass('public.appointment_status_history') IS NOT NULL AS has_status_history_table`
+      );
+      const hasSchedulesTable = tableCheckResult?.rows?.[0]?.has_schedules_table === true;
+      const hasStatusHistoryTable = tableCheckResult?.rows?.[0]?.has_status_history_table === true;
+
+      if (hasSchedulesTable && hasStatusHistoryTable) {
+        await db.query(
+          `WITH target_rows AS (
+             SELECT
+               s.organization_id,
+               s.id,
+               s.status AS previous_status,
+               s.appointment_date,
+               s.start_time,
+               s.end_time
+              FROM appointment_schedules s
+             WHERE s.organization_id = $1
+               AND s.client_id = $2
+               AND s.status IN ('pending', 'confirmed')
+               AND (
+                 s.appointment_date > TIMEZONE('Asia/Tashkent', NOW())::date
+                 OR (
+                   s.appointment_date = TIMEZONE('Asia/Tashkent', NOW())::date
+                   AND s.end_time > TIMEZONE('Asia/Tashkent', NOW())::time
+                 )
+               )
+           ),
+           updated_rows AS (
+             UPDATE appointment_schedules s
+                SET status = 'cancelled',
+                    updated_by = $3::integer,
+                    updated_at = CURRENT_TIMESTAMP
+               FROM target_rows t
+              WHERE s.organization_id = t.organization_id
+                AND s.id = t.id
+             RETURNING
+               s.organization_id,
+               s.id,
+               t.previous_status,
+               s.status AS next_status,
+               s.appointment_date,
+               s.start_time,
+               s.end_time
+           ),
+           history_inserted AS (
+             INSERT INTO appointment_status_history (
+               organization_id,
+               appointment_schedule_id,
+               event_type,
+               previous_status,
+               next_status,
+               changed_fields,
+               details,
+               changed_by
+             )
+             SELECT
+               u.organization_id,
+               u.id,
+               'status-changed',
+               u.previous_status,
+               u.next_status,
+               ARRAY['status']::text[],
+               jsonb_build_object(
+                 'source', 'client-vip-toggle',
+                 'reason', 'vip-disabled-auto-cancel',
+                 'appointmentDate', u.appointment_date,
+                 'startTime', u.start_time,
+                 'endTime', u.end_time
+               ),
+               $3::integer
+             FROM updated_rows u
+           )
+           SELECT COUNT(*)::integer AS cancelled_count
+             FROM updated_rows`,
+          [organizationId, id, updatedBy || null]
+        );
+      } else if (hasSchedulesTable) {
+        await db.query(
+          `UPDATE appointment_schedules s
+              SET status = 'cancelled',
+                  updated_by = $3::integer,
+                  updated_at = CURRENT_TIMESTAMP
+            WHERE s.organization_id = $1
+              AND s.client_id = $2
+              AND s.status IN ('pending', 'confirmed')
+              AND (
+                s.appointment_date > TIMEZONE('Asia/Tashkent', NOW())::date
+                OR (
+                  s.appointment_date = TIMEZONE('Asia/Tashkent', NOW())::date
+                  AND s.end_time > TIMEZONE('Asia/Tashkent', NOW())::time
+                )
+              )`,
+          [organizationId, id, updatedBy || null]
+        );
+      }
+    }
+
+    await db.query("COMMIT");
+    delete item.previous_is_vip;
+    return item;
+  } catch (error) {
+    await db.query("ROLLBACK");
+    throw error;
+  } finally {
+    db.release();
+  }
 }
 
 export async function deleteClientById({ id, organizationId }) {

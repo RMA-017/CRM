@@ -19,6 +19,7 @@ CREATE TABLE organizations (
   code VARCHAR(64) NOT NULL UNIQUE,
   name VARCHAR(128) NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  allowed_features TEXT[] DEFAULT NULL,
   created_by INTEGER,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_by INTEGER,
@@ -348,24 +349,55 @@ CREATE TABLE appointment_settings (
 CREATE TABLE appointment_working_hours (
   id SERIAL PRIMARY KEY,
   organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  day_of_week SMALLINT NOT NULL CHECK (day_of_week BETWEEN 1 AND 7),
+  user_id INTEGER,
+  rule_scope VARCHAR(16) NOT NULL DEFAULT 'weekly'
+    CHECK (rule_scope IN ('weekly', 'exception')),
+  day_of_week SMALLINT CHECK (day_of_week BETWEEN 1 AND 7),
+  work_date DATE,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   start_time TIME,
   end_time TIME,
+  reason VARCHAR(120),
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_appointment_working_hours_user_org
+    FOREIGN KEY (organization_id, user_id)
+    REFERENCES users(organization_id, id) ON DELETE CASCADE,
+  CHECK (
+    (rule_scope = 'weekly' AND day_of_week IS NOT NULL AND work_date IS NULL)
+    OR
+    (rule_scope = 'exception' AND work_date IS NOT NULL AND day_of_week IS NULL)
+  ),
   CHECK (
     (start_time IS NULL AND end_time IS NULL)
     OR
     (start_time IS NOT NULL AND end_time IS NOT NULL AND start_time < end_time)
-  ),
-  UNIQUE (organization_id, day_of_week)
+  )
 );
 
 CREATE INDEX idx_appointment_working_hours_org
   ON appointment_working_hours (organization_id);
+
+CREATE INDEX idx_appointment_working_hours_org_scope_user_day_date
+  ON appointment_working_hours (organization_id, rule_scope, user_id, day_of_week, work_date);
+
+CREATE UNIQUE INDEX uq_appointment_working_hours_default_weekly
+  ON appointment_working_hours (organization_id, day_of_week)
+  WHERE rule_scope = 'weekly' AND user_id IS NULL;
+
+CREATE UNIQUE INDEX uq_appointment_working_hours_user_weekly
+  ON appointment_working_hours (organization_id, user_id, day_of_week)
+  WHERE rule_scope = 'weekly' AND user_id IS NOT NULL;
+
+CREATE UNIQUE INDEX uq_appointment_working_hours_default_exception
+  ON appointment_working_hours (organization_id, work_date)
+  WHERE rule_scope = 'exception' AND user_id IS NULL;
+
+CREATE UNIQUE INDEX uq_appointment_working_hours_user_exception
+  ON appointment_working_hours (organization_id, user_id, work_date)
+  WHERE rule_scope = 'exception' AND user_id IS NOT NULL;
 
 CREATE TABLE appointment_breaks (
   id SERIAL PRIMARY KEY,
@@ -564,3 +596,6 @@ CREATE INDEX idx_appointment_status_history_org_schedule_changed
 
 CREATE INDEX idx_appointment_status_history_org_changed
   ON appointment_status_history (organization_id, changed_at DESC, id DESC);
+
+-- Migrations (run on existing databases)
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS allowed_features TEXT[] DEFAULT NULL;

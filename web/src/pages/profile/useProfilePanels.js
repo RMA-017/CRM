@@ -81,6 +81,14 @@ export function useProfilePanels({
     closePanel("appointment-settings");
   }, [closePanel]);
 
+  const openAppointmentWorkSchedulePanel = useCallback(() => {
+    openPanel("/appointments/work-schedule", hasSettingsMenuAccess);
+  }, [hasSettingsMenuAccess, openPanel]);
+
+  const closeAppointmentWorkSchedulePanel = useCallback(() => {
+    closePanel("appointment-work-schedule");
+  }, [closePanel]);
+
   const openStatisticsClassPanel = useCallback(() => {
     openPanel("/statistics/vip-class-attendance-report", canOpenAppointmentStatistics);
   }, [canOpenAppointmentStatistics, openPanel]);
@@ -225,6 +233,8 @@ export function useProfilePanels({
     closeAppointmentBreaksPanel,
     openAppointmentSettingsPanel,
     closeAppointmentSettingsPanel,
+    openAppointmentWorkSchedulePanel,
+    closeAppointmentWorkSchedulePanel,
     openStatisticsClassPanel,
     openStatisticsPlannerReportPanel,
     closeStatisticsPanel,

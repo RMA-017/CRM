@@ -152,6 +152,11 @@
     --appointment-repeat-chip-font-size: 11px;
   }
 
+  #organizationEditModal {
+    width: calc(100vw - 30px);
+    max-height: calc(100dvh - 24px);
+  }
+
   #roleEditModal {
     width: calc(100vw - 30px);
     height: min(460px, calc(100dvh - 24px));

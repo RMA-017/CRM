@@ -12,6 +12,12 @@ import {
   MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
   MIN_APPOINTMENT_HISTORY_LOCK_DAYS,
   MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
+  listAppointmentWorkSchedule,
+  listAppointmentWorkScheduleStaffByOrganization,
+  createAppointmentWorkScheduleEntry,
+  updateAppointmentWorkScheduleEntryById,
+  deleteAppointmentWorkScheduleEntryById,
+  replaceAppointmentDefaultWeeklyWorkSchedule,
   getAppointmentDayKeys,
   getAppointmentHistoryLockDaysByOrganization,
   getAppointmentSettingsByOrganization,
@@ -188,19 +194,6 @@ function normalizeBreakItems(value) {
       isActive: item?.isActive !== false
     };
   });
-}
-
-function normalizeWorkingHours(value) {
-  const workingHours = {};
-
-  DAY_KEYS.forEach((dayKey) => {
-    const dayValue = (value && typeof value === "object") ? value[dayKey] : null;
-    const start = String(dayValue?.start || "").trim();
-    const end = String(dayValue?.end || "").trim();
-    workingHours[dayKey] = { start, end };
-  });
-
-  return workingHours;
 }
 
 function normalizeAppointmentStatus(value) {
@@ -962,8 +955,7 @@ function validateSettingsPayload({
   noShowThreshold,
   reminderHours,
   reminderChannels,
-  visibleWeekDays,
-  workingHours
+  visibleWeekDays
 }) {
   if (slotIntervalMinutes <= 0 || slotIntervalMinutes > 1440) {
     return { field: "slotInterval", message: "Slot interval must be between 1 and 1440 minutes." };
@@ -1010,30 +1002,6 @@ function validateSettingsPayload({
   }
   if (!Array.isArray(visibleWeekDays) || visibleWeekDays.length === 0) {
     return { field: "visibleWeekDays", message: "At least one visible week day is required." };
-  }
-
-  for (const dayKey of DAY_KEYS) {
-    const start = String(workingHours?.[dayKey]?.start || "").trim();
-    const end = String(workingHours?.[dayKey]?.end || "").trim();
-    const hasStart = Boolean(start);
-    const hasEnd = Boolean(end);
-
-    if (hasStart && !TIME_REGEX.test(start)) {
-      return { field: `workingHours.${dayKey}.start`, message: `Invalid start time for ${dayKey}.` };
-    }
-    if (hasEnd && !TIME_REGEX.test(end)) {
-      return { field: `workingHours.${dayKey}.end`, message: `Invalid end time for ${dayKey}.` };
-    }
-    if (hasStart !== hasEnd) {
-      return { field: `workingHours.${dayKey}`, message: `Start and end time must both be set for ${dayKey}.` };
-    }
-    if (hasStart && hasEnd && start >= end) {
-      return { field: `workingHours.${dayKey}`, message: `End time must be after start time for ${dayKey}.` };
-    }
-
-    if (visibleWeekDays.includes(dayKey) && !(hasStart && hasEnd)) {
-      return { field: `workingHours.${dayKey}`, message: `Working hours are required for visible day ${dayKey}.` };
-    }
   }
 
   return null;
@@ -1146,6 +1114,7 @@ async function appointmentSettingsRoutes(fastify) {
     requireAppointmentsAccess,
     hasPermission,
     PERMISSIONS,
+    DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS,
     DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
     parsePositiveIntegerOr,
     parseNullableBoolean,
@@ -1158,7 +1127,6 @@ async function appointmentSettingsRoutes(fastify) {
     normalizeScheduleScope,
     normalizeScheduleRepeatPayload,
     normalizeVisibleWeekDays,
-    normalizeWorkingHours,
     validateBreaksPayload,
     validateSchedulePayload,
     validateScheduleRepeatPayload,
@@ -1190,6 +1158,12 @@ async function appointmentSettingsRoutes(fastify) {
     isVipClientAssignedToUser,
     getAppointmentHistoryLockDaysByOrganization,
     getAppointmentSettingsByOrganization,
+    listAppointmentWorkSchedule,
+    listAppointmentWorkScheduleStaffByOrganization,
+    createAppointmentWorkScheduleEntry,
+    updateAppointmentWorkScheduleEntryById,
+    deleteAppointmentWorkScheduleEntryById,
+    replaceAppointmentDefaultWeeklyWorkSchedule,
     getAppointmentBreaksBySpecialistAndDays,
     getAppointmentScheduleTargetsByScope,
     hasAppointmentScheduleConflict,

@@ -9,6 +9,12 @@ export {
   getAppointmentHistoryLockDaysByOrganization,
   getAppointmentSlotCellHeightPxByOrganization,
   getAppointmentSettingsByOrganization,
+  listAppointmentWorkSchedule,
+  listAppointmentWorkScheduleStaffByOrganization,
+  createAppointmentWorkScheduleEntry,
+  updateAppointmentWorkScheduleEntryById,
+  deleteAppointmentWorkScheduleEntryById,
+  replaceAppointmentDefaultWeeklyWorkSchedule,
   saveAppointmentHistoryLockDaysByOrganization,
   saveAppointmentSlotCellHeightPxByOrganization,
   saveAppointmentSettings

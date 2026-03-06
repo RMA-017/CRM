@@ -5,6 +5,21 @@ import { trackUserActivity } from "../modules/monitoring/monitoring.store.js";
 import { AUTH_COOKIE_NAME } from "./cookies.js";
 import { parsePositiveInteger } from "./number.js";
 
+let organizationsAllowedFeaturesReadyPromise = null;
+
+async function ensureOrganizationsAllowedFeaturesColumn() {
+  if (!organizationsAllowedFeaturesReadyPromise) {
+    organizationsAllowedFeaturesReadyPromise = pool.query(
+      `ALTER TABLE organizations
+         ADD COLUMN IF NOT EXISTS allowed_features TEXT[] DEFAULT NULL`
+    ).catch((error) => {
+      organizationsAllowedFeaturesReadyPromise = null;
+      throw error;
+    });
+  }
+  return organizationsAllowedFeaturesReadyPromise;
+}
+
 export function signAccessToken({ userId, organizationId, organizationCode, username }) {
   return jwt.sign({
     userId,
@@ -32,6 +47,8 @@ function getAuthPayload(request, reply) {
 }
 
 async function getRequesterByAuthContext({ userId, organizationId }) {
+  await ensureOrganizationsAllowedFeaturesColumn();
+
   const { rows } = await pool.query(
     `SELECT
        u.id,
@@ -50,6 +67,7 @@ async function getRequesterByAuthContext({ userId, organizationId }) {
        o.id AS organization_id,
        o.code AS organization_code,
        o.name AS organization_name,
+       o.allowed_features AS organization_allowed_features,
        COALESCE(NULLIF(TRIM(r.label), ''), '') AS role_label,
        COALESCE(NULLIF(TRIM(p.label), ''), '') AS position_label
       FROM users u
