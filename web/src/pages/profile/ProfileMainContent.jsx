@@ -6,6 +6,7 @@ import AppointmentScheduler from "./AppointmentScheduler.jsx";
 import AppointmentSettingsPanel from "./AppointmentSettingsPanel.jsx";
 import WorkSchedulePanel from "./WorkSchedulePanel.jsx";
 import MonitoringPanel from "./MonitoringPanel.jsx";
+import RolePermissionsAccordion from "./RolePermissionsAccordion.jsx";
 import { sortVipClassDailyRoutineRows } from "./profile.helpers.js";
 import { ORG_FEATURE_TREE, ALL_ORG_FEATURE_KEYS } from "./profile.constants.js";
 import {
@@ -251,6 +252,7 @@ function ProfileMainContent({
   clientsIsVip,
   setClientsIsVip,
   loadClients,
+  loadClientMedicalHistoryClients,
   vipAttendanceItems,
   vipAttendanceTeacherOptions,
   vipAttendanceDraftByClientId,
@@ -305,6 +307,11 @@ function ProfileMainContent({
   canCreateClients,
   canUpdateClients,
   canDeleteClients,
+  canCreateClientMedicalHistory,
+  canBulkDeleteClientMedicalHistory,
+  clientMedicalHistoryDelete,
+  handleClientMedicalHistoryDeleteConfirm,
+  closeClientMedicalHistoryDeleteModal,
   clientCreateForm,
   clientCreateErrors,
   clientCreateSubmitting,
@@ -313,8 +320,12 @@ function ProfileMainContent({
   handleClientCreateSubmit,
   startClientEdit,
   openClientsDeleteModal,
+  openClientMedicalHistoryModal,
+  openClientMedicalHistoryCreateModal,
+  openClientMedicalHistoryDeleteModal,
   canCreateAppointments,
   canUpdateAppointments,
+  canUpdateSettingsAppointments,
   canDeleteAppointments,
   closeAppointmentPanel,
   closeAppointmentBreaksPanel,
@@ -328,8 +339,7 @@ function ProfileMainContent({
   closeOrganizationsPanel,
   closeRolesPanel,
   closePositionsPanel,
-  closeAdminOptionsPanel,
-  closeNotificationsSettingsPanel,
+  closeNotificationsSendPanel,
   closeMonitoringPanel,
   closeStatisticsPanel,
   statisticsVipAttendanceHistoryItems,
@@ -354,8 +364,12 @@ function ProfileMainContent({
   organizationDeletingId,
   handleOrganizationDelete,
   hasAdminSettingsAccess,
+  canCreateSettingsOrganizations,
+  canUpdateSettingsOrganizations,
+  canDeleteSettingsOrganizations,
   rolesSettings,
   rolesSettingsMessage,
+  rolePermissionTree,
   roleCreateForm,
   roleCreateError,
   roleCreateSubmitting,
@@ -365,6 +379,9 @@ function ProfileMainContent({
   startRoleEdit,
   roleDeletingId,
   handleRoleDelete,
+  canCreateSettingsRoles,
+  canUpdateSettingsRoles,
+  canDeleteSettingsRoles,
   positionsSettings,
   positionsSettingsMessage,
   positionCreateForm,
@@ -376,13 +393,9 @@ function ProfileMainContent({
   startPositionEdit,
   positionDeletingId,
   handlePositionDelete,
-  adminOptionsForm,
-  adminOptionsError,
-  adminOptionsSubmitting,
-  setAdminOptionsForm,
-  setAdminOptionsError,
-  loadAdminOptions,
-  handleAdminOptionsSubmit,
+  canCreateSettingsPositions,
+  canUpdateSettingsPositions,
+  canDeleteSettingsPositions,
   canCreateUsers,
   handleCreateUserSubmit,
   createForm,
@@ -395,6 +408,7 @@ function ProfileMainContent({
   openCreateUserPanel,
   closeCreateUserPanel,
   profile,
+  isOrgFeatureDisabledView = false,
   onAppointmentNotification
 }) {
   const maxBirthdayYmd = new Date().toISOString().slice(0, 10);
@@ -472,6 +486,8 @@ function ProfileMainContent({
   const [organizationCreateModalOpen, setOrganizationCreateModalOpen] = useState(false);
   const [roleCreateModalOpen, setRoleCreateModalOpen] = useState(false);
   const [positionCreateModalOpen, setPositionCreateModalOpen] = useState(false);
+  const isClientMedicalHistoryView = mainView === "clients-medical-history";
+  const loadCurrentClientsView = isClientMedicalHistoryView ? loadClientMedicalHistoryClients : loadClients;
   const todayYmd = new Date().toISOString().slice(0, 10);
   const [statisticsHistoryPeriod, setStatisticsHistoryPeriod] = useState(() => ({
     from: todayYmd,
@@ -1572,7 +1588,9 @@ function ProfileMainContent({
     setRoleCreateForm({
       label: "",
       sortOrder: "0",
-      isActive: true
+      isActive: true,
+      isAdmin: false,
+      permissionCodes: []
     });
     setRoleCreateError("");
     setRoleCreateModalOpen(true);
@@ -1601,38 +1619,6 @@ function ProfileMainContent({
     }
     setPositionCreateModalOpen(false);
   }
-
-  const adminOptionsOrganizationOptions = (() => {
-    const seen = new Set();
-    const mapped = (Array.isArray(organizations) ? organizations : [])
-      .map((item) => {
-        const id = String(item?.id || "").trim();
-        if (!id || seen.has(id)) {
-          return null;
-        }
-        seen.add(id);
-        const name = String(item?.name || "").trim();
-        const code = String(item?.code || "").trim().toLowerCase();
-        const label = name && code
-          ? `${name} (${code})`
-          : (name || code || `Organization #${id}`);
-        return { value: id, label };
-      })
-      .filter(Boolean);
-
-    const currentOrganizationId = String(profile?.organizationId || "").trim();
-    if (currentOrganizationId && !seen.has(currentOrganizationId)) {
-      const currentOrganizationName = String(profile?.organizationName || "").trim();
-      const currentOrganizationCode = String(profile?.organizationCode || "").trim().toLowerCase();
-      mapped.unshift({
-        value: currentOrganizationId,
-        label: currentOrganizationName && currentOrganizationCode
-          ? `${currentOrganizationName} (${currentOrganizationCode})`
-          : (currentOrganizationName || currentOrganizationCode || `Organization #${currentOrganizationId}`)
-      });
-    }
-    return mapped;
-  })();
 
   const vipAttendanceAbsentModalLayer = (
     <>
@@ -2613,6 +2599,44 @@ function ProfileMainContent({
     </>
   );
 
+  const clientMedicalHistoryDeleteModalLayer = (
+    <>
+      <section id="clientMedicalHistoryDeleteModal" className="logout-confirm-modal" hidden={!clientMedicalHistoryDelete?.open}>
+        <h3>{clientMedicalHistoryDelete?.deleteAll ? "Delete all medical history for this client?" : "Delete this medical history entry?"}</h3>
+        <p className="all-users-state" hidden={!clientMedicalHistoryDelete?.label}>
+          {clientMedicalHistoryDelete?.label || ""}
+        </p>
+        <p id="clientMedicalHistoryDeleteError" className="field-error">{clientMedicalHistoryDelete?.error || ""}</p>
+        <div className="logout-confirm-actions">
+          <button
+            id="clientMedicalHistoryDeleteYesBtn"
+            type="button"
+            className="header-btn logout-confirm-yes"
+            disabled={Boolean(clientMedicalHistoryDelete?.submitting)}
+            onClick={handleClientMedicalHistoryDeleteConfirm}
+          >
+            Yes
+          </button>
+          <button
+            id="clientMedicalHistoryDeleteNoBtn"
+            type="button"
+            className="header-btn"
+            disabled={Boolean(clientMedicalHistoryDelete?.submitting)}
+            onClick={closeClientMedicalHistoryDeleteModal}
+          >
+            No
+          </button>
+        </div>
+      </section>
+      <div
+        id="clientMedicalHistoryDeleteOverlay"
+        className="login-overlay"
+        hidden={!clientMedicalHistoryDelete?.open}
+        onClick={closeClientMedicalHistoryDeleteModal}
+      />
+    </>
+  );
+
   const userCreateModalLayer = (
     <>
       <section id="usersCreateModal" className="logout-confirm-modal all-users-edit-modal" hidden={!userCreateModalOpen}>
@@ -2811,6 +2835,23 @@ function ProfileMainContent({
               />
             </label>
           </div>
+          <RolePermissionsAccordion
+            tree={rolePermissionTree}
+            selectedCodes={roleCreateForm.permissionCodes}
+            open={roleCreateModalOpen}
+            idPrefix="roleCreatePermission"
+            onChange={(updater) => {
+              setRoleCreateForm((prev) => ({
+                ...prev,
+                permissionCodes: typeof updater === "function"
+                  ? updater(prev.permissionCodes)
+                  : updater
+              }));
+              if (roleCreateError) {
+                setRoleCreateError("");
+              }
+            }}
+          />
           <div className="edit-actions">
             <button className="btn" type="submit" disabled={roleCreateSubmitting}>
               {roleCreateSubmitting ? "Saving..." : "Save"}
@@ -2900,6 +2941,110 @@ function ProfileMainContent({
       />
     </>
   );
+
+  const clientsTable = (
+    <table
+      className="all-users-table"
+      aria-label={isClientMedicalHistoryView ? "Client medical history table" : "Clients table"}
+    >
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>First Name</th>
+          <th>Last Name</th>
+          <th>Middle Name</th>
+          <th>Birthday</th>
+          <th>Phone</th>
+          <th>Email</th>
+          <th>VIP</th>
+          <th>Created At</th>
+          <th>Note</th>
+          <th>{isClientMedicalHistoryView ? "View" : "Edit"}</th>
+          <th>Delete</th>
+        </tr>
+      </thead>
+      <tbody>
+        {clientsLoading ? (
+          [0, 1, 2, 3, 4].map((i) => (
+            <tr key={i} aria-hidden="true">
+              <td colSpan="12" className="skel" />
+            </tr>
+          ))
+        ) : clients.map((item) => {
+          const rowId = String(item.id || "");
+          const firstName = String(item.firstName || item.first_name || "").trim();
+          const lastName = String(item.lastName || item.last_name || "").trim();
+          const middleName = String(item.middleName || item.middle_name || "").trim();
+          const displayBirthday = String(item.birthday || item.birthdate || "").trim();
+          const displayTgMail = String(
+            item.tgMail || item.telegramOrEmail || item.telegram_or_email || item.tg_mail || ""
+          ).trim();
+          const displayNote = String(item.note || "").trim() || "-";
+          const isVip = Boolean(item.isVip ?? item.is_vip);
+          const createdAt = item.createdAt || item.created_at || "";
+
+          return (
+            <tr
+              key={rowId}
+            >
+              <td>{rowId || "-"}</td>
+              <td>{firstName || "-"}</td>
+              <td>{lastName || "-"}</td>
+              <td>{middleName || "-"}</td>
+              <td>{formatDateYMD(displayBirthday)}</td>
+              <td>{item.phone || item.phone_number || "-"}</td>
+              <td>{displayTgMail || "-"}</td>
+              <td>{isVip ? "Yes" : "No"}</td>
+              <td>{formatDateYMD(createdAt)}</td>
+              <td>{displayNote}</td>
+              <td>
+                <button
+                  type="button"
+                  className="table-action-btn"
+                  disabled={isClientMedicalHistoryView ? false : !canUpdateClients}
+                  onClick={() => {
+                    if (isClientMedicalHistoryView) {
+                      openClientMedicalHistoryModal(item);
+                      return;
+                    }
+                    startClientEdit(item);
+                  }}
+                >
+                  {isClientMedicalHistoryView ? "View" : "Edit"}
+                </button>
+              </td>
+              <td>
+                <button
+                  type="button"
+                  className="table-action-btn table-action-btn-danger"
+                  disabled={isClientMedicalHistoryView ? !canBulkDeleteClientMedicalHistory : !canDeleteClients}
+                  onClick={() => {
+                    if (isClientMedicalHistoryView) {
+                      void openClientMedicalHistoryDeleteModal({ ...item, deleteAll: true });
+                      return;
+                    }
+                    openClientsDeleteModal(item);
+                  }}
+                >
+                  Delete
+                </button>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+
+  if (isOrgFeatureDisabledView) {
+    return (
+      <main className="home-main" aria-label="Main content">
+        <div className="all-users-panel">
+          <p className="all-users-state">This feature is not enabled for the selected organization.</p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <>
@@ -3046,10 +3191,10 @@ function ProfileMainContent({
         </section>
       )}
 
-      {mainView === "clients-all" && (
+      {(mainView === "clients-all" || mainView === "clients-medical-history") && (
         <section id="clientsPanel" className="all-users-panel">
           <div className="all-users-head">
-            <h3>All Clients</h3>
+            <h3>{isClientMedicalHistoryView ? "Client Medical History" : "All Clients"}</h3>
             <div className="all-users-head-actions">
               <button
                 id="openClientsCreateModalBtn"
@@ -3057,8 +3202,19 @@ function ProfileMainContent({
                 className="header-btn appointment-breaks-add-icon-btn"
                 aria-label="Add client"
                 title="Add client"
-                hidden={!canCreateClients}
+                hidden={!canCreateClients || isClientMedicalHistoryView}
                 onClick={openClientCreateModal}
+              >
+                +
+              </button>
+              <button
+                id="openClientMedicalHistoryCreateModalBtn"
+                type="button"
+                className="header-btn appointment-breaks-add-icon-btn"
+                aria-label="Add medical history"
+                title="Add medical history"
+                hidden={!canCreateClientMedicalHistory || !isClientMedicalHistoryView}
+                onClick={openClientMedicalHistoryCreateModal}
               >
                 +
               </button>
@@ -3078,7 +3234,10 @@ function ProfileMainContent({
             className="panel-search-bar"
             onSubmit={(e) => {
               e.preventDefault();
-              void loadClients(1);
+              void loadCurrentClientsView(1, {
+                search: clientsSearch,
+                isVip: clientsIsVip
+              });
             }}
           >
             <input
@@ -3098,10 +3257,7 @@ function ProfileMainContent({
                   { value: "true", label: "VIP" },
                   { value: "false", label: "Non-VIP" }
                 ]}
-                onChange={(val) => {
-                  setClientsIsVip(val);
-                  void loadClients(1, undefined, val);
-                }}
+                onChange={setClientsIsVip}
                 menuPortal
                 maxVisibleOptions={3}
               />
@@ -3111,81 +3267,12 @@ function ProfileMainContent({
             </button>
           </form>
 
-          <div className="all-users-table-wrap">
-            <table className="all-users-table" aria-label="Clients table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>First Name</th>
-                  <th>Last Name</th>
-                  <th>Middle Name</th>
-                  <th>Birthday</th>
-                  <th>Phone</th>
-                  <th>Email</th>
-                  <th>VIP</th>
-                  <th>Created At</th>
-                  <th>Note</th>
-                  <th>Edit</th>
-                  <th>Delete</th>
-                </tr>
-              </thead>
-              <tbody>
-                {clientsLoading ? (
-                  [0, 1, 2, 3, 4].map((i) => (
-                    <tr key={i} aria-hidden="true">
-                      <td colSpan="12" className="skel" />
-                    </tr>
-                  ))
-                ) : clients.map((item) => {
-                  const rowId = String(item.id || "");
-                  const firstName = String(item.firstName || item.first_name || "").trim();
-                  const lastName = String(item.lastName || item.last_name || "").trim();
-                  const middleName = String(item.middleName || item.middle_name || "").trim();
-                  const displayBirthday = String(item.birthday || item.birthdate || "").trim();
-                  const displayTgMail = String(
-                    item.tgMail || item.telegramOrEmail || item.telegram_or_email || item.tg_mail || ""
-                  ).trim();
-                  const displayNote = String(item.note || "").trim() || "-";
-                  const isVip = Boolean(item.isVip ?? item.is_vip);
-                  const createdAt = item.createdAt || item.created_at || "";
+          <p className="all-users-state" hidden={clientsLoading || !clientsMessage}>
+            {clientsMessage}
+          </p>
 
-                  return (
-                    <tr key={rowId}>
-                      <td>{rowId || "-"}</td>
-                      <td>{firstName || "-"}</td>
-                      <td>{lastName || "-"}</td>
-                      <td>{middleName || "-"}</td>
-                      <td>{formatDateYMD(displayBirthday)}</td>
-                      <td>{item.phone || item.phone_number || "-"}</td>
-                      <td>{displayTgMail || "-"}</td>
-                      <td>{isVip ? "Yes" : "No"}</td>
-                      <td>{formatDateYMD(createdAt)}</td>
-                      <td>{displayNote}</td>
-                      <td>
-                        <button
-                          type="button"
-                          className="table-action-btn"
-                          disabled={!canUpdateClients}
-                          onClick={() => startClientEdit(item)}
-                        >
-                          Edit
-                        </button>
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className="table-action-btn table-action-btn-danger"
-                          disabled={!canDeleteClients}
-                          onClick={() => openClientsDeleteModal(item)}
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="all-users-table-wrap">
+            {clientsTable}
           </div>
 
           <div className="all-users-pagination" hidden={clientsLoading || clients.length === 0}>
@@ -3193,7 +3280,7 @@ function ProfileMainContent({
               type="button"
               className="header-btn"
               disabled={clientsPage <= 1}
-              onClick={() => loadClients(clientsPage - 1)}
+              onClick={() => loadCurrentClientsView(clientsPage - 1)}
             >
               Previous
             </button>
@@ -3204,7 +3291,7 @@ function ProfileMainContent({
               type="button"
               className="header-btn"
               disabled={clientsPage >= clientsTotalPages}
-              onClick={() => loadClients(clientsPage + 1)}
+              onClick={() => loadCurrentClientsView(clientsPage + 1)}
             >
               Next
             </button>
@@ -3253,6 +3340,7 @@ function ProfileMainContent({
           </div>
           <AppointmentSettingsPanel
             canUpdateAppointments={canUpdateAppointments}
+            canUpdateSettingsAppointments={canUpdateSettingsAppointments}
             panelMode="settings"
             organizations={organizations}
             profile={profile}
@@ -3271,7 +3359,7 @@ function ProfileMainContent({
                 className="header-btn appointment-breaks-add-icon-btn"
                 aria-label="Open user weekly overrides modal"
                 title="User weekly overrides"
-                disabled={!canUpdateAppointments}
+                disabled={!canUpdateSettingsAppointments}
                 onClick={() => setWorkScheduleUserOverridesModalOpen(true)}
               >
                 +
@@ -3291,7 +3379,7 @@ function ProfileMainContent({
             </div>
           </div>
           <WorkSchedulePanel
-            canUpdateAppointments={canUpdateAppointments}
+            canUpdateAppointments={canUpdateSettingsAppointments}
             profile={profile}
             showDefaultWeekly={false}
             showUserWeeklyOverrides
@@ -4262,6 +4350,7 @@ function ProfileMainContent({
                 className="header-btn appointment-breaks-add-icon-btn"
                 aria-label="Add organization"
                 title="Add organization"
+                hidden={!canCreateSettingsOrganizations}
                 onClick={openOrganizationCreateModal}
               >
                 +
@@ -4309,6 +4398,7 @@ function ProfileMainContent({
                         <button
                           type="button"
                           className="table-action-btn"
+                          hidden={!canUpdateSettingsOrganizations}
                           onClick={() => startOrganizationEdit(item)}
                         >
                           Edit
@@ -4318,6 +4408,7 @@ function ProfileMainContent({
                         <button
                           type="button"
                           className="table-action-btn table-action-btn-danger"
+                          hidden={!canDeleteSettingsOrganizations}
                           disabled={organizationDeletingId === rowId}
                           onClick={() => handleOrganizationDelete(rowId, item?.name || item?.code || rowId)}
                         >
@@ -4344,6 +4435,7 @@ function ProfileMainContent({
                 className="header-btn appointment-breaks-add-icon-btn"
                 aria-label="Add role"
                 title="Add role"
+                hidden={!canCreateSettingsRoles}
                 onClick={openRoleCreateModal}
               >
                 +
@@ -4389,7 +4481,7 @@ function ProfileMainContent({
                         <button
                           type="button"
                           className="table-action-btn table-action-btn-role-permissions"
-                          hidden={item.isAdmin && !hasAdminSettingsAccess}
+                          hidden={!canUpdateSettingsRoles || (item.isAdmin && !hasAdminSettingsAccess)}
                           onClick={() => startRoleEdit(item)}
                         >
                           Edit
@@ -4399,7 +4491,7 @@ function ProfileMainContent({
                         <button
                           type="button"
                           className="table-action-btn table-action-btn-danger"
-                          hidden={item.isAdmin && !hasAdminSettingsAccess}
+                          hidden={!canDeleteSettingsRoles || (item.isAdmin && !hasAdminSettingsAccess)}
                           disabled={roleDeletingId === rowId}
                           onClick={() => handleRoleDelete(rowId, item?.label || rowId)}
                         >
@@ -4426,6 +4518,7 @@ function ProfileMainContent({
                 className="header-btn appointment-breaks-add-icon-btn"
                 aria-label="Add position"
                 title="Add position"
+                hidden={!canCreateSettingsPositions}
                 onClick={openPositionCreateModal}
               >
                 +
@@ -4471,6 +4564,7 @@ function ProfileMainContent({
                         <button
                           type="button"
                           className="table-action-btn"
+                          hidden={!canUpdateSettingsPositions}
                           onClick={() => startPositionEdit(item)}
                         >
                           Edit
@@ -4480,6 +4574,7 @@ function ProfileMainContent({
                         <button
                           type="button"
                           className="table-action-btn table-action-btn-danger"
+                          hidden={!canDeleteSettingsPositions}
                           disabled={positionDeletingId === rowId}
                           onClick={() => handlePositionDelete(rowId, item?.label || rowId)}
                         >
@@ -4525,29 +4620,27 @@ function ProfileMainContent({
         />
       )}
 
-      {mainView === "settings-notifications" && (
-        <section id="notificationsSettingsPanel" className="all-users-panel settings-panel">
+      {mainView === "notifications-send" && (
+        <section id="notificationsSendPanel" className="all-users-panel settings-panel">
           <div className="all-users-head">
-            <h3>Notification Settings</h3>
+            <h3>Notification</h3>
             <button
-              id="closeNotificationsSettingsBtn"
+              id="closeNotificationsSendBtn"
               type="button"
               className="header-btn panel-close-btn"
-              aria-label="Close notifications settings panel"
-              onClick={closeNotificationsSettingsPanel}
+              aria-label="Close notification panel"
+              onClick={closeNotificationsSendPanel}
             >
               ×
             </button>
           </div>
 
           <form
-            className="auth-form settings-create-form"
             noValidate
             onSubmit={(event) => {
               event.preventDefault();
               void sendManualNotification();
             }}
-            hidden={!canSendNotifications}
           >
             <div className="settings-form-grid settings-form-grid-notify">
               <div className="field">
@@ -4599,98 +4692,6 @@ function ProfileMainContent({
         </section>
       )}
 
-      {mainView === "settings-admin-options" && (
-        <section id="adminOptionsPanel" className="all-users-panel settings-panel">
-          <div className="all-users-head">
-            <h3>Admin Options</h3>
-            <button
-              id="closeAdminOptionsBtn"
-              type="button"
-              className="header-btn panel-close-btn"
-              aria-label="Close admin options panel"
-              onClick={closeAdminOptionsPanel}
-            >
-              ×
-            </button>
-          </div>
-
-          <form className="auth-form settings-create-form" noValidate onSubmit={handleAdminOptionsSubmit}>
-            <div className="settings-form-grid settings-form-grid-org">
-              <div className="field">
-                <label htmlFor="adminOptionsOrganizationSelect">Organization</label>
-                <CustomSelect
-                  id="adminOptionsOrganizationSelect"
-                  value={String(adminOptionsForm?.organizationId || "")}
-                  placeholder={adminOptionsOrganizationOptions.length === 0 ? "No organizations" : "Select organization"}
-                  options={adminOptionsOrganizationOptions}
-                  onChange={(nextValue) => {
-                    const nextOrganizationId = String(nextValue || "").trim();
-                    setAdminOptionsForm((prev) => ({
-                      ...prev,
-                      organizationId: nextOrganizationId
-                    }));
-                    setAdminOptionsError("");
-                    if (nextOrganizationId) {
-                      void loadAdminOptions(nextOrganizationId);
-                    }
-                  }}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="adminOptionsOutboxRetentionDaysInput">Outbox Retention (days)</label>
-                <input
-                  id="adminOptionsOutboxRetentionDaysInput"
-                  name="outboxWorkerRetentionDays"
-                  type="number"
-                  min={0}
-                  max={3650}
-                  step={1}
-                  value={String(adminOptionsForm?.outboxWorkerRetentionDays ?? "")}
-                  onInput={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setAdminOptionsForm((prev) => ({
-                      ...prev,
-                      outboxWorkerRetentionDays: nextValue
-                    }));
-                    if (adminOptionsError) {
-                      setAdminOptionsError("");
-                    }
-                  }}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="adminOptionsUserNotificationsRetentionDaysInput">User Notifications Retention (days)</label>
-                <input
-                  id="adminOptionsUserNotificationsRetentionDaysInput"
-                  name="userNotificationsRetentionDays"
-                  type="number"
-                  min={0}
-                  max={3650}
-                  step={1}
-                  value={String(adminOptionsForm?.userNotificationsRetentionDays ?? "")}
-                  onInput={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setAdminOptionsForm((prev) => ({
-                      ...prev,
-                      userNotificationsRetentionDays: nextValue
-                    }));
-                    if (adminOptionsError) {
-                      setAdminOptionsError("");
-                    }
-                  }}
-                />
-              </div>
-              <div className="field settings-inline-control settings-action-field">
-                <label aria-hidden="true">&nbsp;</label>
-                <button className="btn settings-add-btn" type="submit" disabled={adminOptionsSubmitting}>
-                  {adminOptionsSubmitting ? "Saving..." : "Save"}
-                </button>
-              </div>
-            </div>
-          </form>
-        </section>
-      )}
-
       {mainView === "settings-monitoring" && (
         <MonitoringPanel onClose={closeMonitoringPanel} />
       )}
@@ -4706,6 +4707,7 @@ function ProfileMainContent({
       {typeof document !== "undefined" ? createPortal(vipTutorEditModalLayer, document.body) : null}
       {typeof document !== "undefined" ? createPortal(userCreateModalLayer, document.body) : null}
       {typeof document !== "undefined" ? createPortal(clientCreateModalLayer, document.body) : null}
+      {typeof document !== "undefined" ? createPortal(clientMedicalHistoryDeleteModalLayer, document.body) : null}
       {typeof document !== "undefined" ? createPortal(organizationCreateModalLayer, document.body) : null}
       {typeof document !== "undefined" ? createPortal(roleCreateModalLayer, document.body) : null}
       {typeof document !== "undefined" ? createPortal(positionCreateModalLayer, document.body) : null}

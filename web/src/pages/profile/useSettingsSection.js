@@ -9,8 +9,7 @@ import {
   ORGANIZATION_CODE_REGEX
 } from "./profile.constants.js";
 import {
-  filterPermissionsByOrgFeatures,
-  groupRolePermissionOptions,
+  buildRolePermissionTree,
   handleProtectedStatus,
   mapValueLabelOptions,
   normalizePermissionCodesInput,
@@ -18,13 +17,25 @@ import {
 } from "./profile.helpers.js";
 
 export function useSettingsSection({
-  hasSettingsMenuAccess,
-  hasAdminSettingsAccess,
+  canOpenSettingsOrganizations,
+  canCreateSettingsOrganizations,
+  canUpdateSettingsOrganizations,
+  canDeleteSettingsOrganizations,
+  canOpenSettingsRoles,
+  canCreateSettingsRoles,
+  canUpdateSettingsRoles,
+  canDeleteSettingsRoles,
+  canOpenSettingsPositions,
+  canCreateSettingsPositions,
+  canUpdateSettingsPositions,
+  canDeleteSettingsPositions,
   navigate,
   loadUserOptions,
-  orgFeatures
+  orgFeatures = null
 }) {
-  const hasRoleSettingsAccess = hasSettingsMenuAccess || hasAdminSettingsAccess;
+  const hasOrganizationSettingsAccess = canOpenSettingsOrganizations;
+  const hasRoleSettingsAccess = canOpenSettingsRoles;
+  const hasPositionSettingsAccess = canOpenSettingsPositions;
   const [settingsDelete, setSettingsDelete] = useState(createEmptySettingsDeleteState);
 
   const [organizations, setOrganizations] = useState([]);
@@ -63,17 +74,26 @@ export function useSettingsSection({
   const [positionEditError, setPositionEditError] = useState("");
   const [positionEditSubmitting, setPositionEditSubmitting] = useState(false);
   const [positionDeletingId, setPositionDeletingId] = useState("");
-  const [adminOptionsForm, setAdminOptionsForm] = useState({
-    organizationId: "",
-    outboxWorkerRetentionDays: "",
-    userNotificationsRetentionDays: ""
-  });
-  const [adminOptionsMessage, setAdminOptionsMessage] = useState("");
-  const [adminOptionsError, setAdminOptionsError] = useState("");
-  const [adminOptionsSubmitting, setAdminOptionsSubmitting] = useState(false);
 
-  const groupedRolePermissionOptions = useMemo(
-    () => groupRolePermissionOptions(filterPermissionsByOrgFeatures(rolePermissionOptions, orgFeatures)),
+  const allowedRolePermissionCodeSet = useMemo(
+    () => new Set(
+      normalizePermissionCodesInput(
+        rolePermissionOptions.map((permission) => permission?.code || permission?.value)
+      )
+    ),
+    [rolePermissionOptions]
+  );
+
+  const filterRolePermissionCodesForCurrentOptions = useCallback((permissionCodes) => {
+    const normalizedCodes = normalizePermissionCodesInput(permissionCodes);
+    if (allowedRolePermissionCodeSet.size === 0) {
+      return [];
+    }
+    return normalizedCodes.filter((code) => allowedRolePermissionCodeSet.has(code));
+  }, [allowedRolePermissionCodeSet]);
+
+  const rolePermissionTree = useMemo(
+    () => buildRolePermissionTree(rolePermissionOptions, orgFeatures),
     [rolePermissionOptions, orgFeatures]
   );
 
@@ -82,7 +102,7 @@ export function useSettingsSection({
   }, []);
 
   const loadOrganizations = useCallback(async () => {
-    if (!hasAdminSettingsAccess) {
+    if (!hasOrganizationSettingsAccess) {
       navigate("/404", { replace: true });
       return;
     }
@@ -112,7 +132,7 @@ export function useSettingsSection({
       setOrganizations([]);
       setOrganizationsMessage("Unexpected error. Please try again.");
     }
-  }, [hasAdminSettingsAccess, navigate]);
+  }, [hasOrganizationSettingsAccess, navigate]);
 
   const loadRolesSettings = useCallback(async () => {
     if (!hasRoleSettingsAccess) {
@@ -162,7 +182,7 @@ export function useSettingsSection({
   }, [hasRoleSettingsAccess, navigate]);
 
   const loadPositionsSettings = useCallback(async () => {
-    if (!hasSettingsMenuAccess) {
+    if (!hasPositionSettingsAccess) {
       navigate("/404", { replace: true });
       return;
     }
@@ -192,63 +212,7 @@ export function useSettingsSection({
       setPositionsSettings([]);
       setPositionsSettingsMessage("Unexpected error. Please try again.");
     }
-  }, [hasSettingsMenuAccess, navigate]);
-
-  const loadAdminOptions = useCallback(async (organizationId = "") => {
-    if (!hasSettingsMenuAccess) {
-      navigate("/404", { replace: true });
-      return;
-    }
-
-    setAdminOptionsError("");
-    setAdminOptionsMessage("");
-
-    try {
-      const requestedOrganizationId = String(
-        organizationId || adminOptionsForm.organizationId || ""
-      ).trim();
-      const query = new URLSearchParams();
-      if (requestedOrganizationId) {
-        query.set("organizationId", requestedOrganizationId);
-      }
-      const queryText = query.toString();
-      const endpoint = queryText
-        ? `/api/settings/admin-options?${queryText}`
-        : "/api/settings/admin-options";
-      const response = await apiFetch(endpoint, {
-        method: "GET",
-        cache: "no-store"
-      });
-      const data = await readApiResponseData(response);
-
-      if (!response.ok) {
-        if (handleProtectedStatus(response, navigate)) {
-          return;
-        }
-        setAdminOptionsMessage("");
-        setAdminOptionsError("");
-        window.alert(data?.message || "Failed to load admin options.");
-        return;
-      }
-
-      const item = data?.item && typeof data.item === "object" ? data.item : {};
-      const nextOrganizationId = String(item?.organizationId || requestedOrganizationId || "").trim();
-      const nextOutboxWorkerRetentionDays = String(item?.outboxWorkerRetentionDays ?? "").trim();
-      const nextUserNotificationsRetentionDays = String(item?.userNotificationsRetentionDays ?? "").trim();
-      setAdminOptionsForm((prev) => ({
-        ...prev,
-        organizationId: nextOrganizationId,
-        outboxWorkerRetentionDays: nextOutboxWorkerRetentionDays,
-        userNotificationsRetentionDays: nextUserNotificationsRetentionDays
-      }));
-      setAdminOptionsMessage("");
-      setAdminOptionsError("");
-    } catch {
-      setAdminOptionsMessage("");
-      setAdminOptionsError("");
-      window.alert("Unexpected error. Please try again.");
-    }
-  }, [adminOptionsForm.organizationId, hasSettingsMenuAccess, navigate]);
+  }, [hasPositionSettingsAccess, navigate]);
 
   const validateOrganizationForm = useCallback((form) => {
     const code = String(form?.code || "").trim().toLowerCase();
@@ -271,95 +235,10 @@ export function useSettingsSection({
     return "";
   }, []);
 
-  const handleAdminOptionsSubmit = useCallback(async (event) => {
-    event.preventDefault();
-
-    if (!hasSettingsMenuAccess) {
-      setAdminOptionsError("");
-      window.alert("You do not have permission to manage settings.");
-      return;
-    }
-
-    const organizationIdRaw = String(adminOptionsForm.organizationId || "").trim();
-    const outboxWorkerRetentionDaysRaw = String(adminOptionsForm.outboxWorkerRetentionDays || "").trim();
-    const userNotificationsRetentionDaysRaw = String(adminOptionsForm.userNotificationsRetentionDays || "").trim();
-    const organizationId = Number.parseInt(organizationIdRaw, 10);
-    const outboxWorkerRetentionDays = Number.parseInt(outboxWorkerRetentionDaysRaw, 10);
-    const userNotificationsRetentionDays = Number.parseInt(userNotificationsRetentionDaysRaw, 10);
-
-    if (!Number.isInteger(organizationId) || organizationId <= 0) {
-      setAdminOptionsError("");
-      window.alert("Select organization.");
-      return;
-    }
-    if (!Number.isInteger(outboxWorkerRetentionDays) || outboxWorkerRetentionDays < 0 || outboxWorkerRetentionDays > 3650) {
-      setAdminOptionsError("");
-      window.alert("Outbox retention days must be an integer between 0 and 3650.");
-      return;
-    }
-    if (
-      !Number.isInteger(userNotificationsRetentionDays)
-      || userNotificationsRetentionDays < 0
-      || userNotificationsRetentionDays > 3650
-    ) {
-      setAdminOptionsError("");
-      window.alert("User notifications retention days must be an integer between 0 and 3650.");
-      return;
-    }
-    try {
-      setAdminOptionsSubmitting(true);
-      setAdminOptionsError("");
-      setAdminOptionsMessage("");
-
-      const response = await apiFetch("/api/settings/admin-options", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          organizationId,
-          outboxWorkerRetentionDays,
-          userNotificationsRetentionDays
-        })
-      });
-      const data = await readApiResponseData(response);
-
-      if (!response.ok) {
-        if (handleProtectedStatus(response, navigate)) {
-          return;
-        }
-        setAdminOptionsError("");
-        window.alert(data?.message || "Failed to save admin options.");
-        return;
-      }
-
-      const item = data?.item && typeof data.item === "object" ? data.item : {};
-      setAdminOptionsForm((prev) => ({
-        ...prev,
-        organizationId: String(item?.organizationId || organizationId),
-        outboxWorkerRetentionDays: String(item?.outboxWorkerRetentionDays ?? outboxWorkerRetentionDays),
-        userNotificationsRetentionDays: String(item?.userNotificationsRetentionDays ?? userNotificationsRetentionDays)
-      }));
-      setAdminOptionsMessage("");
-      setAdminOptionsError("");
-      window.alert(data?.message || "Admin options updated.");
-    } catch {
-      setAdminOptionsError("");
-      setAdminOptionsMessage("");
-      window.alert("Unexpected error. Please try again.");
-    } finally {
-      setAdminOptionsSubmitting(false);
-    }
-  }, [
-    adminOptionsForm.outboxWorkerRetentionDays,
-    adminOptionsForm.userNotificationsRetentionDays,
-    adminOptionsForm.organizationId,
-    hasSettingsMenuAccess,
-    navigate
-  ]);
-
   const handleOrganizationCreateSubmit = useCallback(async (event) => {
     event.preventDefault();
 
-    if (!hasAdminSettingsAccess) {
+    if (!canCreateSettingsOrganizations) {
       setOrganizationCreateError("You do not have permission to manage organizations.");
       return false;
     }
@@ -404,7 +283,7 @@ export function useSettingsSection({
       setOrganizationCreateSubmitting(false);
     }
   }, [
-    hasAdminSettingsAccess,
+    canCreateSettingsOrganizations,
     loadOrganizations,
     navigate,
     organizationCreateForm.allowedFeatures,
@@ -439,7 +318,7 @@ export function useSettingsSection({
     if (!id) {
       return;
     }
-    if (!hasAdminSettingsAccess) {
+    if (!canUpdateSettingsOrganizations) {
       setOrganizationEditError("You do not have permission to manage organizations.");
       return;
     }
@@ -483,7 +362,7 @@ export function useSettingsSection({
     }
   }, [
     cancelOrganizationEdit,
-    hasAdminSettingsAccess,
+    canUpdateSettingsOrganizations,
     loadOrganizations,
     navigate,
     organizationEditForm.allowedFeatures,
@@ -516,7 +395,7 @@ export function useSettingsSection({
   const handleRoleCreateSubmit = useCallback(async (event) => {
     event.preventDefault();
 
-    if (!hasRoleSettingsAccess) {
+    if (!canCreateSettingsRoles) {
       setRoleCreateError("You do not have permission to manage settings.");
       return false;
     }
@@ -525,7 +404,8 @@ export function useSettingsSection({
       label: String(roleCreateForm.label || "").trim(),
       sortOrder: normalizeSettingsSortOrderInput(roleCreateForm.sortOrder),
       isActive: Boolean(roleCreateForm.isActive),
-      isAdmin: Boolean(roleCreateForm.isAdmin)
+      isAdmin: Boolean(roleCreateForm.isAdmin),
+      permissionCodes: filterRolePermissionCodesForCurrentOptions(roleCreateForm.permissionCodes)
     };
     const validationError = validateLabelSettingsForm(payload);
     if (validationError) {
@@ -561,14 +441,16 @@ export function useSettingsSection({
       setRoleCreateSubmitting(false);
     }
   }, [
-    hasRoleSettingsAccess,
+    canCreateSettingsRoles,
     loadRolesSettings,
     loadUserOptions,
     navigate,
     roleCreateForm.isActive,
     roleCreateForm.isAdmin,
     roleCreateForm.label,
+    roleCreateForm.permissionCodes,
     roleCreateForm.sortOrder,
+    filterRolePermissionCodesForCurrentOptions,
     validateLabelSettingsForm
   ]);
 
@@ -578,11 +460,11 @@ export function useSettingsSection({
       label: String(item?.label || ""),
       sortOrder: String(item?.sortOrder ?? "0"),
       isActive: Boolean(item?.isActive),
-      permissionCodes: normalizePermissionCodesInput(item?.permissionCodes)
+      permissionCodes: filterRolePermissionCodesForCurrentOptions(item?.permissionCodes)
     });
     setRoleEditError("");
     setRoleEditOpen(true);
-  }, []);
+  }, [filterRolePermissionCodesForCurrentOptions]);
 
   const cancelRoleEdit = useCallback(() => {
     setRoleEditOpen(false);
@@ -597,7 +479,7 @@ export function useSettingsSection({
     if (!id) {
       return;
     }
-    if (!hasRoleSettingsAccess) {
+    if (!canUpdateSettingsRoles) {
       setRoleEditError("You do not have permission to manage settings.");
       return;
     }
@@ -606,7 +488,7 @@ export function useSettingsSection({
       label: String(roleEditForm.label || "").trim(),
       sortOrder: normalizeSettingsSortOrderInput(roleEditForm.sortOrder),
       isActive: Boolean(roleEditForm.isActive),
-      permissionCodes: normalizePermissionCodesInput(roleEditForm.permissionCodes)
+      permissionCodes: filterRolePermissionCodesForCurrentOptions(roleEditForm.permissionCodes)
     };
     const validationError = validateLabelSettingsForm(payload);
     if (validationError) {
@@ -641,10 +523,11 @@ export function useSettingsSection({
     }
   }, [
     cancelRoleEdit,
-    hasRoleSettingsAccess,
+    canUpdateSettingsRoles,
     loadRolesSettings,
     loadUserOptions,
     navigate,
+    filterRolePermissionCodesForCurrentOptions,
     roleEditForm.isActive,
     roleEditForm.label,
     roleEditForm.permissionCodes,
@@ -660,7 +543,7 @@ export function useSettingsSection({
   const handlePositionCreateSubmit = useCallback(async (event) => {
     event.preventDefault();
 
-    if (!hasSettingsMenuAccess) {
+    if (!canCreateSettingsPositions) {
       setPositionCreateError("You do not have permission to manage settings.");
       return false;
     }
@@ -704,7 +587,7 @@ export function useSettingsSection({
       setPositionCreateSubmitting(false);
     }
   }, [
-    hasSettingsMenuAccess,
+    canCreateSettingsPositions,
     loadPositionsSettings,
     loadUserOptions,
     navigate,
@@ -736,6 +619,10 @@ export function useSettingsSection({
   const handlePositionEditSave = useCallback(async () => {
     const id = String(positionEditId || "").trim();
     if (!id) {
+      return;
+    }
+    if (!canUpdateSettingsPositions) {
+      setPositionEditError("You do not have permission to manage settings.");
       return;
     }
 
@@ -777,6 +664,7 @@ export function useSettingsSection({
     }
   }, [
     cancelPositionEdit,
+    canUpdateSettingsPositions,
     loadPositionsSettings,
     loadUserOptions,
     navigate,
@@ -809,7 +697,7 @@ export function useSettingsSection({
       let endpoint = "";
       let fallbackError = "Failed to delete item.";
       if (deleteType === "organization") {
-        if (!hasAdminSettingsAccess) {
+        if (!canDeleteSettingsOrganizations) {
           setSettingsDelete((prev) => ({
             ...prev,
             error: "You do not have permission to manage organizations.",
@@ -821,7 +709,7 @@ export function useSettingsSection({
         fallbackError = "Failed to delete organization.";
         setOrganizationDeletingId(rowId);
       } else if (deleteType === "role") {
-        if (!hasRoleSettingsAccess) {
+        if (!canDeleteSettingsRoles) {
           setSettingsDelete((prev) => ({
             ...prev,
             error: "You do not have permission to manage settings.",
@@ -833,6 +721,14 @@ export function useSettingsSection({
         fallbackError = "Failed to delete role.";
         setRoleDeletingId(rowId);
       } else if (deleteType === "position") {
+        if (!canDeleteSettingsPositions) {
+          setSettingsDelete((prev) => ({
+            ...prev,
+            error: "You do not have permission to manage settings.",
+            submitting: false
+          }));
+          return;
+        }
         endpoint = `/api/settings/positions/${rowId}`;
         fallbackError = "Failed to delete position.";
         setPositionDeletingId(rowId);
@@ -888,9 +784,10 @@ export function useSettingsSection({
     cancelOrganizationEdit,
     cancelPositionEdit,
     cancelRoleEdit,
+    canDeleteSettingsOrganizations,
+    canDeleteSettingsPositions,
+    canDeleteSettingsRoles,
     closeSettingsDeleteModal,
-    hasRoleSettingsAccess,
-    hasAdminSettingsAccess,
     loadOrganizations,
     loadPositionsSettings,
     loadRolesSettings,
@@ -918,7 +815,7 @@ export function useSettingsSection({
     rolesSettings,
     rolesSettingsMessage,
     rolePermissionOptions,
-    groupedRolePermissionOptions,
+    rolePermissionTree,
     roleCreateForm,
     roleCreateError,
     roleCreateSubmitting,
@@ -937,10 +834,6 @@ export function useSettingsSection({
     positionEditError,
     positionEditSubmitting,
     positionDeletingId,
-    adminOptionsForm,
-    adminOptionsMessage,
-    adminOptionsError,
-    adminOptionsSubmitting,
     setOrganizationCreateForm,
     setOrganizationCreateError,
     setOrganizationEditForm,
@@ -953,12 +846,9 @@ export function useSettingsSection({
     setPositionCreateError,
     setPositionEditForm,
     setPositionEditError,
-    setAdminOptionsForm,
-    setAdminOptionsError,
     loadOrganizations,
     loadRolesSettings,
     loadPositionsSettings,
-    loadAdminOptions,
     handleOrganizationCreateSubmit,
     startOrganizationEdit,
     cancelOrganizationEdit,
@@ -974,9 +864,7 @@ export function useSettingsSection({
     cancelPositionEdit,
     handlePositionEditSave,
     handlePositionDelete,
-    handleAdminOptionsSubmit,
     closeSettingsDeleteModal,
     handleSettingsDeleteConfirm
   };
 }
-

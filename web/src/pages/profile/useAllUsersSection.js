@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { apiFetch, readApiResponseData } from "../../lib/api.js";
 import { formatDateForInput } from "../../lib/formatters.js";
 import {
@@ -22,8 +22,13 @@ export function useAllUsersSection({
   const [allUsersPage, setAllUsersPage] = useState(1);
   const [allUsersTotalPages, setAllUsersTotalPages] = useState(1);
   const [allUsersSearch, setAllUsersSearch] = useState("");
+  const allUsersSearchRef = useRef("");
   const [allUsersEdit, setAllUsersEdit] = useState(createEmptyAllUsersEditState);
   const [allUsersDelete, setAllUsersDelete] = useState(createEmptyAllUsersDeleteState);
+
+  useEffect(() => {
+    allUsersSearchRef.current = allUsersSearch;
+  }, [allUsersSearch]);
 
   const closeAllUsersEditModal = useCallback(() => {
     setAllUsersEdit(createEmptyAllUsersEditState());
@@ -48,7 +53,9 @@ export function useAllUsersSection({
         page: String(nextPage),
         limit: String(ALL_USERS_LIMIT)
       });
-      const trimmedSearch = String(searchOverride !== undefined ? searchOverride : (allUsersSearch || "")).trim();
+      const trimmedSearch = String(
+        searchOverride !== undefined ? searchOverride : allUsersSearchRef.current
+      ).trim();
       if (trimmedSearch) {
         query.set("q", trimmedSearch);
       }
@@ -87,7 +94,7 @@ export function useAllUsersSection({
     } finally {
       setAllUsersLoading(false);
     }
-  }, [allUsersSearch, canReadUsers, navigate]);
+  }, [canReadUsers, navigate]);
 
   const openAllUsersEditModal = useCallback((userId) => {
     if (!canUpdateUsers) {
@@ -305,4 +312,3 @@ export function useAllUsersSection({
     closeAllUsersDeleteModal
   };
 }
-

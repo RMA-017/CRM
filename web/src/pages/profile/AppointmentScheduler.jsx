@@ -2210,7 +2210,7 @@ function AppointmentScheduler({
         setClientMap((prev) => ({ ...prev, ...nextMap }));
         setClientOptions(nextOptions);
         if (nextOptions.length === 0) {
-          setClientSearchMessage(shouldFilterVipClients ? "No VIP clients found." : "No clients found.");
+          setClientSearchMessage("No clients found.");
         } else {
           setClientSearchMessage("");
         }

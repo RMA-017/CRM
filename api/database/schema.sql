@@ -146,6 +146,32 @@ CREATE INDEX idx_clients_org_middle_name_prefix
 CREATE INDEX idx_clients_org_phone_prefix
   ON clients (organization_id, phone_number text_pattern_ops);
 
+CREATE TABLE client_medical_history_entries (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  client_id INTEGER NOT NULL,
+  entry_date DATE NOT NULL,
+  condition_name VARCHAR(160) NOT NULL,
+  symptoms TEXT,
+  diagnosis TEXT,
+  treatment_plan TEXT,
+  note TEXT,
+  author_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_client_medical_history_entries_client_org
+    FOREIGN KEY (organization_id, client_id)
+    REFERENCES clients(organization_id, id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_client_medical_history_entries_org_client_entry
+  ON client_medical_history_entries (organization_id, client_id, entry_date DESC, id DESC);
+
+CREATE INDEX idx_client_medical_history_entries_org_author_entry
+  ON client_medical_history_entries (organization_id, author_user_id, entry_date DESC, id DESC);
+
 CREATE TABLE vip_client_attendance (
   id BIGSERIAL PRIMARY KEY,
   organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,

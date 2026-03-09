@@ -3,12 +3,29 @@ function getDefaultApiBaseUrl() {
     return "http://localhost:3003";
   }
 
+  const protocol = String(window.location.protocol || "http:");
+  const hostname = String(window.location.hostname || "").trim().toLowerCase();
+  const port = String(window.location.port || "").trim();
+  const isPrivateIpv4 = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname) && (
+    hostname.startsWith("10.")
+    || hostname.startsWith("127.")
+    || hostname.startsWith("192.168.")
+    || /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname)
+  );
+  const isLocalHost = hostname === "localhost" || hostname.endsWith(".local") || isPrivateIpv4;
+
   // In local Vite dev, route API calls through the dev proxy to avoid CORS issues.
-  if (window.location.port === "5173") {
+  if (port === "5173") {
     return "";
   }
 
-  return `${window.location.protocol}//${window.location.hostname}:3003`;
+  // For local static preview and LAN testing, keep the API on port 3003.
+  if (isLocalHost && port !== "3003") {
+    return `${protocol}//${hostname}:3003`;
+  }
+
+  // In production, prefer same-origin /api behind a reverse proxy.
+  return "";
 }
 
 const runtimeBaseUrl = getDefaultApiBaseUrl();

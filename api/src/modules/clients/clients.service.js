@@ -4,6 +4,7 @@ import { getTodayYmd } from "../../lib/date.js";
 let vipAttendanceSchemaInitPromise = null;
 let vipAssignmentsSchemaInitPromise = null;
 let vipClassDailyRoutinesSchemaInitPromise = null;
+let clientMedicalHistorySchemaInitPromise = null;
 let appointmentCalendarTablesReadyPromise = null;
 
 const VIP_CLASS_DAILY_ROUTINE_ACTIVITY_SET = new Set(["lesson", "sleep", "meal", "other"]);
@@ -430,6 +431,47 @@ async function ensureVipClassDailyRoutinesSchema() {
   return vipClassDailyRoutinesSchemaInitPromise;
 }
 
+async function ensureClientMedicalHistorySchema() {
+  if (!clientMedicalHistorySchemaInitPromise) {
+    clientMedicalHistorySchemaInitPromise = (async () => {
+      await pool.query(
+        `CREATE TABLE IF NOT EXISTS client_medical_history_entries (
+           id BIGSERIAL PRIMARY KEY,
+           organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+           client_id INTEGER NOT NULL,
+           entry_date DATE NOT NULL,
+           condition_name VARCHAR(160) NOT NULL,
+           symptoms TEXT,
+           diagnosis TEXT,
+           treatment_plan TEXT,
+           note TEXT,
+           author_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+           created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+           updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+           CONSTRAINT fk_client_medical_history_entries_client_org
+             FOREIGN KEY (organization_id, client_id)
+             REFERENCES clients(organization_id, id) ON DELETE CASCADE
+         )`
+      );
+      await pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_client_medical_history_entries_org_client_entry
+           ON client_medical_history_entries (organization_id, client_id, entry_date DESC, id DESC)`
+      );
+      await pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_client_medical_history_entries_org_author_entry
+           ON client_medical_history_entries (organization_id, author_user_id, entry_date DESC, id DESC)`
+      );
+    })().catch((error) => {
+      clientMedicalHistorySchemaInitPromise = null;
+      throw error;
+    });
+  }
+
+  return clientMedicalHistorySchemaInitPromise;
+}
+
 export async function findClientsRequester(authContext = {}) {
   const cachedRequester = authContext?.requester;
   if (cachedRequester) {
@@ -441,7 +483,10 @@ export async function findClientsRequester(authContext = {}) {
       is_admin: Boolean(cachedRequester.is_admin),
       is_platform_admin: Boolean(cachedRequester.is_platform_admin),
       role_label: roleLabel,
-      position_label: positionLabel
+      position_label: positionLabel,
+      organization_allowed_features: Array.isArray(cachedRequester.organization_allowed_features)
+        ? [...cachedRequester.organization_allowed_features]
+        : null
     };
   }
 
@@ -453,7 +498,8 @@ export async function findClientsRequester(authContext = {}) {
        (COALESCE(u.is_platform_admin, FALSE) OR COALESCE(r.is_admin, FALSE)) AS is_admin,
        COALESCE(u.is_platform_admin, FALSE) AS is_platform_admin,
        COALESCE(NULLIF(TRIM(r.label), ''), '') AS role_label,
-       COALESCE(NULLIF(TRIM(p.label), ''), '') AS position_label
+       COALESCE(NULLIF(TRIM(p.label), ''), '') AS position_label,
+       o.allowed_features AS organization_allowed_features
        FROM users u
        JOIN organizations o ON o.id = u.organization_id
        LEFT JOIN role_options r ON r.id = u.role_id
@@ -544,6 +590,40 @@ export async function getVipClientOptionsByOrganization({
       LIMIT $2`,
     [organizationId, safeLimit]
   );
+  return rows || [];
+}
+
+export async function getClientMedicalHistoryClientOptions({
+  organizationId,
+  limit = 1000
+}) {
+  await ensureClientMedicalHistorySchema();
+
+  const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 2000) : 1000;
+  const { rows } = await pool.query(
+    `SELECT
+       c.id::text AS id,
+       c.organization_id::text AS organization_id,
+       c.first_name,
+       c.last_name,
+       c.middle_name,
+       c.birthday,
+       c.is_vip,
+       c.created_at,
+       c.updated_at
+      FROM clients c
+      JOIN organizations o ON o.id = c.organization_id
+      WHERE c.organization_id = $1
+        AND o.is_active = TRUE
+      ORDER BY
+        LOWER(COALESCE(c.last_name, '')) ASC,
+        LOWER(COALESCE(c.first_name, '')) ASC,
+        LOWER(COALESCE(c.middle_name, '')) ASC,
+        c.id ASC
+      LIMIT $2`,
+    [organizationId, safeLimit]
+  );
+
   return rows || [];
 }
 
@@ -1712,11 +1792,19 @@ export async function getClientsPage({
   page,
   limit,
   search = "",
+  historyNameSearch = "",
   firstName = "",
   lastName = "",
   middleName = "",
-  isVip = null
+  clientId = null,
+  isVip = null,
+  historyDateFrom = "",
+  historyDateTo = "",
+  historyPositionId = null,
+  historySpecialistId = null
 }) {
+  await ensureClientMedicalHistorySchema();
+
   const whereParts = ["c.organization_id = $1", "o.is_active = TRUE"];
   const params = [organizationId];
 
@@ -1738,9 +1826,51 @@ export async function getClientsPage({
     whereParts.push(`LOWER(COALESCE(c.middle_name, '')) LIKE $${params.length}`);
   }
 
+  const normalizedHistoryNameTokens = String(historyNameSearch || "")
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+  normalizedHistoryNameTokens.forEach((token) => {
+    params.push(`%${token}%`);
+    const tokenParamIndex = params.length;
+    whereParts.push(`(
+      LOWER(COALESCE(c.first_name, '')) LIKE $${tokenParamIndex}
+      OR LOWER(COALESCE(c.last_name, '')) LIKE $${tokenParamIndex}
+      OR LOWER(COALESCE(c.middle_name, '')) LIKE $${tokenParamIndex}
+    )`);
+  });
+
+  if (Number.isInteger(clientId) && clientId > 0) {
+    params.push(clientId);
+    whereParts.push(`c.id = $${params.length}`);
+  }
+
   if (typeof isVip === "boolean") {
     params.push(isVip);
     whereParts.push(`c.is_vip = $${params.length}`);
+  }
+
+  const normalizedHistoryDateFrom = String(historyDateFrom || "").trim();
+  if (normalizedHistoryDateFrom) {
+    params.push(normalizedHistoryDateFrom);
+    whereParts.push(`latest_history.entry_date >= $${params.length}::date`);
+  }
+
+  const normalizedHistoryDateTo = String(historyDateTo || "").trim();
+  if (normalizedHistoryDateTo) {
+    params.push(normalizedHistoryDateTo);
+    whereParts.push(`latest_history.entry_date <= $${params.length}::date`);
+  }
+
+  if (Number.isInteger(historyPositionId) && historyPositionId > 0) {
+    params.push(historyPositionId);
+    whereParts.push(`latest_author.position_id = $${params.length}`);
+  }
+
+  if (Number.isInteger(historySpecialistId) && historySpecialistId > 0) {
+    params.push(historySpecialistId);
+    whereParts.push(`latest_history.author_user_id = $${params.length}`);
   }
 
   const normalizedSearch = String(search || "").trim().toLowerCase();
@@ -1784,6 +1914,17 @@ export async function getClientsPage({
     `SELECT COUNT(*)::int AS total
        FROM clients c
        JOIN organizations o ON o.id = c.organization_id
+       LEFT JOIN LATERAL (
+         SELECT h.author_user_id, h.entry_date
+           FROM client_medical_history_entries h
+          WHERE h.organization_id = c.organization_id
+            AND h.client_id = c.id
+          ORDER BY h.entry_date DESC, h.created_at DESC, h.id DESC
+          LIMIT 1
+       ) latest_history ON TRUE
+       LEFT JOIN users latest_author
+         ON latest_author.id = latest_history.author_user_id
+        AND latest_author.organization_id = c.organization_id
       ${whereSql}`,
     params
   );
@@ -1818,13 +1959,52 @@ export async function getClientsPage({
        ) AS updated_by_name,
        c.created_at,
        c.updated_at,
-       c.note
+       c.note,
+       latest_history.entry_date AS history_entry_date,
+       COALESCE(latest_history.condition_name, '') AS history_condition_name,
+       COALESCE(latest_history.symptoms, '') AS history_symptoms,
+       COALESCE(latest_history.diagnosis, '') AS history_diagnosis,
+       COALESCE(latest_history.treatment_plan, '') AS history_treatment_plan,
+       COALESCE(latest_history.note, '') AS history_note,
+       COALESCE(
+         NULLIF(TRIM(latest_author.full_name), ''),
+         NULLIF(TRIM(latest_author.username), ''),
+         CASE
+           WHEN latest_history.author_user_id IS NOT NULL THEN CONCAT('User #', latest_history.author_user_id::text)
+           ELSE ''
+         END
+       ) AS history_specialist_name,
+       COALESCE(latest_position.label, '') AS history_specialist_position
       FROM clients c
       JOIN organizations o ON o.id = c.organization_id
       LEFT JOIN users u ON u.id = c.created_by
        AND u.organization_id = c.organization_id
       LEFT JOIN users uu ON uu.id = c.updated_by
        AND uu.organization_id = c.organization_id
+      LEFT JOIN LATERAL (
+        SELECT
+          h.author_user_id,
+          h.entry_date,
+          h.condition_name,
+          COALESCE(h.symptoms, '') AS symptoms,
+          COALESCE(h.diagnosis, '') AS diagnosis,
+          COALESCE(h.treatment_plan, '') AS treatment_plan,
+          COALESCE(h.note, '') AS note
+          FROM client_medical_history_entries h
+         WHERE h.organization_id = c.organization_id
+           AND h.client_id = c.id
+         ORDER BY h.entry_date DESC, h.created_at DESC, h.id DESC
+         LIMIT 1
+      ) latest_history ON TRUE
+      LEFT JOIN users latest_author
+        ON latest_author.id = latest_history.author_user_id
+       AND latest_author.organization_id = c.organization_id
+      LEFT JOIN position_options latest_position
+        ON latest_position.id = latest_author.position_id
+       AND (
+         latest_position.organization_id = c.organization_id
+         OR latest_position.organization_id IS NULL
+       )
       ${whereSql}
       ORDER BY c.created_at DESC, c.id DESC
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
@@ -1839,8 +2019,563 @@ export async function getClientsPage({
   };
 }
 
+export async function getClientMedicalHistoryClientsPage({
+  organizationId,
+  page,
+  limit,
+  search = "",
+  isVip = null
+}) {
+  await ensureClientMedicalHistorySchema();
+
+  const whereParts = ["c.organization_id = $1", "o.is_active = TRUE"];
+  const params = [organizationId];
+
+  if (typeof isVip === "boolean") {
+    params.push(isVip);
+    whereParts.push(`c.is_vip = $${params.length}`);
+  }
+
+  const normalizedSearch = String(search || "").trim().toLowerCase();
+  if (normalizedSearch) {
+    const isNumericSearch = /^\d+$/.test(normalizedSearch);
+    const usePrefixOnly = normalizedSearch.length < 4;
+    params.push(`${normalizedSearch}%`);
+    const prefixParamIndex = params.length;
+    let numericSearchParamIndex = 0;
+    if (isNumericSearch) {
+      params.push(Number.parseInt(normalizedSearch, 10));
+      numericSearchParamIndex = params.length;
+    }
+
+    if (usePrefixOnly) {
+      whereParts.push(`(
+        LOWER(COALESCE(c.first_name, '')) LIKE $${prefixParamIndex}
+        OR LOWER(COALESCE(c.last_name, '')) LIKE $${prefixParamIndex}
+        OR LOWER(COALESCE(c.middle_name, '')) LIKE $${prefixParamIndex}
+        OR COALESCE(c.phone_number, '') LIKE $${prefixParamIndex}
+        ${numericSearchParamIndex ? `OR c.id = $${numericSearchParamIndex}` : ""}
+      )`);
+    } else {
+      params.push(`%${normalizedSearch}%`);
+      const containsParamIndex = params.length;
+      whereParts.push(`(
+        LOWER(COALESCE(c.first_name, '')) LIKE $${prefixParamIndex}
+        OR LOWER(COALESCE(c.last_name, '')) LIKE $${prefixParamIndex}
+        OR LOWER(COALESCE(c.middle_name, '')) LIKE $${prefixParamIndex}
+        OR COALESCE(c.phone_number, '') LIKE $${prefixParamIndex}
+        OR LOWER(COALESCE(c.tg_mail, '')) LIKE $${containsParamIndex}
+        OR LOWER(COALESCE(c.note, '')) LIKE $${containsParamIndex}
+        ${numericSearchParamIndex ? `OR c.id = $${numericSearchParamIndex}` : ""}
+      )`);
+    }
+  }
+
+  const whereSql = `WHERE ${whereParts.join(" AND ")}`;
+  const latestHistoryCte = `WITH latest_history AS (
+    SELECT DISTINCT ON (h.client_id)
+      h.id,
+      h.client_id,
+      h.author_user_id,
+      COUNT(*) OVER (PARTITION BY h.client_id)::int AS history_count,
+      h.entry_date,
+      h.condition_name,
+      COALESCE(h.symptoms, '') AS symptoms,
+      COALESCE(h.diagnosis, '') AS diagnosis,
+      COALESCE(h.treatment_plan, '') AS treatment_plan,
+      COALESCE(h.note, '') AS note,
+      h.created_at
+    FROM client_medical_history_entries h
+    WHERE h.organization_id = $1
+    ORDER BY h.client_id, h.entry_date DESC, h.created_at DESC, h.id DESC
+  )`;
+
+  const totalResult = await pool.query(
+    `${latestHistoryCte}
+     SELECT COUNT(*)::int AS total
+       FROM latest_history
+       JOIN clients c
+         ON c.id = latest_history.client_id
+        AND c.organization_id = $1
+       JOIN organizations o ON o.id = c.organization_id
+      ${whereSql}`,
+    params
+  );
+
+  const total = Number(totalResult.rows[0]?.total || 0);
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const safePage = Math.min(page, totalPages);
+  const offset = (safePage - 1) * limit;
+
+  const rowsResult = await pool.query(
+    `${latestHistoryCte}
+     SELECT
+       c.id::text AS id,
+       c.organization_id::text AS organization_id,
+       c.first_name,
+       c.last_name,
+       c.middle_name,
+       c.birthday,
+       c.phone_number,
+       c.tg_mail,
+       c.is_vip,
+       c.created_by::text AS created_by,
+       c.updated_by::text AS updated_by,
+       COALESCE(
+         NULLIF(TRIM(u.full_name), ''),
+         NULLIF(TRIM(u.username), ''),
+         c.created_by::text
+       ) AS created_by_name,
+       COALESCE(
+         NULLIF(TRIM(uu.full_name), ''),
+         NULLIF(TRIM(uu.username), ''),
+         c.updated_by::text
+       ) AS updated_by_name,
+       c.created_at,
+       c.updated_at,
+       c.note,
+       latest_history.id::text AS history_entry_id,
+       latest_history.history_count,
+       latest_history.entry_date AS history_entry_date,
+       COALESCE(latest_history.condition_name, '') AS history_condition_name,
+       COALESCE(latest_history.symptoms, '') AS history_symptoms,
+       COALESCE(latest_history.diagnosis, '') AS history_diagnosis,
+       COALESCE(latest_history.treatment_plan, '') AS history_treatment_plan,
+       COALESCE(latest_history.note, '') AS history_note,
+       COALESCE(
+         NULLIF(TRIM(latest_author.full_name), ''),
+         NULLIF(TRIM(latest_author.username), ''),
+         CASE
+           WHEN latest_history.author_user_id IS NOT NULL THEN CONCAT('User #', latest_history.author_user_id::text)
+           ELSE ''
+         END
+       ) AS history_specialist_name,
+       COALESCE(latest_position.label, '') AS history_specialist_position
+      FROM latest_history
+      JOIN clients c
+        ON c.id = latest_history.client_id
+       AND c.organization_id = $1
+      JOIN organizations o ON o.id = c.organization_id
+      LEFT JOIN users u ON u.id = c.created_by
+       AND u.organization_id = c.organization_id
+      LEFT JOIN users uu ON uu.id = c.updated_by
+       AND uu.organization_id = c.organization_id
+      LEFT JOIN users latest_author
+        ON latest_author.id = latest_history.author_user_id
+       AND latest_author.organization_id = c.organization_id
+      LEFT JOIN position_options latest_position
+        ON latest_position.id = latest_author.position_id
+       AND (
+         latest_position.organization_id = c.organization_id
+         OR latest_position.organization_id IS NULL
+       )
+      ${whereSql}
+      ORDER BY latest_history.entry_date DESC, latest_history.created_at DESC, c.id DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, limit, offset]
+  );
+
+  return {
+    total,
+    totalPages,
+    page: safePage,
+    rows: rowsResult.rows
+  };
+}
+
+export async function getClientSummaryById({
+  organizationId,
+  clientId
+}) {
+  const { rows } = await pool.query(
+    `SELECT
+       c.id::text AS id,
+       c.organization_id::text AS organization_id,
+       c.first_name,
+       c.last_name,
+       c.middle_name,
+       c.birthday,
+       c.is_vip,
+       c.created_at,
+       c.updated_at
+      FROM clients c
+      JOIN organizations o ON o.id = c.organization_id
+     WHERE c.organization_id = $1
+       AND c.id = $2
+       AND o.is_active = TRUE
+     LIMIT 1`,
+    [organizationId, clientId]
+  );
+
+  return rows[0] || null;
+}
+
+export async function getClientMedicalHistoryEntries({
+  organizationId,
+  clientId,
+  limit = 200
+}) {
+  await ensureClientMedicalHistorySchema();
+
+  const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 500) : 200;
+  const { rows } = await pool.query(
+    `SELECT
+       h.id::text AS id,
+       h.organization_id::text AS organization_id,
+       h.client_id::text AS client_id,
+       h.entry_date,
+       h.condition_name,
+       COALESCE(h.symptoms, '') AS symptoms,
+       COALESCE(h.diagnosis, '') AS diagnosis,
+       COALESCE(h.treatment_plan, '') AS treatment_plan,
+       COALESCE(h.note, '') AS note,
+       h.author_user_id::text AS author_user_id,
+       COALESCE(
+         NULLIF(TRIM(au.full_name), ''),
+         NULLIF(TRIM(au.username), ''),
+         CASE
+           WHEN h.author_user_id IS NOT NULL THEN CONCAT('User #', h.author_user_id::text)
+           ELSE ''
+         END
+       ) AS author_name,
+       COALESCE(NULLIF(TRIM(ap.label), ''), '') AS author_position_label,
+       h.created_by::text AS created_by,
+       h.updated_by::text AS updated_by,
+       COALESCE(
+         NULLIF(TRIM(cu.full_name), ''),
+         NULLIF(TRIM(cu.username), ''),
+         CASE
+           WHEN h.created_by IS NOT NULL THEN CONCAT('User #', h.created_by::text)
+           ELSE ''
+         END
+       ) AS created_by_name,
+       COALESCE(
+         NULLIF(TRIM(uu.full_name), ''),
+         NULLIF(TRIM(uu.username), ''),
+         CASE
+           WHEN h.updated_by IS NOT NULL THEN CONCAT('User #', h.updated_by::text)
+           ELSE ''
+         END
+       ) AS updated_by_name,
+       h.created_at,
+       h.updated_at
+      FROM client_medical_history_entries h
+      JOIN organizations o ON o.id = h.organization_id
+      LEFT JOIN users au
+        ON au.id = h.author_user_id
+       AND au.organization_id = h.organization_id
+      LEFT JOIN position_options ap
+        ON ap.id = au.position_id
+       AND (
+         ap.organization_id = h.organization_id
+         OR ap.organization_id IS NULL
+       )
+      LEFT JOIN users cu
+        ON cu.id = h.created_by
+       AND cu.organization_id = h.organization_id
+      LEFT JOIN users uu
+        ON uu.id = h.updated_by
+       AND uu.organization_id = h.organization_id
+     WHERE h.organization_id = $1
+       AND h.client_id = $2
+       AND o.is_active = TRUE
+     ORDER BY h.entry_date DESC, h.created_at DESC, h.id DESC
+     LIMIT $3`,
+    [organizationId, clientId, safeLimit]
+  );
+
+  return rows || [];
+}
+
+export async function createClientMedicalHistoryEntry({
+  organizationId,
+  clientId,
+  entryDate,
+  conditionName,
+  symptoms = "",
+  diagnosis = "",
+  treatmentPlan = "",
+  note = "",
+  authorUserId
+}) {
+  await ensureClientMedicalHistorySchema();
+
+  const { rows } = await pool.query(
+    `WITH target_client AS (
+       SELECT c.id
+         FROM clients c
+         JOIN organizations o ON o.id = c.organization_id
+        WHERE c.organization_id = $1
+          AND c.id = $2
+          AND o.is_active = TRUE
+        LIMIT 1
+     ),
+     inserted AS (
+       INSERT INTO client_medical_history_entries (
+         organization_id,
+         client_id,
+         entry_date,
+         condition_name,
+         symptoms,
+         diagnosis,
+         treatment_plan,
+         note,
+         author_user_id,
+         created_by,
+         updated_by
+       )
+       SELECT
+         $1,
+         tc.id,
+         $3::date,
+         $4::text,
+         NULLIF($5::text, ''),
+         NULLIF($6::text, ''),
+         NULLIF($7::text, ''),
+         NULLIF($8::text, ''),
+         $9::integer,
+         $9::integer,
+         $9::integer
+       FROM target_client tc
+       RETURNING *
+     )
+     SELECT
+       i.id::text AS id,
+       i.organization_id::text AS organization_id,
+       i.client_id::text AS client_id,
+       i.entry_date,
+       i.condition_name,
+       COALESCE(i.symptoms, '') AS symptoms,
+       COALESCE(i.diagnosis, '') AS diagnosis,
+       COALESCE(i.treatment_plan, '') AS treatment_plan,
+       COALESCE(i.note, '') AS note,
+       i.author_user_id::text AS author_user_id,
+       COALESCE(
+         NULLIF(TRIM(au.full_name), ''),
+         NULLIF(TRIM(au.username), ''),
+         CASE
+           WHEN i.author_user_id IS NOT NULL THEN CONCAT('User #', i.author_user_id::text)
+           ELSE ''
+         END
+       ) AS author_name,
+       COALESCE(NULLIF(TRIM(ap.label), ''), '') AS author_position_label,
+       i.created_by::text AS created_by,
+       i.updated_by::text AS updated_by,
+       COALESCE(
+         NULLIF(TRIM(cu.full_name), ''),
+         NULLIF(TRIM(cu.username), ''),
+         CASE
+           WHEN i.created_by IS NOT NULL THEN CONCAT('User #', i.created_by::text)
+           ELSE ''
+         END
+       ) AS created_by_name,
+       COALESCE(
+         NULLIF(TRIM(uu.full_name), ''),
+         NULLIF(TRIM(uu.username), ''),
+         CASE
+           WHEN i.updated_by IS NOT NULL THEN CONCAT('User #', i.updated_by::text)
+           ELSE ''
+         END
+       ) AS updated_by_name,
+       i.created_at,
+       i.updated_at
+      FROM inserted i
+      LEFT JOIN users au
+        ON au.id = i.author_user_id
+       AND au.organization_id = i.organization_id
+      LEFT JOIN position_options ap
+        ON ap.id = au.position_id
+       AND (
+         ap.organization_id = i.organization_id
+         OR ap.organization_id IS NULL
+       )
+      LEFT JOIN users cu
+        ON cu.id = i.created_by
+       AND cu.organization_id = i.organization_id
+      LEFT JOIN users uu
+        ON uu.id = i.updated_by
+       AND uu.organization_id = i.organization_id`,
+    [
+      organizationId,
+      clientId,
+      entryDate,
+      conditionName,
+      symptoms,
+      diagnosis,
+      treatmentPlan,
+      note,
+      authorUserId || null
+    ]
+  );
+
+  return rows[0] || null;
+}
+
+export async function updateClientMedicalHistoryEntry({
+  organizationId,
+  clientId,
+  entryId,
+  entryDate,
+  conditionName,
+  symptoms = "",
+  diagnosis = "",
+  treatmentPlan = "",
+  note = "",
+  updatedBy,
+  isAdmin = false
+}) {
+  await ensureClientMedicalHistorySchema();
+
+  const { rows } = await pool.query(
+    `WITH target_entry AS (
+       SELECT h.id
+         FROM client_medical_history_entries h
+         JOIN clients c
+           ON c.organization_id = h.organization_id
+          AND c.id = h.client_id
+         JOIN organizations o ON o.id = h.organization_id
+        WHERE h.organization_id = $1
+          AND h.client_id = $2
+          AND h.id = $3
+          AND o.is_active = TRUE
+          AND ($10::boolean = TRUE OR h.author_user_id = $9::integer)
+        LIMIT 1
+        FOR UPDATE
+     ),
+     updated AS (
+       UPDATE client_medical_history_entries h
+          SET entry_date = $4::date,
+              condition_name = $5::text,
+              symptoms = NULLIF($6::text, ''),
+              diagnosis = NULLIF($7::text, ''),
+              treatment_plan = NULLIF($8::text, ''),
+              note = NULLIF($11::text, ''),
+              updated_by = $9::integer,
+              updated_at = CURRENT_TIMESTAMP
+         FROM target_entry te
+        WHERE h.id = te.id
+       RETURNING h.*
+     )
+     SELECT
+       u.id::text AS id,
+       u.organization_id::text AS organization_id,
+       u.client_id::text AS client_id,
+       u.entry_date,
+       u.condition_name,
+       COALESCE(u.symptoms, '') AS symptoms,
+       COALESCE(u.diagnosis, '') AS diagnosis,
+       COALESCE(u.treatment_plan, '') AS treatment_plan,
+       COALESCE(u.note, '') AS note,
+       u.author_user_id::text AS author_user_id,
+       COALESCE(
+         NULLIF(TRIM(au.full_name), ''),
+         NULLIF(TRIM(au.username), ''),
+         CASE
+           WHEN u.author_user_id IS NOT NULL THEN CONCAT('User #', u.author_user_id::text)
+           ELSE ''
+         END
+       ) AS author_name,
+       COALESCE(NULLIF(TRIM(ap.label), ''), '') AS author_position_label,
+       u.created_by::text AS created_by,
+       u.updated_by::text AS updated_by,
+       COALESCE(
+         NULLIF(TRIM(cu.full_name), ''),
+         NULLIF(TRIM(cu.username), ''),
+         CASE
+           WHEN u.created_by IS NOT NULL THEN CONCAT('User #', u.created_by::text)
+           ELSE ''
+         END
+       ) AS created_by_name,
+       COALESCE(
+         NULLIF(TRIM(uu.full_name), ''),
+         NULLIF(TRIM(uu.username), ''),
+         CASE
+           WHEN u.updated_by IS NOT NULL THEN CONCAT('User #', u.updated_by::text)
+           ELSE ''
+         END
+       ) AS updated_by_name,
+       u.created_at,
+       u.updated_at
+      FROM updated u
+      LEFT JOIN users au
+        ON au.id = u.author_user_id
+       AND au.organization_id = u.organization_id
+      LEFT JOIN position_options ap
+        ON ap.id = au.position_id
+       AND (
+         ap.organization_id = u.organization_id
+         OR ap.organization_id IS NULL
+       )
+      LEFT JOIN users cu
+        ON cu.id = u.created_by
+       AND cu.organization_id = u.organization_id
+      LEFT JOIN users uu
+        ON uu.id = u.updated_by
+       AND uu.organization_id = u.organization_id`,
+    [
+      organizationId,
+      clientId,
+      entryId,
+      entryDate,
+      conditionName,
+      symptoms,
+      diagnosis,
+      treatmentPlan,
+      updatedBy || null,
+      Boolean(isAdmin),
+      note
+    ]
+  );
+
+  return rows[0] || null;
+}
+
+export async function deleteClientMedicalHistoryEntry({
+  organizationId,
+  clientId,
+  entryId,
+  deletedBy,
+  isAdmin = false
+}) {
+  await ensureClientMedicalHistorySchema();
+
+  const { rows } = await pool.query(
+    `DELETE FROM client_medical_history_entries h
+      WHERE h.organization_id = $1
+        AND h.client_id = $2
+        AND h.id = $3
+        AND ($4::boolean = TRUE OR h.author_user_id = $5::integer)
+      RETURNING
+        h.id::text AS id,
+        h.client_id::text AS client_id`,
+    [organizationId, clientId, entryId, Boolean(isAdmin), deletedBy || null]
+  );
+
+  return rows[0] || null;
+}
+
+export async function deleteAllClientMedicalHistoryEntries({
+  organizationId,
+  clientId
+}) {
+  await ensureClientMedicalHistorySchema();
+
+  const { rows } = await pool.query(
+    `DELETE FROM client_medical_history_entries h
+      WHERE h.organization_id = $1
+        AND h.client_id = $2
+      RETURNING
+        h.id::text AS id,
+        h.client_id::text AS client_id`,
+    [organizationId, clientId]
+  );
+
+  return rows || [];
+}
+
 export async function searchClientsForSchedule({
   organizationId,
+  clientId = null,
   firstName = "",
   lastName = "",
   middleName = "",
@@ -1855,6 +2590,7 @@ export async function searchClientsForSchedule({
   const normalizedFirstName = normalizeSearchToken(firstName);
   const normalizedLastName = normalizeSearchToken(lastName);
   const normalizedMiddleName = normalizeSearchToken(middleName);
+  const normalizedClientId = Number.parseInt(String(clientId || "").trim(), 10);
   const normalizedAttendanceDate = String(attendanceDate || "").trim() || null;
   const parsedAssignedUserId = Number.parseInt(String(assignedUserId || "").trim(), 10);
   const normalizedAssignedUserId = Number.isInteger(parsedAssignedUserId) && parsedAssignedUserId > 0
@@ -2022,6 +2758,7 @@ export async function searchClientsForSchedule({
        AND ($3 = '' OR LOWER(c.last_name) LIKE $3 || '%')
        AND ($4 = '' OR (c.middle_name IS NOT NULL AND LOWER(c.middle_name) LIKE $4 || '%'))
        AND ($5::boolean IS NULL OR c.is_vip = $5::boolean)
+       AND ($9::integer IS NULL OR c.id = $9::integer)
        AND (
          $8::integer IS NULL
          OR vcta.teacher_user_id = $8::integer
@@ -2041,7 +2778,8 @@ export async function searchClientsForSchedule({
       typeof isVip === "boolean" ? isVip : null,
       normalizedAttendanceDate,
       safeLimit,
-      normalizedAssignedUserId
+      normalizedAssignedUserId,
+      Number.isInteger(normalizedClientId) && normalizedClientId > 0 ? normalizedClientId : null
     ]
   );
 

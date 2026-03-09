@@ -1,6 +1,8 @@
+import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import HomePage from "./pages/HomePage.jsx";
-import ProfilePage from "./pages/ProfilePage.jsx";
+
+const HomePage = lazy(() => import("./pages/HomePage.jsx"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage.jsx"));
 
 function NotFoundPage() {
   return (
@@ -27,12 +29,14 @@ function NotFoundPage() {
 
 function App() {
   return (
+    <Suspense fallback={null}>
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/profile" element={<ProfilePage forcedView="none" />} />
       <Route path="/users/allusers" element={<ProfilePage forcedView="all-users" />} />
       <Route path="/users/create" element={<ProfilePage forcedView="create-user" />} />
       <Route path="/clients/allclients" element={<ProfilePage forcedView="clients-all" />} />
+      <Route path="/clients/medical-history" element={<ProfilePage forcedView="clients-medical-history" />} />
       <Route path="/clients/create" element={<Navigate to="/clients/allclients" replace />} />
       <Route path="/clients" element={<Navigate to="/clients/allclients" replace />} />
       <Route path="/appointments" element={<Navigate to="/appointments/planner" replace />} />
@@ -61,8 +65,11 @@ function App() {
       <Route path="/admin-settings/organizations" element={<ProfilePage forcedView="settings-organizations" />} />
       <Route path="/settings/roles" element={<ProfilePage forcedView="settings-roles" />} />
       <Route path="/settings/positions" element={<ProfilePage forcedView="settings-positions" />} />
-      <Route path="/settings/admin-options" element={<ProfilePage forcedView="settings-admin-options" />} />
-      <Route path="/settings/notifications" element={<ProfilePage forcedView="settings-notifications" />} />
+      <Route path="/settings/notification" element={<Navigate to="/settings/appointments" replace />} />
+      <Route path="/settings/Notification-settings" element={<Navigate to="/settings/appointments" replace />} />
+      <Route path="/settings/notification-settings" element={<Navigate to="/settings/appointments" replace />} />
+      <Route path="/settings/notifications" element={<Navigate to="/settings/appointments" replace />} />
+      <Route path="/notifications" element={<ProfilePage forcedView="notifications-send" />} />
       <Route path="/admin-settings/monitoring" element={<ProfilePage forcedView="settings-monitoring" />} />
       <Route path="/settings/organizations" element={<Navigate to="/admin-settings/organizations" replace />} />
       <Route path="/settings/monitoring" element={<Navigate to="/admin-settings/monitoring" replace />} />
@@ -72,6 +79,7 @@ function App() {
       <Route path="/profile/users/create" element={<Navigate to="/users/create" replace />} />
       <Route path="/profile/clients" element={<Navigate to="/clients/allclients" replace />} />
       <Route path="/profile/clients/allclients" element={<Navigate to="/clients/allclients" replace />} />
+      <Route path="/profile/clients/medical-history" element={<Navigate to="/clients/medical-history" replace />} />
       <Route path="/profile/clients/create" element={<Navigate to="/clients/allclients" replace />} />
       <Route path="/profile/vip-clients" element={<Navigate to="/vip-clients/my-class" replace />} />
       <Route path="/profile/vip-clients/my-class" element={<Navigate to="/vip-clients/my-class" replace />} />
@@ -104,12 +112,16 @@ function App() {
       <Route path="/profile/settings/appointments" element={<Navigate to="/settings/appointments" replace />} />
       <Route path="/profile/settings/roles" element={<Navigate to="/settings/roles" replace />} />
       <Route path="/profile/settings/positions" element={<Navigate to="/settings/positions" replace />} />
-      <Route path="/profile/settings/admin-options" element={<Navigate to="/settings/admin-options" replace />} />
-      <Route path="/profile/settings/notifications" element={<Navigate to="/settings/notifications" replace />} />
+      <Route path="/profile/settings/notification" element={<Navigate to="/settings/appointments" replace />} />
+      <Route path="/profile/settings/Notification-settings" element={<Navigate to="/settings/appointments" replace />} />
+      <Route path="/profile/settings/notification-settings" element={<Navigate to="/settings/appointments" replace />} />
+      <Route path="/profile/settings/notifications" element={<Navigate to="/settings/appointments" replace />} />
+      <Route path="/profile/notifications" element={<Navigate to="/notifications" replace />} />
       <Route path="/profile/settings/monitoring" element={<Navigate to="/admin-settings/monitoring" replace />} />
       <Route path="/home" element={<Navigate to="/" replace />} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
+    </Suspense>
   );
 }
 

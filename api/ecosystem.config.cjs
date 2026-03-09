@@ -1,11 +1,14 @@
+const instances = String(process.env.PM2_INSTANCES || "1").trim() || "1";
+const useCluster = instances !== "1";
+
 module.exports = {
   apps: [
     {
       name: "crm-api",
       script: "src/index.js",
       node_args: "--env-file=.env",
-      exec_mode: "cluster",
-      instances: process.env.PM2_INSTANCES || "max",
+      exec_mode: useCluster ? "cluster" : "fork",
+      instances: useCluster ? instances : 1,
       watch: false,
       max_memory_restart: process.env.PM2_MAX_MEMORY || "400M",
       time: true,

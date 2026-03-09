@@ -1,8 +1,32 @@
 import { appointmentRouteSchemas } from "./appointment.route-schemas.js";
+import { appConfig } from "../../../config/app-config.js";
+import {
+  getNotificationRetentionSettingsByOrganization,
+  saveNotificationRetentionSettingsByOrganization
+} from "../../notifications/notifications.service.js";
 
 const DATE_YMD_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_HM_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
 const WORK_SCHEDULE_SCOPE_SET = new Set(["weekly", "exception"]);
+const MIN_NOTIFICATION_RETENTION_DAYS = 0;
+const MAX_NOTIFICATION_RETENTION_DAYS = 3650;
+
+function parseNotificationRetentionDays(value, field) {
+  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
+  if (
+    !Number.isInteger(parsed)
+    || parsed < MIN_NOTIFICATION_RETENTION_DAYS
+    || parsed > MAX_NOTIFICATION_RETENTION_DAYS
+  ) {
+    return {
+      error: {
+        field,
+        message: `Retention days must be an integer between ${MIN_NOTIFICATION_RETENTION_DAYS} and ${MAX_NOTIFICATION_RETENTION_DAYS}.`
+      }
+    };
+  }
+  return { value: parsed };
+}
 
 function normalizeWorkScheduleScope(value) {
   const normalized = String(value || "").trim().toLowerCase();
@@ -219,6 +243,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
   const {
     setNoCacheHeaders,
     requireAppointmentsAccess,
+    requesterHasOrgFeature,
     hasPermission,
     PERMISSIONS,
     DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS,
@@ -242,6 +267,49 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
     replaceAppointmentDefaultWeeklyWorkSchedule
   } = context;
 
+  async function requireAppointmentSettingsAccess(request, reply, action = "read") {
+    const authContext = request.authContext;
+    const requester = authContext?.requester;
+    if (!requester) {
+      reply.status(401).send({ message: "Unauthorized." });
+      return null;
+    }
+
+    const roleId = requester.role_id;
+    if (action === "read") {
+      const [
+        canReadAppointments,
+        canAccessMyClass,
+        canAccessMyChildren,
+        canReadSettingsPanel
+      ] = await Promise.all([
+        hasPermission(roleId, PERMISSIONS.APPOINTMENTS_READ),
+        hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS),
+        hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN),
+        hasPermission(roleId, PERMISSIONS.SETTINGS_APPOINTMENTS_READ)
+      ]);
+      const canUseSettingsPanel = canReadSettingsPanel
+        && requesterHasOrgFeature(requester, "settings.appointments");
+      if (!canReadAppointments && !canAccessMyClass && !canAccessMyChildren && !canUseSettingsPanel) {
+        reply.status(403).send({ message: "Forbidden." });
+        return null;
+      }
+      return { authContext, requester };
+    }
+
+    const [canUpdateAppointments, canUpdateSettingsPanel] = await Promise.all([
+      hasPermission(roleId, PERMISSIONS.APPOINTMENTS_UPDATE),
+      hasPermission(roleId, PERMISSIONS.SETTINGS_APPOINTMENTS_UPDATE)
+    ]);
+    const canUseSettingsPanel = canUpdateSettingsPanel
+      && requesterHasOrgFeature(requester, "settings.appointments");
+    if (!canUpdateAppointments && !canUseSettingsPanel) {
+      reply.status(403).send({ message: "Forbidden." });
+      return null;
+    }
+    return { authContext, requester };
+  }
+
   fastify.get(
     "/settings",
     {
@@ -254,25 +322,10 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
       setNoCacheHeaders(reply);
 
       try {
-        const authContext = request.authContext;
-        const requester = authContext?.requester;
-        if (!requester) {
-          return reply.status(401).send({ message: "Unauthorized." });
+        const access = await requireAppointmentSettingsAccess(request, reply, "read");
+        if (!access) {
+          return;
         }
-
-        const [
-          canReadAppointments,
-          canAccessMyClass,
-          canAccessMyChildren
-        ] = await Promise.all([
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_READ),
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS),
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN)
-        ]);
-        if (!canReadAppointments && !canAccessMyClass && !canAccessMyChildren) {
-          return reply.status(403).send({ message: "Forbidden." });
-        }
-        const access = { authContext, requester };
 
         const { value: requestedOrganizationId, error: organizationError } = parseOptionalOrganizationId(
           request.query?.organizationId ?? request.query?.organization_id
@@ -285,11 +338,32 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
-        const settings = await getAppointmentSettingsByOrganization(
-          targetOrganizationId
+        const defaultOutboxRetentionDays = Number.parseInt(
+          String(appConfig?.outboxWorker?.retentionDays ?? 30),
+          10
         );
+        const defaultUserNotificationsRetentionDays = Number.parseInt(
+          String(appConfig?.outboxWorker?.userNotificationsRetentionDays ?? 0),
+          10
+        );
+        const [settings, notificationRetention] = await Promise.all([
+          getAppointmentSettingsByOrganization(targetOrganizationId),
+          getNotificationRetentionSettingsByOrganization({
+            organizationId: targetOrganizationId,
+            defaultOutboxRetentionDays,
+            defaultUserNotificationsRetentionDays
+          })
+        ]);
         return reply.send({
-          item: settings || null,
+          item: {
+            ...(settings || {}),
+            outboxWorkerRetentionDays: String(
+              notificationRetention?.outboxRetentionDays ?? defaultOutboxRetentionDays
+            ),
+            userNotificationsRetentionDays: String(
+              notificationRetention?.userNotificationsRetentionDays ?? defaultUserNotificationsRetentionDays
+            )
+          },
           organizationId: String(targetOrganizationId)
         });
       } catch (error) {
@@ -309,7 +383,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
     },
     async (request, reply) => {
       try {
-        const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_UPDATE);
+        const access = await requireAppointmentSettingsAccess(request, reply, "update");
         if (!access) {
           return;
         }
@@ -349,6 +423,15 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
         const reminderHours = parsePositiveIntegerOr(request.body?.reminderHours, 0);
         const reminderChannels = normalizeReminderChannels(request.body?.reminderChannels);
         const visibleWeekDays = normalizeVisibleWeekDays(request.body?.visibleWeekDays);
+        const hasOutboxWorkerRetentionDays = (
+          request.body?.outboxWorkerRetentionDays !== undefined
+          || request.body?.outboxRetentionDays !== undefined
+          || request.body?.outbox_worker_retention_days !== undefined
+        );
+        const hasUserNotificationsRetentionDays = (
+          request.body?.userNotificationsRetentionDays !== undefined
+          || request.body?.user_notifications_retention_days !== undefined
+        );
 
         const validationError = validateSettingsPayload({
           slotIntervalMinutes,
@@ -365,24 +448,103 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
           return reply.status(400).send(validationError);
         }
 
-        const item = await saveAppointmentSettings({
-          organizationId: targetOrganizationId,
-          actorUserId: access.authContext.userId,
-          slotIntervalMinutes,
-          slotSubDivisions,
-          slotCellHeightPx,
-          historyLockDays,
-          appointmentDurationMinutes,
-          appointmentDurationOptionsMinutes,
-          noShowThreshold,
-          reminderHours,
-          reminderChannels,
-          visibleWeekDays
-        });
+        let parsedOutboxWorkerRetentionDays = { value: null };
+        if (hasOutboxWorkerRetentionDays) {
+          parsedOutboxWorkerRetentionDays = parseNotificationRetentionDays(
+            request.body?.outboxWorkerRetentionDays
+            ?? request.body?.outboxRetentionDays
+            ?? request.body?.outbox_worker_retention_days,
+            "outboxWorkerRetentionDays"
+          );
+          if (parsedOutboxWorkerRetentionDays.error) {
+            return reply.status(400).send(parsedOutboxWorkerRetentionDays.error);
+          }
+        }
+
+        let parsedUserNotificationsRetentionDays = { value: null };
+        if (hasUserNotificationsRetentionDays) {
+          parsedUserNotificationsRetentionDays = parseNotificationRetentionDays(
+            request.body?.userNotificationsRetentionDays
+            ?? request.body?.user_notifications_retention_days,
+            "userNotificationsRetentionDays"
+          );
+          if (parsedUserNotificationsRetentionDays.error) {
+            return reply.status(400).send(parsedUserNotificationsRetentionDays.error);
+          }
+        }
+
+        const defaultOutboxRetentionDays = Number.parseInt(
+          String(appConfig?.outboxWorker?.retentionDays ?? 30),
+          10
+        );
+        const defaultUserNotificationsRetentionDays = Number.parseInt(
+          String(appConfig?.outboxWorker?.userNotificationsRetentionDays ?? 0),
+          10
+        );
+        const shouldReadCurrentNotificationRetention = (
+          hasOutboxWorkerRetentionDays
+          || hasUserNotificationsRetentionDays
+        ) && !(hasOutboxWorkerRetentionDays && hasUserNotificationsRetentionDays);
+        const currentNotificationRetention = shouldReadCurrentNotificationRetention
+          ? await getNotificationRetentionSettingsByOrganization({
+              organizationId: targetOrganizationId,
+              defaultOutboxRetentionDays,
+              defaultUserNotificationsRetentionDays
+            })
+          : null;
+
+        const [item, notificationRetention] = await Promise.all([
+          saveAppointmentSettings({
+            organizationId: targetOrganizationId,
+            actorUserId: access.authContext.userId,
+            slotIntervalMinutes,
+            slotSubDivisions,
+            slotCellHeightPx,
+            historyLockDays,
+            appointmentDurationMinutes,
+            appointmentDurationOptionsMinutes,
+            noShowThreshold,
+            reminderHours,
+            reminderChannels,
+            visibleWeekDays
+          }),
+          (hasOutboxWorkerRetentionDays || hasUserNotificationsRetentionDays)
+            ? saveNotificationRetentionSettingsByOrganization({
+                organizationId: targetOrganizationId,
+                outboxRetentionDays: hasOutboxWorkerRetentionDays
+                  ? parsedOutboxWorkerRetentionDays.value
+                  : Number.parseInt(
+                      String(currentNotificationRetention?.outboxRetentionDays ?? defaultOutboxRetentionDays),
+                      10
+                    ),
+                userNotificationsRetentionDays: hasUserNotificationsRetentionDays
+                  ? parsedUserNotificationsRetentionDays.value
+                  : Number.parseInt(
+                      String(
+                        currentNotificationRetention?.userNotificationsRetentionDays
+                        ?? defaultUserNotificationsRetentionDays
+                      ),
+                      10
+                    )
+              })
+            : getNotificationRetentionSettingsByOrganization({
+              organizationId: targetOrganizationId,
+              defaultOutboxRetentionDays,
+              defaultUserNotificationsRetentionDays
+            })
+        ]);
 
         return reply.send({
           message: "Appointment settings updated.",
-          item,
+          item: {
+            ...(item || {}),
+            outboxWorkerRetentionDays: String(
+              notificationRetention?.outboxRetentionDays ?? defaultOutboxRetentionDays
+            ),
+            userNotificationsRetentionDays: String(
+              notificationRetention?.userNotificationsRetentionDays ?? defaultUserNotificationsRetentionDays
+            )
+          },
           organizationId: String(targetOrganizationId)
         });
       } catch (error) {
@@ -395,6 +557,18 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
         if (error?.code === "MIGRATION_REQUIRED") {
           return reply.status(500).send({
             message: "DB migration required: appointment settings table is missing required columns."
+          });
+        }
+        if (error?.code === "INVALID_OUTBOX_RETENTION_DAYS") {
+          return reply.status(400).send({
+            field: "outboxWorkerRetentionDays",
+            message: `Retention days must be an integer between ${MIN_NOTIFICATION_RETENTION_DAYS} and ${MAX_NOTIFICATION_RETENTION_DAYS}.`
+          });
+        }
+        if (error?.code === "INVALID_USER_NOTIFICATIONS_RETENTION_DAYS") {
+          return reply.status(400).send({
+            field: "userNotificationsRetentionDays",
+            message: `Retention days must be an integer between ${MIN_NOTIFICATION_RETENTION_DAYS} and ${MAX_NOTIFICATION_RETENTION_DAYS}.`
           });
         }
         request.log.error({ err: error }, "Error updating appointment settings");
@@ -415,7 +589,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
       setNoCacheHeaders(reply);
 
       try {
-        const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_READ);
+        const access = await requireAppointmentSettingsAccess(request, reply, "read");
         if (!access) {
           return;
         }
@@ -474,7 +648,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
     },
     async (request, reply) => {
       try {
-        const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_UPDATE);
+        const access = await requireAppointmentSettingsAccess(request, reply, "update");
         if (!access) {
           return;
         }
@@ -530,7 +704,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
     },
     async (request, reply) => {
       try {
-        const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_UPDATE);
+        const access = await requireAppointmentSettingsAccess(request, reply, "update");
         if (!access) {
           return;
         }
@@ -596,7 +770,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
     },
     async (request, reply) => {
       try {
-        const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_UPDATE);
+        const access = await requireAppointmentSettingsAccess(request, reply, "update");
         if (!access) {
           return;
         }
@@ -668,7 +842,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
     },
     async (request, reply) => {
       try {
-        const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_UPDATE);
+        const access = await requireAppointmentSettingsAccess(request, reply, "update");
         if (!access) {
           return;
         }

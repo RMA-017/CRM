@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 import { isUniqueOrExclusionConflict } from "../../lib/db-utils.js";
+import { requesterHasOrgFeature } from "../../lib/org-features.js";
 import { hasPermission } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
 import { isVipClientAssignedToUser } from "../clients/clients.service.js";
@@ -1090,7 +1091,12 @@ function validateBreaksPayload({ specialistId, items }) {
   return null;
 }
 
-async function requireAppointmentsAccess(request, reply, requiredPermission = PERMISSIONS.APPOINTMENTS_READ) {
+async function requireAppointmentsAccess(
+  request,
+  reply,
+  requiredPermission = PERMISSIONS.APPOINTMENTS_READ,
+  requiredFeature = null
+) {
   const authContext = request.authContext;
 
   const requester = authContext?.requester;
@@ -1103,6 +1109,10 @@ async function requireAppointmentsAccess(request, reply, requiredPermission = PE
     reply.status(403).send({ message: "Forbidden." });
     return null;
   }
+  if (requiredFeature && !requesterHasOrgFeature(requester, requiredFeature)) {
+    reply.status(403).send({ message: "Forbidden." });
+    return null;
+  }
 
   return { authContext, requester };
 }
@@ -1112,6 +1122,7 @@ async function appointmentSettingsRoutes(fastify) {
     randomUUID,
     setNoCacheHeaders,
     requireAppointmentsAccess,
+    requesterHasOrgFeature,
     hasPermission,
     PERMISSIONS,
     DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS,

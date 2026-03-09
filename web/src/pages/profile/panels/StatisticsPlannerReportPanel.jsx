@@ -202,9 +202,6 @@ function StatisticsPlannerReportPanel({
       }
 
       setReportData(data);
-      if ((Number(data?.summary?.total) || 0) === 0) {
-        setReportMessage("No lesson status records found for the selected period.");
-      }
     } catch {
       setReportData(null);
       setReportMessage("Unexpected error. Please try again.");

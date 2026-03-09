@@ -36,12 +36,56 @@ async function loadScopedOptionsFromDb(table, valueExpr, organizationId) {
   return mapOptionRows(rows);
 }
 
+async function loadScopedSpecialistOptions(organizationId) {
+  const normalizedOrganizationId = Number.parseInt(String(organizationId || "").trim(), 10);
+  if (!Number.isInteger(normalizedOrganizationId) || normalizedOrganizationId <= 0) {
+    return [];
+  }
+
+  const { rows } = await pool.query(
+    `SELECT
+       u.id::text AS value,
+       CASE
+         WHEN COALESCE(NULLIF(TRIM(p.label), ''), '') <> ''
+           THEN CONCAT(
+             COALESCE(
+               NULLIF(TRIM(u.full_name), ''),
+               NULLIF(TRIM(u.username), ''),
+               CONCAT('User #', u.id::text)
+             ),
+             ' (',
+             p.label,
+             ')'
+           )
+         ELSE COALESCE(
+           NULLIF(TRIM(u.full_name), ''),
+           NULLIF(TRIM(u.username), ''),
+           CONCAT('User #', u.id::text)
+         )
+       END AS label
+      FROM users u
+      JOIN organizations o ON o.id = u.organization_id
+      LEFT JOIN position_options p
+        ON p.id = u.position_id
+       AND (p.organization_id = u.organization_id OR p.organization_id IS NULL)
+     WHERE u.organization_id = $1
+       AND o.is_active = TRUE
+     ORDER BY
+       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), u.id::text) ASC,
+       u.id ASC`,
+    [normalizedOrganizationId]
+  );
+
+  return mapOptionRows(rows);
+}
+
 export async function getUserOptions({ organizationId } = {}) {
-  const [roles, positions, permissions] = await Promise.all([
+  const [roles, positions, permissions, specialists] = await Promise.all([
     loadScopedOptionsFromDb("role_options", "id::text", organizationId),
     loadScopedOptionsFromDb("position_options", "id::text", organizationId),
-    loadOptionsFromDb("permissions", "code")
+    loadOptionsFromDb("permissions", "code"),
+    loadScopedSpecialistOptions(organizationId)
   ]);
 
-  return { roles, positions, permissions };
+  return { roles, positions, permissions, specialists };
 }

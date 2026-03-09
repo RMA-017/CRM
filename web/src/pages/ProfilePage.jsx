@@ -12,6 +12,7 @@ import {
 } from "./profile/profile.constants.js";
 import {
   handleProtectedStatus,
+  isViewBlockedByOrgFeatures,
   mapValueLabelOptions,
 } from "./profile/profile.helpers.js";
 import ProfileMainContent from "./profile/ProfileMainContent.jsx";
@@ -131,6 +132,7 @@ function ProfilePage({ forcedView = "none" }) {
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [roleOptions, setRoleOptions] = useState([]);
   const [positionOptions, setPositionOptions] = useState([]);
+  const [clientMedicalHistorySpecialistOptions, setClientMedicalHistorySpecialistOptions] = useState([]);
 
   const {
     canReadUsers,
@@ -141,6 +143,10 @@ function ProfilePage({ forcedView = "none" }) {
     canCreateClients,
     canUpdateClients,
     canDeleteClients,
+    canReadClientMedicalHistory,
+    canCreateClientMedicalHistory,
+    canUpdateClientMedicalHistory,
+    canDeleteClientMedicalHistory,
     hasClientsMenuAccess,
     canReadAppointments,
     canCreateAppointments,
@@ -167,11 +173,24 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenAppointmentStatistics,
     canOpenStatisticsClassAttendance,
     canOpenStatisticsPlannerReport,
+    canOpenAppointmentSettings,
+    canUpdateSettingsAppointments,
+    canOpenSettingsOrganizations,
+    canCreateSettingsOrganizations,
+    canUpdateSettingsOrganizations,
+    canDeleteSettingsOrganizations,
+    canOpenSettingsRoles,
+    canCreateSettingsRoles,
+    canUpdateSettingsRoles,
+    canDeleteSettingsRoles,
+    canOpenSettingsPositions,
+    canCreateSettingsPositions,
+    canUpdateSettingsPositions,
+    canDeleteSettingsPositions,
     hasAppointmentsMenuAccess,
     hasUsersMenuAccess,
     hasSettingsMenuAccess,
     hasAdminSettingsAccess,
-    hasNotificationsSettingsAccess,
     canAccessForcedView
   } = useProfileAccess(profile, forcedView);
 
@@ -208,12 +227,19 @@ function ProfilePage({ forcedView = "none" }) {
         (option) => option?.value,
         (option) => option?.label
       );
+      const nextSpecialists = mapValueLabelOptions(
+        data?.specialists,
+        (option) => option?.value,
+        (option) => option?.label
+      );
 
       setRoleOptions(nextRoles);
       setPositionOptions(nextPositions);
+      setClientMedicalHistorySpecialistOptions(nextSpecialists);
     } catch {
       setRoleOptions([]);
       setPositionOptions([]);
+      setClientMedicalHistorySpecialistOptions([]);
     }
   }, [navigate]);
 
@@ -231,7 +257,7 @@ function ProfilePage({ forcedView = "none" }) {
     organizationDeletingId,
     rolesSettings,
     rolesSettingsMessage,
-    groupedRolePermissionOptions,
+    rolePermissionTree,
     roleCreateForm,
     roleCreateError,
     roleCreateSubmitting,
@@ -250,10 +276,6 @@ function ProfilePage({ forcedView = "none" }) {
     positionEditError,
     positionEditSubmitting,
     positionDeletingId,
-    adminOptionsForm,
-    adminOptionsMessage,
-    adminOptionsError,
-    adminOptionsSubmitting,
     setOrganizationCreateForm,
     setOrganizationCreateError,
     setOrganizationEditForm,
@@ -266,12 +288,9 @@ function ProfilePage({ forcedView = "none" }) {
     setPositionCreateError,
     setPositionEditForm,
     setPositionEditError,
-    setAdminOptionsForm,
-    setAdminOptionsError,
     loadOrganizations,
     loadRolesSettings,
     loadPositionsSettings,
-    loadAdminOptions,
     handleOrganizationCreateSubmit,
     startOrganizationEdit,
     cancelOrganizationEdit,
@@ -287,15 +306,24 @@ function ProfilePage({ forcedView = "none" }) {
     cancelPositionEdit,
     handlePositionEditSave,
     handlePositionDelete,
-    handleAdminOptionsSubmit,
     closeSettingsDeleteModal,
     handleSettingsDeleteConfirm
   } = useSettingsSection({
-    hasSettingsMenuAccess,
-    hasAdminSettingsAccess,
+    canOpenSettingsOrganizations,
+    canCreateSettingsOrganizations,
+    canUpdateSettingsOrganizations,
+    canDeleteSettingsOrganizations,
+    canOpenSettingsRoles,
+    canCreateSettingsRoles,
+    canUpdateSettingsRoles,
+    canDeleteSettingsRoles,
+    canOpenSettingsPositions,
+    canCreateSettingsPositions,
+    canUpdateSettingsPositions,
+    canDeleteSettingsPositions,
     navigate,
     loadUserOptions,
-    orgFeatures: profile?.orgFeatures ?? null
+    orgFeatures: Boolean(profile?.isPlatformAdmin) ? null : (profile?.orgFeatures ?? null)
   });
 
   const ensureOrganizationsLoaded = useCallback(() => {
@@ -350,23 +378,60 @@ function ProfilePage({ forcedView = "none" }) {
     clientEditSubmitting,
     clientsEditOpen,
     clientsDelete,
+    clientMedicalHistoryOpen,
+    clientMedicalHistoryClient,
+    clientMedicalHistoryClientSearch,
+    clientMedicalHistoryClientOptions,
+    clientMedicalHistoryClientOptionsLoading,
+    clientMedicalHistoryMode,
+    clientMedicalHistoryItems,
+    clientMedicalHistorySkeletonCount,
+    clientMedicalHistoryLoading,
+    clientMedicalHistoryMessage,
+    clientMedicalHistoryForm,
+    clientMedicalHistoryErrors,
+    clientMedicalHistorySubmitting,
+    clientMedicalHistoryDeletingId,
+    clientMedicalHistoryDelete,
     setClientCreateForm,
     setClientCreateErrors,
     setClientEditForm,
     setClientEditErrors,
+    setClientMedicalHistoryClientSearch,
+    setClientMedicalHistoryForm,
+    setClientMedicalHistoryErrors,
     loadClients,
+    loadClientMedicalHistoryClients,
     handleClientCreateSubmit,
     startClientEdit,
     handleClientEditSubmit,
     openClientsDeleteModal,
     handleClientsDeleteConfirm,
+    openClientMedicalHistoryModal,
+    openClientMedicalHistoryCreateModal,
+    selectClientMedicalHistoryClient,
+    closeClientMedicalHistoryModal,
+    closeClientMedicalHistoryDeleteModal,
+    resetClientMedicalHistoryForm,
+    startClientMedicalHistoryEdit,
+    openClientMedicalHistoryDeleteModal,
+    handleClientMedicalHistorySubmit,
+    deleteClientMedicalHistoryItem,
+    handleClientMedicalHistoryDeleteConfirm,
     closeClientsEditModal,
     closeClientsDeleteModal
   } = useClientsSection({
+    currentView: mainView,
+    isAdmin: Boolean(profile?.isAdmin),
+    isPlatformAdmin: Boolean(profile?.isPlatformAdmin),
     canReadClients,
     canCreateClients,
     canUpdateClients,
     canDeleteClients,
+    canReadClientMedicalHistory,
+    canCreateClientMedicalHistory,
+    canUpdateClientMedicalHistory,
+    canDeleteClientMedicalHistory,
     navigate,
     getBirthdayValidationMessage
   });
@@ -395,6 +460,10 @@ function ProfilePage({ forcedView = "none" }) {
   const [myChildrenScheduleItems, setMyChildrenScheduleItems] = useState([]);
   const [myChildrenScheduleLoading, setMyChildrenScheduleLoading] = useState(false);
   const [myChildrenScheduleMessage, setMyChildrenScheduleMessage] = useState("");
+  const hasReadClientMedicalHistoryAccess = Boolean(canReadClientMedicalHistory || profile?.isAdmin || profile?.isPlatformAdmin);
+  const hasCreateClientMedicalHistoryAccess = Boolean(canCreateClientMedicalHistory || profile?.isAdmin || profile?.isPlatformAdmin);
+  const hasUpdateClientMedicalHistoryAccess = Boolean(canUpdateClientMedicalHistory || profile?.isAdmin || profile?.isPlatformAdmin);
+  const hasDeleteClientMedicalHistoryAccess = Boolean(canDeleteClientMedicalHistory || profile?.isAdmin || profile?.isPlatformAdmin);
   const [myChildrenConfirmingByAppointmentId, setMyChildrenConfirmingByAppointmentId] = useState({});
   const {
     vipDailyRoutineItems,
@@ -707,11 +776,7 @@ function ProfilePage({ forcedView = "none" }) {
         return next;
       });
       if (nextItems.length === 0) {
-        setVipAttendanceMessage(
-          mineOnly
-            ? "No assigned children found."
-            : "No VIP clients found."
-        );
+        setVipAttendanceMessage(mineOnly ? "No assigned children found." : "");
       }
     } catch {
       setVipAttendanceItems([]);
@@ -1459,7 +1524,7 @@ function ProfilePage({ forcedView = "none" }) {
         return next;
       });
       if (nextItems.length === 0) {
-        setVipAssignmentMessage("No VIP clients found.");
+        setVipAssignmentMessage("");
       }
     } catch {
       setVipAssignmentItems([]);
@@ -1720,6 +1785,7 @@ function ProfilePage({ forcedView = "none" }) {
     || allUsersDelete.open
     || clientsEditOpen
     || clientsDelete.open
+    || clientMedicalHistoryOpen
     || settingsDelete.open
     || organizationEditOpen
     || roleEditOpen
@@ -1829,13 +1895,17 @@ function ProfilePage({ forcedView = "none" }) {
     if (!profile?.username) {
       return;
     }
-    if (!canAccessForcedView) {
+    if (!canAccessForcedView && !profile?.isPlatformAdmin) {
       navigate("/404", { replace: true });
     }
-  }, [canAccessForcedView, navigate, profile?.username]);
+  }, [canAccessForcedView, navigate, profile?.username, profile?.isPlatformAdmin]);
 
   useEffect(() => {
     if (!profile?.username) {
+      return;
+    }
+
+    if (profile?.isPlatformAdmin && isViewBlockedByOrgFeatures(forcedView, profile?.orgFeatures)) {
       return;
     }
 
@@ -1845,6 +1915,10 @@ function ProfilePage({ forcedView = "none" }) {
     }
     if (mainView === "clients-all") {
       loadClients(1);
+      return;
+    }
+    if (mainView === "clients-medical-history") {
+      loadClientMedicalHistoryClients(1);
       return;
     }
     if (mainView === "appointment-vip-schedule") {
@@ -1902,14 +1976,7 @@ function ProfilePage({ forcedView = "none" }) {
       loadPositionsSettings();
       return;
     }
-    if (mainView === "settings-admin-options") {
-      if (hasAdminSettingsAccess) {
-        loadOrganizations();
-      }
-      loadAdminOptions();
-      return;
-    }
-    if (mainView === "settings-notifications") {
+    if (mainView === "notifications-send") {
       loadRolesSettings();
       return;
     }
@@ -1917,6 +1984,7 @@ function ProfilePage({ forcedView = "none" }) {
     canReadUsers,
     hasAdminSettingsAccess,
     loadClients,
+    loadClientMedicalHistoryClients,
     loadVipAttendance,
     loadVipAttendanceTeachers,
     loadMyChildrenOptions,
@@ -1924,12 +1992,14 @@ function ProfilePage({ forcedView = "none" }) {
     loadVipClassAssignments,
     loadVipAssignments,
     loadAllUsers,
-    loadAdminOptions,
     loadOrganizations,
     loadPositionsSettings,
     loadRolesSettings,
     mainView,
-    profile?.username
+    forcedView,
+    profile?.username,
+    profile?.isPlatformAdmin,
+    profile?.orgFeatures
   ]);
 
   useEffect(() => {
@@ -2011,6 +2081,7 @@ function ProfilePage({ forcedView = "none" }) {
       closeAllUsersDeleteModal();
       closeClientsEditModal();
       closeClientsDeleteModal();
+      closeClientMedicalHistoryModal();
       closeSettingsDeleteModal();
     }
 
@@ -2023,6 +2094,7 @@ function ProfilePage({ forcedView = "none" }) {
     closeAllUsersEditModal,
     closeClientsEditModal,
     closeClientsDeleteModal,
+    closeClientMedicalHistoryModal,
     closeMenu,
     closeProfileEditModal,
     closeSettingsDeleteModal,
@@ -2069,6 +2141,7 @@ function ProfilePage({ forcedView = "none" }) {
     openCreateUserPanel,
     openAllClientsPanel,
     closeAllClientsPanel,
+    openClientMedicalHistoryPanel,
     openAppointmentPanel,
     closeAppointmentPanel,
     openAppointmentBreaksPanel,
@@ -2097,10 +2170,8 @@ function ProfilePage({ forcedView = "none" }) {
     closeRolesPanel,
     openPositionsPanel,
     closePositionsPanel,
-    openAdminOptionsPanel,
-    closeAdminOptionsPanel,
-    openNotificationsSettingsPanel,
-    closeNotificationsSettingsPanel,
+    openNotificationsSendPanel,
+    closeNotificationsSendPanel,
     openMonitoringPanel,
     closeMonitoringPanel,
     closeCreateUserPanel,
@@ -2111,8 +2182,10 @@ function ProfilePage({ forcedView = "none" }) {
     closeMenu,
     closeUserDropdown,
     setMyProfileModalOpen,
+    isPlatformAdmin: Boolean(profile?.isPlatformAdmin),
     canCreateUsers,
     canReadClients,
+    canReadClientMedicalHistory,
     canOpenAppointmentSchedule,
     canOpenAppointmentVipMyClass,
     canOpenAppointmentBreaks,
@@ -2121,9 +2194,13 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenAppointmentVipDailyRoutines,
     canOpenAppointmentVipAssignments,
     canOpenAppointmentStatistics,
+    canOpenAppointmentSettings,
+    canOpenSettingsOrganizations,
+    canOpenSettingsRoles,
+    canOpenSettingsPositions,
+    canSendNotifications,
     hasSettingsMenuAccess,
-    hasAdminSettingsAccess,
-    hasNotificationsSettingsAccess
+    hasAdminSettingsAccess
   });
 
   const handleOrganizationContextSwitch = useCallback(async (nextOrganizationCode) => {
@@ -2594,6 +2671,7 @@ function ProfilePage({ forcedView = "none" }) {
           clientsIsVip={clientsIsVip}
           setClientsIsVip={setClientsIsVip}
           loadClients={loadClients}
+          loadClientMedicalHistoryClients={loadClientMedicalHistoryClients}
           vipAttendancePeriod={vipAttendancePeriod}
           setVipAttendancePeriodField={setVipAttendancePeriodField}
           vipAttendanceItems={vipAttendanceItems}
@@ -2652,6 +2730,11 @@ function ProfilePage({ forcedView = "none" }) {
           canCreateClients={canCreateClients}
           canUpdateClients={canUpdateClients}
           canDeleteClients={canDeleteClients}
+          canCreateClientMedicalHistory={hasCreateClientMedicalHistoryAccess}
+          canBulkDeleteClientMedicalHistory={Boolean(profile?.isAdmin || profile?.isPlatformAdmin)}
+          clientMedicalHistoryDelete={clientMedicalHistoryDelete}
+          handleClientMedicalHistoryDeleteConfirm={handleClientMedicalHistoryDeleteConfirm}
+          closeClientMedicalHistoryDeleteModal={closeClientMedicalHistoryDeleteModal}
           clientCreateForm={clientCreateForm}
           clientCreateErrors={clientCreateErrors}
           clientCreateSubmitting={clientCreateSubmitting}
@@ -2660,8 +2743,12 @@ function ProfilePage({ forcedView = "none" }) {
           handleClientCreateSubmit={handleClientCreateSubmit}
           startClientEdit={startClientEdit}
           openClientsDeleteModal={openClientsDeleteModal}
+          openClientMedicalHistoryModal={openClientMedicalHistoryModal}
+          openClientMedicalHistoryCreateModal={openClientMedicalHistoryCreateModal}
+          openClientMedicalHistoryDeleteModal={openClientMedicalHistoryDeleteModal}
           canCreateAppointments={canCreateAppointments}
           canUpdateAppointments={canUpdateAppointments}
+          canUpdateSettingsAppointments={canUpdateSettingsAppointments}
           canDeleteAppointments={canDeleteAppointments}
           closeAppointmentPanel={closeAppointmentPanel}
           closeAppointmentBreaksPanel={closeAppointmentBreaksPanel}
@@ -2675,8 +2762,7 @@ function ProfilePage({ forcedView = "none" }) {
           closeOrganizationsPanel={closeOrganizationsPanel}
           closeRolesPanel={closeRolesPanel}
           closePositionsPanel={closePositionsPanel}
-          closeAdminOptionsPanel={closeAdminOptionsPanel}
-          closeNotificationsSettingsPanel={closeNotificationsSettingsPanel}
+          closeNotificationsSendPanel={closeNotificationsSendPanel}
           closeMonitoringPanel={closeMonitoringPanel}
           closeStatisticsPanel={closeStatisticsPanel}
           statisticsVipAttendanceHistoryItems={statisticsVipAttendanceHistoryItems}
@@ -2704,8 +2790,12 @@ function ProfilePage({ forcedView = "none" }) {
           organizationDeletingId={organizationDeletingId}
           handleOrganizationDelete={handleOrganizationDelete}
           hasAdminSettingsAccess={hasAdminSettingsAccess}
+          canCreateSettingsOrganizations={canCreateSettingsOrganizations}
+          canUpdateSettingsOrganizations={canUpdateSettingsOrganizations}
+          canDeleteSettingsOrganizations={canDeleteSettingsOrganizations}
           rolesSettings={rolesSettings}
           rolesSettingsMessage={rolesSettingsMessage}
+          rolePermissionTree={rolePermissionTree}
           roleCreateForm={roleCreateForm}
           roleCreateError={roleCreateError}
           roleCreateSubmitting={roleCreateSubmitting}
@@ -2715,6 +2805,9 @@ function ProfilePage({ forcedView = "none" }) {
           startRoleEdit={startRoleEdit}
           roleDeletingId={roleDeletingId}
           handleRoleDelete={handleRoleDelete}
+          canCreateSettingsRoles={canCreateSettingsRoles}
+          canUpdateSettingsRoles={canUpdateSettingsRoles}
+          canDeleteSettingsRoles={canDeleteSettingsRoles}
           positionsSettings={positionsSettings}
           positionsSettingsMessage={positionsSettingsMessage}
           positionCreateForm={positionCreateForm}
@@ -2726,14 +2819,9 @@ function ProfilePage({ forcedView = "none" }) {
           startPositionEdit={startPositionEdit}
           positionDeletingId={positionDeletingId}
           handlePositionDelete={handlePositionDelete}
-          adminOptionsForm={adminOptionsForm}
-          adminOptionsMessage={adminOptionsMessage}
-          adminOptionsError={adminOptionsError}
-          adminOptionsSubmitting={adminOptionsSubmitting}
-          setAdminOptionsForm={setAdminOptionsForm}
-          setAdminOptionsError={setAdminOptionsError}
-          loadAdminOptions={loadAdminOptions}
-          handleAdminOptionsSubmit={handleAdminOptionsSubmit}
+          canCreateSettingsPositions={canCreateSettingsPositions}
+          canUpdateSettingsPositions={canUpdateSettingsPositions}
+          canDeleteSettingsPositions={canDeleteSettingsPositions}
           canCreateUsers={canCreateUsers}
           handleCreateUserSubmit={handleCreateUserSubmit}
           createForm={createForm}
@@ -2746,6 +2834,7 @@ function ProfilePage({ forcedView = "none" }) {
           openCreateUserPanel={openCreateUserPanel}
           closeCreateUserPanel={closeCreateUserPanel}
           profile={profile}
+          isOrgFeatureDisabledView={Boolean(profile?.isPlatformAdmin) && isViewBlockedByOrgFeatures(forcedView, profile?.orgFeatures)}
           onAppointmentNotification={handleAppointmentNotification}
         />
 
@@ -2812,6 +2901,36 @@ function ProfilePage({ forcedView = "none" }) {
           clientsDelete={clientsDelete}
           handleClientsDeleteConfirm={handleClientsDeleteConfirm}
           closeClientsDeleteModal={closeClientsDeleteModal}
+          clientMedicalHistoryOpen={clientMedicalHistoryOpen}
+          clientMedicalHistoryClient={clientMedicalHistoryClient}
+          clientMedicalHistoryClientSearch={clientMedicalHistoryClientSearch}
+          clientMedicalHistoryClientOptions={clientMedicalHistoryClientOptions}
+          clientMedicalHistoryClientOptionsLoading={clientMedicalHistoryClientOptionsLoading}
+          clientMedicalHistoryMode={clientMedicalHistoryMode}
+          clientMedicalHistoryItems={clientMedicalHistoryItems}
+          clientMedicalHistorySkeletonCount={clientMedicalHistorySkeletonCount}
+          clientMedicalHistoryLoading={clientMedicalHistoryLoading}
+          clientMedicalHistoryMessage={clientMedicalHistoryMessage}
+          clientMedicalHistoryForm={clientMedicalHistoryForm}
+          clientMedicalHistoryErrors={clientMedicalHistoryErrors}
+          clientMedicalHistorySubmitting={clientMedicalHistorySubmitting}
+          clientMedicalHistoryDeletingId={clientMedicalHistoryDeletingId}
+          clientMedicalHistoryDelete={clientMedicalHistoryDelete}
+          canReadClientMedicalHistory={hasReadClientMedicalHistoryAccess}
+          canCreateClientMedicalHistory={hasCreateClientMedicalHistoryAccess}
+          canUpdateClientMedicalHistory={hasUpdateClientMedicalHistoryAccess}
+          canDeleteClientMedicalHistory={hasDeleteClientMedicalHistoryAccess}
+          setClientMedicalHistoryClientSearch={setClientMedicalHistoryClientSearch}
+          setClientMedicalHistoryForm={setClientMedicalHistoryForm}
+          setClientMedicalHistoryErrors={setClientMedicalHistoryErrors}
+          selectClientMedicalHistoryClient={selectClientMedicalHistoryClient}
+          closeClientMedicalHistoryModal={closeClientMedicalHistoryModal}
+          closeClientMedicalHistoryDeleteModal={closeClientMedicalHistoryDeleteModal}
+          resetClientMedicalHistoryForm={resetClientMedicalHistoryForm}
+          startClientMedicalHistoryEdit={startClientMedicalHistoryEdit}
+          handleClientMedicalHistorySubmit={handleClientMedicalHistorySubmit}
+          openClientMedicalHistoryDeleteModal={openClientMedicalHistoryDeleteModal}
+          handleClientMedicalHistoryDeleteConfirm={handleClientMedicalHistoryDeleteConfirm}
           settingsDelete={settingsDelete}
           handleSettingsDeleteConfirm={handleSettingsDeleteConfirm}
           closeSettingsDeleteModal={closeSettingsDeleteModal}
@@ -2825,7 +2944,7 @@ function ProfilePage({ forcedView = "none" }) {
           cancelOrganizationEdit={cancelOrganizationEdit}
           roleEditOpen={roleEditOpen}
           handleRoleEditSave={handleRoleEditSave}
-          groupedRolePermissionOptions={groupedRolePermissionOptions}
+          rolePermissionTree={rolePermissionTree}
           roleEditForm={roleEditForm}
           setRoleEditForm={setRoleEditForm}
           roleEditError={roleEditError}
@@ -2846,11 +2965,14 @@ function ProfilePage({ forcedView = "none" }) {
       <ProfileSideMenu
         menuRef={menuRef}
         menuOpen={menuOpen}
+        isPlatformAdmin={Boolean(profile?.isPlatformAdmin)}
         hasClientsMenuAccess={hasClientsMenuAccess}
         canReadClients={canReadClients}
+        canReadClientMedicalHistory={canReadClientMedicalHistory}
         clientsMenuOpen={clientsMenuOpen}
         setClientsMenuOpen={setClientsMenuOpen}
         openAllClientsPanel={openAllClientsPanel}
+        openClientMedicalHistoryPanel={openClientMedicalHistoryPanel}
         vipClientsMenuOpen={vipClientsMenuOpen}
         setVipClientsMenuOpen={setVipClientsMenuOpen}
         assignmentsMenuOpen={assignmentsMenuOpen}
@@ -2868,6 +2990,10 @@ function ProfilePage({ forcedView = "none" }) {
         canOpenAppointmentStatistics={canOpenAppointmentStatistics}
         canOpenStatisticsClassAttendance={canOpenStatisticsClassAttendance}
         canOpenStatisticsPlannerReport={canOpenStatisticsPlannerReport}
+        canOpenAppointmentSettings={canOpenAppointmentSettings}
+        canOpenSettingsOrganizations={canOpenSettingsOrganizations}
+        canOpenSettingsRoles={canOpenSettingsRoles}
+        canOpenSettingsPositions={canOpenSettingsPositions}
         appointmentMenuOpen={appointmentMenuOpen}
         setAppointmentMenuOpen={setAppointmentMenuOpen}
         openAppointmentPanel={openAppointmentPanel}
@@ -2895,13 +3021,12 @@ function ProfilePage({ forcedView = "none" }) {
         navigate={navigate}
         hasSettingsMenuAccess={hasSettingsMenuAccess}
         hasAdminSettingsAccess={hasAdminSettingsAccess}
-        hasNotificationsSettingsAccess={hasNotificationsSettingsAccess}
+        canSendNotifications={canSendNotifications}
         settingsMenuOpen={settingsMenuOpen}
         openOrganizationsPanel={openOrganizationsPanel}
         openRolesPanel={openRolesPanel}
         openPositionsPanel={openPositionsPanel}
-        openAdminOptionsPanel={openAdminOptionsPanel}
-        openNotificationsSettingsPanel={openNotificationsSettingsPanel}
+        openNotificationsSendPanel={openNotificationsSendPanel}
         openMonitoringPanel={openMonitoringPanel}
       />
     </>

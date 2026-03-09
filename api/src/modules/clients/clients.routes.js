@@ -3,13 +3,21 @@ import { parsePositiveInteger } from "../../lib/number.js";
 import { getTodayYmd, isValidDateYmd, validateBirthdayYmd } from "../../lib/date.js";
 import { createTtlCache } from "../../lib/ttl-cache.js";
 import { PHONE_REGEX } from "../../constants/validation.js";
+import { requesterHasOrgFeature } from "../../lib/org-features.js";
 import { hasPermission } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
 import {
+  createClientMedicalHistoryEntry,
   createClient,
+  deleteAllClientMedicalHistoryEntries,
+  deleteClientMedicalHistoryEntry,
   deleteVipClassAssignment,
   deleteClientById,
   findClientsRequester,
+  getClientMedicalHistoryClientsPage,
+  getClientMedicalHistoryClientOptions,
+  getClientMedicalHistoryEntries,
+  getClientSummaryById,
   getClientsPage,
   getVipAssignmentOptionsByOrganization,
   getVipClassAssignmentHistory,
@@ -29,6 +37,7 @@ import {
   upsertVipClassDailyRoutine,
   upsertVipTutorAssignment,
   upsertVipClientAttendance,
+  updateClientMedicalHistoryEntry,
   updateClientById
 } from "./clients.service.js";
 
@@ -107,6 +116,25 @@ function parseNullableBoolean(value) {
     }
   }
   return null;
+}
+
+async function hasMedicalHistoryPermission(requester, permissionCode) {
+  if (requester?.is_admin) {
+    return true;
+  }
+  return hasPermission(requester?.role_id, permissionCode);
+}
+
+function buildClientMedicalHistoryPreview(row) {
+  const parts = [
+    String(row?.history_condition_name || "").trim(),
+    String(row?.history_diagnosis || "").trim(),
+    String(row?.history_note || "").trim(),
+    String(row?.history_symptoms || "").trim(),
+    String(row?.history_treatment_plan || "").trim()
+  ].filter(Boolean);
+
+  return parts.join(" | ");
 }
 
 function parseAttendanceDateTime(value) {
@@ -289,7 +317,7 @@ const ADVANCED_APPOINTMENT_MENU_PERMISSIONS = Object.freeze([
   PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CREATE,
   PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_UPDATE,
   PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_DELETE,
-  PERMISSIONS.APPOINTMENTS_STATISTICS_READ
+  PERMISSIONS.APPOINTMENTS_STATISTICS_CLASS_ATTENDANCE
 ]);
 
 async function hasAdvancedAppointmentMenuPermissions(roleId) {
@@ -407,6 +435,12 @@ function mapClient(row) {
   const vipClassName = String(row.vip_class_name || row.class_name || "").trim();
   const createdById = String(row.created_by || "").trim();
   const createdByName = String(row.created_by_name || row.created_by || "-").trim() || "-";
+  const historyEntryId = String(row.history_entry_id || "").trim();
+  const medicalHistoryCount = Number.parseInt(row.history_count, 10);
+  const historyEntryDate = normalizeDateYmdValue(row?.history_entry_date);
+  const historySpecialistName = String(row.history_specialist_name || "").trim();
+  const historySpecialistPosition = String(row.history_specialist_position || "").trim();
+  const historyPreview = buildClientMedicalHistoryPreview(row);
   const hasCreatorTeacher = isTeacherLike(row.creator_role_label, row.creator_position_label);
   const teacherId = assignedTeacherId || (hasCreatorTeacher ? createdById : "");
   const teacherName = assignedTeacherName || (hasCreatorTeacher ? createdByName : "");
@@ -447,6 +481,12 @@ function mapClient(row) {
     tutor_name: assignedTutorName,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    medicalHistoryCount: Number.isFinite(medicalHistoryCount) && medicalHistoryCount > 0 ? medicalHistoryCount : 0,
+    historyEntryId,
+    historyEntryDate,
+    historySpecialistName: historySpecialistName || "-",
+    historySpecialistPosition: historySpecialistPosition || "-",
+    historyPreview,
     note,
     attendanceDate,
     attendanceStatus,
@@ -495,6 +535,131 @@ function validateClientPayload({ firstName, lastName, middleName, birthday, phon
   }
 
   return errors;
+}
+
+function normalizeClientMedicalHistoryPayload(body) {
+  const payload = body && typeof body === "object" ? body : {};
+  return {
+    entryDate: String(
+      payload?.entryDate
+      || payload?.entry_date
+      || payload?.date
+      || ""
+    ).trim(),
+    conditionName: String(
+      payload?.conditionName
+      || payload?.condition_name
+      || payload?.title
+      || ""
+    ).trim(),
+    symptoms: String(payload?.symptoms || "").trim(),
+    diagnosis: String(payload?.diagnosis || "").trim(),
+    treatmentPlan: String(payload?.treatmentPlan || payload?.treatment_plan || "").trim(),
+    note: String(payload?.note || "").trim()
+  };
+}
+
+function validateClientMedicalHistoryPayload({
+  entryDate,
+  conditionName,
+  symptoms,
+  diagnosis,
+  treatmentPlan,
+  note
+}) {
+  const errors = {};
+
+  if (!entryDate) {
+    errors.entryDate = "Entry date is required.";
+  } else if (!isValidDateYmd(entryDate)) {
+    errors.entryDate = "Entry date must be YYYY-MM-DD.";
+  }
+
+  if (!conditionName) {
+    errors.conditionName = "Condition is required.";
+  } else if (conditionName.length > 160) {
+    errors.conditionName = "Condition is too long (max 160).";
+  }
+
+  if (symptoms.length > 2000) {
+    errors.symptoms = "Symptoms are too long (max 2000).";
+  }
+
+  if (diagnosis.length > 2000) {
+    errors.diagnosis = "Diagnosis is too long (max 2000).";
+  }
+
+  if (treatmentPlan.length > 4000) {
+    errors.treatmentPlan = "Treatment plan is too long (max 4000).";
+  }
+
+  if (note.length > 4000) {
+    errors.note = "Note is too long (max 4000).";
+  }
+
+  return errors;
+}
+
+function mapClientSummary(row) {
+  const firstName = String(row?.first_name || "").trim();
+  const lastName = String(row?.last_name || "").trim();
+  const middleName = String(row?.middle_name || "").trim();
+  return {
+    id: String(row?.id || "").trim(),
+    organizationId: String(row?.organization_id || "").trim(),
+    firstName,
+    lastName,
+    middleName,
+    fullName: [lastName, firstName, middleName].filter(Boolean).join(" ").trim(),
+    birthday: normalizeDateYmdValue(row?.birthday),
+    isVip: Boolean(row?.is_vip),
+    createdAt: row?.created_at || null,
+    updatedAt: row?.updated_at || null
+  };
+}
+
+function mapClientMedicalHistoryEntry(row) {
+  const specialistId = String(row?.author_user_id || "").trim();
+  const specialistName = String(row?.author_name || "").trim();
+  const specialistPosition = String(row?.author_position_label || "").trim();
+  const createdById = String(row?.created_by || "").trim();
+  const updatedById = String(row?.updated_by || "").trim();
+
+  return {
+    id: String(row?.id || "").trim(),
+    organizationId: String(row?.organization_id || "").trim(),
+    clientId: String(row?.client_id || "").trim(),
+    entryDate: normalizeDateYmdValue(row?.entry_date),
+    conditionName: String(row?.condition_name || "").trim(),
+    symptoms: String(row?.symptoms || "").trim(),
+    diagnosis: String(row?.diagnosis || "").trim(),
+    treatmentPlan: String(row?.treatment_plan || "").trim(),
+    note: String(row?.note || "").trim(),
+    specialistId,
+    specialistPosition,
+    specialistName: specialistName || (specialistId ? `User #${specialistId}` : "-"),
+    authorUserId: specialistId,
+    authorName: specialistName || (specialistId ? `User #${specialistId}` : "-"),
+    createdById,
+    createdByName: String(row?.created_by_name || "").trim() || (createdById ? `User #${createdById}` : "-"),
+    updatedById,
+    updatedByName: String(row?.updated_by_name || "").trim() || (updatedById ? `User #${updatedById}` : "-"),
+    createdAt: row?.created_at || null,
+    updatedAt: row?.updated_at || null
+  };
+}
+
+function mapClientMedicalHistoryClientOption(row) {
+  const id = String(row?.id || "").trim();
+  const firstName = String(row?.first_name || "").trim();
+  const lastName = String(row?.last_name || "").trim();
+  const middleName = String(row?.middle_name || "").trim();
+  const label = [lastName, firstName, middleName].filter(Boolean).join(" ").trim();
+
+  return {
+    value: id,
+    label: label || (id ? `Client #${id}` : "Client")
+  };
 }
 
 function mapVipAttendanceRecord(row) {
@@ -814,6 +979,9 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
+        if (!requesterHasOrgFeature(requester, "vip_clients.attendance")) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
         const [canReadClients, vipPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
           getVipClientsPermissionSnapshot(requester.role_id)
@@ -884,11 +1052,14 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
+        if (!requesterHasOrgFeature(requester, "statistics.class_attendance")) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
         const [canReadClients, canReadAppointments, usesAdvancedMenuPermissions, canReadStatistics, vipPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
           hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_READ),
           hasAdvancedAppointmentMenuPermissions(requester.role_id),
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_STATISTICS_READ),
+          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_STATISTICS_CLASS_ATTENDANCE),
           getVipClientsPermissionSnapshot(requester.role_id)
         ]);
         if (!canReadClients || !canReadAppointments || (usesAdvancedMenuPermissions && !canReadStatistics)) {
@@ -1038,6 +1209,9 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
+        if (!requesterHasOrgFeature(requester, "assignments.class")) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
         const [canReadClients, assignmentsPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
           getAssignmentsPermissionSnapshot(requester.role_id)
@@ -1093,6 +1267,9 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
+        if (!requesterHasOrgFeature(requester, "assignments.class")) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
         const [canReadClients, assignmentsPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
           getAssignmentsPermissionSnapshot(requester.role_id)
@@ -1146,6 +1323,9 @@ async function clientsRoutes(fastify) {
         const requester = await findClientsRequester(authContext);
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
+        }
+        if (!requesterHasOrgFeature(requester, "assignments.class")) {
+          return reply.status(403).send({ message: "Forbidden." });
         }
         const [canUpdateClients, assignmentsPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_UPDATE),
@@ -1211,6 +1391,9 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
+        if (!requesterHasOrgFeature(requester, "assignments.class")) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
         const [canUpdateClients, assignmentsPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_UPDATE),
           getAssignmentsPermissionSnapshot(requester.role_id)
@@ -1256,6 +1439,9 @@ async function clientsRoutes(fastify) {
         const requester = await findClientsRequester(authContext);
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
+        }
+        if (!requesterHasOrgFeature(requester, "assignments.tutor")) {
+          return reply.status(403).send({ message: "Forbidden." });
         }
         const [canReadClients, assignmentsPermissions, vipPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
@@ -1325,6 +1511,9 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
+        if (!requesterHasOrgFeature(requester, "assignments.tutor")) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
         const [canReadClients, assignmentsPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
           getAssignmentsPermissionSnapshot(requester.role_id)
@@ -1384,6 +1573,9 @@ async function clientsRoutes(fastify) {
         const requester = await findClientsRequester(authContext);
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
+        }
+        if (!requesterHasOrgFeature(requester, "assignments.tutor")) {
+          return reply.status(403).send({ message: "Forbidden." });
         }
         const [canUpdateClients, assignmentsPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_UPDATE),
@@ -1475,6 +1667,9 @@ async function clientsRoutes(fastify) {
         const requester = await findClientsRequester(authContext);
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
+        }
+        if (!requesterHasOrgFeature(requester, "vip_clients.daily_routines")) {
+          return reply.status(403).send({ message: "Forbidden." });
         }
         const [canReadClients, vipPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
@@ -1600,6 +1795,9 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
+        if (!requesterHasOrgFeature(requester, "vip_clients.daily_routines")) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
         const [canUpdateClients, vipPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_UPDATE),
           getVipClientsPermissionSnapshot(requester.role_id)
@@ -1667,6 +1865,9 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
+        if (!requesterHasOrgFeature(requester, "vip_clients.daily_routines")) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
         const [canUpdateClients, vipPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_UPDATE),
           getVipClientsPermissionSnapshot(requester.role_id)
@@ -1706,6 +1907,7 @@ async function clientsRoutes(fastify) {
 
       const authContext = request.authContext;
 
+      const clientId = parsePositiveInteger(request.query?.clientId ?? request.query?.client_id);
       const firstName = String(request.query?.firstName || "").trim();
       const lastName = String(request.query?.lastName || "").trim();
       const middleName = String(request.query?.middleName || "").trim();
@@ -1733,7 +1935,7 @@ async function clientsRoutes(fastify) {
         && !lastName
         && !middleName
       );
-      if (!isVipOnlySearch && combinedLength < 3) {
+      if (!clientId && !isVipOnlySearch && combinedLength < 3) {
         return reply.send({ items: [] });
       }
 
@@ -1788,6 +1990,7 @@ async function clientsRoutes(fastify) {
 
         const rows = await searchClientsForSchedule({
           organizationId: authContext.organizationId,
+          clientId,
           firstName,
           lastName,
           middleName,
@@ -1877,6 +2080,9 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
+        if (!requesterHasOrgFeature(requester, "vip_clients.attendance")) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
 
         const [canUpdateClients, canDeleteClients, vipPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_UPDATE),
@@ -1965,6 +2171,458 @@ async function clientsRoutes(fastify) {
   );
 
   fastify.get(
+    "/medical-history",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+
+      const authContext = request.authContext;
+      const pageParam = Number.parseInt(String(request.query?.page || ""), 10);
+      const limitParam = Number.parseInt(String(request.query?.limit || ""), 10);
+      const search = String(request.query?.q || "").trim();
+      const isVip = parseNullableBoolean(request.query?.isVip ?? request.query?.is_vip);
+      const page = Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1;
+      const limit = Number.isInteger(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 20;
+
+      try {
+        const requester = await findClientsRequester(authContext);
+        if (!requester) {
+          return reply.status(401).send({ message: "Unauthorized." });
+        }
+        if (
+          !requesterHasOrgFeature(requester, "clients.all_clients")
+          || !requesterHasOrgFeature(requester, "clients.medical_history")
+        ) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const [canReadClients, canReadMedicalHistory] = await Promise.all([
+          hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
+          hasMedicalHistoryPermission(requester, PERMISSIONS.CLIENT_MEDICAL_HISTORY_READ)
+        ]);
+        if (!canReadClients || !canReadMedicalHistory) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const { total, totalPages, rows, page: safePage } = await getClientMedicalHistoryClientsPage({
+          organizationId: authContext.organizationId,
+          page,
+          limit,
+          search,
+          isVip
+        });
+
+        return reply.send({
+          items: rows.map(mapClient),
+          pagination: {
+            page: safePage,
+            limit,
+            total,
+            totalPages,
+            hasPrev: safePage > 1,
+            hasNext: safePage < totalPages
+          }
+        });
+      } catch (error) {
+        request.log.error({ err: error }, "Error fetching client medical history list");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.get(
+    "/medical-history/client-options",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+
+      const authContext = request.authContext;
+      const limitParam = Number.parseInt(String(request.query?.limit || ""), 10);
+      const limit = Number.isInteger(limitParam) && limitParam > 0 ? Math.min(limitParam, 2000) : 1000;
+
+      try {
+        const requester = await findClientsRequester(authContext);
+        if (!requester) {
+          return reply.status(401).send({ message: "Unauthorized." });
+        }
+        if (
+          !requesterHasOrgFeature(requester, "clients.all_clients")
+          || !requesterHasOrgFeature(requester, "clients.medical_history")
+        ) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const [canReadClients, canReadMedicalHistory, canCreateMedicalHistory] = await Promise.all([
+          hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
+          hasMedicalHistoryPermission(requester, PERMISSIONS.CLIENT_MEDICAL_HISTORY_READ),
+          hasMedicalHistoryPermission(requester, PERMISSIONS.CLIENT_MEDICAL_HISTORY_CREATE)
+        ]);
+        if (!canReadClients || (!canReadMedicalHistory && !canCreateMedicalHistory)) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const rows = await getClientMedicalHistoryClientOptions({
+          organizationId: authContext.organizationId,
+          limit
+        });
+
+        return reply.send({
+          items: (Array.isArray(rows) ? rows : []).map(mapClientMedicalHistoryClientOption)
+        });
+      } catch (error) {
+        request.log.error({ err: error }, "Error fetching medical history client options");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.get(
+    "/:id/medical-history",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+
+      const authContext = request.authContext;
+      const clientId = parsePositiveInteger(request.params?.id);
+      const limitParam = Number.parseInt(String(request.query?.limit || ""), 10);
+      const limit = Number.isInteger(limitParam) && limitParam > 0 ? Math.min(limitParam, 500) : 200;
+
+      if (!clientId) {
+        return reply.status(400).send({ message: "Invalid client id." });
+      }
+
+      try {
+        const requester = await findClientsRequester(authContext);
+        if (!requester) {
+          return reply.status(401).send({ message: "Unauthorized." });
+        }
+        if (
+          !requesterHasOrgFeature(requester, "clients.all_clients")
+          || !requesterHasOrgFeature(requester, "clients.medical_history")
+        ) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const [canReadClients, canReadMedicalHistory] = await Promise.all([
+          hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
+          hasMedicalHistoryPermission(requester, PERMISSIONS.CLIENT_MEDICAL_HISTORY_READ)
+        ]);
+        if (!canReadClients || !canReadMedicalHistory) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const client = await getClientSummaryById({
+          organizationId: authContext.organizationId,
+          clientId
+        });
+        if (!client) {
+          return reply.status(404).send({ message: "Client not found." });
+        }
+
+        const items = await getClientMedicalHistoryEntries({
+          organizationId: authContext.organizationId,
+          clientId,
+          limit
+        });
+
+        return reply.send({
+          client: mapClientSummary(client),
+          items: (Array.isArray(items) ? items : []).map(mapClientMedicalHistoryEntry)
+        });
+      } catch (error) {
+        request.log.error({ err: error }, "Error fetching client medical history");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.post(
+    "/:id/medical-history",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      const authContext = request.authContext;
+      const clientId = parsePositiveInteger(request.params?.id);
+      if (!clientId) {
+        return reply.status(400).send({ message: "Invalid client id." });
+      }
+
+      const input = normalizeClientMedicalHistoryPayload(request.body);
+      const errors = validateClientMedicalHistoryPayload(input);
+      if (Object.keys(errors).length > 0) {
+        return reply.status(400).send({ errors });
+      }
+
+      try {
+        const requester = await findClientsRequester(authContext);
+        if (!requester) {
+          return reply.status(401).send({ message: "Unauthorized." });
+        }
+        if (
+          !requesterHasOrgFeature(requester, "clients.all_clients")
+          || !requesterHasOrgFeature(requester, "clients.medical_history")
+        ) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const [canReadClients, canCreateMedicalHistory] = await Promise.all([
+          hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
+          hasMedicalHistoryPermission(requester, PERMISSIONS.CLIENT_MEDICAL_HISTORY_CREATE)
+        ]);
+        if (!canReadClients || !canCreateMedicalHistory) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const client = await getClientSummaryById({
+          organizationId: authContext.organizationId,
+          clientId
+        });
+        if (!client) {
+          return reply.status(404).send({ message: "Client not found." });
+        }
+
+        const item = await createClientMedicalHistoryEntry({
+          organizationId: authContext.organizationId,
+          clientId,
+          entryDate: input.entryDate,
+          conditionName: input.conditionName,
+          symptoms: input.symptoms,
+          diagnosis: input.diagnosis,
+          treatmentPlan: input.treatmentPlan,
+          note: input.note,
+          authorUserId: authContext.userId
+        });
+
+        if (!item) {
+          return reply.status(404).send({ message: "Client not found." });
+        }
+
+        return reply.status(201).send({
+          message: "Medical history entry created.",
+          client: mapClientSummary(client),
+          item: mapClientMedicalHistoryEntry(item)
+        });
+      } catch (error) {
+        request.log.error({ err: error }, "Error creating client medical history entry");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.delete(
+    "/:id/medical-history",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      const authContext = request.authContext;
+      const clientId = parsePositiveInteger(request.params?.id);
+      if (!clientId) {
+        return reply.status(400).send({ message: "Invalid client id." });
+      }
+
+      try {
+        const requester = await findClientsRequester(authContext);
+        if (!requester) {
+          return reply.status(401).send({ message: "Unauthorized." });
+        }
+        if (
+          !requesterHasOrgFeature(requester, "clients.all_clients")
+          || !requesterHasOrgFeature(requester, "clients.medical_history")
+        ) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const [canReadClients, canDeleteMedicalHistory] = await Promise.all([
+          hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
+          hasMedicalHistoryPermission(requester, PERMISSIONS.CLIENT_MEDICAL_HISTORY_DELETE)
+        ]);
+        if (!canReadClients || !canDeleteMedicalHistory) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+        if (requester.is_admin !== true) {
+          return reply.status(403).send({ message: "Only admins can delete all client medical history." });
+        }
+
+        const client = await getClientSummaryById({
+          organizationId: authContext.organizationId,
+          clientId
+        });
+        if (!client) {
+          return reply.status(404).send({ message: "Client not found." });
+        }
+
+        const items = await deleteAllClientMedicalHistoryEntries({
+          organizationId: authContext.organizationId,
+          clientId
+        });
+
+        if (!Array.isArray(items) || items.length === 0) {
+          return reply.status(404).send({ message: "Medical history entries not found." });
+        }
+
+        return reply.send({
+          message: "Client medical history deleted.",
+          client: mapClientSummary(client),
+          deletedCount: items.length
+        });
+      } catch (error) {
+        request.log.error({ err: error }, "Error deleting client medical history");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.patch(
+    "/:id/medical-history/:entryId",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      const authContext = request.authContext;
+      const clientId = parsePositiveInteger(request.params?.id);
+      const entryId = parsePositiveInteger(request.params?.entryId);
+      if (!clientId || !entryId) {
+        return reply.status(400).send({ message: "Invalid medical history entry id." });
+      }
+
+      const input = normalizeClientMedicalHistoryPayload(request.body);
+      const errors = validateClientMedicalHistoryPayload(input);
+      if (Object.keys(errors).length > 0) {
+        return reply.status(400).send({ errors });
+      }
+
+      try {
+        const requester = await findClientsRequester(authContext);
+        if (!requester) {
+          return reply.status(401).send({ message: "Unauthorized." });
+        }
+        if (
+          !requesterHasOrgFeature(requester, "clients.all_clients")
+          || !requesterHasOrgFeature(requester, "clients.medical_history")
+        ) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const [canReadClients, canUpdateMedicalHistory] = await Promise.all([
+          hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
+          hasMedicalHistoryPermission(requester, PERMISSIONS.CLIENT_MEDICAL_HISTORY_UPDATE)
+        ]);
+        if (!canReadClients || !canUpdateMedicalHistory) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const client = await getClientSummaryById({
+          organizationId: authContext.organizationId,
+          clientId
+        });
+        if (!client) {
+          return reply.status(404).send({ message: "Client not found." });
+        }
+
+        const item = await updateClientMedicalHistoryEntry({
+          organizationId: authContext.organizationId,
+          clientId,
+          entryId,
+          entryDate: input.entryDate,
+          conditionName: input.conditionName,
+          symptoms: input.symptoms,
+          diagnosis: input.diagnosis,
+          treatmentPlan: input.treatmentPlan,
+          note: input.note,
+          updatedBy: authContext.userId,
+          isAdmin: requester.is_admin === true
+        });
+
+        if (!item) {
+          return reply.status(404).send({ message: "Medical history entry not found." });
+        }
+
+        return reply.send({
+          message: "Medical history entry updated.",
+          client: mapClientSummary(client),
+          item: mapClientMedicalHistoryEntry(item)
+        });
+      } catch (error) {
+        request.log.error({ err: error }, "Error updating client medical history entry");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.delete(
+    "/:id/medical-history/:entryId",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      const authContext = request.authContext;
+      const clientId = parsePositiveInteger(request.params?.id);
+      const entryId = parsePositiveInteger(request.params?.entryId);
+      if (!clientId || !entryId) {
+        return reply.status(400).send({ message: "Invalid medical history entry id." });
+      }
+
+      try {
+        const requester = await findClientsRequester(authContext);
+        if (!requester) {
+          return reply.status(401).send({ message: "Unauthorized." });
+        }
+        if (
+          !requesterHasOrgFeature(requester, "clients.all_clients")
+          || !requesterHasOrgFeature(requester, "clients.medical_history")
+        ) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const [canReadClients, canDeleteMedicalHistory] = await Promise.all([
+          hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
+          hasMedicalHistoryPermission(requester, PERMISSIONS.CLIENT_MEDICAL_HISTORY_DELETE)
+        ]);
+        if (!canReadClients || !canDeleteMedicalHistory) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const client = await getClientSummaryById({
+          organizationId: authContext.organizationId,
+          clientId
+        });
+        if (!client) {
+          return reply.status(404).send({ message: "Client not found." });
+        }
+
+        const item = await deleteClientMedicalHistoryEntry({
+          organizationId: authContext.organizationId,
+          clientId,
+          entryId,
+          deletedBy: authContext.userId,
+          isAdmin: requester.is_admin === true
+        });
+
+        if (!item) {
+          return reply.status(404).send({ message: "Medical history entry not found." });
+        }
+
+        return reply.send({
+          message: "Medical history entry deleted.",
+          client: mapClientSummary(client),
+          item
+        });
+      } catch (error) {
+        request.log.error({ err: error }, "Error deleting client medical history entry");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.get(
     "/",
     {
       config: { rateLimit: fastify.apiRateLimit }
@@ -1977,17 +2635,46 @@ async function clientsRoutes(fastify) {
       const pageParam = Number.parseInt(String(request.query?.page || ""), 10);
       const limitParam = Number.parseInt(String(request.query?.limit || ""), 10);
       const search = String(request.query?.q || "").trim();
+      const historyNameSearch = String(
+        request.query?.historyNameSearch ?? request.query?.history_name_search ?? ""
+      ).trim();
       const firstName = String(request.query?.firstName || "").trim();
       const lastName = String(request.query?.lastName || "").trim();
       const middleName = String(request.query?.middleName || "").trim();
+      const clientId = parsePositiveInteger(request.query?.clientId ?? request.query?.client_id);
       const isVip = parseNullableBoolean(request.query?.isVip ?? request.query?.is_vip);
+      const historyDateFrom = String(
+        request.query?.historyDateFrom ?? request.query?.history_date_from ?? ""
+      ).trim();
+      const historyDateTo = String(
+        request.query?.historyDateTo ?? request.query?.history_date_to ?? ""
+      ).trim();
+      const historyPositionId = parsePositiveInteger(
+        request.query?.historyPositionId ?? request.query?.history_position_id
+      );
+      const historySpecialistId = parsePositiveInteger(
+        request.query?.historySpecialistId ?? request.query?.history_specialist_id
+      );
       const page = Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1;
       const limit = Number.isInteger(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 20;
+
+      if (historyDateFrom && !isValidDateYmd(historyDateFrom)) {
+        return reply.status(400).send({ field: "historyDateFrom", message: "Invalid from date." });
+      }
+      if (historyDateTo && !isValidDateYmd(historyDateTo)) {
+        return reply.status(400).send({ field: "historyDateTo", message: "Invalid to date." });
+      }
+      if (historyDateFrom && historyDateTo && historyDateFrom > historyDateTo) {
+        return reply.status(400).send({ field: "historyDateFrom", message: "From date must be before to date." });
+      }
 
       try {
         const requester = await findClientsRequester(authContext);
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
+        }
+        if (!requesterHasOrgFeature(requester, "clients.all_clients")) {
+          return reply.status(403).send({ message: "Forbidden." });
         }
         if (!(await hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ))) {
           return reply.status(403).send({ message: "Forbidden." });
@@ -1998,10 +2685,16 @@ async function clientsRoutes(fastify) {
           page,
           limit,
           search,
+          historyNameSearch,
           firstName,
           lastName,
           middleName,
-          isVip
+          clientId,
+          isVip,
+          historyDateFrom,
+          historyDateTo,
+          historyPositionId,
+          historySpecialistId
         });
 
         return reply.send({
@@ -2041,6 +2734,9 @@ async function clientsRoutes(fastify) {
         const requester = await findClientsRequester(authContext);
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
+        }
+        if (!requesterHasOrgFeature(requester, "clients.all_clients")) {
+          return reply.status(403).send({ message: "Forbidden." });
         }
         if (!(await hasPermission(requester.role_id, PERMISSIONS.CLIENTS_CREATE))) {
           return reply.status(403).send({ message: "Forbidden." });
@@ -2095,6 +2791,9 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
+        if (!requesterHasOrgFeature(requester, "clients.all_clients")) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
         if (!(await hasPermission(requester.role_id, PERMISSIONS.CLIENTS_UPDATE))) {
           return reply.status(403).send({ message: "Forbidden." });
         }
@@ -2145,6 +2844,9 @@ async function clientsRoutes(fastify) {
         const requester = await findClientsRequester(authContext);
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
+        }
+        if (!requesterHasOrgFeature(requester, "clients.all_clients")) {
+          return reply.status(403).send({ message: "Forbidden." });
         }
         if (!(await hasPermission(requester.role_id, PERMISSIONS.CLIENTS_DELETE))) {
           return reply.status(403).send({ message: "Forbidden." });

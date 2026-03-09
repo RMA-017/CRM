@@ -83,6 +83,7 @@ export function normalizeProfile(profile) {
     phone: profile.phone || profile.phone_number || "",
     position: profile.position || "",
     role: profile.role || "",
-    permissions
+    permissions,
+    orgFeatures: Array.isArray(profile.orgFeatures) ? profile.orgFeatures : null
   };
 }

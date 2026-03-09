@@ -47,6 +47,8 @@ function createDefaultForm() {
     slotSubDivisions: "1",
     slotCellHeightPx: "18",
     historyLockDays: "10",
+    outboxWorkerRetentionDays: "30",
+    userNotificationsRetentionDays: "0",
     appointmentDurationOptions: "",
     visibleWeekDays: [],
     noShowThreshold: "",
@@ -71,6 +73,8 @@ function mapSettingsItemToForm(source) {
     slotSubDivisions: String(normalizedSource.slotSubDivisions ?? "1"),
     slotCellHeightPx: String(normalizedSource.slotCellHeightPx ?? "18"),
     historyLockDays: String(normalizedSource.historyLockDays ?? "10"),
+    outboxWorkerRetentionDays: String(normalizedSource.outboxWorkerRetentionDays ?? "30"),
+    userNotificationsRetentionDays: String(normalizedSource.userNotificationsRetentionDays ?? "0"),
     appointmentDurationOptions: Array.isArray(normalizedSource.appointmentDurationOptions)
       ? normalizedSource.appointmentDurationOptions.join(",")
       : String(normalizedSource.appointmentDuration ?? ""),
@@ -174,10 +178,14 @@ function createAddBreakDraftItem({ specialistId = "" } = {}) {
 
 function AppointmentSettingsPanel({
   canUpdateAppointments = true,
+  canUpdateSettingsAppointments = canUpdateAppointments,
   panelMode = "settings",
   profile = null
 }) {
   const isBreaksMode = String(panelMode || "").trim().toLowerCase() === "breaks";
+  const canUpdateCurrentPanel = isBreaksMode
+    ? canUpdateAppointments
+    : canUpdateSettingsAppointments;
   const currentOrganizationId = String(profile?.organizationId || "").trim();
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -1125,7 +1133,7 @@ function AppointmentSettingsPanel({
     if (!form) {
       return;
     }
-    if (!canUpdateAppointments) {
+    if (!canUpdateCurrentPanel) {
       setMessage("You do not have permission to update appointment settings.");
       return;
     }
@@ -1141,12 +1149,21 @@ function AppointmentSettingsPanel({
       }
 
       const parsedHistoryLockDays = Number.parseInt(String(form.historyLockDays || "").trim(), 10);
+      const parsedOutboxWorkerRetentionDays = Number.parseInt(String(form.outboxWorkerRetentionDays || "").trim(), 10);
+      const parsedUserNotificationsRetentionDays = Number.parseInt(
+        String(form.userNotificationsRetentionDays || "").trim(),
+        10
+      );
       const payload = {
         organizationId: targetOrganizationId,
         slotInterval: String(form.slotInterval || "").trim(),
         slotSubDivisions: Number.parseInt(String(form.slotSubDivisions || "1"), 10) || 1,
         slotCellHeightPx: Number.parseInt(String(form.slotCellHeightPx || "18"), 10) || 18,
         historyLockDays: Number.isInteger(parsedHistoryLockDays) ? parsedHistoryLockDays : 10,
+        outboxWorkerRetentionDays: Number.isInteger(parsedOutboxWorkerRetentionDays) ? parsedOutboxWorkerRetentionDays : 30,
+        userNotificationsRetentionDays: Number.isInteger(parsedUserNotificationsRetentionDays)
+          ? parsedUserNotificationsRetentionDays
+          : 0,
         appointmentDurationOptions: parseDurationOptionsInput(form.appointmentDurationOptions),
         visibleWeekDays: form.visibleWeekDays,
         noShowThreshold: String(form.noShowThreshold || "").trim(),
@@ -1630,7 +1647,7 @@ function AppointmentSettingsPanel({
               type="number"
               min="1"
               value={form.slotInterval}
-              disabled={!canUpdateAppointments}
+              disabled={!canUpdateCurrentPanel}
               onChange={(event) => handleFormField("slotInterval", event.currentTarget.value)}
             />
             <span>minutes</span>
@@ -1646,7 +1663,7 @@ function AppointmentSettingsPanel({
               min="1"
               max="60"
               value={form.slotSubDivisions}
-              disabled={!canUpdateAppointments}
+              disabled={!canUpdateCurrentPanel}
               onChange={(event) => handleFormField("slotSubDivisions", event.currentTarget.value)}
             />
             <span>per slot</span>
@@ -1662,26 +1679,10 @@ function AppointmentSettingsPanel({
               min="12"
               max="72"
               value={form.slotCellHeightPx}
-              disabled={!canUpdateAppointments}
+              disabled={!canUpdateCurrentPanel}
               onChange={(event) => handleFormField("slotCellHeightPx", event.currentTarget.value)}
             />
             <span>px</span>
-          </div>
-        </div>
-
-        <div className="appointment-setting-row">
-          <label htmlFor="historyLockDaysInput">4. Planner Edit Lock (days)</label>
-          <div className="appointment-setting-inline">
-            <input
-              id="historyLockDaysInput"
-              type="number"
-              min="0"
-              max="3650"
-              value={form.historyLockDays}
-              disabled={!canUpdateAppointments}
-              onChange={(event) => handleFormField("historyLockDays", event.currentTarget.value)}
-            />
-            <span>days</span>
           </div>
         </div>
 
@@ -1694,7 +1695,7 @@ function AppointmentSettingsPanel({
               type="text"
               value={form.appointmentDurationOptions}
               placeholder="30,45,60"
-              disabled={!canUpdateAppointments}
+              disabled={!canUpdateCurrentPanel}
               onChange={(event) => handleFormField("appointmentDurationOptions", event.currentTarget.value)}
             />
             <span>minutes</span>
@@ -1710,7 +1711,7 @@ function AppointmentSettingsPanel({
                     id={`appointmentDay_${day.key}`}
                     type="checkbox"
                     checked={form.visibleWeekDays.includes(day.key)}
-                    disabled={!canUpdateAppointments}
+                    disabled={!canUpdateCurrentPanel}
                     onChange={(event) => handleDayToggle(day.key, event.currentTarget.checked)}
                   />
                 {day.label}
@@ -1726,7 +1727,7 @@ function AppointmentSettingsPanel({
               type="number"
               min="1"
               value={form.noShowThreshold}
-              disabled={!canUpdateAppointments}
+              disabled={!canUpdateCurrentPanel}
               onChange={(event) => handleFormField("noShowThreshold", event.currentTarget.value)}
             />
             <span>count threshold</span>
@@ -1741,7 +1742,7 @@ function AppointmentSettingsPanel({
               type="number"
               min="1"
               value={form.reminderHours}
-              disabled={!canUpdateAppointments}
+              disabled={!canUpdateCurrentPanel}
               onChange={(event) => handleFormField("reminderHours", event.currentTarget.value)}
             />
             <span>hours before appointment</span>
@@ -1752,7 +1753,7 @@ function AppointmentSettingsPanel({
                     id={`appointmentReminderChannel_${channel.key}`}
                     type="checkbox"
                     checked={Array.isArray(form.reminderChannels) && form.reminderChannels.includes(channel.key)}
-                    disabled={!canUpdateAppointments}
+                    disabled={!canUpdateCurrentPanel}
                     onChange={(event) => handleReminderChannelToggle(channel.key, event.currentTarget.checked)}
                   />
                   {channel.label}
@@ -1763,7 +1764,7 @@ function AppointmentSettingsPanel({
         </div>
 
         <WorkSchedulePanel
-          canUpdateAppointments={canUpdateAppointments}
+          canUpdateAppointments={canUpdateSettingsAppointments}
           organizationId={effectiveOrganizationId}
           profile={profile}
           showDefaultWeekly
@@ -1771,8 +1772,54 @@ function AppointmentSettingsPanel({
           defaultWeeklyTitle="9. Default Weekly Schedule"
         />
 
+        <div className="appointment-setting-row">
+          <label htmlFor="historyLockDaysInput">10. History Lock (days)</label>
+          <div className="appointment-setting-inline">
+            <input
+              id="historyLockDaysInput"
+              type="number"
+              min="0"
+              max="3650"
+              value={form.historyLockDays}
+              disabled={!canUpdateCurrentPanel}
+              onChange={(event) => handleFormField("historyLockDays", event.currentTarget.value)}
+            />
+            <span>days</span>
+          </div>
+        </div>
+
+        <div className="appointment-setting-row">
+          <label>11. Notification Retention</label>
+          <div className="appointment-setting-inline appointment-settings-retention-inline">
+            <div className="field">
+              <label htmlFor="outboxWorkerRetentionDaysInput">Outbox Retention (days)</label>
+              <input
+                id="outboxWorkerRetentionDaysInput"
+                type="number"
+                min="0"
+                max="3650"
+                value={form.outboxWorkerRetentionDays}
+                disabled={!canUpdateCurrentPanel}
+                onChange={(event) => handleFormField("outboxWorkerRetentionDays", event.currentTarget.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="userNotificationsRetentionDaysInput">User Notifications Retention (days)</label>
+              <input
+                id="userNotificationsRetentionDaysInput"
+                type="number"
+                min="0"
+                max="3650"
+                value={form.userNotificationsRetentionDays}
+                disabled={!canUpdateCurrentPanel}
+                onChange={(event) => handleFormField("userNotificationsRetentionDays", event.currentTarget.value)}
+              />
+            </div>
+          </div>
+        </div>
+
         <div className="appointment-settings-actions">
-          <button className="btn" type="submit" disabled={saving || !canUpdateAppointments || !effectiveOrganizationId}>
+          <button className="btn" type="submit" disabled={saving || !canUpdateCurrentPanel || !effectiveOrganizationId}>
             {saving ? "Saving..." : "Save"}
           </button>
         </div>

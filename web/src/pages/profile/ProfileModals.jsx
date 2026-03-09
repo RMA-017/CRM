@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import CustomSelect from "../../components/CustomSelect.jsx";
 import { formatDateYMD } from "../../lib/formatters.js";
-import { togglePermissionCode } from "./profile.helpers.js";
-import { ORG_FEATURE_TREE, ALL_ORG_FEATURE_KEYS } from "./profile.constants.js";
+import { ORG_FEATURE_TREE, ALL_ORG_FEATURE_KEYS, DEFAULT_DISABLED_FEATURE_KEYS } from "./profile.constants.js";
+import RolePermissionsAccordion from "./RolePermissionsAccordion.jsx";
 
 function formatNotificationDateTime(value) {
   const date = new Date(String(value || ""));
@@ -54,6 +54,7 @@ function ProfileModals(props) {
   const [showPhotoMenu, setShowPhotoMenu] = useState(false);
   const photoWrapRef = useRef(null);
   const [orgEditTab, setOrgEditTab] = useState("edit");
+  const [expandedFeatures, setExpandedFeatures] = useState(new Set());
 
   useEffect(() => {
     if (!showPhotoMenu) return;
@@ -107,6 +108,32 @@ function ProfileModals(props) {
     clientsDelete,
     handleClientsDeleteConfirm,
     closeClientsDeleteModal,
+    clientMedicalHistoryOpen,
+    clientMedicalHistoryClient,
+    clientMedicalHistoryClientSearch,
+    clientMedicalHistoryClientOptions,
+    clientMedicalHistoryClientOptionsLoading,
+    clientMedicalHistoryMode,
+    clientMedicalHistoryItems,
+    clientMedicalHistorySkeletonCount,
+    clientMedicalHistoryLoading,
+    clientMedicalHistoryMessage,
+    clientMedicalHistoryForm,
+    clientMedicalHistoryErrors,
+    clientMedicalHistorySubmitting,
+    clientMedicalHistoryDeletingId,
+    canReadClientMedicalHistory,
+    canCreateClientMedicalHistory,
+    canUpdateClientMedicalHistory,
+    setClientMedicalHistoryClientSearch,
+    setClientMedicalHistoryForm,
+    setClientMedicalHistoryErrors,
+    selectClientMedicalHistoryClient,
+    closeClientMedicalHistoryModal,
+    resetClientMedicalHistoryForm,
+    startClientMedicalHistoryEdit,
+    openClientMedicalHistoryDeleteModal,
+    handleClientMedicalHistorySubmit,
     settingsDelete,
     handleSettingsDeleteConfirm,
     closeSettingsDeleteModal,
@@ -120,7 +147,7 @@ function ProfileModals(props) {
     cancelOrganizationEdit,
     roleEditOpen,
     handleRoleEditSave,
-    groupedRolePermissionOptions,
+    rolePermissionTree,
     roleEditForm,
     setRoleEditForm,
     roleEditError,
@@ -136,6 +163,67 @@ function ProfileModals(props) {
     positionEditSubmitting,
     cancelPositionEdit
   } = props;
+
+  const currentUserId = String(profile?.id || "").trim();
+  const isAdminUser = Boolean(profile?.isAdmin || profile?.isPlatformAdmin);
+  const isEditingClientMedicalHistory = Boolean(String(clientMedicalHistoryForm?.id || "").trim());
+  const isViewingClientMedicalHistory = String(clientMedicalHistoryMode || "").trim() === "view";
+  const clientMedicalHistoryModalTitle = isViewingClientMedicalHistory ? "View History" : "Add History";
+  const hasSelectedClientMedicalHistoryClient = Boolean(String(clientMedicalHistoryClient?.id || "").trim());
+  const canShowClientMedicalHistoryForm = (
+    (!isViewingClientMedicalHistory && canCreateClientMedicalHistory)
+    || (canUpdateClientMedicalHistory && isEditingClientMedicalHistory)
+  );
+  const canSelectClientMedicalHistoryClient = !isViewingClientMedicalHistory && (
+    canReadClientMedicalHistory
+    || canCreateClientMedicalHistory
+    || canUpdateClientMedicalHistory
+  );
+  const clientMedicalHistoryClientLabel = String(clientMedicalHistoryClient?.fullName || "").trim()
+    || `Client #${String(clientMedicalHistoryClient?.id || "").trim() || "-"}`;
+  const clientMedicalHistorySearchId = String(clientMedicalHistoryClientSearch?.id || "").trim();
+  const clientMedicalHistorySearchFirstName = String(clientMedicalHistoryClientSearch?.firstName || "").trim();
+  const clientMedicalHistorySearchLastName = String(clientMedicalHistoryClientSearch?.lastName || "").trim();
+  const clientMedicalHistorySearchMiddleName = String(clientMedicalHistoryClientSearch?.middleName || "").trim();
+  const hasClientMedicalHistoryClientSearch = Boolean(
+    clientMedicalHistorySearchId
+    || clientMedicalHistorySearchFirstName
+    || clientMedicalHistorySearchLastName
+    || clientMedicalHistorySearchMiddleName
+  );
+  const clientMedicalHistorySearchNameLength = (
+    `${clientMedicalHistorySearchFirstName}${clientMedicalHistorySearchLastName}${clientMedicalHistorySearchMiddleName}`.length
+  );
+  const clientMedicalHistorySelectedClientOption = hasSelectedClientMedicalHistoryClient
+    ? {
+      value: String(clientMedicalHistoryClient?.id || "").trim(),
+      label: clientMedicalHistoryClientLabel
+    }
+    : null;
+  const clientMedicalHistorySelectOptions = useMemo(() => {
+    const optionMap = new Map();
+    if (clientMedicalHistorySelectedClientOption?.value) {
+      optionMap.set(clientMedicalHistorySelectedClientOption.value, clientMedicalHistorySelectedClientOption);
+    }
+
+    (Array.isArray(clientMedicalHistoryClientOptions) ? clientMedicalHistoryClientOptions : []).forEach((item) => {
+      const value = String(item?.id || "").trim();
+      if (!value) {
+        return;
+      }
+      optionMap.set(value, {
+        value,
+        label: String(item?.fullName || "").trim() || `Client #${value}`
+      });
+    });
+
+    return Array.from(optionMap.values());
+  }, [clientMedicalHistoryClientOptions, clientMedicalHistorySelectedClientOption]);
+
+  function canEditClientMedicalHistoryEntry(item) {
+    const authorId = String(item?.specialistId || item?.authorUserId || "").trim();
+    return canUpdateClientMedicalHistory && (isAdminUser || (authorId && authorId === currentUserId));
+  }
 
   useEffect(() => {
     if (organizationEditOpen) {
@@ -906,6 +994,277 @@ function ProfileModals(props) {
       </section>
       <div id="clientsEditOverlay" className="login-overlay" hidden={!clientsEditOpen} onClick={closeClientsEditModal} />
 
+      <section
+        id="clientMedicalHistoryModal"
+        className={`logout-confirm-modal all-users-edit-modal client-medical-history-modal${isViewingClientMedicalHistory ? " client-medical-history-view-modal" : ""}`}
+        hidden={!clientMedicalHistoryOpen}
+      >
+        <div className="all-users-head">
+          <h3>{clientMedicalHistoryModalTitle}</h3>
+          <button
+            id="closeClientMedicalHistoryTopBtn"
+            type="button"
+            className="header-btn panel-close-btn"
+            aria-label={`Close ${clientMedicalHistoryModalTitle.toLowerCase()} modal`}
+            onClick={closeClientMedicalHistoryModal}
+          >
+            ×
+          </button>
+        </div>
+        <form className="auth-form" onSubmit={handleClientMedicalHistorySubmit}>
+          <div className="all-users-edit-fields client-medical-history-fields">
+            {canSelectClientMedicalHistoryClient ? (
+              <div className="client-medical-history-client-picker">
+                <div className="client-medical-history-client-search-row">
+                  <div className="field client-medical-history-client-search-id-field">
+                    <label htmlFor="clientMedicalHistorySearchId">ID</label>
+                    <input
+                      id="clientMedicalHistorySearchId"
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="ID"
+                      value={clientMedicalHistorySearchId}
+                      disabled={clientMedicalHistorySubmitting || isEditingClientMedicalHistory}
+                      onInput={(event) => {
+                        const nextValue = event.currentTarget.value.replace(/[^\d]/g, "");
+                        setClientMedicalHistoryClientSearch((prev) => ({ ...prev, id: nextValue }));
+                      }}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="clientMedicalHistorySearchFirstName">First Name</label>
+                    <input
+                      id="clientMedicalHistorySearchFirstName"
+                      type="text"
+                      placeholder="First Name"
+                      value={clientMedicalHistorySearchFirstName}
+                      disabled={clientMedicalHistorySubmitting || isEditingClientMedicalHistory}
+                      onInput={(event) => {
+                        const nextValue = event.currentTarget.value;
+                        setClientMedicalHistoryClientSearch((prev) => ({ ...prev, firstName: nextValue }));
+                      }}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="clientMedicalHistorySearchLastName">Last Name</label>
+                    <input
+                      id="clientMedicalHistorySearchLastName"
+                      type="text"
+                      placeholder="Last Name"
+                      value={clientMedicalHistorySearchLastName}
+                      disabled={clientMedicalHistorySubmitting || isEditingClientMedicalHistory}
+                      onInput={(event) => {
+                        const nextValue = event.currentTarget.value;
+                        setClientMedicalHistoryClientSearch((prev) => ({ ...prev, lastName: nextValue }));
+                      }}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="clientMedicalHistorySearchMiddleName">Middle Name</label>
+                    <input
+                      id="clientMedicalHistorySearchMiddleName"
+                      type="text"
+                      placeholder="Middle Name"
+                      value={clientMedicalHistorySearchMiddleName}
+                      disabled={clientMedicalHistorySubmitting || isEditingClientMedicalHistory}
+                      onInput={(event) => {
+                        const nextValue = event.currentTarget.value;
+                        setClientMedicalHistoryClientSearch((prev) => ({ ...prev, middleName: nextValue }));
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="field client-medical-history-client-search-field">
+                  <label htmlFor="clientMedicalHistoryClientSelect">Search Client</label>
+                  <CustomSelect
+                    id="clientMedicalHistoryClientSelect"
+                    value={String(clientMedicalHistoryClient?.id || "").trim()}
+                    placeholder={clientMedicalHistoryClientOptionsLoading
+                      ? "Loading clients..."
+                      : (hasClientMedicalHistoryClientSearch
+                        ? (clientMedicalHistorySearchId || clientMedicalHistorySearchNameLength >= 3
+                          ? "Select client"
+                          : "Type at least 3 letters")
+                        : "Search by ID or name")}
+                    options={clientMedicalHistorySelectOptions}
+                    onChange={selectClientMedicalHistoryClient}
+                    disabled={clientMedicalHistoryClientOptionsLoading || clientMedicalHistorySubmitting || isEditingClientMedicalHistory}
+                    menuPortal
+                    maxVisibleOptions={8}
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            {hasSelectedClientMedicalHistoryClient ? (
+              <div className="client-medical-history-head">
+                <div>
+                  <strong>{clientMedicalHistoryClientLabel}</strong>
+                  <span>{clientMedicalHistoryClient?.birthday ? `Birthday: ${formatDateYMD(clientMedicalHistoryClient.birthday)}` : ""}</span>
+                </div>
+                <span className={`client-medical-history-badge${clientMedicalHistoryClient?.isVip ? " is-vip" : ""}`}>
+                  {clientMedicalHistoryClient?.isVip ? "VIP" : "Client"}
+                </span>
+              </div>
+            ) : null}
+
+            <p className="all-users-state" hidden={!clientMedicalHistoryMessage}>
+              {clientMedicalHistoryMessage}
+            </p>
+
+            {canShowClientMedicalHistoryForm ? (
+              <div className="client-medical-history-form-section">
+                <div className="client-medical-history-form-grid">
+                  <div className="field client-medical-history-wide-field">
+                    <label htmlFor="clientMedicalHistoryCondition">Condition</label>
+                    <textarea
+                      id="clientMedicalHistoryCondition"
+                      rows="2"
+                      maxLength={160}
+                      className={`notify-textarea${clientMedicalHistoryErrors.conditionName ? " input-error" : ""}`}
+                      value={clientMedicalHistoryForm.conditionName}
+                      onInput={(event) => {
+                        const nextValue = event.currentTarget.value;
+                        setClientMedicalHistoryForm((prev) => ({ ...prev, conditionName: nextValue }));
+                        if (clientMedicalHistoryErrors.conditionName) {
+                          setClientMedicalHistoryErrors((prev) => ({ ...prev, conditionName: "" }));
+                        }
+                      }}
+                    />
+                    <small className="field-error">{clientMedicalHistoryErrors.conditionName || ""}</small>
+                  </div>
+
+                  <div className="field client-medical-history-wide-field">
+                    <label htmlFor="clientMedicalHistoryNote">History</label>
+                    <textarea
+                      id="clientMedicalHistoryNote"
+                      rows="4"
+                      maxLength={4000}
+                      className={`notify-textarea${clientMedicalHistoryErrors.note ? " input-error" : ""}`}
+                      value={clientMedicalHistoryForm.note}
+                      onInput={(event) => {
+                        const nextValue = event.currentTarget.value;
+                        setClientMedicalHistoryForm((prev) => ({ ...prev, note: nextValue }));
+                        if (clientMedicalHistoryErrors.note) {
+                          setClientMedicalHistoryErrors((prev) => ({ ...prev, note: "" }));
+                        }
+                      }}
+                    />
+                    <small className="field-error">{clientMedicalHistoryErrors.note || ""}</small>
+                  </div>
+
+                  <div className="field client-medical-history-wide-field">
+                    <label htmlFor="clientMedicalHistoryTreatmentPlan">Treatment Plan</label>
+                    <textarea
+                      id="clientMedicalHistoryTreatmentPlan"
+                      rows="3"
+                      maxLength={4000}
+                      className={`notify-textarea${clientMedicalHistoryErrors.treatmentPlan ? " input-error" : ""}`}
+                      value={clientMedicalHistoryForm.treatmentPlan}
+                      onInput={(event) => {
+                        const nextValue = event.currentTarget.value;
+                        setClientMedicalHistoryForm((prev) => ({ ...prev, treatmentPlan: nextValue }));
+                        if (clientMedicalHistoryErrors.treatmentPlan) {
+                          setClientMedicalHistoryErrors((prev) => ({ ...prev, treatmentPlan: "" }));
+                        }
+                      }}
+                    />
+                    <small className="field-error">{clientMedicalHistoryErrors.treatmentPlan || ""}</small>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {isViewingClientMedicalHistory && hasSelectedClientMedicalHistoryClient && !isEditingClientMedicalHistory ? (
+              <div className="client-medical-history-list">
+                {clientMedicalHistoryLoading ? (
+                  Array.from({ length: Math.max(1, Number.parseInt(clientMedicalHistorySkeletonCount, 10) || 3) }, (_, index) => (
+                    <div key={`clientMedicalHistorySkeleton_${index}`} className="client-medical-history-card skel" aria-hidden="true" />
+                  ))
+                ) : (Array.isArray(clientMedicalHistoryItems) ? clientMedicalHistoryItems : []).map((item) => {
+                  const canEditEntry = canEditClientMedicalHistoryEntry(item);
+                  const isDeletingEntry = String(clientMedicalHistoryDeletingId || "").trim() === String(item.id || "").trim();
+
+                  return (
+                    <article key={item.id} className="client-medical-history-card">
+                      <div className="client-medical-history-card-head">
+                        <div>
+                          <strong>{item.conditionName || "-"}</strong>
+                          <span>{formatNotificationDateTime(item.updatedAt || item.createdAt)}</span>
+                        </div>
+                        <div className="client-medical-history-card-meta">
+                          <span>{item.specialistPosition || "-"}</span>
+                          <span>{item.specialistName || "-"}</span>
+                        </div>
+                      </div>
+                      {item.treatmentPlan ? (
+                        <p><strong>Treatment:</strong> {item.treatmentPlan}</p>
+                      ) : null}
+                      {item.note ? (
+                        <p><strong>Note:</strong> {item.note}</p>
+                      ) : null}
+                      <div className="client-medical-history-card-actions">
+                        <button
+                          type="button"
+                          className="table-action-btn"
+                          disabled={!canEditEntry}
+                          onClick={() => startClientMedicalHistoryEdit(item)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="table-action-btn table-action-btn-danger"
+                          disabled={isDeletingEntry}
+                          onClick={() => {
+                            void openClientMedicalHistoryDeleteModal(item);
+                          }}
+                        >
+                          {isDeletingEntry ? "Deleting..." : "Delete"}
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : null}
+
+          </div>
+
+          <div className="edit-actions">
+            {canShowClientMedicalHistoryForm ? (
+              <button
+                id="saveClientMedicalHistoryBtn"
+                className="btn"
+                type="submit"
+                disabled={clientMedicalHistorySubmitting || !hasSelectedClientMedicalHistoryClient}
+              >
+                {clientMedicalHistorySubmitting
+                  ? "Saving..."
+                  : (isEditingClientMedicalHistory ? "Update" : "Save")}
+              </button>
+            ) : null}
+            {isEditingClientMedicalHistory ? (
+              <button
+                id="cancelClientMedicalHistoryEditBtn"
+                className="header-btn"
+                type="button"
+                onClick={resetClientMedicalHistoryForm}
+              >
+                Cancel
+              </button>
+            ) : null}
+          </div>
+        </form>
+      </section>
+      <div
+        id="clientMedicalHistoryOverlay"
+        className="login-overlay"
+        hidden={!clientMedicalHistoryOpen}
+        onClick={closeClientMedicalHistoryModal}
+      />
+
       <section id="allUsersDeleteModal" className="logout-confirm-modal" hidden={!allUsersDelete.open}>
         <h3>Are you sure you want to delete this user?</h3>
         <p id="allUsersDeleteError" className="field-error">{allUsersDelete.error}</p>
@@ -1079,55 +1438,74 @@ function ProfileModals(props) {
               <div className="settings-permission-groups">
                 {ORG_FEATURE_TREE.map(({ key: parentKey, label: parentLabel, children }) => {
                   const childKeys = children.map((c) => c.key);
-                  const current = organizationEditForm.allowedFeatures === null ? [...ALL_ORG_FEATURE_KEYS] : organizationEditForm.allowedFeatures;
+                  const current = organizationEditForm.allowedFeatures === null ? ALL_ORG_FEATURE_KEYS.filter((k) => !DEFAULT_DISABLED_FEATURE_KEYS.has(k)) : organizationEditForm.allowedFeatures;
                   const parentChecked = current.includes(parentKey);
+                  const isExpanded = expandedFeatures.has(parentKey);
+                  const toggleExpand = () =>
+                    setExpandedFeatures((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(parentKey)) next.delete(parentKey);
+                      else next.add(parentKey);
+                      return next;
+                    });
                   return (
                     <div key={parentKey} className="settings-permission-group">
-                      <label className="settings-permission-item" htmlFor={`orgEditFeatureP_${parentKey}`}>
-                        <input
-                          id={`orgEditFeatureP_${parentKey}`}
-                          type="checkbox"
-                          checked={parentChecked}
-                          onChange={(event) => {
-                            const checked = event.currentTarget.checked;
-                            setOrganizationEditForm((prev) => {
-                              const cur = prev.allowedFeatures === null ? [...ALL_ORG_FEATURE_KEYS] : [...prev.allowedFeatures];
-                              const next = checked
-                                ? [...new Set([...cur, parentKey, ...childKeys])]
-                                : cur.filter((k) => k !== parentKey && !childKeys.includes(k));
-                              return { ...prev, allowedFeatures: next.length === ALL_ORG_FEATURE_KEYS.length ? null : next };
-                            });
-                          }}
-                        />
-                        <strong>{parentLabel}</strong>
-                      </label>
-                      <div className="settings-permissions-grid settings-permissions-grid-group">
-                        {children.map(({ key: childKey, label: childLabel }) => (
-                          <label key={childKey} className="settings-permission-item" htmlFor={`orgEditFeatureC_${childKey}`}>
-                            <input
-                              id={`orgEditFeatureC_${childKey}`}
-                              type="checkbox"
-                              checked={current.includes(childKey)}
-                              onChange={(event) => {
-                                const checked = event.currentTarget.checked;
-                                setOrganizationEditForm((prev) => {
-                                  const cur = prev.allowedFeatures === null ? [...ALL_ORG_FEATURE_KEYS] : [...prev.allowedFeatures];
-                                  let next;
-                                  if (checked) {
-                                    next = [...new Set([...cur, childKey, parentKey])];
-                                  } else {
-                                    next = cur.filter((k) => k !== childKey);
-                                    const anyChildLeft = childKeys.some((k) => next.includes(k));
-                                    if (!anyChildLeft) next = next.filter((k) => k !== parentKey);
-                                  }
-                                  return { ...prev, allowedFeatures: next.length === ALL_ORG_FEATURE_KEYS.length ? null : next };
-                                });
-                              }}
-                            />
-                            <span>{childLabel}</span>
-                          </label>
-                        ))}
+                      <div className="org-feature-accordion-header">
+                        <label className="settings-permission-item" htmlFor={`orgEditFeatureP_${parentKey}`}>
+                          <input
+                            id={`orgEditFeatureP_${parentKey}`}
+                            type="checkbox"
+                            checked={parentChecked}
+                            onChange={(event) => {
+                              const checked = event.currentTarget.checked;
+                              setOrganizationEditForm((prev) => {
+                                const cur = prev.allowedFeatures === null ? ALL_ORG_FEATURE_KEYS.filter((k) => !DEFAULT_DISABLED_FEATURE_KEYS.has(k)) : [...prev.allowedFeatures];
+                                const next = checked
+                                  ? [...new Set([...cur, parentKey, ...childKeys])]
+                                  : cur.filter((k) => k !== parentKey && !childKeys.includes(k));
+                                const defaultEnabledCount = ALL_ORG_FEATURE_KEYS.length - DEFAULT_DISABLED_FEATURE_KEYS.size;
+                                const collapseToNull = next.length === defaultEnabledCount && !next.some((k) => DEFAULT_DISABLED_FEATURE_KEYS.has(k));
+                                return { ...prev, allowedFeatures: collapseToNull ? null : next };
+                              });
+                            }}
+                          />
+                          <strong>{parentLabel}</strong>
+                        </label>
+                        <button type="button" className="org-feature-accordion-toggle" onClick={toggleExpand}>
+                          {isExpanded ? "▲" : "▼"}
+                        </button>
                       </div>
+                      {isExpanded && (
+                        <div className="settings-permissions-grid settings-permissions-grid-group org-feature-accordion-children">
+                          {children.map(({ key: childKey, label: childLabel }) => (
+                            <label key={childKey} className="settings-permission-item" htmlFor={`orgEditFeatureC_${childKey}`}>
+                              <input
+                                id={`orgEditFeatureC_${childKey}`}
+                                type="checkbox"
+                                checked={current.includes(childKey)}
+                                onChange={(event) => {
+                                  const checked = event.currentTarget.checked;
+                                  setOrganizationEditForm((prev) => {
+                                    const cur = prev.allowedFeatures === null ? ALL_ORG_FEATURE_KEYS.filter((k) => !DEFAULT_DISABLED_FEATURE_KEYS.has(k)) : [...prev.allowedFeatures];
+                                    let next;
+                                    if (checked) {
+                                      next = [...new Set([...cur, childKey, parentKey])];
+                                    } else {
+                                      next = cur.filter((k) => k !== childKey);
+                                      const anyChildLeft = childKeys.some((k) => next.includes(k));
+                                      if (!anyChildLeft) next = next.filter((k) => k !== parentKey);
+                                    }
+                                    const defaultEnabledCount = ALL_ORG_FEATURE_KEYS.length - DEFAULT_DISABLED_FEATURE_KEYS.size;
+                                    const collapseToNull = next.length === defaultEnabledCount && !next.some((k) => DEFAULT_DISABLED_FEATURE_KEYS.has(k));
+                                    return { ...prev, allowedFeatures: collapseToNull ? null : next };
+                                  });
+                                }}
+                              />
+                              <span>{childLabel}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1184,44 +1562,20 @@ function ProfileModals(props) {
               </label>
             </div>
           </div>
-          <div
-            className="settings-permissions-section"
-            hidden={groupedRolePermissionOptions.length === 0}
-          >
-            <p className="settings-permissions-title">Permissions</p>
-            <div className="settings-permission-groups">
-              {groupedRolePermissionOptions.map((group) => (
-                <section key={group.key} className="settings-permission-group">
-                  <p className="settings-permission-group-title">{group.label}</p>
-                  <div className="settings-permissions-grid settings-permissions-grid-group">
-                    {group.permissions.map((permission) => {
-                      const inputId = `roleEditPermission_${permission.code.replace(/[^a-z0-9_-]/g, "_")}`;
-                      return (
-                        <label key={permission.code} className="settings-permission-item" htmlFor={inputId}>
-                          <input
-                            id={inputId}
-                            type="checkbox"
-                            checked={roleEditForm.permissionCodes.includes(permission.code)}
-                            onChange={(event) => {
-                              const checked = event.currentTarget.checked;
-                              setRoleEditForm((prev) => ({
-                                ...prev,
-                                permissionCodes: togglePermissionCode(prev.permissionCodes, permission.code, checked)
-                              }));
-                            }}
-                          />
-                          <span>{permission.actionLabel}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </section>
-              ))}
-            </div>
-          </div>
-          <p className="all-users-state" hidden={groupedRolePermissionOptions.length > 0}>
-            No permissions found.
-          </p>
+          <RolePermissionsAccordion
+            tree={rolePermissionTree}
+            selectedCodes={roleEditForm.permissionCodes}
+            open={roleEditOpen}
+            idPrefix="roleEditPermission"
+            onChange={(updater) => {
+              setRoleEditForm((prev) => ({
+                ...prev,
+                permissionCodes: typeof updater === "function"
+                  ? updater(prev.permissionCodes)
+                  : updater
+              }));
+            }}
+          />
           <div className="edit-actions">
             <button className="btn" type="submit" disabled={roleEditSubmitting}>Save</button>
             <button className="header-btn" type="button" onClick={cancelRoleEdit}>Cancel</button>

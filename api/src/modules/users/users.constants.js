@@ -1,40 +1,6 @@
 import { USERNAME_REGEX } from "../../constants/validation.js";
+import { PERMISSION_CONSTANTS } from "../../../../shared/access-registry.js";
 
 export { USERNAME_REGEX };
 
-export const PERMISSIONS = Object.freeze({
-  PROFILE_READ: "profile.read",
-  PROFILE_UPDATE: "profile.update",
-  USERS_READ: "users.read",
-  USERS_CREATE: "users.create",
-  USERS_UPDATE: "users.update",
-  USERS_DELETE: "users.delete",
-  CLIENTS_READ: "clients.read",
-  CLIENTS_CREATE: "clients.create",
-  CLIENTS_UPDATE: "clients.update",
-  CLIENTS_DELETE: "clients.delete",
-  APPOINTMENTS_READ: "appointments.read",
-  APPOINTMENTS_CREATE: "appointments.create",
-  APPOINTMENTS_UPDATE: "appointments.update",
-  APPOINTMENTS_DELETE: "appointments.delete",
-  APPOINTMENTS_SUBMENU_SCHEDULE: "appointments.schedule",
-  APPOINTMENTS_SUBMENU_BREAKS: "appointments.breaks",
-  APPOINTMENTS_VIP_CLIENTS_READ: "appointments.vip-clients.read",
-  APPOINTMENTS_VIP_CLIENTS_CREATE: "appointments.vip-clients.create",
-  APPOINTMENTS_VIP_CLIENTS_UPDATE: "appointments.vip-clients.update",
-  APPOINTMENTS_VIP_CLIENTS_DELETE: "appointments.vip-clients.delete",
-  APPOINTMENTS_VIP_CLIENTS_MY_CLASS: "appointments.vip-clients.my-class",
-  APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip-clients.my-children",
-  APPOINTMENTS_VIP_CLIENTS_DAILY_ROUTINES: "appointments.vip-clients.daily-routines",
-  APPOINTMENTS_VIP_CLIENTS_SCOPE_ALL: "appointments.vip-clients.scope.all",
-  APPOINTMENTS_VIP_CLIENTS_SCOPE_ASSIGNED: "appointments.vip-clients.scope.assigned",
-  APPOINTMENTS_ASSIGNMENTS_READ: "appointments.assignments.read",
-  APPOINTMENTS_ASSIGNMENTS_CREATE: "appointments.assignments.create",
-  APPOINTMENTS_ASSIGNMENTS_UPDATE: "appointments.assignments.update",
-  APPOINTMENTS_ASSIGNMENTS_DELETE: "appointments.assignments.delete",
-  APPOINTMENTS_STATISTICS_READ: "appointments.statistics.read",
-  APPOINTMENTS_CLIENT_SEARCH: "appointments.client-search",
-  NOTIFICATIONS_SEND: "notifications.send",
-  NOTIFICATIONS_NOTIFY_TO_MANAGER: "notifications.notify.to-manager",
-  NOTIFICATIONS_NOTIFY_TO_SPECIALIST: "notifications.notify.to-specialist"
-});
+export const PERMISSIONS = Object.freeze({ ...PERMISSION_CONSTANTS });

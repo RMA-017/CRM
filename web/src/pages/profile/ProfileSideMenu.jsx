@@ -1,11 +1,14 @@
 function ProfileSideMenu({
   menuRef,
   menuOpen,
+  isPlatformAdmin,
   hasClientsMenuAccess,
   canReadClients,
+  canReadClientMedicalHistory,
   clientsMenuOpen,
   setClientsMenuOpen,
   openAllClientsPanel,
+  openClientMedicalHistoryPanel,
   vipClientsMenuOpen,
   setVipClientsMenuOpen,
   assignmentsMenuOpen,
@@ -23,6 +26,10 @@ function ProfileSideMenu({
   canOpenAppointmentStatistics,
   canOpenStatisticsClassAttendance,
   canOpenStatisticsPlannerReport,
+  canOpenAppointmentSettings,
+  canOpenSettingsOrganizations,
+  canOpenSettingsRoles,
+  canOpenSettingsPositions,
   appointmentMenuOpen,
   setAppointmentMenuOpen,
   openAppointmentPanel,
@@ -50,13 +57,12 @@ function ProfileSideMenu({
   navigate,
   hasSettingsMenuAccess,
   hasAdminSettingsAccess,
-  hasNotificationsSettingsAccess,
+  canSendNotifications,
   settingsMenuOpen,
   openOrganizationsPanel,
   openRolesPanel,
   openPositionsPanel,
-  openAdminOptionsPanel,
-  openNotificationsSettingsPanel,
+  openNotificationsSendPanel,
   openMonitoringPanel
 }) {
   return (
@@ -94,6 +100,15 @@ function ProfileSideMenu({
               onClick={openAllClientsPanel}
             >
               All Clients
+            </button>
+            <button
+              id="openClientMedicalHistoryBtn"
+              type="button"
+              className="side-submenu-link side-submenu-action"
+              hidden={!(canReadClientMedicalHistory || isPlatformAdmin)}
+              onClick={openClientMedicalHistoryPanel}
+            >
+              Medical History
             </button>
           </div>
           <button
@@ -247,6 +262,15 @@ function ProfileSideMenu({
               </button>
             </div>
           </div>
+          <button
+            id="openNotificationsSendBtn"
+            type="button"
+            className="side-menu-action"
+            hidden={!canSendNotifications}
+            onClick={openNotificationsSendPanel}
+          >
+            Notification
+          </button>
           <div id="statisticsMenuGroup" className="side-menu-group" hidden={!canOpenAppointmentStatistics}>
             <button
               id="toggleStatisticsMenuBtn"
@@ -297,6 +321,7 @@ function ProfileSideMenu({
                 id="openOrganizationsBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
+                hidden={!canOpenSettingsOrganizations}
                 onClick={openOrganizationsPanel}
               >
                 Organizations
@@ -311,7 +336,7 @@ function ProfileSideMenu({
               </button>
             </div>
           </div>
-          <div id="settingsMenuGroup" className="side-menu-group" hidden={!hasSettingsMenuAccess && !hasNotificationsSettingsAccess}>
+          <div id="settingsMenuGroup" className="side-menu-group" hidden={!hasSettingsMenuAccess}>
             <button
               id="toggleSettingsMenuBtn"
               type="button"
@@ -328,7 +353,7 @@ function ProfileSideMenu({
                 id="openAppointmentSettingsBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
-                hidden={!hasSettingsMenuAccess}
+                hidden={!canOpenAppointmentSettings}
                 onClick={openAppointmentSettingsPanel}
               >
                 Appointments
@@ -337,7 +362,7 @@ function ProfileSideMenu({
                 id="openRolesBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
-                hidden={!hasSettingsMenuAccess}
+                hidden={!canOpenSettingsRoles}
                 onClick={openRolesPanel}
               >
                 Roles
@@ -346,28 +371,10 @@ function ProfileSideMenu({
                 id="openPositionsBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
-                hidden={!hasSettingsMenuAccess}
+                hidden={!canOpenSettingsPositions}
                 onClick={openPositionsPanel}
               >
                 Positions
-              </button>
-              <button
-                id="openAdminOptionsBtn"
-                type="button"
-                className="side-submenu-link side-submenu-action"
-                hidden={!hasSettingsMenuAccess}
-                onClick={openAdminOptionsPanel}
-              >
-                Admin Options
-              </button>
-              <button
-                id="openNotificationsSettingsBtn"
-                type="button"
-                className="side-submenu-link side-submenu-action"
-                hidden={!hasNotificationsSettingsAccess}
-                onClick={openNotificationsSettingsPanel}
-              >
-                Notifications
               </button>
             </div>
           </div>

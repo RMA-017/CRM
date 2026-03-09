@@ -1,4 +1,5 @@
 import { createTtlCache } from "../../../lib/ttl-cache.js";
+import { requesterHasOrgFeature } from "../../../lib/org-features.js";
 import { appointmentRouteSchemas } from "./appointment.route-schemas.js";
 
 function toBoundedInteger(value, fallback, min, max) {
@@ -121,7 +122,12 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     async (request, reply) => {
       setNoCacheHeaders(reply);
 
-      const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_STATISTICS_READ);
+      const access = await requireAppointmentsAccess(
+        request,
+        reply,
+        PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT,
+        "statistics.planner_report"
+      );
       if (!access) {
         return;
       }
@@ -144,7 +150,12 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     async (request, reply) => {
       setNoCacheHeaders(reply);
 
-      const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_STATISTICS_READ);
+      const access = await requireAppointmentsAccess(
+        request,
+        reply,
+        PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT,
+        "statistics.planner_report"
+      );
       if (!access) {
         return;
       }
@@ -209,12 +220,16 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         ) === true;
         const isMyChildrenScheduleRequest = vipOnly && !specialistId && !classId;
 
-        const [canReadAppointments, canAccessMyChildren] = await Promise.all([
+        const [rawCanReadAppointments, rawCanAccessMyChildren] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_READ),
           isMyChildrenScheduleRequest
             ? hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN)
             : Promise.resolve(false)
         ]);
+        const canReadAppointments = requesterHasOrgFeature(requester, "appointments.planner")
+          && rawCanReadAppointments;
+        const canAccessMyChildren = requesterHasOrgFeature(requester, "vip_clients.my_children")
+          && rawCanAccessMyChildren;
         if (!canReadAppointments && !canAccessMyChildren) {
           return reply.status(403).send({ message: "Forbidden." });
         }
@@ -317,7 +332,12 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     },
     async (request, reply) => {
       try {
-        const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_CREATE);
+        const access = await requireAppointmentsAccess(
+          request,
+          reply,
+          PERMISSIONS.APPOINTMENTS_CREATE,
+          "appointments.planner"
+        );
         if (!access) {
           return;
         }
@@ -658,10 +678,14 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
 
-        const [canUpdateAppointments, canAccessMyChildren] = await Promise.all([
+        const [rawCanUpdateAppointments, rawCanAccessMyChildren] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_UPDATE),
           hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN)
         ]);
+        const canUpdateAppointments = requesterHasOrgFeature(requester, "appointments.planner")
+          && rawCanUpdateAppointments;
+        const canAccessMyChildren = requesterHasOrgFeature(requester, "vip_clients.my_children")
+          && rawCanAccessMyChildren;
         if (!canUpdateAppointments && !canAccessMyChildren) {
           return reply.status(403).send({ message: "Forbidden." });
         }
@@ -1175,7 +1199,12 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     },
     async (request, reply) => {
       try {
-        const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_DELETE);
+        const access = await requireAppointmentsAccess(
+          request,
+          reply,
+          PERMISSIONS.APPOINTMENTS_DELETE,
+          "appointments.planner"
+        );
         if (!access) {
           return;
         }

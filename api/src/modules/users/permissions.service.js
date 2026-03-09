@@ -1,44 +1,18 @@
 import pool from "../../config/db.js";
+import {
+  isPermissionAllowedByOrgFeatures,
+  normalizeAllowedFeatures
+} from "../../lib/org-features.js";
+import { UNIQUE_PERMISSION_DEFINITIONS } from "../../../../shared/access-registry.js";
 import { PERMISSIONS } from "./users.constants.js";
 
 const DEFAULT_PERMISSIONS_SYNC_LOCK_KEY = 41003001;
 
-const BASE_PERMISSION_DEFINITIONS = [
-  { code: PERMISSIONS.PROFILE_READ, label: "Read Profile", sortOrder: 10 },
-  { code: PERMISSIONS.PROFILE_UPDATE, label: "Update Profile", sortOrder: 20 },
-  { code: PERMISSIONS.USERS_READ, label: "Read Users", sortOrder: 30 },
-  { code: PERMISSIONS.USERS_CREATE, label: "Create Users", sortOrder: 31 },
-  { code: PERMISSIONS.USERS_UPDATE, label: "Update Users", sortOrder: 32 },
-  { code: PERMISSIONS.USERS_DELETE, label: "Delete Users", sortOrder: 33 },
-  { code: PERMISSIONS.CLIENTS_READ, label: "Read Clients", sortOrder: 40 },
-  { code: PERMISSIONS.CLIENTS_CREATE, label: "Create Clients", sortOrder: 41 },
-  { code: PERMISSIONS.CLIENTS_UPDATE, label: "Update Clients", sortOrder: 42 },
-  { code: PERMISSIONS.CLIENTS_DELETE, label: "Delete Clients", sortOrder: 43 },
-  { code: PERMISSIONS.APPOINTMENTS_READ, label: "Read Appointments", sortOrder: 50 },
-  { code: PERMISSIONS.APPOINTMENTS_CREATE, label: "Create Appointments", sortOrder: 51 },
-  { code: PERMISSIONS.APPOINTMENTS_UPDATE, label: "Update Appointments", sortOrder: 52 },
-  { code: PERMISSIONS.APPOINTMENTS_DELETE, label: "Delete Appointments", sortOrder: 53 },
-  { code: PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE, label: "Appointments Planner Submenu", sortOrder: 54 },
-  { code: PERMISSIONS.APPOINTMENTS_SUBMENU_BREAKS, label: "Appointments Breaks Submenu", sortOrder: 55 },
-  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_READ, label: "VIP Clients Read", sortOrder: 56 },
-  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_CREATE, label: "VIP Clients Create", sortOrder: 57 },
-  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_UPDATE, label: "VIP Clients Update", sortOrder: 58 },
-  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DELETE, label: "VIP Clients Delete", sortOrder: 59 },
-  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS, label: "VIP Clients My Class", sortOrder: 60 },
-  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN, label: "My VIP Children Access", sortOrder: 61 },
-  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DAILY_ROUTINES, label: "VIP Clients Daily Routines", sortOrder: 62 },
-  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_SCOPE_ALL, label: "VIP Clients Scope: All", sortOrder: 74 },
-  { code: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_SCOPE_ASSIGNED, label: "VIP Clients Scope: Assigned", sortOrder: 75 },
-  { code: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_READ, label: "Assignments Read", sortOrder: 63 },
-  { code: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CREATE, label: "Assignments Create", sortOrder: 64 },
-  { code: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_UPDATE, label: "Assignments Update", sortOrder: 65 },
-  { code: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_DELETE, label: "Assignments Delete", sortOrder: 66 },
-  { code: PERMISSIONS.APPOINTMENTS_STATISTICS_READ, label: "Statistics Read", sortOrder: 67 },
-  { code: PERMISSIONS.APPOINTMENTS_CLIENT_SEARCH, label: "Search Clients In Appointments", sortOrder: 68 },
-  { code: PERMISSIONS.NOTIFICATIONS_SEND, label: "Send Notifications", sortOrder: 69 },
-  { code: PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_MANAGER, label: "Notify To Manager", sortOrder: 70 },
-  { code: PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_SPECIALIST, label: "Notify To Specialist", sortOrder: 71 }
-];
+const BASE_PERMISSION_DEFINITIONS = UNIQUE_PERMISSION_DEFINITIONS.map((permission) => ({
+  code: permission.code,
+  label: permission.label,
+  sortOrder: permission.sortOrder
+}));
 
 const LEGACY_PERMISSION_CODE_MIGRATIONS = Object.freeze([
   {
@@ -59,7 +33,19 @@ const LEGACY_PERMISSION_CODE_MIGRATIONS = Object.freeze([
   },
   {
     from: "appointments.statistics",
-    to: PERMISSIONS.APPOINTMENTS_STATISTICS_READ
+    to: PERMISSIONS.APPOINTMENTS_STATISTICS_CLASS_ATTENDANCE
+  },
+  {
+    from: "appointments.statistics",
+    to: PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT
+  },
+  {
+    from: "appointments.statistics.read",
+    to: PERMISSIONS.APPOINTMENTS_STATISTICS_CLASS_ATTENDANCE
+  },
+  {
+    from: "appointments.statistics.read",
+    to: PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT
   },
   {
     from: "appointments.notify.to-manager",
@@ -104,6 +90,7 @@ const LEGACY_PERMISSION_CODES = Object.freeze([
   "appointments.vip-clients",
   "appointments.assignments",
   "appointments.statistics",
+  "appointments.statistics.read",
   "appointments.notify.to-manager",
   "appointments.notify.to-specialist",
   "notifications.schedule.to-manager",
@@ -133,6 +120,48 @@ function toBoolean(value, fallback) {
   }
   const normalized = String(value).trim().toLowerCase();
   return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
+}
+
+async function pruneAdminRolePermissionsByOrgFeatures(client) {
+  const { rows } = await client.query(
+    `SELECT
+       r.id AS role_id,
+       o.allowed_features
+      FROM role_options r
+      JOIN organizations o ON o.id = r.organization_id
+     WHERE r.is_admin = TRUE
+       AND r.is_active = TRUE`
+  );
+
+  for (const row of rows) {
+    const roleId = Number(row?.role_id || 0);
+    if (!roleId) {
+      continue;
+    }
+
+    const allowedFeatures = normalizeAllowedFeatures(row?.allowed_features);
+    if (!Array.isArray(allowedFeatures)) {
+      continue;
+    }
+
+    const disallowedCodes = BASE_PERMISSION_DEFINITIONS
+      .map((permission) => String(permission.code || "").trim().toLowerCase())
+      .filter(Boolean)
+      .filter((code) => !isPermissionAllowedByOrgFeatures(code, allowedFeatures));
+
+    if (disallowedCodes.length === 0) {
+      continue;
+    }
+
+    await client.query(
+      `DELETE FROM role_permissions rp
+        USING permissions p
+       WHERE rp.role_id = $1
+         AND rp.permission_id = p.id
+         AND LOWER(p.code) = ANY($2::text[])`,
+      [roleId, disallowedCodes]
+    );
+  }
 }
 
 export async function ensureSystemPermissions(options = {}) {
@@ -255,6 +284,8 @@ export async function ensureSystemPermissions(options = {}) {
           AND r.is_active = TRUE
         ON CONFLICT (role_id, permission_id) DO NOTHING`
     );
+
+    await pruneAdminRolePermissionsByOrgFeatures(client);
 
     await client.query("COMMIT");
     return {

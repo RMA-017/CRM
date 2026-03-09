@@ -2,6 +2,7 @@ import { ORGANIZATION_CODE_REGEX, PERMISSION_CODE_REGEX } from "../../constants/
 import { appConfig } from "../../config/app-config.js";
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
+import { normalizeAllowedFeatures, requesterHasOrgFeature } from "../../lib/org-features.js";
 import {
   DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
   MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
@@ -35,10 +36,52 @@ import {
   getNotificationRetentionSettingsByOrganization,
   saveNotificationRetentionSettingsByOrganization
 } from "../notifications/notifications.service.js";
+import { hasPermission } from "../users/access.service.js";
+import { PERMISSIONS } from "../users/users.constants.js";
 import { settingsRouteSchemas } from "./settings.route-schemas.js";
 
 const MIN_NOTIFICATION_RETENTION_DAYS = 0;
 const MAX_NOTIFICATION_RETENTION_DAYS = 3650;
+const SETTINGS_ROUTE_PERMISSION_CONFIG = Object.freeze({
+  appointments: Object.freeze({
+    featureKey: "settings.appointments",
+    legacyRequiresPlatformAdmin: false,
+    permissions: Object.freeze({
+      read: PERMISSIONS.SETTINGS_APPOINTMENTS_READ,
+      update: PERMISSIONS.SETTINGS_APPOINTMENTS_UPDATE
+    })
+  }),
+  roles: Object.freeze({
+    featureKey: "settings.roles",
+    legacyRequiresPlatformAdmin: false,
+    permissions: Object.freeze({
+      read: PERMISSIONS.SETTINGS_ROLES_READ,
+      create: PERMISSIONS.SETTINGS_ROLES_CREATE,
+      update: PERMISSIONS.SETTINGS_ROLES_UPDATE,
+      delete: PERMISSIONS.SETTINGS_ROLES_DELETE
+    })
+  }),
+  positions: Object.freeze({
+    featureKey: "settings.positions",
+    legacyRequiresPlatformAdmin: false,
+    permissions: Object.freeze({
+      read: PERMISSIONS.SETTINGS_POSITIONS_READ,
+      create: PERMISSIONS.SETTINGS_POSITIONS_CREATE,
+      update: PERMISSIONS.SETTINGS_POSITIONS_UPDATE,
+      delete: PERMISSIONS.SETTINGS_POSITIONS_DELETE
+    })
+  })
+});
+const SETTINGS_ROUTE_PERMISSION_CODES = Object.freeze(
+  Array.from(
+    new Set(
+      Object.values(SETTINGS_ROUTE_PERMISSION_CONFIG)
+        .flatMap((resource) => Object.values(resource.permissions))
+        .map((code) => String(code || "").trim().toLowerCase())
+        .filter(Boolean)
+    )
+  )
+);
 
 function parseSortOrder(value) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -62,23 +105,8 @@ function parseIsActive(value, fallback = true) {
   return fallback;
 }
 
-const ALLOWED_FEATURE_KEYS = new Set([
-  "users", "users.all_users",
-  "clients", "clients.all_clients",
-  "appointments", "appointments.planner", "appointments.breaks",
-  "vip_clients", "vip_clients.my_class", "vip_clients.attendance", "vip_clients.my_children", "vip_clients.daily_routines",
-  "assignments", "assignments.class", "assignments.tutor",
-  "statistics", "statistics.class_attendance", "statistics.planner_report"
-]);
-
 function parseAllowedFeatures(value) {
-  if (!Array.isArray(value)) {
-    return null;
-  }
-  const features = value
-    .map((f) => String(f || "").trim().toLowerCase())
-    .filter((f) => ALLOWED_FEATURE_KEYS.has(f));
-  return features.length > 0 ? features : null;
+  return normalizeAllowedFeatures(value);
 }
 
 function parseHistoryLockDays(value) {
@@ -245,6 +273,86 @@ async function requirePlatformAdmin(request, reply) {
   return adminContext;
 }
 
+async function getSettingsPermissionSnapshot(roleId) {
+  const normalizedRoleId = Number.parseInt(String(roleId || "").trim(), 10);
+  if (!Number.isInteger(normalizedRoleId) || normalizedRoleId <= 0) {
+    return {
+      usesAdvancedSettingsPermissions: false,
+      appointments: { read: false, update: false },
+      roles: { read: false, create: false, update: false, delete: false },
+      positions: { read: false, create: false, update: false, delete: false }
+    };
+  }
+
+  const checks = await Promise.all(
+    SETTINGS_ROUTE_PERMISSION_CODES.map((code) => hasPermission(normalizedRoleId, code))
+  );
+  const permissionState = new Map(
+    SETTINGS_ROUTE_PERMISSION_CODES.map((code, index) => [code, Boolean(checks[index])])
+  );
+  const resourceState = Object.fromEntries(
+    Object.entries(SETTINGS_ROUTE_PERMISSION_CONFIG).map(([resourceKey, config]) => [
+      resourceKey,
+      Object.fromEntries(
+        Object.entries(config.permissions).map(([actionKey, permissionCode]) => [
+          actionKey,
+          permissionState.get(String(permissionCode || "").trim().toLowerCase()) === true
+        ])
+      )
+    ])
+  );
+
+  return {
+    usesAdvancedSettingsPermissions: Array.from(permissionState.values()).some(Boolean),
+    organizations: resourceState.organizations,
+    roles: resourceState.roles,
+    positions: resourceState.positions
+  };
+}
+
+async function requireSettingsRouteAccess(request, reply, resourceKey, actionKey = "read") {
+  const resourceConfig = SETTINGS_ROUTE_PERMISSION_CONFIG[resourceKey];
+  if (!resourceConfig) {
+    throw new Error(`Unknown settings resource: ${resourceKey}`);
+  }
+
+  const authContext = request.authContext;
+  const requester = await findSettingsRequester(authContext);
+  if (!requester) {
+    reply.status(401).send({ message: "Unauthorized." });
+    return null;
+  }
+
+  if (resourceConfig.featureKey && !requesterHasOrgFeature(requester, resourceConfig.featureKey)) {
+    reply.status(403).send({ message: "Forbidden." });
+    return null;
+  }
+
+  const permissionSnapshot = await getSettingsPermissionSnapshot(requester.role_id);
+  const usesAdvancedSettingsPermissions = permissionSnapshot.usesAdvancedSettingsPermissions;
+  const hasResourcePermission = permissionSnapshot?.[resourceKey]?.[actionKey] === true;
+  const isLegacyAllowed = resourceConfig.legacyRequiresPlatformAdmin
+    ? Boolean(requester.is_platform_admin)
+    : Boolean(requester.is_admin);
+
+  if (resourceConfig.legacyRequiresPlatformAdmin && !requester.is_platform_admin) {
+    reply.status(403).send({ message: "Forbidden." });
+    return null;
+  }
+
+  if (usesAdvancedSettingsPermissions ? !hasResourcePermission : !isLegacyAllowed) {
+    reply.status(403).send({ message: "Forbidden." });
+    return null;
+  }
+
+  return {
+    authContext,
+    requester,
+    settingsPermissions: permissionSnapshot,
+    usesAdvancedSettingsPermissions
+  };
+}
+
 async function settingsRoutes(fastify) {
   fastify.get(
     "/organizations",
@@ -406,7 +514,7 @@ async function settingsRoutes(fastify) {
         return reply.send({ message: "Organization deleted." });
       } catch (error) {
         if (error?.code === "23503") {
-          return reply.status(409).send({ message: "Organization is used by users and cannot be deleted." });
+          return reply.status(409).send({ message: "Organization contains linked data and could not be fully deleted." });
         }
         request.log.error({ err: error }, "Error deleting organization:");
         return reply.status(500).send({ message: "Internal server error." });
@@ -426,7 +534,7 @@ async function settingsRoutes(fastify) {
       setNoCacheHeaders(reply);
 
       try {
-        const adminContext = await requireOrganizationAdmin(request, reply);
+        const adminContext = await requireSettingsRouteAccess(request, reply, "appointments", "read");
         if (!adminContext) {
           return;
         }
@@ -509,7 +617,7 @@ async function settingsRoutes(fastify) {
     },
     async (request, reply) => {
       try {
-        const adminContext = await requireOrganizationAdmin(request, reply);
+        const adminContext = await requireSettingsRouteAccess(request, reply, "appointments", "update");
         if (!adminContext) {
           return;
         }
@@ -720,14 +828,19 @@ async function settingsRoutes(fastify) {
       setNoCacheHeaders(reply);
 
       try {
-        const adminContext = await requireOrganizationAdmin(request, reply);
+        const adminContext = await requireSettingsRouteAccess(request, reply, "roles", "read");
         if (!adminContext) {
           return;
         }
 
         const [items, permissions] = await Promise.all([
-          listRoleOptionsForSettings(adminContext.authContext.organizationId),
-          listPermissionOptionsForSettings()
+          listRoleOptionsForSettings(
+            adminContext.authContext.organizationId,
+            adminContext.requester.organization_allowed_features ?? null
+          ),
+          listPermissionOptionsForSettings(
+            adminContext.requester.organization_allowed_features ?? null
+          )
         ]);
         return reply.send({ items, permissions });
       } catch (error) {
@@ -747,7 +860,7 @@ async function settingsRoutes(fastify) {
     },
     async (request, reply) => {
       try {
-        const adminContext = await requireOrganizationAdmin(request, reply);
+        const adminContext = await requireSettingsRouteAccess(request, reply, "roles", "create");
         if (!adminContext) {
           return;
         }
@@ -811,7 +924,7 @@ async function settingsRoutes(fastify) {
     },
     async (request, reply) => {
       try {
-        const adminContext = await requireOrganizationAdmin(request, reply);
+        const adminContext = await requireSettingsRouteAccess(request, reply, "roles", "update");
         if (!adminContext) {
           return;
         }
@@ -897,7 +1010,7 @@ async function settingsRoutes(fastify) {
     },
     async (request, reply) => {
       try {
-        const adminContext = await requireOrganizationAdmin(request, reply);
+        const adminContext = await requireSettingsRouteAccess(request, reply, "roles", "delete");
         if (!adminContext) {
           return;
         }
@@ -940,7 +1053,7 @@ async function settingsRoutes(fastify) {
       setNoCacheHeaders(reply);
 
       try {
-        const adminContext = await requireOrganizationAdmin(request, reply);
+        const adminContext = await requireSettingsRouteAccess(request, reply, "positions", "read");
         if (!adminContext) {
           return;
         }
@@ -964,7 +1077,7 @@ async function settingsRoutes(fastify) {
     },
     async (request, reply) => {
       try {
-        const adminContext = await requireOrganizationAdmin(request, reply);
+        const adminContext = await requireSettingsRouteAccess(request, reply, "positions", "create");
         if (!adminContext) {
           return;
         }
@@ -1009,7 +1122,7 @@ async function settingsRoutes(fastify) {
     },
     async (request, reply) => {
       try {
-        const adminContext = await requireOrganizationAdmin(request, reply);
+        const adminContext = await requireSettingsRouteAccess(request, reply, "positions", "update");
         if (!adminContext) {
           return;
         }
@@ -1066,7 +1179,7 @@ async function settingsRoutes(fastify) {
     },
     async (request, reply) => {
       try {
-        const adminContext = await requireOrganizationAdmin(request, reply);
+        const adminContext = await requireSettingsRouteAccess(request, reply, "positions", "delete");
         if (!adminContext) {
           return;
         }

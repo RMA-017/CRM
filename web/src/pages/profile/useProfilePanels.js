@@ -6,8 +6,10 @@ export function useProfilePanels({
   closeMenu,
   closeUserDropdown,
   setMyProfileModalOpen,
+  isPlatformAdmin,
   canCreateUsers,
   canReadClients,
+  canReadClientMedicalHistory,
   canOpenAppointmentSchedule,
   canOpenAppointmentVipMyClass,
   canOpenAppointmentBreaks,
@@ -16,9 +18,13 @@ export function useProfilePanels({
   canOpenAppointmentVipDailyRoutines,
   canOpenAppointmentVipAssignments,
   canOpenAppointmentStatistics,
+  canOpenAppointmentSettings,
+  canOpenSettingsOrganizations,
+  canOpenSettingsRoles,
+  canOpenSettingsPositions,
+  canSendNotifications,
   hasSettingsMenuAccess,
-  hasAdminSettingsAccess,
-  hasNotificationsSettingsAccess
+  hasAdminSettingsAccess
 }) {
   const openPanel = useCallback((path, hasAccess = true) => {
     closeMenu();
@@ -54,7 +60,19 @@ export function useProfilePanels({
   }, [canReadClients, openPanel]);
 
   const closeAllClientsPanel = useCallback(() => {
+    if (mainView === "clients-all" || mainView === "clients-medical-history") {
+      navigate("/profile");
+      return;
+    }
     closePanel("clients-all");
+  }, [closePanel, mainView, navigate]);
+
+  const openClientMedicalHistoryPanel = useCallback(() => {
+    openPanel("/clients/medical-history", canReadClients && (canReadClientMedicalHistory || isPlatformAdmin));
+  }, [canReadClientMedicalHistory, canReadClients, isPlatformAdmin, openPanel]);
+
+  const closeClientMedicalHistoryPanel = useCallback(() => {
+    closePanel("clients-medical-history");
   }, [closePanel]);
 
   const openAppointmentPanel = useCallback(() => {
@@ -74,16 +92,16 @@ export function useProfilePanels({
   }, [closePanel]);
 
   const openAppointmentSettingsPanel = useCallback(() => {
-    openPanel("/settings/appointments", hasSettingsMenuAccess);
-  }, [hasSettingsMenuAccess, openPanel]);
+    openPanel("/settings/appointments", canOpenAppointmentSettings);
+  }, [canOpenAppointmentSettings, openPanel]);
 
   const closeAppointmentSettingsPanel = useCallback(() => {
     closePanel("appointment-settings");
   }, [closePanel]);
 
   const openAppointmentWorkSchedulePanel = useCallback(() => {
-    openPanel("/appointments/work-schedule", hasSettingsMenuAccess);
-  }, [hasSettingsMenuAccess, openPanel]);
+    openPanel("/appointments/work-schedule", canOpenAppointmentSettings);
+  }, [canOpenAppointmentSettings, openPanel]);
 
   const closeAppointmentWorkSchedulePanel = useCallback(() => {
     closePanel("appointment-work-schedule");
@@ -162,43 +180,35 @@ export function useProfilePanels({
   }, [closePanel]);
 
   const openOrganizationsPanel = useCallback(() => {
-    openPanel("/admin-settings/organizations", hasAdminSettingsAccess);
-  }, [hasAdminSettingsAccess, openPanel]);
+    openPanel("/admin-settings/organizations", canOpenSettingsOrganizations);
+  }, [canOpenSettingsOrganizations, openPanel]);
 
   const closeOrganizationsPanel = useCallback(() => {
     closePanel("settings-organizations");
   }, [closePanel]);
 
   const openRolesPanel = useCallback(() => {
-    openPanel("/settings/roles", hasSettingsMenuAccess || hasAdminSettingsAccess);
-  }, [hasAdminSettingsAccess, hasSettingsMenuAccess, openPanel]);
+    openPanel("/settings/roles", canOpenSettingsRoles);
+  }, [canOpenSettingsRoles, openPanel]);
 
   const closeRolesPanel = useCallback(() => {
     closePanel("settings-roles");
   }, [closePanel]);
 
   const openPositionsPanel = useCallback(() => {
-    openPanel("/settings/positions", hasSettingsMenuAccess);
-  }, [hasSettingsMenuAccess, openPanel]);
+    openPanel("/settings/positions", canOpenSettingsPositions);
+  }, [canOpenSettingsPositions, openPanel]);
 
   const closePositionsPanel = useCallback(() => {
     closePanel("settings-positions");
   }, [closePanel]);
 
-  const openAdminOptionsPanel = useCallback(() => {
-    openPanel("/settings/admin-options", hasSettingsMenuAccess);
-  }, [hasSettingsMenuAccess, openPanel]);
+  const openNotificationsSendPanel = useCallback(() => {
+    openPanel("/notifications", canSendNotifications);
+  }, [canSendNotifications, openPanel]);
 
-  const closeAdminOptionsPanel = useCallback(() => {
-    closePanel("settings-admin-options");
-  }, [closePanel]);
-
-  const openNotificationsSettingsPanel = useCallback(() => {
-    openPanel("/settings/notifications", hasNotificationsSettingsAccess);
-  }, [hasNotificationsSettingsAccess, openPanel]);
-
-  const closeNotificationsSettingsPanel = useCallback(() => {
-    closePanel("settings-notifications");
+  const closeNotificationsSendPanel = useCallback(() => {
+    closePanel("notifications-send");
   }, [closePanel]);
 
   const openMonitoringPanel = useCallback(() => {
@@ -227,6 +237,8 @@ export function useProfilePanels({
     openCreateUserPanel,
     openAllClientsPanel,
     closeAllClientsPanel,
+    openClientMedicalHistoryPanel,
+    closeClientMedicalHistoryPanel,
     openAppointmentPanel,
     closeAppointmentPanel,
     openAppointmentBreaksPanel,
@@ -256,10 +268,8 @@ export function useProfilePanels({
     closeRolesPanel,
     openPositionsPanel,
     closePositionsPanel,
-    openAdminOptionsPanel,
-    closeAdminOptionsPanel,
-    openNotificationsSettingsPanel,
-    closeNotificationsSettingsPanel,
+    openNotificationsSendPanel,
+    closeNotificationsSendPanel,
     openMonitoringPanel,
     closeMonitoringPanel,
     closeCreateUserPanel,

@@ -88,6 +88,8 @@
 #clientsDeleteNoBtn,
 #settingsDeleteNoBtn,
 #appointmentBreaksDeleteNoBtn,
+#workScheduleDeleteNoBtn,
+#clientMedicalHistoryDeleteNoBtn,
 #vipClassDeleteNoBtn,
 #vipDailyRoutineDeleteNoBtn,
 #statisticsAttendanceDeleteNoBtn {
@@ -103,6 +105,8 @@
 #clientsDeleteNoBtn:hover,
 #settingsDeleteNoBtn:hover,
 #appointmentBreaksDeleteNoBtn:hover,
+#workScheduleDeleteNoBtn:hover,
+#clientMedicalHistoryDeleteNoBtn:hover,
 #vipClassDeleteNoBtn:hover,
 #vipDailyRoutineDeleteNoBtn:hover,
 #statisticsAttendanceDeleteNoBtn:hover {
@@ -258,6 +262,10 @@
   z-index: var(--z-modal-top);
 }
 
+#clientMedicalHistoryDeleteModal {
+  z-index: calc(var(--z-modal-top) + 1);
+}
+
 .logout-confirm-modal.all-users-edit-modal h3 {
   margin: 0 0 5px 0;
   font-size: var(--fs-md);
@@ -294,6 +302,7 @@
 }
 
 .all-users-edit-modal .all-users-edit-fields,
+#roleCreateModal .settings-permissions-section,
 #roleEditModal .settings-permissions-section {
   scrollbar-width: thin;
   scrollbar-color: var(--scroll-thumb) var(--scroll-track);
@@ -330,17 +339,20 @@
 }
 
 .all-users-edit-modal .all-users-edit-fields::-webkit-scrollbar,
+#roleCreateModal .settings-permissions-section::-webkit-scrollbar,
 #roleEditModal .settings-permissions-section::-webkit-scrollbar {
   width: var(--scrollbar-size);
 }
 
 .all-users-edit-modal .all-users-edit-fields::-webkit-scrollbar-track,
+#roleCreateModal .settings-permissions-section::-webkit-scrollbar-track,
 #roleEditModal .settings-permissions-section::-webkit-scrollbar-track {
   background: var(--scroll-track);
   border-radius: var(--scrollbar-size);
 }
 
 .all-users-edit-modal .all-users-edit-fields::-webkit-scrollbar-thumb,
+#roleCreateModal .settings-permissions-section::-webkit-scrollbar-thumb,
 #roleEditModal .settings-permissions-section::-webkit-scrollbar-thumb {
   background: var(--scroll-thumb);
   border-radius: var(--scrollbar-size);
@@ -348,6 +360,7 @@
 }
 
 .all-users-edit-modal .all-users-edit-fields::-webkit-scrollbar-thumb:hover,
+#roleCreateModal .settings-permissions-section::-webkit-scrollbar-thumb:hover,
 #roleEditModal .settings-permissions-section::-webkit-scrollbar-thumb:hover {
   background: var(--scroll-thumb-hover);
 }
@@ -540,8 +553,9 @@
 .settings-form-grid-org>.field>label:not(.settings-checkbox) {
   display: inline-flex;
   align-items: center;
-  margin: 0 0 0 4px;
-  font-size: var(--fs-base);
+  margin: 0 0 0 5px;
+  font-size: var(--fs-small);
+  line-height: 1.15;
 }
 
 .settings-action-field>label {
@@ -616,14 +630,16 @@
 
 .client-birthday-vip-row .clients-create-vip-field > label:first-child,
 .client-birthday-vip-row .clients-edit-vip-field > label:first-child {
-  margin: 0 0 0 4px;
-  line-height: normal;
+  margin: 0 0 0 5px;
+  line-height: 1.15;
 }
 
-.client-birthday-vip-row .clients-create-vip-field > label[for="clientCreateModalIsVip"]:not(.clients-create-vip-toggle) {
-  line-height: 1.5;
+.client-birthday-vip-row .clients-create-vip-field > label[for="clientCreateModalIsVip"]:not(.clients-create-vip-toggle),
+.client-birthday-vip-row .clients-edit-vip-field > label[for="clientsEditIsVip"]:not(.clients-create-vip-toggle) {
+  line-height: 1.15;
 }
 
+.field > label.clients-create-vip-toggle,
 .clients-create-vip-toggle {
   width: 100%;
   height: var(--input-height);
@@ -720,6 +736,127 @@
   grid-template-columns: repeat(2, minmax(140px, 1fr));
 }
 
+.role-permissions-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.role-permission-shared-note {
+  margin: 0 0 0 4px;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.role-permissions-tree {
+  gap: 4px;
+}
+
+.role-permission-node {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 2px 4px;
+}
+
+.role-permission-node-header {
+  gap: 4px;
+}
+
+.role-permission-node-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  height: auto;
+  width: 100%;
+  padding: 0 1px;
+}
+
+.role-permission-level-0 > .role-permission-node-header .role-permission-node-text {
+  font-weight: 700;
+}
+
+.role-permission-level-1 > .role-permission-node-header .role-permission-node-text {
+  font-weight: 600;
+}
+
+.role-permission-node-count {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.role-permission-node-toggle {
+  align-self: center;
+}
+
+.role-permission-node-children {
+  display: grid;
+  gap: 4px;
+  margin-top: 4px;
+  padding-top: 4px;
+  padding-left: 0;
+  border-top: 1px dashed var(--line);
+  border-left: none;
+}
+
+.role-permission-level-1.role-permission-node {
+  padding: 2px 4px 2px 8px;
+}
+
+.role-permission-level-1 > .role-permission-node-children {
+  padding-left: 4px;
+}
+
+.role-permission-leaf {
+  min-height: 22px;
+  height: auto;
+  padding: 0 2px 0 4px;
+}
+
+.role-permission-shared-tag {
+  margin-left: 4px;
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.org-feature-accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.org-feature-accordion-toggle {
+  all: unset;
+  cursor: pointer;
+  font-size: 9px;
+  color: var(--text-muted);
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.org-feature-accordion-toggle:hover {
+  color: var(--text-main);
+  background: var(--line);
+}
+
+.org-feature-accordion-children {
+  margin-top: 2px;
+  padding-top: 2px;
+  border-top: 1px dashed var(--line);
+}
+
 .settings-permission-item {
   display: inline-flex;
   align-items: center;
@@ -742,6 +879,23 @@
   height: 12px;
   margin: 0;
   cursor: pointer;
+}
+
+.settings-permission-item.role-permission-node-label,
+.settings-permission-item.role-permission-leaf {
+  min-height: 22px;
+  height: auto;
+}
+
+.settings-permission-item.role-permission-node-label {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 6px;
+}
+
+.settings-permission-item.role-permission-leaf {
+  padding: 0 2px 0 4px;
 }
 
 .settings-edit-form .settings-permissions-section {
@@ -777,12 +931,17 @@
   margin: 0;
 }
 
+#organizationEditModal .field {
+  margin-top: 5px;
+}
+
 #organizationEditModal .settings-permissions-section {
   max-height: min(340px, calc(100dvh - 220px));
   overflow-y: auto;
   padding-right: 6px;
   scrollbar-width: thin;
   scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+  scrollbar-gutter: stable;
 }
 
 #organizationEditModal .settings-permissions-section::-webkit-scrollbar {
@@ -804,15 +963,17 @@
   background: var(--scroll-thumb-hover);
 }
 
+#roleCreateModal,
 #roleEditModal {
   width: min(520px, calc(100vw - 40px));
-  height: min(420px, calc(100dvh - 28px));
+  height: min(560px, calc(100dvh - 28px));
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
 
+#roleCreateModal .settings-edit-form,
 #roleEditModal .settings-edit-form {
   display: flex;
   flex-direction: column;
@@ -842,14 +1003,17 @@
   margin: 0;
 }
 
+#roleCreateModal .settings-permissions-section,
 #roleEditModal .settings-permissions-section {
   flex: 1 1 auto;
   min-height: 0;
   max-height: 100%;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   padding-right: 6px;
 }
 
+#roleCreateModal .settings-edit-form .edit-actions,
 #roleEditModal .settings-edit-form .edit-actions {
   position: static;
   margin-top: auto;
@@ -1432,6 +1596,7 @@
    ============================================= */
 
 .appointment-breaks-table-wrap.all-users-table-wrap {
+  margin-top: 0;
   overflow-x: auto;
   overflow-y: auto;
   overscroll-behavior-x: contain;
@@ -1768,11 +1933,13 @@
   width: 100px;
 }
 
+.field > span.planner-report-vip-toggle,
 .planner-report-vip-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  margin: 0;
   width: 100px;
   min-height: var(--input-height);
   padding: 0 10px;
@@ -2359,6 +2526,249 @@
 #clientsPanel .all-users-table td:nth-child(12) .table-action-btn {
   margin-left: auto;
   margin-right: auto;
+}
+
+#clientMedicalHistoryModal {
+  width: min(760px, calc(100vw - 40px));
+  max-width: calc(100vw - 40px);
+  max-height: calc(100dvh - 28px);
+  padding: 10px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+#clientMedicalHistoryModal.client-medical-history-view-modal {
+  width: min(720px, calc(100vw - 40px));
+  height: auto;
+  min-height: 0;
+  max-height: min(60dvh, 560px);
+}
+
+#clientMedicalHistoryModal.client-medical-history-view-modal .all-users-edit-fields.client-medical-history-fields {
+  scrollbar-gutter: stable;
+}
+
+#clientMedicalHistoryModal.client-medical-history-view-modal .auth-form {
+  grid-template-rows: minmax(0, auto) auto;
+}
+
+#clientMedicalHistoryModal .auth-form {
+  min-height: 0;
+}
+
+.all-users-edit-modal .all-users-edit-fields.client-medical-history-fields {
+  display: grid;
+  gap: 10px;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.client-medical-history-client-picker {
+  display: grid;
+  gap: 10px;
+}
+
+.client-medical-history-client-search-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 90px repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  align-items: start;
+}
+
+.client-medical-history-client-search-row .field {
+  margin: 0;
+  width: 100%;
+  min-width: 0;
+}
+
+.client-medical-history-client-search-field .custom-select,
+.client-medical-history-client-search-field .custom-select-trigger {
+  width: 100%;
+}
+
+.client-medical-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.client-medical-history-head > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.client-medical-history-head > div span {
+  font-size: var(--fs-small);
+  color: var(--text-muted);
+}
+
+.client-medical-history-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(12, 19, 43, 0.06);
+  color: var(--text-main);
+  font-size: var(--fs-small);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.client-medical-history-badge.is-vip {
+  background: rgba(15, 135, 110, 0.12);
+  color: #0f876e;
+}
+
+.client-medical-history-form-section {
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(12, 19, 43, 0.03);
+  border: 1px solid rgba(12, 19, 43, 0.08);
+}
+
+.client-medical-history-form-grid {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 10px 12px;
+  align-items: start;
+}
+
+.client-medical-history-condition-field,
+.client-medical-history-wide-field {
+  min-width: 0;
+}
+
+.client-medical-history-wide-field {
+  grid-column: 1 / -1;
+}
+
+.client-medical-history-form-grid .notify-textarea {
+  min-height: 90px;
+  resize: vertical;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+#clientMedicalHistoryCondition.notify-textarea {
+  min-height: 58px;
+}
+
+.client-medical-history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.client-medical-history-card {
+  display: grid;
+  gap: 3px;
+  padding: 7px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border-radius: 16px;
+  border: 1px solid rgba(12, 19, 43, 0.08);
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(12, 19, 43, 0.06);
+}
+
+.client-medical-history-card.skel {
+  min-height: 136px;
+}
+
+.client-medical-history-card-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.client-medical-history-card-head > div,
+.client-medical-history-card-meta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.client-medical-history-card-head span,
+.client-medical-history-card-meta span {
+  font-size: var(--fs-small);
+  color: var(--text-muted);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.client-medical-history-card-head strong {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.client-medical-history-card p {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.client-medical-history-card-actions {
+  display: inline-flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.client-medical-history-card-actions .table-action-btn {
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+}
+
+@media (max-width: 860px) {
+  #clientMedicalHistoryModal {
+    width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px);
+    max-height: calc(100dvh - 12px);
+    overflow: hidden;
+  }
+
+  #clientMedicalHistoryModal.client-medical-history-view-modal {
+    height: auto;
+    max-height: min(68dvh, 520px);
+  }
+
+  .client-medical-history-client-search-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .client-medical-history-head,
+  .client-medical-history-card-head {
+    grid-template-columns: minmax(0, 1fr);
+    display: grid;
+  }
+
+  .client-medical-history-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .client-medical-history-card-actions {
+    justify-content: stretch;
+  }
+
+  .client-medical-history-card-actions .table-action-btn {
+    flex: 1 1 0;
+  }
 }
 
 #statisticsClassPanel .all-users-table {
@@ -3731,7 +4141,7 @@
 #vipDailyRoutineEditModal .vip-daily-routine-form-scroll > label {
   display: grid;
   gap: 4px;
-  margin: 0 3px;
+  margin: 0;
 }
 
 #vipClassAddModal .vip-class-add-grid > label > span,
@@ -3741,10 +4151,13 @@
 #vipDailyRoutineEditModal .vip-class-add-grid > label > span,
 #vipDailyRoutineEditModal .vip-class-add-grid > div > span,
 #vipDailyRoutineEditModal .vip-daily-routine-form-scroll > label > span {
-  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  margin: 0 0 0 5px;
+  color: var(--text-secondary);
   font-size: var(--fs-small);
-  font-weight: 600;
-  line-height: 1.1;
+  font-weight: 500;
+  line-height: 1.15;
 }
 
 #vipClassAddModal .vip-class-add-grid input,
@@ -3813,7 +4226,7 @@
 }
 
 .logout-confirm-modal.settings-edit-modal.appointment-breaks-add-modal {
-  width: min(980px, calc(100vw - 40px));
+  width: min(760px, calc(100vw - 40px));
   max-width: calc(100vw - 40px);
   max-height: calc(100dvh - 28px);
   padding: 10px;
@@ -3935,7 +4348,8 @@
   gap: 10px;
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-rows {
+#appointmentBreaksAddModal .appointment-breaks-add-rows,
+#workScheduleUserOverridesModal .appointment-breaks-add-rows {
   display: grid;
   gap: 8px;
   max-height: none;
@@ -3943,19 +4357,22 @@
   padding-right: 0;
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-rows.appointment-breaks-add-rows-scroll .appointment-breaks-add-row {
+#appointmentBreaksAddModal .appointment-breaks-add-rows.appointment-breaks-add-rows-scroll .appointment-breaks-add-row,
+#workScheduleUserOverridesModal .appointment-breaks-add-rows.appointment-breaks-add-rows-scroll .appointment-breaks-add-row {
   max-height: min(52dvh, 440px);
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-gutter: stable;
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-row {
+#appointmentBreaksAddModal .appointment-breaks-add-row,
+#workScheduleUserOverridesModal .appointment-breaks-add-row {
   display: grid;
   gap: 8px;
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-row-line {
+#appointmentBreaksAddModal .appointment-breaks-add-row-line,
+#workScheduleUserOverridesModal .appointment-breaks-add-row-line {
   display: grid;
   gap: 8px;
   align-items: end;
@@ -3965,33 +4382,39 @@
   background: var(--surface-soft);
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-row-line-top {
+#appointmentBreaksAddModal .appointment-breaks-add-row-line-top,
+#workScheduleUserOverridesModal .appointment-breaks-add-row-line-top {
   grid-template-columns: minmax(0, 1fr);
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-row-line-bottom {
+#appointmentBreaksAddModal .appointment-breaks-add-row-line-bottom,
+#workScheduleUserOverridesModal .appointment-breaks-add-row-line-bottom {
   gap: 8px;
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-row-line-bottom-item {
+#appointmentBreaksAddModal .appointment-breaks-add-row-line-bottom-item,
+#workScheduleUserOverridesModal .appointment-breaks-add-row-line-bottom-item {
   display: grid;
   grid-template-columns: repeat(4, minmax(120px, 1fr)) auto;
   gap: 8px;
   align-items: end;
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-row-line-bottom-item + .appointment-breaks-add-row-line-bottom-item {
+#appointmentBreaksAddModal .appointment-breaks-add-row-line-bottom-item + .appointment-breaks-add-row-line-bottom-item,
+#workScheduleUserOverridesModal .appointment-breaks-add-row-line-bottom-item + .appointment-breaks-add-row-line-bottom-item {
   border-top: 1px dashed var(--line);
   padding-top: 8px;
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-field {
+#appointmentBreaksAddModal .appointment-breaks-add-field,
+#workScheduleUserOverridesModal .appointment-breaks-add-field {
   display: grid;
   gap: 4px;
   min-width: 0;
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-field span {
+#appointmentBreaksAddModal .appointment-breaks-add-field span,
+#workScheduleUserOverridesModal .appointment-breaks-add-field span {
   color: var(--text-muted);
   font-size: var(--fs-small);
   font-weight: 600;
@@ -3999,16 +4422,22 @@
 }
 
 #appointmentBreaksAddModal .appointment-breaks-add-field .custom-select,
-#appointmentBreaksAddModal .appointment-breaks-add-field input[type="time"] {
+#appointmentBreaksAddModal .appointment-breaks-add-field input[type="time"],
+#appointmentBreaksAddModal .appointment-breaks-add-field input[type="text"],
+#workScheduleUserOverridesModal .appointment-breaks-add-field .custom-select,
+#workScheduleUserOverridesModal .appointment-breaks-add-field input[type="time"],
+#workScheduleUserOverridesModal .appointment-breaks-add-field input[type="text"] {
   width: 100%;
   min-width: 0;
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-field .custom-select {
+#appointmentBreaksAddModal .appointment-breaks-add-field .custom-select,
+#workScheduleUserOverridesModal .appointment-breaks-add-field .custom-select {
   min-height: var(--input-height);
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-field .custom-select-trigger {
+#appointmentBreaksAddModal .appointment-breaks-add-field .custom-select-trigger,
+#workScheduleUserOverridesModal .appointment-breaks-add-field .custom-select-trigger {
   min-height: var(--input-height);
   height: var(--input-height);
   border-radius: var(--radius);
@@ -4018,11 +4447,13 @@
   color: var(--text-main);
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-field-with-action {
+#appointmentBreaksAddModal .appointment-breaks-add-field-with-action,
+#workScheduleUserOverridesModal .appointment-breaks-add-field-with-action {
   min-width: 0;
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-field-inline {
+#appointmentBreaksAddModal .appointment-breaks-add-field-inline,
+#workScheduleUserOverridesModal .appointment-breaks-add-field-inline {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -4030,18 +4461,23 @@
   min-width: 0;
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-field-inline .custom-select {
+#appointmentBreaksAddModal .appointment-breaks-add-field-inline .custom-select,
+#workScheduleUserOverridesModal .appointment-breaks-add-field-inline .custom-select {
   flex: 1 1 auto;
 }
 
-#appointmentBreaksAddModal .appointment-breaks-inline-add-btn {
+#appointmentBreaksAddModal .appointment-breaks-inline-add-btn,
+#workScheduleUserOverridesModal .appointment-breaks-inline-add-btn {
   width: 72px;
   min-width: 72px;
   height: var(--input-height);
   padding: 0;
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-field input[type="time"] {
+#appointmentBreaksAddModal .appointment-breaks-add-field input[type="time"],
+#appointmentBreaksAddModal .appointment-breaks-add-field input[type="text"],
+#workScheduleUserOverridesModal .appointment-breaks-add-field input[type="time"],
+#workScheduleUserOverridesModal .appointment-breaks-add-field input[type="text"] {
   height: var(--input-height);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -4049,7 +4485,8 @@
   padding: 0 8px;
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-inline-actions {
+#appointmentBreaksAddModal .appointment-breaks-add-inline-actions,
+#workScheduleUserOverridesModal .appointment-breaks-add-inline-actions {
   display: flex;
   align-items: flex-end;
   gap: 6px;
@@ -4057,7 +4494,9 @@
 }
 
 #appointmentBreaksAddModal .appointment-breaks-add-inline-actions .header-btn,
-#appointmentBreaksAddModal .appointment-breaks-add-inline-actions .table-action-btn {
+#appointmentBreaksAddModal .appointment-breaks-add-inline-actions .table-action-btn,
+#workScheduleUserOverridesModal .appointment-breaks-add-inline-actions .header-btn,
+#workScheduleUserOverridesModal .appointment-breaks-add-inline-actions .table-action-btn {
   width: 72px;
   min-width: 72px;
   height: var(--input-height);
@@ -4106,15 +4545,18 @@
     overflow-y: auto;
   }
 
-  #appointmentBreaksAddModal .appointment-breaks-add-row-line-top {
+  #appointmentBreaksAddModal .appointment-breaks-add-row-line-top,
+  #workScheduleUserOverridesModal .appointment-breaks-add-row-line-top {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  #appointmentBreaksAddModal .appointment-breaks-add-row-line-bottom-item {
+  #appointmentBreaksAddModal .appointment-breaks-add-row-line-bottom-item,
+  #workScheduleUserOverridesModal .appointment-breaks-add-row-line-bottom-item {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  #appointmentBreaksAddModal .appointment-breaks-add-inline-actions {
+  #appointmentBreaksAddModal .appointment-breaks-add-inline-actions,
+  #workScheduleUserOverridesModal .appointment-breaks-add-inline-actions {
     grid-column: 1 / -1;
     justify-content: flex-end;
   }
@@ -4529,7 +4971,7 @@
   display: grid;
   grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
   align-items: center;
-  gap: 8px 12px;
+  gap: 10px;
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -4624,6 +5066,32 @@
 
 .appointment-reminder-settings-inline .appointment-reminder-channels {
   margin-left: 0;
+}
+
+.appointment-settings-retention-inline {
+  align-items: flex-end;
+  gap: 10px 12px;
+  flex-wrap: nowrap;
+}
+
+.appointment-settings-retention-inline .field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+}
+
+.appointment-settings-retention-inline .field > label {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.appointment-settings-retention-inline .field input[type="number"] {
+  width: 90px;
+  min-width: 90px;
+  flex: 0 0 90px;
 }
 
 .appointment-breaks-block {
@@ -4865,7 +5333,7 @@
 
   .appointment-setting-row {
     grid-template-columns: minmax(0, 1fr);
-    gap: 8px;
+    gap: 10px;
   }
 
   .appointment-setting-row>label {

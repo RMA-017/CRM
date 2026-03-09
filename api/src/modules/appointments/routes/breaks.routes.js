@@ -25,7 +25,12 @@ export function registerAppointmentBreakRoutes(fastify, context) {
       setNoCacheHeaders(reply);
 
       try {
-        const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_READ);
+        const access = await requireAppointmentsAccess(
+          request,
+          reply,
+          PERMISSIONS.APPOINTMENTS_READ,
+          "appointments.breaks"
+        );
         if (!access) {
           return;
         }
@@ -58,7 +63,12 @@ export function registerAppointmentBreakRoutes(fastify, context) {
     },
     async (request, reply) => {
       try {
-        const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_UPDATE);
+        const access = await requireAppointmentsAccess(
+          request,
+          reply,
+          PERMISSIONS.APPOINTMENTS_UPDATE,
+          "appointments.breaks"
+        );
         if (!access) {
           return;
         }

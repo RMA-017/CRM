@@ -1,5 +1,10 @@
 import pool from "../../config/db.js";
 import { executeTransaction } from "../../lib/db-utils.js";
+import {
+  filterPermissionCodesByOrgFeatures,
+  filterPermissionOptionsByOrgFeatures,
+  normalizeAllowedFeatures
+} from "../../lib/org-features.js";
 import { clearRolePermissionsCache } from "../users/access.service.js";
 
 function mapOrganization(row) {
@@ -8,7 +13,7 @@ function mapOrganization(row) {
     code: row.code,
     name: row.name,
     isActive: Boolean(row.is_active),
-    allowedFeatures: Array.isArray(row.allowed_features) ? row.allowed_features : null,
+    allowedFeatures: normalizeAllowedFeatures(row.allowed_features),
     createdAt: row.created_at
   };
 }
@@ -71,6 +76,13 @@ function mapRoleOption(row) {
   };
 }
 
+function filterRoleOptionByOrgFeatures(item, allowedFeatures) {
+  return {
+    ...item,
+    permissionCodes: filterPermissionCodesByOrgFeatures(item?.permissionCodes, allowedFeatures)
+  };
+}
+
 async function getRoleOptionByIdWithDb(db, id, organizationId = null, allowGlobal = true) {
   const params = [id];
   let scopeSql = "";
@@ -105,6 +117,64 @@ async function getRoleOptionByIdWithDb(db, id, organizationId = null, allowGloba
   );
 
   return rows[0] ? mapRoleOption(rows[0]) : null;
+}
+
+async function getOrganizationAllowedFeaturesWithDb(db, organizationId) {
+  const { rows } = await db.query(
+    `SELECT allowed_features
+       FROM organizations
+      WHERE id = $1
+      LIMIT 1`,
+    [organizationId]
+  );
+  return rows[0] ? normalizeAllowedFeatures(rows[0].allowed_features) : null;
+}
+
+async function pruneRolePermissionsByOrganizationFeaturesWithDb(db, organizationId) {
+  const allowedFeatures = await getOrganizationAllowedFeaturesWithDb(db, organizationId);
+  if (!Array.isArray(allowedFeatures)) {
+    return [];
+  }
+
+  const { rows: permissionRows } = await db.query(
+    `SELECT DISTINCT LOWER(p.code) AS code
+       FROM role_options r
+       JOIN role_permissions rp ON rp.role_id = r.id
+       JOIN permissions p ON p.id = rp.permission_id
+      WHERE r.organization_id = $1
+        AND p.is_active = TRUE`,
+    [organizationId]
+  );
+
+  const disallowedCodes = permissionRows
+    .map((row) => normalizePermissionCode(row?.code))
+    .filter(Boolean)
+    .filter((code) => !filterPermissionCodesByOrgFeatures([code], allowedFeatures).includes(code));
+
+  if (disallowedCodes.length === 0) {
+    return [];
+  }
+
+  const { rows: roleRows } = await db.query(
+    `SELECT id
+       FROM role_options
+      WHERE organization_id = $1`,
+    [organizationId]
+  );
+
+  await db.query(
+    `DELETE FROM role_permissions rp
+      USING role_options r, permissions p
+      WHERE rp.role_id = r.id
+        AND rp.permission_id = p.id
+        AND r.organization_id = $1
+        AND LOWER(p.code) = ANY($2::text[])`,
+    [organizationId, disallowedCodes]
+  );
+
+  return roleRows
+    .map((row) => Number(row?.id || 0))
+    .filter((id) => Number.isInteger(id) && id > 0);
 }
 
 async function resolvePermissionIdsByCodes(db, permissionCodes) {
@@ -160,7 +230,8 @@ export async function findSettingsRequester(authContext = {}) {
       role: roleLabel,
       is_admin: Boolean(cachedRequester.is_admin),
       is_platform_admin: Boolean(cachedRequester.is_platform_admin),
-      organization_id: cachedRequester.organization_id
+      organization_id: cachedRequester.organization_id,
+      organization_allowed_features: normalizeAllowedFeatures(cachedRequester.organization_allowed_features)
     };
   }
 
@@ -172,7 +243,8 @@ export async function findSettingsRequester(authContext = {}) {
        r.label AS role,
        (COALESCE(u.is_platform_admin, FALSE) OR COALESCE(r.is_admin, FALSE)) AS is_admin,
        COALESCE(u.is_platform_admin, FALSE) AS is_platform_admin,
-       u.organization_id
+       u.organization_id,
+       o.allowed_features AS organization_allowed_features
        FROM users u
        JOIN organizations o ON o.id = u.organization_id
        JOIN role_options r ON r.id = u.role_id
@@ -203,26 +275,50 @@ export async function createOrganization({ code, name, isActive, allowedFeatures
 }
 
 export async function updateOrganization({ id, code, name, isActive, allowedFeatures = null, actorUserId = null }) {
-  const { rows } = await pool.query(
-    `UPDATE organizations
-        SET code = $1,
-            name = $2,
-            is_active = $3,
-            allowed_features = $4,
-            updated_by = $5,
-            updated_at = CURRENT_TIMESTAMP
-      WHERE id = $6
-      RETURNING id, code, name, is_active, allowed_features, created_at`,
-    [code, name, isActive, allowedFeatures, actorUserId, id]
-  );
-  return rows[0] ? mapOrganization(rows[0]) : null;
+  const affectedRoleIds = [];
+  const item = await executeTransaction(async (client) => {
+    const { rows } = await client.query(
+      `UPDATE organizations
+          SET code = $1,
+              name = $2,
+              is_active = $3,
+              allowed_features = $4,
+              updated_by = $5,
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = $6
+        RETURNING id, code, name, is_active, allowed_features, created_at`,
+      [code, name, isActive, allowedFeatures, actorUserId, id]
+    );
+    if (!rows[0]) {
+      return null;
+    }
+
+    const nextRoleIds = await pruneRolePermissionsByOrganizationFeaturesWithDb(client, id);
+    affectedRoleIds.push(...nextRoleIds);
+    return mapOrganization(rows[0]);
+  });
+
+  affectedRoleIds.forEach((roleId) => {
+    clearRolePermissionsCache(roleId);
+  });
+  return item;
 }
 
 export async function deleteOrganizationById(id) {
-  return pool.query("DELETE FROM organizations WHERE id = $1", [id]);
+  return executeTransaction(async (client) => {
+    // Remove rows protected by RESTRICT constraints before deleting the org.
+    await client.query("DELETE FROM appointment_schedules WHERE organization_id = $1", [id]);
+    await client.query("DELETE FROM appointment_breaks WHERE organization_id = $1", [id]);
+    await client.query("DELETE FROM vip_client_tutor_assignment_history WHERE organization_id = $1", [id]);
+    await client.query("DELETE FROM vip_client_tutor_assignments WHERE organization_id = $1", [id]);
+    await client.query("DELETE FROM vip_class_teacher_assignments WHERE organization_id = $1", [id]);
+    await client.query("DELETE FROM clients WHERE organization_id = $1", [id]);
+    await client.query("DELETE FROM users WHERE organization_id = $1", [id]);
+    return client.query("DELETE FROM organizations WHERE id = $1", [id]);
+  });
 }
 
-export async function listRoleOptionsForSettings(organizationId) {
+export async function listRoleOptionsForSettings(organizationId, allowedFeatures = null) {
   const { rows } = await pool.query(
     `SELECT
        r.id,
@@ -245,14 +341,16 @@ export async function listRoleOptionsForSettings(organizationId) {
     ORDER BY r.sort_order ASC, r.id ASC`,
     [organizationId]
   );
-  return rows.map(mapRoleOption);
+  return rows
+    .map(mapRoleOption)
+    .map((item) => filterRoleOptionByOrgFeatures(item, allowedFeatures));
 }
 
 export async function getRoleOptionById(id, organizationId = null, allowGlobal = true) {
   return getRoleOptionByIdWithDb(pool, id, organizationId, allowGlobal);
 }
 
-export async function listPermissionOptionsForSettings() {
+export async function listPermissionOptionsForSettings(allowedFeatures = null) {
   const { rows } = await pool.query(
     `SELECT id, code, label, sort_order, is_active, created_at
        FROM permissions
@@ -278,7 +376,10 @@ export async function listPermissionOptionsForSettings() {
       "appointments.schedule.scope.%"
     ]]
   );
-  return rows.map(mapPermissionOption);
+  return filterPermissionOptionsByOrgFeatures(
+    rows.map(mapPermissionOption),
+    allowedFeatures
+  );
 }
 
 export async function createRoleOption({ organizationId, label, sortOrder, isActive, isAdmin = false, permissionCodes = [], actorUserId = null }) {
@@ -296,7 +397,11 @@ export async function createRoleOption({ organizationId, label, sortOrder, isAct
       return null;
     }
 
-    const permissionIds = await resolvePermissionIdsByCodes(client, permissionCodes);
+    const allowedFeatures = await getOrganizationAllowedFeaturesWithDb(client, organizationId);
+    const permissionIds = await resolvePermissionIdsByCodes(
+      client,
+      filterPermissionCodesByOrgFeatures(permissionCodes, allowedFeatures)
+    );
     await replaceRolePermissions(client, roleId, permissionIds, actorUserId);
     return getRoleOptionByIdWithDb(client, roleId, organizationId);
   });
@@ -323,7 +428,11 @@ export async function updateRoleOption({ id, organizationId, label, sortOrder, i
       return null;
     }
 
-    const permissionIds = await resolvePermissionIdsByCodes(client, permissionCodes);
+    const allowedFeatures = await getOrganizationAllowedFeaturesWithDb(client, organizationId);
+    const permissionIds = await resolvePermissionIdsByCodes(
+      client,
+      filterPermissionCodesByOrgFeatures(permissionCodes, allowedFeatures)
+    );
     await replaceRolePermissions(client, id, permissionIds, actorUserId);
     return getRoleOptionByIdWithDb(client, id, organizationId);
   });

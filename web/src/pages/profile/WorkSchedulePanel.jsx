@@ -50,10 +50,28 @@ function createDefaultWeeklyDraft(items = []) {
 function createWeeklyForm() {
   return {
     dayOfWeek: "1",
-    isActive: true,
     startTime: "09:00",
     endTime: "18:00",
     reason: ""
+  };
+}
+
+function createWeeklyDraftLine() {
+  return {
+    dayOfWeek: "",
+    startTime: "",
+    endTime: "",
+    reason: ""
+  };
+}
+
+function createWeeklyDeleteState() {
+  return {
+    open: false,
+    id: "",
+    label: "",
+    error: "",
+    submitting: false
   };
 }
 
@@ -98,8 +116,10 @@ function WorkSchedulePanel({
   const [defaultWeeklyRows, setDefaultWeeklyRows] = useState(() => createDefaultWeeklyDraft([]));
   const [weeklyUserId, setWeeklyUserId] = useState("");
   const [weeklyForm, setWeeklyForm] = useState(createWeeklyForm);
+  const [weeklyDraftLines, setWeeklyDraftLines] = useState(() => [createWeeklyDraftLine()]);
   const [weeklyEditId, setWeeklyEditId] = useState("");
   const [isWeeklyOverridesModalOpenInternal, setIsWeeklyOverridesModalOpenInternal] = useState(false);
+  const [weeklyDelete, setWeeklyDelete] = useState(createWeeklyDeleteState());
   const [loading, setLoading] = useState(false);
   const [savingDefault, setSavingDefault] = useState(false);
   const [mutating, setMutating] = useState(false);
@@ -161,9 +181,19 @@ function WorkSchedulePanel({
   const weeklyDayOptions = useMemo(() => (
     DAYS.map((day) => ({ value: day.dayOfWeek, label: day.label }))
   ), []);
+  const weeklyExistingDayCount = useMemo(() => (
+    new Set(
+      weeklyItems
+        .filter((item) => String(item?.userId || "").trim() === String(weeklyUserId || "").trim())
+        .map((item) => String(item?.dayOfWeek || "").trim())
+        .filter(Boolean)
+    ).size
+  ), [weeklyItems, weeklyUserId]);
+  const weeklyMaxDraftLines = Math.max(1, DAYS.length - weeklyExistingDayCount);
   const defaultWeeklySnapshot = useMemo(() => (
     serializeDefaultWeeklyRows(defaultWeeklyRows)
   ), [defaultWeeklyRows]);
+  const isEditingWeeklyOverride = Boolean(String(weeklyEditId || "").trim());
 
   const loadData = useCallback(async () => {
     if (!currentOrganizationId) {
@@ -321,39 +351,130 @@ function WorkSchedulePanel({
 
     setMutating(true);
     try {
-      const hasValidTimeRange = Boolean(
-        String(weeklyForm.startTime || "").trim()
-        && String(weeklyForm.endTime || "").trim()
-        && String(weeklyForm.startTime || "").trim() < String(weeklyForm.endTime || "").trim()
-      );
-      const payload = {
-        organizationId: currentOrganizationId,
-        userId: weeklyUserId,
-        ruleScope: "weekly",
-        dayOfWeek: weeklyForm.dayOfWeek,
-        isActive: hasValidTimeRange,
-        startTime: weeklyForm.startTime,
-        endTime: weeklyForm.endTime,
-        reason: weeklyForm.reason
-      };
-      const requestPath = weeklyEditId
-        ? `/api/appointments/work-schedule/${encodeURIComponent(weeklyEditId)}`
-        : "/api/appointments/work-schedule";
-      const response = await apiFetch(requestPath, {
-        method: weeklyEditId ? "PATCH" : "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        setMessage(String(data?.message || "Failed to save weekly override.").trim());
-        return;
+      if (isEditingWeeklyOverride) {
+        const hasValidTimeRange = Boolean(
+          String(weeklyForm.startTime || "").trim()
+          && String(weeklyForm.endTime || "").trim()
+          && String(weeklyForm.startTime || "").trim() < String(weeklyForm.endTime || "").trim()
+        );
+        const payload = {
+          organizationId: currentOrganizationId,
+          userId: weeklyUserId,
+          ruleScope: "weekly",
+          dayOfWeek: weeklyForm.dayOfWeek,
+          isActive: hasValidTimeRange,
+          startTime: weeklyForm.startTime,
+          endTime: weeklyForm.endTime,
+          reason: weeklyForm.reason
+        };
+        const response = await apiFetch(`/api/appointments/work-schedule/${encodeURIComponent(weeklyEditId)}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+        const data = await readApiResponseData(response);
+        if (!response.ok) {
+          setMessage(String(data?.message || "Failed to save weekly override.").trim());
+          return;
+        }
+      } else {
+        const sourceLines = Array.isArray(weeklyDraftLines) && weeklyDraftLines.length > 0
+          ? weeklyDraftLines
+          : [createWeeklyDraftLine()];
+        const preparedLines = [];
+        const seenDays = new Set();
+        const existingDays = new Set(
+          weeklyItems
+            .filter((item) => String(item?.userId || "").trim() === String(weeklyUserId || "").trim())
+            .map((item) => String(item?.dayOfWeek || "").trim())
+            .filter(Boolean)
+        );
+
+        for (let index = 0; index < sourceLines.length; index += 1) {
+          const line = sourceLines[index] || {};
+          const dayOfWeek = String(line.dayOfWeek || "").trim();
+          const startTime = String(line.startTime || "").trim();
+          const endTime = String(line.endTime || "").trim();
+          const reason = String(line.reason || "").trim();
+          const hasAnyValue = Boolean(dayOfWeek || startTime || endTime || reason);
+
+          if (!hasAnyValue) {
+            continue;
+          }
+          if (!dayOfWeek) {
+            setMessage(`Row ${index + 1}: day is required.`);
+            return;
+          }
+          if (!startTime || !endTime) {
+            setMessage(`Row ${index + 1}: start and end time are required.`);
+            return;
+          }
+          if (startTime >= endTime) {
+            setMessage(`Row ${index + 1}: end time must be after start time.`);
+            return;
+          }
+          if (seenDays.has(dayOfWeek)) {
+            const duplicateDayLabel = DAYS.find((day) => day.dayOfWeek === dayOfWeek)?.label || dayOfWeek;
+            setMessage(`Duplicate day in draft: ${duplicateDayLabel}.`);
+            return;
+          }
+          if (existingDays.has(dayOfWeek)) {
+            const existingDayLabel = DAYS.find((day) => day.dayOfWeek === dayOfWeek)?.label || dayOfWeek;
+            setMessage(`${existingDayLabel} already exists for selected user. Use Edit.`);
+            return;
+          }
+
+          seenDays.add(dayOfWeek);
+          preparedLines.push({
+            dayOfWeek,
+            startTime,
+            endTime,
+            reason
+          });
+        }
+
+        if (preparedLines.length === 0) {
+          setMessage("Add at least one weekly override row.");
+          return;
+        }
+
+        for (let index = 0; index < preparedLines.length; index += 1) {
+          const line = preparedLines[index];
+          const response = await apiFetch("/api/appointments/work-schedule", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              organizationId: currentOrganizationId,
+              userId: weeklyUserId,
+              ruleScope: "weekly",
+              dayOfWeek: line.dayOfWeek,
+              isActive: true,
+              startTime: line.startTime,
+              endTime: line.endTime,
+              reason: line.reason
+            })
+          });
+          const data = await readApiResponseData(response);
+          if (!response.ok) {
+            setMessage(String(data?.message || `Failed to save weekly override row ${index + 1}.`).trim());
+            return;
+          }
+        }
       }
+
       await loadData();
+      if (typeof onCloseUserWeeklyOverridesModal === "function") {
+        onCloseUserWeeklyOverridesModal();
+      } else {
+        setIsWeeklyOverridesModalOpenInternal(false);
+      }
       setWeeklyEditId("");
       setWeeklyForm(createWeeklyForm());
+      setWeeklyDraftLines([createWeeklyDraftLine()]);
       dispatchWorkScheduleChange();
     } catch {
       setMessage("Failed to save weekly override.");
@@ -362,41 +483,88 @@ function WorkSchedulePanel({
     }
   }
 
-  async function removeItem(id) {
+  function openWeeklyDeleteModal(item) {
+    if (!canUpdateAppointments) {
+      return;
+    }
+    const id = String(item?.id || "").trim();
+    if (!id) {
+      return;
+    }
+    const username = String(item?.userUsername || weeklyUsernameByUserId.get(String(item?.userId || "").trim()) || item?.userName || "").trim();
+    const dayLabel = DAYS.find((day) => day.dayOfWeek === String(item?.dayOfWeek || "").trim())?.label || "";
+    const label = [username, dayLabel].filter(Boolean).join(" - ").trim();
+    setWeeklyDelete({
+      open: true,
+      id,
+      label,
+      error: "",
+      submitting: false
+    });
+  }
+
+  function closeWeeklyDeleteModal() {
+    if (weeklyDelete.submitting) {
+      return;
+    }
+    setWeeklyDelete(createWeeklyDeleteState());
+  }
+
+  async function handleWeeklyDeleteConfirm() {
+    const id = String(weeklyDelete.id || "").trim();
     if (!canUpdateAppointments || !currentOrganizationId || !id) {
       return;
     }
-    if (!window.confirm("Delete this work schedule entry?")) {
-      return;
-    }
+
+    setWeeklyDelete((prev) => ({
+      ...prev,
+      submitting: true,
+      error: ""
+    }));
     setMutating(true);
     try {
       const queryParams = new URLSearchParams({
         organizationId: currentOrganizationId
       });
-      const response = await apiFetch(`/api/appointments/work-schedule/${encodeURIComponent(String(id))}?${queryParams.toString()}`, {
+      const response = await apiFetch(`/api/appointments/work-schedule/${encodeURIComponent(id)}?${queryParams.toString()}`, {
         method: "DELETE"
       });
       const data = await readApiResponseData(response);
       if (!response.ok) {
-        setMessage(String(data?.message || "Failed to delete work schedule entry.").trim());
+        setWeeklyDelete((prev) => ({
+          ...prev,
+          submitting: false,
+          error: String(data?.message || "Failed to delete work schedule entry.").trim()
+        }));
         return;
       }
       await loadData();
+      setWeeklyDelete(createWeeklyDeleteState());
       dispatchWorkScheduleChange();
     } catch {
-      setMessage("Failed to delete work schedule entry.");
+      setWeeklyDelete((prev) => ({
+        ...prev,
+        submitting: false,
+        error: "Failed to delete work schedule entry."
+      }));
     } finally {
       setMutating(false);
     }
   }
 
-  function openWeeklyOverridesModal() {
+  function showWeeklyOverridesModal() {
     if (typeof onOpenUserWeeklyOverridesModal === "function") {
       onOpenUserWeeklyOverridesModal();
       return;
     }
     setIsWeeklyOverridesModalOpenInternal(true);
+  }
+
+  function openWeeklyOverridesModal() {
+    setWeeklyEditId("");
+    setWeeklyForm(createWeeklyForm());
+    setWeeklyDraftLines([createWeeklyDraftLine()]);
+    showWeeklyOverridesModal();
   }
 
   function closeWeeklyOverridesModal() {
@@ -410,6 +578,49 @@ function WorkSchedulePanel({
     }
     setWeeklyEditId("");
     setWeeklyForm(createWeeklyForm());
+    setWeeklyDraftLines([createWeeklyDraftLine()]);
+  }
+
+  function handleWeeklyDraftLineField(lineIndex, field, value) {
+    setWeeklyDraftLines((prev) => {
+      const source = Array.isArray(prev) && prev.length > 0 ? prev : [createWeeklyDraftLine()];
+      return source.map((line, currentLineIndex) => (
+        currentLineIndex === lineIndex
+          ? { ...line, [field]: value }
+          : line
+      ));
+    });
+  }
+
+  function addWeeklyDraftLine(afterLineIndex = -1) {
+    setWeeklyDraftLines((prev) => {
+      const nextLines = Array.isArray(prev) && prev.length > 0
+        ? [...prev]
+        : [createWeeklyDraftLine()];
+      if (nextLines.length >= weeklyMaxDraftLines) {
+        return nextLines;
+      }
+      const shouldInsertAfterIndex = Number.isInteger(afterLineIndex)
+        && afterLineIndex >= 0
+        && afterLineIndex < nextLines.length;
+      const insertAt = shouldInsertAfterIndex ? (afterLineIndex + 1) : nextLines.length;
+      nextLines.splice(insertAt, 0, createWeeklyDraftLine());
+      return nextLines;
+    });
+  }
+
+  function deleteWeeklyDraftLine(lineIndex) {
+    setWeeklyDraftLines((prev) => {
+      const source = Array.isArray(prev) && prev.length > 0 ? [...prev] : [createWeeklyDraftLine()];
+      if (source.length <= 1) {
+        return source;
+      }
+      if (lineIndex < 0 || lineIndex >= source.length) {
+        return source;
+      }
+      source.splice(lineIndex, 1);
+      return source.length > 0 ? source : [createWeeklyDraftLine()];
+    });
   }
 
   const weeklyOverridesModalLayer = showUserWeeklyOverrides
@@ -421,15 +632,15 @@ function WorkSchedulePanel({
           hidden={!isWeeklyOverridesModalOpen}
           aria-modal="true"
           role="dialog"
-          aria-label="User weekly overrides"
+          aria-label="Add work days"
         >
           <div className="appointment-breaks-add-modal-head">
-            <h3>User Weekly Overrides</h3>
+            <h3>Add Work Days</h3>
             <button
               id="closeWorkScheduleUserOverridesModalBtn"
               type="button"
               className="header-btn panel-close-btn"
-              aria-label="Close user weekly overrides modal"
+              aria-label="Close add work days modal"
               onClick={closeWeeklyOverridesModal}
             >
               ×
@@ -443,66 +654,167 @@ function WorkSchedulePanel({
               void saveWeeklyOverride();
             }}
           >
-            <div className="ws-form-row ws-form-row-full">
-              <label className="field ws-field-user">
-                <span>User</span>
-                <CustomSelect
-                  id="workScheduleUserOverridesUserSelect"
-                  placeholder={weeklyUserOptions.length > 0 ? "Select user" : "No users"}
-                  value={weeklyUserId}
-                  options={weeklyUserOptions}
-                  disabled={!canUpdateAppointments || weeklyUserOptions.length === 0 || mutating}
-                  menuPortal
-                  forceOpenDown
-                  maxVisibleOptions={6}
-                  onChange={(nextValue) => setWeeklyUserId(String(nextValue || "").trim())}
-                />
-              </label>
-            </div>
+            <div className="appointment-breaks-add-rows appointment-breaks-add-rows-scroll">
+              {isEditingWeeklyOverride ? (
+                <>
+                  <div className="ws-form-row ws-form-row-full">
+                    <label className="field ws-field-user">
+                      <span>User</span>
+                      <CustomSelect
+                        id="workScheduleUserOverridesUserSelect"
+                        placeholder={weeklyUserOptions.length > 0 ? "Select user" : "No users"}
+                        value={weeklyUserId}
+                        options={weeklyUserOptions}
+                        disabled={!canUpdateAppointments || weeklyUserOptions.length === 0 || mutating}
+                        menuPortal
+                        forceOpenDown
+                        maxVisibleOptions={6}
+                        onChange={(nextValue) => setWeeklyUserId(String(nextValue || "").trim())}
+                      />
+                    </label>
+                  </div>
 
-            <div className="ws-form-row ws-form-row-wide">
-              <label className="field ws-field-day">
-                <span>Day</span>
-                <CustomSelect
-                  id="workScheduleUserOverridesDaySelect"
-                  placeholder="Day"
-                  value={weeklyForm.dayOfWeek}
-                  options={weeklyDayOptions}
-                  disabled={!canUpdateAppointments || mutating}
-                  menuPortal
-                  forceOpenDown
-                  maxVisibleOptions={7}
-                  onChange={(nextValue) => setWeeklyForm((prev) => ({ ...prev, dayOfWeek: String(nextValue || "1") }))}
-                />
-              </label>
-              <label className="field ws-field-time">
-                <span>Start</span>
-                <input
-                  type="time"
-                  value={weeklyForm.startTime}
-                  disabled={!canUpdateAppointments || mutating}
-                  onChange={(event) => setWeeklyForm((prev) => ({ ...prev, startTime: String(event.target.value || "") }))}
-                />
-              </label>
-              <label className="field ws-field-time">
-                <span>End</span>
-                <input
-                  type="time"
-                  value={weeklyForm.endTime}
-                  disabled={!canUpdateAppointments || mutating}
-                  onChange={(event) => setWeeklyForm((prev) => ({ ...prev, endTime: String(event.target.value || "") }))}
-                />
-              </label>
-              <label className="field ws-field-reason">
-                <span>Reason</span>
-                <input
-                  type="text"
-                  maxLength={120}
-                  value={weeklyForm.reason}
-                  disabled={!canUpdateAppointments || mutating}
-                  onChange={(event) => setWeeklyForm((prev) => ({ ...prev, reason: String(event.target.value || "") }))}
-                />
-              </label>
+                  <div className="ws-form-row ws-form-row-wide">
+                    <label className="field ws-field-day">
+                      <span>Day</span>
+                      <CustomSelect
+                        id="workScheduleUserOverridesDaySelect"
+                        placeholder="Day"
+                        value={weeklyForm.dayOfWeek}
+                        options={weeklyDayOptions}
+                        disabled={!canUpdateAppointments || mutating}
+                        menuPortal
+                        forceOpenDown
+                        maxVisibleOptions={7}
+                        onChange={(nextValue) => setWeeklyForm((prev) => ({ ...prev, dayOfWeek: String(nextValue || "1") }))}
+                      />
+                    </label>
+                    <label className="field ws-field-time">
+                      <span>Start</span>
+                      <input
+                        type="time"
+                        value={weeklyForm.startTime}
+                        disabled={!canUpdateAppointments || mutating}
+                        onChange={(event) => setWeeklyForm((prev) => ({ ...prev, startTime: String(event.target.value || "") }))}
+                      />
+                    </label>
+                    <label className="field ws-field-time">
+                      <span>End</span>
+                      <input
+                        type="time"
+                        value={weeklyForm.endTime}
+                        disabled={!canUpdateAppointments || mutating}
+                        onChange={(event) => setWeeklyForm((prev) => ({ ...prev, endTime: String(event.target.value || "") }))}
+                      />
+                    </label>
+                    <label className="field ws-field-reason">
+                      <span>Reason</span>
+                      <input
+                        type="text"
+                        maxLength={120}
+                        value={weeklyForm.reason}
+                        disabled={!canUpdateAppointments || mutating}
+                        onChange={(event) => setWeeklyForm((prev) => ({ ...prev, reason: String(event.target.value || "") }))}
+                      />
+                    </label>
+                  </div>
+                </>
+              ) : (
+                <div className="appointment-breaks-add-row">
+                  <div className="appointment-breaks-add-row-line appointment-breaks-add-row-line-top">
+                    <div className="appointment-breaks-add-field appointment-breaks-add-field-with-action">
+                      <span>User</span>
+                      <div className="appointment-breaks-add-field-inline">
+                        <CustomSelect
+                          id="workScheduleUserOverridesUserSelect"
+                          placeholder={weeklyUserOptions.length > 0 ? "Select user" : "No users"}
+                          value={weeklyUserId}
+                          options={weeklyUserOptions}
+                          disabled={!canUpdateAppointments || weeklyUserOptions.length === 0 || mutating}
+                          menuPortal
+                          forceOpenDown
+                          maxVisibleOptions={6}
+                          onChange={(nextValue) => setWeeklyUserId(String(nextValue || "").trim())}
+                        />
+                        <button
+                          id="addWorkScheduleUserOverridesDraftLineBtn"
+                          className="header-btn appointment-breaks-inline-add-btn"
+                          type="button"
+                          disabled={!canUpdateAppointments || !weeklyUserId || mutating || weeklyDraftLines.length >= weeklyMaxDraftLines}
+                          onClick={() => addWeeklyDraftLine(weeklyDraftLines.length - 1)}
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="appointment-breaks-add-row-line appointment-breaks-add-row-line-bottom">
+                    {(Array.isArray(weeklyDraftLines) && weeklyDraftLines.length > 0 ? weeklyDraftLines : [createWeeklyDraftLine()]).map((line, lineIndex) => (
+                      <div
+                        className="appointment-breaks-add-row-line-bottom-item"
+                        key={`workScheduleUserOverridesDraftLine_${lineIndex}`}
+                      >
+                        <div className="appointment-breaks-add-field">
+                          {lineIndex === 0 ? <span>Day</span> : null}
+                          <CustomSelect
+                            id={`workScheduleUserOverridesDaySelect_${lineIndex}`}
+                            placeholder="Day"
+                            value={String(line.dayOfWeek || "")}
+                            options={weeklyDayOptions}
+                            disabled={!canUpdateAppointments || mutating}
+                            menuPortal
+                            forceOpenDown
+                            maxVisibleOptions={7}
+                            onChange={(nextValue) => handleWeeklyDraftLineField(lineIndex, "dayOfWeek", String(nextValue || ""))}
+                          />
+                        </div>
+                        <label className="appointment-breaks-add-field" htmlFor={`workScheduleUserOverridesStart_${lineIndex}`}>
+                          {lineIndex === 0 ? <span>Start</span> : null}
+                          <input
+                            id={`workScheduleUserOverridesStart_${lineIndex}`}
+                            type="time"
+                            value={String(line.startTime || "")}
+                            disabled={!canUpdateAppointments || mutating}
+                            onChange={(event) => handleWeeklyDraftLineField(lineIndex, "startTime", String(event.target.value || ""))}
+                          />
+                        </label>
+                        <label className="appointment-breaks-add-field" htmlFor={`workScheduleUserOverridesEnd_${lineIndex}`}>
+                          {lineIndex === 0 ? <span>End</span> : null}
+                          <input
+                            id={`workScheduleUserOverridesEnd_${lineIndex}`}
+                            type="time"
+                            value={String(line.endTime || "")}
+                            disabled={!canUpdateAppointments || mutating}
+                            onChange={(event) => handleWeeklyDraftLineField(lineIndex, "endTime", String(event.target.value || ""))}
+                          />
+                        </label>
+                        <label className="appointment-breaks-add-field" htmlFor={`workScheduleUserOverridesReason_${lineIndex}`}>
+                          {lineIndex === 0 ? <span>Reason</span> : null}
+                          <input
+                            id={`workScheduleUserOverridesReason_${lineIndex}`}
+                            type="text"
+                            maxLength={120}
+                            value={String(line.reason || "")}
+                            disabled={!canUpdateAppointments || mutating}
+                            onChange={(event) => handleWeeklyDraftLineField(lineIndex, "reason", String(event.target.value || ""))}
+                          />
+                        </label>
+                        <div className="appointment-breaks-add-inline-actions">
+                          <button
+                            id={`deleteWorkScheduleUserOverridesDraftLineBtn_${lineIndex}`}
+                            className="table-action-btn table-action-btn-danger"
+                            type="button"
+                            disabled={!canUpdateAppointments || mutating || weeklyDraftLines.length <= 1}
+                            onClick={() => deleteWeeklyDraftLine(lineIndex)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="edit-actions appointment-breaks-add-modal-actions">
@@ -525,6 +837,47 @@ function WorkSchedulePanel({
       </>
     )
     : null;
+
+  const weeklyDeleteModalLayer = (
+    <>
+      <section
+        id="workScheduleDeleteModal"
+        className="logout-confirm-modal"
+        hidden={!weeklyDelete.open}
+      >
+        <h3>Delete this work schedule entry?</h3>
+        <p className="all-users-state" hidden={!weeklyDelete.label}>{weeklyDelete.label}</p>
+        <p className="field-error">{weeklyDelete.error}</p>
+        <div className="logout-confirm-actions">
+          <button
+            id="workScheduleDeleteYesBtn"
+            type="button"
+            className="header-btn logout-confirm-yes"
+            disabled={weeklyDelete.submitting}
+            onClick={() => {
+              void handleWeeklyDeleteConfirm();
+            }}
+          >
+            Yes
+          </button>
+          <button
+            id="workScheduleDeleteNoBtn"
+            type="button"
+            className="header-btn"
+            disabled={weeklyDelete.submitting}
+            onClick={closeWeeklyDeleteModal}
+          >
+            No
+          </button>
+        </div>
+      </section>
+      <div
+        className="login-overlay"
+        hidden={!weeklyDelete.open}
+        onClick={closeWeeklyDeleteModal}
+      />
+    </>
+  );
 
   return (
     <>
@@ -589,8 +942,8 @@ function WorkSchedulePanel({
                 id="openWorkScheduleUserOverridesModalBtn"
                 type="button"
                 className="header-btn appointment-breaks-add-icon-btn"
-                aria-label="Open user weekly overrides modal"
-                title="User weekly overrides"
+                aria-label="Open add work days modal"
+                title="Add Work Days"
                 disabled={!canUpdateAppointments}
                 onClick={openWeeklyOverridesModal}
               >
@@ -630,12 +983,11 @@ function WorkSchedulePanel({
                           setWeeklyUserId(String(item.userId || "").trim());
                           setWeeklyForm({
                             dayOfWeek: String(item.dayOfWeek || "1").trim() || "1",
-                            isActive: item.isActive === true,
                             startTime: String(item.startTime || "").trim(),
                             endTime: String(item.endTime || "").trim(),
                             reason: String(item.reason || "").trim()
                           });
-                          openWeeklyOverridesModal();
+                          showWeeklyOverridesModal();
                         }}
                       >
                         Edit
@@ -646,18 +998,13 @@ function WorkSchedulePanel({
                         type="button"
                         className="table-action-btn table-action-btn-danger"
                         disabled={!canUpdateAppointments || mutating}
-                        onClick={() => void removeItem(item.id)}
+                        onClick={() => openWeeklyDeleteModal(item)}
                       >
                         Delete
                       </button>
                     </td>
                   </tr>
                 ))}
-                {weeklyItems.length === 0 ? (
-                  <tr>
-                    <td colSpan={7}>No user weekly overrides.</td>
-                  </tr>
-                ) : null}
               </tbody>
             </table>
           </div>
@@ -669,6 +1016,7 @@ function WorkSchedulePanel({
       </div>
 
       {typeof document !== "undefined" ? createPortal(weeklyOverridesModalLayer, document.body) : null}
+      {typeof document !== "undefined" ? createPortal(weeklyDeleteModalLayer, document.body) : null}
     </>
   );
 }

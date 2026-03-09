@@ -180,7 +180,6 @@ async function notificationsRoutes(fastify) {
       if (!requester) {
         return reply.status(401).send({ message: "Unauthorized." });
       }
-
       const canSendNotifications = Boolean(requester.is_admin)
         || (await hasPermission(requester.role_id, PERMISSIONS.NOTIFICATIONS_SEND));
       if (!canSendNotifications) {
