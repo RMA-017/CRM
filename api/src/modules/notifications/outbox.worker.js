@@ -5,6 +5,7 @@ export function createOutboxWorker(options = {}) {
     enabled:                         options.enabled ?? true,
     pollIntervalMs:                  options.pollIntervalMs ?? 5000,
     processLimit:                    options.processLimit ?? 100,
+    claimTtlSeconds:                 options.claimTtlSeconds ?? 120,
     retryDelaySeconds:               options.retryDelaySeconds ?? 30,
     retentionDays:                   options.retentionDays ?? 30,
     retentionLimit:                  options.retentionLimit ?? 500,
@@ -30,6 +31,7 @@ export function createOutboxWorker(options = {}) {
       try {
         const processed = await processPendingOutboxEvents({
           limit: config.processLimit,
+          claimTtlSeconds: config.claimTtlSeconds,
           retryDelaySeconds: config.retryDelaySeconds,
           processor
         });

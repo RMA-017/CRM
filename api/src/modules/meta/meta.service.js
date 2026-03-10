@@ -1,4 +1,34 @@
 import pool from "../../config/db.js";
+import { createTtlCache } from "../../lib/ttl-cache.js";
+
+const userOptionsCache = createTtlCache({
+  maxEntries: 64,
+  defaultTtlMs: 30_000
+});
+
+function buildUserOptionsCacheKey(organizationId) {
+  const normalizedOrganizationId = Number.parseInt(String(organizationId || "").trim(), 10);
+  return Number.isInteger(normalizedOrganizationId) && normalizedOrganizationId > 0
+    ? `org:${normalizedOrganizationId}`
+    : "org:all";
+}
+
+function cloneOptionList(items) {
+  return (Array.isArray(items) ? items : []).map((item) => ({
+    value: String(item?.value || "").trim(),
+    label: String(item?.label || "").trim()
+  }));
+}
+
+function cloneUserOptionsPayload(payload) {
+  const normalized = payload && typeof payload === "object" ? payload : {};
+  return {
+    roles: cloneOptionList(normalized.roles),
+    positions: cloneOptionList(normalized.positions),
+    permissions: cloneOptionList(normalized.permissions),
+    specialists: cloneOptionList(normalized.specialists)
+  };
+}
 
 function mapOptionRows(rows) {
   return rows
@@ -80,6 +110,12 @@ async function loadScopedSpecialistOptions(organizationId) {
 }
 
 export async function getUserOptions({ organizationId } = {}) {
+  const cacheKey = buildUserOptionsCacheKey(organizationId);
+  const cached = userOptionsCache.get(cacheKey);
+  if (cached) {
+    return cloneUserOptionsPayload(cached);
+  }
+
   const [roles, positions, permissions, specialists] = await Promise.all([
     loadScopedOptionsFromDb("role_options", "id::text", organizationId),
     loadScopedOptionsFromDb("position_options", "id::text", organizationId),
@@ -87,5 +123,11 @@ export async function getUserOptions({ organizationId } = {}) {
     loadScopedSpecialistOptions(organizationId)
   ]);
 
-  return { roles, positions, permissions, specialists };
+  const payload = { roles, positions, permissions, specialists };
+  userOptionsCache.set(cacheKey, cloneUserOptionsPayload(payload));
+  return payload;
+}
+
+export function clearUserOptionsCache() {
+  userOptionsCache.clear();
 }

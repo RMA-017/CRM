@@ -2,23 +2,9 @@ import jwt from "jsonwebtoken";
 import { appConfig } from "../config/app-config.js";
 import pool from "../config/db.js";
 import { trackUserActivity } from "../modules/monitoring/monitoring.store.js";
-import { AUTH_COOKIE_NAME } from "./cookies.js";
+import { AUTH_COOKIE_NAME, getClearCookieOptions } from "./cookies.js";
 import { parsePositiveInteger } from "./number.js";
-
-let organizationsAllowedFeaturesReadyPromise = null;
-
-async function ensureOrganizationsAllowedFeaturesColumn() {
-  if (!organizationsAllowedFeaturesReadyPromise) {
-    organizationsAllowedFeaturesReadyPromise = pool.query(
-      `ALTER TABLE organizations
-         ADD COLUMN IF NOT EXISTS allowed_features TEXT[] DEFAULT NULL`
-    ).catch((error) => {
-      organizationsAllowedFeaturesReadyPromise = null;
-      throw error;
-    });
-  }
-  return organizationsAllowedFeaturesReadyPromise;
-}
+import { normalizeOrganizationCode } from "./organization-code.js";
 
 export function signAccessToken({ userId, organizationId, organizationCode, username }) {
   return jwt.sign({
@@ -27,8 +13,13 @@ export function signAccessToken({ userId, organizationId, organizationCode, user
     organizationCode,
     username
   }, appConfig.jwtSecret, {
+    algorithm: "HS256",
     expiresIn: appConfig.jwtExpiresIn
   });
+}
+
+function clearAuthCookie(reply) {
+  reply.clearCookie?.(AUTH_COOKIE_NAME, getClearCookieOptions());
 }
 
 function getAuthPayload(request, reply) {
@@ -39,16 +30,17 @@ function getAuthPayload(request, reply) {
   }
 
   try {
-    return jwt.verify(token, appConfig.jwtSecret);
+    return jwt.verify(token, appConfig.jwtSecret, {
+      algorithms: ["HS256"]
+    });
   } catch {
+    clearAuthCookie(reply);
     reply.status(401).send({ message: "Invalid or expired token." });
     return null;
   }
 }
 
 async function getRequesterByAuthContext({ userId, organizationId }) {
-  await ensureOrganizationsAllowedFeaturesColumn();
-
   const { rows } = await pool.query(
     `SELECT
        u.id,
@@ -72,7 +64,8 @@ async function getRequesterByAuthContext({ userId, organizationId }) {
        COALESCE(NULLIF(TRIM(p.label), ''), '') AS position_label
       FROM users u
       JOIN organizations o ON o.id = $2
-      LEFT JOIN role_options r ON r.id = u.role_id
+      JOIN role_options r ON r.id = u.role_id
+       AND r.is_active = TRUE
       LEFT JOIN position_options p ON p.id = u.position_id
      WHERE u.id = $1
        AND (u.organization_id = $2 OR COALESCE(u.is_platform_admin, FALSE) = TRUE)
@@ -92,6 +85,7 @@ export async function authPreHandler(request, reply) {
 
   const requester = await getRequesterByAuthContext(authContext);
   if (!requester) {
+    clearAuthCookie(reply);
     reply.status(401).send({ message: "Unauthorized" });
     return;
   }
@@ -119,10 +113,11 @@ function getAuthContext(request, reply) {
 
   const userId = parsePositiveInteger(payload?.userId);
   const organizationId = parsePositiveInteger(payload?.organizationId);
-  const organizationCode = String(payload?.organizationCode || "").trim().toLowerCase();
+  const organizationCode = normalizeOrganizationCode(payload?.organizationCode);
   const username = String(payload?.username || "").trim();
 
   if (!userId || !organizationId || !organizationCode || !username) {
+    clearAuthCookie(reply);
     reply.status(401).send({ message: "Unauthorized" });
     return null;
   }

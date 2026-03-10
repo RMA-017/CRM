@@ -1,8 +1,7 @@
 import { ALL_ORG_FEATURE_KEYS, ORG_FEATURE_TREE, DEFAULT_DISABLED_FEATURE_KEYS } from "../../../../shared/access-registry.js";
+export { LOGOUT_FLAG_KEY } from "../../lib/auth-flags.js";
 
 export { ALL_ORG_FEATURE_KEYS, ORG_FEATURE_TREE, DEFAULT_DISABLED_FEATURE_KEYS };
-
-export const LOGOUT_FLAG_KEY = "crm_just_logged_out";
 export const USERNAME_REGEX = /^[a-zA-Z0-9._-]{3,30}$/;
 export const ORGANIZATION_CODE_REGEX = /^[a-z0-9._-]{2,64}$/;
 export const ALL_USERS_LIMIT = 20;
@@ -30,12 +29,12 @@ export const EMPTY_SETTINGS_OPTION_FORM = {
 
 export const EMPTY_ROLE_CREATE_FORM = {
   ...EMPTY_SETTINGS_OPTION_FORM,
-  isAdmin: false,
   permissionCodes: []
 };
 
 export const EMPTY_ROLE_EDIT_FORM = {
   ...EMPTY_SETTINGS_OPTION_FORM,
+  isAdmin: false,
   permissionCodes: []
 };
 
@@ -50,6 +49,12 @@ const EMPTY_ALL_USERS_EDIT_FORM = {
   position: "",
   role: "",
   password: ""
+};
+
+export const EMPTY_NORM_FORM = {
+  positionId: "",
+  maxPerWeek: "2",
+  isActive: true
 };
 
 export function createEmptyProfileEditState() {

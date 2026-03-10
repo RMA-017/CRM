@@ -13,6 +13,7 @@ export function useProfilePanels({
   canOpenAppointmentSchedule,
   canOpenAppointmentVipMyClass,
   canOpenAppointmentBreaks,
+  canOpenAppointmentWorkSchedule,
   canOpenAppointmentVipClients,
   canOpenMyChildren,
   canOpenAppointmentVipDailyRoutines,
@@ -22,6 +23,7 @@ export function useProfilePanels({
   canOpenSettingsOrganizations,
   canOpenSettingsRoles,
   canOpenSettingsPositions,
+  canOpenSettingsNorms,
   canSendNotifications,
   hasSettingsMenuAccess,
   hasAdminSettingsAccess
@@ -100,8 +102,8 @@ export function useProfilePanels({
   }, [closePanel]);
 
   const openAppointmentWorkSchedulePanel = useCallback(() => {
-    openPanel("/appointments/work-schedule", canOpenAppointmentSettings);
-  }, [canOpenAppointmentSettings, openPanel]);
+    openPanel("/appointments/work-schedule", canOpenAppointmentWorkSchedule);
+  }, [canOpenAppointmentWorkSchedule, openPanel]);
 
   const closeAppointmentWorkSchedulePanel = useCallback(() => {
     closePanel("appointment-work-schedule");
@@ -203,6 +205,14 @@ export function useProfilePanels({
     closePanel("settings-positions");
   }, [closePanel]);
 
+  const openNormsPanel = useCallback(() => {
+    openPanel("/settings/appointment-norms", canOpenSettingsNorms);
+  }, [canOpenSettingsNorms, openPanel]);
+
+  const closeNormsPanel = useCallback(() => {
+    closePanel("settings-appointment-norms");
+  }, [closePanel]);
+
   const openNotificationsSendPanel = useCallback(() => {
     openPanel("/notifications", canSendNotifications);
   }, [canSendNotifications, openPanel]);
@@ -272,6 +282,8 @@ export function useProfilePanels({
     closeNotificationsSendPanel,
     openMonitoringPanel,
     closeMonitoringPanel,
+    openNormsPanel,
+    closeNormsPanel,
     closeCreateUserPanel,
     closeAllUsersPanel
   };

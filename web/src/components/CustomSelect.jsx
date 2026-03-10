@@ -12,6 +12,7 @@ function CustomSelect({
   forceOpenDown = false,
   forceOpenUp = false,
   menuPortal = false,
+  menuAlign = "left",
   maxVisibleOptions = null,
   searchable = false,
   searchPlaceholder = "Search...",
@@ -97,12 +98,18 @@ function CustomSelect({
           ? (triggerRect.top - calculatedMaxHeight - 6)
           : (triggerRect.bottom + 6);
         const normalizedTop = Math.max(8, Math.min(preferredTop, window.innerHeight - calculatedMaxHeight - 8));
-        const normalizedLeft = Math.max(8, Math.min(triggerRect.left, window.innerWidth - triggerRect.width - 8));
+        const menuWidth = Math.max(120, triggerRect.width);
+        const rawLeft = menuAlign === "center"
+          ? triggerRect.left + triggerRect.width / 2 - menuWidth / 2
+          : menuAlign === "right"
+            ? triggerRect.right - menuWidth
+            : triggerRect.left;
+        const normalizedLeft = Math.max(8, Math.min(rawLeft, window.innerWidth - menuWidth - 8));
         setMenuPortalStyle({
           position: "fixed",
           top: `${normalizedTop}px`,
           left: `${normalizedLeft}px`,
-          width: `${Math.max(120, triggerRect.width)}px`,
+          width: `${menuWidth}px`,
           maxHeight: `${calculatedMaxHeight}px`
         });
       } else {

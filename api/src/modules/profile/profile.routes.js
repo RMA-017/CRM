@@ -2,12 +2,15 @@ import { getAuthCookieOptions, getClearCookieOptions, AUTH_COOKIE_NAME } from ".
 import { validateBirthdayYmd } from "../../lib/date.js";
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
+import { normalizeOrganizationCode } from "../../lib/organization-code.js";
 import { EMAIL_REGEX, PHONE_REGEX } from "../../constants/validation.js";
 import { signAccessToken } from "../../lib/session.js";
 import { findAuthUserById, verifyPassword } from "../auth/auth.service.js";
 import { findActiveOrganizationByCode, findActiveOrganizationById } from "../organizations/organizations.service.js";
-import { getRolePermissions, isAllowedPosition } from "../users/access.service.js";
+import { getRolePermissions, hasPermission, isAllowedPosition } from "../users/access.service.js";
+import { PERMISSIONS } from "../users/users.constants.js";
 import { getProfileByAuthContext, updateOwnProfileField } from "./profile.service.js";
+import { profileRouteSchemas } from "./profile.route-schemas.js";
 
 const PROFILE_EDITABLE_FIELDS = new Set(["email", "fullName", "birthday", "password", "phone", "position"]);
 
@@ -79,6 +82,9 @@ async function profileRoutes(fastify) {
           reply.clearCookie(AUTH_COOKIE_NAME, getClearCookieOptions());
           return reply.status(401).send({ message: "Unauthorized" });
         }
+        if (!(await hasPermission(user.role_id, PERMISSIONS.PROFILE_READ))) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
         const permissions = await getRolePermissions(user.role_id);
         return reply.send(mapProfile(user, permissions));
       } catch (error) {
@@ -91,7 +97,10 @@ async function profileRoutes(fastify) {
   fastify.patch(
     "/",
     {
-      config: { rateLimit: fastify.apiRateLimit }
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        body: profileRouteSchemas.updateBody
+      }
     },
     async (request, reply) => {
       const authContext = request.authContext;
@@ -110,6 +119,9 @@ async function profileRoutes(fastify) {
         const currentUser = authContext?.requester;
         if (!currentUser) {
           return reply.status(404).send({ message: "User not found." });
+        }
+        if (!(await hasPermission(currentUser.role_id, PERMISSIONS.PROFILE_UPDATE))) {
+          return reply.status(403).send({ message: "Forbidden." });
         }
         if (field === "position" && value && !positionId) {
           return reply.status(400).send({ field: "position", message: "Invalid position." });
@@ -176,7 +188,10 @@ async function profileRoutes(fastify) {
   fastify.post(
     "/organization-context",
     {
-      config: { rateLimit: fastify.apiRateLimit }
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        body: profileRouteSchemas.organizationContextBody
+      }
     },
     async (request, reply) => {
       const authContext = request.authContext;
@@ -193,9 +208,9 @@ async function profileRoutes(fastify) {
         const organizationId = parsePositiveInteger(
           request.body?.organizationId ?? request.body?.organization_id
         );
-        const organizationCode = String(
-          request.body?.organizationCode ?? request.body?.organization_code ?? ""
-        ).trim().toLowerCase();
+        const organizationCode = normalizeOrganizationCode(
+          request.body?.organizationCode ?? request.body?.organization_code
+        );
 
         let organization = null;
         if (organizationId) {
@@ -223,7 +238,7 @@ async function profileRoutes(fastify) {
           message: "Organization context updated.",
           item: {
             organizationId: String(organization.id),
-            organizationCode: String(organization.code || "").trim().toLowerCase(),
+            organizationCode: normalizeOrganizationCode(organization.code),
             organizationName: String(organization.name || "").trim()
           }
         });

@@ -1,15 +1,23 @@
 import {
   ALL_ORG_FEATURE_KEYS,
+  filterKnownPermissionCodes,
   filterPermissionCodesByFeatures,
   filterPermissionOptionsByFeatures,
   getPrimaryFeatureKeyForPermissionCode,
   getFeatureKeysForPermissionCode,
   hasAllowedFeature,
+  isKnownPermissionCode,
   isPermissionAllowedByFeatures,
   normalizeAllowedFeatures
 } from "../../../shared/access-registry.js";
 
-export { ALL_ORG_FEATURE_KEYS, normalizeAllowedFeatures, getFeatureKeysForPermissionCode };
+export {
+  ALL_ORG_FEATURE_KEYS,
+  normalizeAllowedFeatures,
+  getFeatureKeysForPermissionCode,
+  isKnownPermissionCode,
+  filterKnownPermissionCodes
+};
 
 export function hasOrgFeature(allowedFeatures, featureKey) {
   return hasAllowedFeature(allowedFeatures, featureKey);

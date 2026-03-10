@@ -28,6 +28,30 @@ const timeHmSchema = {
   pattern: "^([01]\\d|2[0-3]):[0-5]\\d$"
 };
 
+const workScheduleDayOfWeekSchema = {
+  anyOf: [
+    { type: "integer", minimum: 1, maximum: 7 },
+    { type: "string", pattern: "^[1-7]$" }
+  ]
+};
+
+const workScheduleDefaultWeeklyItemSchema = {
+  type: "object",
+  additionalProperties: true,
+  properties: {
+    dayOfWeek: workScheduleDayOfWeekSchema,
+    day_of_week: workScheduleDayOfWeekSchema,
+    dayKey: dayKeySchema,
+    isActive: booleanLikeSchema,
+    is_active: booleanLikeSchema,
+    startTime: timeHmSchema,
+    start_time: timeHmSchema,
+    endTime: timeHmSchema,
+    end_time: timeHmSchema,
+    reason: { type: "string", maxLength: 120 }
+  }
+};
+
 const repeatPayloadSchema = {
   type: "object",
   additionalProperties: true,
@@ -179,7 +203,9 @@ export const appointmentRouteSchemas = Object.freeze({
     additionalProperties: true,
     properties: {
       organizationId: positiveIntegerLikeSchema,
-      organization_id: positiveIntegerLikeSchema
+      organization_id: positiveIntegerLikeSchema,
+      specialistId: positiveIntegerLikeSchema,
+      specialist_id: positiveIntegerLikeSchema
     }
   },
   settingsPatchBody: {
@@ -258,6 +284,14 @@ export const appointmentRouteSchemas = Object.freeze({
       visibleWeekDays: {
         type: "array",
         items: dayKeySchema
+      },
+      defaultWeeklyItems: {
+        type: "array",
+        items: workScheduleDefaultWeeklyItemSchema
+      },
+      default_weekly_items: {
+        type: "array",
+        items: workScheduleDefaultWeeklyItemSchema
       }
     }
   },
@@ -288,32 +322,7 @@ export const appointmentRouteSchemas = Object.freeze({
       organization_id: positiveIntegerLikeSchema,
       items: {
         type: "array",
-        items: {
-          type: "object",
-          additionalProperties: true,
-          properties: {
-            dayOfWeek: {
-              anyOf: [
-                { type: "integer", minimum: 1, maximum: 7 },
-                { type: "string", pattern: "^[1-7]$" }
-              ]
-            },
-            day_of_week: {
-              anyOf: [
-                { type: "integer", minimum: 1, maximum: 7 },
-                { type: "string", pattern: "^[1-7]$" }
-              ]
-            },
-            dayKey: dayKeySchema,
-            isActive: booleanLikeSchema,
-            is_active: booleanLikeSchema,
-            startTime: timeHmSchema,
-            start_time: timeHmSchema,
-            endTime: timeHmSchema,
-            end_time: timeHmSchema,
-            reason: { type: "string", maxLength: 120 }
-          }
-        }
+        items: workScheduleDefaultWeeklyItemSchema
       }
     }
   },

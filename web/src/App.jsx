@@ -1,8 +1,9 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import { loadProfilePage } from "./lib/load-profile-page.js";
 
 const HomePage = lazy(() => import("./pages/HomePage.jsx"));
-const ProfilePage = lazy(() => import("./pages/ProfilePage.jsx"));
+const ProfilePage = lazy(loadProfilePage);
 
 function NotFoundPage() {
   return (
@@ -65,8 +66,8 @@ function App() {
       <Route path="/admin-settings/organizations" element={<ProfilePage forcedView="settings-organizations" />} />
       <Route path="/settings/roles" element={<ProfilePage forcedView="settings-roles" />} />
       <Route path="/settings/positions" element={<ProfilePage forcedView="settings-positions" />} />
+      <Route path="/settings/appointment-norms" element={<ProfilePage forcedView="settings-appointment-norms" />} />
       <Route path="/settings/notification" element={<Navigate to="/settings/appointments" replace />} />
-      <Route path="/settings/Notification-settings" element={<Navigate to="/settings/appointments" replace />} />
       <Route path="/settings/notification-settings" element={<Navigate to="/settings/appointments" replace />} />
       <Route path="/settings/notifications" element={<Navigate to="/settings/appointments" replace />} />
       <Route path="/notifications" element={<ProfilePage forcedView="notifications-send" />} />
@@ -113,7 +114,6 @@ function App() {
       <Route path="/profile/settings/roles" element={<Navigate to="/settings/roles" replace />} />
       <Route path="/profile/settings/positions" element={<Navigate to="/settings/positions" replace />} />
       <Route path="/profile/settings/notification" element={<Navigate to="/settings/appointments" replace />} />
-      <Route path="/profile/settings/Notification-settings" element={<Navigate to="/settings/appointments" replace />} />
       <Route path="/profile/settings/notification-settings" element={<Navigate to="/settings/appointments" replace />} />
       <Route path="/profile/settings/notifications" element={<Navigate to="/settings/appointments" replace />} />
       <Route path="/profile/notifications" element={<Navigate to="/notifications" replace />} />

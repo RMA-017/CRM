@@ -2,10 +2,12 @@ import { EMAIL_REGEX, ORGANIZATION_CODE_REGEX, PHONE_REGEX } from "../../constan
 import { validateBirthdayYmd } from "../../lib/date.js";
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
+import { normalizeOrganizationCode } from "../../lib/organization-code.js";
 import { requesterHasOrgFeature } from "../../lib/org-features.js";
 import { findActiveOrganizationByCode } from "../organizations/organizations.service.js";
 import { PERMISSIONS, USERNAME_REGEX } from "./users.constants.js";
 import { hasPermission, isAdminRole, isAllowedPosition, isAllowedRole } from "./access.service.js";
+import { usersRouteSchemas } from "./users.route-schemas.js";
 import {
   deleteUserById,
   findRequester,
@@ -37,7 +39,10 @@ async function usersRoutes(fastify) {
   fastify.get(
     "/",
     {
-      config: { rateLimit: fastify.apiRateLimit }
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        querystring: usersRouteSchemas.listQuery
+      }
     },
     async (request, reply) => {
       setNoCacheHeaders(reply);
@@ -46,7 +51,7 @@ async function usersRoutes(fastify) {
 
       const pageParam = Number.parseInt(String(request.query?.page || ""), 10);
       const limitParam = Number.parseInt(String(request.query?.limit || ""), 10);
-      const organizationCodeParam = String(request.query?.organizationCode || "").trim().toLowerCase();
+      const organizationCodeParam = normalizeOrganizationCode(request.query?.organizationCode);
       const search = String(request.query?.q || "").trim();
       const page = Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1;
       const limit = Number.isInteger(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 20;
@@ -74,8 +79,8 @@ async function usersRoutes(fastify) {
           limit,
           canReadAllOrganizations,
           organizationCode: canReadAllOrganizations
-            ? (organizationCodeParam || String(authContext.organizationCode || "").trim().toLowerCase())
-            : String(authContext.organizationCode || "").trim().toLowerCase(),
+            ? (organizationCodeParam || normalizeOrganizationCode(authContext.organizationCode))
+            : normalizeOrganizationCode(authContext.organizationCode),
           search
         });
         const users = rows.map(mapUser);
@@ -101,7 +106,11 @@ async function usersRoutes(fastify) {
   fastify.patch(
     "/:id",
     {
-      config: { rateLimit: fastify.apiRateLimit }
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        params: usersRouteSchemas.idParams,
+        body: usersRouteSchemas.updateBody
+      }
     },
     async (request, reply) => {
       const authContext = request.authContext;
@@ -120,7 +129,7 @@ async function usersRoutes(fastify) {
         ? parsePositiveInteger(request.body?.position)
         : null;
       const roleId = parsePositiveInteger(request.body?.role);
-      const organizationCode = String(request.body?.organizationCode || "").trim().toLowerCase();
+      const organizationCode = normalizeOrganizationCode(request.body?.organizationCode);
       const password = String(request.body?.password || "");
 
       const errors = {};
@@ -171,10 +180,31 @@ async function usersRoutes(fastify) {
         if (!targetUser) {
           return reply.status(404).send({ message: "User not found." });
         }
+        if (Boolean(targetUser.is_admin) && !requester.is_platform_admin) {
+          return reply.status(403).send({
+            field: "role",
+            message: "Only platform admin can manage admin users."
+          });
+        }
+        const isSelfTarget = Number(requester.id) === userId;
 
         const scopedOrganizationId = Number(targetUser.organization_id);
         if (!requester.is_platform_admin && scopedOrganizationId !== Number(authContext.organizationId)) {
           return reply.status(404).send({ message: "User not found." });
+        }
+
+        const currentRoleId = parsePositiveInteger(targetUser.role_id);
+        if (isSelfTarget && roleId && Number(roleId) !== Number(currentRoleId)) {
+          return reply.status(400).send({
+            field: "role",
+            message: "Use another admin account to change your own role."
+          });
+        }
+        if (isSelfTarget && password) {
+          return reply.status(400).send({
+            field: "password",
+            message: "Use profile password change to update your own password."
+          });
         }
 
         let nextOrganizationId = null;
@@ -189,6 +219,12 @@ async function usersRoutes(fastify) {
             return reply.status(403).send({ message: "Forbidden." });
           }
           nextOrganizationId = resolvedOrganizationId;
+        }
+        if (isSelfTarget && nextOrganizationId && nextOrganizationId !== scopedOrganizationId) {
+          return reply.status(400).send({
+            field: "organizationCode",
+            message: "Use another admin account to move your own account to another organization."
+          });
         }
 
         const validationOrganizationId = nextOrganizationId || scopedOrganizationId;
@@ -253,6 +289,12 @@ async function usersRoutes(fastify) {
             message: error?.message || "Cannot change role while user is assigned as class teacher."
           });
         }
+        if (error?.code === "USER_TRANSFER_BLOCKED_LINKED_DATA") {
+          return reply.status(409).send({
+            field: error?.field || "organizationCode",
+            message: error?.message || "User has linked organization data and cannot be moved to another organization."
+          });
+        }
         if (error?.code === "23505") {
           return reply.status(409).send({ message: "Username or email already exists." });
         }
@@ -265,7 +307,10 @@ async function usersRoutes(fastify) {
   fastify.delete(
     "/:id",
     {
-      config: { rateLimit: fastify.apiRateLimit }
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        params: usersRouteSchemas.idParams
+      }
     },
     async (request, reply) => {
       const authContext = request.authContext;
@@ -292,6 +337,9 @@ async function usersRoutes(fastify) {
         if (!targetUser) {
           return reply.status(404).send({ message: "User not found." });
         }
+        if (Boolean(targetUser.is_admin) && !requester.is_platform_admin) {
+          return reply.status(403).send({ message: "Only platform admin can manage admin users." });
+        }
         const scopedOrganizationId = Number(targetUser.organization_id);
         if (!requester.is_platform_admin && scopedOrganizationId !== Number(authContext.organizationId)) {
           return reply.status(404).send({ message: "User not found." });
@@ -304,6 +352,11 @@ async function usersRoutes(fastify) {
 
         return reply.send({ message: "User deleted successfully." });
       } catch (error) {
+        if (error?.code === "23503") {
+          return reply.status(409).send({
+            message: "User has linked records and cannot be deleted."
+          });
+        }
         request.log.error({ err: error }, "Error deleting user");
         return reply.status(500).send({ message: "Internal server error." });
       }

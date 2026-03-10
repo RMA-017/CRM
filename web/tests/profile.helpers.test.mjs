@@ -128,6 +128,10 @@ test("buildRolePermissionTree includes settings children when org features allow
   const permissions = [
     { value: "settings.appointments.read", label: "Read Appointment Settings" },
     { value: "settings.appointments.update", label: "Update Appointment Settings" },
+    { value: "settings.appointment-norms.read", label: "Read Appointment Norm Settings" },
+    { value: "settings.appointment-norms.create", label: "Create Appointment Norm Settings" },
+    { value: "settings.appointment-norms.update", label: "Update Appointment Norm Settings" },
+    { value: "settings.appointment-norms.delete", label: "Delete Appointment Norm Settings" },
     { value: "settings.roles.read", label: "Read Role Settings" },
     { value: "settings.roles.create", label: "Create Role Settings" },
     { value: "settings.positions.read", label: "Read Position Settings" }
@@ -136,6 +140,7 @@ test("buildRolePermissionTree includes settings children when org features allow
   const tree = buildRolePermissionTree(permissions, [
     "settings",
     "settings.appointments",
+    "settings.appointment_norms",
     "settings.roles",
     "settings.positions"
   ]);
@@ -143,7 +148,7 @@ test("buildRolePermissionTree includes settings children when org features allow
   assert.ok(settingsGroup, "settings group should appear");
   assert.deepEqual(
     settingsGroup.children.map((child) => child.label),
-    ["Appointments", "Roles", "Positions"]
+    ["Appointments", "Appointment Norms", "Roles", "Positions"]
   );
 });
 

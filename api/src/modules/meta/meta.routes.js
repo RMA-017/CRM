@@ -1,16 +1,21 @@
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
+import { normalizeOrganizationCode } from "../../lib/organization-code.js";
 import { ORGANIZATION_CODE_REGEX } from "../../constants/validation.js";
 import { findActiveOrganizationByCode } from "../organizations/organizations.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
 import { hasPermission } from "../users/access.service.js";
 import { getUserOptions } from "./meta.service.js";
+import { metaRouteSchemas } from "./meta.route-schemas.js";
 
 async function metaRoutes(fastify) {
   fastify.get(
     "/user-options",
     {
-      config: { rateLimit: fastify.apiRateLimit }
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        querystring: metaRouteSchemas.userOptionsQuery
+      }
     },
     async (request, reply) => {
       setNoCacheHeaders(reply);
@@ -28,9 +33,9 @@ async function metaRoutes(fastify) {
 
         let targetOrganizationId = Number(authContext?.organizationId);
         const requestedOrganizationId = parsePositiveInteger(request.query?.organizationId || request.query?.organization_id);
-        const requestedOrganizationCode = String(request.query?.organizationCode || request.query?.organization_code || "")
-          .trim()
-          .toLowerCase();
+        const requestedOrganizationCode = normalizeOrganizationCode(
+          request.query?.organizationCode || request.query?.organization_code
+        );
 
         if (requestedOrganizationCode && !ORGANIZATION_CODE_REGEX.test(requestedOrganizationCode)) {
           return reply.status(400).send({ field: "organizationCode", message: "Invalid organisation." });

@@ -1,5 +1,10 @@
 import { setNoCacheHeaders } from "../../lib/http.js";
-import { parsePositiveInteger } from "../../lib/number.js";
+import { normalizeNotificationListLimit } from "../../lib/notification-limits.js";
+import { parseNullableBoolean } from "../../lib/request-parsers.js";
+import {
+  normalizeNotificationRouteTargetRoles as normalizeTargetRoles,
+  normalizeNotificationRouteTargetUserIds as normalizeTargetUserIds
+} from "../../lib/notification-targets.js";
 import { publishAppointmentEvent } from "../appointments/appointment-events.js";
 import { hasPermission } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
@@ -14,41 +19,11 @@ import {
 import { notificationsRouteSchemas } from "./notifications.route-schemas.js";
 
 function parseUnreadOnly(value) {
-  if (typeof value === "boolean") {
-    return value;
-  }
-  const normalized = String(value ?? "").trim().toLowerCase();
-  return normalized === "1" || normalized === "true" || normalized === "yes";
+  return parseNullableBoolean(value) === true;
 }
 
 function parseLimit(value) {
-  const parsed = parsePositiveInteger(value);
-  if (!parsed) {
-    return 50;
-  }
-  return Math.min(parsed, 200);
-}
-
-function normalizeTargetUserIds(value) {
-  const source = Array.isArray(value) ? value : [value];
-  return Array.from(
-    new Set(
-      source
-        .map((item) => parsePositiveInteger(item))
-        .filter((item) => Number.isInteger(item) && item > 0)
-    )
-  );
-}
-
-function normalizeTargetRoles(value) {
-  const source = Array.isArray(value) ? value : [value];
-  return Array.from(
-    new Set(
-      source
-        .map((item) => String(item || "").trim().toLowerCase())
-        .filter((item) => item.length > 0 && item.length <= 100)
-    )
-  );
+  return normalizeNotificationListLimit(value);
 }
 
 async function notificationsRoutes(fastify) {
@@ -256,17 +231,22 @@ async function notificationsRoutes(fastify) {
             excludeUserId: userId
           });
 
-          if (recipientUserIds.length > 0) {
-            publishAppointmentEvent({
-              organizationId,
-              type: "notification-manual",
-              message,
-              sourceUserId: userId,
-              sourceUsername: String(authContext.username || "").trim(),
-              targetUserIds: recipientUserIds,
-              data: payloadData
+          if (recipientUserIds.length === 0) {
+            return reply.status(400).send({
+              message: "No matching recipients found.",
+              schemaReady: false
             });
           }
+
+          publishAppointmentEvent({
+            organizationId,
+            type: "notification-manual",
+            message,
+            sourceUserId: userId,
+            sourceUsername: String(authContext.username || "").trim(),
+            targetUserIds: recipientUserIds,
+            data: payloadData
+          });
 
           return reply.status(201).send({
             message: "Notification sent.",

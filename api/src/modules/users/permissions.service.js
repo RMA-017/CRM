@@ -1,8 +1,13 @@
 import pool from "../../config/db.js";
+import { toBooleanFlag } from "../../lib/boolean.js";
 import {
   isPermissionAllowedByOrgFeatures,
   normalizeAllowedFeatures
 } from "../../lib/org-features.js";
+import {
+  normalizePermissionCode,
+  normalizePermissionCodes
+} from "../../lib/permission-codes.js";
 import { UNIQUE_PERMISSION_DEFINITIONS } from "../../../../shared/access-registry.js";
 import { PERMISSIONS } from "./users.constants.js";
 
@@ -13,6 +18,9 @@ const BASE_PERMISSION_DEFINITIONS = UNIQUE_PERMISSION_DEFINITIONS.map((permissio
   label: permission.label,
   sortOrder: permission.sortOrder
 }));
+const BASE_PERMISSION_CODES = normalizePermissionCodes(
+  BASE_PERMISSION_DEFINITIONS.map((permission) => permission.code)
+);
 
 const LEGACY_PERMISSION_CODE_MIGRATIONS = Object.freeze([
   {
@@ -84,43 +92,7 @@ const ROLE_PERMISSION_COPY_MIGRATIONS = Object.freeze([
   }
 ]);
 
-const LEGACY_PERMISSION_CODES = Object.freeze([
-  "clients.menu",
-  "appointments.menu",
-  "appointments.vip-clients",
-  "appointments.assignments",
-  "appointments.statistics",
-  "appointments.statistics.read",
-  "appointments.notify.to-manager",
-  "appointments.notify.to-specialist",
-  "notifications.schedule.to-manager",
-  "notifications.schedule.to-specialist",
-  "appointments.schedule.scope.all",
-  "appointments.schedule.scope.assigned"
-]);
-
-const LEGACY_PERMISSION_CODE_PATTERNS = Object.freeze([
-  "appointments.notify.%",
-  "notifications.schedule.%",
-  "appointments.schedule.scope.all",
-  "appointments.schedule.scope.assigned"
-]);
-
-function toBoundedInteger(value, fallback, min, max) {
-  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
-  if (!Number.isInteger(parsed)) {
-    return fallback;
-  }
-  return Math.min(max, Math.max(min, parsed));
-}
-
-function toBoolean(value, fallback) {
-  if (value === undefined || value === null || value === "") {
-    return fallback;
-  }
-  const normalized = String(value).trim().toLowerCase();
-  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
-}
+import { toBoundedInteger } from "../../lib/bounded-integer.js";
 
 async function pruneAdminRolePermissionsByOrgFeatures(client) {
   const { rows } = await client.query(
@@ -145,7 +117,7 @@ async function pruneAdminRolePermissionsByOrgFeatures(client) {
     }
 
     const disallowedCodes = BASE_PERMISSION_DEFINITIONS
-      .map((permission) => String(permission.code || "").trim().toLowerCase())
+      .map((permission) => normalizePermissionCode(permission.code))
       .filter(Boolean)
       .filter((code) => !isPermissionAllowedByOrgFeatures(code, allowedFeatures));
 
@@ -165,14 +137,14 @@ async function pruneAdminRolePermissionsByOrgFeatures(client) {
 }
 
 export async function ensureSystemPermissions(options = {}) {
-  const useAdvisoryLock = toBoolean(options?.useAdvisoryLock, true);
+  const useAdvisoryLock = toBooleanFlag(options?.useAdvisoryLock, true, { acceptOn: true });
   const advisoryLockKey = toBoundedInteger(
     options?.advisoryLockKey,
     DEFAULT_PERMISSIONS_SYNC_LOCK_KEY,
     1,
     2147483647
   );
-  const skipIfLockUnavailable = toBoolean(options?.skipIfLockUnavailable, true);
+  const skipIfLockUnavailable = toBooleanFlag(options?.skipIfLockUnavailable, true, { acceptOn: true });
   const logger = options?.logger && typeof options.logger === "object" ? options.logger : null;
   const client = await pool.connect();
 
@@ -226,7 +198,7 @@ export async function ensureSystemPermissions(options = {}) {
       `UPDATE permissions
           SET is_active = TRUE
         WHERE LOWER(code) = ANY($1::text[])`,
-      [BASE_PERMISSION_DEFINITIONS.map((permission) => String(permission.code || "").trim().toLowerCase())]
+      [BASE_PERMISSION_CODES]
     );
 
     for (const migration of LEGACY_PERMISSION_CODE_MIGRATIONS) {
@@ -258,20 +230,16 @@ export async function ensureSystemPermissions(options = {}) {
     await client.query(
       `UPDATE permissions
           SET is_active = FALSE
-        WHERE LOWER(code) = ANY($1::text[])
-           OR LOWER(code) LIKE ANY($2::text[])`,
-      [LEGACY_PERMISSION_CODES, LEGACY_PERMISSION_CODE_PATTERNS]
+        WHERE LOWER(code) <> ALL($1::text[])`,
+      [BASE_PERMISSION_CODES]
     );
 
     await client.query(
       `DELETE FROM role_permissions rp
        USING permissions p
        WHERE p.id = rp.permission_id
-         AND (
-           LOWER(p.code) = ANY($1::text[])
-           OR LOWER(p.code) LIKE ANY($2::text[])
-         )`,
-      [LEGACY_PERMISSION_CODES, LEGACY_PERMISSION_CODE_PATTERNS]
+         AND LOWER(p.code) <> ALL($1::text[])`,
+      [BASE_PERMISSION_CODES]
     );
 
     // Keep admin roles aligned with all active permissions.

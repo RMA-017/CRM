@@ -35,7 +35,6 @@
     padding: 10px;
   }
 
-  .create-user-panel,
   .my-profile-panel {
     width: min(100%, 640px);
   }
@@ -396,11 +395,6 @@
     gap: 8px;
   }
 
-  /* Panels */
-  .create-user-panel {
-    padding: 18px;
-  }
-
 }
 
 @media (max-width: 700px) {
@@ -455,11 +449,19 @@
   }
 
   .header-org-switch {
-    min-width: 62px;
+    min-width: 0;
+    flex: 0 0 auto;
   }
 
   .header-org-switch .custom-select-trigger {
-    width: clamp(62px, 17vw, 90px);
+    width: 40px;
+    min-width: 40px;
+    height: 34px;
+    padding: 0;
+  }
+
+  .header-org-switch .custom-select-trigger span {
+    display: none;
   }
 
   .user-menu-wrap {
@@ -589,11 +591,6 @@
     justify-self: end;
   }
 
-  /* Create panels */
-  .create-user-panel {
-    padding: 14px;
-  }
-
   .settings-form-grid,
   .settings-form-grid-org,
   .settings-form-grid-notify,
@@ -620,12 +617,6 @@
   /* Appointment settings / breaks */
   .appointment-breaks-toolbar {
     grid-template-columns: 1fr;
-  }
-
-  .appointment-breaks-add-btn {
-    width: 100%;
-    min-width: var(--btn-compact-width);
-    justify-self: stretch;
   }
 
   /* Delete button spans both columns in 2-col break row */
@@ -656,6 +647,10 @@
     align-items: stretch;
   }
 
+  .vip-attendance-class-field {
+    width: 100%;
+  }
+
   .vip-attendance-summary {
     justify-content: flex-start;
     margin-left: 0;
@@ -683,4 +678,300 @@
     width: 100%;
     min-width: 0;
   }
+
+  #appointmentBreaksAddModal .appointment-breaks-add-row-line-bottom-item,
+  #workScheduleUserOverridesModal .appointment-breaks-add-row-line-bottom-item,
+  #appointmentBreaksEditModal .appointment-breaks-add-row-line-bottom-item {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #appointmentBreaksAddModal .appointment-breaks-add-row-line-bottom-item .appointment-breaks-add-inline-actions,
+  #workScheduleUserOverridesModal .appointment-breaks-add-row-line-bottom-item .appointment-breaks-add-inline-actions {
+    grid-column: 1 / -1;
+  }
+
+  #workScheduleUserOverridesModal .appointment-breaks-add-row-line-bottom-item > :nth-child(1) {
+    grid-column: 1 / -1;
+  }
+
+  #workScheduleUserOverridesModal .appointment-breaks-add-row-line-bottom-item > :nth-child(4) {
+    grid-column: 1 / -1;
+  }
+
+  #workScheduleUserOverridesModal .appointment-breaks-add-row-line-bottom-item .appointment-breaks-add-inline-actions {
+    grid-column: 1 / -1;
+    justify-content: center;
+  }
+
+  #appointmentBreaksAddModal .appointment-breaks-add-field input[type="time"],
+  #workScheduleUserOverridesModal .appointment-breaks-add-field input[type="time"],
+  #appointmentBreaksEditModal .appointment-breaks-add-field input[type="time"] {
+    -webkit-appearance: none;
+    appearance: none;
+    max-width: 100%;
+  }
+
+  #appointmentBreaksAddModal .appointment-breaks-inline-add-btn,
+  #workScheduleUserOverridesModal .appointment-breaks-inline-add-btn {
+    display: flex;
+  }
+}
+
+/* Statistics panels — desktop layout preserved at all screen sizes.
+   ID selectors override any class-only responsive rules from components.css. */
+
+main.home-main:has(#statisticsClassPanel),
+main.home-main:has(#statisticsPlannerReportPanel) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+/* Organization Settings — horizontal scroll via parent for better UX (scrollbar stays at viewport bottom) */
+main.home-main:has(#organizationsPanel) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+#organizationsPanel {
+  overflow-x: visible;
+  min-width: 760px;
+}
+
+/* Let parent handle horizontal scroll — remove table-wrap's own x-scroll */
+#organizationsPanel .settings-table-wrap {
+  overflow-x: visible;
+  overflow-y: visible;
+}
+
+/* Statistics / VIP Class Attendance Report */
+
+/* Desktop: let the panel fill the available width. */
+#statisticsClassPanel {
+  overflow-x: visible;
+  min-width: 0;
+}
+
+#statisticsClassPanel .all-users-head {
+  width: 100%;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+#statisticsClassPanel .all-users-head h3 {
+  white-space: nowrap;
+}
+
+#statisticsClassPanel .panel-close-btn {
+  flex: 0 0 auto;
+}
+
+#statisticsClassPanel .all-users-table-wrap {
+  max-height: none;
+  overflow: visible;
+}
+
+/* Toolbar: keep desktop layout without forcing max-content width on wide screens. */
+#statisticsClassPanel .vip-attendance-toolbar {
+  width: 100%;
+  min-width: 0;
+  flex-direction: row;
+  align-items: flex-end;
+  flex-wrap: nowrap;
+}
+
+#statisticsClassPanel .all-users-table {
+  width: 100%;
+  min-width: 0;
+}
+
+#statisticsClassPanel .statistics-history-toolbar .field {
+  flex: 1 1 180px;
+  min-width: 180px;
+  max-width: none;
+}
+
+#statisticsClassPanel .statistics-history-toolbar label[for="statisticsClassFilterSelect"] {
+  flex: 0.5 1 90px;
+  min-width: 90px;
+}
+
+#statisticsClassPanel .statistics-history-toolbar label[for="statisticsTeacherFilterSelect"],
+#statisticsClassPanel .statistics-history-toolbar label[for="statisticsTutorFilterSelect"],
+#statisticsClassPanel .statistics-history-toolbar label[for="statisticsClientFilterSelect"] {
+  flex: 1.15 1 210px;
+  min-width: 210px;
+}
+
+#statisticsClassPanel .statistics-history-toolbar .statistics-period-field {
+  flex: 0 0 120px;
+  min-width: 120px;
+  max-width: 120px;
+}
+
+#statisticsClassPanel .statistics-history-toolbar .statistics-history-reload-btn {
+  flex: 0 0 auto;
+  width: 100px;
+  min-width: 100px;
+}
+
+/* Narrow screens: keep the desktop footprint intact and let the parent scroll horizontally. */
+@media (max-width: 1200px) {
+  #statisticsClassPanel .all-users-head {
+    width: max-content;
+    min-width: 1120px;
+  }
+
+  #statisticsClassPanel .vip-attendance-toolbar {
+    width: max-content;
+    min-width: 1120px;
+  }
+
+  #statisticsClassPanel .all-users-table {
+    width: 1120px;
+    min-width: 1120px;
+  }
+}
+
+/* Statistics / Lesson Status Report */
+#statisticsPlannerReportPanel {
+  overflow-x: visible;
+  min-width: 820px;
+}
+
+#statisticsPlannerReportPanel .planner-report-toolbar {
+  align-items: flex-end;
+  flex-wrap: nowrap;
+}
+
+#statisticsPlannerReportPanel .planner-report-field {
+  flex: 1 1 auto;
+  min-width: 110px;
+  width: auto;
+  max-width: none;
+}
+
+#statisticsPlannerReportPanel .planner-report-field-specialist,
+#statisticsPlannerReportPanel .planner-report-field-client {
+  flex: 2 1 auto;
+  min-width: 140px;
+  width: auto;
+  max-width: none;
+}
+
+#statisticsPlannerReportPanel .planner-report-field-vip {
+  flex: 0 0 auto;
+  min-width: 90px;
+  width: auto;
+  max-width: none;
+}
+
+#statisticsPlannerReportPanel .planner-report-vip-toggle {
+  width: auto;
+  max-width: none;
+}
+
+#statisticsPlannerReportPanel .planner-report-load-btn {
+  flex: 0 0 100px;
+  width: 100px;
+  min-width: 100px;
+  max-width: none;
+}
+
+#statisticsPlannerReportPanel .planner-report-summary-grid,
+#statisticsPlannerReportPanel .planner-report-skeleton .planner-report-summary-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+#statisticsPlannerReportPanel .planner-report-section-head {
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+#statisticsPlannerReportPanel .planner-report-section-grid,
+#statisticsPlannerReportPanel .planner-report-section {
+  overflow: visible;
+}
+
+#statisticsPlannerReportPanel .planner-report-section .all-users-table-wrap {
+  width: 100%;
+  overflow-x: visible;
+  overflow-y: auto;
+}
+
+#statisticsPlannerReportPanel .planner-report-table {
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
+}
+
+#statisticsPlannerReportPanel .planner-report-table th,
+#statisticsPlannerReportPanel .planner-report-table td {
+  white-space: nowrap;
+  width: auto;
+}
+
+/* Appointment Settings panel — the form stacks responsively, so avoid forcing a
+   stale desktop min-width on small screens. */
+main.home-main:has(#appointmentSettingsPanel) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+#appointmentSettingsPanel {
+  overflow-x: visible;
+  min-width: 0;
+}
+
+/* Role Settings panel — scrollbar at viewport bottom (same pattern as organizationsPanel) */
+main.home-main:has(#rolesPanel) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+#rolesPanel {
+  overflow-x: visible;
+  min-width: 760px;
+}
+
+#rolesPanel .settings-table-wrap {
+  overflow-x: visible;
+  overflow-y: visible;
+}
+
+/* Position Settings panel — scrollbar at viewport bottom (same pattern as organizationsPanel) */
+main.home-main:has(#positionsPanel) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+#positionsPanel {
+  overflow-x: visible;
+  min-width: 760px;
+}
+
+#positionsPanel .settings-table-wrap {
+  overflow-x: visible;
+  overflow-y: visible;
+}
+
+/* Appointment Norms panel — scrollbar at viewport bottom */
+main.home-main:has(#appointmentNormsPanel) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+#appointmentNormsPanel {
+  overflow-x: visible;
+  min-width: 760px;
+}
+
+#appointmentNormsPanel .settings-table-wrap {
+  overflow-x: visible;
+  overflow-y: visible;
 }

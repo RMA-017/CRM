@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import CustomSelect from "../../components/CustomSelect.jsx";
 import { formatDateYMD } from "../../lib/formatters.js";
@@ -161,7 +161,15 @@ function ProfileModals(props) {
     positionEditError,
     setPositionEditError,
     positionEditSubmitting,
-    cancelPositionEdit
+    cancelPositionEdit,
+    normEditOpen,
+    handleNormEditSave,
+    normEditForm,
+    setNormEditForm,
+    normEditError,
+    setNormEditError,
+    normEditSubmitting,
+    cancelNormEdit
   } = props;
 
   const currentUserId = String(profile?.id || "").trim();
@@ -1630,6 +1638,59 @@ function ProfileModals(props) {
         </form>
       </section>
       <div className="login-overlay" hidden={!positionEditOpen} onClick={cancelPositionEdit} />
+
+      <section id="normEditModal" className="logout-confirm-modal settings-edit-modal" hidden={!normEditOpen}>
+        <h3>Edit Appointment Norm</h3>
+        <form
+          className="auth-form settings-edit-form"
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleNormEditSave();
+          }}
+        >
+          <div className="field">
+            <label htmlFor="normEditModalMaxPerWeekInput">Max sessions / week</label>
+            <input
+              id="normEditModalMaxPerWeekInput"
+              name="maxPerWeek"
+              type="number"
+              min="1"
+              max="100"
+              value={normEditForm.maxPerWeek}
+              onInput={(event) => {
+                const nextValue = event.currentTarget.value;
+                setNormEditForm((prev) => ({ ...prev, maxPerWeek: nextValue }));
+                if (normEditError) {
+                  setNormEditError("");
+                }
+              }}
+            />
+          </div>
+          <div className="field settings-inline-control">
+            <label htmlFor="normEditModalIsActiveInput">Active</label>
+            <label className="settings-checkbox settings-checkbox-inline" htmlFor="normEditModalIsActiveInput">
+              <input
+                id="normEditModalIsActiveInput"
+                type="checkbox"
+                checked={Boolean(normEditForm.isActive)}
+                onChange={(event) => {
+                  const checked = event.currentTarget.checked;
+                  setNormEditForm((prev) => ({ ...prev, isActive: checked }));
+                }}
+              />
+            </label>
+          </div>
+          {normEditError ? (
+            <p className="auth-error" role="alert">{normEditError}</p>
+          ) : null}
+          <div className="edit-actions">
+            <button className="btn" type="submit" disabled={normEditSubmitting}>Save</button>
+            <button className="header-btn" type="button" onClick={cancelNormEdit}>Cancel</button>
+          </div>
+        </form>
+      </section>
+      <div className="login-overlay" hidden={!normEditOpen} onClick={cancelNormEdit} />
     </>
   );
 
@@ -1644,4 +1705,4 @@ function ProfileModals(props) {
   );
 }
 
-export default ProfileModals;
+export default memo(ProfileModals);

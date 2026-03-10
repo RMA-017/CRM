@@ -1,6 +1,8 @@
 import argon2 from "argon2";
 import pool from "../../config/db.js";
 import { executeTransaction } from "../../lib/db-utils.js";
+import { normalizeOrganizationCode } from "../../lib/organization-code.js";
+import { isTutorLikeRoleLabel } from "../../lib/role-labels.js";
 
 const VIP_CLASS_TEACHER_ASSIGNMENTS_TABLE_NAME = "public.vip_class_teacher_assignments";
 const VIP_CLASS_TEACHER_ASSIGNMENTS_TABLE_CACHE_TTL_MS = 60_000;
@@ -9,12 +11,36 @@ let vipClassTeacherAssignmentsTableCache = {
   checkedAt: 0
 };
 
-function normalizeRoleLabel(value) {
-  return String(value || "").trim().toLowerCase();
-}
+function buildUsersPagedResult(rows, {
+  limit,
+  requestedPage
+} = {}) {
+  const items = Array.isArray(rows) ? rows : [];
+  const firstRow = items[0] || null;
+  const total = Number.parseInt(String(firstRow?.total || "0"), 10) || 0;
+  const totalPagesFromRow = Number.parseInt(String(firstRow?.total_pages || "0"), 10) || 0;
+  const safeLimit = Number.isInteger(limit) && limit > 0 ? limit : 1;
+  const totalPages = Math.max(1, totalPagesFromRow || Math.ceil(total / safeLimit) || 1);
+  const safePage = total > 0
+    ? Math.min(Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1, totalPages)
+    : 1;
 
-function isTutorRoleLabel(roleLabel) {
-  return normalizeRoleLabel(roleLabel).includes("tutor");
+  return {
+    page: safePage,
+    totalPages,
+    total,
+    rows: items
+      .filter((row) => Boolean(String(row?.id || "").trim()))
+      .map((row) => {
+        const nextRow = {};
+        Object.entries(row || {}).forEach(([key, value]) => {
+          if (key !== "total" && key !== "total_pages" && key !== "_sort_user_id") {
+            nextRow[key] = value;
+          }
+        });
+        return nextRow;
+      })
+  };
 }
 
 async function getRoleLabelById(client, roleId) {
@@ -90,6 +116,7 @@ export async function findRequester(authContext = {}) {
        FROM users u
        JOIN organizations o ON o.id = u.organization_id
        JOIN role_options r ON r.id = u.role_id
+        AND r.is_active = TRUE
       WHERE u.id = $1
         AND u.organization_id = $2
         AND o.is_active = TRUE`,
@@ -110,7 +137,7 @@ export async function getUsersPage({
   const whereParts = ["o.is_active = TRUE"];
 
   if (canReadAllOrganizations) {
-    const normalizedOrganizationCode = String(organizationCode || "").trim().toLowerCase();
+    const normalizedOrganizationCode = normalizeOrganizationCode(organizationCode);
     if (normalizedOrganizationCode && normalizedOrganizationCode !== "all") {
       baseParams.push(normalizedOrganizationCode);
       whereParts.push(`LOWER(o.code) = $${baseParams.length}`);
@@ -140,60 +167,75 @@ export async function getUsersPage({
   }
 
   const whereSql = `WHERE ${whereParts.join(" AND ")}`;
-
-  const totalResult = await pool.query(
-    `SELECT COUNT(*)::int AS total
-       FROM users u
-       JOIN organizations o ON o.id = u.organization_id
-      ${whereSql}`,
-    baseParams
-  );
-  const total = Number(totalResult.rows[0]?.total || 0);
-  const totalPages = Math.max(1, Math.ceil(total / limit));
-  const safePage = Math.min(page, totalPages);
-  const offset = (safePage - 1) * limit;
-  const pageParams = [...baseParams, limit, offset];
+  const requestedPage = Number.isInteger(page) && page > 0 ? page : 1;
+  const limitParamRef = `$${baseParams.length + 1}`;
+  const pageParamRef = `$${baseParams.length + 2}`;
 
   const rowsResult = await pool.query(
-    `SELECT
-       u.id::text AS id,
-       u.organization_id::text AS organization_id,
-       o.code AS organization_code,
-       o.name AS organization_name,
-       u.username,
-       u.email,
-       u.full_name,
-       u.birthday,
-       u.phone_number,
-       u.position_id::text AS position_id,
-       u.role_id::text AS role_id,
-       p.label AS position,
-       r.label AS role,
-       u.created_at
-      FROM users u
-      JOIN organizations o ON o.id = u.organization_id
-      JOIN role_options r ON r.id = u.role_id
-      LEFT JOIN position_options p ON p.id = u.position_id
-      ${whereSql}
-      ORDER BY u.created_at DESC
-      LIMIT $${baseParams.length + 1} OFFSET $${baseParams.length + 2}`,
-    pageParams
+    `WITH filtered_users AS (
+       SELECT
+         u.id::text AS id,
+         u.id AS _sort_user_id,
+         u.organization_id::text AS organization_id,
+         o.code AS organization_code,
+         o.name AS organization_name,
+         u.username,
+         u.email,
+         u.full_name,
+         u.birthday,
+         u.phone_number,
+         u.position_id::text AS position_id,
+         u.role_id::text AS role_id,
+         p.label AS position,
+         r.label AS role,
+         u.created_at
+        FROM users u
+        JOIN organizations o ON o.id = u.organization_id
+        JOIN role_options r ON r.id = u.role_id
+        LEFT JOIN position_options p ON p.id = u.position_id
+        ${whereSql}
+     ),
+     meta AS (
+       SELECT
+         COUNT(*)::int AS total,
+         GREATEST(1, CEIL(COUNT(*)::numeric / ${limitParamRef})::int) AS total_pages
+        FROM filtered_users
+     )
+     SELECT
+       meta.total,
+       meta.total_pages,
+       paged.*
+      FROM meta
+      LEFT JOIN LATERAL (
+        SELECT *
+          FROM filtered_users
+         ORDER BY created_at DESC, _sort_user_id DESC
+         LIMIT ${limitParamRef}
+        OFFSET CASE
+          WHEN meta.total = 0 THEN 0
+          WHEN ${pageParamRef} < 1 THEN 0
+          WHEN ${pageParamRef} > meta.total_pages THEN (meta.total_pages - 1) * ${limitParamRef}
+          ELSE (${pageParamRef} - 1) * ${limitParamRef}
+        END
+      ) paged ON TRUE`,
+    [...baseParams, limit, requestedPage]
   );
-  return {
-    page: safePage,
-    totalPages,
-    total,
-    rows: rowsResult.rows
-  };
+  return buildUsersPagedResult(rowsResult.rows, {
+    limit,
+    requestedPage
+  });
 }
 
 export async function getUserScopeById(userId) {
   const { rows } = await pool.query(
     `SELECT
-       id::text AS id,
-       organization_id::text AS organization_id,
-       role_id::text AS role_id
-      FROM users
+       u.id::text AS id,
+       u.organization_id::text AS organization_id,
+       u.role_id::text AS role_id,
+       (COALESCE(u.is_platform_admin, FALSE) OR COALESCE(r.is_admin, FALSE)) AS is_admin,
+       COALESCE(u.is_platform_admin, FALSE) AS is_platform_admin
+      FROM users u
+      LEFT JOIN role_options r ON r.id = u.role_id
       WHERE id = $1
       LIMIT 1`,
     [userId]
@@ -238,7 +280,7 @@ export async function updateUserByAdmin({
 
     const currentRoleId = Number(currentUser.role_id);
     const nextRoleLabel = await getRoleLabelById(client, roleId);
-    const isRoleChangingToTutor = Number(roleId) !== currentRoleId && isTutorRoleLabel(nextRoleLabel);
+    const isRoleChangingToTutor = Number(roleId) !== currentRoleId && isTutorLikeRoleLabel(nextRoleLabel);
     if (isRoleChangingToTutor) {
       const isTeacherAssigned = await isAssignedAsVipClassTeacher(client, {
         organizationId: scopedOrganizationId,
@@ -254,34 +296,47 @@ export async function updateUserByAdmin({
       }
     }
 
-    const updateResult = await client.query(
-      `UPDATE users
-          SET organization_id = $1,
-              username = $2,
-              email = LOWER($3),
-              full_name = $4,
-              birthday = $5,
-              phone_number = $6,
-              position_id = $7::int,
-              role_id = $8::int,
-              updated_by = $11,
-              updated_at = CURRENT_TIMESTAMP
-        WHERE id = $9
-          AND organization_id = $10`,
-      [
-        targetOrganizationId,
-        username,
-        email || null,
-        fullName,
-        birthday || null,
-        phone || null,
-        positionId,
-        roleId,
-        userId,
-        scopedOrganizationId,
-        actorUserId || null
-      ]
-    );
+    let updateResult;
+    try {
+      updateResult = await client.query(
+        `UPDATE users
+            SET organization_id = $1,
+                username = $2,
+                email = LOWER($3),
+                full_name = $4,
+                birthday = $5,
+                phone_number = $6,
+                position_id = $7::int,
+                role_id = $8::int,
+                updated_by = $11,
+                updated_at = CURRENT_TIMESTAMP
+          WHERE id = $9
+            AND organization_id = $10`,
+        [
+          targetOrganizationId,
+          username,
+          email || null,
+          fullName,
+          birthday || null,
+          phone || null,
+          positionId,
+          roleId,
+          userId,
+          scopedOrganizationId,
+          actorUserId || null
+        ]
+      );
+    } catch (error) {
+      if (error?.code === "23503" && targetOrganizationId !== scopedOrganizationId) {
+        const transferBlockedError = new Error(
+          "User has linked organization data and cannot be moved to another organization."
+        );
+        transferBlockedError.code = "USER_TRANSFER_BLOCKED_LINKED_DATA";
+        transferBlockedError.field = "organizationCode";
+        throw transferBlockedError;
+      }
+      throw error;
+    }
 
     if (updateResult.rowCount === 0) {
       return null;

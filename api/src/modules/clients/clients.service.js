@@ -1,49 +1,110 @@
 import pool from "../../config/db.js";
 import { getTodayYmd } from "../../lib/date.js";
+import { createTtlCache } from "../../lib/ttl-cache.js";
+import {
+  createMigrationRequiredError,
+  getExistingTableNames
+} from "../../lib/schema-guard.js";
+import {
+  normalizeVipClassDailyRoutineActivityType,
+  normalizeVipDailyRoutineDayOfWeek
+} from "./vip-daily-routines.js";
 
 let vipAttendanceSchemaInitPromise = null;
 let vipAssignmentsSchemaInitPromise = null;
 let vipClassDailyRoutinesSchemaInitPromise = null;
 let clientMedicalHistorySchemaInitPromise = null;
 let appointmentCalendarTablesReadyPromise = null;
+const clientsReferenceCache = createTtlCache({
+  maxEntries: 128,
+  defaultTtlMs: 30_000
+});
 
-const VIP_CLASS_DAILY_ROUTINE_ACTIVITY_SET = new Set(["lesson", "sleep", "meal", "other"]);
+function cloneVipAssignableUsers(items) {
+  return (Array.isArray(items) ? items : []).map((item) => ({
+    id: String(item?.id || "").trim(),
+    name: String(item?.name || "").trim()
+  }));
+}
+
+function cloneVipClientOptionItems(items) {
+  return (Array.isArray(items) ? items : []).map((item) => ({
+    id: String(item?.id || "").trim(),
+    first_name: String(item?.first_name || "").trim(),
+    last_name: String(item?.last_name || "").trim(),
+    middle_name: String(item?.middle_name || "").trim()
+  }));
+}
+
+export function clearClientsReferenceCaches() {
+  clientsReferenceCache.clear();
+}
+
+export function resetClientsServiceSchemaCacheForTests() {
+  vipAttendanceSchemaInitPromise = null;
+  vipAssignmentsSchemaInitPromise = null;
+  vipClassDailyRoutinesSchemaInitPromise = null;
+  clientMedicalHistorySchemaInitPromise = null;
+  appointmentCalendarTablesReadyPromise = null;
+  clearClientsReferenceCaches();
+}
+
+function buildPagedRowsResult(rows, {
+  limit,
+  requestedPage,
+  idField = "id",
+  omitKeys = []
+} = {}) {
+  const items = Array.isArray(rows) ? rows : [];
+  const firstRow = items[0] || null;
+  const total = Number.parseInt(String(firstRow?.total || "0"), 10) || 0;
+  const totalPagesFromRow = Number.parseInt(String(firstRow?.total_pages || "0"), 10) || 0;
+  const safeLimit = Number.isInteger(limit) && limit > 0 ? limit : 1;
+  const totalPages = Math.max(1, totalPagesFromRow || Math.ceil(total / safeLimit) || 1);
+  const safePage = total > 0
+    ? Math.min(Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1, totalPages)
+    : 1;
+  const omitKeySet = new Set(["total", "total_pages", ...omitKeys]);
+
+  const normalizedRows = items
+    .filter((row) => {
+      const value = row?.[idField];
+      return Boolean(String(value ?? "").trim());
+    })
+    .map((row) => {
+      const nextRow = {};
+      Object.entries(row || {}).forEach(([key, value]) => {
+        if (!omitKeySet.has(key)) {
+          nextRow[key] = value;
+        }
+      });
+      return nextRow;
+    });
+
+  return {
+    total,
+    totalPages,
+    page: safePage,
+    rows: normalizedRows
+  };
+}
+
+function buildMissingTablesError(message, missingTables = []) {
+  return createMigrationRequiredError(message, {
+    missingTables: Array.isArray(missingTables) ? missingTables : []
+  });
+}
 
 async function ensureVipAttendanceSchema() {
   if (!vipAttendanceSchemaInitPromise) {
     vipAttendanceSchemaInitPromise = (async () => {
-      await pool.query(
-        `CREATE TABLE IF NOT EXISTS vip_client_attendance (
-           id BIGSERIAL PRIMARY KEY,
-           organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-           client_id INTEGER NOT NULL,
-           attendance_date DATE NOT NULL,
-           status VARCHAR(16) NOT NULL DEFAULT 'absent'
-             CHECK (status IN ('present', 'absent')),
-           arrived_at TIMESTAMP,
-           left_at TIMESTAMP,
-           note VARCHAR(255),
-           created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-           updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-           CONSTRAINT fk_vip_client_attendance_client_org
-             FOREIGN KEY (organization_id, client_id)
-             REFERENCES clients(organization_id, id) ON DELETE CASCADE,
-           CONSTRAINT uq_vip_client_attendance_client_date
-             UNIQUE (organization_id, client_id, attendance_date),
-           CHECK (
-             (status = 'present' AND arrived_at IS NOT NULL)
-             OR
-             (status = 'absent' AND arrived_at IS NULL AND left_at IS NULL)
-           ),
-           CHECK (left_at IS NULL OR arrived_at IS NULL OR left_at >= arrived_at)
-         )`
-      );
-      await pool.query(
-        `CREATE INDEX IF NOT EXISTS idx_vip_client_attendance_org_date_client
-           ON vip_client_attendance (organization_id, attendance_date, client_id)`
-      );
+      const existingTables = await getExistingTableNames({
+        tableNames: ["vip_client_attendance"]
+      });
+      const missingTables = ["vip_client_attendance"].filter((tableName) => !existingTables.has(tableName));
+      if (missingTables.length > 0) {
+        throw buildMissingTablesError("VIP attendance migration is required.", missingTables);
+      }
     })().catch((error) => {
       vipAttendanceSchemaInitPromise = null;
       throw error;
@@ -56,320 +117,19 @@ async function ensureVipAttendanceSchema() {
 async function ensureVipAssignmentsSchema() {
   if (!vipAssignmentsSchemaInitPromise) {
     vipAssignmentsSchemaInitPromise = (async () => {
-      await pool.query(
-        `CREATE TABLE IF NOT EXISTS vip_class_teacher_assignments (
-           id BIGSERIAL PRIMARY KEY,
-           organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-           class_name VARCHAR(64) NOT NULL,
-           teacher_user_id INTEGER NOT NULL,
-           created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-           updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-           CONSTRAINT fk_vip_class_teacher_assignments_teacher_org
-             FOREIGN KEY (organization_id, teacher_user_id)
-             REFERENCES users(organization_id, id) ON DELETE RESTRICT,
-           CONSTRAINT uq_vip_class_teacher_assignments_class_org
-             UNIQUE (organization_id, class_name),
-           CONSTRAINT uq_vip_class_teacher_assignments_org_id
-             UNIQUE (organization_id, id)
-         )`
-      );
-      await pool.query(
-        `CREATE TABLE IF NOT EXISTS vip_client_tutor_assignments (
-           id BIGSERIAL PRIMARY KEY,
-           organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-           client_id INTEGER NOT NULL,
-           class_assignment_id BIGINT NOT NULL,
-           tutor_user_id INTEGER NOT NULL,
-           created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-           updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-           CONSTRAINT fk_vip_client_tutor_assignments_client_org
-             FOREIGN KEY (organization_id, client_id)
-             REFERENCES clients(organization_id, id) ON DELETE CASCADE,
-           CONSTRAINT fk_vip_client_tutor_assignments_class_org
-             FOREIGN KEY (organization_id, class_assignment_id)
-             REFERENCES vip_class_teacher_assignments(organization_id, id) ON DELETE RESTRICT,
-           CONSTRAINT fk_vip_client_tutor_assignments_tutor_org
-             FOREIGN KEY (organization_id, tutor_user_id)
-             REFERENCES users(organization_id, id) ON DELETE RESTRICT,
-           CONSTRAINT uq_vip_client_tutor_assignments_client_org
-             UNIQUE (organization_id, client_id)
-         )`
-      );
-      await pool.query(
-        `CREATE TABLE IF NOT EXISTS vip_class_teacher_assignment_history (
-           id BIGSERIAL PRIMARY KEY,
-           organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-           class_assignment_id BIGINT,
-           class_name VARCHAR(64) NOT NULL,
-           teacher_user_id INTEGER,
-           assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-           assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-           changed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-           changed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-           CONSTRAINT fk_vip_class_teacher_assignment_history_class_org
-             FOREIGN KEY (organization_id, class_assignment_id)
-             REFERENCES vip_class_teacher_assignments(organization_id, id) ON DELETE SET NULL,
-           CONSTRAINT fk_vip_class_teacher_assignment_history_teacher_org
-             FOREIGN KEY (organization_id, teacher_user_id)
-             REFERENCES users(organization_id, id) ON DELETE SET NULL
-         )`
-      );
-      await pool.query(
-        `CREATE TABLE IF NOT EXISTS vip_client_tutor_assignment_history (
-           id BIGSERIAL PRIMARY KEY,
-           organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-           client_id INTEGER NOT NULL,
-           class_assignment_id BIGINT,
-           tutor_user_id INTEGER NOT NULL,
-           assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-           assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-           changed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-           changed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-           CONSTRAINT fk_vip_client_tutor_assignment_history_client_org
-             FOREIGN KEY (organization_id, client_id)
-             REFERENCES clients(organization_id, id) ON DELETE CASCADE,
-           CONSTRAINT fk_vip_client_tutor_assignment_history_class_org
-             FOREIGN KEY (organization_id, class_assignment_id)
-             REFERENCES vip_class_teacher_assignments(organization_id, id) ON DELETE RESTRICT,
-           CONSTRAINT fk_vip_client_tutor_assignment_history_tutor_org
-             FOREIGN KEY (organization_id, tutor_user_id)
-             REFERENCES users(organization_id, id) ON DELETE RESTRICT
-         )`
-      );
-      await pool.query(
-        `DO $$
-         DECLARE fk_delete_rule TEXT;
-         BEGIN
-           IF EXISTS (
-             SELECT 1
-               FROM information_schema.columns c
-              WHERE c.table_schema = 'public'
-                AND c.table_name = 'vip_client_tutor_assignment_history'
-                AND c.column_name = 'class_assignment_id'
-                AND c.is_nullable = 'NO'
-           ) THEN
-             ALTER TABLE vip_client_tutor_assignment_history
-               ALTER COLUMN class_assignment_id DROP NOT NULL;
-           END IF;
-
-           SELECT rc.delete_rule
-             INTO fk_delete_rule
-             FROM information_schema.referential_constraints rc
-             JOIN information_schema.table_constraints tc
-               ON tc.constraint_catalog = rc.constraint_catalog
-              AND tc.constraint_schema = rc.constraint_schema
-              AND tc.constraint_name = rc.constraint_name
-            WHERE tc.table_schema = 'public'
-              AND tc.table_name = 'vip_client_tutor_assignment_history'
-              AND tc.constraint_name = 'fk_vip_client_tutor_assignment_history_class_org';
-
-           IF fk_delete_rule IS DISTINCT FROM 'RESTRICT' THEN
-             IF fk_delete_rule IS NOT NULL THEN
-               ALTER TABLE vip_client_tutor_assignment_history
-                 DROP CONSTRAINT fk_vip_client_tutor_assignment_history_class_org;
-             END IF;
-             ALTER TABLE vip_client_tutor_assignment_history
-               ADD CONSTRAINT fk_vip_client_tutor_assignment_history_class_org
-                 FOREIGN KEY (organization_id, class_assignment_id)
-                 REFERENCES vip_class_teacher_assignments(organization_id, id) ON DELETE RESTRICT;
-           END IF;
-         END $$`
-      );
-      await pool.query(
-        `CREATE INDEX IF NOT EXISTS idx_vip_class_teacher_assignments_org_class
-           ON vip_class_teacher_assignments (organization_id, class_name, id)`
-      );
-      await pool.query(
-        `CREATE INDEX IF NOT EXISTS idx_vip_class_teacher_assignments_org_teacher
-           ON vip_class_teacher_assignments (organization_id, teacher_user_id)`
-      );
-      await pool.query(
-        `CREATE INDEX IF NOT EXISTS idx_vip_class_teacher_assignment_history_org_assignment_changed
-           ON vip_class_teacher_assignment_history (organization_id, class_assignment_id, changed_at DESC, id DESC)`
-      );
-      await pool.query(
-        `CREATE INDEX IF NOT EXISTS idx_vip_class_teacher_assignment_history_org_class_changed
-           ON vip_class_teacher_assignment_history (organization_id, class_name, changed_at DESC, id DESC)`
-      );
-      await pool.query(
-        `CREATE INDEX IF NOT EXISTS idx_vip_client_tutor_assignments_org_class
-           ON vip_client_tutor_assignments (organization_id, class_assignment_id, client_id)`
-      );
-      await pool.query(
-        `CREATE INDEX IF NOT EXISTS idx_vip_client_tutor_assignments_org_tutor
-           ON vip_client_tutor_assignments (organization_id, tutor_user_id, client_id)`
-      );
-      await pool.query(
-        `CREATE INDEX IF NOT EXISTS idx_vip_client_tutor_assignment_history_org_client_changed
-           ON vip_client_tutor_assignment_history (organization_id, client_id, changed_at DESC, id DESC)`
-      );
-      await pool.query(
-        `CREATE INDEX IF NOT EXISTS idx_vip_client_tutor_assignment_history_org_class_changed
-           ON vip_client_tutor_assignment_history (organization_id, class_assignment_id, changed_at DESC, id DESC)`
-      );
-      await pool.query(
-        `DO $$
-         DECLARE source_assignments_table TEXT;
-         BEGIN
-           IF EXISTS (
-             SELECT 1
-               FROM information_schema.tables
-              WHERE table_schema = 'public'
-                AND table_name = 'vip_client_assignment_class'
-           ) THEN
-             source_assignments_table := 'vip_client_assignment_class';
-           ELSIF EXISTS (
-             SELECT 1
-               FROM information_schema.tables
-              WHERE table_schema = 'public'
-                AND table_name = 'vip_client_assignments'
-           ) THEN
-             source_assignments_table := 'vip_client_assignments';
-           ELSE
-             source_assignments_table := NULL;
-           END IF;
-
-           IF source_assignments_table IS NOT NULL THEN
-             EXECUTE format(
-               $sql$
-               INSERT INTO vip_class_teacher_assignments (
-                 organization_id,
-                 class_name,
-                 teacher_user_id,
-                 created_by,
-                 updated_by,
-                 created_at,
-                 updated_at
-               )
-               SELECT
-                 va.organization_id,
-                 TRIM(va.class_name),
-                 va.teacher_user_id,
-                 va.created_by,
-                 COALESCE(va.updated_by, va.created_by),
-                 COALESCE(va.created_at, CURRENT_TIMESTAMP),
-                 COALESCE(va.updated_at, va.created_at, CURRENT_TIMESTAMP)
-                 FROM %I va
-                WHERE NULLIF(TRIM(va.class_name), '') IS NOT NULL
-                  AND va.teacher_user_id IS NOT NULL
-               ON CONFLICT (organization_id, class_name)
-               DO UPDATE
-                 SET teacher_user_id = EXCLUDED.teacher_user_id,
-                     updated_by = EXCLUDED.updated_by,
-                     updated_at = CURRENT_TIMESTAMP
-               $sql$,
-               source_assignments_table
-             );
-
-             EXECUTE format(
-               $sql$
-               INSERT INTO vip_client_tutor_assignments (
-                 organization_id,
-                 client_id,
-                 class_assignment_id,
-                 tutor_user_id,
-                 created_by,
-                 updated_by,
-                 created_at,
-                 updated_at
-               )
-               SELECT
-                 va.organization_id,
-                 va.client_id,
-                 vcta.id,
-                 va.tutor_user_id,
-                 va.created_by,
-                 COALESCE(va.updated_by, va.created_by),
-                 COALESCE(va.created_at, CURRENT_TIMESTAMP),
-                 COALESCE(va.updated_at, va.created_at, CURRENT_TIMESTAMP)
-                 FROM %I va
-                 JOIN vip_class_teacher_assignments vcta
-                   ON vcta.organization_id = va.organization_id
-                  AND LOWER(vcta.class_name) = LOWER(TRIM(va.class_name))
-                WHERE va.client_id IS NOT NULL
-                  AND va.tutor_user_id IS NOT NULL
-                  AND NULLIF(TRIM(va.class_name), '') IS NOT NULL
-               ON CONFLICT (organization_id, client_id)
-               DO UPDATE
-                 SET class_assignment_id = EXCLUDED.class_assignment_id,
-                     tutor_user_id = EXCLUDED.tutor_user_id,
-                     updated_by = EXCLUDED.updated_by,
-                     updated_at = CURRENT_TIMESTAMP
-               $sql$,
-               source_assignments_table
-             );
-           END IF;
-
-           IF EXISTS (
-             SELECT 1
-               FROM information_schema.tables
-              WHERE table_schema = 'public'
-                AND table_name = 'vip_client_assignment_history'
-           ) THEN
-             INSERT INTO vip_class_teacher_assignment_history (
-               organization_id,
-               class_assignment_id,
-               class_name,
-               teacher_user_id,
-               assigned_by,
-               assigned_at,
-               changed_by,
-               changed_at
-             )
-             SELECT DISTINCT
-               vh.organization_id,
-               vcta.id,
-               TRIM(vh.class_name),
-               vh.teacher_user_id,
-               vh.assigned_by,
-               COALESCE(vh.assigned_at, vh.changed_at, CURRENT_TIMESTAMP),
-               vh.changed_by,
-               COALESCE(vh.changed_at, CURRENT_TIMESTAMP)
-               FROM vip_client_assignment_history vh
-               LEFT JOIN vip_class_teacher_assignments vcta
-                 ON vcta.organization_id = vh.organization_id
-                AND LOWER(vcta.class_name) = LOWER(TRIM(vh.class_name))
-              WHERE vh.teacher_user_id IS NOT NULL
-                AND NULLIF(TRIM(vh.class_name), '') IS NOT NULL;
-
-             INSERT INTO vip_client_tutor_assignment_history (
-               organization_id,
-               client_id,
-               class_assignment_id,
-               tutor_user_id,
-               assigned_by,
-               assigned_at,
-               changed_by,
-               changed_at
-             )
-             SELECT
-               vh.organization_id,
-               vh.client_id,
-               vcta.id,
-               vh.tutor_user_id,
-               vh.assigned_by,
-               COALESCE(vh.assigned_at, vh.changed_at, CURRENT_TIMESTAMP),
-               vh.changed_by,
-               COALESCE(vh.changed_at, CURRENT_TIMESTAMP)
-               FROM vip_client_assignment_history vh
-               JOIN vip_class_teacher_assignments vcta
-                 ON vcta.organization_id = vh.organization_id
-                AND LOWER(vcta.class_name) = LOWER(TRIM(vh.class_name))
-              WHERE vh.client_id IS NOT NULL
-                AND vh.tutor_user_id IS NOT NULL
-                AND NULLIF(TRIM(vh.class_name), '') IS NOT NULL;
-           END IF;
-
-           DROP TABLE IF EXISTS vip_client_assignment_history;
-           DROP TABLE IF EXISTS vip_client_assignment_class;
-           DROP TABLE IF EXISTS vip_client_assignments;
-         END
-         $$`
-      );
+      const requiredTables = [
+        "vip_class_teacher_assignments",
+        "vip_client_tutor_assignments",
+        "vip_class_teacher_assignment_history",
+        "vip_client_tutor_assignment_history"
+      ];
+      const existingTables = await getExistingTableNames({
+        tableNames: requiredTables
+      });
+      const missingTables = requiredTables.filter((tableName) => !existingTables.has(tableName));
+      if (missingTables.length > 0) {
+        throw buildMissingTablesError("VIP assignment migration is required.", missingTables);
+      }
     })().catch((error) => {
       vipAssignmentsSchemaInitPromise = null;
       throw error;
@@ -383,45 +143,13 @@ async function ensureVipClassDailyRoutinesSchema() {
   if (!vipClassDailyRoutinesSchemaInitPromise) {
     vipClassDailyRoutinesSchemaInitPromise = (async () => {
       await ensureVipAssignmentsSchema();
-      await pool.query(
-        `CREATE TABLE IF NOT EXISTS vip_class_daily_routines (
-           id BIGSERIAL PRIMARY KEY,
-           organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-           class_assignment_id BIGINT NOT NULL,
-           day_of_week SMALLINT NOT NULL CHECK (day_of_week BETWEEN 1 AND 7),
-           activity_type VARCHAR(16) NOT NULL CHECK (activity_type IN ('lesson', 'sleep', 'meal', 'other')),
-           start_time TIME NOT NULL,
-           end_time TIME NOT NULL,
-           note VARCHAR(255),
-           created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-           updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-           CONSTRAINT fk_vip_class_daily_routines_class_org
-             FOREIGN KEY (organization_id, class_assignment_id)
-             REFERENCES vip_class_teacher_assignments(organization_id, id) ON DELETE CASCADE,
-           CONSTRAINT uq_vip_class_daily_routines_exact_slot
-             UNIQUE (organization_id, class_assignment_id, day_of_week, start_time, end_time, activity_type),
-           CHECK (start_time < end_time)
-         )`
-      );
-      await pool.query(
-        `CREATE INDEX IF NOT EXISTS idx_vip_class_daily_routines_org_class_day_time
-           ON vip_class_daily_routines (organization_id, class_assignment_id, day_of_week, start_time, id)`
-      );
-      await pool.query(
-        `DROP INDEX IF EXISTS idx_vip_class_daily_routines_org_day_active`
-      );
-      await pool.query(
-        `CREATE INDEX IF NOT EXISTS idx_vip_class_daily_routines_org_day_time
-           ON vip_class_daily_routines (organization_id, day_of_week, start_time, id)`
-      );
-      await pool.query(
-        `ALTER TABLE vip_class_daily_routines
-           DROP COLUMN IF EXISTS title,
-           DROP COLUMN IF EXISTS is_active,
-           DROP COLUMN IF EXISTS sort_order`
-      );
+      const existingTables = await getExistingTableNames({
+        tableNames: ["vip_class_daily_routines"]
+      });
+      const missingTables = ["vip_class_daily_routines"].filter((tableName) => !existingTables.has(tableName));
+      if (missingTables.length > 0) {
+        throw buildMissingTablesError("VIP class daily routine migration is required.", missingTables);
+      }
     })().catch((error) => {
       vipClassDailyRoutinesSchemaInitPromise = null;
       throw error;
@@ -434,35 +162,14 @@ async function ensureVipClassDailyRoutinesSchema() {
 async function ensureClientMedicalHistorySchema() {
   if (!clientMedicalHistorySchemaInitPromise) {
     clientMedicalHistorySchemaInitPromise = (async () => {
-      await pool.query(
-        `CREATE TABLE IF NOT EXISTS client_medical_history_entries (
-           id BIGSERIAL PRIMARY KEY,
-           organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-           client_id INTEGER NOT NULL,
-           entry_date DATE NOT NULL,
-           condition_name VARCHAR(160) NOT NULL,
-           symptoms TEXT,
-           diagnosis TEXT,
-           treatment_plan TEXT,
-           note TEXT,
-           author_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-           created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-           updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-           CONSTRAINT fk_client_medical_history_entries_client_org
-             FOREIGN KEY (organization_id, client_id)
-             REFERENCES clients(organization_id, id) ON DELETE CASCADE
-         )`
-      );
-      await pool.query(
-        `CREATE INDEX IF NOT EXISTS idx_client_medical_history_entries_org_client_entry
-           ON client_medical_history_entries (organization_id, client_id, entry_date DESC, id DESC)`
-      );
-      await pool.query(
-        `CREATE INDEX IF NOT EXISTS idx_client_medical_history_entries_org_author_entry
-           ON client_medical_history_entries (organization_id, author_user_id, entry_date DESC, id DESC)`
-      );
+      const existingTables = await getExistingTableNames({
+        tableNames: ["client_medical_history_entries"]
+      });
+      const missingTables = ["client_medical_history_entries"]
+        .filter((tableName) => !existingTables.has(tableName));
+      if (missingTables.length > 0) {
+        throw buildMissingTablesError("Client medical history migration is required.", missingTables);
+      }
     })().catch((error) => {
       clientMedicalHistorySchemaInitPromise = null;
       throw error;
@@ -470,6 +177,18 @@ async function ensureClientMedicalHistorySchema() {
   }
 
   return clientMedicalHistorySchemaInitPromise;
+}
+
+async function hasClientMedicalHistorySchema() {
+  try {
+    await ensureClientMedicalHistorySchema();
+    return true;
+  } catch (error) {
+    if (error?.code === "MIGRATION_REQUIRED") {
+      return false;
+    }
+    throw error;
+  }
 }
 
 export async function findClientsRequester(authContext = {}) {
@@ -502,7 +221,8 @@ export async function findClientsRequester(authContext = {}) {
        o.allowed_features AS organization_allowed_features
        FROM users u
        JOIN organizations o ON o.id = u.organization_id
-       LEFT JOIN role_options r ON r.id = u.role_id
+       JOIN role_options r ON r.id = u.role_id
+        AND r.is_active = TRUE
        LEFT JOIN position_options p ON p.id = u.position_id
       WHERE u.id = $1
         AND u.organization_id = $2
@@ -516,11 +236,17 @@ export async function findClientsRequester(authContext = {}) {
 async function getVipAssignableUsersByKeywords(organizationId, keywords = []) {
   const normalizedKeywords = Array.isArray(keywords)
     ? keywords
-        .map((keyword) => String(keyword || "").trim().toLowerCase())
+        .map((keyword) => normalizeSearchToken(keyword))
         .filter(Boolean)
     : [];
   if (normalizedKeywords.length === 0) {
     return [];
+  }
+
+  const cacheKey = `vip-assignable|org:${organizationId}|keywords:${normalizedKeywords.join(",")}`;
+  const cached = clientsReferenceCache.get(cacheKey);
+  if (cached) {
+    return cloneVipAssignableUsers(cached);
   }
 
   const params = [organizationId];
@@ -553,7 +279,9 @@ async function getVipAssignableUsersByKeywords(organizationId, keywords = []) {
         COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), u.id::text) ASC`,
     params
   );
-  return rows || [];
+  const items = rows || [];
+  clientsReferenceCache.set(cacheKey, cloneVipAssignableUsers(items));
+  return items;
 }
 
 export async function getVipAttendanceTeachersByOrganization(organizationId) {
@@ -571,6 +299,11 @@ export async function getVipClientOptionsByOrganization({
   limit = 1000
 }) {
   const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 2000) : 1000;
+  const cacheKey = `vip-clients|org:${organizationId}|limit:${safeLimit}`;
+  const cached = clientsReferenceCache.get(cacheKey);
+  if (cached) {
+    return cloneVipClientOptionItems(cached);
+  }
   const { rows } = await pool.query(
     `SELECT
        c.id::text AS id,
@@ -590,7 +323,9 @@ export async function getVipClientOptionsByOrganization({
       LIMIT $2`,
     [organizationId, safeLimit]
   );
-  return rows || [];
+  const items = rows || [];
+  clientsReferenceCache.set(cacheKey, cloneVipClientOptionItems(items));
+  return items;
 }
 
 export async function getClientMedicalHistoryClientOptions({
@@ -649,28 +384,35 @@ export async function getVipAssignmentOptionsByOrganization(organizationId) {
 
 export async function getVipClassAssignments({
   organizationId,
+  assignedUserId = null,
   limit = 200
 }) {
   await ensureVipAssignmentsSchema();
 
   const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 500) : 200;
+  const normalizedAssignedUserId = Number.parseInt(String(assignedUserId || "").trim(), 10) || null;
   const { rows } = await pool.query(
     `SELECT
        va.id::text AS id,
        va.class_name,
        va.teacher_user_id::text AS teacher_user_id,
        COALESCE(NULLIF(TRIM(tu.full_name), ''), NULLIF(TRIM(tu.username), ''), '') AS teacher_name,
-       (
-         SELECT COUNT(*)::int
-           FROM vip_client_tutor_assignments vta
-          WHERE vta.organization_id = va.organization_id
-            AND vta.class_assignment_id = va.id
-       ) AS children_count,
+       COALESCE(vta_stats.children_count, 0) AS children_count,
        va.created_by::text AS created_by,
        COALESCE(NULLIF(TRIM(vcu.full_name), ''), NULLIF(TRIM(vcu.username), ''), '') AS created_by_name,
        va.created_at
       FROM vip_class_teacher_assignments va
       JOIN organizations o ON o.id = va.organization_id
+      LEFT JOIN (
+        SELECT
+          vta.class_assignment_id,
+          COUNT(*)::int AS children_count,
+          BOOL_OR(vta.tutor_user_id = $3::integer) AS has_assigned_tutor
+        FROM vip_client_tutor_assignments vta
+        WHERE vta.organization_id = $1
+        GROUP BY vta.class_assignment_id
+      ) vta_stats
+        ON vta_stats.class_assignment_id = va.id
       LEFT JOIN users tu
         ON tu.id = va.teacher_user_id
        AND tu.organization_id = va.organization_id
@@ -679,11 +421,16 @@ export async function getVipClassAssignments({
        AND vcu.organization_id = va.organization_id
       WHERE va.organization_id = $1
         AND o.is_active = TRUE
+        AND (
+          $3::integer IS NULL
+          OR va.teacher_user_id = $3::integer
+          OR COALESCE(vta_stats.has_assigned_tutor, FALSE)
+        )
       ORDER BY
         LOWER(va.class_name) ASC,
         va.id ASC
       LIMIT $2`,
-    [organizationId, safeLimit]
+    [organizationId, safeLimit, normalizedAssignedUserId]
   );
 
   return rows || [];
@@ -706,6 +453,15 @@ export async function getVipClassAssignmentOptions({
        COALESCE(NULLIF(TRIM(tu.full_name), ''), NULLIF(TRIM(tu.username), ''), '') AS teacher_name
       FROM vip_class_teacher_assignments va
       JOIN organizations o ON o.id = va.organization_id
+      LEFT JOIN (
+        SELECT
+          vta.class_assignment_id,
+          BOOL_OR(vta.tutor_user_id = $3::integer) AS has_assigned_tutor
+        FROM vip_client_tutor_assignments vta
+        WHERE vta.organization_id = $1
+        GROUP BY vta.class_assignment_id
+      ) vta_scope
+        ON vta_scope.class_assignment_id = va.id
       LEFT JOIN users tu
         ON tu.id = va.teacher_user_id
        AND tu.organization_id = va.organization_id
@@ -714,13 +470,7 @@ export async function getVipClassAssignmentOptions({
         AND (
           $3::integer IS NULL
           OR va.teacher_user_id = $3::integer
-          OR EXISTS (
-            SELECT 1
-              FROM vip_client_tutor_assignments vta
-             WHERE vta.organization_id = va.organization_id
-               AND vta.class_assignment_id = va.id
-               AND vta.tutor_user_id = $3::integer
-          )
+          OR COALESCE(vta_scope.has_assigned_tutor, FALSE)
         )
       ORDER BY LOWER(va.class_name) ASC, va.id ASC
       LIMIT $2`,
@@ -733,6 +483,7 @@ export async function getVipClassAssignmentOptions({
 export async function getVipClassAssignmentHistory({
   organizationId,
   classId = null,
+  assignedUserId = null,
   limit = 200
 }) {
   await ensureVipAssignmentsSchema();
@@ -746,6 +497,21 @@ export async function getVipClassAssignmentHistory({
   if (Number.isInteger(classId) && classId > 0) {
     params.push(classId);
     whereParts.push(`h.class_assignment_id = $${params.length}`);
+  }
+  const normalizedAssignedUserId = Number.parseInt(String(assignedUserId || "").trim(), 10) || null;
+  if (normalizedAssignedUserId) {
+    params.push(normalizedAssignedUserId);
+    const assignedUserParam = `$${params.length}`;
+    whereParts.push(`(
+      h.teacher_user_id = ${assignedUserParam}
+      OR EXISTS (
+        SELECT 1
+          FROM vip_client_tutor_assignment_history vth
+         WHERE vth.organization_id = h.organization_id
+           AND vth.class_assignment_id = h.class_assignment_id
+           AND vth.tutor_user_id = ${assignedUserParam}
+      )
+    )`);
   }
   params.push(safeLimit);
 
@@ -1089,9 +855,71 @@ export async function getVipTutorAssignments({
   return rows || [];
 }
 
+export async function findVipTutorAssignmentByClientId({
+  organizationId,
+  clientId
+}) {
+  await ensureVipAssignmentsSchema();
+
+  const normalizedClientId = Number.parseInt(String(clientId || "").trim(), 10) || 0;
+  if (!normalizedClientId) {
+    return null;
+  }
+
+  const { rows } = await pool.query(
+    `SELECT
+       client_id::text AS client_id,
+       class_assignment_id::text AS class_assignment_id,
+       tutor_user_id::text AS tutor_user_id
+      FROM vip_client_tutor_assignments
+      WHERE organization_id = $1
+        AND client_id = $2
+      LIMIT 1`,
+    [organizationId, normalizedClientId]
+  );
+
+  return rows[0] || null;
+}
+
+export async function isVipClassAssignedToUser({
+  organizationId,
+  classId,
+  userId
+}) {
+  await ensureVipAssignmentsSchema();
+
+  const normalizedClassId = Number.parseInt(String(classId || "").trim(), 10) || 0;
+  const normalizedUserId = Number.parseInt(String(userId || "").trim(), 10) || 0;
+  if (!normalizedClassId || !normalizedUserId) {
+    return false;
+  }
+
+  const { rows } = await pool.query(
+    `SELECT 1
+       FROM vip_class_teacher_assignments vcta
+      WHERE vcta.organization_id = $1
+        AND vcta.id = $2
+        AND (
+          vcta.teacher_user_id = $3
+          OR EXISTS (
+            SELECT 1
+              FROM vip_client_tutor_assignments vta
+             WHERE vta.organization_id = vcta.organization_id
+               AND vta.class_assignment_id = vcta.id
+               AND vta.tutor_user_id = $3
+          )
+        )
+      LIMIT 1`,
+    [organizationId, normalizedClassId, normalizedUserId]
+  );
+
+  return rows.length > 0;
+}
+
 export async function getVipTutorAssignmentHistory({
   organizationId,
   clientId = null,
+  assignedUserId = null,
   limit = 200
 }) {
   await ensureVipAssignmentsSchema();
@@ -1105,6 +933,28 @@ export async function getVipTutorAssignmentHistory({
   if (Number.isInteger(clientId) && clientId > 0) {
     params.push(clientId);
     whereParts.push(`h.client_id = $${params.length}`);
+  }
+  const normalizedAssignedUserId = Number.parseInt(String(assignedUserId || "").trim(), 10) || null;
+  if (normalizedAssignedUserId) {
+    params.push(normalizedAssignedUserId);
+    const assignedUserParam = `$${params.length}`;
+    whereParts.push(`(
+      h.tutor_user_id = ${assignedUserParam}
+      OR EXISTS (
+        SELECT 1
+          FROM vip_class_teacher_assignments vcta
+         WHERE vcta.organization_id = h.organization_id
+           AND vcta.id = h.class_assignment_id
+           AND vcta.teacher_user_id = ${assignedUserParam}
+      )
+      OR EXISTS (
+        SELECT 1
+          FROM vip_class_teacher_assignment_history vch
+         WHERE vch.organization_id = h.organization_id
+           AND vch.class_assignment_id = h.class_assignment_id
+           AND vch.teacher_user_id = ${assignedUserParam}
+      )
+    )`);
   }
   params.push(safeLimit);
 
@@ -1550,6 +1400,62 @@ export async function getVipAttendanceHistory({
   return rows || [];
 }
 
+export async function findVipClientAttendanceByDate({
+  organizationId,
+  clientId,
+  attendanceDate
+}) {
+  await ensureVipAttendanceSchema();
+
+  const normalizedClientId = Number.parseInt(String(clientId || "").trim(), 10) || 0;
+  const normalizedAttendanceDate = String(attendanceDate || "").trim();
+  if (!normalizedClientId || !normalizedAttendanceDate) {
+    return null;
+  }
+
+  const { rows } = await pool.query(
+    `SELECT
+       client_id::text AS client_id,
+       attendance_date,
+       status
+      FROM vip_client_attendance
+      WHERE organization_id = $1
+        AND client_id = $2
+        AND attendance_date = $3::date
+      LIMIT 1`,
+    [organizationId, normalizedClientId, normalizedAttendanceDate]
+  );
+
+  return rows[0] || null;
+}
+
+export async function findVipClassDailyRoutineById({
+  organizationId,
+  routineId
+}) {
+  await ensureVipClassDailyRoutinesSchema();
+
+  const normalizedRoutineId = Number.parseInt(String(routineId || "").trim(), 10) || 0;
+  if (!normalizedRoutineId) {
+    return null;
+  }
+
+  const { rows } = await pool.query(
+    `SELECT
+       id::text AS id,
+       class_assignment_id::text AS class_assignment_id,
+       day_of_week,
+       activity_type
+      FROM vip_class_daily_routines
+      WHERE organization_id = $1
+        AND id = $2
+      LIMIT 1`,
+    [organizationId, normalizedRoutineId]
+  );
+
+  return rows[0] || null;
+}
+
 export async function isVipClientAssignedToUser({
   organizationId,
   clientId,
@@ -1590,19 +1496,6 @@ function normalizeSearchToken(value) {
 
 function isDateYmd(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value || "").trim());
-}
-
-function normalizeVipClassDailyRoutineActivityType(value) {
-  const normalized = String(value || "").trim().toLowerCase();
-  return VIP_CLASS_DAILY_ROUTINE_ACTIVITY_SET.has(normalized) ? normalized : "";
-}
-
-function normalizeVipDailyRoutineDayOfWeek(value) {
-  const parsed = Number.parseInt(String(value || "").trim(), 10);
-  if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 7) {
-    return parsed;
-  }
-  return 0;
 }
 
 async function hasAppointmentCalendarTables() {
@@ -1803,32 +1696,45 @@ export async function getClientsPage({
   historyPositionId = null,
   historySpecialistId = null
 }) {
-  await ensureClientMedicalHistorySchema();
+  const normalizedHistoryDateFrom = String(historyDateFrom || "").trim();
+  const normalizedHistoryDateTo = String(historyDateTo || "").trim();
+  const hasHistoryPositionFilter = Number.isInteger(historyPositionId) && historyPositionId > 0;
+  const hasHistorySpecialistFilter = Number.isInteger(historySpecialistId) && historySpecialistId > 0;
+  const requiresMedicalHistorySchema = Boolean(
+    normalizedHistoryDateFrom
+    || normalizedHistoryDateTo
+    || hasHistoryPositionFilter
+    || hasHistorySpecialistFilter
+  );
+  const medicalHistorySchemaReady = await hasClientMedicalHistorySchema();
+  if (!medicalHistorySchemaReady && requiresMedicalHistorySchema) {
+    throw buildMissingTablesError("Client medical history migration is required.", [
+      "client_medical_history_entries"
+    ]);
+  }
 
   const whereParts = ["c.organization_id = $1", "o.is_active = TRUE"];
   const params = [organizationId];
 
-  const normalizedFirstName = String(firstName || "").trim().toLowerCase();
+  const normalizedFirstName = normalizeSearchToken(firstName);
   if (normalizedFirstName) {
     params.push(`${normalizedFirstName}%`);
     whereParts.push(`LOWER(COALESCE(c.first_name, '')) LIKE $${params.length}`);
   }
 
-  const normalizedLastName = String(lastName || "").trim().toLowerCase();
+  const normalizedLastName = normalizeSearchToken(lastName);
   if (normalizedLastName) {
     params.push(`${normalizedLastName}%`);
     whereParts.push(`LOWER(COALESCE(c.last_name, '')) LIKE $${params.length}`);
   }
 
-  const normalizedMiddleName = String(middleName || "").trim().toLowerCase();
+  const normalizedMiddleName = normalizeSearchToken(middleName);
   if (normalizedMiddleName) {
     params.push(`${normalizedMiddleName}%`);
     whereParts.push(`LOWER(COALESCE(c.middle_name, '')) LIKE $${params.length}`);
   }
 
-  const normalizedHistoryNameTokens = String(historyNameSearch || "")
-    .trim()
-    .toLowerCase()
+  const normalizedHistoryNameTokens = normalizeSearchToken(historyNameSearch)
     .split(/\s+/)
     .filter(Boolean);
   normalizedHistoryNameTokens.forEach((token) => {
@@ -1851,29 +1757,27 @@ export async function getClientsPage({
     whereParts.push(`c.is_vip = $${params.length}`);
   }
 
-  const normalizedHistoryDateFrom = String(historyDateFrom || "").trim();
-  if (normalizedHistoryDateFrom) {
+  if (medicalHistorySchemaReady && normalizedHistoryDateFrom) {
     params.push(normalizedHistoryDateFrom);
     whereParts.push(`latest_history.entry_date >= $${params.length}::date`);
   }
 
-  const normalizedHistoryDateTo = String(historyDateTo || "").trim();
-  if (normalizedHistoryDateTo) {
+  if (medicalHistorySchemaReady && normalizedHistoryDateTo) {
     params.push(normalizedHistoryDateTo);
     whereParts.push(`latest_history.entry_date <= $${params.length}::date`);
   }
 
-  if (Number.isInteger(historyPositionId) && historyPositionId > 0) {
+  if (medicalHistorySchemaReady && hasHistoryPositionFilter) {
     params.push(historyPositionId);
     whereParts.push(`latest_author.position_id = $${params.length}`);
   }
 
-  if (Number.isInteger(historySpecialistId) && historySpecialistId > 0) {
+  if (medicalHistorySchemaReady && hasHistorySpecialistFilter) {
     params.push(historySpecialistId);
     whereParts.push(`latest_history.author_user_id = $${params.length}`);
   }
 
-  const normalizedSearch = String(search || "").trim().toLowerCase();
+  const normalizedSearch = normalizeSearchToken(search);
   if (normalizedSearch) {
     const isNumericSearch = /^\d+$/.test(normalizedSearch);
     const usePrefixOnly = normalizedSearch.length < 4;
@@ -1909,12 +1813,11 @@ export async function getClientsPage({
   }
 
   const whereSql = `WHERE ${whereParts.join(" AND ")}`;
-
-  const totalResult = await pool.query(
-    `SELECT COUNT(*)::int AS total
-       FROM clients c
-       JOIN organizations o ON o.id = c.organization_id
-       LEFT JOIN LATERAL (
+  const requestedPage = Number.isInteger(page) && page > 0 ? page : 1;
+  const limitParamRef = `$${params.length + 1}`;
+  const pageParamRef = `$${params.length + 2}`;
+  const totalMedicalHistoryJoinSql = medicalHistorySchemaReady
+    ? `LEFT JOIN LATERAL (
          SELECT h.author_user_id, h.entry_date
            FROM client_medical_history_entries h
           WHERE h.organization_id = c.organization_id
@@ -1924,64 +1827,10 @@ export async function getClientsPage({
        ) latest_history ON TRUE
        LEFT JOIN users latest_author
          ON latest_author.id = latest_history.author_user_id
-        AND latest_author.organization_id = c.organization_id
-      ${whereSql}`,
-    params
-  );
-
-  const total = Number(totalResult.rows[0]?.total || 0);
-  const totalPages = Math.max(1, Math.ceil(total / limit));
-  const safePage = Math.min(page, totalPages);
-  const offset = (safePage - 1) * limit;
-
-  const rowsResult = await pool.query(
-    `SELECT
-       c.id::text AS id,
-       c.organization_id::text AS organization_id,
-       c.first_name,
-       c.last_name,
-       c.middle_name,
-       c.birthday,
-       c.phone_number,
-       c.tg_mail,
-       c.is_vip,
-       c.created_by::text AS created_by,
-       c.updated_by::text AS updated_by,
-       COALESCE(
-         NULLIF(TRIM(u.full_name), ''),
-         NULLIF(TRIM(u.username), ''),
-         c.created_by::text
-       ) AS created_by_name,
-       COALESCE(
-         NULLIF(TRIM(uu.full_name), ''),
-         NULLIF(TRIM(uu.username), ''),
-         c.updated_by::text
-       ) AS updated_by_name,
-       c.created_at,
-       c.updated_at,
-       c.note,
-       latest_history.entry_date AS history_entry_date,
-       COALESCE(latest_history.condition_name, '') AS history_condition_name,
-       COALESCE(latest_history.symptoms, '') AS history_symptoms,
-       COALESCE(latest_history.diagnosis, '') AS history_diagnosis,
-       COALESCE(latest_history.treatment_plan, '') AS history_treatment_plan,
-       COALESCE(latest_history.note, '') AS history_note,
-       COALESCE(
-         NULLIF(TRIM(latest_author.full_name), ''),
-         NULLIF(TRIM(latest_author.username), ''),
-         CASE
-           WHEN latest_history.author_user_id IS NOT NULL THEN CONCAT('User #', latest_history.author_user_id::text)
-           ELSE ''
-         END
-       ) AS history_specialist_name,
-       COALESCE(latest_position.label, '') AS history_specialist_position
-      FROM clients c
-      JOIN organizations o ON o.id = c.organization_id
-      LEFT JOIN users u ON u.id = c.created_by
-       AND u.organization_id = c.organization_id
-      LEFT JOIN users uu ON uu.id = c.updated_by
-       AND uu.organization_id = c.organization_id
-      LEFT JOIN LATERAL (
+        AND latest_author.organization_id = c.organization_id`
+    : "";
+  const rowMedicalHistoryJoinSql = medicalHistorySchemaReady
+    ? `LEFT JOIN LATERAL (
         SELECT
           h.author_user_id,
           h.entry_date,
@@ -2004,19 +1853,101 @@ export async function getClientsPage({
        AND (
          latest_position.organization_id = c.organization_id
          OR latest_position.organization_id IS NULL
-       )
-      ${whereSql}
-      ORDER BY c.created_at DESC, c.id DESC
-      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-    [...params, limit, offset]
+       )`
+    : "";
+  const rowMedicalHistorySelectSql = medicalHistorySchemaReady
+    ? `latest_history.entry_date AS history_entry_date,
+       COALESCE(latest_history.condition_name, '') AS history_condition_name,
+       COALESCE(latest_history.symptoms, '') AS history_symptoms,
+       COALESCE(latest_history.diagnosis, '') AS history_diagnosis,
+       COALESCE(latest_history.treatment_plan, '') AS history_treatment_plan,
+       COALESCE(latest_history.note, '') AS history_note,
+       COALESCE(
+         NULLIF(TRIM(latest_author.full_name), ''),
+         NULLIF(TRIM(latest_author.username), ''),
+         CASE
+           WHEN latest_history.author_user_id IS NOT NULL THEN CONCAT('User #', latest_history.author_user_id::text)
+           ELSE ''
+         END
+       ) AS history_specialist_name,
+       COALESCE(latest_position.label, '') AS history_specialist_position`
+    : `NULL::date AS history_entry_date,
+       ''::text AS history_condition_name,
+       ''::text AS history_symptoms,
+       ''::text AS history_diagnosis,
+       ''::text AS history_treatment_plan,
+       ''::text AS history_note,
+       ''::text AS history_specialist_name,
+       ''::text AS history_specialist_position`;
+  const rowsResult = await pool.query(
+    `WITH filtered_clients AS (
+       SELECT
+         c.id::text AS id,
+         c.id AS _sort_client_id,
+         c.organization_id::text AS organization_id,
+         c.first_name,
+         c.last_name,
+         c.middle_name,
+         c.birthday,
+         c.phone_number,
+         c.tg_mail,
+         c.is_vip,
+         c.created_by::text AS created_by,
+         c.updated_by::text AS updated_by,
+         COALESCE(
+           NULLIF(TRIM(u.full_name), ''),
+           NULLIF(TRIM(u.username), ''),
+           c.created_by::text
+         ) AS created_by_name,
+         COALESCE(
+           NULLIF(TRIM(uu.full_name), ''),
+           NULLIF(TRIM(uu.username), ''),
+           c.updated_by::text
+         ) AS updated_by_name,
+         c.created_at,
+         c.updated_at,
+         c.note,
+         ${rowMedicalHistorySelectSql}
+        FROM clients c
+        JOIN organizations o ON o.id = c.organization_id
+        LEFT JOIN users u ON u.id = c.created_by
+         AND u.organization_id = c.organization_id
+        LEFT JOIN users uu ON uu.id = c.updated_by
+         AND uu.organization_id = c.organization_id
+        ${rowMedicalHistoryJoinSql}
+        ${whereSql}
+     ),
+     meta AS (
+       SELECT
+         COUNT(*)::int AS total,
+         GREATEST(1, CEIL(COUNT(*)::numeric / ${limitParamRef})::int) AS total_pages
+        FROM filtered_clients
+     )
+     SELECT
+       meta.total,
+       meta.total_pages,
+       paged.*
+      FROM meta
+      LEFT JOIN LATERAL (
+        SELECT *
+          FROM filtered_clients
+         ORDER BY created_at DESC, _sort_client_id DESC
+         LIMIT ${limitParamRef}
+        OFFSET CASE
+          WHEN meta.total = 0 THEN 0
+          WHEN ${pageParamRef} < 1 THEN 0
+          WHEN ${pageParamRef} > meta.total_pages THEN (meta.total_pages - 1) * ${limitParamRef}
+          ELSE (${pageParamRef} - 1) * ${limitParamRef}
+        END
+      ) paged ON TRUE`,
+    [...params, limit, requestedPage]
   );
 
-  return {
-    total,
-    totalPages,
-    page: safePage,
-    rows: rowsResult.rows
-  };
+  return buildPagedRowsResult(rowsResult.rows, {
+    limit,
+    requestedPage,
+    omitKeys: ["_sort_client_id"]
+  });
 }
 
 export async function getClientMedicalHistoryClientsPage({
@@ -2036,7 +1967,7 @@ export async function getClientMedicalHistoryClientsPage({
     whereParts.push(`c.is_vip = $${params.length}`);
   }
 
-  const normalizedSearch = String(search || "").trim().toLowerCase();
+  const normalizedSearch = normalizeSearchToken(search);
   if (normalizedSearch) {
     const isNumericSearch = /^\d+$/.test(normalizedSearch);
     const usePrefixOnly = normalizedSearch.length < 4;
@@ -2072,6 +2003,9 @@ export async function getClientMedicalHistoryClientsPage({
   }
 
   const whereSql = `WHERE ${whereParts.join(" AND ")}`;
+  const requestedPage = Number.isInteger(page) && page > 0 ? page : 1;
+  const limitParamRef = `$${params.length + 1}`;
+  const pageParamRef = `$${params.length + 2}`;
   const latestHistoryCte = `WITH latest_history AS (
     SELECT DISTINCT ON (h.client_id)
       h.id,
@@ -2089,98 +2023,104 @@ export async function getClientMedicalHistoryClientsPage({
     WHERE h.organization_id = $1
     ORDER BY h.client_id, h.entry_date DESC, h.created_at DESC, h.id DESC
   )`;
-
-  const totalResult = await pool.query(
-    `${latestHistoryCte}
-     SELECT COUNT(*)::int AS total
-       FROM latest_history
-       JOIN clients c
-         ON c.id = latest_history.client_id
-        AND c.organization_id = $1
-       JOIN organizations o ON o.id = c.organization_id
-      ${whereSql}`,
-    params
-  );
-
-  const total = Number(totalResult.rows[0]?.total || 0);
-  const totalPages = Math.max(1, Math.ceil(total / limit));
-  const safePage = Math.min(page, totalPages);
-  const offset = (safePage - 1) * limit;
-
   const rowsResult = await pool.query(
     `${latestHistoryCte}
+     , filtered_clients AS (
+       SELECT
+         c.id::text AS id,
+         c.id AS _sort_client_id,
+         latest_history.created_at AS _sort_history_created_at,
+         c.organization_id::text AS organization_id,
+         c.first_name,
+         c.last_name,
+         c.middle_name,
+         c.birthday,
+         c.phone_number,
+         c.tg_mail,
+         c.is_vip,
+         c.created_by::text AS created_by,
+         c.updated_by::text AS updated_by,
+         COALESCE(
+           NULLIF(TRIM(u.full_name), ''),
+           NULLIF(TRIM(u.username), ''),
+           c.created_by::text
+         ) AS created_by_name,
+         COALESCE(
+           NULLIF(TRIM(uu.full_name), ''),
+           NULLIF(TRIM(uu.username), ''),
+           c.updated_by::text
+         ) AS updated_by_name,
+         c.created_at,
+         c.updated_at,
+         c.note,
+         latest_history.id::text AS history_entry_id,
+         latest_history.history_count,
+         latest_history.entry_date AS history_entry_date,
+         COALESCE(latest_history.condition_name, '') AS history_condition_name,
+         COALESCE(latest_history.symptoms, '') AS history_symptoms,
+         COALESCE(latest_history.diagnosis, '') AS history_diagnosis,
+         COALESCE(latest_history.treatment_plan, '') AS history_treatment_plan,
+         COALESCE(latest_history.note, '') AS history_note,
+         COALESCE(
+           NULLIF(TRIM(latest_author.full_name), ''),
+           NULLIF(TRIM(latest_author.username), ''),
+           CASE
+             WHEN latest_history.author_user_id IS NOT NULL THEN CONCAT('User #', latest_history.author_user_id::text)
+             ELSE ''
+           END
+         ) AS history_specialist_name,
+         COALESCE(latest_position.label, '') AS history_specialist_position
+        FROM latest_history
+        JOIN clients c
+          ON c.id = latest_history.client_id
+         AND c.organization_id = $1
+        JOIN organizations o ON o.id = c.organization_id
+        LEFT JOIN users u ON u.id = c.created_by
+         AND u.organization_id = c.organization_id
+        LEFT JOIN users uu ON uu.id = c.updated_by
+         AND uu.organization_id = c.organization_id
+        LEFT JOIN users latest_author
+          ON latest_author.id = latest_history.author_user_id
+         AND latest_author.organization_id = c.organization_id
+        LEFT JOIN position_options latest_position
+          ON latest_position.id = latest_author.position_id
+         AND (
+           latest_position.organization_id = c.organization_id
+           OR latest_position.organization_id IS NULL
+         )
+        ${whereSql}
+     ),
+     meta AS (
+       SELECT
+         COUNT(*)::int AS total,
+         GREATEST(1, CEIL(COUNT(*)::numeric / ${limitParamRef})::int) AS total_pages
+        FROM filtered_clients
+     )
      SELECT
-       c.id::text AS id,
-       c.organization_id::text AS organization_id,
-       c.first_name,
-       c.last_name,
-       c.middle_name,
-       c.birthday,
-       c.phone_number,
-       c.tg_mail,
-       c.is_vip,
-       c.created_by::text AS created_by,
-       c.updated_by::text AS updated_by,
-       COALESCE(
-         NULLIF(TRIM(u.full_name), ''),
-         NULLIF(TRIM(u.username), ''),
-         c.created_by::text
-       ) AS created_by_name,
-       COALESCE(
-         NULLIF(TRIM(uu.full_name), ''),
-         NULLIF(TRIM(uu.username), ''),
-         c.updated_by::text
-       ) AS updated_by_name,
-       c.created_at,
-       c.updated_at,
-       c.note,
-       latest_history.id::text AS history_entry_id,
-       latest_history.history_count,
-       latest_history.entry_date AS history_entry_date,
-       COALESCE(latest_history.condition_name, '') AS history_condition_name,
-       COALESCE(latest_history.symptoms, '') AS history_symptoms,
-       COALESCE(latest_history.diagnosis, '') AS history_diagnosis,
-       COALESCE(latest_history.treatment_plan, '') AS history_treatment_plan,
-       COALESCE(latest_history.note, '') AS history_note,
-       COALESCE(
-         NULLIF(TRIM(latest_author.full_name), ''),
-         NULLIF(TRIM(latest_author.username), ''),
-         CASE
-           WHEN latest_history.author_user_id IS NOT NULL THEN CONCAT('User #', latest_history.author_user_id::text)
-           ELSE ''
-         END
-       ) AS history_specialist_name,
-       COALESCE(latest_position.label, '') AS history_specialist_position
-      FROM latest_history
-      JOIN clients c
-        ON c.id = latest_history.client_id
-       AND c.organization_id = $1
-      JOIN organizations o ON o.id = c.organization_id
-      LEFT JOIN users u ON u.id = c.created_by
-       AND u.organization_id = c.organization_id
-      LEFT JOIN users uu ON uu.id = c.updated_by
-       AND uu.organization_id = c.organization_id
-      LEFT JOIN users latest_author
-        ON latest_author.id = latest_history.author_user_id
-       AND latest_author.organization_id = c.organization_id
-      LEFT JOIN position_options latest_position
-        ON latest_position.id = latest_author.position_id
-       AND (
-         latest_position.organization_id = c.organization_id
-         OR latest_position.organization_id IS NULL
-       )
-      ${whereSql}
-      ORDER BY latest_history.entry_date DESC, latest_history.created_at DESC, c.id DESC
-      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-    [...params, limit, offset]
+       meta.total,
+       meta.total_pages,
+       paged.*
+      FROM meta
+      LEFT JOIN LATERAL (
+        SELECT *
+          FROM filtered_clients
+         ORDER BY history_entry_date DESC, _sort_history_created_at DESC, _sort_client_id DESC
+         LIMIT ${limitParamRef}
+        OFFSET CASE
+          WHEN meta.total = 0 THEN 0
+          WHEN ${pageParamRef} < 1 THEN 0
+          WHEN ${pageParamRef} > meta.total_pages THEN (meta.total_pages - 1) * ${limitParamRef}
+          ELSE (${pageParamRef} - 1) * ${limitParamRef}
+        END
+      ) paged ON TRUE`,
+    [...params, limit, requestedPage]
   );
 
-  return {
-    total,
-    totalPages,
-    page: safePage,
-    rows: rowsResult.rows
-  };
+  return buildPagedRowsResult(rowsResult.rows, {
+    limit,
+    requestedPage,
+    omitKeys: ["_sort_client_id", "_sort_history_created_at"]
+  });
 }
 
 export async function getClientSummaryById({
@@ -2799,7 +2739,7 @@ export async function upsertVipClientAttendance({
 }) {
   await ensureVipAttendanceSchema();
 
-  const normalizedStatus = String(status || "").trim().toLowerCase() === "present"
+  const normalizedStatus = normalizeSearchToken(status) === "present"
     ? "present"
     : "absent";
   const normalizedNote = String(note || "").trim();

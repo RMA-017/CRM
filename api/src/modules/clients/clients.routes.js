@@ -1,11 +1,28 @@
-import { setNoCacheHeaders } from "../../lib/http.js";
+import { sendMigrationRequired, setNoCacheHeaders } from "../../lib/http.js";
+import { toBoundedInteger } from "../../lib/bounded-integer.js";
 import { parsePositiveInteger } from "../../lib/number.js";
-import { getTodayYmd, isValidDateYmd, validateBirthdayYmd } from "../../lib/date.js";
+import {
+  getTodayYmd,
+  isValidDateYmd,
+  normalizeDateYmd as normalizeLooseDateYmd,
+  validateBirthdayYmd
+} from "../../lib/date.js";
+import { parseNullableBoolean } from "../../lib/request-parsers.js";
+import {
+  isDirectorLikeRoleLabel,
+  joinNormalizedRoleLabelParts
+} from "../../lib/role-labels.js";
 import { createTtlCache } from "../../lib/ttl-cache.js";
 import { PHONE_REGEX } from "../../constants/validation.js";
 import { requesterHasOrgFeature } from "../../lib/org-features.js";
 import { hasPermission } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
+import {
+  getVipDailyRoutineDayKey,
+  normalizeVipClassDailyRoutineActivityType,
+  normalizeVipDailyRoutineDayOfWeek
+} from "./vip-daily-routines.js";
+import { normalizeTimeHm, toTimeMinutes } from "../appointments/time.js";
 import {
   createClientMedicalHistoryEntry,
   createClient,
@@ -13,7 +30,10 @@ import {
   deleteClientMedicalHistoryEntry,
   deleteVipClassAssignment,
   deleteClientById,
+  findVipClientAttendanceByDate,
+  findVipClassDailyRoutineById,
   findClientsRequester,
+  findVipTutorAssignmentByClientId,
   getClientMedicalHistoryClientsPage,
   getClientMedicalHistoryClientOptions,
   getClientMedicalHistoryEntries,
@@ -28,6 +48,7 @@ import {
   getVipClientOptionsByOrganization,
   getVipAttendanceTeachersByOrganization,
   isVipClientAssignedToUser,
+  isVipClassAssignedToUser,
   getVipTutorAssignmentHistory,
   getVipTutorAssignments,
   deleteVipClassDailyRoutine,
@@ -40,14 +61,6 @@ import {
   updateClientMedicalHistoryEntry,
   updateClientById
 } from "./clients.service.js";
-
-function toBoundedInteger(value, fallback, min, max) {
-  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
-  if (!Number.isInteger(parsed)) {
-    return fallback;
-  }
-  return Math.min(max, Math.max(min, parsed));
-}
 
 const myChildrenSearchCache = createTtlCache({
   maxEntries: toBoundedInteger(process.env.MY_CHILDREN_CACHE_MAX, 5000, 100, 50_000),
@@ -93,31 +106,6 @@ function parseLegacyNotes(value) {
   return { birthday, contact, note: noteParts.join(" | ") };
 }
 
-function parseNullableBoolean(value) {
-  if (typeof value === "boolean") {
-    return value;
-  }
-  if (typeof value === "number") {
-    if (value === 1) {
-      return true;
-    }
-    if (value === 0) {
-      return false;
-    }
-    return null;
-  }
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (["true", "1", "yes", "on"].includes(normalized)) {
-      return true;
-    }
-    if (["false", "0", "no", "off"].includes(normalized)) {
-      return false;
-    }
-  }
-  return null;
-}
-
 async function hasMedicalHistoryPermission(requester, permissionCode) {
   if (requester?.is_admin) {
     return true;
@@ -153,40 +141,12 @@ function parseAttendanceDateTime(value) {
   return { value: normalized };
 }
 
-function toYmdFromDateObject(value) {
-  if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
-    return "";
-  }
-  const year = String(value.getFullYear()).padStart(4, "0");
-  const month = String(value.getMonth() + 1).padStart(2, "0");
-  const day = String(value.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 function normalizeDateYmdValue(value) {
-  if (!value) {
-    return "";
-  }
-
-  if (value instanceof Date) {
-    return toYmdFromDateObject(value);
-  }
-
-  const raw = String(value).trim();
-  if (!raw) {
-    return "";
-  }
-
-  const ymdMatch = raw.match(/^(\d{4}-\d{2}-\d{2})/);
-  if (ymdMatch && isValidDateYmd(ymdMatch[1])) {
-    return ymdMatch[1];
-  }
-
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) {
-    return "";
-  }
-  return toYmdFromDateObject(parsed);
+  return normalizeLooseDateYmd(value, {
+    allowPrefix: true,
+    allowDateParsing: true,
+    requireValidExact: true
+  });
 }
 
 function isTeacherLike(...parts) {
@@ -210,98 +170,12 @@ function isDirectorLikeRequester(requester) {
   if (requester?.is_admin === true) {
     return true;
   }
-  const normalized = `${String(requester?.role_label || "").trim().toLowerCase()} ${String(requester?.position_label || "").trim().toLowerCase()}`;
-  return normalized.includes("director") || normalized.includes("direktor");
-}
-
-const VIP_DAILY_ROUTINE_DAY_KEY_TO_NUM = Object.freeze({
-  mon: 1,
-  tue: 2,
-  wed: 3,
-  thu: 4,
-  fri: 5,
-  sat: 6,
-  sun: 7,
-  monday: 1,
-  tuesday: 2,
-  wednesday: 3,
-  thursday: 4,
-  friday: 5,
-  saturday: 6,
-  sunday: 7,
-  dushanba: 1,
-  seshanba: 2,
-  chorshanba: 3,
-  payshanba: 4,
-  juma: 5,
-  shanba: 6,
-  yakshanba: 7
-});
-
-const VIP_DAILY_ROUTINE_DAY_NUM_TO_KEY = Object.freeze({
-  1: "mon",
-  2: "tue",
-  3: "wed",
-  4: "thu",
-  5: "fri",
-  6: "sat",
-  7: "sun"
-});
-
-const VIP_CLASS_DAILY_ROUTINE_ACTIVITY_ALIASES = Object.freeze({
-  lesson: "lesson",
-  dars: "lesson",
-  class: "lesson",
-  study: "lesson",
-  sleep: "sleep",
-  nap: "sleep",
-  uxlash: "sleep",
-  uyqu: "sleep",
-  meal: "meal",
-  food: "meal",
-  breakfast: "meal",
-  lunch: "meal",
-  dinner: "meal",
-  snack: "meal",
-  poldnik: "meal",
-  nonushta: "meal",
-  tushlik: "meal",
-  ovqat: "meal",
-  other: "other",
-  boshqa: "other"
-});
-
-function parseVipDailyRoutineDayOfWeek(value) {
-  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
-  if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 7) {
-    return parsed;
-  }
-
-  const normalized = String(value || "").trim().toLowerCase();
-  return VIP_DAILY_ROUTINE_DAY_KEY_TO_NUM[normalized] || 0;
-}
-
-function normalizeVipClassDailyRoutineActivityType(value) {
-  const normalized = String(value || "").trim().toLowerCase();
-  return VIP_CLASS_DAILY_ROUTINE_ACTIVITY_ALIASES[normalized] || "";
-}
-
-function normalizeHmTime(value) {
-  const raw = String(value || "").trim();
-  const match = raw.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
-  if (!match) {
-    return "";
-  }
-  return `${match[1]}:${match[2]}`;
-}
-
-function toHmMinutes(value) {
-  const normalized = normalizeHmTime(value);
-  if (!normalized) {
-    return null;
-  }
-  const [hourRaw, minuteRaw] = normalized.split(":");
-  return (Number(hourRaw) * 60) + Number(minuteRaw);
+  return isDirectorLikeRoleLabel(
+    joinNormalizedRoleLabelParts(
+      requester?.role_label,
+      requester?.position_label
+    )
+  );
 }
 
 const ADVANCED_APPOINTMENT_MENU_PERMISSIONS = Object.freeze([
@@ -727,6 +601,42 @@ function mapVipAttendanceHistoryRecord(row) {
   };
 }
 
+function mapVipTeacherOption(row) {
+  const id = String(row?.teacher_user_id || row?.teacherId || row?.teacher_id || row?.id || "").trim();
+  const name = String(row?.name || row?.teacher_name || row?.teacherName || "").trim();
+  return {
+    id,
+    name
+  };
+}
+
+function collectVipTeacherOptionsFromClassAssignments(items) {
+  return Array.from(
+    (Array.isArray(items) ? items : []).reduce((map, item) => {
+      const teacherOption = mapVipTeacherOption(item);
+      if (!teacherOption.id || map.has(teacherOption.id)) {
+        return map;
+      }
+      map.set(teacherOption.id, teacherOption);
+      return map;
+    }, new Map()).values()
+  );
+}
+
+function collectVipTutorOptionsFromTutorAssignments(items) {
+  return Array.from(
+    (Array.isArray(items) ? items : []).reduce((map, item) => {
+      const id = String(item?.tutor_user_id || item?.tutorId || item?.tutor_id || "").trim();
+      const name = String(item?.tutor_name || item?.tutorName || "").trim();
+      if (!id || map.has(id)) {
+        return map;
+      }
+      map.set(id, { id, name });
+      return map;
+    }, new Map()).values()
+  );
+}
+
 function mapVipClassAssignmentRecord(row) {
   const id = String(row?.id || "").trim();
   const className = String(row?.class_name || row?.className || "").trim();
@@ -915,10 +825,12 @@ function mapVipClassDailyRoutineRecord(row) {
   const childrenCountRaw = Number.parseInt(String(row?.children_count ?? row?.childrenCount ?? "0"), 10);
   const childrenCount = Number.isInteger(childrenCountRaw) && childrenCountRaw > 0 ? childrenCountRaw : 0;
   const dayOfWeek = Number.parseInt(String(row?.day_of_week || row?.dayOfWeek || ""), 10) || 0;
-  const dayKey = VIP_DAILY_ROUTINE_DAY_NUM_TO_KEY[dayOfWeek] || "";
-  const activityType = normalizeVipClassDailyRoutineActivityType(row?.activity_type || row?.activityType);
-  const startTime = normalizeHmTime(row?.start_time || row?.startTime);
-  const endTime = normalizeHmTime(row?.end_time || row?.endTime);
+  const dayKey = getVipDailyRoutineDayKey(dayOfWeek);
+  const activityType = normalizeVipClassDailyRoutineActivityType(row?.activity_type || row?.activityType, {
+    allowAliases: true
+  });
+  const startTime = normalizeTimeHm(row?.start_time || row?.startTime);
+  const endTime = normalizeTimeHm(row?.end_time || row?.endTime);
   const note = String(row?.note || "").trim();
   const createdAt = row?.created_at || row?.createdAt || null;
   const updatedAt = row?.updated_at || row?.updatedAt || null;
@@ -993,7 +905,21 @@ async function clientsRoutes(fastify) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
-        const items = await getVipAttendanceTeachersByOrganization(authContext.organizationId);
+        const vipReadScope = resolveVipClientReadScope(vipPermissions, requester);
+        const assignedUserIdRaw = vipReadScope === "all" ? null : authContext.userId;
+        const assignedUserId = Number.parseInt(String(assignedUserIdRaw || "").trim(), 10);
+        const hasAssignedScope = Number.isInteger(assignedUserId) && assignedUserId > 0;
+        if (vipReadScope !== "all" && !hasAssignedScope) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const items = hasAssignedScope
+          ? collectVipTeacherOptionsFromClassAssignments(await getVipClassAssignmentOptions({
+            organizationId: authContext.organizationId,
+            assignedUserId,
+            limit: 1000
+          }))
+          : await getVipAttendanceTeachersByOrganization(authContext.organizationId);
         return reply.send({
           items: (Array.isArray(items) ? items : []).map((item) => ({
             id: String(item?.id || "").trim(),
@@ -1001,6 +927,9 @@ async function clientsRoutes(fastify) {
           })).filter((item) => Boolean(item.id))
         });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "VIP assignment migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error fetching VIP attendance teachers");
         return reply.status(500).send({ message: "Internal server error." });
       }
@@ -1186,6 +1115,9 @@ async function clientsRoutes(fastify) {
               .filter((item) => Boolean(item.id))
         });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "VIP attendance migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error fetching VIP attendance history");
         return reply.status(500).send({ message: "Internal server error." });
       }
@@ -1212,9 +1144,10 @@ async function clientsRoutes(fastify) {
         if (!requesterHasOrgFeature(requester, "assignments.class")) {
           return reply.status(403).send({ message: "Forbidden." });
         }
-        const [canReadClients, assignmentsPermissions] = await Promise.all([
+        const [canReadClients, assignmentsPermissions, vipPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
-          getAssignmentsPermissionSnapshot(requester.role_id)
+          getAssignmentsPermissionSnapshot(requester.role_id),
+          getVipClientsPermissionSnapshot(requester.role_id)
         ]);
         const canReadAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
           ? assignmentsPermissions.canReadAssignments
@@ -1222,23 +1155,35 @@ async function clientsRoutes(fastify) {
         if (!canReadAssignments) {
           return reply.status(403).send({ message: "Forbidden." });
         }
+        const vipReadScope = resolveVipClientReadScope(vipPermissions, requester);
+        const assignedUserId = vipReadScope === "all"
+          ? null
+          : authContext.userId;
 
         const [rows, options] = await Promise.all([
           getVipClassAssignments({
             organizationId: authContext.organizationId,
+            assignedUserId,
             limit
           }),
-          getVipAssignmentOptionsByOrganization(authContext.organizationId)
+          assignedUserId
+            ? Promise.resolve(null)
+            : getVipAssignmentOptionsByOrganization(authContext.organizationId)
         ]);
 
         return reply.send({
           items: (Array.isArray(rows) ? rows : []).map(mapVipClassAssignmentRecord),
-          teachers: (Array.isArray(options?.teachers) ? options.teachers : []).map((item) => ({
-            id: String(item?.id || "").trim(),
-            name: String(item?.name || "").trim()
-          })).filter((item) => Boolean(item.id))
+          teachers: assignedUserId
+            ? collectVipTeacherOptionsFromClassAssignments(rows)
+            : (Array.isArray(options?.teachers) ? options.teachers : []).map((item) => ({
+              id: String(item?.id || "").trim(),
+              name: String(item?.name || "").trim()
+            })).filter((item) => Boolean(item.id))
         });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "VIP assignment migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error fetching VIP class assignments");
         return reply.status(500).send({ message: "Internal server error." });
       }
@@ -1270,9 +1215,10 @@ async function clientsRoutes(fastify) {
         if (!requesterHasOrgFeature(requester, "assignments.class")) {
           return reply.status(403).send({ message: "Forbidden." });
         }
-        const [canReadClients, assignmentsPermissions] = await Promise.all([
+        const [canReadClients, assignmentsPermissions, vipPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
-          getAssignmentsPermissionSnapshot(requester.role_id)
+          getAssignmentsPermissionSnapshot(requester.role_id),
+          getVipClientsPermissionSnapshot(requester.role_id)
         ]);
         const canReadAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
           ? assignmentsPermissions.canReadAssignments
@@ -1280,16 +1226,24 @@ async function clientsRoutes(fastify) {
         if (!canReadAssignments) {
           return reply.status(403).send({ message: "Forbidden." });
         }
+        const vipReadScope = resolveVipClientReadScope(vipPermissions, requester);
+        const assignedUserId = vipReadScope === "all"
+          ? null
+          : authContext.userId;
 
         const rows = await getVipClassAssignmentHistory({
           organizationId: authContext.organizationId,
           classId,
+          assignedUserId,
           limit
         });
         return reply.send({
           items: (Array.isArray(rows) ? rows : []).map(mapVipClassAssignmentHistoryRecord)
         });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "VIP assignment migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error fetching VIP class assignment history");
         return reply.status(500).send({ message: "Internal server error." });
       }
@@ -1368,6 +1322,9 @@ async function clientsRoutes(fastify) {
         if (error?.code === "23505") {
           return reply.status(409).send({ field: "className", message: "Class already exists." });
         }
+        if (sendMigrationRequired(reply, error, "VIP assignment migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error saving VIP class assignment");
         return reply.status(500).send({ message: "Internal server error." });
       }
@@ -1416,6 +1373,9 @@ async function clientsRoutes(fastify) {
       } catch (error) {
         if (error?.code === "23503") {
           return reply.status(409).send({ message: "Class is used in tutor assignments." });
+        }
+        if (sendMigrationRequired(reply, error, "VIP assignment migration is required.", { includeDetails: true })) {
+          return;
         }
         request.log.error({ err: error }, "Error deleting VIP class assignment");
         return reply.status(500).send({ message: "Internal server error." });
@@ -1469,7 +1429,9 @@ async function clientsRoutes(fastify) {
             organizationId: authContext.organizationId,
             assignedUserId
           }),
-          getVipAssignmentOptionsByOrganization(authContext.organizationId)
+          assignedUserId
+            ? Promise.resolve(null)
+            : getVipAssignmentOptionsByOrganization(authContext.organizationId)
         ]);
 
         return reply.send({
@@ -1480,12 +1442,17 @@ async function clientsRoutes(fastify) {
             teacherId: String(item?.teacher_user_id || item?.teacherId || "").trim(),
             teacherName: String(item?.teacher_name || item?.teacherName || "").trim()
           })).filter((item) => Boolean(item.id)),
-          tutors: (Array.isArray(options?.tutors) ? options.tutors : []).map((item) => ({
-            id: String(item?.id || "").trim(),
-            name: String(item?.name || "").trim()
-          })).filter((item) => Boolean(item.id))
+          tutors: assignedUserId
+            ? collectVipTutorOptionsFromTutorAssignments(rows)
+            : (Array.isArray(options?.tutors) ? options.tutors : []).map((item) => ({
+              id: String(item?.id || "").trim(),
+              name: String(item?.name || "").trim()
+            })).filter((item) => Boolean(item.id))
         });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "VIP assignment migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error fetching VIP tutor assignments");
         return reply.status(500).send({ message: "Internal server error." });
       }
@@ -1514,9 +1481,10 @@ async function clientsRoutes(fastify) {
         if (!requesterHasOrgFeature(requester, "assignments.tutor")) {
           return reply.status(403).send({ message: "Forbidden." });
         }
-        const [canReadClients, assignmentsPermissions] = await Promise.all([
+        const [canReadClients, assignmentsPermissions, vipPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
-          getAssignmentsPermissionSnapshot(requester.role_id)
+          getAssignmentsPermissionSnapshot(requester.role_id),
+          getVipClientsPermissionSnapshot(requester.role_id)
         ]);
         const canReadAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
           ? assignmentsPermissions.canReadAssignments
@@ -1524,16 +1492,24 @@ async function clientsRoutes(fastify) {
         if (!canReadAssignments) {
           return reply.status(403).send({ message: "Forbidden." });
         }
+        const vipReadScope = resolveVipClientReadScope(vipPermissions, requester);
+        const assignedUserId = vipReadScope === "all"
+          ? null
+          : authContext.userId;
 
         const rows = await getVipTutorAssignmentHistory({
           organizationId: authContext.organizationId,
           clientId,
+          assignedUserId,
           limit
         });
         return reply.send({
           items: (Array.isArray(rows) ? rows : []).map(mapVipTutorAssignmentHistoryRecord)
         });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "VIP assignment migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error fetching VIP tutor assignment history");
         return reply.status(500).send({ message: "Internal server error." });
       }
@@ -1577,23 +1553,44 @@ async function clientsRoutes(fastify) {
         if (!requesterHasOrgFeature(requester, "assignments.tutor")) {
           return reply.status(403).send({ message: "Forbidden." });
         }
-        const [canUpdateClients, assignmentsPermissions] = await Promise.all([
+        const [canUpdateClients, assignmentsPermissions, vipPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_UPDATE),
-          getAssignmentsPermissionSnapshot(requester.role_id)
+          getAssignmentsPermissionSnapshot(requester.role_id),
+          getVipClientsPermissionSnapshot(requester.role_id)
         ]);
+        const existingAssignment = await findVipTutorAssignmentByClientId({
+          organizationId: authContext.organizationId,
+          clientId
+        });
+        const isEditMode = Boolean(existingAssignment);
+        const vipReadScope = resolveVipClientReadScope(vipPermissions, requester);
+        const assignedUserId = vipReadScope === "all"
+          ? null
+          : parsePositiveInteger(authContext.userId);
         const canWriteAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
           ? (
             assignmentsPermissions.canReadAssignments
-            && (assignmentsPermissions.canCreateAssignments || assignmentsPermissions.canUpdateAssignments)
+            && (isEditMode ? assignmentsPermissions.canUpdateAssignments : assignmentsPermissions.canCreateAssignments)
           )
           : (canUpdateClients && isDirectorLikeRequester(requester));
         if (!canWriteAssignments) {
           return reply.status(403).send({ message: "Forbidden." });
         }
+        if (assignedUserId && isEditMode) {
+          const canManageExistingAssignment = await isVipClientAssignedToUser({
+            organizationId: authContext.organizationId,
+            clientId,
+            userId: assignedUserId
+          });
+          if (!canManageExistingAssignment) {
+            return reply.status(403).send({ message: "Forbidden." });
+          }
+        }
 
         const [classOptions, options] = await Promise.all([
           getVipClassAssignmentOptions({
-            organizationId: authContext.organizationId
+            organizationId: authContext.organizationId,
+            assignedUserId
           }),
           getVipAssignmentOptionsByOrganization(authContext.organizationId)
         ]);
@@ -1620,13 +1617,16 @@ async function clientsRoutes(fastify) {
         }
 
         return reply.send({
-          message: "VIP tutor assignment updated.",
+          message: isEditMode ? "VIP tutor assignment updated." : "VIP tutor assignment saved.",
           item: mapVipTutorAssignmentRecord({
             id: String(clientId),
             ...item
           })
         });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "VIP assignment migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error updating VIP tutor assignment");
         return reply.status(500).send({ message: "Internal server error." });
       }
@@ -1644,7 +1644,7 @@ async function clientsRoutes(fastify) {
       const authContext = request.authContext;
       const classId = parsePositiveInteger(request.query?.classId ?? request.query?.class_id);
       const dayOfWeekRaw = request.query?.dayOfWeek ?? request.query?.day_of_week ?? request.query?.day ?? "";
-      const dayOfWeek = parseVipDailyRoutineDayOfWeek(dayOfWeekRaw);
+      const dayOfWeek = normalizeVipDailyRoutineDayOfWeek(dayOfWeekRaw, { allowAliases: true });
       if (String(dayOfWeekRaw || "").trim() && !dayOfWeek) {
         return reply.status(400).send({ field: "dayOfWeek", message: "Day of week must be between 1 and 7." });
       }
@@ -1716,6 +1716,9 @@ async function clientsRoutes(fastify) {
             .filter((item) => Boolean(item.id))
         });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "VIP class daily routine migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error fetching VIP class daily routines");
         return reply.status(500).send({ message: "Internal server error." });
       }
@@ -1742,12 +1745,13 @@ async function clientsRoutes(fastify) {
         return reply.status(400).send({ field: "classId", message: "Class is required." });
       }
 
-      const dayOfWeek = parseVipDailyRoutineDayOfWeek(
+      const dayOfWeek = normalizeVipDailyRoutineDayOfWeek(
         payload?.dayOfWeek
         ?? payload?.day_of_week
         ?? payload?.day
         ?? payload?.dayKey
-        ?? payload?.day_key
+        ?? payload?.day_key,
+        { allowAliases: true }
       );
       if (!dayOfWeek) {
         return reply.status(400).send({
@@ -1759,7 +1763,8 @@ async function clientsRoutes(fastify) {
       const activityType = normalizeVipClassDailyRoutineActivityType(
         payload?.activityType
         ?? payload?.activity_type
-        ?? payload?.type
+        ?? payload?.type,
+        { allowAliases: true }
       );
       if (!activityType) {
         return reply.status(400).send({
@@ -1768,16 +1773,16 @@ async function clientsRoutes(fastify) {
         });
       }
 
-      const startTime = normalizeHmTime(payload?.startTime ?? payload?.start_time);
-      const endTime = normalizeHmTime(payload?.endTime ?? payload?.end_time);
+      const startTime = normalizeTimeHm(payload?.startTime ?? payload?.start_time);
+      const endTime = normalizeTimeHm(payload?.endTime ?? payload?.end_time);
       if (!startTime) {
         return reply.status(400).send({ field: "startTime", message: "Start time must be HH:mm." });
       }
       if (!endTime) {
         return reply.status(400).send({ field: "endTime", message: "End time must be HH:mm." });
       }
-      const startMinutes = toHmMinutes(startTime);
-      const endMinutes = toHmMinutes(endTime);
+      const startMinutes = toTimeMinutes(startTime);
+      const endMinutes = toTimeMinutes(endTime);
       if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
         return reply.status(400).send({
           field: "endTime",
@@ -1803,6 +1808,10 @@ async function clientsRoutes(fastify) {
           getVipClientsPermissionSnapshot(requester.role_id)
         ]);
         const isEditMode = Boolean(routineId);
+        const vipReadScope = resolveVipClientReadScope(vipPermissions, requester);
+        const assignedUserId = vipReadScope === "all"
+          ? null
+          : parsePositiveInteger(authContext.userId);
         const canWriteVipClassDailyRoutines = vipPermissions.usesAdvancedMenuPermissions
           ? (
             vipPermissions.canAccessDailyRoutines
@@ -1811,6 +1820,33 @@ async function clientsRoutes(fastify) {
           : (canUpdateClients && isDirectorLikeRequester(requester));
         if (!canWriteVipClassDailyRoutines) {
           return reply.status(403).send({ message: "Forbidden." });
+        }
+        if (assignedUserId && isEditMode) {
+          const existingRoutine = await findVipClassDailyRoutineById({
+            organizationId: authContext.organizationId,
+            routineId
+          });
+          if (!existingRoutine) {
+            return reply.status(404).send({ message: "Class or routine not found." });
+          }
+          const canManageExistingRoutine = await isVipClassAssignedToUser({
+            organizationId: authContext.organizationId,
+            classId: existingRoutine.class_assignment_id,
+            userId: assignedUserId
+          });
+          if (!canManageExistingRoutine) {
+            return reply.status(403).send({ message: "Forbidden." });
+          }
+        }
+        if (assignedUserId) {
+          const classAllowed = await isVipClassAssignedToUser({
+            organizationId: authContext.organizationId,
+            classId,
+            userId: assignedUserId
+          });
+          if (!classAllowed) {
+            return reply.status(400).send({ field: "classId", message: "Selected class is not allowed." });
+          }
         }
 
         const item = await upsertVipClassDailyRoutine({
@@ -1842,6 +1878,9 @@ async function clientsRoutes(fastify) {
         if (error?.code === "23514" || error?.code === "22P02") {
           return reply.status(400).send({ message: "Invalid daily routine data." });
         }
+        if (sendMigrationRequired(reply, error, "VIP class daily routine migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error saving VIP class daily routine");
         return reply.status(500).send({ message: "Internal server error." });
       }
@@ -1872,6 +1911,10 @@ async function clientsRoutes(fastify) {
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_UPDATE),
           getVipClientsPermissionSnapshot(requester.role_id)
         ]);
+        const vipReadScope = resolveVipClientReadScope(vipPermissions, requester);
+        const assignedUserId = vipReadScope === "all"
+          ? null
+          : parsePositiveInteger(authContext.userId);
         const canDeleteVipClassDailyRoutines = vipPermissions.usesAdvancedMenuPermissions
           ? (
             vipPermissions.canAccessDailyRoutines
@@ -1880,6 +1923,23 @@ async function clientsRoutes(fastify) {
           : (canUpdateClients && isDirectorLikeRequester(requester));
         if (!canDeleteVipClassDailyRoutines) {
           return reply.status(403).send({ message: "Forbidden." });
+        }
+        if (assignedUserId) {
+          const existingRoutine = await findVipClassDailyRoutineById({
+            organizationId: authContext.organizationId,
+            routineId
+          });
+          if (!existingRoutine) {
+            return reply.status(404).send({ message: "Routine not found." });
+          }
+          const canManageExistingRoutine = await isVipClassAssignedToUser({
+            organizationId: authContext.organizationId,
+            classId: existingRoutine.class_assignment_id,
+            userId: assignedUserId
+          });
+          if (!canManageExistingRoutine) {
+            return reply.status(403).send({ message: "Forbidden." });
+          }
         }
 
         const result = await deleteVipClassDailyRoutine({
@@ -1891,6 +1951,9 @@ async function clientsRoutes(fastify) {
         }
         return reply.send({ message: "VIP class daily routine deleted." });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "VIP class daily routine migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error deleting VIP class daily routine");
         return reply.status(500).send({ message: "Internal server error." });
       }
@@ -2008,6 +2071,9 @@ async function clientsRoutes(fastify) {
           items
         });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "VIP migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error searching clients");
         return reply.status(500).send({ message: "Internal server error." });
       }
@@ -2089,10 +2155,17 @@ async function clientsRoutes(fastify) {
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_DELETE),
           getVipClientsPermissionSnapshot(requester.role_id)
         ]);
+        const existingAttendance = resetAttendance
+          ? null
+          : await findVipClientAttendanceByDate({
+            organizationId: authContext.organizationId,
+            clientId,
+            attendanceDate
+          });
         if (vipPermissions.usesAdvancedMenuPermissions) {
           const canWriteVipAttendance = resetAttendance
             ? vipPermissions.canDeleteVipClients
-            : (vipPermissions.canCreateVipClients || vipPermissions.canUpdateVipClients);
+            : (existingAttendance ? vipPermissions.canUpdateVipClients : vipPermissions.canCreateVipClients);
           if (!vipPermissions.canReadVipClients || !canWriteVipAttendance) {
             return reply.status(403).send({ message: "Forbidden." });
           }
@@ -2160,10 +2233,13 @@ async function clientsRoutes(fastify) {
         }
 
         return reply.send({
-          message: "VIP attendance updated.",
+          message: existingAttendance ? "VIP attendance updated." : "VIP attendance saved.",
           item: mapVipAttendanceRecord(item)
         });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "VIP attendance migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error updating VIP attendance");
         return reply.status(500).send({ message: "Internal server error." });
       }
@@ -2226,6 +2302,9 @@ async function clientsRoutes(fastify) {
           }
         });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "Client medical history migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error fetching client medical history list");
         return reply.status(500).send({ message: "Internal server error." });
       }
@@ -2274,6 +2353,9 @@ async function clientsRoutes(fastify) {
           items: (Array.isArray(rows) ? rows : []).map(mapClientMedicalHistoryClientOption)
         });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "Client medical history migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error fetching medical history client options");
         return reply.status(500).send({ message: "Internal server error." });
       }
@@ -2336,6 +2418,9 @@ async function clientsRoutes(fastify) {
           items: (Array.isArray(items) ? items : []).map(mapClientMedicalHistoryEntry)
         });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "Client medical history migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error fetching client medical history");
         return reply.status(500).send({ message: "Internal server error." });
       }
@@ -2410,6 +2495,9 @@ async function clientsRoutes(fastify) {
           item: mapClientMedicalHistoryEntry(item)
         });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "Client medical history migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error creating client medical history entry");
         return reply.status(500).send({ message: "Internal server error." });
       }
@@ -2474,6 +2562,9 @@ async function clientsRoutes(fastify) {
           deletedCount: items.length
         });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "Client medical history migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error deleting client medical history");
         return reply.status(500).send({ message: "Internal server error." });
       }
@@ -2551,6 +2642,9 @@ async function clientsRoutes(fastify) {
           item: mapClientMedicalHistoryEntry(item)
         });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "Client medical history migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error updating client medical history entry");
         return reply.status(500).send({ message: "Internal server error." });
       }
@@ -2616,6 +2710,9 @@ async function clientsRoutes(fastify) {
           item
         });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "Client medical history migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error deleting client medical history entry");
         return reply.status(500).send({ message: "Internal server error." });
       }
@@ -2709,6 +2806,9 @@ async function clientsRoutes(fastify) {
           }
         });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "Client medical history migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error fetching clients");
         return reply.status(500).send({ message: "Internal server error." });
       }

@@ -5,6 +5,7 @@ import {
   hasOrgFeature,
   normalizeAllowedFeatures
 } from "../src/lib/org-features.js";
+import { __settingsServiceContracts } from "../src/modules/settings/settings.service.js";
 
 test("normalizeAllowedFeatures preserves explicit empty array", () => {
   assert.equal(normalizeAllowedFeatures(null), null);
@@ -91,11 +92,43 @@ test("filterPermissionCodesByOrgFeatures includes settings permissions only for 
       [
         "settings.appointments.read",
         "settings.appointments.update",
+        "settings.appointment-norms.read",
+        "settings.appointment-norms.create",
+        "settings.appointment-norms.update",
+        "settings.appointment-norms.delete",
         "settings.roles.read",
         "settings.positions.read"
       ],
-      ["settings.roles"]
+      ["settings.roles", "settings.appointment_norms"]
     ),
-    ["settings.roles.read"]
+    [
+      "settings.appointment-norms.read",
+      "settings.appointment-norms.create",
+      "settings.appointment-norms.update",
+      "settings.appointment-norms.delete",
+      "settings.roles.read"
+    ]
   );
+});
+
+test("admin role permission selection always expands to all active codes allowed by org features", () => {
+  const selectedCodes = __settingsServiceContracts.selectPermissionCodesForRoleWrite({
+    requestedPermissionCodes: ["users.read"],
+    activePermissionCodes: [
+      "users.read",
+      "users.create",
+      "clients.read",
+      "settings.roles.read",
+      "profile.read"
+    ],
+    allowedFeatures: ["users.all_users", "settings.roles"],
+    isAdmin: true
+  });
+
+  assert.deepEqual(selectedCodes, [
+    "users.read",
+    "users.create",
+    "settings.roles.read",
+    "profile.read"
+  ]);
 });

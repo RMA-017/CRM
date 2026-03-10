@@ -544,6 +544,21 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
             actionKey: "open"
           })
         ]
+      }),
+      defineFeature({
+        key: "appointments.work_schedule",
+        label: "Work Schedule",
+        sortOrder: 30,
+        permissions: [
+          definePermission({
+            constantKey: "APPOINTMENTS_SUBMENU_WORK_SCHEDULE",
+            code: "appointments.work-schedule",
+            label: "Appointments Work Schedule Submenu",
+            uiLabel: "Open",
+            sortOrder: 56,
+            actionKey: "open"
+          })
+        ]
       })
     ]
   }),
@@ -600,7 +615,8 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
             label: "Read Appointment Settings",
             uiLabel: "Read",
             sortOrder: 72,
-            actionKey: "read"
+            actionKey: "read",
+            featureKeys: ["settings.appointments"]
           }),
           definePermission({
             constantKey: "SETTINGS_APPOINTMENTS_UPDATE",
@@ -608,7 +624,52 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
             label: "Update Appointment Settings",
             uiLabel: "Edit",
             sortOrder: 73,
-            actionKey: "update"
+            actionKey: "update",
+            featureKeys: ["settings.appointments"]
+          })
+        ]
+      }),
+      defineFeature({
+        key: "settings.appointment_norms",
+        label: "Appointment Norms",
+        sortOrder: 20,
+        defaultEnabled: false,
+        permissions: [
+          definePermission({
+            constantKey: "SETTINGS_APPOINTMENT_NORMS_READ",
+            code: "settings.appointment-norms.read",
+            label: "Read Appointment Norm Settings",
+            uiLabel: "Read",
+            sortOrder: 74,
+            actionKey: "read",
+            featureKeys: ["settings.appointment_norms"]
+          }),
+          definePermission({
+            constantKey: "SETTINGS_APPOINTMENT_NORMS_CREATE",
+            code: "settings.appointment-norms.create",
+            label: "Create Appointment Norm Settings",
+            uiLabel: "Create",
+            sortOrder: 75,
+            actionKey: "create",
+            featureKeys: ["settings.appointment_norms"]
+          }),
+          definePermission({
+            constantKey: "SETTINGS_APPOINTMENT_NORMS_UPDATE",
+            code: "settings.appointment-norms.update",
+            label: "Update Appointment Norm Settings",
+            uiLabel: "Edit",
+            sortOrder: 76,
+            actionKey: "update",
+            featureKeys: ["settings.appointment_norms"]
+          }),
+          definePermission({
+            constantKey: "SETTINGS_APPOINTMENT_NORMS_DELETE",
+            code: "settings.appointment-norms.delete",
+            label: "Delete Appointment Norm Settings",
+            uiLabel: "Delete",
+            sortOrder: 77,
+            actionKey: "delete",
+            featureKeys: ["settings.appointment_norms"]
           })
         ]
       }),
@@ -696,7 +757,7 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
     key: "notifications",
     label: "Notifications",
     sortOrder: 90,
-    showInOrgFeatures: false,
+    showInOrgFeatures: true,
     rootPermissionsLabel: "Notifications",
     rootPermissions: [
       definePermission({
@@ -797,6 +858,12 @@ export const PERMISSION_CONSTANTS = deepFreeze(
   }, {})
 );
 
+export const KNOWN_PERMISSION_CODES = deepFreeze(
+  UNIQUE_PERMISSION_DEFINITIONS
+    .map((permission) => normalizeAccessKey(permission?.code))
+    .filter(Boolean)
+);
+
 export const ROLE_PERMISSION_TEMPLATE = deepFreeze(
   ACCESS_MENU_REGISTRY.map((menu) => ({
     key: menu.key,
@@ -831,6 +898,7 @@ export const ROLE_PERMISSION_TEMPLATE = deepFreeze(
 );
 
 const ORG_FEATURE_KEY_SET = new Set(ALL_ORG_FEATURE_KEYS);
+const KNOWN_PERMISSION_CODE_SET = new Set(KNOWN_PERMISSION_CODES);
 const PERMISSION_DEFINITION_BY_CODE = new Map();
 const FEATURE_DEFINITION_BY_KEY = new Map();
 const MENU_DEFINITION_BY_KEY = new Map();
@@ -921,6 +989,24 @@ export function hasAllowedFeature(allowedFeatures, featureKey) {
 
 export function getPermissionDefinition(permissionCode) {
   return PERMISSION_DEFINITION_BY_CODE.get(normalizeAccessKey(permissionCode)) || null;
+}
+
+export function isKnownPermissionCode(permissionCode) {
+  return KNOWN_PERMISSION_CODE_SET.has(normalizeAccessKey(permissionCode));
+}
+
+export function filterKnownPermissionCodes(permissionCodes) {
+  if (!Array.isArray(permissionCodes)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      permissionCodes
+        .map((code) => normalizeAccessKey(code))
+        .filter((code) => KNOWN_PERMISSION_CODE_SET.has(code))
+    )
+  );
 }
 
 export function getFeatureDefinition(featureKey) {

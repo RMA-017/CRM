@@ -158,7 +158,7 @@ function RolePermissionsAccordion({
   }
 
   return (
-    <div className="settings-permissions-section role-permissions-accordion">
+    <div className="role-permissions-accordion">
       <p className="settings-permissions-title">{title}</p>
       <div className="settings-permission-groups role-permissions-tree">
         {tree.map((node) => (

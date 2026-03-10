@@ -6,6 +6,7 @@ export function registerAppointmentBreakRoutes(fastify, context) {
     requireAppointmentsAccess,
     PERMISSIONS,
     parsePositiveIntegerOr,
+    resolveOwnAppointmentSpecialistUserId,
     getAppointmentBreaksBySpecialist,
     normalizeBreakItems,
     validateBreaksPayload,
@@ -38,6 +39,10 @@ export function registerAppointmentBreakRoutes(fastify, context) {
         const specialistId = parsePositiveIntegerOr(request.query?.specialistId, 0);
         if (!specialistId) {
           return reply.status(400).send({ field: "specialistId", message: "Specialist is required." });
+        }
+        const ownSpecialistUserId = resolveOwnAppointmentSpecialistUserId(access);
+        if (ownSpecialistUserId && specialistId !== ownSpecialistUserId) {
+          return reply.status(403).send({ message: "Forbidden." });
         }
 
         const items = await getAppointmentBreaksBySpecialist({
@@ -79,6 +84,10 @@ export function registerAppointmentBreakRoutes(fastify, context) {
         const validationError = validateBreaksPayload({ specialistId, items });
         if (validationError) {
           return reply.status(400).send(validationError);
+        }
+        const ownSpecialistUserId = resolveOwnAppointmentSpecialistUserId(access);
+        if (ownSpecialistUserId && specialistId !== ownSpecialistUserId) {
+          return reply.status(403).send({ message: "Forbidden." });
         }
 
         const savedItems = await replaceAppointmentBreaksBySpecialist({

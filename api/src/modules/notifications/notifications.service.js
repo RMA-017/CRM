@@ -1,7 +1,14 @@
 import pool from "../../config/db.js";
-import { parsePositiveInteger } from "../../lib/number.js";
+import { toBoundedInteger } from "../../lib/bounded-integer.js";
+import {
+  MANAGER_ROLE_MATCHERS,
+  isManagerLikeRoleLabel,
+  normalizeNotificationTargetRoles as normalizeTargetRoles,
+  normalizeNotificationTargetUserIds as normalizeTargetUserIds
+} from "../../lib/notification-targets.js";
+import { normalizeNotificationListLimit } from "../../lib/notification-limits.js";
+import { normalizePositiveInteger } from "../../lib/number.js";
 
-const MAX_NOTIFICATIONS_LIMIT = 200;
 const MAX_OUTBOX_BATCH_LIMIT = 1000;
 const MAX_OUTBOX_RETENTION_DAYS = 3650;
 const MAX_OUTBOX_RETRY_DELAY_SECONDS = 86400;
@@ -11,135 +18,24 @@ const APPOINTMENT_SETTINGS_TABLE = "appointment_settings";
 const DEFAULT_OUTBOX_RETENTION_DAYS = 30;
 const DEFAULT_USER_NOTIFICATIONS_RETENTION_DAYS = 0;
 
-let appointmentRetentionColumnsInitPromise = null;
-
-function normalizePositiveInteger(value) {
-  const parsed = parsePositiveInteger(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
-}
-
-function normalizeRoleLabel(value) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function normalizeTargetUserIds(value) {
-  const source = Array.isArray(value) ? value : [];
-  return Array.from(
-    new Set(
-      source
-        .map((item) => normalizePositiveInteger(item))
-        .filter((item) => item > 0)
-    )
-  );
-}
-
-function normalizeTargetRoles(value) {
-  const source = Array.isArray(value) ? value : [];
-  return Array.from(
-    new Set(
-      source
-        .map((item) => normalizeRoleLabel(item))
-        .filter((item) => item.length > 0)
-    )
-  );
-}
-
-function normalizeNotificationLimit(value) {
-  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    return 50;
-  }
-  return Math.min(parsed, MAX_NOTIFICATIONS_LIMIT);
-}
-
 function normalizeOutboxBatchLimit(value, fallback = 100) {
-  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    return fallback;
-  }
-  return Math.min(parsed, MAX_OUTBOX_BATCH_LIMIT);
+  return toBoundedInteger(value, fallback, 1, MAX_OUTBOX_BATCH_LIMIT);
 }
 
 function normalizeOutboxRetentionDays(value, fallback = 30) {
-  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    return fallback;
-  }
-  return Math.min(parsed, MAX_OUTBOX_RETENTION_DAYS);
-}
-
-async function ensureNotificationRetentionColumnsInAppointmentSettings() {
-  if (!appointmentRetentionColumnsInitPromise) {
-    appointmentRetentionColumnsInitPromise = (async () => {
-      await pool.query(
-        `ALTER TABLE ${APPOINTMENT_SETTINGS_TABLE}
-           ADD COLUMN IF NOT EXISTS outbox_retention_days INTEGER NOT NULL DEFAULT ${DEFAULT_OUTBOX_RETENTION_DAYS}
-             CHECK (outbox_retention_days >= 0 AND outbox_retention_days <= ${MAX_OUTBOX_RETENTION_DAYS})`
-      );
-      await pool.query(
-        `ALTER TABLE ${APPOINTMENT_SETTINGS_TABLE}
-           ADD COLUMN IF NOT EXISTS user_notifications_retention_days INTEGER NOT NULL DEFAULT ${DEFAULT_USER_NOTIFICATIONS_RETENTION_DAYS}
-             CHECK (user_notifications_retention_days >= 0 AND user_notifications_retention_days <= ${MAX_OUTBOX_RETENTION_DAYS})`
-      );
-
-      const legacyTableResult = await pool.query(
-        "SELECT to_regclass('notification_retention_settings')::text AS table_name"
-      );
-      const legacyTableName = String(legacyTableResult?.rows?.[0]?.table_name || "").trim();
-      if (!legacyTableName) {
-        return;
-      }
-
-      await pool.query(
-        `UPDATE ${APPOINTMENT_SETTINGS_TABLE} s
-            SET outbox_retention_days = nrs.outbox_retention_days,
-                user_notifications_retention_days = nrs.user_notifications_retention_days
-           FROM notification_retention_settings nrs
-          WHERE nrs.organization_id = s.organization_id`
-      );
-      await pool.query(
-        `INSERT INTO ${APPOINTMENT_SETTINGS_TABLE} (
-           organization_id,
-           slot_interval_minutes,
-           outbox_retention_days,
-           user_notifications_retention_days
-         )
-         SELECT
-           nrs.organization_id,
-           30,
-           nrs.outbox_retention_days,
-           nrs.user_notifications_retention_days
-         FROM notification_retention_settings nrs
-         LEFT JOIN ${APPOINTMENT_SETTINGS_TABLE} s
-           ON s.organization_id = nrs.organization_id
-         WHERE s.organization_id IS NULL
-         ON CONFLICT (organization_id) DO UPDATE SET
-           outbox_retention_days = EXCLUDED.outbox_retention_days,
-           user_notifications_retention_days = EXCLUDED.user_notifications_retention_days`
-      );
-    })().catch((error) => {
-      appointmentRetentionColumnsInitPromise = null;
-      throw error;
-    });
-  }
-
-  return appointmentRetentionColumnsInitPromise;
+  return toBoundedInteger(value, fallback, 0, MAX_OUTBOX_RETENTION_DAYS);
 }
 
 function normalizeOutboxRetryDelaySeconds(value, fallback = 30) {
-  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    return fallback;
-  }
-  return Math.min(parsed, MAX_OUTBOX_RETRY_DELAY_SECONDS);
+  return toBoundedInteger(value, fallback, 1, MAX_OUTBOX_RETRY_DELAY_SECONDS);
+}
+
+function normalizeOutboxClaimTtlSeconds(value, fallback = 120) {
+  return toBoundedInteger(value, fallback, 5, MAX_OUTBOX_RETRY_DELAY_SECONDS);
 }
 
 function normalizeOutboxMaxRetries(value, fallback = 5) {
-  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    return fallback;
-  }
-  return Math.min(parsed, MAX_OUTBOX_MAX_RETRIES);
+  return toBoundedInteger(value, fallback, 0, MAX_OUTBOX_MAX_RETRIES);
 }
 
 function toNotificationItem(row) {
@@ -175,74 +71,6 @@ function isOutboxRetryColumnMissing(error) {
     || message.includes("next_retry_at");
 }
 
-async function selectUserIdsByRoleLabel({
-  organizationId,
-  roleLabel,
-  db = pool
-}) {
-  const normalizedOrganizationId = normalizePositiveInteger(organizationId);
-  const normalizedLabel = String(roleLabel || "").trim().toLowerCase();
-  if (!normalizedOrganizationId || !normalizedLabel) {
-    return [];
-  }
-
-  const { rows } = await db.query(
-    `SELECT u.id
-       FROM users u
-       JOIN role_options r ON r.id = u.role_id
-      WHERE u.organization_id = $1
-        AND r.is_active = TRUE
-        AND LOWER(TRIM(r.label)) = $2`,
-    [normalizedOrganizationId, normalizedLabel]
-  );
-  return (rows || [])
-    .map((row) => normalizePositiveInteger(row?.id))
-    .filter((id) => id > 0);
-}
-
-async function selectAllUserIdsByOrganization({
-  organizationId,
-  db = pool
-}) {
-  const normalizedOrganizationId = normalizePositiveInteger(organizationId);
-  if (!normalizedOrganizationId) {
-    return [];
-  }
-
-  const { rows } = await db.query(
-    `SELECT id
-       FROM users
-      WHERE organization_id = $1`,
-    [normalizedOrganizationId]
-  );
-  return (rows || [])
-    .map((row) => normalizePositiveInteger(row?.id))
-    .filter((id) => id > 0);
-}
-
-async function selectExistingOrganizationUserIds({
-  organizationId,
-  userIds,
-  db = pool
-}) {
-  const normalizedOrganizationId = normalizePositiveInteger(organizationId);
-  const normalizedUserIds = normalizeTargetUserIds(userIds);
-  if (!normalizedOrganizationId || normalizedUserIds.length === 0) {
-    return [];
-  }
-
-  const { rows } = await db.query(
-    `SELECT id
-       FROM users
-      WHERE organization_id = $1
-        AND id = ANY($2::integer[])`,
-    [normalizedOrganizationId, normalizedUserIds]
-  );
-  return (rows || [])
-    .map((row) => normalizePositiveInteger(row?.id))
-    .filter((id) => id > 0);
-}
-
 export async function resolveNotificationRecipientIds({
   organizationId,
   targetUserIds = [],
@@ -258,44 +86,62 @@ export async function resolveNotificationRecipientIds({
   const normalizedTargetUserIds = normalizeTargetUserIds(targetUserIds);
   const normalizedTargetRoles = normalizeTargetRoles(targetRoles);
   const shouldIncludeAllUsers = normalizedTargetRoles.includes(ALL_TARGET_ROLE);
-  const customRoles = normalizedTargetRoles.filter((r) => r !== ALL_TARGET_ROLE);
-
-  let allUserIds = [];
-  if (shouldIncludeAllUsers) {
-    allUserIds = await selectAllUserIdsByOrganization({
-      organizationId: normalizedOrganizationId,
-      db
-    });
-  }
-
-  const roleUserIds = [];
-  for (const roleLabel of customRoles) {
-    const ids = await selectUserIdsByRoleLabel({
-      organizationId: normalizedOrganizationId,
-      roleLabel,
-      db
-    });
-    roleUserIds.push(...ids);
-  }
-
-  const candidateUserIds = Array.from(
-    new Set([...normalizedTargetUserIds, ...allUserIds, ...roleUserIds])
-  );
-  if (candidateUserIds.length === 0) {
-    return [];
-  }
-
-  const existingUserIds = await selectExistingOrganizationUserIds({
-    organizationId: normalizedOrganizationId,
-    userIds: candidateUserIds,
-    db
-  });
-  if (existingUserIds.length === 0) {
+  const customRoles = normalizedTargetRoles.filter((roleLabel) => roleLabel !== ALL_TARGET_ROLE);
+  const includeManagerSemantic = customRoles.some((roleLabel) => isManagerLikeRoleLabel(roleLabel));
+  const exactRoleLabels = customRoles.filter((roleLabel) => !isManagerLikeRoleLabel(roleLabel));
+  if (
+    !shouldIncludeAllUsers
+    && normalizedTargetUserIds.length === 0
+    && exactRoleLabels.length === 0
+    && !includeManagerSemantic
+  ) {
     return [];
   }
 
   const excludedUserId = normalizePositiveInteger(excludeUserId);
-  return existingUserIds.filter((userId) => !excludedUserId || userId !== excludedUserId);
+  const { rows } = await db.query(
+    `SELECT DISTINCT u.id
+       FROM users u
+       JOIN organizations o
+         ON o.id = u.organization_id
+       JOIN role_options r
+         ON r.id = u.role_id
+        AND r.organization_id = u.organization_id
+      WHERE u.organization_id = $1
+        AND o.is_active = TRUE
+        AND r.is_active = TRUE
+        AND ($7::integer IS NULL OR u.id <> $7::integer)
+        AND (
+          $4::boolean = TRUE
+          OR (CARDINALITY($2::integer[]) > 0 AND u.id = ANY($2::integer[]))
+          OR (CARDINALITY($3::text[]) > 0 AND LOWER(TRIM(r.label)) = ANY($3::text[]))
+          OR (
+            $5::boolean = TRUE
+            AND (
+              COALESCE(r.is_admin, FALSE) = TRUE
+              OR COALESCE(u.is_platform_admin, FALSE) = TRUE
+              OR EXISTS (
+                SELECT 1
+                  FROM UNNEST($6::text[]) AS matcher(pattern)
+                 WHERE LOWER(TRIM(r.label)) LIKE ('%' || matcher.pattern || '%')
+              )
+            )
+          )
+        )`,
+    [
+      normalizedOrganizationId,
+      normalizedTargetUserIds,
+      exactRoleLabels,
+      shouldIncludeAllUsers,
+      includeManagerSemantic,
+      MANAGER_ROLE_MATCHERS,
+      excludedUserId || null
+    ]
+  );
+
+  return (rows || [])
+    .map((row) => normalizePositiveInteger(row?.id))
+    .filter((id) => id > 0);
 }
 
 async function insertUserNotifications({
@@ -430,25 +276,174 @@ async function insertOutboxEvent({
   }
 }
 
-export async function processPendingOutboxEvents({
+async function markOutboxEventsSent({
+  eventIds,
+  supportsRetryColumns = true,
+  db = pool
+}) {
+  const normalizedEventIds = normalizeTargetUserIds(eventIds);
+  if (normalizedEventIds.length === 0) {
+    return 0;
+  }
+
+  const updateResult = supportsRetryColumns
+    ? await db.query(
+      `UPDATE outbox_events
+          SET status = 'sent',
+              error_message = NULL,
+              next_retry_at = NULL,
+              processed_at = CURRENT_TIMESTAMP
+        WHERE id = ANY($1::integer[])
+          AND status = 'pending'`,
+      [normalizedEventIds]
+    )
+    : await db.query(
+      `UPDATE outbox_events
+          SET status = 'sent',
+              error_message = NULL,
+              processed_at = CURRENT_TIMESTAMP
+        WHERE id = ANY($1::integer[])
+          AND status = 'pending'`,
+      [normalizedEventIds]
+    );
+
+  return updateResult?.rowCount || 0;
+}
+
+async function markOutboxEventsFailed({
+  items,
+  supportsRetryColumns = true,
+  db = pool
+}) {
+  const normalizedItems = (Array.isArray(items) ? items : [])
+    .map((item) => ({
+      id: normalizePositiveInteger(item?.id),
+      retryCount: normalizePositiveInteger(item?.retryCount),
+      errorMessage: String(item?.errorMessage || "Outbox processing failed.")
+        .trim()
+        .slice(0, 2048) || "Outbox processing failed."
+    }))
+    .filter((item) => item.id > 0);
+  if (normalizedItems.length === 0) {
+    return 0;
+  }
+
+  const eventIds = normalizedItems.map((item) => item.id);
+  const errorMessages = normalizedItems.map((item) => item.errorMessage);
+
+  const updateResult = supportsRetryColumns
+    ? await db.query(
+      `WITH updates AS (
+         SELECT *
+           FROM UNNEST($1::integer[], $2::integer[], $3::text[])
+                AS t(id, retry_count, error_message)
+       )
+       UPDATE outbox_events o
+          SET status = 'failed',
+              retry_count = u.retry_count,
+              error_message = u.error_message,
+              next_retry_at = NULL,
+              processed_at = CURRENT_TIMESTAMP
+         FROM updates u
+        WHERE o.id = u.id
+          AND o.status = 'pending'`,
+      [
+        eventIds,
+        normalizedItems.map((item) => item.retryCount),
+        errorMessages
+      ]
+    )
+    : await db.query(
+      `WITH updates AS (
+         SELECT *
+           FROM UNNEST($1::integer[], $2::text[])
+                AS t(id, error_message)
+       )
+       UPDATE outbox_events o
+          SET status = 'failed',
+              error_message = u.error_message,
+              processed_at = CURRENT_TIMESTAMP
+         FROM updates u
+        WHERE o.id = u.id
+          AND o.status = 'pending'`,
+      [eventIds, errorMessages]
+    );
+
+  return updateResult?.rowCount || 0;
+}
+
+async function requeueOutboxEvents({
+  items,
+  retryDelaySeconds,
+  db = pool
+}) {
+  const normalizedItems = (Array.isArray(items) ? items : [])
+    .map((item) => ({
+      id: normalizePositiveInteger(item?.id),
+      retryCount: normalizePositiveInteger(item?.retryCount),
+      errorMessage: String(item?.errorMessage || "Outbox processing failed.")
+        .trim()
+        .slice(0, 2048) || "Outbox processing failed."
+    }))
+    .filter((item) => item.id > 0 && item.retryCount > 0);
+  if (normalizedItems.length === 0) {
+    return 0;
+  }
+
+  const updateResult = await db.query(
+    `WITH updates AS (
+       SELECT *
+         FROM UNNEST($1::integer[], $2::integer[], $3::text[])
+              AS t(id, retry_count, error_message)
+     )
+     UPDATE outbox_events o
+        SET status = 'pending',
+            retry_count = u.retry_count,
+            error_message = u.error_message,
+            next_retry_at = CURRENT_TIMESTAMP + ($4::integer * INTERVAL '1 second'),
+            processed_at = NULL
+       FROM updates u
+      WHERE o.id = u.id
+        AND o.status = 'pending'`,
+    [
+      normalizedItems.map((item) => item.id),
+      normalizedItems.map((item) => item.retryCount),
+      normalizedItems.map((item) => item.errorMessage),
+      retryDelaySeconds
+    ]
+  );
+
+  return updateResult?.rowCount || 0;
+}
+
+async function claimPendingOutboxEvents({
   limit = 100,
-  retryDelaySeconds = 30,
-  processor = null,
+  claimTtlSeconds = 120,
   db = pool
 }) {
   const normalizedLimit = normalizeOutboxBatchLimit(limit, 100);
-  const normalizedRetryDelaySeconds = normalizeOutboxRetryDelaySeconds(retryDelaySeconds, 30);
+  const normalizedClaimTtlSeconds = normalizeOutboxClaimTtlSeconds(claimTtlSeconds, 120);
   let supportsRetryColumns = true;
   let rows = [];
+
   try {
     const result = await db.query(
-      `SELECT id, organization_id, event_type, aggregate_type, aggregate_id, payload, retry_count, max_retries
-         FROM outbox_events
-        WHERE status = 'pending'
-          AND (next_retry_at IS NULL OR next_retry_at <= CURRENT_TIMESTAMP)
-        ORDER BY created_at ASC, id ASC
-        LIMIT $1`,
-      [normalizedLimit]
+      `WITH claimable AS (
+         SELECT id
+           FROM outbox_events
+          WHERE status = 'pending'
+            AND (next_retry_at IS NULL OR next_retry_at <= CURRENT_TIMESTAMP)
+          ORDER BY created_at ASC, id ASC
+          LIMIT $1
+          FOR UPDATE SKIP LOCKED
+       )
+       UPDATE outbox_events o
+          SET next_retry_at = CURRENT_TIMESTAMP + ($2::integer * INTERVAL '1 second'),
+              error_message = NULL
+         FROM claimable c
+        WHERE o.id = c.id
+       RETURNING o.id, o.organization_id, o.event_type, o.aggregate_type, o.aggregate_id, o.payload, o.retry_count, o.max_retries`,
+      [normalizedLimit, normalizedClaimTtlSeconds]
     );
     rows = Array.isArray(result?.rows) ? result.rows : [];
   } catch (error) {
@@ -468,9 +463,36 @@ export async function processPendingOutboxEvents({
     rows = Array.isArray(result?.rows) ? result.rows : [];
   }
 
+  return {
+    supportsRetryColumns,
+    rows
+  };
+}
+
+export async function processPendingOutboxEvents({
+  limit = 100,
+  claimTtlSeconds = 120,
+  retryDelaySeconds = 30,
+  processor = null,
+  db = pool
+}) {
+  const normalizedRetryDelaySeconds = normalizeOutboxRetryDelaySeconds(retryDelaySeconds, 30);
+  const {
+    supportsRetryColumns,
+    rows
+  } = await claimPendingOutboxEvents({
+    limit,
+    claimTtlSeconds,
+    db
+  });
+
   let processedCount = 0;
   let requeuedCount = 0;
   let failedCount = 0;
+  const normalizedProcessor = typeof processor === "function" ? processor : null;
+  const sentEventIds = [];
+  const failedItems = [];
+  const requeuedItems = [];
 
   for (const row of rows || []) {
     const outboxEventId = normalizePositiveInteger(row?.id);
@@ -484,7 +506,6 @@ export async function processPendingOutboxEvents({
       if (!eventType || !aggregateType) {
         throw new Error("Invalid outbox event payload.");
       }
-      const normalizedProcessor = typeof processor === "function" ? processor : null;
       if (normalizedProcessor) {
         await normalizedProcessor({
           id: outboxEventId,
@@ -495,43 +516,16 @@ export async function processPendingOutboxEvents({
           payload: row?.payload && typeof row.payload === "object" ? row.payload : {}
         });
       }
-
-      const updateResult = supportsRetryColumns
-        ? await db.query(
-          `UPDATE outbox_events
-              SET status = 'sent',
-                  error_message = NULL,
-                  next_retry_at = NULL,
-                  processed_at = CURRENT_TIMESTAMP
-            WHERE id = $1
-              AND status = 'pending'`,
-          [outboxEventId]
-        )
-        : await db.query(
-          `UPDATE outbox_events
-              SET status = 'sent',
-                  error_message = NULL,
-                  processed_at = CURRENT_TIMESTAMP
-            WHERE id = $1
-              AND status = 'pending'`,
-          [outboxEventId]
-        );
-      processedCount += updateResult?.rowCount || 0;
+      sentEventIds.push(outboxEventId);
     } catch (error) {
       const errorMessage = String(error?.message || "Outbox processing failed.")
         .trim()
         .slice(0, 2048);
       if (!supportsRetryColumns) {
-        const updateResult = await db.query(
-          `UPDATE outbox_events
-              SET status = 'failed',
-                  error_message = $2,
-                  processed_at = CURRENT_TIMESTAMP
-            WHERE id = $1
-              AND status = 'pending'`,
-          [outboxEventId, errorMessage || "Outbox processing failed."]
-        );
-        failedCount += updateResult?.rowCount || 0;
+        failedItems.push({
+          id: outboxEventId,
+          errorMessage
+        });
         continue;
       }
 
@@ -543,39 +537,38 @@ export async function processPendingOutboxEvents({
       const nextRetryCount = currentRetryCount + 1;
 
       if (nextRetryCount > maxRetries) {
-        const updateResult = await db.query(
-          `UPDATE outbox_events
-              SET status = 'failed',
-                  retry_count = $2,
-                  error_message = $3,
-                  next_retry_at = NULL,
-                  processed_at = CURRENT_TIMESTAMP
-            WHERE id = $1
-              AND status = 'pending'`,
-          [outboxEventId, nextRetryCount, errorMessage || "Outbox processing failed."]
-        );
-        failedCount += updateResult?.rowCount || 0;
+        failedItems.push({
+          id: outboxEventId,
+          retryCount: nextRetryCount,
+          errorMessage
+        });
       } else {
-        const updateResult = await db.query(
-          `UPDATE outbox_events
-              SET status = 'pending',
-                  retry_count = $2,
-                  error_message = $3,
-                  next_retry_at = CURRENT_TIMESTAMP + ($4::integer * INTERVAL '1 second'),
-                  processed_at = NULL
-            WHERE id = $1
-              AND status = 'pending'`,
-          [
-            outboxEventId,
-            nextRetryCount,
-            errorMessage || "Outbox processing failed.",
-            normalizedRetryDelaySeconds
-          ]
-        );
-        requeuedCount += updateResult?.rowCount || 0;
+        requeuedItems.push({
+          id: outboxEventId,
+          retryCount: nextRetryCount,
+          errorMessage
+        });
       }
     }
   }
+
+  processedCount = await markOutboxEventsSent({
+    eventIds: sentEventIds,
+    supportsRetryColumns,
+    db
+  });
+  failedCount = await markOutboxEventsFailed({
+    items: failedItems,
+    supportsRetryColumns,
+    db
+  });
+  requeuedCount = supportsRetryColumns
+    ? await requeueOutboxEvents({
+      items: requeuedItems,
+      retryDelaySeconds: normalizedRetryDelaySeconds,
+      db
+    })
+    : 0;
 
   return {
     fetchedCount: Array.isArray(rows) ? rows.length : 0,
@@ -590,7 +583,6 @@ export async function pruneProcessedOutboxEvents({
   limit = 500,
   db = pool
 }) {
-  await ensureNotificationRetentionColumnsInAppointmentSettings();
   const normalizedRetentionDays = normalizeOutboxRetentionDays(retentionDays, DEFAULT_OUTBOX_RETENTION_DAYS);
 
   const normalizedLimit = normalizeOutboxBatchLimit(limit, 500);
@@ -627,7 +619,6 @@ export async function pruneUserNotifications({
   limit = 500,
   db = pool
 }) {
-  await ensureNotificationRetentionColumnsInAppointmentSettings();
   const normalizedRetentionDays = normalizeOutboxRetentionDays(
     retentionDays,
     DEFAULT_USER_NOTIFICATIONS_RETENTION_DAYS
@@ -670,7 +661,6 @@ export async function getNotificationRetentionSettingsByOrganization({
   if (!normalizedOrganizationId) {
     return null;
   }
-  await ensureNotificationRetentionColumnsInAppointmentSettings();
 
   const fallbackOutboxRetentionDays = normalizeOutboxRetentionDays(
     defaultOutboxRetentionDays,
@@ -737,7 +727,6 @@ export async function saveNotificationRetentionSettingsByOrganization({
     throw error;
   }
 
-  await ensureNotificationRetentionColumnsInAppointmentSettings();
   const { rows } = await db.query(
     `INSERT INTO appointment_settings (
        organization_id,
@@ -872,7 +861,7 @@ export async function listUserNotifications({
     return [];
   }
 
-  const normalizedLimit = normalizeNotificationLimit(limit);
+  const normalizedLimit = normalizeNotificationListLimit(limit);
   const whereParts = [
     "organization_id = $1",
     "user_id = $2"

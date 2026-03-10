@@ -6,8 +6,12 @@ export function registerAppointmentReferenceRoutes(fastify, context) {
     requireAppointmentsAccess,
     PERMISSIONS,
     parsePositiveIntegerOr,
+    resolveOwnAppointmentSpecialistUserId,
+    resolveAppointmentVipReadScope,
+    getAppointmentClientScopeInfo,
     getAppointmentSpecialistsByOrganization,
-    getAppointmentClientNoShowSummary
+    getAppointmentClientNoShowSummary,
+    isVipClientAssignedToUser
   } = context;
 
   fastify.get(
@@ -24,8 +28,12 @@ export function registerAppointmentReferenceRoutes(fastify, context) {
           return;
         }
 
+        const ownSpecialistUserId = resolveOwnAppointmentSpecialistUserId(access);
         const items = await getAppointmentSpecialistsByOrganization(access.authContext.organizationId);
-        return reply.send({ items });
+        const filteredItems = ownSpecialistUserId
+          ? items.filter((item) => String(item?.id || "").trim() === String(ownSpecialistUserId))
+          : items;
+        return reply.send({ items: filteredItems });
       } catch (error) {
         request.log.error({ err: error }, "Error fetching appointment specialists");
         return reply.status(500).send({ message: "Internal server error." });
@@ -53,6 +61,35 @@ export function registerAppointmentReferenceRoutes(fastify, context) {
         const clientId = parsePositiveIntegerOr(request.query?.clientId, 0);
         if (!clientId) {
           return reply.status(400).send({ field: "clientId", message: "Client is required." });
+        }
+
+        const clientScopeInfo = await getAppointmentClientScopeInfo({
+          organizationId: access.authContext.organizationId,
+          clientId
+        });
+        if (!clientScopeInfo) {
+          return reply.status(404).send({ message: "Client not found." });
+        }
+
+        if (clientScopeInfo.isVip) {
+          const vipReadScope = await resolveAppointmentVipReadScope({
+            roleId: access.requester?.role_id,
+            requester: access.requester
+          });
+          if (vipReadScope !== "all") {
+            const requesterUserId = parsePositiveIntegerOr(access.authContext?.userId, 0);
+            if (!requesterUserId) {
+              return reply.status(403).send({ message: "Forbidden." });
+            }
+            const isAssignedClient = await isVipClientAssignedToUser({
+              organizationId: access.authContext.organizationId,
+              clientId,
+              userId: requesterUserId
+            });
+            if (!isAssignedClient) {
+              return reply.status(403).send({ message: "Forbidden." });
+            }
+          }
         }
 
         const item = await getAppointmentClientNoShowSummary({

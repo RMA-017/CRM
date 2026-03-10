@@ -41,7 +41,7 @@ export function registerAppointmentEventRoutes(fastify, context) {
         {
           organizationId: access.authContext.organizationId,
           userId: access.authContext.userId,
-          roleLabel: access.requester?.role,
+          roleLabel: access.requester?.role_label || access.requester?.role,
           isAdmin: Boolean(access.requester?.is_admin),
           listener: (eventPayload) => {
           if (cleaned || reply.raw.writableEnded) {

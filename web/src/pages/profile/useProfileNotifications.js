@@ -5,6 +5,8 @@ import { handleProtectedStatus } from "./profile.helpers.js";
 const NOTIFICATIONS_LIMIT = 100;
 const LIVE_NOTIFICATIONS_LIMIT = 50;
 const NOTIFICATION_RELOAD_DEBOUNCE_MS = 500;
+const NOTIFICATION_CACHE_TTL_MS = 15_000;
+const NOTIFICATION_BADGE_IDLE_DELAY_MS = 250;
 
 function normalizeNotificationItem(item) {
   return {
@@ -28,6 +30,8 @@ export function useProfileNotifications({
 }) {
   const notificationReloadTimerRef = useRef(null);
   const pendingNotificationFallbackRef = useRef([]);
+  const notificationsLoadedAtRef = useRef(0);
+  const notificationsLoadedLimitRef = useRef(0);
 
   const [notificationsModalOpen, setNotificationsModalOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -49,12 +53,34 @@ export function useProfileNotifications({
     setNotificationsModalOpen(false);
   }, []);
 
-  const loadNotifications = useCallback(async ({ silent = false } = {}) => {
+  const loadNotifications = useCallback(async ({
+    silent = false,
+    force = false,
+    limit = NOTIFICATIONS_LIMIT
+  } = {}) => {
     if (!profileUsername) {
       return false;
     }
+
+    const resolvedLimit = Number.isInteger(limit) && limit > 0
+      ? Math.min(limit, NOTIFICATIONS_LIMIT)
+      : NOTIFICATIONS_LIMIT;
+    const now = Date.now();
+    const hasPendingFallbacks = pendingNotificationFallbackRef.current.length > 0;
+    const isCachedFresh = (
+      !force
+      && notificationsLoadedAtRef.current > 0
+      && (now - notificationsLoadedAtRef.current) < NOTIFICATION_CACHE_TTL_MS
+      && notificationsLoadedLimitRef.current >= resolvedLimit
+      && !hasPendingFallbacks
+    );
+
+    if (isCachedFresh) {
+      return true;
+    }
+
     try {
-      const response = await apiFetch(`/api/notifications?limit=${NOTIFICATIONS_LIMIT}`, {
+      const response = await apiFetch(`/api/notifications?limit=${resolvedLimit}`, {
         method: "GET",
         cache: "no-store"
       });
@@ -68,6 +94,8 @@ export function useProfileNotifications({
         ? data.items.map(normalizeNotificationItem)
         : [];
       setNotifications(items);
+      notificationsLoadedAtRef.current = now;
+      notificationsLoadedLimitRef.current = resolvedLimit;
       return true;
     } catch {
       if (!silent) {
@@ -121,6 +149,8 @@ export function useProfileNotifications({
       // Ignore clear errors and still clear local list.
     } finally {
       setNotifications([]);
+      notificationsLoadedAtRef.current = Date.now();
+      notificationsLoadedLimitRef.current = 0;
     }
   }, [navigate, profileUsername]);
 
@@ -232,7 +262,7 @@ export function useProfileNotifications({
       const queuedFallbacks = pendingNotificationFallbackRef.current;
       pendingNotificationFallbackRef.current = [];
 
-      void loadNotifications({ silent: true }).then((loaded) => {
+      void loadNotifications({ silent: true, force: true, limit: NOTIFICATIONS_LIMIT }).then((loaded) => {
         if (loaded) {
           return;
         }
@@ -301,14 +331,38 @@ export function useProfileNotifications({
     if (!profileUsername) {
       return;
     }
-    void loadNotifications({ silent: true });
+    let timeoutId = null;
+    let cancelled = false;
+
+    const run = () => {
+      if (cancelled) {
+        return;
+      }
+      void loadNotifications({ silent: true, limit: NOTIFICATIONS_LIMIT });
+    };
+
+    if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+      const idleId = window.requestIdleCallback(run, { timeout: NOTIFICATION_BADGE_IDLE_DELAY_MS });
+      return () => {
+        cancelled = true;
+        window.cancelIdleCallback(idleId);
+      };
+    }
+
+    timeoutId = window.setTimeout(run, NOTIFICATION_BADGE_IDLE_DELAY_MS);
+    return () => {
+      cancelled = true;
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
   }, [loadNotifications, profileUsername]);
 
   useEffect(() => {
     if (!notificationsModalOpen) {
       return;
     }
-    void loadNotifications({ silent: true });
+    void loadNotifications({ silent: true, limit: NOTIFICATIONS_LIMIT });
     void markNotificationsRead();
   }, [loadNotifications, markNotificationsRead, notificationsModalOpen]);
 

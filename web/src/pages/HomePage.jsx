@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiFetch, getApiErrorMessage, readApiResponseData } from "../lib/api.js";
-import { LOGOUT_FLAG_KEY } from "./profile/profile.constants.js";
+import { LOGOUT_FLAG_KEY } from "../lib/auth-flags.js";
+import { loadProfilePage } from "../lib/load-profile-page.js";
 
 function HomePage() {
   const navigate = useNavigate();
@@ -82,6 +83,10 @@ function HomePage() {
     resetFormErrors();
   }
 
+  function prefetchProfilePage() {
+    void loadProfilePage();
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     const payload = {
@@ -105,6 +110,7 @@ function HomePage() {
     try {
       setIsSubmitting(true);
       resetFormErrors();
+      const profilePagePromise = loadProfilePage();
 
       const response = await apiFetch("/api/login", {
         method: "POST",
@@ -126,6 +132,7 @@ function HomePage() {
         return;
       }
 
+      await profilePagePromise;
       navigate("/profile", { replace: true });
     } catch {
       setErrors((prev) => ({ ...prev, password: "Unexpected error. Please try again." }));
@@ -147,14 +154,28 @@ function HomePage() {
 
           <nav className="header-actions" aria-label="Header actions">
             {!isAuthenticated ? (
-              <button type="button" className="header-btn profile-link" onClick={() => setIsLoginOpen(true)}>
+              <button
+                type="button"
+                className="header-btn profile-link"
+                onMouseEnter={prefetchProfilePage}
+                onFocus={prefetchProfilePage}
+                onClick={() => {
+                  prefetchProfilePage();
+                  setIsLoginOpen(true);
+                }}
+              >
                 Login
               </button>
             ) : (
               <button
                 type="button"
                 className="header-btn profile-link"
-                onClick={() => navigate("/profile")}
+                onMouseEnter={prefetchProfilePage}
+                onFocus={prefetchProfilePage}
+                onClick={() => {
+                  prefetchProfilePage();
+                  navigate("/profile");
+                }}
               >
                 My Profile
               </button>

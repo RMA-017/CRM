@@ -97,6 +97,9 @@ process.once("unhandledRejection", (reason) => {
 try {
   app = await buildApp();
   await app.listen({ port: appConfig.port, host: "0.0.0.0" });
+  if (typeof process.send === "function") {
+    process.send("ready");
+  }
   app.log.info({ port: appConfig.port }, "Server is running");
 } catch (error) {
   await shutdown({ signal: "startup-failure", error: toError(error) });

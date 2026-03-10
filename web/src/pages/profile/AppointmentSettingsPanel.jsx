@@ -96,6 +96,53 @@ function parseDurationOptionsInput(value) {
   );
 }
 
+function parsePositiveIntegerField(value, {
+  fieldLabel,
+  min = 1,
+  max = Number.POSITIVE_INFINITY,
+  allowEmpty = false
+}) {
+  const text = String(value || "").trim();
+  if (!text) {
+    if (allowEmpty) {
+      return { ok: true, value: null };
+    }
+    return { ok: false, message: `${fieldLabel} is required.` };
+  }
+  if (!/^[1-9]\d*$/.test(text)) {
+    return { ok: false, message: `${fieldLabel} must be a whole number.` };
+  }
+  const parsed = Number.parseInt(text, 10);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    if (Number.isFinite(max)) {
+      return { ok: false, message: `${fieldLabel} must be between ${min} and ${max}.` };
+    }
+    return { ok: false, message: `${fieldLabel} must be at least ${min}.` };
+  }
+  return { ok: true, value: parsed };
+}
+
+function parseNonNegativeIntegerField(value, {
+  fieldLabel,
+  max = Number.POSITIVE_INFINITY
+}) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return { ok: false, message: `${fieldLabel} is required.` };
+  }
+  if (!/^\d+$/.test(text)) {
+    return { ok: false, message: `${fieldLabel} must be a whole number.` };
+  }
+  const parsed = Number.parseInt(text, 10);
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > max) {
+    if (Number.isFinite(max)) {
+      return { ok: false, message: `${fieldLabel} must be between 0 and ${max}.` };
+    }
+    return { ok: false, message: `${fieldLabel} must be 0 or more.` };
+  }
+  return { ok: true, value: parsed };
+}
+
 function normalizeReminderChannels(value, { allowEmpty = false } = {}) {
   const normalized = Array.isArray(value)
     ? value
@@ -191,6 +238,7 @@ function AppointmentSettingsPanel({
   const [message, setMessage] = useState("");
 
   const [form, setForm] = useState(null);
+  const [defaultWeeklyRows, setDefaultWeeklyRows] = useState([]);
   const [breakSpecialists, setBreakSpecialists] = useState([]);
   const [breakItems, setBreakItems] = useState([]);
   const [breaksLoading, setBreaksLoading] = useState(false);
@@ -1148,27 +1196,108 @@ function AppointmentSettingsPanel({
         return;
       }
 
-      const parsedHistoryLockDays = Number.parseInt(String(form.historyLockDays || "").trim(), 10);
-      const parsedOutboxWorkerRetentionDays = Number.parseInt(String(form.outboxWorkerRetentionDays || "").trim(), 10);
-      const parsedUserNotificationsRetentionDays = Number.parseInt(
-        String(form.userNotificationsRetentionDays || "").trim(),
-        10
-      );
+      const slotIntervalResult = parsePositiveIntegerField(form.slotInterval, {
+        fieldLabel: "Slot interval",
+        min: 1
+      });
+      if (!slotIntervalResult.ok) {
+        setMessage(slotIntervalResult.message);
+        return;
+      }
+
+      const slotSubDivisionsResult = parsePositiveIntegerField(form.slotSubDivisions, {
+        fieldLabel: "Slot sub-divisions",
+        min: 1,
+        max: 60
+      });
+      if (!slotSubDivisionsResult.ok) {
+        setMessage(slotSubDivisionsResult.message);
+        return;
+      }
+
+      const slotCellHeightResult = parsePositiveIntegerField(form.slotCellHeightPx, {
+        fieldLabel: "Planner cell height",
+        min: 12,
+        max: 72
+      });
+      if (!slotCellHeightResult.ok) {
+        setMessage(slotCellHeightResult.message);
+        return;
+      }
+
+      const historyLockDaysResult = parseNonNegativeIntegerField(form.historyLockDays, {
+        fieldLabel: "History lock",
+        max: 3650
+      });
+      if (!historyLockDaysResult.ok) {
+        setMessage(historyLockDaysResult.message);
+        return;
+      }
+
+      const outboxRetentionResult = parseNonNegativeIntegerField(form.outboxWorkerRetentionDays, {
+        fieldLabel: "Outbox retention",
+        max: 3650
+      });
+      if (!outboxRetentionResult.ok) {
+        setMessage(outboxRetentionResult.message);
+        return;
+      }
+
+      const userNotificationsRetentionResult = parseNonNegativeIntegerField(form.userNotificationsRetentionDays, {
+        fieldLabel: "User notifications retention",
+        max: 3650
+      });
+      if (!userNotificationsRetentionResult.ok) {
+        setMessage(userNotificationsRetentionResult.message);
+        return;
+      }
+
+      const noShowThresholdResult = parsePositiveIntegerField(form.noShowThreshold, {
+        fieldLabel: "No-show threshold",
+        min: 1
+      });
+      if (!noShowThresholdResult.ok) {
+        setMessage(noShowThresholdResult.message);
+        return;
+      }
+
+      const reminderHoursResult = parsePositiveIntegerField(form.reminderHours, {
+        fieldLabel: "Reminder hours",
+        min: 1
+      });
+      if (!reminderHoursResult.ok) {
+        setMessage(reminderHoursResult.message);
+        return;
+      }
+
       const payload = {
         organizationId: targetOrganizationId,
-        slotInterval: String(form.slotInterval || "").trim(),
-        slotSubDivisions: Number.parseInt(String(form.slotSubDivisions || "1"), 10) || 1,
-        slotCellHeightPx: Number.parseInt(String(form.slotCellHeightPx || "18"), 10) || 18,
-        historyLockDays: Number.isInteger(parsedHistoryLockDays) ? parsedHistoryLockDays : 10,
-        outboxWorkerRetentionDays: Number.isInteger(parsedOutboxWorkerRetentionDays) ? parsedOutboxWorkerRetentionDays : 30,
-        userNotificationsRetentionDays: Number.isInteger(parsedUserNotificationsRetentionDays)
-          ? parsedUserNotificationsRetentionDays
-          : 0,
+        slotInterval: slotIntervalResult.value,
+        slotSubDivisions: slotSubDivisionsResult.value,
+        slotCellHeightPx: slotCellHeightResult.value,
+        historyLockDays: historyLockDaysResult.value,
+        outboxWorkerRetentionDays: outboxRetentionResult.value,
+        userNotificationsRetentionDays: userNotificationsRetentionResult.value,
         appointmentDurationOptions: parseDurationOptionsInput(form.appointmentDurationOptions),
         visibleWeekDays: form.visibleWeekDays,
-        noShowThreshold: String(form.noShowThreshold || "").trim(),
-        reminderHours: String(form.reminderHours || "").trim(),
-        reminderChannels: Array.isArray(form.reminderChannels) ? form.reminderChannels : []
+        noShowThreshold: noShowThresholdResult.value,
+        reminderHours: reminderHoursResult.value,
+        reminderChannels: Array.isArray(form.reminderChannels) ? form.reminderChannels : [],
+        defaultWeeklyItems: (Array.isArray(defaultWeeklyRows) ? defaultWeeklyRows : []).map((row) => {
+          const startTime = String(row?.startTime || "").trim();
+          const endTime = String(row?.endTime || "").trim();
+          const isActive = Boolean(startTime && endTime && startTime < endTime);
+          const item = {
+            dayOfWeek: String(row?.dayOfWeek || "").trim(),
+            isActive,
+            reason: ""
+          };
+          if (isActive) {
+            item.startTime = startTime;
+            item.endTime = endTime;
+          }
+          return item;
+        })
       };
 
       const response = await apiFetch("/api/appointments/settings", {
@@ -1770,6 +1899,7 @@ function AppointmentSettingsPanel({
           showDefaultWeekly
           showUserWeeklyOverrides={false}
           defaultWeeklyTitle="9. Default Weekly Schedule"
+          onDefaultWeeklyRowsChange={setDefaultWeeklyRows}
         />
 
         <div className="appointment-setting-row">

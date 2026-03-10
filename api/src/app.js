@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { appConfig } from "./config/app-config.js";
+import { getDatabaseMigrationReadiness, listMigrationFileMetadata } from "./config/deployment-readiness.js";
 import pool from "./config/db.js";
 import securityPlugin from "./plugins/security.js";
 import { authPreHandler } from "./lib/session.js";
@@ -33,6 +34,44 @@ async function checkDatabaseReadiness() {
       details: {
         code: String(error?.code || "").trim() || "db_error",
         message: String(error?.message || "Database ping failed.").trim().slice(0, 200)
+      }
+    };
+  }
+}
+
+async function checkMigrationReadiness({
+  db,
+  migrationFilesPromise
+}) {
+  try {
+    const migrationFiles = await migrationFilesPromise;
+    const report = await getDatabaseMigrationReadiness({
+      db,
+      migrationFiles
+    });
+
+    if (report.errors.length > 0) {
+      return {
+        status: "down",
+        details: {
+          message: report.errors[0],
+          pendingCount: report.pendingCount
+        }
+      };
+    }
+
+    return {
+      status: "up",
+      details: report.warnings.length > 0
+        ? { warnings: report.warnings }
+        : null
+    };
+  } catch (error) {
+    return {
+      status: "down",
+      details: {
+        code: "migration_readiness_error",
+        message: String(error?.message || "Migration readiness check failed.").trim().slice(0, 200)
       }
     };
   }
@@ -74,6 +113,7 @@ export async function buildApp() {
   const appFilePath = fileURLToPath(import.meta.url);
   const appDirPath = dirname(appFilePath);
   const errorLogFilePath = resolve(appDirPath, "..", "logs", "errors.log");
+  const migrationsDirPath = resolve(appDirPath, "..", "database", "migrations");
   const app = Fastify({
     loggerInstance: createErrorFileLogger({
       filePath: errorLogFilePath
@@ -83,6 +123,9 @@ export async function buildApp() {
   const outboxWorker = createOutboxWorker({
     ...appConfig.outboxWorker,
     logger: app.log
+  });
+  const migrationFilesPromise = listMigrationFileMetadata({
+    migrationsDir: migrationsDirPath
   });
 
   if (appConfig.permissionsSync?.enabled) {
@@ -105,12 +148,17 @@ export async function buildApp() {
   app.get("/health", async () => ({ status: "ok" }));
   app.get("/ready", async (_request, reply) => {
     const dbCheck = await checkDatabaseReadiness();
+    const migrationCheck = await checkMigrationReadiness({
+      db: pool,
+      migrationFilesPromise
+    });
     const outboxEnabled = Boolean(appConfig.outboxWorker?.enabled);
     const outboxStatus = outboxEnabled
       ? (outboxWorker.isRunning() ? "up" : "down")
       : "disabled";
 
     const status = dbCheck.status === "up"
+      && migrationCheck.status === "up"
       && (outboxStatus === "up" || outboxStatus === "disabled")
       ? "ready"
       : "not-ready";
@@ -122,9 +170,11 @@ export async function buildApp() {
       status,
       checks: {
         database: dbCheck.status,
+        migrations: migrationCheck.status,
         outboxWorker: outboxStatus
       },
       details: dbCheck.details || undefined,
+      migrationDetails: migrationCheck.details || undefined,
       timestamp: new Date().toISOString()
     };
   });

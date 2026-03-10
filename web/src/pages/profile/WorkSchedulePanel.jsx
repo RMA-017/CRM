@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import CustomSelect from "../../components/CustomSelect.jsx";
 import { apiFetch, readApiResponseData } from "../../lib/api.js";
@@ -75,16 +75,6 @@ function createWeeklyDeleteState() {
   };
 }
 
-function serializeDefaultWeeklyRows(rows = []) {
-  const source = Array.isArray(rows) ? rows : [];
-  return JSON.stringify(source.map((row) => ({
-    dayOfWeek: String(row?.dayOfWeek || "").trim(),
-    isActive: row?.isActive === true,
-    startTime: String(row?.startTime || "").trim(),
-    endTime: String(row?.endTime || "").trim()
-  })));
-}
-
 function withDefaultWeeklyTimes(row, nextStartTime, nextEndTime) {
   const startTime = String(nextStartTime || "").trim();
   const endTime = String(nextEndTime || "").trim();
@@ -106,6 +96,7 @@ function WorkSchedulePanel({
   showUserWeeklyOverrides = true,
   defaultWeeklyTitle = "Default Weekly Schedule",
   showUserWeeklyOverridesLauncher = true,
+  onDefaultWeeklyRowsChange = null,
   isUserWeeklyOverridesModalOpen,
   onOpenUserWeeklyOverridesModal = null,
   onCloseUserWeeklyOverridesModal = null
@@ -121,10 +112,8 @@ function WorkSchedulePanel({
   const [isWeeklyOverridesModalOpenInternal, setIsWeeklyOverridesModalOpenInternal] = useState(false);
   const [weeklyDelete, setWeeklyDelete] = useState(createWeeklyDeleteState());
   const [loading, setLoading] = useState(false);
-  const [savingDefault, setSavingDefault] = useState(false);
   const [mutating, setMutating] = useState(false);
   const [message, setMessage] = useState("");
-  const lastSavedDefaultWeeklySnapshotRef = useRef("");
   const isWeeklyOverridesModalControlled = typeof isUserWeeklyOverridesModalOpen === "boolean";
   const isWeeklyOverridesModalOpen = isWeeklyOverridesModalControlled
     ? isUserWeeklyOverridesModalOpen
@@ -190,9 +179,6 @@ function WorkSchedulePanel({
     ).size
   ), [weeklyItems, weeklyUserId]);
   const weeklyMaxDraftLines = Math.max(1, DAYS.length - weeklyExistingDayCount);
-  const defaultWeeklySnapshot = useMemo(() => (
-    serializeDefaultWeeklyRows(defaultWeeklyRows)
-  ), [defaultWeeklyRows]);
   const isEditingWeeklyOverride = Boolean(String(weeklyEditId || "").trim());
 
   const loadData = useCallback(async () => {
@@ -224,7 +210,6 @@ function WorkSchedulePanel({
       setStaff(nextStaff);
       setItems(nextItems);
       setDefaultWeeklyRows(nextDefaultWeeklyRows);
-      lastSavedDefaultWeeklySnapshotRef.current = serializeDefaultWeeklyRows(nextDefaultWeeklyRows);
 
       const firstUserId = String(nextStaff[0]?.id || "").trim();
       setWeeklyUserId((prev) => {
@@ -247,6 +232,13 @@ function WorkSchedulePanel({
     }
     void loadData();
   }, [currentOrganizationId, loadData]);
+
+  useEffect(() => {
+    if (!showDefaultWeekly || typeof onDefaultWeeklyRowsChange !== "function") {
+      return;
+    }
+    onDefaultWeeklyRowsChange(defaultWeeklyRows);
+  }, [defaultWeeklyRows, onDefaultWeeklyRowsChange, showDefaultWeekly]);
 
   useEffect(() => {
     if (!message) {
@@ -273,77 +265,6 @@ function WorkSchedulePanel({
     };
   }, [closeWeeklyOverridesModal, isWeeklyOverridesModalOpen, mutating]);
 
-  const saveDefaultWeekly = useCallback(async () => {
-    if (!canUpdateAppointments || !currentOrganizationId) {
-      return;
-    }
-    setSavingDefault(true);
-    try {
-      const response = await apiFetch("/api/appointments/work-schedule/default-weekly", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          organizationId: currentOrganizationId,
-          items: defaultWeeklyRows.map((row) => ({
-            dayOfWeek: row.dayOfWeek,
-            isActive: Boolean(row.startTime && row.endTime && row.startTime < row.endTime),
-            startTime: Boolean(row.startTime && row.endTime && row.startTime < row.endTime) ? row.startTime : "",
-            endTime: Boolean(row.startTime && row.endTime && row.startTime < row.endTime) ? row.endTime : "",
-            reason: ""
-          }))
-        })
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        setMessage(String(data?.message || "Failed to update default weekly schedule.").trim());
-        return;
-      }
-
-      const nextItems = Array.isArray(data?.items) ? data.items : [];
-      setItems((prev) => {
-        const withoutDefaultWeekly = (Array.isArray(prev) ? prev : []).filter((item) => !(
-          String(item?.ruleScope || "").trim().toLowerCase() === "weekly"
-          && !String(item?.userId || "").trim()
-        ));
-        return [...withoutDefaultWeekly, ...nextItems];
-      });
-      const nextDefaultWeeklyRows = createDefaultWeeklyDraft(nextItems);
-      setDefaultWeeklyRows(nextDefaultWeeklyRows);
-      lastSavedDefaultWeeklySnapshotRef.current = serializeDefaultWeeklyRows(nextDefaultWeeklyRows);
-      dispatchWorkScheduleChange();
-    } catch {
-      setMessage("Failed to update default weekly schedule.");
-    } finally {
-      setSavingDefault(false);
-    }
-  }, [canUpdateAppointments, currentOrganizationId, defaultWeeklyRows, dispatchWorkScheduleChange]);
-
-  useEffect(() => {
-    if (!showDefaultWeekly || !canUpdateAppointments || !currentOrganizationId || loading || savingDefault) {
-      return;
-    }
-    if (defaultWeeklySnapshot === lastSavedDefaultWeeklySnapshotRef.current) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      void saveDefaultWeekly();
-    }, 380);
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [
-    canUpdateAppointments,
-    currentOrganizationId,
-    defaultWeeklySnapshot,
-    loading,
-    saveDefaultWeekly,
-    savingDefault,
-    showDefaultWeekly
-  ]);
-
   async function saveWeeklyOverride() {
     if (!canUpdateAppointments || !currentOrganizationId || !weeklyUserId) {
       return;
@@ -363,10 +284,12 @@ function WorkSchedulePanel({
           ruleScope: "weekly",
           dayOfWeek: weeklyForm.dayOfWeek,
           isActive: hasValidTimeRange,
-          startTime: weeklyForm.startTime,
-          endTime: weeklyForm.endTime,
           reason: weeklyForm.reason
         };
+        if (hasValidTimeRange) {
+          payload.startTime = weeklyForm.startTime;
+          payload.endTime = weeklyForm.endTime;
+        }
         const response = await apiFetch(`/api/appointments/work-schedule/${encodeURIComponent(weeklyEditId)}`, {
           method: "PATCH",
           headers: {
@@ -896,7 +819,7 @@ function WorkSchedulePanel({
                         id={`wsDefaultStart_${row.dayOfWeek}`}
                         type="time"
                         value={row.startTime}
-                        disabled={!canUpdateAppointments || savingDefault || loading}
+                        disabled={!canUpdateAppointments || loading}
                         onChange={(event) => {
                           const value = String(event.target.value || "");
                           setDefaultWeeklyRows((prev) => prev.map((item, itemIndex) => (
@@ -913,7 +836,7 @@ function WorkSchedulePanel({
                         id={`wsDefaultEnd_${row.dayOfWeek}`}
                         type="time"
                         value={row.endTime}
-                        disabled={!canUpdateAppointments || savingDefault || loading}
+                        disabled={!canUpdateAppointments || loading}
                         onChange={(event) => {
                           const value = String(event.target.value || "");
                           setDefaultWeeklyRows((prev) => prev.map((item, itemIndex) => (
@@ -929,7 +852,6 @@ function WorkSchedulePanel({
               </div>
             </div>
           </div>
-          <p className="ws-default-saving" hidden={!savingDefault}>Saving...</p>
         </>
       ) : null}
 

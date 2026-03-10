@@ -1,13 +1,6 @@
 import os from "node:os";
 import { Pool } from "pg";
-
-function toBoundedInteger(value, fallback, min, max) {
-  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
-  if (!Number.isInteger(parsed)) {
-    return fallback;
-  }
-  return Math.min(max, Math.max(min, parsed));
-}
+import { toBoundedInteger } from "../lib/bounded-integer.js";
 
 function resolvePoolMaxDefault() {
   const cpuCount = Math.max(1, Number.parseInt(String(os.cpus()?.length || 1), 10) || 1);

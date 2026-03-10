@@ -1,43 +1,117 @@
 import pool from "../../config/db.js";
+import { normalizeDateYmd } from "../../lib/date.js";
 import { isUniqueOrExclusionConflict } from "../../lib/db-utils.js";
+import { createTtlCache } from "../../lib/ttl-cache.js";
+import {
+  createMigrationRequiredError,
+  getExistingTableNames,
+  getMissingNames,
+  getTableColumnNames
+} from "../../lib/schema-guard.js";
+import {
+  normalizeWorkScheduleDayOfWeek,
+  normalizeWorkScheduleReason,
+  normalizeWorkScheduleScope,
+  normalizeWorkScheduleTime
+} from "./work-schedule.js";
+import {
+  normalizeScheduleScope
+} from "./schedule-normalizers.js";
+import {
+  DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS,
+  DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
+  MAX_APPOINTMENT_HISTORY_LOCK_DAYS,
+  MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
+  MIN_APPOINTMENT_HISTORY_LOCK_DAYS,
+  MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
+  createDefaultSettings,
+  createEmptySettings,
+  mapRepeatDayNumsToKeys,
+  mapSettingsRow,
+  mapWorkScheduleItem,
+  mapWorkingHours,
+  normalizeHistoryLockDays,
+  normalizeRepeatType,
+  normalizeScheduleIds,
+  normalizeSlotCellHeightPx,
+  normalizeTimeHm,
+  normalizeWorkScheduleDate,
+  toAppointmentDayKey,
+  toAppointmentDayNum
+} from "./appointment-settings-helpers.js";
+import {
+  getDurationMinutesFromTimes as getDurationMinutesFromAppointmentTimes
+} from "./time.js";
 
-const DAY_KEY_TO_NUM = Object.freeze({
-  mon: 1,
-  tue: 2,
-  wed: 3,
-  thu: 4,
-  fri: 5,
-  sat: 6,
-  sun: 7
+const appointmentReferenceCache = createTtlCache({
+  maxEntries: 128,
+  defaultTtlMs: 30_000
+});
+const appointmentPlannerFilterCache = createTtlCache({
+  maxEntries: 128,
+  defaultTtlMs: 30_000
 });
 
-const DAY_NUM_TO_KEY = Object.freeze({
-  1: "mon",
-  2: "tue",
-  3: "wed",
-  4: "thu",
-  5: "fri",
-  6: "sat",
-  7: "sun"
-});
+function cloneAppointmentSpecialistItems(items) {
+  return (Array.isArray(items) ? items : []).map((item) => ({
+    id: String(item?.id || "").trim(),
+    name: String(item?.name || "").trim(),
+    role: String(item?.role || "").trim()
+  }));
+}
 
-const DAY_KEYS = Object.freeze(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
-const SCHEDULE_SCOPE_SET = new Set(["single", "future", "all"]);
-const REMINDER_CHANNEL_SET = new Set(["sms", "email", "telegram"]);
-const WORK_SCHEDULE_SCOPE_SET = new Set(["weekly", "exception"]);
-const TIME_HM_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
+function cloneAppointmentStaffItems(items) {
+  return (Array.isArray(items) ? items : []).map((item) => ({
+    id: String(item?.id || "").trim(),
+    name: String(item?.name || "").trim(),
+    username: String(item?.username || "").trim()
+  }));
+}
+
+function cloneAppointmentPlannerFilterResult(value) {
+  const data = value && typeof value === "object" ? value : {};
+  return {
+    specialists: (Array.isArray(data.specialists) ? data.specialists : []).map((item) => ({
+      id: String(item?.id || "").trim(),
+      name: String(item?.name || "").trim()
+    })),
+    clients: (Array.isArray(data.clients) ? data.clients : []).map((item) => ({
+      id: String(item?.id || "").trim(),
+      firstName: String(item?.firstName || "").trim(),
+      lastName: String(item?.lastName || "").trim(),
+      middleName: String(item?.middleName || "").trim(),
+      isVip: Boolean(item?.isVip)
+    }))
+  };
+}
+
+export function clearAppointmentReferenceCaches() {
+  appointmentReferenceCache.clear();
+}
+
+export function clearAppointmentPlannerReportFilterCaches() {
+  appointmentPlannerFilterCache.clear();
+}
+
 const APPOINTMENT_SCHEDULES_TABLE = "appointment_schedules";
 const APPOINTMENT_STATUS_HISTORY_TABLE = "appointment_status_history";
 const APPOINTMENT_SETTINGS_TABLE = "appointment_settings";
-const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-export const DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS = 10;
-export const MIN_APPOINTMENT_HISTORY_LOCK_DAYS = 0;
-export const MAX_APPOINTMENT_HISTORY_LOCK_DAYS = 3650;
-export const DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 18;
-export const MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 12;
-export const MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 72;
+const WORK_SCHEDULE_CONFLICT_CODE = "WORK_SCHEDULE_CONFLICT";
+const WORK_SCHEDULE_PARENT_CONFLICT_CODE = "WORK_SCHEDULE_PARENT_CONFLICT";
 let appointmentStatusHistorySchemaInitPromise = null;
 let appointmentPlannerReportIndexInitPromise = null;
+let appointmentSettingsColumnFlagsPromise = null;
+
+export {
+  DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS,
+  DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
+  MAX_APPOINTMENT_HISTORY_LOCK_DAYS,
+  MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
+  MIN_APPOINTMENT_HISTORY_LOCK_DAYS,
+  MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
+  getAppointmentDayKeys,
+  toAppointmentDayNum
+} from "./appointment-settings-helpers.js";
 
 function buildScheduleSnapshotSql(alias, previousPrefix = "") {
   const col = (name) => `${alias}.${previousPrefix}${name}`;
@@ -67,121 +141,37 @@ function buildScheduleChangedFieldsSql(alias, previousPrefix = "prev_") {
 async function ensureAppointmentStatusHistorySchema() {
   if (!appointmentStatusHistorySchemaInitPromise) {
     appointmentStatusHistorySchemaInitPromise = (async () => {
-      await pool.query(
-        `CREATE TABLE IF NOT EXISTS ${APPOINTMENT_STATUS_HISTORY_TABLE} (
-           id BIGSERIAL PRIMARY KEY,
-           organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-           appointment_schedule_id INTEGER NOT NULL,
-           event_type VARCHAR(24) NOT NULL DEFAULT 'updated',
-           previous_status VARCHAR(24),
-           next_status VARCHAR(24),
-           changed_fields TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
-           details JSONB NOT NULL DEFAULT '{}'::jsonb,
-           changed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-           changed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-         )`
-      );
-      await pool.query(
-        `ALTER TABLE ${APPOINTMENT_STATUS_HISTORY_TABLE}
-           ADD COLUMN IF NOT EXISTS event_type VARCHAR(24),
-           ADD COLUMN IF NOT EXISTS previous_status VARCHAR(24),
-           ADD COLUMN IF NOT EXISTS next_status VARCHAR(24),
-           ADD COLUMN IF NOT EXISTS changed_fields TEXT[] DEFAULT ARRAY[]::TEXT[],
-           ADD COLUMN IF NOT EXISTS details JSONB DEFAULT '{}'::jsonb,
-           ADD COLUMN IF NOT EXISTS changed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-           ADD COLUMN IF NOT EXISTS changed_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP`
-      );
-      await pool.query(
-        `DO $$
-         BEGIN
-           IF EXISTS (
-             SELECT 1
-             FROM information_schema.columns
-             WHERE table_schema = current_schema()
-               AND table_name = '${APPOINTMENT_STATUS_HISTORY_TABLE}'
-               AND column_name = 'created_at'
-           ) THEN
-             EXECUTE 'UPDATE ${APPOINTMENT_STATUS_HISTORY_TABLE}
-                         SET changed_at = COALESCE(changed_at, created_at, CURRENT_TIMESTAMP)
-                       WHERE changed_at IS NULL';
-           ELSE
-             EXECUTE 'UPDATE ${APPOINTMENT_STATUS_HISTORY_TABLE}
-                         SET changed_at = COALESCE(changed_at, CURRENT_TIMESTAMP)
-                       WHERE changed_at IS NULL';
-           END IF;
-         END $$`
-      );
-      await pool.query(
-        `UPDATE ${APPOINTMENT_STATUS_HISTORY_TABLE}
-            SET event_type = CASE
-              WHEN previous_status IS NULL AND next_status IS NOT NULL THEN 'created'
-              WHEN previous_status IS NOT NULL AND next_status IS NULL THEN 'deleted'
-              WHEN previous_status IS DISTINCT FROM next_status THEN 'status-changed'
-              ELSE 'updated'
-            END
-          WHERE event_type IS NULL
-             OR LENGTH(TRIM(event_type)) = 0`
-      );
-      await pool.query(
-        `UPDATE ${APPOINTMENT_STATUS_HISTORY_TABLE}
-            SET changed_fields = ARRAY[]::TEXT[]
-          WHERE changed_fields IS NULL`
-      );
-      await pool.query(
-        `UPDATE ${APPOINTMENT_STATUS_HISTORY_TABLE}
-            SET details = '{}'::jsonb
-          WHERE details IS NULL`
-      );
-      await pool.query(
-        `ALTER TABLE ${APPOINTMENT_STATUS_HISTORY_TABLE}
-           ALTER COLUMN event_type SET NOT NULL,
-           ALTER COLUMN event_type SET DEFAULT 'updated',
-           ALTER COLUMN changed_fields SET NOT NULL,
-           ALTER COLUMN changed_fields SET DEFAULT ARRAY[]::TEXT[],
-           ALTER COLUMN details SET NOT NULL,
-           ALTER COLUMN details SET DEFAULT '{}'::jsonb,
-           ALTER COLUMN changed_at SET NOT NULL,
-           ALTER COLUMN changed_at SET DEFAULT CURRENT_TIMESTAMP`
-      );
-      await pool.query(
-        `DO $$
-         DECLARE constraint_rec RECORD;
-         BEGIN
-           FOR constraint_rec IN
-             SELECT c.conname
-             FROM pg_constraint c
-             JOIN pg_class table_ref ON table_ref.oid = c.conrelid
-             JOIN pg_namespace table_ns ON table_ns.oid = table_ref.relnamespace
-             JOIN pg_class target_ref ON target_ref.oid = c.confrelid
-             WHERE table_ns.nspname = current_schema()
-               AND table_ref.relname = '${APPOINTMENT_STATUS_HISTORY_TABLE}'
-               AND c.contype = 'f'
-               AND target_ref.relname = '${APPOINTMENT_SCHEDULES_TABLE}'
-           LOOP
-             EXECUTE format(
-               'ALTER TABLE ${APPOINTMENT_STATUS_HISTORY_TABLE} DROP CONSTRAINT %I',
-               constraint_rec.conname
-             );
-           END LOOP;
-         END $$`
-      );
-      await pool.query(
-        `CREATE INDEX IF NOT EXISTS idx_appointment_status_history_org_schedule_changed
-           ON ${APPOINTMENT_STATUS_HISTORY_TABLE} (
-             organization_id,
-             appointment_schedule_id,
-             changed_at DESC,
-             id DESC
-           )`
-      );
-      await pool.query(
-        `CREATE INDEX IF NOT EXISTS idx_appointment_status_history_org_changed
-           ON ${APPOINTMENT_STATUS_HISTORY_TABLE} (
-             organization_id,
-             changed_at DESC,
-             id DESC
-           )`
-      );
+      const existingTables = await getExistingTableNames({
+        tableNames: [APPOINTMENT_STATUS_HISTORY_TABLE]
+      });
+      if (!existingTables.has(APPOINTMENT_STATUS_HISTORY_TABLE)) {
+        throw createMigrationRequiredError("Appointment status history migration is required.", {
+          missingTables: [APPOINTMENT_STATUS_HISTORY_TABLE]
+        });
+      }
+
+      const requiredColumns = [
+        "organization_id",
+        "appointment_schedule_id",
+        "event_type",
+        "previous_status",
+        "next_status",
+        "changed_fields",
+        "details",
+        "changed_by",
+        "changed_at"
+      ];
+      const existingColumns = await getTableColumnNames({
+        tableName: APPOINTMENT_STATUS_HISTORY_TABLE
+      });
+      const missingColumns = getMissingNames(existingColumns, requiredColumns);
+      if (missingColumns.length > 0) {
+        throw createMigrationRequiredError("Appointment status history migration is required.", {
+          missingColumns: {
+            [APPOINTMENT_STATUS_HISTORY_TABLE]: missingColumns
+          }
+        });
+      }
     })().catch((error) => {
       appointmentStatusHistorySchemaInitPromise = null;
       throw error;
@@ -193,19 +183,7 @@ async function ensureAppointmentStatusHistorySchema() {
 
 async function ensureAppointmentPlannerReportIndexes() {
   if (!appointmentPlannerReportIndexInitPromise) {
-    appointmentPlannerReportIndexInitPromise = (async () => {
-      await pool.query(
-        `CREATE INDEX IF NOT EXISTS idx_appointment_schedules_org_date_specialist
-           ON ${APPOINTMENT_SCHEDULES_TABLE} (
-             organization_id,
-             appointment_date,
-             specialist_id
-           )`
-      );
-    })().catch((error) => {
-      appointmentPlannerReportIndexInitPromise = null;
-      throw error;
-    });
+    appointmentPlannerReportIndexInitPromise = Promise.resolve();
   }
 
   return appointmentPlannerReportIndexInitPromise;
@@ -213,70 +191,6 @@ async function ensureAppointmentPlannerReportIndexes() {
 
 function getAppointmentSchedulesTableName() {
   return APPOINTMENT_SCHEDULES_TABLE;
-}
-
-function toDayKey(dayNum) {
-  return DAY_NUM_TO_KEY[Number(dayNum)] || "";
-}
-
-function toDayNum(dayKey) {
-  return DAY_KEY_TO_NUM[String(dayKey || "").trim().toLowerCase()] || 0;
-}
-
-function mapVisibleWeekDays(value) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value
-    .map((dayNum) => toDayKey(dayNum))
-    .filter(Boolean);
-}
-
-function mapDurationOptions(value) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  const normalized = value
-    .map((item) => Number.parseInt(String(item ?? "").trim(), 10))
-    .filter((item) => Number.isInteger(item) && item > 0 && item <= 1440);
-  return Array.from(new Set(normalized));
-}
-
-function mapReminderChannels(value) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return Array.from(
-    new Set(
-      value
-        .map((item) => String(item || "").trim().toLowerCase())
-        .filter((item) => REMINDER_CHANNEL_SET.has(item))
-    )
-  );
-}
-
-function normalizeHistoryLockDays(value, fallback = DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS) {
-  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
-  if (
-    Number.isInteger(parsed)
-    && parsed >= MIN_APPOINTMENT_HISTORY_LOCK_DAYS
-    && parsed <= MAX_APPOINTMENT_HISTORY_LOCK_DAYS
-  ) {
-    return parsed;
-  }
-  return fallback;
-}
-
-function normalizeSlotCellHeightPx(value, fallback = DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX) {
-  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
-  if (
-    Number.isInteger(parsed)
-    && parsed >= MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX
-    && parsed <= MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX
-  ) {
-    return parsed;
-  }
-  return fallback;
 }
 
 function toBreakItem(row) {
@@ -287,7 +201,7 @@ function toBreakItem(row) {
     specialistId: String(row?.specialist_id || "").trim(),
     specialistName: String(row?.specialist_name || "").trim(),
     dayOfWeek,
-    dayKey: toDayKey(dayOfWeek),
+    dayKey: toAppointmentDayKey(dayOfWeek),
     breakType: String(row?.break_type || "lunch").trim().toLowerCase(),
     title: String(row?.title || "").trim(),
     note: String(row?.note || "").trim(),
@@ -300,233 +214,603 @@ function toBreakItem(row) {
   };
 }
 
-function createEmptyWorkingHours() {
-  return DAY_KEYS.reduce((acc, dayKey) => {
-    acc[dayKey] = { start: "", end: "" };
-    return acc;
-  }, {});
+function buildAssignedVipClientExistsSql({
+  organizationRef,
+  clientRef,
+  userParamRef
+}) {
+  return `EXISTS (
+           SELECT 1
+             FROM vip_client_tutor_assignments vta_scope
+             JOIN vip_class_teacher_assignments vcta_scope
+               ON vcta_scope.organization_id = vta_scope.organization_id
+              AND vcta_scope.id = vta_scope.class_assignment_id
+            WHERE vta_scope.organization_id = ${organizationRef}
+              AND vta_scope.client_id = ${clientRef}
+              AND (
+                vcta_scope.teacher_user_id = ${userParamRef}
+                OR vta_scope.tutor_user_id = ${userParamRef}
+              )
+         )`;
 }
 
-function createDefaultSettings() {
-  const workingHours = createEmptyWorkingHours();
-  workingHours.mon = { start: "09:00", end: "18:00" };
-  workingHours.tue = { start: "09:00", end: "18:00" };
-  workingHours.wed = { start: "09:00", end: "18:00" };
-  workingHours.thu = { start: "09:00", end: "18:00" };
-  workingHours.fri = { start: "09:00", end: "18:00" };
-  workingHours.sat = { start: "10:00", end: "16:00" };
-
-  return {
-    slotInterval: "30",
-    slotSubDivisions: "1",
-    appointmentDuration: "30",
-    appointmentDurationOptions: ["30"],
-    visibleWeekDays: ["mon", "tue", "wed", "thu", "fri", "sat"],
-    workingHours,
-    noShowThreshold: "3",
-    reminderHours: "24",
-    reminderChannels: ["sms", "email", "telegram"],
-    historyLockDays: String(DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS),
-    slotCellHeightPx: String(DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX)
-  };
+function formatAppointmentDayLabel(dayOfWeek) {
+  const dayKey = toAppointmentDayKey(dayOfWeek);
+  if (!dayKey) {
+    return "Selected day";
+  }
+  return dayKey.charAt(0).toUpperCase() + dayKey.slice(1);
 }
 
-function createEmptySettings() {
-  return {
-    slotInterval: "",
-    slotSubDivisions: "1",
-    appointmentDuration: "",
-    appointmentDurationOptions: [],
-    visibleWeekDays: [],
-    workingHours: createEmptyWorkingHours(),
-    noShowThreshold: "",
-    reminderHours: "",
-    reminderChannels: [],
-    historyLockDays: String(DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS),
-    slotCellHeightPx: String(DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX)
-  };
+function getIsoDayOfWeekFromDateYmd(value) {
+  const normalized = normalizeWorkScheduleDate(value);
+  if (!normalized) {
+    return null;
+  }
+  const parsed = new Date(`${normalized}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  const day = parsed.getUTCDay();
+  return day === 0 ? 7 : day;
 }
 
-function mapWorkingHours(rows) {
-  const workingHours = createEmptyWorkingHours();
-  (Array.isArray(rows) ? rows : []).forEach((row) => {
-    const dayKey = toDayKey(row.day_of_week);
-    if (!dayKey) {
+function buildWeeklyWorkScheduleMap(rows = []) {
+  const source = Array.isArray(rows) ? rows : [];
+  const map = new Map();
+  source.forEach((row) => {
+    const dayOfWeek = normalizeWorkScheduleDayOfWeek(row?.day_of_week);
+    if (!dayOfWeek) {
       return;
     }
-    workingHours[dayKey] = {
-      start: row.start_time ? String(row.start_time).slice(0, 5) : "",
-      end: row.end_time ? String(row.end_time).slice(0, 5) : ""
-    };
+    const startTime = normalizeWorkScheduleTime(row?.start_time) || null;
+    const endTime = normalizeWorkScheduleTime(row?.end_time) || null;
+    map.set(dayOfWeek, {
+      dayOfWeek,
+      isActive: row?.is_active === true && Boolean(startTime && endTime && startTime < endTime),
+      startTime,
+      endTime
+    });
   });
-  return workingHours;
+  return map;
 }
 
-function mapSettingsRow(row, workingHourRows) {
-  if (!row) {
-    return null;
+function buildWeeklyWorkScheduleRowsFromMap(workScheduleMap) {
+  const rows = [];
+  for (let dayOfWeek = 1; dayOfWeek <= 7; dayOfWeek += 1) {
+    const item = workScheduleMap?.get(dayOfWeek) || {
+      dayOfWeek,
+      isActive: false,
+      startTime: null,
+      endTime: null
+    };
+    rows.push({
+      day_of_week: dayOfWeek,
+      is_active: item.isActive === true,
+      start_time: item.isActive === true ? item.startTime : null,
+      end_time: item.isActive === true ? item.endTime : null
+    });
+  }
+  return rows;
+}
+
+function buildEffectiveWeeklyWorkScheduleRows({
+  organizationRows = [],
+  specialistRows = []
+}) {
+  const organizationMap = buildWeeklyWorkScheduleMap(organizationRows);
+  const specialistMap = buildWeeklyWorkScheduleMap(specialistRows);
+  const effectiveMap = new Map();
+
+  for (let dayOfWeek = 1; dayOfWeek <= 7; dayOfWeek += 1) {
+    const parent = organizationMap.get(dayOfWeek) || {
+      dayOfWeek,
+      isActive: false,
+      startTime: null,
+      endTime: null
+    };
+    const child = specialistMap.get(dayOfWeek);
+    if (!child) {
+      effectiveMap.set(dayOfWeek, parent);
+      continue;
+    }
+    if (!child.isActive || !parent.isActive) {
+      effectiveMap.set(dayOfWeek, {
+        dayOfWeek,
+        isActive: false,
+        startTime: null,
+        endTime: null
+      });
+      continue;
+    }
+
+    const startTime = child.startTime > parent.startTime ? child.startTime : parent.startTime;
+    const endTime = child.endTime < parent.endTime ? child.endTime : parent.endTime;
+    const isActive = Boolean(startTime && endTime && startTime < endTime);
+    effectiveMap.set(dayOfWeek, {
+      dayOfWeek,
+      isActive,
+      startTime: isActive ? startTime : null,
+      endTime: isActive ? endTime : null
+    });
   }
 
-  const mappedOptions = mapDurationOptions(row.appointment_duration_options_minutes);
-  const fallbackDuration = Number.parseInt(String(row.appointment_duration_minutes || "30"), 10);
-  const fallbackOptions = Number.isInteger(fallbackDuration) && fallbackDuration > 0
-    ? [fallbackDuration]
-    : [30];
-  const appointmentDurationOptions = (mappedOptions.length > 0 ? mappedOptions : fallbackOptions)
-    .map((value) => String(value));
+  return buildWeeklyWorkScheduleRowsFromMap(effectiveMap);
+}
 
-  return {
-    slotInterval: String(row.slot_interval_minutes ?? ""),
-    slotSubDivisions: String(row.slot_sub_divisions || 1),
-    appointmentDuration: appointmentDurationOptions[0] || "",
-    appointmentDurationOptions,
-    visibleWeekDays: mapVisibleWeekDays(row.visible_week_days),
-    workingHours: mapWorkingHours(workingHourRows),
-    noShowThreshold: String(row.no_show_threshold ?? ""),
-    reminderHours: String(row.reminder_hours ?? ""),
-    reminderChannels: mapReminderChannels(row.reminder_channels),
-    historyLockDays: String(normalizeHistoryLockDays(row.history_lock_days)),
-    slotCellHeightPx: String(normalizeSlotCellHeightPx(row.slot_cell_height_px))
+function createWorkScheduleParentConflictError({
+  dayOfWeek,
+  parentStartTime,
+  parentEndTime,
+  specialistName = "Specialist"
+}) {
+  const dayLabel = formatAppointmentDayLabel(dayOfWeek);
+  const hoursText = parentStartTime && parentEndTime
+    ? `${parentStartTime}-${parentEndTime}`
+    : "closed";
+  const message = `${specialistName} work schedule must stay inside organization default hours for ${dayLabel} (${hoursText}).`;
+  const error = new Error(message);
+  error.statusCode = 409;
+  error.code = WORK_SCHEDULE_PARENT_CONFLICT_CODE;
+  error.payload = {
+    code: WORK_SCHEDULE_PARENT_CONFLICT_CODE,
+    message,
+    dayOfWeek: String(dayOfWeek || "").trim(),
+    parentStartTime: parentStartTime || "",
+    parentEndTime: parentEndTime || ""
   };
+  return error;
 }
 
-function normalizeDateYmd(value) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    const year = String(value.getFullYear());
-    const month = String(value.getMonth() + 1).padStart(2, "0");
-    const day = String(value.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  }
-  const raw = String(value || "").trim();
-  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
-}
-
-function normalizeTimeHm(value) {
-  const raw = String(value || "").trim();
-  return raw ? raw.slice(0, 5) : "";
-}
-
-function toTimeMinutes(value) {
-  const raw = String(value || "").trim().slice(0, 5);
-  const match = raw.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
-  if (!match) {
-    return null;
-  }
-  return (Number(match[1]) * 60) + Number(match[2]);
-}
-
-function getDurationMinutesFromTimes(startTime, endTime) {
-  const start = toTimeMinutes(startTime);
-  const end = toTimeMinutes(endTime);
-  if (start === null || end === null || end <= start) {
-    return 0;
-  }
-  return end - start;
-}
-
-function normalizeWorkScheduleScope(value) {
-  const normalized = String(value || "").trim().toLowerCase();
-  return WORK_SCHEDULE_SCOPE_SET.has(normalized) ? normalized : "";
-}
-
-function normalizeWorkScheduleReason(value) {
-  return String(value || "").trim().slice(0, 120);
-}
-
-function normalizeWorkScheduleDate(value) {
-  const normalized = normalizeDateYmd(value);
-  return DATE_REGEX.test(normalized) ? normalized : "";
-}
-
-function normalizeWorkScheduleDayOfWeek(value) {
-  const parsed = Number.parseInt(String(value || "").trim(), 10);
-  if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 7) {
-    return parsed;
-  }
-  return 0;
-}
-
-function normalizeWorkScheduleTime(value) {
-  const normalized = normalizeTimeHm(value);
-  return TIME_HM_REGEX.test(normalized) ? normalized : "";
-}
-
-function mapWorkScheduleItem(row) {
-  const dayOfWeekNum = normalizeWorkScheduleDayOfWeek(row?.day_of_week);
-  const ruleScope = normalizeWorkScheduleScope(row?.rule_scope) || "weekly";
-  return {
-    id: String(row?.id || "").trim(),
-    organizationId: String(row?.organization_id || "").trim(),
-    userId: String(row?.user_id || "").trim(),
-    userName: String(row?.user_name || "").trim(),
-    userUsername: String(row?.user_username || "").trim(),
-    ruleScope,
-    dayOfWeek: dayOfWeekNum ? String(dayOfWeekNum) : "",
-    dayKey: dayOfWeekNum ? (toDayKey(dayOfWeekNum) || "") : "",
-    workDate: normalizeWorkScheduleDate(row?.work_date),
-    isActive: Boolean(row?.is_active),
-    startTime: normalizeTimeHm(row?.start_time),
-    endTime: normalizeTimeHm(row?.end_time),
-    reason: String(row?.reason || "").trim(),
-    createdBy: String(row?.created_by || "").trim(),
-    updatedBy: String(row?.updated_by || "").trim(),
-    createdAt: row?.created_at || null,
-    updatedAt: row?.updated_at || null
-  };
-}
-
-function normalizeScheduleScope(value) {
-  const normalized = String(value || "").trim().toLowerCase();
-  return SCHEDULE_SCOPE_SET.has(normalized) ? normalized : "single";
-}
-
-function mapRepeatDayNumsToKeys(value) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  const mapped = value
-    .map((dayNum) => toDayKey(dayNum))
-    .filter(Boolean);
-  return Array.from(new Set(mapped)).sort((left, right) => toDayNum(left) - toDayNum(right));
-}
-
-function normalizeRepeatType(value) {
-  const normalized = String(value || "none").trim().toLowerCase();
-  return normalized === "weekly" ? "weekly" : "none";
-}
-
-function normalizeScheduleIds(value) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return Array.from(
-    new Set(
-      value
-        .map((id) => Number.parseInt(String(id ?? "").trim(), 10))
-        .filter((id) => Number.isInteger(id) && id > 0)
-    )
+async function getOrganizationDefaultWeeklyWorkScheduleRows({
+  organizationId,
+  db = pool
+}) {
+  const { rows } = await db.query(
+    `SELECT day_of_week, is_active, start_time, end_time
+       FROM appointment_working_hours
+      WHERE organization_id = $1
+        AND user_id IS NULL
+        AND rule_scope = 'weekly'
+      ORDER BY day_of_week ASC`,
+    [organizationId]
   );
+  return rows || [];
+}
+
+async function assertSpecialistWorkScheduleWithinOrganizationWeeklyHours({
+  organizationId,
+  userId,
+  ruleScope,
+  dayOfWeek = null,
+  workDate = null,
+  isActive = false,
+  startTime = null,
+  endTime = null,
+  db = pool
+}) {
+  const normalizedUserId = Number.parseInt(String(userId || "").trim(), 10) || null;
+  if (!normalizedUserId || isActive !== true) {
+    return;
+  }
+
+  const normalizedScope = normalizeWorkScheduleScope(ruleScope);
+  const targetDayOfWeek = normalizedScope === "weekly"
+    ? (normalizeWorkScheduleDayOfWeek(dayOfWeek) || null)
+    : getIsoDayOfWeekFromDateYmd(workDate);
+  const normalizedStartTime = normalizeWorkScheduleTime(startTime) || null;
+  const normalizedEndTime = normalizeWorkScheduleTime(endTime) || null;
+  if (!targetDayOfWeek || !normalizedStartTime || !normalizedEndTime || normalizedStartTime >= normalizedEndTime) {
+    return;
+  }
+
+  const orgRows = await getOrganizationDefaultWeeklyWorkScheduleRows({
+    organizationId,
+    db
+  });
+  const orgMap = buildWeeklyWorkScheduleMap(orgRows);
+  const parent = orgMap.get(targetDayOfWeek) || {
+    isActive: false,
+    startTime: null,
+    endTime: null
+  };
+
+  if (
+    parent.isActive !== true
+    || !parent.startTime
+    || !parent.endTime
+    || normalizedStartTime < parent.startTime
+    || normalizedEndTime > parent.endTime
+  ) {
+    throw createWorkScheduleParentConflictError({
+      dayOfWeek: targetDayOfWeek,
+      parentStartTime: parent.startTime,
+      parentEndTime: parent.endTime
+    });
+  }
+}
+
+async function assertDefaultWeeklyWorkScheduleSupportsOrganizationChildren({
+  organizationId,
+  items = [],
+  db = pool
+}) {
+  const weeklyTemplateMap = new Map();
+  for (let dayOfWeek = 1; dayOfWeek <= 7; dayOfWeek += 1) {
+    weeklyTemplateMap.set(dayOfWeek, {
+      dayOfWeek,
+      isActive: false,
+      startTime: null,
+      endTime: null
+    });
+  }
+  (Array.isArray(items) ? items : []).forEach((item) => {
+    const dayOfWeek = normalizeWorkScheduleDayOfWeek(item?.dayOfWeek ?? item?.day_of_week);
+    if (!dayOfWeek) {
+      return;
+    }
+    weeklyTemplateMap.set(dayOfWeek, {
+      dayOfWeek,
+      isActive: item?.isActive === true,
+      startTime: normalizeWorkScheduleTime(item?.startTime ?? item?.start_time) || null,
+      endTime: normalizeWorkScheduleTime(item?.endTime ?? item?.end_time) || null
+    });
+  });
+
+  const { rows: specialistRows } = await db.query(
+    `SELECT
+       awh.user_id,
+       awh.day_of_week,
+       awh.is_active,
+       awh.start_time,
+       awh.end_time,
+       COALESCE(
+         NULLIF(TRIM(u.full_name), ''),
+         NULLIF(TRIM(u.username), ''),
+         CONCAT('Specialist #', awh.user_id::text)
+       ) AS specialist_name
+      FROM appointment_working_hours awh
+      LEFT JOIN users u
+        ON u.id = awh.user_id
+       AND u.organization_id = awh.organization_id
+     WHERE awh.organization_id = $1
+       AND awh.user_id IS NOT NULL
+       AND awh.rule_scope = 'weekly'
+     ORDER BY awh.user_id ASC, awh.day_of_week ASC`,
+    [organizationId]
+  );
+
+  const specialistConflict = (specialistRows || []).find((row) => {
+    const dayOfWeek = normalizeWorkScheduleDayOfWeek(row?.day_of_week) || 0;
+    const parent = weeklyTemplateMap.get(dayOfWeek) || {
+      isActive: false,
+      startTime: null,
+      endTime: null
+    };
+    const startTime = normalizeWorkScheduleTime(row?.start_time) || null;
+    const endTime = normalizeWorkScheduleTime(row?.end_time) || null;
+    const isActive = row?.is_active === true && Boolean(startTime && endTime && startTime < endTime);
+    if (!isActive) {
+      return false;
+    }
+    return (
+      parent.isActive !== true
+      || !parent.startTime
+      || !parent.endTime
+      || startTime < parent.startTime
+      || endTime > parent.endTime
+    );
+  });
+
+  if (specialistConflict) {
+    throw createWorkScheduleParentConflictError({
+      dayOfWeek: specialistConflict.day_of_week,
+      parentStartTime: weeklyTemplateMap.get(
+        normalizeWorkScheduleDayOfWeek(specialistConflict.day_of_week) || 0
+      )?.startTime || null,
+      parentEndTime: weeklyTemplateMap.get(
+        normalizeWorkScheduleDayOfWeek(specialistConflict.day_of_week) || 0
+      )?.endTime || null,
+      specialistName: String(specialistConflict?.specialist_name || "Specialist").trim() || "Specialist"
+    });
+  }
+
+  const weeklyTemplateRows = buildWeeklyWorkScheduleRowsFromMap(weeklyTemplateMap);
+  const { rows: appointmentConflictRows } = await db.query(
+    `WITH incoming AS (
+       SELECT
+         (item->>'dayOfWeek')::smallint AS day_of_week,
+         COALESCE((item->>'isActive')::boolean, FALSE) AS is_active,
+         NULLIF(TRIM(item->>'startTime'), '')::time AS start_time,
+         NULLIF(TRIM(item->>'endTime'), '')::time AS end_time
+       FROM jsonb_array_elements($2::jsonb) AS item
+     )
+     SELECT
+       s.id AS appointment_id,
+       s.specialist_id,
+       s.appointment_date,
+       TO_CHAR(s.start_time, 'HH24:MI') AS appointment_start_time,
+       TO_CHAR(s.end_time, 'HH24:MI') AS appointment_end_time,
+       COALESCE(
+         NULLIF(TRIM(u.full_name), ''),
+         NULLIF(TRIM(u.username), ''),
+         CONCAT('Specialist #', s.specialist_id::text)
+       ) AS specialist_name
+      FROM incoming i
+      JOIN appointment_schedules s
+        ON s.organization_id = $1
+       AND s.status IN ('pending', 'confirmed')
+       AND (
+         s.appointment_date > TIMEZONE('Asia/Tashkent', NOW())::date
+         OR (
+           s.appointment_date = TIMEZONE('Asia/Tashkent', NOW())::date
+           AND s.end_time > TIMEZONE('Asia/Tashkent', NOW())::time
+         )
+       )
+       AND EXTRACT(ISODOW FROM s.appointment_date)::smallint = i.day_of_week
+      LEFT JOIN users u
+        ON u.id = s.specialist_id
+       AND u.organization_id = s.organization_id
+     WHERE
+       i.day_of_week BETWEEN 1 AND 7
+       AND (
+         i.is_active = FALSE
+         OR i.start_time IS NULL
+         OR i.end_time IS NULL
+         OR s.start_time < i.start_time
+         OR s.end_time > i.end_time
+       )
+     ORDER BY s.appointment_date ASC, s.start_time ASC, s.id ASC
+     LIMIT 1`,
+    [
+      organizationId,
+      JSON.stringify(weeklyTemplateRows.map((row) => ({
+        dayOfWeek: row.day_of_week,
+        isActive: row.is_active === true,
+        startTime: normalizeWorkScheduleTime(row.start_time) || "",
+        endTime: normalizeWorkScheduleTime(row.end_time) || ""
+      })))
+    ]
+  );
+
+  const appointmentConflict = appointmentConflictRows?.[0] || null;
+  if (appointmentConflict) {
+    throw createWorkScheduleConflictError(appointmentConflict);
+  }
+}
+
+function normalizeWorkScheduleConflictState(value = {}) {
+  const normalizedScope = normalizeWorkScheduleScope(value?.ruleScope ?? value?.rule_scope) || "";
+  const parsedUserId = Number.parseInt(
+    String(value?.userId ?? value?.user_id ?? "").trim(),
+    10
+  );
+  return {
+    userId: Number.isInteger(parsedUserId) && parsedUserId > 0 ? parsedUserId : null,
+    ruleScope: normalizedScope,
+    dayOfWeek: normalizedScope === "weekly"
+      ? (normalizeWorkScheduleDayOfWeek(value?.dayOfWeek ?? value?.day_of_week) || null)
+      : null,
+    workDate: normalizedScope === "exception"
+      ? (normalizeWorkScheduleDate(value?.workDate ?? value?.work_date) || null)
+      : null,
+    isActive: value?.isActive === true || value?.is_active === true,
+    startTime: normalizeWorkScheduleTime(value?.startTime ?? value?.start_time) || null,
+    endTime: normalizeWorkScheduleTime(value?.endTime ?? value?.end_time) || null
+  };
+}
+
+function hasWorkScheduleAvailabilityChange(previousState, nextState) {
+  const previous = normalizeWorkScheduleConflictState(previousState);
+  const next = normalizeWorkScheduleConflictState(nextState);
+  return (
+    previous.userId !== next.userId
+    || previous.ruleScope !== next.ruleScope
+    || previous.dayOfWeek !== next.dayOfWeek
+    || previous.workDate !== next.workDate
+    || previous.isActive !== next.isActive
+    || previous.startTime !== next.startTime
+    || previous.endTime !== next.endTime
+  );
+}
+
+function toWorkScheduleConflictTarget(value = {}) {
+  const state = normalizeWorkScheduleConflictState(value);
+  if (!state.userId || !state.ruleScope) {
+    return null;
+  }
+  if (state.ruleScope === "weekly" && state.dayOfWeek) {
+    return {
+      specialistId: state.userId,
+      ruleScope: state.ruleScope,
+      dayOfWeek: state.dayOfWeek,
+      workDate: null
+    };
+  }
+  if (state.ruleScope === "exception" && state.workDate) {
+    return {
+      specialistId: state.userId,
+      ruleScope: state.ruleScope,
+      dayOfWeek: null,
+      workDate: state.workDate
+    };
+  }
+  return null;
+}
+
+async function getAppointmentWorkScheduleEntryById({
+  id,
+  organizationId,
+  db = pool
+}) {
+  const { rows } = await db.query(
+    `SELECT
+       awh.id,
+       awh.organization_id,
+       awh.user_id,
+       awh.rule_scope,
+       awh.day_of_week,
+       awh.work_date,
+       awh.is_active,
+       awh.start_time,
+       awh.end_time,
+       awh.reason
+      FROM appointment_working_hours awh
+     WHERE awh.id = $1
+       AND awh.organization_id = $2
+     LIMIT 1`,
+    [id, organizationId]
+  );
+
+  return rows?.[0] || null;
+}
+
+async function findFutureWorkScheduleConflict({
+  organizationId,
+  targets = [],
+  db = pool
+}) {
+  const normalizedTargets = Array.from(
+    new Map(
+      (Array.isArray(targets) ? targets : [])
+        .map((item) => toWorkScheduleConflictTarget(item))
+        .filter(Boolean)
+        .map((item) => {
+          const key = [
+            item.specialistId,
+            item.ruleScope,
+            item.dayOfWeek || "",
+            item.workDate || ""
+          ].join("|");
+          return [key, item];
+        })
+    ).values()
+  );
+
+  if (normalizedTargets.length === 0) {
+    return null;
+  }
+
+  const { rows } = await db.query(
+    `WITH incoming AS (
+       SELECT
+         (item->>'specialistId')::integer AS specialist_id,
+         NULLIF(TRIM(item->>'ruleScope'), '')::text AS rule_scope,
+         NULLIF(TRIM(item->>'dayOfWeek'), '')::smallint AS day_of_week,
+         NULLIF(TRIM(item->>'workDate'), '')::date AS work_date
+       FROM jsonb_array_elements($2::jsonb) AS item
+     ),
+     normalized AS (
+       SELECT DISTINCT
+         i.specialist_id,
+         i.rule_scope,
+         i.day_of_week,
+         i.work_date
+       FROM incoming i
+       WHERE i.specialist_id IS NOT NULL
+         AND (
+           (i.rule_scope = 'weekly' AND i.day_of_week BETWEEN 1 AND 7)
+           OR
+           (i.rule_scope = 'exception' AND i.work_date IS NOT NULL)
+         )
+     )
+     SELECT
+       s.id AS appointment_id,
+       s.specialist_id,
+       s.appointment_date,
+       TO_CHAR(s.start_time, 'HH24:MI') AS appointment_start_time,
+       TO_CHAR(s.end_time, 'HH24:MI') AS appointment_end_time,
+       COALESCE(
+         NULLIF(TRIM(u.full_name), ''),
+         NULLIF(TRIM(u.username), ''),
+         CONCAT('Specialist #', s.specialist_id::text)
+       ) AS specialist_name
+      FROM normalized n
+      JOIN appointment_schedules s
+        ON s.organization_id = $1
+       AND s.specialist_id = n.specialist_id
+       AND s.status IN ('pending', 'confirmed')
+       AND s.appointment_date >= TIMEZONE('Asia/Tashkent', NOW())::date
+       AND (
+         (n.rule_scope = 'weekly' AND EXTRACT(ISODOW FROM s.appointment_date)::smallint = n.day_of_week)
+         OR
+         (n.rule_scope = 'exception' AND s.appointment_date = n.work_date)
+       )
+      LEFT JOIN users u
+        ON u.id = s.specialist_id
+       AND u.organization_id = s.organization_id
+     ORDER BY s.appointment_date ASC, s.start_time ASC, s.id ASC
+     LIMIT 1`,
+    [organizationId, JSON.stringify(normalizedTargets)]
+  );
+
+  return rows?.[0] || null;
+}
+
+function createWorkScheduleConflictError(conflict) {
+  const specialistName = String(conflict?.specialist_name || "This specialist").trim() || "This specialist";
+  const appointmentDate = normalizeDateYmd(conflict?.appointment_date);
+  const appointmentStartTime = normalizeWorkScheduleTime(conflict?.appointment_start_time);
+  const appointmentEndTime = normalizeWorkScheduleTime(conflict?.appointment_end_time);
+  const appointmentTimeText = appointmentStartTime && appointmentEndTime
+    ? ` ${appointmentStartTime}-${appointmentEndTime}`
+    : "";
+  const message = `Work schedule cannot be changed. ${specialistName} still has future lessons on ${appointmentDate}${appointmentTimeText}. Move those lessons first.`;
+  const error = new Error(message);
+  error.statusCode = 409;
+  error.code = WORK_SCHEDULE_CONFLICT_CODE;
+  error.payload = {
+    code: WORK_SCHEDULE_CONFLICT_CODE,
+    message,
+    specialistId: String(conflict?.specialist_id || "").trim(),
+    appointmentId: String(conflict?.appointment_id || "").trim(),
+    appointmentDate,
+    startTime: appointmentStartTime,
+    endTime: appointmentEndTime
+  };
+  return error;
+}
+
+async function assertWorkScheduleTargetsHaveNoFutureAppointments({
+  organizationId,
+  targets = [],
+  db = pool
+}) {
+  const conflict = await findFutureWorkScheduleConflict({
+    organizationId,
+    targets,
+    db
+  });
+  if (conflict) {
+    throw createWorkScheduleConflictError(conflict);
+  }
 }
 
 async function getAppointmentSettingsColumnFlags(tableName = APPOINTMENT_SETTINGS_TABLE) {
-  const { rows } = await pool.query(
-    `SELECT column_name
-       FROM information_schema.columns
-      WHERE table_schema = current_schema()
-        AND table_name = $1`,
-    [tableName]
-  );
-
-  const set = new Set((rows || []).map((row) => String(row?.column_name || "").trim()));
-  const flags = {
-    hasAppointmentDuration: set.has("appointment_duration_minutes"),
-    hasAppointmentDurationOptions: set.has("appointment_duration_options_minutes"),
-    hasReminderChannels: set.has("reminder_channels"),
-    hasSlotSubDivisions: set.has("slot_sub_divisions"),
-    hasHistoryLockDays: set.has("history_lock_days"),
-    hasSlotCellHeightPx: set.has("slot_cell_height_px")
+  const loadFlags = async () => {
+    const columns = await getTableColumnNames({ tableName });
+    return {
+      hasAppointmentDuration: columns.has("appointment_duration_minutes"),
+      hasAppointmentDurationOptions: columns.has("appointment_duration_options_minutes"),
+      hasReminderChannels: columns.has("reminder_channels"),
+      hasSlotSubDivisions: columns.has("slot_sub_divisions"),
+      hasHistoryLockDays: columns.has("history_lock_days"),
+      hasSlotCellHeightPx: columns.has("slot_cell_height_px")
+    };
   };
-  return flags;
+
+  if (tableName !== APPOINTMENT_SETTINGS_TABLE) {
+    return loadFlags();
+  }
+
+  if (!appointmentSettingsColumnFlagsPromise) {
+    appointmentSettingsColumnFlagsPromise = loadFlags().catch((error) => {
+      appointmentSettingsColumnFlagsPromise = null;
+      throw error;
+    });
+  }
+
+  return appointmentSettingsColumnFlagsPromise;
 }
 
 function toScheduleItem(row) {
@@ -536,7 +820,7 @@ function toScheduleItem(row) {
   const durationFromRow = Number.parseInt(String(row?.duration_minutes ?? "").trim(), 10);
   const durationMinutes = Number.isInteger(durationFromRow) && durationFromRow > 0
     ? durationFromRow
-    : getDurationMinutesFromTimes(row?.start_time, row?.end_time);
+    : getDurationMinutesFromAppointmentTimes(row?.start_time, row?.end_time, { allowSeconds: true });
   return {
     id: String(row?.id || "").trim(),
     organizationId: String(row?.organization_id || "").trim(),
@@ -561,17 +845,10 @@ function toScheduleItem(row) {
     clientFirstName: String(row?.first_name || "").trim(),
     clientLastName: String(row?.last_name || "").trim(),
     clientMiddleName: String(row?.middle_name || "").trim(),
+    isVip: Boolean(row?.is_vip),
     createdAt: row?.created_at || null,
     updatedAt: row?.updated_at || null
   };
-}
-
-export function getAppointmentDayKeys() {
-  return DAY_KEYS;
-}
-
-export function toAppointmentDayNum(dayKey) {
-  return toDayNum(dayKey);
 }
 
 export async function withAppointmentTransaction(callback) {
@@ -590,6 +867,12 @@ export async function withAppointmentTransaction(callback) {
 }
 
 export async function getAppointmentSpecialistsByOrganization(organizationId) {
+  const cacheKey = `specialists|org:${organizationId}`;
+  const cached = appointmentReferenceCache.get(cacheKey);
+  if (cached) {
+    return cloneAppointmentSpecialistItems(cached);
+  }
+
   const { rows } = await pool.query(
     `SELECT
        u.id::text AS id,
@@ -613,10 +896,18 @@ export async function getAppointmentSpecialistsByOrganization(organizationId) {
     [organizationId]
   );
 
-  return rows || [];
+  const items = rows || [];
+  appointmentReferenceCache.set(cacheKey, cloneAppointmentSpecialistItems(items));
+  return items;
 }
 
 export async function listAppointmentWorkScheduleStaffByOrganization(organizationId) {
+  const cacheKey = `work-schedule-staff|org:${organizationId}`;
+  const cached = appointmentReferenceCache.get(cacheKey);
+  if (cached) {
+    return cloneAppointmentStaffItems(cached);
+  }
+
   const { rows } = await pool.query(
     `SELECT
        u.id::text AS id,
@@ -632,11 +923,13 @@ export async function listAppointmentWorkScheduleStaffByOrganization(organizatio
     [organizationId]
   );
 
-  return (rows || []).map((row) => ({
+  const items = (rows || []).map((row) => ({
     id: String(row?.id || "").trim(),
     name: String(row?.name || "").trim() || `User #${String(row?.id || "").trim()}`,
     username: String(row?.username || "").trim()
   }));
+  appointmentReferenceCache.set(cacheKey, cloneAppointmentStaffItems(items));
+  return items;
 }
 
 export async function listAppointmentWorkSchedule({
@@ -711,6 +1004,17 @@ export async function replaceAppointmentDefaultWeeklyWorkSchedule({
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+
+    await assertDefaultWeeklyWorkScheduleSupportsOrganizationChildren({
+      organizationId,
+      items: Array.from(byDay.entries()).map(([dayOfWeek, payload]) => ({
+        dayOfWeek,
+        isActive: payload.isActive,
+        startTime: payload.startTime,
+        endTime: payload.endTime
+      })),
+      db: client
+    });
 
     for (let dayOfWeek = 1; dayOfWeek <= 7; dayOfWeek += 1) {
       const payload = byDay.get(dayOfWeek) || {
@@ -833,6 +1137,27 @@ export async function createAppointmentWorkScheduleEntry({
   const finalDayOfWeek = normalizedScope === "weekly" ? (normalizedDayOfWeek || null) : null;
   const finalWorkDate = normalizedScope === "exception" ? (normalizedWorkDate || null) : null;
 
+  await assertSpecialistWorkScheduleWithinOrganizationWeeklyHours({
+    organizationId,
+    userId: normalizedUserId,
+    ruleScope: normalizedScope,
+    dayOfWeek: finalDayOfWeek,
+    workDate: finalWorkDate,
+    isActive: normalizedIsActive,
+    startTime: finalStartTime,
+    endTime: finalEndTime
+  });
+
+  await assertWorkScheduleTargetsHaveNoFutureAppointments({
+    organizationId,
+    targets: [{
+      userId: normalizedUserId,
+      ruleScope: normalizedScope,
+      dayOfWeek: finalDayOfWeek,
+      workDate: finalWorkDate
+    }]
+  });
+
   const { rows } = await pool.query(
     `WITH inserted AS (
        INSERT INTO appointment_working_hours (
@@ -917,6 +1242,47 @@ export async function updateAppointmentWorkScheduleEntryById({
   const finalDayOfWeek = normalizedScope === "weekly" ? (normalizedDayOfWeek || null) : null;
   const finalWorkDate = normalizedScope === "exception" ? (normalizedWorkDate || null) : null;
 
+  const existingEntry = await getAppointmentWorkScheduleEntryById({
+    id,
+    organizationId
+  });
+  if (!existingEntry) {
+    return null;
+  }
+
+  if (hasWorkScheduleAvailabilityChange(existingEntry, {
+    userId: normalizedUserId,
+    ruleScope: normalizedScope,
+    dayOfWeek: finalDayOfWeek,
+    workDate: finalWorkDate,
+    isActive: normalizedIsActive,
+    startTime: finalStartTime,
+    endTime: finalEndTime
+  })) {
+    await assertSpecialistWorkScheduleWithinOrganizationWeeklyHours({
+      organizationId,
+      userId: normalizedUserId,
+      ruleScope: normalizedScope,
+      dayOfWeek: finalDayOfWeek,
+      workDate: finalWorkDate,
+      isActive: normalizedIsActive,
+      startTime: finalStartTime,
+      endTime: finalEndTime
+    });
+    await assertWorkScheduleTargetsHaveNoFutureAppointments({
+      organizationId,
+      targets: [
+        existingEntry,
+        {
+          userId: normalizedUserId,
+          ruleScope: normalizedScope,
+          dayOfWeek: finalDayOfWeek,
+          workDate: finalWorkDate
+        }
+      ]
+    });
+  }
+
   const { rows } = await pool.query(
     `WITH updated AS (
        UPDATE appointment_working_hours awh
@@ -964,6 +1330,19 @@ export async function deleteAppointmentWorkScheduleEntryById({
   id,
   organizationId
 }) {
+  const existingEntry = await getAppointmentWorkScheduleEntryById({
+    id,
+    organizationId
+  });
+  if (!existingEntry) {
+    return { rowCount: 0 };
+  }
+
+  await assertWorkScheduleTargetsHaveNoFutureAppointments({
+    organizationId,
+    targets: [existingEntry]
+  });
+
   return pool.query(
     `DELETE FROM appointment_working_hours
       WHERE id = $1
@@ -1129,6 +1508,39 @@ export async function getAppointmentSchedulesByRange({
   );
 
   return (rows || []).map(toScheduleItem);
+}
+
+export async function getAppointmentClientScopeInfo({
+  organizationId,
+  clientId
+}) {
+  const normalizedClientId = Number.parseInt(String(clientId || "").trim(), 10) || 0;
+  if (!normalizedClientId) {
+    return null;
+  }
+
+  const { rows } = await pool.query(
+    `SELECT
+       c.id::text AS id,
+       c.is_vip
+      FROM clients c
+      JOIN organizations o
+        ON o.id = c.organization_id
+     WHERE c.organization_id = $1
+       AND c.id = $2
+       AND o.is_active = TRUE
+     LIMIT 1`,
+    [organizationId, normalizedClientId]
+  );
+
+  if (!rows[0]) {
+    return null;
+  }
+
+  return {
+    id: String(rows[0].id || "").trim(),
+    isVip: Boolean(rows[0].is_vip)
+  };
 }
 
 export async function getAppointmentClientNoShowSummary({
@@ -1536,6 +1948,7 @@ export async function createAppointmentSchedule({
     ]
   );
 
+  clearAppointmentPlannerReportFilterCaches();
   return rows[0] ? toScheduleItem(rows[0]) : null;
 }
 
@@ -1561,6 +1974,7 @@ export async function getAppointmentScheduleTargetsByScope({
        s.note,
        s.repeat_group_key,
        s.repeat_type,
+       c.is_vip,
        c.first_name,
        c.last_name,
        c.middle_name
@@ -1604,6 +2018,7 @@ export async function getAppointmentScheduleTargetsByScope({
          s.service_name,
          s.status,
          s.note,
+         c.is_vip,
          c.first_name,
          c.last_name,
          c.middle_name
@@ -1630,6 +2045,7 @@ export async function getAppointmentScheduleTargetsByScope({
          s.service_name,
          s.status,
          s.note,
+         c.is_vip,
          c.first_name,
          c.last_name,
          c.middle_name
@@ -1662,10 +2078,12 @@ export async function getAppointmentScheduleTargetsByScope({
         appointmentDate: normalizeDateYmd(row?.appointment_date),
         startTime: normalizeTimeHm(row?.start_time),
         endTime: normalizeTimeHm(row?.end_time),
-        durationMinutes: Number.parseInt(String(row?.duration_minutes || ""), 10) || getDurationMinutesFromTimes(row?.start_time, row?.end_time),
+        durationMinutes: Number.parseInt(String(row?.duration_minutes || ""), 10)
+          || getDurationMinutesFromAppointmentTimes(row?.start_time, row?.end_time, { allowSeconds: true }),
         serviceName: String(row?.service_name || "").trim(),
         status: String(row?.status || "").trim().toLowerCase(),
         note: String(row?.note || "").trim(),
+        isVip: Boolean(row?.is_vip),
         clientFirstName: String(row?.first_name || "").trim(),
         clientLastName: String(row?.last_name || "").trim(),
         clientMiddleName: String(row?.middle_name || "").trim()
@@ -1853,6 +2271,7 @@ export async function updateAppointmentSchedulesByIds({
     ]
   );
 
+  clearAppointmentPlannerReportFilterCaches();
   return (rows || []).map(toScheduleItem);
 }
 
@@ -2039,6 +2458,7 @@ export async function updateAppointmentScheduleByIdWithRepeatMeta({
     ]
   );
 
+  clearAppointmentPlannerReportFilterCaches();
   return rows[0] ? toScheduleItem(rows[0]) : null;
 }
 
@@ -2094,11 +2514,19 @@ export async function deleteAppointmentSchedulesByIds({
     [organizationId, normalizedIds, actorUserId || null]
   );
 
+  clearAppointmentPlannerReportFilterCaches();
   return Number.parseInt(String(rows?.[0]?.deleted_count ?? "0"), 10) || 0;
 }
 
-export async function getAppointmentSettingsByOrganization(organizationId) {
+export async function getAppointmentSettingsByOrganization(organizationId, options = {}) {
   const tableName = APPOINTMENT_SETTINGS_TABLE;
+  const parsedSpecialistId = Number.parseInt(
+    String(options?.specialistId ?? options?.userId ?? "").trim(),
+    10
+  );
+  const specialistId = Number.isInteger(parsedSpecialistId) && parsedSpecialistId > 0
+    ? parsedSpecialistId
+    : null;
   const flags = await getAppointmentSettingsColumnFlags(tableName);
   const appointmentDurationSelect = flags.hasAppointmentDuration
     ? "appointment_duration_minutes,"
@@ -2119,7 +2547,7 @@ export async function getAppointmentSettingsByOrganization(organizationId) {
     ? "slot_cell_height_px,"
     : `${DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX}::integer AS slot_cell_height_px,`;
 
-  const [settingsResult, workingHoursResult] = await Promise.all([
+  const [settingsResult, workingHoursResult, specialistWorkingHoursResult] = await Promise.all([
     pool.query(
       `SELECT
          id,
@@ -2147,12 +2575,29 @@ export async function getAppointmentSettingsByOrganization(organizationId) {
          AND rule_scope = 'weekly'
        ORDER BY day_of_week ASC`,
       [organizationId]
-    )
+    ),
+    specialistId
+      ? pool.query(
+          `SELECT day_of_week, is_active, start_time, end_time
+             FROM appointment_working_hours
+            WHERE organization_id = $1
+              AND user_id = $2
+              AND rule_scope = 'weekly'
+            ORDER BY day_of_week ASC`,
+          [organizationId, specialistId]
+        )
+      : Promise.resolve({ rows: [] })
   ]);
 
   const row = settingsResult.rows[0] || null;
+  const effectiveWorkingHoursRows = specialistId
+    ? buildEffectiveWeeklyWorkScheduleRows({
+        organizationRows: workingHoursResult.rows || [],
+        specialistRows: specialistWorkingHoursResult.rows || []
+      })
+    : (workingHoursResult.rows || []);
   if (!row) {
-    const workingHoursRows = workingHoursResult.rows || [];
+    const workingHoursRows = effectiveWorkingHoursRows;
     const empty = createEmptySettings();
     if (workingHoursRows.length > 0) {
       empty.workingHours = mapWorkingHours(workingHoursRows);
@@ -2160,7 +2605,7 @@ export async function getAppointmentSettingsByOrganization(organizationId) {
     return empty;
   }
 
-  return mapSettingsRow(row, workingHoursResult.rows || []);
+  return mapSettingsRow(row, effectiveWorkingHoursRows);
 }
 
 export async function saveAppointmentSettings({
@@ -2196,7 +2641,7 @@ export async function saveAppointmentSettings({
     await client.query("BEGIN");
 
     const visibleWeekDayNums = visibleWeekDays
-      .map((dayKey) => toDayNum(dayKey))
+      .map((dayKey) => toAppointmentDayNum(dayKey))
       .filter((dayNum) => Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 7);
     const normalizedDurationOptions = mapDurationOptions(appointmentDurationOptionsMinutes);
     const effectiveDurationOptions = normalizedDurationOptions.length > 0
@@ -2465,7 +2910,8 @@ export async function getAppointmentPlannerReport({
   to,
   specialistId = null,
   clientId = null,
-  isVip = null
+  isVip = null,
+  assignedUserId = null
 }) {
   await ensureAppointmentPlannerReportIndexes();
 
@@ -2473,6 +2919,7 @@ export async function getAppointmentPlannerReport({
   let specialistFilterSql = "";
   let clientFilterSql = "";
   let vipFilterSql = "";
+  let vipScopeSql = "";
   if (specialistId) {
     params.push(specialistId);
     specialistFilterSql = `AND s.specialist_id = $${params.length}`;
@@ -2484,26 +2931,27 @@ export async function getAppointmentPlannerReport({
   if (isVip === true) {
     params.push(true);
     vipFilterSql = `AND c.is_vip = $${params.length}`;
+  } else if (isVip === false) {
+    params.push(false);
+    vipFilterSql = `AND c.is_vip = $${params.length}`;
+  }
+  const normalizedAssignedUserId = Number.parseInt(String(assignedUserId || "").trim(), 10) || 0;
+  if (normalizedAssignedUserId > 0) {
+    params.push(normalizedAssignedUserId);
+    const assignedVipExistsSql = buildAssignedVipClientExistsSql({
+      organizationRef: "s.organization_id",
+      clientRef: "s.client_id",
+      userParamRef: `$${params.length}`
+    });
+    vipScopeSql = isVip === true
+      ? `AND ${assignedVipExistsSql}`
+      : `AND (
+          c.is_vip = FALSE
+          OR ${assignedVipExistsSql}
+        )`;
   }
 
-  const [summaryRowsResult, specialistRows, detailRowsResult] = await Promise.all([
-    pool.query(
-      `SELECT
-         LOWER(TRIM(s.status)) AS status,
-         COUNT(*)::int AS count
-       FROM appointment_schedules s
-       JOIN clients c
-         ON c.id = s.client_id
-        AND c.organization_id = s.organization_id
-       WHERE s.organization_id = $1
-         AND s.appointment_date BETWEEN $2::date AND $3::date
-         ${specialistFilterSql}
-         ${clientFilterSql}
-         ${vipFilterSql}
-       GROUP BY LOWER(TRIM(s.status))
-       ORDER BY LOWER(TRIM(s.status)) ASC`,
-      params
-    ),
+  const [specialistRows, detailRowsResult] = await Promise.all([
     getAppointmentSpecialistsByOrganization(organizationId),
     pool.query(
       `SELECT
@@ -2527,12 +2975,13 @@ export async function getAppointmentPlannerReport({
        JOIN users u
          ON u.id = s.specialist_id
         AND u.organization_id = s.organization_id
-       WHERE s.organization_id = $1
-         AND s.appointment_date BETWEEN $2::date AND $3::date
-         ${specialistFilterSql}
-         ${clientFilterSql}
-         ${vipFilterSql}
-       ORDER BY
+        WHERE s.organization_id = $1
+          AND s.appointment_date BETWEEN $2::date AND $3::date
+          ${specialistFilterSql}
+          ${clientFilterSql}
+          ${vipFilterSql}
+          ${vipScopeSql}
+        ORDER BY
          s.appointment_date ASC,
          s.start_time ASC,
          s.end_time ASC,
@@ -2541,6 +2990,7 @@ export async function getAppointmentPlannerReport({
          LOWER(TRIM(c.first_name)) ASC,
          LOWER(TRIM(COALESCE(c.middle_name, ''))) ASC,
          COALESCE(NULLIF(TRIM(s.service_name), ''), 'Service') ASC,
+         LOWER(TRIM(s.status)) ASC,
          s.id ASC`,
       params
     )
@@ -2553,83 +3003,50 @@ export async function getAppointmentPlannerReport({
     cancelled: 0,
     noShow: 0
   };
-  for (const row of Array.isArray(summaryRowsResult?.rows) ? summaryRowsResult.rows : []) {
-    const count = Number.parseInt(String(row?.count || "0"), 10) || 0;
-    const status = String(row?.status || "").trim().toLowerCase();
+  const details = (Array.isArray(detailRowsResult?.rows) ? detailRowsResult.rows : [])
+    .map((row) => {
+      const appointmentId = String(row?.appointment_id || "").trim();
+      const appointmentDate = String(row?.appointment_date || "").trim();
+      const startTime = String(row?.start_time || "").trim();
+      const endTime = String(row?.end_time || "").trim();
+      const durationMinutes = Number.parseInt(String(row?.duration_minutes || "0"), 10) || 0;
+      const currentSpecialistId = String(row?.specialist_id || "").trim();
+      const currentClientId = String(row?.client_id || "").trim();
+      const status = String(row?.status || "").trim().toLowerCase();
 
-    summary.total += count;
-    if (status === "confirmed") {
-      summary.confirmed += count;
-    } else if (status === "pending") {
-      summary.pending += count;
-    } else if (status === "cancelled") {
-      summary.cancelled += count;
-    } else if (status === "no-show") {
-      summary.noShow += count;
-    }
-  }
+      summary.total += 1;
+      if (status === "confirmed") {
+        summary.confirmed += 1;
+      } else if (status === "pending") {
+        summary.pending += 1;
+      } else if (status === "cancelled") {
+        summary.cancelled += 1;
+      } else if (status === "no-show") {
+        summary.noShow += 1;
+      }
+
+      return {
+        appointmentId,
+        appointmentDate,
+        startTime,
+        endTime,
+        durationMinutes,
+        specialistId: currentSpecialistId,
+        specialistName: String(row?.specialist_name || "").trim() || `Specialist #${currentSpecialistId}`,
+        clientId: currentClientId,
+        clientName: [
+          String(row?.last_name || "").trim(),
+          String(row?.first_name || "").trim(),
+          String(row?.middle_name || "").trim()
+        ].filter(Boolean).join(" ").trim() || `Client #${currentClientId}`,
+        serviceName: String(row?.service_name || "").trim() || "Service",
+        status
+      };
+    });
 
   return {
     summary,
-    details: (Array.isArray(detailRowsResult?.rows) ? detailRowsResult.rows : [])
-      .map((row) => {
-        const appointmentId = String(row?.appointment_id || "").trim();
-        const appointmentDate = String(row?.appointment_date || "").trim();
-        const startTime = String(row?.start_time || "").trim();
-        const endTime = String(row?.end_time || "").trim();
-        const durationMinutes = Number.parseInt(String(row?.duration_minutes || "0"), 10) || 0;
-        const currentSpecialistId = String(row?.specialist_id || "").trim();
-        const currentClientId = String(row?.client_id || "").trim();
-        const status = String(row?.status || "").trim().toLowerCase();
-        return {
-          appointmentId,
-          appointmentDate,
-          startTime,
-          endTime,
-          durationMinutes,
-          specialistId: currentSpecialistId,
-          specialistName: String(row?.specialist_name || "").trim() || `Specialist #${currentSpecialistId}`,
-          clientId: currentClientId,
-          clientName: [
-            String(row?.last_name || "").trim(),
-            String(row?.first_name || "").trim(),
-            String(row?.middle_name || "").trim()
-          ].filter(Boolean).join(" ").trim() || `Client #${currentClientId}`,
-          serviceName: String(row?.service_name || "").trim() || "Service",
-          status
-        };
-      })
-      .sort((left, right) => {
-        const dateCompare = left.appointmentDate.localeCompare(right.appointmentDate);
-        if (dateCompare !== 0) {
-          return dateCompare;
-        }
-        const startTimeCompare = left.startTime.localeCompare(right.startTime);
-        if (startTimeCompare !== 0) {
-          return startTimeCompare;
-        }
-        const endTimeCompare = left.endTime.localeCompare(right.endTime);
-        if (endTimeCompare !== 0) {
-          return endTimeCompare;
-        }
-        const specialistCompare = left.specialistName.localeCompare(right.specialistName, undefined, { sensitivity: "base" });
-        if (specialistCompare !== 0) {
-          return specialistCompare;
-        }
-        const clientCompare = left.clientName.localeCompare(right.clientName, undefined, { sensitivity: "base" });
-        if (clientCompare !== 0) {
-          return clientCompare;
-        }
-        const serviceCompare = left.serviceName.localeCompare(right.serviceName, undefined, { sensitivity: "base" });
-        if (serviceCompare !== 0) {
-          return serviceCompare;
-        }
-        const statusCompare = left.status.localeCompare(right.status, undefined, { sensitivity: "base" });
-        if (statusCompare !== 0) {
-          return statusCompare;
-        }
-        return left.appointmentId.localeCompare(right.appointmentId, undefined, { numeric: true, sensitivity: "base" });
-      }),
+    details,
     specialists: (Array.isArray(specialistRows) ? specialistRows : [])
       .map((item) => ({
         id: String(item?.id || "").trim(),
@@ -2642,10 +3059,41 @@ export async function getAppointmentPlannerReport({
 }
 
 export async function getAppointmentPlannerReportFilters({
-  organizationId
+  organizationId,
+  assignedUserId = null,
+  specialistId = null
 }) {
   await ensureAppointmentPlannerReportIndexes();
 
+  const normalizedAssignedUserId = Number.parseInt(String(assignedUserId || "").trim(), 10) || 0;
+  const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
+  const cacheKey = [
+    `org:${organizationId}`,
+    `assigned:${normalizedAssignedUserId || 0}`,
+    `specialist:${normalizedSpecialistId || 0}`
+  ].join("|");
+  const cached = appointmentPlannerFilterCache.get(cacheKey);
+  if (cached) {
+    return cloneAppointmentPlannerFilterResult(cached);
+  }
+  const clientQueryParams = [organizationId];
+  let specialistFilterSql = "";
+  if (normalizedSpecialistId > 0) {
+    clientQueryParams.push(normalizedSpecialistId);
+    specialistFilterSql = `AND s.specialist_id = $${clientQueryParams.length}`;
+  }
+  let vipScopeSql = "";
+  if (normalizedAssignedUserId > 0) {
+    clientQueryParams.push(normalizedAssignedUserId);
+    vipScopeSql = `AND (
+          c.is_vip = FALSE
+          OR ${buildAssignedVipClientExistsSql({
+            organizationRef: "s.organization_id",
+            clientRef: "s.client_id",
+            userParamRef: `$${clientQueryParams.length}`
+          })}
+        )`;
+  }
   const [specialistRows, clientRowsResult] = await Promise.all([
     getAppointmentSpecialistsByOrganization(organizationId),
     pool.query(
@@ -2655,22 +3103,24 @@ export async function getAppointmentPlannerReportFilters({
          c.last_name,
          c.middle_name,
          c.is_vip
-       FROM appointment_schedules s
-       JOIN clients c
-         ON c.id = s.client_id
-        AND c.organization_id = s.organization_id
-      WHERE s.organization_id = $1
-      GROUP BY c.id, c.first_name, c.last_name, c.middle_name, c.is_vip
-      ORDER BY
-        LOWER(TRIM(c.last_name)) ASC,
-        LOWER(TRIM(c.first_name)) ASC,
-        LOWER(TRIM(COALESCE(c.middle_name, ''))) ASC,
-        c.id ASC`,
-      [organizationId]
+        FROM appointment_schedules s
+        JOIN clients c
+          ON c.id = s.client_id
+         AND c.organization_id = s.organization_id
+       WHERE s.organization_id = $1
+         ${specialistFilterSql}
+         ${vipScopeSql}
+       GROUP BY c.id, c.first_name, c.last_name, c.middle_name, c.is_vip
+       ORDER BY
+         LOWER(TRIM(c.last_name)) ASC,
+         LOWER(TRIM(c.first_name)) ASC,
+         LOWER(TRIM(COALESCE(c.middle_name, ''))) ASC,
+         c.id ASC`,
+      clientQueryParams
     )
   ]);
 
-  return {
+  const result = {
     specialists: (Array.isArray(specialistRows) ? specialistRows : [])
       .map((item) => ({
         id: String(item?.id || "").trim(),
@@ -2687,4 +3137,6 @@ export async function getAppointmentPlannerReportFilters({
       }))
       .filter((item) => Boolean(item.id)),
   };
+  appointmentPlannerFilterCache.set(cacheKey, cloneAppointmentPlannerFilterResult(result));
+  return result;
 }

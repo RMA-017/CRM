@@ -44,3 +44,43 @@ test("getApiErrorMessage falls back by status code", () => {
   assert.equal(message, "Forbidden.");
 });
 
+test("readApiResponseData maps validation error arrays into field errors", async () => {
+  const response = new Response(JSON.stringify({
+    code: "VALIDATION_ERROR",
+    message: "Invalid field.",
+    field: "username",
+    errors: [
+      { field: "username", message: "Username is required." },
+      { field: "password", message: "Password is required." }
+    ]
+  }), {
+    status: 400,
+    headers: { "content-type": "application/json" }
+  });
+
+  const data = await readApiResponseData(response);
+  assert.deepEqual(data.errors, {
+    username: "Username is required.",
+    password: "Password is required."
+  });
+  assert.equal(Array.isArray(data.validationErrors), true);
+  assert.equal(data.validationErrors.length, 2);
+});
+
+test("normalizeApiError preserves mapped field errors from validation arrays", () => {
+  const error = normalizeApiError(
+    { status: 400 },
+    {
+      code: "VALIDATION_ERROR",
+      message: "Invalid value.",
+      errors: [
+        { field: "email", message: "Invalid email format." }
+      ]
+    }
+  );
+
+  assert.deepEqual(error.errors, {
+    email: "Invalid email format."
+  });
+  assert.equal(error.validationErrors.length, 1);
+});

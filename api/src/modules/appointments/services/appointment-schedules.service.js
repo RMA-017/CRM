@@ -1,6 +1,7 @@
 export {
   createAppointmentSchedule,
   deleteAppointmentSchedulesByIds,
+  getAppointmentClientScopeInfo,
   getAppointmentClientNoShowSummary,
   getAppointmentPlannerReportFilters,
   getAppointmentPlannerReport,

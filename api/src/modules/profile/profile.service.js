@@ -23,6 +23,7 @@ export async function getProfileByAuthContext({ userId, organizationId }) {
      FROM users u
      JOIN organizations o ON o.id = $2
      JOIN role_options r ON r.id = u.role_id
+      AND r.is_active = TRUE
      LEFT JOIN position_options p ON p.id = u.position_id
      WHERE u.id = $1
        AND (u.organization_id = $2 OR COALESCE(u.is_platform_admin, FALSE) = TRUE)

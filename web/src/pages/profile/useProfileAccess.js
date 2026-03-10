@@ -82,6 +82,18 @@ export function useProfileAccess(profile, forcedView) {
   const canReadStatisticsPlannerReportPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT);
   const canReadSettingsAppointmentsPermission = hasPermissionWithOrgFeature(PERMISSIONS.SETTINGS_APPOINTMENTS_READ);
   const canUpdateSettingsAppointmentsPermission = hasPermissionWithOrgFeature(PERMISSIONS.SETTINGS_APPOINTMENTS_UPDATE);
+  const canReadSettingsAppointmentNormsPermission = hasPermissionWithOrgFeature(
+    PERMISSIONS.SETTINGS_APPOINTMENT_NORMS_READ
+  );
+  const canCreateSettingsAppointmentNormsPermission = hasPermissionWithOrgFeature(
+    PERMISSIONS.SETTINGS_APPOINTMENT_NORMS_CREATE
+  );
+  const canUpdateSettingsAppointmentNormsPermission = hasPermissionWithOrgFeature(
+    PERMISSIONS.SETTINGS_APPOINTMENT_NORMS_UPDATE
+  );
+  const canDeleteSettingsAppointmentNormsPermission = hasPermissionWithOrgFeature(
+    PERMISSIONS.SETTINGS_APPOINTMENT_NORMS_DELETE
+  );
   const canReadSettingsRolesPermission = hasPermissionWithOrgFeature(PERMISSIONS.SETTINGS_ROLES_READ);
   const canCreateSettingsRolesPermission = hasPermissionWithOrgFeature(PERMISSIONS.SETTINGS_ROLES_CREATE);
   const canUpdateSettingsRolesPermission = hasPermissionWithOrgFeature(PERMISSIONS.SETTINGS_ROLES_UPDATE);
@@ -93,6 +105,7 @@ export function useProfileAccess(profile, forcedView) {
   const canSendNotifications = hasPermissionWithOrgFeature(PERMISSIONS.NOTIFICATIONS_SEND);
   const canOpenPlannerPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE);
   const canOpenBreaksPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_SUBMENU_BREAKS);
+  const canOpenWorkSchedulePermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_SUBMENU_WORK_SCHEDULE);
   const canSearchAppointmentClientsPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_CLIENT_SEARCH);
   const canSearchAppointmentClients = (
     canSearchAppointmentClientsPermission
@@ -102,6 +115,7 @@ export function useProfileAccess(profile, forcedView) {
   const usesAdvancedMenuPermissions = (
     canOpenPlannerPermission
     || canOpenBreaksPermission
+    || canOpenWorkSchedulePermission
     || canReadVipClientsPermission
     || canCreateVipClientsPermission
     || canUpdateVipClientsPermission
@@ -116,53 +130,74 @@ export function useProfileAccess(profile, forcedView) {
     || canReadStatisticsClassAttendancePermission
     || canReadStatisticsPlannerReportPermission
   );
-  const usesAdvancedSettingsPermissions = (
+  const hasClientsMenuAccess = canReadClients;
+  const legacyHasSettingsAccess = Boolean(profile?.isAdmin || profile?.isPlatformAdmin);
+  const hasExplicitAppointmentSettingsPermissions = (
     canReadSettingsAppointmentsPermission
     || canUpdateSettingsAppointmentsPermission
-    || canReadSettingsRolesPermission
+  );
+  const hasExplicitAppointmentNormSettingsPermissions = (
+    canReadSettingsAppointmentNormsPermission
+    || canCreateSettingsAppointmentNormsPermission
+    || canUpdateSettingsAppointmentNormsPermission
+    || canDeleteSettingsAppointmentNormsPermission
+  );
+  const hasExplicitRoleSettingsPermissions = (
+    canReadSettingsRolesPermission
     || canCreateSettingsRolesPermission
     || canUpdateSettingsRolesPermission
     || canDeleteSettingsRolesPermission
-    || canReadSettingsPositionsPermission
+  );
+  const hasExplicitPositionSettingsPermissions = (
+    canReadSettingsPositionsPermission
     || canCreateSettingsPositionsPermission
     || canUpdateSettingsPositionsPermission
     || canDeleteSettingsPositionsPermission
   );
-
-  const hasClientsMenuAccess = canReadClients;
-  const legacyHasSettingsAccess = Boolean(profile?.isAdmin || profile?.isPlatformAdmin);
-  const canReadSettingsAppointments = usesAdvancedSettingsPermissions
+  const canReadSettingsAppointments = hasExplicitAppointmentSettingsPermissions
     ? canReadSettingsAppointmentsPermission
     : legacyHasSettingsAccess;
-  const canUpdateSettingsAppointments = usesAdvancedSettingsPermissions
+  const canUpdateSettingsAppointments = hasExplicitAppointmentSettingsPermissions
     ? canUpdateSettingsAppointmentsPermission
+    : legacyHasSettingsAccess;
+  const canReadSettingsAppointmentNorms = hasExplicitAppointmentNormSettingsPermissions
+    ? canReadSettingsAppointmentNormsPermission
+    : legacyHasSettingsAccess;
+  const canCreateSettingsAppointmentNorms = hasExplicitAppointmentNormSettingsPermissions
+    ? canCreateSettingsAppointmentNormsPermission
+    : legacyHasSettingsAccess;
+  const canUpdateSettingsAppointmentNorms = hasExplicitAppointmentNormSettingsPermissions
+    ? canUpdateSettingsAppointmentNormsPermission
+    : legacyHasSettingsAccess;
+  const canDeleteSettingsAppointmentNorms = hasExplicitAppointmentNormSettingsPermissions
+    ? canDeleteSettingsAppointmentNormsPermission
     : legacyHasSettingsAccess;
   const canReadSettingsOrganizations = Boolean(profile?.isPlatformAdmin);
   const canCreateSettingsOrganizations = Boolean(profile?.isPlatformAdmin);
   const canUpdateSettingsOrganizations = Boolean(profile?.isPlatformAdmin);
   const canDeleteSettingsOrganizations = Boolean(profile?.isPlatformAdmin);
-  const canReadSettingsRoles = usesAdvancedSettingsPermissions
+  const canReadSettingsRoles = hasExplicitRoleSettingsPermissions
     ? canReadSettingsRolesPermission
     : legacyHasSettingsAccess;
-  const canCreateSettingsRoles = usesAdvancedSettingsPermissions
+  const canCreateSettingsRoles = hasExplicitRoleSettingsPermissions
     ? canCreateSettingsRolesPermission
     : legacyHasSettingsAccess;
-  const canUpdateSettingsRoles = usesAdvancedSettingsPermissions
+  const canUpdateSettingsRoles = hasExplicitRoleSettingsPermissions
     ? canUpdateSettingsRolesPermission
     : legacyHasSettingsAccess;
-  const canDeleteSettingsRoles = usesAdvancedSettingsPermissions
+  const canDeleteSettingsRoles = hasExplicitRoleSettingsPermissions
     ? canDeleteSettingsRolesPermission
     : legacyHasSettingsAccess;
-  const canReadSettingsPositions = usesAdvancedSettingsPermissions
+  const canReadSettingsPositions = hasExplicitPositionSettingsPermissions
     ? canReadSettingsPositionsPermission
     : legacyHasSettingsAccess;
-  const canCreateSettingsPositions = usesAdvancedSettingsPermissions
+  const canCreateSettingsPositions = hasExplicitPositionSettingsPermissions
     ? canCreateSettingsPositionsPermission
     : legacyHasSettingsAccess;
-  const canUpdateSettingsPositions = usesAdvancedSettingsPermissions
+  const canUpdateSettingsPositions = hasExplicitPositionSettingsPermissions
     ? canUpdateSettingsPositionsPermission
     : legacyHasSettingsAccess;
-  const canDeleteSettingsPositions = usesAdvancedSettingsPermissions
+  const canDeleteSettingsPositions = hasExplicitPositionSettingsPermissions
     ? canDeleteSettingsPositionsPermission
     : legacyHasSettingsAccess;
 
@@ -258,14 +293,27 @@ export function useProfileAccess(profile, forcedView) {
     && hasOrgFeature("statistics.planner_report")
     && (!usesAdvancedMenuPermissions || canReadStatisticsPlannerReportPermission);
   const canOpenAppointmentSettings = hasOrgFeature("settings.appointments") && canReadSettingsAppointments;
+  const canOpenAppointmentWorkSchedule = hasOrgFeature("appointments.work_schedule") && (
+    usesAdvancedMenuPermissions
+      ? canOpenWorkSchedulePermission
+      : canOpenAppointmentSettings
+  );
   const canOpenSettingsOrganizations = canReadSettingsOrganizations;
   const canOpenSettingsRoles = hasOrgFeature("settings.roles") && canReadSettingsRoles;
   const canOpenSettingsPositions = hasOrgFeature("settings.positions") && canReadSettingsPositions;
+  const canOpenSettingsNorms = hasOrgFeature("settings.appointment_norms") && canReadSettingsAppointmentNorms;
 
-  const hasAppointmentsMenuAccess = canReadAppointments
-    && (canOpenAppointmentSchedule || canOpenAppointmentBreaks || canOpenAppointmentVipClients);
+  const hasAppointmentsMenuAccess = (
+    canReadAppointments
+    && (canOpenAppointmentSchedule || canOpenAppointmentBreaks || canOpenAppointmentVipClients)
+  ) || canOpenAppointmentWorkSchedule;
   const hasUsersMenuAccess = canReadUsers || canCreateUsers;
-  const hasSettingsMenuAccess = canOpenAppointmentSettings || canOpenSettingsRoles || canOpenSettingsPositions;
+  const hasSettingsMenuAccess = (
+    canOpenAppointmentSettings
+    || canOpenSettingsRoles
+    || canOpenSettingsPositions
+    || canOpenSettingsNorms
+  );
   const hasAdminSettingsAccess = Boolean(profile?.isPlatformAdmin);
 
   const canAccessForcedView = useMemo(() => {
@@ -315,7 +363,7 @@ export function useProfileAccess(profile, forcedView) {
       return canOpenAppointmentSettings;
     }
     if (forcedView === "appointment-work-schedule") {
-      return canOpenAppointmentSettings;
+      return canOpenAppointmentWorkSchedule;
     }
     if (forcedView === "settings-organizations") {
       return canOpenSettingsOrganizations;
@@ -328,6 +376,9 @@ export function useProfileAccess(profile, forcedView) {
     }
     if (forcedView === "settings-positions") {
       return canOpenSettingsPositions;
+    }
+    if (forcedView === "settings-appointment-norms") {
+      return canOpenSettingsNorms;
     }
     if (forcedView === "notifications-send") {
       return canSendNotifications;
@@ -348,6 +399,7 @@ export function useProfileAccess(profile, forcedView) {
     canOpenAppointmentBreaks,
     canOpenAppointmentSchedule,
     canOpenAppointmentSettings,
+    canOpenAppointmentWorkSchedule,
     canOpenAppointmentVipMyClass,
     canOpenAppointmentVipClients,
     canOpenMyChildren,
@@ -367,6 +419,7 @@ export function useProfileAccess(profile, forcedView) {
     canOpenStatisticsClassAttendance,
     canOpenStatisticsPlannerReport,
     canOpenSettingsOrganizations,
+    canOpenSettingsNorms,
     canOpenSettingsPositions,
     canOpenSettingsRoles,
     canReadStatisticsClassAttendancePermission,
@@ -374,6 +427,7 @@ export function useProfileAccess(profile, forcedView) {
     hasClientsMenuAccess,
     canReadClientMedicalHistory,
     canReadUsers,
+    canSendNotifications,
     forcedView,
     hasAdminSettingsAccess,
     hasSettingsMenuAccess,
@@ -404,6 +458,7 @@ export function useProfileAccess(profile, forcedView) {
     canOpenAppointmentVipMyClass,
     canOpenAppointmentBreaks,
     canOpenAppointmentSettings,
+    canOpenAppointmentWorkSchedule,
     canOpenAppointmentVipClients,
     canOpenMyChildren,
     canOpenAppointmentVipDailyRoutines,
@@ -423,6 +478,11 @@ export function useProfileAccess(profile, forcedView) {
     canOpenStatisticsPlannerReport,
     canReadSettingsAppointments,
     canUpdateSettingsAppointments,
+    canReadSettingsAppointmentNorms,
+    canCreateSettingsAppointmentNorms,
+    canUpdateSettingsAppointmentNorms,
+    canDeleteSettingsAppointmentNorms,
+    canOpenSettingsNorms,
     canOpenSettingsOrganizations,
     canCreateSettingsOrganizations,
     canUpdateSettingsOrganizations,

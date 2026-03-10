@@ -692,8 +692,16 @@ function AppointmentScheduler({
       try {
         setMessage("");
 
+        const settingsQuery = new URLSearchParams();
+        if (!vipOnly && String(selectedSpecialistId || "").trim()) {
+          settingsQuery.set("specialistId", String(selectedSpecialistId || "").trim());
+        }
+        const settingsUrl = settingsQuery.size > 0
+          ? `/api/appointments/settings?${settingsQuery.toString()}`
+          : "/api/appointments/settings";
+
         const [settingsResponse, specialistsResponse, specialistRolesResponse] = await Promise.all([
-          apiFetch("/api/appointments/settings", {
+          apiFetch(settingsUrl, {
             method: "GET",
             cache: "no-store"
           }),
@@ -898,7 +906,7 @@ function AppointmentScheduler({
     return () => {
       active = false;
     };
-  }, [vipOnly]);
+  }, [selectedSpecialistId, vipOnly]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -1454,6 +1462,25 @@ function AppointmentScheduler({
     }
     setCreateForm((prev) => ({ ...prev, durationMinutes: durationSelectOptions[0]?.value || "30" }));
   }, [createForm.durationMinutes, createModal.open, durationSelectOptions]);
+  useEffect(() => {
+    if (!createModal.open || !isVipServiceLocked) {
+      return;
+    }
+
+    setCreateForm((prev) => {
+      if (String(prev.service || "").trim() === lockedVipServiceName) {
+        return prev;
+      }
+      return {
+        ...prev,
+        service: lockedVipServiceName
+      };
+    });
+
+    if (createErrors.service) {
+      setCreateErrors((prev) => ({ ...prev, service: "" }));
+    }
+  }, [createErrors.service, createModal.open, isVipServiceLocked, lockedVipServiceName]);
   const selectedVipClassClients = useMemo(() => {
     if (!vipOnly) {
       return [];
@@ -1475,6 +1502,31 @@ function AppointmentScheduler({
     const selectedClass = specialists.find((item) => String(item?.id || "").trim() === classId);
     return String(selectedClass?.teacherId || "").trim();
   }, [selectedSpecialistId, specialists, vipOnly]);
+  const selectedSpecialistServiceName = useMemo(() => {
+    const specialistId = String(createModal.specialistId || selectedSpecialistId || "").trim();
+    if (!specialistId) {
+      return "";
+    }
+
+    if (vipOnly) {
+      const selectedClass = specialists.find((item) => String(item?.id || "").trim() === specialistId);
+      const teacherId = String(selectedClass?.teacherId || "").trim();
+      return String(
+        specialistRoleById[teacherId]
+        || specialistRoleById[specialistId]
+        || ""
+      ).trim();
+    }
+
+    const selectedSpecialist = specialists.find((item) => String(item?.id || "").trim() === specialistId);
+    return String(
+      selectedSpecialist?.role
+      || specialistRoleById[specialistId]
+      || ""
+    ).trim();
+  }, [createModal.specialistId, selectedSpecialistId, specialistRoleById, specialists, vipOnly]);
+  const lockedVipServiceName = String(selectedSpecialistServiceName || "").trim() || "Specialist";
+  const isVipServiceLocked = Boolean(vipOnly || clientVipOnly || selectedClient?.isVip);
   const vipClientFilterOptions = useMemo(() => {
     if (!vipOnly) {
       return [];
@@ -2498,6 +2550,33 @@ function AppointmentScheduler({
         }
       }
 
+      // Pre-save norm check: warn before creating if weekly limit is exceeded
+      if (!isEditMode) {
+        try {
+          const normCheckQuery = new URLSearchParams({
+            specialistId: String(specialistId),
+            clientId: String(nextPayload.clientId),
+            date: appointmentDate
+          }).toString();
+          const normCheckResponse = await apiFetch(
+            `/api/appointments/schedules/norm-check?${normCheckQuery}`
+          );
+          if (normCheckResponse.ok) {
+            const normCheckData = await readApiResponseData(normCheckResponse);
+            const violations = Array.isArray(normCheckData?.violations) ? normCheckData.violations : [];
+            if (violations.length > 0) {
+              const v = violations[0];
+              const warnMsg = `Warning: ${v.positionLabel}: this client already has ${v.currentCount} sessions this week (max: ${v.maxPerWeek}).\n\nProceed anyway?`;
+              if (!window.confirm(warnMsg)) {
+                return;
+              }
+            }
+          }
+        } catch {
+          // norm check failure must not prevent appointment creation
+        }
+      }
+
       const requestPayload = {
         specialistId,
         clientId: nextPayload.clientId,
@@ -3343,7 +3422,7 @@ function AppointmentScheduler({
                               setCreateForm((prev) => ({
                                 ...prev,
                                 clientId: "",
-                                service: DEFAULT_APPOINTMENT_SERVICE_NAME
+                                service: lockedVipServiceName
                               }));
                               if (createErrors.clientId || createErrors.service) {
                                 setCreateErrors((prev) => ({ ...prev, clientId: "", service: "" }));
@@ -3450,7 +3529,7 @@ function AppointmentScheduler({
                     type="text"
                     className={createErrors.service ? "input-error" : ""}
                     value={createForm.service}
-                    disabled={clientVipOnly || createSubmitting || createDeleting}
+                    disabled={isVipServiceLocked || createSubmitting || createDeleting}
                     onInput={(event) => {
                       const nextValue = event.currentTarget.value;
                       setCreateForm((prev) => ({ ...prev, service: nextValue }));

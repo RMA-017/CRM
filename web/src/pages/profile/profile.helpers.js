@@ -484,7 +484,7 @@ const FORCED_VIEW_REQUIRED_FEATURES = {
   "appointment-vip-tutor-assignments": ["assignments.tutor"],
   "appointment-vip-schedule": ["vip_clients.my_class"],
   "appointment-settings": ["settings.appointments"],
-  "appointment-work-schedule": ["settings.appointments"],
+  "appointment-work-schedule": ["appointments.work_schedule"],
   "settings-roles": ["settings.roles"],
   "settings-positions": ["settings.positions"],
   "statistics": ["statistics.class_attendance"],

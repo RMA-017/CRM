@@ -2,12 +2,16 @@ import { getClearCookieOptions, getAuthCookieOptions, AUTH_COOKIE_NAME } from ".
 import { signAccessToken } from "../../lib/session.js";
 import { getRolePermissions } from "../users/access.service.js";
 import { findAuthUserForLogin, verifyPassword } from "./auth.service.js";
+import { authRouteSchemas } from "./auth.route-schemas.js";
 
 async function authRoutes(fastify) {
   fastify.post(
     "/",
     {
-      config: { rateLimit: fastify.loginRateLimit }
+      config: { rateLimit: fastify.loginRateLimit },
+      schema: {
+        body: authRouteSchemas.loginBody
+      }
     },
     async (request, reply) => {
       const username = String(request.body?.username || "").trim();

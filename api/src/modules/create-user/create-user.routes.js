@@ -1,16 +1,22 @@
 import { appConfig } from "../../config/app-config.js";
 import { ORGANIZATION_CODE_REGEX } from "../../constants/validation.js";
 import { parsePositiveInteger } from "../../lib/number.js";
+import { normalizeOrganizationCode } from "../../lib/organization-code.js";
+import { requesterHasOrgFeature } from "../../lib/org-features.js";
 import { findActiveOrganizationByCode } from "../organizations/organizations.service.js";
 import { PERMISSIONS, USERNAME_REGEX } from "../users/users.constants.js";
 import { hasPermission, isAdminRole, isAllowedRole } from "../users/access.service.js";
+import { usersRouteSchemas } from "../users/users.route-schemas.js";
 import { createBasicUser, getActorForCreate } from "./create-user.service.js";
 
 async function createUserRoutes(fastify) {
   fastify.post(
     "/",
     {
-      config: { rateLimit: fastify.apiRateLimit }
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        body: usersRouteSchemas.createBody
+      }
     },
     async (request, reply) => {
       const authContext = request.authContext;
@@ -18,7 +24,7 @@ async function createUserRoutes(fastify) {
       const username = String(request.body?.username || "").trim().toLowerCase();
       const fullName = String(request.body?.fullName || request.body?.full_name || "").trim();
       const roleId = parsePositiveInteger(request.body?.role);
-      const organizationCode = String(request.body?.organizationCode || "").trim().toLowerCase();
+      const organizationCode = normalizeOrganizationCode(request.body?.organizationCode);
 
       const errors = {};
       if (!USERNAME_REGEX.test(username)) {
@@ -42,6 +48,9 @@ async function createUserRoutes(fastify) {
         const actor = await getActorForCreate(authContext);
         if (!actor) {
           return reply.status(401).send({ message: "Unauthorized." });
+        }
+        if (!requesterHasOrgFeature(actor, "users.all_users")) {
+          return reply.status(403).send({ message: "Forbidden." });
         }
         if (!(await hasPermission(actor.role_id, PERMISSIONS.USERS_CREATE))) {
           return reply.status(403).send({ message: "Forbidden." });

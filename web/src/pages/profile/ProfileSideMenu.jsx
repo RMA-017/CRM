@@ -1,22 +1,18 @@
-function ProfileSideMenu({
+import { forwardRef, useImperativeHandle, useState } from "react";
+
+const ProfileSideMenu = forwardRef(function ProfileSideMenu({
   menuRef,
-  menuOpen,
   isPlatformAdmin,
   hasClientsMenuAccess,
   canReadClients,
   canReadClientMedicalHistory,
-  clientsMenuOpen,
-  setClientsMenuOpen,
   openAllClientsPanel,
   openClientMedicalHistoryPanel,
-  vipClientsMenuOpen,
-  setVipClientsMenuOpen,
-  assignmentsMenuOpen,
-  setAssignmentsMenuOpen,
   hasAppointmentsMenuAccess,
   canOpenAppointmentSchedule,
   canOpenAppointmentVipMyClass,
   canOpenAppointmentBreaks,
+  canOpenAppointmentWorkSchedule,
   canOpenAppointmentVipClients,
   canOpenMyChildren,
   canOpenAppointmentVipDailyRoutines,
@@ -30,8 +26,7 @@ function ProfileSideMenu({
   canOpenSettingsOrganizations,
   canOpenSettingsRoles,
   canOpenSettingsPositions,
-  appointmentMenuOpen,
-  setAppointmentMenuOpen,
+  canOpenSettingsNorms,
   openAppointmentPanel,
   openAppointmentBreaksPanel,
   openAppointmentWorkSchedulePanel,
@@ -42,29 +37,49 @@ function ProfileSideMenu({
   openAppointmentVipAssignmentsPanel,
   openAppointmentVipTutorAssignmentsPanel,
   openAppointmentSettingsPanel,
-  statisticsMenuOpen,
-  setStatisticsMenuOpen,
   openStatisticsClassPanel,
   openStatisticsPlannerReportPanel,
   hasUsersMenuAccess,
-  usersMenuOpen,
-  setUsersMenuOpen,
-  setSettingsMenuOpen,
-  adminSettingsMenuOpen,
-  setAdminSettingsMenuOpen,
   canReadUsers,
   closeMenu,
   navigate,
   hasSettingsMenuAccess,
   hasAdminSettingsAccess,
   canSendNotifications,
-  settingsMenuOpen,
   openOrganizationsPanel,
   openRolesPanel,
   openPositionsPanel,
+  openNormsPanel,
   openNotificationsSendPanel,
   openMonitoringPanel
-}) {
+}, ref) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [clientsMenuOpen, setClientsMenuOpen] = useState(false);
+  const [vipClientsMenuOpen, setVipClientsMenuOpen] = useState(false);
+  const [assignmentsMenuOpen, setAssignmentsMenuOpen] = useState(false);
+  const [appointmentMenuOpen, setAppointmentMenuOpen] = useState(false);
+  const [usersMenuOpen, setUsersMenuOpen] = useState(false);
+  const [statisticsMenuOpen, setStatisticsMenuOpen] = useState(false);
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const [adminSettingsMenuOpen, setAdminSettingsMenuOpen] = useState(false);
+
+  useImperativeHandle(ref, () => ({
+    open() {
+      setMenuOpen(true);
+    },
+    close() {
+      setMenuOpen(false);
+      setClientsMenuOpen(false);
+      setVipClientsMenuOpen(false);
+      setAssignmentsMenuOpen(false);
+      setAppointmentMenuOpen(false);
+      setUsersMenuOpen(false);
+      setStatisticsMenuOpen(false);
+      setSettingsMenuOpen(false);
+      setAdminSettingsMenuOpen(false);
+    }
+  }), []);
+
   return (
     <>
       <aside
@@ -228,7 +243,7 @@ function ProfileSideMenu({
                 id="openAppointmentUserWeeklyOverridesBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
-                hidden={!hasSettingsMenuAccess}
+                hidden={!canOpenAppointmentWorkSchedule}
                 onClick={openAppointmentWorkSchedulePanel}
               >
                 Work Schedule
@@ -376,6 +391,15 @@ function ProfileSideMenu({
               >
                 Positions
               </button>
+              <button
+                id="openAppointmentNormsBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                hidden={!canOpenSettingsNorms}
+                onClick={openNormsPanel}
+              >
+                Appointment Norms
+              </button>
             </div>
           </div>
         </nav>
@@ -384,6 +408,6 @@ function ProfileSideMenu({
       <div id="menuOverlay" className="menu-overlay" hidden={!menuOpen} onClick={closeMenu} />
     </>
   );
-}
+});
 
 export default ProfileSideMenu;

@@ -7,14 +7,19 @@ const {
   default: appointmentSettingsRoutes,
   __appointmentRouteContracts
 } = await import("../src/modules/appointments/appointment-settings.routes.js");
+const { default: authRoutes } = await import("../src/modules/auth/auth.routes.js");
+const { default: createUserRoutes } = await import("../src/modules/create-user/create-user.routes.js");
+const { default: metaRoutes } = await import("../src/modules/meta/meta.routes.js");
 const {
   default: notificationsRoutes,
   __notificationsRouteContracts
 } = await import("../src/modules/notifications/notifications.routes.js");
+const { default: profileRoutes } = await import("../src/modules/profile/profile.routes.js");
 const {
   default: settingsRoutes,
   __settingsRouteContracts
 } = await import("../src/modules/settings/settings.routes.js");
+const { default: usersRoutes } = await import("../src/modules/users/users.routes.js");
 
 function createRouteRecorder() {
   const routes = [];
@@ -78,6 +83,7 @@ test("appointments routes expose stable contract", async () => {
     "GET /report",
     "GET /report/filters",
     "GET /schedules",
+    "GET /schedules/norm-check",
     "GET /settings",
     "GET /specialists",
     "GET /work-schedule",
@@ -96,6 +102,9 @@ test("appointments routes expose stable contract", async () => {
 
   const schedulesPost = findRoute(recorder.routes, "POST", "/schedules");
   assert.equal(typeof schedulesPost?.options?.schema?.body, "object");
+
+  const schedulesNormCheckGet = findRoute(recorder.routes, "GET", "/schedules/norm-check");
+  assert.equal(typeof schedulesNormCheckGet?.handler, "function");
 
   const schedulesPatch = findRoute(recorder.routes, "PATCH", "/schedules/:id");
   assert.equal(typeof schedulesPatch?.options?.schema?.params, "object");
@@ -139,17 +148,21 @@ test("settings routes expose stable contract", async () => {
   assertRateLimitConfigured(recorder.routes);
 
   assert.deepEqual(toRouteSignatures(recorder.routes), [
+    "DELETE /appointment-norms/:id",
     "DELETE /organizations/:id",
     "DELETE /positions/:id",
     "DELETE /roles/:id",
     "GET /admin-options",
+    "GET /appointment-norms",
     "GET /organizations",
     "GET /positions",
     "GET /roles",
     "PATCH /admin-options",
+    "PATCH /appointment-norms/:id",
     "PATCH /organizations/:id",
     "PATCH /positions/:id",
     "PATCH /roles/:id",
+    "POST /appointment-norms",
     "POST /organizations",
     "POST /positions",
     "POST /roles"
@@ -172,6 +185,16 @@ test("settings routes expose stable contract", async () => {
   const positionsPatch = findRoute(recorder.routes, "PATCH", "/positions/:id");
   assert.equal(typeof positionsPatch?.options?.schema?.params, "object");
   assert.equal(typeof positionsPatch?.options?.schema?.body, "object");
+
+  const appointmentNormsPost = findRoute(recorder.routes, "POST", "/appointment-norms");
+  assert.equal(typeof appointmentNormsPost?.options?.schema?.body, "object");
+
+  const appointmentNormsPatch = findRoute(recorder.routes, "PATCH", "/appointment-norms/:id");
+  assert.equal(typeof appointmentNormsPatch?.options?.schema?.params, "object");
+  assert.equal(typeof appointmentNormsPatch?.options?.schema?.body, "object");
+
+  const appointmentNormsDelete = findRoute(recorder.routes, "DELETE", "/appointment-norms/:id");
+  assert.equal(typeof appointmentNormsDelete?.options?.schema?.params, "object");
 });
 
 test("notifications routes expose stable contract", async () => {
@@ -192,6 +215,94 @@ test("notifications routes expose stable contract", async () => {
 
   const notificationsSendPost = findRoute(recorder.routes, "POST", "/send");
   assert.equal(typeof notificationsSendPost?.options?.schema?.body, "object");
+});
+
+test("auth routes expose stable contract", async () => {
+  const recorder = createRouteRecorder();
+  await authRoutes(recorder.fastify);
+
+  assertRateLimitConfigured(recorder.routes);
+
+  assert.deepEqual(toRouteSignatures(recorder.routes), [
+    "POST /",
+    "POST /logout"
+  ]);
+
+  const loginPost = findRoute(recorder.routes, "POST", "/");
+  assert.equal(typeof loginPost?.options?.schema?.body, "object");
+
+  const logoutPost = findRoute(recorder.routes, "POST", "/logout");
+  assert.equal(typeof logoutPost?.handler, "function");
+});
+
+test("profile routes expose stable contract", async () => {
+  const recorder = createRouteRecorder();
+  await profileRoutes(recorder.fastify);
+
+  assertRateLimitConfigured(recorder.routes);
+
+  assert.deepEqual(toRouteSignatures(recorder.routes), [
+    "GET /",
+    "PATCH /",
+    "POST /organization-context"
+  ]);
+
+  const profilePatch = findRoute(recorder.routes, "PATCH", "/");
+  assert.equal(typeof profilePatch?.options?.schema?.body, "object");
+
+  const organizationContextPost = findRoute(recorder.routes, "POST", "/organization-context");
+  assert.equal(typeof organizationContextPost?.options?.schema?.body, "object");
+});
+
+test("meta routes expose stable contract", async () => {
+  const recorder = createRouteRecorder();
+  await metaRoutes(recorder.fastify);
+
+  assertRateLimitConfigured(recorder.routes);
+
+  assert.deepEqual(toRouteSignatures(recorder.routes), [
+    "GET /user-options"
+  ]);
+
+  const userOptionsGet = findRoute(recorder.routes, "GET", "/user-options");
+  assert.equal(typeof userOptionsGet?.options?.schema?.querystring, "object");
+});
+
+test("create-user routes expose stable contract", async () => {
+  const recorder = createRouteRecorder();
+  await createUserRoutes(recorder.fastify);
+
+  assertRateLimitConfigured(recorder.routes);
+
+  assert.deepEqual(toRouteSignatures(recorder.routes), [
+    "POST /"
+  ]);
+
+  const createUserPost = findRoute(recorder.routes, "POST", "/");
+  assert.equal(typeof createUserPost?.options?.schema?.body, "object");
+});
+
+test("users routes expose stable contract", async () => {
+  const recorder = createRouteRecorder();
+  await usersRoutes(recorder.fastify);
+
+  assertRateLimitConfigured(recorder.routes);
+
+  assert.deepEqual(toRouteSignatures(recorder.routes), [
+    "DELETE /:id",
+    "GET /",
+    "PATCH /:id"
+  ]);
+
+  const usersGet = findRoute(recorder.routes, "GET", "/");
+  assert.equal(typeof usersGet?.options?.schema?.querystring, "object");
+
+  const usersPatch = findRoute(recorder.routes, "PATCH", "/:id");
+  assert.equal(typeof usersPatch?.options?.schema?.params, "object");
+  assert.equal(typeof usersPatch?.options?.schema?.body, "object");
+
+  const usersDelete = findRoute(recorder.routes, "DELETE", "/:id");
+  assert.equal(typeof usersDelete?.options?.schema?.params, "object");
 });
 
 test("notifications contract helpers normalize paging and targets", () => {

@@ -1,5 +1,4 @@
 @import "./base/base.css";
 @import "./layout/layout.css";
-@import "./components/components.css";
-@import "./components/responsive.css";
+@import "./components/home-responsive.css";
 

@@ -1,73 +1,28 @@
 import { appointmentRouteSchemas } from "./appointment.route-schemas.js";
 import { appConfig } from "../../../config/app-config.js";
 import {
+  getNotificationRetentionDaysMessage,
+  parseNotificationRetentionDays
+} from "../../../lib/notification-retention.js";
+import { parseBooleanOr } from "../../../lib/request-parsers.js";
+import {
   getNotificationRetentionSettingsByOrganization,
   saveNotificationRetentionSettingsByOrganization
 } from "../../notifications/notifications.service.js";
+import {
+  normalizeWorkScheduleDayOfWeek,
+  normalizeWorkScheduleReason,
+  normalizeWorkScheduleScope,
+  normalizeWorkScheduleTime
+} from "../work-schedule.js";
 
 const DATE_YMD_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-const TIME_HM_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
-const WORK_SCHEDULE_SCOPE_SET = new Set(["weekly", "exception"]);
-const MIN_NOTIFICATION_RETENTION_DAYS = 0;
-const MAX_NOTIFICATION_RETENTION_DAYS = 3650;
-
-function parseNotificationRetentionDays(value, field) {
-  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
-  if (
-    !Number.isInteger(parsed)
-    || parsed < MIN_NOTIFICATION_RETENTION_DAYS
-    || parsed > MAX_NOTIFICATION_RETENTION_DAYS
-  ) {
-    return {
-      error: {
-        field,
-        message: `Retention days must be an integer between ${MIN_NOTIFICATION_RETENTION_DAYS} and ${MAX_NOTIFICATION_RETENTION_DAYS}.`
-      }
-    };
-  }
-  return { value: parsed };
-}
-
-function normalizeWorkScheduleScope(value) {
-  const normalized = String(value || "").trim().toLowerCase();
-  return WORK_SCHEDULE_SCOPE_SET.has(normalized) ? normalized : "";
-}
-
-function normalizeWorkScheduleDayOfWeek(value, toAppointmentDayNum) {
-  const parsed = Number.parseInt(String(value || "").trim(), 10);
-  if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 7) {
-    return parsed;
-  }
-  const fromKey = toAppointmentDayNum(String(value || "").trim().toLowerCase());
-  if (Number.isInteger(fromKey) && fromKey >= 1 && fromKey <= 7) {
-    return fromKey;
-  }
-  return 0;
-}
-
-function normalizeWorkScheduleIsActive(value, parseNullableBoolean) {
-  const parsed = parseNullableBoolean(value);
-  if (parsed === true) {
-    return true;
-  }
-  if (parsed === false) {
-    return false;
-  }
-  return false;
-}
-
-function normalizeWorkScheduleTime(value) {
-  const normalized = String(value || "").trim().slice(0, 5);
-  return TIME_HM_REGEX.test(normalized) ? normalized : "";
-}
-
-function normalizeWorkScheduleReason(value) {
-  return String(value || "").trim().slice(0, 120);
+function normalizeWorkScheduleIsActive(value) {
+  return parseBooleanOr(value, false);
 }
 
 function parseWorkSchedulePayload({
   body,
-  parseNullableBoolean,
   toAppointmentDayNum
 }) {
   const ruleScope = normalizeWorkScheduleScope(body?.ruleScope ?? body?.rule_scope);
@@ -92,7 +47,7 @@ function parseWorkSchedulePayload({
   }
   const userId = Number.isInteger(userIdRaw) && userIdRaw > 0 ? userIdRaw : null;
 
-  const isActive = normalizeWorkScheduleIsActive(body?.isActive ?? body?.is_active, parseNullableBoolean);
+  const isActive = normalizeWorkScheduleIsActive(body?.isActive ?? body?.is_active);
   const startTime = normalizeWorkScheduleTime(body?.startTime ?? body?.start_time);
   const endTime = normalizeWorkScheduleTime(body?.endTime ?? body?.end_time);
   const reason = normalizeWorkScheduleReason(body?.reason);
@@ -167,7 +122,6 @@ function parseWorkSchedulePayload({
 
 function parseDefaultWeeklyItems({
   items,
-  parseNullableBoolean,
   toAppointmentDayNum
 }) {
   if (!Array.isArray(items)) {
@@ -205,7 +159,7 @@ function parseDefaultWeeklyItems({
     }
     seen.add(dayOfWeek);
 
-    const isActive = normalizeWorkScheduleIsActive(item?.isActive ?? item?.is_active, parseNullableBoolean);
+    const isActive = normalizeWorkScheduleIsActive(item?.isActive ?? item?.is_active);
     const startTime = normalizeWorkScheduleTime(item?.startTime ?? item?.start_time);
     const endTime = normalizeWorkScheduleTime(item?.endTime ?? item?.end_time);
     if (isActive && (!startTime || !endTime)) {
@@ -251,7 +205,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
     parseOptionalOrganizationId,
     resolveTargetOrganizationId,
     parsePositiveIntegerOr,
-    parseNullableBoolean,
+    resolveOwnAppointmentSpecialistUserId,
     toAppointmentDayNum,
     normalizeDurationOptions,
     normalizeReminderChannels,
@@ -338,6 +292,15 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
+        const specialistId = parsePositiveIntegerOr(
+          request.query?.specialistId ?? request.query?.specialist_id,
+          0
+        ) || null;
+        const ownSpecialistUserId = resolveOwnAppointmentSpecialistUserId(access);
+        if (ownSpecialistUserId && specialistId && specialistId !== ownSpecialistUserId) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
         const defaultOutboxRetentionDays = Number.parseInt(
           String(appConfig?.outboxWorker?.retentionDays ?? 30),
           10
@@ -347,7 +310,9 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
           10
         );
         const [settings, notificationRetention] = await Promise.all([
-          getAppointmentSettingsByOrganization(targetOrganizationId),
+          getAppointmentSettingsByOrganization(targetOrganizationId, {
+            specialistId
+          }),
           getNotificationRetentionSettingsByOrganization({
             organizationId: targetOrganizationId,
             defaultOutboxRetentionDays,
@@ -423,6 +388,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
         const reminderHours = parsePositiveIntegerOr(request.body?.reminderHours, 0);
         const reminderChannels = normalizeReminderChannels(request.body?.reminderChannels);
         const visibleWeekDays = normalizeVisibleWeekDays(request.body?.visibleWeekDays);
+        const rawDefaultWeeklyItems = request.body?.defaultWeeklyItems ?? request.body?.default_weekly_items;
         const hasOutboxWorkerRetentionDays = (
           request.body?.outboxWorkerRetentionDays !== undefined
           || request.body?.outboxRetentionDays !== undefined
@@ -446,6 +412,17 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
         });
         if (validationError) {
           return reply.status(400).send(validationError);
+        }
+
+        let parsedDefaultWeeklyItems = { value: null };
+        if (rawDefaultWeeklyItems !== undefined) {
+          parsedDefaultWeeklyItems = parseDefaultWeeklyItems({
+            items: rawDefaultWeeklyItems,
+            toAppointmentDayNum
+          });
+          if (parsedDefaultWeeklyItems.error) {
+            return reply.status(400).send(parsedDefaultWeeklyItems.error);
+          }
         }
 
         let parsedOutboxWorkerRetentionDays = { value: null };
@@ -534,6 +511,14 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
             })
         ]);
 
+        if (Array.isArray(parsedDefaultWeeklyItems.value)) {
+          await replaceAppointmentDefaultWeeklyWorkSchedule({
+            organizationId: targetOrganizationId,
+            actorUserId: access.authContext.userId,
+            items: parsedDefaultWeeklyItems.value
+          });
+        }
+
         return reply.send({
           message: "Appointment settings updated.",
           item: {
@@ -562,13 +547,13 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
         if (error?.code === "INVALID_OUTBOX_RETENTION_DAYS") {
           return reply.status(400).send({
             field: "outboxWorkerRetentionDays",
-            message: `Retention days must be an integer between ${MIN_NOTIFICATION_RETENTION_DAYS} and ${MAX_NOTIFICATION_RETENTION_DAYS}.`
+            message: getNotificationRetentionDaysMessage()
           });
         }
         if (error?.code === "INVALID_USER_NOTIFICATIONS_RETENTION_DAYS") {
           return reply.status(400).send({
             field: "userNotificationsRetentionDays",
-            message: `Retention days must be an integer between ${MIN_NOTIFICATION_RETENTION_DAYS} and ${MAX_NOTIFICATION_RETENTION_DAYS}.`
+            message: getNotificationRetentionDaysMessage()
           });
         }
         request.log.error({ err: error }, "Error updating appointment settings");
@@ -607,7 +592,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
 
         const userId = parsePositiveIntegerOr(request.query?.userId ?? request.query?.user_id, 0) || null;
         const requestedRuleScope = String(request.query?.ruleScope ?? request.query?.rule_scope ?? "").trim().toLowerCase();
-        if (requestedRuleScope && requestedRuleScope !== "all" && !WORK_SCHEDULE_SCOPE_SET.has(requestedRuleScope)) {
+        if (requestedRuleScope && requestedRuleScope !== "all" && !normalizeWorkScheduleScope(requestedRuleScope)) {
           return reply.status(400).send({
             field: "ruleScope",
             message: "Invalid rule scope."
@@ -666,7 +651,6 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
 
         const parsedItems = parseDefaultWeeklyItems({
           items: request.body?.items,
-          parseNullableBoolean,
           toAppointmentDayNum
         });
         if (parsedItems.error) {
@@ -685,6 +669,9 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
           items
         });
       } catch (error) {
+        if (error?.statusCode === 409) {
+          return reply.status(409).send(error?.payload || { message: error.message || "Conflict." });
+        }
         if (error?.code === "23514") {
           return reply.status(400).send({ message: "Invalid schedule data." });
         }
@@ -722,7 +709,6 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
 
         const parsedPayload = parseWorkSchedulePayload({
           body: request.body,
-          parseNullableBoolean,
           toAppointmentDayNum
         });
         if (parsedPayload.error) {
@@ -744,6 +730,9 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
           item
         });
       } catch (error) {
+        if (error?.statusCode === 409) {
+          return reply.status(409).send(error?.payload || { message: error.message || "Conflict." });
+        }
         if (error?.code === "23505") {
           return reply.status(409).send({ message: "Duplicate work schedule entry for selected scope." });
         }
@@ -793,7 +782,6 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
 
         const parsedPayload = parseWorkSchedulePayload({
           body: request.body,
-          parseNullableBoolean,
           toAppointmentDayNum
         });
         if (parsedPayload.error) {
@@ -816,6 +804,9 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
           item
         });
       } catch (error) {
+        if (error?.statusCode === 409) {
+          return reply.status(409).send(error?.payload || { message: error.message || "Conflict." });
+        }
         if (error?.code === "23505") {
           return reply.status(409).send({ message: "Duplicate work schedule entry for selected scope." });
         }
@@ -876,6 +867,9 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
           organizationId: String(targetOrganizationId)
         });
       } catch (error) {
+        if (error?.statusCode === 409) {
+          return reply.status(409).send(error?.payload || { message: error.message || "Conflict." });
+        }
         request.log.error({ err: error }, "Error deleting work schedule entry");
         return reply.status(500).send({ message: "Internal server error." });
       }

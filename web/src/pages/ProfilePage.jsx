@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import CustomSelect from "../components/CustomSelect.jsx";
+import "../css/profile.css";
 import { apiFetch, getApiErrorMessage, readApiResponseData } from "../lib/api.js";
-import { formatDateForInput, getInitial, normalizeProfile } from "../lib/formatters.js";
+import { LOGOUT_FLAG_KEY } from "../lib/auth-flags.js";
+import { formatDateForInput, normalizeProfile } from "../lib/formatters.js";
 import {
   createEmptyProfileEditState,
   EMPTY_PROFILE_EDIT_FORM,
-  LOGOUT_FLAG_KEY,
   ORGANIZATION_CODE_REGEX,
   USERNAME_REGEX
 } from "./profile/profile.constants.js";
@@ -15,107 +16,36 @@ import {
   isViewBlockedByOrgFeatures,
   mapValueLabelOptions,
 } from "./profile/profile.helpers.js";
-import ProfileMainContent from "./profile/ProfileMainContent.jsx";
-import ProfileModals from "./profile/ProfileModals.jsx";
-import ProfileSideMenu from "./profile/ProfileSideMenu.jsx";
 import { useAllUsersSection } from "./profile/useAllUsersSection.js";
 import { useClientsSection } from "./profile/useClientsSection.js";
 import { useProfileAccess } from "./profile/useProfileAccess.js";
+import { useProfileAvatar } from "./profile/useProfileAvatar.js";
 import { useProfileNotifications } from "./profile/useProfileNotifications.js";
 import { useProfilePanels } from "./profile/useProfilePanels.js";
 import { useSettingsSection } from "./profile/useSettingsSection.js";
-import { useVipDailyRoutinesSection } from "./profile/useVipDailyRoutinesSection.js";
 import { getBirthdayValidationMessage } from "./profile/profile.validators.js";
-import {
-  formatMyChildrenOptionLabel,
-  getMyChildrenWeekStartYmd,
-  mapMyChildrenScheduleItem,
-  MY_CHILDREN_DEFAULT_VISIBLE_WEEK_DAYS,
-  mapVipAssignmentItem,
-  mapVipAttendanceClient,
-  mapVipClassItem,
-  normalizeMyChildrenVisibleWeekDays,
-  normalizeVipAssignmentDraftEntry,
-  normalizeVipAttendanceDateTime,
-  normalizeVipAttendanceDraftEntry,
-  normalizeVipAttendanceStatus,
-  resolveVipAttendanceDate,
-  shiftDateYmd
-} from "./profile/profile.vip-utils.js";
 
-function getInitialMyChildrenIsCompact() {
-  return typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches;
+const ProfileModals = lazy(() => import("./profile/ProfileModals.jsx"));
+const ProfileMainContent = lazy(() => import("./profile/ProfileMainContent.jsx"));
+let profileSideMenuPromise;
+function loadProfileSideMenu() {
+  profileSideMenuPromise ??= import("./profile/ProfileSideMenu.jsx");
+  return profileSideMenuPromise;
 }
-
-const AVATAR_STORAGE_PREFIX = "crm_avatar_";
-
-function isStorageQuotaExceeded(error) {
-  if (!error) {
-    return false;
-  }
-  const code = Number(error.code);
-  return error.name === "QuotaExceededError"
-    || error.name === "NS_ERROR_DOM_QUOTA_REACHED"
-    || code === 22
-    || code === 1014;
-}
-
-function removeStoredAvatarsExcept(currentKey = "") {
-  const keysToRemove = [];
-  for (let index = 0; index < localStorage.length; index += 1) {
-    const key = localStorage.key(index);
-    if (!key || !key.startsWith(AVATAR_STORAGE_PREFIX)) {
-      continue;
-    }
-    if (key === currentKey) {
-      continue;
-    }
-    keysToRemove.push(key);
-  }
-
-  keysToRemove.forEach((key) => {
-    localStorage.removeItem(key);
-  });
-}
-
-function persistAvatarDataUrl(storageKey, dataUrl) {
-  try {
-    localStorage.setItem(storageKey, dataUrl);
-    return true;
-  } catch (error) {
-    if (!isStorageQuotaExceeded(error)) {
-      return false;
-    }
-  }
-
-  try {
-    removeStoredAvatarsExcept(storageKey);
-    localStorage.setItem(storageKey, dataUrl);
-    return true;
-  } catch {
-    return false;
-  }
-}
+const ProfileSideMenu = lazy(loadProfileSideMenu);
 
 function ProfilePage({ forcedView = "none" }) {
   const navigate = useNavigate();
   const menuRef = useRef(null);
   const menuToggleRef = useRef(null);
-  const avatarInputRef = useRef(null);
+  const sideMenuRef = useRef(null);
+  const menuOpenRef = useRef(false);
+  const pendingSideMenuOpenRef = useRef(false);
 
   const [profile, setProfile] = useState(null);
-  const [avatarDataUrl, setAvatarDataUrl] = useState("");
   const [organizationContextSwitching, setOrganizationContextSwitching] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [clientsMenuOpen, setClientsMenuOpen] = useState(false);
-  const [vipClientsMenuOpen, setVipClientsMenuOpen] = useState(false);
-  const [assignmentsMenuOpen, setAssignmentsMenuOpen] = useState(false);
-  const [appointmentMenuOpen, setAppointmentMenuOpen] = useState(false);
-  const [usersMenuOpen, setUsersMenuOpen] = useState(false);
-  const [statisticsMenuOpen, setStatisticsMenuOpen] = useState(false);
-  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
-  const [adminSettingsMenuOpen, setAdminSettingsMenuOpen] = useState(false);
   const [myProfileModalOpen, setMyProfileModalOpen] = useState(false);
+  const [sideMenuMounted, setSideMenuMounted] = useState(false);
 
   const [mainView, setMainViewState] = useState("none");
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
@@ -156,6 +86,7 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenAppointmentSchedule,
     canOpenAppointmentVipMyClass,
     canOpenAppointmentBreaks,
+    canOpenAppointmentWorkSchedule,
     canOpenAppointmentVipClients,
     canOpenMyChildren,
     canOpenAppointmentVipDailyRoutines,
@@ -175,6 +106,10 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenStatisticsPlannerReport,
     canOpenAppointmentSettings,
     canUpdateSettingsAppointments,
+    canCreateSettingsAppointmentNorms,
+    canUpdateSettingsAppointmentNorms,
+    canDeleteSettingsAppointmentNorms,
+    canOpenSettingsNorms,
     canOpenSettingsOrganizations,
     canCreateSettingsOrganizations,
     canUpdateSettingsOrganizations,
@@ -306,6 +241,26 @@ function ProfilePage({ forcedView = "none" }) {
     cancelPositionEdit,
     handlePositionEditSave,
     handlePositionDelete,
+    normsSettings,
+    normsSettingsMessage,
+    normCreateForm,
+    normCreateError,
+    normCreateSubmitting,
+    normEditOpen,
+    normEditForm,
+    normEditError,
+    normEditSubmitting,
+    normDeletingId,
+    setNormCreateForm,
+    setNormCreateError,
+    setNormEditForm,
+    setNormEditError,
+    loadNormsSettings,
+    handleNormCreateSubmit,
+    startNormEdit,
+    cancelNormEdit,
+    handleNormEditSave,
+    handleNormDelete,
     closeSettingsDeleteModal,
     handleSettingsDeleteConfirm
   } = useSettingsSection({
@@ -321,6 +276,10 @@ function ProfilePage({ forcedView = "none" }) {
     canCreateSettingsPositions,
     canUpdateSettingsPositions,
     canDeleteSettingsPositions,
+    canOpenSettingsNorms,
+    canCreateSettingsAppointmentNorms,
+    canUpdateSettingsAppointmentNorms,
+    canDeleteSettingsAppointmentNorms,
     navigate,
     loadUserOptions,
     orgFeatures: Boolean(profile?.isPlatformAdmin) ? null : (profile?.orgFeatures ?? null)
@@ -435,1202 +394,10 @@ function ProfilePage({ forcedView = "none" }) {
     navigate,
     getBirthdayValidationMessage
   });
-  const todayYmd = formatDateForInput(new Date());
-  const [vipAttendancePeriod, setVipAttendancePeriod] = useState(() => ({
-    from: todayYmd,
-    to: todayYmd
-  }));
-  const [vipAttendanceItems, setVipAttendanceItems] = useState([]);
-  const [vipAttendanceTeacherOptions, setVipAttendanceTeacherOptions] = useState([]);
-  const [vipAttendanceDraftByClientId, setVipAttendanceDraftByClientId] = useState({});
-  const [vipAttendanceMessage, setVipAttendanceMessage] = useState("");
-  const [vipAttendanceLoading, setVipAttendanceLoading] = useState(false);
-  const [vipAttendanceSavingByClientId, setVipAttendanceSavingByClientId] = useState({});
-  const [myChildrenIsCompact, setMyChildrenIsCompact] = useState(getInitialMyChildrenIsCompact);
-  const [myChildrenDateYmd, setMyChildrenDateYmd] = useState(() => (
-    getInitialMyChildrenIsCompact()
-      ? todayYmd
-      : getMyChildrenWeekStartYmd(todayYmd, todayYmd)
-  ));
-  const [myChildrenVisibleWeekDays, setMyChildrenVisibleWeekDays] = useState(() => [...MY_CHILDREN_DEFAULT_VISIBLE_WEEK_DAYS]);
-  const [myChildrenOptions, setMyChildrenOptions] = useState([]);
-  const [myChildrenOptionsLoading, setMyChildrenOptionsLoading] = useState(false);
-  const [myChildrenOptionsReady, setMyChildrenOptionsReady] = useState(false);
-  const [myChildrenSelectedClientId, setMyChildrenSelectedClientId] = useState("");
-  const [myChildrenScheduleItems, setMyChildrenScheduleItems] = useState([]);
-  const [myChildrenScheduleLoading, setMyChildrenScheduleLoading] = useState(false);
-  const [myChildrenScheduleMessage, setMyChildrenScheduleMessage] = useState("");
   const hasReadClientMedicalHistoryAccess = Boolean(canReadClientMedicalHistory || profile?.isAdmin || profile?.isPlatformAdmin);
   const hasCreateClientMedicalHistoryAccess = Boolean(canCreateClientMedicalHistory || profile?.isAdmin || profile?.isPlatformAdmin);
   const hasUpdateClientMedicalHistoryAccess = Boolean(canUpdateClientMedicalHistory || profile?.isAdmin || profile?.isPlatformAdmin);
   const hasDeleteClientMedicalHistoryAccess = Boolean(canDeleteClientMedicalHistory || profile?.isAdmin || profile?.isPlatformAdmin);
-  const [myChildrenConfirmingByAppointmentId, setMyChildrenConfirmingByAppointmentId] = useState({});
-  const {
-    vipDailyRoutineItems,
-    vipDailyRoutineClasses,
-    vipDailyRoutineMessage,
-    vipDailyRoutineLoading,
-    vipDailyRoutineSavingById,
-    loadVipDailyRoutines,
-    saveVipDailyRoutine,
-    deleteVipDailyRoutine
-  } = useVipDailyRoutinesSection({
-    canReadAppointmentVipClients,
-    canOpenMyChildren,
-    canCreateAppointmentVipClients,
-    canUpdateAppointmentVipClients,
-    canDeleteAppointmentVipClients,
-    navigate
-  });
-  const [vipClassItems, setVipClassItems] = useState([]);
-  const [vipClassTeachers, setVipClassTeachers] = useState([]);
-  const [vipClassMessage, setVipClassMessage] = useState("");
-  const [vipClassLoading, setVipClassLoading] = useState(false);
-  const [vipClassSavingById, setVipClassSavingById] = useState({});
-  const [vipAssignmentItems, setVipAssignmentItems] = useState([]);
-  const [vipAssignmentDraftByClientId, setVipAssignmentDraftByClientId] = useState({});
-  const [vipAssignmentClasses, setVipAssignmentClasses] = useState([]);
-  const [vipAssignmentTutors, setVipAssignmentTutors] = useState([]);
-  const [vipAssignmentMessage, setVipAssignmentMessage] = useState("");
-  const [vipAssignmentLoading, setVipAssignmentLoading] = useState(false);
-  const [vipAssignmentSavingByClientId, setVipAssignmentSavingByClientId] = useState({});
-  const [statisticsVipAttendanceHistoryItems, setStatisticsVipAttendanceHistoryItems] = useState([]);
-  const [statisticsVipAttendanceHistoryFilters, setStatisticsVipAttendanceHistoryFilters] = useState({
-    classes: [],
-    teachers: [],
-    tutors: [],
-    clients: []
-  });
-  const [statisticsVipAttendanceHistoryMessage, setStatisticsVipAttendanceHistoryMessage] = useState("");
-  const [statisticsVipAttendanceHistoryLoading, setStatisticsVipAttendanceHistoryLoading] = useState(false);
-  const setVipAttendancePeriodField = useCallback((field, nextDate) => {
-    const normalizedField = String(field || "").trim().toLowerCase();
-    if (normalizedField !== "from" && normalizedField !== "to") {
-      return;
-    }
-    const normalizedDate = String(nextDate || "").trim() || todayYmd;
-    setVipAttendancePeriod((prev) => {
-      const base = prev && typeof prev === "object"
-        ? prev
-        : { from: todayYmd, to: todayYmd };
-      const next = {
-        from: String(base.from || "").trim() || todayYmd,
-        to: String(base.to || "").trim() || todayYmd
-      };
-      next[normalizedField] = normalizedDate;
-      if (next.from && next.to && next.from > next.to) {
-        if (normalizedField === "from") {
-          next.to = next.from;
-        } else {
-          next.from = next.to;
-        }
-      }
-      return next;
-    });
-    setVipAttendanceDraftByClientId({});
-  }, [todayYmd]);
-
-  const loadStatisticsVipAttendanceHistory = useCallback(async ({
-    from = "",
-    to = "",
-    classId = "",
-    teacherId = "",
-    tutorId = "",
-    clientId = ""
-  } = {}) => {
-    if (!profile?.username) {
-      return;
-    }
-    if (!canOpenAppointmentStatistics) {
-      setStatisticsVipAttendanceHistoryItems([]);
-      setStatisticsVipAttendanceHistoryFilters({
-        classes: [],
-        teachers: [],
-        tutors: [],
-        clients: []
-      });
-      setStatisticsVipAttendanceHistoryMessage("You do not have permission to view VIP attendance history.");
-      return;
-    }
-
-    const normalizedFrom = String(from || "").trim() || todayYmd;
-    const normalizedTo = String(to || "").trim() || normalizedFrom;
-    const normalizedClassId = String(classId || "").trim();
-    const normalizedTeacherId = String(teacherId || "").trim();
-    const normalizedTutorId = String(tutorId || "").trim();
-    const normalizedClientId = String(clientId || "").trim();
-
-    const query = new URLSearchParams({
-      from: normalizedFrom,
-      to: normalizedTo,
-      limit: "1000"
-    });
-    if (normalizedClassId && normalizedClassId !== "all") {
-      query.set("classId", normalizedClassId);
-    }
-    if (normalizedTeacherId && normalizedTeacherId !== "all") {
-      query.set("teacherId", normalizedTeacherId);
-    }
-    if (normalizedTutorId && normalizedTutorId !== "all") {
-      query.set("tutorId", normalizedTutorId);
-    }
-    if (normalizedClientId && normalizedClientId !== "all") {
-      query.set("clientId", normalizedClientId);
-    }
-
-    setStatisticsVipAttendanceHistoryLoading(true);
-    setStatisticsVipAttendanceHistoryMessage("");
-    try {
-      const response = await apiFetch(`/api/clients/vip-attendance/history?${query.toString()}`, {
-        method: "GET",
-        cache: "no-store"
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        if (handleProtectedStatus(response, navigate)) {
-          return;
-        }
-        setStatisticsVipAttendanceHistoryItems([]);
-        setStatisticsVipAttendanceHistoryFilters({
-          classes: [],
-          teachers: [],
-          tutors: [],
-          clients: []
-        });
-        setStatisticsVipAttendanceHistoryMessage(data?.message || "Failed to load attendance history.");
-        return;
-      }
-
-      const nextItems = (Array.isArray(data?.items) ? data.items : []).map((item) => ({
-        id: String(item?.id || "").trim(),
-        clientId: String(item?.clientId || item?.client_id || "").trim(),
-        firstName: String(item?.firstName || item?.first_name || "").trim(),
-        lastName: String(item?.lastName || item?.last_name || "").trim(),
-        middleName: String(item?.middleName || item?.middle_name || "").trim(),
-        classId: String(item?.classId || item?.class_id || "").trim(),
-        className: String(item?.className || item?.class_name || "").trim(),
-        teacherId: String(item?.teacherId || item?.teacher_id || "").trim(),
-        teacherName: String(item?.teacherName || item?.teacher_name || "").trim(),
-        tutorId: String(item?.tutorId || item?.tutor_id || "").trim(),
-        tutorName: String(item?.tutorName || item?.tutor_name || "").trim(),
-        attendanceDate: String(item?.attendanceDate || item?.attendance_date || "").trim(),
-        attendanceStatus: String(item?.attendanceStatus || item?.attendance_status || "").trim().toLowerCase() === "present"
-          ? "present"
-          : "absent",
-        arrivedAt: String(item?.arrivedAt || item?.arrived_at || "").trim(),
-        leftAt: String(item?.leftAt || item?.left_at || "").trim(),
-        note: String(item?.note || item?.attendanceNote || item?.attendance_note || "").trim()
-      }));
-
-      const nextClasses = (Array.isArray(data?.classes) ? data.classes : [])
-        .map((item) => ({
-          id: String(item?.id || "").trim(),
-          className: String(item?.className || item?.class_name || "").trim(),
-          teacherId: String(item?.teacherId || item?.teacher_id || "").trim(),
-          teacherName: String(item?.teacherName || item?.teacher_name || "").trim()
-        }))
-        .filter((item) => Boolean(item.id) && Boolean(item.className));
-
-      const nextTeachers = (Array.isArray(data?.teachers) ? data.teachers : [])
-        .map((item) => ({
-          id: String(item?.id || "").trim(),
-          name: String(item?.name || "").trim()
-        }))
-        .filter((item) => Boolean(item.id));
-
-      const nextTutors = (Array.isArray(data?.tutors) ? data.tutors : [])
-        .map((item) => ({
-          id: String(item?.id || "").trim(),
-          name: String(item?.name || "").trim()
-        }))
-        .filter((item) => Boolean(item.id));
-
-      const nextClients = (Array.isArray(data?.clients) ? data.clients : [])
-        .map((item) => ({
-          id: String(item?.id || "").trim(),
-          firstName: String(item?.firstName || item?.first_name || "").trim(),
-          lastName: String(item?.lastName || item?.last_name || "").trim(),
-          middleName: String(item?.middleName || item?.middle_name || "").trim()
-        }))
-        .filter((item) => Boolean(item.id));
-
-      setStatisticsVipAttendanceHistoryItems(nextItems);
-      setStatisticsVipAttendanceHistoryFilters({
-        classes: nextClasses,
-        teachers: nextTeachers,
-        tutors: nextTutors,
-        clients: nextClients
-      });
-      if (nextItems.length === 0) {
-        setStatisticsVipAttendanceHistoryMessage("No attendance history found.");
-      }
-    } catch {
-      setStatisticsVipAttendanceHistoryItems([]);
-      setStatisticsVipAttendanceHistoryMessage("Failed to load attendance history.");
-    } finally {
-      setStatisticsVipAttendanceHistoryLoading(false);
-    }
-  }, [canOpenAppointmentStatistics, navigate, profile?.username, todayYmd]);
-
-  const loadVipAttendanceTeachers = useCallback(async () => {
-    if (!canReadAppointmentVipClients) {
-      setVipAttendanceTeacherOptions([]);
-      return;
-    }
-
-    try {
-      const response = await apiFetch("/api/clients/vip-attendance/teachers", {
-        method: "GET",
-        cache: "no-store"
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        if (handleProtectedStatus(response, navigate)) {
-          return;
-        }
-        setVipAttendanceTeacherOptions([]);
-        return;
-      }
-      const nextItems = (Array.isArray(data?.items) ? data.items : [])
-        .map((item) => ({
-          id: String(item?.id || "").trim(),
-          name: String(item?.name || "").trim()
-        }))
-        .filter((item) => Boolean(item.id))
-        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
-      setVipAttendanceTeacherOptions(nextItems);
-    } catch {
-      setVipAttendanceTeacherOptions([]);
-    }
-  }, [canReadAppointmentVipClients, navigate]);
-
-  const loadVipAttendance = useCallback(async ({
-    mineOnly = false
-  } = {}) => {
-    if (!canReadAppointmentVipClients) {
-      setVipAttendanceItems([]);
-      setVipAttendanceTeacherOptions([]);
-      setVipAttendanceDraftByClientId({});
-      setVipAttendanceMessage("You do not have permission to view VIP attendance.");
-      return;
-    }
-
-    setVipAttendanceLoading(true);
-    setVipAttendanceMessage("");
-    try {
-      const attendanceDate = resolveVipAttendanceDate(vipAttendancePeriod, todayYmd);
-      const query = new URLSearchParams({
-        isVip: "true",
-        limit: "100",
-        attendanceDate
-      });
-      if (mineOnly) {
-        query.set("assignmentScope", "mine");
-      }
-      const response = await apiFetch(`/api/clients/search?${query.toString()}`, {
-        method: "GET",
-        cache: "no-store"
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        if (handleProtectedStatus(response, navigate)) {
-          return;
-        }
-        setVipAttendanceItems([]);
-        setVipAttendanceDraftByClientId({});
-        setVipAttendanceMessage(data?.message || "Failed to load VIP attendance clients.");
-        return;
-      }
-
-      const nextItems = (Array.isArray(data?.items) ? data.items : [])
-        .map((item) => mapVipAttendanceClient(item))
-        .filter((item) => Boolean(item.id))
-        .sort((a, b) => {
-          const nameA = `${a.firstName} ${a.lastName} ${a.middleName}`.trim();
-          const nameB = `${b.firstName} ${b.lastName} ${b.middleName}`.trim();
-          return nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
-        });
-
-      setVipAttendanceItems(nextItems);
-      setVipAttendanceDraftByClientId((prev) => {
-        const next = {};
-        nextItems.forEach((item) => {
-          const previous = normalizeVipAttendanceDraftEntry(prev[item.id]);
-          const fromServer = normalizeVipAttendanceDraftEntry({
-            status: item.attendanceStatus,
-            arrivedAt: item.arrivedAt,
-            leftAt: item.leftAt,
-            note: item.note
-          });
-          const source = item.hasAttendanceData ? fromServer : previous;
-          const nextStatus = normalizeVipAttendanceStatus(source.status, "unmarked");
-          const normalizedSourceNote = String(source.note || "").trim();
-          const normalizedItemNote = String(item.note || "").trim();
-          next[item.id] = {
-            status: nextStatus,
-            arrivedAt: nextStatus === "present" ? String(source.arrivedAt || "").trim() : "",
-            leftAt: nextStatus === "present" ? String(source.leftAt || "").trim() : "",
-            note: normalizedSourceNote || normalizedItemNote
-          };
-        });
-        return next;
-      });
-      if (nextItems.length === 0) {
-        setVipAttendanceMessage(mineOnly ? "No assigned children found." : "");
-      }
-    } catch {
-      setVipAttendanceItems([]);
-      setVipAttendanceDraftByClientId({});
-      setVipAttendanceMessage(
-        mineOnly
-          ? "Failed to load assigned children."
-          : "Failed to load VIP attendance clients."
-      );
-    } finally {
-      setVipAttendanceLoading(false);
-    }
-  }, [canReadAppointmentVipClients, navigate, vipAttendancePeriod, todayYmd]);
-
-  const loadMyChildrenOptions = useCallback(async () => {
-    if (!canOpenMyChildren) {
-      setMyChildrenOptionsLoading(false);
-      setMyChildrenOptionsReady(true);
-      setMyChildrenOptions([]);
-      setMyChildrenSelectedClientId("");
-      setMyChildrenScheduleItems([]);
-      setMyChildrenScheduleMessage("You do not have permission to view assigned children.");
-      return;
-    }
-
-    setMyChildrenOptionsLoading(true);
-    setMyChildrenOptionsReady(false);
-    setMyChildrenScheduleMessage("");
-    try {
-      const query = new URLSearchParams({
-        isVip: "true",
-        assignmentScope: "mine",
-        limit: "500"
-      });
-      const response = await apiFetch(`/api/clients/search?${query.toString()}`, {
-        method: "GET",
-        cache: "no-store"
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        if (handleProtectedStatus(response, navigate)) {
-          return;
-        }
-        setMyChildrenOptions([]);
-        setMyChildrenSelectedClientId("");
-        setMyChildrenScheduleItems([]);
-        setMyChildrenScheduleMessage(data?.message || "Failed to load assigned children.");
-        return;
-      }
-
-      const nextOptions = (Array.isArray(data?.items) ? data.items : [])
-        .map((item) => formatMyChildrenOptionLabel(item))
-        .filter((item) => Boolean(item.id))
-        .sort((a, b) => String(a.label || "").localeCompare(String(b.label || ""), undefined, { sensitivity: "base" }));
-
-      setMyChildrenOptions(nextOptions);
-      setMyChildrenSelectedClientId((prev) => {
-        const current = String(prev || "").trim();
-        if (current && nextOptions.some((item) => item.id === current)) {
-          return current;
-        }
-        return "";
-      });
-
-      if (nextOptions.length === 0) {
-        setMyChildrenScheduleItems([]);
-        setMyChildrenScheduleMessage("");
-      }
-    } catch {
-      setMyChildrenOptions([]);
-      setMyChildrenSelectedClientId("");
-      setMyChildrenScheduleItems([]);
-      setMyChildrenScheduleMessage("Failed to load assigned children.");
-    } finally {
-      setMyChildrenOptionsLoading(false);
-      setMyChildrenOptionsReady(true);
-    }
-  }, [canOpenMyChildren, navigate]);
-
-  const loadMyChildrenVisibleWeekDays = useCallback(async () => {
-    if (!canOpenMyChildren) {
-      setMyChildrenVisibleWeekDays([...MY_CHILDREN_DEFAULT_VISIBLE_WEEK_DAYS]);
-      return;
-    }
-
-    try {
-      const response = await apiFetch("/api/appointments/settings", {
-        method: "GET",
-        cache: "no-store"
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        setMyChildrenVisibleWeekDays([...MY_CHILDREN_DEFAULT_VISIBLE_WEEK_DAYS]);
-        return;
-      }
-
-      setMyChildrenVisibleWeekDays(normalizeMyChildrenVisibleWeekDays(data?.item?.visibleWeekDays));
-    } catch {
-      setMyChildrenVisibleWeekDays([...MY_CHILDREN_DEFAULT_VISIBLE_WEEK_DAYS]);
-    }
-  }, [canOpenMyChildren]);
-
-  const loadMyChildrenSchedule = useCallback(async ({
-    clientId = "",
-    dateYmd = ""
-  } = {}) => {
-    if (!canOpenMyChildren) {
-      setMyChildrenScheduleItems([]);
-      setMyChildrenScheduleMessage("You do not have permission to view assigned children schedule.");
-      return;
-    }
-
-    const normalizedClientId = String(clientId || "").trim();
-    const dateFromYmd = String(dateYmd || "").trim() || todayYmd;
-    const dateToYmd = myChildrenIsCompact ? dateFromYmd : shiftDateYmd(dateFromYmd, 6, todayYmd);
-    const hasChildren = Array.isArray(myChildrenOptions) && myChildrenOptions.length > 0;
-    if (!normalizedClientId && !hasChildren) {
-      setMyChildrenScheduleItems([]);
-      setMyChildrenScheduleMessage("");
-      return;
-    }
-
-    setMyChildrenScheduleLoading(true);
-    setMyChildrenScheduleMessage("");
-    try {
-      const query = new URLSearchParams({
-        dateFrom: dateFromYmd,
-        dateTo: dateToYmd,
-        vipOnly: "true",
-        light: "true"
-      });
-      if (normalizedClientId) {
-        query.set("clientId", normalizedClientId);
-      }
-
-      const response = await apiFetch(`/api/appointments/schedules?${query.toString()}`, {
-        method: "GET",
-        cache: "no-store"
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        if (handleProtectedStatus(response, navigate)) {
-          return;
-        }
-        setMyChildrenScheduleItems([]);
-        setMyChildrenScheduleMessage(data?.message || "Failed to load child schedule.");
-        return;
-      }
-
-      const nextItems = (Array.isArray(data?.items) ? data.items : [])
-        .map((item) => mapMyChildrenScheduleItem(item))
-        .filter((item) => Boolean(item.id))
-        .filter((item) => item.status !== "cancelled")
-        .sort((a, b) => {
-          const dateCompare = String(a.appointmentDate || "").localeCompare(String(b.appointmentDate || ""));
-          if (dateCompare !== 0) {
-            return dateCompare;
-          }
-          const startCompare = String(a.startTime || "").localeCompare(String(b.startTime || ""));
-          if (startCompare !== 0) {
-            return startCompare;
-          }
-          return String(a.id || "").localeCompare(String(b.id || ""));
-        });
-
-      setMyChildrenScheduleItems(nextItems);
-      if (nextItems.length === 0) {
-        setMyChildrenScheduleMessage(myChildrenIsCompact ? "No lessons scheduled for selected day." : "No lessons scheduled for selected week.");
-      }
-    } catch {
-      setMyChildrenScheduleItems([]);
-      setMyChildrenScheduleMessage("Failed to load child schedule.");
-    } finally {
-      setMyChildrenScheduleLoading(false);
-    }
-  }, [canOpenMyChildren, myChildrenIsCompact, myChildrenOptions, navigate, todayYmd]);
-
-  const goToPreviousMyChildrenDay = useCallback(() => {
-    setMyChildrenDateYmd((prev) => shiftDateYmd(prev, myChildrenIsCompact ? -1 : -7, todayYmd));
-  }, [myChildrenIsCompact, todayYmd]);
-
-  const goToNextMyChildrenDay = useCallback(() => {
-    setMyChildrenDateYmd((prev) => shiftDateYmd(prev, myChildrenIsCompact ? 1 : 7, todayYmd));
-  }, [myChildrenIsCompact, todayYmd]);
-
-  const confirmMyChildrenPendingAppointment = useCallback(async (item) => {
-    const status = String(item?.status || "").trim().toLowerCase();
-    if (status !== "pending") {
-      return;
-    }
-
-    const appointmentId = String(item?.id || item?.appointmentId || "").trim();
-    const specialistId = String(item?.specialistId || item?.specialist_id || "").trim();
-    const clientId = String(item?.clientId || item?.client_id || "").trim();
-    const appointmentDate = String(item?.appointmentDate || item?.appointment_date || "").trim();
-    const startTime = String(item?.startTime || item?.start_time || "").trim();
-    const endTime = String(item?.endTime || item?.end_time || "").trim();
-    const durationMinutes = String(item?.durationMinutes || item?.duration_minutes || "").trim();
-    const serviceName = String(item?.serviceName || item?.service_name || "").trim() || "Service";
-    const note = String(item?.note || "").trim();
-
-    if (!appointmentId || !specialistId || !clientId || !appointmentDate || !startTime || !endTime || !durationMinutes) {
-      if (typeof window !== "undefined" && typeof window.alert === "function") {
-        window.alert("Failed to confirm lesson.");
-      }
-      return;
-    }
-    if (myChildrenConfirmingByAppointmentId[appointmentId]) {
-      return;
-    }
-
-    try {
-      setMyChildrenConfirmingByAppointmentId((prev) => ({
-        ...prev,
-        [appointmentId]: true
-      }));
-
-      const response = await apiFetch(
-        `/api/appointments/schedules/${encodeURIComponent(appointmentId)}?scope=single`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            specialistId,
-            clientId,
-            appointmentDate,
-            startTime,
-            endTime,
-            durationMinutes,
-            service: serviceName,
-            status: "confirmed",
-            note
-          })
-        }
-      );
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        if (typeof window !== "undefined" && typeof window.alert === "function") {
-          window.alert(String(data?.message || "Failed to confirm lesson.").trim());
-        }
-        return;
-      }
-
-      await loadMyChildrenSchedule({
-        clientId: myChildrenSelectedClientId,
-        dateYmd: myChildrenDateYmd
-      });
-    } catch {
-      if (typeof window !== "undefined" && typeof window.alert === "function") {
-        window.alert("Failed to confirm lesson.");
-      }
-    } finally {
-      setMyChildrenConfirmingByAppointmentId((prev) => {
-        const next = { ...prev };
-        delete next[appointmentId];
-        return next;
-      });
-    }
-  }, [
-    loadMyChildrenSchedule,
-    myChildrenConfirmingByAppointmentId,
-    myChildrenDateYmd,
-    myChildrenSelectedClientId
-  ]);
-
-  const saveVipAttendanceRecord = useCallback(async ({
-    clientId,
-    status,
-    note = "",
-    markLeft = false,
-    arrivedAt = "",
-    leftAt = "",
-    reset = false
-  }) => {
-    const normalizedClientId = String(clientId || "").trim();
-    if (!normalizedClientId) {
-      return { ok: false, message: "Client is required." };
-    }
-
-    const shouldReset = reset === true;
-    if (shouldReset && !canDeleteAppointmentVipClients) {
-      return { ok: false, message: "You do not have permission to delete VIP attendance." };
-    }
-    if (!shouldReset && !canCreateAppointmentVipClients && !canUpdateAppointmentVipClients) {
-      return { ok: false, message: "You do not have permission to save VIP attendance." };
-    }
-    const normalizedStatus = ["present", "absent"].includes(String(status || "").trim().toLowerCase())
-      ? String(status || "").trim().toLowerCase()
-      : (shouldReset ? "unmarked" : "");
-    if (!shouldReset && !normalizedStatus) {
-      return { ok: false, message: "Invalid attendance status." };
-    }
-
-    const normalizedNote = String(note || "").trim();
-    const normalizedArrivedAt = String(arrivedAt || "").trim();
-    const normalizedLeftAt = String(leftAt || "").trim();
-    const attendanceDate = resolveVipAttendanceDate(vipAttendancePeriod, todayYmd);
-    setVipAttendanceSavingByClientId((prev) => ({ ...prev, [normalizedClientId]: true }));
-    setVipAttendanceMessage("");
-
-    try {
-      const response = await apiFetch("/api/clients/vip-attendance", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          clientId: normalizedClientId,
-          attendanceDate,
-          status: shouldReset ? null : normalizedStatus,
-          note: normalizedNote,
-          markLeft: markLeft === true,
-          arrivedAt: shouldReset ? null : (normalizedArrivedAt || null),
-          leftAt: shouldReset ? null : (normalizedLeftAt || null),
-          reset: shouldReset
-        })
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        if (handleProtectedStatus(response, navigate)) {
-          return { ok: false, message: "Unauthorized." };
-        }
-        const message = getApiErrorMessage(response, data, "Failed to save VIP attendance.");
-        setVipAttendanceMessage(message);
-        return { ok: false, message };
-      }
-
-      const item = data?.item && typeof data.item === "object" ? data.item : {};
-      const nextStatus = normalizeVipAttendanceStatus(
-        item?.attendanceStatus || normalizedStatus,
-        shouldReset ? "unmarked" : normalizedStatus
-      );
-      const nextArrivedAt = normalizeVipAttendanceDateTime(item?.arrivedAt || item?.arrived_at);
-      const nextLeftAt = normalizeVipAttendanceDateTime(item?.leftAt || item?.left_at);
-      const nextNote = String(item?.attendanceNote || item?.attendance_note || item?.note || normalizedNote).trim();
-
-      setVipAttendanceDraftByClientId((prev) => ({
-        ...prev,
-        [normalizedClientId]: {
-          status: nextStatus,
-          arrivedAt: nextStatus === "present" ? nextArrivedAt : "",
-          leftAt: nextStatus === "present" ? nextLeftAt : "",
-          note: nextStatus === "unmarked" ? "" : nextNote
-        }
-      }));
-
-      return {
-        ok: true,
-        status: nextStatus,
-        arrivedAt: nextArrivedAt,
-        leftAt: nextLeftAt,
-        note: nextStatus === "unmarked" ? "" : nextNote
-      };
-    } catch {
-      const message = "Failed to save VIP attendance.";
-      setVipAttendanceMessage(message);
-      return { ok: false, message };
-    } finally {
-      setVipAttendanceSavingByClientId((prev) => {
-        if (!Object.prototype.hasOwnProperty.call(prev, normalizedClientId)) {
-          return prev;
-        }
-        const next = { ...prev };
-        delete next[normalizedClientId];
-        return next;
-      });
-    }
-  }, [
-    canCreateAppointmentVipClients,
-    canUpdateAppointmentVipClients,
-    canDeleteAppointmentVipClients,
-    navigate,
-    todayYmd,
-    vipAttendancePeriod
-  ]);
-
-  const markVipAttendancePresent = useCallback(async (clientId) => {
-    const result = await saveVipAttendanceRecord({
-      clientId,
-      status: "present"
-    });
-    return result;
-  }, [saveVipAttendanceRecord]);
-
-  const saveVipAttendanceAbsentReason = useCallback(async (clientId, reason) => {
-    const result = await saveVipAttendanceRecord({
-      clientId,
-      status: "absent",
-      note: reason
-    });
-    return result;
-  }, [saveVipAttendanceRecord]);
-
-  const markVipAttendanceLeft = useCallback(async (clientId) => {
-    const result = await saveVipAttendanceRecord({
-      clientId,
-      status: "present",
-      markLeft: true
-    });
-    return result;
-  }, [saveVipAttendanceRecord]);
-
-  const saveVipAttendanceEdit = useCallback(async (clientId, {
-    status = "",
-    arrivedAt = "",
-    leftAt = "",
-    note = "",
-    reset = false
-  } = {}) => {
-    const shouldReset = reset === true;
-    if (shouldReset) {
-      return saveVipAttendanceRecord({
-        clientId,
-        reset: true
-      });
-    }
-
-    const normalizedStatus = ["present", "absent"].includes(String(status || "").trim().toLowerCase())
-      ? String(status || "").trim().toLowerCase()
-      : "";
-    const normalizedArrivedAt = String(arrivedAt || "").trim();
-    const normalizedLeftAt = String(leftAt || "").trim();
-    const normalizedNote = String(note || "").trim();
-
-    if (normalizedStatus === "present" && normalizedLeftAt && !normalizedArrivedAt) {
-      return { ok: false, message: "Arrival time is required when departure time is set." };
-    }
-    if (normalizedStatus === "present" && normalizedArrivedAt && normalizedLeftAt && normalizedLeftAt < normalizedArrivedAt) {
-      return { ok: false, message: "Departure time must be later than arrival time." };
-    }
-    if (normalizedStatus === "absent" && !normalizedNote) {
-      return { ok: false, message: "Reason is required for absent." };
-    }
-
-    if (normalizedStatus === "present") {
-      return saveVipAttendanceRecord({
-        clientId,
-        status: "present",
-        note: "",
-        arrivedAt: normalizedArrivedAt,
-        leftAt: normalizedLeftAt
-      });
-    }
-
-    if (normalizedStatus === "absent") {
-      return saveVipAttendanceRecord({
-        clientId,
-        status: "absent",
-        note: normalizedNote,
-        arrivedAt: "",
-        leftAt: ""
-      });
-    }
-
-    if (!normalizedArrivedAt && !normalizedNote) {
-      return saveVipAttendanceRecord({
-        clientId,
-        reset: true
-      });
-    }
-
-    const nextStatus = normalizedArrivedAt ? "present" : "absent";
-
-    return saveVipAttendanceRecord({
-      clientId,
-      status: nextStatus,
-      note: normalizedNote,
-      arrivedAt: normalizedArrivedAt,
-      leftAt: normalizedLeftAt
-    });
-  }, [saveVipAttendanceRecord]);
-
-  const loadVipClassAssignments = useCallback(async () => {
-    if (!canReadAppointmentVipAssignments) {
-      setVipClassItems([]);
-      setVipClassTeachers([]);
-      setVipClassMessage("You do not have permission to manage VIP class assignments.");
-      return;
-    }
-
-    setVipClassLoading(true);
-    setVipClassMessage("");
-    try {
-      const query = new URLSearchParams({
-        limit: "300"
-      });
-      const response = await apiFetch(`/api/clients/vip-class-assignments?${query.toString()}`, {
-        method: "GET",
-        cache: "no-store"
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        if (handleProtectedStatus(response, navigate)) {
-          return;
-        }
-        setVipClassItems([]);
-        setVipClassTeachers([]);
-        setVipClassMessage(data?.message || "Failed to load class assignments.");
-        return;
-      }
-
-      const nextItems = (Array.isArray(data?.items) ? data.items : [])
-        .map((item) => mapVipClassItem(item))
-        .filter((item) => Boolean(item.id))
-        .sort((a, b) => String(a.className || "").localeCompare(String(b.className || ""), undefined, { sensitivity: "base" }));
-      const nextTeachers = (Array.isArray(data?.teachers) ? data.teachers : [])
-        .map((item) => ({
-          id: String(item?.id || "").trim(),
-          name: String(item?.name || "").trim()
-        }))
-        .filter((item) => Boolean(item.id));
-
-      setVipClassItems(nextItems);
-      setVipClassTeachers(nextTeachers);
-      setVipAssignmentClasses(nextItems.map((item) => ({
-        id: String(item.id || "").trim(),
-        className: String(item.className || "").trim(),
-        teacherId: String(item.teacherId || "").trim(),
-        teacherName: String(item.teacherName || "").trim()
-      })));
-    } catch {
-      setVipClassItems([]);
-      setVipClassTeachers([]);
-      setVipClassMessage("Failed to load class assignments.");
-    } finally {
-      setVipClassLoading(false);
-    }
-  }, [canReadAppointmentVipAssignments, navigate]);
-
-  const saveVipClassAssignment = useCallback(async ({
-    classId = "",
-    className = "",
-    teacherId = ""
-  } = {}) => {
-    const normalizedClassId = String(classId || "").trim();
-    const normalizedClassName = String(className || "").trim();
-    const normalizedTeacherId = String(teacherId || "").trim();
-    const isEditMode = Boolean(normalizedClassId);
-
-    if (isEditMode && !canUpdateAppointmentVipAssignments) {
-      const message = "You do not have permission to update class assignments.";
-      setVipClassMessage(message);
-      return { ok: false, message };
-    }
-    if (!isEditMode && !canCreateAppointmentVipAssignments) {
-      const message = "You do not have permission to create class assignments.";
-      setVipClassMessage(message);
-      return { ok: false, message };
-    }
-
-    if (!normalizedClassName) {
-      const message = "Class name is required.";
-      setVipClassMessage(message);
-      return { ok: false, message };
-    }
-    if (normalizedClassName.length > 64) {
-      const message = "Class name is too long (max 64).";
-      setVipClassMessage(message);
-      return { ok: false, message };
-    }
-    if (!normalizedTeacherId) {
-      const message = "Teacher is required.";
-      setVipClassMessage(message);
-      return { ok: false, message };
-    }
-
-    const savingKey = normalizedClassId || "__new__";
-    setVipClassSavingById((prev) => ({ ...prev, [savingKey]: true }));
-    setVipClassMessage("");
-
-    try {
-      const response = await apiFetch("/api/clients/vip-class-assignments", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          classId: normalizedClassId || null,
-          className: normalizedClassName,
-          teacherId: normalizedTeacherId
-        })
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        if (handleProtectedStatus(response, navigate)) {
-          return { ok: false, message: "Unauthorized." };
-        }
-        const message = getApiErrorMessage(response, data, "Failed to save class assignment.");
-        setVipClassMessage(message);
-        return { ok: false, message };
-      }
-
-      const item = mapVipClassItem(data?.item || {});
-      setVipClassItems((prev) => {
-        const filtered = prev.filter((row) => String(row?.id || "") !== String(item.id || ""));
-        filtered.push(item);
-        filtered.sort((a, b) => String(a.className || "").localeCompare(String(b.className || ""), undefined, { sensitivity: "base" }));
-        return filtered;
-      });
-      setVipAssignmentClasses((prev) => {
-        const filtered = prev.filter((row) => String(row?.id || "") !== String(item.id || ""));
-        filtered.push({
-          id: String(item.id || ""),
-          className: String(item.className || ""),
-          teacherId: String(item.teacherId || ""),
-          teacherName: String(item.teacherName || "")
-        });
-        filtered.sort((a, b) => String(a.className || "").localeCompare(String(b.className || ""), undefined, { sensitivity: "base" }));
-        return filtered;
-      });
-
-      return { ok: true, item };
-    } catch {
-      const message = "Failed to save class assignment.";
-      setVipClassMessage(message);
-      return { ok: false, message };
-    } finally {
-      setVipClassSavingById((prev) => {
-        if (!Object.prototype.hasOwnProperty.call(prev, savingKey)) {
-          return prev;
-        }
-        const next = { ...prev };
-        delete next[savingKey];
-        return next;
-      });
-    }
-  }, [canCreateAppointmentVipAssignments, canUpdateAppointmentVipAssignments, navigate]);
-
-  const deleteVipClassAssignment = useCallback(async (classId) => {
-    const normalizedClassId = String(classId || "").trim();
-    if (!normalizedClassId) {
-      return { ok: false, message: "Class is required." };
-    }
-    if (!canDeleteAppointmentVipAssignments) {
-      return { ok: false, message: "You do not have permission to delete class assignments." };
-    }
-
-    setVipClassSavingById((prev) => ({ ...prev, [normalizedClassId]: true }));
-    setVipClassMessage("");
-    try {
-      const response = await apiFetch(`/api/clients/vip-class-assignments/${encodeURIComponent(normalizedClassId)}`, {
-        method: "DELETE"
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        if (handleProtectedStatus(response, navigate)) {
-          return { ok: false, message: "Unauthorized." };
-        }
-        const message = getApiErrorMessage(response, data, "Failed to delete class assignment.");
-        setVipClassMessage(message);
-        return { ok: false, message };
-      }
-      setVipClassItems((prev) => prev.filter((row) => String(row?.id || "") !== normalizedClassId));
-      setVipAssignmentClasses((prev) => prev.filter((row) => String(row?.id || "") !== normalizedClassId));
-      return { ok: true };
-    } catch {
-      const message = "Failed to delete class assignment.";
-      setVipClassMessage(message);
-      return { ok: false, message };
-    } finally {
-      setVipClassSavingById((prev) => {
-        if (!Object.prototype.hasOwnProperty.call(prev, normalizedClassId)) {
-          return prev;
-        }
-        const next = { ...prev };
-        delete next[normalizedClassId];
-        return next;
-      });
-    }
-  }, [canDeleteAppointmentVipAssignments, navigate]);
-
-  const loadVipAssignments = useCallback(async () => {
-    if (!canReadAppointmentVipAssignments) {
-      setVipAssignmentItems([]);
-      setVipAssignmentDraftByClientId({});
-      setVipAssignmentClasses([]);
-      setVipAssignmentTutors([]);
-      setVipAssignmentMessage("You do not have permission to manage VIP tutor assignments.");
-      return;
-    }
-
-    setVipAssignmentLoading(true);
-    setVipAssignmentMessage("");
-    try {
-      const query = new URLSearchParams({
-        limit: "300"
-      });
-      const response = await apiFetch(`/api/clients/vip-tutor-assignments?${query.toString()}`, {
-        method: "GET",
-        cache: "no-store"
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        if (handleProtectedStatus(response, navigate)) {
-          return;
-        }
-        setVipAssignmentItems([]);
-        setVipAssignmentDraftByClientId({});
-        setVipAssignmentClasses([]);
-        setVipAssignmentTutors([]);
-        setVipAssignmentMessage(data?.message || "Failed to load VIP tutor assignments.");
-        return;
-      }
-
-      const nextItems = (Array.isArray(data?.items) ? data.items : [])
-        .map((item) => mapVipAssignmentItem(item))
-        .filter((item) => Boolean(item.id))
-        .sort((a, b) => {
-          const nameA = `${a.firstName} ${a.lastName} ${a.middleName}`.trim();
-          const nameB = `${b.firstName} ${b.lastName} ${b.middleName}`.trim();
-          return nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
-        });
-      const nextClasses = (Array.isArray(data?.classes) ? data.classes : [])
-        .map((item) => ({
-          id: String(item?.id || "").trim(),
-          className: String(item?.className || item?.class_name || "").trim(),
-          teacherId: String(item?.teacherId || item?.teacher_id || "").trim(),
-          teacherName: String(item?.teacherName || item?.teacher_name || "").trim()
-        }))
-        .filter((item) => Boolean(item.id));
-      const nextTutors = (Array.isArray(data?.tutors) ? data.tutors : [])
-        .map((item) => ({
-          id: String(item?.id || "").trim(),
-          name: String(item?.name || "").trim()
-        }))
-        .filter((item) => Boolean(item.id));
-
-      setVipAssignmentItems(nextItems);
-      setVipAssignmentClasses(nextClasses);
-      setVipAssignmentTutors(nextTutors);
-      setVipAssignmentDraftByClientId((prev) => {
-        const next = {};
-        nextItems.forEach((item) => {
-          const previous = normalizeVipAssignmentDraftEntry(prev[item.id]);
-          const source = item.classId || item.tutorId
-            ? {
-                classId: item.classId,
-                tutorId: item.tutorId
-              }
-            : previous;
-          next[item.id] = normalizeVipAssignmentDraftEntry(source);
-        });
-        return next;
-      });
-      if (nextItems.length === 0) {
-        setVipAssignmentMessage("");
-      }
-    } catch {
-      setVipAssignmentItems([]);
-      setVipAssignmentDraftByClientId({});
-      setVipAssignmentClasses([]);
-      setVipAssignmentTutors([]);
-      setVipAssignmentMessage("Failed to load VIP tutor assignments.");
-    } finally {
-      setVipAssignmentLoading(false);
-    }
-  }, [canReadAppointmentVipAssignments, navigate]);
-
-  const saveVipAssignment = useCallback(async (clientId, {
-    classId = "",
-    tutorId = ""
-  } = {}) => {
-    if (!canCreateAppointmentVipAssignments && !canUpdateAppointmentVipAssignments) {
-      const message = "You do not have permission to save VIP tutor assignments.";
-      setVipAssignmentMessage(message);
-      return { ok: false, message };
-    }
-    const normalizedClientId = String(clientId || "").trim();
-    if (!normalizedClientId) {
-      const message = "Client is required.";
-      setVipAssignmentMessage(message);
-      return { ok: false, message };
-    }
-    const normalizedClassId = String(classId || "").trim();
-    const normalizedTutorId = String(tutorId || "").trim();
-    if (!normalizedClassId) {
-      const message = "Class is required.";
-      setVipAssignmentMessage(message);
-      return { ok: false, message };
-    }
-    if (!normalizedTutorId) {
-      const message = "Tutor is required.";
-      setVipAssignmentMessage(message);
-      return { ok: false, message };
-    }
-
-    setVipAssignmentSavingByClientId((prev) => ({ ...prev, [normalizedClientId]: true }));
-    setVipAssignmentMessage("");
-    try {
-      const response = await apiFetch("/api/clients/vip-tutor-assignments", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          clientId: normalizedClientId,
-          classId: normalizedClassId,
-          tutorId: normalizedTutorId
-        })
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        if (handleProtectedStatus(response, navigate)) {
-          return { ok: false, message: "Unauthorized." };
-        }
-        const message = getApiErrorMessage(response, data, "Failed to save VIP tutor assignment.");
-        setVipAssignmentMessage(message);
-        return { ok: false, message };
-      }
-
-      const item = mapVipAssignmentItem(data?.item || {});
-      setVipAssignmentItems((prev) => prev.map((row) => {
-        if (String(row?.id || "") !== normalizedClientId) {
-          return row;
-        }
-        return {
-          ...row,
-          classId: item.classId || normalizedClassId,
-          className: item.className || row.className,
-          teacherId: item.teacherId || row.teacherId,
-          teacherName: item.teacherName || row.teacherName,
-          tutorId: item.tutorId || normalizedTutorId,
-          tutorName: item.tutorName || row.tutorName,
-          updatedBy: item.updatedBy || row.updatedBy,
-          updatedAt: item.updatedAt || row.updatedAt
-        };
-      }));
-      setVipAssignmentDraftByClientId((prev) => ({
-        ...prev,
-        [normalizedClientId]: {
-          classId: item.classId || normalizedClassId,
-          tutorId: item.tutorId || normalizedTutorId
-        }
-      }));
-      return {
-        ok: true
-      };
-    } catch {
-      const message = "Failed to save VIP tutor assignment.";
-      setVipAssignmentMessage(message);
-      return { ok: false, message };
-    } finally {
-      setVipAssignmentSavingByClientId((prev) => {
-        if (!Object.prototype.hasOwnProperty.call(prev, normalizedClientId)) {
-          return prev;
-        }
-        const next = { ...prev };
-        delete next[normalizedClientId];
-        return next;
-      });
-    }
-  }, [canCreateAppointmentVipAssignments, canUpdateAppointmentVipAssignments, navigate]);
 
   const allowedRoleValues = useMemo(() => (
     new Set(
@@ -1710,25 +477,56 @@ function ProfilePage({ forcedView = "none" }) {
     return rawName.split(/\s+/)[0] || "User";
   }, [profile?.fullName, profile?.username]);
 
-  const avatarFallback = useMemo(
-    () => getInitial(profile?.fullName || profile?.username || "User"),
-    [profile?.fullName, profile?.username]
-  );
-
-  const avatarStorageKey = useMemo(() => {
-    const username = String(profile?.username || "").trim();
-    const organizationCode = String(profile?.organizationCode || "").trim().toLowerCase();
-    if (!username) {
-      return "";
-    }
-    return organizationCode
-      ? `crm_avatar_${organizationCode}_${username}`
-      : `crm_avatar_${username}`;
-  }, [profile?.organizationCode, profile?.username]);
+  const {
+    avatarDataUrl,
+    avatarFallback,
+    avatarInputRef,
+    openAvatarPicker,
+    saveAvatarFromFile
+  } = useProfileAvatar({
+    fullName: profile?.fullName,
+    username: profile?.username,
+    organizationCode: profile?.organizationCode
+  });
 
   const setMainView = useCallback((view) => {
     setMainViewState(view);
   }, []);
+
+  const preloadSideMenu = useCallback(() => {
+    if (!sideMenuMounted) {
+      setSideMenuMounted(true);
+    }
+    void loadProfileSideMenu();
+  }, [sideMenuMounted]);
+
+  const bindSideMenuRef = useCallback((instance) => {
+    sideMenuRef.current = instance;
+
+    if (!instance || !pendingSideMenuOpenRef.current) {
+      return;
+    }
+
+    pendingSideMenuOpenRef.current = false;
+    menuOpenRef.current = true;
+    menuToggleRef.current?.setAttribute("aria-expanded", "true");
+    instance.open();
+  }, []);
+
+  const openMenu = useCallback(() => {
+    if (!sideMenuRef.current) {
+      pendingSideMenuOpenRef.current = true;
+      if (!sideMenuMounted) {
+        setSideMenuMounted(true);
+      }
+      void loadProfileSideMenu();
+      return;
+    }
+
+    menuOpenRef.current = true;
+    menuToggleRef.current?.setAttribute("aria-expanded", "true");
+    sideMenuRef.current?.open();
+  }, [sideMenuMounted]);
 
   const closeMenu = useCallback(() => {
     const activeElement = document.activeElement;
@@ -1739,15 +537,10 @@ function ProfilePage({ forcedView = "none" }) {
     ) {
       menuToggleRef.current?.focus();
     }
-    setMenuOpen(false);
-    setClientsMenuOpen(false);
-    setVipClientsMenuOpen(false);
-    setAssignmentsMenuOpen(false);
-    setAppointmentMenuOpen(false);
-    setUsersMenuOpen(false);
-    setStatisticsMenuOpen(false);
-    setSettingsMenuOpen(false);
-    setAdminSettingsMenuOpen(false);
+    pendingSideMenuOpenRef.current = false;
+    menuOpenRef.current = false;
+    menuToggleRef.current?.setAttribute("aria-expanded", "false");
+    sideMenuRef.current?.close();
   }, []);
 
   const closeUserDropdown = useCallback(() => {}, []);
@@ -1790,6 +583,7 @@ function ProfilePage({ forcedView = "none" }) {
     || organizationEditOpen
     || roleEditOpen
     || positionEditOpen
+    || normEditOpen
   );
 
   useEffect(() => {
@@ -1802,30 +596,6 @@ function ProfilePage({ forcedView = "none" }) {
   const closeProfileEditModal = useCallback(() => {
     setProfileEdit(createEmptyProfileEditState());
   }, []);
-
-  const openAvatarPicker = useCallback(() => {
-    avatarInputRef.current?.click();
-  }, []);
-
-  const saveAvatarFromFile = useCallback((file) => {
-    if (!file || !avatarStorageKey) {
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = String(reader.result || "");
-      if (!dataUrl) {
-        return;
-      }
-      setAvatarDataUrl(dataUrl);
-      const isStored = persistAvatarDataUrl(avatarStorageKey, dataUrl);
-      if (!isStored) {
-        window.alert("Avatar saqlash uchun browser xotirasi yetarli emas.");
-      }
-    };
-    reader.readAsDataURL(file);
-  }, [avatarStorageKey]);
 
   useEffect(() => {
     let active = true;
@@ -1876,18 +646,6 @@ function ProfilePage({ forcedView = "none" }) {
   }, [hasAdminSettingsAccess, loadOrganizations, organizations.length, profile?.username]);
 
   useEffect(() => {
-    if (!avatarStorageKey) {
-      setAvatarDataUrl("");
-      return;
-    }
-    try {
-      setAvatarDataUrl(localStorage.getItem(avatarStorageKey) || "");
-    } catch {
-      setAvatarDataUrl("");
-    }
-  }, [avatarStorageKey]);
-
-  useEffect(() => {
     setMainView(forcedView);
   }, [forcedView, setMainView]);
 
@@ -1921,32 +679,6 @@ function ProfilePage({ forcedView = "none" }) {
       loadClientMedicalHistoryClients(1);
       return;
     }
-    if (mainView === "appointment-vip-schedule") {
-      loadVipDailyRoutines();
-      return;
-    }
-    if (mainView === "appointment-vip-attendance") {
-      loadVipAttendance();
-      loadVipAttendanceTeachers();
-      return;
-    }
-    if (mainView === "appointment-vip-my-children") {
-      loadMyChildrenOptions();
-      loadVipDailyRoutines();
-      return;
-    }
-    if (mainView === "appointment-vip-daily-routines") {
-      loadVipDailyRoutines();
-      return;
-    }
-    if (mainView === "appointment-vip-assignments") {
-      loadVipClassAssignments();
-      return;
-    }
-    if (mainView === "appointment-vip-tutor-assignments") {
-      loadVipAssignments();
-      return;
-    }
     if (mainView === "create-user") {
       if (canReadUsers) {
         loadAllUsers(1);
@@ -1976,6 +708,11 @@ function ProfilePage({ forcedView = "none" }) {
       loadPositionsSettings();
       return;
     }
+    if (mainView === "settings-appointment-norms") {
+      loadNormsSettings();
+      loadPositionsSettings();
+      return;
+    }
     if (mainView === "notifications-send") {
       loadRolesSettings();
       return;
@@ -1985,14 +722,9 @@ function ProfilePage({ forcedView = "none" }) {
     hasAdminSettingsAccess,
     loadClients,
     loadClientMedicalHistoryClients,
-    loadVipAttendance,
-    loadVipAttendanceTeachers,
-    loadMyChildrenOptions,
-    loadVipDailyRoutines,
-    loadVipClassAssignments,
-    loadVipAssignments,
     loadAllUsers,
     loadOrganizations,
+    loadNormsSettings,
     loadPositionsSettings,
     loadRolesSettings,
     mainView,
@@ -2000,26 +732,6 @@ function ProfilePage({ forcedView = "none" }) {
     profile?.username,
     profile?.isPlatformAdmin,
     profile?.orgFeatures
-  ]);
-
-  useEffect(() => {
-    if (!profile?.username || mainView !== "appointment-vip-my-children") {
-      return;
-    }
-    if (!myChildrenOptionsReady) {
-      return;
-    }
-    loadMyChildrenSchedule({
-      clientId: myChildrenSelectedClientId,
-      dateYmd: myChildrenDateYmd
-    });
-  }, [
-    loadMyChildrenSchedule,
-    mainView,
-    myChildrenDateYmd,
-    myChildrenOptionsReady,
-    myChildrenSelectedClientId,
-    profile?.username
   ]);
 
   useEffect(() => {
@@ -2043,27 +755,6 @@ function ProfilePage({ forcedView = "none" }) {
   }, [allowedCreateOrganizationCodes, createOrganizationOptions, profile?.organizationCode]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const mq = window.matchMedia("(max-width: 860px)");
-    const handleViewportChange = (event) => {
-      setMyChildrenIsCompact(event.matches);
-      if (!event.matches) {
-        setMyChildrenDateYmd((prev) => getMyChildrenWeekStartYmd(prev, todayYmd));
-      }
-    };
-    mq.addEventListener("change", handleViewportChange);
-    return () => {
-      mq.removeEventListener("change", handleViewportChange);
-    };
-  }, [todayYmd]);
-
-  useEffect(() => {
-    void loadMyChildrenVisibleWeekDays();
-  }, [loadMyChildrenVisibleWeekDays]);
-
-  useEffect(() => {
     function handleEscape(event) {
       if (event.key !== "Escape") {
         return;
@@ -2076,6 +767,7 @@ function ProfilePage({ forcedView = "none" }) {
       cancelOrganizationEdit();
       cancelRoleEdit();
       cancelPositionEdit();
+      cancelNormEdit();
       closeProfileEditModal();
       closeAllUsersEditModal();
       closeAllUsersDeleteModal();
@@ -2102,38 +794,9 @@ function ProfilePage({ forcedView = "none" }) {
     closeNotificationsPanel,
     cancelOrganizationEdit,
     cancelRoleEdit,
-    cancelPositionEdit
+    cancelPositionEdit,
+    cancelNormEdit
   ]);
-
-  useEffect(() => {
-    function preventFileDropNavigation(event) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-
-    function handleDrop(event) {
-      preventFileDropNavigation(event);
-      const file = event.dataTransfer?.files?.[0];
-      if (file) {
-        saveAvatarFromFile(file);
-      }
-    }
-
-    const events = ["dragenter", "dragover", "drop"];
-    events.forEach((eventName) => {
-      window.addEventListener(eventName, preventFileDropNavigation, true);
-      document.addEventListener(eventName, preventFileDropNavigation, true);
-    });
-    window.addEventListener("drop", handleDrop, true);
-
-    return () => {
-      events.forEach((eventName) => {
-        window.removeEventListener(eventName, preventFileDropNavigation, true);
-        document.removeEventListener(eventName, preventFileDropNavigation, true);
-      });
-      window.removeEventListener("drop", handleDrop, true);
-    };
-  }, [saveAvatarFromFile]);
 
   const {
     openMyProfilePanel,
@@ -2174,6 +837,8 @@ function ProfilePage({ forcedView = "none" }) {
     closeNotificationsSendPanel,
     openMonitoringPanel,
     closeMonitoringPanel,
+    openNormsPanel,
+    closeNormsPanel,
     closeCreateUserPanel,
     closeAllUsersPanel
   } = useProfilePanels({
@@ -2189,6 +854,7 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenAppointmentSchedule,
     canOpenAppointmentVipMyClass,
     canOpenAppointmentBreaks,
+    canOpenAppointmentWorkSchedule,
     canOpenAppointmentVipClients,
     canOpenMyChildren,
     canOpenAppointmentVipDailyRoutines,
@@ -2198,6 +864,7 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenSettingsOrganizations,
     canOpenSettingsRoles,
     canOpenSettingsPositions,
+    canOpenSettingsNorms,
     canSendNotifications,
     hasSettingsMenuAccess,
     hasAdminSettingsAccess
@@ -2540,14 +1207,16 @@ function ProfilePage({ forcedView = "none" }) {
               className="menu-toggle"
               type="button"
               aria-label="Open main menu"
-              aria-expanded={menuOpen ? "true" : "false"}
+              aria-expanded="false"
               aria-controls="mainMenu"
+              onMouseEnter={preloadSideMenu}
+              onFocus={preloadSideMenu}
               onClick={() => {
-                if (menuOpen) {
+                if (menuOpenRef.current) {
                   closeMenu();
                   return;
                 }
-                setMenuOpen(true);
+                openMenu();
               }}
             >
               <span />
@@ -2571,6 +1240,8 @@ function ProfilePage({ forcedView = "none" }) {
                   options={createOrganizationOptions}
                   disabled={organizationContextSwitching || createOrganizationOptions.length === 0}
                   menuPortal
+                  menuAlign="center"
+                  forceOpenDown
                   searchable
                   searchThreshold={8}
                   searchPlaceholder="Search organization"
@@ -2645,7 +1316,8 @@ function ProfilePage({ forcedView = "none" }) {
           </nav>
         </header>
 
-        <ProfileMainContent
+        <Suspense fallback={<main className="home-main" aria-label="Main content" />}>
+          <ProfileMainContent
           mainView={mainView}
           allUsersMessage={allUsersMessage}
           allUsersLoading={allUsersLoading}
@@ -2672,55 +1344,11 @@ function ProfilePage({ forcedView = "none" }) {
           setClientsIsVip={setClientsIsVip}
           loadClients={loadClients}
           loadClientMedicalHistoryClients={loadClientMedicalHistoryClients}
-          vipAttendancePeriod={vipAttendancePeriod}
-          setVipAttendancePeriodField={setVipAttendancePeriodField}
-          vipAttendanceItems={vipAttendanceItems}
-          vipAttendanceTeacherOptions={vipAttendanceTeacherOptions}
-          vipAttendanceDraftByClientId={vipAttendanceDraftByClientId}
-          vipAttendanceMessage={vipAttendanceMessage}
-          vipAttendanceLoading={vipAttendanceLoading}
-          vipAttendanceSavingByClientId={vipAttendanceSavingByClientId}
-          markVipAttendancePresent={markVipAttendancePresent}
-          markVipAttendanceLeft={markVipAttendanceLeft}
-          saveVipAttendanceAbsentReason={saveVipAttendanceAbsentReason}
-          saveVipAttendanceEdit={saveVipAttendanceEdit}
-          loadVipAttendance={loadVipAttendance}
-          myChildrenIsCompact={myChildrenIsCompact}
-          myChildrenDateYmd={myChildrenDateYmd}
-          myChildrenVisibleWeekDays={myChildrenVisibleWeekDays}
-          myChildrenOptions={myChildrenOptions}
-          myChildrenOptionsLoading={myChildrenOptionsLoading}
-          myChildrenSelectedClientId={myChildrenSelectedClientId}
-          setMyChildrenSelectedClientId={setMyChildrenSelectedClientId}
-          myChildrenScheduleItems={myChildrenScheduleItems}
-          myChildrenScheduleLoading={myChildrenScheduleLoading}
-          myChildrenScheduleMessage={myChildrenScheduleMessage}
-          myChildrenConfirmingByAppointmentId={myChildrenConfirmingByAppointmentId}
-          confirmMyChildrenPendingAppointment={confirmMyChildrenPendingAppointment}
-          goToPreviousMyChildrenDay={goToPreviousMyChildrenDay}
-          goToNextMyChildrenDay={goToNextMyChildrenDay}
-          vipDailyRoutineItems={vipDailyRoutineItems}
-          vipDailyRoutineClasses={vipDailyRoutineClasses}
-          vipDailyRoutineMessage={vipDailyRoutineMessage}
-          vipDailyRoutineLoading={vipDailyRoutineLoading}
-          vipDailyRoutineSavingById={vipDailyRoutineSavingById}
-          loadVipDailyRoutines={loadVipDailyRoutines}
-          saveVipDailyRoutine={saveVipDailyRoutine}
-          deleteVipDailyRoutine={deleteVipDailyRoutine}
-          vipClassItems={vipClassItems}
-          vipClassTeachers={vipClassTeachers}
-          vipClassMessage={vipClassMessage}
-          vipClassLoading={vipClassLoading}
-          vipClassSavingById={vipClassSavingById}
-          saveVipClassAssignment={saveVipClassAssignment}
-          deleteVipClassAssignment={deleteVipClassAssignment}
-          vipAssignmentItems={vipAssignmentItems}
-          vipAssignmentClasses={vipAssignmentClasses}
-          vipAssignmentTutors={vipAssignmentTutors}
-          vipAssignmentMessage={vipAssignmentMessage}
-          vipAssignmentLoading={vipAssignmentLoading}
-          vipAssignmentSavingByClientId={vipAssignmentSavingByClientId}
-          saveVipAssignment={saveVipAssignment}
+          navigate={navigate}
+          canOpenMyChildren={canOpenMyChildren}
+          canOpenAppointmentStatistics={canOpenAppointmentStatistics}
+          canReadAppointmentVipClients={canReadAppointmentVipClients}
+          canReadAppointmentVipAssignments={canReadAppointmentVipAssignments}
           canCreateAppointmentVipClients={canCreateAppointmentVipClients}
           canUpdateAppointmentVipClients={canUpdateAppointmentVipClients}
           canDeleteAppointmentVipClients={canDeleteAppointmentVipClients}
@@ -2749,6 +1377,9 @@ function ProfilePage({ forcedView = "none" }) {
           canCreateAppointments={canCreateAppointments}
           canUpdateAppointments={canUpdateAppointments}
           canUpdateSettingsAppointments={canUpdateSettingsAppointments}
+          canCreateSettingsAppointmentNorms={canCreateSettingsAppointmentNorms}
+          canUpdateSettingsAppointmentNorms={canUpdateSettingsAppointmentNorms}
+          canDeleteSettingsAppointmentNorms={canDeleteSettingsAppointmentNorms}
           canDeleteAppointments={canDeleteAppointments}
           closeAppointmentPanel={closeAppointmentPanel}
           closeAppointmentBreaksPanel={closeAppointmentBreaksPanel}
@@ -2765,11 +1396,6 @@ function ProfilePage({ forcedView = "none" }) {
           closeNotificationsSendPanel={closeNotificationsSendPanel}
           closeMonitoringPanel={closeMonitoringPanel}
           closeStatisticsPanel={closeStatisticsPanel}
-          statisticsVipAttendanceHistoryItems={statisticsVipAttendanceHistoryItems}
-          statisticsVipAttendanceHistoryFilters={statisticsVipAttendanceHistoryFilters}
-          statisticsVipAttendanceHistoryMessage={statisticsVipAttendanceHistoryMessage}
-          statisticsVipAttendanceHistoryLoading={statisticsVipAttendanceHistoryLoading}
-          loadStatisticsVipAttendanceHistory={loadStatisticsVipAttendanceHistory}
           canSendNotifications={canSendNotifications}
           notificationSendForm={notificationSendForm}
           notificationSendSubmitting={notificationSendSubmitting}
@@ -2822,6 +1448,18 @@ function ProfilePage({ forcedView = "none" }) {
           canCreateSettingsPositions={canCreateSettingsPositions}
           canUpdateSettingsPositions={canUpdateSettingsPositions}
           canDeleteSettingsPositions={canDeleteSettingsPositions}
+          normsSettings={normsSettings}
+          normsSettingsMessage={normsSettingsMessage}
+          normCreateForm={normCreateForm}
+          normCreateError={normCreateError}
+          normCreateSubmitting={normCreateSubmitting}
+          setNormCreateForm={setNormCreateForm}
+          setNormCreateError={setNormCreateError}
+          handleNormCreateSubmit={handleNormCreateSubmit}
+          startNormEdit={startNormEdit}
+          normDeletingId={normDeletingId}
+          handleNormDelete={handleNormDelete}
+          closeNormsPanel={closeNormsPanel}
           canCreateUsers={canCreateUsers}
           handleCreateUserSubmit={handleCreateUserSubmit}
           createForm={createForm}
@@ -2836,7 +1474,8 @@ function ProfilePage({ forcedView = "none" }) {
           profile={profile}
           isOrgFeatureDisabledView={Boolean(profile?.isPlatformAdmin) && isViewBlockedByOrgFeatures(forcedView, profile?.orgFeatures)}
           onAppointmentNotification={handleAppointmentNotification}
-        />
+          />
+        </Suspense>
 
         <footer className="home-footer">
           <a
@@ -2860,175 +1499,176 @@ function ProfilePage({ forcedView = "none" }) {
       </div>
 
       {hasAnyModalOpen && (
-        <ProfileModals
-          myProfileModalOpen={myProfileModalOpen}
-          closeMyProfilePanel={closeMyProfilePanel}
-          notificationsModalOpen={notificationsModalOpen}
-          closeNotificationsPanel={closeNotificationsPanel}
-          notifications={notifications}
-          clearNotifications={clearNotifications}
-          openAvatarPicker={openAvatarPicker}
-          avatarDataUrl={avatarDataUrl}
-          avatarFallback={avatarFallback}
-          profile={profile}
-          openProfileEditModal={openProfileEditModal}
-          openPasswordEditModal={openPasswordEditModal}
-          logoutConfirmOpen={logoutConfirmOpen}
-          handleLogout={handleLogout}
-          setLogoutConfirmOpen={setLogoutConfirmOpen}
-          profileEdit={profileEdit}
-          handleProfileEditSubmit={handleProfileEditSubmit}
-          setProfileEdit={setProfileEdit}
-          positionOptions={positionOptions}
-          closeProfileEditModal={closeProfileEditModal}
-          allUsersEdit={allUsersEdit}
-          handleAllUsersEditSubmit={handleAllUsersEditSubmit}
-          createOrganizationOptions={createOrganizationOptions}
-          setAllUsersEdit={setAllUsersEdit}
-          roleOptions={roleOptions}
-          closeAllUsersEditModal={closeAllUsersEditModal}
-          allUsersDelete={allUsersDelete}
-          handleAllUsersDelete={handleAllUsersDelete}
-          closeAllUsersDeleteModal={closeAllUsersDeleteModal}
-          clientsEditOpen={clientsEditOpen}
-          clientEditForm={clientEditForm}
-          clientEditErrors={clientEditErrors}
-          clientEditSubmitting={clientEditSubmitting}
-          setClientEditForm={setClientEditForm}
-          setClientEditErrors={setClientEditErrors}
-          handleClientEditSubmit={handleClientEditSubmit}
-          closeClientsEditModal={closeClientsEditModal}
-          clientsDelete={clientsDelete}
-          handleClientsDeleteConfirm={handleClientsDeleteConfirm}
-          closeClientsDeleteModal={closeClientsDeleteModal}
-          clientMedicalHistoryOpen={clientMedicalHistoryOpen}
-          clientMedicalHistoryClient={clientMedicalHistoryClient}
-          clientMedicalHistoryClientSearch={clientMedicalHistoryClientSearch}
-          clientMedicalHistoryClientOptions={clientMedicalHistoryClientOptions}
-          clientMedicalHistoryClientOptionsLoading={clientMedicalHistoryClientOptionsLoading}
-          clientMedicalHistoryMode={clientMedicalHistoryMode}
-          clientMedicalHistoryItems={clientMedicalHistoryItems}
-          clientMedicalHistorySkeletonCount={clientMedicalHistorySkeletonCount}
-          clientMedicalHistoryLoading={clientMedicalHistoryLoading}
-          clientMedicalHistoryMessage={clientMedicalHistoryMessage}
-          clientMedicalHistoryForm={clientMedicalHistoryForm}
-          clientMedicalHistoryErrors={clientMedicalHistoryErrors}
-          clientMedicalHistorySubmitting={clientMedicalHistorySubmitting}
-          clientMedicalHistoryDeletingId={clientMedicalHistoryDeletingId}
-          clientMedicalHistoryDelete={clientMedicalHistoryDelete}
-          canReadClientMedicalHistory={hasReadClientMedicalHistoryAccess}
-          canCreateClientMedicalHistory={hasCreateClientMedicalHistoryAccess}
-          canUpdateClientMedicalHistory={hasUpdateClientMedicalHistoryAccess}
-          canDeleteClientMedicalHistory={hasDeleteClientMedicalHistoryAccess}
-          setClientMedicalHistoryClientSearch={setClientMedicalHistoryClientSearch}
-          setClientMedicalHistoryForm={setClientMedicalHistoryForm}
-          setClientMedicalHistoryErrors={setClientMedicalHistoryErrors}
-          selectClientMedicalHistoryClient={selectClientMedicalHistoryClient}
-          closeClientMedicalHistoryModal={closeClientMedicalHistoryModal}
-          closeClientMedicalHistoryDeleteModal={closeClientMedicalHistoryDeleteModal}
-          resetClientMedicalHistoryForm={resetClientMedicalHistoryForm}
-          startClientMedicalHistoryEdit={startClientMedicalHistoryEdit}
-          handleClientMedicalHistorySubmit={handleClientMedicalHistorySubmit}
-          openClientMedicalHistoryDeleteModal={openClientMedicalHistoryDeleteModal}
-          handleClientMedicalHistoryDeleteConfirm={handleClientMedicalHistoryDeleteConfirm}
-          settingsDelete={settingsDelete}
-          handleSettingsDeleteConfirm={handleSettingsDeleteConfirm}
-          closeSettingsDeleteModal={closeSettingsDeleteModal}
-          organizationEditOpen={organizationEditOpen}
-          handleOrganizationEditSave={handleOrganizationEditSave}
-          organizationEditForm={organizationEditForm}
-          setOrganizationEditForm={setOrganizationEditForm}
-          organizationEditError={organizationEditError}
-          setOrganizationEditError={setOrganizationEditError}
-          organizationEditSubmitting={organizationEditSubmitting}
-          cancelOrganizationEdit={cancelOrganizationEdit}
-          roleEditOpen={roleEditOpen}
-          handleRoleEditSave={handleRoleEditSave}
-          rolePermissionTree={rolePermissionTree}
-          roleEditForm={roleEditForm}
-          setRoleEditForm={setRoleEditForm}
-          roleEditError={roleEditError}
-          setRoleEditError={setRoleEditError}
-          roleEditSubmitting={roleEditSubmitting}
-          cancelRoleEdit={cancelRoleEdit}
-          positionEditOpen={positionEditOpen}
-          handlePositionEditSave={handlePositionEditSave}
-          positionEditForm={positionEditForm}
-          setPositionEditForm={setPositionEditForm}
-          positionEditError={positionEditError}
-          setPositionEditError={setPositionEditError}
-          positionEditSubmitting={positionEditSubmitting}
-          cancelPositionEdit={cancelPositionEdit}
-        />
+        <Suspense fallback={null}>
+          <ProfileModals
+            myProfileModalOpen={myProfileModalOpen}
+            closeMyProfilePanel={closeMyProfilePanel}
+            notificationsModalOpen={notificationsModalOpen}
+            closeNotificationsPanel={closeNotificationsPanel}
+            notifications={notifications}
+            clearNotifications={clearNotifications}
+            openAvatarPicker={openAvatarPicker}
+            avatarDataUrl={avatarDataUrl}
+            avatarFallback={avatarFallback}
+            profile={profile}
+            openProfileEditModal={openProfileEditModal}
+            openPasswordEditModal={openPasswordEditModal}
+            logoutConfirmOpen={logoutConfirmOpen}
+            handleLogout={handleLogout}
+            setLogoutConfirmOpen={setLogoutConfirmOpen}
+            profileEdit={profileEdit}
+            handleProfileEditSubmit={handleProfileEditSubmit}
+            setProfileEdit={setProfileEdit}
+            positionOptions={positionOptions}
+            closeProfileEditModal={closeProfileEditModal}
+            allUsersEdit={allUsersEdit}
+            handleAllUsersEditSubmit={handleAllUsersEditSubmit}
+            createOrganizationOptions={createOrganizationOptions}
+            setAllUsersEdit={setAllUsersEdit}
+            roleOptions={roleOptions}
+            closeAllUsersEditModal={closeAllUsersEditModal}
+            allUsersDelete={allUsersDelete}
+            handleAllUsersDelete={handleAllUsersDelete}
+            closeAllUsersDeleteModal={closeAllUsersDeleteModal}
+            clientsEditOpen={clientsEditOpen}
+            clientEditForm={clientEditForm}
+            clientEditErrors={clientEditErrors}
+            clientEditSubmitting={clientEditSubmitting}
+            setClientEditForm={setClientEditForm}
+            setClientEditErrors={setClientEditErrors}
+            handleClientEditSubmit={handleClientEditSubmit}
+            closeClientsEditModal={closeClientsEditModal}
+            clientsDelete={clientsDelete}
+            handleClientsDeleteConfirm={handleClientsDeleteConfirm}
+            closeClientsDeleteModal={closeClientsDeleteModal}
+            clientMedicalHistoryOpen={clientMedicalHistoryOpen}
+            clientMedicalHistoryClient={clientMedicalHistoryClient}
+            clientMedicalHistoryClientSearch={clientMedicalHistoryClientSearch}
+            clientMedicalHistoryClientOptions={clientMedicalHistoryClientOptions}
+            clientMedicalHistoryClientOptionsLoading={clientMedicalHistoryClientOptionsLoading}
+            clientMedicalHistoryMode={clientMedicalHistoryMode}
+            clientMedicalHistoryItems={clientMedicalHistoryItems}
+            clientMedicalHistorySkeletonCount={clientMedicalHistorySkeletonCount}
+            clientMedicalHistoryLoading={clientMedicalHistoryLoading}
+            clientMedicalHistoryMessage={clientMedicalHistoryMessage}
+            clientMedicalHistoryForm={clientMedicalHistoryForm}
+            clientMedicalHistoryErrors={clientMedicalHistoryErrors}
+            clientMedicalHistorySubmitting={clientMedicalHistorySubmitting}
+            clientMedicalHistoryDeletingId={clientMedicalHistoryDeletingId}
+            clientMedicalHistoryDelete={clientMedicalHistoryDelete}
+            canReadClientMedicalHistory={hasReadClientMedicalHistoryAccess}
+            canCreateClientMedicalHistory={hasCreateClientMedicalHistoryAccess}
+            canUpdateClientMedicalHistory={hasUpdateClientMedicalHistoryAccess}
+            canDeleteClientMedicalHistory={hasDeleteClientMedicalHistoryAccess}
+            setClientMedicalHistoryClientSearch={setClientMedicalHistoryClientSearch}
+            setClientMedicalHistoryForm={setClientMedicalHistoryForm}
+            setClientMedicalHistoryErrors={setClientMedicalHistoryErrors}
+            selectClientMedicalHistoryClient={selectClientMedicalHistoryClient}
+            closeClientMedicalHistoryModal={closeClientMedicalHistoryModal}
+            closeClientMedicalHistoryDeleteModal={closeClientMedicalHistoryDeleteModal}
+            resetClientMedicalHistoryForm={resetClientMedicalHistoryForm}
+            startClientMedicalHistoryEdit={startClientMedicalHistoryEdit}
+            handleClientMedicalHistorySubmit={handleClientMedicalHistorySubmit}
+            openClientMedicalHistoryDeleteModal={openClientMedicalHistoryDeleteModal}
+            handleClientMedicalHistoryDeleteConfirm={handleClientMedicalHistoryDeleteConfirm}
+            settingsDelete={settingsDelete}
+            handleSettingsDeleteConfirm={handleSettingsDeleteConfirm}
+            closeSettingsDeleteModal={closeSettingsDeleteModal}
+            organizationEditOpen={organizationEditOpen}
+            handleOrganizationEditSave={handleOrganizationEditSave}
+            organizationEditForm={organizationEditForm}
+            setOrganizationEditForm={setOrganizationEditForm}
+            organizationEditError={organizationEditError}
+            setOrganizationEditError={setOrganizationEditError}
+            organizationEditSubmitting={organizationEditSubmitting}
+            cancelOrganizationEdit={cancelOrganizationEdit}
+            roleEditOpen={roleEditOpen}
+            handleRoleEditSave={handleRoleEditSave}
+            rolePermissionTree={rolePermissionTree}
+            roleEditForm={roleEditForm}
+            setRoleEditForm={setRoleEditForm}
+            roleEditError={roleEditError}
+            setRoleEditError={setRoleEditError}
+            roleEditSubmitting={roleEditSubmitting}
+            cancelRoleEdit={cancelRoleEdit}
+            positionEditOpen={positionEditOpen}
+            handlePositionEditSave={handlePositionEditSave}
+            positionEditForm={positionEditForm}
+            setPositionEditForm={setPositionEditForm}
+            positionEditError={positionEditError}
+            setPositionEditError={setPositionEditError}
+            positionEditSubmitting={positionEditSubmitting}
+            cancelPositionEdit={cancelPositionEdit}
+            normEditOpen={normEditOpen}
+            handleNormEditSave={handleNormEditSave}
+            normEditForm={normEditForm}
+            setNormEditForm={setNormEditForm}
+            normEditError={normEditError}
+            setNormEditError={setNormEditError}
+            normEditSubmitting={normEditSubmitting}
+            cancelNormEdit={cancelNormEdit}
+          />
+        </Suspense>
       )}
 
-      <ProfileSideMenu
-        menuRef={menuRef}
-        menuOpen={menuOpen}
-        isPlatformAdmin={Boolean(profile?.isPlatformAdmin)}
-        hasClientsMenuAccess={hasClientsMenuAccess}
-        canReadClients={canReadClients}
-        canReadClientMedicalHistory={canReadClientMedicalHistory}
-        clientsMenuOpen={clientsMenuOpen}
-        setClientsMenuOpen={setClientsMenuOpen}
-        openAllClientsPanel={openAllClientsPanel}
-        openClientMedicalHistoryPanel={openClientMedicalHistoryPanel}
-        vipClientsMenuOpen={vipClientsMenuOpen}
-        setVipClientsMenuOpen={setVipClientsMenuOpen}
-        assignmentsMenuOpen={assignmentsMenuOpen}
-        setAssignmentsMenuOpen={setAssignmentsMenuOpen}
-        hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
-        canOpenAppointmentSchedule={canOpenAppointmentSchedule}
-        canOpenAppointmentVipMyClass={canOpenAppointmentVipMyClass}
-        canOpenAppointmentBreaks={canOpenAppointmentBreaks}
-        canOpenAppointmentVipClients={canOpenAppointmentVipClients}
-        canOpenMyChildren={canOpenMyChildren}
-        canOpenAppointmentVipDailyRoutines={canOpenAppointmentVipDailyRoutines}
-        canOpenAppointmentVipClassAssignments={canOpenAppointmentVipClassAssignments}
-        canOpenAppointmentVipTutorAssignments={canOpenAppointmentVipTutorAssignments}
-        canOpenAppointmentVipAssignments={canOpenAppointmentVipAssignments}
-        canOpenAppointmentStatistics={canOpenAppointmentStatistics}
-        canOpenStatisticsClassAttendance={canOpenStatisticsClassAttendance}
-        canOpenStatisticsPlannerReport={canOpenStatisticsPlannerReport}
-        canOpenAppointmentSettings={canOpenAppointmentSettings}
-        canOpenSettingsOrganizations={canOpenSettingsOrganizations}
-        canOpenSettingsRoles={canOpenSettingsRoles}
-        canOpenSettingsPositions={canOpenSettingsPositions}
-        appointmentMenuOpen={appointmentMenuOpen}
-        setAppointmentMenuOpen={setAppointmentMenuOpen}
-        openAppointmentPanel={openAppointmentPanel}
-        openAppointmentBreaksPanel={openAppointmentBreaksPanel}
-        openAppointmentVipSchedulePanel={openAppointmentVipSchedulePanel}
-        openAppointmentVipAttendancePanel={openAppointmentVipAttendancePanel}
-        openAppointmentVipMyChildrenPanel={openAppointmentVipMyChildrenPanel}
-        openAppointmentVipDailyRoutinesPanel={openAppointmentVipDailyRoutinesPanel}
-        openAppointmentVipAssignmentsPanel={openAppointmentVipAssignmentsPanel}
-        openAppointmentVipTutorAssignmentsPanel={openAppointmentVipTutorAssignmentsPanel}
-        openAppointmentSettingsPanel={openAppointmentSettingsPanel}
-        openAppointmentWorkSchedulePanel={openAppointmentWorkSchedulePanel}
-        statisticsMenuOpen={statisticsMenuOpen}
-        setStatisticsMenuOpen={setStatisticsMenuOpen}
-        openStatisticsClassPanel={openStatisticsClassPanel}
-        openStatisticsPlannerReportPanel={openStatisticsPlannerReportPanel}
-        hasUsersMenuAccess={hasUsersMenuAccess}
-        usersMenuOpen={usersMenuOpen}
-        setUsersMenuOpen={setUsersMenuOpen}
-        setSettingsMenuOpen={setSettingsMenuOpen}
-        adminSettingsMenuOpen={adminSettingsMenuOpen}
-        setAdminSettingsMenuOpen={setAdminSettingsMenuOpen}
-        canReadUsers={canReadUsers}
-        closeMenu={closeMenu}
-        navigate={navigate}
-        hasSettingsMenuAccess={hasSettingsMenuAccess}
-        hasAdminSettingsAccess={hasAdminSettingsAccess}
-        canSendNotifications={canSendNotifications}
-        settingsMenuOpen={settingsMenuOpen}
-        openOrganizationsPanel={openOrganizationsPanel}
-        openRolesPanel={openRolesPanel}
-        openPositionsPanel={openPositionsPanel}
-        openNotificationsSendPanel={openNotificationsSendPanel}
-        openMonitoringPanel={openMonitoringPanel}
-      />
+      {sideMenuMounted ? (
+        <Suspense fallback={null}>
+          <ProfileSideMenu
+            ref={bindSideMenuRef}
+            menuRef={menuRef}
+            isPlatformAdmin={Boolean(profile?.isPlatformAdmin)}
+            hasClientsMenuAccess={hasClientsMenuAccess}
+            canReadClients={canReadClients}
+            canReadClientMedicalHistory={canReadClientMedicalHistory}
+            openAllClientsPanel={openAllClientsPanel}
+            openClientMedicalHistoryPanel={openClientMedicalHistoryPanel}
+            hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
+            canOpenAppointmentSchedule={canOpenAppointmentSchedule}
+            canOpenAppointmentVipMyClass={canOpenAppointmentVipMyClass}
+            canOpenAppointmentBreaks={canOpenAppointmentBreaks}
+            canOpenAppointmentWorkSchedule={canOpenAppointmentWorkSchedule}
+            canOpenAppointmentVipClients={canOpenAppointmentVipClients}
+            canOpenMyChildren={canOpenMyChildren}
+            canOpenAppointmentVipDailyRoutines={canOpenAppointmentVipDailyRoutines}
+            canOpenAppointmentVipClassAssignments={canOpenAppointmentVipClassAssignments}
+            canOpenAppointmentVipTutorAssignments={canOpenAppointmentVipTutorAssignments}
+            canOpenAppointmentVipAssignments={canOpenAppointmentVipAssignments}
+            canOpenAppointmentStatistics={canOpenAppointmentStatistics}
+            canOpenStatisticsClassAttendance={canOpenStatisticsClassAttendance}
+            canOpenStatisticsPlannerReport={canOpenStatisticsPlannerReport}
+            canOpenAppointmentSettings={canOpenAppointmentSettings}
+            canOpenSettingsOrganizations={canOpenSettingsOrganizations}
+            canOpenSettingsRoles={canOpenSettingsRoles}
+            canOpenSettingsPositions={canOpenSettingsPositions}
+            canOpenSettingsNorms={canOpenSettingsNorms}
+            openAppointmentPanel={openAppointmentPanel}
+            openAppointmentBreaksPanel={openAppointmentBreaksPanel}
+            openAppointmentVipSchedulePanel={openAppointmentVipSchedulePanel}
+            openAppointmentVipAttendancePanel={openAppointmentVipAttendancePanel}
+            openAppointmentVipMyChildrenPanel={openAppointmentVipMyChildrenPanel}
+            openAppointmentVipDailyRoutinesPanel={openAppointmentVipDailyRoutinesPanel}
+            openAppointmentVipAssignmentsPanel={openAppointmentVipAssignmentsPanel}
+            openAppointmentVipTutorAssignmentsPanel={openAppointmentVipTutorAssignmentsPanel}
+            openAppointmentSettingsPanel={openAppointmentSettingsPanel}
+            openAppointmentWorkSchedulePanel={openAppointmentWorkSchedulePanel}
+            openStatisticsClassPanel={openStatisticsClassPanel}
+            openStatisticsPlannerReportPanel={openStatisticsPlannerReportPanel}
+            hasUsersMenuAccess={hasUsersMenuAccess}
+            canReadUsers={canReadUsers}
+            closeMenu={closeMenu}
+            navigate={navigate}
+            hasSettingsMenuAccess={hasSettingsMenuAccess}
+            hasAdminSettingsAccess={hasAdminSettingsAccess}
+            canSendNotifications={canSendNotifications}
+            openOrganizationsPanel={openOrganizationsPanel}
+            openRolesPanel={openRolesPanel}
+            openPositionsPanel={openPositionsPanel}
+            openNormsPanel={openNormsPanel}
+            openNotificationsSendPanel={openNotificationsSendPanel}
+            openMonitoringPanel={openMonitoringPanel}
+          />
+        </Suspense>
+      ) : null}
     </>
   );
 }

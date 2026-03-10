@@ -39,6 +39,7 @@ const roleBodySchema = {
     label: { type: "string", minLength: 1, maxLength: 64 },
     sortOrder: integerLikeSchema,
     isActive: booleanLikeSchema,
+    isAdmin: booleanLikeSchema,
     permissionCodes: {
       type: "array",
       items: { type: "string", pattern: "^[a-z0-9._-]{2,64}$" }
@@ -111,5 +112,33 @@ export const settingsRouteSchemas = Object.freeze({
   roleCreateBody: roleBodySchema,
   roleUpdateBody: roleBodySchema,
   positionCreateBody: positionBodySchema,
-  positionUpdateBody: positionBodySchema
+  positionUpdateBody: positionBodySchema,
+  appointmentNormCreateBody: {
+    type: "object",
+    additionalProperties: true,
+    required: ["positionId", "maxPerWeek"],
+    properties: {
+      positionId: positiveIntegerLikeSchema,
+      maxPerWeek: {
+        anyOf: [
+          { type: "integer", minimum: 1, maximum: 100 },
+          { type: "string", pattern: "^([1-9]|[1-9]\\d|100)$" }
+        ]
+      },
+      isActive: booleanLikeSchema
+    }
+  },
+  appointmentNormUpdateBody: {
+    type: "object",
+    additionalProperties: true,
+    properties: {
+      maxPerWeek: {
+        anyOf: [
+          { type: "integer", minimum: 1, maximum: 100 },
+          { type: "string", pattern: "^([1-9]|[1-9]\\d|100)$" }
+        ]
+      },
+      isActive: booleanLikeSchema
+    }
+  }
 });

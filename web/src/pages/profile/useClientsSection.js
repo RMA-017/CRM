@@ -176,6 +176,8 @@ export function useClientsSection({
   const clientsHistoryDateToRef = useRef("");
   const clientsHistoryPositionIdRef = useRef("");
   const clientsHistorySpecialistIdRef = useRef("");
+  const lastClientsRequestKeyRef = useRef("");
+  const lastMedicalHistoryRequestKeyRef = useRef("");
   const [clientCreateForm, setClientCreateForm] = useState({ ...EMPTY_CLIENT_CREATE_FORM });
   const [clientCreateErrors, setClientCreateErrors] = useState({});
   const [clientCreateSubmitting, setClientCreateSubmitting] = useState(false);
@@ -425,6 +427,19 @@ export function useClientsSection({
 
     const normalizedOverrides = overrides && typeof overrides === "object" ? overrides : {};
     const nextPage = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+    const force = normalizedOverrides.force === true;
+    const trimmedSearch = String(
+      normalizedOverrides.search !== undefined ? normalizedOverrides.search : clientsSearchRef.current
+    ).trim();
+    const vipFilter = normalizedOverrides.isVip !== undefined ? normalizedOverrides.isVip : clientsIsVipRef.current;
+    const requestKey = JSON.stringify({
+      page: nextPage,
+      search: trimmedSearch,
+      isVip: vipFilter === "true" || vipFilter === "false" ? vipFilter : ""
+    });
+    if (!force && lastClientsRequestKeyRef.current === requestKey) {
+      return;
+    }
     setClientsMessage("");
     setClientsLoading(true);
 
@@ -433,13 +448,9 @@ export function useClientsSection({
         page: String(nextPage),
         limit: String(ALL_USERS_LIMIT)
       });
-      const trimmedSearch = String(
-        normalizedOverrides.search !== undefined ? normalizedOverrides.search : clientsSearchRef.current
-      ).trim();
       if (trimmedSearch) {
         query.set("q", trimmedSearch);
       }
-      const vipFilter = normalizedOverrides.isVip !== undefined ? normalizedOverrides.isVip : clientsIsVipRef.current;
       if (vipFilter === "true" || vipFilter === "false") {
         query.set("isVip", vipFilter);
       }
@@ -464,6 +475,7 @@ export function useClientsSection({
 
       setClientsPage(Number(pagination.page) || 1);
       setClientsTotalPages(Number(pagination.totalPages) || 1);
+      lastClientsRequestKeyRef.current = requestKey;
 
       if (items.length === 0) {
         setClients([]);
@@ -492,6 +504,19 @@ export function useClientsSection({
 
     const normalizedOverrides = overrides && typeof overrides === "object" ? overrides : {};
     const nextPage = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+    const force = normalizedOverrides.force === true;
+    const trimmedSearch = String(
+      normalizedOverrides.search !== undefined ? normalizedOverrides.search : clientsSearchRef.current
+    ).trim();
+    const vipFilter = normalizedOverrides.isVip !== undefined ? normalizedOverrides.isVip : clientsIsVipRef.current;
+    const requestKey = JSON.stringify({
+      page: nextPage,
+      search: trimmedSearch,
+      isVip: vipFilter === "true" || vipFilter === "false" ? vipFilter : ""
+    });
+    if (!force && lastMedicalHistoryRequestKeyRef.current === requestKey) {
+      return;
+    }
     setClientsMessage("");
     setClientsLoading(true);
 
@@ -500,13 +525,9 @@ export function useClientsSection({
         page: String(nextPage),
         limit: String(ALL_USERS_LIMIT)
       });
-      const trimmedSearch = String(
-        normalizedOverrides.search !== undefined ? normalizedOverrides.search : clientsSearchRef.current
-      ).trim();
       if (trimmedSearch) {
         query.set("q", trimmedSearch);
       }
-      const vipFilter = normalizedOverrides.isVip !== undefined ? normalizedOverrides.isVip : clientsIsVipRef.current;
       if (vipFilter === "true" || vipFilter === "false") {
         query.set("isVip", vipFilter);
       }
@@ -531,6 +552,7 @@ export function useClientsSection({
 
       setClientsPage(Number(pagination.page) || 1);
       setClientsTotalPages(Number(pagination.totalPages) || 1);
+      lastMedicalHistoryRequestKeyRef.current = requestKey;
 
       if (items.length === 0) {
         setClients([]);
@@ -645,7 +667,7 @@ export function useClientsSection({
       setClientCreateForm({ ...EMPTY_CLIENT_CREATE_FORM });
       setClientCreateErrors({});
       if (canReadClients) {
-        await loadClients(1);
+        await loadClients(1, { force: true });
       }
       return true;
     } catch {
@@ -750,7 +772,7 @@ export function useClientsSection({
 
       closeClientsEditModal();
       if (canReadClients) {
-        await reloadCurrentClientsView(clientsPage);
+        await reloadCurrentClientsView(clientsPage, { force: true });
       }
     } catch {
       setClientEditErrors({ firstName: "Unexpected error. Please try again." });
@@ -840,7 +862,7 @@ export function useClientsSection({
       }
       closeClientsDeleteModal();
       if (canReadClients) {
-        await reloadCurrentClientsView(clientsPage);
+        await reloadCurrentClientsView(clientsPage, { force: true });
       }
     } catch {
       setClientsDelete((prev) => ({
@@ -1332,7 +1354,7 @@ export function useClientsSection({
         return [nextItem, ...filtered].sort(compareClientMedicalHistoryItems);
       });
       if (canReadClients) {
-        await reloadCurrentClientsView(clientsPage);
+        await reloadCurrentClientsView(clientsPage, { force: true });
       }
       resetClientMedicalHistoryForm();
       if (!isEditMode) {
@@ -1411,7 +1433,7 @@ export function useClientsSection({
       setClientMedicalHistoryItems(nextItems);
       setClientMedicalHistoryMessage("");
       if (canReadClients) {
-        await reloadCurrentClientsView(clientsPage);
+        await reloadCurrentClientsView(clientsPage, { force: true });
       }
 
       if (String(clientMedicalHistoryForm.id || "").trim() === entryId) {
@@ -1476,7 +1498,7 @@ export function useClientsSection({
       setClientMedicalHistoryItems([]);
       setClientMedicalHistoryMessage("");
       if (canReadClients) {
-        await reloadCurrentClientsView(clientsPage);
+        await reloadCurrentClientsView(clientsPage, { force: true });
       }
 
       if (String(clientMedicalHistoryClient.id || "").trim() === clientId) {

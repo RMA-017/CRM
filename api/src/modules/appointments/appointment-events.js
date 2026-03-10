@@ -1,47 +1,15 @@
-import { parsePositiveInteger } from "../../lib/number.js";
+import {
+  isManagerLikeRoleLabel,
+  normalizeManagerNotificationTargetRoles as normalizeTargetRoles,
+  normalizeNotificationRoleLabel,
+  normalizeNotificationTargetUserIds as normalizeTargetUserIds
+} from "../../lib/notification-targets.js";
+import { normalizePositiveInteger } from "../../lib/number.js";
 
 const listenersByOrganization = new Map();
 
-function normalizePositiveInteger(value) {
-  const parsed = parsePositiveInteger(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
-}
-
-function normalizeRoleLabel(value) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function isManagerRole({ roleLabel }) {
-  const normalizedRole = normalizeRoleLabel(roleLabel);
-  return (
-    normalizedRole.includes("manager")
-    || normalizedRole.includes("menedj")
-    || normalizedRole.includes("meneger")
-    || normalizedRole.includes("menejer")
-    || normalizedRole.includes("менедж")
-  );
-}
-
-function normalizeTargetUserIds(value) {
-  const source = Array.isArray(value) ? value : [];
-  return Array.from(
-    new Set(
-      source
-        .map((item) => normalizePositiveInteger(item))
-        .filter((item) => item > 0)
-    )
-  );
-}
-
-function normalizeTargetRoles(value) {
-  const source = Array.isArray(value) ? value : [];
-  return Array.from(
-    new Set(
-      source
-        .map((item) => normalizeRoleLabel(item))
-        .filter((item) => item === "manager")
-    )
-  );
+function isManagerSubscriber({ roleLabel, isAdmin }) {
+  return Boolean(isAdmin) || isManagerLikeRoleLabel(roleLabel);
 }
 
 function shouldDeliverToSubscriber(subscriber, payload) {
@@ -81,8 +49,8 @@ export function subscribeAppointmentEvents({
 
   const subscriber = {
     userId: normalizedUserId,
-    roleLabel: normalizeRoleLabel(roleLabel),
-    isManager: isManagerRole({ roleLabel }),
+    roleLabel: normalizeNotificationRoleLabel(roleLabel),
+    isManager: isManagerSubscriber({ roleLabel, isAdmin }),
     listener
   };
 

@@ -1,24 +1,9 @@
 import pool from "../../config/db.js";
 import { parsePositiveInteger } from "../../lib/number.js";
+import { normalizePermissionCode } from "../../lib/permission-codes.js";
 
 const ROLE_PERMISSIONS_CACHE_TTL_MS = 15000;
 const rolePermissionsCache = new Map();
-
-function normalizeRoleId(value) {
-  return parsePositiveInteger(value);
-}
-
-function normalizePositionId(value) {
-  return parsePositiveInteger(value);
-}
-
-function normalizeOrganizationId(value) {
-  return parsePositiveInteger(value);
-}
-
-function normalizePermissionCode(value) {
-  return String(value || "").trim().toLowerCase();
-}
 
 function readRolePermissionsFromCache(roleId) {
   const cached = rolePermissionsCache.get(roleId);
@@ -40,7 +25,7 @@ function writeRolePermissionsToCache(roleId, permissions) {
 }
 
 export function clearRolePermissionsCache(roleId = null) {
-  const normalizedRoleId = normalizeRoleId(roleId);
+  const normalizedRoleId = parsePositiveInteger(roleId);
   if (normalizedRoleId) {
     rolePermissionsCache.delete(normalizedRoleId);
     return;
@@ -49,12 +34,12 @@ export function clearRolePermissionsCache(roleId = null) {
 }
 
 async function selectRoleById(roleId, organizationId = null, allowGlobal = true) {
-  const normalizedRoleId = normalizeRoleId(roleId);
+  const normalizedRoleId = parsePositiveInteger(roleId);
   if (!normalizedRoleId) {
     return null;
   }
 
-  const normalizedOrganizationId = normalizeOrganizationId(organizationId);
+  const normalizedOrganizationId = parsePositiveInteger(organizationId);
   const params = [normalizedRoleId];
   let scopeSql = "";
   if (normalizedOrganizationId) {
@@ -76,12 +61,12 @@ async function selectRoleById(roleId, organizationId = null, allowGlobal = true)
 }
 
 async function selectPositionById(positionId, organizationId = null, allowGlobal = true) {
-  const normalizedPositionId = normalizePositionId(positionId);
+  const normalizedPositionId = parsePositiveInteger(positionId);
   if (!normalizedPositionId) {
     return null;
   }
 
-  const normalizedOrganizationId = normalizeOrganizationId(organizationId);
+  const normalizedOrganizationId = parsePositiveInteger(organizationId);
   const params = [normalizedPositionId];
   let scopeSql = "";
   if (normalizedOrganizationId) {
@@ -130,7 +115,7 @@ export async function isAllowedPosition(positionId, options = {}) {
 }
 
 export async function getRolePermissions(roleId) {
-  const normalizedRoleId = normalizeRoleId(roleId);
+  const normalizedRoleId = parsePositiveInteger(roleId);
   if (!normalizedRoleId) {
     return [];
   }

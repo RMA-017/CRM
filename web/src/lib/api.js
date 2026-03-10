@@ -63,6 +63,40 @@ function wait(ms) {
   });
 }
 
+function toValidationErrorMap(errors) {
+  if (!Array.isArray(errors)) {
+    return null;
+  }
+
+  const mapped = {};
+  errors.forEach((item) => {
+    const field = String(item?.field || "").trim();
+    const message = String(item?.message || "").trim();
+    if (field && message && !(field in mapped)) {
+      mapped[field] = message;
+    }
+  });
+
+  return Object.keys(mapped).length > 0 ? mapped : null;
+}
+
+function normalizeApiPayload(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return payload;
+  }
+
+  const validationErrorMap = toValidationErrorMap(payload.errors);
+  if (!validationErrorMap) {
+    return payload;
+  }
+
+  return {
+    ...payload,
+    validationErrors: payload.errors,
+    errors: validationErrorMap
+  };
+}
+
 export async function apiFetch(path, options = {}) {
   const requestOptions = {
     credentials: "include",
@@ -103,7 +137,7 @@ export async function readApiResponseData(response) {
 
   const contentType = String(response?.headers?.get?.("content-type") || "").toLowerCase();
   if (contentType.includes("application/json")) {
-    const payload = await response.json().catch(() => ({}));
+    const payload = normalizeApiPayload(await response.json().catch(() => ({})));
     if (payload && typeof payload === "object") {
       return payload;
     }
@@ -116,7 +150,7 @@ export async function readApiResponseData(response) {
     return {};
   }
   try {
-    const parsed = JSON.parse(normalizedText);
+    const parsed = normalizeApiPayload(JSON.parse(normalizedText));
     if (parsed && typeof parsed === "object") {
       return parsed;
     }
@@ -127,7 +161,7 @@ export async function readApiResponseData(response) {
 }
 
 export function normalizeApiError(response, data, fallbackMessage = "Request failed.") {
-  const payload = data && typeof data === "object" ? data : {};
+  const payload = data && typeof data === "object" ? normalizeApiPayload(data) : {};
   const status = Number(response?.status || 0);
 
   const payloadMessage = typeof payload.message === "string" ? payload.message.trim() : "";
@@ -142,6 +176,9 @@ export function normalizeApiError(response, data, fallbackMessage = "Request fai
     errors: payload.errors && typeof payload.errors === "object" && !Array.isArray(payload.errors)
       ? payload.errors
       : {},
+    validationErrors: Array.isArray(payload.validationErrors)
+      ? payload.validationErrors
+      : (Array.isArray(data?.errors) ? data.errors : []),
     code: typeof payload.code === "string" ? payload.code.trim() : ""
   };
 }

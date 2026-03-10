@@ -4,6 +4,10 @@ import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import { appConfig } from "../config/app-config.js";
+import { AUTH_COOKIE_NAME } from "../lib/cookies.js";
+
+const SAFE_HTTP_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const TRUSTED_SEC_FETCH_SITE_VALUES = new Set(["same-origin", "same-site", "none"]);
 
 function isPrivateIpv4Hostname(hostname) {
   const host = String(hostname || "").trim();
@@ -67,6 +71,55 @@ export function isAllowedCorsOrigin(origin) {
   return appConfig.allowedOrigins.includes(origin) || isDevLocalOrigin(origin);
 }
 
+function toNormalizedOrigin(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return "";
+  }
+
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return "";
+  }
+}
+
+export function shouldRejectBrowserOrigin({
+  method,
+  origin,
+  referer,
+  secFetchSite,
+  hasAuthCookie = false
+}) {
+  const normalizedMethod = String(method || "GET").trim().toUpperCase();
+  if (SAFE_HTTP_METHODS.has(normalizedMethod)) {
+    return false;
+  }
+
+  const normalizedOrigin = toNormalizedOrigin(origin);
+  const normalizedRefererOrigin = toNormalizedOrigin(referer);
+  const normalizedSecFetchSite = String(secFetchSite || "").trim().toLowerCase();
+  const hasBrowserContextSignals = Boolean(normalizedOrigin || normalizedRefererOrigin || normalizedSecFetchSite);
+
+  if (!hasAuthCookie && !hasBrowserContextSignals) {
+    return false;
+  }
+
+  if (normalizedSecFetchSite && !TRUSTED_SEC_FETCH_SITE_VALUES.has(normalizedSecFetchSite)) {
+    return true;
+  }
+
+  if (normalizedOrigin) {
+    return !isAllowedCorsOrigin(normalizedOrigin);
+  }
+
+  if (normalizedRefererOrigin) {
+    return !isAllowedCorsOrigin(normalizedRefererOrigin);
+  }
+
+  return false;
+}
+
 async function securityPlugin(fastify) {
   fastify.decorate("apiRateLimit", appConfig.apiRateLimit);
   fastify.decorate("loginRateLimit", appConfig.loginRateLimit);
@@ -87,6 +140,22 @@ async function securityPlugin(fastify) {
   });
 
   await fastify.register(cookie);
+
+  if (appConfig.browserOriginCheckEnabled) {
+    fastify.addHook("onRequest", async (request, reply) => {
+      const shouldReject = shouldRejectBrowserOrigin({
+        method: request.method,
+        origin: request.headers?.origin,
+        referer: request.headers?.referer,
+        secFetchSite: request.headers?.["sec-fetch-site"],
+        hasAuthCookie: Boolean(request.cookies?.[AUTH_COOKIE_NAME])
+      });
+
+      if (shouldReject) {
+        return reply.status(403).send({ message: "Forbidden origin." });
+      }
+    });
+  }
 
   await fastify.register(rateLimit, {
     global: false,

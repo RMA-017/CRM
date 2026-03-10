@@ -1,7 +1,17 @@
 import { ORGANIZATION_CODE_REGEX, PERMISSION_CODE_REGEX } from "../../constants/validation.js";
 import { appConfig } from "../../config/app-config.js";
 import { setNoCacheHeaders } from "../../lib/http.js";
-import { parsePositiveInteger } from "../../lib/number.js";
+import {
+  normalizePermissionCode,
+  normalizePermissionCodes
+} from "../../lib/permission-codes.js";
+import { normalizeOrganizationCode } from "../../lib/organization-code.js";
+import {
+  getNotificationRetentionDaysMessage,
+  parseNotificationRetentionDays
+} from "../../lib/notification-retention.js";
+import { normalizeInteger, parsePositiveInteger } from "../../lib/number.js";
+import { parseBooleanOr, parseOptionalOrganizationId } from "../../lib/request-parsers.js";
 import { normalizeAllowedFeatures, requesterHasOrgFeature } from "../../lib/org-features.js";
 import {
   DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
@@ -15,19 +25,23 @@ import {
   saveAppointmentSlotCellHeightPxByOrganization
 } from "../appointments/services/appointment-settings-config.service.js";
 import {
+  createAppointmentNorm,
   createOrganization,
   createPositionOption,
   createRoleOption,
+  deleteAppointmentNormById,
   deleteOrganizationById,
   deletePositionOptionById,
   deleteRoleOptionById,
   findSettingsRequester,
   getPositionOptionById,
   getRoleOptionById,
+  listAppointmentNorms,
   listOrganizations,
   listPermissionOptionsForSettings,
   listPositionOptionsForSettings,
   listRoleOptionsForSettings,
+  updateAppointmentNorm,
   updateOrganization,
   updatePositionOption,
   updateRoleOption
@@ -38,10 +52,9 @@ import {
 } from "../notifications/notifications.service.js";
 import { hasPermission } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
+import { clearUserOptionsCache } from "../meta/meta.service.js";
 import { settingsRouteSchemas } from "./settings.route-schemas.js";
 
-const MIN_NOTIFICATION_RETENTION_DAYS = 0;
-const MAX_NOTIFICATION_RETENTION_DAYS = 3650;
 const SETTINGS_ROUTE_PERMISSION_CONFIG = Object.freeze({
   appointments: Object.freeze({
     featureKey: "settings.appointments",
@@ -49,6 +62,16 @@ const SETTINGS_ROUTE_PERMISSION_CONFIG = Object.freeze({
     permissions: Object.freeze({
       read: PERMISSIONS.SETTINGS_APPOINTMENTS_READ,
       update: PERMISSIONS.SETTINGS_APPOINTMENTS_UPDATE
+    })
+  }),
+  appointment_norms: Object.freeze({
+    featureKey: "settings.appointment_norms",
+    legacyRequiresPlatformAdmin: false,
+    permissions: Object.freeze({
+      read: PERMISSIONS.SETTINGS_APPOINTMENT_NORMS_READ,
+      create: PERMISSIONS.SETTINGS_APPOINTMENT_NORMS_CREATE,
+      update: PERMISSIONS.SETTINGS_APPOINTMENT_NORMS_UPDATE,
+      delete: PERMISSIONS.SETTINGS_APPOINTMENT_NORMS_DELETE
     })
   }),
   roles: Object.freeze({
@@ -77,37 +100,14 @@ const SETTINGS_ROUTE_PERMISSION_CODES = Object.freeze(
     new Set(
       Object.values(SETTINGS_ROUTE_PERMISSION_CONFIG)
         .flatMap((resource) => Object.values(resource.permissions))
-        .map((code) => String(code || "").trim().toLowerCase())
+        .map((code) => normalizePermissionCode(code))
         .filter(Boolean)
     )
   )
 );
 
-function parseSortOrder(value) {
-  const parsed = Number.parseInt(String(value ?? ""), 10);
-  return Number.isInteger(parsed) ? parsed : 0;
-}
-
-function parseIsActive(value, fallback = true) {
-  if (typeof value === "boolean") {
-    return value;
-  }
-  const normalized = String(value ?? "").trim().toLowerCase();
-  if (!normalized) {
-    return fallback;
-  }
-  if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") {
-    return true;
-  }
-  if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") {
-    return false;
-  }
-  return fallback;
-}
-
-function parseAllowedFeatures(value) {
-  return normalizeAllowedFeatures(value);
-}
+const parseSortOrder = normalizeInteger;
+const parseIsActive = parseBooleanOr;
 
 function parseHistoryLockDays(value) {
   const parsed = Number.parseInt(String(value ?? "").trim(), 10);
@@ -143,39 +143,6 @@ function parseSlotCellHeightPx(value) {
   return { value: parsed };
 }
 
-function parseNotificationRetentionDays(value, field) {
-  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
-  if (
-    !Number.isInteger(parsed)
-    || parsed < MIN_NOTIFICATION_RETENTION_DAYS
-    || parsed > MAX_NOTIFICATION_RETENTION_DAYS
-  ) {
-    return {
-      error: {
-        field,
-        message: `Retention days must be an integer between ${MIN_NOTIFICATION_RETENTION_DAYS} and ${MAX_NOTIFICATION_RETENTION_DAYS}.`
-      }
-    };
-  }
-  return { value: parsed };
-}
-
-function parseOptionalOrganizationId(value) {
-  if (value === undefined || value === null || value === "") {
-    return { value: null };
-  }
-  const parsed = parsePositiveInteger(value);
-  if (!parsed) {
-    return {
-      error: {
-        field: "organizationId",
-        message: "Invalid organization id."
-      }
-    };
-  }
-  return { value: parsed };
-}
-
 function parsePermissionCodes(value) {
   if (value == null) {
     return { codes: null };
@@ -190,13 +157,7 @@ function parsePermissionCodes(value) {
     };
   }
 
-  const codes = Array.from(
-    new Set(
-      value
-        .map((code) => String(code || "").trim().toLowerCase())
-        .filter(Boolean)
-    )
-  );
+  const codes = normalizePermissionCodes(value);
 
   const invalidCode = codes.find((code) => !PERMISSION_CODE_REGEX.test(code));
   if (invalidCode) {
@@ -296,7 +257,7 @@ async function getSettingsPermissionSnapshot(roleId) {
       Object.fromEntries(
         Object.entries(config.permissions).map(([actionKey, permissionCode]) => [
           actionKey,
-          permissionState.get(String(permissionCode || "").trim().toLowerCase()) === true
+          permissionState.get(normalizePermissionCode(permissionCode)) === true
         ])
       )
     ])
@@ -304,7 +265,8 @@ async function getSettingsPermissionSnapshot(roleId) {
 
   return {
     usesAdvancedSettingsPermissions: Array.from(permissionState.values()).some(Boolean),
-    organizations: resourceState.organizations,
+    appointments: resourceState.appointments,
+    appointment_norms: resourceState.appointment_norms,
     roles: resourceState.roles,
     positions: resourceState.positions
   };
@@ -392,10 +354,10 @@ async function settingsRoutes(fastify) {
           return;
         }
 
-        const code = String(request.body?.code || "").trim().toLowerCase();
+        const code = normalizeOrganizationCode(request.body?.code);
         const name = String(request.body?.name || "").trim();
         const isActive = parseIsActive(request.body?.isActive, true);
-        const allowedFeatures = parseAllowedFeatures(request.body?.allowedFeatures);
+        const allowedFeatures = normalizeAllowedFeatures(request.body?.allowedFeatures);
         const validationError = validateOrganizationPayload({ code, name });
         if (validationError) {
           return reply.status(400).send(validationError);
@@ -408,6 +370,7 @@ async function settingsRoutes(fastify) {
           allowedFeatures,
           actorUserId: adminContext.authContext.userId
         });
+        clearUserOptionsCache();
         return reply.status(201).send({
           message: "Organization created.",
           item
@@ -443,10 +406,10 @@ async function settingsRoutes(fastify) {
           return reply.status(400).send({ message: "Invalid organization id." });
         }
 
-        const code = String(request.body?.code || "").trim().toLowerCase();
+        const code = normalizeOrganizationCode(request.body?.code);
         const name = String(request.body?.name || "").trim();
         const isActive = parseIsActive(request.body?.isActive, true);
-        const allowedFeatures = parseAllowedFeatures(request.body?.allowedFeatures);
+        const allowedFeatures = normalizeAllowedFeatures(request.body?.allowedFeatures);
         const validationError = validateOrganizationPayload({ code, name });
         if (validationError) {
           return reply.status(400).send(validationError);
@@ -468,6 +431,7 @@ async function settingsRoutes(fastify) {
           return reply.status(404).send({ message: "Organization not found." });
         }
 
+        clearUserOptionsCache();
         return reply.send({
           message: "Organization updated.",
           item
@@ -511,6 +475,7 @@ async function settingsRoutes(fastify) {
           return reply.status(404).send({ message: "Organization not found." });
         }
 
+        clearUserOptionsCache();
         return reply.send({ message: "Organization deleted." });
       } catch (error) {
         if (error?.code === "23503") {
@@ -804,13 +769,13 @@ async function settingsRoutes(fastify) {
         if (error?.code === "INVALID_OUTBOX_RETENTION_DAYS") {
           return reply.status(400).send({
             field: "outboxWorkerRetentionDays",
-            message: `Retention days must be an integer between ${MIN_NOTIFICATION_RETENTION_DAYS} and ${MAX_NOTIFICATION_RETENTION_DAYS}.`
+            message: getNotificationRetentionDaysMessage()
           });
         }
         if (error?.code === "INVALID_USER_NOTIFICATIONS_RETENTION_DAYS") {
           return reply.status(400).send({
             field: "userNotificationsRetentionDays",
-            message: `Retention days must be an integer between ${MIN_NOTIFICATION_RETENTION_DAYS} and ${MAX_NOTIFICATION_RETENTION_DAYS}.`
+            message: getNotificationRetentionDaysMessage()
           });
         }
         request.log.error({ err: error }, "Error updating admin options:");
@@ -890,6 +855,7 @@ async function settingsRoutes(fastify) {
           permissionCodes,
           actorUserId: adminContext.authContext.userId
         });
+        clearUserOptionsCache();
         return reply.status(201).send({
           message: "Role created.",
           item
@@ -897,6 +863,12 @@ async function settingsRoutes(fastify) {
       } catch (error) {
         if (error?.code === "23505") {
           return reply.status(409).send({ field: "label", message: "Role label already exists." });
+        }
+        if (error?.code === "ROLE_DEACTIVATION_BLOCKED_ASSIGNED_USERS") {
+          return reply.status(409).send({
+            field: "isActive",
+            message: "Role cannot be deactivated while users are assigned to it."
+          });
         }
         if (error?.code === "INVALID_PERMISSION_CODES") {
           const invalidCodes = Array.isArray(error.invalidCodes) ? error.invalidCodes.join(", ") : "";
@@ -956,6 +928,13 @@ async function settingsRoutes(fastify) {
         if (isAdminRole && !isPlatformAdminRequester) {
           return reply.status(403).send({ message: "Only platform admin can modify admin roles." });
         }
+        const hasRequestedIsAdmin = Object.prototype.hasOwnProperty.call(request.body || {}, "isAdmin");
+        const requestedIsAdmin = hasRequestedIsAdmin
+          ? parseIsActive(request.body?.isAdmin, Boolean(existing.isAdmin))
+          : Boolean(existing.isAdmin);
+        if (!isPlatformAdminRequester && hasRequestedIsAdmin && requestedIsAdmin !== Boolean(existing.isAdmin)) {
+          return reply.status(403).send({ message: "Only platform admin can change admin role status." });
+        }
 
         const permissionCodes = Array.isArray(parsedPermissions.codes)
           ? parsedPermissions.codes
@@ -967,6 +946,7 @@ async function settingsRoutes(fastify) {
           label,
           sortOrder,
           isActive,
+          isAdmin: requestedIsAdmin,
           permissionCodes,
           actorUserId: adminContext.authContext.userId
         });
@@ -974,6 +954,7 @@ async function settingsRoutes(fastify) {
           return reply.status(404).send({ message: "Role not found." });
         }
 
+        clearUserOptionsCache();
         return reply.send({
           message: "Role updated.",
           item
@@ -981,6 +962,12 @@ async function settingsRoutes(fastify) {
       } catch (error) {
         if (error?.code === "23505") {
           return reply.status(409).send({ field: "label", message: "Role label already exists." });
+        }
+        if (error?.code === "ROLE_DEACTIVATION_BLOCKED_ASSIGNED_USERS") {
+          return reply.status(409).send({
+            field: "isActive",
+            message: "Role cannot be deactivated while users are assigned to it."
+          });
         }
         if (error?.code === "INVALID_PERMISSION_CODES") {
           const invalidCodes = Array.isArray(error.invalidCodes) ? error.invalidCodes.join(", ") : "";
@@ -1033,6 +1020,7 @@ async function settingsRoutes(fastify) {
           return reply.status(404).send({ message: "Role not found." });
         }
 
+        clearUserOptionsCache();
         return reply.send({ message: "Role deleted." });
       } catch (error) {
         if (error?.code === "23503") {
@@ -1097,6 +1085,7 @@ async function settingsRoutes(fastify) {
           isActive,
           actorUserId: adminContext.authContext.userId
         });
+        clearUserOptionsCache();
         return reply.status(201).send({
           message: "Position created.",
           item
@@ -1152,6 +1141,7 @@ async function settingsRoutes(fastify) {
           return reply.status(404).send({ message: "Position not found." });
         }
 
+        clearUserOptionsCache();
         return reply.send({
           message: "Position updated.",
           item
@@ -1199,12 +1189,151 @@ async function settingsRoutes(fastify) {
           return reply.status(404).send({ message: "Position not found." });
         }
 
+        clearUserOptionsCache();
         return reply.send({ message: "Position deleted." });
       } catch (error) {
         if (error?.code === "23503") {
           return reply.status(409).send({ message: "Position is used by users and cannot be deleted." });
         }
         request.log.error({ err: error }, "Error deleting position:");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  // ── Appointment Norms ────────────────────────────────────────────────────
+
+  fastify.get(
+    "/appointment-norms",
+    { config: { rateLimit: fastify.apiRateLimit } },
+    async (request, reply) => {
+      try {
+        const adminContext = await requireSettingsRouteAccess(request, reply, "appointment_norms", "read");
+        if (!adminContext) {
+          return;
+        }
+        setNoCacheHeaders(reply);
+        const items = await listAppointmentNorms(adminContext.authContext.organizationId);
+        return reply.send({ items });
+      } catch (error) {
+        request.log.error({ err: error }, "Error fetching appointment norms");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.post(
+    "/appointment-norms",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: { body: settingsRouteSchemas.appointmentNormCreateBody }
+    },
+    async (request, reply) => {
+      try {
+        const adminContext = await requireSettingsRouteAccess(request, reply, "appointment_norms", "create");
+        if (!adminContext) {
+          return;
+        }
+
+        const positionId = parsePositiveInteger(request.body?.positionId);
+        if (!positionId) {
+          return reply.status(400).send({ field: "positionId", message: "Valid position is required." });
+        }
+        const maxPerWeek = Number.parseInt(String(request.body?.maxPerWeek ?? "").trim(), 10);
+        if (!Number.isInteger(maxPerWeek) || maxPerWeek < 1 || maxPerWeek > 100) {
+          return reply.status(400).send({ field: "maxPerWeek", message: "Max per week must be between 1 and 100." });
+        }
+        const isActive = parseIsActive(request.body?.isActive, true);
+
+        const item = await createAppointmentNorm({
+          organizationId: adminContext.authContext.organizationId,
+          positionId,
+          maxPerWeek,
+          isActive,
+          actorUserId: adminContext.authContext.userId
+        });
+        return reply.status(201).send({ message: "Norm created.", item });
+      } catch (error) {
+        if (error?.code === "23505") {
+          return reply.status(409).send({ field: "positionId", message: "A norm for this position already exists." });
+        }
+        if (error?.code === "23503") {
+          return reply.status(400).send({ field: "positionId", message: "Position not found." });
+        }
+        request.log.error({ err: error }, "Error creating appointment norm");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.patch(
+    "/appointment-norms/:id",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        params: settingsRouteSchemas.idParams,
+        body: settingsRouteSchemas.appointmentNormUpdateBody
+      }
+    },
+    async (request, reply) => {
+      try {
+        const adminContext = await requireSettingsRouteAccess(request, reply, "appointment_norms", "update");
+        if (!adminContext) {
+          return;
+        }
+
+        const id = parsePositiveInteger(request.params?.id);
+        if (!id) {
+          return reply.status(400).send({ message: "Invalid id." });
+        }
+        const maxPerWeek = Number.parseInt(String(request.body?.maxPerWeek ?? "").trim(), 10);
+        if (!Number.isInteger(maxPerWeek) || maxPerWeek < 1 || maxPerWeek > 100) {
+          return reply.status(400).send({ field: "maxPerWeek", message: "Max per week must be between 1 and 100." });
+        }
+        const isActive = parseIsActive(request.body?.isActive, true);
+
+        const item = await updateAppointmentNorm({
+          id,
+          organizationId: adminContext.authContext.organizationId,
+          maxPerWeek,
+          isActive,
+          actorUserId: adminContext.authContext.userId
+        });
+        if (!item) {
+          return reply.status(404).send({ message: "Norm not found." });
+        }
+        return reply.send({ message: "Norm updated.", item });
+      } catch (error) {
+        request.log.error({ err: error }, "Error updating appointment norm");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.delete(
+    "/appointment-norms/:id",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: { params: settingsRouteSchemas.idParams }
+    },
+    async (request, reply) => {
+      try {
+        const adminContext = await requireSettingsRouteAccess(request, reply, "appointment_norms", "delete");
+        if (!adminContext) {
+          return;
+        }
+
+        const id = parsePositiveInteger(request.params?.id);
+        if (!id) {
+          return reply.status(400).send({ message: "Invalid id." });
+        }
+        const deleted = await deleteAppointmentNormById(id, adminContext.authContext.organizationId);
+        if (!deleted) {
+          return reply.status(404).send({ message: "Norm not found." });
+        }
+        return reply.send({ message: "Norm deleted." });
+      } catch (error) {
+        request.log.error({ err: error }, "Error deleting appointment norm");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
