@@ -41,7 +41,6 @@ export const EMPTY_ROLE_EDIT_FORM = {
 const EMPTY_ALL_USERS_EDIT_FORM = {
   organizationName: "",
   organizationCode: "",
-  username: "",
   email: "",
   fullName: "",
   birthday: "",

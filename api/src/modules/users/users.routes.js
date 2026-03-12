@@ -5,7 +5,7 @@ import { parsePositiveInteger } from "../../lib/number.js";
 import { normalizeOrganizationCode } from "../../lib/organization-code.js";
 import { requesterHasOrgFeature } from "../../lib/org-features.js";
 import { findActiveOrganizationByCode } from "../organizations/organizations.service.js";
-import { PERMISSIONS, USERNAME_REGEX } from "./users.constants.js";
+import { PERMISSIONS } from "./users.constants.js";
 import { hasPermission, isAdminRole, isAllowedPosition, isAllowedRole } from "./access.service.js";
 import { usersRouteSchemas } from "./users.route-schemas.js";
 import {
@@ -120,7 +120,6 @@ async function usersRoutes(fastify) {
         return reply.status(400).send({ message: "Invalid user id." });
       }
 
-      const username = String(request.body?.username || "").trim().toLowerCase();
       const email = String(request.body?.email || "").trim().toLowerCase();
       const fullName = String(request.body?.fullName || "").trim();
       const birthday = String(request.body?.birthday || "").trim();
@@ -138,9 +137,6 @@ async function usersRoutes(fastify) {
       }
       if (organizationCode && !ORGANIZATION_CODE_REGEX.test(organizationCode)) {
         errors.organizationCode = "Invalid organisation.";
-      }
-      if (!USERNAME_REGEX.test(username)) {
-        errors.username = "Username must be 3-30 chars and contain letters, numbers, ., _, -";
       }
       if (email && !EMAIL_REGEX.test(email)) {
         errors.email = "Invalid email format.";
@@ -264,7 +260,6 @@ async function usersRoutes(fastify) {
           nextOrganizationId,
           actorUserId: requester.id,
           userId,
-          username,
           email,
           fullName,
           birthday,

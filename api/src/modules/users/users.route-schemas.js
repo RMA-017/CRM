@@ -46,7 +46,6 @@ export const usersRouteSchemas = Object.freeze({
     type: "object",
     additionalProperties: true,
     properties: {
-      username: usernameSchema,
       email: emailSchema,
       fullName: {
         type: "string",

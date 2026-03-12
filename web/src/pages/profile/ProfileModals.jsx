@@ -645,28 +645,6 @@ function ProfileModals(props) {
             </div>
 
             <div className="field">
-              <label htmlFor="allUsersEditUsername">Username</label>
-              <input
-                id="allUsersEditUsername"
-                name="username"
-                type="text"
-                autoComplete="username"
-                required
-                className={allUsersEdit.errors.username ? "input-error" : ""}
-                value={allUsersEdit.form.username}
-                onInput={(event) => {
-                  const nextValue = event.currentTarget.value;
-                  setAllUsersEdit((prev) => ({
-                    ...prev,
-                    form: { ...prev.form, username: nextValue },
-                    errors: { ...prev.errors, username: "" }
-                  }));
-                }}
-              />
-              <small id="allUsersEditUsernameError" className="field-error">{allUsersEdit.errors.username || ""}</small>
-            </div>
-
-            <div className="field">
               <label htmlFor="allUsersEditEmail">Email</label>
               <input
                 id="allUsersEditEmail"
@@ -819,6 +797,9 @@ function ProfileModals(props) {
             </div>
           </div>
 
+          {allUsersEdit.errors._form && (
+            <small className="field-error">{allUsersEdit.errors._form}</small>
+          )}
           <div className="edit-actions">
             <button id="allUsersEditSaveBtn" className="btn" type="submit" disabled={allUsersEdit.submitting}>
               Save

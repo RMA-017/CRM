@@ -248,7 +248,6 @@ export async function updateUserByAdmin({
   nextOrganizationId = null,
   actorUserId,
   userId,
-  username,
   email,
   fullName,
   birthday,
@@ -279,11 +278,7 @@ export async function updateUserByAdmin({
     }
 
     const currentRoleId = Number(currentUser.role_id);
-    const currentUsername = String(currentUser.username || "").trim();
-    const normalizedUsername = String(username || "").trim().toLowerCase();
-    const nextUsername = currentUsername && normalizedUsername === currentUsername.toLowerCase()
-      ? currentUsername
-      : normalizedUsername;
+    const nextUsername = String(currentUser.username || "").trim();
     const nextRoleLabel = await getRoleLabelById(client, roleId);
     const isRoleChangingToTutor = Number(roleId) !== currentRoleId && isTutorLikeRoleLabel(nextRoleLabel);
     if (isRoleChangingToTutor) {

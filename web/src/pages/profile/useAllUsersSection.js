@@ -115,7 +115,6 @@ export function useAllUsersSection({
       form: {
         organizationName: String(currentUser.organizationName || ""),
         organizationCode: String(currentUser.organizationCode || ""),
-        username: String(currentUser.username || ""),
         email: String(currentUser.email || ""),
         fullName: String(currentUser.fullName || ""),
         birthday: formatDateForInput(currentUser.birthday),
@@ -146,7 +145,7 @@ export function useAllUsersSection({
     if (!canUpdateUsers) {
       setAllUsersEdit((prev) => ({
         ...prev,
-        errors: { username: "You do not have permission to edit users." }
+        errors: { _form: "You do not have permission to edit users." }
       }));
       return;
     }
@@ -157,7 +156,6 @@ export function useAllUsersSection({
 
     const payload = {
       organizationCode: String(allUsersEdit.form.organizationCode || "").trim().toLowerCase(),
-      username: String(allUsersEdit.form.username || "").trim(),
       email: String(allUsersEdit.form.email || "").trim(),
       fullName: String(allUsersEdit.form.fullName || "").trim(),
       birthday: String(allUsersEdit.form.birthday || "").trim(),
@@ -204,7 +202,7 @@ export function useAllUsersSection({
             ? data.errors
             : data?.field
               ? { [data.field]: data.message || "Invalid value." }
-              : { username: data?.message || "Failed to update user." }
+              : { _form: data?.message || "Failed to update user." }
         }));
         return;
       }
@@ -215,7 +213,7 @@ export function useAllUsersSection({
       setAllUsersEdit((prev) => ({
         ...prev,
         submitting: false,
-        errors: { username: "Unexpected error. Please try again." }
+        errors: { _form: "Unexpected error. Please try again." }
       }));
     }
   }, [
@@ -227,7 +225,6 @@ export function useAllUsersSection({
     allUsersEdit.form.phone,
     allUsersEdit.form.position,
     allUsersEdit.form.role,
-    allUsersEdit.form.username,
     allUsersEdit.id,
     allUsersPage,
     canUpdateUsers,
