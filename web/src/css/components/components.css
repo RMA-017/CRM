@@ -302,8 +302,8 @@
 }
 
 .all-users-edit-modal .all-users-edit-fields,
-#roleCreateModal .settings-permissions-section,
-#roleEditModal .settings-permissions-section {
+#roleCreateModal .role-permissions-tree,
+#roleEditModal .role-permissions-tree {
   scrollbar-width: thin;
   scrollbar-color: var(--scroll-thumb) var(--scroll-track);
 }
@@ -339,29 +339,29 @@
 }
 
 .all-users-edit-modal .all-users-edit-fields::-webkit-scrollbar,
-#roleCreateModal .settings-permissions-section::-webkit-scrollbar,
-#roleEditModal .settings-permissions-section::-webkit-scrollbar {
+#roleCreateModal .role-permissions-tree::-webkit-scrollbar,
+#roleEditModal .role-permissions-tree::-webkit-scrollbar {
   width: var(--scrollbar-size);
 }
 
 .all-users-edit-modal .all-users-edit-fields::-webkit-scrollbar-track,
-#roleCreateModal .settings-permissions-section::-webkit-scrollbar-track,
-#roleEditModal .settings-permissions-section::-webkit-scrollbar-track {
+#roleCreateModal .role-permissions-tree::-webkit-scrollbar-track,
+#roleEditModal .role-permissions-tree::-webkit-scrollbar-track {
   background: var(--scroll-track);
   border-radius: var(--scrollbar-size);
 }
 
 .all-users-edit-modal .all-users-edit-fields::-webkit-scrollbar-thumb,
-#roleCreateModal .settings-permissions-section::-webkit-scrollbar-thumb,
-#roleEditModal .settings-permissions-section::-webkit-scrollbar-thumb {
+#roleCreateModal .role-permissions-tree::-webkit-scrollbar-thumb,
+#roleEditModal .role-permissions-tree::-webkit-scrollbar-thumb {
   background: var(--scroll-thumb);
   border-radius: var(--scrollbar-size);
   border: 2px solid var(--surface);
 }
 
 .all-users-edit-modal .all-users-edit-fields::-webkit-scrollbar-thumb:hover,
-#roleCreateModal .settings-permissions-section::-webkit-scrollbar-thumb:hover,
-#roleEditModal .settings-permissions-section::-webkit-scrollbar-thumb:hover {
+#roleCreateModal .role-permissions-tree::-webkit-scrollbar-thumb:hover,
+#roleEditModal .role-permissions-tree::-webkit-scrollbar-thumb:hover {
   background: var(--scroll-thumb-hover);
 }
 
@@ -1054,12 +1054,20 @@
   margin: 0;
 }
 
-#roleCreateModal .settings-permissions-section,
-#roleEditModal .settings-permissions-section {
+#roleCreateModal .role-permissions-accordion,
+#roleEditModal .role-permissions-accordion {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#roleCreateModal .role-permissions-tree,
+#roleEditModal .role-permissions-tree {
   flex: 1 1 auto;
   min-height: 0;
   max-height: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
   scrollbar-gutter: stable;
   padding-right: 6px;
 }
