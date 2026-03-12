@@ -164,7 +164,7 @@ export function useAllUsersSection({
       phone: String(allUsersEdit.form.phone || "").trim(),
       position: String(allUsersEdit.form.position || "").trim(),
       role: String(allUsersEdit.form.role || "").trim(),
-      password: String(allUsersEdit.form.password || "")
+      ...(allUsersEdit.form.password ? { password: String(allUsersEdit.form.password) } : {})
     };
 
     const birthdayError = getBirthdayValidationMessage(payload.birthday);
