@@ -11,7 +11,6 @@
 		"migrate:prod": "node --env-file=.env.production.local scripts/migrate.mjs",
 		"migrate:status:prod": "node --env-file=.env.production.local scripts/migrate.mjs --status",
 		"migrate:adopt:prod": "node --env-file=.env.production.local scripts/migrate.mjs --adopt-existing",
-		"admin:bootstrap": "node --env-file=.env scripts/bootstrap-platform-admin.mjs",
 		"pm2:start": "pnpm run deploy:preflight && pm2 start ecosystem.config.cjs --env production",
 		"pm2:reload": "pnpm run deploy:preflight && pm2 reload ecosystem.config.cjs --env production",
 		"pm2:stop": "pm2 stop crm-api",
