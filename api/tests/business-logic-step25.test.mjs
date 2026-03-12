@@ -402,6 +402,216 @@ test("users update blocks self role changes through admin route", async () => {
   }
 });
 
+test("users update maps email unique conflicts to email field", async () => {
+  const recorder = createRouteRecorder();
+  await usersRoutes(recorder.fastify);
+
+  const usersPatchRoute = recorder.routes.find((route) => route.method === "PATCH" && route.path === "/:id");
+  assert.equal(typeof usersPatchRoute?.handler, "function");
+
+  clearRolePermissionsCache();
+  const restoreQuery = stubPoolQuery(async (sql) => {
+    const queryText = String(sql || "");
+
+    if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
+      return { rows: [{ code: "users.update" }] };
+    }
+    if (queryText.includes("FROM users u") && queryText.includes("LEFT JOIN role_options r ON r.id = u.role_id")) {
+      return {
+        rows: [{
+          id: "9",
+          organization_id: "3",
+          role_id: "22",
+          is_admin: false,
+          is_platform_admin: false
+        }]
+      };
+    }
+    if (queryText.includes("FROM role_options") && queryText.includes("SELECT id, organization_id, label, is_admin, is_active")) {
+      return {
+        rows: [{
+          id: 22,
+          organization_id: 3,
+          label: "Manager",
+          is_admin: false,
+          is_active: true
+        }]
+      };
+    }
+
+    throw new Error(`Unexpected query in test: ${queryText}`);
+  });
+  const restoreConnect = stubPoolConnect(async (sql) => {
+    const queryText = String(sql || "");
+
+    if (queryText === "BEGIN" || queryText === "ROLLBACK") {
+      return { rows: [], rowCount: 0 };
+    }
+    if (queryText.includes("SELECT role_id") && queryText.includes("FROM users")) {
+      return {
+        rows: [{ role_id: 22 }],
+        rowCount: 1
+      };
+    }
+    if (queryText.includes("SELECT label FROM role_options")) {
+      return {
+        rows: [{ label: "Manager" }],
+        rowCount: 1
+      };
+    }
+    if (queryText.includes("UPDATE users")) {
+      const error = new Error("unique violation");
+      error.code = "23505";
+      error.constraint = "users_email_unique_ci";
+      throw error;
+    }
+
+    throw new Error(`Unexpected client.query in test: ${queryText}`);
+  });
+
+  try {
+    const reply = createReplyRecorder();
+    await usersPatchRoute.handler({
+      authContext: {
+        userId: 7,
+        organizationId: 3,
+        requester: {
+          id: 7,
+          role_id: 11,
+          is_admin: true,
+          is_platform_admin: false,
+          organization_id: 3,
+          organization_allowed_features: ["users.all_users"]
+        }
+      },
+      params: { id: "9" },
+      body: {
+        username: "target.user",
+        email: "duplicate@example.com",
+        fullName: "Target User",
+        birthday: "2000-01-01",
+        phone: "",
+        role: "22",
+        organizationCode: ""
+      },
+      log: { error() {} }
+    }, reply);
+
+    assert.equal(reply.state.statusCode, 409);
+    assert.equal(reply.state.payload?.field, "email");
+    assert.equal(reply.state.payload?.message, "Email already exists.");
+  } finally {
+    clearRolePermissionsCache();
+    restoreConnect();
+    restoreQuery();
+  }
+});
+
+test("users update maps username unique conflicts to username field", async () => {
+  const recorder = createRouteRecorder();
+  await usersRoutes(recorder.fastify);
+
+  const usersPatchRoute = recorder.routes.find((route) => route.method === "PATCH" && route.path === "/:id");
+  assert.equal(typeof usersPatchRoute?.handler, "function");
+
+  clearRolePermissionsCache();
+  const restoreQuery = stubPoolQuery(async (sql) => {
+    const queryText = String(sql || "");
+
+    if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
+      return { rows: [{ code: "users.update" }] };
+    }
+    if (queryText.includes("FROM users u") && queryText.includes("LEFT JOIN role_options r ON r.id = u.role_id")) {
+      return {
+        rows: [{
+          id: "9",
+          organization_id: "3",
+          role_id: "22",
+          is_admin: false,
+          is_platform_admin: false
+        }]
+      };
+    }
+    if (queryText.includes("FROM role_options") && queryText.includes("SELECT id, organization_id, label, is_admin, is_active")) {
+      return {
+        rows: [{
+          id: 22,
+          organization_id: 3,
+          label: "Manager",
+          is_admin: false,
+          is_active: true
+        }]
+      };
+    }
+
+    throw new Error(`Unexpected query in test: ${queryText}`);
+  });
+  const restoreConnect = stubPoolConnect(async (sql) => {
+    const queryText = String(sql || "");
+
+    if (queryText === "BEGIN" || queryText === "ROLLBACK") {
+      return { rows: [], rowCount: 0 };
+    }
+    if (queryText.includes("SELECT role_id") && queryText.includes("FROM users")) {
+      return {
+        rows: [{ role_id: 22 }],
+        rowCount: 1
+      };
+    }
+    if (queryText.includes("SELECT label FROM role_options")) {
+      return {
+        rows: [{ label: "Manager" }],
+        rowCount: 1
+      };
+    }
+    if (queryText.includes("UPDATE users")) {
+      const error = new Error("unique violation");
+      error.code = "23505";
+      error.constraint = "users_username_unique_ci";
+      throw error;
+    }
+
+    throw new Error(`Unexpected client.query in test: ${queryText}`);
+  });
+
+  try {
+    const reply = createReplyRecorder();
+    await usersPatchRoute.handler({
+      authContext: {
+        userId: 7,
+        organizationId: 3,
+        requester: {
+          id: 7,
+          role_id: 11,
+          is_admin: true,
+          is_platform_admin: false,
+          organization_id: 3,
+          organization_allowed_features: ["users.all_users"]
+        }
+      },
+      params: { id: "9" },
+      body: {
+        username: "duplicate.user",
+        email: "",
+        fullName: "Target User",
+        birthday: "2000-01-01",
+        phone: "",
+        role: "22",
+        organizationCode: ""
+      },
+      log: { error() {} }
+    }, reply);
+
+    assert.equal(reply.state.statusCode, 409);
+    assert.equal(reply.state.payload?.field, "username");
+    assert.equal(reply.state.payload?.message, "Username already exists.");
+  } finally {
+    clearRolePermissionsCache();
+    restoreConnect();
+    restoreQuery();
+  }
+});
+
 test("users update maps cross-organization transfer conflicts to 409", async () => {
   const recorder = createRouteRecorder();
   await usersRoutes(recorder.fastify);
