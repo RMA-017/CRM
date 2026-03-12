@@ -4,11 +4,41 @@
   }
 
   .home-layout {
+    min-height: calc(100vh - 20px);
     min-height: calc(100dvh - 20px);
   }
 
   .home-main {
     padding: 10px;
+  }
+
+  .home-hero {
+    grid-template-areas:
+      "copy"
+      "stage"
+      "thumbs";
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .home-hero-copy {
+    padding: 10px 4px 2px;
+  }
+
+  .home-hero-title {
+    max-width: 15ch;
+  }
+
+  .home-stage-frame {
+    aspect-ratio: 16 / 11;
+  }
+
+  .home-stage-thumbs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-features-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -18,6 +48,7 @@
   }
 
   .home-layout {
+    min-height: calc(100vh - 20px);
     min-height: calc(100dvh - 20px);
     gap: 10px;
   }
@@ -55,6 +86,21 @@
     padding: 10px;
   }
 
+  .home-stage-copy {
+    padding: 22px 18px;
+  }
+
+  .home-stage-nav {
+    right: 14px;
+    left: 14px;
+    bottom: 14px;
+    justify-content: space-between;
+  }
+
+  .home-stage-thumbs {
+    grid-template-columns: 1fr;
+  }
+
   .home-footer {
     flex-wrap: wrap;
     gap: 12px;
@@ -72,6 +118,7 @@
   }
 
   .home-layout {
+    min-height: calc(100vh - 10px);
     min-height: calc(100dvh - 10px);
   }
 
@@ -103,6 +150,73 @@
   .home-main {
     padding: 10px;
     border-radius: 14px;
+  }
+
+  .home-hero-title {
+    max-width: 100%;
+    font-size: clamp(32px, 12vw, 42px);
+  }
+
+  .home-hero-text {
+    font-size: 14px;
+  }
+
+  .home-hero-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .home-hero-primary,
+  .home-hero-secondary {
+    width: 100%;
+  }
+
+  .home-stage-frame {
+    aspect-ratio: 4 / 5;
+    border-radius: 22px;
+  }
+
+  .home-stage-copy {
+    padding: 18px 14px 86px;
+  }
+
+  .home-stage-title {
+    max-width: 100%;
+    font-size: 24px;
+  }
+
+  .home-stage-text {
+    font-size: 13px;
+  }
+
+  .home-stage-dots {
+    padding: 0 10px;
+  }
+
+  .home-stage-thumb {
+    grid-template-columns: 64px minmax(0, 1fr);
+    min-height: 76px;
+    padding: 8px;
+  }
+
+  .home-stage-thumb-image {
+    width: 64px;
+    height: 56px;
+  }
+
+  .home-features {
+    margin-top: 24px;
+    padding-top: 22px;
+  }
+
+  .home-features-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .home-feature-card {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 14px;
   }
 
   .home-footer {

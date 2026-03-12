@@ -1,33 +1,18 @@
 import pool from "../../config/db.js";
+import { createTtlCache } from "../../lib/ttl-cache.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 import { normalizePermissionCode } from "../../lib/permission-codes.js";
 
-const ROLE_PERMISSIONS_CACHE_TTL_MS = 15000;
-const rolePermissionsCache = new Map();
-
-function readRolePermissionsFromCache(roleId) {
-  const cached = rolePermissionsCache.get(roleId);
-  if (!cached) {
-    return null;
-  }
-  if (cached.expiresAt <= Date.now()) {
-    rolePermissionsCache.delete(roleId);
-    return null;
-  }
-  return Array.isArray(cached.permissions) ? [...cached.permissions] : null;
-}
-
-function writeRolePermissionsToCache(roleId, permissions) {
-  rolePermissionsCache.set(roleId, {
-    permissions: Array.isArray(permissions) ? [...permissions] : [],
-    expiresAt: Date.now() + ROLE_PERMISSIONS_CACHE_TTL_MS
-  });
-}
+const ROLE_PERMISSIONS_CACHE_TTL_MS = 15_000;
+const rolePermissionsCache = createTtlCache({
+  maxEntries: 500,
+  defaultTtlMs: ROLE_PERMISSIONS_CACHE_TTL_MS
+});
 
 export function clearRolePermissionsCache(roleId = null) {
   const normalizedRoleId = parsePositiveInteger(roleId);
   if (normalizedRoleId) {
-    rolePermissionsCache.delete(normalizedRoleId);
+    rolePermissionsCache.delete(String(normalizedRoleId));
     return;
   }
   rolePermissionsCache.clear();
@@ -120,9 +105,9 @@ export async function getRolePermissions(roleId) {
     return [];
   }
 
-  const cachedPermissions = readRolePermissionsFromCache(normalizedRoleId);
-  if (cachedPermissions) {
-    return cachedPermissions;
+  const cached = rolePermissionsCache.get(String(normalizedRoleId));
+  if (cached !== undefined) {
+    return [...cached];
   }
 
   const { rows } = await pool.query(
@@ -140,7 +125,7 @@ export async function getRolePermissions(roleId) {
   const permissions = rows
     .map((row) => normalizePermissionCode(row?.code))
     .filter(Boolean);
-  writeRolePermissionsToCache(normalizedRoleId, permissions);
+  rolePermissionsCache.set(String(normalizedRoleId), [...permissions]);
   return permissions;
 }
 

@@ -1,4 +1,5 @@
 import pool from "../../config/db.js";
+import { executeTransaction } from "../../lib/db-utils.js";
 import { toBoundedInteger } from "../../lib/bounded-integer.js";
 import {
   MANAGER_ROLE_MATCHERS,
@@ -785,10 +786,7 @@ export async function persistNotificationEvent({
     };
   }
 
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-
+  return executeTransaction(async (client) => {
     const recipientUserIds = await resolveNotificationRecipientIds({
       organizationId: normalizedOrganizationId,
       targetUserIds,
@@ -798,7 +796,6 @@ export async function persistNotificationEvent({
     });
 
     if (recipientUserIds.length === 0) {
-      await client.query("COMMIT");
       return {
         recipientUserIds: [],
         notificationIds: [],
@@ -835,18 +832,12 @@ export async function persistNotificationEvent({
       db: client
     });
 
-    await client.query("COMMIT");
     return {
       recipientUserIds,
       notificationIds,
       outboxEventId
     };
-  } catch (error) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw error;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 export async function listUserNotifications({

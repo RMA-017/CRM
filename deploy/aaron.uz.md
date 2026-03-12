@@ -105,6 +105,38 @@ curl https://aaron.uz/health
 curl https://aaron.uz/ready
 ```
 
+## 9. Log rotation
+
+Create `/etc/logrotate.d/aaron-crm`:
+
+```
+/var/www/aaron-crm/api/logs/*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+```
+
+Apply:
+
+```bash
+sudo logrotate -d /etc/logrotate.d/aaron-crm   # dry-run test
+sudo logrotate -f /etc/logrotate.d/aaron-crm   # force first rotation
+```
+
+PM2 also has built-in log rotation (optional):
+
+```bash
+pm2 install pm2-logrotate
+pm2 set pm2-logrotate:max_size 20M
+pm2 set pm2-logrotate:retain 7
+pm2 set pm2-logrotate:compress true
+```
+
 ## Notes
 
 - frontend now prefers same-origin `/api` in production, so Nginx reverse proxy is the intended setup

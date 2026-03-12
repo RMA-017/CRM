@@ -59,6 +59,12 @@ const VIP_DAILY_ROUTINE_ACTIVITY_OPTIONS = [
   { value: "sleep-time", label: "Sleep time" },
   { value: "other", label: "Other" }
 ];
+const VIP_DAILY_ROUTINE_ACTIVITY_LABEL_BY_VALUE = Object.freeze(
+  VIP_DAILY_ROUTINE_ACTIVITY_OPTIONS.reduce((acc, item) => {
+    acc[item.value] = item.label;
+    return acc;
+  }, {})
+);
 const VIP_DAILY_ROUTINE_NOTE_MAX_LENGTH = 255;
 const PANEL_LOADING_FALLBACK = (
   <div className="all-users-panel">
@@ -74,18 +80,13 @@ function formatVipDailyRoutineDayLabel(dayOfWeek) {
 
 function formatVipDailyRoutineActivityLabel(activityType) {
   const normalized = String(activityType || "").trim().toLowerCase();
-  if (normalized === "lesson") {
-    return "Group lesson";
+  if (VIP_DAILY_ROUTINE_ACTIVITY_LABEL_BY_VALUE[normalized]) {
+    return VIP_DAILY_ROUTINE_ACTIVITY_LABEL_BY_VALUE[normalized];
   }
-  if (normalized === "sleep") {
-    return "Sleep time";
-  }
-  if (normalized === "meal") {
-    return "Meal";
-  }
-  if (normalized === "other") {
-    return "Other";
-  }
+  // Legacy aliases stored before option keys were standardized
+  if (normalized === "lesson") return "Group lesson";
+  if (normalized === "sleep") return "Sleep time";
+  if (normalized === "meal") return "Meal";
   return "-";
 }
 
@@ -583,7 +584,8 @@ function ProfileMainContent({
       !clientCreateModalOpen &&
       !organizationCreateModalOpen &&
       !roleCreateModalOpen &&
-      !positionCreateModalOpen
+      !positionCreateModalOpen &&
+      !normCreateModalOpen
     ) {
       return undefined;
     }
@@ -604,7 +606,8 @@ function ProfileMainContent({
     clientCreateModalOpen,
     organizationCreateModalOpen,
     roleCreateModalOpen,
-    positionCreateModalOpen
+    positionCreateModalOpen,
+    normCreateModalOpen
   ]);
 
   function openOrganizationCreateModal() {
