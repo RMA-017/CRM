@@ -265,7 +265,7 @@ export async function updateUserByAdmin({
     const scopedOrganizationId = Number(currentOrganizationId);
 
     const currentUserResult = await client.query(
-      `SELECT role_id
+      `SELECT role_id, username
          FROM users
         WHERE id = $1
           AND organization_id = $2
@@ -279,6 +279,11 @@ export async function updateUserByAdmin({
     }
 
     const currentRoleId = Number(currentUser.role_id);
+    const currentUsername = String(currentUser.username || "").trim();
+    const normalizedUsername = String(username || "").trim().toLowerCase();
+    const nextUsername = currentUsername && normalizedUsername === currentUsername.toLowerCase()
+      ? currentUsername
+      : normalizedUsername;
     const nextRoleLabel = await getRoleLabelById(client, roleId);
     const isRoleChangingToTutor = Number(roleId) !== currentRoleId && isTutorLikeRoleLabel(nextRoleLabel);
     if (isRoleChangingToTutor) {
@@ -314,7 +319,7 @@ export async function updateUserByAdmin({
             AND organization_id = $10`,
         [
           targetOrganizationId,
-          username,
+          nextUsername,
           email || null,
           fullName,
           birthday || null,

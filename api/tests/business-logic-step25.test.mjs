@@ -6,12 +6,14 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || "test-jwt-secret";
 const poolModule = await import("../src/config/db.js");
 const createUserRoutesModule = await import("../src/modules/create-user/create-user.routes.js");
 const usersRoutesModule = await import("../src/modules/users/users.routes.js");
+const usersServiceModule = await import("../src/modules/users/users.service.js");
 const settingsRoutesModule = await import("../src/modules/settings/settings.routes.js");
 const accessModule = await import("../src/modules/users/access.service.js");
 
 const pool = poolModule.default;
 const createUserRoutes = createUserRoutesModule.default;
 const usersRoutes = usersRoutesModule.default;
+const { updateUserByAdmin } = usersServiceModule;
 const settingsRoutes = settingsRoutesModule.default;
 const { clearRolePermissionsCache } = accessModule;
 
@@ -281,7 +283,7 @@ test("settings role update blocks deactivation when users are still assigned", a
 
     throw new Error(`Unexpected pool.query in test: ${queryText}`);
   });
-  const restoreConnect = stubPoolConnect(async (sql) => {
+  const restoreConnect = stubPoolConnect(async (sql, params = []) => {
     const queryText = String(sql || "");
 
     if (queryText === "BEGIN" || queryText === "ROLLBACK") {
@@ -402,54 +404,16 @@ test("users update blocks self role changes through admin route", async () => {
   }
 });
 
-test("users update maps email unique conflicts to email field", async () => {
-  const recorder = createRouteRecorder();
-  await usersRoutes(recorder.fastify);
-
-  const usersPatchRoute = recorder.routes.find((route) => route.method === "PATCH" && route.path === "/:id");
-  assert.equal(typeof usersPatchRoute?.handler, "function");
-
-  clearRolePermissionsCache();
-  const restoreQuery = stubPoolQuery(async (sql) => {
+test("users update preserves legacy username when edit keeps the same value", async () => {
+  const restoreConnect = stubPoolConnect(async (sql, params = []) => {
     const queryText = String(sql || "");
 
-    if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
-      return { rows: [{ code: "users.update" }] };
-    }
-    if (queryText.includes("FROM users u") && queryText.includes("LEFT JOIN role_options r ON r.id = u.role_id")) {
-      return {
-        rows: [{
-          id: "9",
-          organization_id: "3",
-          role_id: "22",
-          is_admin: false,
-          is_platform_admin: false
-        }]
-      };
-    }
-    if (queryText.includes("FROM role_options") && queryText.includes("SELECT id, organization_id, label, is_admin, is_active")) {
-      return {
-        rows: [{
-          id: 22,
-          organization_id: 3,
-          label: "Manager",
-          is_admin: false,
-          is_active: true
-        }]
-      };
-    }
-
-    throw new Error(`Unexpected query in test: ${queryText}`);
-  });
-  const restoreConnect = stubPoolConnect(async (sql) => {
-    const queryText = String(sql || "");
-
-    if (queryText === "BEGIN" || queryText === "ROLLBACK") {
+    if (queryText === "BEGIN" || queryText === "COMMIT" || queryText === "ROLLBACK") {
       return { rows: [], rowCount: 0 };
     }
-    if (queryText.includes("SELECT role_id") && queryText.includes("FROM users")) {
+    if (queryText.includes("SELECT role_id, username") && queryText.includes("FROM users")) {
       return {
-        rows: [{ role_id: 22 }],
+        rows: [{ role_id: 22, username: "LegacyUser" }],
         rowCount: 1
       };
     }
@@ -460,155 +424,59 @@ test("users update maps email unique conflicts to email field", async () => {
       };
     }
     if (queryText.includes("UPDATE users")) {
-      const error = new Error("unique violation");
-      error.code = "23505";
-      error.constraint = "users_email_unique_ci";
-      throw error;
+      assert.equal(params[1], "LegacyUser");
+      return {
+        rows: [],
+        rowCount: 1
+      };
     }
-
-    throw new Error(`Unexpected client.query in test: ${queryText}`);
-  });
-
-  try {
-    const reply = createReplyRecorder();
-    await usersPatchRoute.handler({
-      authContext: {
-        userId: 7,
-        organizationId: 3,
-        requester: {
-          id: 7,
-          role_id: 11,
-          is_admin: true,
-          is_platform_admin: false,
-          organization_id: 3,
-          organization_allowed_features: ["users.all_users"]
-        }
-      },
-      params: { id: "9" },
-      body: {
-        username: "target.user",
-        email: "duplicate@example.com",
-        fullName: "Target User",
-        birthday: "2000-01-01",
-        phone: "",
-        role: "22",
-        organizationCode: ""
-      },
-      log: { error() {} }
-    }, reply);
-
-    assert.equal(reply.state.statusCode, 409);
-    assert.equal(reply.state.payload?.field, "email");
-    assert.equal(reply.state.payload?.message, "Email already exists.");
-  } finally {
-    clearRolePermissionsCache();
-    restoreConnect();
-    restoreQuery();
-  }
-});
-
-test("users update maps username unique conflicts to username field", async () => {
-  const recorder = createRouteRecorder();
-  await usersRoutes(recorder.fastify);
-
-  const usersPatchRoute = recorder.routes.find((route) => route.method === "PATCH" && route.path === "/:id");
-  assert.equal(typeof usersPatchRoute?.handler, "function");
-
-  clearRolePermissionsCache();
-  const restoreQuery = stubPoolQuery(async (sql) => {
-    const queryText = String(sql || "");
-
-    if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
-      return { rows: [{ code: "users.update" }] };
-    }
-    if (queryText.includes("FROM users u") && queryText.includes("LEFT JOIN role_options r ON r.id = u.role_id")) {
+    if (queryText.includes("SELECT") && queryText.includes("FROM users u") && queryText.includes("JOIN organizations o ON o.id = u.organization_id")) {
       return {
         rows: [{
           id: "9",
           organization_id: "3",
+          organization_code: "main",
+          organization_name: "Main",
+          username: "LegacyUser",
+          email: null,
+          full_name: "Target User",
+          birthday: "2000-01-01",
           role_id: "22",
-          is_admin: false,
-          is_platform_admin: false
-        }]
+          role: "Manager",
+          phone_number: null,
+          position_id: null,
+          position: null,
+          created_at: "2026-03-12T00:00:00.000Z"
+        }],
+        rowCount: 1
       };
     }
-    if (queryText.includes("FROM role_options") && queryText.includes("SELECT id, organization_id, label, is_admin, is_active")) {
-      return {
-        rows: [{
-          id: 22,
-          organization_id: 3,
-          label: "Manager",
-          is_admin: false,
-          is_active: true
-        }]
-      };
-    }
-
-    throw new Error(`Unexpected query in test: ${queryText}`);
-  });
-  const restoreConnect = stubPoolConnect(async (sql) => {
-    const queryText = String(sql || "");
-
-    if (queryText === "BEGIN" || queryText === "ROLLBACK") {
+    if (queryText === "COMMIT") {
       return { rows: [], rowCount: 0 };
     }
-    if (queryText.includes("SELECT role_id") && queryText.includes("FROM users")) {
-      return {
-        rows: [{ role_id: 22 }],
-        rowCount: 1
-      };
-    }
-    if (queryText.includes("SELECT label FROM role_options")) {
-      return {
-        rows: [{ label: "Manager" }],
-        rowCount: 1
-      };
-    }
-    if (queryText.includes("UPDATE users")) {
-      const error = new Error("unique violation");
-      error.code = "23505";
-      error.constraint = "users_username_unique_ci";
-      throw error;
-    }
 
-    throw new Error(`Unexpected client.query in test: ${queryText}`);
+    throw new Error(`Unexpected client.query in test: ${queryText} :: ${JSON.stringify(params)}`);
   });
 
   try {
-    const reply = createReplyRecorder();
-    await usersPatchRoute.handler({
-      authContext: {
-        userId: 7,
-        organizationId: 3,
-        requester: {
-          id: 7,
-          role_id: 11,
-          is_admin: true,
-          is_platform_admin: false,
-          organization_id: 3,
-          organization_allowed_features: ["users.all_users"]
-        }
-      },
-      params: { id: "9" },
-      body: {
-        username: "duplicate.user",
-        email: "",
-        fullName: "Target User",
-        birthday: "2000-01-01",
-        phone: "",
-        role: "22",
-        organizationCode: ""
-      },
-      log: { error() {} }
-    }, reply);
+    const user = await updateUserByAdmin({
+      currentOrganizationId: 3,
+      nextOrganizationId: null,
+      actorUserId: 7,
+      userId: 9,
+      username: "legacyuser",
+      email: "",
+      fullName: "Target User",
+      birthday: "2000-01-01",
+      phone: "",
+      positionId: null,
+      roleId: 22,
+      password: ""
+    });
 
-    assert.equal(reply.state.statusCode, 409);
-    assert.equal(reply.state.payload?.field, "username");
-    assert.equal(reply.state.payload?.message, "Username already exists.");
+    assert.equal(user?.username, "LegacyUser");
   } finally {
-    clearRolePermissionsCache();
     restoreConnect();
-    restoreQuery();
   }
 });
 

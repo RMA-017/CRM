@@ -35,25 +35,6 @@ function mapUser(user) {
   };
 }
 
-function mapUsersUniqueConflict(error) {
-  const constraint = String(error?.constraint || "").trim().toLowerCase();
-  if (constraint === "users_username_unique_ci" || constraint === "users_username_key") {
-    return {
-      field: "username",
-      message: "Username already exists."
-    };
-  }
-  if (constraint === "users_email_unique_ci" || constraint === "users_email_key") {
-    return {
-      field: "email",
-      message: "Email already exists."
-    };
-  }
-  return {
-    message: "Username or email already exists."
-  };
-}
-
 async function usersRoutes(fastify) {
   fastify.get(
     "/",
@@ -315,7 +296,7 @@ async function usersRoutes(fastify) {
           });
         }
         if (error?.code === "23505") {
-          return reply.status(409).send(mapUsersUniqueConflict(error));
+          return reply.status(409).send({ message: "Username or email already exists." });
         }
         request.log.error({ err: error }, "Error updating user");
         return reply.status(500).send({ message: "Internal server error." });
