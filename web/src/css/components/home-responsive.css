@@ -69,6 +69,11 @@
     height: var(--btn-height);
   }
 
+  .home-header .menu-toggle {
+    width: 34px;
+    padding: 0 8px;
+  }
+
   .header-actions {
     gap: 8px;
     justify-content: center;
@@ -145,6 +150,11 @@
   .home-header .header-btn {
     padding-left: 6px;
     padding-right: 6px;
+  }
+
+  .home-header .menu-toggle {
+    width: 30px;
+    padding: 0 6px;
   }
 
   .home-main {

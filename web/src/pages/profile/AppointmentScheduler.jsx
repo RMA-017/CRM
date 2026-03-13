@@ -1462,6 +1462,31 @@ function AppointmentScheduler({
     }
     setCreateForm((prev) => ({ ...prev, durationMinutes: durationSelectOptions[0]?.value || "30" }));
   }, [createForm.durationMinutes, createModal.open, durationSelectOptions]);
+  const selectedSpecialistServiceName = useMemo(() => {
+    const specialistId = String(createModal.specialistId || selectedSpecialistId || "").trim();
+    if (!specialistId) {
+      return "";
+    }
+
+    if (vipOnly) {
+      const selectedClass = specialists.find((item) => String(item?.id || "").trim() === specialistId);
+      const teacherId = String(selectedClass?.teacherId || "").trim();
+      return String(
+        specialistRoleById[teacherId]
+        || specialistRoleById[specialistId]
+        || ""
+      ).trim();
+    }
+
+    const selectedSpecialist = specialists.find((item) => String(item?.id || "").trim() === specialistId);
+    return String(
+      selectedSpecialist?.role
+      || specialistRoleById[specialistId]
+      || ""
+    ).trim();
+  }, [createModal.specialistId, selectedSpecialistId, specialistRoleById, specialists, vipOnly]);
+  const lockedVipServiceName = String(selectedSpecialistServiceName || "").trim() || "Specialist";
+  const isVipServiceLocked = Boolean(vipOnly || clientVipOnly || selectedClient?.isVip);
   useEffect(() => {
     if (!createModal.open || !isVipServiceLocked) {
       return;
@@ -1502,31 +1527,6 @@ function AppointmentScheduler({
     const selectedClass = specialists.find((item) => String(item?.id || "").trim() === classId);
     return String(selectedClass?.teacherId || "").trim();
   }, [selectedSpecialistId, specialists, vipOnly]);
-  const selectedSpecialistServiceName = useMemo(() => {
-    const specialistId = String(createModal.specialistId || selectedSpecialistId || "").trim();
-    if (!specialistId) {
-      return "";
-    }
-
-    if (vipOnly) {
-      const selectedClass = specialists.find((item) => String(item?.id || "").trim() === specialistId);
-      const teacherId = String(selectedClass?.teacherId || "").trim();
-      return String(
-        specialistRoleById[teacherId]
-        || specialistRoleById[specialistId]
-        || ""
-      ).trim();
-    }
-
-    const selectedSpecialist = specialists.find((item) => String(item?.id || "").trim() === specialistId);
-    return String(
-      selectedSpecialist?.role
-      || specialistRoleById[specialistId]
-      || ""
-    ).trim();
-  }, [createModal.specialistId, selectedSpecialistId, specialistRoleById, specialists, vipOnly]);
-  const lockedVipServiceName = String(selectedSpecialistServiceName || "").trim() || "Specialist";
-  const isVipServiceLocked = Boolean(vipOnly || clientVipOnly || selectedClient?.isVip);
   const vipClientFilterOptions = useMemo(() => {
     if (!vipOnly) {
       return [];

@@ -1,8 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiFetch, getApiErrorMessage, readApiResponseData } from "../lib/api.js";
 import { LOGOUT_FLAG_KEY } from "../lib/auth-flags.js";
+import { normalizeProfile } from "../lib/formatters.js";
 import { loadProfilePage } from "../lib/load-profile-page.js";
+import "../css/layout/profile-layout.css";
+import ProfileSideMenu from "./profile/ProfileSideMenu.jsx";
+import { useProfileAccess } from "./profile/useProfileAccess.js";
 
 const HOME_FEATURES = [
   {
@@ -129,12 +133,46 @@ const HOME_SLIDES = [
 
 function HomePage() {
   const navigate = useNavigate();
+  const menuRef = useRef(null);
+  const sideMenuRef = useRef(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [profile, setProfile] = useState(null);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);
   const [form, setForm] = useState({ username: "", password: "" });
   const [errors, setErrors] = useState({ username: "", password: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
+
+  const {
+    hasClientsMenuAccess,
+    canReadClients,
+    canReadClientMedicalHistory,
+    hasAppointmentsMenuAccess,
+    canOpenAppointmentSchedule,
+    canOpenAppointmentVipMyClass,
+    canOpenAppointmentBreaks,
+    canOpenAppointmentWorkSchedule,
+    canOpenAppointmentVipClients,
+    canOpenMyChildren,
+    canOpenAppointmentVipDailyRoutines,
+    canOpenAppointmentVipClassAssignments,
+    canOpenAppointmentVipTutorAssignments,
+    canOpenAppointmentVipAssignments,
+    canOpenAppointmentStatistics,
+    canOpenStatisticsClassAttendance,
+    canOpenStatisticsPlannerReport,
+    canOpenAppointmentSettings,
+    canOpenSettingsOrganizations,
+    canOpenSettingsRoles,
+    canOpenSettingsPositions,
+    canOpenSettingsNorms,
+    hasUsersMenuAccess,
+    canReadUsers,
+    hasSettingsMenuAccess,
+    hasAdminSettingsAccess,
+    canSendNotifications
+  } = useProfileAccess(profile, "none");
 
   const canSubmit = useMemo(
     () => (
@@ -149,14 +187,15 @@ function HomePage() {
     let active = true;
 
     async function loadCurrentUser() {
-      const justLoggedOut = sessionStorage.getItem(LOGOUT_FLAG_KEY) === "1";
-      if (justLoggedOut) {
-        sessionStorage.removeItem(LOGOUT_FLAG_KEY);
-        if (active) {
-          setIsAuthenticated(false);
+        const justLoggedOut = sessionStorage.getItem(LOGOUT_FLAG_KEY) === "1";
+        if (justLoggedOut) {
+          sessionStorage.removeItem(LOGOUT_FLAG_KEY);
+          if (active) {
+            setIsAuthenticated(false);
+            setProfile(null);
+          }
+          return;
         }
-        return;
-      }
 
       try {
         const response = await apiFetch("/api/profile", {
@@ -169,10 +208,18 @@ function HomePage() {
           return;
         }
 
-        setIsAuthenticated(Boolean(response.ok && data?.username));
+        if (!response.ok || !data?.username) {
+          setIsAuthenticated(false);
+          setProfile(null);
+          return;
+        }
+
+        setIsAuthenticated(true);
+        setProfile(normalizeProfile(data));
       } catch {
         if (active) {
           setIsAuthenticated(false);
+          setProfile(null);
         }
       }
     }
@@ -220,6 +267,50 @@ function HomePage() {
   function prefetchProfilePage() {
     void loadProfilePage();
   }
+
+  const preloadSideMenu = useCallback(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+  }, [isAuthenticated]);
+
+  const bindSideMenuRef = useCallback((instance) => {
+    sideMenuRef.current = instance;
+  }, []);
+
+  const closeMenu = useCallback(() => {
+    setIsSideMenuOpen(false);
+    sideMenuRef.current?.close();
+  }, []);
+
+  const navigateFromMenu = useCallback((path) => {
+    closeMenu();
+    navigate(path);
+  }, [closeMenu, navigate]);
+
+  const openSideMenu = useCallback(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    setIsSideMenuOpen(true);
+    sideMenuRef.current?.open();
+  }, [isAuthenticated]);
+
+  const openHeaderMenu = useCallback(() => {
+    if (!isAuthenticated) {
+      prefetchProfilePage();
+      setIsLoginOpen(true);
+      return;
+    }
+
+    if (isSideMenuOpen) {
+      closeMenu();
+      return;
+    }
+
+    openSideMenu();
+  }, [closeMenu, isAuthenticated, isSideMenuOpen, openSideMenu]);
 
   function openPrimaryAction() {
     prefetchProfilePage();
@@ -294,6 +385,20 @@ function HomePage() {
       <div className="home-layout">
         <header className="home-header">
           <div className="brand-wrap">
+            <button
+              type="button"
+              className="menu-toggle"
+              aria-label={isAuthenticated ? "Open workspace" : "Open login"}
+              aria-controls="mainMenu"
+              aria-expanded={isSideMenuOpen ? "true" : "false"}
+              onMouseEnter={isAuthenticated ? preloadSideMenu : prefetchProfilePage}
+              onFocus={isAuthenticated ? preloadSideMenu : prefetchProfilePage}
+              onClick={openHeaderMenu}
+            >
+              <span />
+              <span />
+              <span />
+            </button>
             <Link className="brand" to="/" aria-label="AARON CRM home">
               <img src="/crm.svg" alt="AARON CRM logo" className="brand-logo" />
               <span className="brand-text">AARON</span>
@@ -485,6 +590,63 @@ function HomePage() {
           </a>
         </footer>
       </div>
+
+      {isAuthenticated ? (
+        <ProfileSideMenu
+          ref={bindSideMenuRef}
+          menuRef={menuRef}
+          isPlatformAdmin={Boolean(profile?.isPlatformAdmin)}
+          hasClientsMenuAccess={hasClientsMenuAccess}
+          canReadClients={canReadClients}
+          canReadClientMedicalHistory={canReadClientMedicalHistory}
+          openAllClientsPanel={() => navigateFromMenu("/clients/allclients")}
+          openClientMedicalHistoryPanel={() => navigateFromMenu("/clients/medical-history")}
+          hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
+          canOpenAppointmentSchedule={canOpenAppointmentSchedule}
+          canOpenAppointmentVipMyClass={canOpenAppointmentVipMyClass}
+          canOpenAppointmentBreaks={canOpenAppointmentBreaks}
+          canOpenAppointmentWorkSchedule={canOpenAppointmentWorkSchedule}
+          canOpenAppointmentVipClients={canOpenAppointmentVipClients}
+          canOpenMyChildren={canOpenMyChildren}
+          canOpenAppointmentVipDailyRoutines={canOpenAppointmentVipDailyRoutines}
+          canOpenAppointmentVipClassAssignments={canOpenAppointmentVipClassAssignments}
+          canOpenAppointmentVipTutorAssignments={canOpenAppointmentVipTutorAssignments}
+          canOpenAppointmentVipAssignments={canOpenAppointmentVipAssignments}
+          canOpenAppointmentStatistics={canOpenAppointmentStatistics}
+          canOpenStatisticsClassAttendance={canOpenStatisticsClassAttendance}
+          canOpenStatisticsPlannerReport={canOpenStatisticsPlannerReport}
+          canOpenAppointmentSettings={canOpenAppointmentSettings}
+          canOpenSettingsOrganizations={canOpenSettingsOrganizations}
+          canOpenSettingsRoles={canOpenSettingsRoles}
+          canOpenSettingsPositions={canOpenSettingsPositions}
+          canOpenSettingsNorms={canOpenSettingsNorms}
+          openAppointmentPanel={() => navigateFromMenu("/appointments/planner")}
+          openAppointmentBreaksPanel={() => navigateFromMenu("/appointments/breaks")}
+          openAppointmentWorkSchedulePanel={() => navigateFromMenu("/appointments/work-schedule")}
+          openAppointmentVipSchedulePanel={() => navigateFromMenu("/vip-clients/my-class")}
+          openAppointmentVipAttendancePanel={() => navigateFromMenu("/vip-clients/attendance")}
+          openAppointmentVipMyChildrenPanel={() => navigateFromMenu("/vip-clients/my-children")}
+          openAppointmentVipDailyRoutinesPanel={() => navigateFromMenu("/vip-clients/daily-routines")}
+          openAppointmentVipAssignmentsPanel={() => navigateFromMenu("/assignments/class")}
+          openAppointmentVipTutorAssignmentsPanel={() => navigateFromMenu("/assignments/tutor")}
+          openAppointmentSettingsPanel={() => navigateFromMenu("/settings/appointments")}
+          openStatisticsClassPanel={() => navigateFromMenu("/statistics/vip-class-attendance-report")}
+          openStatisticsPlannerReportPanel={() => navigateFromMenu("/statistics/planner-report")}
+          hasUsersMenuAccess={hasUsersMenuAccess}
+          canReadUsers={canReadUsers}
+          closeMenu={closeMenu}
+          navigate={navigate}
+          hasSettingsMenuAccess={hasSettingsMenuAccess}
+          hasAdminSettingsAccess={hasAdminSettingsAccess}
+          canSendNotifications={canSendNotifications}
+          openOrganizationsPanel={() => navigateFromMenu("/admin-settings/organizations")}
+          openRolesPanel={() => navigateFromMenu("/settings/roles")}
+          openPositionsPanel={() => navigateFromMenu("/settings/positions")}
+          openNormsPanel={() => navigateFromMenu("/settings/appointment-norms")}
+          openNotificationsSendPanel={() => navigateFromMenu("/notifications")}
+          openMonitoringPanel={() => navigateFromMenu("/admin-settings/monitoring")}
+        />
+      ) : null}
 
       <section className="home-login-panel" hidden={!isLoginOpen}>
         <div className="home-login-head">

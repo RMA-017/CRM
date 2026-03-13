@@ -26,41 +26,6 @@
   border-radius: var(--radius-sm);
 }
 
-/* ---- Menu toggle ---- */
-
-.menu-toggle {
-  width: 36px;
-  height: var(--btn-height);
-  border: 1.5px solid var(--line);
-  border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.70);
-  display: inline-flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-  padding: 0 9px;
-  cursor: pointer;
-  transition: border-color var(--dur) ease, background var(--dur) ease;
-}
-
-.menu-toggle:hover {
-  border-color: var(--brand);
-  background: var(--brand-light);
-}
-
-.menu-toggle span {
-  display: block;
-  width: 100%;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--text-secondary);
-  transition: background var(--dur) ease;
-}
-
-.menu-toggle:hover span {
-  background: var(--brand);
-}
-
 /* ---- Side Menu (Dark Sidebar) ---- */
 
 .side-menu {
@@ -70,18 +35,32 @@
   width: min(260px, 86vw);
   height: 100dvh;
   background: var(--sidebar-bg);
-  box-shadow: 4px 0 40px rgba(0, 0, 0, 0.35);
+  box-shadow: none;
   transform: translateX(-100%);
-  transition: transform 200ms var(--ease);
+  opacity: 0;
   z-index: var(--z-side-menu);
   display: flex;
   flex-direction: column;
   padding: 0;
   overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .side-menu.open {
   transform: translateX(0);
+  opacity: 1;
+  box-shadow: 4px 0 40px rgba(0, 0, 0, 0.35);
+  visibility: visible;
+  pointer-events: auto;
+  animation: sideMenuIn 200ms var(--ease);
+}
+
+.side-menu.closing {
+  box-shadow: 4px 0 40px rgba(0, 0, 0, 0.35);
+  visibility: visible;
+  pointer-events: none;
+  animation: sideMenuOut 200ms var(--ease) forwards;
 }
 
 .side-menu-head {
@@ -225,6 +204,41 @@
   background: rgba(0, 0, 0, 0.45);
   z-index: var(--z-menu-overlay);
   animation: overlayIn 180ms ease;
+}
+
+.menu-overlay.closing {
+  animation: overlayOut 180ms ease forwards;
+}
+
+@keyframes sideMenuIn {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes sideMenuOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+@keyframes overlayOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 /* ---- Auth Form (profile sidebar) ---- */

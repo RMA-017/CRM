@@ -1,4 +1,6 @@
-import { forwardRef, useImperativeHandle, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+
+const CLOSE_ANIMATION_MS = 200;
 
 const ProfileSideMenu = forwardRef(function ProfileSideMenu({
   menuRef,
@@ -53,7 +55,8 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
   openNotificationsSendPanel,
   openMonitoringPanel
 }, ref) {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const closeTimerRef = useRef(null);
+  const [menuState, setMenuState] = useState("closed");
   const [clientsMenuOpen, setClientsMenuOpen] = useState(false);
   const [vipClientsMenuOpen, setVipClientsMenuOpen] = useState(false);
   const [assignmentsMenuOpen, setAssignmentsMenuOpen] = useState(false);
@@ -63,20 +66,57 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [adminSettingsMenuOpen, setAdminSettingsMenuOpen] = useState(false);
 
+  function blurFocusedMenuElement() {
+    if (typeof document === "undefined") {
+      return;
+    }
+    const menuElement = menuRef?.current;
+    const activeElement = document.activeElement;
+    if (
+      menuElement
+      && activeElement instanceof HTMLElement
+      && menuElement.contains(activeElement)
+    ) {
+      activeElement.blur();
+    }
+  }
+
+  function resetSubmenus() {
+    setClientsMenuOpen(false);
+    setVipClientsMenuOpen(false);
+    setAssignmentsMenuOpen(false);
+    setAppointmentMenuOpen(false);
+    setUsersMenuOpen(false);
+    setStatisticsMenuOpen(false);
+    setSettingsMenuOpen(false);
+    setAdminSettingsMenuOpen(false);
+  }
+
+  useEffect(() => () => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+    }
+  }, []);
+
   useImperativeHandle(ref, () => ({
     open() {
-      setMenuOpen(true);
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
+      setMenuState("open");
     },
     close() {
-      setMenuOpen(false);
-      setClientsMenuOpen(false);
-      setVipClientsMenuOpen(false);
-      setAssignmentsMenuOpen(false);
-      setAppointmentMenuOpen(false);
-      setUsersMenuOpen(false);
-      setStatisticsMenuOpen(false);
-      setSettingsMenuOpen(false);
-      setAdminSettingsMenuOpen(false);
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+      }
+      blurFocusedMenuElement();
+      setMenuState((current) => (current === "closed" ? "closed" : "closing"));
+      closeTimerRef.current = setTimeout(() => {
+        setMenuState("closed");
+        resetSubmenus();
+        closeTimerRef.current = null;
+      }, CLOSE_ANIMATION_MS);
     }
   }), []);
 
@@ -85,9 +125,9 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
       <aside
         id="mainMenu"
         ref={menuRef}
-        className={`side-menu${menuOpen ? " open" : ""}`}
+        className={`side-menu${menuState === "open" ? " open" : ""}${menuState === "closing" ? " closing" : ""}`}
         aria-label="Main menu"
-        aria-hidden={menuOpen ? "false" : "true"}
+        aria-hidden={menuState === "closed" ? "true" : "false"}
       >
         <div className="side-menu-head">
           <img src="/crm.svg" alt="CRM logo" className="side-logo" />
@@ -405,7 +445,7 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
         </nav>
       </aside>
 
-      <div id="menuOverlay" className="menu-overlay" hidden={!menuOpen} onClick={closeMenu} />
+      <div id="menuOverlay" className={`menu-overlay${menuState === "closing" ? " closing" : ""}`} hidden={menuState === "closed"} onClick={closeMenu} />
     </>
   );
 });

@@ -67,9 +67,7 @@ const VIP_DAILY_ROUTINE_ACTIVITY_LABEL_BY_VALUE = Object.freeze(
 );
 const VIP_DAILY_ROUTINE_NOTE_MAX_LENGTH = 255;
 const PANEL_LOADING_FALLBACK = (
-  <div className="all-users-panel">
-    <p className="all-users-state">Loading...</p>
-  </div>
+  <div className="all-users-panel" aria-hidden="true" />
 );
 const MODAL_LOADING_FALLBACK = null;
 

@@ -208,6 +208,7 @@ async function getVipClientsPermissionSnapshot(roleId) {
     canCreateVipClients,
     canUpdateVipClients,
     canDeleteVipClients,
+    canAccessMyClass,
     canAccessMyChildren,
     canAccessDailyRoutines,
     canReadVipScopeAll,
@@ -218,6 +219,7 @@ async function getVipClientsPermissionSnapshot(roleId) {
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_CREATE),
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_UPDATE),
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DELETE),
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS),
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN),
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DAILY_ROUTINES),
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_SCOPE_ALL),
@@ -229,6 +231,7 @@ async function getVipClientsPermissionSnapshot(roleId) {
     canCreateVipClients,
     canUpdateVipClients,
     canDeleteVipClients,
+    canAccessMyClass,
     canAccessMyChildren,
     canAccessDailyRoutines,
     canReadVipScopeAll,
@@ -1400,16 +1403,22 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
-        if (!requesterHasOrgFeature(requester, "assignments.tutor")) {
+        const hasTutorAssignmentsFeature = requesterHasOrgFeature(requester, "assignments.tutor");
+        const hasMyClassFeature = requesterHasOrgFeature(requester, "vip_clients.my_class");
+        if (!hasTutorAssignmentsFeature && !hasMyClassFeature) {
           return reply.status(403).send({ message: "Forbidden." });
         }
-        const [canReadClients, assignmentsPermissions, vipPermissions] = await Promise.all([
+        const [canReadClients, canReadAppointments, assignmentsPermissions, vipPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
+          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_READ),
           getAssignmentsPermissionSnapshot(requester.role_id),
           getVipClientsPermissionSnapshot(requester.role_id)
         ]);
+        const canAccessMyClass = hasMyClassFeature
+          && canReadAppointments
+          && vipPermissions.canAccessMyClass;
         const canReadAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
-          ? assignmentsPermissions.canReadAssignments
+          ? (assignmentsPermissions.canReadAssignments || canAccessMyClass)
           : (canReadClients && isDirectorLikeRequester(requester));
         if (!canReadAssignments) {
           return reply.status(403).send({ message: "Forbidden." });

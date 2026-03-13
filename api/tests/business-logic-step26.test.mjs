@@ -960,6 +960,104 @@ test("vip tutor assignments endpoint scopes assigned-only tutor options to visib
   }
 });
 
+test("vip tutor assignments endpoint allows my class access without tutor assignments feature", async () => {
+  const recorder = createRouteRecorder();
+  await clientsRoutes(recorder.fastify);
+
+  const route = recorder.routes.find((item) => item.method === "GET" && item.path === "/vip-tutor-assignments");
+  assert.equal(typeof route?.handler, "function");
+
+  clearRolePermissionsCache();
+  const restoreQuery = stubPoolQuery(async (sql, params = []) => {
+    const queryText = String(sql || "");
+
+    if (queryText.includes("FROM information_schema.tables")) {
+      return {
+        rows: (Array.isArray(params[1]) ? params[1] : []).map((tableName) => ({ table_name: tableName }))
+      };
+    }
+    if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
+      return {
+        rows: [
+          { code: "appointments.read" },
+          { code: "appointments.vip-clients.my-class" }
+        ]
+      };
+    }
+    if (queryText.includes("FROM clients c") && queryText.includes("LEFT JOIN vip_client_tutor_assignments vta")) {
+      assert.match(queryText, /vta\.tutor_user_id = \$3::integer/);
+      return {
+        rows: [{
+          id: "44",
+          organization_id: "3",
+          first_name: "Ali",
+          last_name: "Valiyev",
+          middle_name: "",
+          is_vip: true,
+          class_assignment_id: "10",
+          class_name: "Alpha",
+          teacher_user_id: "7",
+          teacher_name: "Teacher Self",
+          tutor_user_id: "21",
+          tutor_name: "Tutor One",
+          updated_by: "7",
+          updated_by_name: "Teacher Self",
+          created_at: "2026-03-09T00:00:00.000Z",
+          updated_at: "2026-03-09T00:00:00.000Z"
+        }]
+      };
+    }
+    if (queryText.includes("FROM vip_class_teacher_assignments va")) {
+      assert.match(queryText, /vta\.tutor_user_id = \$3::integer/);
+      return {
+        rows: [{
+          id: "10",
+          class_name: "Alpha",
+          teacher_user_id: "7",
+          teacher_name: "Teacher Self"
+        }]
+      };
+    }
+
+    throw new Error(`Unexpected query in test: ${queryText}`);
+  });
+
+  try {
+    const reply = createReplyRecorder();
+    await route.handler({
+      authContext: {
+        userId: 7,
+        organizationId: 3,
+        requester: {
+          id: 7,
+          role_id: 11,
+          is_admin: false,
+          is_platform_admin: false,
+          role_label: "teacher",
+          position_label: "staff",
+          organization_allowed_features: ["vip_clients.my_class"]
+        }
+      },
+      query: {},
+      log: { error() {} }
+    }, reply);
+
+    assert.equal(reply.state.statusCode, 200);
+    assert.equal(reply.state.payload?.items?.[0]?.id, "44");
+    assert.deepEqual(reply.state.payload?.classes, [
+      {
+        id: "10",
+        className: "Alpha",
+        teacherId: "7",
+        teacherName: "Teacher Self"
+      }
+    ]);
+  } finally {
+    clearRolePermissionsCache();
+    restoreQuery();
+  }
+});
+
 test("vip tutor assignment history endpoint scopes assigned-only users to related history rows", async () => {
   const recorder = createRouteRecorder();
   await clientsRoutes(recorder.fastify);
