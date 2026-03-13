@@ -2,6 +2,11 @@ import pool from "../../config/db.js";
 import { executeTransaction } from "../../lib/db-utils.js";
 import { toBoundedInteger } from "../../lib/bounded-integer.js";
 import {
+  createMigrationRequiredError,
+  getMissingNames,
+  getTableColumnNames
+} from "../../lib/schema-guard.js";
+import {
   MANAGER_ROLE_MATCHERS,
   isManagerLikeRoleLabel,
   normalizeNotificationTargetRoles as normalizeTargetRoles,
@@ -18,6 +23,7 @@ const ALL_TARGET_ROLE = "all";
 const APPOINTMENT_SETTINGS_TABLE = "appointment_settings";
 const DEFAULT_OUTBOX_RETENTION_DAYS = 30;
 const DEFAULT_USER_NOTIFICATIONS_RETENTION_DAYS = 0;
+let notificationRetentionColumnFlagsPromise = null;
 
 function normalizeOutboxBatchLimit(value, fallback = 100) {
   return toBoundedInteger(value, fallback, 1, MAX_OUTBOX_BATCH_LIMIT);
@@ -37,6 +43,36 @@ function normalizeOutboxClaimTtlSeconds(value, fallback = 120) {
 
 function normalizeOutboxMaxRetries(value, fallback = 5) {
   return toBoundedInteger(value, fallback, 0, MAX_OUTBOX_MAX_RETRIES);
+}
+
+async function getNotificationRetentionColumnFlags({
+  tableName = APPOINTMENT_SETTINGS_TABLE,
+  db = pool
+} = {}) {
+  const loadFlags = async () => {
+    const columns = await getTableColumnNames({ tableName, db });
+    return {
+      hasOutboxRetentionDays: columns.has("outbox_retention_days"),
+      hasUserNotificationsRetentionDays: columns.has("user_notifications_retention_days")
+    };
+  };
+
+  if (tableName !== APPOINTMENT_SETTINGS_TABLE) {
+    return loadFlags();
+  }
+
+  if (db !== pool) {
+    return loadFlags();
+  }
+
+  if (!notificationRetentionColumnFlagsPromise) {
+    notificationRetentionColumnFlagsPromise = loadFlags().catch((error) => {
+      notificationRetentionColumnFlagsPromise = null;
+      throw error;
+    });
+  }
+
+  return notificationRetentionColumnFlagsPromise;
 }
 
 function toNotificationItem(row) {
@@ -672,6 +708,15 @@ export async function getNotificationRetentionSettingsByOrganization({
     DEFAULT_USER_NOTIFICATIONS_RETENTION_DAYS
   );
 
+  const flags = await getNotificationRetentionColumnFlags({ db });
+  if (!flags.hasOutboxRetentionDays || !flags.hasUserNotificationsRetentionDays) {
+    return {
+      organizationId: String(normalizedOrganizationId),
+      outboxRetentionDays: String(fallbackOutboxRetentionDays),
+      userNotificationsRetentionDays: String(fallbackUserNotificationsRetentionDays)
+    };
+  }
+
   const { rows } = await db.query(
     `SELECT outbox_retention_days, user_notifications_retention_days
        FROM appointment_settings
@@ -726,6 +771,21 @@ export async function saveNotificationRetentionSettingsByOrganization({
     const error = new Error("Invalid user notifications retention days.");
     error.code = "INVALID_USER_NOTIFICATIONS_RETENTION_DAYS";
     throw error;
+  }
+
+  const flags = await getNotificationRetentionColumnFlags({ db });
+  if (!flags.hasOutboxRetentionDays || !flags.hasUserNotificationsRetentionDays) {
+    throw createMigrationRequiredError("Notification retention migration is required.", {
+      missingColumns: {
+        [APPOINTMENT_SETTINGS_TABLE]: getMissingNames(
+          new Set([
+            ...(flags.hasOutboxRetentionDays ? ["outbox_retention_days"] : []),
+            ...(flags.hasUserNotificationsRetentionDays ? ["user_notifications_retention_days"] : [])
+          ]),
+          ["outbox_retention_days", "user_notifications_retention_days"]
+        )
+      }
+    });
   }
 
   const { rows } = await db.query(

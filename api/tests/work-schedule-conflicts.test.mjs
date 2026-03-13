@@ -5,6 +5,7 @@ import {
   createAppointmentWorkScheduleEntry,
   deleteAppointmentWorkScheduleEntryById,
   getAppointmentSettingsByOrganization,
+  saveAppointmentSettings,
   replaceAppointmentDefaultWeeklyWorkSchedule,
   updateAppointmentWorkScheduleEntryById
 } from "../src/modules/appointments/appointment-settings.service.js";
@@ -369,6 +370,9 @@ test("work-schedule create route returns 409 when specialist still has future le
     },
     getAppointmentSettingsByOrganization: async () => ({}),
     saveAppointmentSettings: async () => ({}),
+    withAppointmentTransaction: async (callback) => callback({
+      query: async () => ({ rows: [], rowCount: 0 })
+    }),
     listAppointmentWorkSchedule: async () => [],
     listAppointmentWorkScheduleStaffByOrganization: async () => [],
     createAppointmentWorkScheduleEntry: async () => {
@@ -415,6 +419,139 @@ test("work-schedule create route returns 409 when specialist still has future le
   assert.equal(reply.state.statusCode, 409);
   assert.equal(reply.state.payload?.code, "WORK_SCHEDULE_CONFLICT");
   assert.match(String(reply.state.payload?.message || ""), /Move those lessons first/i);
+});
+
+test("appointment settings patch returns 409 and skips settings save when default weekly schedule conflicts", async () => {
+  const recorder = createRouteRecorder();
+  let settingsSaveAttempted = false;
+
+  registerAppointmentSettingsConfigRoutes(recorder.fastify, {
+    setNoCacheHeaders() {},
+    requesterHasOrgFeature() {
+      return true;
+    },
+    hasPermission: async () => true,
+    PERMISSIONS: {
+      APPOINTMENTS_READ: "appointments.read",
+      APPOINTMENTS_VIP_CLIENTS_MY_CLASS: "appointments.vip.my-class",
+      APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip.my-children",
+      SETTINGS_APPOINTMENTS_READ: "settings.appointments.read",
+      APPOINTMENTS_UPDATE: "appointments.update",
+      SETTINGS_APPOINTMENTS_UPDATE: "settings.appointments.update"
+    },
+    DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS: 10,
+    DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX: 18,
+    parseOptionalOrganizationId(value) {
+      const parsed = Number.parseInt(String(value || "").trim(), 10);
+      return {
+        value: Number.isInteger(parsed) && parsed > 0 ? parsed : null,
+        error: null
+      };
+    },
+    resolveTargetOrganizationId(access, requestedOrganizationId) {
+      return requestedOrganizationId || access?.authContext?.organizationId || null;
+    },
+    parsePositiveIntegerOr(value, fallback = 0) {
+      const parsed = Number.parseInt(String(value || "").trim(), 10);
+      return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+    },
+    resolveOwnAppointmentSpecialistUserId() {
+      return null;
+    },
+    toAppointmentDayNum(value) {
+      return {
+        mon: 1,
+        tue: 2,
+        wed: 3,
+        thu: 4,
+        fri: 5,
+        sat: 6,
+        sun: 7
+      }[String(value || "").trim().toLowerCase()] || 0;
+    },
+    normalizeDurationOptions() {
+      return [30];
+    },
+    normalizeReminderChannels() {
+      return [];
+    },
+    normalizeVisibleWeekDays() {
+      return [1, 2, 3, 4, 5];
+    },
+    validateSettingsPayload() {
+      return null;
+    },
+    getAppointmentSettingsByOrganization: async () => ({}),
+    saveAppointmentSettings: async () => {
+      settingsSaveAttempted = true;
+      return {};
+    },
+    withAppointmentTransaction: async (callback) => callback({
+      query: async () => ({ rows: [], rowCount: 0 })
+    }),
+    listAppointmentWorkSchedule: async () => [],
+    listAppointmentWorkScheduleStaffByOrganization: async () => [],
+    createAppointmentWorkScheduleEntry: async () => null,
+    updateAppointmentWorkScheduleEntryById: async () => null,
+    deleteAppointmentWorkScheduleEntryById: async () => ({ rowCount: 0 }),
+    replaceAppointmentDefaultWeeklyWorkSchedule: async () => {
+      const error = new Error("Work schedule cannot be changed. Alice Specialist still has future lessons on 2026-03-23 10:00-10:30. Move those lessons first.");
+      error.statusCode = 409;
+      error.code = "WORK_SCHEDULE_CONFLICT";
+      error.payload = {
+        code: "WORK_SCHEDULE_CONFLICT",
+        message: error.message,
+        specialistId: "9",
+        appointmentId: "51",
+        appointmentDate: "2026-03-23",
+        startTime: "10:00",
+        endTime: "10:30"
+      };
+      throw error;
+    }
+  });
+
+  const route = recorder.routes.find((item) => item.method === "PATCH" && item.path === "/settings");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      body: {
+        organizationId: 7,
+        slotInterval: 30,
+        slotSubDivisions: 1,
+        appointmentDuration: 30,
+        appointmentDurationOptions: [30],
+        noShowThreshold: 3,
+        reminderHours: 24,
+        reminderChannels: [],
+        visibleWeekDays: [1, 2, 3, 4, 5],
+        defaultWeeklyItems: [{
+          dayOfWeek: "mon",
+          isActive: true,
+          startTime: "11:00",
+          endTime: "16:00",
+          reason: ""
+        }]
+      },
+      authContext: {
+        userId: 1,
+        organizationId: 7,
+        requester: {
+          role_id: 4
+        }
+      },
+      log: {
+        error() {}
+      }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 409);
+  assert.equal(reply.state.payload?.code, "WORK_SCHEDULE_CONFLICT");
+  assert.equal(settingsSaveAttempted, false);
 });
 
 test("replaceAppointmentDefaultWeeklyWorkSchedule blocks org hours that would invalidate specialist overrides", async () => {
@@ -579,6 +716,81 @@ test("getAppointmentSettingsByOrganization overlays specialist weekly hours insi
     assert.equal(item.workingHours.tue.start, "");
     assert.equal(item.workingHours.tue.end, "");
   } finally {
+    restoreQuery();
+  }
+});
+
+test("saveAppointmentSettings normalizes duration options without throwing reference errors", async () => {
+  const restoreConnect = stubPoolConnect(async (sql) => {
+    const queryText = String(sql || "");
+    if (queryText === "BEGIN" || queryText === "COMMIT" || queryText.startsWith("ROLLBACK")) {
+      return { rows: [], rowCount: 0 };
+    }
+    if (queryText.includes("INSERT INTO appointment_settings")) {
+      return { rows: [], rowCount: 1 };
+    }
+    throw new Error(`Unexpected transaction SQL: ${queryText}`);
+  });
+
+  const restoreQuery = stubPoolQuery(async (sql, params = []) => {
+    const queryText = String(sql || "");
+    if (queryText.includes("FROM information_schema.columns")) {
+      return {
+        rows: [
+          { column_name: "appointment_duration_minutes" },
+          { column_name: "appointment_duration_options_minutes" },
+          { column_name: "reminder_channels" },
+          { column_name: "slot_sub_divisions" },
+          { column_name: "history_lock_days" },
+          { column_name: "slot_cell_height_px" }
+        ]
+      };
+    }
+    if (queryText.includes("FROM appointment_settings")) {
+      assert.deepEqual(params, [7]);
+      return {
+        rows: [{
+          id: 1,
+          organization_id: 7,
+          slot_interval_minutes: 30,
+          slot_sub_divisions: 1,
+          appointment_duration_minutes: 30,
+          appointment_duration_options_minutes: [30, 45],
+          no_show_threshold: 3,
+          reminder_hours: 24,
+          reminder_channels: ["sms"],
+          history_lock_days: 10,
+          slot_cell_height_px: 18,
+          visible_week_days: [1, 2, 3, 4, 5]
+        }]
+      };
+    }
+    if (queryText.includes("FROM appointment_working_hours")) {
+      return { rows: [] };
+    }
+    throw new Error(`Unexpected query SQL: ${queryText}`);
+  });
+
+  try {
+    const item = await saveAppointmentSettings({
+      organizationId: 7,
+      actorUserId: 1,
+      slotIntervalMinutes: 30,
+      slotSubDivisions: 1,
+      slotCellHeightPx: 18,
+      historyLockDays: 10,
+      appointmentDurationMinutes: 30,
+      appointmentDurationOptionsMinutes: [30, 45],
+      noShowThreshold: 3,
+      reminderHours: 24,
+      reminderChannels: ["sms"],
+      visibleWeekDays: [1, 2, 3, 4, 5]
+    });
+
+    assert.equal(item.slotInterval, "30");
+    assert.deepEqual(item.appointmentDurationOptions, ["30", "45"]);
+  } finally {
+    restoreConnect();
     restoreQuery();
   }
 });

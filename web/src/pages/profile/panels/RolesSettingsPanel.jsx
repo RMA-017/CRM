@@ -51,7 +51,6 @@ function RolesSettingsPanel({
             <tr>
               <th>ID</th>
               <th>Label</th>
-              <th>Admin</th>
               <th>Active</th>
               <th>Created</th>
               <th>Edit</th>
@@ -65,7 +64,6 @@ function RolesSettingsPanel({
                 <tr key={rowId}>
                   <td>{rowId}</td>
                   <td>{item.label || "-"}</td>
-                  <td>{item.isAdmin ? "Yes" : "No"}</td>
                   <td>{item.isActive ? "Yes" : "No"}</td>
                   <td>{formatDateYMD(item.createdAt)}</td>
                   <td>

@@ -1238,7 +1238,7 @@
   margin-right: auto;
 }
 
-/* ---- Roles table columns (7 cols: ID, Label, Admin, Active, Created, Edit, Delete) ---- */
+/* ---- Roles table columns (6 cols: ID, Label, Active, Created, Edit, Delete) ---- */
 
 #rolesPanel .settings-table th:nth-child(1),
 #rolesPanel .settings-table td:nth-child(1) {
@@ -1246,24 +1246,21 @@
   text-align: center;
 }
 
-/* Admin (col 3) and Active (col 4) — same compact centered style */
 #rolesPanel .settings-table th:nth-child(3),
-#rolesPanel .settings-table td:nth-child(3),
-#rolesPanel .settings-table th:nth-child(4),
-#rolesPanel .settings-table td:nth-child(4) {
+#rolesPanel .settings-table td:nth-child(3) {
   width: 8%;
   text-align: center;
 }
 
-#rolesPanel .settings-table th:nth-child(5),
-#rolesPanel .settings-table td:nth-child(5) {
+#rolesPanel .settings-table th:nth-child(4),
+#rolesPanel .settings-table td:nth-child(4) {
   width: 12%;
 }
 
+#rolesPanel .settings-table th:nth-child(5),
+#rolesPanel .settings-table td:nth-child(5),
 #rolesPanel .settings-table th:nth-child(6),
-#rolesPanel .settings-table td:nth-child(6),
-#rolesPanel .settings-table th:nth-child(7),
-#rolesPanel .settings-table td:nth-child(7) {
+#rolesPanel .settings-table td:nth-child(6) {
   width: 96px;
   min-width: 96px;
   max-width: 96px;
@@ -1272,8 +1269,8 @@
   padding-right: 4px;
 }
 
-#rolesPanel .settings-table td:nth-child(6) .table-action-btn,
-#rolesPanel .settings-table td:nth-child(7) .table-action-btn {
+#rolesPanel .settings-table td:nth-child(5) .table-action-btn,
+#rolesPanel .settings-table td:nth-child(6) .table-action-btn {
   margin-left: auto;
   margin-right: auto;
 }

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import pool from "../src/config/db.js";
 import { toBooleanFlag } from "../src/lib/boolean.js";
 import { toBoundedInteger } from "../src/lib/bounded-integer.js";
 import {
@@ -60,6 +61,10 @@ import {
   normalizePermissionCodes
 } from "../src/lib/permission-codes.js";
 import { normalizeOrganizationCode } from "../src/lib/organization-code.js";
+import {
+  getNotificationRetentionSettingsByOrganization,
+  saveNotificationRetentionSettingsByOrganization
+} from "../src/modules/notifications/notifications.service.js";
 
 function toYmd(date) {
   const year = String(date.getFullYear());
@@ -306,6 +311,68 @@ test("sendMigrationRequired maps migration errors to a stable 409 response", () 
   assert.deepEqual(replyState.payload?.details, {
     missingTables: ["vip_client_attendance"]
   });
+});
+
+test("notification retention read falls back to defaults when retention columns are missing", async () => {
+  const originalQuery = pool.query.bind(pool);
+  pool.query = async (sql) => {
+    const queryText = String(sql || "");
+    if (queryText.includes("FROM information_schema.columns")) {
+      return { rows: [] };
+    }
+    throw new Error(`Unexpected SQL: ${queryText}`);
+  };
+
+  try {
+    const item = await getNotificationRetentionSettingsByOrganization({
+      organizationId: 7,
+      defaultOutboxRetentionDays: 45,
+      defaultUserNotificationsRetentionDays: 3
+    });
+
+    assert.deepEqual(item, {
+      organizationId: "7",
+      outboxRetentionDays: "45",
+      userNotificationsRetentionDays: "3"
+    });
+  } finally {
+    pool.query = originalQuery;
+  }
+});
+
+test("notification retention save throws migration required when retention columns are missing", async () => {
+  const originalQuery = pool.query.bind(pool);
+  pool.query = async (sql) => {
+    const queryText = String(sql || "");
+    if (queryText.includes("FROM information_schema.columns")) {
+      return { rows: [] };
+    }
+    throw new Error(`Unexpected SQL: ${queryText}`);
+  };
+
+  try {
+    await assert.rejects(
+      () => saveNotificationRetentionSettingsByOrganization({
+        organizationId: 7,
+        outboxRetentionDays: 30,
+        userNotificationsRetentionDays: 0
+      }),
+      (error) => {
+        assert.equal(error?.code, "MIGRATION_REQUIRED");
+        assert.deepEqual(error?.details, {
+          missingColumns: {
+            appointment_settings: [
+              "outbox_retention_days",
+              "user_notifications_retention_days"
+            ]
+          }
+        });
+        return true;
+      }
+    );
+  } finally {
+    pool.query = originalQuery;
+  }
 });
 
 test("toBoundedInteger clamps parsed values into the provided range", () => {

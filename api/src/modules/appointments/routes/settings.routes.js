@@ -218,7 +218,8 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
     createAppointmentWorkScheduleEntry,
     updateAppointmentWorkScheduleEntryById,
     deleteAppointmentWorkScheduleEntryById,
-    replaceAppointmentDefaultWeeklyWorkSchedule
+    replaceAppointmentDefaultWeeklyWorkSchedule,
+    withAppointmentTransaction
   } = context;
 
   async function requireAppointmentSettingsAccess(request, reply, action = "read") {
@@ -470,23 +471,17 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
             })
           : null;
 
-        const [item, notificationRetention] = await Promise.all([
-          saveAppointmentSettings({
+        if (Array.isArray(parsedDefaultWeeklyItems.value)) {
+          await replaceAppointmentDefaultWeeklyWorkSchedule({
             organizationId: targetOrganizationId,
             actorUserId: access.authContext.userId,
-            slotIntervalMinutes,
-            slotSubDivisions,
-            slotCellHeightPx,
-            historyLockDays,
-            appointmentDurationMinutes,
-            appointmentDurationOptionsMinutes,
-            noShowThreshold,
-            reminderHours,
-            reminderChannels,
-            visibleWeekDays
-          }),
-          (hasOutboxWorkerRetentionDays || hasUserNotificationsRetentionDays)
-            ? saveNotificationRetentionSettingsByOrganization({
+            items: parsedDefaultWeeklyItems.value
+          });
+        }
+
+        const { item, notificationRetention } = await withAppointmentTransaction(async (db) => {
+          const notificationRetention = (hasOutboxWorkerRetentionDays || hasUserNotificationsRetentionDays)
+            ? await saveNotificationRetentionSettingsByOrganization({
                 organizationId: targetOrganizationId,
                 outboxRetentionDays: hasOutboxWorkerRetentionDays
                   ? parsedOutboxWorkerRetentionDays.value
@@ -502,22 +497,34 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
                         ?? defaultUserNotificationsRetentionDays
                       ),
                       10
-                    )
+                    ),
+                db
               })
-            : getNotificationRetentionSettingsByOrganization({
+            : await getNotificationRetentionSettingsByOrganization({
               organizationId: targetOrganizationId,
               defaultOutboxRetentionDays,
-              defaultUserNotificationsRetentionDays
-            })
-        ]);
+              defaultUserNotificationsRetentionDays,
+              db
+            });
 
-        if (Array.isArray(parsedDefaultWeeklyItems.value)) {
-          await replaceAppointmentDefaultWeeklyWorkSchedule({
+          const item = await saveAppointmentSettings({
             organizationId: targetOrganizationId,
             actorUserId: access.authContext.userId,
-            items: parsedDefaultWeeklyItems.value
+            slotIntervalMinutes,
+            slotSubDivisions,
+            slotCellHeightPx,
+            historyLockDays,
+            appointmentDurationMinutes,
+            appointmentDurationOptionsMinutes,
+            noShowThreshold,
+            reminderHours,
+            reminderChannels,
+            visibleWeekDays,
+            db
           });
-        }
+
+          return { item, notificationRetention };
+        });
 
         return reply.send({
           message: "Appointment settings updated.",
@@ -533,6 +540,22 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
           organizationId: String(targetOrganizationId)
         });
       } catch (error) {
+        if (
+          error?.statusCode === 409
+          && (
+            error?.code === "WORK_SCHEDULE_CONFLICT"
+            || error?.code === "WORK_SCHEDULE_PARENT_CONFLICT"
+            || error?.payload?.code === "WORK_SCHEDULE_CONFLICT"
+            || error?.payload?.code === "WORK_SCHEDULE_PARENT_CONFLICT"
+          )
+        ) {
+          return reply.status(409).send(
+            error?.payload || {
+              code: error?.code || "WORK_SCHEDULE_CONFLICT",
+              message: String(error?.message || "Work schedule conflict.")
+            }
+          );
+        }
         if (error?.code === "23503") {
           return reply.status(400).send({
             field: "organizationId",

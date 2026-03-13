@@ -15,6 +15,8 @@ import {
   normalizeWorkScheduleTime
 } from "./work-schedule.js";
 import {
+  normalizeDurationOptions,
+  normalizeReminderChannels,
   normalizeScheduleScope
 } from "./schedule-normalizers.js";
 import {
@@ -2519,6 +2521,9 @@ export async function deleteAppointmentSchedulesByIds({
 }
 
 export async function getAppointmentSettingsByOrganization(organizationId, options = {}) {
+  const db = options?.db && typeof options.db?.query === "function"
+    ? options.db
+    : pool;
   const tableName = APPOINTMENT_SETTINGS_TABLE;
   const parsedSpecialistId = Number.parseInt(
     String(options?.specialistId ?? options?.userId ?? "").trim(),
@@ -2548,7 +2553,7 @@ export async function getAppointmentSettingsByOrganization(organizationId, optio
     : `${DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX}::integer AS slot_cell_height_px,`;
 
   const [settingsResult, workingHoursResult, specialistWorkingHoursResult] = await Promise.all([
-    pool.query(
+    db.query(
       `SELECT
          id,
          organization_id,
@@ -2567,7 +2572,7 @@ export async function getAppointmentSettingsByOrganization(organizationId, optio
        LIMIT 1`,
       [organizationId]
     ),
-    pool.query(
+    db.query(
       `SELECT day_of_week, is_active, start_time, end_time
        FROM appointment_working_hours
        WHERE organization_id = $1
@@ -2577,7 +2582,7 @@ export async function getAppointmentSettingsByOrganization(organizationId, optio
       [organizationId]
     ),
     specialistId
-      ? pool.query(
+      ? db.query(
           `SELECT day_of_week, is_active, start_time, end_time
              FROM appointment_working_hours
             WHERE organization_id = $1
@@ -2620,7 +2625,8 @@ export async function saveAppointmentSettings({
   noShowThreshold,
   reminderHours,
   reminderChannels,
-  visibleWeekDays
+  visibleWeekDays,
+  db = pool
 }) {
   const tableName = APPOINTMENT_SETTINGS_TABLE;
   const flags = await getAppointmentSettingsColumnFlags(tableName);
@@ -2635,20 +2641,25 @@ export async function saveAppointmentSettings({
   const normalizedSlotCellHeightPx = normalizeSlotCellHeightPx(slotCellHeightPx);
   const normalizedHistoryLockDays = normalizeHistoryLockDays(historyLockDays);
 
-  const client = await pool.connect();
+  const managesOwnTransaction = db === pool;
+  const client = managesOwnTransaction
+    ? await pool.connect()
+    : db;
 
   try {
-    await client.query("BEGIN");
+    if (managesOwnTransaction) {
+      await client.query("BEGIN");
+    }
 
     const visibleWeekDayNums = visibleWeekDays
       .map((dayKey) => toAppointmentDayNum(dayKey))
       .filter((dayNum) => Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 7);
-    const normalizedDurationOptions = mapDurationOptions(appointmentDurationOptionsMinutes);
+    const normalizedDurationOptions = normalizeDurationOptions(appointmentDurationOptionsMinutes);
     const effectiveDurationOptions = normalizedDurationOptions.length > 0
       ? normalizedDurationOptions
       : [appointmentDurationMinutes];
     const effectiveAppointmentDuration = effectiveDurationOptions[0];
-    const normalizedReminderChannels = mapReminderChannels(reminderChannels);
+    const normalizedReminderChannels = normalizeReminderChannels(reminderChannels);
 
     const subDivisionsCol = flags.hasSlotSubDivisions ? ", slot_sub_divisions" : "";
     const subDivisionsVal = flags.hasSlotSubDivisions ? ", $10" : "";
@@ -2708,15 +2719,24 @@ export async function saveAppointmentSettings({
       ]
     );
 
-    await client.query("COMMIT");
+    if (managesOwnTransaction) {
+      await client.query("COMMIT");
+    }
   } catch (error) {
-    await client.query("ROLLBACK").catch(() => {});
+    if (managesOwnTransaction) {
+      await client.query("ROLLBACK").catch(() => {});
+    }
     throw error;
   } finally {
-    client.release();
+    if (managesOwnTransaction) {
+      client.release();
+    }
   }
 
-  return getAppointmentSettingsByOrganization(organizationId);
+  return getAppointmentSettingsByOrganization(
+    organizationId,
+    managesOwnTransaction ? {} : { db: client }
+  );
 }
 
 export async function getAppointmentHistoryLockDaysByOrganization(organizationId) {
@@ -2799,7 +2819,7 @@ export async function saveAppointmentHistoryLockDaysByOrganization({
 
   if ((existingResult.rowCount || 0) === 0) {
     const defaults = createDefaultSettings();
-    const defaultDurationOptions = mapDurationOptions(
+    const defaultDurationOptions = normalizeDurationOptions(
       defaults.appointmentDurationOptions.map((value) => Number.parseInt(String(value), 10))
     );
 
@@ -2869,7 +2889,7 @@ export async function saveAppointmentSlotCellHeightPxByOrganization({
 
   if ((existingResult.rowCount || 0) === 0) {
     const defaults = createDefaultSettings();
-    const defaultDurationOptions = mapDurationOptions(
+    const defaultDurationOptions = normalizeDurationOptions(
       defaults.appointmentDurationOptions.map((value) => Number.parseInt(String(value), 10))
     );
 
