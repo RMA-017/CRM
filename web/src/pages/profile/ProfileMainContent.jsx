@@ -632,10 +632,6 @@ function ProfileMainContent({
       role: ""
     }));
     setCreateErrors({});
-    if (mainView === "all-users") {
-      openCreateUserPanel();
-      return;
-    }
     setUserCreateModalOpen(true);
   }
 

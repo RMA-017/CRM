@@ -22,6 +22,7 @@ export function useAllUsersSection({
   const [allUsersPage, setAllUsersPage] = useState(1);
   const [allUsersTotalPages, setAllUsersTotalPages] = useState(1);
   const [allUsersSearch, setAllUsersSearch] = useState("");
+  const [allUsersLoadedOnce, setAllUsersLoadedOnce] = useState(false);
   const allUsersSearchRef = useRef("");
   const [allUsersEdit, setAllUsersEdit] = useState(createEmptyAllUsersEditState);
   const [allUsersDelete, setAllUsersDelete] = useState(createEmptyAllUsersDeleteState);
@@ -92,6 +93,7 @@ export function useAllUsersSection({
       setAllUsers([]);
       setAllUsersMessage("Unexpected error. Please try again.");
     } finally {
+      setAllUsersLoadedOnce(true);
       setAllUsersLoading(false);
     }
   }, [canReadUsers, navigate]);
@@ -312,6 +314,7 @@ export function useAllUsersSection({
     allUsers,
     allUsersLoading,
     allUsersMessage,
+    allUsersLoadedOnce,
     allUsersPage,
     allUsersTotalPages,
     allUsersSearch,

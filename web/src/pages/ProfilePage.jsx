@@ -295,6 +295,7 @@ function ProfilePage({ forcedView = "none" }) {
     allUsers,
     allUsersLoading,
     allUsersMessage,
+    allUsersLoadedOnce,
     allUsersPage,
     allUsersTotalPages,
     allUsersSearch,
@@ -680,7 +681,7 @@ function ProfilePage({ forcedView = "none" }) {
       return;
     }
     if (mainView === "create-user") {
-      if (canReadUsers) {
+      if (canReadUsers && !allUsersLoadedOnce) {
         loadAllUsers(1);
       }
       if (hasAdminSettingsAccess) {
@@ -719,6 +720,7 @@ function ProfilePage({ forcedView = "none" }) {
     }
   }, [
     canReadUsers,
+    allUsersLoadedOnce,
     hasAdminSettingsAccess,
     loadClients,
     loadClientMedicalHistoryClients,

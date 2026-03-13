@@ -556,6 +556,56 @@ test("vip attendance teachers endpoint scopes assigned-only users to their relat
   }
 });
 
+test("vip client search rejects plain clients read without vip permission", async () => {
+  const recorder = createRouteRecorder();
+  await clientsRoutes(recorder.fastify);
+
+  const route = recorder.routes.find((item) => item.method === "GET" && item.path === "/search");
+  assert.equal(typeof route?.handler, "function");
+
+  clearRolePermissionsCache();
+  const restoreQuery = stubPoolQuery(async (sql, params = []) => {
+    const queryText = String(sql || "");
+
+    if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
+      return {
+        rows: [{ code: "clients.read" }]
+      };
+    }
+
+    throw new Error(`Unexpected query in test: ${queryText}`);
+  });
+
+  try {
+    const reply = createReplyRecorder();
+    await route.handler({
+      authContext: {
+        userId: 7,
+        organizationId: 3,
+        requester: {
+          id: 7,
+          role_id: 11,
+          is_admin: false,
+          is_platform_admin: false,
+          role_label: "manager",
+          position_label: "staff",
+          organization_allowed_features: ["vip_clients.attendance"]
+        }
+      },
+      query: {
+        isVip: "true"
+      },
+      log: { error() {} }
+    }, reply);
+
+    assert.equal(reply.state.statusCode, 403);
+    assert.equal(reply.state.payload?.message, "Forbidden.");
+  } finally {
+    clearRolePermissionsCache();
+    restoreQuery();
+  }
+});
+
 test("clients list still works when medical history schema is missing and no history filters are used", async () => {
   const recorder = createRouteRecorder();
   await clientsRoutes(recorder.fastify);
@@ -1210,7 +1260,7 @@ test("vip client search returns migration-required when vip schema is missing", 
     }
     if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
       return {
-        rows: [{ code: "clients.read" }]
+        rows: [{ code: "appointments.vip-clients.read" }]
       };
     }
 

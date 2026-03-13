@@ -78,3 +78,25 @@ test("appointment norms create and delete require their own permissions", () => 
   assert.equal(access.canUpdateSettingsAppointmentNorms, true);
   assert.equal(access.canDeleteSettingsAppointmentNorms, false);
 });
+
+test("plain clients read does not unlock vip clients menus", () => {
+  const access = readAccessSnapshot({
+    isAdmin: false,
+    isPlatformAdmin: false,
+    permissions: ["clients.read"],
+    orgFeatures: [
+      "clients.all_clients",
+      "vip_clients.attendance",
+      "vip_clients.my_class",
+      "vip_clients.my_children",
+      "vip_clients.daily_routines"
+    ]
+  });
+
+  assert.equal(access.hasClientsMenuAccess, true);
+  assert.equal(access.canReadClients, true);
+  assert.equal(access.canOpenAppointmentVipClients, false);
+  assert.equal(access.canOpenAppointmentVipMyClass, false);
+  assert.equal(access.canOpenMyChildren, false);
+  assert.equal(access.canOpenAppointmentVipDailyRoutines, false);
+});

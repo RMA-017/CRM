@@ -297,6 +297,7 @@ function ProfileEntityModals({
                   placeholder="Select organisation"
                   value={createForm.organizationCode}
                   options={createOrganizationOptions}
+                  menuPortal
                   error={Boolean(createErrors.organizationCode)}
                   onChange={(nextCode) => {
                     setCreateForm((prev) => ({ ...prev, organizationCode: nextCode }));
@@ -359,6 +360,7 @@ function ProfileEntityModals({
                   placeholder="Select role"
                   value={createForm.role}
                   options={roleOptions}
+                  menuPortal
                   error={Boolean(createErrors.role)}
                   onChange={(nextRole) => {
                     setCreateForm((prev) => ({ ...prev, role: nextRole }));

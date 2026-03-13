@@ -897,14 +897,8 @@ async function clientsRoutes(fastify) {
         if (!requesterHasOrgFeature(requester, "vip_clients.attendance")) {
           return reply.status(403).send({ message: "Forbidden." });
         }
-        const [canReadClients, vipPermissions] = await Promise.all([
-          hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
-          getVipClientsPermissionSnapshot(requester.role_id)
-        ]);
-        const canReadVipAttendance = vipPermissions.usesAdvancedMenuPermissions
-          ? vipPermissions.canReadVipClients
-          : canReadClients;
-        if (!canReadVipAttendance) {
+        const vipPermissions = await getVipClientsPermissionSnapshot(requester.role_id);
+        if (!vipPermissions.canReadVipClients) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
@@ -1680,16 +1674,11 @@ async function clientsRoutes(fastify) {
         if (!requesterHasOrgFeature(requester, "vip_clients.daily_routines")) {
           return reply.status(403).send({ message: "Forbidden." });
         }
-        const [canReadClients, vipPermissions] = await Promise.all([
-          hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
-          getVipClientsPermissionSnapshot(requester.role_id)
-        ]);
-        const canReadVipClassDailyRoutines = vipPermissions.usesAdvancedMenuPermissions
-          ? (
-            (vipPermissions.canAccessDailyRoutines && vipPermissions.canReadVipClients)
-            || vipPermissions.canAccessMyChildren
-          )
-          : canReadClients;
+        const vipPermissions = await getVipClientsPermissionSnapshot(requester.role_id);
+        const canReadVipClassDailyRoutines = (
+          (vipPermissions.canAccessDailyRoutines && vipPermissions.canReadVipClients)
+          || vipPermissions.canAccessMyChildren
+        );
         if (!canReadVipClassDailyRoutines) {
           return reply.status(403).send({ message: "Forbidden." });
         }
@@ -1812,21 +1801,17 @@ async function clientsRoutes(fastify) {
         if (!requesterHasOrgFeature(requester, "vip_clients.daily_routines")) {
           return reply.status(403).send({ message: "Forbidden." });
         }
-        const [canUpdateClients, vipPermissions] = await Promise.all([
-          hasPermission(requester.role_id, PERMISSIONS.CLIENTS_UPDATE),
-          getVipClientsPermissionSnapshot(requester.role_id)
-        ]);
+        const vipPermissions = await getVipClientsPermissionSnapshot(requester.role_id);
         const isEditMode = Boolean(routineId);
         const vipReadScope = resolveVipClientReadScope(vipPermissions, requester);
         const assignedUserId = vipReadScope === "all"
           ? null
           : parsePositiveInteger(authContext.userId);
-        const canWriteVipClassDailyRoutines = vipPermissions.usesAdvancedMenuPermissions
-          ? (
-            vipPermissions.canAccessDailyRoutines
-            && (isEditMode ? vipPermissions.canUpdateVipClients : vipPermissions.canCreateVipClients)
-          )
-          : (canUpdateClients && isDirectorLikeRequester(requester));
+        const canWriteVipClassDailyRoutines = (
+          vipPermissions.canAccessDailyRoutines
+          && vipPermissions.canReadVipClients
+          && (isEditMode ? vipPermissions.canUpdateVipClients : vipPermissions.canCreateVipClients)
+        );
         if (!canWriteVipClassDailyRoutines) {
           return reply.status(403).send({ message: "Forbidden." });
         }
@@ -1916,20 +1901,16 @@ async function clientsRoutes(fastify) {
         if (!requesterHasOrgFeature(requester, "vip_clients.daily_routines")) {
           return reply.status(403).send({ message: "Forbidden." });
         }
-        const [canUpdateClients, vipPermissions] = await Promise.all([
-          hasPermission(requester.role_id, PERMISSIONS.CLIENTS_UPDATE),
-          getVipClientsPermissionSnapshot(requester.role_id)
-        ]);
+        const vipPermissions = await getVipClientsPermissionSnapshot(requester.role_id);
         const vipReadScope = resolveVipClientReadScope(vipPermissions, requester);
         const assignedUserId = vipReadScope === "all"
           ? null
           : parsePositiveInteger(authContext.userId);
-        const canDeleteVipClassDailyRoutines = vipPermissions.usesAdvancedMenuPermissions
-          ? (
-            vipPermissions.canAccessDailyRoutines
-            && vipPermissions.canDeleteVipClients
-          )
-          : (canUpdateClients && isDirectorLikeRequester(requester));
+        const canDeleteVipClassDailyRoutines = (
+          vipPermissions.canAccessDailyRoutines
+          && vipPermissions.canReadVipClients
+          && vipPermissions.canDeleteVipClients
+        );
         if (!canDeleteVipClassDailyRoutines) {
           return reply.status(403).send({ message: "Forbidden." });
         }
@@ -2021,12 +2002,8 @@ async function clientsRoutes(fastify) {
           hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_CLIENT_SEARCH),
           getVipClientsPermissionSnapshot(requester.role_id)
         ]);
-        const canSearchVipClients = vipPermissions.usesAdvancedMenuPermissions
-          ? vipPermissions.canReadVipClients
-          : canReadClients;
-        const canSearchMyChildren = vipPermissions.usesAdvancedMenuPermissions
-          ? vipPermissions.canAccessMyChildren
-          : canReadClients;
+        const canSearchVipClients = vipPermissions.canReadVipClients;
+        const canSearchMyChildren = vipPermissions.canAccessMyChildren;
         if (isVipOnlySearch && !canSearchVipClients && !(mineOnly && canSearchMyChildren)) {
           return reply.status(403).send({ message: "Forbidden." });
         }
@@ -2159,11 +2136,7 @@ async function clientsRoutes(fastify) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
-        const [canUpdateClients, canDeleteClients, vipPermissions] = await Promise.all([
-          hasPermission(requester.role_id, PERMISSIONS.CLIENTS_UPDATE),
-          hasPermission(requester.role_id, PERMISSIONS.CLIENTS_DELETE),
-          getVipClientsPermissionSnapshot(requester.role_id)
-        ]);
+        const vipPermissions = await getVipClientsPermissionSnapshot(requester.role_id);
         const existingAttendance = resetAttendance
           ? null
           : await findVipClientAttendanceByDate({
@@ -2171,20 +2144,11 @@ async function clientsRoutes(fastify) {
             clientId,
             attendanceDate
           });
-        if (vipPermissions.usesAdvancedMenuPermissions) {
-          const canWriteVipAttendance = resetAttendance
-            ? vipPermissions.canDeleteVipClients
-            : (existingAttendance ? vipPermissions.canUpdateVipClients : vipPermissions.canCreateVipClients);
-          if (!vipPermissions.canReadVipClients || !canWriteVipAttendance) {
-            return reply.status(403).send({ message: "Forbidden." });
-          }
-        } else {
-          const canWriteVipAttendanceLegacy = resetAttendance
-            ? canDeleteClients
-            : canUpdateClients;
-          if (!canWriteVipAttendanceLegacy) {
-            return reply.status(403).send({ message: "Forbidden." });
-          }
+        const canWriteVipAttendance = resetAttendance
+          ? vipPermissions.canDeleteVipClients
+          : (existingAttendance ? vipPermissions.canUpdateVipClients : vipPermissions.canCreateVipClients);
+        if (!vipPermissions.canReadVipClients || !canWriteVipAttendance) {
+          return reply.status(403).send({ message: "Forbidden." });
         }
         const vipReadScope = resolveVipClientReadScope(vipPermissions, requester);
         const assignedUserIdRaw = vipReadScope === "all"

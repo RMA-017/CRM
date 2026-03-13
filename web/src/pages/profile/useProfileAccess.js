@@ -213,45 +213,19 @@ export function useProfileAccess(profile, forcedView) {
   );
   const rolePositionText = `${String(profile?.role || "").trim().toLowerCase()} ${String(profile?.position || "").trim().toLowerCase()}`;
   const isDirectorLike = rolePositionText.includes("director") || rolePositionText.includes("direktor");
-  const canReadAppointmentVipClients = (
-    usesAdvancedMenuPermissions
-      ? canReadVipClientsPermission
-      : canReadClients
-  );
-  const canCreateAppointmentVipClients = (
-    usesAdvancedMenuPermissions
-      ? canCreateVipClientsPermission
-      : canReadClients
-  );
-  const canUpdateAppointmentVipClients = (
-    usesAdvancedMenuPermissions
-      ? canUpdateVipClientsPermission
-      : canReadClients
-  );
-  const canDeleteAppointmentVipClients = (
-    usesAdvancedMenuPermissions
-      ? canDeleteVipClientsPermission
-      : canReadClients
-  );
-  const canOpenAppointmentVipClients = hasOrgFeature("vip_clients.attendance") && (
-    usesAdvancedMenuPermissions
-      ? canReadVipClientsPermission
-      : canReadClients
-  );
+  const canReadAppointmentVipClients = canReadVipClientsPermission;
+  const canCreateAppointmentVipClients = canCreateVipClientsPermission;
+  const canUpdateAppointmentVipClients = canUpdateVipClientsPermission;
+  const canDeleteAppointmentVipClients = canDeleteVipClientsPermission;
+  const canOpenAppointmentVipClients = hasOrgFeature("vip_clients.attendance") && canReadVipClientsPermission;
   const canOpenAppointmentVipMyClass = hasOrgFeature("vip_clients.my_class") && (
-    usesAdvancedMenuPermissions
-      ? (canReadAppointments && (canMyClassPermission || canOpenPlannerPermission))
-      : canOpenAppointmentSchedule
+    canReadAppointments && canMyClassPermission
   );
-  const canOpenMyChildren = hasOrgFeature("vip_clients.my_children") && (
-    usesAdvancedMenuPermissions
-      ? (canMyChildrenPermission || canOpenAppointmentVipClients)
-      : canReadClients
-  );
-  const canOpenAppointmentVipDailyRoutines = hasOrgFeature("vip_clients.daily_routines") && (
-    usesAdvancedMenuPermissions
-      ? (canDailyRoutinesPermission && canReadVipClientsPermission)
-      : canReadClients
+  const canOpenMyChildren = hasOrgFeature("vip_clients.my_children") && canMyChildrenPermission;
+  const canOpenAppointmentVipDailyRoutines = (
+    hasOrgFeature("vip_clients.daily_routines")
+    && canDailyRoutinesPermission
+    && canReadVipClientsPermission
   );
 
   const legacyCanReadAssignments = canReadClients && (Boolean(profile?.isAdmin) || isDirectorLike);
