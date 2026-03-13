@@ -233,35 +233,88 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
     const roleId = requester.role_id;
     if (action === "read") {
       const [
-        canReadAppointments,
         canAccessMyClass,
         canAccessMyChildren,
         canReadSettingsPanel
       ] = await Promise.all([
-        hasPermission(roleId, PERMISSIONS.APPOINTMENTS_READ),
         hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS),
         hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN),
         hasPermission(roleId, PERMISSIONS.SETTINGS_APPOINTMENTS_READ)
       ]);
       const canUseSettingsPanel = canReadSettingsPanel
         && requesterHasOrgFeature(requester, "settings.appointments");
-      if (!canReadAppointments && !canAccessMyClass && !canAccessMyChildren && !canUseSettingsPanel) {
+      if (!canAccessMyClass && !canAccessMyChildren && !canUseSettingsPanel) {
         reply.status(403).send({ message: "Forbidden." });
         return null;
       }
       return { authContext, requester };
     }
 
-    const [canUpdateAppointments, canUpdateSettingsPanel] = await Promise.all([
-      hasPermission(roleId, PERMISSIONS.APPOINTMENTS_UPDATE),
-      hasPermission(roleId, PERMISSIONS.SETTINGS_APPOINTMENTS_UPDATE)
-    ]);
+    const canUpdateSettingsPanel = await hasPermission(roleId, PERMISSIONS.SETTINGS_APPOINTMENTS_UPDATE);
     const canUseSettingsPanel = canUpdateSettingsPanel
       && requesterHasOrgFeature(requester, "settings.appointments");
-    if (!canUpdateAppointments && !canUseSettingsPanel) {
+    if (!canUseSettingsPanel) {
       reply.status(403).send({ message: "Forbidden." });
       return null;
     }
+    return { authContext, requester };
+  }
+
+  async function requireAppointmentWorkScheduleAccess(request, reply, action = "read") {
+    const authContext = request.authContext;
+    const requester = authContext?.requester;
+    if (!requester) {
+      reply.status(401).send({ message: "Unauthorized." });
+      return null;
+    }
+
+    if (!requesterHasOrgFeature(requester, "appointments.work_schedule")) {
+      reply.status(403).send({ message: "Forbidden." });
+      return null;
+    }
+
+    const roleId = requester.role_id;
+    const [
+      canReadWorkSchedule,
+      canCreateWorkSchedule,
+      canUpdateWorkSchedule,
+      canDeleteWorkSchedule,
+      canReadSettingsPanel,
+      canUpdateSettingsPanel
+    ] = await Promise.all([
+      hasPermission(roleId, PERMISSIONS.APPOINTMENTS_WORK_SCHEDULE_READ),
+      hasPermission(roleId, PERMISSIONS.APPOINTMENTS_WORK_SCHEDULE_CREATE),
+      hasPermission(roleId, PERMISSIONS.APPOINTMENTS_WORK_SCHEDULE_UPDATE),
+      hasPermission(roleId, PERMISSIONS.APPOINTMENTS_WORK_SCHEDULE_DELETE),
+      hasPermission(roleId, PERMISSIONS.SETTINGS_APPOINTMENTS_READ),
+      hasPermission(roleId, PERMISSIONS.SETTINGS_APPOINTMENTS_UPDATE)
+    ]);
+
+    const hasExplicitWorkSchedulePermissions = (
+      canReadWorkSchedule
+      || canCreateWorkSchedule
+      || canUpdateWorkSchedule
+      || canDeleteWorkSchedule
+    );
+    const canUseSettingsRead = canReadSettingsPanel
+      && requesterHasOrgFeature(requester, "settings.appointments");
+    const canUseSettingsUpdate = canUpdateSettingsPanel
+      && requesterHasOrgFeature(requester, "settings.appointments");
+
+    const isAllowed = action === "read"
+      ? (hasExplicitWorkSchedulePermissions ? canReadWorkSchedule : canUseSettingsRead)
+      : (action === "create"
+          ? (hasExplicitWorkSchedulePermissions ? canCreateWorkSchedule : canUseSettingsUpdate)
+          : (action === "update"
+              ? (hasExplicitWorkSchedulePermissions ? canUpdateWorkSchedule : canUseSettingsUpdate)
+              : (hasExplicitWorkSchedulePermissions ? canDeleteWorkSchedule : canUseSettingsUpdate)
+        ));
+
+    if (!isAllowed) {
+      reply.status(403).send({ message: "Forbidden." });
+      return null;
+    }
+
     return { authContext, requester };
   }
 
@@ -277,7 +330,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
       setNoCacheHeaders(reply);
 
       try {
-        const access = await requireAppointmentSettingsAccess(request, reply, "read");
+        const access = await requireAppointmentWorkScheduleAccess(request, reply, "read");
         if (!access) {
           return;
         }
@@ -349,7 +402,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
     },
     async (request, reply) => {
       try {
-        const access = await requireAppointmentSettingsAccess(request, reply, "update");
+        const access = await requireAppointmentWorkScheduleAccess(request, reply, "create");
         if (!access) {
           return;
         }
@@ -656,7 +709,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
     },
     async (request, reply) => {
       try {
-        const access = await requireAppointmentSettingsAccess(request, reply, "update");
+        const access = await requireAppointmentWorkScheduleAccess(request, reply, "delete");
         if (!access) {
           return;
         }
@@ -714,7 +767,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
     },
     async (request, reply) => {
       try {
-        const access = await requireAppointmentSettingsAccess(request, reply, "update");
+        const access = await requireAppointmentWorkScheduleAccess(request, reply, "create");
         if (!access) {
           return;
         }
@@ -782,7 +835,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
     },
     async (request, reply) => {
       try {
-        const access = await requireAppointmentSettingsAccess(request, reply, "update");
+        const access = await requireAppointmentWorkScheduleAccess(request, reply, "update");
         if (!access) {
           return;
         }

@@ -23,7 +23,7 @@ export function registerAppointmentReferenceRoutes(fastify, context) {
       setNoCacheHeaders(reply);
 
       try {
-        const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_READ);
+        const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_PLANNER_READ);
         if (!access) {
           return;
         }
@@ -53,7 +53,7 @@ export function registerAppointmentReferenceRoutes(fastify, context) {
       setNoCacheHeaders(reply);
 
       try {
-        const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_READ);
+        const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_PLANNER_READ);
         if (!access) {
           return;
         }

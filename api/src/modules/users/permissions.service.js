@@ -29,7 +29,11 @@ const LEGACY_PERMISSION_CODE_MIGRATIONS = Object.freeze([
   },
   {
     from: "appointments.menu",
-    to: PERMISSIONS.APPOINTMENTS_READ
+    to: PERMISSIONS.APPOINTMENTS_PLANNER_READ
+  },
+  {
+    from: "appointments.menu",
+    to: PERMISSIONS.APPOINTMENTS_BREAKS_READ
   },
   {
     from: "appointments.vip-clients",
@@ -85,6 +89,14 @@ const ROLE_PERMISSION_COPY_MIGRATIONS = Object.freeze([
   {
     from: PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE,
     to: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS
+  },
+  {
+    from: PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE,
+    to: PERMISSIONS.APPOINTMENTS_PLANNER_READ
+  },
+  {
+    from: PERMISSIONS.APPOINTMENTS_SUBMENU_BREAKS,
+    to: PERMISSIONS.APPOINTMENTS_BREAKS_READ
   },
   {
     from: "appointments.vip-clients",

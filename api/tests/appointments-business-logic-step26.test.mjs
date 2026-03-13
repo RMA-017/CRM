@@ -137,10 +137,10 @@ function createScheduleContext(overrides = {}) {
     }),
     hasPermission: async () => true,
     PERMISSIONS: {
-      APPOINTMENTS_READ: "appointments.read",
-      APPOINTMENTS_CREATE: "appointments.create",
-      APPOINTMENTS_UPDATE: "appointments.update",
-      APPOINTMENTS_DELETE: "appointments.delete",
+      APPOINTMENTS_PLANNER_READ: "appointments.planner.read",
+      APPOINTMENTS_PLANNER_CREATE: "appointments.planner.create",
+      APPOINTMENTS_PLANNER_UPDATE: "appointments.planner.update",
+      APPOINTMENTS_PLANNER_DELETE: "appointments.planner.delete",
       APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip-clients.my-children",
       APPOINTMENTS_VIP_CLIENTS_MY_CLASS: "appointments.vip-clients.my-class",
       APPOINTMENTS_STATISTICS_PLANNER_REPORT: "appointments.statistics.planner-report"
@@ -204,7 +204,7 @@ function createReferenceContext(overrides = {}) {
       requester: request.authContext?.requester
     }),
     PERMISSIONS: {
-      APPOINTMENTS_READ: "appointments.read"
+      APPOINTMENTS_PLANNER_READ: "appointments.planner.read"
     },
     parsePositiveIntegerOr,
     resolveOwnAppointmentSpecialistUserId: () => null,
@@ -225,8 +225,8 @@ function createBreaksContext(overrides = {}) {
       requester: request.authContext?.requester
     }),
     PERMISSIONS: {
-      APPOINTMENTS_READ: "appointments.read",
-      APPOINTMENTS_UPDATE: "appointments.update"
+      APPOINTMENTS_BREAKS_READ: "appointments.breaks.read",
+      APPOINTMENTS_BREAKS_UPDATE: "appointments.breaks.update"
     },
     parsePositiveIntegerOr,
     resolveOwnAppointmentSpecialistUserId: () => null,

@@ -350,8 +350,8 @@ test("settings contract helpers validate admin-option payload fragments", () => 
   assert.equal(c.parseOptionalOrganizationId("x").error?.field, "organizationId");
 
   assert.equal(c.parsePermissionCodes("bad").error?.field, "permissionCodes");
-  assert.deepEqual(c.parsePermissionCodes(["appointments.read", "appointments.read"]), {
-    codes: ["appointments.read"]
+  assert.deepEqual(c.parsePermissionCodes(["appointments.planner.read", "appointments.planner.read"]), {
+    codes: ["appointments.planner.read"]
   });
   assert.equal(c.parsePermissionCodes(["bad code"]).error?.field, "permissionCodes");
 });

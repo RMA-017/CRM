@@ -12,7 +12,7 @@ export function registerAppointmentEventRoutes(fastify, context) {
       config: { rateLimit: fastify.apiRateLimit }
     },
     async (request, reply) => {
-      const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_READ);
+      const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_PLANNER_READ);
       if (!access) {
         return;
       }

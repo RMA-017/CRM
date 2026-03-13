@@ -91,7 +91,7 @@ const normalizeDurationOptions = (value) => normalizeDurationOptionsBase(value, 
 async function requireAppointmentsAccess(
   request,
   reply,
-  requiredPermission = PERMISSIONS.APPOINTMENTS_READ,
+  requiredPermission = PERMISSIONS.APPOINTMENTS_PLANNER_READ,
   requiredFeature = null
 ) {
   const authContext = request.authContext;

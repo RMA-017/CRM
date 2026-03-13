@@ -256,7 +256,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const isMyChildrenScheduleRequest = vipOnly && !requestedSpecialistId && !classId;
 
         const [rawCanReadAppointments, rawCanAccessMyChildren, rawCanAccessMyClass] = await Promise.all([
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_READ),
+          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_PLANNER_READ),
           isMyChildrenScheduleRequest
             ? hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN)
             : Promise.resolve(false),
@@ -393,8 +393,8 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
       const access = await requireAppointmentsAccess(
         request,
         reply,
-        PERMISSIONS.APPOINTMENTS_CREATE,
-        "appointments"
+        PERMISSIONS.APPOINTMENTS_PLANNER_CREATE,
+        "appointments.planner"
       );
       if (!access) {
         return;
@@ -436,7 +436,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const access = await requireAppointmentsAccess(
           request,
           reply,
-          PERMISSIONS.APPOINTMENTS_CREATE,
+          PERMISSIONS.APPOINTMENTS_PLANNER_CREATE,
           "appointments.planner"
         );
         if (!access) {
@@ -828,7 +828,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         }
 
         const [rawCanUpdateAppointments, rawCanAccessMyChildren] = await Promise.all([
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_UPDATE),
+          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_PLANNER_UPDATE),
           hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN)
         ]);
         const canUpdateAppointments = requesterHasOrgFeature(requester, "appointments.planner")
@@ -1402,7 +1402,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const access = await requireAppointmentsAccess(
           request,
           reply,
-          PERMISSIONS.APPOINTMENTS_DELETE,
+          PERMISSIONS.APPOINTMENTS_PLANNER_DELETE,
           "appointments.planner"
         );
         if (!access) {

@@ -181,6 +181,14 @@ function isDirectorLikeRequester(requester) {
 const ADVANCED_APPOINTMENT_MENU_PERMISSIONS = Object.freeze([
   PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE,
   PERMISSIONS.APPOINTMENTS_SUBMENU_BREAKS,
+  PERMISSIONS.APPOINTMENTS_PLANNER_READ,
+  PERMISSIONS.APPOINTMENTS_PLANNER_CREATE,
+  PERMISSIONS.APPOINTMENTS_PLANNER_UPDATE,
+  PERMISSIONS.APPOINTMENTS_PLANNER_DELETE,
+  PERMISSIONS.APPOINTMENTS_BREAKS_READ,
+  PERMISSIONS.APPOINTMENTS_BREAKS_CREATE,
+  PERMISSIONS.APPOINTMENTS_BREAKS_UPDATE,
+  PERMISSIONS.APPOINTMENTS_BREAKS_DELETE,
   PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_READ,
   PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_CREATE,
   PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_UPDATE,
@@ -981,14 +989,13 @@ async function clientsRoutes(fastify) {
         if (!requesterHasOrgFeature(requester, "statistics.class_attendance")) {
           return reply.status(403).send({ message: "Forbidden." });
         }
-        const [canReadClients, canReadAppointments, usesAdvancedMenuPermissions, canReadStatistics, vipPermissions] = await Promise.all([
+        const [canReadClients, usesAdvancedMenuPermissions, canReadStatistics, vipPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_READ),
           hasAdvancedAppointmentMenuPermissions(requester.role_id),
           hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_STATISTICS_CLASS_ATTENDANCE),
           getVipClientsPermissionSnapshot(requester.role_id)
         ]);
-        if (!canReadClients || !canReadAppointments || (usesAdvancedMenuPermissions && !canReadStatistics)) {
+        if (!canReadClients || (usesAdvancedMenuPermissions && !canReadStatistics)) {
           return reply.status(403).send({ message: "Forbidden." });
         }
         const vipReadScope = resolveVipClientReadScope(vipPermissions, requester);
@@ -1402,9 +1409,8 @@ async function clientsRoutes(fastify) {
         if (!hasTutorAssignmentsFeature && !hasMyClassFeature) {
           return reply.status(403).send({ message: "Forbidden." });
         }
-        const [canReadClients, canReadAppointments, assignmentsPermissions, vipPermissions] = await Promise.all([
+        const [canReadClients, assignmentsPermissions, vipPermissions] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_READ),
           getAssignmentsPermissionSnapshot(requester.role_id),
           getVipClientsPermissionSnapshot(requester.role_id)
         ]);

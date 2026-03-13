@@ -36,7 +36,7 @@ test("filterPermissionCodesByOrgFeatures filters child permissions precisely", (
   assert.deepEqual(
     filterPermissionCodesByOrgFeatures(
       [
-        "appointments.read",
+        "appointments.breaks.read",
         "appointments.breaks",
         "appointments.schedule",
         "appointments.client-search",
@@ -48,7 +48,7 @@ test("filterPermissionCodesByOrgFeatures filters child permissions precisely", (
       allowedFeatures
     ),
     [
-      "appointments.read",
+      "appointments.breaks.read",
       "appointments.breaks",
       "appointments.vip-clients.my-children",
       "appointments.assignments.read",

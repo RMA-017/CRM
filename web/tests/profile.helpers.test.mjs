@@ -8,7 +8,7 @@ import {
 
 test("filterPermissionsByOrgFeatures respects child feature mapping", () => {
   const permissions = [
-    { value: "appointments.read", label: "Read Appointments" },
+    { value: "appointments.breaks.read", label: "Read Appointment Breaks" },
     { value: "appointments.breaks", label: "Appointments Breaks Submenu" },
     { value: "appointments.schedule", label: "Appointments Planner Submenu" },
     { value: "appointments.vip-clients.read", label: "VIP Clients Read" },
@@ -24,7 +24,7 @@ test("filterPermissionsByOrgFeatures respects child feature mapping", () => {
       "vip_clients.my_children"
     ]).map((item) => item.value),
     [
-      "appointments.read",
+      "appointments.breaks.read",
       "appointments.breaks",
       "appointments.vip-clients.my-children",
       "profile.read"
@@ -102,12 +102,12 @@ test("buildRolePermissionTree groups permissions into accordion tree and marks s
   );
 });
 
-test("buildRolePermissionTree shows rootPermissions when specific orgFeatures are set", () => {
+test("buildRolePermissionTree groups planner permissions without a generic appointments child", () => {
   const permissions = [
     { value: "profile.read", label: "Read Profile" },
     { value: "profile.update", label: "Update Profile" },
-    { value: "appointments.read", label: "Read Appointments" },
-    { value: "appointments.create", label: "Create Appointments" },
+    { value: "appointments.planner.read", label: "Read Appointment Planner" },
+    { value: "appointments.planner.create", label: "Create Appointment Planner" },
     { value: "appointments.schedule", label: "Appointments Planner Submenu" }
   ];
 
@@ -117,11 +117,16 @@ test("buildRolePermissionTree shows rootPermissions when specific orgFeatures ar
   const profileGroup = tree.find((group) => group.key === "profile");
   assert.ok(profileGroup, "profile group should appear");
 
-  // appointments rootPermissions must appear when any appointments sub-feature is enabled
   const appointmentsGroup = tree.find((group) => group.key === "appointments");
   assert.ok(appointmentsGroup, "appointments group should appear");
-  const generalChild = appointmentsGroup.children.find((child) => child.key === "appointments.general");
-  assert.ok(generalChild, "appointments.general child should appear");
+  assert.equal(
+    appointmentsGroup.children.some((child) => child.key === "appointments.general"),
+    false
+  );
+  assert.ok(
+    appointmentsGroup.children.some((child) => child.key === "appointments.planner"),
+    "appointments.planner child should appear"
+  );
 });
 
 test("buildRolePermissionTree includes settings children when org features allow them", () => {

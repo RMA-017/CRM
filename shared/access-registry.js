@@ -471,41 +471,6 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
     key: "appointments",
     label: "Appointments",
     sortOrder: 60,
-    rootPermissionsLabel: "General",
-    rootPermissions: [
-      definePermission({
-        constantKey: "APPOINTMENTS_READ",
-        code: "appointments.read",
-        label: "Read Appointments",
-        uiLabel: "Read",
-        sortOrder: 50,
-        actionKey: "read"
-      }),
-      definePermission({
-        constantKey: "APPOINTMENTS_CREATE",
-        code: "appointments.create",
-        label: "Create Appointments",
-        uiLabel: "Create",
-        sortOrder: 51,
-        actionKey: "create"
-      }),
-      definePermission({
-        constantKey: "APPOINTMENTS_UPDATE",
-        code: "appointments.update",
-        label: "Update Appointments",
-        uiLabel: "Edit",
-        sortOrder: 52,
-        actionKey: "update"
-      }),
-      definePermission({
-        constantKey: "APPOINTMENTS_DELETE",
-        code: "appointments.delete",
-        label: "Delete Appointments",
-        uiLabel: "Delete",
-        sortOrder: 53,
-        actionKey: "delete"
-      })
-    ],
     children: [
       defineFeature({
         key: "appointments.planner",
@@ -521,11 +486,43 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
             actionKey: "open"
           }),
           definePermission({
+            constantKey: "APPOINTMENTS_PLANNER_READ",
+            code: "appointments.planner.read",
+            label: "Read Appointment Planner",
+            uiLabel: "Read",
+            sortOrder: 55,
+            actionKey: "read"
+          }),
+          definePermission({
+            constantKey: "APPOINTMENTS_PLANNER_CREATE",
+            code: "appointments.planner.create",
+            label: "Create Appointment Planner",
+            uiLabel: "Create",
+            sortOrder: 56,
+            actionKey: "create"
+          }),
+          definePermission({
+            constantKey: "APPOINTMENTS_PLANNER_UPDATE",
+            code: "appointments.planner.update",
+            label: "Update Appointment Planner",
+            uiLabel: "Edit",
+            sortOrder: 57,
+            actionKey: "update"
+          }),
+          definePermission({
+            constantKey: "APPOINTMENTS_PLANNER_DELETE",
+            code: "appointments.planner.delete",
+            label: "Delete Appointment Planner",
+            uiLabel: "Delete",
+            sortOrder: 58,
+            actionKey: "delete"
+          }),
+          definePermission({
             constantKey: "APPOINTMENTS_CLIENT_SEARCH",
             code: "appointments.client-search",
             label: "Search Clients In Appointments",
             uiLabel: "Search Clients",
-            sortOrder: 68,
+            sortOrder: 59,
             actionKey: "search"
           })
         ]
@@ -540,8 +537,40 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
             code: "appointments.breaks",
             label: "Appointments Breaks Submenu",
             uiLabel: "Open",
-            sortOrder: 55,
+            sortOrder: 60,
             actionKey: "open"
+          }),
+          definePermission({
+            constantKey: "APPOINTMENTS_BREAKS_READ",
+            code: "appointments.breaks.read",
+            label: "Read Appointment Breaks",
+            uiLabel: "Read",
+            sortOrder: 61,
+            actionKey: "read"
+          }),
+          definePermission({
+            constantKey: "APPOINTMENTS_BREAKS_CREATE",
+            code: "appointments.breaks.create",
+            label: "Create Appointment Breaks",
+            uiLabel: "Create",
+            sortOrder: 62,
+            actionKey: "create"
+          }),
+          definePermission({
+            constantKey: "APPOINTMENTS_BREAKS_UPDATE",
+            code: "appointments.breaks.update",
+            label: "Update Appointment Breaks",
+            uiLabel: "Edit",
+            sortOrder: 63,
+            actionKey: "update"
+          }),
+          definePermission({
+            constantKey: "APPOINTMENTS_BREAKS_DELETE",
+            code: "appointments.breaks.delete",
+            label: "Delete Appointment Breaks",
+            uiLabel: "Delete",
+            sortOrder: 64,
+            actionKey: "delete"
           })
         ]
       }),
@@ -555,8 +584,44 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
             code: "appointments.work-schedule",
             label: "Appointments Work Schedule Submenu",
             uiLabel: "Open",
-            sortOrder: 56,
+            sortOrder: 65,
             actionKey: "open"
+          }),
+          definePermission({
+            constantKey: "APPOINTMENTS_WORK_SCHEDULE_READ",
+            code: "appointments.work-schedule.read",
+            label: "Read Work Schedule",
+            uiLabel: "Read",
+            sortOrder: 66,
+            actionKey: "read",
+            featureKeys: ["appointments.work_schedule"]
+          }),
+          definePermission({
+            constantKey: "APPOINTMENTS_WORK_SCHEDULE_CREATE",
+            code: "appointments.work-schedule.create",
+            label: "Create Work Schedule",
+            uiLabel: "Create",
+            sortOrder: 67,
+            actionKey: "create",
+            featureKeys: ["appointments.work_schedule"]
+          }),
+          definePermission({
+            constantKey: "APPOINTMENTS_WORK_SCHEDULE_UPDATE",
+            code: "appointments.work-schedule.update",
+            label: "Update Work Schedule",
+            uiLabel: "Edit",
+            sortOrder: 68,
+            actionKey: "update",
+            featureKeys: ["appointments.work_schedule"]
+          }),
+          definePermission({
+            constantKey: "APPOINTMENTS_WORK_SCHEDULE_DELETE",
+            code: "appointments.work-schedule.delete",
+            label: "Delete Work Schedule",
+            uiLabel: "Delete",
+            sortOrder: 69,
+            actionKey: "delete",
+            featureKeys: ["appointments.work_schedule"]
           })
         ]
       })

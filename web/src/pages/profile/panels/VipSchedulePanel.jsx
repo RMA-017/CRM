@@ -1,6 +1,7 @@
 import AppointmentScheduler from "../AppointmentScheduler.jsx";
 
 function VipSchedulePanel({
+  canReadAppointments,
   canCreateAppointments,
   canUpdateAppointments,
   canDeleteAppointments,
@@ -25,6 +26,7 @@ function VipSchedulePanel({
         </button>
       </div>
       <AppointmentScheduler
+        canReadAppointments={canReadAppointments}
         canCreateAppointments={canCreateAppointments}
         canUpdateAppointments={canUpdateAppointments}
         canDeleteAppointments={canDeleteAppointments}

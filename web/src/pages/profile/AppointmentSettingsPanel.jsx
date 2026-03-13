@@ -226,13 +226,17 @@ function createAddBreakDraftItem({ specialistId = "" } = {}) {
 function AppointmentSettingsPanel({
   canUpdateAppointments = true,
   canUpdateSettingsAppointments = canUpdateAppointments,
+  canReadAppointmentBreaks = true,
+  canCreateAppointmentBreaks = canUpdateAppointments,
+  canUpdateAppointmentBreaks = canUpdateAppointments,
+  canDeleteAppointmentBreaks = canUpdateAppointments,
   panelMode = "settings",
   profile = null
 }) {
   const isBreaksMode = String(panelMode || "").trim().toLowerCase() === "breaks";
-  const canUpdateCurrentPanel = isBreaksMode
-    ? canUpdateAppointments
-    : canUpdateSettingsAppointments;
+  const canCreateCurrentPanel = isBreaksMode ? canCreateAppointmentBreaks : canUpdateSettingsAppointments;
+  const canUpdateCurrentPanel = isBreaksMode ? canUpdateAppointmentBreaks : canUpdateSettingsAppointments;
+  const canDeleteCurrentPanel = isBreaksMode ? canDeleteAppointmentBreaks : canUpdateSettingsAppointments;
   const currentOrganizationId = String(profile?.organizationId || "").trim();
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -996,8 +1000,8 @@ function AppointmentSettingsPanel({
   }
 
   async function saveAddedBreakRows() {
-    if (!canUpdateAppointments) {
-      setMessage("You do not have permission to update appointment settings.");
+    if (!canCreateCurrentPanel) {
+      setMessage("You do not have permission to create appointment breaks.");
       return;
     }
 
@@ -1388,7 +1392,7 @@ function AppointmentSettingsPanel({
                           id={`appointmentBreaksInlineAddBtn_${rowIndex}`}
                           className="header-btn appointment-breaks-inline-add-btn"
                           type="button"
-                          disabled={breaksMutating || !canUpdateAppointments}
+                          disabled={breaksMutating || !canCreateCurrentPanel}
                           onClick={() => {
                             const lineCount = Array.isArray(row?.lines) && row.lines.length > 0 ? row.lines.length : 1;
                             addBreakDraftLine(rowIndex, lineCount - 1);
@@ -1462,7 +1466,7 @@ function AppointmentSettingsPanel({
                             id={`appointmentBreaksInlineDelBtn_${rowIndex}_${lineIndex}`}
                             className="table-action-btn table-action-btn-danger"
                             type="button"
-                            disabled={breaksMutating || !canUpdateAppointments || totalAddBreakDraftLines <= 1}
+                            disabled={breaksMutating || !canDeleteCurrentPanel || totalAddBreakDraftLines <= 1}
                             onClick={() => deleteAddBreakDraftLine(rowIndex, lineIndex)}
                           >
                             Delete
@@ -1479,7 +1483,7 @@ function AppointmentSettingsPanel({
                 id="appointmentBreaksAddSaveBtn"
                 className="header-btn"
                 type="button"
-                disabled={breaksMutating || !canUpdateAppointments}
+                disabled={breaksMutating || !canCreateCurrentPanel}
                 onClick={() => {
                   void saveAddedBreakRows();
                 }}
@@ -1601,7 +1605,7 @@ function AppointmentSettingsPanel({
                 id="appointmentBreaksEditSaveBtn"
                 className="header-btn"
                 type="button"
-                disabled={breaksMutating || !canUpdateAppointments || !editingBreakItem}
+                disabled={breaksMutating || !canUpdateCurrentPanel || !editingBreakItem}
                 onClick={() => {
                   if (editingBreakIndex >= 0) {
                     void saveEditedBreak(editingBreakIndex);
@@ -1641,7 +1645,7 @@ function AppointmentSettingsPanel({
               id="appointmentBreaksDeleteYesBtn"
               type="button"
               className="table-action-btn table-action-btn-danger"
-              disabled={breaksMutating || !canUpdateAppointments}
+              disabled={breaksMutating || !canDeleteCurrentPanel}
               onClick={() => {
                 void confirmDeleteBreak();
               }}
@@ -1719,7 +1723,7 @@ function AppointmentSettingsPanel({
                         <button
                           type="button"
                           className="table-action-btn"
-                          disabled={breaksMutating || !canUpdateAppointments}
+                          disabled={breaksMutating || !canUpdateCurrentPanel}
                           onClick={() => startBreakEdit(index)}
                         >
                           Edit
@@ -1729,7 +1733,7 @@ function AppointmentSettingsPanel({
                         <button
                           type="button"
                           className="table-action-btn table-action-btn-danger"
-                          disabled={breaksMutating || !canUpdateAppointments}
+                          disabled={breaksMutating || !canDeleteCurrentPanel}
                           onClick={() => openDeleteBreakModal(index)}
                         >
                           Delete

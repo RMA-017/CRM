@@ -112,3 +112,57 @@ test("my class permission unlocks my class without general appointments read", (
   assert.equal(access.canReadAppointments, false);
   assert.equal(access.canOpenAppointmentVipMyClass, true);
 });
+
+test("work schedule permissions are independent from appointment settings permissions", () => {
+  const access = readAccessSnapshot({
+    isAdmin: false,
+    isPlatformAdmin: false,
+    permissions: [
+      "appointments.work-schedule",
+      "appointments.work-schedule.read",
+      "appointments.work-schedule.update"
+    ],
+    orgFeatures: ["appointments.work_schedule"]
+  });
+
+  assert.equal(access.canOpenAppointmentWorkSchedule, true);
+  assert.equal(access.canCreateAppointmentWorkSchedule, false);
+  assert.equal(access.canUpdateAppointmentWorkSchedule, true);
+  assert.equal(access.canDeleteAppointmentWorkSchedule, false);
+  assert.equal(access.canOpenAppointmentSettings, false);
+});
+
+test("work schedule falls back to appointment settings permissions when explicit work schedule actions are absent", () => {
+  const access = readAccessSnapshot({
+    isAdmin: false,
+    isPlatformAdmin: false,
+    permissions: ["settings.appointments.read", "settings.appointments.update"],
+    orgFeatures: ["settings.appointments", "appointments.work_schedule"]
+  });
+
+  assert.equal(access.canOpenAppointmentWorkSchedule, true);
+  assert.equal(access.canCreateAppointmentWorkSchedule, true);
+  assert.equal(access.canUpdateAppointmentWorkSchedule, true);
+  assert.equal(access.canDeleteAppointmentWorkSchedule, true);
+});
+
+test("breaks permissions are independent from planner permissions", () => {
+  const access = readAccessSnapshot({
+    isAdmin: false,
+    isPlatformAdmin: false,
+    permissions: [
+      "appointments.breaks",
+      "appointments.breaks.read",
+      "appointments.breaks.create",
+      "appointments.breaks.delete"
+    ],
+    orgFeatures: ["appointments.breaks"]
+  });
+
+  assert.equal(access.canOpenAppointmentBreaks, true);
+  assert.equal(access.canReadAppointmentBreaks, true);
+  assert.equal(access.canCreateAppointmentBreaks, true);
+  assert.equal(access.canUpdateAppointmentBreaks, false);
+  assert.equal(access.canDeleteAppointmentBreaks, true);
+  assert.equal(access.canOpenAppointmentSchedule, false);
+});

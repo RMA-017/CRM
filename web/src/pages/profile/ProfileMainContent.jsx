@@ -146,8 +146,16 @@ function ProfileMainContent({
   openClientMedicalHistoryCreateModal,
   openClientMedicalHistoryDeleteModal,
   canCreateAppointments,
+  canReadAppointments,
   canUpdateAppointments,
+  canReadAppointmentBreaks,
+  canCreateAppointmentBreaks,
+  canUpdateAppointmentBreaks,
+  canDeleteAppointmentBreaks,
   canUpdateSettingsAppointments,
+  canCreateAppointmentWorkSchedule,
+  canUpdateAppointmentWorkSchedule,
+  canDeleteAppointmentWorkSchedule,
   canCreateSettingsAppointmentNorms,
   canUpdateSettingsAppointmentNorms,
   canDeleteSettingsAppointmentNorms,
@@ -903,6 +911,7 @@ function ProfileMainContent({
       {mainView === "appointment" && (
         <Suspense fallback={PANEL_LOADING_FALLBACK}>
           <AppointmentPlannerPanel
+            canReadAppointments={canReadAppointments}
             canCreateAppointments={canCreateAppointments}
             canUpdateAppointments={canUpdateAppointments}
             canDeleteAppointments={canDeleteAppointments}
@@ -929,7 +938,9 @@ function ProfileMainContent({
       {mainView === "appointment-work-schedule" && (
         <Suspense fallback={PANEL_LOADING_FALLBACK}>
           <WorkScheduleShellPanel
-            canUpdateSettingsAppointments={canUpdateSettingsAppointments}
+            canCreateAppointmentWorkSchedule={canCreateAppointmentWorkSchedule}
+            canUpdateAppointmentWorkSchedule={canUpdateAppointmentWorkSchedule}
+            canDeleteAppointmentWorkSchedule={canDeleteAppointmentWorkSchedule}
             profile={profile}
             workScheduleUserOverridesModalOpen={workScheduleUserOverridesModalOpen}
             setWorkScheduleUserOverridesModalOpen={setWorkScheduleUserOverridesModalOpen}
@@ -941,6 +952,7 @@ function ProfileMainContent({
       {mainView === "appointment-vip-schedule" && (
         <Suspense fallback={PANEL_LOADING_FALLBACK}>
           <VipSchedulePanel
+            canReadAppointments={canReadAppointments}
             canCreateAppointments={canCreateAppointments}
             canUpdateAppointments={canUpdateAppointments}
             canDeleteAppointments={canDeleteAppointments}
@@ -956,7 +968,10 @@ function ProfileMainContent({
       {mainView === "appointment-breaks" && (
         <Suspense fallback={PANEL_LOADING_FALLBACK}>
           <AppointmentBreaksShellPanel
-            canUpdateAppointments={canUpdateAppointments}
+            canReadAppointmentBreaks={canReadAppointmentBreaks}
+            canCreateAppointmentBreaks={canCreateAppointmentBreaks}
+            canUpdateAppointmentBreaks={canUpdateAppointmentBreaks}
+            canDeleteAppointmentBreaks={canDeleteAppointmentBreaks}
             organizations={organizations}
             profile={profile}
             closeAppointmentBreaksPanel={closeAppointmentBreaksPanel}

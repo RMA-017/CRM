@@ -29,7 +29,7 @@ export function registerAppointmentBreakRoutes(fastify, context) {
         const access = await requireAppointmentsAccess(
           request,
           reply,
-          PERMISSIONS.APPOINTMENTS_READ,
+          PERMISSIONS.APPOINTMENTS_BREAKS_READ,
           "appointments.breaks"
         );
         if (!access) {
@@ -71,7 +71,7 @@ export function registerAppointmentBreakRoutes(fastify, context) {
         const access = await requireAppointmentsAccess(
           request,
           reply,
-          PERMISSIONS.APPOINTMENTS_UPDATE,
+          PERMISSIONS.APPOINTMENTS_BREAKS_UPDATE,
           "appointments.breaks"
         );
         if (!access) {

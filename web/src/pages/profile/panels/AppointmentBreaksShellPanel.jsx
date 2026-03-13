@@ -1,7 +1,10 @@
 import AppointmentSettingsPanel from "../AppointmentSettingsPanel.jsx";
 
 function AppointmentBreaksShellPanel({
-  canUpdateAppointments,
+  canReadAppointmentBreaks,
+  canCreateAppointmentBreaks,
+  canUpdateAppointmentBreaks,
+  canDeleteAppointmentBreaks,
   organizations,
   profile,
   closeAppointmentBreaksPanel
@@ -13,14 +16,15 @@ function AppointmentBreaksShellPanel({
         <div className="all-users-head-actions">
           <button
             id="openAppointmentBreaksAddModalBtn"
-            type="button"
-            className="header-btn appointment-breaks-add-icon-btn"
-            aria-label="Add break"
-            title="Add break"
-            onClick={() => {
-              if (typeof document === "undefined") {
-                return;
-              }
+          type="button"
+          className="header-btn appointment-breaks-add-icon-btn"
+          aria-label="Add break"
+          title="Add break"
+          disabled={!canCreateAppointmentBreaks}
+          onClick={() => {
+            if (typeof document === "undefined") {
+              return;
+            }
               const addBtn = document.getElementById("appointmentBreaksAddBtn");
               addBtn?.click();
             }}
@@ -39,7 +43,10 @@ function AppointmentBreaksShellPanel({
         </div>
       </div>
       <AppointmentSettingsPanel
-        canUpdateAppointments={canUpdateAppointments}
+        canReadAppointmentBreaks={canReadAppointmentBreaks}
+        canCreateAppointmentBreaks={canCreateAppointmentBreaks}
+        canUpdateAppointmentBreaks={canUpdateAppointmentBreaks}
+        canDeleteAppointmentBreaks={canDeleteAppointmentBreaks}
         panelMode="breaks"
         organizations={organizations}
         profile={profile}

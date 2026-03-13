@@ -547,6 +547,7 @@ function buildTimeSlots({ visibleDays, workingHours, slotIntervalMinutes }) {
 }
 
 function AppointmentScheduler({
+  canReadAppointments = true,
   canCreateAppointments = true,
   canUpdateAppointments = true,
   canDeleteAppointments = true,
@@ -709,7 +710,7 @@ function AppointmentScheduler({
             method: "GET",
             cache: "no-store"
           }),
-          vipOnly
+          vipOnly && canReadAppointments
             ? apiFetch("/api/appointments/specialists", {
                 method: "GET",
                 cache: "no-store"
@@ -906,7 +907,7 @@ function AppointmentScheduler({
     return () => {
       active = false;
     };
-  }, [selectedSpecialistId, vipOnly]);
+  }, [canReadAppointments, selectedSpecialistId, vipOnly]);
 
   useEffect(() => {
     if (typeof window === "undefined") {

@@ -1,7 +1,9 @@
 import WorkSchedulePanel from "../WorkSchedulePanel.jsx";
 
 function WorkScheduleShellPanel({
-  canUpdateSettingsAppointments,
+  canCreateAppointmentWorkSchedule,
+  canUpdateAppointmentWorkSchedule,
+  canDeleteAppointmentWorkSchedule,
   profile,
   workScheduleUserOverridesModalOpen,
   setWorkScheduleUserOverridesModalOpen,
@@ -18,7 +20,7 @@ function WorkScheduleShellPanel({
             className="header-btn appointment-breaks-add-icon-btn"
             aria-label="Open user weekly overrides modal"
             title="User weekly overrides"
-            disabled={!canUpdateSettingsAppointments}
+            disabled={!canCreateAppointmentWorkSchedule}
             onClick={() => setWorkScheduleUserOverridesModalOpen(true)}
           >
             +
@@ -38,7 +40,9 @@ function WorkScheduleShellPanel({
         </div>
       </div>
       <WorkSchedulePanel
-        canUpdateAppointments={canUpdateSettingsAppointments}
+        canCreateWorkSchedule={canCreateAppointmentWorkSchedule}
+        canUpdateWorkSchedule={canUpdateAppointmentWorkSchedule}
+        canDeleteWorkSchedule={canDeleteAppointmentWorkSchedule}
         profile={profile}
         showDefaultWeekly={false}
         showUserWeeklyOverrides

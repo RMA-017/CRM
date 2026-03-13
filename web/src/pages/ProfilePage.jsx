@@ -86,7 +86,14 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenAppointmentSchedule,
     canOpenAppointmentVipMyClass,
     canOpenAppointmentBreaks,
+    canReadAppointmentBreaks,
+    canCreateAppointmentBreaks,
+    canUpdateAppointmentBreaks,
+    canDeleteAppointmentBreaks,
     canOpenAppointmentWorkSchedule,
+    canCreateAppointmentWorkSchedule,
+    canUpdateAppointmentWorkSchedule,
+    canDeleteAppointmentWorkSchedule,
     canOpenAppointmentVipClients,
     canOpenMyChildren,
     canOpenAppointmentVipDailyRoutines,
@@ -1376,8 +1383,13 @@ function ProfilePage({ forcedView = "none" }) {
           openClientMedicalHistoryModal={openClientMedicalHistoryModal}
           openClientMedicalHistoryCreateModal={openClientMedicalHistoryCreateModal}
           openClientMedicalHistoryDeleteModal={openClientMedicalHistoryDeleteModal}
+          canReadAppointments={canReadAppointments}
           canCreateAppointments={canCreateAppointments}
           canUpdateAppointments={canUpdateAppointments}
+          canReadAppointmentBreaks={canReadAppointmentBreaks}
+          canCreateAppointmentBreaks={canCreateAppointmentBreaks}
+          canUpdateAppointmentBreaks={canUpdateAppointmentBreaks}
+          canDeleteAppointmentBreaks={canDeleteAppointmentBreaks}
           canUpdateSettingsAppointments={canUpdateSettingsAppointments}
           canCreateSettingsAppointmentNorms={canCreateSettingsAppointmentNorms}
           canUpdateSettingsAppointmentNorms={canUpdateSettingsAppointmentNorms}
@@ -1628,8 +1640,11 @@ function ProfilePage({ forcedView = "none" }) {
             canOpenAppointmentSchedule={canOpenAppointmentSchedule}
             canOpenAppointmentVipMyClass={canOpenAppointmentVipMyClass}
             canOpenAppointmentBreaks={canOpenAppointmentBreaks}
-            canOpenAppointmentWorkSchedule={canOpenAppointmentWorkSchedule}
-            canOpenAppointmentVipClients={canOpenAppointmentVipClients}
+          canOpenAppointmentWorkSchedule={canOpenAppointmentWorkSchedule}
+          canCreateAppointmentWorkSchedule={canCreateAppointmentWorkSchedule}
+          canUpdateAppointmentWorkSchedule={canUpdateAppointmentWorkSchedule}
+          canDeleteAppointmentWorkSchedule={canDeleteAppointmentWorkSchedule}
+          canOpenAppointmentVipClients={canOpenAppointmentVipClients}
             canOpenMyChildren={canOpenMyChildren}
             canOpenAppointmentVipDailyRoutines={canOpenAppointmentVipDailyRoutines}
             canOpenAppointmentVipClassAssignments={canOpenAppointmentVipClassAssignments}

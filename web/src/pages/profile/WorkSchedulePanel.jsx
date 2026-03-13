@@ -90,6 +90,9 @@ function withDefaultWeeklyTimes(row, nextStartTime, nextEndTime) {
 
 function WorkSchedulePanel({
   canUpdateAppointments = true,
+  canCreateWorkSchedule = true,
+  canUpdateWorkSchedule = true,
+  canDeleteWorkSchedule = true,
   profile = null,
   organizationId = "",
   showDefaultWeekly = true,
@@ -180,6 +183,9 @@ function WorkSchedulePanel({
   ), [weeklyItems, weeklyUserId]);
   const weeklyMaxDraftLines = Math.max(1, DAYS.length - weeklyExistingDayCount);
   const isEditingWeeklyOverride = Boolean(String(weeklyEditId || "").trim());
+  const canMutateWeeklyOverride = isEditingWeeklyOverride
+    ? canUpdateWorkSchedule
+    : canCreateWorkSchedule;
 
   const loadData = useCallback(async () => {
     if (!currentOrganizationId) {
@@ -266,7 +272,7 @@ function WorkSchedulePanel({
   }, [closeWeeklyOverridesModal, isWeeklyOverridesModalOpen, mutating]);
 
   async function saveWeeklyOverride() {
-    if (!canUpdateAppointments || !currentOrganizationId || !weeklyUserId) {
+    if (!canMutateWeeklyOverride || !currentOrganizationId || !weeklyUserId) {
       return;
     }
 
@@ -407,7 +413,7 @@ function WorkSchedulePanel({
   }
 
   function openWeeklyDeleteModal(item) {
-    if (!canUpdateAppointments) {
+    if (!canDeleteWorkSchedule) {
       return;
     }
     const id = String(item?.id || "").trim();
@@ -435,7 +441,7 @@ function WorkSchedulePanel({
 
   async function handleWeeklyDeleteConfirm() {
     const id = String(weeklyDelete.id || "").trim();
-    if (!canUpdateAppointments || !currentOrganizationId || !id) {
+    if (!canDeleteWorkSchedule || !currentOrganizationId || !id) {
       return;
     }
 
@@ -588,7 +594,7 @@ function WorkSchedulePanel({
                         placeholder={weeklyUserOptions.length > 0 ? "Select user" : "No users"}
                         value={weeklyUserId}
                         options={weeklyUserOptions}
-                        disabled={!canUpdateAppointments || weeklyUserOptions.length === 0 || mutating}
+                        disabled={!canUpdateWorkSchedule || weeklyUserOptions.length === 0 || mutating}
                         menuPortal
                         forceOpenDown
                         maxVisibleOptions={6}
@@ -605,7 +611,7 @@ function WorkSchedulePanel({
                         placeholder="Day"
                         value={weeklyForm.dayOfWeek}
                         options={weeklyDayOptions}
-                        disabled={!canUpdateAppointments || mutating}
+                        disabled={!canUpdateWorkSchedule || mutating}
                         menuPortal
                         forceOpenDown
                         maxVisibleOptions={7}
@@ -617,7 +623,7 @@ function WorkSchedulePanel({
                       <input
                         type="time"
                         value={weeklyForm.startTime}
-                        disabled={!canUpdateAppointments || mutating}
+                        disabled={!canUpdateWorkSchedule || mutating}
                         onChange={(event) => setWeeklyForm((prev) => ({ ...prev, startTime: String(event.target.value || "") }))}
                       />
                     </label>
@@ -626,7 +632,7 @@ function WorkSchedulePanel({
                       <input
                         type="time"
                         value={weeklyForm.endTime}
-                        disabled={!canUpdateAppointments || mutating}
+                        disabled={!canUpdateWorkSchedule || mutating}
                         onChange={(event) => setWeeklyForm((prev) => ({ ...prev, endTime: String(event.target.value || "") }))}
                       />
                     </label>
@@ -636,7 +642,7 @@ function WorkSchedulePanel({
                         type="text"
                         maxLength={120}
                         value={weeklyForm.reason}
-                        disabled={!canUpdateAppointments || mutating}
+                        disabled={!canUpdateWorkSchedule || mutating}
                         onChange={(event) => setWeeklyForm((prev) => ({ ...prev, reason: String(event.target.value || "") }))}
                       />
                     </label>
@@ -653,7 +659,7 @@ function WorkSchedulePanel({
                           placeholder={weeklyUserOptions.length > 0 ? "Select user" : "No users"}
                           value={weeklyUserId}
                           options={weeklyUserOptions}
-                          disabled={!canUpdateAppointments || weeklyUserOptions.length === 0 || mutating}
+                          disabled={!canCreateWorkSchedule || weeklyUserOptions.length === 0 || mutating}
                           menuPortal
                           forceOpenDown
                           maxVisibleOptions={6}
@@ -663,7 +669,7 @@ function WorkSchedulePanel({
                           id="addWorkScheduleUserOverridesDraftLineBtn"
                           className="header-btn appointment-breaks-inline-add-btn"
                           type="button"
-                          disabled={!canUpdateAppointments || !weeklyUserId || mutating || weeklyDraftLines.length >= weeklyMaxDraftLines}
+                          disabled={!canCreateWorkSchedule || !weeklyUserId || mutating || weeklyDraftLines.length >= weeklyMaxDraftLines}
                           onClick={() => addWeeklyDraftLine(weeklyDraftLines.length - 1)}
                         >
                           Add
@@ -684,7 +690,7 @@ function WorkSchedulePanel({
                             placeholder="Day"
                             value={String(line.dayOfWeek || "")}
                             options={weeklyDayOptions}
-                            disabled={!canUpdateAppointments || mutating}
+                            disabled={!canCreateWorkSchedule || mutating}
                             menuPortal
                             forceOpenDown
                             maxVisibleOptions={7}
@@ -697,7 +703,7 @@ function WorkSchedulePanel({
                             id={`workScheduleUserOverridesStart_${lineIndex}`}
                             type="time"
                             value={String(line.startTime || "")}
-                            disabled={!canUpdateAppointments || mutating}
+                            disabled={!canCreateWorkSchedule || mutating}
                             onChange={(event) => handleWeeklyDraftLineField(lineIndex, "startTime", String(event.target.value || ""))}
                           />
                         </label>
@@ -707,7 +713,7 @@ function WorkSchedulePanel({
                             id={`workScheduleUserOverridesEnd_${lineIndex}`}
                             type="time"
                             value={String(line.endTime || "")}
-                            disabled={!canUpdateAppointments || mutating}
+                            disabled={!canCreateWorkSchedule || mutating}
                             onChange={(event) => handleWeeklyDraftLineField(lineIndex, "endTime", String(event.target.value || ""))}
                           />
                         </label>
@@ -718,7 +724,7 @@ function WorkSchedulePanel({
                             type="text"
                             maxLength={120}
                             value={String(line.reason || "")}
-                            disabled={!canUpdateAppointments || mutating}
+                            disabled={!canCreateWorkSchedule || mutating}
                             onChange={(event) => handleWeeklyDraftLineField(lineIndex, "reason", String(event.target.value || ""))}
                           />
                         </label>
@@ -727,7 +733,7 @@ function WorkSchedulePanel({
                             id={`deleteWorkScheduleUserOverridesDraftLineBtn_${lineIndex}`}
                             className="table-action-btn table-action-btn-danger"
                             type="button"
-                            disabled={!canUpdateAppointments || mutating || weeklyDraftLines.length <= 1}
+                            disabled={!canCreateWorkSchedule || mutating || weeklyDraftLines.length <= 1}
                             onClick={() => deleteWeeklyDraftLine(lineIndex)}
                           >
                             Delete
@@ -745,7 +751,7 @@ function WorkSchedulePanel({
                 id="saveWorkScheduleUserOverridesModalBtn"
                 type="submit"
                 className="header-btn"
-                disabled={!canUpdateAppointments || !weeklyUserId || mutating}
+                disabled={!canMutateWeeklyOverride || !weeklyUserId || mutating}
               >
                 {mutating ? "Saving..." : (weeklyEditId ? "Update" : "Save")}
               </button>
@@ -866,7 +872,7 @@ function WorkSchedulePanel({
                 className="header-btn appointment-breaks-add-icon-btn"
                 aria-label="Open add work days modal"
                 title="Add Work Days"
-                disabled={!canUpdateAppointments}
+                disabled={!canCreateWorkSchedule}
                 onClick={openWeeklyOverridesModal}
               >
                 +
@@ -899,7 +905,7 @@ function WorkSchedulePanel({
                       <button
                         type="button"
                         className="table-action-btn"
-                        disabled={!canUpdateAppointments || mutating}
+                        disabled={!canUpdateWorkSchedule || mutating}
                         onClick={() => {
                           setWeeklyEditId(String(item.id || "").trim());
                           setWeeklyUserId(String(item.userId || "").trim());
@@ -919,7 +925,7 @@ function WorkSchedulePanel({
                       <button
                         type="button"
                         className="table-action-btn table-action-btn-danger"
-                        disabled={!canUpdateAppointments || mutating}
+                        disabled={!canDeleteWorkSchedule || mutating}
                         onClick={() => openWeeklyDeleteModal(item)}
                       >
                         Delete
