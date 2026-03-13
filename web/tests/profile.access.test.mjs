@@ -100,3 +100,15 @@ test("plain clients read does not unlock vip clients menus", () => {
   assert.equal(access.canOpenMyChildren, false);
   assert.equal(access.canOpenAppointmentVipDailyRoutines, false);
 });
+
+test("my class permission unlocks my class without general appointments read", () => {
+  const access = readAccessSnapshot({
+    isAdmin: false,
+    isPlatformAdmin: false,
+    permissions: ["appointments.vip-clients.my-class"],
+    orgFeatures: ["vip_clients.my_class"]
+  });
+
+  assert.equal(access.canReadAppointments, false);
+  assert.equal(access.canOpenAppointmentVipMyClass, true);
+});

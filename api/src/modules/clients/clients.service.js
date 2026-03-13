@@ -2484,11 +2484,10 @@ export async function deleteClientMedicalHistoryEntry({
       WHERE h.organization_id = $1
         AND h.client_id = $2
         AND h.id = $3
-        AND ($4::boolean = TRUE OR h.author_user_id = $5::integer)
       RETURNING
         h.id::text AS id,
         h.client_id::text AS client_id`,
-    [organizationId, clientId, entryId, Boolean(isAdmin), deletedBy || null]
+    [organizationId, clientId, entryId]
   );
 
   return rows[0] || null;

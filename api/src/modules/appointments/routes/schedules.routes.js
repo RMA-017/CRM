@@ -255,17 +255,22 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         ) === true;
         const isMyChildrenScheduleRequest = vipOnly && !requestedSpecialistId && !classId;
 
-        const [rawCanReadAppointments, rawCanAccessMyChildren] = await Promise.all([
+        const [rawCanReadAppointments, rawCanAccessMyChildren, rawCanAccessMyClass] = await Promise.all([
           hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_READ),
           isMyChildrenScheduleRequest
             ? hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN)
+            : Promise.resolve(false),
+          vipOnly && classId > 0
+            ? hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS)
             : Promise.resolve(false)
         ]);
         const canReadAppointments = requesterHasOrgFeature(requester, "appointments.planner")
           && rawCanReadAppointments;
         const canAccessMyChildren = requesterHasOrgFeature(requester, "vip_clients.my_children")
           && rawCanAccessMyChildren;
-        if (!canReadAppointments && !canAccessMyChildren) {
+        const canAccessMyClass = requesterHasOrgFeature(requester, "vip_clients.my_class")
+          && rawCanAccessMyClass;
+        if (!canReadAppointments && !canAccessMyChildren && !canAccessMyClass) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 

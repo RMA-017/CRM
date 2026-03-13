@@ -209,6 +209,12 @@ export function useClientsSection({
   const hasMedicalHistoryDeleteAccess = canDeleteClientMedicalHistory || isAdmin || isPlatformAdmin;
   const hasMedicalHistoryBulkDeleteAccess = isAdmin || isPlatformAdmin;
 
+  const showClientMedicalHistoryAlert = useCallback((message) => {
+    if (typeof window !== "undefined" && message) {
+      window.alert(message);
+    }
+  }, []);
+
   useEffect(() => {
     clientsSearchRef.current = clientsSearch;
   }, [clientsSearch]);
@@ -1170,13 +1176,13 @@ export function useClientsSection({
 
   const openClientMedicalHistoryDeleteModal = useCallback(async (item) => {
     if (!hasMedicalHistoryDeleteAccess) {
-      setClientMedicalHistoryMessage("You do not have permission to delete medical history.");
+      showClientMedicalHistoryAlert("You do not have permission to delete medical history.");
       return false;
     }
 
     const deleteAll = item?.deleteAll === true;
     if (deleteAll && !hasMedicalHistoryBulkDeleteAccess) {
-      setClientMedicalHistoryMessage("Only admins can delete all client medical history.");
+      showClientMedicalHistoryAlert("Only admins can delete all client medical history.");
       return false;
     }
     const clientId = String(
@@ -1267,7 +1273,8 @@ export function useClientsSection({
     hasMedicalHistoryBulkDeleteAccess,
     hasMedicalHistoryDeleteAccess,
     hasMedicalHistoryReadAccess,
-    navigate
+    navigate,
+    showClientMedicalHistoryAlert
   ]);
 
   const handleClientMedicalHistorySubmit = useCallback(async (event) => {
@@ -1387,7 +1394,7 @@ export function useClientsSection({
 
   const deleteClientMedicalHistoryItem = useCallback(async (item) => {
     if (!hasMedicalHistoryDeleteAccess) {
-      setClientMedicalHistoryMessage("You do not have permission to delete medical history.");
+      showClientMedicalHistoryAlert("You do not have permission to delete medical history.");
       return false;
     }
 
@@ -1455,12 +1462,13 @@ export function useClientsSection({
     hasMedicalHistoryDeleteAccess,
     navigate,
     reloadCurrentClientsView,
-    resetClientMedicalHistoryForm
+    resetClientMedicalHistoryForm,
+    showClientMedicalHistoryAlert
   ]);
 
   const deleteAllClientMedicalHistoryItems = useCallback(async (item) => {
     if (!hasMedicalHistoryBulkDeleteAccess) {
-      setClientMedicalHistoryMessage("Only admins can delete all client medical history.");
+      showClientMedicalHistoryAlert("Only admins can delete all client medical history.");
       return false;
     }
 
@@ -1518,15 +1526,13 @@ export function useClientsSection({
     hasMedicalHistoryBulkDeleteAccess,
     navigate,
     reloadCurrentClientsView,
-    resetClientMedicalHistoryForm
+    resetClientMedicalHistoryForm,
+    showClientMedicalHistoryAlert
   ]);
 
   const handleClientMedicalHistoryDeleteConfirm = useCallback(async () => {
     if (!hasMedicalHistoryDeleteAccess) {
-      setClientMedicalHistoryDelete((prev) => ({
-        ...prev,
-        error: "You do not have permission to delete medical history."
-      }));
+      showClientMedicalHistoryAlert("You do not have permission to delete medical history.");
       return false;
     }
 
@@ -1534,10 +1540,7 @@ export function useClientsSection({
     const entryId = String(clientMedicalHistoryDelete.entryId || "").trim();
     const deleteAll = clientMedicalHistoryDelete.deleteAll === true;
     if (deleteAll && !hasMedicalHistoryBulkDeleteAccess) {
-      setClientMedicalHistoryDelete((prev) => ({
-        ...prev,
-        error: "Only admins can delete all client medical history."
-      }));
+      showClientMedicalHistoryAlert("Only admins can delete all client medical history.");
       return false;
     }
     if (!clientId || (!deleteAll && !entryId)) {
@@ -1587,7 +1590,8 @@ export function useClientsSection({
     deleteAllClientMedicalHistoryItems,
     deleteClientMedicalHistoryItem,
     hasMedicalHistoryBulkDeleteAccess,
-    hasMedicalHistoryDeleteAccess
+    hasMedicalHistoryDeleteAccess,
+    showClientMedicalHistoryAlert
   ]);
 
   return {

@@ -142,6 +142,7 @@ function createScheduleContext(overrides = {}) {
       APPOINTMENTS_UPDATE: "appointments.update",
       APPOINTMENTS_DELETE: "appointments.delete",
       APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip-clients.my-children",
+      APPOINTMENTS_VIP_CLIENTS_MY_CLASS: "appointments.vip-clients.my-class",
       APPOINTMENTS_STATISTICS_PLANNER_REPORT: "appointments.statistics.planner-report"
     },
     parsePositiveIntegerOr,
@@ -259,6 +260,45 @@ test("specialists reference endpoint scopes specialist users to their own record
 
   assert.equal(reply.state.statusCode, 200);
   assert.deepEqual(reply.state.payload?.items, [{ id: "7", name: "Teacher One" }]);
+});
+
+test("vip schedules read allows my class permission without general appointments read", async () => {
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      hasPermission: async (_roleId, permission) => permission === "appointments.vip-clients.my-class",
+      getAppointmentSchedulesByRange: async () => [
+        {
+          id: "91",
+          specialistId: "7",
+          clientId: "44",
+          appointmentDate: "2026-03-09",
+          startTime: "10:00",
+          endTime: "11:00",
+          durationMinutes: "60",
+          status: "pending"
+        }
+      ]
+    })
+  );
+
+  const route = findRoute(recorder.routes, "GET", "/schedules");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler({
+    ...createAccessRequest({ features: ["vip_clients.my_class"] }),
+    query: {
+      dateFrom: "2026-03-09",
+      dateTo: "2026-03-09",
+      classId: "10",
+      vipOnly: "true"
+    }
+  }, reply);
+
+  assert.equal(reply.state.statusCode, 200);
+  assert.equal(reply.state.payload?.items?.[0]?.id, "91");
 });
 
 test("client no-show summary blocks assigned-scope access to unassigned VIP clients", async () => {

@@ -218,9 +218,7 @@ export function useProfileAccess(profile, forcedView) {
   const canUpdateAppointmentVipClients = canUpdateVipClientsPermission;
   const canDeleteAppointmentVipClients = canDeleteVipClientsPermission;
   const canOpenAppointmentVipClients = hasOrgFeature("vip_clients.attendance") && canReadVipClientsPermission;
-  const canOpenAppointmentVipMyClass = hasOrgFeature("vip_clients.my_class") && (
-    canReadAppointments && canMyClassPermission
-  );
+  const canOpenAppointmentVipMyClass = hasOrgFeature("vip_clients.my_class") && canMyClassPermission;
   const canOpenMyChildren = hasOrgFeature("vip_clients.my_children") && canMyChildrenPermission;
   const canOpenAppointmentVipDailyRoutines = (
     hasOrgFeature("vip_clients.daily_routines")

@@ -1409,7 +1409,6 @@ async function clientsRoutes(fastify) {
           getVipClientsPermissionSnapshot(requester.role_id)
         ]);
         const canAccessMyClass = hasMyClassFeature
-          && canReadAppointments
           && vipPermissions.canAccessMyClass;
         const canReadAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
           ? (assignmentsPermissions.canReadAssignments || canAccessMyClass)

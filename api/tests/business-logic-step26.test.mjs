@@ -10,7 +10,10 @@ const accessModule = await import("../src/modules/users/access.service.js");
 
 const pool = poolModule.default;
 const clientsRoutes = clientsRoutesModule.default;
-const { resetClientsServiceSchemaCacheForTests } = clientsServiceModule;
+const {
+  deleteClientMedicalHistoryEntry,
+  resetClientsServiceSchemaCacheForTests
+} = clientsServiceModule;
 const { clearRolePermissionsCache } = accessModule;
 
 function stubPoolQuery(implementation) {
@@ -606,6 +609,48 @@ test("vip client search rejects plain clients read without vip permission", asyn
   }
 });
 
+test("medical history single delete does not require author match when delete permission already passed", async () => {
+  resetClientsServiceSchemaCacheForTests();
+  let capturedQuery = "";
+  let capturedParams = null;
+  const restoreQuery = stubPoolQuery(async (sql, params = []) => {
+    const queryText = String(sql || "");
+
+    if (queryText.includes("FROM information_schema.tables")) {
+      return {
+        rows: [{ table_name: "client_medical_history_entries" }]
+      };
+    }
+
+    if (queryText.includes("DELETE FROM client_medical_history_entries h")) {
+      capturedQuery = queryText;
+      capturedParams = params;
+      return {
+        rows: [{ id: "15", client_id: "9" }]
+      };
+    }
+
+    throw new Error(`Unexpected query in test: ${queryText}`);
+  });
+
+  try {
+    const item = await deleteClientMedicalHistoryEntry({
+      organizationId: 3,
+      clientId: 9,
+      entryId: 15,
+      deletedBy: 44,
+      isAdmin: false
+    });
+
+    assert.deepEqual(item, { id: "15", client_id: "9" });
+    assert.equal(capturedQuery.includes("author_user_id"), false);
+    assert.deepEqual(capturedParams, [3, 9, 15]);
+  } finally {
+    resetClientsServiceSchemaCacheForTests();
+    restoreQuery();
+  }
+});
+
 test("clients list still works when medical history schema is missing and no history filters are used", async () => {
   const recorder = createRouteRecorder();
   await clientsRoutes(recorder.fastify);
@@ -1029,7 +1074,6 @@ test("vip tutor assignments endpoint allows my class access without tutor assign
     if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
       return {
         rows: [
-          { code: "appointments.read" },
           { code: "appointments.vip-clients.my-class" }
         ]
       };
