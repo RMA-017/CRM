@@ -236,7 +236,7 @@ export async function getUserScopeById(userId) {
        COALESCE(u.is_platform_admin, FALSE) AS is_platform_admin
       FROM users u
       LEFT JOIN role_options r ON r.id = u.role_id
-      WHERE id = $1
+      WHERE u.id = $1
       LIMIT 1`,
     [userId]
   );

@@ -155,15 +155,34 @@ export function useAllUsersSection({
     }
 
     const payload = {
-      organizationCode: String(allUsersEdit.form.organizationCode || "").trim().toLowerCase(),
-      email: String(allUsersEdit.form.email || "").trim(),
       fullName: String(allUsersEdit.form.fullName || "").trim(),
-      birthday: String(allUsersEdit.form.birthday || "").trim(),
-      phone: String(allUsersEdit.form.phone || "").trim(),
-      position: String(allUsersEdit.form.position || "").trim(),
-      role: String(allUsersEdit.form.role || "").trim(),
-      ...(allUsersEdit.form.password ? { password: String(allUsersEdit.form.password) } : {})
+      role: String(allUsersEdit.form.role || "").trim()
     };
+    const organizationCode = String(allUsersEdit.form.organizationCode || "").trim().toLowerCase();
+    const email = String(allUsersEdit.form.email || "").trim();
+    const birthday = String(allUsersEdit.form.birthday || "").trim();
+    const phone = String(allUsersEdit.form.phone || "").trim();
+    const position = String(allUsersEdit.form.position || "").trim();
+    const password = String(allUsersEdit.form.password || "");
+
+    if (organizationCode) {
+      payload.organizationCode = organizationCode;
+    }
+    if (email) {
+      payload.email = email;
+    }
+    if (birthday) {
+      payload.birthday = birthday;
+    }
+    if (phone) {
+      payload.phone = phone;
+    }
+    if (position) {
+      payload.position = position;
+    }
+    if (password) {
+      payload.password = password;
+    }
 
     const birthdayError = getBirthdayValidationMessage(payload.birthday);
     if (birthdayError) {

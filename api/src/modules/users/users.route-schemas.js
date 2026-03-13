@@ -8,6 +8,20 @@ import {
   usernameSchema
 } from "../../lib/route-schemas.js";
 
+const blankStringSchema = Object.freeze({
+  type: "string",
+  maxLength: 0
+});
+
+function allowBlank(schema) {
+  return {
+    anyOf: [
+      schema,
+      blankStringSchema
+    ]
+  };
+}
+
 export const usersRouteSchemas = Object.freeze({
   listQuery: {
     type: "object",
@@ -46,17 +60,17 @@ export const usersRouteSchemas = Object.freeze({
     type: "object",
     additionalProperties: true,
     properties: {
-      email: emailSchema,
+      email: allowBlank(emailSchema),
       fullName: {
         type: "string",
         minLength: 1,
         maxLength: 64
       },
-      birthday: dateYmdSchema,
-      phone: phoneSchema,
-      position: positiveIntegerLikeSchema,
+      birthday: allowBlank(dateYmdSchema),
+      phone: allowBlank(phoneSchema),
+      position: allowBlank(positiveIntegerLikeSchema),
       role: positiveIntegerLikeSchema,
-      organizationCode: organizationCodeSchema,
+      organizationCode: allowBlank(organizationCodeSchema),
       password: {
         type: "string",
         minLength: 0,

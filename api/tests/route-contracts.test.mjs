@@ -15,6 +15,7 @@ const {
   __notificationsRouteContracts
 } = await import("../src/modules/notifications/notifications.routes.js");
 const { default: profileRoutes } = await import("../src/modules/profile/profile.routes.js");
+const { usersRouteSchemas } = await import("../src/modules/users/users.route-schemas.js");
 const {
   default: settingsRoutes,
   __settingsRouteContracts
@@ -303,6 +304,16 @@ test("users routes expose stable contract", async () => {
 
   const usersDelete = findRoute(recorder.routes, "DELETE", "/:id");
   assert.equal(typeof usersDelete?.options?.schema?.params, "object");
+});
+
+test("users update schema accepts blank optional edit fields", () => {
+  const updateBody = usersRouteSchemas.updateBody;
+
+  assert.equal(updateBody.properties.email.anyOf[1].maxLength, 0);
+  assert.equal(updateBody.properties.birthday.anyOf[1].maxLength, 0);
+  assert.equal(updateBody.properties.phone.anyOf[1].maxLength, 0);
+  assert.equal(updateBody.properties.position.anyOf[1].maxLength, 0);
+  assert.equal(updateBody.properties.organizationCode.anyOf[1].maxLength, 0);
 });
 
 test("notifications contract helpers normalize paging and targets", () => {

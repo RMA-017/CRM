@@ -13,7 +13,7 @@ const accessModule = await import("../src/modules/users/access.service.js");
 const pool = poolModule.default;
 const createUserRoutes = createUserRoutesModule.default;
 const usersRoutes = usersRoutesModule.default;
-const { updateUserByAdmin } = usersServiceModule;
+const { getUserScopeById, updateUserByAdmin } = usersServiceModule;
 const settingsRoutes = settingsRoutesModule.default;
 const { clearRolePermissionsCache } = accessModule;
 
@@ -477,6 +477,32 @@ test("users update preserves legacy username when edit keeps the same value", as
     assert.equal(user?.username, "LegacyUser");
   } finally {
     restoreConnect();
+  }
+});
+
+test("getUserScopeById queries users id without ambiguous column reference", async () => {
+  const restoreQuery = stubPoolQuery(async (sql, params = []) => {
+    const queryText = String(sql || "");
+
+    assert.match(queryText, /WHERE u\.id = \$1/);
+    assert.equal(params[0], 9);
+
+    return {
+      rows: [{
+        id: "9",
+        organization_id: "3",
+        role_id: "22",
+        is_admin: false,
+        is_platform_admin: false
+      }]
+    };
+  });
+
+  try {
+    const user = await getUserScopeById(9);
+    assert.equal(user?.id, "9");
+  } finally {
+    restoreQuery();
   }
 });
 
