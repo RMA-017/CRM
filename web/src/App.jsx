@@ -67,9 +67,9 @@ function App() {
       <Route path="/settings/roles" element={<ProfilePage forcedView="settings-roles" />} />
       <Route path="/settings/positions" element={<ProfilePage forcedView="settings-positions" />} />
       <Route path="/settings/appointment-norms" element={<ProfilePage forcedView="settings-appointment-norms" />} />
-      <Route path="/settings/notification" element={<Navigate to="/settings/appointments" replace />} />
-      <Route path="/settings/notification-settings" element={<Navigate to="/settings/appointments" replace />} />
-      <Route path="/settings/notifications" element={<Navigate to="/settings/appointments" replace />} />
+      <Route path="/settings/notification" element={<Navigate to="/notifications" replace />} />
+      <Route path="/settings/notification-settings" element={<Navigate to="/notifications" replace />} />
+      <Route path="/settings/notifications" element={<Navigate to="/notifications" replace />} />
       <Route path="/notifications" element={<ProfilePage forcedView="notifications-send" />} />
       <Route path="/admin-settings/monitoring" element={<ProfilePage forcedView="settings-monitoring" />} />
       <Route path="/settings/organizations" element={<Navigate to="/admin-settings/organizations" replace />} />
@@ -113,9 +113,9 @@ function App() {
       <Route path="/profile/settings/appointments" element={<Navigate to="/settings/appointments" replace />} />
       <Route path="/profile/settings/roles" element={<Navigate to="/settings/roles" replace />} />
       <Route path="/profile/settings/positions" element={<Navigate to="/settings/positions" replace />} />
-      <Route path="/profile/settings/notification" element={<Navigate to="/settings/appointments" replace />} />
-      <Route path="/profile/settings/notification-settings" element={<Navigate to="/settings/appointments" replace />} />
-      <Route path="/profile/settings/notifications" element={<Navigate to="/settings/appointments" replace />} />
+      <Route path="/profile/settings/notification" element={<Navigate to="/notifications" replace />} />
+      <Route path="/profile/settings/notification-settings" element={<Navigate to="/notifications" replace />} />
+      <Route path="/profile/settings/notifications" element={<Navigate to="/notifications" replace />} />
       <Route path="/profile/notifications" element={<Navigate to="/notifications" replace />} />
       <Route path="/profile/settings/monitoring" element={<Navigate to="/admin-settings/monitoring" replace />} />
       <Route path="/home" element={<Navigate to="/" replace />} />

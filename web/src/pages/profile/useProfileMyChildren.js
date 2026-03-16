@@ -356,8 +356,11 @@ export function useProfileMyChildren({
   }, [todayYmd]);
 
   useEffect(() => {
+    if (!profileUsername || mainView !== "appointment-vip-my-children") {
+      return;
+    }
     void loadMyChildrenVisibleWeekDays();
-  }, [loadMyChildrenVisibleWeekDays]);
+  }, [loadMyChildrenVisibleWeekDays, mainView, profileUsername]);
 
   return {
     myChildrenIsCompact,

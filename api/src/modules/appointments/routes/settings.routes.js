@@ -233,17 +233,25 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
     const roleId = requester.role_id;
     if (action === "read") {
       const [
+        canReadPlanner,
         canAccessMyClass,
         canAccessMyChildren,
         canReadSettingsPanel
       ] = await Promise.all([
+        hasPermission(roleId, PERMISSIONS.APPOINTMENTS_PLANNER_READ),
         hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS),
         hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN),
         hasPermission(roleId, PERMISSIONS.SETTINGS_APPOINTMENTS_READ)
       ]);
+      const canUsePlanner = canReadPlanner
+        && requesterHasOrgFeature(requester, "appointments.planner");
+      const canUseMyClass = canAccessMyClass
+        && requesterHasOrgFeature(requester, "vip_clients.my_class");
+      const canUseMyChildren = canAccessMyChildren
+        && requesterHasOrgFeature(requester, "vip_clients.my_children");
       const canUseSettingsPanel = canReadSettingsPanel
         && requesterHasOrgFeature(requester, "settings.appointments");
-      if (!canAccessMyClass && !canAccessMyChildren && !canUseSettingsPanel) {
+      if (!canUsePlanner && !canUseMyClass && !canUseMyChildren && !canUseSettingsPanel) {
         reply.status(403).send({ message: "Forbidden." });
         return null;
       }
@@ -323,7 +331,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
       setNoCacheHeaders(reply);
 
       try {
-        const access = await requireAppointmentWorkScheduleAccess(request, reply, "read");
+        const access = await requireAppointmentSettingsAccess(request, reply, "read");
         if (!access) {
           return;
         }
@@ -395,7 +403,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
     },
     async (request, reply) => {
       try {
-        const access = await requireAppointmentWorkScheduleAccess(request, reply, "create");
+        const access = await requireAppointmentSettingsAccess(request, reply, "update");
         if (!access) {
           return;
         }

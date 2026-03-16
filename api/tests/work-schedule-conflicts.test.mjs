@@ -669,6 +669,243 @@ test("work-schedule routes do not inherit appointment settings permissions for n
   assert.equal(deniedCreateReply.state.statusCode, 403);
 });
 
+test("appointment settings read allows my-children users without work-schedule permissions", async () => {
+  const recorder = createRouteRecorder();
+  const permissionSet = new Set([
+    "appointments.vip.my-children"
+  ]);
+  const restoreQuery = stubPoolQuery(async (sql) => {
+    const queryText = String(sql || "");
+    if (queryText.includes("FROM information_schema.columns")) {
+      return { rows: [] };
+    }
+    throw new Error(`Unexpected SQL: ${queryText}`);
+  });
+
+  registerAppointmentSettingsConfigRoutes(recorder.fastify, {
+    setNoCacheHeaders() {},
+    requesterHasOrgFeature(requester, featureKey) {
+      const enabledFeatures = new Set(requester?.orgFeatures || []);
+      return enabledFeatures.has(featureKey);
+    },
+    hasPermission: async (_roleId, permissionCode) => permissionSet.has(permissionCode),
+    PERMISSIONS: {
+      APPOINTMENTS_PLANNER_READ: "appointments.planner.read",
+      APPOINTMENTS_VIP_CLIENTS_MY_CLASS: "appointments.vip.my-class",
+      APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip.my-children",
+      SETTINGS_APPOINTMENTS_READ: "settings.appointments.read",
+      SETTINGS_APPOINTMENTS_UPDATE: "settings.appointments.update",
+      APPOINTMENTS_WORK_SCHEDULE_READ: "appointments.work-schedule.read",
+      APPOINTMENTS_WORK_SCHEDULE_CREATE: "appointments.work-schedule.create",
+      APPOINTMENTS_WORK_SCHEDULE_UPDATE: "appointments.work-schedule.update",
+      APPOINTMENTS_WORK_SCHEDULE_DELETE: "appointments.work-schedule.delete"
+    },
+    DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS: 10,
+    DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX: 18,
+    parseOptionalOrganizationId(value) {
+      const parsed = Number.parseInt(String(value || "").trim(), 10);
+      return {
+        value: Number.isInteger(parsed) && parsed > 0 ? parsed : null,
+        error: null
+      };
+    },
+    resolveTargetOrganizationId(access, requestedOrganizationId) {
+      return requestedOrganizationId || access?.authContext?.organizationId || null;
+    },
+    parsePositiveIntegerOr(value, fallback = 0) {
+      const parsed = Number.parseInt(String(value || "").trim(), 10);
+      return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+    },
+    resolveOwnAppointmentSpecialistUserId() {
+      return null;
+    },
+    toAppointmentDayNum(value) {
+      return {
+        mon: 1,
+        tue: 2,
+        wed: 3,
+        thu: 4,
+        fri: 5,
+        sat: 6,
+        sun: 7
+      }[String(value || "").trim().toLowerCase()] || 0;
+    },
+    normalizeDurationOptions() {
+      return [];
+    },
+    normalizeReminderChannels() {
+      return [];
+    },
+    normalizeVisibleWeekDays() {
+      return [];
+    },
+    validateSettingsPayload() {
+      return null;
+    },
+    getAppointmentSettingsByOrganization: async () => ({ visibleWeekDays: [1, 2, 3, 4, 5] }),
+    saveAppointmentSettings: async () => ({}),
+    withAppointmentTransaction: async (callback) => callback({
+      query: async () => ({ rows: [], rowCount: 0 })
+    }),
+    listAppointmentWorkSchedule: async () => [],
+    listAppointmentWorkScheduleStaffByOrganization: async () => [],
+    createAppointmentWorkScheduleEntry: async () => ({ id: 99 }),
+    updateAppointmentWorkScheduleEntryById: async () => null,
+    deleteAppointmentWorkScheduleEntryById: async () => ({ rowCount: 0 }),
+    replaceAppointmentDefaultWeeklyWorkSchedule: async () => []
+  });
+
+  try {
+    const readRoute = recorder.routes.find((item) => item.method === "GET" && item.path === "/settings");
+    const reply = createReplyRecorder();
+    await readRoute.handler(
+      {
+        authContext: {
+          userId: 1,
+          organizationId: 7,
+          requester: {
+            role_id: 4,
+            is_admin: false,
+            is_platform_admin: false,
+            orgFeatures: ["vip_clients.my_children"]
+          }
+        },
+        query: {},
+        log: { error() {} }
+      },
+      reply
+    );
+
+    assert.equal(reply.state.statusCode, 200);
+    assert.deepEqual(reply.state.payload?.item?.visibleWeekDays, [1, 2, 3, 4, 5]);
+  } finally {
+    restoreQuery();
+  }
+});
+
+test("appointment settings patch does not require work-schedule permissions for settings users", async () => {
+  const recorder = createRouteRecorder();
+  const permissionSet = new Set([
+    "settings.appointments.update"
+  ]);
+  let settingsSaveAttempted = false;
+
+  registerAppointmentSettingsConfigRoutes(recorder.fastify, {
+    setNoCacheHeaders() {},
+    requesterHasOrgFeature(requester, featureKey) {
+      const enabledFeatures = new Set(requester?.orgFeatures || []);
+      return enabledFeatures.has(featureKey);
+    },
+    hasPermission: async (_roleId, permissionCode) => permissionSet.has(permissionCode),
+    PERMISSIONS: {
+      APPOINTMENTS_PLANNER_READ: "appointments.planner.read",
+      APPOINTMENTS_VIP_CLIENTS_MY_CLASS: "appointments.vip.my-class",
+      APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip.my-children",
+      SETTINGS_APPOINTMENTS_READ: "settings.appointments.read",
+      SETTINGS_APPOINTMENTS_UPDATE: "settings.appointments.update",
+      APPOINTMENTS_WORK_SCHEDULE_READ: "appointments.work-schedule.read",
+      APPOINTMENTS_WORK_SCHEDULE_CREATE: "appointments.work-schedule.create",
+      APPOINTMENTS_WORK_SCHEDULE_UPDATE: "appointments.work-schedule.update",
+      APPOINTMENTS_WORK_SCHEDULE_DELETE: "appointments.work-schedule.delete"
+    },
+    DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS: 10,
+    DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX: 18,
+    parseOptionalOrganizationId(value) {
+      const parsed = Number.parseInt(String(value || "").trim(), 10);
+      return {
+        value: Number.isInteger(parsed) && parsed > 0 ? parsed : null,
+        error: null
+      };
+    },
+    resolveTargetOrganizationId(access, requestedOrganizationId) {
+      return requestedOrganizationId || access?.authContext?.organizationId || null;
+    },
+    parsePositiveIntegerOr(value, fallback = 0) {
+      const parsed = Number.parseInt(String(value || "").trim(), 10);
+      return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+    },
+    resolveOwnAppointmentSpecialistUserId() {
+      return null;
+    },
+    toAppointmentDayNum(value) {
+      return {
+        mon: 1,
+        tue: 2,
+        wed: 3,
+        thu: 4,
+        fri: 5,
+        sat: 6,
+        sun: 7
+      }[String(value || "").trim().toLowerCase()] || 0;
+    },
+    normalizeDurationOptions() {
+      return [30];
+    },
+    normalizeReminderChannels() {
+      return [];
+    },
+    normalizeVisibleWeekDays(value) {
+      return Array.isArray(value) ? value : [1, 2, 3, 4, 5];
+    },
+    validateSettingsPayload() {
+      return null;
+    },
+    getAppointmentSettingsByOrganization: async () => ({}),
+    saveAppointmentSettings: async () => {
+      settingsSaveAttempted = true;
+      return { visibleWeekDays: [1, 2, 3, 4, 5] };
+    },
+    withAppointmentTransaction: async (callback) => callback({
+      query: async (sql) => {
+        const queryText = String(sql || "");
+        if (queryText.includes("FROM information_schema.columns")) {
+          return { rows: [] };
+        }
+        throw new Error(`Unexpected SQL: ${queryText}`);
+      }
+    }),
+    listAppointmentWorkSchedule: async () => [],
+    listAppointmentWorkScheduleStaffByOrganization: async () => [],
+    createAppointmentWorkScheduleEntry: async () => null,
+    updateAppointmentWorkScheduleEntryById: async () => null,
+    deleteAppointmentWorkScheduleEntryById: async () => ({ rowCount: 0 }),
+    replaceAppointmentDefaultWeeklyWorkSchedule: async () => []
+  });
+
+  const patchRoute = recorder.routes.find((item) => item.method === "PATCH" && item.path === "/settings");
+  const reply = createReplyRecorder();
+  await patchRoute.handler(
+    {
+      authContext: {
+        userId: 1,
+        organizationId: 7,
+        requester: {
+          role_id: 4,
+          is_admin: false,
+          is_platform_admin: false,
+          orgFeatures: ["settings.appointments"]
+        }
+      },
+      body: {
+        slotInterval: 30,
+        slotSubDivisions: 1,
+        slotCellHeightPx: 18,
+        historyLockDays: 10,
+        appointmentDurationOptions: [30],
+        noShowThreshold: 0,
+        reminderHours: 0,
+        reminderChannels: [],
+        visibleWeekDays: [1, 2, 3, 4, 5]
+      },
+      log: { error() {} }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 200);
+  assert.equal(settingsSaveAttempted, true);
+});
+
 test("appointment settings patch returns 409 and skips settings save when default weekly schedule conflicts", async () => {
   const recorder = createRouteRecorder();
   let settingsSaveAttempted = false;
