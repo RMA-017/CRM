@@ -25,6 +25,7 @@ const BREAK_TYPE_OPTIONS = [
   { value: "training", label: "Training" },
   { value: "other", label: "Other" }
 ];
+const APPOINTMENT_BREAKS_PAGE_SIZE = 20;
 const APPOINTMENT_SPECIALIST_STORAGE_KEY = "crm_appointment_selected_specialist_id";
 const APPOINTMENT_SETTINGS_BREAKS_SPECIALIST_STORAGE_KEY = "crm_appointment_settings_selected_specialist_id";
 
@@ -227,6 +228,23 @@ function compareBreakItems(a, b) {
   return String(a?.id ?? "").trim().localeCompare(String(b?.id ?? "").trim());
 }
 
+function buildBreakSearchText(item, breakTypeLabelByValue) {
+  return [
+    String(item?.id ?? "").trim(),
+    String(item?.specialistName || "").trim(),
+    String(breakTypeLabelByValue.get(String(item?.breakType || "").trim()) || item?.breakType || "").trim(),
+    String(item?.dayOfWeekLabel || "").trim(),
+    String(item?.startTime || "").trim(),
+    String(item?.endTime || "").trim(),
+    String(item?.createdBy || "").trim(),
+    String(item?.title || "").trim(),
+    String(item?.note || "").trim()
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
 function createAddBreakDraftLine() {
   return {
     dayOfWeek: "",
@@ -274,6 +292,9 @@ function AppointmentSettingsPanel({
   const [isAddBreakModalOpen, setIsAddBreakModalOpen] = useState(false);
   const [deletingBreakItem, setDeletingBreakItem] = useState(null);
   const [addBreakDraftRows, setAddBreakDraftRows] = useState(() => [createAddBreakDraftItem()]);
+  const [breaksSearchInput, setBreaksSearchInput] = useState("");
+  const [breaksSearch, setBreaksSearch] = useState("");
+  const [breaksPage, setBreaksPage] = useState(1);
   const breakSpecialistOptions = useMemo(() => (
     breakSpecialists.map((item) => ({
       value: String(item.id || "").trim(),
@@ -295,6 +316,23 @@ function AppointmentSettingsPanel({
   const breakTypeLabelByValue = useMemo(() => (
     new Map(BREAK_TYPE_OPTIONS.map((option) => [option.value, option.label]))
   ), []);
+  const filteredBreakItems = useMemo(() => {
+    const normalizedSearch = String(breaksSearch || "").trim().toLowerCase();
+    if (!normalizedSearch) {
+      return Array.isArray(breakItems) ? breakItems : [];
+    }
+    return (Array.isArray(breakItems) ? breakItems : []).filter((item) => (
+      buildBreakSearchText(item, breakTypeLabelByValue).includes(normalizedSearch)
+    ));
+  }, [breakItems, breakTypeLabelByValue, breaksSearch]);
+  const breaksTotalPages = useMemo(() => (
+    Math.max(1, Math.ceil(filteredBreakItems.length / APPOINTMENT_BREAKS_PAGE_SIZE) || 1)
+  ), [filteredBreakItems.length]);
+  const pagedBreakItems = useMemo(() => {
+    const safePage = Math.min(Math.max(breaksPage, 1), breaksTotalPages);
+    const startIndex = (safePage - 1) * APPOINTMENT_BREAKS_PAGE_SIZE;
+    return filteredBreakItems.slice(startIndex, startIndex + APPOINTMENT_BREAKS_PAGE_SIZE);
+  }, [breaksPage, breaksTotalPages, filteredBreakItems]);
   const totalAddBreakDraftLines = useMemo(() => (
     addBreakDraftRows.reduce((sum, row) => {
       const lineCount = Array.isArray(row?.lines) ? row.lines.length : 0;
@@ -320,12 +358,27 @@ function AppointmentSettingsPanel({
     if (isBreaksMode) {
       return;
     }
+    setBreaksSearchInput("");
+    setBreaksSearch("");
+    setBreaksPage(1);
     setIsEditBreakModalOpen(false);
     setEditingBreakIndex(-1);
     setEditingBreakDraft(null);
     setIsAddBreakModalOpen(false);
     setDeletingBreakItem(null);
   }, [isBreaksMode]);
+
+  useEffect(() => {
+    setBreaksPage((prev) => {
+      if (prev < 1) {
+        return 1;
+      }
+      if (prev > breaksTotalPages) {
+        return breaksTotalPages;
+      }
+      return prev;
+    });
+  }, [breaksTotalPages]);
 
   useEffect(() => {
     if ((!isAddBreakModalOpen && !isEditBreakModalOpen && !deletingBreakItem) || typeof window === "undefined") {
@@ -598,6 +651,12 @@ function AppointmentSettingsPanel({
       }
       return { ...prev, reminderChannels: Array.from(existing) };
     });
+  }
+
+  function handleBreaksSearchSubmit(event) {
+    event.preventDefault();
+    setBreaksPage(1);
+    setBreaksSearch(String(breaksSearchInput || "").trim());
   }
 
   function toBreakPayloadItem(item) {
@@ -1368,8 +1427,10 @@ function AppointmentSettingsPanel({
     )
       ? breakItems[editingBreakIndex]
       : null;
-    const hasBreakItems = Array.isArray(breakItems) && breakItems.length > 0;
+    const hasBreakItems = pagedBreakItems.length > 0;
+    const hasAnyBreakItems = Array.isArray(breakItems) && breakItems.length > 0;
     const showBreaksSkeleton = breaksLoading || !breaksSpecialistsLoaded;
+    const isBreakSearchActive = Boolean(String(breaksSearch || "").trim());
     const addBreakModalContent = (
       <>
         <section
@@ -1710,6 +1771,24 @@ function AppointmentSettingsPanel({
             tabIndex={-1}
             onClick={openAddBreakModal}
           />
+          <form className="panel-search-bar" onSubmit={handleBreaksSearchSubmit}>
+            <input
+              id="appointmentBreaksSearchInput"
+              type="search"
+              className="panel-search-input"
+              placeholder="Search by ID, specialist, type, day, time..."
+              value={breaksSearchInput}
+              onChange={(event) => setBreaksSearchInput(event.currentTarget.value)}
+            />
+            <button
+              id="appointmentBreaksSearchBtn"
+              type="submit"
+              className="btn panel-search-btn"
+              disabled={showBreaksSkeleton}
+            >
+              Search
+            </button>
+          </form>
           <div className="appointment-breaks-table-wrap all-users-table-wrap">
             <table className="appointment-breaks-table all-users-table">
               <thead>
@@ -1733,7 +1812,9 @@ function AppointmentSettingsPanel({
                     </tr>
                   ))
                 ) : hasBreakItems ? (
-                  breakItems.map((item, index) => (
+                  pagedBreakItems.map((item, index) => {
+                    const breakIndex = breakItems.indexOf(item);
+                    return (
                     <tr key={`appointmentBreakRow_${item.id ?? index}`}>
                       <td>{item.id ?? "-"}</td>
                       <td>{item.specialistName || "-"}</td>
@@ -1747,7 +1828,7 @@ function AppointmentSettingsPanel({
                           type="button"
                           className="table-action-btn"
                           disabled={breaksMutating || !canUpdateCurrentPanel}
-                          onClick={() => startBreakEdit(index)}
+                          onClick={() => startBreakEdit(breakIndex)}
                         >
                           Edit
                         </button>
@@ -1757,20 +1838,44 @@ function AppointmentSettingsPanel({
                           type="button"
                           className="table-action-btn table-action-btn-danger"
                           disabled={breaksMutating || !canDeleteCurrentPanel}
-                          onClick={() => openDeleteBreakModal(index)}
+                          onClick={() => openDeleteBreakModal(breakIndex)}
                         >
                           Delete
                         </button>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 ) : (
                   <tr>
-                    <td colSpan="9" className="all-users-state">No records found.</td>
+                    <td colSpan="9" className="all-users-state">
+                      {isBreakSearchActive && hasAnyBreakItems ? "No breaks found for your search." : "No records found."}
+                    </td>
                   </tr>
                 )}
               </tbody>
             </table>
+          </div>
+          <div className="all-users-pagination" hidden={showBreaksSkeleton || filteredBreakItems.length === 0}>
+            <button
+              type="button"
+              className="header-btn"
+              disabled={breaksPage <= 1}
+              onClick={() => setBreaksPage((prev) => Math.max(1, prev - 1))}
+            >
+              Previous
+            </button>
+            <span className="all-users-page-info">
+              Page {Math.min(breaksPage, breaksTotalPages)} of {breaksTotalPages}
+            </span>
+            <button
+              type="button"
+              className="header-btn"
+              disabled={breaksPage >= breaksTotalPages}
+              onClick={() => setBreaksPage((prev) => Math.min(breaksTotalPages, prev + 1))}
+            >
+              Next
+            </button>
           </div>
         </div>
         {typeof document !== "undefined"

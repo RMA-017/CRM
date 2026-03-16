@@ -195,7 +195,16 @@ test("client reference caches reuse VIP teacher, tutor and client option lookups
         };
       }
       const joinedParams = params.slice(1).join("|");
-      if (joinedParams.includes("assistant") || joinedParams.includes("murabbiy")) {
+      if (
+        joinedParams.includes("%educator%")
+        && joinedParams.includes("%tutor%")
+        && !joinedParams.includes("%teacher%")
+      ) {
+        assert.match(joinedParams, /educator/);
+        assert.match(joinedParams, /tutor/);
+        assert.doesNotMatch(joinedParams, /teacher/);
+        assert.doesNotMatch(joinedParams, /assistant/);
+        assert.doesNotMatch(joinedParams, /coach/);
         return {
           rows: [{ id: "11", name: "Tutor User" }]
         };

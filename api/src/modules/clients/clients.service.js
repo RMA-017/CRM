@@ -315,9 +315,7 @@ export async function getVipAttendanceTeachersByOrganization(organizationId) {
     "educator",
     "teacher",
     "tutor",
-    "oqituvchi",
-    "o'qituvchi",
-    "ustoz"
+    "coach"
   ]);
 }
 
@@ -393,9 +391,8 @@ export async function getVipAssignmentOptionsByOrganization(organizationId) {
   const [teachers, tutors] = await Promise.all([
     getOrganizationUsersByOrganization(organizationId),
     getVipAssignableUsersByKeywords(organizationId, [
-      "tutor",
-      "assistant",
-      "murabbiy"
+      "educator",
+      "tutor"
     ])
   ]);
   return {

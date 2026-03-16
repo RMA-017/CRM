@@ -1,0 +1,23 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { readFile } from "node:fs/promises";
+
+test("Work schedule panel includes a panel-style search bar and filters visible rows", async () => {
+  const source = await readFile(new URL("../src/pages/profile/WorkSchedulePanel.jsx", import.meta.url), "utf8");
+
+  assert.match(
+    source,
+    /className="panel-search-bar"/,
+    "Work schedule panel should render the shared panel search bar."
+  );
+  assert.match(
+    source,
+    /const \[weeklySearchInput, setWeeklySearchInput\] = useState\(""\);/,
+    "Work schedule panel should keep local search input state."
+  );
+  assert.match(
+    source,
+    /filteredWeeklyItems/,
+    "Work schedule panel should derive filtered rows from the full weekly list."
+  );
+});

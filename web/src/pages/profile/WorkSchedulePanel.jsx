@@ -12,7 +12,7 @@ const DAYS = [
   { dayOfWeek: "6", dayKey: "sat", label: "Sat" },
   { dayOfWeek: "7", dayKey: "sun", label: "Sun" }
 ];
-const WEEKLY_OVERRIDES_PAGE_SIZE = 10;
+const WEEKLY_OVERRIDES_PAGE_SIZE = 20;
 
 function createDefaultWeeklyDraft(items = []) {
   const byDay = new Map();
@@ -116,6 +116,21 @@ function withDefaultWeeklyTimes(row, nextStartTime, nextEndTime) {
   };
 }
 
+function buildWeeklyOverrideSearchText(item, { username = "", dayLabel = "" } = {}) {
+  return [
+    String(username || "").trim(),
+    String(item?.userUsername || "").trim(),
+    String(item?.userName || "").trim(),
+    String(dayLabel || "").trim(),
+    String(item?.startTime || "").trim(),
+    String(item?.endTime || "").trim(),
+    String(item?.reason || "").trim()
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
 function WorkSchedulePanel({
   canUpdateAppointments = true,
   canCreateWorkSchedule = true,
@@ -143,6 +158,8 @@ function WorkSchedulePanel({
   const [weeklyDraftLines, setWeeklyDraftLines] = useState(() => [createWeeklyDraftLine()]);
   const [weeklyEditId, setWeeklyEditId] = useState("");
   const [weeklyPage, setWeeklyPage] = useState(1);
+  const [weeklySearchInput, setWeeklySearchInput] = useState("");
+  const [weeklySearch, setWeeklySearch] = useState("");
   const [isWeeklyOverridesModalOpenInternal, setIsWeeklyOverridesModalOpenInternal] = useState(false);
   const [weeklyDelete, setWeeklyDelete] = useState(createWeeklyDeleteState());
   const [loading, setLoading] = useState(false);
@@ -212,14 +229,32 @@ function WorkSchedulePanel({
         .filter(Boolean)
     ).size
   ), [weeklyItems, weeklyUserId]);
+  const filteredWeeklyItems = useMemo(() => {
+    const normalizedSearch = String(weeklySearch || "").trim().toLowerCase();
+    if (!normalizedSearch) {
+      return weeklyItems;
+    }
+    return weeklyItems.filter((item) => {
+      const username = String(
+        item?.userUsername
+        || weeklyUsernameByUserId.get(String(item?.userId || "").trim())
+        || item?.userName
+        || ""
+      ).trim();
+      const dayLabel = String(
+        DAYS.find((day) => day.dayOfWeek === String(item?.dayOfWeek || "").trim())?.label || ""
+      ).trim();
+      return buildWeeklyOverrideSearchText(item, { username, dayLabel }).includes(normalizedSearch);
+    });
+  }, [weeklyItems, weeklySearch, weeklyUsernameByUserId]);
   const weeklyTotalPages = useMemo(() => (
-    Math.max(1, Math.ceil(weeklyItems.length / WEEKLY_OVERRIDES_PAGE_SIZE) || 1)
-  ), [weeklyItems.length]);
+    Math.max(1, Math.ceil(filteredWeeklyItems.length / WEEKLY_OVERRIDES_PAGE_SIZE) || 1)
+  ), [filteredWeeklyItems.length]);
   const weeklyPagedItems = useMemo(() => {
     const safePage = Math.min(Math.max(weeklyPage, 1), weeklyTotalPages);
     const startIndex = (safePage - 1) * WEEKLY_OVERRIDES_PAGE_SIZE;
-    return weeklyItems.slice(startIndex, startIndex + WEEKLY_OVERRIDES_PAGE_SIZE);
-  }, [weeklyItems, weeklyPage, weeklyTotalPages]);
+    return filteredWeeklyItems.slice(startIndex, startIndex + WEEKLY_OVERRIDES_PAGE_SIZE);
+  }, [filteredWeeklyItems, weeklyPage, weeklyTotalPages]);
   const weeklyMaxDraftLines = Math.max(1, DAYS.length - weeklyExistingDayCount);
   const isEditingWeeklyOverride = Boolean(String(weeklyEditId || "").trim());
   const canMutateWeeklyOverride = isEditingWeeklyOverride
@@ -244,6 +279,14 @@ function WorkSchedulePanel({
       return prev;
     });
   }, [weeklyTotalPages]);
+
+  useEffect(() => {
+    if (showUserWeeklyOverrides) {
+      return;
+    }
+    setWeeklySearchInput("");
+    setWeeklySearch("");
+  }, [showUserWeeklyOverrides]);
 
   const loadData = useCallback(async () => {
     if (!currentOrganizationId) {
@@ -496,6 +539,12 @@ function WorkSchedulePanel({
     }
     setWeeklyDelete(createWeeklyDeleteState());
   }
+
+  const handleWeeklySearchSubmit = useCallback((event) => {
+    event.preventDefault();
+    setWeeklyPage(1);
+    setWeeklySearch(String(weeklySearchInput || "").trim());
+  }, [weeklySearchInput]);
 
   async function handleWeeklyDeleteConfirm() {
     const id = String(weeklyDelete.id || "").trim();
@@ -938,6 +987,24 @@ function WorkSchedulePanel({
               </div>
             </div>
           ) : null}
+          <form className="panel-search-bar" onSubmit={handleWeeklySearchSubmit}>
+            <input
+              id="workScheduleSearchInput"
+              type="search"
+              className="panel-search-input"
+              placeholder="Search by username, day, time, reason..."
+              value={weeklySearchInput}
+              onChange={(event) => setWeeklySearchInput(event.currentTarget.value)}
+            />
+            <button
+              id="workScheduleSearchBtn"
+              type="submit"
+              className="btn panel-search-btn"
+              disabled={loading}
+            >
+              Search
+            </button>
+          </form>
           <div className="all-users-table-wrap ws-user-overrides-table-wrap">
             <table className="all-users-table ws-override-table">
               <thead>
@@ -992,13 +1059,17 @@ function WorkSchedulePanel({
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan="7" className="all-users-state">No records found.</td>
+                    <td colSpan="7" className="all-users-state">
+                      {String(weeklySearch || "").trim() && weeklyItems.length > 0
+                        ? "No work schedule records found for your search."
+                        : "No records found."}
+                    </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-          <div className="all-users-pagination" hidden={loading || weeklyItems.length === 0}>
+          <div className="all-users-pagination" hidden={loading || filteredWeeklyItems.length === 0}>
             <button
               type="button"
               className="header-btn"
