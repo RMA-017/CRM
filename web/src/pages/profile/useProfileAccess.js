@@ -184,16 +184,16 @@ export function useProfileAccess(profile, forcedView) {
     : legacyHasSettingsAccess;
   const canReadAppointmentWorkSchedule = hasExplicitWorkSchedulePermissions
     ? canReadWorkSchedulePermission
-    : canReadSettingsAppointments;
+    : legacyHasSettingsAccess;
   const canCreateAppointmentWorkSchedule = hasExplicitWorkSchedulePermissions
     ? canCreateWorkSchedulePermission
-    : canUpdateSettingsAppointments;
+    : legacyHasSettingsAccess;
   const canUpdateAppointmentWorkSchedule = hasExplicitWorkSchedulePermissions
     ? canUpdateWorkSchedulePermission
-    : canUpdateSettingsAppointments;
+    : legacyHasSettingsAccess;
   const canDeleteAppointmentWorkSchedule = hasExplicitWorkSchedulePermissions
     ? canDeleteWorkSchedulePermission
-    : canUpdateSettingsAppointments;
+    : legacyHasSettingsAccess;
   const canReadSettingsAppointmentNorms = hasExplicitAppointmentNormSettingsPermissions
     ? canReadSettingsAppointmentNormsPermission
     : legacyHasSettingsAccess;

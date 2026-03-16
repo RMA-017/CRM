@@ -546,6 +546,129 @@ test("work-schedule routes require dedicated permissions when explicit work sche
   assert.equal(allowedCreateReply.state.statusCode, 201);
 });
 
+test("work-schedule routes do not inherit appointment settings permissions for non-admin users", async () => {
+  const recorder = createRouteRecorder();
+  const permissionSet = new Set([
+    "settings.appointments.read",
+    "settings.appointments.update"
+  ]);
+
+  registerAppointmentSettingsConfigRoutes(recorder.fastify, {
+    setNoCacheHeaders() {},
+    requesterHasOrgFeature(requester, featureKey) {
+      const enabledFeatures = new Set(requester?.orgFeatures || []);
+      return enabledFeatures.has(featureKey);
+    },
+    hasPermission: async (_roleId, permissionCode) => permissionSet.has(permissionCode),
+    PERMISSIONS: {
+      APPOINTMENTS_VIP_CLIENTS_MY_CLASS: "appointments.vip.my-class",
+      APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip.my-children",
+      SETTINGS_APPOINTMENTS_READ: "settings.appointments.read",
+      SETTINGS_APPOINTMENTS_UPDATE: "settings.appointments.update",
+      APPOINTMENTS_WORK_SCHEDULE_READ: "appointments.work-schedule.read",
+      APPOINTMENTS_WORK_SCHEDULE_CREATE: "appointments.work-schedule.create",
+      APPOINTMENTS_WORK_SCHEDULE_UPDATE: "appointments.work-schedule.update",
+      APPOINTMENTS_WORK_SCHEDULE_DELETE: "appointments.work-schedule.delete"
+    },
+    DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS: 10,
+    DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX: 18,
+    parseOptionalOrganizationId(value) {
+      const parsed = Number.parseInt(String(value || "").trim(), 10);
+      return {
+        value: Number.isInteger(parsed) && parsed > 0 ? parsed : null,
+        error: null
+      };
+    },
+    resolveTargetOrganizationId(access, requestedOrganizationId) {
+      return requestedOrganizationId || access?.authContext?.organizationId || null;
+    },
+    parsePositiveIntegerOr(value, fallback = 0) {
+      const parsed = Number.parseInt(String(value || "").trim(), 10);
+      return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+    },
+    toAppointmentDayNum(value) {
+      return {
+        mon: 1,
+        tue: 2,
+        wed: 3,
+        thu: 4,
+        fri: 5,
+        sat: 6,
+        sun: 7
+      }[String(value || "").trim().toLowerCase()] || 0;
+    },
+    normalizeDurationOptions() {
+      return [];
+    },
+    normalizeReminderChannels() {
+      return [];
+    },
+    normalizeVisibleWeekDays() {
+      return [];
+    },
+    validateSettingsPayload() {
+      return null;
+    },
+    getAppointmentSettingsByOrganization: async () => ({}),
+    saveAppointmentSettings: async () => ({}),
+    withAppointmentTransaction: async (callback) => callback({
+      query: async () => ({ rows: [], rowCount: 0 })
+    }),
+    listAppointmentWorkSchedule: async () => [],
+    listAppointmentWorkScheduleStaffByOrganization: async () => [],
+    createAppointmentWorkScheduleEntry: async () => ({ id: 99 }),
+    updateAppointmentWorkScheduleEntryById: async () => null,
+    deleteAppointmentWorkScheduleEntryById: async () => ({ rowCount: 0 }),
+    replaceAppointmentDefaultWeeklyWorkSchedule: async () => []
+  });
+
+  const readRoute = recorder.routes.find((item) => item.method === "GET" && item.path === "/work-schedule");
+  const createRoute = recorder.routes.find((item) => item.method === "POST" && item.path === "/work-schedule");
+
+  const requestBase = {
+    authContext: {
+      userId: 1,
+      organizationId: 7,
+      requester: {
+        role_id: 4,
+        is_admin: false,
+        is_platform_admin: false,
+        orgFeatures: ["settings.appointments", "appointments.work_schedule"]
+      }
+    },
+    log: { error() {} }
+  };
+
+  const deniedReadReply = createReplyRecorder();
+  await readRoute.handler(
+    {
+      ...requestBase,
+      query: { organizationId: 7 }
+    },
+    deniedReadReply
+  );
+  assert.equal(deniedReadReply.state.statusCode, 403);
+
+  const deniedCreateReply = createReplyRecorder();
+  await createRoute.handler(
+    {
+      ...requestBase,
+      body: {
+        organizationId: 7,
+        userId: 9,
+        ruleScope: "weekly",
+        dayOfWeek: 2,
+        isActive: true,
+        startTime: "10:00",
+        endTime: "18:00",
+        reason: ""
+      }
+    },
+    deniedCreateReply
+  );
+  assert.equal(deniedCreateReply.state.statusCode, 403);
+});
+
 test("appointment settings patch returns 409 and skips settings save when default weekly schedule conflicts", async () => {
   const recorder = createRouteRecorder();
   let settingsSaveAttempted = false;

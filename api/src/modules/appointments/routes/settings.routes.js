@@ -278,16 +278,12 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
       canReadWorkSchedule,
       canCreateWorkSchedule,
       canUpdateWorkSchedule,
-      canDeleteWorkSchedule,
-      canReadSettingsPanel,
-      canUpdateSettingsPanel
+      canDeleteWorkSchedule
     ] = await Promise.all([
       hasPermission(roleId, PERMISSIONS.APPOINTMENTS_WORK_SCHEDULE_READ),
       hasPermission(roleId, PERMISSIONS.APPOINTMENTS_WORK_SCHEDULE_CREATE),
       hasPermission(roleId, PERMISSIONS.APPOINTMENTS_WORK_SCHEDULE_UPDATE),
-      hasPermission(roleId, PERMISSIONS.APPOINTMENTS_WORK_SCHEDULE_DELETE),
-      hasPermission(roleId, PERMISSIONS.SETTINGS_APPOINTMENTS_READ),
-      hasPermission(roleId, PERMISSIONS.SETTINGS_APPOINTMENTS_UPDATE)
+      hasPermission(roleId, PERMISSIONS.APPOINTMENTS_WORK_SCHEDULE_DELETE)
     ]);
 
     const hasExplicitWorkSchedulePermissions = (
@@ -296,18 +292,15 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
       || canUpdateWorkSchedule
       || canDeleteWorkSchedule
     );
-    const canUseSettingsRead = canReadSettingsPanel
-      && requesterHasOrgFeature(requester, "settings.appointments");
-    const canUseSettingsUpdate = canUpdateSettingsPanel
-      && requesterHasOrgFeature(requester, "settings.appointments");
+    const hasLegacyWorkScheduleAccess = Boolean(requester?.is_admin || requester?.is_platform_admin);
 
     const isAllowed = action === "read"
-      ? (hasExplicitWorkSchedulePermissions ? canReadWorkSchedule : canUseSettingsRead)
+      ? (hasExplicitWorkSchedulePermissions ? canReadWorkSchedule : hasLegacyWorkScheduleAccess)
       : (action === "create"
-          ? (hasExplicitWorkSchedulePermissions ? canCreateWorkSchedule : canUseSettingsUpdate)
+          ? (hasExplicitWorkSchedulePermissions ? canCreateWorkSchedule : hasLegacyWorkScheduleAccess)
           : (action === "update"
-              ? (hasExplicitWorkSchedulePermissions ? canUpdateWorkSchedule : canUseSettingsUpdate)
-              : (hasExplicitWorkSchedulePermissions ? canDeleteWorkSchedule : canUseSettingsUpdate)
+              ? (hasExplicitWorkSchedulePermissions ? canUpdateWorkSchedule : hasLegacyWorkScheduleAccess)
+              : (hasExplicitWorkSchedulePermissions ? canDeleteWorkSchedule : hasLegacyWorkScheduleAccess)
         ));
 
     if (!isAllowed) {
@@ -650,7 +643,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
       setNoCacheHeaders(reply);
 
       try {
-        const access = await requireAppointmentSettingsAccess(request, reply, "read");
+        const access = await requireAppointmentWorkScheduleAccess(request, reply, "read");
         if (!access) {
           return;
         }
@@ -909,7 +902,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
     },
     async (request, reply) => {
       try {
-        const access = await requireAppointmentSettingsAccess(request, reply, "update");
+        const access = await requireAppointmentWorkScheduleAccess(request, reply, "delete");
         if (!access) {
           return;
         }

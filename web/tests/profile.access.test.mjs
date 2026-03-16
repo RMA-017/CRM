@@ -132,7 +132,7 @@ test("work schedule permissions are independent from appointment settings permis
   assert.equal(access.canOpenAppointmentSettings, false);
 });
 
-test("work schedule falls back to appointment settings permissions when explicit work schedule actions are absent", () => {
+test("appointment settings permissions do not unlock work schedule for non-admin users", () => {
   const access = readAccessSnapshot({
     isAdmin: false,
     isPlatformAdmin: false,
@@ -140,7 +140,23 @@ test("work schedule falls back to appointment settings permissions when explicit
     orgFeatures: ["settings.appointments", "appointments.work_schedule"]
   });
 
+  assert.equal(access.canOpenAppointmentWorkSchedule, false);
+  assert.equal(access.canReadAppointmentWorkSchedule, false);
+  assert.equal(access.canCreateAppointmentWorkSchedule, false);
+  assert.equal(access.canUpdateAppointmentWorkSchedule, false);
+  assert.equal(access.canDeleteAppointmentWorkSchedule, false);
+});
+
+test("legacy admins keep work schedule access without explicit work schedule permissions", () => {
+  const access = readAccessSnapshot({
+    isAdmin: true,
+    isPlatformAdmin: false,
+    permissions: ["settings.appointments.read", "settings.appointments.update"],
+    orgFeatures: ["settings.appointments", "appointments.work_schedule"]
+  });
+
   assert.equal(access.canOpenAppointmentWorkSchedule, true);
+  assert.equal(access.canReadAppointmentWorkSchedule, true);
   assert.equal(access.canCreateAppointmentWorkSchedule, true);
   assert.equal(access.canUpdateAppointmentWorkSchedule, true);
   assert.equal(access.canDeleteAppointmentWorkSchedule, true);
