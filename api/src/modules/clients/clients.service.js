@@ -874,6 +874,198 @@ export async function getVipTutorAssignments({
   return rows || [];
 }
 
+export async function getVipNormMonitoringRows({
+  organizationId,
+  assignedUserId = null,
+  limit = 2000
+}) {
+  await ensureVipAssignmentsSchema();
+
+  const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 5000) : 2000;
+  const normalizedAssignedUserId = Number.parseInt(String(assignedUserId || "").trim(), 10) || null;
+  const { rows } = await pool.query(
+    `WITH scoped_sources AS (
+       SELECT
+         c.id AS client_id,
+         c.first_name,
+         c.last_name,
+         c.middle_name,
+         vta.class_assignment_id,
+         vcta.class_name,
+         teacher.position_id,
+         COALESCE(NULLIF(TRIM(po_teacher.label), ''), CONCAT('Position #', teacher.position_id::text)) AS position_label,
+         an.max_per_week,
+         teacher.id AS linked_specialist_id,
+         COALESCE(
+           NULLIF(TRIM(teacher.full_name), ''),
+           NULLIF(TRIM(teacher.username), ''),
+           CONCAT('User #', teacher.id::text)
+         ) AS linked_specialist_name
+        FROM clients c
+        JOIN organizations o
+          ON o.id = c.organization_id
+        JOIN vip_client_tutor_assignments vta
+          ON vta.organization_id = c.organization_id
+         AND vta.client_id = c.id
+        JOIN vip_class_teacher_assignments vcta
+          ON vcta.organization_id = vta.organization_id
+         AND vcta.id = vta.class_assignment_id
+        JOIN users teacher
+          ON teacher.id = vcta.teacher_user_id
+         AND teacher.organization_id = c.organization_id
+        JOIN appointment_norms an
+          ON an.organization_id = c.organization_id
+         AND an.position_id = teacher.position_id
+         AND an.is_active = TRUE
+        LEFT JOIN position_options po_teacher
+          ON po_teacher.id = teacher.position_id
+         AND po_teacher.organization_id = c.organization_id
+       WHERE c.organization_id = $1
+         AND o.is_active = TRUE
+         AND c.is_vip = TRUE
+         AND teacher.position_id IS NOT NULL
+         AND (
+           $3::integer IS NULL
+           OR vcta.teacher_user_id = $3::integer
+           OR vta.tutor_user_id = $3::integer
+         )
+
+       UNION ALL
+
+       SELECT
+         c.id AS client_id,
+         c.first_name,
+         c.last_name,
+         c.middle_name,
+         vta.class_assignment_id,
+         vcta.class_name,
+         tutor.position_id,
+         COALESCE(NULLIF(TRIM(po_tutor.label), ''), CONCAT('Position #', tutor.position_id::text)) AS position_label,
+         an.max_per_week,
+         tutor.id AS linked_specialist_id,
+         COALESCE(
+           NULLIF(TRIM(tutor.full_name), ''),
+           NULLIF(TRIM(tutor.username), ''),
+           CONCAT('User #', tutor.id::text)
+         ) AS linked_specialist_name
+        FROM clients c
+        JOIN organizations o
+          ON o.id = c.organization_id
+        JOIN vip_client_tutor_assignments vta
+          ON vta.organization_id = c.organization_id
+         AND vta.client_id = c.id
+        JOIN vip_class_teacher_assignments vcta
+          ON vcta.organization_id = vta.organization_id
+         AND vcta.id = vta.class_assignment_id
+        JOIN users tutor
+          ON tutor.id = vta.tutor_user_id
+         AND tutor.organization_id = c.organization_id
+        JOIN appointment_norms an
+          ON an.organization_id = c.organization_id
+         AND an.position_id = tutor.position_id
+         AND an.is_active = TRUE
+        LEFT JOIN position_options po_tutor
+          ON po_tutor.id = tutor.position_id
+         AND po_tutor.organization_id = c.organization_id
+       WHERE c.organization_id = $1
+         AND o.is_active = TRUE
+         AND c.is_vip = TRUE
+         AND tutor.position_id IS NOT NULL
+         AND (
+           $3::integer IS NULL
+           OR vcta.teacher_user_id = $3::integer
+           OR vta.tutor_user_id = $3::integer
+         )
+     ),
+     client_positions AS (
+       SELECT
+         ss.client_id,
+         ss.first_name,
+         ss.last_name,
+         ss.middle_name,
+         ss.class_assignment_id,
+         MAX(ss.class_name) AS class_name,
+         ss.position_id,
+         MAX(ss.position_label) AS position_label,
+         MAX(ss.max_per_week)::int AS max_per_week,
+         COALESCE(
+           jsonb_agg(
+             DISTINCT jsonb_build_object(
+               'id', ss.linked_specialist_id::text,
+               'name', ss.linked_specialist_name
+             )
+           ) FILTER (WHERE ss.linked_specialist_id IS NOT NULL),
+           '[]'::jsonb
+         ) AS linked_specialists
+       FROM scoped_sources ss
+       GROUP BY
+         ss.client_id,
+         ss.first_name,
+         ss.last_name,
+         ss.middle_name,
+         ss.class_assignment_id,
+         ss.position_id
+     ),
+     appointment_counts AS (
+       SELECT
+         cp.client_id,
+         cp.position_id,
+         COUNT(su.id)::int AS current_booked,
+         COALESCE(
+           jsonb_agg(
+             DISTINCT jsonb_build_object(
+               'id', su.id::text,
+               'name', COALESCE(
+                 NULLIF(TRIM(su.full_name), ''),
+                 NULLIF(TRIM(su.username), ''),
+                 CONCAT('User #', su.id::text)
+               )
+             )
+           ) FILTER (WHERE su.id IS NOT NULL),
+           '[]'::jsonb
+         ) AS scheduled_specialists
+       FROM client_positions cp
+       LEFT JOIN appointment_schedules s
+         ON s.organization_id = $1
+        AND s.client_id = cp.client_id
+        AND s.appointment_date >= date_trunc('week', CURRENT_DATE)::date
+        AND s.appointment_date < (date_trunc('week', CURRENT_DATE)::date + INTERVAL '7 days')
+        AND s.status IN ('pending', 'confirmed')
+       LEFT JOIN users su
+         ON su.id = s.specialist_id
+        AND su.organization_id = s.organization_id
+        AND su.position_id = cp.position_id
+       GROUP BY cp.client_id, cp.position_id
+     )
+     SELECT
+       cp.client_id::text AS client_id,
+       cp.first_name,
+       cp.last_name,
+       cp.middle_name,
+       cp.class_assignment_id::text AS class_assignment_id,
+       cp.class_name,
+       cp.position_id::text AS position_id,
+       cp.position_label,
+       cp.max_per_week,
+       COALESCE(ac.current_booked, 0) AS current_booked,
+       cp.linked_specialists,
+       COALESCE(ac.scheduled_specialists, '[]'::jsonb) AS scheduled_specialists
+      FROM client_positions cp
+      LEFT JOIN appointment_counts ac
+        ON ac.client_id = cp.client_id
+       AND ac.position_id = cp.position_id
+      ORDER BY
+        LOWER(cp.last_name) ASC,
+        LOWER(cp.first_name) ASC,
+        LOWER(COALESCE(cp.middle_name, '')) ASC,
+        LOWER(cp.position_label) ASC
+      LIMIT $2`,
+    [organizationId, safeLimit, normalizedAssignedUserId]
+  );
+
+  return rows || [];
+}
+
 export async function findVipTutorAssignmentByClientId({
   organizationId,
   clientId

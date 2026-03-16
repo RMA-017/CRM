@@ -851,6 +851,8 @@ function ProfilePage({ forcedView = "none" }) {
     closeAppointmentVipSchedulePanel,
     openAppointmentVipAttendancePanel,
     closeAppointmentVipAttendancePanel,
+    openAppointmentVipNormMonitoringPanel,
+    closeAppointmentVipNormMonitoringPanel,
     openAppointmentVipMyChildrenPanel,
     openAppointmentVipDailyRoutinesPanel,
     closeAppointmentVipDailyRoutinesPanel,
@@ -1434,6 +1436,7 @@ function ProfilePage({ forcedView = "none" }) {
           closeAppointmentBreaksPanel={closeAppointmentBreaksPanel}
           closeAppointmentVipSchedulePanel={closeAppointmentVipSchedulePanel}
           closeAppointmentVipAttendancePanel={closeAppointmentVipAttendancePanel}
+          closeAppointmentVipNormMonitoringPanel={closeAppointmentVipNormMonitoringPanel}
           closeAppointmentVipDailyRoutinesPanel={closeAppointmentVipDailyRoutinesPanel}
           closeAppointmentVipAssignmentsPanel={closeAppointmentVipAssignmentsPanel}
           closeAppointmentVipTutorAssignmentsPanel={closeAppointmentVipTutorAssignmentsPanel}
@@ -1697,6 +1700,7 @@ function ProfilePage({ forcedView = "none" }) {
             openAppointmentBreaksPanel={openAppointmentBreaksPanel}
             openAppointmentVipSchedulePanel={openAppointmentVipSchedulePanel}
             openAppointmentVipAttendancePanel={openAppointmentVipAttendancePanel}
+            openAppointmentVipNormMonitoringPanel={openAppointmentVipNormMonitoringPanel}
             openAppointmentVipMyChildrenPanel={openAppointmentVipMyChildrenPanel}
             openAppointmentVipDailyRoutinesPanel={openAppointmentVipDailyRoutinesPanel}
             openAppointmentVipAssignmentsPanel={openAppointmentVipAssignmentsPanel}

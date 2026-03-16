@@ -385,6 +385,9 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "appointment-vip-attendance") {
       return canOpenAppointmentVipClients;
     }
+    if (forcedView === "appointment-vip-norm-monitoring") {
+      return canOpenAppointmentVipClients;
+    }
     if (forcedView === "appointment-vip-my-children") {
       return canOpenMyChildren;
     }

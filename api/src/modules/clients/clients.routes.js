@@ -45,6 +45,7 @@ import {
   getVipClassAssignments,
   getVipClassDailyRoutines,
   getVipAttendanceHistory,
+  getVipNormMonitoringRows,
   getVipClientOptionsByOrganization,
   getVipAttendanceTeachersByOrganization,
   isVipClientAssignedToUser,
@@ -628,6 +629,83 @@ function mapVipAttendanceHistoryRecord(row) {
   };
 }
 
+function normalizeVipNormMonitoringSpecialists(...groups) {
+  const map = new Map();
+  groups.flat().forEach((group) => {
+    const items = Array.isArray(group) ? group : [];
+    items.forEach((item) => {
+      const id = String(item?.id || "").trim();
+      const name = String(item?.name || "").trim();
+      if (!id || map.has(id)) {
+        return;
+      }
+      map.set(id, {
+        id,
+        name: name || `User #${id}`
+      });
+    });
+  });
+  return Array.from(map.values())
+    .sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: "base" }));
+}
+
+function mapVipNormMonitoringRecord(row) {
+  const clientId = String(row?.client_id || row?.clientId || "").trim();
+  const firstName = String(row?.first_name || row?.firstName || "").trim();
+  const lastName = String(row?.last_name || row?.lastName || "").trim();
+  const middleName = String(row?.middle_name || row?.middleName || "").trim();
+  const classId = String(row?.class_assignment_id || row?.classId || "").trim();
+  const className = String(row?.class_name || row?.className || "").trim();
+  const positionId = String(row?.position_id || row?.positionId || "").trim();
+  const positionLabel = String(row?.position_label || row?.positionLabel || "").trim();
+  const weeklyNorm = Number.parseInt(String(row?.max_per_week || row?.maxPerWeek || "0"), 10) || 0;
+  const currentBooked = Number.parseInt(String(row?.current_booked || row?.currentBooked || "0"), 10) || 0;
+  const specialists = normalizeVipNormMonitoringSpecialists(
+    row?.linked_specialists,
+    row?.linkedSpecialists,
+    row?.scheduled_specialists,
+    row?.scheduledSpecialists
+  );
+  const statusKey = currentBooked > weeklyNorm
+    ? "exceeded"
+    : currentBooked === weeklyNorm
+      ? "limit-reached"
+      : "normal";
+  const status = statusKey === "exceeded"
+    ? "Exceeded"
+    : statusKey === "limit-reached"
+      ? "Limit reached"
+      : "Normal";
+
+  return {
+    id: `${clientId}_${positionId}`,
+    clientId,
+    client_id: clientId,
+    firstName,
+    first_name: firstName,
+    lastName,
+    last_name: lastName,
+    middleName,
+    middle_name: middleName,
+    classId,
+    class_id: classId,
+    className,
+    class_name: className,
+    positionId,
+    position_id: positionId,
+    positionLabel,
+    position_label: positionLabel,
+    weeklyNorm,
+    weekly_norm: weeklyNorm,
+    currentBooked,
+    current_booked: currentBooked,
+    status,
+    statusKey,
+    status_key: statusKey,
+    specialists
+  };
+}
+
 function mapVipTeacherOption(row) {
   const id = String(row?.teacher_user_id || row?.teacherId || row?.teacher_id || row?.id || "").trim();
   const name = String(row?.name || row?.teacher_name || row?.teacherName || "").trim();
@@ -1138,6 +1216,108 @@ async function clientsRoutes(fastify) {
           return;
         }
         request.log.error({ err: error }, "Error fetching VIP attendance history");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.get(
+    "/vip-norm-monitoring",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+
+      const authContext = request.authContext;
+      try {
+        const requester = await findClientsRequester(authContext);
+        if (!requester) {
+          return reply.status(401).send({ message: "Unauthorized." });
+        }
+        if (!requesterHasOrgFeature(requester, "vip_clients.attendance")) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const vipPermissions = await getVipClientsPermissionSnapshot(requester.role_id);
+        if (!vipPermissions.canReadVipClients) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const vipReadScope = resolveVipClientReadScope(vipPermissions, requester);
+        const assignedUserIdRaw = vipReadScope === "all" ? null : authContext.userId;
+        const assignedUserId = Number.parseInt(String(assignedUserIdRaw || "").trim(), 10);
+        const hasAssignedScope = Number.isInteger(assignedUserId) && assignedUserId > 0;
+        if (vipReadScope !== "all" && !hasAssignedScope) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const monitoringRows = await getVipNormMonitoringRows({
+          organizationId: authContext.organizationId,
+          assignedUserId: hasAssignedScope ? assignedUserId : null,
+          limit: 5000
+        });
+        const monitoringItems = (Array.isArray(monitoringRows) ? monitoringRows : []).map(mapVipNormMonitoringRecord);
+
+        const clientMap = new Map();
+        const classMap = new Map();
+        const positionMap = new Map();
+        const specialistMap = new Map();
+
+        monitoringItems.forEach((item) => {
+          const clientId = String(item?.clientId || "").trim();
+          if (clientId && !clientMap.has(clientId)) {
+            clientMap.set(clientId, {
+              id: clientId,
+              firstName: String(item?.firstName || "").trim(),
+              lastName: String(item?.lastName || "").trim(),
+              middleName: String(item?.middleName || "").trim()
+            });
+          }
+
+          const classId = String(item?.classId || "").trim();
+          if (classId && !classMap.has(classId)) {
+            classMap.set(classId, {
+              id: classId,
+              className: String(item?.className || "").trim()
+            });
+          }
+
+          const positionId = String(item?.positionId || "").trim();
+          if (positionId && !positionMap.has(positionId)) {
+            positionMap.set(positionId, {
+              id: positionId,
+              label: String(item?.positionLabel || "").trim()
+            });
+          }
+
+          (Array.isArray(item?.specialists) ? item.specialists : []).forEach((specialist) => {
+            const id = String(specialist?.id || "").trim();
+            if (!id || specialistMap.has(id)) {
+              return;
+            }
+            specialistMap.set(id, {
+              id,
+              name: String(specialist?.name || "").trim()
+            });
+          });
+        });
+
+        return reply.send({
+          items: monitoringItems,
+          clients: Array.from(clientMap.values()),
+          classes: Array.from(classMap.values())
+            .sort((left, right) => String(left?.className || "").localeCompare(String(right?.className || ""), undefined, { sensitivity: "base" })),
+          positions: Array.from(positionMap.values())
+            .sort((left, right) => String(left?.label || "").localeCompare(String(right?.label || ""), undefined, { sensitivity: "base" })),
+          specialists: Array.from(specialistMap.values())
+            .sort((left, right) => String(left?.name || "").localeCompare(String(right?.name || ""), undefined, { sensitivity: "base" }))
+        });
+      } catch (error) {
+        if (sendMigrationRequired(reply, error, "VIP assignment migration is required.", { includeDetails: true })) {
+          return;
+        }
+        request.log.error({ err: error }, "Error fetching VIP norm monitoring");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }

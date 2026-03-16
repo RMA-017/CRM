@@ -6,6 +6,7 @@ import { normalizeVipAttendanceStatus } from "./profile.vip-utils.js";
 import { useProfileMyChildren } from "./useProfileMyChildren.js";
 import { useProfileVipAttendance } from "./useProfileVipAttendance.js";
 import { useProfileVipAssignments } from "./useProfileVipAssignments.js";
+import { useVipNormMonitoringSection } from "./useVipNormMonitoringSection.js";
 import { useVipDailyRoutinesSection } from "./useVipDailyRoutinesSection.js";
 
 const AllUsersPanel = lazy(() => import("./panels/AllUsersPanel.jsx"));
@@ -28,6 +29,7 @@ const VipAttendanceModals = lazy(() => import("./panels/VipAttendanceModals.jsx"
 const VipAttendancePanel = lazy(() => import("./panels/VipAttendancePanel.jsx"));
 const VipClassAssignmentsPanel = lazy(() => import("./panels/VipClassAssignmentsPanel.jsx"));
 const VipDailyRoutinesPanel = lazy(() => import("./panels/VipDailyRoutinesPanel.jsx"));
+const VipNormMonitoringPanel = lazy(() => import("./panels/VipNormMonitoringPanel.jsx"));
 const WorkScheduleShellPanel = lazy(() => import("./panels/WorkScheduleShellPanel.jsx"));
 const VipMyChildrenPanel = lazy(() => import("./panels/VipMyChildrenPanel.jsx"));
 const VipSchedulePanel = lazy(() => import("./panels/VipSchedulePanel.jsx"));
@@ -167,6 +169,7 @@ function ProfileMainContent({
   closeAppointmentBreaksPanel,
   closeAppointmentVipSchedulePanel,
   closeAppointmentVipAttendancePanel,
+  closeAppointmentVipNormMonitoringPanel,
   closeAppointmentVipDailyRoutinesPanel,
   closeAppointmentVipAssignmentsPanel,
   closeAppointmentVipTutorAssignmentsPanel,
@@ -366,6 +369,16 @@ function ProfileMainContent({
     navigate,
     profileUsername,
     todayYmd
+  });
+  const {
+    vipNormMonitoringItems,
+    vipNormMonitoringFilters,
+    vipNormMonitoringMessage,
+    vipNormMonitoringLoading
+  } = useVipNormMonitoringSection({
+    mainView,
+    canReadAppointmentVipClients,
+    navigate
   });
   const {
     statisticsHistoryPeriod,
@@ -1030,6 +1043,18 @@ function ProfileMainContent({
             vipDailyRoutineItems={vipDailyRoutineItems}
             formatVipDailyRoutineActivityLabel={formatVipDailyRoutineActivityLabel}
             onClose={closeAppointmentVipAttendancePanel}
+          />
+        </Suspense>
+      )}
+
+      {mainView === "appointment-vip-norm-monitoring" && (
+        <Suspense fallback={PANEL_LOADING_FALLBACK}>
+          <VipNormMonitoringPanel
+            vipNormMonitoringItems={vipNormMonitoringItems}
+            vipNormMonitoringFilters={vipNormMonitoringFilters}
+            vipNormMonitoringMessage={vipNormMonitoringMessage}
+            vipNormMonitoringLoading={vipNormMonitoringLoading}
+            closeAppointmentVipNormMonitoringPanel={closeAppointmentVipNormMonitoringPanel}
           />
         </Suspense>
       )}

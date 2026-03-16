@@ -475,7 +475,7 @@
 #notificationMessageInput.notify-textarea {
   min-height: 30px;
   height: 30px;
-  padding: 4px 12px;
+  padding: 6px 12px;
   line-height: 1.2;
 }
 
@@ -1990,6 +1990,23 @@ label.field > span:first-child,
   flex-wrap: wrap;
 }
 
+.vip-norm-monitoring-toolbar {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.vip-norm-monitoring-toolbar .field {
+  margin: 0;
+  flex: 1 1 220px;
+  min-width: 220px;
+  max-width: none;
+}
+
+.vip-norm-monitoring-toolbar .custom-select,
+.vip-norm-monitoring-toolbar .custom-select-trigger {
+  width: 100%;
+}
+
 .my-children-toolbar {
   margin-top: 0;
   display: flex;
@@ -2073,6 +2090,72 @@ label.field > span:first-child,
 
 .statistics-history-skeleton-line:nth-child(3) {
   width: 88%;
+}
+
+#vipNormMonitoringPanel .all-users-table {
+  width: 100%;
+  min-width: 760px;
+  table-layout: fixed;
+}
+
+#vipNormMonitoringPanel .all-users-table th:nth-child(1),
+#vipNormMonitoringPanel .all-users-table td:nth-child(1) {
+  width: 36%;
+}
+
+#vipNormMonitoringPanel .all-users-table th:nth-child(2),
+#vipNormMonitoringPanel .all-users-table td:nth-child(2) {
+  width: 22%;
+}
+
+#vipNormMonitoringPanel .all-users-table th:nth-child(3),
+#vipNormMonitoringPanel .all-users-table td:nth-child(3) {
+  width: 14%;
+  text-align: center;
+}
+
+#vipNormMonitoringPanel .all-users-table th:nth-child(4),
+#vipNormMonitoringPanel .all-users-table td:nth-child(4) {
+  width: 16%;
+  text-align: center;
+}
+
+#vipNormMonitoringPanel .all-users-table th:nth-child(5),
+#vipNormMonitoringPanel .all-users-table td:nth-child(5) {
+  width: 12%;
+  text-align: center;
+}
+
+.vip-norm-status-cell {
+  text-align: center;
+}
+
+.vip-norm-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 108px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.vip-norm-status-pill-normal {
+  background: rgba(15, 122, 74, 0.12);
+  color: #0f7a4a;
+}
+
+.vip-norm-status-pill-limit-reached {
+  background: rgba(164, 99, 0, 0.14);
+  color: #a46300;
+}
+
+.vip-norm-status-pill-exceeded {
+  background: rgba(180, 35, 24, 0.12);
+  color: #b42318;
 }
 
 .planner-report-toolbar {
@@ -2215,15 +2298,15 @@ label.field > span:first-child,
   border: 1px solid #d8e4f2;
   border-radius: 16px;
   background: linear-gradient(180deg, #fbfdff 0%, #f6f9fd 100%);
-  padding: 10px 10px 0;
+  padding: 0;
   overflow: hidden;
 }
 
 .planner-report-section .all-users-table-wrap {
-  width: calc(100% + 20px);
+  width: 100%;
   max-width: none;
-  margin-left: -10px;
-  margin-right: -10px;
+  margin-left: 0;
+  margin-right: 0;
   border-left: 0;
   border-right: 0;
   border-radius: 0;
@@ -2232,9 +2315,9 @@ label.field > span:first-child,
 .planner-report-section-head {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
+  justify-content: center;
   gap: 10px;
-  margin-bottom: 10px;
+  margin: 10px 0;
 }
 
 .planner-report-section-head h4,
@@ -2245,6 +2328,8 @@ label.field > span:first-child,
 .planner-report-section-head h4 {
   font-size: 1rem;
   color: var(--text-main);
+  width: 100%;
+  text-align: center;
 }
 
 .planner-report-section-head p {
@@ -2292,7 +2377,7 @@ label.field > span:first-child,
 .planner-report-table.is-detail-report th:nth-child(7),
 .planner-report-table.is-detail-report td:nth-child(7) {
   width: auto;
-  padding-right: 10px;
+  padding-right: 0;
   text-align: center;
 }
 

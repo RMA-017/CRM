@@ -454,6 +454,7 @@ function SettingsCreateModals({
               id="normCreateModalPositionInput"
               placeholder="Select position"
               value={normCreateForm.positionId}
+              menuPortal
               options={(Array.isArray(positionsSettings) ? positionsSettings : []).map((pos) => ({
                 value: String(pos?.id || "").trim(),
                 label: String(pos?.label || pos?.id || "").trim()

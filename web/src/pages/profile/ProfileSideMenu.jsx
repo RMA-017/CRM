@@ -34,6 +34,7 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
   openAppointmentWorkSchedulePanel,
   openAppointmentVipSchedulePanel,
   openAppointmentVipAttendancePanel,
+  openAppointmentVipNormMonitoringPanel,
   openAppointmentVipMyChildrenPanel,
   openAppointmentVipDailyRoutinesPanel,
   openAppointmentVipAssignmentsPanel,
@@ -196,6 +197,15 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
               onClick={openAppointmentVipAttendancePanel}
             >
               Attendance
+            </button>
+            <button
+              id="openVipNormMonitoringBtn"
+              type="button"
+              className="side-submenu-link side-submenu-action"
+              hidden={!canOpenAppointmentVipClients}
+              onClick={openAppointmentVipNormMonitoringPanel}
+            >
+              Norm Monitoring
             </button>
             <button
               id="openVipMyChildrenBtn"
