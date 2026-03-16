@@ -1176,6 +1176,7 @@ label.field > span:first-child,
 }
 
 .all-users-table-wrap.settings-table-wrap {
+  margin-top: 0;
   max-height: none;
   overflow-x: auto;
   overflow-y: visible;
@@ -1974,6 +1975,7 @@ label.field > span:first-child,
 
 .vip-attendance-toolbar {
   margin-top: 0;
+  margin-bottom: 10px;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -3298,7 +3300,7 @@ label.field > span:first-child,
 
 .appointment-vip-weekly-grid-wrap {
   position: relative;
-  margin-top: 10px;
+  margin-top: 0;
   max-height: none;
   overflow-x: auto;
   overflow-y: hidden;

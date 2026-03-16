@@ -2539,10 +2539,6 @@ async function clientsRoutes(fastify) {
         if (!canReadClients || !canDeleteMedicalHistory) {
           return reply.status(403).send({ message: "Forbidden." });
         }
-        if (requester.is_admin !== true) {
-          return reply.status(403).send({ message: "Only admins can delete all client medical history." });
-        }
-
         const client = await getClientSummaryById({
           organizationId: authContext.organizationId,
           clientId

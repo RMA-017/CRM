@@ -208,7 +208,7 @@ export function useClientsSection({
   const hasMedicalHistoryCreateAccess = canCreateClientMedicalHistory || isAdmin || isPlatformAdmin;
   const hasMedicalHistoryUpdateAccess = canUpdateClientMedicalHistory || isAdmin || isPlatformAdmin;
   const hasMedicalHistoryDeleteAccess = canDeleteClientMedicalHistory || isAdmin || isPlatformAdmin;
-  const hasMedicalHistoryBulkDeleteAccess = isAdmin || isPlatformAdmin;
+  const hasMedicalHistoryBulkDeleteAccess = hasMedicalHistoryDeleteAccess;
 
   const showClientMedicalHistoryAlert = useCallback((message) => {
     if (typeof window !== "undefined" && message) {
@@ -1215,10 +1215,6 @@ export function useClientsSection({
     }
 
     const deleteAll = item?.deleteAll === true;
-    if (deleteAll && !hasMedicalHistoryBulkDeleteAccess) {
-      showClientMedicalHistoryAlert("Only admins can delete all client medical history.");
-      return false;
-    }
     const clientId = String(
       item?.clientId
       || item?.client_id
@@ -1501,11 +1497,6 @@ export function useClientsSection({
   ]);
 
   const deleteAllClientMedicalHistoryItems = useCallback(async (item) => {
-    if (!hasMedicalHistoryBulkDeleteAccess) {
-      showClientMedicalHistoryAlert("Only admins can delete all client medical history.");
-      return false;
-    }
-
     const clientId = String(
       item?.clientId
       || item?.client_id
@@ -1573,10 +1564,6 @@ export function useClientsSection({
     const clientId = String(clientMedicalHistoryDelete.clientId || "").trim();
     const entryId = String(clientMedicalHistoryDelete.entryId || "").trim();
     const deleteAll = clientMedicalHistoryDelete.deleteAll === true;
-    if (deleteAll && !hasMedicalHistoryBulkDeleteAccess) {
-      showClientMedicalHistoryAlert("Only admins can delete all client medical history.");
-      return false;
-    }
     if (!clientId || (!deleteAll && !entryId)) {
       return false;
     }

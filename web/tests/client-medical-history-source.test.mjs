@@ -29,3 +29,26 @@ test("Client medical history view invalidates stale client list responses", asyn
     "Medical history loader should ignore stale responses before mutating shared list state."
   );
 });
+
+test("Client medical history bulk delete follows delete permission instead of admin-only fallback", async () => {
+  const sectionSource = await readFile(new URL("../src/pages/profile/useClientsSection.js", import.meta.url), "utf8");
+  const profilePageSource = await readFile(new URL("../src/pages/ProfilePage.jsx", import.meta.url), "utf8");
+
+  assert.match(
+    sectionSource,
+    /const hasMedicalHistoryBulkDeleteAccess = hasMedicalHistoryDeleteAccess;/,
+    "Bulk medical history delete should use the same access gate as entry delete."
+  );
+
+  assert.doesNotMatch(
+    sectionSource,
+    /Only admins can delete all client medical history\./,
+    "Frontend medical history delete flow should not block bulk delete behind an extra admin-only message."
+  );
+
+  assert.match(
+    profilePageSource,
+    /canBulkDeleteClientMedicalHistory=\{hasDeleteClientMedicalHistoryAccess\}/,
+    "Profile page should pass medical history bulk delete access from delete permission, not only admin flags."
+  );
+});
