@@ -36,6 +36,20 @@ function buildSchedulesReadCacheKey({
   ].join("|");
 }
 
+function buildClientScheduleConflictMessage(appointmentDate = "") {
+  const normalizedDate = String(appointmentDate || "").trim();
+  return normalizedDate
+    ? `This client already has another appointment at this time (${normalizedDate}).`
+    : "This client already has another appointment at this time.";
+}
+
+function isClientOverlapConstraintConflict(error) {
+  return (
+    (error?.code === "23505" || error?.code === "23P01")
+    && String(error?.constraint || "").trim().toLowerCase() === "ex_appointment_schedules_active_client_overlap"
+  );
+}
+
 export function registerAppointmentScheduleRoutes(fastify, context) {
   const {
     randomUUID,
@@ -74,6 +88,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     getAppointmentSettingsByOrganization,
     getAppointmentBreaksBySpecialistAndDays,
     getAppointmentScheduleTargetsByScope,
+    hasAppointmentClientConflict,
     hasAppointmentScheduleConflict,
     createAppointmentSchedule,
     updateAppointmentScheduleByIdWithRepeatMeta,
@@ -613,6 +628,24 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                   }
                   throw createRouteError(409, { message: `Slot conflict on ${recurringDate}.` });
                 }
+
+                const hasClientConflict = await hasAppointmentClientConflict({
+                  organizationId: access.authContext.organizationId,
+                  clientId,
+                  appointmentDate: recurringDate,
+                  startTime,
+                  endTime,
+                  db
+                });
+                if (hasClientConflict) {
+                  if (repeat.skipConflicts) {
+                    nextSkippedDates.push(recurringDate);
+                    continue;
+                  }
+                  throw createRouteError(409, {
+                    message: buildClientScheduleConflictMessage(recurringDate)
+                  });
+                }
               }
 
               try {
@@ -744,6 +777,17 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           if (hasConflict) {
             return reply.status(409).send({ message: "This slot conflicts with existing appointment." });
           }
+
+          const hasClientConflict = await hasAppointmentClientConflict({
+            organizationId: access.authContext.organizationId,
+            clientId,
+            appointmentDate,
+            startTime,
+            endTime
+          });
+          if (hasClientConflict) {
+            return reply.status(409).send({ message: buildClientScheduleConflictMessage() });
+          }
         }
 
         const item = await createAppointmentSchedule({
@@ -793,6 +837,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
       } catch (error) {
         if (Number.isInteger(error?.statusCode) && error?.payload) {
           return reply.status(error.statusCode).send(error.payload);
+        }
+        if (isClientOverlapConstraintConflict(error)) {
+          return reply.status(409).send({ message: buildClientScheduleConflictMessage() });
         }
         if (isUniqueOrExclusionConflict(error)) {
           return reply.status(409).send({ message: "This slot is already occupied." });
@@ -1099,6 +1146,21 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               if (hasAnchorConflict) {
                 throw createRouteError(409, { message: "This slot conflicts with existing appointment." });
               }
+
+              const hasAnchorClientConflict = await hasAppointmentClientConflict({
+                organizationId: access.authContext.organizationId,
+                clientId,
+                appointmentDate,
+                startTime,
+                endTime,
+                excludeId: id,
+                db
+              });
+              if (hasAnchorClientConflict) {
+                throw createRouteError(409, {
+                  message: buildClientScheduleConflictMessage()
+                });
+              }
             }
 
             const updatedAnchorItem = await updateAppointmentScheduleByIdWithRepeatMeta({
@@ -1180,6 +1242,24 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                     continue;
                   }
                   throw createRouteError(409, { message: `Slot conflict on ${recurringDate}.` });
+                }
+
+                const hasClientConflict = await hasAppointmentClientConflict({
+                  organizationId: access.authContext.organizationId,
+                  clientId,
+                  appointmentDate: recurringDate,
+                  startTime,
+                  endTime,
+                  db
+                });
+                if (hasClientConflict) {
+                  if (repeat.skipConflicts) {
+                    nextSkippedDates.push(recurringDate);
+                    continue;
+                  }
+                  throw createRouteError(409, {
+                    message: buildClientScheduleConflictMessage(recurringDate)
+                  });
                 }
               }
 
@@ -1322,6 +1402,25 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               }
               return reply.status(409).send({ message: "This slot conflicts with existing appointment." });
             }
+
+            const hasClientConflict = await hasAppointmentClientConflict({
+              organizationId: access.authContext.organizationId,
+              clientId,
+              appointmentDate: conflictDate,
+              startTime,
+              endTime,
+              excludeId: item.id
+            });
+            if (hasClientConflict) {
+              if (target.items.length > 1) {
+                return reply.status(409).send({
+                  message: buildClientScheduleConflictMessage(conflictDate)
+                });
+              }
+              return reply.status(409).send({
+                message: buildClientScheduleConflictMessage()
+              });
+            }
           }
         }
 
@@ -1372,6 +1471,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
       } catch (error) {
         if (Number.isInteger(error?.statusCode) && error?.payload) {
           return reply.status(error.statusCode).send(error.payload);
+        }
+        if (isClientOverlapConstraintConflict(error)) {
+          return reply.status(409).send({ message: buildClientScheduleConflictMessage() });
         }
         if (isUniqueOrExclusionConflict(error)) {
           return reply.status(409).send({ message: "This slot is already occupied." });

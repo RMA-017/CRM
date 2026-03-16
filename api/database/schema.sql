@@ -518,6 +518,13 @@ CREATE TABLE appointment_schedules (
       specialist_id WITH =,
       tsrange(appointment_date + start_time, appointment_date + end_time, '[)') WITH &&
     )
+    WHERE (status IN ('pending', 'confirmed')),
+  CONSTRAINT ex_appointment_schedules_active_client_overlap
+    EXCLUDE USING gist (
+      organization_id WITH =,
+      client_id WITH =,
+      tsrange(appointment_date + start_time, appointment_date + end_time, '[)') WITH &&
+    )
     WHERE (status IN ('pending', 'confirmed'))
 );
 

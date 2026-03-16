@@ -1845,6 +1845,44 @@ export async function hasAppointmentScheduleConflict({
   return Boolean(rows[0]);
 }
 
+export async function hasAppointmentClientConflict({
+  organizationId,
+  clientId,
+  appointmentDate,
+  startTime,
+  endTime,
+  excludeId = null,
+  scheduleScope = "default",
+  db = pool
+}) {
+  const parsedExcludeId = Number.parseInt(String(excludeId ?? "").trim(), 10);
+  const normalizedExcludeId = Number.isInteger(parsedExcludeId) && parsedExcludeId > 0
+    ? parsedExcludeId
+    : null;
+  const tableName = getAppointmentSchedulesTableName(scheduleScope);
+  const { rows } = await db.query(
+    `SELECT 1
+       FROM ${tableName} s
+      WHERE s.organization_id = $1
+        AND s.client_id = $2
+        AND s.appointment_date = $3::date
+        AND s.status IN ('pending', 'confirmed')
+        AND ($4::integer IS NULL OR s.id <> $4::integer)
+        AND (($3::date + $5::time) < ($3::date + s.end_time))
+        AND (($3::date + s.start_time) < ($3::date + $6::time))
+      LIMIT 1`,
+    [
+      organizationId,
+      clientId,
+      appointmentDate,
+      normalizedExcludeId,
+      startTime,
+      endTime
+    ]
+  );
+  return Boolean(rows[0]);
+}
+
 export async function createAppointmentSchedule({
   organizationId,
   actorUserId,

@@ -25,4 +25,14 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
     /if \(selectedPlannerClientFilterId\) \{\s*setSelectedPlannerClientFilterId\(""\);/s,
     "Selecting a specialist should clear the client filter so specialist mode becomes active again."
   );
+  assert.match(
+    source,
+    /!vipOnly\s*&&\s*!normalizedSelectedPlannerClientFilterId\s*&&\s*String\(selectedSpecialistId \|\| ""\)\.trim\(\)/s,
+    "Client mode should keep appointment settings on the organization default schedule instead of specialist-specific settings."
+  );
+  assert.match(
+    source,
+    /if \(!vipOnly && normalizedSelectedPlannerClientFilterId\) \{\s*return "";\s*\}/s,
+    "Client mode should not auto-select a specialist again after a client is chosen."
+  );
 });

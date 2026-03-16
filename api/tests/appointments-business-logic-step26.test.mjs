@@ -180,6 +180,7 @@ function createScheduleContext(overrides = {}) {
       scope: "single",
       isRecurring: false
     }),
+    hasAppointmentClientConflict: async () => false,
     hasAppointmentScheduleConflict: async () => false,
     createAppointmentSchedule: async () => ({ id: "91" }),
     updateAppointmentScheduleByIdWithRepeatMeta: async () => ({ id: "91" }),
@@ -681,6 +682,44 @@ test("schedule create blocks assigned-scope writes for unassigned VIP clients", 
   assert.equal(reply.state.payload?.message, "Forbidden.");
 });
 
+test("schedule create blocks client double-booking across specialists", async () => {
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      hasAppointmentClientConflict: async () => true,
+      createAppointmentSchedule: async () => {
+        throw new Error("Schedule should not be created when the client is already booked.");
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "POST", "/schedules");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      body: {
+        specialistId: "9",
+        clientId: "44",
+        appointmentDate: "2026-03-09",
+        startTime: "09:00",
+        endTime: "10:00",
+        durationMinutes: "60",
+        service: "Lesson",
+        status: "pending",
+        note: ""
+      }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 409);
+  assert.equal(reply.state.payload?.message, "This client already has another appointment at this time.");
+});
+
 test("schedule update blocks specialist users from editing another specialist schedule", async () => {
   const recorder = createRouteRecorder();
   registerAppointmentScheduleRoutes(
@@ -730,6 +769,97 @@ test("schedule update blocks specialist users from editing another specialist sc
 
   assert.equal(reply.state.statusCode, 403);
   assert.equal(reply.state.payload?.message, "Forbidden.");
+});
+
+test("schedule update blocks client double-booking across specialists", async () => {
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      getAppointmentScheduleTargetsByScope: async () => ({
+        items: [{
+          id: 91,
+          specialistId: 7,
+          clientId: 44,
+          isVip: false,
+          appointmentDate: "2026-03-09"
+        }],
+        scope: "single",
+        isRecurring: false
+      }),
+      hasAppointmentClientConflict: async () => true,
+      updateAppointmentSchedulesByIds: async () => {
+        throw new Error("Schedule should not be updated when the client is already booked.");
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "PATCH", "/schedules/:id");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      params: { id: "91" },
+      query: { scope: "single" },
+      body: {
+        specialistId: "9",
+        clientId: "44",
+        appointmentDate: "2026-03-09",
+        startTime: "09:00",
+        endTime: "10:00",
+        durationMinutes: "60",
+        service: "Lesson",
+        status: "pending",
+        note: ""
+      }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 409);
+  assert.equal(reply.state.payload?.message, "This client already has another appointment at this time.");
+});
+
+test("schedule create maps client overlap exclusion constraint to a client conflict message", async () => {
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      createAppointmentSchedule: async () => {
+        const error = new Error("client overlap");
+        error.code = "23P01";
+        error.constraint = "ex_appointment_schedules_active_client_overlap";
+        throw error;
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "POST", "/schedules");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      body: {
+        specialistId: "9",
+        clientId: "44",
+        appointmentDate: "2026-03-09",
+        startTime: "09:00",
+        endTime: "10:00",
+        durationMinutes: "60",
+        service: "Lesson",
+        status: "pending",
+        note: ""
+      }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 409);
+  assert.equal(reply.state.payload?.message, "This client already has another appointment at this time.");
 });
 
 test("schedule update blocks assigned-scope writes for unassigned VIP schedules", async () => {
