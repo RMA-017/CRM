@@ -42,7 +42,8 @@ test("filterPermissionCodesByOrgFeatures filters child permissions precisely", (
         "appointments.client-search",
         "appointments.vip-clients.read",
         "appointments.vip-clients.my-children",
-        "appointments.assignments.read",
+        "appointments.assignments.class.read",
+        "appointments.assignments.tutor.read",
         "profile.read"
       ],
       allowedFeatures
@@ -51,7 +52,7 @@ test("filterPermissionCodesByOrgFeatures filters child permissions precisely", (
       "appointments.breaks.read",
       "appointments.breaks",
       "appointments.vip-clients.my-children",
-      "appointments.assignments.read",
+      "appointments.assignments.class.read",
       "profile.read"
     ]
   );

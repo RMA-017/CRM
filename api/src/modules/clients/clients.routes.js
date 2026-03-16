@@ -195,10 +195,14 @@ const ADVANCED_APPOINTMENT_MENU_PERMISSIONS = Object.freeze([
   PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DELETE,
   PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS,
   PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DAILY_ROUTINES,
-  PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_READ,
-  PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CREATE,
-  PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_UPDATE,
-  PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_DELETE,
+  PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_READ,
+  PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_CREATE,
+  PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_UPDATE,
+  PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_DELETE,
+  PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_TUTOR_READ,
+  PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_TUTOR_CREATE,
+  PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_TUTOR_UPDATE,
+  PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_TUTOR_DELETE,
   PERMISSIONS.APPOINTMENTS_STATISTICS_CLASS_ATTENDANCE
 ]);
 
@@ -260,23 +264,35 @@ function resolveVipClientReadScope(vipPermissions, requester) {
 async function getAssignmentsPermissionSnapshot(roleId) {
   const [
     usesAdvancedMenuPermissions,
-    canReadAssignments,
-    canCreateAssignments,
-    canUpdateAssignments,
-    canDeleteAssignments
+    canReadClassAssignments,
+    canCreateClassAssignments,
+    canUpdateClassAssignments,
+    canDeleteClassAssignments,
+    canReadTutorAssignments,
+    canCreateTutorAssignments,
+    canUpdateTutorAssignments,
+    canDeleteTutorAssignments
   ] = await Promise.all([
     hasAdvancedAppointmentMenuPermissions(roleId),
-    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_READ),
-    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CREATE),
-    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_UPDATE),
-    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_DELETE)
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_READ),
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_CREATE),
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_UPDATE),
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_DELETE),
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_TUTOR_READ),
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_TUTOR_CREATE),
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_TUTOR_UPDATE),
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_TUTOR_DELETE)
   ]);
   return {
     usesAdvancedMenuPermissions,
-    canReadAssignments,
-    canCreateAssignments,
-    canUpdateAssignments,
-    canDeleteAssignments
+    canReadClassAssignments,
+    canCreateClassAssignments,
+    canUpdateClassAssignments,
+    canDeleteClassAssignments,
+    canReadTutorAssignments,
+    canCreateTutorAssignments,
+    canUpdateTutorAssignments,
+    canDeleteTutorAssignments
   };
 }
 
@@ -1153,7 +1169,7 @@ async function clientsRoutes(fastify) {
           getVipClientsPermissionSnapshot(requester.role_id)
         ]);
         const canReadAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
-          ? assignmentsPermissions.canReadAssignments
+          ? assignmentsPermissions.canReadClassAssignments
           : (canReadClients && isDirectorLikeRequester(requester));
         if (!canReadAssignments) {
           return reply.status(403).send({ message: "Forbidden." });
@@ -1224,7 +1240,7 @@ async function clientsRoutes(fastify) {
           getVipClientsPermissionSnapshot(requester.role_id)
         ]);
         const canReadAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
-          ? assignmentsPermissions.canReadAssignments
+          ? assignmentsPermissions.canReadClassAssignments
           : (canReadClients && isDirectorLikeRequester(requester));
         if (!canReadAssignments) {
           return reply.status(403).send({ message: "Forbidden." });
@@ -1291,8 +1307,12 @@ async function clientsRoutes(fastify) {
         const isEditMode = Boolean(classId);
         const canWriteAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
           ? (
-            assignmentsPermissions.canReadAssignments
-            && (isEditMode ? assignmentsPermissions.canUpdateAssignments : assignmentsPermissions.canCreateAssignments)
+            assignmentsPermissions.canReadClassAssignments
+            && (
+              isEditMode
+                ? assignmentsPermissions.canUpdateClassAssignments
+                : assignmentsPermissions.canCreateClassAssignments
+            )
           )
           : (canUpdateClients && isDirectorLikeRequester(requester));
         if (!canWriteAssignments) {
@@ -1359,7 +1379,10 @@ async function clientsRoutes(fastify) {
           getAssignmentsPermissionSnapshot(requester.role_id)
         ]);
         const canDeleteAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
-          ? (assignmentsPermissions.canReadAssignments && assignmentsPermissions.canDeleteAssignments)
+          ? (
+            assignmentsPermissions.canReadClassAssignments
+            && assignmentsPermissions.canDeleteClassAssignments
+          )
           : (canUpdateClients && isDirectorLikeRequester(requester));
         if (!canDeleteAssignments) {
           return reply.status(403).send({ message: "Forbidden." });
@@ -1416,7 +1439,7 @@ async function clientsRoutes(fastify) {
         const canAccessMyClass = hasMyClassFeature
           && vipPermissions.canAccessMyClass;
         const canReadAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
-          ? (assignmentsPermissions.canReadAssignments || canAccessMyClass)
+          ? (assignmentsPermissions.canReadTutorAssignments || canAccessMyClass)
           : (canReadClients && isDirectorLikeRequester(requester));
         if (!canReadAssignments) {
           return reply.status(403).send({ message: "Forbidden." });
@@ -1494,7 +1517,7 @@ async function clientsRoutes(fastify) {
           getVipClientsPermissionSnapshot(requester.role_id)
         ]);
         const canReadAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
-          ? assignmentsPermissions.canReadAssignments
+          ? assignmentsPermissions.canReadTutorAssignments
           : (canReadClients && isDirectorLikeRequester(requester));
         if (!canReadAssignments) {
           return reply.status(403).send({ message: "Forbidden." });
@@ -1576,8 +1599,12 @@ async function clientsRoutes(fastify) {
           : parsePositiveInteger(authContext.userId);
         const canWriteAssignments = assignmentsPermissions.usesAdvancedMenuPermissions
           ? (
-            assignmentsPermissions.canReadAssignments
-            && (isEditMode ? assignmentsPermissions.canUpdateAssignments : assignmentsPermissions.canCreateAssignments)
+            assignmentsPermissions.canReadTutorAssignments
+            && (
+              isEditMode
+                ? assignmentsPermissions.canUpdateTutorAssignments
+                : assignmentsPermissions.canCreateTutorAssignments
+            )
           )
           : (canUpdateClients && isDirectorLikeRequester(requester));
         if (!canWriteAssignments) {

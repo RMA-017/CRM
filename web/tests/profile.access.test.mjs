@@ -113,6 +113,29 @@ test("my class permission unlocks my class without general appointments read", (
   assert.equal(access.canOpenAppointmentVipMyClass, true);
 });
 
+test("class and tutor assignment permissions stay independent", () => {
+  const classAccess = readAccessSnapshot({
+    isAdmin: false,
+    isPlatformAdmin: false,
+    permissions: ["appointments.assignments.class.read"],
+    orgFeatures: ["assignments.class", "assignments.tutor"]
+  }, "appointment-vip-assignments");
+  const tutorAccess = readAccessSnapshot({
+    isAdmin: false,
+    isPlatformAdmin: false,
+    permissions: ["appointments.assignments.tutor.read"],
+    orgFeatures: ["assignments.class", "assignments.tutor"]
+  }, "appointment-vip-tutor-assignments");
+
+  assert.equal(classAccess.canOpenAppointmentVipClassAssignments, true);
+  assert.equal(classAccess.canOpenAppointmentVipTutorAssignments, false);
+  assert.equal(classAccess.canAccessForcedView, true);
+
+  assert.equal(tutorAccess.canOpenAppointmentVipClassAssignments, false);
+  assert.equal(tutorAccess.canOpenAppointmentVipTutorAssignments, true);
+  assert.equal(tutorAccess.canAccessForcedView, true);
+});
+
 test("work schedule permissions are independent from appointment settings permissions", () => {
   const access = readAccessSnapshot({
     isAdmin: false,

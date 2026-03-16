@@ -6,7 +6,7 @@ function NotificationSendPanel({
   setNotificationSendForm,
   sendManualNotification,
   notificationSendSubmitting,
-  rolesSettings
+  roleOptions
 }) {
   return (
     <section id="notificationsSendPanel" className="all-users-panel settings-panel">
@@ -38,12 +38,12 @@ function NotificationSendPanel({
               value={String(notificationSendForm?.targetRole || "all")}
               options={[
                 { value: "all", label: "All Users" },
-                ...(rolesSettings || [])
-                  .filter((role) => role.isActive)
+                ...(Array.isArray(roleOptions) ? roleOptions : [])
                   .map((role) => ({
-                    value: String(role.label || "").trim().toLowerCase(),
-                    label: String(role.label || "").trim()
+                    value: String(role?.value || "").trim().toLowerCase(),
+                    label: String(role?.label || "").trim()
                   }))
+                  .filter((role) => role.value && role.label)
               ]}
               onChange={(nextValue) => {
                 setNotificationSendForm((prev) => ({ ...prev, targetRole: nextValue }));

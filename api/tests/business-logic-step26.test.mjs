@@ -91,8 +91,8 @@ test("vip tutor assignment update requires update permission when assignment alr
     if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
       return {
         rows: [
-          { code: "appointments.assignments.read" },
-          { code: "appointments.assignments.create" },
+          { code: "appointments.assignments.tutor.read" },
+          { code: "appointments.assignments.tutor.create" },
           { code: "appointments.vip-clients.scope.all" }
         ]
       };
@@ -161,8 +161,8 @@ test("vip tutor assignment create requires create permission when assignment doe
     if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
       return {
         rows: [
-          { code: "appointments.assignments.read" },
-          { code: "appointments.assignments.update" },
+          { code: "appointments.assignments.tutor.read" },
+          { code: "appointments.assignments.tutor.update" },
           { code: "appointments.vip-clients.scope.all" }
         ]
       };
@@ -225,8 +225,8 @@ test("vip tutor assignment update blocks assigned-scope users from editing unass
     if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
       return {
         rows: [
-          { code: "appointments.assignments.read" },
-          { code: "appointments.assignments.update" },
+          { code: "appointments.assignments.tutor.read" },
+          { code: "appointments.assignments.tutor.update" },
           { code: "appointments.vip-clients.scope.assigned" }
         ]
       };
@@ -815,7 +815,7 @@ test("vip class assignments endpoint scopes assigned-only users to visible class
       return {
         rows: [
           { code: "clients.read" },
-          { code: "appointments.assignments.read" },
+          { code: "appointments.assignments.class.read" },
           { code: "appointments.vip-clients.scope.assigned" }
         ]
       };
@@ -885,7 +885,7 @@ test("vip class assignment history endpoint scopes assigned-only users to relate
       return {
         rows: [
           { code: "clients.read" },
-          { code: "appointments.assignments.read" },
+          { code: "appointments.assignments.class.read" },
           { code: "appointments.vip-clients.scope.assigned" }
         ]
       };
@@ -961,7 +961,7 @@ test("vip tutor assignments endpoint scopes assigned-only tutor options to visib
       return {
         rows: [
           { code: "clients.read" },
-          { code: "appointments.assignments.read" },
+          { code: "appointments.assignments.tutor.read" },
           { code: "appointments.vip-clients.scope.assigned" }
         ]
       };
@@ -1172,7 +1172,7 @@ test("vip tutor assignment history endpoint scopes assigned-only users to relate
       return {
         rows: [
           { code: "clients.read" },
-          { code: "appointments.assignments.read" },
+          { code: "appointments.assignments.tutor.read" },
           { code: "appointments.vip-clients.scope.assigned" }
         ]
       };
@@ -1251,7 +1251,7 @@ test("vip class assignments route returns migration-required when assignment sch
     }
     if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
       return {
-        rows: [{ code: "appointments.assignments.read" }]
+        rows: [{ code: "appointments.assignments.class.read" }]
       };
     }
 

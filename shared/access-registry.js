@@ -385,40 +385,36 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
         sortOrder: 10,
         permissions: [
           definePermission({
-            constantKey: "APPOINTMENTS_ASSIGNMENTS_READ",
-            code: "appointments.assignments.read",
-            label: "Assignments Read",
+            constantKey: "APPOINTMENTS_ASSIGNMENTS_CLASS_READ",
+            code: "appointments.assignments.class.read",
+            label: "Class Assignments Read",
             uiLabel: "Read",
             sortOrder: 63,
-            actionKey: "read",
-            featureKeys: ["assignments.class", "assignments.tutor"]
+            actionKey: "read"
           }),
           definePermission({
-            constantKey: "APPOINTMENTS_ASSIGNMENTS_CREATE",
-            code: "appointments.assignments.create",
-            label: "Assignments Create",
+            constantKey: "APPOINTMENTS_ASSIGNMENTS_CLASS_CREATE",
+            code: "appointments.assignments.class.create",
+            label: "Class Assignments Create",
             uiLabel: "Create",
             sortOrder: 64,
-            actionKey: "create",
-            featureKeys: ["assignments.class", "assignments.tutor"]
+            actionKey: "create"
           }),
           definePermission({
-            constantKey: "APPOINTMENTS_ASSIGNMENTS_UPDATE",
-            code: "appointments.assignments.update",
-            label: "Assignments Update",
+            constantKey: "APPOINTMENTS_ASSIGNMENTS_CLASS_UPDATE",
+            code: "appointments.assignments.class.update",
+            label: "Class Assignments Update",
             uiLabel: "Edit",
             sortOrder: 65,
-            actionKey: "update",
-            featureKeys: ["assignments.class", "assignments.tutor"]
+            actionKey: "update"
           }),
           definePermission({
-            constantKey: "APPOINTMENTS_ASSIGNMENTS_DELETE",
-            code: "appointments.assignments.delete",
-            label: "Assignments Delete",
+            constantKey: "APPOINTMENTS_ASSIGNMENTS_CLASS_DELETE",
+            code: "appointments.assignments.class.delete",
+            label: "Class Assignments Delete",
             uiLabel: "Delete",
             sortOrder: 66,
-            actionKey: "delete",
-            featureKeys: ["assignments.class", "assignments.tutor"]
+            actionKey: "delete"
           })
         ]
       }),
@@ -428,40 +424,36 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
         sortOrder: 20,
         permissions: [
           definePermission({
-            constantKey: "APPOINTMENTS_ASSIGNMENTS_READ",
-            code: "appointments.assignments.read",
-            label: "Assignments Read",
+            constantKey: "APPOINTMENTS_ASSIGNMENTS_TUTOR_READ",
+            code: "appointments.assignments.tutor.read",
+            label: "Tutor Assignments Read",
             uiLabel: "Read",
-            sortOrder: 63,
-            actionKey: "read",
-            featureKeys: ["assignments.class", "assignments.tutor"]
+            sortOrder: 67,
+            actionKey: "read"
           }),
           definePermission({
-            constantKey: "APPOINTMENTS_ASSIGNMENTS_CREATE",
-            code: "appointments.assignments.create",
-            label: "Assignments Create",
+            constantKey: "APPOINTMENTS_ASSIGNMENTS_TUTOR_CREATE",
+            code: "appointments.assignments.tutor.create",
+            label: "Tutor Assignments Create",
             uiLabel: "Create",
-            sortOrder: 64,
-            actionKey: "create",
-            featureKeys: ["assignments.class", "assignments.tutor"]
+            sortOrder: 68,
+            actionKey: "create"
           }),
           definePermission({
-            constantKey: "APPOINTMENTS_ASSIGNMENTS_UPDATE",
-            code: "appointments.assignments.update",
-            label: "Assignments Update",
+            constantKey: "APPOINTMENTS_ASSIGNMENTS_TUTOR_UPDATE",
+            code: "appointments.assignments.tutor.update",
+            label: "Tutor Assignments Update",
             uiLabel: "Edit",
-            sortOrder: 65,
-            actionKey: "update",
-            featureKeys: ["assignments.class", "assignments.tutor"]
+            sortOrder: 69,
+            actionKey: "update"
           }),
           definePermission({
-            constantKey: "APPOINTMENTS_ASSIGNMENTS_DELETE",
-            code: "appointments.assignments.delete",
-            label: "Assignments Delete",
+            constantKey: "APPOINTMENTS_ASSIGNMENTS_TUTOR_DELETE",
+            code: "appointments.assignments.tutor.delete",
+            label: "Tutor Assignments Delete",
             uiLabel: "Delete",
-            sortOrder: 66,
-            actionKey: "delete",
-            featureKeys: ["assignments.class", "assignments.tutor"]
+            sortOrder: 70,
+            actionKey: "delete"
           })
         ]
       })

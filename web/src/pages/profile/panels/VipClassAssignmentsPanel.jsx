@@ -1,7 +1,7 @@
 function VipClassAssignmentsPanel({
-  canCreateAppointmentVipAssignments,
-  canUpdateAppointmentVipAssignments,
-  canDeleteAppointmentVipAssignments,
+  canCreateAppointmentVipClassAssignments,
+  canUpdateAppointmentVipClassAssignments,
+  canDeleteAppointmentVipClassAssignments,
   closeAppointmentVipAssignmentsPanel,
   vipClassMessage,
   vipClassLoading,
@@ -24,7 +24,7 @@ function VipClassAssignmentsPanel({
             className="header-btn appointment-breaks-add-icon-btn"
             aria-label="Add class"
             title="Add class"
-            disabled={!canCreateAppointmentVipAssignments}
+            disabled={!canCreateAppointmentVipClassAssignments}
             onClick={openVipClassAddModal}
           >
             +
@@ -78,7 +78,7 @@ function VipClassAssignmentsPanel({
                       <button
                         type="button"
                         className="table-action-btn"
-                        disabled={isClassSaving || vipClassModalSaving || !canUpdateAppointmentVipAssignments}
+                        disabled={isClassSaving || vipClassModalSaving || !canUpdateAppointmentVipClassAssignments}
                         onClick={() => openVipClassEditModal(row)}
                       >
                         Edit
@@ -88,7 +88,7 @@ function VipClassAssignmentsPanel({
                       <button
                         type="button"
                         className="table-action-btn table-action-btn-danger"
-                        disabled={isClassSaving || vipClassModalSaving || vipClassDeleteSaving || !canDeleteAppointmentVipAssignments}
+                        disabled={isClassSaving || vipClassModalSaving || vipClassDeleteSaving || !canDeleteAppointmentVipClassAssignments}
                         onClick={() => {
                           openVipClassDeleteModal(row);
                         }}

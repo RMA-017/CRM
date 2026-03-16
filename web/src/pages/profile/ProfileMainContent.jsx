@@ -119,13 +119,16 @@ function ProfileMainContent({
   canOpenMyChildren,
   canOpenAppointmentStatistics,
   canReadAppointmentVipClients,
-  canReadAppointmentVipAssignments,
   canCreateAppointmentVipClients,
   canUpdateAppointmentVipClients,
   canDeleteAppointmentVipClients,
-  canCreateAppointmentVipAssignments,
-  canUpdateAppointmentVipAssignments,
-  canDeleteAppointmentVipAssignments,
+  canReadAppointmentVipClassAssignments,
+  canCreateAppointmentVipClassAssignments,
+  canUpdateAppointmentVipClassAssignments,
+  canDeleteAppointmentVipClassAssignments,
+  canReadAppointmentVipTutorAssignments,
+  canCreateAppointmentVipTutorAssignments,
+  canUpdateAppointmentVipTutorAssignments,
   canCreateClients,
   canUpdateClients,
   canDeleteClients,
@@ -328,10 +331,13 @@ function ProfileMainContent({
     loadVipAssignments,
     saveVipAssignment
   } = useProfileVipAssignments({
-    canReadAppointmentVipAssignments,
-    canCreateAppointmentVipAssignments,
-    canUpdateAppointmentVipAssignments,
-    canDeleteAppointmentVipAssignments,
+    canReadAppointmentVipClassAssignments,
+    canCreateAppointmentVipClassAssignments,
+    canUpdateAppointmentVipClassAssignments,
+    canDeleteAppointmentVipClassAssignments,
+    canReadAppointmentVipTutorAssignments,
+    canCreateAppointmentVipTutorAssignments,
+    canUpdateAppointmentVipTutorAssignments,
     navigate
   });
   const {
@@ -1051,9 +1057,9 @@ function ProfileMainContent({
       {mainView === "appointment-vip-assignments" && (
         <Suspense fallback={PANEL_LOADING_FALLBACK}>
           <VipClassAssignmentsPanel
-            canCreateAppointmentVipAssignments={canCreateAppointmentVipAssignments}
-            canUpdateAppointmentVipAssignments={canUpdateAppointmentVipAssignments}
-            canDeleteAppointmentVipAssignments={canDeleteAppointmentVipAssignments}
+            canCreateAppointmentVipClassAssignments={canCreateAppointmentVipClassAssignments}
+            canUpdateAppointmentVipClassAssignments={canUpdateAppointmentVipClassAssignments}
+            canDeleteAppointmentVipClassAssignments={canDeleteAppointmentVipClassAssignments}
             closeAppointmentVipAssignmentsPanel={closeAppointmentVipAssignmentsPanel}
             vipClassMessage={vipClassMessage}
             vipClassLoading={vipClassLoading}
@@ -1076,8 +1082,8 @@ function ProfileMainContent({
             vipAssignmentLoading={vipAssignmentLoading}
             vipAssignmentItems={vipAssignmentItems}
             vipAssignmentSavingByClientId={vipAssignmentSavingByClientId}
-            canCreateAppointmentVipAssignments={canCreateAppointmentVipAssignments}
-            canUpdateAppointmentVipAssignments={canUpdateAppointmentVipAssignments}
+            canCreateAppointmentVipTutorAssignments={canCreateAppointmentVipTutorAssignments}
+            canUpdateAppointmentVipTutorAssignments={canUpdateAppointmentVipTutorAssignments}
             openVipTutorEditModal={openVipTutorEditModal}
           />
         </Suspense>
@@ -1194,7 +1200,7 @@ function ProfileMainContent({
             setNotificationSendForm={setNotificationSendForm}
             sendManualNotification={sendManualNotification}
             notificationSendSubmitting={notificationSendSubmitting}
-            rolesSettings={rolesSettings}
+            roleOptions={roleOptions}
           />
         </Suspense>
       )}

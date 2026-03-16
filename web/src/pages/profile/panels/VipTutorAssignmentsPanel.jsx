@@ -4,8 +4,8 @@ function VipTutorAssignmentsPanel({
   vipAssignmentLoading,
   vipAssignmentItems,
   vipAssignmentSavingByClientId,
-  canCreateAppointmentVipAssignments,
-  canUpdateAppointmentVipAssignments,
+  canCreateAppointmentVipTutorAssignments,
+  canUpdateAppointmentVipTutorAssignments,
   openVipTutorEditModal
 }) {
   return (
@@ -63,7 +63,7 @@ function VipTutorAssignmentsPanel({
                       <button
                         type="button"
                         className="table-action-btn"
-                        disabled={isSaving || (!canCreateAppointmentVipAssignments && !canUpdateAppointmentVipAssignments)}
+                        disabled={isSaving || (!canCreateAppointmentVipTutorAssignments && !canUpdateAppointmentVipTutorAssignments)}
                         onClick={() => openVipTutorEditModal(row)}
                       >
                         {isSaving ? "Saving..." : "Edit"}

@@ -8,10 +8,13 @@ import {
 } from "./profile.vip-utils.js";
 
 export function useProfileVipAssignments({
-  canReadAppointmentVipAssignments,
-  canCreateAppointmentVipAssignments,
-  canUpdateAppointmentVipAssignments,
-  canDeleteAppointmentVipAssignments,
+  canReadAppointmentVipClassAssignments,
+  canCreateAppointmentVipClassAssignments,
+  canUpdateAppointmentVipClassAssignments,
+  canDeleteAppointmentVipClassAssignments,
+  canReadAppointmentVipTutorAssignments,
+  canCreateAppointmentVipTutorAssignments,
+  canUpdateAppointmentVipTutorAssignments,
   navigate
 }) {
   const [vipClassItems, setVipClassItems] = useState([]);
@@ -28,7 +31,7 @@ export function useProfileVipAssignments({
   const [vipAssignmentSavingByClientId, setVipAssignmentSavingByClientId] = useState({});
 
   const loadVipClassAssignments = useCallback(async () => {
-    if (!canReadAppointmentVipAssignments) {
+    if (!canReadAppointmentVipClassAssignments) {
       setVipClassItems([]);
       setVipClassTeachers([]);
       setVipClassMessage("You do not have permission to manage VIP class assignments.");
@@ -88,7 +91,7 @@ export function useProfileVipAssignments({
     } finally {
       setVipClassLoading(false);
     }
-  }, [canReadAppointmentVipAssignments, navigate]);
+  }, [canReadAppointmentVipClassAssignments, navigate]);
 
   const saveVipClassAssignment = useCallback(async ({
     classId = "",
@@ -100,12 +103,12 @@ export function useProfileVipAssignments({
     const normalizedTeacherId = String(teacherId || "").trim();
     const isEditMode = Boolean(normalizedClassId);
 
-    if (isEditMode && !canUpdateAppointmentVipAssignments) {
+    if (isEditMode && !canUpdateAppointmentVipClassAssignments) {
       const message = "You do not have permission to update class assignments.";
       setVipClassMessage(message);
       return { ok: false, message };
     }
-    if (!isEditMode && !canCreateAppointmentVipAssignments) {
+    if (!isEditMode && !canCreateAppointmentVipClassAssignments) {
       const message = "You do not have permission to create class assignments.";
       setVipClassMessage(message);
       return { ok: false, message };
@@ -200,8 +203,8 @@ export function useProfileVipAssignments({
       });
     }
   }, [
-    canCreateAppointmentVipAssignments,
-    canUpdateAppointmentVipAssignments,
+    canCreateAppointmentVipClassAssignments,
+    canUpdateAppointmentVipClassAssignments,
     navigate
   ]);
 
@@ -210,7 +213,7 @@ export function useProfileVipAssignments({
     if (!normalizedClassId) {
       return { ok: false, message: "Class is required." };
     }
-    if (!canDeleteAppointmentVipAssignments) {
+    if (!canDeleteAppointmentVipClassAssignments) {
       return { ok: false, message: "You do not have permission to delete class assignments." };
     }
 
@@ -247,10 +250,10 @@ export function useProfileVipAssignments({
         return next;
       });
     }
-  }, [canDeleteAppointmentVipAssignments, navigate]);
+  }, [canDeleteAppointmentVipClassAssignments, navigate]);
 
   const loadVipAssignments = useCallback(async () => {
-    if (!canReadAppointmentVipAssignments) {
+    if (!canReadAppointmentVipTutorAssignments) {
       setVipAssignmentItems([]);
       setVipAssignmentDraftByClientId({});
       setVipAssignmentClasses([]);
@@ -334,13 +337,13 @@ export function useProfileVipAssignments({
     } finally {
       setVipAssignmentLoading(false);
     }
-  }, [canReadAppointmentVipAssignments, navigate]);
+  }, [canReadAppointmentVipTutorAssignments, navigate]);
 
   const saveVipAssignment = useCallback(async (clientId, {
     classId = "",
     tutorId = ""
   } = {}) => {
-    if (!canCreateAppointmentVipAssignments && !canUpdateAppointmentVipAssignments) {
+    if (!canCreateAppointmentVipTutorAssignments && !canUpdateAppointmentVipTutorAssignments) {
       const message = "You do not have permission to save VIP tutor assignments.";
       setVipAssignmentMessage(message);
       return { ok: false, message };
@@ -428,8 +431,8 @@ export function useProfileVipAssignments({
       });
     }
   }, [
-    canCreateAppointmentVipAssignments,
-    canUpdateAppointmentVipAssignments,
+    canCreateAppointmentVipTutorAssignments,
+    canUpdateAppointmentVipTutorAssignments,
     navigate
   ]);
 

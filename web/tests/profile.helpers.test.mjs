@@ -68,8 +68,10 @@ test("buildRolePermissionTree groups permissions into accordion tree and marks s
     { value: "appointments.vip-clients.delete", label: "VIP Clients Delete" },
     { value: "appointments.vip-clients.my-class", label: "VIP Clients My Class" },
     { value: "appointments.vip-clients.daily-routines", label: "VIP Clients Daily Routines" },
-    { value: "appointments.assignments.read", label: "Assignments Read" },
-    { value: "appointments.assignments.create", label: "Assignments Create" }
+    { value: "appointments.assignments.class.read", label: "Class Assignments Read" },
+    { value: "appointments.assignments.class.create", label: "Class Assignments Create" },
+    { value: "appointments.assignments.tutor.read", label: "Tutor Assignments Read" },
+    { value: "appointments.assignments.tutor.create", label: "Tutor Assignments Create" }
   ];
 
   const tree = buildRolePermissionTree(permissions);
@@ -99,6 +101,20 @@ test("buildRolePermissionTree groups permissions into accordion tree and marks s
   assert.deepEqual(
     assignmentsGroup.children.map((child) => child.label),
     ["Class", "Tutor"]
+  );
+  assert.equal(
+    assignmentsGroup.children
+      .find((child) => child.label === "Class")
+      .children.find((leaf) => leaf.code === "appointments.assignments.class.create")
+      .isShared,
+    false
+  );
+  assert.equal(
+    assignmentsGroup.children
+      .find((child) => child.label === "Tutor")
+      .children.find((leaf) => leaf.code === "appointments.assignments.tutor.create")
+      .isShared,
+    false
   );
 });
 

@@ -78,10 +78,14 @@ export function useProfileAccess(profile, forcedView) {
   const canMyClassPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS);
   const canMyChildrenPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN);
   const canDailyRoutinesPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DAILY_ROUTINES);
-  const canReadAssignmentsPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_READ);
-  const canCreateAssignmentsPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CREATE);
-  const canUpdateAssignmentsPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_UPDATE);
-  const canDeleteAssignmentsPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_DELETE);
+  const canReadClassAssignmentsPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_READ);
+  const canCreateClassAssignmentsPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_CREATE);
+  const canUpdateClassAssignmentsPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_UPDATE);
+  const canDeleteClassAssignmentsPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_DELETE);
+  const canReadTutorAssignmentsPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_TUTOR_READ);
+  const canCreateTutorAssignmentsPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_TUTOR_CREATE);
+  const canUpdateTutorAssignmentsPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_TUTOR_UPDATE);
+  const canDeleteTutorAssignmentsPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_TUTOR_DELETE);
   const canReadStatisticsClassAttendancePermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_STATISTICS_CLASS_ATTENDANCE);
   const canReadStatisticsPlannerReportPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT);
   const canReadSettingsAppointmentsPermission = hasPermissionWithOrgFeature(PERMISSIONS.SETTINGS_APPOINTMENTS_READ);
@@ -139,10 +143,14 @@ export function useProfileAccess(profile, forcedView) {
     || canMyClassPermission
     || canMyChildrenPermission
     || canDailyRoutinesPermission
-    || canReadAssignmentsPermission
-    || canCreateAssignmentsPermission
-    || canUpdateAssignmentsPermission
-    || canDeleteAssignmentsPermission
+    || canReadClassAssignmentsPermission
+    || canCreateClassAssignmentsPermission
+    || canUpdateClassAssignmentsPermission
+    || canDeleteClassAssignmentsPermission
+    || canReadTutorAssignmentsPermission
+    || canCreateTutorAssignmentsPermission
+    || canUpdateTutorAssignmentsPermission
+    || canDeleteTutorAssignmentsPermission
     || canReadStatisticsClassAttendancePermission
     || canReadStatisticsPlannerReportPermission
   );
@@ -266,27 +274,53 @@ export function useProfileAccess(profile, forcedView) {
 
   const legacyCanReadAssignments = canReadClients && (Boolean(profile?.isAdmin) || isDirectorLike);
   const legacyCanManageAssignments = canUpdateClients && (Boolean(profile?.isAdmin) || isDirectorLike);
-  const canReadAppointmentVipAssignments = usesAdvancedMenuPermissions
-    ? canReadAssignmentsPermission
+  const canReadAppointmentVipClassAssignments = usesAdvancedMenuPermissions
+    ? canReadClassAssignmentsPermission
     : legacyCanReadAssignments;
-  const canCreateAppointmentVipAssignments = usesAdvancedMenuPermissions
-    ? canCreateAssignmentsPermission
+  const canCreateAppointmentVipClassAssignments = usesAdvancedMenuPermissions
+    ? canCreateClassAssignmentsPermission
     : legacyCanManageAssignments;
-  const canUpdateAppointmentVipAssignments = usesAdvancedMenuPermissions
-    ? canUpdateAssignmentsPermission
+  const canUpdateAppointmentVipClassAssignments = usesAdvancedMenuPermissions
+    ? canUpdateClassAssignmentsPermission
     : legacyCanManageAssignments;
-  const canDeleteAppointmentVipAssignments = usesAdvancedMenuPermissions
-    ? canDeleteAssignmentsPermission
+  const canDeleteAppointmentVipClassAssignments = usesAdvancedMenuPermissions
+    ? canDeleteClassAssignmentsPermission
     : legacyCanManageAssignments;
-  const canOpenAppointmentVipClassAssignments = hasOrgFeature("assignments.class") && (
-    usesAdvancedMenuPermissions
-      ? canReadAssignmentsPermission
-      : legacyCanReadAssignments
+  const canReadAppointmentVipTutorAssignments = usesAdvancedMenuPermissions
+    ? canReadTutorAssignmentsPermission
+    : legacyCanReadAssignments;
+  const canCreateAppointmentVipTutorAssignments = usesAdvancedMenuPermissions
+    ? canCreateTutorAssignmentsPermission
+    : legacyCanManageAssignments;
+  const canUpdateAppointmentVipTutorAssignments = usesAdvancedMenuPermissions
+    ? canUpdateTutorAssignmentsPermission
+    : legacyCanManageAssignments;
+  const canDeleteAppointmentVipTutorAssignments = usesAdvancedMenuPermissions
+    ? canDeleteTutorAssignmentsPermission
+    : legacyCanManageAssignments;
+  const canReadAppointmentVipAssignments = (
+    canReadAppointmentVipClassAssignments
+    || canReadAppointmentVipTutorAssignments
   );
-  const canOpenAppointmentVipTutorAssignments = hasOrgFeature("assignments.tutor") && (
-    usesAdvancedMenuPermissions
-      ? canReadAssignmentsPermission
-      : legacyCanReadAssignments
+  const canCreateAppointmentVipAssignments = (
+    canCreateAppointmentVipClassAssignments
+    || canCreateAppointmentVipTutorAssignments
+  );
+  const canUpdateAppointmentVipAssignments = (
+    canUpdateAppointmentVipClassAssignments
+    || canUpdateAppointmentVipTutorAssignments
+  );
+  const canDeleteAppointmentVipAssignments = (
+    canDeleteAppointmentVipClassAssignments
+    || canDeleteAppointmentVipTutorAssignments
+  );
+  const canOpenAppointmentVipClassAssignments = (
+    hasOrgFeature("assignments.class")
+    && canReadAppointmentVipClassAssignments
+  );
+  const canOpenAppointmentVipTutorAssignments = (
+    hasOrgFeature("assignments.tutor")
+    && canReadAppointmentVipTutorAssignments
   );
   const canOpenAppointmentVipAssignments = canOpenAppointmentVipClassAssignments || canOpenAppointmentVipTutorAssignments;
   const canOpenAppointmentStatistics = usesAdvancedMenuPermissions
@@ -429,6 +463,14 @@ export function useProfileAccess(profile, forcedView) {
     canOpenAppointmentVipClassAssignments,
     canOpenAppointmentVipTutorAssignments,
     canOpenAppointmentVipAssignments,
+    canReadAppointmentVipClassAssignments,
+    canCreateAppointmentVipClassAssignments,
+    canUpdateAppointmentVipClassAssignments,
+    canDeleteAppointmentVipClassAssignments,
+    canReadAppointmentVipTutorAssignments,
+    canCreateAppointmentVipTutorAssignments,
+    canUpdateAppointmentVipTutorAssignments,
+    canDeleteAppointmentVipTutorAssignments,
     canReadAppointmentVipAssignments,
     canCreateAppointmentVipAssignments,
     canUpdateAppointmentVipAssignments,
@@ -495,6 +537,14 @@ export function useProfileAccess(profile, forcedView) {
     canOpenAppointmentVipClassAssignments,
     canOpenAppointmentVipTutorAssignments,
     canOpenAppointmentVipAssignments,
+    canReadAppointmentVipClassAssignments,
+    canCreateAppointmentVipClassAssignments,
+    canUpdateAppointmentVipClassAssignments,
+    canDeleteAppointmentVipClassAssignments,
+    canReadAppointmentVipTutorAssignments,
+    canCreateAppointmentVipTutorAssignments,
+    canUpdateAppointmentVipTutorAssignments,
+    canDeleteAppointmentVipTutorAssignments,
     canReadAppointmentVipAssignments,
     canCreateAppointmentVipAssignments,
     canUpdateAppointmentVipAssignments,

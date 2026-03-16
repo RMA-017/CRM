@@ -104,10 +104,13 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenAppointmentVipClassAssignments,
     canOpenAppointmentVipTutorAssignments,
     canOpenAppointmentVipAssignments,
-    canReadAppointmentVipAssignments,
-    canCreateAppointmentVipAssignments,
-    canUpdateAppointmentVipAssignments,
-    canDeleteAppointmentVipAssignments,
+    canReadAppointmentVipClassAssignments,
+    canCreateAppointmentVipClassAssignments,
+    canUpdateAppointmentVipClassAssignments,
+    canDeleteAppointmentVipClassAssignments,
+    canReadAppointmentVipTutorAssignments,
+    canCreateAppointmentVipTutorAssignments,
+    canUpdateAppointmentVipTutorAssignments,
     canOpenAppointmentStatistics,
     canOpenStatisticsClassAttendance,
     canOpenStatisticsPlannerReport,
@@ -721,10 +724,6 @@ function ProfilePage({ forcedView = "none" }) {
       loadPositionsSettings();
       return;
     }
-    if (mainView === "notifications-send") {
-      loadRolesSettings();
-      return;
-    }
   }, [
     canReadUsers,
     allUsersLoadedOnce,
@@ -735,7 +734,6 @@ function ProfilePage({ forcedView = "none" }) {
     loadOrganizations,
     loadNormsSettings,
     loadPositionsSettings,
-    loadRolesSettings,
     mainView,
     forcedView,
     profile?.username,
@@ -1357,13 +1355,16 @@ function ProfilePage({ forcedView = "none" }) {
           canOpenMyChildren={canOpenMyChildren}
           canOpenAppointmentStatistics={canOpenAppointmentStatistics}
           canReadAppointmentVipClients={canReadAppointmentVipClients}
-          canReadAppointmentVipAssignments={canReadAppointmentVipAssignments}
           canCreateAppointmentVipClients={canCreateAppointmentVipClients}
           canUpdateAppointmentVipClients={canUpdateAppointmentVipClients}
           canDeleteAppointmentVipClients={canDeleteAppointmentVipClients}
-          canCreateAppointmentVipAssignments={canCreateAppointmentVipAssignments}
-          canUpdateAppointmentVipAssignments={canUpdateAppointmentVipAssignments}
-          canDeleteAppointmentVipAssignments={canDeleteAppointmentVipAssignments}
+          canReadAppointmentVipClassAssignments={canReadAppointmentVipClassAssignments}
+          canCreateAppointmentVipClassAssignments={canCreateAppointmentVipClassAssignments}
+          canUpdateAppointmentVipClassAssignments={canUpdateAppointmentVipClassAssignments}
+          canDeleteAppointmentVipClassAssignments={canDeleteAppointmentVipClassAssignments}
+          canReadAppointmentVipTutorAssignments={canReadAppointmentVipTutorAssignments}
+          canCreateAppointmentVipTutorAssignments={canCreateAppointmentVipTutorAssignments}
+          canUpdateAppointmentVipTutorAssignments={canUpdateAppointmentVipTutorAssignments}
           canCreateClients={canCreateClients}
           canUpdateClients={canUpdateClients}
           canDeleteClients={canDeleteClients}

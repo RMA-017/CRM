@@ -41,7 +41,43 @@ const LEGACY_PERMISSION_CODE_MIGRATIONS = Object.freeze([
   },
   {
     from: "appointments.assignments",
-    to: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_READ
+    to: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_READ
+  },
+  {
+    from: "appointments.assignments",
+    to: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_TUTOR_READ
+  },
+  {
+    from: "appointments.assignments.read",
+    to: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_READ
+  },
+  {
+    from: "appointments.assignments.read",
+    to: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_TUTOR_READ
+  },
+  {
+    from: "appointments.assignments.create",
+    to: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_CREATE
+  },
+  {
+    from: "appointments.assignments.create",
+    to: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_TUTOR_CREATE
+  },
+  {
+    from: "appointments.assignments.update",
+    to: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_UPDATE
+  },
+  {
+    from: "appointments.assignments.update",
+    to: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_TUTOR_UPDATE
+  },
+  {
+    from: "appointments.assignments.delete",
+    to: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_DELETE
+  },
+  {
+    from: "appointments.assignments.delete",
+    to: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_TUTOR_DELETE
   },
   {
     from: "appointments.statistics",
