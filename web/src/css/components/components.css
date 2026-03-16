@@ -557,7 +557,7 @@ label.field > span:first-child,
 #vipDailyRoutineEditModal .vip-class-add-grid > div > span,
 #vipDailyRoutineEditModal .vip-daily-routine-form-scroll > label > span,
 #vipDailyRoutineEditModal .vip-daily-routine-time-row > label > span {
-  min-height: 18px;
+  min-height: 16px;
   box-sizing: border-box;
 }
 
@@ -1496,7 +1496,7 @@ label.field > span:first-child,
 .all-users-table th,
 .all-users-table td {
   text-align: left;
-  padding: 2px 5px;
+  padding: 0 5px;
   height: 30px;
   min-height: 30px;
   line-height: 1;
@@ -4990,7 +4990,7 @@ label.field > span:first-child,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: 2px 5px;
+  padding: 0 5px;
   height: 30px;
   min-height: 30px;
   line-height: 1;

@@ -4058,7 +4058,6 @@ function AppointmentScheduler({
                     <tr key={row.clientId}>
                       <td className="appointment-vip-client-wrap-cell" colSpan={weekDays.length}>
                         <div className="appointment-vip-client-wrap">
-                          <p className="appointment-vip-client-name">{row.clientName || "-"}</p>
                           <div
                             className="appointment-vip-client-days-grid"
                             style={{ gridTemplateColumns: `repeat(${Math.max(1, weekDays.length)}, minmax(0, 1fr))` }}

@@ -82,8 +82,8 @@
   --fs-lg: 18px;
 
   --bar-height: 52px;
-  --btn-height: 34px;
-  --input-height: 34px;
+  --btn-height: 30px;
+  --input-height: 30px;
   --close-btn-size: 30px;
   --btn-fixed-width: 72px;
   --btn-compact-width: 74px;
@@ -267,7 +267,7 @@ textarea {
   outline: none;
   border-radius: var(--radius);
   min-height: var(--input-height);
-  padding: 8px 12px;
+  padding: 0 12px;
   font-size: var(--fs-small);
   font-family: inherit;
   color: var(--text-main);
@@ -326,6 +326,7 @@ select:hover:not(:focus):not(.input-error) {
 }
 
 textarea {
+  padding: 8px 12px;
   resize: vertical;
   min-height: 88px;
   line-height: 1.5;
@@ -390,8 +391,9 @@ textarea.input-error {
   border: 1.5px solid var(--input-border);
   outline: none;
   border-radius: var(--radius);
+  height: var(--input-height);
   min-height: var(--input-height);
-  padding: 8px 36px 8px 12px;
+  padding: 0 36px 0 12px;
   font-size: var(--fs-small);
   font-family: inherit;
   color: var(--text-main);
@@ -400,6 +402,8 @@ textarea.input-error {
   cursor: pointer;
   transition: border-color var(--dur) ease, box-shadow var(--dur) ease;
   position: relative;
+  display: flex;
+  align-items: center;
 }
 
 .custom-select-trigger:hover {
@@ -516,10 +520,11 @@ textarea.input-error {
 
 .custom-select-search-input {
   width: 100%;
+  height: var(--input-height);
   min-height: var(--input-height);
   border: 1.5px solid var(--input-border);
   border-radius: var(--radius-sm);
-  padding: 6px 10px;
+  padding: 0 10px;
   font-size: var(--fs-small);
   background: var(--surface-soft);
   color: var(--text-main);
