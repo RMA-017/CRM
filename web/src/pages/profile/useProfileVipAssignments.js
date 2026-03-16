@@ -125,7 +125,7 @@ export function useProfileVipAssignments({
       return { ok: false, message };
     }
     if (!normalizedTeacherId) {
-      const message = "Teacher is required.";
+      const message = "Educator is required.";
       setVipClassMessage(message);
       return { ok: false, message };
     }

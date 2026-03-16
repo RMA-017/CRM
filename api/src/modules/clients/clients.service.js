@@ -286,6 +286,7 @@ async function getVipAssignableUsersByKeywords(organizationId, keywords = []) {
 
 export async function getVipAttendanceTeachersByOrganization(organizationId) {
   return getVipAssignableUsersByKeywords(organizationId, [
+    "educator",
     "teacher",
     "tutor",
     "oqituvchi",
@@ -365,6 +366,7 @@ export async function getClientMedicalHistoryClientOptions({
 export async function getVipAssignmentOptionsByOrganization(organizationId) {
   const [teachers, tutors] = await Promise.all([
     getVipAssignableUsersByKeywords(organizationId, [
+      "educator",
       "teacher",
       "oqituvchi",
       "o'qituvchi",

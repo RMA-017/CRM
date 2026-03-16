@@ -361,6 +361,9 @@ export function useProfileAccess(profile, forcedView) {
   const hasAdminSettingsAccess = Boolean(profile?.isPlatformAdmin);
 
   const canAccessForcedView = useMemo(() => {
+    if (forcedView === "appointment-work-schedule") {
+      return canOpenAppointmentWorkSchedule;
+    }
     if (Boolean(profile?.isPlatformAdmin)) {
       return true;
     }

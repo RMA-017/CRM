@@ -185,11 +185,15 @@ test("appointment planner report filters cache results and clear on schedule wri
 test("client reference caches reuse VIP teacher, tutor and client option lookups", async () => {
   clearClientsReferenceCaches();
   let callCount = 0;
+  const teacherKeywordParamSets = [];
   const restoreQuery = stubPoolQuery(async (sql, params = []) => {
     callCount += 1;
     const text = String(sql || "");
     if (text.includes("FROM users u")) {
       const joinedParams = params.slice(1).join("|");
+      if (joinedParams.includes("educator")) {
+        teacherKeywordParamSets.push(joinedParams);
+      }
       if (joinedParams.includes("assistant") || joinedParams.includes("murabbiy")) {
         return {
           rows: [{ id: "11", name: "Tutor User" }]
@@ -226,6 +230,7 @@ test("client reference caches reuse VIP teacher, tutor and client option lookups
     const secondAssignments = await getVipAssignmentOptionsByOrganization(7);
     assert.equal(callCount, 3);
     assert.deepEqual(secondAssignments, firstAssignments);
+    assert.equal(teacherKeywordParamSets.length >= 2, true);
 
     firstAssignments.teachers[0].name = "Changed";
     const thirdAssignments = await getVipAssignmentOptionsByOrganization(7);

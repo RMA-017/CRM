@@ -185,6 +185,18 @@ test("legacy admins keep work schedule access without explicit work schedule per
   assert.equal(access.canDeleteAppointmentWorkSchedule, true);
 });
 
+test("platform admins cannot force-open work schedule when explicit permissions remove read access", () => {
+  const access = readAccessSnapshot({
+    isAdmin: true,
+    isPlatformAdmin: true,
+    permissions: ["appointments.work-schedule.create"],
+    orgFeatures: ["appointments.work_schedule"]
+  }, "appointment-work-schedule");
+
+  assert.equal(access.canOpenAppointmentWorkSchedule, false);
+  assert.equal(access.canAccessForcedView, false);
+});
+
 test("breaks permissions are independent from planner permissions", () => {
   const access = readAccessSnapshot({
     isAdmin: false,

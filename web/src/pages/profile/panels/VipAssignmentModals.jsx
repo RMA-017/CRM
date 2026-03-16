@@ -305,13 +305,14 @@ function VipAssignmentModals({
             </label>
 
             <div>
-              <span>Teacher</span>
+              <span>Educator</span>
               <CustomSelect
                 id="vipClassModalTeacherSelect"
-                placeholder="Select teacher"
+                placeholder="Select educator"
                 value={String(vipClassDraft?.teacherId || "")}
                 options={vipClassTeacherOptions}
                 searchable
+                searchPlaceholder="Search educator..."
                 searchThreshold={8}
                 menuPortal
                 maxVisibleOptions={6}

@@ -1289,7 +1289,7 @@ async function clientsRoutes(fastify) {
 
       const teacherId = parsePositiveInteger(payload?.teacherId ?? payload?.teacher_id);
       if (!teacherId) {
-        return reply.status(400).send({ field: "teacherId", message: "Teacher is required." });
+        return reply.status(400).send({ field: "teacherId", message: "Educator is required." });
       }
 
       try {
@@ -1323,7 +1323,7 @@ async function clientsRoutes(fastify) {
         const teacherAllowed = (Array.isArray(options?.teachers) ? options.teachers : [])
           .some((item) => Number.parseInt(String(item?.id || ""), 10) === teacherId);
         if (!teacherAllowed) {
-          return reply.status(400).send({ field: "teacherId", message: "Selected teacher is not allowed." });
+          return reply.status(400).send({ field: "teacherId", message: "Selected educator is not allowed." });
         }
 
         const item = await upsertVipClassAssignment({

@@ -444,7 +444,7 @@ export default function useProfileVipManagement({
   const vipClassTeacherOptions = (Array.isArray(vipClassTeachers) ? vipClassTeachers : [])
     .map((item) => ({
       value: String(item?.id || "").trim(),
-      label: String(item?.name || "").trim() || `Teacher #${String(item?.id || "").trim()}`
+      label: String(item?.name || "").trim() || `Educator #${String(item?.id || "").trim()}`
     }))
     .filter((item) => Boolean(item.value));
 
@@ -712,7 +712,7 @@ export default function useProfileVipManagement({
       return;
     }
     if (!teacherId) {
-      setVipClassModalError("Teacher is required.");
+      setVipClassModalError("Educator is required.");
       return;
     }
     setVipClassModalSaving(true);
