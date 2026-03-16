@@ -1807,12 +1807,12 @@
 
 #appointmentVipAttendancePanel .all-users-table th:nth-child(2),
 #appointmentVipAttendancePanel .all-users-table td:nth-child(2) {
-  width: 22%;
+  width: 26.8%;
 }
 
 #appointmentVipAttendancePanel .all-users-table th:nth-child(3),
 #appointmentVipAttendancePanel .all-users-table td:nth-child(3) {
-  width: 16%;
+  width: 20.8%;
 }
 
 #appointmentVipAttendancePanel .all-users-table th:nth-child(4),
@@ -1821,7 +1821,7 @@
 #appointmentVipAttendancePanel .all-users-table td:nth-child(5),
 #appointmentVipAttendancePanel .all-users-table th:nth-child(6),
 #appointmentVipAttendancePanel .all-users-table td:nth-child(6) {
-  width: 16%;
+  width: 12.8%;
 }
 
 #appointmentVipAttendancePanel .all-users-table th:nth-child(4),
@@ -3219,6 +3219,31 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.95),
     0 8px 24px rgba(15, 23, 42, 0.07),
     0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+.appointment-client-focused-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.appointment-client-focused-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.appointment-client-focused-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.appointment-client-focused-section-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1b365d;
 }
 
 .appointment-grid {
