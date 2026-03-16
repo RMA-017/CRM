@@ -478,7 +478,7 @@ const FORCED_VIEW_REQUIRED_FEATURES = {
   "appointment": ["appointments.planner"],
   "appointment-breaks": ["appointments.breaks"],
   "appointment-vip-attendance": ["vip_clients.attendance"],
-  "appointment-vip-norm-monitoring": ["vip_clients.attendance"],
+  "appointment-vip-norm-monitoring": ["vip_clients.norm_monitoring"],
   "appointment-vip-my-children": ["vip_clients.my_children"],
   "appointment-vip-daily-routines": ["vip_clients.daily_routines"],
   "appointment-vip-assignments": ["assignments.class"],

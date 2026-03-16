@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 
-test("VIP norm monitoring is wired into routes, menu, and panel filters", async () => {
-  const [appSource, menuSource, panelSource, mainContentSource] = await Promise.all([
+test("VIP norm monitoring is wired into routes, menu, panel filters, and dedicated access gates", async () => {
+  const [appSource, menuSource, panelSource, mainContentSource, helperSource, accessSource] = await Promise.all([
     readFile(new URL("../src/App.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/pages/profile/ProfileSideMenu.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/pages/profile/panels/VipNormMonitoringPanel.jsx", import.meta.url), "utf8"),
-    readFile(new URL("../src/pages/profile/ProfileMainContent.jsx", import.meta.url), "utf8")
+    readFile(new URL("../src/pages/profile/ProfileMainContent.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/pages/profile/profile.helpers.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/pages/profile/useProfileAccess.js", import.meta.url), "utf8")
   ]);
 
   assert.match(
@@ -23,9 +25,27 @@ test("VIP norm monitoring is wired into routes, menu, and panel filters", async 
   );
 
   assert.match(
+    menuSource,
+    /hidden=\{!canOpenAppointmentVipNormMonitoring\}/,
+    "VIP Clients menu should gate Norm Monitoring with its dedicated access flag."
+  );
+
+  assert.match(
     mainContentSource,
     /mainView === "appointment-vip-norm-monitoring"/,
     "Profile main content should render the VIP norm monitoring panel for its dedicated view."
+  );
+
+  assert.match(
+    helperSource,
+    /"appointment-vip-norm-monitoring": \["vip_clients\.norm_monitoring"\]/,
+    "Forced view mapping should use the dedicated Norm Monitoring org feature."
+  );
+
+  assert.match(
+    accessSource,
+    /const canOpenAppointmentVipNormMonitoring = \(\s*hasOrgFeature\("vip_clients\.norm_monitoring"\)\s*&& canNormMonitoringPermission\s*\)/s,
+    "Profile access should compute a dedicated Norm Monitoring access flag."
   );
 
   assert.match(

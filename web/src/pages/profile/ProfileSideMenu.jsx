@@ -16,6 +16,7 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
   canOpenAppointmentBreaks,
   canOpenAppointmentWorkSchedule,
   canOpenAppointmentVipClients,
+  canOpenAppointmentVipNormMonitoring,
   canOpenMyChildren,
   canOpenAppointmentVipDailyRoutines,
   canOpenAppointmentVipClassAssignments,
@@ -171,7 +172,7 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
             id="toggleVipClientsMenuBtn"
             type="button"
             className="side-menu-action side-menu-parent"
-            hidden={!canOpenAppointmentVipMyClass && !canOpenAppointmentVipClients && !canOpenMyChildren && !canOpenAppointmentVipDailyRoutines}
+            hidden={!canOpenAppointmentVipMyClass && !canOpenAppointmentVipClients && !canOpenAppointmentVipNormMonitoring && !canOpenMyChildren && !canOpenAppointmentVipDailyRoutines}
             aria-expanded={vipClientsMenuOpen ? "true" : "false"}
             onClick={() => {
               setVipClientsMenuOpen((prev) => !prev);
@@ -202,7 +203,7 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
               id="openVipNormMonitoringBtn"
               type="button"
               className="side-submenu-link side-submenu-action"
-              hidden={!canOpenAppointmentVipClients}
+              hidden={!canOpenAppointmentVipNormMonitoring}
               onClick={openAppointmentVipNormMonitoringPanel}
             >
               Norm Monitoring

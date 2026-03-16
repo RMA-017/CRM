@@ -25,4 +25,9 @@ test("Work schedule panel includes a panel-style search bar and filters visible 
     /<th>Full Name<\/th>/,
     "Work schedule panel should render full names in the weekly overrides table."
   );
+  assert.match(
+    source,
+    /Add Blocked Time/,
+    "Work schedule panel should label weekly overrides as blocked time instead of work days."
+  );
 });

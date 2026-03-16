@@ -76,6 +76,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     buildBreakRangesByDay,
     hasSpecialistBreakConflict,
     buildBreakConflictMessage,
+    buildWorkScheduleBlockRangesByDay,
+    hasSpecialistWorkScheduleConflict,
+    buildWorkScheduleBlockConflictMessage,
     buildScheduleNotification,
     createRouteError,
     isUniqueOrExclusionConflict,
@@ -564,6 +567,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             .filter((dayNum) => Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 7);
           const repeatGroupKey = randomUUID();
           const shouldEnforceAvailability = status === "pending" || status === "confirmed";
+          const blockedRangesByDay = shouldEnforceAvailability
+            ? buildWorkScheduleBlockRangesByDay(settingsForRepeat?.blockedTimes)
+            : new Map();
           const breakRangesByDay = shouldEnforceAvailability
             ? buildBreakRangesByDay(
                 await getAppointmentBreaksBySpecialistAndDays({
@@ -592,6 +598,25 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                     continue;
                   }
                   throw createRouteError(400, workingHoursError);
+                }
+
+                const recurringBlockedConflict = hasSpecialistWorkScheduleConflict({
+                  blockedRangesByDay,
+                  appointmentDate: recurringDate,
+                  startTime,
+                  endTime
+                });
+                if (recurringBlockedConflict) {
+                  if (repeat.skipConflicts) {
+                    nextSkippedDates.push(recurringDate);
+                    continue;
+                  }
+                  throw createRouteError(409, {
+                    message: buildWorkScheduleBlockConflictMessage({
+                      conflict: recurringBlockedConflict,
+                      appointmentDate: recurringDate
+                    })
+                  });
                 }
 
                 const recurringBreakConflict = hasSpecialistBreakConflict({
@@ -746,6 +771,19 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           });
           if (workingHoursError) {
             return reply.status(400).send(workingHoursError);
+          }
+
+          const blockedRangesByDay = buildWorkScheduleBlockRangesByDay(settingsForSlot?.blockedTimes);
+          const blockedConflict = hasSpecialistWorkScheduleConflict({
+            blockedRangesByDay,
+            appointmentDate,
+            startTime,
+            endTime
+          });
+          if (blockedConflict) {
+            return reply.status(409).send({
+              message: buildWorkScheduleBlockConflictMessage({ conflict: blockedConflict })
+            });
           }
 
           const breakRangesByDay = buildBreakRangesByDay(
@@ -1101,6 +1139,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           const repeatDayNums = repeatDayKeys
             .map((dayKey) => toAppointmentDayNum(dayKey))
             .filter((dayNum) => Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 7);
+          const blockedRangesByDay = shouldEnforceAvailability
+            ? buildWorkScheduleBlockRangesByDay(settingsForRepeat?.blockedTimes)
+            : new Map();
           const breakRangesByDay = shouldEnforceAvailability
             ? buildBreakRangesByDay(
                 await getAppointmentBreaksBySpecialistAndDays({
@@ -1120,6 +1161,18 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               });
               if (anchorWorkingHoursError) {
                 throw createRouteError(400, anchorWorkingHoursError);
+              }
+
+              const anchorBlockedConflict = hasSpecialistWorkScheduleConflict({
+                blockedRangesByDay,
+                appointmentDate,
+                startTime,
+                endTime
+              });
+              if (anchorBlockedConflict) {
+                throw createRouteError(409, {
+                  message: buildWorkScheduleBlockConflictMessage({ conflict: anchorBlockedConflict })
+                });
               }
 
               const anchorBreakConflict = hasSpecialistBreakConflict({
@@ -1207,6 +1260,25 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                     continue;
                   }
                   throw createRouteError(400, workingHoursError);
+                }
+
+                const recurringBlockedConflict = hasSpecialistWorkScheduleConflict({
+                  blockedRangesByDay,
+                  appointmentDate: recurringDate,
+                  startTime,
+                  endTime
+                });
+                if (recurringBlockedConflict) {
+                  if (repeat.skipConflicts) {
+                    nextSkippedDates.push(recurringDate);
+                    continue;
+                  }
+                  throw createRouteError(409, {
+                    message: buildWorkScheduleBlockConflictMessage({
+                      conflict: recurringBlockedConflict,
+                      appointmentDate: recurringDate
+                    })
+                  });
                 }
 
                 const recurringBreakConflict = hasSpecialistBreakConflict({
@@ -1366,6 +1438,27 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                 });
               }
               return reply.status(400).send(workingHoursError);
+            }
+
+            const blockedRangesByDay = buildWorkScheduleBlockRangesByDay(settingsForAvailability?.blockedTimes);
+            const blockedConflict = hasSpecialistWorkScheduleConflict({
+              blockedRangesByDay,
+              appointmentDate: conflictDate,
+              startTime,
+              endTime
+            });
+            if (blockedConflict) {
+              if (target.items.length > 1) {
+                return reply.status(409).send({
+                  message: buildWorkScheduleBlockConflictMessage({
+                    conflict: blockedConflict,
+                    appointmentDate: conflictDate
+                  })
+                });
+              }
+              return reply.status(409).send({
+                message: buildWorkScheduleBlockConflictMessage({ conflict: blockedConflict })
+              });
             }
 
             const breakConflict = hasSpecialistBreakConflict({

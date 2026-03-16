@@ -120,6 +120,7 @@ function ProfileMainContent({
   navigate,
   canOpenMyChildren,
   canOpenAppointmentStatistics,
+  canOpenAppointmentVipNormMonitoring,
   canReadAppointmentVipClients,
   canCreateAppointmentVipClients,
   canUpdateAppointmentVipClients,
@@ -377,7 +378,7 @@ function ProfileMainContent({
     vipNormMonitoringLoading
   } = useVipNormMonitoringSection({
     mainView,
-    canReadAppointmentVipClients,
+    canOpenAppointmentVipNormMonitoring,
     navigate
   });
   const {

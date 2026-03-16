@@ -414,6 +414,68 @@ export function buildBreakConflictMessage({
   return `Selected time conflicts with specialist break: ${reason}.`;
 }
 
+export function buildWorkScheduleBlockRangesByDay(rows) {
+  const byDay = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const dayNum = Number.parseInt(String(row?.dayOfWeek ?? row?.day_of_week ?? "").trim(), 10);
+    if (!Number.isInteger(dayNum) || dayNum < 1 || dayNum > 7) {
+      return;
+    }
+    const start = toTimeMinutes(row?.startTime ?? row?.start_time);
+    const end = toTimeMinutes(row?.endTime ?? row?.end_time);
+    if (start === null || end === null || start >= end) {
+      return;
+    }
+    const reason = String(row?.reason || row?.title || "").trim() || "Blocked slot";
+    const list = byDay.get(dayNum) || [];
+    list.push({ start, end, reason });
+    byDay.set(dayNum, list);
+  });
+  return byDay;
+}
+
+export function hasSpecialistWorkScheduleConflict({
+  blockedRangesByDay,
+  appointmentDate,
+  startTime,
+  endTime
+}) {
+  const dayNum = toDayNumFromDateYmd(appointmentDate);
+  if (!Number.isInteger(dayNum) || dayNum <= 0) {
+    return false;
+  }
+  const ranges = blockedRangesByDay instanceof Map ? (blockedRangesByDay.get(dayNum) || []) : [];
+  if (ranges.length === 0) {
+    return false;
+  }
+  const start = toTimeMinutes(startTime);
+  const end = toTimeMinutes(endTime);
+  if (start === null || end === null || start >= end) {
+    return null;
+  }
+  const conflict = ranges.find((range) => start < range.end && range.start < end);
+  if (!conflict) {
+    return null;
+  }
+  return {
+    start: conflict.start,
+    end: conflict.end,
+    reason: String(conflict.reason || "Blocked slot").trim() || "Blocked slot"
+  };
+}
+
+export function buildWorkScheduleBlockConflictMessage({
+  conflict,
+  appointmentDate = ""
+}) {
+  const reason = String(conflict?.reason || "Blocked slot").trim() || "Blocked slot";
+  const dateValue = String(appointmentDate || "").trim();
+  if (dateValue) {
+    return `Blocked slot on ${dateValue}: ${reason}.`;
+  }
+  return `Selected time conflicts with specialist blocked slot: ${reason}.`;
+}
+
 function validateSlotAgainstWorkingHours({
   settings,
   appointmentDate,

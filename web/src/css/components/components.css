@@ -1461,7 +1461,6 @@ label.field > span:first-child,
 }
 
 .all-users-table-wrap {
-  margin-top: 10px;
   max-height: min(46vh, 420px);
   overflow: auto;
   min-width: 0;
@@ -3905,7 +3904,7 @@ label.field > span:first-child,
   padding: 0 6px;
 }
 
-.appointment-grid tbody tr:nth-child(even) td:not(.appointment-off-slot-td):not(.appointment-break-type-lunch-td):not(.appointment-break-type-meeting-td):not(.appointment-break-type-training-td):not(.appointment-break-type-other-td) {
+.appointment-grid tbody tr:nth-child(even) td:not(.appointment-off-slot-td):not(.appointment-break-type-lunch-td):not(.appointment-break-type-meeting-td):not(.appointment-break-type-training-td):not(.appointment-break-type-other-td):not(.appointment-work-schedule-blocked-td) {
   background: #f2f7fd;
 }
 
@@ -4309,7 +4308,20 @@ label.field > span:first-child,
   pointer-events: none;
 }
 
+.appointment-work-schedule-blocked-text {
+  color: #475569;
+}
+
 .appointment-grid tbody td.appointment-td-multi-slot:is(.appointment-break-type-lunch-td, .appointment-break-type-meeting-td, .appointment-break-type-training-td, .appointment-break-type-other-td) .appointment-break-text-only {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.appointment-grid tbody td.appointment-td-multi-slot.appointment-work-schedule-blocked-td .appointment-work-schedule-blocked-text {
   position: absolute;
   inset: 0;
   display: flex;
@@ -4337,8 +4349,18 @@ label.field > span:first-child,
   border-radius: 0;
 }
 
+.appointment-grid tbody td.appointment-day-col-gap.appointment-td-multi-slot.appointment-work-schedule-blocked-td {
+  margin: 0;
+  padding: 0 4px;
+  border-radius: 0;
+}
+
 .appointment-grid tbody td:is(.appointment-break-type-lunch-td, .appointment-break-type-meeting-td, .appointment-break-type-training-td, .appointment-break-type-other-td) {
   background: linear-gradient(180deg, rgba(255, 237, 213, 0.94) 0%, rgba(254, 215, 170, 0.68) 100%);
+}
+
+.appointment-grid tbody td.appointment-work-schedule-blocked-td {
+  background: linear-gradient(180deg, rgba(226, 232, 240, 0.95) 0%, rgba(203, 213, 225, 0.78) 100%);
 }
 
 .appointment-grid tbody td.appointment-td-multi-slot.appointment-off-slot-td {

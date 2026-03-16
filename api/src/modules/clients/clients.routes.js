@@ -195,6 +195,7 @@ const ADVANCED_APPOINTMENT_MENU_PERMISSIONS = Object.freeze([
   PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_UPDATE,
   PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DELETE,
   PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS,
+  PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_NORM_MONITORING,
   PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DAILY_ROUTINES,
   PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_READ,
   PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_CREATE,
@@ -222,6 +223,7 @@ async function getVipClientsPermissionSnapshot(roleId) {
     canUpdateVipClients,
     canDeleteVipClients,
     canAccessMyClass,
+    canAccessNormMonitoring,
     canAccessMyChildren,
     canAccessDailyRoutines,
     canReadVipScopeAll,
@@ -233,6 +235,7 @@ async function getVipClientsPermissionSnapshot(roleId) {
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_UPDATE),
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DELETE),
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS),
+    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_NORM_MONITORING),
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN),
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DAILY_ROUTINES),
     hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_SCOPE_ALL),
@@ -245,6 +248,7 @@ async function getVipClientsPermissionSnapshot(roleId) {
     canUpdateVipClients,
     canDeleteVipClients,
     canAccessMyClass,
+    canAccessNormMonitoring,
     canAccessMyChildren,
     canAccessDailyRoutines,
     canReadVipScopeAll,
@@ -1235,12 +1239,12 @@ async function clientsRoutes(fastify) {
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
-        if (!requesterHasOrgFeature(requester, "vip_clients.attendance")) {
+        if (!requesterHasOrgFeature(requester, "vip_clients.norm_monitoring")) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
         const vipPermissions = await getVipClientsPermissionSnapshot(requester.role_id);
-        if (!vipPermissions.canReadVipClients) {
+        if (!vipPermissions.canAccessNormMonitoring) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 

@@ -13,7 +13,7 @@ function normalizeSpecialistItems(items) {
 
 export function useVipNormMonitoringSection({
   mainView,
-  canReadAppointmentVipClients,
+  canOpenAppointmentVipNormMonitoring,
   navigate
 }) {
   const [vipNormMonitoringItems, setVipNormMonitoringItems] = useState([]);
@@ -27,7 +27,7 @@ export function useVipNormMonitoringSection({
   const [vipNormMonitoringLoading, setVipNormMonitoringLoading] = useState(false);
 
   const loadVipNormMonitoring = useCallback(async () => {
-    if (!canReadAppointmentVipClients) {
+    if (!canOpenAppointmentVipNormMonitoring) {
       setVipNormMonitoringItems([]);
       setVipNormMonitoringFilters({
         clients: [],
@@ -128,7 +128,7 @@ export function useVipNormMonitoringSection({
     } finally {
       setVipNormMonitoringLoading(false);
     }
-  }, [canReadAppointmentVipClients, navigate]);
+  }, [canOpenAppointmentVipNormMonitoring, navigate]);
 
   useEffect(() => {
     if (mainView !== "appointment-vip-norm-monitoring") {

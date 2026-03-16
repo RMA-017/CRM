@@ -15,6 +15,7 @@ export function useProfilePanels({
   canOpenAppointmentBreaks,
   canOpenAppointmentWorkSchedule,
   canOpenAppointmentVipClients,
+  canOpenAppointmentVipNormMonitoring,
   canOpenMyChildren,
   canOpenAppointmentVipDailyRoutines,
   canOpenAppointmentVipAssignments,
@@ -142,8 +143,8 @@ export function useProfilePanels({
   }, [closePanel, mainView, navigate]);
 
   const openAppointmentVipNormMonitoringPanel = useCallback(() => {
-    openPanel("/vip-clients/norm-monitoring", canOpenAppointmentVipClients);
-  }, [canOpenAppointmentVipClients, openPanel]);
+    openPanel("/vip-clients/norm-monitoring", canOpenAppointmentVipNormMonitoring);
+  }, [canOpenAppointmentVipNormMonitoring, openPanel]);
 
   const closeAppointmentVipNormMonitoringPanel = useCallback(() => {
     closePanel("appointment-vip-norm-monitoring");

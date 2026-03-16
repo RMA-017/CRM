@@ -316,6 +316,21 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
         ]
       }),
       defineFeature({
+        key: "vip_clients.norm_monitoring",
+        label: "Norm Monitoring",
+        sortOrder: 25,
+        permissions: [
+          definePermission({
+            constantKey: "APPOINTMENTS_VIP_CLIENTS_NORM_MONITORING",
+            code: "appointments.vip-clients.norm-monitoring",
+            label: "VIP Clients Norm Monitoring",
+            uiLabel: "Open",
+            sortOrder: 60,
+            actionKey: "open"
+          })
+        ]
+      }),
+      defineFeature({
         key: "vip_clients.my_children",
         label: "My Children",
         sortOrder: 30,

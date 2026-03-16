@@ -12,8 +12,8 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /clientFocusedPlannerSections/,
-    "Appointment scheduler should build client-focused planner sections."
+    /clientFocusedSchedulesBySpecialist/,
+    "Appointment scheduler should keep client-focused appointments grouped by specialist."
   );
   assert.match(
     source,
@@ -59,5 +59,20 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
     source,
     /const cardPrimaryText = isClientCardMode[\s\S]*item\?\.specialist[\s\S]*const cardSecondaryText = isClientCardMode/s,
     "Client mode planner cards should render specialist details so existing appointments can be edited from the grid."
+  );
+  assert.match(
+    source,
+    /blockedTimes:\s*normalizePlannerBlockedTimeItems\(normalizedItem\.blockedTimes\)/,
+    "Appointment settings should carry specialist blocked times into planner state."
+  );
+  assert.match(
+    source,
+    /appointmentWorkScheduleBlockedSlotsByDay/,
+    "Planner should convert specialist blocked times into blocked slot cells."
+  );
+  assert.match(
+    source,
+    /appointment-work-schedule-blocked-td/,
+    "Planner should render blocked work schedule cells with a dedicated class."
   );
 });

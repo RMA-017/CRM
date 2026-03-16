@@ -76,6 +76,9 @@ export function useProfileAccess(profile, forcedView) {
   const canUpdateVipClientsPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_UPDATE);
   const canDeleteVipClientsPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DELETE);
   const canMyClassPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS);
+  const canNormMonitoringPermission = hasPermissionWithOrgFeature(
+    PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_NORM_MONITORING
+  );
   const canMyChildrenPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN);
   const canDailyRoutinesPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DAILY_ROUTINES);
   const canReadClassAssignmentsPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_READ);
@@ -141,6 +144,7 @@ export function useProfileAccess(profile, forcedView) {
     || canUpdateVipClientsPermission
     || canDeleteVipClientsPermission
     || canMyClassPermission
+    || canNormMonitoringPermission
     || canMyChildrenPermission
     || canDailyRoutinesPermission
     || canReadClassAssignmentsPermission
@@ -265,6 +269,10 @@ export function useProfileAccess(profile, forcedView) {
   const canDeleteAppointmentVipClients = canDeleteVipClientsPermission;
   const canOpenAppointmentVipClients = hasOrgFeature("vip_clients.attendance") && canReadVipClientsPermission;
   const canOpenAppointmentVipMyClass = hasOrgFeature("vip_clients.my_class") && canMyClassPermission;
+  const canOpenAppointmentVipNormMonitoring = (
+    hasOrgFeature("vip_clients.norm_monitoring")
+    && canNormMonitoringPermission
+  );
   const canOpenMyChildren = hasOrgFeature("vip_clients.my_children") && canMyChildrenPermission;
   const canOpenAppointmentVipDailyRoutines = (
     hasOrgFeature("vip_clients.daily_routines")
@@ -386,7 +394,7 @@ export function useProfileAccess(profile, forcedView) {
       return canOpenAppointmentVipClients;
     }
     if (forcedView === "appointment-vip-norm-monitoring") {
-      return canOpenAppointmentVipClients;
+      return canOpenAppointmentVipNormMonitoring;
     }
     if (forcedView === "appointment-vip-my-children") {
       return canOpenMyChildren;
@@ -460,6 +468,7 @@ export function useProfileAccess(profile, forcedView) {
     canDeleteAppointmentBreaks,
     canOpenAppointmentVipMyClass,
     canOpenAppointmentVipClients,
+    canOpenAppointmentVipNormMonitoring,
     canOpenMyChildren,
     canOpenAppointmentVipDailyRoutines,
     canReadAppointmentVipClients,
@@ -534,6 +543,7 @@ export function useProfileAccess(profile, forcedView) {
     canUpdateAppointmentBreaks,
     canDeleteAppointmentBreaks,
     canOpenAppointmentVipClients,
+    canOpenAppointmentVipNormMonitoring,
     canOpenMyChildren,
     canOpenAppointmentVipDailyRoutines,
     canReadAppointmentVipClients,

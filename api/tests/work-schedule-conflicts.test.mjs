@@ -1247,7 +1247,7 @@ test("replaceAppointmentDefaultWeeklyWorkSchedule blocks org hours while future 
   }
 });
 
-test("getAppointmentSettingsByOrganization overlays specialist weekly hours inside org default", async () => {
+test("getAppointmentSettingsByOrganization keeps org default hours and exposes specialist blocked times", async () => {
   const restoreQuery = stubPoolQuery(async (sql, params = []) => {
     const queryText = String(sql || "");
     if (queryText.includes("FROM information_schema.columns")) {
@@ -1294,8 +1294,8 @@ test("getAppointmentSettingsByOrganization overlays specialist weekly hours insi
       assert.deepEqual(params, [7, 9]);
       return {
         rows: [
-          { day_of_week: 1, is_active: true, start_time: "10:00", end_time: "17:00" },
-          { day_of_week: 2, is_active: false, start_time: null, end_time: null }
+          { day_of_week: 1, is_active: true, start_time: "10:00", end_time: "17:00", reason: "Unavailable" },
+          { day_of_week: 2, is_active: false, start_time: null, end_time: null, reason: "" }
         ]
       };
     }
@@ -1304,17 +1304,24 @@ test("getAppointmentSettingsByOrganization overlays specialist weekly hours insi
 
   try {
     const item = await getAppointmentSettingsByOrganization(7, { specialistId: 9 });
-    assert.equal(item.workingHours.mon.start, "10:00");
-    assert.equal(item.workingHours.mon.end, "17:00");
-    assert.equal(item.workingHours.tue.start, "");
-    assert.equal(item.workingHours.tue.end, "");
-    assert.deepEqual(item.visibleWeekDays, ["mon"]);
+    assert.equal(item.workingHours.mon.start, "09:00");
+    assert.equal(item.workingHours.mon.end, "18:00");
+    assert.equal(item.workingHours.tue.start, "09:00");
+    assert.equal(item.workingHours.tue.end, "18:00");
+    assert.deepEqual(item.visibleWeekDays, ["mon", "tue", "wed", "thu", "fri"]);
+    assert.deepEqual(item.blockedTimes, [{
+      dayOfWeek: "1",
+      dayKey: "mon",
+      startTime: "10:00",
+      endTime: "17:00",
+      reason: "Unavailable"
+    }]);
   } finally {
     restoreQuery();
   }
 });
 
-test("getAppointmentSettingsByOrganization auto-closes unspecified specialist days in planner settings", async () => {
+test("getAppointmentSettingsByOrganization keeps default week visibility while specialist blocked times stay separate", async () => {
   const restoreQuery = stubPoolQuery(async (sql, params = []) => {
     const queryText = String(sql || "");
     if (queryText.includes("FROM information_schema.columns")) {
@@ -1365,9 +1372,9 @@ test("getAppointmentSettingsByOrganization auto-closes unspecified specialist da
       assert.deepEqual(params, [7, 9]);
       return {
         rows: [
-          { day_of_week: 1, is_active: true, start_time: "10:00", end_time: "17:00" },
-          { day_of_week: 2, is_active: true, start_time: "10:00", end_time: "17:00" },
-          { day_of_week: 3, is_active: true, start_time: "10:00", end_time: "17:00" }
+          { day_of_week: 1, is_active: true, start_time: "10:00", end_time: "17:00", reason: "Late arrival" },
+          { day_of_week: 2, is_active: true, start_time: "10:00", end_time: "17:00", reason: "Late arrival" },
+          { day_of_week: 3, is_active: true, start_time: "10:00", end_time: "17:00", reason: "Late arrival" }
         ]
       };
     }
@@ -1376,13 +1383,14 @@ test("getAppointmentSettingsByOrganization auto-closes unspecified specialist da
 
   try {
     const item = await getAppointmentSettingsByOrganization(7, { specialistId: 9 });
-    assert.deepEqual(item.visibleWeekDays, ["mon", "tue", "wed"]);
-    assert.equal(item.workingHours.mon.start, "10:00");
-    assert.equal(item.workingHours.tue.start, "10:00");
-    assert.equal(item.workingHours.wed.start, "10:00");
-    assert.equal(item.workingHours.thu.start, "");
-    assert.equal(item.workingHours.fri.start, "");
-    assert.equal(item.workingHours.sat.start, "");
+    assert.deepEqual(item.visibleWeekDays, ["mon", "tue", "wed", "thu", "fri", "sat"]);
+    assert.equal(item.workingHours.mon.start, "09:00");
+    assert.equal(item.workingHours.tue.start, "09:00");
+    assert.equal(item.workingHours.wed.start, "09:00");
+    assert.equal(item.workingHours.thu.start, "09:00");
+    assert.equal(item.workingHours.fri.start, "09:00");
+    assert.equal(item.workingHours.sat.start, "09:00");
+    assert.equal(item.blockedTimes?.length, 3);
   } finally {
     restoreQuery();
   }

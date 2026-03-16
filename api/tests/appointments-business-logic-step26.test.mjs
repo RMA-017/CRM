@@ -164,6 +164,9 @@ function createScheduleContext(overrides = {}) {
     buildBreakRangesByDay: () => new Map(),
     hasSpecialistBreakConflict: () => null,
     buildBreakConflictMessage: () => "Break conflict.",
+    buildWorkScheduleBlockRangesByDay: () => new Map(),
+    hasSpecialistWorkScheduleConflict: () => null,
+    buildWorkScheduleBlockConflictMessage: () => "Blocked slot conflict.",
     buildScheduleNotification: () => ({ message: "ok", data: {} }),
     createRouteError,
     isUniqueOrExclusionConflict: () => false,
@@ -718,6 +721,59 @@ test("schedule create blocks client double-booking across specialists", async ()
 
   assert.equal(reply.state.statusCode, 409);
   assert.equal(reply.state.payload?.message, "This client already has another appointment at this time.");
+});
+
+test("schedule create blocks specialist blocked work schedule slots", async () => {
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      getAppointmentSettingsByOrganization: async () => ({
+        visibleWeekDays: ["mon", "tue", "wed", "thu", "fri"],
+        blockedTimes: [{
+          dayOfWeek: "1",
+          dayKey: "mon",
+          startTime: "09:00",
+          endTime: "11:00",
+          reason: "Unavailable"
+        }]
+      }),
+      buildWorkScheduleBlockRangesByDay: () => new Map([[1, [{ start: 540, end: 660, reason: "Unavailable" }]]]),
+      hasSpecialistWorkScheduleConflict: () => ({ reason: "Unavailable" }),
+      buildWorkScheduleBlockConflictMessage: () => "Selected time conflicts with specialist blocked slot: Unavailable.",
+      createAppointmentSchedule: async () => {
+        throw new Error("Schedule should not be created inside a blocked slot.");
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "POST", "/schedules");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      body: {
+        specialistId: "9",
+        clientId: "44",
+        appointmentDate: "2026-03-09",
+        startTime: "09:00",
+        endTime: "10:00",
+        durationMinutes: "60",
+        service: "Lesson",
+        status: "pending",
+        note: ""
+      }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 409);
+  assert.equal(
+    reply.state.payload?.message,
+    "Selected time conflicts with specialist blocked slot: Unavailable."
+  );
 });
 
 test("schedule update blocks specialist users from editing another specialist schedule", async () => {

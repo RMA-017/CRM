@@ -671,15 +671,15 @@ function WorkSchedulePanel({
           hidden={!isWeeklyOverridesModalOpen}
           aria-modal="true"
           role="dialog"
-          aria-label="Add work days"
+          aria-label="Add blocked time"
         >
           <div className="appointment-breaks-add-modal-head">
-            <h3>Add Work Days</h3>
+            <h3>Add Blocked Time</h3>
             <button
               id="closeWorkScheduleUserOverridesModalBtn"
               type="button"
               className="header-btn panel-close-btn"
-              aria-label="Close add work days modal"
+              aria-label="Close add blocked time modal"
               onClick={closeWeeklyOverridesModal}
             >
               ×
@@ -884,7 +884,7 @@ function WorkSchedulePanel({
         className="logout-confirm-modal"
         hidden={!weeklyDelete.open}
       >
-        <h3>Delete this work schedule entry?</h3>
+        <h3>Delete this blocked time entry?</h3>
         <p className="all-users-state" hidden={!weeklyDelete.label}>{weeklyDelete.label}</p>
         <p className="field-error">{weeklyDelete.error}</p>
         <div className="logout-confirm-actions">
@@ -980,8 +980,8 @@ function WorkSchedulePanel({
                 id="openWorkScheduleUserOverridesModalBtn"
                 type="button"
                 className="header-btn appointment-breaks-add-icon-btn"
-                aria-label="Open add work days modal"
-                title="Add Work Days"
+                aria-label="Open add blocked time modal"
+                title="Add Blocked Time"
                 disabled={!canCreateWorkSchedule}
                 onClick={openWeeklyOverridesModal}
               >
@@ -995,7 +995,7 @@ function WorkSchedulePanel({
               id="workScheduleSearchInput"
               type="search"
               className="panel-search-input"
-              placeholder="Search by full name, day, time, reason..."
+              placeholder="Search by full name, day, time, blocked reason..."
               value={weeklySearchInput}
               onChange={(event) => setWeeklySearchInput(event.currentTarget.value)}
             />

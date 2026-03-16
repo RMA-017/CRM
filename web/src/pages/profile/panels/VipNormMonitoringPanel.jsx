@@ -36,7 +36,6 @@ function buildSimpleOptions(items, labelField) {
 function VipNormMonitoringPanel({
   vipNormMonitoringItems,
   vipNormMonitoringFilters,
-  vipNormMonitoringMessage,
   vipNormMonitoringLoading,
   closeAppointmentVipNormMonitoringPanel
 }) {
@@ -153,10 +152,6 @@ function VipNormMonitoringPanel({
           />
         </label>
       </div>
-
-      <p id="vipNormMonitoringState" className="all-users-state" hidden={!vipNormMonitoringMessage}>
-        {vipNormMonitoringMessage}
-      </p>
 
       <div className="all-users-table-wrap">
         <table className="all-users-table vip-norm-monitoring-table" aria-label="VIP norm monitoring table">

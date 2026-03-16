@@ -100,6 +100,7 @@ function ProfilePage({ forcedView = "none" }) {
     canUpdateAppointmentWorkSchedule,
     canDeleteAppointmentWorkSchedule,
     canOpenAppointmentVipClients,
+    canOpenAppointmentVipNormMonitoring,
     canOpenMyChildren,
     canOpenAppointmentVipDailyRoutines,
     canReadAppointmentVipClients,
@@ -896,6 +897,7 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenAppointmentBreaks,
     canOpenAppointmentWorkSchedule,
     canOpenAppointmentVipClients,
+    canOpenAppointmentVipNormMonitoring,
     canOpenMyChildren,
     canOpenAppointmentVipDailyRoutines,
     canOpenAppointmentVipAssignments,
@@ -1387,6 +1389,7 @@ function ProfilePage({ forcedView = "none" }) {
           navigate={navigate}
           canOpenMyChildren={canOpenMyChildren}
           canOpenAppointmentStatistics={canOpenAppointmentStatistics}
+          canOpenAppointmentVipNormMonitoring={canOpenAppointmentVipNormMonitoring}
           canReadAppointmentVipClients={canReadAppointmentVipClients}
           canCreateAppointmentVipClients={canCreateAppointmentVipClients}
           canUpdateAppointmentVipClients={canUpdateAppointmentVipClients}
@@ -1683,6 +1686,7 @@ function ProfilePage({ forcedView = "none" }) {
           canUpdateAppointmentWorkSchedule={canUpdateAppointmentWorkSchedule}
           canDeleteAppointmentWorkSchedule={canDeleteAppointmentWorkSchedule}
           canOpenAppointmentVipClients={canOpenAppointmentVipClients}
+          canOpenAppointmentVipNormMonitoring={canOpenAppointmentVipNormMonitoring}
             canOpenMyChildren={canOpenMyChildren}
             canOpenAppointmentVipDailyRoutines={canOpenAppointmentVipDailyRoutines}
             canOpenAppointmentVipClassAssignments={canOpenAppointmentVipClassAssignments}
