@@ -472,6 +472,13 @@
   box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
+#notificationMessageInput.notify-textarea {
+  min-height: 30px;
+  height: 30px;
+  padding: 4px 12px;
+  line-height: 1.2;
+}
+
 .settings-form-grid.settings-form-grid-org {
   padding: 0;
   gap: 10px;
@@ -1468,7 +1475,7 @@ label.field > span:first-child,
 }
 
 .all-users-table-wrap.ws-user-overrides-table-wrap {
-  margin-top: 10px;
+  margin-top: 0;
   max-height: none;
   overflow-x: auto;
   overflow-y: hidden;
@@ -1975,7 +1982,7 @@ label.field > span:first-child,
 
 .vip-attendance-toolbar {
   margin-top: 0;
-  margin-bottom: 10px;
+  margin-bottom: 0;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -1996,6 +2003,7 @@ label.field > span:first-child,
   justify-content: flex-start;
   width: 100%;
   gap: 10px;
+  margin-bottom: 0;
 }
 
 .statistics-history-toolbar .field {
@@ -2030,7 +2038,8 @@ label.field > span:first-child,
 .statistics-history-toolbar .statistics-history-reload-btn {
   flex: 0 0 auto;
   width: 100px;
-  height: 34px;
+  height: var(--btn-height);
+  min-height: var(--btn-height);
   min-width: 100px;
   align-self: flex-end;
   box-shadow: none;
@@ -2101,8 +2110,8 @@ label.field > span:first-child,
   gap: 8px;
   margin: 0;
   width: 100px;
-  height: 34px;
-  min-height: 34px;
+  height: var(--btn-height);
+  min-height: var(--btn-height);
   padding: 0 10px;
   border: 1.5px solid var(--input-border);
   border-radius: var(--radius);
@@ -2131,7 +2140,8 @@ label.field > span:first-child,
 .planner-report-load-btn {
   width: 100px;
   min-width: 100px;
-  height: 34px;
+  height: var(--btn-height);
+  min-height: var(--btn-height);
   box-shadow: none;
 }
 
@@ -2198,7 +2208,7 @@ label.field > span:first-child,
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 10px;
-  margin-top: 14px;
+  margin-top: 10px;
 }
 
 .planner-report-section {
@@ -2250,7 +2260,7 @@ label.field > span:first-child,
 
 .planner-report-table.is-detail-report th:nth-child(1),
 .planner-report-table.is-detail-report td:nth-child(1) {
-  width: calc(10% - 10px);
+  width: 10%;
   padding-left: 10px;
 }
 
@@ -2281,7 +2291,8 @@ label.field > span:first-child,
 
 .planner-report-table.is-detail-report th:nth-child(7),
 .planner-report-table.is-detail-report td:nth-child(7) {
-  width: 10%;
+  width: auto;
+  padding-right: 10px;
   text-align: center;
 }
 
@@ -3001,7 +3012,7 @@ label.field > span:first-child,
   gap: 10px;
   width: 100%;
   max-width: 100%;
-  margin: 0;
+  margin: 0 0 10px;
   flex-wrap: nowrap;
   overflow: hidden;
 }
@@ -3086,7 +3097,7 @@ label.field > span:first-child,
 }
 
 .appointment-scheduler {
-  margin-top: 10px;
+  margin-top: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
