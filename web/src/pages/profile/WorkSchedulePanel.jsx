@@ -47,6 +47,33 @@ function createDefaultWeeklyDraft(items = []) {
   }));
 }
 
+function normalizeDefaultWeeklyRows(rows = []) {
+  const byDay = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const dayOfWeek = String(row?.dayOfWeek || "").trim();
+    if (!dayOfWeek) {
+      return;
+    }
+    byDay.set(dayOfWeek, {
+      dayOfWeek,
+      isActive: row?.isActive === true,
+      startTime: String(row?.startTime || "").trim(),
+      endTime: String(row?.endTime || "").trim(),
+      reason: String(row?.reason || "").trim()
+    });
+  });
+
+  return DAYS.map((day) => ({
+    dayOfWeek: day.dayOfWeek,
+    dayKey: day.dayKey,
+    label: day.label,
+    isActive: byDay.get(day.dayOfWeek)?.isActive === true,
+    startTime: String(byDay.get(day.dayOfWeek)?.startTime || "").trim(),
+    endTime: String(byDay.get(day.dayOfWeek)?.endTime || "").trim(),
+    reason: String(byDay.get(day.dayOfWeek)?.reason || "").trim()
+  }));
+}
+
 function createWeeklyForm() {
   return {
     dayOfWeek: "1",
@@ -99,6 +126,8 @@ function WorkSchedulePanel({
   showUserWeeklyOverrides = true,
   defaultWeeklyTitle = "Default Weekly Schedule",
   showUserWeeklyOverridesLauncher = true,
+  initialDefaultWeeklyRows = null,
+  loadRemoteData = true,
   onDefaultWeeklyRowsChange = null,
   isUserWeeklyOverridesModalOpen,
   onOpenUserWeeklyOverridesModal = null,
@@ -107,7 +136,7 @@ function WorkSchedulePanel({
   const currentOrganizationId = String(organizationId || profile?.organizationId || "").trim();
   const [staff, setStaff] = useState([]);
   const [items, setItems] = useState([]);
-  const [defaultWeeklyRows, setDefaultWeeklyRows] = useState(() => createDefaultWeeklyDraft([]));
+  const [defaultWeeklyRows, setDefaultWeeklyRows] = useState(() => normalizeDefaultWeeklyRows(initialDefaultWeeklyRows));
   const [weeklyUserId, setWeeklyUserId] = useState("");
   const [weeklyForm, setWeeklyForm] = useState(createWeeklyForm);
   const [weeklyDraftLines, setWeeklyDraftLines] = useState(() => [createWeeklyDraftLine()]);
@@ -187,6 +216,13 @@ function WorkSchedulePanel({
     ? canUpdateWorkSchedule
     : canCreateWorkSchedule;
 
+  useEffect(() => {
+    if (!Array.isArray(initialDefaultWeeklyRows)) {
+      return;
+    }
+    setDefaultWeeklyRows(normalizeDefaultWeeklyRows(initialDefaultWeeklyRows));
+  }, [initialDefaultWeeklyRows]);
+
   const loadData = useCallback(async () => {
     if (!currentOrganizationId) {
       return;
@@ -233,11 +269,11 @@ function WorkSchedulePanel({
   }, [currentOrganizationId]);
 
   useEffect(() => {
-    if (!currentOrganizationId) {
+    if (!currentOrganizationId || !loadRemoteData) {
       return;
     }
     void loadData();
-  }, [currentOrganizationId, loadData]);
+  }, [currentOrganizationId, loadRemoteData, loadData]);
 
   useEffect(() => {
     if (!showDefaultWeekly || typeof onDefaultWeeklyRowsChange !== "function") {

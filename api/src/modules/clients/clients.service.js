@@ -284,6 +284,32 @@ async function getVipAssignableUsersByKeywords(organizationId, keywords = []) {
   return items;
 }
 
+async function getOrganizationUsersByOrganization(organizationId) {
+  const cacheKey = `organization-users|org:${organizationId}`;
+  const cached = clientsReferenceCache.get(cacheKey);
+  if (cached) {
+    return cloneVipAssignableUsers(cached);
+  }
+
+  const { rows } = await pool.query(
+    `SELECT
+       u.id::text AS id,
+       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS name
+      FROM users u
+      JOIN organizations o ON o.id = u.organization_id
+      WHERE u.organization_id = $1
+        AND o.is_active = TRUE
+      ORDER BY
+        COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), u.id::text) ASC,
+        u.id ASC`,
+    [organizationId]
+  );
+
+  const items = rows || [];
+  clientsReferenceCache.set(cacheKey, cloneVipAssignableUsers(items));
+  return items;
+}
+
 export async function getVipAttendanceTeachersByOrganization(organizationId) {
   return getVipAssignableUsersByKeywords(organizationId, [
     "educator",
@@ -365,13 +391,7 @@ export async function getClientMedicalHistoryClientOptions({
 
 export async function getVipAssignmentOptionsByOrganization(organizationId) {
   const [teachers, tutors] = await Promise.all([
-    getVipAssignableUsersByKeywords(organizationId, [
-      "educator",
-      "teacher",
-      "oqituvchi",
-      "o'qituvchi",
-      "ustoz"
-    ]),
+    getOrganizationUsersByOrganization(organizationId),
     getVipAssignableUsersByKeywords(organizationId, [
       "tutor",
       "assistant",

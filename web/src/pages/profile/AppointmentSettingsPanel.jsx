@@ -57,6 +57,26 @@ function createDefaultForm() {
   };
 }
 
+function mapWorkingHoursToDefaultWeeklyRows(workingHours) {
+  return DAYS.map((day, index) => {
+    const source = workingHours && typeof workingHours === "object"
+      ? workingHours[day.key]
+      : null;
+    const startTime = String(source?.start || "").trim();
+    const endTime = String(source?.end || "").trim();
+    const isActive = Boolean(startTime && endTime && startTime < endTime);
+    return {
+      dayOfWeek: String(index + 1),
+      dayKey: day.key,
+      label: day.label,
+      isActive,
+      startTime: isActive ? startTime : "",
+      endTime: isActive ? endTime : "",
+      reason: ""
+    };
+  });
+}
+
 function mapSettingsItemToForm(source) {
   const normalizedSource = source && typeof source === "object"
     ? source
@@ -281,6 +301,9 @@ function AppointmentSettingsPanel({
       return sum + (lineCount > 0 ? lineCount : 1);
     }, 0)
   ), [addBreakDraftRows]);
+  const initialDefaultWeeklyRows = useMemo(() => (
+    mapWorkingHoursToDefaultWeeklyRows(form?.workingHours)
+  ), [form?.workingHours]);
   const effectiveOrganizationId = currentOrganizationId;
 
   useEffect(() => {
@@ -1903,6 +1926,8 @@ function AppointmentSettingsPanel({
           showDefaultWeekly
           showUserWeeklyOverrides={false}
           defaultWeeklyTitle="9. Default Weekly Schedule"
+          initialDefaultWeeklyRows={initialDefaultWeeklyRows}
+          loadRemoteData={false}
           onDefaultWeeklyRowsChange={setDefaultWeeklyRows}
         />
 
