@@ -3441,6 +3441,7 @@ function AppointmentScheduler({
                         value={createForm.clientId}
                         options={clientSelectOptions}
                         maxVisibleOptions={10}
+                        menuPortal
                         error={clientSelectHasError}
                         onChange={(nextValue) => {
                           setCreateForm((prev) => ({ ...prev, clientId: nextValue }));

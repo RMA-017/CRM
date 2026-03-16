@@ -546,6 +546,116 @@ test("work-schedule routes require dedicated permissions when explicit work sche
   assert.equal(allowedCreateReply.state.statusCode, 201);
 });
 
+test("default weekly work-schedule route uses update permission", async () => {
+  const recorder = createRouteRecorder();
+  const permissionSet = new Set([
+    "appointments.work-schedule.read",
+    "appointments.work-schedule.update"
+  ]);
+
+  registerAppointmentSettingsConfigRoutes(recorder.fastify, {
+    setNoCacheHeaders() {},
+    requesterHasOrgFeature(requester, featureKey) {
+      const enabledFeatures = new Set(requester?.orgFeatures || []);
+      return enabledFeatures.has(featureKey);
+    },
+    hasPermission: async (_roleId, permissionCode) => permissionSet.has(permissionCode),
+    PERMISSIONS: {
+      APPOINTMENTS_VIP_CLIENTS_MY_CLASS: "appointments.vip.my-class",
+      APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip.my-children",
+      SETTINGS_APPOINTMENTS_READ: "settings.appointments.read",
+      SETTINGS_APPOINTMENTS_UPDATE: "settings.appointments.update",
+      APPOINTMENTS_WORK_SCHEDULE_READ: "appointments.work-schedule.read",
+      APPOINTMENTS_WORK_SCHEDULE_CREATE: "appointments.work-schedule.create",
+      APPOINTMENTS_WORK_SCHEDULE_UPDATE: "appointments.work-schedule.update",
+      APPOINTMENTS_WORK_SCHEDULE_DELETE: "appointments.work-schedule.delete"
+    },
+    DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS: 10,
+    DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX: 18,
+    parseOptionalOrganizationId(value) {
+      const parsed = Number.parseInt(String(value || "").trim(), 10);
+      return {
+        value: Number.isInteger(parsed) && parsed > 0 ? parsed : null,
+        error: null
+      };
+    },
+    resolveTargetOrganizationId(access, requestedOrganizationId) {
+      return requestedOrganizationId || access?.authContext?.organizationId || null;
+    },
+    parsePositiveIntegerOr(value, fallback = 0) {
+      const parsed = Number.parseInt(String(value || "").trim(), 10);
+      return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+    },
+    toAppointmentDayNum(value) {
+      return {
+        mon: 1,
+        tue: 2,
+        wed: 3,
+        thu: 4,
+        fri: 5,
+        sat: 6,
+        sun: 7
+      }[String(value || "").trim().toLowerCase()] || 0;
+    },
+    normalizeDurationOptions() {
+      return [];
+    },
+    normalizeReminderChannels() {
+      return [];
+    },
+    normalizeVisibleWeekDays() {
+      return [];
+    },
+    validateSettingsPayload() {
+      return null;
+    },
+    getAppointmentSettingsByOrganization: async () => ({}),
+    saveAppointmentSettings: async () => ({}),
+    withAppointmentTransaction: async (callback) => callback({
+      query: async () => ({ rows: [], rowCount: 0 })
+    }),
+    listAppointmentWorkSchedule: async () => [],
+    listAppointmentWorkScheduleStaffByOrganization: async () => [],
+    createAppointmentWorkScheduleEntry: async () => ({ id: 99 }),
+    updateAppointmentWorkScheduleEntryById: async () => null,
+    deleteAppointmentWorkScheduleEntryById: async () => ({ rowCount: 0 }),
+    replaceAppointmentDefaultWeeklyWorkSchedule: async () => [{ dayOfWeek: 1, isActive: true, startTime: "09:00", endTime: "18:00" }]
+  });
+
+  const route = recorder.routes.find((item) => item.method === "PUT" && item.path === "/work-schedule/default-weekly");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      body: {
+        organizationId: 7,
+        items: [
+          {
+            dayOfWeek: 1,
+            isActive: true,
+            startTime: "09:00",
+            endTime: "18:00"
+          }
+        ]
+      },
+      authContext: {
+        userId: 1,
+        organizationId: 7,
+        requester: {
+          role_id: 4,
+          orgFeatures: ["appointments.work_schedule"]
+        }
+      },
+      log: { error() {} }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 200);
+  assert.equal(reply.state.payload?.message, "Default weekly work schedule updated.");
+});
+
 test("work-schedule routes do not inherit appointment settings permissions for non-admin users", async () => {
   const recorder = createRouteRecorder();
   const permissionSet = new Set([

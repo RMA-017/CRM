@@ -710,7 +710,7 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
     },
     async (request, reply) => {
       try {
-        const access = await requireAppointmentWorkScheduleAccess(request, reply, "delete");
+        const access = await requireAppointmentWorkScheduleAccess(request, reply, "update");
         if (!access) {
           return;
         }
