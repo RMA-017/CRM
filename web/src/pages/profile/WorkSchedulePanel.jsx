@@ -12,6 +12,7 @@ const DAYS = [
   { dayOfWeek: "6", dayKey: "sat", label: "Sat" },
   { dayOfWeek: "7", dayKey: "sun", label: "Sun" }
 ];
+const WEEKLY_OVERRIDES_PAGE_SIZE = 10;
 
 function createDefaultWeeklyDraft(items = []) {
   const byDay = new Map();
@@ -141,6 +142,7 @@ function WorkSchedulePanel({
   const [weeklyForm, setWeeklyForm] = useState(createWeeklyForm);
   const [weeklyDraftLines, setWeeklyDraftLines] = useState(() => [createWeeklyDraftLine()]);
   const [weeklyEditId, setWeeklyEditId] = useState("");
+  const [weeklyPage, setWeeklyPage] = useState(1);
   const [isWeeklyOverridesModalOpenInternal, setIsWeeklyOverridesModalOpenInternal] = useState(false);
   const [weeklyDelete, setWeeklyDelete] = useState(createWeeklyDeleteState());
   const [loading, setLoading] = useState(false);
@@ -210,6 +212,14 @@ function WorkSchedulePanel({
         .filter(Boolean)
     ).size
   ), [weeklyItems, weeklyUserId]);
+  const weeklyTotalPages = useMemo(() => (
+    Math.max(1, Math.ceil(weeklyItems.length / WEEKLY_OVERRIDES_PAGE_SIZE) || 1)
+  ), [weeklyItems.length]);
+  const weeklyPagedItems = useMemo(() => {
+    const safePage = Math.min(Math.max(weeklyPage, 1), weeklyTotalPages);
+    const startIndex = (safePage - 1) * WEEKLY_OVERRIDES_PAGE_SIZE;
+    return weeklyItems.slice(startIndex, startIndex + WEEKLY_OVERRIDES_PAGE_SIZE);
+  }, [weeklyItems, weeklyPage, weeklyTotalPages]);
   const weeklyMaxDraftLines = Math.max(1, DAYS.length - weeklyExistingDayCount);
   const isEditingWeeklyOverride = Boolean(String(weeklyEditId || "").trim());
   const canMutateWeeklyOverride = isEditingWeeklyOverride
@@ -222,6 +232,18 @@ function WorkSchedulePanel({
     }
     setDefaultWeeklyRows(normalizeDefaultWeeklyRows(initialDefaultWeeklyRows));
   }, [initialDefaultWeeklyRows]);
+
+  useEffect(() => {
+    setWeeklyPage((prev) => {
+      if (prev < 1) {
+        return 1;
+      }
+      if (prev > weeklyTotalPages) {
+        return weeklyTotalPages;
+      }
+      return prev;
+    });
+  }, [weeklyTotalPages]);
 
   const loadData = useCallback(async () => {
     if (!currentOrganizationId) {
@@ -930,7 +952,7 @@ function WorkSchedulePanel({
                 </tr>
               </thead>
               <tbody>
-                {weeklyItems.map((item) => (
+                {weeklyPagedItems.length > 0 ? weeklyPagedItems.map((item) => (
                   <tr key={`weeklyItem_${item.id}`}>
                     <td>{item.userUsername || weeklyUsernameByUserId.get(String(item.userId || "").trim()) || item.userName || "-"}</td>
                     <td>{DAYS.find((day) => day.dayOfWeek === String(item.dayOfWeek || "").trim())?.label || "-"}</td>
@@ -968,9 +990,34 @@ function WorkSchedulePanel({
                       </button>
                     </td>
                   </tr>
-                ))}
+                )) : (
+                  <tr>
+                    <td colSpan="7" className="all-users-state">No records found.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
+          </div>
+          <div className="all-users-pagination" hidden={loading || weeklyItems.length === 0}>
+            <button
+              type="button"
+              className="header-btn"
+              disabled={weeklyPage <= 1}
+              onClick={() => setWeeklyPage((prev) => Math.max(1, prev - 1))}
+            >
+              Previous
+            </button>
+            <span className="all-users-page-info">
+              Page {Math.min(weeklyPage, weeklyTotalPages)} of {weeklyTotalPages}
+            </span>
+            <button
+              type="button"
+              className="header-btn"
+              disabled={weeklyPage >= weeklyTotalPages}
+              onClick={() => setWeeklyPage((prev) => Math.min(weeklyTotalPages, prev + 1))}
+            >
+              Next
+            </button>
           </div>
         </>
       ) : null}

@@ -1436,6 +1436,9 @@
 
 .all-users-table-wrap.ws-user-overrides-table-wrap {
   margin-top: 0;
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .all-users-table-wrap::-webkit-scrollbar {
