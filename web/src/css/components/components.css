@@ -529,6 +529,38 @@
   line-height: 1.15;
 }
 
+.field > label:first-child:not(.settings-checkbox):not(.clients-create-vip-toggle),
+.field > span:first-child:not(.planner-report-vip-toggle),
+label.field > span:first-child {
+  display: inline-flex;
+  align-items: center;
+}
+
+.field > label:first-child:not(.settings-checkbox):not(.clients-create-vip-toggle),
+.field > span:first-child:not(.planner-report-vip-toggle),
+label.field > span:first-child,
+.appointment-toolbar-label,
+.appointment-setting-row > label,
+.client-birthday-vip-row .clients-create-vip-field > label:first-child,
+.client-birthday-vip-row .clients-edit-vip-field > label:first-child,
+.appointment-client-vip-field > label:first-child,
+.appointment-repeat-title-field > label,
+.ws-default-time-field span,
+#appointmentBreaksAddModal .appointment-breaks-add-field span,
+#workScheduleUserOverridesModal .appointment-breaks-add-field span,
+#appointmentBreaksEditModal .appointment-breaks-add-field span,
+#vipClassAddModal .vip-class-add-grid > label > span,
+#vipClassAddModal .vip-class-add-grid > div > span,
+#vipTutorEditModal .vip-class-add-grid > label > span,
+#vipTutorEditModal .vip-class-add-grid > div > span,
+#vipDailyRoutineEditModal .vip-class-add-grid > label > span,
+#vipDailyRoutineEditModal .vip-class-add-grid > div > span,
+#vipDailyRoutineEditModal .vip-daily-routine-form-scroll > label > span,
+#vipDailyRoutineEditModal .vip-daily-routine-time-row > label > span {
+  min-height: 18px;
+  box-sizing: border-box;
+}
+
 .settings-action-field>label {
   display: none;
 }
@@ -3272,6 +3304,12 @@
   box-sizing: border-box;
   background-clip: padding-box;
   padding-bottom: 0;
+}
+
+.appointment-vip-weekly-grid-wrap.appointment-client-weekly-grid-wrap {
+  max-height: none;
+  overflow-y: hidden;
+  scrollbar-gutter: auto;
 }
 
 .appointment-vip-weekly-grid {

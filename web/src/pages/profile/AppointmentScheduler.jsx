@@ -3866,7 +3866,7 @@ function AppointmentScheduler({
                   options={plannerClientFilterOptions}
                   searchable
                   searchPlaceholder="Search client"
-                  searchThreshold={8}
+                  searchThreshold={0}
                   maxVisibleOptions={10}
                   disabled={plannerClientFilterOptions.length <= 1}
                   onChange={(nextValue) => {
@@ -4034,7 +4034,7 @@ function AppointmentScheduler({
               No appointments found for selected client in this week.
             </p>
             <div
-              className="appointment-vip-weekly-grid-wrap"
+              className="appointment-vip-weekly-grid-wrap appointment-client-weekly-grid-wrap"
               hidden={clientFocusedWeeklyRows.length === 0}
             >
               <table className="appointment-vip-weekly-grid" aria-label="Client weekly schedule table">

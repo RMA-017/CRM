@@ -27,6 +27,16 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
+    /id=\"appointmentPlannerClientFilterSelect\"[\s\S]*?searchable[\s\S]*?searchThreshold=\{0\}/,
+    "Client filter should expose search input in the planner toolbar."
+  );
+  assert.match(
+    source,
+    /className=\"appointment-vip-weekly-grid-wrap appointment-client-weekly-grid-wrap\"/,
+    "Client-focused weekly planner should use the no-vertical-scroll wrapper class."
+  );
+  assert.match(
+    source,
     /!vipOnly\s*&&\s*!normalizedSelectedPlannerClientFilterId\s*&&\s*String\(selectedSpecialistId \|\| ""\)\.trim\(\)/s,
     "Client mode should keep appointment settings on the organization default schedule instead of specialist-specific settings."
   );
