@@ -619,7 +619,9 @@ function ProfileModals(props) {
         onClick={closeProfileEditModal}
       />
 
-      <section id="allUsersEditModal" className="logout-confirm-modal all-users-edit-modal" hidden={!allUsersEdit.open}>
+      {allUsersEdit.open ? (
+        <>
+          <section id="allUsersEditModal" className="logout-confirm-modal all-users-edit-modal" hidden={!allUsersEdit.open}>
         <h3>Edit User</h3>
         <form id="allUsersEditForm" className="auth-form" noValidate onSubmit={handleAllUsersEditSubmit}>
           <div className="all-users-edit-fields">
@@ -809,10 +811,14 @@ function ProfileModals(props) {
             </button>
           </div>
         </form>
-      </section>
-      <div id="allUsersEditOverlay" className="login-overlay" hidden={!allUsersEdit.open} onClick={closeAllUsersEditModal} />
+          </section>
+          <div id="allUsersEditOverlay" className="login-overlay" hidden={!allUsersEdit.open} onClick={closeAllUsersEditModal} />
+        </>
+      ) : null}
 
-      <section id="clientsEditModal" className="logout-confirm-modal all-users-edit-modal" hidden={!clientsEditOpen}>
+      {clientsEditOpen ? (
+        <>
+          <section id="clientsEditModal" className="logout-confirm-modal all-users-edit-modal" hidden={!clientsEditOpen}>
         <h3>Edit Client</h3>
         <form id="clientsEditForm" className="auth-form" noValidate onSubmit={handleClientEditSubmit}>
           <div className="all-users-edit-fields">
@@ -980,14 +986,18 @@ function ProfileModals(props) {
             </button>
           </div>
         </form>
-      </section>
-      <div id="clientsEditOverlay" className="login-overlay" hidden={!clientsEditOpen} onClick={closeClientsEditModal} />
+          </section>
+          <div id="clientsEditOverlay" className="login-overlay" hidden={!clientsEditOpen} onClick={closeClientsEditModal} />
+        </>
+      ) : null}
 
-      <section
-        id="clientMedicalHistoryModal"
-        className={`logout-confirm-modal all-users-edit-modal client-medical-history-modal${isViewingClientMedicalHistory ? " client-medical-history-view-modal" : ""}`}
-        hidden={!clientMedicalHistoryOpen}
-      >
+      {clientMedicalHistoryOpen ? (
+        <>
+          <section
+            id="clientMedicalHistoryModal"
+            className={`logout-confirm-modal all-users-edit-modal client-medical-history-modal${isViewingClientMedicalHistory ? " client-medical-history-view-modal" : ""}`}
+            hidden={!clientMedicalHistoryOpen}
+          >
         <div className="all-users-head">
           <h3>{clientMedicalHistoryModalTitle}</h3>
           <button
@@ -1246,13 +1256,15 @@ function ProfileModals(props) {
             ) : null}
           </div>
         </form>
-      </section>
-      <div
-        id="clientMedicalHistoryOverlay"
-        className="login-overlay"
-        hidden={!clientMedicalHistoryOpen}
-        onClick={closeClientMedicalHistoryModal}
-      />
+          </section>
+          <div
+            id="clientMedicalHistoryOverlay"
+            className="login-overlay"
+            hidden={!clientMedicalHistoryOpen}
+            onClick={closeClientMedicalHistoryModal}
+          />
+        </>
+      ) : null}
 
       <section id="allUsersDeleteModal" className="logout-confirm-modal" hidden={!allUsersDelete.open}>
         <h3>Are you sure you want to delete this user?</h3>
@@ -1340,7 +1352,9 @@ function ProfileModals(props) {
       </section>
       <div id="settingsDeleteOverlay" className="login-overlay" hidden={!settingsDelete.open} onClick={closeSettingsDeleteModal} />
 
-      <section id="organizationEditModal" className="logout-confirm-modal settings-edit-modal" hidden={!organizationEditOpen}>
+      {organizationEditOpen ? (
+        <>
+          <section id="organizationEditModal" className="logout-confirm-modal settings-edit-modal" hidden={!organizationEditOpen}>
         <div className="all-users-head">
           <h3>Edit Organization</h3>
           <button
@@ -1507,10 +1521,14 @@ function ProfileModals(props) {
             </button>
           </div>
         </form>
-      </section>
-      <div className="login-overlay" hidden={!organizationEditOpen} onClick={cancelOrganizationEdit} />
+          </section>
+          <div className="login-overlay" hidden={!organizationEditOpen} onClick={cancelOrganizationEdit} />
+        </>
+      ) : null}
 
-      <section id="roleEditModal" className="logout-confirm-modal settings-edit-modal" hidden={!roleEditOpen}>
+      {roleEditOpen ? (
+        <>
+          <section id="roleEditModal" className="logout-confirm-modal settings-edit-modal" hidden={!roleEditOpen}>
         <h3>Edit Permissions</h3>
         <form
           className="auth-form settings-edit-form"
@@ -1570,8 +1588,10 @@ function ProfileModals(props) {
             <button className="header-btn" type="button" onClick={cancelRoleEdit}>Cancel</button>
           </div>
         </form>
-      </section>
-      <div className="login-overlay" hidden={!roleEditOpen} onClick={cancelRoleEdit} />
+          </section>
+          <div className="login-overlay" hidden={!roleEditOpen} onClick={cancelRoleEdit} />
+        </>
+      ) : null}
 
       <section id="positionEditModal" className="logout-confirm-modal settings-edit-modal" hidden={!positionEditOpen}>
         <h3>Edit Position</h3>

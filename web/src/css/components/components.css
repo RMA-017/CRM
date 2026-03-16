@@ -16,6 +16,9 @@
   box-shadow: var(--shadow-xl);
   z-index: var(--z-modal);
   animation: modalIn 200ms var(--ease);
+  backface-visibility: hidden;
+  contain: paint;
+  will-change: transform, opacity;
 }
 
 @keyframes modalIn {
@@ -48,11 +51,12 @@
 
 .logout-confirm-actions .header-btn,
 .logout-confirm-actions .table-action-btn,
-.logout-confirm-actions .btn {
-  flex: 0 0 72px;
-  width: 72px;
-  min-width: 72px;
-  max-width: 72px;
+.logout-confirm-actions .btn,
+.logout-confirm-actions > button {
+  flex: 0 0 var(--btn-fixed-width);
+  width: var(--btn-fixed-width);
+  min-width: var(--btn-fixed-width);
+  max-width: var(--btn-fixed-width);
   height: var(--btn-height);
   padding: 0;
   display: inline-flex;
@@ -60,15 +64,6 @@
   justify-content: center;
   font-weight: 500;
   border-radius: var(--radius);
-}
-
-.logout-confirm-actions > button {
-  flex: 0 0 72px;
-  width: 72px;
-  min-width: 72px;
-  max-width: 72px;
-  height: var(--btn-height);
-  padding: 0;
 }
 
 .logout-confirm-yes {
@@ -3289,9 +3284,9 @@
   border-left: 0;
 }
 
-.appointment-vip-client-wrap-cell {
-  padding: 0 !important;
-  border-left: 0 !important;
+.appointment-vip-weekly-grid tbody td.appointment-vip-client-wrap-cell {
+  padding: 0;
+  border-left: 0;
 }
 
 .appointment-vip-client-wrap {
@@ -5695,11 +5690,11 @@
 .appointment-create-actions .btn:focus,
 .appointment-create-actions .btn:focus-visible,
 .appointment-create-actions .btn:active {
-  box-shadow: none !important;
+  box-shadow: none;
 }
 
 .appointment-form-error {
-  display: block !important;
+  display: block;
   color: var(--danger);
   font-size: var(--fs-small);
 }
@@ -5771,7 +5766,7 @@
 }
 
 .appointment-create-modal .appointment-client-select-row .field {
-  width: 100% !important;
+  width: 100%;
   min-width: 0;
 }
 
@@ -6009,27 +6004,27 @@
 button[id*="Save"],
 button[id*="save"],
 #profileEditSubmit,
-.appointment-settings-save-sticky-btn {
-  box-shadow: none !important;
+.appointment-settings-save-sticky-btn.btn {
+  box-shadow: none;
 }
 
 button[id*="Save"]:hover,
 button[id*="save"]:hover,
 #profileEditSubmit:hover,
-.appointment-settings-save-sticky-btn:hover,
+.appointment-settings-save-sticky-btn.btn:hover,
 button[id*="Save"]:focus,
 button[id*="save"]:focus,
 #profileEditSubmit:focus,
-.appointment-settings-save-sticky-btn:focus,
+.appointment-settings-save-sticky-btn.btn:focus,
 button[id*="Save"]:focus-visible,
 button[id*="save"]:focus-visible,
 #profileEditSubmit:focus-visible,
-.appointment-settings-save-sticky-btn:focus-visible,
+.appointment-settings-save-sticky-btn.btn:focus-visible,
 button[id*="Save"]:active,
 button[id*="save"]:active,
 #profileEditSubmit:active,
-.appointment-settings-save-sticky-btn:active {
-  box-shadow: none !important;
+.appointment-settings-save-sticky-btn.btn:active {
+  box-shadow: none;
 }
 
 .profile-modal-photo {

@@ -25,7 +25,12 @@ import { useProfilePanels } from "./profile/useProfilePanels.js";
 import { useSettingsSection } from "./profile/useSettingsSection.js";
 import { getBirthdayValidationMessage } from "./profile/profile.validators.js";
 
-const ProfileModals = lazy(() => import("./profile/ProfileModals.jsx"));
+let profileModalsPromise;
+function loadProfileModals() {
+  profileModalsPromise ??= import("./profile/ProfileModals.jsx");
+  return profileModalsPromise;
+}
+const ProfileModals = lazy(loadProfileModals);
 const ProfileMainContent = lazy(() => import("./profile/ProfileMainContent.jsx"));
 let profileSideMenuPromise;
 function loadProfileSideMenu() {
@@ -510,6 +515,32 @@ function ProfilePage({ forcedView = "none" }) {
     }
     void loadProfileSideMenu();
   }, [sideMenuMounted]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    const warmProfileUi = () => {
+      setSideMenuMounted(true);
+      void loadProfileSideMenu();
+      void loadProfileModals();
+    };
+
+    if (typeof window.requestIdleCallback === "function") {
+      const idleId = window.requestIdleCallback(warmProfileUi, { timeout: 1200 });
+      return () => {
+        if (typeof window.cancelIdleCallback === "function") {
+          window.cancelIdleCallback(idleId);
+        }
+      };
+    }
+
+    const timeoutId = window.setTimeout(warmProfileUi, 300);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, []);
 
   const bindSideMenuRef = useCallback((instance) => {
     sideMenuRef.current = instance;
