@@ -1688,12 +1688,9 @@ function AppointmentScheduler({
       });
     });
 
-    return [
-      { value: "", label: "All clients" },
-      ...[...optionMap.entries()]
-        .sort((left, right) => left[1].localeCompare(right[1], undefined, { sensitivity: "base" }))
-        .map(([value, label]) => ({ value, label }))
-    ];
+    return [...optionMap.entries()]
+      .sort((left, right) => left[1].localeCompare(right[1], undefined, { sensitivity: "base" }))
+      .map(([value, label]) => ({ value, label }));
   }, [plannerFilterClients, rawAppointmentsByDay, vipOnly, weekDays]);
   useEffect(() => {
     if (vipOnly) {
@@ -4040,9 +4037,6 @@ function AppointmentScheduler({
         ) : (
         isClientFocusedMode ? (
           <>
-            <p className="all-users-state" hidden={clientFocusedHasAppointments}>
-              No appointments found for selected client in this week.
-            </p>
             <AppointmentPlannerGrid
               sectionTitle=""
               ariaLabel={clientFocusedPlannerAriaLabel}

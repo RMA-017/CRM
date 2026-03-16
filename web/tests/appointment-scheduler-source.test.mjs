@@ -30,6 +30,11 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
     /id=\"appointmentPlannerClientFilterSelect\"[\s\S]*?searchable[\s\S]*?searchThreshold=\{0\}/,
     "Client filter should expose search input in the planner toolbar."
   );
+  assert.doesNotMatch(
+    source,
+    /label:\s*"All clients"/,
+    "Client filter should not include an All clients option."
+  );
   assert.match(
     source,
     /<AppointmentPlannerGrid[\s\S]*cardDisplayMode=\"client\"[\s\S]*wrapperClassName=\"appointment-grid-wrap-client\"/s,
