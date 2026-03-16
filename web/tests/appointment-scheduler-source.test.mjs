@@ -32,8 +32,13 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /className=\"appointment-vip-weekly-grid-wrap appointment-client-weekly-grid-wrap\"/,
-    "Client-focused weekly planner should use the no-vertical-scroll wrapper class."
+    /<AppointmentPlannerGrid[\s\S]*cardDisplayMode=\"client\"[\s\S]*wrapperClassName=\"appointment-grid-wrap-client\"/s,
+    "Client-focused planner should use the editable appointment grid with the no-vertical-scroll wrapper class."
+  );
+  assert.match(
+    source,
+    /<AppointmentPlannerGrid[\s\S]*onOpenCreateModal=\{openCreateModal\}/s,
+    "Client-focused planner should reuse the main planner modal for editing appointments from the grid."
   );
   assert.match(
     source,
@@ -44,5 +49,10 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
     source,
     /if \(!vipOnly && normalizedSelectedPlannerClientFilterId\) \{\s*return "";\s*\}/s,
     "Client mode should not auto-select a specialist again after a client is chosen."
+  );
+  assert.match(
+    source,
+    /const cardPrimaryText = isClientCardMode[\s\S]*item\?\.specialist[\s\S]*const cardSecondaryText = isClientCardMode/s,
+    "Client mode planner cards should render specialist details so existing appointments can be edited from the grid."
   );
 });

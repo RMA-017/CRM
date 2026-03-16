@@ -631,6 +631,7 @@ function normalizePlannerBreakItems(items) {
 
 function AppointmentPlannerGrid({
   sectionTitle = "",
+  ariaLabel = "",
   weekStartDate,
   settings,
   rawAppointmentsByDay = {},
@@ -642,7 +643,9 @@ function AppointmentPlannerGrid({
   canUpdateAppointments = true,
   canDeleteAppointments = true,
   canMutateAppointmentSpecialist = () => false,
-  onOpenCreateModal = null
+  onOpenCreateModal = null,
+  cardDisplayMode = "specialist",
+  wrapperClassName = ""
 }) {
   const weekDays = useMemo(
     () => buildPlannerWeekDays(weekStartDate, settings?.visibleWeekDays),
@@ -977,8 +980,8 @@ function AppointmentPlannerGrid({
           <p className="appointment-client-focused-section-title">{sectionTitle}</p>
         </div>
       ) : null}
-      <div className="appointment-grid-wrap">
-        <table className="appointment-grid" aria-label={sectionTitle || "Appointment week table"}>
+      <div className={["appointment-grid-wrap", wrapperClassName].filter(Boolean).join(" ") || undefined}>
+        <table className="appointment-grid" aria-label={ariaLabel || sectionTitle || "Appointment week table"}>
           <thead>
             <tr>
               <th className="appointment-time-col">Time</th>
@@ -1054,8 +1057,17 @@ function AppointmentPlannerGrid({
                       && Number.isInteger(slotIndex)
                       && (slotIndex + effectiveRowSpan >= timeSlots.length)
                     );
-                    const cardPrimaryText = String(item?.client || "").trim() || "Client";
-                    const cardSecondaryText = String(item?.service || "").trim() || "Service";
+                    const isClientCardMode = cardDisplayMode === "client";
+                    const cardPrimaryText = isClientCardMode
+                      ? (String(item?.specialist || "").trim() || "Specialist")
+                      : (String(item?.client || "").trim() || "Client");
+                    const cardSecondaryText = isClientCardMode
+                      ? (
+                        formatServiceLine(String(item?.service || "").trim(), item?.durationMinutes)
+                        || String(item?.service || "").trim()
+                        || "Service"
+                      )
+                      : (String(item?.service || "").trim() || "Service");
                     const cardTimeRangeLabel = item
                       ? formatAppointmentTimeRangeLabel(item?.time || slot, item?.endTime, item?.durationMinutes)
                       : "";
@@ -2386,18 +2398,14 @@ function AppointmentScheduler({
       (client) => String(client?.id || "").trim() === normalizedSelectedPlannerClientFilterId
     ) || null
   ), [normalizedSelectedPlannerClientFilterId, plannerFilterClients]);
-  const clientFocusedWeeklyRows = useMemo(() => {
+  const clientFocusedAppointmentsByDay = useMemo(() => {
     if (!isClientFocusedMode) {
-      return [];
+      return {};
     }
 
-    const dayItemsByKey = weekDays.reduce((acc, day) => {
-      acc[day.key] = [];
-      return acc;
-    }, {});
+    const dayItemsByKey = buildEmptyAppointmentsByDay(weekDays);
 
     clientFocusedPlannerSections.forEach((section) => {
-      const specialistName = String(section?.specialistName || "").trim() || "Specialist";
       weekDays.forEach((day) => {
         const rawDayItems = Array.isArray(section?.rawAppointmentsByDay?.[day.key])
           ? section.rawAppointmentsByDay[day.key]
@@ -2406,40 +2414,42 @@ function AppointmentScheduler({
           if (String(item?.clientId || "").trim() !== normalizedSelectedPlannerClientFilterId) {
             return;
           }
-          const startTime = String(item?.time || item?.startTime || "").trim();
-          const timeLabel = formatAppointmentTimeRangeLabel(
-            startTime,
-            item?.endTime,
-            item?.durationMinutes
-          ) || startTime;
           dayItemsByKey[day.key].push({
-            id: `${String(section?.specialistId || "").trim()}-${String(item?.id || "").trim() || startTime}`,
-            appointmentId: String(item?.id || "").trim(),
-            primaryText: specialistName,
-            secondaryText: String(item?.service || "").trim() || "Service",
-            timeLabel: timeLabel || "-",
-            status: String(item?.status || "").trim().toLowerCase().replace(/_/g, "-")
+            ...item,
+            specialist: String(section?.specialistName || "").trim() || String(item?.specialist || "").trim() || "Specialist",
+            client: selectedPlannerFilterClient
+              ? getClientDisplayName(selectedPlannerFilterClient)
+              : (String(item?.client || "").trim() || "Client")
           });
         });
-        dayItemsByKey[day.key].sort(compareVipWeeklyItems);
+        dayItemsByKey[day.key].sort((left, right) => String(left?.time || "").localeCompare(String(right?.time || "")));
       });
     });
 
-    return [{
-      clientId: normalizedSelectedPlannerClientFilterId,
-      clientName: selectedPlannerFilterClient
-        ? getClientDisplayName(selectedPlannerFilterClient)
-        : (plannerClientFilterOptions.find((option) => String(option?.value || "").trim() === normalizedSelectedPlannerClientFilterId)?.label || "Client"),
-      dayItemsByKey
-    }];
+    return dayItemsByKey;
   }, [
     clientFocusedPlannerSections,
     isClientFocusedMode,
     normalizedSelectedPlannerClientFilterId,
-    plannerClientFilterOptions,
     selectedPlannerFilterClient,
     weekDays
   ]);
+  const clientFocusedHasAppointments = useMemo(() => (
+    weekDays.some((day) => Array.isArray(clientFocusedAppointmentsByDay?.[day.key]) && clientFocusedAppointmentsByDay[day.key].length > 0)
+  ), [clientFocusedAppointmentsByDay, weekDays]);
+  const clientFocusedSelectedClientLabel = useMemo(() => (
+    selectedPlannerFilterClient
+      ? getClientDisplayName(selectedPlannerFilterClient)
+      : (plannerClientFilterOptions.find((option) => String(option?.value || "").trim() === normalizedSelectedPlannerClientFilterId)?.label || "Client")
+  ), [
+    normalizedSelectedPlannerClientFilterId,
+    plannerClientFilterOptions,
+    selectedPlannerFilterClient
+  ]);
+  const clientFocusedPlannerAriaLabel = useMemo(() => {
+    const clientLabel = String(clientFocusedSelectedClientLabel || "").trim();
+    return clientLabel ? `${clientLabel} weekly schedule table` : "Client weekly schedule table";
+  }, [clientFocusedSelectedClientLabel]);
 
   const loadClientFocusedPlannerView = useCallback(async () => {
     if (!isSchedulerInitialized || !isClientFocusedMode) {
@@ -4030,97 +4040,27 @@ function AppointmentScheduler({
         ) : (
         isClientFocusedMode ? (
           <>
-            <p className="all-users-state" hidden={clientFocusedWeeklyRows.length > 0}>
+            <p className="all-users-state" hidden={clientFocusedHasAppointments}>
               No appointments found for selected client in this week.
             </p>
-            <div
-              className="appointment-vip-weekly-grid-wrap appointment-client-weekly-grid-wrap"
-              hidden={clientFocusedWeeklyRows.length === 0}
-            >
-              <table className="appointment-vip-weekly-grid" aria-label="Client weekly schedule table">
-                <thead>
-                  <tr>
-                    {weekDays.map((day) => {
-                      const dayHeaderClassName = isSameDate(day.date, now) ? "appointment-day-is-today" : undefined;
-                      return (
-                        <th key={day.key} className={dayHeaderClassName}>
-                          <div className="appointment-day-head">
-                            <span>{day.label}</span>
-                            <small>{formatHeaderDate(day.date)}</small>
-                          </div>
-                        </th>
-                      );
-                    })}
-                  </tr>
-                </thead>
-                <tbody>
-                  {clientFocusedWeeklyRows.map((row) => (
-                    <tr key={row.clientId}>
-                      <td className="appointment-vip-client-wrap-cell" colSpan={weekDays.length}>
-                        <div className="appointment-vip-client-wrap">
-                          <div
-                            className="appointment-vip-client-days-grid"
-                            style={{ gridTemplateColumns: `repeat(${Math.max(1, weekDays.length)}, minmax(0, 1fr))` }}
-                          >
-                            {weekDays.map((day) => {
-                              const dayItems = Array.isArray(row?.dayItemsByKey?.[day.key])
-                                ? row.dayItemsByKey[day.key]
-                                : [];
-                              const dayCellClassName = [
-                                "appointment-vip-client-day",
-                                isSameDate(day.date, now) ? "appointment-day-is-today" : ""
-                              ].filter(Boolean).join(" ") || undefined;
-
-                              return (
-                                <div key={`${row.clientId}-${day.key}`} className={dayCellClassName}>
-                                  {dayItems.length > 0 ? (
-                                    <div className="appointment-vip-weekly-list">
-                                      {dayItems.map((item) => {
-                                        const cardStatusClassName = (
-                                          item.status === "confirmed"
-                                          || item.status === "pending"
-                                          || item.status === "cancelled"
-                                          || item.status === "no-show"
-                                        )
-                                          ? `appointment-status-${item.status}`
-                                          : "";
-                                        const statusLabel = formatAppointmentStatusLabel(item.status);
-                                        const cardClassName = [
-                                          "appointment-vip-weekly-card",
-                                          cardStatusClassName
-                                        ].filter(Boolean).join(" ");
-                                        const statusClassName = [
-                                          "appointment-vip-weekly-status",
-                                          cardStatusClassName ? `appointment-vip-weekly-status-${item.status}` : ""
-                                        ].filter(Boolean).join(" ");
-                                        return (
-                                          <article key={item.id} className={cardClassName}>
-                                            <div className="appointment-vip-weekly-row appointment-vip-weekly-row-top">
-                                              <p className="appointment-vip-weekly-primary">{item.primaryText || "-"}</p>
-                                              <p className={statusClassName}>{statusLabel}</p>
-                                            </div>
-                                            <div className="appointment-vip-weekly-row appointment-vip-weekly-row-bottom">
-                                              <p className="appointment-vip-weekly-time">{item.timeLabel || "-"}</p>
-                                              <p className="appointment-vip-weekly-secondary">{item.secondaryText || "-"}</p>
-                                            </div>
-                                          </article>
-                                        );
-                                      })}
-                                    </div>
-                                  ) : (
-                                    <p className="appointment-vip-weekly-empty">-</p>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <AppointmentPlannerGrid
+              sectionTitle=""
+              ariaLabel={clientFocusedPlannerAriaLabel}
+              weekStartDate={weekStartDate}
+              settings={settings}
+              rawAppointmentsByDay={clientFocusedAppointmentsByDay}
+              selectedClientId={normalizedSelectedPlannerClientFilterId}
+              breaksForSpecialist={[]}
+              slotCellHeightPx={slotCellHeightPx}
+              now={now}
+              canCreateOnSpecialist={false}
+              canUpdateAppointments={canUpdateAppointments}
+              canDeleteAppointments={canDeleteAppointments}
+              canMutateAppointmentSpecialist={canMutateAppointmentSpecialist}
+              onOpenCreateModal={openCreateModal}
+              cardDisplayMode="client"
+              wrapperClassName="appointment-grid-wrap-client"
+            />
           </>
         ) : (
         <div className="appointment-grid-wrap" key={weekRenderKey}>

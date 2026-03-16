@@ -3253,6 +3253,11 @@ label.field > span:first-child,
     0 2px 6px rgba(15, 23, 42, 0.04);
 }
 
+.appointment-grid-wrap.appointment-grid-wrap-client {
+  overflow-y: hidden;
+  scrollbar-gutter: auto;
+}
+
 .appointment-client-focused-sections {
   display: flex;
   flex-direction: column;
@@ -6011,7 +6016,8 @@ label.field > span:first-child,
 }
 
 .table-action-btn {
-  height: var(--btn-height);
+  height: 25px;
+  min-height: 25px;
   padding: 0 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -6028,8 +6034,8 @@ label.field > span:first-child,
 }
 
 .all-users-table .table-action-btn {
-  height: var(--btn-height);
-  min-height: var(--btn-height);
+  height: 25px;
+  min-height: 25px;
   width: 72px;
   min-width: 72px;
   padding: 0;
