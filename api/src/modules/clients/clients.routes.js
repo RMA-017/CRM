@@ -989,13 +989,12 @@ async function clientsRoutes(fastify) {
         if (!requesterHasOrgFeature(requester, "statistics.class_attendance")) {
           return reply.status(403).send({ message: "Forbidden." });
         }
-        const [canReadClients, usesAdvancedMenuPermissions, canReadStatistics, vipPermissions] = await Promise.all([
-          hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
+        const [usesAdvancedMenuPermissions, canReadStatistics, vipPermissions] = await Promise.all([
           hasAdvancedAppointmentMenuPermissions(requester.role_id),
           hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_STATISTICS_CLASS_ATTENDANCE),
           getVipClientsPermissionSnapshot(requester.role_id)
         ]);
-        if (!canReadClients || (usesAdvancedMenuPermissions && !canReadStatistics)) {
+        if (usesAdvancedMenuPermissions && !canReadStatistics) {
           return reply.status(403).send({ message: "Forbidden." });
         }
         const vipReadScope = resolveVipClientReadScope(vipPermissions, requester);

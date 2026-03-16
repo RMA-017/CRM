@@ -289,12 +289,9 @@ export function useProfileAccess(profile, forcedView) {
       : legacyCanReadAssignments
   );
   const canOpenAppointmentVipAssignments = canOpenAppointmentVipClassAssignments || canOpenAppointmentVipTutorAssignments;
-  const canOpenAppointmentStatistics = canReadClients
-    && (
-      usesAdvancedMenuPermissions
-        ? (canReadStatisticsClassAttendancePermission || canReadStatisticsPlannerReportPermission)
-        : canOpenAppointmentVipClients
-    );
+  const canOpenAppointmentStatistics = usesAdvancedMenuPermissions
+    ? (canReadStatisticsClassAttendancePermission || canReadStatisticsPlannerReportPermission)
+    : canOpenAppointmentVipClients;
   const canOpenStatisticsClassAttendance = canOpenAppointmentStatistics
     && hasOrgFeature("statistics.class_attendance")
     && (!usesAdvancedMenuPermissions || canReadStatisticsClassAttendancePermission);

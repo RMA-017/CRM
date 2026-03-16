@@ -166,3 +166,26 @@ test("breaks permissions are independent from planner permissions", () => {
   assert.equal(access.canDeleteAppointmentBreaks, true);
   assert.equal(access.canOpenAppointmentSchedule, false);
 });
+
+test("statistics permissions unlock statistics menu without clients read", () => {
+  const classAttendanceAccess = readAccessSnapshot({
+    isAdmin: false,
+    isPlatformAdmin: false,
+    permissions: ["appointments.statistics.class-attendance"],
+    orgFeatures: ["statistics.class_attendance"]
+  }, "statistics-class");
+  const plannerReportAccess = readAccessSnapshot({
+    isAdmin: false,
+    isPlatformAdmin: false,
+    permissions: ["appointments.statistics.planner-report"],
+    orgFeatures: ["statistics.planner_report"]
+  }, "statistics-planner-report");
+
+  assert.equal(classAttendanceAccess.canOpenAppointmentStatistics, true);
+  assert.equal(classAttendanceAccess.canOpenStatisticsClassAttendance, true);
+  assert.equal(classAttendanceAccess.canAccessForcedView, true);
+
+  assert.equal(plannerReportAccess.canOpenAppointmentStatistics, true);
+  assert.equal(plannerReportAccess.canOpenStatisticsPlannerReport, true);
+  assert.equal(plannerReportAccess.canAccessForcedView, true);
+});
