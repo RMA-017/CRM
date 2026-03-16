@@ -178,6 +178,7 @@ export function useClientsSection({
   const clientsHistorySpecialistIdRef = useRef("");
   const lastClientsRequestKeyRef = useRef("");
   const lastMedicalHistoryRequestKeyRef = useRef("");
+  const clientsListRequestIdRef = useRef(0);
   const [clientCreateForm, setClientCreateForm] = useState({ ...EMPTY_CLIENT_CREATE_FORM });
   const [clientCreateErrors, setClientCreateErrors] = useState({});
   const [clientCreateSubmitting, setClientCreateSubmitting] = useState(false);
@@ -250,6 +251,17 @@ export function useClientsSection({
   useEffect(() => {
     clientsHistorySpecialistIdRef.current = clientsHistorySpecialistId;
   }, [clientsHistorySpecialistId]);
+
+  useEffect(() => {
+    clientsListRequestIdRef.current += 1;
+    lastClientsRequestKeyRef.current = "";
+    lastMedicalHistoryRequestKeyRef.current = "";
+    setClients([]);
+    setClientsPage(1);
+    setClientsTotalPages(1);
+    setClientsMessage("");
+    setClientsLoading(false);
+  }, [isClientMedicalHistoryView]);
 
   const closeClientsEditModal = useCallback(() => {
     setClientsEditOpen(false);
@@ -446,6 +458,8 @@ export function useClientsSection({
     if (!force && lastClientsRequestKeyRef.current === requestKey) {
       return;
     }
+    const requestId = clientsListRequestIdRef.current + 1;
+    clientsListRequestIdRef.current = requestId;
     setClientsMessage("");
     setClientsLoading(true);
 
@@ -466,6 +480,10 @@ export function useClientsSection({
         cache: "no-store"
       });
       const data = await readApiResponseData(response);
+
+      if (requestId !== clientsListRequestIdRef.current) {
+        return;
+      }
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
@@ -492,10 +510,15 @@ export function useClientsSection({
       setClients(items);
       setClientsMessage("");
     } catch {
+      if (requestId !== clientsListRequestIdRef.current) {
+        return;
+      }
       setClients([]);
       setClientsMessage("Unexpected error. Please try again.");
     } finally {
-      setClientsLoading(false);
+      if (requestId === clientsListRequestIdRef.current) {
+        setClientsLoading(false);
+      }
     }
   }, [
     canReadClients,
@@ -523,6 +546,8 @@ export function useClientsSection({
     if (!force && lastMedicalHistoryRequestKeyRef.current === requestKey) {
       return;
     }
+    const requestId = clientsListRequestIdRef.current + 1;
+    clientsListRequestIdRef.current = requestId;
     setClientsMessage("");
     setClientsLoading(true);
 
@@ -543,6 +568,10 @@ export function useClientsSection({
         cache: "no-store"
       });
       const data = await readApiResponseData(response);
+
+      if (requestId !== clientsListRequestIdRef.current) {
+        return;
+      }
 
       if (!response.ok) {
         if (handleProtectedStatus(response, navigate)) {
@@ -569,10 +598,15 @@ export function useClientsSection({
       setClients(items);
       setClientsMessage("");
     } catch {
+      if (requestId !== clientsListRequestIdRef.current) {
+        return;
+      }
       setClients([]);
       setClientsMessage("Unexpected error. Please try again.");
     } finally {
-      setClientsLoading(false);
+      if (requestId === clientsListRequestIdRef.current) {
+        setClientsLoading(false);
+      }
     }
   }, [
     canReadClients,

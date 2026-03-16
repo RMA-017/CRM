@@ -1754,7 +1754,7 @@ label.field > span:first-child,
    ============================================= */
 
 .appointment-breaks-table-wrap.all-users-table-wrap {
-  margin-top: 10px;
+  margin-top: 0;
   overflow-x: auto;
   overflow-y: auto;
   overscroll-behavior-x: contain;
@@ -1844,7 +1844,7 @@ label.field > span:first-child,
 
 #appointmentVipAttendancePanel .all-users-table th:nth-child(3),
 #appointmentVipAttendancePanel .all-users-table td:nth-child(3) {
-  width: 20.8%;
+  width: 22.72%;
 }
 
 #appointmentVipAttendancePanel .all-users-table th:nth-child(4),
@@ -1853,7 +1853,7 @@ label.field > span:first-child,
 #appointmentVipAttendancePanel .all-users-table td:nth-child(5),
 #appointmentVipAttendancePanel .all-users-table th:nth-child(6),
 #appointmentVipAttendancePanel .all-users-table td:nth-child(6) {
-  width: 12.8%;
+  width: 12.16%;
 }
 
 #appointmentVipAttendancePanel .all-users-table th:nth-child(4),
@@ -3299,10 +3299,10 @@ label.field > span:first-child,
 .appointment-vip-weekly-grid-wrap {
   position: relative;
   margin-top: 10px;
-  max-height: clamp(340px, calc(100dvh - 220px), 820px);
+  max-height: none;
   overflow-x: auto;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
+  overflow-y: hidden;
+  scrollbar-gutter: auto;
   border: 1px solid #c9dbef;
   border-radius: 12px;
   background: #f4f9ff;
@@ -5170,12 +5170,12 @@ label.field > span:first-child,
 
 #appointmentVipTutorAssignmentsPanel .tutor-assignments-table th:nth-child(3),
 #appointmentVipTutorAssignmentsPanel .tutor-assignments-table td:nth-child(3) {
-  width: 24%;
+  width: 19.2%;
 }
 
 #appointmentVipTutorAssignmentsPanel .tutor-assignments-table th:nth-child(4),
 #appointmentVipTutorAssignmentsPanel .tutor-assignments-table td:nth-child(4) {
-  width: 22%;
+  width: 26.8%;
 }
 
 #appointmentVipTutorAssignmentsPanel .tutor-assignments-table th:nth-child(5),
