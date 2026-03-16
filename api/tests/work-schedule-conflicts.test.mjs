@@ -1308,6 +1308,81 @@ test("getAppointmentSettingsByOrganization overlays specialist weekly hours insi
     assert.equal(item.workingHours.mon.end, "17:00");
     assert.equal(item.workingHours.tue.start, "");
     assert.equal(item.workingHours.tue.end, "");
+    assert.deepEqual(item.visibleWeekDays, ["mon"]);
+  } finally {
+    restoreQuery();
+  }
+});
+
+test("getAppointmentSettingsByOrganization auto-closes unspecified specialist days in planner settings", async () => {
+  const restoreQuery = stubPoolQuery(async (sql, params = []) => {
+    const queryText = String(sql || "");
+    if (queryText.includes("FROM information_schema.columns")) {
+      return {
+        rows: [
+          { column_name: "appointment_duration_minutes" },
+          { column_name: "appointment_duration_options_minutes" },
+          { column_name: "reminder_channels" },
+          { column_name: "slot_sub_divisions" },
+          { column_name: "history_lock_days" },
+          { column_name: "slot_cell_height_px" }
+        ]
+      };
+    }
+    if (queryText.includes("FROM appointment_settings")) {
+      assert.deepEqual(params, [7]);
+      return {
+        rows: [{
+          id: 1,
+          organization_id: 7,
+          slot_interval_minutes: 30,
+          slot_sub_divisions: 1,
+          appointment_duration_minutes: 30,
+          appointment_duration_options_minutes: [30],
+          no_show_threshold: 3,
+          reminder_hours: 24,
+          reminder_channels: ["sms"],
+          history_lock_days: 10,
+          slot_cell_height_px: 18,
+          visible_week_days: [1, 2, 3, 4, 5, 6]
+        }]
+      };
+    }
+    if (queryText.includes("FROM appointment_working_hours") && queryText.includes("user_id IS NULL")) {
+      assert.deepEqual(params, [7]);
+      return {
+        rows: [
+          { day_of_week: 1, is_active: true, start_time: "09:00", end_time: "18:00" },
+          { day_of_week: 2, is_active: true, start_time: "09:00", end_time: "18:00" },
+          { day_of_week: 3, is_active: true, start_time: "09:00", end_time: "18:00" },
+          { day_of_week: 4, is_active: true, start_time: "09:00", end_time: "18:00" },
+          { day_of_week: 5, is_active: true, start_time: "09:00", end_time: "18:00" },
+          { day_of_week: 6, is_active: true, start_time: "09:00", end_time: "18:00" }
+        ]
+      };
+    }
+    if (queryText.includes("FROM appointment_working_hours") && queryText.includes("user_id = $2")) {
+      assert.deepEqual(params, [7, 9]);
+      return {
+        rows: [
+          { day_of_week: 1, is_active: true, start_time: "10:00", end_time: "17:00" },
+          { day_of_week: 2, is_active: true, start_time: "10:00", end_time: "17:00" },
+          { day_of_week: 3, is_active: true, start_time: "10:00", end_time: "17:00" }
+        ]
+      };
+    }
+    throw new Error(`Unexpected SQL: ${queryText}`);
+  });
+
+  try {
+    const item = await getAppointmentSettingsByOrganization(7, { specialistId: 9 });
+    assert.deepEqual(item.visibleWeekDays, ["mon", "tue", "wed"]);
+    assert.equal(item.workingHours.mon.start, "10:00");
+    assert.equal(item.workingHours.tue.start, "10:00");
+    assert.equal(item.workingHours.wed.start, "10:00");
+    assert.equal(item.workingHours.thu.start, "");
+    assert.equal(item.workingHours.fri.start, "");
+    assert.equal(item.workingHours.sat.start, "");
   } finally {
     restoreQuery();
   }

@@ -303,6 +303,7 @@ function buildEffectiveWeeklyWorkScheduleRows({
   const organizationMap = buildWeeklyWorkScheduleMap(organizationRows);
   const specialistMap = buildWeeklyWorkScheduleMap(specialistRows);
   const effectiveMap = new Map();
+  const hasSpecialistWeeklyOverrides = specialistMap.size > 0;
 
   for (let dayOfWeek = 1; dayOfWeek <= 7; dayOfWeek += 1) {
     const parent = organizationMap.get(dayOfWeek) || {
@@ -313,7 +314,12 @@ function buildEffectiveWeeklyWorkScheduleRows({
     };
     const child = specialistMap.get(dayOfWeek);
     if (!child) {
-      effectiveMap.set(dayOfWeek, parent);
+      effectiveMap.set(dayOfWeek, hasSpecialistWeeklyOverrides ? {
+        dayOfWeek,
+        isActive: false,
+        startTime: null,
+        endTime: null
+      } : parent);
       continue;
     }
     if (!child.isActive || !parent.isActive) {
@@ -338,6 +344,26 @@ function buildEffectiveWeeklyWorkScheduleRows({
   }
 
   return buildWeeklyWorkScheduleRowsFromMap(effectiveMap);
+}
+
+function getActiveVisibleWeekDaysFromWorkingHoursRows(rows = []) {
+  const visibleDays = [];
+  for (let dayOfWeek = 1; dayOfWeek <= 7; dayOfWeek += 1) {
+    const row = (Array.isArray(rows) ? rows : []).find(
+      (item) => normalizeWorkScheduleDayOfWeek(item?.day_of_week) === dayOfWeek
+    );
+    const startTime = normalizeWorkScheduleTime(row?.start_time) || null;
+    const endTime = normalizeWorkScheduleTime(row?.end_time) || null;
+    const isActive = row?.is_active === true && Boolean(startTime && endTime && startTime < endTime);
+    if (!isActive) {
+      continue;
+    }
+    const dayKey = toAppointmentDayKey(dayOfWeek);
+    if (dayKey) {
+      visibleDays.push(dayKey);
+    }
+  }
+  return visibleDays;
 }
 
 function createWorkScheduleParentConflictError({
@@ -2595,6 +2621,11 @@ export async function getAppointmentSettingsByOrganization(organizationId, optio
   ]);
 
   const row = settingsResult.rows[0] || null;
+  const hasSpecialistWeeklyOverrides = Boolean(
+    specialistId
+    && Array.isArray(specialistWorkingHoursResult.rows)
+    && specialistWorkingHoursResult.rows.length > 0
+  );
   const effectiveWorkingHoursRows = specialistId
     ? buildEffectiveWeeklyWorkScheduleRows({
         organizationRows: workingHoursResult.rows || [],
@@ -2607,10 +2638,29 @@ export async function getAppointmentSettingsByOrganization(organizationId, optio
     if (workingHoursRows.length > 0) {
       empty.workingHours = mapWorkingHours(workingHoursRows);
     }
+    if (hasSpecialistWeeklyOverrides) {
+      const activeVisibleWeekDays = getActiveVisibleWeekDaysFromWorkingHoursRows(workingHoursRows);
+      if (activeVisibleWeekDays.length > 0) {
+        empty.visibleWeekDays = activeVisibleWeekDays;
+      }
+    }
     return empty;
   }
 
-  return mapSettingsRow(row, effectiveWorkingHoursRows);
+  const mapped = mapSettingsRow(row, effectiveWorkingHoursRows);
+  if (!hasSpecialistWeeklyOverrides) {
+    return mapped;
+  }
+
+  const activeVisibleWeekDays = getActiveVisibleWeekDaysFromWorkingHoursRows(effectiveWorkingHoursRows);
+  if (activeVisibleWeekDays.length === 0) {
+    return mapped;
+  }
+
+  return {
+    ...mapped,
+    visibleWeekDays: activeVisibleWeekDays
+  };
 }
 
 export async function saveAppointmentSettings({
