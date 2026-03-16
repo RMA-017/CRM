@@ -52,6 +52,7 @@ function createDefaultForm() {
     userNotificationsRetentionDays: "0",
     appointmentDurationOptions: "",
     visibleWeekDays: [],
+    workingHours: null,
     noShowThreshold: "",
     reminderHours: "",
     reminderChannels: []
@@ -100,6 +101,9 @@ function mapSettingsItemToForm(source) {
       ? normalizedSource.appointmentDurationOptions.join(",")
       : String(normalizedSource.appointmentDuration ?? ""),
     visibleWeekDays: nextVisibleWeekDays,
+    workingHours: normalizedSource.workingHours && typeof normalizedSource.workingHours === "object"
+      ? normalizedSource.workingHours
+      : null,
     noShowThreshold: String(normalizedSource.noShowThreshold ?? ""),
     reminderHours: String(normalizedSource.reminderHours ?? ""),
     reminderChannels: normalizeReminderChannels(normalizedSource.reminderChannels)

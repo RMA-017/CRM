@@ -116,9 +116,18 @@ function withDefaultWeeklyTimes(row, nextStartTime, nextEndTime) {
   };
 }
 
-function buildWeeklyOverrideSearchText(item, { username = "", dayLabel = "" } = {}) {
+function getWeeklyDisplayName(item, displayNameByUserId = new Map()) {
+  return String(
+    item?.userName
+    || displayNameByUserId.get(String(item?.userId || "").trim())
+    || item?.userUsername
+    || ""
+  ).trim();
+}
+
+function buildWeeklyOverrideSearchText(item, { displayName = "", dayLabel = "" } = {}) {
   return [
-    String(username || "").trim(),
+    String(displayName || "").trim(),
     String(item?.userUsername || "").trim(),
     String(item?.userName || "").trim(),
     String(dayLabel || "").trim(),
@@ -188,8 +197,7 @@ function WorkSchedulePanel({
         && Boolean(String(item?.userId || "").trim())
       ))
       .sort((left, right) => (
-        String(left?.userUsername || left?.userName || "").trim()
-          .localeCompare(String(right?.userUsername || right?.userName || "").trim(), undefined, { sensitivity: "base" })
+        getWeeklyDisplayName(left).localeCompare(getWeeklyDisplayName(right), undefined, { sensitivity: "base" })
         || (
           Number.parseInt(String(left?.dayOfWeek || "").trim(), 10)
           - Number.parseInt(String(right?.dayOfWeek || "").trim(), 10)
@@ -208,12 +216,12 @@ function WorkSchedulePanel({
       })
       .filter(Boolean)
   ), [staff]);
-  const weeklyUsernameByUserId = useMemo(() => (
+  const weeklyDisplayNameByUserId = useMemo(() => (
     new Map(
       (Array.isArray(staff) ? staff : [])
         .map((item) => [
           String(item?.id || "").trim(),
-          String(item?.username || "").trim() || String(item?.name || "").trim()
+          String(item?.name || "").trim() || String(item?.username || "").trim()
         ])
         .filter(([id, label]) => Boolean(id) && Boolean(label))
     )
@@ -235,18 +243,13 @@ function WorkSchedulePanel({
       return weeklyItems;
     }
     return weeklyItems.filter((item) => {
-      const username = String(
-        item?.userUsername
-        || weeklyUsernameByUserId.get(String(item?.userId || "").trim())
-        || item?.userName
-        || ""
-      ).trim();
+      const displayName = getWeeklyDisplayName(item, weeklyDisplayNameByUserId);
       const dayLabel = String(
         DAYS.find((day) => day.dayOfWeek === String(item?.dayOfWeek || "").trim())?.label || ""
       ).trim();
-      return buildWeeklyOverrideSearchText(item, { username, dayLabel }).includes(normalizedSearch);
+      return buildWeeklyOverrideSearchText(item, { displayName, dayLabel }).includes(normalizedSearch);
     });
-  }, [weeklyItems, weeklySearch, weeklyUsernameByUserId]);
+  }, [weeklyItems, weeklySearch, weeklyDisplayNameByUserId]);
   const weeklyTotalPages = useMemo(() => (
     Math.max(1, Math.ceil(filteredWeeklyItems.length / WEEKLY_OVERRIDES_PAGE_SIZE) || 1)
   ), [filteredWeeklyItems.length]);
@@ -521,9 +524,9 @@ function WorkSchedulePanel({
     if (!id) {
       return;
     }
-    const username = String(item?.userUsername || weeklyUsernameByUserId.get(String(item?.userId || "").trim()) || item?.userName || "").trim();
+    const displayName = getWeeklyDisplayName(item, weeklyDisplayNameByUserId);
     const dayLabel = DAYS.find((day) => day.dayOfWeek === String(item?.dayOfWeek || "").trim())?.label || "";
-    const label = [username, dayLabel].filter(Boolean).join(" - ").trim();
+    const label = [displayName, dayLabel].filter(Boolean).join(" - ").trim();
     setWeeklyDelete({
       open: true,
       id,
@@ -992,7 +995,7 @@ function WorkSchedulePanel({
               id="workScheduleSearchInput"
               type="search"
               className="panel-search-input"
-              placeholder="Search by username, day, time, reason..."
+              placeholder="Search by full name, day, time, reason..."
               value={weeklySearchInput}
               onChange={(event) => setWeeklySearchInput(event.currentTarget.value)}
             />
@@ -1009,7 +1012,7 @@ function WorkSchedulePanel({
             <table className="all-users-table ws-override-table">
               <thead>
                 <tr>
-                  <th>Username</th>
+                  <th>Full Name</th>
                   <th>Day</th>
                   <th>Start</th>
                   <th>End</th>
@@ -1021,7 +1024,7 @@ function WorkSchedulePanel({
               <tbody>
                 {weeklyPagedItems.length > 0 ? weeklyPagedItems.map((item) => (
                   <tr key={`weeklyItem_${item.id}`}>
-                    <td>{item.userUsername || weeklyUsernameByUserId.get(String(item.userId || "").trim()) || item.userName || "-"}</td>
+                    <td>{getWeeklyDisplayName(item, weeklyDisplayNameByUserId) || "-"}</td>
                     <td>{DAYS.find((day) => day.dayOfWeek === String(item.dayOfWeek || "").trim())?.label || "-"}</td>
                     <td>{item.startTime || "-"}</td>
                     <td>{item.endTime || "-"}</td>

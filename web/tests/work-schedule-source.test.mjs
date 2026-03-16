@@ -20,4 +20,9 @@ test("Work schedule panel includes a panel-style search bar and filters visible 
     /filteredWeeklyItems/,
     "Work schedule panel should derive filtered rows from the full weekly list."
   );
+  assert.match(
+    source,
+    /<th>Full Name<\/th>/,
+    "Work schedule panel should render full names in the weekly overrides table."
+  );
 });
