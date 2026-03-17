@@ -28,6 +28,7 @@ import {
 import {
   createAppointmentSchedule,
   deleteAppointmentSchedulesByIds,
+  ensureAutoRollingRecurringSchedulesCoverRange,
   hasAppointmentClientConflict,
   getAppointmentClientScopeInfo,
   getAppointmentClientNoShowSummary,
@@ -165,6 +166,7 @@ async function appointmentSettingsRoutes(fastify) {
     getAppointmentPlannerReport,
     getAppointmentClientScopeInfo,
     getAppointmentClientNoShowSummary,
+    ensureAutoRollingRecurringSchedulesCoverRange,
     getAppointmentBreaksBySpecialist,
     replaceAppointmentBreaksBySpecialist,
     subscribeAppointmentEvents,

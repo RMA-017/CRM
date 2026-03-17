@@ -1,6 +1,7 @@
 export {
   createAppointmentSchedule,
   deleteAppointmentSchedulesByIds,
+  ensureAutoRollingRecurringSchedulesCoverRange,
   hasAppointmentClientConflict,
   getAppointmentClientScopeInfo,
   getAppointmentClientNoShowSummary,

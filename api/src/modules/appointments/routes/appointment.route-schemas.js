@@ -58,6 +58,7 @@ const repeatPayloadSchema = {
   properties: {
     enabled: booleanLikeSchema,
     untilDate: dateYmdSchema,
+    autoRolling: booleanLikeSchema,
     dayKeys: {
       type: "array",
       items: dayKeySchema

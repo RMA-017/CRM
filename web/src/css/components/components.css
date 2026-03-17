@@ -1981,7 +1981,7 @@ label.field > span:first-child,
 
 .vip-attendance-toolbar {
   margin-top: 0;
-  margin-bottom: 0;
+  margin-bottom: 10px;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -1992,6 +1992,7 @@ label.field > span:first-child,
 .vip-norm-monitoring-toolbar {
   justify-content: flex-start;
   width: 100%;
+  margin-bottom: 10px;
 }
 
 .vip-norm-monitoring-toolbar .field {

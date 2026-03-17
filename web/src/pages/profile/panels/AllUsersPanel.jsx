@@ -65,6 +65,7 @@ function AllUsersPanel({
         </button>
       </form>
 
+      <div className="table-outer-scroll-wrap">
       <div id="allUsersTableWrap" className="all-users-table-wrap">
         <table className="all-users-table" aria-label="All users table">
           <thead>
@@ -130,6 +131,7 @@ function AllUsersPanel({
             ))}
           </tbody>
         </table>
+      </div>
       </div>
 
       <div id="allUsersPagination" className="all-users-pagination" hidden={allUsersLoading || allUsers.length === 0}>

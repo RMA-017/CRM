@@ -9,6 +9,7 @@ const schedulesReadCache = createTtlCache({
   maxEntries: toBoundedInteger(process.env.APPOINTMENT_SCHEDULES_CACHE_MAX, 5000, 100, 50_000),
   defaultTtlMs: toBoundedInteger(process.env.APPOINTMENT_SCHEDULES_CACHE_TTL_MS, 5000, 500, 60_000)
 });
+const VIP_AUTO_ROLLING_REPEAT_WINDOW_DAYS = 30;
 
 function buildSchedulesReadCacheKey({
   organizationId,
@@ -41,6 +42,28 @@ function buildClientScheduleConflictMessage(appointmentDate = "") {
   return normalizedDate
     ? `This client already has another appointment at this time (${normalizedDate}).`
     : "This client already has another appointment at this time.";
+}
+
+function formatUtcDateYmd(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return `${String(date.getUTCFullYear())}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+}
+
+function ensureVipAutoRollingRepeatUntilDate(appointmentDate, currentUntilDate, parseDateYmdToUtcDate) {
+  const baseDate = parseDateYmdToUtcDate(appointmentDate);
+  if (!baseDate) {
+    return String(currentUntilDate || "").trim();
+  }
+  const minimumUntilDate = new Date(baseDate.getTime());
+  minimumUntilDate.setUTCDate(minimumUntilDate.getUTCDate() + Math.max(0, VIP_AUTO_ROLLING_REPEAT_WINDOW_DAYS - 1));
+  const normalizedCurrentUntilDate = String(currentUntilDate || "").trim();
+  const currentDate = parseDateYmdToUtcDate(normalizedCurrentUntilDate);
+  if (!currentDate || currentDate < minimumUntilDate) {
+    return formatUtcDateYmd(minimumUntilDate);
+  }
+  return normalizedCurrentUntilDate;
 }
 
 function isClientOverlapConstraintConflict(error) {
@@ -85,6 +108,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     getAppointmentPlannerReportFilters,
     getAppointmentPlannerReport,
     getAppointmentClientScopeInfo,
+    ensureAutoRollingRecurringSchedulesCoverRange,
     getAppointmentSchedulesByRange,
     isVipClassAssignedToUser,
     getAppointmentHistoryLockDaysByOrganization,
@@ -363,6 +387,19 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           }
         }
 
+        const autoRollingResult = await ensureAutoRollingRecurringSchedulesCoverRange({
+          organizationId: access.authContext.organizationId,
+          specialistId,
+          clientId,
+          classId,
+          assignedUserId: assignedUserId || null,
+          dateTo,
+          vipOnly: effectiveVipOnly
+        });
+        if (autoRollingResult?.changed) {
+          schedulesReadCache.clear();
+        }
+
         const cacheKey = buildSchedulesReadCacheKey({
           organizationId: access.authContext.organizationId,
           specialistId,
@@ -475,7 +512,17 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const serviceName = String(request.body?.service || request.body?.serviceName || "").trim();
         const status = normalizeAppointmentStatus(request.body?.status || "pending");
         const note = String(request.body?.note || "").trim();
-        const repeat = normalizeScheduleRepeatPayload(request.body?.repeat);
+        let repeat = normalizeScheduleRepeatPayload(request.body?.repeat);
+        if (repeat.enabled && repeat.autoRolling) {
+          repeat = {
+            ...repeat,
+            untilDate: ensureVipAutoRollingRepeatUntilDate(
+              appointmentDate,
+              repeat.untilDate,
+              parseDateYmdToUtcDate
+            )
+          };
+        }
 
         const errors = validateSchedulePayload({
           specialistId,
@@ -693,6 +740,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                   repeatDays: repeatDayNums,
                   repeatAnchorDate: appointmentDate,
                   isRepeatRoot,
+                  isAutoRollingRepeat: repeat.autoRolling === true,
                   db
                 });
                 if (createdItem) {
@@ -955,6 +1003,16 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const status = normalizeAppointmentStatus(request.body?.status || "pending");
         const note = String(request.body?.note || "").trim();
         let repeat = normalizeScheduleRepeatPayload(request.body?.repeat);
+        if (repeat.enabled && repeat.autoRolling) {
+          repeat = {
+            ...repeat,
+            untilDate: ensureVipAutoRollingRepeatUntilDate(
+              appointmentDate,
+              repeat.untilDate,
+              parseDateYmdToUtcDate
+            )
+          };
+        }
         if (isMyChildrenConfirmOnly && status !== "confirmed") {
           return reply.status(403).send({ message: "Forbidden." });
         }
@@ -1234,6 +1292,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               repeatDays: repeatDayNums,
               repeatAnchorDate: appointmentDate,
               isRepeatRoot: true,
+              isAutoRollingRepeat: repeat.autoRolling === true,
               db
             });
             if (!updatedAnchorItem) {
@@ -1354,6 +1413,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                   repeatDays: repeatDayNums,
                   repeatAnchorDate: appointmentDate,
                   isRepeatRoot: false,
+                  isAutoRollingRepeat: repeat.autoRolling === true,
                   db
                 });
                 if (createdItem) {

@@ -526,13 +526,17 @@ export function normalizeScheduleRepeatPayload(value) {
   const untilDate = String(repeat.untilDate || "").trim();
   const dayKeys = normalizeVisibleWeekDays(Array.isArray(repeat.dayKeys) ? repeat.dayKeys : []);
   const skipConflicts = repeat.skipConflicts !== false;
+  const autoRolling = repeat.autoRolling === true
+    || repeat.autoRolling === 1
+    || String(repeat.autoRolling || "").trim().toLowerCase() === "true";
 
   return {
     enabled,
     type,
     untilDate,
     dayKeys,
-    skipConflicts
+    skipConflicts,
+    autoRolling
   };
 }
 

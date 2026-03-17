@@ -481,6 +481,7 @@ CREATE TABLE appointment_schedules (
   repeat_days SMALLINT[],
   repeat_anchor_date DATE,
   is_repeat_root BOOLEAN NOT NULL DEFAULT FALSE,
+  is_auto_rolling_repeat BOOLEAN NOT NULL DEFAULT FALSE,
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

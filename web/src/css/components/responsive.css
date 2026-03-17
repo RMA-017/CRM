@@ -975,3 +975,35 @@ main.home-main:has(#appointmentNormsPanel) {
   overflow-x: visible;
   overflow-y: visible;
 }
+
+/* VIP Norm Monitoring panel — scrollbar at viewport bottom */
+main.home-main:has(#vipNormMonitoringPanel) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+#vipNormMonitoringPanel {
+  overflow-x: visible;
+  min-width: 920px;
+}
+
+#vipNormMonitoringPanel .all-users-table-wrap {
+  overflow-x: visible;
+  overflow-y: visible;
+}
+
+/* table-outer-scroll-wrap — horizontal scroll on parent (mobile) */
+@media (max-width: 860px) {
+  .table-outer-scroll-wrap {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table-outer-scroll-wrap > .all-users-table-wrap {
+    overflow-x: visible;
+    max-width: none;
+    min-width: max-content;
+  }
+}

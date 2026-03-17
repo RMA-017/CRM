@@ -20,6 +20,15 @@ import {
   normalizeScheduleScope
 } from "./schedule-normalizers.js";
 import {
+  buildWeeklyRecurringDates,
+  buildBreakRangesByDay,
+  hasSpecialistBreakConflict,
+  buildWorkScheduleBlockRangesByDay,
+  hasSpecialistWorkScheduleConflict,
+  validateSlotAgainstWorkingHours,
+  collectDayNumsFromDates
+} from "./appointment-route-helpers.js";
+import {
   DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS,
   DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
   MAX_APPOINTMENT_HISTORY_LOCK_DAYS,
@@ -100,6 +109,7 @@ const APPOINTMENT_STATUS_HISTORY_TABLE = "appointment_status_history";
 const APPOINTMENT_SETTINGS_TABLE = "appointment_settings";
 const WORK_SCHEDULE_CONFLICT_CODE = "WORK_SCHEDULE_CONFLICT";
 const WORK_SCHEDULE_PARENT_CONFLICT_CODE = "WORK_SCHEDULE_PARENT_CONFLICT";
+const VIP_AUTO_ROLLING_REPEAT_WINDOW_DAYS = 30;
 let appointmentStatusHistorySchemaInitPromise = null;
 let appointmentPlannerReportIndexInitPromise = null;
 let appointmentSettingsColumnFlagsPromise = null;
@@ -138,6 +148,50 @@ function buildScheduleChangedFieldsSql(alias, previousPrefix = "prev_") {
     CASE WHEN ${prev("end_time")} IS DISTINCT FROM ${next("end_time")} THEN 'end_time' END,
     CASE WHEN ${prev("status")} IS DISTINCT FROM ${next("status")} THEN 'status' END
   ]::text[], NULL)`;
+}
+
+function parseDateYmdToUtcDate(value) {
+  const normalized = normalizeDateYmd(value);
+  if (!normalized) {
+    return null;
+  }
+  const [yearRaw, monthRaw, dayRaw] = normalized.split("-");
+  const year = Number.parseInt(yearRaw, 10);
+  const month = Number.parseInt(monthRaw, 10);
+  const day = Number.parseInt(dayRaw, 10);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return null;
+  }
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatUtcDateYmd(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return `${String(date.getUTCFullYear())}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+}
+
+function addDaysToDateYmd(value, days) {
+  const date = parseDateYmdToUtcDate(value);
+  if (!date) {
+    return "";
+  }
+  date.setUTCDate(date.getUTCDate() + days);
+  return formatUtcDateYmd(date);
+}
+
+function getVipAutoRollingRepeatHorizonDate(dateTo) {
+  const requested = parseDateYmdToUtcDate(dateTo);
+  if (!requested) {
+    return "";
+  }
+  const now = new Date();
+  const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const rollingHorizon = new Date(todayUtc.getTime());
+  rollingHorizon.setUTCDate(rollingHorizon.getUTCDate() + Math.max(0, VIP_AUTO_ROLLING_REPEAT_WINDOW_DAYS - 1));
+  return formatUtcDateYmd(requested > rollingHorizon ? requested : rollingHorizon);
 }
 
 async function ensureAppointmentStatusHistorySchema() {
@@ -820,6 +874,7 @@ function toScheduleItem(row) {
     repeatDays: mapRepeatDayNumsToKeys(row?.repeat_days),
     repeatAnchorDate: normalizeDateYmd(row?.repeat_anchor_date),
     isRepeatRoot: Boolean(row?.is_repeat_root),
+    isAutoRollingRepeat: Boolean(row?.is_auto_rolling_repeat),
     isRecurring: repeatType === "weekly" && Boolean(repeatGroupKey),
     clientFirstName: String(row?.first_name || "").trim(),
     clientLastName: String(row?.last_name || "").trim(),
@@ -1461,6 +1516,7 @@ export async function getAppointmentSchedulesByRange({
        s.repeat_days,
        s.repeat_anchor_date,
        s.is_repeat_root,
+       s.is_auto_rolling_repeat,
       s.created_at,
       s.updated_at,
       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('Specialist #', s.specialist_id::text)) AS specialist_name,
@@ -1487,6 +1543,318 @@ export async function getAppointmentSchedulesByRange({
   );
 
   return (rows || []).map(toScheduleItem);
+}
+
+async function listAutoRollingRepeatRoots({
+  organizationId,
+  specialistId,
+  clientId,
+  classId,
+  assignedUserId = null,
+  vipOnly = false,
+  targetDate,
+  scheduleScope = "default",
+  db = pool
+}) {
+  const tableName = getAppointmentSchedulesTableName(scheduleScope);
+  const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
+  const normalizedClientId = Number.parseInt(String(clientId || "").trim(), 10) || 0;
+  const normalizedClassId = Number.parseInt(String(classId || "").trim(), 10) || 0;
+  const normalizedAssignedUserId = Number.parseInt(String(assignedUserId || "").trim(), 10) || 0;
+  const params = [organizationId, targetDate];
+  const whereParts = [
+    "s.organization_id = $1",
+    "s.repeat_type = 'weekly'",
+    "s.repeat_group_key IS NOT NULL",
+    "s.is_repeat_root = TRUE",
+    "s.is_auto_rolling_repeat = TRUE",
+    "s.repeat_until_date < $2::date"
+  ];
+
+  if (normalizedSpecialistId > 0) {
+    params.push(normalizedSpecialistId);
+    whereParts.push(`s.specialist_id = $${params.length}`);
+  }
+  if (normalizedClientId > 0) {
+    params.push(normalizedClientId);
+    whereParts.push(`s.client_id = $${params.length}`);
+  }
+  if (normalizedClassId > 0) {
+    params.push(normalizedClassId);
+    whereParts.push(
+      `EXISTS (
+         SELECT 1
+           FROM vip_client_tutor_assignments vta
+          WHERE vta.organization_id = s.organization_id
+            AND vta.client_id = s.client_id
+            AND vta.class_assignment_id = $${params.length}
+       )`
+    );
+  }
+  if (vipOnly) {
+    whereParts.push("c.is_vip = TRUE");
+    if (normalizedAssignedUserId > 0) {
+      params.push(normalizedAssignedUserId);
+      whereParts.push(
+        `EXISTS (
+           SELECT 1
+             FROM vip_client_tutor_assignments vta_scope
+             JOIN vip_class_teacher_assignments vcta_scope
+               ON vcta_scope.organization_id = vta_scope.organization_id
+              AND vcta_scope.id = vta_scope.class_assignment_id
+            WHERE vta_scope.organization_id = s.organization_id
+              AND vta_scope.client_id = s.client_id
+              AND (
+                vcta_scope.teacher_user_id = $${params.length}
+                OR vta_scope.tutor_user_id = $${params.length}
+              )
+         )`
+      );
+    }
+  }
+
+  const { rows } = await db.query(
+    `SELECT
+       s.id,
+       s.organization_id,
+       s.specialist_id,
+       s.client_id,
+       s.start_time,
+       s.end_time,
+       s.duration_minutes,
+       s.service_name,
+       s.status,
+       s.note,
+       s.repeat_group_key,
+       s.repeat_until_date,
+       s.repeat_days,
+       s.repeat_anchor_date,
+       s.created_by,
+       s.updated_by
+      FROM ${tableName} s
+      JOIN clients c
+        ON c.id = s.client_id
+       AND c.organization_id = s.organization_id
+      WHERE ${whereParts.join("\n        AND ")}
+      ORDER BY s.repeat_until_date ASC, s.id ASC`,
+    params
+  );
+
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function updateAppointmentRepeatUntilDateByGroupKey({
+  organizationId,
+  repeatGroupKey,
+  repeatUntilDate,
+  scheduleScope = "default",
+  db = pool
+}) {
+  const normalizedRepeatGroupKey = String(repeatGroupKey || "").trim();
+  const normalizedRepeatUntilDate = normalizeDateYmd(repeatUntilDate);
+  if (!normalizedRepeatGroupKey || !normalizedRepeatUntilDate) {
+    return 0;
+  }
+
+  const tableName = getAppointmentSchedulesTableName(scheduleScope);
+  const { rows } = await db.query(
+    `UPDATE ${tableName}
+        SET repeat_until_date = $1::date,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE organization_id = $2
+        AND repeat_group_key = $3::uuid
+        AND repeat_type = 'weekly'
+      RETURNING 1`,
+    [normalizedRepeatUntilDate, organizationId, normalizedRepeatGroupKey]
+  );
+
+  return Array.isArray(rows) ? rows.length : 0;
+}
+
+export async function ensureAutoRollingRecurringSchedulesCoverRange({
+  organizationId,
+  specialistId,
+  clientId,
+  classId,
+  assignedUserId = null,
+  dateTo,
+  vipOnly = false,
+  scheduleScope = "default"
+}) {
+  const targetDate = getVipAutoRollingRepeatHorizonDate(dateTo);
+  if (!targetDate) {
+    return { changed: false, extendedGroupCount: 0, createdCount: 0 };
+  }
+
+  const roots = await listAutoRollingRepeatRoots({
+    organizationId,
+    specialistId,
+    clientId,
+    classId,
+    assignedUserId,
+    vipOnly,
+    targetDate,
+    scheduleScope
+  });
+  if (roots.length === 0) {
+    return { changed: false, extendedGroupCount: 0, createdCount: 0 };
+  }
+
+  let extendedGroupCount = 0;
+  let createdCount = 0;
+  for (const root of roots) {
+    const repeatGroupKey = String(root?.repeat_group_key || "").trim();
+    const currentRepeatUntilDate = normalizeDateYmd(root?.repeat_until_date);
+    const repeatAnchorDate = normalizeDateYmd(root?.repeat_anchor_date);
+    const repeatDays = Array.isArray(root?.repeat_days) ? root.repeat_days : [];
+    const repeatDayKeys = mapRepeatDayNumsToKeys(repeatDays);
+    const nextRangeStartDate = addDaysToDateYmd(currentRepeatUntilDate, 1);
+    if (!repeatGroupKey || !currentRepeatUntilDate || !repeatAnchorDate || !nextRangeStartDate || repeatDayKeys.length === 0) {
+      continue;
+    }
+    if (currentRepeatUntilDate >= targetDate) {
+      continue;
+    }
+
+    const recurringDates = buildWeeklyRecurringDates({
+      startDate: nextRangeStartDate,
+      untilDate: targetDate,
+      dayKeys: repeatDayKeys
+    });
+    const normalizedStatus = String(root?.status || "pending").trim().toLowerCase();
+    const shouldEnforceAvailability = normalizedStatus === "pending" || normalizedStatus === "confirmed";
+
+    await withAppointmentTransaction(async (db) => {
+      let blockedRangesByDay = new Map();
+      let breakRangesByDay = new Map();
+
+      if (shouldEnforceAvailability && recurringDates.length > 0) {
+        const settingsForRepeat = await getAppointmentSettingsByOrganization(
+          organizationId,
+          { specialistId: root.specialist_id, db }
+        );
+        blockedRangesByDay = buildWorkScheduleBlockRangesByDay(settingsForRepeat?.blockedTimes);
+        breakRangesByDay = buildBreakRangesByDay(
+          await getAppointmentBreaksBySpecialistAndDays({
+            organizationId,
+            specialistId: root.specialist_id,
+            dayNums: collectDayNumsFromDates(recurringDates),
+            db
+          })
+        );
+
+        for (const recurringDate of recurringDates) {
+          const workingHoursError = validateSlotAgainstWorkingHours({
+            settings: settingsForRepeat,
+            appointmentDate: recurringDate,
+            startTime: normalizeTimeHm(root?.start_time),
+            endTime: normalizeTimeHm(root?.end_time)
+          });
+          if (workingHoursError) {
+            continue;
+          }
+
+          const recurringBlockedConflict = hasSpecialistWorkScheduleConflict({
+            blockedRangesByDay,
+            appointmentDate: recurringDate,
+            startTime: normalizeTimeHm(root?.start_time),
+            endTime: normalizeTimeHm(root?.end_time)
+          });
+          if (recurringBlockedConflict) {
+            continue;
+          }
+
+          const recurringBreakConflict = hasSpecialistBreakConflict({
+            breakRangesByDay,
+            appointmentDate: recurringDate,
+            startTime: normalizeTimeHm(root?.start_time),
+            endTime: normalizeTimeHm(root?.end_time)
+          });
+          if (recurringBreakConflict) {
+            continue;
+          }
+
+          const hasConflict = await hasAppointmentScheduleConflict({
+            organizationId,
+            specialistId: root.specialist_id,
+            appointmentDate: recurringDate,
+            startTime: normalizeTimeHm(root?.start_time),
+            endTime: normalizeTimeHm(root?.end_time),
+            db,
+            scheduleScope
+          });
+          if (hasConflict) {
+            continue;
+          }
+
+          const hasClientConflict = await hasAppointmentClientConflict({
+            organizationId,
+            clientId: root.client_id,
+            appointmentDate: recurringDate,
+            startTime: normalizeTimeHm(root?.start_time),
+            endTime: normalizeTimeHm(root?.end_time),
+            db,
+            scheduleScope
+          });
+          if (hasClientConflict) {
+            continue;
+          }
+
+          try {
+            const createdItem = await createAppointmentSchedule({
+              organizationId,
+              actorUserId: root?.updated_by || root?.created_by || null,
+              specialistId: root.specialist_id,
+              clientId: root.client_id,
+              appointmentDate: recurringDate,
+              startTime: normalizeTimeHm(root?.start_time),
+              endTime: normalizeTimeHm(root?.end_time),
+              durationMinutes: Number.parseInt(String(root?.duration_minutes || "").trim(), 10),
+              serviceName: String(root?.service_name || "").trim(),
+              status: normalizedStatus,
+              note: String(root?.note || "").trim(),
+              repeatGroupKey,
+              repeatType: "weekly",
+              repeatUntilDate: targetDate,
+              repeatDays,
+              repeatAnchorDate,
+              isRepeatRoot: false,
+              isAutoRollingRepeat: true,
+              scheduleScope,
+              db
+            });
+            if (createdItem) {
+              createdCount += 1;
+            }
+          } catch (error) {
+            if (!isUniqueOrExclusionConflict(error)) {
+              throw error;
+            }
+          }
+        }
+      }
+
+      await updateAppointmentRepeatUntilDateByGroupKey({
+        organizationId,
+        repeatGroupKey,
+        repeatUntilDate: targetDate,
+        scheduleScope,
+        db
+      });
+    });
+
+    extendedGroupCount += 1;
+  }
+
+  if (extendedGroupCount > 0) {
+    clearAppointmentPlannerReportFilterCaches();
+  }
+
+  return {
+    changed: extendedGroupCount > 0,
+    extendedGroupCount,
+    createdCount
+  };
 }
 
 export async function getAppointmentClientScopeInfo({
@@ -1852,6 +2220,7 @@ export async function createAppointmentSchedule({
   repeatDays = null,
   repeatAnchorDate = null,
   isRepeatRoot = false,
+  isAutoRollingRepeat = false,
   scheduleScope = "default",
   db = pool
 }) {
@@ -1878,10 +2247,11 @@ export async function createAppointmentSchedule({
          repeat_days,
          repeat_anchor_date,
          is_repeat_root,
+         is_auto_rolling_repeat,
          created_by,
          updated_by
        )
-       VALUES ($1,$2,$3,$4::date,$5::time,$6::time,$7,$8,$9,$10,$11::uuid,$12,$13::date,$14::smallint[],$15::date,$16,$17,$17)
+       VALUES ($1,$2,$3,$4::date,$5::time,$6::time,$7,$8,$9,$10,$11::uuid,$12,$13::date,$14::smallint[],$15::date,$16,$17,$18,$18)
        RETURNING *
      ),
      history_inserted AS (
@@ -1913,7 +2283,7 @@ export async function createAppointmentSchedule({
            'before', NULL,
            'after', ${buildScheduleSnapshotSql("i")}
          ),
-         $17::integer
+         $18::integer
        FROM inserted i
      )
      SELECT
@@ -1934,6 +2304,7 @@ export async function createAppointmentSchedule({
        i.repeat_days,
        i.repeat_anchor_date,
        i.is_repeat_root,
+       i.is_auto_rolling_repeat,
        i.created_at,
        i.updated_at,
        c.first_name,
@@ -1961,6 +2332,7 @@ export async function createAppointmentSchedule({
       normalizedRepeatType === "weekly" ? (Array.isArray(repeatDays) ? repeatDays : null) : null,
       normalizedRepeatType === "weekly" ? repeatAnchorDate : null,
       normalizedRepeatType === "weekly" ? Boolean(isRepeatRoot) : false,
+      normalizedRepeatType === "weekly" ? Boolean(isAutoRollingRepeat) : false,
       actorUserId || null
     ]
   );
@@ -1991,6 +2363,7 @@ export async function getAppointmentScheduleTargetsByScope({
        s.note,
        s.repeat_group_key,
        s.repeat_type,
+       s.is_auto_rolling_repeat,
        c.is_vip,
        c.first_name,
        c.last_name,
@@ -2035,6 +2408,7 @@ export async function getAppointmentScheduleTargetsByScope({
          s.service_name,
          s.status,
          s.note,
+         s.is_auto_rolling_repeat,
          c.is_vip,
          c.first_name,
          c.last_name,
@@ -2062,6 +2436,7 @@ export async function getAppointmentScheduleTargetsByScope({
          s.service_name,
          s.status,
          s.note,
+         s.is_auto_rolling_repeat,
          c.is_vip,
          c.first_name,
          c.last_name,
@@ -2100,6 +2475,7 @@ export async function getAppointmentScheduleTargetsByScope({
         serviceName: String(row?.service_name || "").trim(),
         status: String(row?.status || "").trim().toLowerCase(),
         note: String(row?.note || "").trim(),
+        isAutoRollingRepeat: Boolean(row?.is_auto_rolling_repeat),
         isVip: Boolean(row?.is_vip),
         clientFirstName: String(row?.first_name || "").trim(),
         clientLastName: String(row?.last_name || "").trim(),
@@ -2163,7 +2539,8 @@ export async function updateAppointmentSchedulesByIds({
          s.repeat_until_date,
          s.repeat_days,
          s.repeat_anchor_date,
-         s.is_repeat_root
+         s.is_repeat_root,
+         s.is_auto_rolling_repeat
        FROM ${tableName} s
        WHERE s.organization_id = $12
          AND s.id = ANY($13::integer[])
@@ -2261,6 +2638,7 @@ export async function updateAppointmentSchedulesByIds({
        u.repeat_days,
        u.repeat_anchor_date,
        u.is_repeat_root,
+       u.is_auto_rolling_repeat,
        u.created_at,
        u.updated_at,
        c.first_name,
@@ -2310,6 +2688,7 @@ export async function updateAppointmentScheduleByIdWithRepeatMeta({
   repeatDays,
   repeatAnchorDate,
   isRepeatRoot = true,
+  isAutoRollingRepeat = false,
   scheduleScope = "default",
   db = pool
 }) {
@@ -2339,10 +2718,11 @@ export async function updateAppointmentScheduleByIdWithRepeatMeta({
          s.repeat_until_date,
          s.repeat_days,
          s.repeat_anchor_date,
-         s.is_repeat_root
+         s.is_repeat_root,
+         s.is_auto_rolling_repeat
        FROM ${tableName} s
-       WHERE s.id = $16
-         AND s.organization_id = $17
+       WHERE s.id = $17
+         AND s.organization_id = $18
        LIMIT 1
      ),
      updated AS (
@@ -2362,7 +2742,8 @@ export async function updateAppointmentScheduleByIdWithRepeatMeta({
               repeat_days = $12::smallint[],
               repeat_anchor_date = $13::date,
               is_repeat_root = $14,
-              updated_by = $15,
+              is_auto_rolling_repeat = $15,
+              updated_by = $16,
               updated_at = CURRENT_TIMESTAMP
          FROM target t
         WHERE s.id = t.id
@@ -2383,7 +2764,8 @@ export async function updateAppointmentScheduleByIdWithRepeatMeta({
          t.repeat_until_date AS prev_repeat_until_date,
          t.repeat_days AS prev_repeat_days,
          t.repeat_anchor_date AS prev_repeat_anchor_date,
-         t.is_repeat_root AS prev_is_repeat_root
+         t.is_repeat_root AS prev_is_repeat_root,
+         t.is_auto_rolling_repeat AS prev_is_auto_rolling_repeat
      ),
      history_rows AS (
        SELECT
@@ -2400,7 +2782,7 @@ export async function updateAppointmentScheduleByIdWithRepeatMeta({
            'before', ${previousSnapshotSql},
            'after', ${nextSnapshotSql}
          ) AS details,
-         $15::integer AS changed_by
+         $16::integer AS changed_by
        FROM updated u
      ),
      history_inserted AS (
@@ -2444,6 +2826,7 @@ export async function updateAppointmentScheduleByIdWithRepeatMeta({
        u.repeat_days,
        u.repeat_anchor_date,
        u.is_repeat_root,
+       u.is_auto_rolling_repeat,
        u.created_at,
        u.updated_at,
        c.first_name,
@@ -2469,6 +2852,7 @@ export async function updateAppointmentScheduleByIdWithRepeatMeta({
       Array.isArray(repeatDays) ? repeatDays : [],
       repeatAnchorDate,
       Boolean(isRepeatRoot),
+      Boolean(isAutoRollingRepeat),
       actorUserId || null,
       id,
       organizationId
