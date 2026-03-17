@@ -2493,6 +2493,106 @@ export async function getAppointmentScheduleTargetsByScope({
   };
 }
 
+export async function cancelAppointmentsBySpecialistAndDate({
+  organizationId,
+  specialistId,
+  date,
+  actorUserId
+}) {
+  await ensureAppointmentStatusHistorySchema();
+
+  const tableName = getAppointmentSchedulesTableName();
+  const { rows } = await pool.query(
+    `WITH target AS (
+       SELECT
+         s.id,
+         s.organization_id,
+         s.specialist_id,
+         s.client_id,
+         s.appointment_date,
+         s.start_time,
+         s.end_time,
+         s.duration_minutes,
+         s.service_name,
+         s.status AS prev_status,
+         s.note
+       FROM ${tableName} s
+       WHERE s.organization_id = $1
+         AND s.specialist_id = $2
+         AND s.appointment_date = $3::date
+         AND s.status IN ('pending', 'confirmed')
+     ),
+     updated AS (
+       UPDATE ${tableName} s
+          SET status = 'cancelled',
+              updated_by = $4,
+              updated_at = CURRENT_TIMESTAMP
+         FROM target t
+        WHERE s.organization_id = t.organization_id
+          AND s.id = t.id
+       RETURNING
+         s.id,
+         s.organization_id,
+         s.specialist_id,
+         s.client_id,
+         s.appointment_date,
+         s.start_time,
+         s.end_time,
+         s.duration_minutes,
+         s.service_name,
+         s.status,
+         s.note,
+         t.prev_status
+     ),
+     history_inserted AS (
+       INSERT INTO ${APPOINTMENT_STATUS_HISTORY_TABLE} (
+         organization_id,
+         appointment_schedule_id,
+         event_type,
+         previous_status,
+         next_status,
+         changed_fields,
+         details,
+         changed_by
+       )
+       SELECT
+         u.organization_id,
+         u.id,
+         'status-changed',
+         u.prev_status,
+         u.status,
+         ARRAY['status']::text[],
+         jsonb_build_object(
+           'before', jsonb_build_object('status', u.prev_status),
+           'after', jsonb_build_object('status', u.status)
+         ),
+         $4::integer
+       FROM updated u
+     )
+     SELECT
+       u.id::text AS id,
+       u.specialist_id::text AS specialist_id,
+       u.client_id::text AS client_id,
+       u.appointment_date,
+       u.start_time,
+       u.end_time,
+       u.duration_minutes,
+       u.service_name,
+       u.status,
+       u.note,
+       c.first_name,
+       c.last_name,
+       c.middle_name
+      FROM updated u
+      JOIN clients c
+        ON c.id = u.client_id
+       AND c.organization_id = u.organization_id
+      ORDER BY u.start_time ASC, u.id ASC`,
+    [organizationId, specialistId, date, actorUserId || null]
+  );
+  return rows || [];
+}
+
 export async function updateAppointmentSchedulesByIds({
   organizationId,
   actorUserId,

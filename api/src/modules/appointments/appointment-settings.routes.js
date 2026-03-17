@@ -26,6 +26,7 @@ import {
   replaceAppointmentBreaksBySpecialist
 } from "./services/appointment-breaks.service.js";
 import {
+  cancelAppointmentsBySpecialistAndDate,
   createAppointmentSchedule,
   deleteAppointmentSchedulesByIds,
   ensureAutoRollingRecurringSchedulesCoverRange,
@@ -186,6 +187,7 @@ async function appointmentSettingsRoutes(fastify) {
     getAppointmentScheduleTargetsByScope,
     hasAppointmentClientConflict,
     hasAppointmentScheduleConflict,
+    cancelAppointmentsBySpecialistAndDate,
     createAppointmentSchedule,
     updateAppointmentScheduleByIdWithRepeatMeta,
     updateAppointmentSchedulesByIds,
