@@ -1010,7 +1010,7 @@ export async function getVipNormMonitoringRows({
        SELECT
          cp.client_id,
          cp.position_id,
-         COUNT(su.id)::int AS current_booked,
+         COUNT(DISTINCT s.id)::int AS current_booked,
          COALESCE(
            jsonb_agg(
              DISTINCT jsonb_build_object(
@@ -1031,10 +1031,14 @@ export async function getVipNormMonitoringRows({
         AND s.appointment_date >= date_trunc('week', CURRENT_DATE)::date
         AND s.appointment_date < (date_trunc('week', CURRENT_DATE)::date + INTERVAL '7 days')
         AND s.status IN ('pending', 'confirmed')
+        AND EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements(cp.linked_specialists) ls
+          WHERE ls->>'id' = s.specialist_id::text
+        )
        LEFT JOIN users su
          ON su.id = s.specialist_id
         AND su.organization_id = s.organization_id
-        AND su.position_id = cp.position_id
        GROUP BY cp.client_id, cp.position_id
      )
      SELECT
