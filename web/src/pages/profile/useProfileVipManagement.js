@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { sortVipClassDailyRoutineRows } from "./profile.helpers.js";
-import { normalizeVipAttendanceStatus } from "./profile.vip-utils.js";
+import {
+  normalizeVipAttendanceStatus,
+  normalizeVipDailyRoutineActivityType
+} from "./profile.vip-utils.js";
 
 function formatVipDailyRoutineClassLabel(item) {
   const classId = String(item?.id || item?.classId || item?.class_id || "").trim();
@@ -13,40 +16,6 @@ function formatVipDailyRoutineClassLabel(item) {
     id: classId,
     label: fullName || (classId ? `Class #${classId}` : "Class")
   };
-}
-
-function normalizeVipDailyRoutineActivityForSave(value) {
-  const normalized = String(value || "").trim().toLowerCase();
-  if (normalized === "group-lesson") {
-    return "lesson";
-  }
-  if (normalized === "breakfast" || normalized === "lunch" || normalized === "afternoon-snack") {
-    return "meal";
-  }
-  if (normalized === "sleep-time") {
-    return "sleep";
-  }
-  if (normalized === "other") {
-    return "other";
-  }
-  return "";
-}
-
-function inferVipDailyRoutineActivitySelectValue(activityType) {
-  const normalizedActivity = String(activityType || "").trim().toLowerCase();
-  if (normalizedActivity === "lesson") {
-    return "group-lesson";
-  }
-  if (normalizedActivity === "sleep") {
-    return "sleep-time";
-  }
-  if (normalizedActivity === "meal") {
-    return "breakfast";
-  }
-  if (normalizedActivity === "other") {
-    return "other";
-  }
-  return "group-lesson";
 }
 
 function alertMessage(message) {
@@ -104,8 +73,8 @@ export default function useProfileVipManagement({
     open: false,
     id: "",
     classId: "",
-    dayOfWeek: "1",
-    activityType: "group-lesson",
+    dayOfWeek: [],
+    activityType: "lesson",
     startTime: "",
     endTime: "",
     note: "",
@@ -213,8 +182,8 @@ export default function useProfileVipManagement({
       open: false,
       id: "",
       classId: "",
-      dayOfWeek: "1",
-      activityType: "group-lesson",
+      dayOfWeek: [],
+      activityType: "lesson",
       startTime: "",
       endTime: "",
       note: "",
@@ -501,8 +470,8 @@ export default function useProfileVipManagement({
       open: true,
       id: "",
       classId: preferredClassId,
-      dayOfWeek: "1",
-      activityType: "group-lesson",
+      dayOfWeek: [],
+      activityType: "lesson",
       startTime: "",
       endTime: "",
       note: "",
@@ -520,8 +489,8 @@ export default function useProfileVipManagement({
       open: true,
       id: routineId,
       classId: String(row?.classId || "").trim(),
-      dayOfWeek: String(row?.dayOfWeek || "").trim() || "1",
-      activityType: inferVipDailyRoutineActivitySelectValue(row?.activityType),
+      dayOfWeek: [String(row?.dayOfWeek || "").trim() || "1"],
+      activityType: normalizeVipDailyRoutineActivityType(row?.activityType) || "lesson",
       startTime: String(row?.startTime || "").trim(),
       endTime: String(row?.endTime || "").trim(),
       note: String(row?.note || "").trim(),
@@ -535,8 +504,8 @@ export default function useProfileVipManagement({
       open: false,
       id: "",
       classId: "",
-      dayOfWeek: "1",
-      activityType: "group-lesson",
+      dayOfWeek: [],
+      activityType: "lesson",
       startTime: "",
       endTime: "",
       note: "",
@@ -569,9 +538,10 @@ export default function useProfileVipManagement({
     const routineId = String(vipDailyRoutineEditModal.id || "").trim();
     const isEditMode = Boolean(routineId);
     const classId = String(vipDailyRoutineEditModal.classId || "").trim();
-    const dayOfWeek = String(vipDailyRoutineEditModal.dayOfWeek || "").trim();
-    const activityValue = String(vipDailyRoutineEditModal.activityType || "").trim().toLowerCase();
-    const activityType = normalizeVipDailyRoutineActivityForSave(activityValue);
+    const daysArray = Array.isArray(vipDailyRoutineEditModal.dayOfWeek)
+      ? vipDailyRoutineEditModal.dayOfWeek.filter((d) => /^[1-7]$/.test(d))
+      : [];
+    const activityType = normalizeVipDailyRoutineActivityType(vipDailyRoutineEditModal.activityType);
     const startTime = String(vipDailyRoutineEditModal.startTime || "").trim();
     const endTime = String(vipDailyRoutineEditModal.endTime || "").trim();
     const note = String(vipDailyRoutineEditModal.note || "").trim();
@@ -580,8 +550,8 @@ export default function useProfileVipManagement({
       setVipDailyRoutineModalError("Class is required.");
       return;
     }
-    if (!/^[1-7]$/.test(dayOfWeek)) {
-      setVipDailyRoutineModalError("Day must be between 1 and 7.");
+    if (daysArray.length === 0) {
+      setVipDailyRoutineModalError("At least one day must be selected.");
       return;
     }
     if (!activityType) {
@@ -602,19 +572,38 @@ export default function useProfileVipManagement({
     }
 
     setVipDailyRoutineEditSaving(true);
-    const saveResult = await saveVipDailyRoutine({
-      id: isEditMode ? routineId : "",
-      classId,
-      dayOfWeek: Number.parseInt(dayOfWeek, 10),
-      activityType,
-      startTime,
-      endTime,
-      note
-    });
-    if (!saveResult?.ok) {
-      setVipDailyRoutineModalError(saveResult?.message || "Failed to save routine.");
-      setVipDailyRoutineEditSaving(false);
-      return;
+    if (isEditMode) {
+      const saveResult = await saveVipDailyRoutine({
+        id: routineId,
+        classId,
+        dayOfWeek: Number.parseInt(daysArray[0], 10),
+        activityType,
+        startTime,
+        endTime,
+        note
+      });
+      if (!saveResult?.ok) {
+        setVipDailyRoutineModalError(saveResult?.message || "Failed to save routine.");
+        setVipDailyRoutineEditSaving(false);
+        return;
+      }
+    } else {
+      for (const day of daysArray) {
+        const saveResult = await saveVipDailyRoutine({
+          id: "",
+          classId,
+          dayOfWeek: Number.parseInt(day, 10),
+          activityType,
+          startTime,
+          endTime,
+          note
+        });
+        if (!saveResult?.ok) {
+          setVipDailyRoutineModalError(saveResult?.message || "Failed to save routine.");
+          setVipDailyRoutineEditSaving(false);
+          return;
+        }
+      }
     }
     closeVipDailyRoutineEditModal();
   }

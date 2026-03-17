@@ -6,7 +6,10 @@ import {
   mapVipClassAssignmentOption,
   sortVipClassDailyRoutineRows
 } from "./profile.helpers.js";
-import { mapVipClassDailyRoutineItem } from "./profile.vip-utils.js";
+import {
+  mapVipClassDailyRoutineItem,
+  normalizeVipDailyRoutineActivityType
+} from "./profile.vip-utils.js";
 
 export function useVipDailyRoutinesSection({
   canReadAppointmentVipClients,
@@ -117,9 +120,7 @@ export function useVipDailyRoutinesSection({
 
     const normalizedClassId = String(classId || "").trim();
     const parsedDayOfWeek = Number.parseInt(String(dayOfWeek || "").trim(), 10);
-    const normalizedActivityType = ["lesson", "sleep", "meal", "other"].includes(String(activityType || "").trim().toLowerCase())
-      ? String(activityType || "").trim().toLowerCase()
-      : "";
+    const normalizedActivityType = normalizeVipDailyRoutineActivityType(activityType);
     const normalizedStartTime = String(startTime || "").trim();
     const normalizedEndTime = String(endTime || "").trim();
     const normalizedNote = String(note || "").trim();
@@ -131,7 +132,7 @@ export function useVipDailyRoutinesSection({
       return { ok: false, message: "Day must be between 1 and 7." };
     }
     if (!normalizedActivityType) {
-      return { ok: false, message: "Activity must be lesson, sleep, meal or other." };
+      return { ok: false, message: "Activity must be lesson, breakfast, lunch, afternoon-snack, sleep, meal or other." };
     }
     if (!/^\d{2}:\d{2}$/.test(normalizedStartTime) || !/^\d{2}:\d{2}$/.test(normalizedEndTime)) {
       return { ok: false, message: "Start and end time must be HH:mm." };

@@ -708,7 +708,7 @@
 }
 
 @media (max-width: 860px) {
-  .vip-attendance-toolbar {
+  .vip-attendance-toolbar:not(.vip-norm-monitoring-toolbar) {
     flex-direction: column;
     align-items: stretch;
   }

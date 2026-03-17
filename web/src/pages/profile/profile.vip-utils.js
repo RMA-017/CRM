@@ -58,6 +58,45 @@ export function normalizeVipAttendanceStatus(value, fallback = "unmarked") {
   return fallback;
 }
 
+export const VIP_DAILY_ROUTINE_ACTIVITY_OPTIONS = Object.freeze([
+  { value: "lesson", label: "Group lesson" },
+  { value: "breakfast", label: "Breakfast" },
+  { value: "lunch", label: "Lunch" },
+  { value: "afternoon-snack", label: "Afternoon snack" },
+  { value: "sleep", label: "Sleep time" },
+  { value: "other", label: "Other" },
+  { value: "meal", label: "Meal" }
+]);
+
+const VIP_DAILY_ROUTINE_ACTIVITY_ALIASES = Object.freeze({
+  lesson: "lesson",
+  "group-lesson": "lesson",
+  breakfast: "breakfast",
+  lunch: "lunch",
+  "afternoon-snack": "afternoon-snack",
+  meal: "meal",
+  sleep: "sleep",
+  "sleep-time": "sleep",
+  other: "other"
+});
+
+const VIP_DAILY_ROUTINE_ACTIVITY_LABEL_BY_VALUE = Object.freeze(
+  VIP_DAILY_ROUTINE_ACTIVITY_OPTIONS.reduce((acc, item) => {
+    acc[item.value] = item.label;
+    return acc;
+  }, {})
+);
+
+export function normalizeVipDailyRoutineActivityType(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return VIP_DAILY_ROUTINE_ACTIVITY_ALIASES[normalized] || "";
+}
+
+export function formatVipDailyRoutineActivityLabel(activityType) {
+  const normalized = normalizeVipDailyRoutineActivityType(activityType);
+  return VIP_DAILY_ROUTINE_ACTIVITY_LABEL_BY_VALUE[normalized] || "-";
+}
+
 export function normalizeVipAttendanceDateTime(value) {
   const normalized = String(value || "").trim();
   if (!normalized) {

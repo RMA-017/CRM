@@ -1915,6 +1915,11 @@ label.field > span:first-child,
   min-width: 72px;
 }
 
+#appointmentVipDailyRoutinesPanel .all-users-table-wrap {
+  max-height: none;
+  overflow-y: visible;
+}
+
 #appointmentVipDailyRoutinesPanel .all-users-table {
   min-width: 1020px;
   width: 100%;
@@ -3205,6 +3210,7 @@ label.field > span:first-child,
   align-items: center;
   flex-wrap: nowrap;
   gap: 5px;
+  margin-bottom: 10px;
 }
 
 .appointment-toolbar-block {

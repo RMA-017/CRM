@@ -1,12 +1,21 @@
 import { createPortal } from "react-dom";
 import CustomSelect from "../../../components/CustomSelect.jsx";
 
+const VIP_DAY_CHIPS = [
+  { value: "1", label: "Monday" },
+  { value: "2", label: "Tuesday" },
+  { value: "3", label: "Wednesday" },
+  { value: "4", label: "Thursday" },
+  { value: "5", label: "Friday" },
+  { value: "6", label: "Saturday" },
+  { value: "7", label: "Sunday" }
+];
+
 function VipAssignmentModals({
   vipDailyRoutineEditModal,
   closeVipDailyRoutineEditModal,
   handleVipDailyRoutineSave,
   vipDailyRoutineClassOptions,
-  vipDailyRoutineDayOptions,
   vipDailyRoutineActivityOptions,
   setVipDailyRoutineEditModal,
   vipDailyRoutineNoteMaxLength,
@@ -95,33 +104,49 @@ function VipAssignmentModals({
               </div>
               <div>
                 <span>Day</span>
-                <CustomSelect
-                  id="vipDailyRoutineDaySelect"
-                  placeholder="Select day"
-                  value={String(vipDailyRoutineEditModal.dayOfWeek || "1")}
-                  options={vipDailyRoutineDayOptions}
-                  menuPortal
-                  onChange={(nextValue) => {
-                    setVipDailyRoutineEditModal((prev) => ({
-                      ...prev,
-                      dayOfWeek: String(nextValue || "1"),
-                      error: ""
-                    }));
-                  }}
-                />
+                <div className="appointment-repeat-days" role="group" aria-label="Select day of week">
+                  {VIP_DAY_CHIPS.map((day) => {
+                    const isEditMode = Boolean(vipDailyRoutineEditModal.id);
+                    const days = Array.isArray(vipDailyRoutineEditModal.dayOfWeek) ? vipDailyRoutineEditModal.dayOfWeek : [];
+                    const checked = days.includes(day.value);
+                    return (
+                      <label
+                        key={day.value}
+                        className={`appointment-repeat-day-chip${checked ? " is-active" : ""}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setVipDailyRoutineEditModal((prev) => {
+                              const prevDays = Array.isArray(prev.dayOfWeek) ? prev.dayOfWeek : [];
+                              const nextDays = isEditMode
+                                ? [day.value]
+                                : prevDays.includes(day.value)
+                                  ? prevDays.filter((d) => d !== day.value)
+                                  : [...prevDays, day.value];
+                              return { ...prev, dayOfWeek: nextDays, error: "" };
+                            });
+                          }}
+                        />
+                        <span>{day.label.slice(0, 3)}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
               <div>
                 <span>Activity</span>
                 <CustomSelect
                   id="vipDailyRoutineActivitySelect"
                   placeholder="Select activity"
-                  value={String(vipDailyRoutineEditModal.activityType || "group-lesson")}
+                  value={String(vipDailyRoutineEditModal.activityType || "lesson")}
                   options={vipDailyRoutineActivityOptions}
                   menuPortal
                   onChange={(nextValue) => {
                     setVipDailyRoutineEditModal((prev) => ({
                       ...prev,
-                      activityType: String(nextValue || "group-lesson"),
+                      activityType: String(nextValue || "lesson"),
                       error: ""
                     }));
                   }}

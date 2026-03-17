@@ -34,28 +34,39 @@ const VIP_DAILY_ROUTINE_DAY_NUM_TO_KEY = Object.freeze({
 
 const VIP_CLASS_DAILY_ROUTINE_ACTIVITY_ALIASES = Object.freeze({
   lesson: "lesson",
+  "group-lesson": "lesson",
   dars: "lesson",
   class: "lesson",
   study: "lesson",
+  breakfast: "breakfast",
+  nonushta: "breakfast",
+  lunch: "lunch",
+  tushlik: "lunch",
+  "afternoon-snack": "afternoon-snack",
+  snack: "afternoon-snack",
+  poldnik: "afternoon-snack",
   sleep: "sleep",
+  "sleep-time": "sleep",
   nap: "sleep",
   uxlash: "sleep",
   uyqu: "sleep",
   meal: "meal",
   food: "meal",
-  breakfast: "meal",
-  lunch: "meal",
   dinner: "meal",
-  snack: "meal",
-  poldnik: "meal",
-  nonushta: "meal",
-  tushlik: "meal",
   ovqat: "meal",
   other: "other",
   boshqa: "other"
 });
 
-const VIP_CLASS_DAILY_ROUTINE_ACTIVITY_SET = new Set(["lesson", "sleep", "meal", "other"]);
+const VIP_CLASS_DAILY_ROUTINE_ACTIVITY_SET = new Set([
+  "lesson",
+  "breakfast",
+  "lunch",
+  "afternoon-snack",
+  "sleep",
+  "meal",
+  "other"
+]);
 
 export function normalizeVipDailyRoutineDayOfWeek(value, { allowAliases = false } = {}) {
   const normalized = String(value || "").trim().toLowerCase();

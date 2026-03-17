@@ -2,7 +2,11 @@ import { lazy, memo, Suspense, useEffect, useState } from "react";
 import { formatDateForInput, formatDateYMD } from "../../lib/formatters.js";
 import useProfileStatisticsHistory from "./useProfileStatisticsHistory.js";
 import useProfileVipManagement from "./useProfileVipManagement.js";
-import { normalizeVipAttendanceStatus } from "./profile.vip-utils.js";
+import {
+  VIP_DAILY_ROUTINE_ACTIVITY_OPTIONS,
+  formatVipDailyRoutineActivityLabel,
+  normalizeVipAttendanceStatus
+} from "./profile.vip-utils.js";
 import { useProfileMyChildren } from "./useProfileMyChildren.js";
 import { useProfileVipAttendance } from "./useProfileVipAttendance.js";
 import { useProfileVipAssignments } from "./useProfileVipAssignments.js";
@@ -53,20 +57,6 @@ const VIP_DAILY_ROUTINE_DAY_LABEL_BY_VALUE = Object.freeze(
     return acc;
   }, {})
 );
-const VIP_DAILY_ROUTINE_ACTIVITY_OPTIONS = [
-  { value: "group-lesson", label: "Group lesson" },
-  { value: "breakfast", label: "Breakfast" },
-  { value: "lunch", label: "Lunch" },
-  { value: "afternoon-snack", label: "Afternoon snack" },
-  { value: "sleep-time", label: "Sleep time" },
-  { value: "other", label: "Other" }
-];
-const VIP_DAILY_ROUTINE_ACTIVITY_LABEL_BY_VALUE = Object.freeze(
-  VIP_DAILY_ROUTINE_ACTIVITY_OPTIONS.reduce((acc, item) => {
-    acc[item.value] = item.label;
-    return acc;
-  }, {})
-);
 const VIP_DAILY_ROUTINE_NOTE_MAX_LENGTH = 255;
 const PANEL_LOADING_FALLBACK = (
   <div className="all-users-panel" aria-hidden="true" />
@@ -76,18 +66,6 @@ const MODAL_LOADING_FALLBACK = null;
 function formatVipDailyRoutineDayLabel(dayOfWeek) {
   const normalized = String(dayOfWeek || "").trim();
   return VIP_DAILY_ROUTINE_DAY_LABEL_BY_VALUE[normalized] || "-";
-}
-
-function formatVipDailyRoutineActivityLabel(activityType) {
-  const normalized = String(activityType || "").trim().toLowerCase();
-  if (VIP_DAILY_ROUTINE_ACTIVITY_LABEL_BY_VALUE[normalized]) {
-    return VIP_DAILY_ROUTINE_ACTIVITY_LABEL_BY_VALUE[normalized];
-  }
-  // Legacy aliases stored before option keys were standardized
-  if (normalized === "lesson") return "Group lesson";
-  if (normalized === "sleep") return "Sleep time";
-  if (normalized === "meal") return "Meal";
-  return "-";
 }
 
 function ProfileMainContent({
@@ -1269,7 +1247,6 @@ function ProfileMainContent({
             closeVipDailyRoutineEditModal={closeVipDailyRoutineEditModal}
             handleVipDailyRoutineSave={handleVipDailyRoutineSave}
             vipDailyRoutineClassOptions={vipDailyRoutineClassOptions}
-            vipDailyRoutineDayOptions={VIP_DAILY_ROUTINE_DAY_OPTIONS}
             vipDailyRoutineActivityOptions={VIP_DAILY_ROUTINE_ACTIVITY_OPTIONS}
             setVipDailyRoutineEditModal={setVipDailyRoutineEditModal}
             vipDailyRoutineNoteMaxLength={VIP_DAILY_ROUTINE_NOTE_MAX_LENGTH}

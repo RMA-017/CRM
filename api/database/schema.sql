@@ -310,7 +310,7 @@ CREATE TABLE vip_class_daily_routines (
   organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   class_assignment_id BIGINT NOT NULL,
   day_of_week SMALLINT NOT NULL CHECK (day_of_week BETWEEN 1 AND 7),
-  activity_type VARCHAR(16) NOT NULL CHECK (activity_type IN ('lesson', 'sleep', 'meal', 'other')),
+  activity_type VARCHAR(16) NOT NULL CHECK (activity_type IN ('lesson', 'breakfast', 'lunch', 'afternoon-snack', 'sleep', 'meal', 'other')),
   start_time TIME NOT NULL,
   end_time TIME NOT NULL,
   note VARCHAR(255),

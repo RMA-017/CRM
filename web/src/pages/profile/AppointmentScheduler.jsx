@@ -428,6 +428,15 @@ function formatVipDailyRoutineActivityLabel(value) {
   if (normalized === "lesson") {
     return "Group lesson";
   }
+  if (normalized === "breakfast") {
+    return "Breakfast";
+  }
+  if (normalized === "lunch") {
+    return "Lunch";
+  }
+  if (normalized === "afternoon-snack") {
+    return "Afternoon snack";
+  }
   if (normalized === "sleep") {
     return "Sleep time";
   }
