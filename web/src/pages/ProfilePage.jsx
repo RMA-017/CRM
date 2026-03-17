@@ -50,7 +50,6 @@ function ProfilePage({ forcedView = "none" }) {
   const [profile, setProfile] = useState(null);
   const [organizationContextSwitching, setOrganizationContextSwitching] = useState(false);
   const [myProfileModalOpen, setMyProfileModalOpen] = useState(false);
-  const [sideMenuMounted, setSideMenuMounted] = useState(false);
 
   const [mainView, setMainViewState] = useState("none");
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
@@ -512,11 +511,8 @@ function ProfilePage({ forcedView = "none" }) {
   }, []);
 
   const preloadSideMenu = useCallback(() => {
-    if (!sideMenuMounted) {
-      setSideMenuMounted(true);
-    }
     void loadProfileSideMenu();
-  }, [sideMenuMounted]);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -524,7 +520,6 @@ function ProfilePage({ forcedView = "none" }) {
     }
 
     const warmProfileUi = () => {
-      setSideMenuMounted(true);
       void loadProfileSideMenu();
       void loadProfileModals();
     };
@@ -560,9 +555,6 @@ function ProfilePage({ forcedView = "none" }) {
   const openMenu = useCallback(() => {
     if (!sideMenuRef.current) {
       pendingSideMenuOpenRef.current = true;
-      if (!sideMenuMounted) {
-        setSideMenuMounted(true);
-      }
       void loadProfileSideMenu();
       return;
     }
@@ -570,7 +562,7 @@ function ProfilePage({ forcedView = "none" }) {
     menuOpenRef.current = true;
     menuToggleRef.current?.setAttribute("aria-expanded", "true");
     sideMenuRef.current?.open();
-  }, [sideMenuMounted]);
+  }, []);
 
   const closeMenu = useCallback(() => {
     const activeElement = document.activeElement;
@@ -1668,69 +1660,64 @@ function ProfilePage({ forcedView = "none" }) {
         </Suspense>
       )}
 
-      {sideMenuMounted ? (
-        <Suspense fallback={null}>
-          <ProfileSideMenu
-            ref={bindSideMenuRef}
-            menuRef={menuRef}
-            isPlatformAdmin={Boolean(profile?.isPlatformAdmin)}
-            hasClientsMenuAccess={hasClientsMenuAccess}
-            canReadClients={canReadClients}
-            canReadClientMedicalHistory={canReadClientMedicalHistory}
-            openAllClientsPanel={openAllClientsPanel}
-            openClientMedicalHistoryPanel={openClientMedicalHistoryPanel}
-            hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
-            canOpenAppointmentSchedule={canOpenAppointmentSchedule}
-            canOpenAppointmentVipMyClass={canOpenAppointmentVipMyClass}
-            canOpenAppointmentBreaks={canOpenAppointmentBreaks}
+      <Suspense fallback={null}>
+        <ProfileSideMenu
+          ref={bindSideMenuRef}
+          menuRef={menuRef}
+          isPlatformAdmin={Boolean(profile?.isPlatformAdmin)}
+          hasClientsMenuAccess={hasClientsMenuAccess}
+          canReadClients={canReadClients}
+          canReadClientMedicalHistory={canReadClientMedicalHistory}
+          openAllClientsPanel={openAllClientsPanel}
+          openClientMedicalHistoryPanel={openClientMedicalHistoryPanel}
+          hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
+          canOpenAppointmentSchedule={canOpenAppointmentSchedule}
+          canOpenAppointmentVipMyClass={canOpenAppointmentVipMyClass}
+          canOpenAppointmentBreaks={canOpenAppointmentBreaks}
           canOpenAppointmentWorkSchedule={canOpenAppointmentWorkSchedule}
-          canCreateAppointmentWorkSchedule={canCreateAppointmentWorkSchedule}
-          canUpdateAppointmentWorkSchedule={canUpdateAppointmentWorkSchedule}
-          canDeleteAppointmentWorkSchedule={canDeleteAppointmentWorkSchedule}
           canOpenAppointmentVipClients={canOpenAppointmentVipClients}
           canOpenAppointmentVipNormMonitoring={canOpenAppointmentVipNormMonitoring}
-            canOpenMyChildren={canOpenMyChildren}
-            canOpenAppointmentVipDailyRoutines={canOpenAppointmentVipDailyRoutines}
-            canOpenAppointmentVipClassAssignments={canOpenAppointmentVipClassAssignments}
-            canOpenAppointmentVipTutorAssignments={canOpenAppointmentVipTutorAssignments}
-            canOpenAppointmentVipAssignments={canOpenAppointmentVipAssignments}
-            canOpenAppointmentStatistics={canOpenAppointmentStatistics}
-            canOpenStatisticsClassAttendance={canOpenStatisticsClassAttendance}
-            canOpenStatisticsPlannerReport={canOpenStatisticsPlannerReport}
-            canOpenAppointmentSettings={canOpenAppointmentSettings}
-            canOpenSettingsOrganizations={canOpenSettingsOrganizations}
-            canOpenSettingsRoles={canOpenSettingsRoles}
-            canOpenSettingsPositions={canOpenSettingsPositions}
-            canOpenSettingsNorms={canOpenSettingsNorms}
-            openAppointmentPanel={openAppointmentPanel}
-            openAppointmentBreaksPanel={openAppointmentBreaksPanel}
-            openAppointmentVipSchedulePanel={openAppointmentVipSchedulePanel}
-            openAppointmentVipAttendancePanel={openAppointmentVipAttendancePanel}
-            openAppointmentVipNormMonitoringPanel={openAppointmentVipNormMonitoringPanel}
-            openAppointmentVipMyChildrenPanel={openAppointmentVipMyChildrenPanel}
-            openAppointmentVipDailyRoutinesPanel={openAppointmentVipDailyRoutinesPanel}
-            openAppointmentVipAssignmentsPanel={openAppointmentVipAssignmentsPanel}
-            openAppointmentVipTutorAssignmentsPanel={openAppointmentVipTutorAssignmentsPanel}
-            openAppointmentSettingsPanel={openAppointmentSettingsPanel}
-            openAppointmentWorkSchedulePanel={openAppointmentWorkSchedulePanel}
-            openStatisticsClassPanel={openStatisticsClassPanel}
-            openStatisticsPlannerReportPanel={openStatisticsPlannerReportPanel}
-            hasUsersMenuAccess={hasUsersMenuAccess}
-            canReadUsers={canReadUsers}
-            closeMenu={closeMenu}
-            navigate={navigate}
-            hasSettingsMenuAccess={hasSettingsMenuAccess}
-            hasAdminSettingsAccess={hasAdminSettingsAccess}
-            canSendNotifications={canSendNotifications}
-            openOrganizationsPanel={openOrganizationsPanel}
-            openRolesPanel={openRolesPanel}
-            openPositionsPanel={openPositionsPanel}
-            openNormsPanel={openNormsPanel}
-            openNotificationsSendPanel={openNotificationsSendPanel}
-            openMonitoringPanel={openMonitoringPanel}
-          />
-        </Suspense>
-      ) : null}
+          canOpenMyChildren={canOpenMyChildren}
+          canOpenAppointmentVipDailyRoutines={canOpenAppointmentVipDailyRoutines}
+          canOpenAppointmentVipClassAssignments={canOpenAppointmentVipClassAssignments}
+          canOpenAppointmentVipTutorAssignments={canOpenAppointmentVipTutorAssignments}
+          canOpenAppointmentVipAssignments={canOpenAppointmentVipAssignments}
+          canOpenAppointmentStatistics={canOpenAppointmentStatistics}
+          canOpenStatisticsClassAttendance={canOpenStatisticsClassAttendance}
+          canOpenStatisticsPlannerReport={canOpenStatisticsPlannerReport}
+          canOpenAppointmentSettings={canOpenAppointmentSettings}
+          canOpenSettingsOrganizations={canOpenSettingsOrganizations}
+          canOpenSettingsRoles={canOpenSettingsRoles}
+          canOpenSettingsPositions={canOpenSettingsPositions}
+          canOpenSettingsNorms={canOpenSettingsNorms}
+          openAppointmentPanel={openAppointmentPanel}
+          openAppointmentBreaksPanel={openAppointmentBreaksPanel}
+          openAppointmentVipSchedulePanel={openAppointmentVipSchedulePanel}
+          openAppointmentVipAttendancePanel={openAppointmentVipAttendancePanel}
+          openAppointmentVipNormMonitoringPanel={openAppointmentVipNormMonitoringPanel}
+          openAppointmentVipMyChildrenPanel={openAppointmentVipMyChildrenPanel}
+          openAppointmentVipDailyRoutinesPanel={openAppointmentVipDailyRoutinesPanel}
+          openAppointmentVipAssignmentsPanel={openAppointmentVipAssignmentsPanel}
+          openAppointmentVipTutorAssignmentsPanel={openAppointmentVipTutorAssignmentsPanel}
+          openAppointmentSettingsPanel={openAppointmentSettingsPanel}
+          openAppointmentWorkSchedulePanel={openAppointmentWorkSchedulePanel}
+          openStatisticsClassPanel={openStatisticsClassPanel}
+          openStatisticsPlannerReportPanel={openStatisticsPlannerReportPanel}
+          hasUsersMenuAccess={hasUsersMenuAccess}
+          canReadUsers={canReadUsers}
+          closeMenu={closeMenu}
+          navigate={navigate}
+          hasSettingsMenuAccess={hasSettingsMenuAccess}
+          hasAdminSettingsAccess={hasAdminSettingsAccess}
+          canSendNotifications={canSendNotifications}
+          openOrganizationsPanel={openOrganizationsPanel}
+          openRolesPanel={openRolesPanel}
+          openPositionsPanel={openPositionsPanel}
+          openNormsPanel={openNormsPanel}
+          openNotificationsSendPanel={openNotificationsSendPanel}
+          openMonitoringPanel={openMonitoringPanel}
+        />
+      </Suspense>
     </>
   );
 }

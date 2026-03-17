@@ -1,6 +1,16 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 
 const CLOSE_ANIMATION_MS = 200;
+const CLOSED_SUBMENUS = Object.freeze({
+  clients: false,
+  vipClients: false,
+  assignments: false,
+  appointments: false,
+  users: false,
+  statistics: false,
+  settings: false,
+  adminSettings: false
+});
 
 const ProfileSideMenu = forwardRef(function ProfileSideMenu({
   menuRef,
@@ -59,14 +69,7 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
 }, ref) {
   const closeTimerRef = useRef(null);
   const [menuState, setMenuState] = useState("closed");
-  const [clientsMenuOpen, setClientsMenuOpen] = useState(false);
-  const [vipClientsMenuOpen, setVipClientsMenuOpen] = useState(false);
-  const [assignmentsMenuOpen, setAssignmentsMenuOpen] = useState(false);
-  const [appointmentMenuOpen, setAppointmentMenuOpen] = useState(false);
-  const [usersMenuOpen, setUsersMenuOpen] = useState(false);
-  const [statisticsMenuOpen, setStatisticsMenuOpen] = useState(false);
-  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
-  const [adminSettingsMenuOpen, setAdminSettingsMenuOpen] = useState(false);
+  const [openSubmenus, setOpenSubmenus] = useState(CLOSED_SUBMENUS);
 
   function blurFocusedMenuElement() {
     if (typeof document === "undefined") {
@@ -84,14 +87,25 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
   }
 
   function resetSubmenus() {
-    setClientsMenuOpen(false);
-    setVipClientsMenuOpen(false);
-    setAssignmentsMenuOpen(false);
-    setAppointmentMenuOpen(false);
-    setUsersMenuOpen(false);
-    setStatisticsMenuOpen(false);
-    setSettingsMenuOpen(false);
-    setAdminSettingsMenuOpen(false);
+    setOpenSubmenus((current) => (
+      current.clients
+      || current.vipClients
+      || current.assignments
+      || current.appointments
+      || current.users
+      || current.statistics
+      || current.settings
+      || current.adminSettings
+        ? CLOSED_SUBMENUS
+        : current
+    ));
+  }
+
+  function toggleSubmenu(key) {
+    setOpenSubmenus((current) => ({
+      ...current,
+      [key]: !current[key]
+    }));
   }
 
   useEffect(() => () => {
@@ -141,14 +155,14 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
             type="button"
             className="side-menu-action side-menu-parent"
             hidden={!hasClientsMenuAccess}
-            aria-expanded={clientsMenuOpen ? "true" : "false"}
+            aria-expanded={openSubmenus.clients ? "true" : "false"}
             onClick={() => {
-              setClientsMenuOpen((prev) => !prev);
+              toggleSubmenu("clients");
             }}
           >
             Clients
           </button>
-          <div id="clientsSubMenu" className="side-submenu" hidden={!clientsMenuOpen || !hasClientsMenuAccess}>
+          <div id="clientsSubMenu" className="side-submenu" hidden={!openSubmenus.clients || !hasClientsMenuAccess}>
             <button
               id="openAllClientsBtn"
               type="button"
@@ -173,14 +187,14 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
             type="button"
             className="side-menu-action side-menu-parent"
             hidden={!canOpenAppointmentVipMyClass && !canOpenAppointmentVipClients && !canOpenAppointmentVipNormMonitoring && !canOpenMyChildren && !canOpenAppointmentVipDailyRoutines}
-            aria-expanded={vipClientsMenuOpen ? "true" : "false"}
+            aria-expanded={openSubmenus.vipClients ? "true" : "false"}
             onClick={() => {
-              setVipClientsMenuOpen((prev) => !prev);
+              toggleSubmenu("vipClients");
             }}
           >
             VIP Clients
           </button>
-          <div id="vipClientsSubMenu" className="side-submenu" hidden={!vipClientsMenuOpen}>
+          <div id="vipClientsSubMenu" className="side-submenu" hidden={!openSubmenus.vipClients}>
             <button
               id="openVipPlannerBtn"
               type="button"
@@ -232,14 +246,14 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
             type="button"
             className="side-menu-action side-menu-parent"
             hidden={!canOpenAppointmentVipAssignments}
-            aria-expanded={assignmentsMenuOpen ? "true" : "false"}
+            aria-expanded={openSubmenus.assignments ? "true" : "false"}
             onClick={() => {
-              setAssignmentsMenuOpen((prev) => !prev);
+              toggleSubmenu("assignments");
             }}
           >
             Assignments
           </button>
-          <div id="assignmentsSubMenu" className="side-submenu" hidden={!assignmentsMenuOpen || !canOpenAppointmentVipAssignments}>
+          <div id="assignmentsSubMenu" className="side-submenu" hidden={!openSubmenus.assignments || !canOpenAppointmentVipAssignments}>
             <button
               id="openVipAssignmentsBtn"
               type="button"
@@ -264,14 +278,14 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
               id="toggleAppointmentsMenuBtn"
               type="button"
               className="side-menu-action side-menu-parent"
-              aria-expanded={appointmentMenuOpen ? "true" : "false"}
+              aria-expanded={openSubmenus.appointments ? "true" : "false"}
               onClick={() => {
-                setAppointmentMenuOpen((prev) => !prev);
+                toggleSubmenu("appointments");
               }}
             >
               Appointments
             </button>
-            <div id="appointmentsSubMenu" className="side-submenu" hidden={!appointmentMenuOpen}>
+            <div id="appointmentsSubMenu" className="side-submenu" hidden={!openSubmenus.appointments}>
               <button
                 id="openAppointmentBreaksBtn"
                 type="button"
@@ -306,14 +320,14 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
               id="toggleUsersMenuBtn"
               type="button"
               className="side-menu-action side-menu-parent"
-              aria-expanded={usersMenuOpen ? "true" : "false"}
+              aria-expanded={openSubmenus.users ? "true" : "false"}
               onClick={() => {
-                setUsersMenuOpen((prev) => !prev);
+                toggleSubmenu("users");
               }}
             >
               Users
             </button>
-            <div id="usersSubMenu" className="side-submenu" hidden={!usersMenuOpen}>
+            <div id="usersSubMenu" className="side-submenu" hidden={!openSubmenus.users}>
               <button
                 id="openAllUsersBtn"
                 type="button"
@@ -342,14 +356,14 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
               id="toggleStatisticsMenuBtn"
               type="button"
               className="side-menu-action side-menu-parent"
-              aria-expanded={statisticsMenuOpen ? "true" : "false"}
+              aria-expanded={openSubmenus.statistics ? "true" : "false"}
               onClick={() => {
-                setStatisticsMenuOpen((prev) => !prev);
+                toggleSubmenu("statistics");
               }}
             >
               Statistics
             </button>
-            <div id="statisticsSubMenu" className="side-submenu" hidden={!statisticsMenuOpen}>
+            <div id="statisticsSubMenu" className="side-submenu" hidden={!openSubmenus.statistics}>
               <button
                 id="openStatisticsClassBtn"
                 type="button"
@@ -375,14 +389,14 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
               id="toggleAdminSettingsMenuBtn"
               type="button"
               className="side-menu-action side-menu-parent"
-              aria-expanded={adminSettingsMenuOpen ? "true" : "false"}
+              aria-expanded={openSubmenus.adminSettings ? "true" : "false"}
               onClick={() => {
-                setAdminSettingsMenuOpen((prev) => !prev);
+                toggleSubmenu("adminSettings");
               }}
             >
               Admin Settings
             </button>
-            <div id="adminSettingsSubMenu" className="side-submenu" hidden={!adminSettingsMenuOpen}>
+            <div id="adminSettingsSubMenu" className="side-submenu" hidden={!openSubmenus.adminSettings}>
               <button
                 id="openOrganizationsBtn"
                 type="button"
@@ -407,14 +421,14 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
               id="toggleSettingsMenuBtn"
               type="button"
               className="side-menu-action side-menu-parent"
-              aria-expanded={settingsMenuOpen ? "true" : "false"}
+              aria-expanded={openSubmenus.settings ? "true" : "false"}
               onClick={() => {
-                setSettingsMenuOpen((prev) => !prev);
+                toggleSubmenu("settings");
               }}
             >
               Settings
             </button>
-            <div id="settingsSubMenu" className="side-submenu" hidden={!settingsMenuOpen}>
+            <div id="settingsSubMenu" className="side-submenu" hidden={!openSubmenus.settings}>
               <button
                 id="openAppointmentSettingsBtn"
                 type="button"

@@ -97,7 +97,8 @@ function getPlannerReportStatusPresentation(statusValue) {
 
 function StatisticsPlannerReportPanel({
   closeStatisticsPanel,
-  showBootstrapSkeleton = false
+  showBootstrapSkeleton = false,
+  canReadReport = false
 }) {
   const initialBounds = getCurrentMonthBounds();
   const [from, setFrom] = useState(initialBounds.from);
@@ -226,12 +227,12 @@ function StatisticsPlannerReportPanel({
   }, [clientId, from, hasAutoLoaded, loadReport, showBootstrapSkeleton, specialistId, to, vipOnly]);
 
   useEffect(() => {
-    if (showBootstrapSkeleton || hasLoadedFilterOptions) {
+    if (showBootstrapSkeleton || hasLoadedFilterOptions || !canReadReport) {
       return;
     }
     void loadFilterOptions();
     setHasLoadedFilterOptions(true);
-  }, [hasLoadedFilterOptions, loadFilterOptions, showBootstrapSkeleton]);
+  }, [canReadReport, hasLoadedFilterOptions, loadFilterOptions, showBootstrapSkeleton]);
 
   useEffect(() => {
     if (!clientId) {

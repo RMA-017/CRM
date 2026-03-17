@@ -228,8 +228,14 @@ function createBreaksContext(overrides = {}) {
       authContext: request.authContext,
       requester: request.authContext?.requester
     }),
+    requesterHasOrgFeature: (requester, feature) => (
+      Array.isArray(requester?.organization_allowed_features)
+      && requester.organization_allowed_features.includes(feature)
+    ),
+    hasPermission: async () => true,
     PERMISSIONS: {
       APPOINTMENTS_BREAKS_READ: "appointments.breaks.read",
+      APPOINTMENTS_PLANNER_READ: "appointments.planner.read",
       APPOINTMENTS_BREAKS_UPDATE: "appointments.breaks.update"
     },
     parsePositiveIntegerOr,
@@ -1076,4 +1082,38 @@ test("breaks routes block specialist users from accessing another specialist", a
 
   assert.equal(reply.state.statusCode, 403);
   assert.equal(reply.state.payload?.message, "Forbidden.");
+});
+
+test("breaks routes allow planner readers to load breaks for planner view without standalone breaks permission", async () => {
+  const recorder = createRouteRecorder();
+  registerAppointmentBreakRoutes(
+    recorder.fastify,
+    createBreaksContext({
+      hasPermission: async (_roleId, permission) => permission === "appointments.planner.read",
+      getAppointmentBreaksBySpecialist: async ({ specialistId }) => [
+        {
+          specialistId,
+          dayOfWeek: 1,
+          breakType: "lunch",
+          startTime: "13:00",
+          endTime: "14:00"
+        }
+      ]
+    })
+  );
+
+  const route = findRoute(recorder.routes, "GET", "/breaks");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      query: { specialistId: "7" }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 200);
+  assert.equal(reply.state.payload?.items?.[0]?.startTime, "13:00");
 });

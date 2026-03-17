@@ -1350,6 +1350,7 @@ function AppointmentScheduler({
   const specialistLabel = vipOnly ? "Class" : "Specialist";
   const specialistSelectPlaceholder = vipOnly ? "Select class" : "Select specialist";
   const specialistSearchPlaceholder = vipOnly ? "Search class" : "Search specialist";
+  const canReadPlannerBreaks = canReadAppointments || canReadAppointmentBreaks;
   const [message, setMessage] = useState("");
   const [weekOffset, setWeekOffset] = useState(0);
   const [compactWeekRange, setCompactWeekRange] = useState(() => {
@@ -2696,7 +2697,7 @@ function AppointmentScheduler({
   ]);
 
   const loadBreaksForSelectedSpecialist = useCallback(async () => {
-    if (vipOnly || !selectedSpecialistId || !canReadAppointmentBreaks) {
+    if (vipOnly || !selectedSpecialistId || !canReadPlannerBreaks) {
       if (!vipOnly && selectedSpecialistId) {
         setBreaksBySpecialist((prev) => ({
           ...prev,
@@ -2757,7 +2758,7 @@ function AppointmentScheduler({
         [selectedSpecialistId]: []
       }));
     }
-  }, [canReadAppointmentBreaks, selectedSpecialistId, vipOnly]);
+  }, [canReadPlannerBreaks, selectedSpecialistId, vipOnly]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -4124,8 +4125,7 @@ function AppointmentScheduler({
                 <div className="appointment-modal-section">
                   <div className="appointment-repeat-block">
                     <div className="appointment-create-date-time-row appointment-repeat-head-row">
-                      {!isVipAutoRollingRepeat ? (
-                        <div className="field appointment-repeat-until-field">
+                      <div className="field appointment-repeat-until-field">
                           <label htmlFor="appointmentCreateRepeatUntil">Repeat Until</label>
                           <input
                             id="appointmentCreateRepeatUntil"
@@ -4133,7 +4133,10 @@ function AppointmentScheduler({
                             className={createErrors.repeatUntil ? "input-error" : ""}
                             value={createForm.repeatUntil}
                             min={createForm.appointmentDate || undefined}
+                            readOnly={isVipAutoRollingRepeat}
+                            disabled={isVipAutoRollingRepeat}
                             onInput={(event) => {
+                              if (isVipAutoRollingRepeat) return;
                               const nextValue = event.currentTarget.value;
                               setCreateForm((prev) => ({ ...prev, repeatUntil: nextValue }));
                               if (createErrors.repeatUntil) {
@@ -4142,7 +4145,6 @@ function AppointmentScheduler({
                             }}
                           />
                         </div>
-                      ) : null}
                       <div className="field appointment-repeat-title-field">
                         <label>Repeat weekly</label>
                         <div className="appointment-repeat-days" role="group" aria-label="Repeat weekdays">
@@ -4165,11 +4167,7 @@ function AppointmentScheduler({
                         </div>
                       </div>
                     </div>
-                    {isVipAutoRollingRepeat ? (
-                      <small className="appointment-repeat-auto-note">
-                        VIP repeat auto-extends 30 days ahead.
-                      </small>
-                    ) : null}
+
                     <small className="field-error">{createErrors.repeatDays || createErrors.repeatUntil || ""}</small>
                   </div>
                 </div>

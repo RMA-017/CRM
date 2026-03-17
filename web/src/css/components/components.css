@@ -3242,7 +3242,6 @@ label.field > span:first-child,
   align-items: center;
   flex-wrap: nowrap;
   gap: 5px;
-  margin-bottom: 10px;
 }
 
 .appointment-toolbar-block {

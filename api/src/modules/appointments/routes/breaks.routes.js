@@ -4,6 +4,8 @@ export function registerAppointmentBreakRoutes(fastify, context) {
   const {
     setNoCacheHeaders,
     requireAppointmentsAccess,
+    requesterHasOrgFeature,
+    hasPermission,
     PERMISSIONS,
     parsePositiveIntegerOr,
     resolveOwnAppointmentSpecialistUserId,
@@ -26,16 +28,26 @@ export function registerAppointmentBreakRoutes(fastify, context) {
       setNoCacheHeaders(reply);
 
       try {
-        const access = await requireAppointmentsAccess(
-          request,
-          reply,
-          PERMISSIONS.APPOINTMENTS_BREAKS_READ,
-          "appointments.breaks"
-        );
-        if (!access) {
-          return;
+        const authContext = request.authContext;
+        const requester = authContext?.requester;
+        if (!requester) {
+          return reply.status(401).send({ message: "Unauthorized." });
         }
 
+        const [
+          canReadBreaksPermission,
+          canReadPlannerPermission
+        ] = await Promise.all([
+          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_BREAKS_READ),
+          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_PLANNER_READ)
+        ]);
+        const canReadBreaks = canReadBreaksPermission && requesterHasOrgFeature(requester, "appointments.breaks");
+        const canReadPlanner = canReadPlannerPermission && requesterHasOrgFeature(requester, "appointments.planner");
+        if (!canReadBreaks && !canReadPlanner) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+
+        const access = { authContext, requester };
         const specialistId = parsePositiveIntegerOr(request.query?.specialistId, 0);
         if (!specialistId) {
           return reply.status(400).send({ field: "specialistId", message: "Specialist is required." });

@@ -1196,6 +1196,7 @@ function ProfileMainContent({
           <StatisticsPlannerReportPanel
             closeStatisticsPanel={closeStatisticsPanel}
             showBootstrapSkeleton={showStatisticsPlannerReportBootstrapSkeleton}
+            canReadReport={canReadStatisticsPlannerReportPermission}
           />
         </Suspense>
       )}
