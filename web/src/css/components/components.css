@@ -3165,6 +3165,12 @@ label.field > span:first-child,
   min-width: 88px;
 }
 
+.vip-daily-routines-filter-field.panel-search-select {
+  flex: 0 1 clamp(132px, 39vw, 180px);
+  width: clamp(132px, 39vw, 180px);
+  min-width: 132px;
+}
+
 .panel-search-select .custom-select {
   width: 100%;
 }
@@ -4516,11 +4522,11 @@ label.field > span:first-child,
   line-height: 1.15;
 }
 
-#vipClassAddModal .vip-class-add-grid input,
+#vipClassAddModal .vip-class-add-grid input:not([type="checkbox"]):not([type="radio"]),
 #vipClassAddModal .vip-class-add-grid .custom-select,
-#vipTutorEditModal .vip-class-add-grid input,
+#vipTutorEditModal .vip-class-add-grid input:not([type="checkbox"]):not([type="radio"]),
 #vipTutorEditModal .vip-class-add-grid .custom-select,
-#vipDailyRoutineEditModal .vip-class-add-grid input,
+#vipDailyRoutineEditModal .vip-class-add-grid input:not([type="checkbox"]):not([type="radio"]),
 #vipDailyRoutineEditModal .vip-class-add-grid .custom-select,
 #vipDailyRoutineEditModal .vip-daily-routine-form-scroll > label textarea {
   width: 100%;
@@ -4528,11 +4534,11 @@ label.field > span:first-child,
 }
 
 #vipClassAddModal .vip-class-add-grid .custom-select-trigger,
-#vipClassAddModal .vip-class-add-grid input,
+#vipClassAddModal .vip-class-add-grid input:not([type="checkbox"]):not([type="radio"]),
 #vipTutorEditModal .vip-class-add-grid .custom-select-trigger,
-#vipTutorEditModal .vip-class-add-grid input,
+#vipTutorEditModal .vip-class-add-grid input:not([type="checkbox"]):not([type="radio"]),
 #vipDailyRoutineEditModal .vip-class-add-grid .custom-select-trigger,
-#vipDailyRoutineEditModal .vip-class-add-grid input {
+#vipDailyRoutineEditModal .vip-class-add-grid input:not([type="checkbox"]):not([type="radio"]) {
   height: var(--input-height);
   min-height: var(--input-height);
 }

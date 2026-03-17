@@ -177,6 +177,12 @@
     --appointment-repeat-chip-font-size: 11px;
   }
 
+  #vipDailyRoutineEditModal {
+    --appointment-repeat-chip-height: 30px;
+    --appointment-repeat-chip-padding-x: 4px;
+    --appointment-repeat-chip-font-size: 11px;
+  }
+
   #organizationEditModal {
     width: calc(100vw - 30px);
     max-height: calc(100dvh - 24px);
@@ -312,14 +318,16 @@
     align-items: stretch;
   }
 
-  .appointment-create-modal .appointment-repeat-days {
+  .appointment-create-modal .appointment-repeat-days,
+  #vipDailyRoutineEditModal .appointment-repeat-days {
     flex-wrap: nowrap;
     justify-content: space-between;
     gap: 0;
     overflow-x: hidden;
   }
 
-  .appointment-create-modal .appointment-repeat-day-chip {
+  .appointment-create-modal .appointment-repeat-day-chip,
+  #vipDailyRoutineEditModal .appointment-repeat-day-chip {
     width: auto;
     min-width: 0;
     flex: 1 1 0;
@@ -330,14 +338,16 @@
     font-size: 0;
   }
 
-  .appointment-create-modal .appointment-repeat-day-chip input[type="checkbox"] {
+  .appointment-create-modal .appointment-repeat-day-chip input[type="checkbox"],
+  #vipDailyRoutineEditModal .appointment-repeat-day-chip input[type="checkbox"] {
     width: 12px;
     min-width: 12px;
     height: 12px;
     min-height: 12px;
   }
 
-  .appointment-create-modal .appointment-repeat-day-chip span {
+  .appointment-create-modal .appointment-repeat-day-chip span,
+  #vipDailyRoutineEditModal .appointment-repeat-day-chip span {
     font-size: var(--appointment-repeat-chip-font-size);
   }
 
@@ -578,6 +588,12 @@
     padding: 10px;
     overflow-y: hidden;
     overflow-x: hidden;
+    --appointment-repeat-chip-height: 30px;
+    --appointment-repeat-chip-padding-x: 3px;
+    --appointment-repeat-chip-font-size: 10px;
+  }
+
+  #vipDailyRoutineEditModal {
     --appointment-repeat-chip-height: 30px;
     --appointment-repeat-chip-padding-x: 3px;
     --appointment-repeat-chip-font-size: 10px;
