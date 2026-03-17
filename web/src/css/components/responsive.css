@@ -172,7 +172,7 @@
     padding: 10px;
     overflow-y: hidden;
     overflow-x: hidden;
-    --appointment-repeat-chip-height: 32px;
+    --appointment-repeat-chip-height: 30px;
     --appointment-repeat-chip-padding-x: 4px;
     --appointment-repeat-chip-font-size: 11px;
   }

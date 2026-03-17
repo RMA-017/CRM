@@ -1,13 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
+import CustomSelect from "../../../components/CustomSelect.jsx";
+import { VIP_DAILY_ROUTINE_ACTIVITY_OPTIONS } from "../profile.vip-utils.js";
 
 const PAGE_SIZE = 20;
-
-const ACTIVITY_FILTER_OPTIONS = [
-  { value: "lesson", label: "Lesson" },
-  { value: "sleep",  label: "Sleep" },
-  { value: "meal",   label: "Meal" },
-  { value: "other",  label: "Other" }
-];
 
 function VipDailyRoutinesPanel({
   canCreateAppointmentVipClients,
@@ -43,6 +38,7 @@ function VipDailyRoutinesPanel({
     }
     return Array.from(seen.entries()).map(([id, label]) => ({ value: id, label }));
   }, [vipDailyRoutineRows]);
+  const activityOptions = useMemo(() => [...VIP_DAILY_ROUTINE_ACTIVITY_OPTIONS], []);
 
   const filteredRows = useMemo(() => {
     return vipDailyRoutineRows.filter((row) => {
@@ -84,28 +80,32 @@ function VipDailyRoutinesPanel({
       </div>
 
       <div className="vip-daily-routines-filters">
-        <select
-          className="vip-daily-routines-filter-select"
-          value={filterClassId}
-          onChange={(e) => setFilterClassId(e.currentTarget.value)}
-          disabled={vipDailyRoutineLoading}
-        >
-          <option value="">All classes</option>
-          {classOptions.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-        <select
-          className="vip-daily-routines-filter-select"
-          value={filterActivity}
-          onChange={(e) => setFilterActivity(e.currentTarget.value)}
-          disabled={vipDailyRoutineLoading}
-        >
-          <option value="">All activities</option>
-          {ACTIVITY_FILTER_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
+        <div className="vip-daily-routines-filter-field panel-search-select">
+          <CustomSelect
+            id="vipDailyRoutineClassFilterSelect"
+            value={filterClassId}
+            options={classOptions}
+            placeholder="All classes"
+            disabled={vipDailyRoutineLoading}
+            searchable
+            searchThreshold={8}
+            maxVisibleOptions={8}
+            menuPortal
+            onChange={(nextValue) => setFilterClassId(String(nextValue || ""))}
+          />
+        </div>
+        <div className="vip-daily-routines-filter-field panel-search-select">
+          <CustomSelect
+            id="vipDailyRoutineActivityFilterSelect"
+            value={filterActivity}
+            options={activityOptions}
+            placeholder="All activities"
+            disabled={vipDailyRoutineLoading}
+            maxVisibleOptions={8}
+            menuPortal
+            onChange={(nextValue) => setFilterActivity(String(nextValue || ""))}
+          />
+        </div>
       </div>
 
       <p className="all-users-state" hidden={vipDailyRoutineLoading || !vipDailyRoutineMessage}>

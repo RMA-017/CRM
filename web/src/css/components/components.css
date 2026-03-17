@@ -1927,17 +1927,23 @@ label.field > span:first-child,
   flex-wrap: wrap;
 }
 
-.vip-daily-routines-filter-select {
+.vip-daily-routines-filter-field {
   flex: 1 1 160px;
   min-width: 120px;
   max-width: 260px;
-  padding: 5px 8px;
-  border: 1px solid var(--input-border, #ccc);
-  border-radius: 6px;
-  background: var(--input-bg, #fff);
-  color: var(--text, #222);
-  font-size: 0.875rem;
-  cursor: pointer;
+}
+
+.vip-daily-routines-filter-field .custom-select {
+  width: 100%;
+}
+
+.vip-daily-routines-filter-field .custom-select-trigger {
+  min-height: var(--btn-height);
+  height: var(--btn-height);
+}
+
+.vip-daily-routines-filter-field .custom-select-menu {
+  min-width: 100%;
 }
 
 #appointmentVipDailyRoutinesPanel .all-users-table {
@@ -6091,8 +6097,8 @@ label.field > span:first-child,
   gap: 4px;
   width: 60px;
   min-width: 60px;
-  height: 36px;
-  min-height: 36px;
+  height: 30px;
+  min-height: 30px;
   justify-content: center;
   padding: 0 6px;
   border: 1px solid var(--line);
@@ -6104,11 +6110,38 @@ label.field > span:first-child,
 }
 
 .appointment-repeat-day-chip input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: inline-block;
+  flex: 0 0 12px;
   width: 12px;
   min-width: 12px;
   height: 12px;
   min-height: 12px;
   margin: 0;
+  padding: 0;
+  border: 1px solid var(--input-border);
+  border-radius: 3px;
+  background: var(--input-bg);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 10px 10px;
+  cursor: pointer;
+  transition:
+    border-color var(--dur) ease,
+    box-shadow var(--dur) ease,
+    background-color var(--dur) ease;
+}
+
+.appointment-repeat-day-chip input[type="checkbox"]:checked {
+  border-color: var(--brand);
+  background-color: var(--brand);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.4 6.2 4.8 8.5 9.6 3.7' fill='none' stroke='white' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.appointment-repeat-day-chip input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .appointment-repeat-day-chip span {
