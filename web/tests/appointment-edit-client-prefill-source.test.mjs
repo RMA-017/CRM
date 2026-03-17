@@ -13,6 +13,12 @@ test("appointment edit modal restores client select label and VIP state from the
 
   assert.match(
     source,
+    /const nextCard = mapScheduleItemToPlannerCard\(item\);/,
+    "The standard planner schedule loader should reuse the shared planner card mapper so VIP metadata is not dropped."
+  );
+
+  assert.match(
+    source,
     /setClientVipOnly\(Boolean\(vipOnly \|\| existingClientIsVip\)\);/,
     "Editing an existing VIP appointment should reopen the modal with the VIP toggle still active."
   );

@@ -2688,27 +2688,7 @@ function AppointmentScheduler({
           return;
         }
 
-        const nextCard = {
-          id: String(item?.id || ""),
-          specialistId: String(item?.specialistId || "").trim(),
-          specialist: String(item?.specialistName || "").trim()
-            || (String(item?.specialistId || "").trim() ? `Specialist #${String(item?.specialistId || "").trim()}` : "Specialist"),
-          specialistPosition: String(item?.specialistPosition || "").trim(),
-          clientId: String(item?.clientId || ""),
-          time: startTime,
-          endTime: String(item?.endTime || "").trim(),
-          durationMinutes: String(item?.durationMinutes || "").trim() || getDurationMinutesFromTimes(startTime, item?.endTime),
-          client: getClientCardName({
-            id: item?.clientId,
-            firstName: item?.clientFirstName,
-            lastName: item?.clientLastName
-          }),
-          service: String(item?.serviceName || "").trim(),
-          status: String(item?.status || "pending").trim().toLowerCase(),
-          note: String(item?.note || "").trim(),
-          repeatType: String(item?.repeatType || "none").trim().toLowerCase(),
-          repeatGroupKey: String(item?.repeatGroupKey || "").trim()
-        };
+        const nextCard = mapScheduleItemToPlannerCard(item);
 
         byDay[dayKey].push(nextCard);
       });
