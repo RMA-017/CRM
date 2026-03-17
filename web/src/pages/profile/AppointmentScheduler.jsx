@@ -1332,6 +1332,8 @@ function AppointmentPlannerGrid({
 
 function AppointmentScheduler({
   canReadAppointments = true,
+  canReadAppointmentBreaks = true,
+  canReadStatisticsPlannerReport = true,
   canCreateAppointments = true,
   canUpdateAppointments = true,
   canDeleteAppointments = true,
@@ -1526,7 +1528,7 @@ function AppointmentScheduler({
                 cache: "no-store"
               })
             : Promise.resolve(null),
-          !vipOnly
+          !vipOnly && canReadStatisticsPlannerReport
             ? apiFetch("/api/appointments/report/filters", {
                 method: "GET",
                 cache: "no-store"
@@ -1744,7 +1746,13 @@ function AppointmentScheduler({
     return () => {
       active = false;
     };
-  }, [canReadAppointments, normalizedSelectedPlannerClientFilterId, selectedSpecialistId, vipOnly]);
+  }, [
+    canReadAppointments,
+    canReadStatisticsPlannerReport,
+    normalizedSelectedPlannerClientFilterId,
+    selectedSpecialistId,
+    vipOnly
+  ]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -2688,7 +2696,13 @@ function AppointmentScheduler({
   ]);
 
   const loadBreaksForSelectedSpecialist = useCallback(async () => {
-    if (vipOnly || !selectedSpecialistId) {
+    if (vipOnly || !selectedSpecialistId || !canReadAppointmentBreaks) {
+      if (!vipOnly && selectedSpecialistId) {
+        setBreaksBySpecialist((prev) => ({
+          ...prev,
+          [selectedSpecialistId]: []
+        }));
+      }
       return;
     }
 
@@ -2743,7 +2757,7 @@ function AppointmentScheduler({
         [selectedSpecialistId]: []
       }));
     }
-  }, [selectedSpecialistId, vipOnly]);
+  }, [canReadAppointmentBreaks, selectedSpecialistId, vipOnly]);
 
   useEffect(() => {
     if (typeof window === "undefined") {

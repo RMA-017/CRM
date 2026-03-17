@@ -1,6 +1,9 @@
 import AppointmentScheduler from "../AppointmentScheduler.jsx";
 
 function AppointmentPlannerPanel({
+  canReadAppointments,
+  canReadAppointmentBreaks,
+  canReadStatisticsPlannerReport,
   canCreateAppointments,
   canUpdateAppointments,
   canDeleteAppointments,
@@ -24,6 +27,9 @@ function AppointmentPlannerPanel({
         </button>
       </div>
       <AppointmentScheduler
+        canReadAppointments={canReadAppointments}
+        canReadAppointmentBreaks={canReadAppointmentBreaks}
+        canReadStatisticsPlannerReport={canReadStatisticsPlannerReport}
         canCreateAppointments={canCreateAppointments}
         canUpdateAppointments={canUpdateAppointments}
         canDeleteAppointments={canDeleteAppointments}

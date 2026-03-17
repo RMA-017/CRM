@@ -133,6 +133,7 @@ function ProfileMainContent({
   canReadAppointments,
   canUpdateAppointments,
   canReadAppointmentBreaks,
+  canReadStatisticsPlannerReportPermission,
   canCreateAppointmentBreaks,
   canUpdateAppointmentBreaks,
   canDeleteAppointmentBreaks,
@@ -911,6 +912,8 @@ function ProfileMainContent({
         <Suspense fallback={PANEL_LOADING_FALLBACK}>
           <AppointmentPlannerPanel
             canReadAppointments={canReadAppointments}
+            canReadAppointmentBreaks={canReadAppointmentBreaks}
+            canReadStatisticsPlannerReport={canReadStatisticsPlannerReportPermission}
             canCreateAppointments={canCreateAppointments}
             canUpdateAppointments={canUpdateAppointments}
             canDeleteAppointments={canDeleteAppointments}
