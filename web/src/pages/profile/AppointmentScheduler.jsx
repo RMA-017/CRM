@@ -2004,6 +2004,14 @@ function AppointmentScheduler({
       || ""
     ).trim();
   }, [createModal.specialistId, selectedSpecialistId, specialistRoleById, specialists, vipOnly]);
+  const isEditMode = createModal.mode === "edit";
+  const isEditRecurring = isEditMode
+    && createModal.repeatType === "weekly"
+    && Boolean(String(createModal.repeatGroupKey || "").trim());
+  const normalizedEditScope = EDIT_SCOPE_OPTIONS.some((option) => option.value === createForm.editScope)
+    ? createForm.editScope
+    : "single";
+  const shouldLockEditDate = isEditRecurring && normalizedEditScope !== "single";
   const lockedVipServiceName = String(selectedSpecialistServiceName || "").trim() || "Specialist";
   const isVipServiceLocked = Boolean(vipOnly || clientVipOnly || selectedClient?.isVip);
   const isVipAutoRollingRepeat = Boolean(vipOnly || clientVipOnly || selectedClient?.isVip);
@@ -3074,15 +3082,6 @@ function AppointmentScheduler({
       };
     });
   }, [createForm.appointmentDate, createForm.repeatEnabled, createModal.mode, createModal.open, visibleRepeatDayKeys]);
-
-  const isEditMode = createModal.mode === "edit";
-  const isEditRecurring = isEditMode
-    && createModal.repeatType === "weekly"
-    && Boolean(String(createModal.repeatGroupKey || "").trim());
-  const normalizedEditScope = EDIT_SCOPE_OPTIONS.some((option) => option.value === createForm.editScope)
-    ? createForm.editScope
-    : "single";
-  const shouldLockEditDate = isEditRecurring && normalizedEditScope !== "single";
 
   function validateCreateForm(value, {
     isEditMode = false,

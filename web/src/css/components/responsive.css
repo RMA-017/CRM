@@ -8,14 +8,40 @@
     -webkit-overflow-scrolling: touch;
   }
 
+  :is(#appointmentWorkSchedulePanel, #vipNormMonitoringPanel) .all-users-table-wrap {
+    overflow-x: auto;
+    overflow-y: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
   :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table {
     width: max-content;
     min-width: 1280px;
     table-layout: auto;
   }
 
+  #appointmentWorkSchedulePanel .all-users-table {
+    width: max-content;
+    min-width: 640px;
+    table-layout: auto;
+  }
+
+  #vipNormMonitoringPanel .all-users-table {
+    width: max-content;
+    min-width: 760px;
+    table-layout: auto;
+  }
+
   :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table th,
   :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table td {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
+  }
+
+  :is(#appointmentWorkSchedulePanel, #vipNormMonitoringPanel) .all-users-table th,
+  :is(#appointmentWorkSchedulePanel, #vipNormMonitoringPanel) .all-users-table td {
     overflow: visible;
     text-overflow: clip;
     white-space: nowrap;
@@ -187,14 +213,40 @@
     -webkit-overflow-scrolling: touch;
   }
 
+  :is(#appointmentWorkSchedulePanel, #vipNormMonitoringPanel) .all-users-table-wrap {
+    overflow-x: auto;
+    overflow-y: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
   :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table {
     width: max-content;
     min-width: 1280px;
     table-layout: auto;
   }
 
+  #appointmentWorkSchedulePanel .all-users-table {
+    width: max-content;
+    min-width: 640px;
+    table-layout: auto;
+  }
+
+  #vipNormMonitoringPanel .all-users-table {
+    width: max-content;
+    min-width: 760px;
+    table-layout: auto;
+  }
+
   :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table th,
   :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table td {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
+  }
+
+  :is(#appointmentWorkSchedulePanel, #vipNormMonitoringPanel) .all-users-table th,
+  :is(#appointmentWorkSchedulePanel, #vipNormMonitoringPanel) .all-users-table td {
     overflow: visible;
     text-overflow: clip;
     white-space: nowrap;
@@ -976,21 +1028,14 @@ main.home-main:has(#appointmentNormsPanel) {
   overflow-y: visible;
 }
 
-/* VIP Norm Monitoring panel — scrollbar at viewport bottom */
-main.home-main:has(#vipNormMonitoringPanel) {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-x: contain;
-}
-
 #vipNormMonitoringPanel {
   overflow-x: visible;
-  min-width: 920px;
+  min-width: 0;
 }
 
 #vipNormMonitoringPanel .all-users-table-wrap {
-  overflow-x: visible;
-  overflow-y: visible;
+  overflow-x: auto;
+  overflow-y: auto;
 }
 
 /* table-outer-scroll-wrap — horizontal scroll on parent (mobile) */

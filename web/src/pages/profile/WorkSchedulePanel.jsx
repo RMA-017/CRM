@@ -1008,7 +1008,6 @@ function WorkSchedulePanel({
               Search
             </button>
           </form>
-          <div className="table-outer-scroll-wrap">
           <div className="all-users-table-wrap ws-user-overrides-table-wrap">
             <table className="all-users-table ws-override-table">
               <thead>
@@ -1072,7 +1071,6 @@ function WorkSchedulePanel({
                 )}
               </tbody>
             </table>
-          </div>
           </div>
           <div className="all-users-pagination" hidden={loading || filteredWeeklyItems.length === 0}>
             <button

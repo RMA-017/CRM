@@ -1397,6 +1397,8 @@ label.field > span:first-child,
 #allUsersPanel,
 #clientsPanel,
 #appointmentVipAttendancePanel,
+#appointmentWorkSchedulePanel,
+#vipNormMonitoringPanel,
 #appointmentBreaksPanel,
 #appointmentVipTutorAssignmentsPanel {
   display: flex;
@@ -1408,6 +1410,8 @@ label.field > span:first-child,
 #allUsersPanel .all-users-table-wrap,
 #clientsPanel .all-users-table-wrap,
 #appointmentVipAttendancePanel .all-users-table-wrap,
+#appointmentWorkSchedulePanel .all-users-table-wrap,
+#vipNormMonitoringPanel .all-users-table-wrap,
 #appointmentVipTutorAssignmentsPanel .all-users-table-wrap {
   flex: 1 1 auto;
   min-height: 0;
@@ -1416,13 +1420,17 @@ label.field > span:first-child,
 
 #clientsPanel .all-users-table-wrap,
 #appointmentVipAttendancePanel .all-users-table-wrap,
+#appointmentWorkSchedulePanel .all-users-table-wrap,
+#vipNormMonitoringPanel .all-users-table-wrap,
 #appointmentVipTutorAssignmentsPanel .all-users-table-wrap {
   overflow-x: auto;
   overscroll-behavior-x: contain;
 }
 
 #allUsersPanel .all-users-pagination,
-#clientsPanel .all-users-pagination {
+#clientsPanel .all-users-pagination,
+#appointmentWorkSchedulePanel .all-users-pagination,
+#vipNormMonitoringPanel .all-users-pagination {
   margin-top: auto;
   padding-top: 10px;
 }
