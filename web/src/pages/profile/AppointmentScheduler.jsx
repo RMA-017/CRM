@@ -2030,6 +2030,7 @@ function AppointmentScheduler({
   const lockedVipServiceName = String(selectedSpecialistServiceName || "").trim() || "Specialist";
   const isVipServiceLocked = Boolean(vipOnly || clientVipOnly || selectedClient?.isVip);
   const isVipAutoRollingRepeat = Boolean(vipOnly || clientVipOnly || selectedClient?.isVip);
+  const wasVipAutoRollingRepeatRef = useRef(isVipAutoRollingRepeat);
   useEffect(() => {
     if (!createModal.open || !isVipServiceLocked) {
       return;
@@ -2065,6 +2066,28 @@ function AppointmentScheduler({
   }, [
     createErrors.repeatUntil,
     createForm.appointmentDate,
+    createForm.repeatUntil,
+    createModal.open,
+    isEditRecurring,
+    isVipAutoRollingRepeat
+  ]);
+  useEffect(() => {
+    const wasVipAutoRollingRepeat = wasVipAutoRollingRepeatRef.current;
+    wasVipAutoRollingRepeatRef.current = isVipAutoRollingRepeat;
+
+    if (!createModal.open || isEditRecurring) {
+      return;
+    }
+    if (!wasVipAutoRollingRepeat || isVipAutoRollingRepeat || !String(createForm.repeatUntil || "").trim()) {
+      return;
+    }
+
+    setCreateForm((prev) => ({ ...prev, repeatUntil: "" }));
+    if (createErrors.repeatUntil) {
+      setCreateErrors((prev) => ({ ...prev, repeatUntil: "" }));
+    }
+  }, [
+    createErrors.repeatUntil,
     createForm.repeatUntil,
     createModal.open,
     isEditRecurring,
