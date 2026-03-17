@@ -6018,7 +6018,7 @@ label.field > span:first-child,
 }
 
 .appointment-client-vip-toggle {
-  margin-left: 0;
+  margin: 0;
   width: 100%;
   min-width: 0;
   height: var(--input-height);

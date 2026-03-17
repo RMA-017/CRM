@@ -129,8 +129,9 @@ function getClientDisplayName(client) {
   const firstName = String(client?.firstName || "").trim();
   const lastName = String(client?.lastName || "").trim();
   const middleName = String(client?.middleName || "").trim();
+  const displayName = String(client?.displayName || client?.name || "").trim();
   const fullName = [firstName, lastName, middleName].filter(Boolean).join(" ");
-  return fullName || `Client #${String(client?.id || "").trim()}`;
+  return fullName || displayName || `Client #${String(client?.id || "").trim()}`;
 }
 
 function formatClientOptionLabel(client) {
@@ -607,6 +608,10 @@ function mapScheduleItemToPlannerCard(item) {
       firstName: item?.clientFirstName,
       lastName: item?.clientLastName
     }),
+    clientFirstName: String(item?.clientFirstName || "").trim(),
+    clientLastName: String(item?.clientLastName || "").trim(),
+    clientMiddleName: String(item?.clientMiddleName || "").trim(),
+    isVip: Boolean(item?.isVip),
     service: String(item?.serviceName || "").trim(),
     status: String(item?.status || "pending").trim().toLowerCase(),
     note: String(item?.note || "").trim(),
@@ -2030,7 +2035,45 @@ function AppointmentScheduler({
   const lockedVipServiceName = String(selectedSpecialistServiceName || "").trim() || "Specialist";
   const isVipServiceLocked = Boolean(vipOnly || clientVipOnly || selectedClient?.isVip);
   const isVipAutoRollingRepeat = Boolean(vipOnly || clientVipOnly || selectedClient?.isVip);
+  const unlockedServiceNameRef = useRef(String(createForm.service || "").trim());
+  const wasVipServiceLockedRef = useRef(isVipServiceLocked);
   const wasVipAutoRollingRepeatRef = useRef(isVipAutoRollingRepeat);
+  useEffect(() => {
+    const wasVipServiceLocked = wasVipServiceLockedRef.current;
+    wasVipServiceLockedRef.current = isVipServiceLocked;
+
+    if (!createModal.open) {
+      unlockedServiceNameRef.current = String(createForm.service || "").trim();
+      return;
+    }
+
+    if (isVipServiceLocked) {
+      if (!wasVipServiceLocked) {
+        unlockedServiceNameRef.current = String(createForm.service || "").trim();
+      }
+      return;
+    }
+
+    if (!wasVipServiceLocked) {
+      unlockedServiceNameRef.current = String(createForm.service || "").trim();
+      return;
+    }
+
+    const restoredServiceName = String(unlockedServiceNameRef.current || "").trim();
+    if (restoredServiceName === String(createForm.service || "").trim()) {
+      return;
+    }
+
+    setCreateForm((prev) => ({ ...prev, service: restoredServiceName }));
+    if (createErrors.service) {
+      setCreateErrors((prev) => ({ ...prev, service: "" }));
+    }
+  }, [
+    createErrors.service,
+    createForm.service,
+    createModal.open,
+    isVipServiceLocked
+  ]);
   useEffect(() => {
     if (!createModal.open || !isVipServiceLocked) {
       return;
@@ -2874,7 +2917,6 @@ function AppointmentScheduler({
     }
     setSpecialistSelectError(false);
     setMessage("");
-    setClientVipOnly(Boolean(vipOnly));
     const appointmentDate = formatDateYmd(day.date);
     const startTime = String(slot || "").trim();
     const defaultDuration = durationSelectOptions[0]?.value || "30";
@@ -2886,6 +2928,32 @@ function AppointmentScheduler({
     const preselectedClientId = isEditMode
       ? String(existingItem?.clientId || "").trim()
       : String(selectedPlannerClientFilterId || "").trim();
+    const existingClientIsVip = Boolean(existingItem?.isVip);
+
+    setClientVipOnly(Boolean(vipOnly || existingClientIsVip));
+    if (isEditMode && preselectedClientId) {
+      setClientMap((prev) => {
+        const previousClient = prev?.[preselectedClientId] && typeof prev[preselectedClientId] === "object"
+          ? prev[preselectedClientId]
+          : {};
+        return {
+          ...prev,
+          [preselectedClientId]: {
+            ...previousClient,
+            id: preselectedClientId,
+            firstName: String(existingItem?.clientFirstName || previousClient?.firstName || "").trim(),
+            lastName: String(existingItem?.clientLastName || previousClient?.lastName || "").trim(),
+            middleName: String(existingItem?.clientMiddleName || previousClient?.middleName || "").trim(),
+            displayName: String(existingItem?.client || previousClient?.displayName || "").trim(),
+            phone: String(previousClient?.phone || "").trim(),
+            tgMail: String(previousClient?.tgMail || "").trim(),
+            birthday: String(previousClient?.birthday || "").trim(),
+            isVip: existingClientIsVip || Boolean(previousClient?.isVip),
+            note: String(previousClient?.note || "").trim()
+          }
+        };
+      });
+    }
 
     setCreateModal({
       open: true,
@@ -4041,6 +4109,8 @@ function AppointmentScheduler({
                         options={clientSelectOptions}
                         maxVisibleOptions={10}
                         menuPortal
+                        searchable
+                        searchThreshold={0}
                         error={clientSelectHasError}
                         onChange={(nextValue) => {
                           setCreateForm((prev) => ({ ...prev, clientId: nextValue }));
@@ -4206,6 +4276,9 @@ function AppointmentScheduler({
                       placeholder="Select scope"
                       value={normalizedEditScope}
                       options={EDIT_SCOPE_OPTIONS}
+                      menuPortal
+                      forceOpenDown={!compactWeekRange}
+                      forceOpenUp={compactWeekRange}
                       onChange={(nextValue) => {
                         const nextScope = EDIT_SCOPE_OPTIONS.some((option) => option.value === nextValue)
                           ? nextValue
