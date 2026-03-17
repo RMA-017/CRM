@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
+import { apiFetch, readApiResponseData } from "../../lib/api.js";
 import { sortVipClassDailyRoutineRows } from "./profile.helpers.js";
 import {
+  MY_CHILDREN_DEFAULT_VISIBLE_WEEK_DAYS,
   normalizeVipAttendanceStatus,
-  normalizeVipDailyRoutineActivityType
+  normalizeVipDailyRoutineActivityType,
+  normalizeMyChildrenVisibleWeekDays
 } from "./profile.vip-utils.js";
 
 function formatVipDailyRoutineClassLabel(item) {
@@ -86,6 +89,9 @@ export default function useProfileVipManagement({
     id: ""
   });
   const [vipDailyRoutineDeleteSaving, setVipDailyRoutineDeleteSaving] = useState(false);
+  const [vipDailyRoutineVisibleWeekDays, setVipDailyRoutineVisibleWeekDays] = useState(
+    () => [...MY_CHILDREN_DEFAULT_VISIBLE_WEEK_DAYS]
+  );
   const [vipClassDraft, setVipClassDraft] = useState({
     classId: "",
     className: "",
@@ -195,6 +201,42 @@ export default function useProfileVipManagement({
       id: ""
     });
     setVipDailyRoutineDeleteSaving(false);
+  }, [mainView]);
+
+  useEffect(() => {
+    if (mainView !== "appointment-vip-daily-routines") {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const response = await apiFetch("/api/appointments/settings", {
+          method: "GET",
+          cache: "no-store"
+        });
+        const data = await readApiResponseData(response);
+        if (cancelled) {
+          return;
+        }
+        if (!response.ok) {
+          setVipDailyRoutineVisibleWeekDays([...MY_CHILDREN_DEFAULT_VISIBLE_WEEK_DAYS]);
+          return;
+        }
+        setVipDailyRoutineVisibleWeekDays(
+          normalizeMyChildrenVisibleWeekDays(data?.item?.visibleWeekDays)
+        );
+      } catch {
+        if (!cancelled) {
+          setVipDailyRoutineVisibleWeekDays([...MY_CHILDREN_DEFAULT_VISIBLE_WEEK_DAYS]);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [mainView]);
 
   useEffect(() => {
@@ -825,6 +867,7 @@ export default function useProfileVipManagement({
     vipAssignmentClassOptions,
     vipAssignmentTutorOptions,
     vipDailyRoutineClassOptions,
+    vipDailyRoutineVisibleWeekDays,
     vipDailyRoutineRows,
     openVipAttendanceAbsentModal,
     closeVipAttendanceAbsentModal,

@@ -1,6 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 const PAGE_SIZE = 20;
+
+const ACTIVITY_FILTER_OPTIONS = [
+  { value: "lesson", label: "Lesson" },
+  { value: "sleep",  label: "Sleep" },
+  { value: "meal",   label: "Meal" },
+  { value: "other",  label: "Other" }
+];
 
 function VipDailyRoutinesPanel({
   canCreateAppointmentVipClients,
@@ -18,13 +25,35 @@ function VipDailyRoutinesPanel({
   formatVipDailyRoutineActivityLabel
 }) {
   const [page, setPage] = useState(1);
+  const [filterClassId, setFilterClassId] = useState("");
+  const [filterActivity, setFilterActivity] = useState("");
 
   useEffect(() => {
     setPage(1);
+  }, [vipDailyRoutineRows, filterClassId, filterActivity]);
+
+  const classOptions = useMemo(() => {
+    const seen = new Map();
+    for (const row of vipDailyRoutineRows) {
+      const id = String(row?.classId || "").trim();
+      if (id && !seen.has(id)) {
+        const name = String(row?.className || "").trim();
+        seen.set(id, name || `Class #${id}`);
+      }
+    }
+    return Array.from(seen.entries()).map(([id, label]) => ({ value: id, label }));
   }, [vipDailyRoutineRows]);
 
-  const totalPages = Math.max(1, Math.ceil(vipDailyRoutineRows.length / PAGE_SIZE));
-  const pageRows = vipDailyRoutineRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const filteredRows = useMemo(() => {
+    return vipDailyRoutineRows.filter((row) => {
+      if (filterClassId && String(row?.classId || "").trim() !== filterClassId) return false;
+      if (filterActivity && String(row?.activityType || "").trim() !== filterActivity) return false;
+      return true;
+    });
+  }, [vipDailyRoutineRows, filterClassId, filterActivity]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const pageRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <section id="appointmentVipDailyRoutinesPanel" className="all-users-panel">
@@ -52,6 +81,31 @@ function VipDailyRoutinesPanel({
             ×
           </button>
         </div>
+      </div>
+
+      <div className="vip-daily-routines-filters">
+        <select
+          className="vip-daily-routines-filter-select"
+          value={filterClassId}
+          onChange={(e) => setFilterClassId(e.currentTarget.value)}
+          disabled={vipDailyRoutineLoading}
+        >
+          <option value="">All classes</option>
+          {classOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        <select
+          className="vip-daily-routines-filter-select"
+          value={filterActivity}
+          onChange={(e) => setFilterActivity(e.currentTarget.value)}
+          disabled={vipDailyRoutineLoading}
+        >
+          <option value="">All activities</option>
+          {ACTIVITY_FILTER_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
       </div>
 
       <p className="all-users-state" hidden={vipDailyRoutineLoading || !vipDailyRoutineMessage}>
@@ -124,7 +178,7 @@ function VipDailyRoutinesPanel({
         </table>
       </div>
 
-      <div className="all-users-pagination" hidden={vipDailyRoutineLoading || vipDailyRoutineRows.length === 0 || totalPages <= 1}>
+      <div className="all-users-pagination" hidden={vipDailyRoutineLoading || filteredRows.length === 0 || totalPages <= 1}>
         <button
           type="button"
           className="header-btn"

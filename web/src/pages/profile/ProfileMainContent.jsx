@@ -411,6 +411,7 @@ function ProfileMainContent({
     vipAssignmentClassOptions,
     vipAssignmentTutorOptions,
     vipDailyRoutineClassOptions,
+    vipDailyRoutineVisibleWeekDays,
     vipDailyRoutineRows,
     openVipAttendanceAbsentModal,
     closeVipAttendanceAbsentModal,
@@ -1248,6 +1249,7 @@ function ProfileMainContent({
             handleVipDailyRoutineSave={handleVipDailyRoutineSave}
             vipDailyRoutineClassOptions={vipDailyRoutineClassOptions}
             vipDailyRoutineActivityOptions={VIP_DAILY_ROUTINE_ACTIVITY_OPTIONS}
+            vipDailyRoutineVisibleWeekDays={vipDailyRoutineVisibleWeekDays}
             setVipDailyRoutineEditModal={setVipDailyRoutineEditModal}
             vipDailyRoutineNoteMaxLength={VIP_DAILY_ROUTINE_NOTE_MAX_LENGTH}
             vipDailyRoutineEditSaving={vipDailyRoutineEditSaving}

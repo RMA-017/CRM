@@ -132,7 +132,7 @@ export function useVipDailyRoutinesSection({
       return { ok: false, message: "Day must be between 1 and 7." };
     }
     if (!normalizedActivityType) {
-      return { ok: false, message: "Activity must be lesson, breakfast, lunch, afternoon-snack, sleep, meal or other." };
+      return { ok: false, message: "Activity must be lesson, breakfast, lunch, afternoon-snack, sleep or other." };
     }
     if (!/^\d{2}:\d{2}$/.test(normalizedStartTime) || !/^\d{2}:\d{2}$/.test(normalizedEndTime)) {
       return { ok: false, message: "Start and end time must be HH:mm." };

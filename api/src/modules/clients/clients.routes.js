@@ -1982,7 +1982,7 @@ async function clientsRoutes(fastify) {
       if (!activityType) {
         return reply.status(400).send({
           field: "activityType",
-          message: "Activity type must be lesson, breakfast, lunch, afternoon-snack, sleep, meal or other."
+          message: "Activity type must be lesson, breakfast, lunch, afternoon-snack, sleep or other."
         });
       }
 

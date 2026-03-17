@@ -1,15 +1,29 @@
 import { createPortal } from "react-dom";
 import CustomSelect from "../../../components/CustomSelect.jsx";
+import {
+  MY_CHILDREN_DAY_ITEMS,
+  MY_CHILDREN_DAY_NUM_TO_KEY,
+  normalizeMyChildrenVisibleWeekDays
+} from "../profile.vip-utils.js";
 
-const VIP_DAY_CHIPS = [
-  { value: "1", label: "Monday" },
-  { value: "2", label: "Tuesday" },
-  { value: "3", label: "Wednesday" },
-  { value: "4", label: "Thursday" },
-  { value: "5", label: "Friday" },
-  { value: "6", label: "Saturday" },
-  { value: "7", label: "Sunday" }
-];
+function buildVipDayChips(visibleWeekDays = [], selectedDayValues = []) {
+  const visibleDayKeys = normalizeMyChildrenVisibleWeekDays(visibleWeekDays);
+  const selectedDayKeys = Array.from(
+    new Set(
+      (Array.isArray(selectedDayValues) ? selectedDayValues : [])
+        .map((value) => MY_CHILDREN_DAY_NUM_TO_KEY[Number.parseInt(String(value || "").trim(), 10)] || "")
+        .filter(Boolean)
+    )
+  );
+  const availableDayKeys = Array.from(new Set([...visibleDayKeys, ...selectedDayKeys]));
+
+  return MY_CHILDREN_DAY_ITEMS
+    .filter((day) => availableDayKeys.includes(day.key))
+    .map((day) => ({
+      value: String(day.offset + 1),
+      label: day.label
+    }));
+}
 
 function VipAssignmentModals({
   vipDailyRoutineEditModal,
@@ -17,6 +31,7 @@ function VipAssignmentModals({
   handleVipDailyRoutineSave,
   vipDailyRoutineClassOptions,
   vipDailyRoutineActivityOptions,
+  vipDailyRoutineVisibleWeekDays,
   setVipDailyRoutineEditModal,
   vipDailyRoutineNoteMaxLength,
   vipDailyRoutineEditSaving,
@@ -49,6 +64,14 @@ function VipAssignmentModals({
   if (typeof document === "undefined") {
     return null;
   }
+
+  const vipDailyRoutineSelectedDays = Array.isArray(vipDailyRoutineEditModal.dayOfWeek)
+    ? vipDailyRoutineEditModal.dayOfWeek
+    : [];
+  const vipDailyRoutineDayChips = buildVipDayChips(
+    vipDailyRoutineVisibleWeekDays,
+    vipDailyRoutineSelectedDays
+  );
 
   const vipDailyRoutineEditModalLayer = (
     <>
@@ -105,10 +128,9 @@ function VipAssignmentModals({
               <div>
                 <span>Day</span>
                 <div className="appointment-repeat-days" role="group" aria-label="Select day of week">
-                  {VIP_DAY_CHIPS.map((day) => {
+                  {vipDailyRoutineDayChips.map((day) => {
                     const isEditMode = Boolean(vipDailyRoutineEditModal.id);
-                    const days = Array.isArray(vipDailyRoutineEditModal.dayOfWeek) ? vipDailyRoutineEditModal.dayOfWeek : [];
-                    const checked = days.includes(day.value);
+                    const checked = vipDailyRoutineSelectedDays.includes(day.value);
                     return (
                       <label
                         key={day.value}

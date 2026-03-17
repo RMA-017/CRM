@@ -50,10 +50,6 @@ const VIP_CLASS_DAILY_ROUTINE_ACTIVITY_ALIASES = Object.freeze({
   nap: "sleep",
   uxlash: "sleep",
   uyqu: "sleep",
-  meal: "meal",
-  food: "meal",
-  dinner: "meal",
-  ovqat: "meal",
   other: "other",
   boshqa: "other"
 });
@@ -64,7 +60,6 @@ const VIP_CLASS_DAILY_ROUTINE_ACTIVITY_SET = new Set([
   "lunch",
   "afternoon-snack",
   "sleep",
-  "meal",
   "other"
 ]);
 

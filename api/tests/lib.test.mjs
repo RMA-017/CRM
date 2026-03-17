@@ -130,11 +130,10 @@ test("vip daily routine helpers normalize aliases and strict values", () => {
   assert.equal(normalizeVipClassDailyRoutineActivityType("breakfast"), "breakfast");
   assert.equal(normalizeVipClassDailyRoutineActivityType("lunch"), "lunch");
   assert.equal(normalizeVipClassDailyRoutineActivityType("afternoon-snack"), "afternoon-snack");
-  assert.equal(normalizeVipClassDailyRoutineActivityType("meal"), "meal");
   assert.equal(normalizeVipClassDailyRoutineActivityType("ovqat"), "");
   assert.equal(
     normalizeVipClassDailyRoutineActivityType("ovqat", { allowAliases: true }),
-    "meal"
+    ""
   );
   assert.equal(
     normalizeVipClassDailyRoutineActivityType("nonushta", { allowAliases: true }),

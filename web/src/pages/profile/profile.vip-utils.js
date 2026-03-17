@@ -64,8 +64,7 @@ export const VIP_DAILY_ROUTINE_ACTIVITY_OPTIONS = Object.freeze([
   { value: "lunch", label: "Lunch" },
   { value: "afternoon-snack", label: "Afternoon snack" },
   { value: "sleep", label: "Sleep time" },
-  { value: "other", label: "Other" },
-  { value: "meal", label: "Meal" }
+  { value: "other", label: "Other" }
 ]);
 
 const VIP_DAILY_ROUTINE_ACTIVITY_ALIASES = Object.freeze({
@@ -74,7 +73,6 @@ const VIP_DAILY_ROUTINE_ACTIVITY_ALIASES = Object.freeze({
   breakfast: "breakfast",
   lunch: "lunch",
   "afternoon-snack": "afternoon-snack",
-  meal: "meal",
   sleep: "sleep",
   "sleep-time": "sleep",
   other: "other"

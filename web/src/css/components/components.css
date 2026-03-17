@@ -1920,6 +1920,26 @@ label.field > span:first-child,
   overflow-y: visible;
 }
 
+.vip-daily-routines-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.vip-daily-routines-filter-select {
+  flex: 1 1 160px;
+  min-width: 120px;
+  max-width: 260px;
+  padding: 5px 8px;
+  border: 1px solid var(--input-border, #ccc);
+  border-radius: 6px;
+  background: var(--input-bg, #fff);
+  color: var(--text, #222);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
 #appointmentVipDailyRoutinesPanel .all-users-table {
   min-width: 1020px;
   width: 100%;

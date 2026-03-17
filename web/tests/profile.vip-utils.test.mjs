@@ -9,7 +9,7 @@ import {
 test("vip daily routine activity options match persisted activity types", () => {
   assert.deepEqual(
     VIP_DAILY_ROUTINE_ACTIVITY_OPTIONS.map((item) => item.value),
-    ["lesson", "breakfast", "lunch", "afternoon-snack", "sleep", "other", "meal"]
+    ["lesson", "breakfast", "lunch", "afternoon-snack", "sleep", "other"]
   );
 });
 
@@ -19,7 +19,6 @@ test("vip daily routine activity normalizer accepts legacy aliases", () => {
   assert.equal(normalizeVipDailyRoutineActivityType("breakfast"), "breakfast");
   assert.equal(normalizeVipDailyRoutineActivityType("lunch"), "lunch");
   assert.equal(normalizeVipDailyRoutineActivityType("afternoon-snack"), "afternoon-snack");
-  assert.equal(normalizeVipDailyRoutineActivityType("meal"), "meal");
   assert.equal(normalizeVipDailyRoutineActivityType("sleep"), "sleep");
   assert.equal(normalizeVipDailyRoutineActivityType("sleep-time"), "sleep");
   assert.equal(normalizeVipDailyRoutineActivityType("other"), "other");
@@ -32,7 +31,6 @@ test("vip daily routine formatter keeps labels stable for strict and legacy valu
   assert.equal(formatVipDailyRoutineActivityLabel("breakfast"), "Breakfast");
   assert.equal(formatVipDailyRoutineActivityLabel("lunch"), "Lunch");
   assert.equal(formatVipDailyRoutineActivityLabel("afternoon-snack"), "Afternoon snack");
-  assert.equal(formatVipDailyRoutineActivityLabel("meal"), "Meal");
   assert.equal(formatVipDailyRoutineActivityLabel("sleep"), "Sleep time");
   assert.equal(formatVipDailyRoutineActivityLabel("sleep-time"), "Sleep time");
   assert.equal(formatVipDailyRoutineActivityLabel("other"), "Other");

@@ -440,9 +440,6 @@ function formatVipDailyRoutineActivityLabel(value) {
   if (normalized === "sleep") {
     return "Sleep time";
   }
-  if (normalized === "meal") {
-    return "Meal";
-  }
   if (normalized === "other") {
     return "Other";
   }
