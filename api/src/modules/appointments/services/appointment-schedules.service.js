@@ -1,5 +1,4 @@
 export {
-  cancelAppointmentsBySpecialistAndDate,
   createAppointmentSchedule,
   deleteAppointmentSchedulesByIds,
   ensureAutoRollingRecurringSchedulesCoverRange,

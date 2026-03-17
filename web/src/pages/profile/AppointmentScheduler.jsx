@@ -1397,7 +1397,6 @@ function AppointmentScheduler({
     repeatType: "none",
     repeatGroupKey: ""
   });
-  const [cancelDayModal, setCancelDayModal] = useState({ open: false, loading: false, message: "" });
   const [createForm, setCreateForm] = useState(createEmptyClientForm);
   const [createErrors, setCreateErrors] = useState({});
   const [createSubmitting, setCreateSubmitting] = useState(false);
@@ -3671,39 +3670,6 @@ function AppointmentScheduler({
     }
   }, [canCurrentUserConfirmVipPending, loadSchedulesForCurrentWeek, vipConfirmingByAppointmentId]);
 
-  async function handleCancelSpecialistDay() {
-    if (cancelDayModal.loading) {
-      return;
-    }
-    const specialistId = String(selectedSpecialistId || "").trim();
-    if (!specialistId) {
-      return;
-    }
-    const date = formatDateYmd(now);
-    setCancelDayModal((prev) => ({ ...prev, loading: true, message: "" }));
-    try {
-      const response = await apiFetch("/api/appointments/schedules/specialist-day-cancel", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ specialistId: Number(specialistId), date }),
-        cache: "no-store"
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        setCancelDayModal((prev) => ({
-          ...prev,
-          loading: false,
-          message: String(data?.message || "Failed to cancel appointments.")
-        }));
-        return;
-      }
-      setCancelDayModal({ open: false, loading: false, message: "" });
-      void loadSchedulesForCurrentWeek();
-    } catch {
-      setCancelDayModal((prev) => ({ ...prev, loading: false, message: "Unexpected error. Please try again." }));
-    }
-  }
-
   return (
     <section className={`appointment-scheduler${vipOnly ? " is-vip-schedule" : ""}`} aria-label="Appointment planner">
       <div className="appointment-toolbar">
@@ -3799,18 +3765,6 @@ function AppointmentScheduler({
           </div>
         ) : null}
 
-        {!vipOnly && canUpdateAppointments && selectedSpecialistId ? (
-          <div className="appointment-toolbar-block">
-            <button
-              type="button"
-              className="header-btn appointment-cancel-day-btn"
-              title="Cancel all of today's appointments for this specialist"
-              onClick={() => setCancelDayModal({ open: true, loading: false, message: "" })}
-            >
-              Specialist Absent Today
-            </button>
-          </div>
-        ) : null}
       </div>
 
       {canRenderPlannerData ? (
@@ -4411,36 +4365,6 @@ function AppointmentScheduler({
         return modalContent;
       })()}
 
-      {cancelDayModal.open ? (
-        <>
-          <section className="logout-confirm-modal" id="cancelSpecialistDayModal" role="dialog" aria-modal="true" aria-label="Confirm specialist absent">
-            <h3>Specialist Absent Today</h3>
-            <p>Cancel all <strong>pending</strong> and <strong>confirmed</strong> appointments for <strong>{formatDateYmd(now)}</strong>?</p>
-            {cancelDayModal.message ? (
-              <p className="field-error" role="alert">{cancelDayModal.message}</p>
-            ) : null}
-            <div className="edit-actions">
-              <button
-                type="button"
-                className="btn"
-                disabled={cancelDayModal.loading}
-                onClick={handleCancelSpecialistDay}
-              >
-                {cancelDayModal.loading ? "Cancelling..." : "Confirm"}
-              </button>
-              <button
-                type="button"
-                className="header-btn"
-                disabled={cancelDayModal.loading}
-                onClick={() => setCancelDayModal({ open: false, loading: false, message: "" })}
-              >
-                Back
-              </button>
-            </div>
-          </section>
-          <div className="login-overlay" onClick={() => { if (!cancelDayModal.loading) { setCancelDayModal({ open: false, loading: false, message: "" }); } }} />
-        </>
-      ) : null}
     </section>
   );
 }

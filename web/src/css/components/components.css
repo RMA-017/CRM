@@ -3293,16 +3293,6 @@ label.field > span:first-child,
   gap: 10px;
 }
 
-.appointment-cancel-day-btn {
-  white-space: nowrap;
-  color: var(--color-danger, #b42318);
-  border-color: var(--color-danger, #b42318);
-}
-
-.appointment-cancel-day-btn:hover:not(:disabled) {
-  background-color: rgba(180, 35, 24, 0.08);
-}
-
 .appointment-toolbar-block.appointment-week-switcher {
   padding: 5px 10px;
   width: 100%;

@@ -126,7 +126,6 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     resolveAppointmentVipReadScope,
     resolveOwnAppointmentSpecialistUserId,
     isVipClientAssignedToUser,
-    cancelAppointmentsBySpecialistAndDate,
     broadcastAppointmentChange,
     DATE_REGEX
   } = context;
@@ -938,59 +937,6 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           return reply.status(400).send({ message: "Invalid appointment data." });
         }
         request.log.error({ err: error }, "Error creating appointment schedule");
-        return reply.status(500).send({ message: "Internal server error." });
-      }
-    }
-  );
-
-  fastify.post(
-    "/schedules/specialist-day-cancel",
-    { config: { rateLimit: fastify.apiRateLimit } },
-    async (request, reply) => {
-      const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_PLANNER_UPDATE);
-      if (!access) {
-        return;
-      }
-
-      const specialistId = parsePositiveIntegerOr(request.body?.specialistId, 0);
-      if (!specialistId) {
-        return reply.status(400).send({ field: "specialistId", message: "Specialist is required." });
-      }
-      const date = String(request.body?.date || "").trim();
-      if (!DATE_REGEX.test(date)) {
-        return reply.status(400).send({ field: "date", message: "Invalid date. Use YYYY-MM-DD format." });
-      }
-
-      const ownSpecialistUserId = resolveOwnAppointmentSpecialistUserId(access);
-      if (ownSpecialistUserId && specialistId !== ownSpecialistUserId) {
-        return reply.status(403).send({ message: "Forbidden." });
-      }
-
-      try {
-        const items = await cancelAppointmentsBySpecialistAndDate({
-          organizationId: access.authContext.organizationId,
-          specialistId,
-          date,
-          actorUserId: access.authContext.userId
-        });
-
-        await broadcastAppointmentChange(access, {
-          type: "schedule-updated",
-          message: `${items.length} appointments cancelled.`,
-          specialistIds: [specialistId],
-          data: { specialistId, date }
-        });
-        schedulesReadCache.clear();
-
-        return reply.send({
-          message: items.length > 0
-            ? `${items.length} appointments cancelled.`
-            : "No active appointments found for this day.",
-          cancelledCount: items.length,
-          items
-        });
-      } catch (error) {
-        request.log.error({ err: error }, "Error cancelling specialist day appointments");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }
