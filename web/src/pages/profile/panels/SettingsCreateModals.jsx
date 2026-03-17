@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import CustomSelect from "../../../components/CustomSelect.jsx";
 import RolePermissionsAccordion from "../RolePermissionsAccordion.jsx";
@@ -46,6 +47,17 @@ function SettingsCreateModals({
   handleNormCreateSubmit,
   positionsSettings
 }) {
+  useEffect(() => {
+    const message = String(normCreateError || "").trim();
+    if (!message) {
+      return;
+    }
+    if (typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert(message);
+    }
+    setNormCreateError("");
+  }, [normCreateError, setNormCreateError]);
+
   if (typeof document === "undefined") {
     return null;
   }
@@ -500,9 +512,6 @@ function SettingsCreateModals({
               />
             </label>
           </div>
-          {normCreateError ? (
-            <p className="auth-error" role="alert">{normCreateError}</p>
-          ) : null}
           <div className="edit-actions">
             <button className="btn" type="submit" disabled={normCreateSubmitting}>
               {normCreateSubmitting ? "Saving..." : "Save"}

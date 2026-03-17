@@ -272,6 +272,17 @@ function ProfileModals(props) {
     setPositionEditError("");
   }, [positionEditError, setPositionEditError]);
 
+  useEffect(() => {
+    const message = String(normEditError || "").trim();
+    if (!message) {
+      return;
+    }
+    if (typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert(message);
+    }
+    setNormEditError("");
+  }, [normEditError, setNormEditError]);
+
   const modalContent = (
     <>
       <section id="myProfileModal" className="my-profile-panel my-profile-modal" hidden={!myProfileModalOpen}>
@@ -1682,9 +1693,6 @@ function ProfileModals(props) {
               />
             </label>
           </div>
-          {normEditError ? (
-            <p className="auth-error" role="alert">{normEditError}</p>
-          ) : null}
           <div className="edit-actions">
             <button className="btn" type="submit" disabled={normEditSubmitting}>Save</button>
             <button className="header-btn" type="button" onClick={cancelNormEdit}>Cancel</button>
