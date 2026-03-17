@@ -42,6 +42,11 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
+    /<AppointmentPlannerGrid[\s\S]*rawAppointmentsByDay=\{rawAppointmentsByDay\}[\s\S]*blockedTimesForSpecialist=\{blockedTimesForSpecialist\}[\s\S]*canCreateOnSpecialist=\{canCreateOnPlannerSpecialist\(selectedSpecialistId\)\}/s,
+    "Specialist mode should reuse the shared appointment planner grid with specialist-specific blocked times and create access."
+  );
+  assert.match(
+    source,
     /<AppointmentPlannerGrid[\s\S]*onOpenCreateModal=\{openCreateModal\}/s,
     "Client-focused planner should reuse the main planner modal for editing appointments from the grid."
   );
