@@ -403,16 +403,28 @@ function StatisticsPlannerReportPanel({
 
       {!isLoading && reportData ? (
         <>
-          <div className="planner-report-summary-grid">
+            <div className="planner-report-summary-grid">
             {summaryItems.map((item) => {
               const isActive = detailStatusFilter === item.key;
               return (
-                <button
+                <article
                   key={item.key}
-                  type="button"
                   className={`planner-report-summary-card ${item.className}${isActive ? " is-active" : ""}`}
+                  role="button"
+                  tabIndex={0}
                   aria-pressed={isActive ? "true" : "false"}
                   onClick={() => {
+                    setDetailStatusFilter((current) => (
+                      current === item.key
+                        ? "all"
+                        : item.key
+                    ));
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") {
+                      return;
+                    }
+                    event.preventDefault();
                     setDetailStatusFilter((current) => (
                       current === item.key
                         ? "all"
@@ -422,7 +434,7 @@ function StatisticsPlannerReportPanel({
                 >
                   <span className="planner-report-summary-label">{item.label}</span>
                   <strong className="planner-report-summary-value">{item.value}</strong>
-                </button>
+                </article>
               );
             })}
           </div>

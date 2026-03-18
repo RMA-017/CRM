@@ -46,7 +46,7 @@ test("statistics planner report detail table uses 20-row pagination and summary 
 
   assert.match(
     source,
-    /className=\{`planner-report-summary-card \$\{item\.className\}\$\{isActive \? " is-active" : ""\}`\}[\s\S]*setDetailStatusFilter\(\(current\) => \(\s*current === item\.key\s*\?\s*"all"\s*:\s*item\.key/s,
+    /<article[\s\S]*className=\{`planner-report-summary-card \$\{item\.className\}\$\{isActive \? " is-active" : ""\}`\}[\s\S]*role="button"[\s\S]*setDetailStatusFilter\(\(current\) => \(\s*current === item\.key\s*\?\s*"all"\s*:\s*item\.key/s,
     "Planner report summary cards should toggle the detail status filter when clicked."
   );
 

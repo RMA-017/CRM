@@ -2292,20 +2292,17 @@ label.field > span:first-child,
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
   text-align: left;
   cursor: pointer;
-  appearance: none;
   transition:
-    transform var(--dur-fast) ease,
     box-shadow var(--dur-fast) ease,
-    border-color var(--dur-fast) ease;
+    border-color var(--dur-fast) ease,
+    background var(--dur-fast) ease;
 }
 
 .planner-report-summary-card:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
 }
 
 .planner-report-summary-card.is-active {
-  transform: translateY(-1px);
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
   border-color: var(--accent, #2563eb);
 }

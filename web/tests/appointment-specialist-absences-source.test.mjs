@@ -3,12 +3,13 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 
 test("specialist absences menu and planner source wiring stay in place", async () => {
-  const [sideMenuSource, appSource, schedulerSource, helpersSource, accessSource] = await Promise.all([
+  const [sideMenuSource, appSource, schedulerSource, helpersSource, accessSource, panelSource] = await Promise.all([
     readFile(new URL("../src/pages/profile/ProfileSideMenu.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/App.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/pages/profile/AppointmentScheduler.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/pages/profile/profile.helpers.js", import.meta.url), "utf8"),
-    readFile(new URL("../src/pages/profile/useProfileAccess.js", import.meta.url), "utf8")
+    readFile(new URL("../src/pages/profile/useProfileAccess.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/pages/profile/panels/AppointmentSpecialistAbsencesPanel.jsx", import.meta.url), "utf8")
   ]);
 
   assert.match(
@@ -45,5 +46,23 @@ test("specialist absences menu and planner source wiring stay in place", async (
     accessSource,
     /PERMISSIONS\.APPOINTMENTS_SPECIALIST_ABSENCES_READ[\s\S]*canOpenAppointmentSpecialistAbsences/,
     "Profile access hook should use dedicated specialist absence permissions."
+  );
+
+  assert.match(
+    panelSource,
+    /id="openAppointmentSpecialistAbsenceCreateBtn"[\s\S]*appointment-breaks-add-icon-btn[\s\S]*\+/,
+    "Specialist absences panel should expose a header add button next to close."
+  );
+
+  assert.match(
+    panelSource,
+    /const \[createFormOpen, setCreateFormOpen\] = useState\(false\);[\s\S]*\{createFormOpen \? \(/s,
+    "Specialist absences panel should keep the create form hidden until add is requested."
+  );
+
+  assert.match(
+    panelSource,
+    /setForm\(createEmptyForm\(todayYmd\)\);[\s\S]*setCreateFormOpen\(true\);/s,
+    "Specialist absences add flow should reset the form before opening a new create entry."
   );
 });

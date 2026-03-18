@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, getApiErrorMessage, readApiResponseData } from "../../../lib/api.js";
 import { formatDateForInput } from "../../../lib/formatters.js";
 
@@ -39,7 +39,9 @@ function AppointmentSpecialistAbsencesPanel({
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState("");
   const [message, setMessage] = useState("");
+  const [createFormOpen, setCreateFormOpen] = useState(false);
   const [form, setForm] = useState(() => createEmptyForm(todayYmd));
+  const dateInputRef = useRef(null);
 
   const dispatchPlannerRefresh = useCallback((detail = {}) => {
     if (typeof window === "undefined") {
@@ -99,6 +101,31 @@ function AppointmentSpecialistAbsencesPanel({
     void loadAbsences();
   }, [loadAbsences]);
 
+  useEffect(() => {
+    if (!createFormOpen) {
+      return;
+    }
+    dateInputRef.current?.focus();
+  }, [createFormOpen]);
+
+  const openCreateForm = useCallback(() => {
+    if (!canCreateAppointmentSpecialistAbsences) {
+      setMessage("You do not have permission to create specialist absences.");
+      return;
+    }
+    setForm(createEmptyForm(todayYmd));
+    setMessage("");
+    setCreateFormOpen(true);
+  }, [canCreateAppointmentSpecialistAbsences, todayYmd]);
+
+  const closeCreateForm = useCallback(() => {
+    if (saving) {
+      return;
+    }
+    setForm(createEmptyForm(todayYmd));
+    setCreateFormOpen(false);
+  }, [saving, todayYmd]);
+
   const handleSubmit = useCallback(async (event) => {
     event.preventDefault();
 
@@ -130,6 +157,7 @@ function AppointmentSpecialistAbsencesPanel({
       }
 
       setForm(createEmptyForm(todayYmd));
+      setCreateFormOpen(false);
       setMessage(String(data?.message || "Specialist absence saved."));
       dispatchPlannerRefresh({
         absenceDate,
@@ -193,59 +221,84 @@ function AppointmentSpecialistAbsencesPanel({
     <section id="appointmentSpecialistAbsencesPanel" className="all-users-panel settings-panel">
       <div className="all-users-head">
         <h3>Specialist Absences</h3>
-        <button
-          id="closeAppointmentSpecialistAbsencesBtn"
-          type="button"
-          className="header-btn panel-close-btn"
-          aria-label="Close specialist absences panel"
-          onClick={closeAppointmentSpecialistAbsencesPanel}
-        >
-          ×
-        </button>
-      </div>
-
-      <form className="appointment-settings-form" onSubmit={handleSubmit}>
-        <div className="appointment-setting-row">
-          <label htmlFor="appointmentSpecialistAbsenceDateInput">Date</label>
-          <div className="appointment-setting-inline">
-            <input
-              id="appointmentSpecialistAbsenceDateInput"
-              type="date"
-              value={form.absenceDate}
-              onChange={(event) => {
-                const value = String(event.target.value || "").trim();
-                setForm((prev) => ({ ...prev, absenceDate: value }));
-              }}
-            />
-          </div>
-        </div>
-        <div className="appointment-setting-row">
-          <label htmlFor="appointmentSpecialistAbsenceReasonInput">Reason</label>
-          <div className="appointment-setting-inline">
-            <input
-              id="appointmentSpecialistAbsenceReasonInput"
-              type="text"
-              maxLength={120}
-              placeholder="Optional reason"
-              value={form.reason}
-              onChange={(event) => {
-                const value = String(event.target.value || "").slice(0, 120);
-                setForm((prev) => ({ ...prev, reason: value }));
-              }}
-            />
-          </div>
-        </div>
-        <div className="appointment-settings-actions">
+        <div className="all-users-head-actions">
           <button
-            id="saveAppointmentSpecialistAbsenceBtn"
-            type="submit"
-            className="header-btn"
-            disabled={saving || !form.absenceDate || !canCreateAppointmentSpecialistAbsences}
+            id="openAppointmentSpecialistAbsenceCreateBtn"
+            type="button"
+            className="header-btn appointment-breaks-add-icon-btn"
+            aria-label="Add specialist absence"
+            title="Add specialist absence"
+            hidden={!canCreateAppointmentSpecialistAbsences}
+            onClick={openCreateForm}
           >
-            {saving ? "Saving..." : "Save Absence"}
+            +
+          </button>
+          <button
+            id="closeAppointmentSpecialistAbsencesBtn"
+            type="button"
+            className="header-btn panel-close-btn"
+            aria-label="Close specialist absences panel"
+            onClick={closeAppointmentSpecialistAbsencesPanel}
+          >
+            ×
           </button>
         </div>
-      </form>
+      </div>
+
+      {createFormOpen ? (
+        <form className="appointment-settings-form" onSubmit={handleSubmit}>
+          <div className="appointment-setting-row">
+            <label htmlFor="appointmentSpecialistAbsenceDateInput">Date</label>
+            <div className="appointment-setting-inline">
+              <input
+                id="appointmentSpecialistAbsenceDateInput"
+                ref={dateInputRef}
+                type="date"
+                value={form.absenceDate}
+                onChange={(event) => {
+                  const value = String(event.target.value || "").trim();
+                  setForm((prev) => ({ ...prev, absenceDate: value }));
+                }}
+              />
+            </div>
+          </div>
+          <div className="appointment-setting-row">
+            <label htmlFor="appointmentSpecialistAbsenceReasonInput">Reason</label>
+            <div className="appointment-setting-inline">
+              <input
+                id="appointmentSpecialistAbsenceReasonInput"
+                type="text"
+                maxLength={120}
+                placeholder="Optional reason"
+                value={form.reason}
+                onChange={(event) => {
+                  const value = String(event.target.value || "").slice(0, 120);
+                  setForm((prev) => ({ ...prev, reason: value }));
+                }}
+              />
+            </div>
+          </div>
+          <div className="appointment-settings-actions">
+            <button
+              id="saveAppointmentSpecialistAbsenceBtn"
+              type="submit"
+              className="header-btn"
+              disabled={saving || !form.absenceDate || !canCreateAppointmentSpecialistAbsences}
+            >
+              {saving ? "Saving..." : "Save Absence"}
+            </button>
+            <button
+              id="cancelAppointmentSpecialistAbsenceCreateBtn"
+              type="button"
+              className="header-btn"
+              disabled={saving}
+              onClick={closeCreateForm}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : null}
 
       <p className="all-users-state" hidden={loading || !message}>{message}</p>
 
