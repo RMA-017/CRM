@@ -912,7 +912,95 @@ export async function getVipNormMonitoringRows({
           OR vta.tutor_user_id = $3::integer
         )
      ),
-     scoped_sources AS (
+     scheduled_sources AS (
+       SELECT
+         vc.client_id,
+         vc.first_name,
+         vc.last_name,
+         vc.middle_name,
+         vc.class_assignment_id,
+         COALESCE(NULLIF(TRIM(vc.class_name), ''), '') AS class_name,
+         CASE
+           WHEN scheduled_specialist.position_id IS NULL THEN CONCAT('missing-position:scheduled:', vc.client_id::text, ':', s.specialist_id::text)
+           ELSE scheduled_specialist.position_id::text
+         END AS position_key,
+         scheduled_specialist.position_id,
+         CASE
+           WHEN scheduled_specialist.position_id IS NULL THEN 'Specialist - No position'
+           ELSE COALESCE(NULLIF(TRIM(po_scheduled.label), ''), CONCAT('Position #', scheduled_specialist.position_id::text))
+         END AS position_label,
+         COALESCE(an.max_per_week, 0)::int AS max_per_week,
+         s.specialist_id AS linked_specialist_id,
+         COALESCE(
+           NULLIF(TRIM(scheduled_specialist.full_name), ''),
+           NULLIF(TRIM(scheduled_specialist.username), ''),
+           CONCAT('User #', s.specialist_id::text)
+         ) AS linked_specialist_name,
+         CASE
+           WHEN scheduled_specialist.position_id IS NULL THEN 'no-position'
+           WHEN an.id IS NULL THEN 'no-norm'
+           ELSE 'ready'
+         END AS setup_state,
+         s.id AS schedule_id
+       FROM vip_clients vc
+       JOIN appointment_schedules s
+         ON s.organization_id = $1
+        AND s.client_id = vc.client_id
+        AND s.appointment_date >= date_trunc('week', CURRENT_DATE)::date
+        AND s.appointment_date < (date_trunc('week', CURRENT_DATE)::date + INTERVAL '7 days')
+        AND s.status IN ('pending', 'confirmed')
+       LEFT JOIN users scheduled_specialist
+         ON scheduled_specialist.id = s.specialist_id
+        AND scheduled_specialist.organization_id = $1
+       LEFT JOIN position_options po_scheduled
+         ON po_scheduled.id = scheduled_specialist.position_id
+        AND po_scheduled.organization_id = $1
+       LEFT JOIN appointment_norms an
+         ON an.organization_id = $1
+        AND an.position_id = scheduled_specialist.position_id
+        AND an.is_active = TRUE
+     ),
+     scheduled_positions AS (
+       SELECT
+         ss.client_id,
+         ss.first_name,
+         ss.last_name,
+         ss.middle_name,
+         ss.class_assignment_id,
+         MAX(ss.class_name) AS class_name,
+         ss.position_key,
+         MAX(ss.position_id) AS position_id,
+         MAX(ss.position_label) AS position_label,
+         MAX(ss.max_per_week)::int AS max_per_week,
+         CASE
+           WHEN BOOL_OR(ss.setup_state = 'no-position') THEN 'no-position'
+           WHEN BOOL_OR(ss.setup_state = 'no-norm') THEN 'no-norm'
+           ELSE 'ready'
+         END AS setup_state,
+         COUNT(DISTINCT ss.schedule_id)::int AS current_booked,
+         COALESCE(
+           jsonb_agg(
+             DISTINCT jsonb_build_object(
+               'id', ss.linked_specialist_id::text,
+               'name', ss.linked_specialist_name
+             )
+           ) FILTER (WHERE ss.linked_specialist_id IS NOT NULL),
+           '[]'::jsonb
+         ) AS linked_specialists
+       FROM scheduled_sources ss
+       GROUP BY
+         ss.client_id,
+         ss.first_name,
+         ss.last_name,
+         ss.middle_name,
+         ss.class_assignment_id,
+         ss.position_key
+     ),
+     clients_with_scheduled_positions AS (
+       SELECT DISTINCT sp.client_id
+       FROM scheduled_positions sp
+     ),
+     fallback_sources AS (
        SELECT
          vc.client_id,
          vc.first_name,
@@ -928,7 +1016,10 @@ export async function getVipNormMonitoringRows({
          ''::text AS linked_specialist_name,
          'no-assignment'::text AS setup_state
        FROM vip_clients vc
-       WHERE vc.class_assignment_id IS NULL
+       LEFT JOIN clients_with_scheduled_positions csp
+         ON csp.client_id = vc.client_id
+       WHERE csp.client_id IS NULL
+         AND vc.class_assignment_id IS NULL
 
        UNION ALL
 
@@ -961,6 +1052,8 @@ export async function getVipNormMonitoringRows({
            ELSE 'ready'
          END AS setup_state
        FROM vip_clients vc
+       LEFT JOIN clients_with_scheduled_positions csp
+         ON csp.client_id = vc.client_id
        LEFT JOIN users teacher
          ON teacher.id = vc.teacher_user_id
         AND teacher.organization_id = $1
@@ -971,7 +1064,8 @@ export async function getVipNormMonitoringRows({
          ON an.organization_id = $1
         AND an.position_id = teacher.position_id
         AND an.is_active = TRUE
-       WHERE vc.class_assignment_id IS NOT NULL
+       WHERE csp.client_id IS NULL
+         AND vc.class_assignment_id IS NOT NULL
          AND vc.teacher_user_id IS NOT NULL
 
        UNION ALL
@@ -1005,6 +1099,8 @@ export async function getVipNormMonitoringRows({
            ELSE 'ready'
          END AS setup_state
        FROM vip_clients vc
+       LEFT JOIN clients_with_scheduled_positions csp
+         ON csp.client_id = vc.client_id
        LEFT JOIN users tutor
          ON tutor.id = vc.tutor_user_id
         AND tutor.organization_id = $1
@@ -1015,118 +1111,119 @@ export async function getVipNormMonitoringRows({
          ON an.organization_id = $1
         AND an.position_id = tutor.position_id
         AND an.is_active = TRUE
-       WHERE vc.class_assignment_id IS NOT NULL
+       WHERE csp.client_id IS NULL
+         AND vc.class_assignment_id IS NOT NULL
          AND vc.tutor_user_id IS NOT NULL
      ),
-     client_positions AS (
+     fallback_positions AS (
        SELECT
-         ss.client_id,
-         ss.first_name,
-         ss.last_name,
-         ss.middle_name,
-         ss.class_assignment_id,
-         MAX(ss.class_name) AS class_name,
-         ss.position_key,
-         MAX(ss.position_id) AS position_id,
-         MAX(ss.position_label) AS position_label,
-         MAX(ss.max_per_week)::int AS max_per_week,
+         fs.client_id,
+         fs.first_name,
+         fs.last_name,
+         fs.middle_name,
+         fs.class_assignment_id,
+         MAX(fs.class_name) AS class_name,
+         fs.position_key,
+         MAX(fs.position_id) AS position_id,
+         MAX(fs.position_label) AS position_label,
+         MAX(fs.max_per_week)::int AS max_per_week,
          CASE
-           WHEN BOOL_OR(ss.setup_state = 'no-assignment') THEN 'no-assignment'
-           WHEN BOOL_OR(ss.setup_state = 'no-position') THEN 'no-position'
-           WHEN BOOL_OR(ss.setup_state = 'no-norm') THEN 'no-norm'
+           WHEN BOOL_OR(fs.setup_state = 'no-assignment') THEN 'no-assignment'
+           WHEN BOOL_OR(fs.setup_state = 'no-position') THEN 'no-position'
+           WHEN BOOL_OR(fs.setup_state = 'no-norm') THEN 'no-norm'
            ELSE 'ready'
          END AS setup_state,
+         0::int AS current_booked,
          COALESCE(
            jsonb_agg(
              DISTINCT jsonb_build_object(
-               'id', ss.linked_specialist_id::text,
-               'name', ss.linked_specialist_name
+               'id', fs.linked_specialist_id::text,
+               'name', fs.linked_specialist_name
              )
-           ) FILTER (WHERE ss.linked_specialist_id IS NOT NULL),
+           ) FILTER (WHERE fs.linked_specialist_id IS NOT NULL),
            '[]'::jsonb
          ) AS linked_specialists
-       FROM scoped_sources ss
+       FROM fallback_sources fs
        GROUP BY
-         ss.client_id,
-         ss.first_name,
-         ss.last_name,
-         ss.middle_name,
-         ss.class_assignment_id,
-         ss.position_key
+         fs.client_id,
+         fs.first_name,
+         fs.last_name,
+         fs.middle_name,
+         fs.class_assignment_id,
+         fs.position_key
      ),
-     appointment_counts AS (
+     monitoring_rows AS (
        SELECT
-         cp.client_id,
-         cp.position_key,
-         COUNT(DISTINCT s.id)::int AS current_booked,
-         COALESCE(
-           jsonb_agg(
-             DISTINCT jsonb_build_object(
-               'id', su.id::text,
-               'name', COALESCE(
-                 NULLIF(TRIM(su.full_name), ''),
-                 NULLIF(TRIM(su.username), ''),
-                 CONCAT('User #', su.id::text)
-               )
-             )
-           ) FILTER (WHERE su.id IS NOT NULL),
-           '[]'::jsonb
-         ) AS scheduled_specialists
-       FROM client_positions cp
-       LEFT JOIN appointment_schedules s
-         ON s.organization_id = $1
-        AND s.client_id = cp.client_id
-        AND s.appointment_date >= date_trunc('week', CURRENT_DATE)::date
-        AND s.appointment_date < (date_trunc('week', CURRENT_DATE)::date + INTERVAL '7 days')
-        AND s.status IN ('pending', 'confirmed')
-        AND EXISTS (
-          SELECT 1
-          FROM jsonb_array_elements(cp.linked_specialists) ls
-          WHERE ls->>'id' = s.specialist_id::text
-        )
-        LEFT JOIN users su
-          ON su.id = s.specialist_id
-        AND su.organization_id = s.organization_id
-       GROUP BY cp.client_id, cp.position_key
+         sp.client_id,
+         sp.first_name,
+         sp.last_name,
+         sp.middle_name,
+         sp.class_assignment_id,
+         sp.class_name,
+         sp.position_key,
+         sp.position_id,
+         sp.position_label,
+         sp.max_per_week,
+         sp.current_booked,
+         sp.linked_specialists,
+         sp.linked_specialists AS scheduled_specialists,
+         sp.setup_state
+       FROM scheduled_positions sp
+
+       UNION ALL
+
+       SELECT
+         fp.client_id,
+         fp.first_name,
+         fp.last_name,
+         fp.middle_name,
+         fp.class_assignment_id,
+         fp.class_name,
+         fp.position_key,
+         fp.position_id,
+         fp.position_label,
+         fp.max_per_week,
+         fp.current_booked,
+         fp.linked_specialists,
+         '[]'::jsonb AS scheduled_specialists,
+         fp.setup_state
+       FROM fallback_positions fp
      )
      SELECT
-       cp.client_id::text AS client_id,
-       cp.first_name,
-       cp.last_name,
-       cp.middle_name,
-       COALESCE(cp.class_assignment_id::text, '') AS class_assignment_id,
-       cp.class_name,
-       COALESCE(cp.position_id::text, cp.position_key) AS position_id,
-       cp.position_label,
-       cp.max_per_week,
-       COALESCE(ac.current_booked, 0) AS current_booked,
-       cp.linked_specialists,
-       COALESCE(ac.scheduled_specialists, '[]'::jsonb) AS scheduled_specialists,
+       mr.client_id::text AS client_id,
+       mr.first_name,
+       mr.last_name,
+       mr.middle_name,
+       COALESCE(mr.class_assignment_id::text, '') AS class_assignment_id,
+       mr.class_name,
+       COALESCE(mr.position_id::text, mr.position_key) AS position_id,
+       mr.position_label,
+       mr.max_per_week,
+       mr.current_booked,
+       mr.linked_specialists,
+       mr.scheduled_specialists,
        CASE
-         WHEN cp.setup_state = 'no-assignment' THEN 'No assignment'
-         WHEN cp.setup_state = 'no-position' THEN 'No position'
-         WHEN cp.setup_state = 'no-norm' THEN 'No norm configured'
-         WHEN COALESCE(ac.current_booked, 0) > cp.max_per_week THEN 'Exceeded'
-         WHEN COALESCE(ac.current_booked, 0) = cp.max_per_week THEN 'Limit reached'
+         WHEN mr.setup_state = 'no-assignment' THEN 'No assignment'
+         WHEN mr.setup_state = 'no-position' THEN 'No position'
+         WHEN mr.setup_state = 'no-norm' THEN 'No norm configured'
+         WHEN mr.current_booked > mr.max_per_week THEN 'Exceeded'
+         WHEN mr.current_booked = mr.max_per_week THEN 'Limit reached'
          ELSE 'Normal'
        END AS status,
        CASE
-         WHEN cp.setup_state = 'no-assignment' THEN 'no-assignment'
-         WHEN cp.setup_state = 'no-position' THEN 'no-position'
-         WHEN cp.setup_state = 'no-norm' THEN 'no-norm'
-         WHEN COALESCE(ac.current_booked, 0) > cp.max_per_week THEN 'exceeded'
-         WHEN COALESCE(ac.current_booked, 0) = cp.max_per_week THEN 'limit-reached'
+         WHEN mr.setup_state = 'no-assignment' THEN 'no-assignment'
+         WHEN mr.setup_state = 'no-position' THEN 'no-position'
+         WHEN mr.setup_state = 'no-norm' THEN 'no-norm'
+         WHEN mr.current_booked > mr.max_per_week THEN 'exceeded'
+         WHEN mr.current_booked = mr.max_per_week THEN 'limit-reached'
          ELSE 'normal'
        END AS status_key
-      FROM client_positions cp
-      LEFT JOIN appointment_counts ac
-        ON ac.client_id = cp.client_id
-       AND ac.position_key = cp.position_key
+      FROM monitoring_rows mr
       ORDER BY
-        LOWER(cp.last_name) ASC,
-        LOWER(cp.first_name) ASC,
-        LOWER(COALESCE(cp.middle_name, '')) ASC,
-        LOWER(cp.position_label) ASC
+        LOWER(mr.last_name) ASC,
+        LOWER(mr.first_name) ASC,
+        LOWER(COALESCE(mr.middle_name, '')) ASC,
+        LOWER(mr.position_label) ASC
       LIMIT $2`,
     [organizationId, safeLimit, normalizedAssignedUserId]
   );

@@ -52,6 +52,18 @@ test("VIP norm monitoring route uses dedicated feature and permission access", a
   );
 
   assert.match(
+    serviceSource,
+    /scheduled_sources AS[\s\S]*JOIN appointment_schedules s[\s\S]*LEFT JOIN users scheduled_specialist[\s\S]*po_scheduled/s,
+    "VIP norm monitoring should derive visible positions from the actual scheduled specialist records for the current week."
+  );
+
+  assert.match(
+    serviceSource,
+    /clients_with_scheduled_positions[\s\S]*WHERE csp\.client_id IS NULL/s,
+    "VIP norm monitoring should only fall back to assignment positions when no scheduled specialist positions exist."
+  );
+
+  assert.match(
     routeSource,
     /const rawStatusKey = String\(row\?\.status_key[\s\S]*No norm configured/s,
     "VIP norm monitoring mapping should preserve backend status keys instead of collapsing everything to booked-vs-norm only."

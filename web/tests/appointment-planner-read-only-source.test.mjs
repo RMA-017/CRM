@@ -11,7 +11,7 @@ test("appointment planner read-only mode keeps report filters gated while planne
 
   assert.match(
     schedulerSource,
-    /function AppointmentScheduler\(\{\s*canReadAppointments = true,\s*canReadAppointmentBreaks = true,\s*canReadStatisticsPlannerReport = true,/s,
+    /function AppointmentScheduler\(\{\s*canReadAppointments = true,\s*canReadAppointmentBreaks = true,[\s\S]*canReadStatisticsPlannerReport = false,/s,
     "Appointment scheduler should accept dedicated read flags for breaks and planner report."
   );
 

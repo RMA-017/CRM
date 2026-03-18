@@ -936,8 +936,12 @@ export async function getAppointmentSpecialistsByOrganization(organizationId) {
        AND (
          LOWER(TRIM(r.label)) LIKE '%specialist%'
          OR LOWER(TRIM(r.label)) LIKE '%spetsialist%'
+         OR LOWER(TRIM(r.label)) LIKE '%mutaxassis%'
+         OR LOWER(TRIM(r.label)) LIKE '%специалист%'
          OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%specialist%'
          OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%spetsialist%'
+         OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%mutaxassis%'
+         OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%специалист%'
        )
      ORDER BY
       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), u.id::text) ASC`,
@@ -1435,7 +1439,7 @@ async function getAppointmentSpecialistAbsenceDateSet({
 
 export async function listAppointmentSpecialistAbsences({
   organizationId,
-  specialistId,
+  specialistId = null,
   dateFrom = null,
   dateTo = null,
   db = pool
@@ -1443,9 +1447,6 @@ export async function listAppointmentSpecialistAbsences({
   const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
   const normalizedDateFrom = normalizeWorkScheduleDate(dateFrom) || null;
   const normalizedDateTo = normalizeWorkScheduleDate(dateTo) || null;
-  if (!normalizedSpecialistId) {
-    return [];
-  }
 
   const { rows } = await db.query(
     `SELECT
@@ -1467,13 +1468,13 @@ export async function listAppointmentSpecialistAbsences({
         ON u.id = awh.user_id
        AND u.organization_id = awh.organization_id
      WHERE awh.organization_id = $1
-       AND awh.user_id = $2
+       AND ($2::integer IS NULL OR awh.user_id = $2::integer)
        AND awh.rule_scope = 'exception'
        AND awh.is_active = FALSE
        AND ($3::date IS NULL OR awh.work_date >= $3::date)
        AND ($4::date IS NULL OR awh.work_date <= $4::date)
      ORDER BY awh.work_date ASC, awh.id ASC`,
-    [organizationId, normalizedSpecialistId, normalizedDateFrom, normalizedDateTo]
+    [organizationId, normalizedSpecialistId || null, normalizedDateFrom, normalizedDateTo]
   );
 
   return (rows || []).map(mapAppointmentSpecialistAbsenceItem);

@@ -4895,6 +4895,81 @@ label.field > span:first-child,
   grid-template-columns: minmax(100px, 124px) minmax(0, 1fr);
 }
 
+#appointmentSpecialistAbsenceCreateModal.appointment-specialist-absence-modal {
+  width: calc(100vw - 24px);
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 24px);
+  min-height: min(720px, calc(100dvh - 24px));
+  padding: 14px;
+}
+
+#appointmentSpecialistAbsenceCreateModal .appointment-specialist-absence-form {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  align-content: start;
+  gap: 12px;
+}
+
+#appointmentSpecialistAbsenceCreateModal .appointment-specialist-absence-field {
+  margin: 0;
+  min-width: 0;
+}
+
+#appointmentSpecialistAbsenceCreateModal .appointment-specialist-absence-field > span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+#appointmentSpecialistAbsenceCreateModal .appointment-specialist-absence-field input[type="text"],
+#appointmentSpecialistAbsenceCreateModal .appointment-specialist-absence-field input[type="date"],
+#appointmentSpecialistAbsenceCreateModal .appointment-specialist-absence-field .custom-select {
+  width: 100%;
+  min-width: 0;
+}
+
+#appointmentSpecialistAbsenceCreateModal .appointment-specialist-absence-field .custom-select {
+  min-height: var(--input-height);
+}
+
+#appointmentSpecialistAbsenceCreateModal .appointment-specialist-absence-field .custom-select-trigger {
+  min-height: var(--input-height);
+  height: var(--input-height);
+  border-radius: var(--radius);
+  padding: 0 36px 0 12px;
+  font-size: var(--fs-small);
+  font-family: inherit;
+  color: var(--text-main);
+}
+
+#appointmentSpecialistAbsenceCreateModal .appointment-specialist-absence-field input[type="text"],
+#appointmentSpecialistAbsenceCreateModal .appointment-specialist-absence-field input[type="date"] {
+  height: var(--input-height);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 0 8px;
+}
+
+#appointmentSpecialistAbsenceCreateModal .appointment-specialist-absence-date-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+#appointmentSpecialistAbsenceCreateModal .appointment-breaks-add-modal-actions {
+  justify-content: flex-end;
+}
+
+#appointmentSpecialistAbsenceCreateModal .appointment-breaks-add-modal-actions .header-btn {
+  width: 96px;
+  min-width: 96px;
+}
+
 #appointmentBreaksAddModal #appointmentBreaksAddSaveBtn,
 #workScheduleUserOverridesModal #saveWorkScheduleUserOverridesModalBtn {
   width: 72px;

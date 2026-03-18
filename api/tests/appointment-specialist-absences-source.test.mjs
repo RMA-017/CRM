@@ -3,11 +3,13 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 
 test("appointment specialist absence routes and schedule guards stay registered", async () => {
-  const [routesSource, absencesRouteSource, schedulesSource, schemasSource] = await Promise.all([
+  const [routesSource, absencesRouteSource, schedulesSource, schemasSource, referenceRouteSource, serviceSource] = await Promise.all([
     readFile(new URL("../src/modules/appointments/appointment-settings.routes.js", import.meta.url), "utf8"),
     readFile(new URL("../src/modules/appointments/routes/absences.routes.js", import.meta.url), "utf8"),
     readFile(new URL("../src/modules/appointments/routes/schedules.routes.js", import.meta.url), "utf8"),
-    readFile(new URL("../src/modules/appointments/routes/appointment.route-schemas.js", import.meta.url), "utf8")
+    readFile(new URL("../src/modules/appointments/routes/appointment.route-schemas.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/modules/appointments/routes/reference.routes.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/modules/appointments/appointment-settings.service.js", import.meta.url), "utf8")
   ]);
 
   assert.match(
@@ -60,8 +62,26 @@ test("appointment specialist absence routes and schedule guards stay registered"
 
   assert.match(
     absencesRouteSource,
+    /if \(!specialistId && !canReadSpecialistAbsences\)/,
+    "Specialist absences list route should allow org-wide reads for the dedicated menu while still requiring a specialist for planner-only reads."
+  );
+
+  assert.match(
+    absencesRouteSource,
     /"appointments\.specialist_absences"/,
     "Specialist absences routes should check the dedicated org feature."
+  );
+
+  assert.match(
+    referenceRouteSource,
+    /\/specialists[\s\S]*APPOINTMENTS_SPECIALIST_ABSENCES_READ[\s\S]*APPOINTMENTS_SPECIALIST_ABSENCES_CREATE/s,
+    "Appointment specialists reference route should also be available for specialist absence workflows."
+  );
+
+  assert.match(
+    serviceSource,
+    /LIKE '%specialist%'[\s\S]*LIKE '%spetsialist%'[\s\S]*LIKE '%mutaxassis%'[\s\S]*LIKE '%специалист%'/s,
+    "Appointment specialist lookup should include localized specialist role labels."
   );
 
   assert.match(

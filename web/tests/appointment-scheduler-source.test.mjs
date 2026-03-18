@@ -87,8 +87,13 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /!\s*isVipAutoRollingRepeat \? \([\s\S]*appointmentCreateRepeatUntil[\s\S]*\) : null/s,
-    "Active auto-rolling repeat mode should hide the manual Repeat Until field."
+    /<div className="field appointment-repeat-until-field">[\s\S]*appointmentCreateRepeatUntil/s,
+    "Planner modal should keep the Repeat Until field visible even when Active auto-repeat is on."
+  );
+  assert.match(
+    source,
+    /if \(checked\) \{[\s\S]*const nextRepeatUntil = getVipAutoRollingRepeatUntil\(\);[\s\S]*repeatUntil: nextRepeatUntil/s,
+    "Planner modal should auto-fill Repeat Until from today when Active is turned on."
   );
   assert.match(
     source,

@@ -107,7 +107,7 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
         if (ownSpecialistUserId && requestedSpecialistId && requestedSpecialistId !== ownSpecialistUserId) {
           return reply.status(403).send({ message: "Forbidden." });
         }
-        if (!specialistId) {
+        if (!specialistId && !canReadSpecialistAbsences) {
           return reply.status(400).send({ field: "specialistId", message: "Specialist is required." });
         }
 
@@ -122,7 +122,7 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
 
         const items = await listAppointmentSpecialistAbsences({
           organizationId: authContext.organizationId,
-          specialistId,
+          specialistId: specialistId || null,
           dateFrom: dateFrom || null,
           dateTo: dateTo || null
         });
