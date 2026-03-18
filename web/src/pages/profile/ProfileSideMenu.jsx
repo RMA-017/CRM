@@ -1,6 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-
-const CLOSE_ANIMATION_MS = 60;
+import { forwardRef, memo, useCallback, useImperativeHandle, useState } from "react";
 const CLOSED_SUBMENUS = Object.freeze({
   clients: false,
   vipClients: false,
@@ -12,7 +10,7 @@ const CLOSED_SUBMENUS = Object.freeze({
   adminSettings: false
 });
 
-const ProfileSideMenu = forwardRef(function ProfileSideMenu({
+const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
   menuRef,
   isPlatformAdmin,
   hasClientsMenuAccess,
@@ -69,11 +67,10 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
   openNotificationsSendPanel,
   openMonitoringPanel
 }, ref) {
-  const closeTimerRef = useRef(null);
-  const [menuState, setMenuState] = useState("closed");
+  const [menuOpen, setMenuOpen] = useState(false);
   const [openSubmenus, setOpenSubmenus] = useState(CLOSED_SUBMENUS);
 
-  function blurFocusedMenuElement() {
+  const blurFocusedMenuElement = useCallback(() => {
     if (typeof document === "undefined") {
       return;
     }
@@ -86,9 +83,9 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
     ) {
       activeElement.blur();
     }
-  }
+  }, [menuRef]);
 
-  function resetSubmenus() {
+  const resetSubmenus = useCallback(() => {
     setOpenSubmenus((current) => (
       current.clients
       || current.vipClients
@@ -101,7 +98,7 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
         ? CLOSED_SUBMENUS
         : current
     ));
-  }
+  }, []);
 
   function toggleSubmenu(key) {
     setOpenSubmenus((current) => ({
@@ -110,42 +107,29 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
     }));
   }
 
-  useEffect(() => () => {
-    if (closeTimerRef.current) {
-      clearTimeout(closeTimerRef.current);
-    }
-  }, []);
+  const closeSideMenu = useCallback(() => {
+    blurFocusedMenuElement();
+    setMenuOpen(false);
+    resetSubmenus();
+  }, [blurFocusedMenuElement, resetSubmenus]);
 
   useImperativeHandle(ref, () => ({
     open() {
-      if (closeTimerRef.current) {
-        clearTimeout(closeTimerRef.current);
-        closeTimerRef.current = null;
-      }
-      setMenuState("open");
+      setMenuOpen(true);
     },
     close() {
-      if (closeTimerRef.current) {
-        clearTimeout(closeTimerRef.current);
-      }
-      blurFocusedMenuElement();
-      setMenuState((current) => (current === "closed" ? "closed" : "closing"));
-      closeTimerRef.current = setTimeout(() => {
-        setMenuState("closed");
-        resetSubmenus();
-        closeTimerRef.current = null;
-      }, CLOSE_ANIMATION_MS);
+      closeSideMenu();
     }
-  }), []);
+  }), [closeSideMenu]);
 
   return (
     <>
       <aside
         id="mainMenu"
         ref={menuRef}
-        className={`side-menu${menuState === "open" ? " open" : ""}${menuState === "closing" ? " closing" : ""}`}
+        className={`side-menu${menuOpen ? " open" : ""}`}
         aria-label="Main menu"
-        aria-hidden={menuState === "closed" ? "true" : "false"}
+        aria-hidden={menuOpen ? "false" : "true"}
       >
         <div className="side-menu-head">
           <img src="/crm.svg" alt="CRM logo" className="side-logo" />
@@ -481,9 +465,9 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
         </nav>
       </aside>
 
-      <div id="menuOverlay" className={`menu-overlay${menuState === "closing" ? " closing" : ""}`} hidden={menuState === "closed"} onClick={closeMenu} />
+      <div id="menuOverlay" className="menu-overlay" hidden={!menuOpen} onClick={closeMenu} />
     </>
   );
-});
+}));
 
 export default ProfileSideMenu;

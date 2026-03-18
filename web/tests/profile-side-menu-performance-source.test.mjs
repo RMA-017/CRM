@@ -35,8 +35,8 @@ test("profile side menu keeps submenu state batched and is pre-mounted for smoot
 
   assert.match(
     menuSource,
-    /const CLOSE_ANIMATION_MS = 90;/,
-    "Profile side menu should keep close timing very short to reduce perceived lag."
+    /const \[menuOpen, setMenuOpen\] = useState\(false\);[\s\S]*const closeSideMenu = useCallback\(\(\) => \{[\s\S]*setMenuOpen\(false\);[\s\S]*resetSubmenus\(\);/s,
+    "Profile side menu should close instantly and reset submenu state without timeout-based delay."
   );
 
   assert.doesNotMatch(
@@ -53,8 +53,8 @@ test("profile side menu keeps submenu state batched and is pre-mounted for smoot
 
   assert.match(
     layoutSource,
-    /\.side-menu\s*\{[\s\S]*will-change: transform;[\s\S]*transition: transform 90ms var\(--ease\);/s,
-    "Side menu should animate mainly via transform to keep the motion lightweight."
+    /\.side-menu\s*\{[\s\S]*transition: none;/s,
+    "Side menu should avoid transition delay when opening and closing."
   );
 
   assert.doesNotMatch(
@@ -63,9 +63,9 @@ test("profile side menu keeps submenu state batched and is pre-mounted for smoot
     "Side menu open state should avoid toggling a heavier box-shadow during animation."
   );
 
-  assert.match(
+  assert.doesNotMatch(
     layoutSource,
-    /\.menu-overlay\.closing\s*\{[\s\S]*pointer-events: none;/s,
-    "Closing overlay should stop blocking interaction while it fades out."
+    /\.menu-overlay\.closing|\.side-menu\.closing/s,
+    "Side menu should not keep an extra closing phase that adds lag."
   );
 });
