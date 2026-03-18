@@ -75,6 +75,8 @@ export function useVipNormMonitoringSection({
           positionLabel: String(item?.positionLabel || item?.position_label || "").trim(),
           weeklyNorm: Number.parseInt(String(item?.weeklyNorm || item?.weekly_norm || "0"), 10) || 0,
           currentBooked: Number.parseInt(String(item?.currentBooked || item?.current_booked || "0"), 10) || 0,
+          confirmedCount: Number.parseInt(String(item?.confirmedCount || item?.confirmed_count || "0"), 10) || 0,
+          cancelledCount: Number.parseInt(String(item?.cancelledCount || item?.cancelled_count || "0"), 10) || 0,
           status: String(item?.status || "").trim(),
           statusKey: String(item?.statusKey || item?.status_key || "").trim().toLowerCase(),
           specialists: normalizeSpecialistItems(item?.specialists)

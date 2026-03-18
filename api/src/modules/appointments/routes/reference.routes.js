@@ -54,7 +54,9 @@ export function registerAppointmentReferenceRoutes(fastify, context) {
           return;
         }
 
-        const ownSpecialistUserId = resolveOwnAppointmentSpecialistUserId(access);
+        const ownSpecialistUserId = canReadPlanner
+          ? null
+          : resolveOwnAppointmentSpecialistUserId(access);
         const items = await getAppointmentSpecialistsByOrganization(access.authContext.organizationId);
         const filteredItems = ownSpecialistUserId
           ? items.filter((item) => String(item?.id || "").trim() === String(ownSpecialistUserId))

@@ -255,7 +255,14 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
         reply.status(403).send({ message: "Forbidden." });
         return null;
       }
-      return { authContext, requester };
+      return {
+        authContext,
+        requester,
+        canUsePlanner,
+        canUseMyClass,
+        canUseMyChildren,
+        canUseSettingsPanel
+      };
     }
 
     const canUpdateSettingsPanel = await hasPermission(roleId, PERMISSIONS.SETTINGS_APPOINTMENTS_UPDATE);
@@ -265,7 +272,14 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
       reply.status(403).send({ message: "Forbidden." });
       return null;
     }
-    return { authContext, requester };
+    return {
+      authContext,
+      requester,
+      canUsePlanner: false,
+      canUseMyClass: false,
+      canUseMyChildren: false,
+      canUseSettingsPanel
+    };
   }
 
   async function requireAppointmentWorkScheduleAccess(request, reply, action = "read") {
@@ -351,7 +365,9 @@ export function registerAppointmentSettingsConfigRoutes(fastify, context) {
           request.query?.specialistId ?? request.query?.specialist_id,
           0
         ) || null;
-        const ownSpecialistUserId = resolveOwnAppointmentSpecialistUserId(access);
+        const ownSpecialistUserId = access.canUsePlanner
+          ? null
+          : resolveOwnAppointmentSpecialistUserId(access);
         if (ownSpecialistUserId && specialistId && specialistId !== ownSpecialistUserId) {
           return reply.status(403).send({ message: "Forbidden." });
         }

@@ -87,6 +87,8 @@ function mapAppointmentSpecialistAbsenceItem(row) {
     specialistName: String(row?.specialist_name || row?.user_name || "").trim(),
     specialistUsername: String(row?.specialist_username || row?.user_username || "").trim(),
     absenceDate: normalizeWorkScheduleDate(row?.work_date || row?.absence_date),
+    startTime: normalizeTimeHm(row?.start_time),
+    endTime: normalizeTimeHm(row?.end_time),
     reason: String(row?.reason || "").trim(),
     createdAt: row?.created_at || null,
     updatedAt: row?.updated_at || null
@@ -833,6 +835,74 @@ async function assertWorkScheduleTargetsHaveNoFutureAppointments({
   }
 }
 
+async function assertWorkScheduleTargetsHaveNoVipRoutines({
+  organizationId,
+  userId,
+  ruleScope,
+  dayOfWeek,
+  workDate,
+  isActive
+}) {
+  if (isActive !== false || !userId) {
+    return;
+  }
+
+  let effectiveDayOfWeek = null;
+  if (ruleScope === "weekly" && dayOfWeek) {
+    effectiveDayOfWeek = dayOfWeek;
+  } else if (ruleScope === "exception" && workDate) {
+    const { rows: dowRows } = await pool.query(
+      `SELECT EXTRACT(ISODOW FROM $1::date)::smallint AS dow`,
+      [workDate]
+    );
+    effectiveDayOfWeek = dowRows[0]?.dow || null;
+  }
+
+  if (!effectiveDayOfWeek) {
+    return;
+  }
+
+  const { rows } = await pool.query(
+    `SELECT vdr.day_of_week,
+       TO_CHAR(vdr.start_time, 'HH24:MI') AS routine_start_time,
+       TO_CHAR(vdr.end_time, 'HH24:MI') AS routine_end_time
+       FROM vip_class_daily_routines vdr
+      WHERE vdr.organization_id = $1
+        AND vdr.day_of_week = $2
+        AND (
+          EXISTS (
+            SELECT 1 FROM vip_class_teacher_assignments vcta
+             WHERE vcta.id = vdr.class_assignment_id
+               AND vcta.organization_id = vdr.organization_id
+               AND vcta.teacher_user_id = $3
+          )
+          OR EXISTS (
+            SELECT 1 FROM vip_client_tutor_assignments vta
+             WHERE vta.class_assignment_id = vdr.class_assignment_id
+               AND vta.organization_id = vdr.organization_id
+               AND vta.tutor_user_id = $3
+          )
+        )
+      LIMIT 1`,
+    [organizationId, effectiveDayOfWeek, userId]
+  );
+
+  if (rows[0]) {
+    const routine = rows[0];
+    const dayNames = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    const dayName = dayNames[effectiveDayOfWeek] || `day ${effectiveDayOfWeek}`;
+    const timeText = routine.routine_start_time && routine.routine_end_time
+      ? ` (${routine.routine_start_time}–${routine.routine_end_time})`
+      : "";
+    const error = new Error(
+      `Work schedule cannot be changed. Specialist has a VIP Daily Routine on ${dayName}${timeText}. Update VIP routines first.`
+    );
+    error.statusCode = 409;
+    error.code = WORK_SCHEDULE_CONFLICT_CODE;
+    throw error;
+  }
+}
+
 async function getAppointmentSettingsColumnFlags(tableName = APPOINTMENT_SETTINGS_TABLE) {
   const loadFlags = async () => {
     const columns = await getTableColumnNames({ tableName });
@@ -1210,6 +1280,15 @@ export async function createAppointmentWorkScheduleEntry({
     }]
   });
 
+  await assertWorkScheduleTargetsHaveNoVipRoutines({
+    organizationId,
+    userId: normalizedUserId,
+    ruleScope: normalizedScope,
+    dayOfWeek: finalDayOfWeek,
+    workDate: finalWorkDate,
+    isActive: normalizedIsActive
+  });
+
   const { rows } = await pool.query(
     `WITH inserted AS (
        INSERT INTO appointment_working_hours (
@@ -1333,6 +1412,15 @@ export async function updateAppointmentWorkScheduleEntryById({
         }
       ]
     });
+
+    await assertWorkScheduleTargetsHaveNoVipRoutines({
+      organizationId,
+      userId: normalizedUserId,
+      ruleScope: normalizedScope,
+      dayOfWeek: finalDayOfWeek,
+      workDate: finalWorkDate,
+      isActive: normalizedIsActive
+    });
   }
 
   const { rows } = await pool.query(
@@ -1437,6 +1525,72 @@ async function getAppointmentSpecialistAbsenceDateSet({
   );
 }
 
+function toAbsenceTimeMinutes(value) {
+  const normalized = normalizeTimeHm(value);
+  if (!normalized || !/^\d{2}:\d{2}$/.test(normalized)) {
+    return null;
+  }
+  const [hoursText, minutesText] = normalized.split(":");
+  const hours = Number.parseInt(hoursText, 10);
+  const minutes = Number.parseInt(minutesText, 10);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return null;
+  }
+  return (hours * 60) + minutes;
+}
+
+function buildAppointmentSpecialistAbsenceRangesByDate(items) {
+  const rangesByDate = new Map();
+  (Array.isArray(items) ? items : []).forEach((item) => {
+    const absenceDate = normalizeWorkScheduleDate(item?.absenceDate || item?.work_date || item?.workDate);
+    if (!absenceDate) {
+      return;
+    }
+    const startTime = normalizeTimeHm(item?.startTime || item?.start_time);
+    const endTime = normalizeTimeHm(item?.endTime || item?.end_time);
+    const startMinutes = toAbsenceTimeMinutes(startTime);
+    const endMinutes = toAbsenceTimeMinutes(endTime);
+    const list = rangesByDate.get(absenceDate) || [];
+    list.push({
+      startTime: startMinutes !== null && endMinutes !== null && startMinutes < endMinutes ? startTime : "",
+      endTime: startMinutes !== null && endMinutes !== null && startMinutes < endMinutes ? endTime : "",
+      startMinutes,
+      endMinutes,
+      reason: String(item?.reason || "").trim()
+    });
+    rangesByDate.set(absenceDate, list);
+  });
+  return rangesByDate;
+}
+
+function hasAppointmentSpecialistAbsenceRangeConflict({
+  absenceRangesByDate,
+  appointmentDate,
+  startTime,
+  endTime
+}) {
+  const normalizedAppointmentDate = normalizeWorkScheduleDate(appointmentDate);
+  if (!normalizedAppointmentDate) {
+    return null;
+  }
+  const ranges = absenceRangesByDate instanceof Map ? (absenceRangesByDate.get(normalizedAppointmentDate) || []) : [];
+  if (ranges.length === 0) {
+    return null;
+  }
+  const appointmentStartMinutes = toAbsenceTimeMinutes(startTime);
+  const appointmentEndMinutes = toAbsenceTimeMinutes(endTime);
+  if (appointmentStartMinutes === null || appointmentEndMinutes === null || appointmentStartMinutes >= appointmentEndMinutes) {
+    return null;
+  }
+  const conflict = ranges.find((range) => {
+    if (range.startMinutes === null || range.endMinutes === null || range.startMinutes >= range.endMinutes) {
+      return true;
+    }
+    return appointmentStartMinutes < range.endMinutes && range.startMinutes < appointmentEndMinutes;
+  });
+  return conflict || null;
+}
+
 export async function listAppointmentSpecialistAbsences({
   organizationId,
   specialistId = null,
@@ -1454,6 +1608,8 @@ export async function listAppointmentSpecialistAbsences({
        awh.organization_id,
        awh.user_id,
        awh.work_date,
+       awh.start_time,
+       awh.end_time,
        awh.reason,
        awh.created_at,
        awh.updated_at,
@@ -1484,6 +1640,8 @@ export async function hasAppointmentSpecialistAbsenceConflict({
   organizationId,
   specialistId,
   appointmentDate,
+  startTime = null,
+  endTime = null,
   db = pool
 }) {
   const normalizedAppointmentDate = normalizeWorkScheduleDate(appointmentDate);
@@ -1491,14 +1649,20 @@ export async function hasAppointmentSpecialistAbsenceConflict({
     return false;
   }
 
-  const absenceDateSet = await getAppointmentSpecialistAbsenceDateSet({
+  const absenceItems = await listAppointmentSpecialistAbsences({
     organizationId,
     specialistId,
     dateFrom: normalizedAppointmentDate,
     dateTo: normalizedAppointmentDate,
     db
   });
-  return absenceDateSet.has(normalizedAppointmentDate);
+  const conflict = hasAppointmentSpecialistAbsenceRangeConflict({
+    absenceRangesByDate: buildAppointmentSpecialistAbsenceRangesByDate(absenceItems),
+    appointmentDate: normalizedAppointmentDate,
+    startTime,
+    endTime
+  });
+  return Boolean(conflict);
 }
 
 async function cancelAppointmentSchedulesForSpecialistAbsence({
@@ -1506,12 +1670,16 @@ async function cancelAppointmentSchedulesForSpecialistAbsence({
   actorUserId = null,
   specialistId,
   absenceDate,
+  startTime = null,
+  endTime = null,
   db = pool
 }) {
   await ensureAppointmentStatusHistorySchema();
 
   const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
   const normalizedAbsenceDate = normalizeWorkScheduleDate(absenceDate);
+  const normalizedStartTime = normalizeWorkScheduleTime(startTime) || null;
+  const normalizedEndTime = normalizeWorkScheduleTime(endTime) || null;
   if (!normalizedSpecialistId || !normalizedAbsenceDate) {
     return [];
   }
@@ -1545,6 +1713,11 @@ async function cancelAppointmentSchedulesForSpecialistAbsence({
        WHERE s.organization_id = $1
          AND s.specialist_id = $2
          AND s.appointment_date = $3::date
+         AND (
+           $4::time IS NULL
+           OR $5::time IS NULL
+           OR (s.start_time < $5::time AND $4::time < s.end_time)
+         )
          AND s.status IN ('pending', 'confirmed')
          AND (
            s.appointment_date > TIMEZONE('Asia/Tashkent', NOW())::date
@@ -1557,7 +1730,7 @@ async function cancelAppointmentSchedulesForSpecialistAbsence({
      updated AS (
        UPDATE appointment_schedules s
           SET status = 'cancelled',
-              updated_by = $4::integer,
+              updated_by = $6::integer,
               updated_at = CURRENT_TIMESTAMP
          FROM target t
         WHERE s.organization_id = t.organization_id
@@ -1593,7 +1766,7 @@ async function cancelAppointmentSchedulesForSpecialistAbsence({
            'after', ${nextSnapshotSql},
            'reason', 'specialist_absence'
          ) AS details,
-         $4::integer AS changed_by
+         $6::integer AS changed_by
        FROM updated u
      ),
      history_inserted AS (
@@ -1648,7 +1821,14 @@ async function cancelAppointmentSchedulesForSpecialistAbsence({
         ON c.id = u.client_id
        AND c.organization_id = u.organization_id
       ORDER BY u.appointment_date ASC, u.start_time ASC, u.id ASC`,
-    [organizationId, normalizedSpecialistId, normalizedAbsenceDate, actorUserId || null]
+    [
+      organizationId,
+      normalizedSpecialistId,
+      normalizedAbsenceDate,
+      normalizedStartTime,
+      normalizedEndTime,
+      actorUserId || null
+    ]
   );
 
   clearAppointmentPlannerReportFilterCaches();
@@ -1660,11 +1840,15 @@ export async function createAppointmentSpecialistAbsence({
   actorUserId = null,
   specialistId,
   absenceDate,
+  startTime = null,
+  endTime = null,
   reason = "",
   db = pool
 }) {
   const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
   const normalizedAbsenceDate = normalizeWorkScheduleDate(absenceDate);
+  const normalizedStartTime = normalizeWorkScheduleTime(startTime) || null;
+  const normalizedEndTime = normalizeWorkScheduleTime(endTime) || null;
   const normalizedReason = normalizeWorkScheduleReason(reason);
   if (!normalizedSpecialistId || !normalizedAbsenceDate) {
     return {
@@ -1705,31 +1889,33 @@ export async function createAppointmentSpecialistAbsence({
            NULL,
            $3::date,
            FALSE,
-           NULL,
-           NULL,
-           NULLIF($4::text, ''),
-           $5::integer,
-           $5::integer
+           $4::time,
+           $5::time,
+           NULLIF($6::text, ''),
+           $7::integer,
+           $7::integer
          )
          ON CONFLICT (organization_id, user_id, work_date)
            WHERE rule_scope = 'exception' AND user_id IS NOT NULL
          DO UPDATE SET
            is_active = FALSE,
-           start_time = NULL,
-           end_time = NULL,
+           start_time = EXCLUDED.start_time,
+           end_time = EXCLUDED.end_time,
            reason = EXCLUDED.reason,
            updated_by = EXCLUDED.updated_by,
            updated_at = CURRENT_TIMESTAMP
          RETURNING *
        )
        SELECT
-         u.id,
-         u.organization_id,
-         u.user_id,
-         u.work_date,
-         u.reason,
-         u.created_at,
-         u.updated_at,
+       u.id,
+       u.organization_id,
+       u.user_id,
+       u.work_date,
+       u.start_time,
+       u.end_time,
+       u.reason,
+       u.created_at,
+       u.updated_at,
          COALESCE(
            NULLIF(TRIM(user_ref.full_name), ''),
            NULLIF(TRIM(user_ref.username), ''),
@@ -1744,6 +1930,8 @@ export async function createAppointmentSpecialistAbsence({
         organizationId,
         normalizedSpecialistId,
         normalizedAbsenceDate,
+        normalizedStartTime,
+        normalizedEndTime,
         normalizedReason,
         actorUserId || null
       ]
@@ -1754,6 +1942,8 @@ export async function createAppointmentSpecialistAbsence({
       actorUserId,
       specialistId: normalizedSpecialistId,
       absenceDate: normalizedAbsenceDate,
+      startTime: normalizedStartTime,
+      endTime: normalizedEndTime,
       db: client
     });
 
@@ -1809,6 +1999,8 @@ export async function deleteAppointmentSpecialistAbsenceById({
         awh.organization_id,
         awh.user_id,
         awh.work_date,
+        awh.start_time,
+        awh.end_time,
         awh.reason,
         awh.created_at,
         awh.updated_at`,
@@ -2163,7 +2355,7 @@ export async function ensureAutoRollingRecurringSchedulesCoverRange({
     await withAppointmentTransaction(async (db) => {
       let blockedRangesByDay = new Map();
       let breakRangesByDay = new Map();
-      let absenceDateSet = new Set();
+      let absenceRangesByDate = new Map();
 
       if (shouldEnforceAvailability && recurringDates.length > 0) {
         const settingsForRepeat = await getAppointmentSettingsByOrganization(
@@ -2179,16 +2371,24 @@ export async function ensureAutoRollingRecurringSchedulesCoverRange({
             db
           })
         );
-        absenceDateSet = await getAppointmentSpecialistAbsenceDateSet({
-          organizationId,
-          specialistId: root.specialist_id,
-          dateFrom: recurringDates[0],
-          dateTo: recurringDates[recurringDates.length - 1],
-          db
-        });
+        absenceRangesByDate = buildAppointmentSpecialistAbsenceRangesByDate(
+          await listAppointmentSpecialistAbsences({
+            organizationId,
+            specialistId: root.specialist_id,
+            dateFrom: recurringDates[0],
+            dateTo: recurringDates[recurringDates.length - 1],
+            db
+          })
+        );
 
         for (const recurringDate of recurringDates) {
-          if (absenceDateSet.has(recurringDate)) {
+          const absenceConflict = hasAppointmentSpecialistAbsenceRangeConflict({
+            absenceRangesByDate,
+            appointmentDate: recurringDate,
+            startTime: normalizeTimeHm(root?.start_time),
+            endTime: normalizeTimeHm(root?.end_time)
+          });
+          if (absenceConflict) {
             continue;
           }
 
@@ -2520,6 +2720,65 @@ export async function replaceAppointmentBreaksBySpecialist({
       throw error;
     }
 
+    const { rows: vipConflictRows } = await trx.query(
+      `WITH incoming AS (
+         SELECT
+           (item->>'dayOfWeek')::smallint AS day_of_week,
+           NULLIF(TRIM(item->>'startTime'), '')::time AS start_time,
+           NULLIF(TRIM(item->>'endTime'), '')::time AS end_time,
+           COALESCE((item->>'isActive')::boolean, TRUE) AS is_active
+         FROM jsonb_array_elements($3::jsonb) AS item
+       ),
+       active_incoming AS (
+         SELECT i.day_of_week, i.start_time, i.end_time
+         FROM incoming i
+         WHERE i.is_active = TRUE
+           AND i.day_of_week BETWEEN 1 AND 7
+           AND i.start_time IS NOT NULL
+           AND i.end_time IS NOT NULL
+           AND i.start_time < i.end_time
+       )
+       SELECT
+         ai.day_of_week,
+         TO_CHAR(ai.start_time, 'HH24:MI') AS break_start_time,
+         TO_CHAR(ai.end_time, 'HH24:MI') AS break_end_time
+       FROM active_incoming ai
+       WHERE EXISTS (
+         SELECT 1
+         FROM vip_class_daily_routines vdr
+         WHERE vdr.organization_id = $1
+           AND vdr.day_of_week = ai.day_of_week
+           AND ($4::date + ai.start_time) < ($4::date + vdr.end_time)
+           AND ($4::date + vdr.start_time) < ($4::date + ai.end_time)
+           AND (
+             EXISTS (
+               SELECT 1 FROM vip_class_teacher_assignments vcta
+                WHERE vcta.id = vdr.class_assignment_id
+                  AND vcta.organization_id = vdr.organization_id
+                  AND vcta.teacher_user_id = $2
+             )
+             OR EXISTS (
+               SELECT 1 FROM vip_client_tutor_assignments vta
+                WHERE vta.class_assignment_id = vdr.class_assignment_id
+                  AND vta.organization_id = vdr.organization_id
+                  AND vta.tutor_user_id = $2
+             )
+           )
+       )
+       LIMIT 1`,
+      [organizationId, specialistId, breaksPayloadJson, "2000-01-01"]
+    );
+
+    const vipConflict = vipConflictRows?.[0] || null;
+    if (vipConflict) {
+      const breakStart = String(vipConflict.break_start_time || "").trim();
+      const breakEnd = String(vipConflict.break_end_time || "").trim();
+      const error = new Error(`This break time (${breakStart}-${breakEnd}) conflicts with a VIP Daily Routine.`);
+      error.statusCode = 409;
+      error.code = "VIP_ROUTINE_BREAK_CONFLICT";
+      throw error;
+    }
+
     await trx.query(
       `DELETE FROM appointment_breaks
         WHERE organization_id = $1
@@ -2646,6 +2905,171 @@ export async function hasAppointmentClientConflict({
       startTime,
       endTime
     ]
+  );
+  return Boolean(rows[0]);
+}
+
+export async function hasVipRoutineConflictForSpecialist({
+  organizationId,
+  specialistId,
+  appointmentDate,
+  startTime,
+  endTime,
+  db = pool
+}) {
+  const { rows } = await (db || pool).query(
+    `SELECT 1
+       FROM vip_class_daily_routines vdr
+      WHERE vdr.organization_id = $1
+        AND vdr.day_of_week = EXTRACT(ISODOW FROM $3::date)::smallint
+        AND ($4::time < vdr.end_time)
+        AND (vdr.start_time < $5::time)
+        AND (
+          EXISTS (
+            SELECT 1 FROM vip_class_teacher_assignments vcta
+             WHERE vcta.id = vdr.class_assignment_id
+               AND vcta.organization_id = vdr.organization_id
+               AND vcta.teacher_user_id = $2
+          )
+          OR EXISTS (
+            SELECT 1 FROM vip_client_tutor_assignments vta
+             WHERE vta.class_assignment_id = vdr.class_assignment_id
+               AND vta.organization_id = vdr.organization_id
+               AND vta.tutor_user_id = $2
+          )
+        )
+      LIMIT 1`,
+    [organizationId, specialistId, appointmentDate, startTime, endTime]
+  );
+  return Boolean(rows[0]);
+}
+
+export async function hasVipRoutineConflictForClient({
+  organizationId,
+  clientId,
+  appointmentDate,
+  startTime,
+  endTime,
+  db = pool
+}) {
+  const { rows } = await (db || pool).query(
+    `SELECT 1
+       FROM vip_class_daily_routines vdr
+       JOIN vip_client_tutor_assignments vta
+         ON vta.class_assignment_id = vdr.class_assignment_id
+        AND vta.organization_id = vdr.organization_id
+      WHERE vdr.organization_id = $1
+        AND vta.client_id = $2
+        AND vdr.day_of_week = EXTRACT(ISODOW FROM $3::date)::smallint
+        AND ($4::time < vdr.end_time)
+        AND (vdr.start_time < $5::time)
+      LIMIT 1`,
+    [organizationId, clientId, appointmentDate, startTime, endTime]
+  );
+  return Boolean(rows[0]);
+}
+
+export async function hasBreakConflictForVipRoutine({
+  organizationId,
+  classId,
+  dayOfWeek,
+  startTime,
+  endTime,
+  db = pool
+}) {
+  const { rows } = await (db || pool).query(
+    `SELECT 1
+       FROM appointment_breaks ab
+      WHERE ab.organization_id = $1
+        AND ab.is_active = TRUE
+        AND ab.day_of_week = $2
+        AND ($3::time < ab.end_time)
+        AND (ab.start_time < $4::time)
+        AND ab.specialist_id IN (
+          SELECT vcta.teacher_user_id
+            FROM vip_class_teacher_assignments vcta
+           WHERE vcta.id = $5
+             AND vcta.organization_id = $1
+          UNION
+          SELECT vta.tutor_user_id
+            FROM vip_client_tutor_assignments vta
+           WHERE vta.class_assignment_id = $5
+             AND vta.organization_id = $1
+        )
+      LIMIT 1`,
+    [organizationId, dayOfWeek, startTime, endTime, classId]
+  );
+  return Boolean(rows[0]);
+}
+
+export async function hasWorkScheduleAbsenceForVipRoutine({
+  organizationId,
+  classId,
+  dayOfWeek,
+  db = pool
+}) {
+  const { rows } = await (db || pool).query(
+    `SELECT 1
+       FROM appointment_working_hours awh
+      WHERE awh.organization_id = $1
+        AND awh.rule_scope = 'weekly'
+        AND awh.day_of_week = $2
+        AND awh.is_active = FALSE
+        AND awh.user_id IN (
+          SELECT vcta.teacher_user_id
+            FROM vip_class_teacher_assignments vcta
+           WHERE vcta.id = $3
+             AND vcta.organization_id = $1
+          UNION
+          SELECT vta.tutor_user_id
+            FROM vip_client_tutor_assignments vta
+           WHERE vta.class_assignment_id = $3
+             AND vta.organization_id = $1
+        )
+      LIMIT 1`,
+    [organizationId, dayOfWeek, classId]
+  );
+  return Boolean(rows[0]);
+}
+
+export async function hasAppointmentConflictForVipRoutine({
+  organizationId,
+  classId,
+  dayOfWeek,
+  startTime,
+  endTime,
+  db = pool
+}) {
+  const { rows } = await (db || pool).query(
+    `SELECT 1
+       FROM appointment_schedules s
+      WHERE s.organization_id = $1
+        AND s.status IN ('pending', 'confirmed')
+        AND s.appointment_date >= CURRENT_DATE
+        AND EXTRACT(ISODOW FROM s.appointment_date)::smallint = $2
+        AND ($3::time < s.end_time)
+        AND (s.start_time < $4::time)
+        AND (
+          s.specialist_id IN (
+            SELECT vcta.teacher_user_id
+              FROM vip_class_teacher_assignments vcta
+             WHERE vcta.id = $5
+               AND vcta.organization_id = $1
+            UNION
+            SELECT vta.tutor_user_id
+              FROM vip_client_tutor_assignments vta
+             WHERE vta.class_assignment_id = $5
+               AND vta.organization_id = $1
+          )
+          OR s.client_id IN (
+            SELECT vta.client_id
+              FROM vip_client_tutor_assignments vta
+             WHERE vta.class_assignment_id = $5
+               AND vta.organization_id = $1
+          )
+        )
+      LIMIT 1`,
+    [organizationId, dayOfWeek, startTime, endTime, classId]
   );
   return Boolean(rows[0]);
 }

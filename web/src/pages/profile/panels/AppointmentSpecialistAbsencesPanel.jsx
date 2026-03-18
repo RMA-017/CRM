@@ -4,24 +4,6 @@ import CustomSelect from "../../../components/CustomSelect.jsx";
 import { apiFetch, getApiErrorMessage, readApiResponseData } from "../../../lib/api.js";
 import { formatDateForInput } from "../../../lib/formatters.js";
 
-function formatDateTimeLabel(value) {
-  const normalized = String(value || "").trim();
-  if (!normalized) {
-    return "-";
-  }
-  const date = new Date(normalized);
-  if (Number.isNaN(date.getTime())) {
-    return normalized;
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(date);
-}
-
 function buildSpecialistOptions(items) {
   return (Array.isArray(items) ? items : [])
     .map((item) => ({
@@ -36,8 +18,19 @@ function createEmptyForm(todayYmd, specialistId = "") {
     specialistId: String(specialistId || "").trim(),
     dateFrom: String(todayYmd || "").trim(),
     dateTo: String(todayYmd || "").trim(),
+    startTime: "",
+    endTime: "",
     reason: ""
   };
+}
+
+function formatAbsenceTimeRange(startTime = "", endTime = "") {
+  const normalizedStartTime = String(startTime || "").trim();
+  const normalizedEndTime = String(endTime || "").trim();
+  if (normalizedStartTime && normalizedEndTime) {
+    return `${normalizedStartTime} - ${normalizedEndTime}`;
+  }
+  return "All day";
 }
 
 function addDaysYmd(value, days) {
@@ -59,8 +52,10 @@ function buildAbsenceRangeGroups(items) {
   (Array.isArray(items) ? items : []).forEach((item) => {
     const specialistId = String(item?.specialistId || "").trim();
     const reason = String(item?.reason || "").trim();
+    const startTime = String(item?.startTime || "").trim();
+    const endTime = String(item?.endTime || "").trim();
     const updatedAt = String(item?.updatedAt || item?.createdAt || "").trim();
-    const bucketKey = `${specialistId}__${reason}__${updatedAt}`;
+    const bucketKey = `${specialistId}__${reason}__${startTime}__${endTime}__${updatedAt}`;
     const existing = buckets.get(bucketKey) || [];
     existing.push(item);
     buckets.set(bucketKey, existing);
@@ -83,6 +78,8 @@ function buildAbsenceRangeGroups(items) {
           specialistName: String(item?.specialistName || "").trim(),
           dateFrom: absenceDate,
           dateTo: absenceDate,
+          startTime: String(item?.startTime || "").trim(),
+          endTime: String(item?.endTime || "").trim(),
           reason: String(item?.reason || "").trim(),
           createdAt: item?.createdAt || null,
           updatedAt: item?.updatedAt || null
@@ -105,6 +102,8 @@ function buildAbsenceRangeGroups(items) {
         specialistName: String(item?.specialistName || "").trim(),
         dateFrom: absenceDate,
         dateTo: absenceDate,
+        startTime: String(item?.startTime || "").trim(),
+        endTime: String(item?.endTime || "").trim(),
         reason: String(item?.reason || "").trim(),
         createdAt: item?.createdAt || null,
         updatedAt: item?.updatedAt || null
@@ -143,9 +142,14 @@ function AppointmentSpecialistAbsencesPanel({
   const [deletingId, setDeletingId] = useState("");
   const [message, setMessage] = useState("");
   const [createFormOpen, setCreateFormOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
   const [specialistOptions, setSpecialistOptions] = useState([]);
   const [form, setForm] = useState(() => createEmptyForm(todayYmd));
   const dateInputRef = useRef(null);
+  const canEditAppointmentSpecialistAbsences = (
+    canCreateAppointmentSpecialistAbsences
+    && canDeleteAppointmentSpecialistAbsences
+  );
 
   const specialistDisplayName = useMemo(() => {
     const selectedSpecialistName = specialistOptions.find((item) => item.value === String(form.specialistId || "").trim())?.label || "";
@@ -193,6 +197,8 @@ function AppointmentSpecialistAbsencesPanel({
           specialistId: String(item?.specialistId || "").trim(),
           specialistName: String(item?.specialistName || "").trim(),
           absenceDate: String(item?.absenceDate || "").trim(),
+          startTime: String(item?.startTime || "").trim(),
+          endTime: String(item?.endTime || "").trim(),
           reason: String(item?.reason || "").trim(),
           createdAt: item?.createdAt || null,
           updatedAt: item?.updatedAt || null
@@ -270,16 +276,37 @@ function AppointmentSpecialistAbsencesPanel({
       setMessage("You do not have permission to create specialist absences.");
       return;
     }
+    setEditingItem(null);
     setForm(createEmptyForm(todayYmd, specialistOptions[0]?.value || form.specialistId || ""));
     setMessage("");
     setCreateFormOpen(true);
   }, [canCreateAppointmentSpecialistAbsences, form.specialistId, specialistOptions, todayYmd]);
+
+  const openEditForm = useCallback((item) => {
+    if (!canEditAppointmentSpecialistAbsences) {
+      setMessage("You do not have permission to edit specialist absences.");
+      return;
+    }
+    const specialistId = String(item?.specialistId || "").trim() || String(specialistOptions[0]?.value || "").trim();
+    setEditingItem(item || null);
+    setForm({
+      specialistId,
+      dateFrom: String(item?.dateFrom || item?.absenceDate || todayYmd).trim(),
+      dateTo: String(item?.dateTo || item?.absenceDate || todayYmd).trim(),
+      startTime: String(item?.startTime || "").trim(),
+      endTime: String(item?.endTime || "").trim(),
+      reason: String(item?.reason || "").trim()
+    });
+    setMessage("");
+    setCreateFormOpen(true);
+  }, [canEditAppointmentSpecialistAbsences, specialistOptions, todayYmd]);
 
   const closeCreateForm = useCallback(() => {
     if (saving) {
       return;
     }
     setForm(createEmptyForm(todayYmd, specialistOptions[0]?.value || ""));
+    setEditingItem(null);
     setCreateFormOpen(false);
   }, [saving, specialistOptions, todayYmd]);
 
@@ -289,6 +316,8 @@ function AppointmentSpecialistAbsencesPanel({
     const specialistId = String(form.specialistId || "").trim();
     const dateFrom = String(form.dateFrom || "").trim();
     const dateTo = String(form.dateTo || "").trim();
+    const startTime = String(form.startTime || "").trim();
+    const endTime = String(form.endTime || "").trim();
     const reason = String(form.reason || "").trim();
     if (!specialistId) {
       setMessage("Specialist is required.");
@@ -306,6 +335,14 @@ function AppointmentSpecialistAbsencesPanel({
       setMessage("Date to must be on or after date from.");
       return;
     }
+    if ((startTime && !endTime) || (!startTime && endTime)) {
+      setMessage("Both time fields are required.");
+      return;
+    }
+    if (startTime && endTime && startTime >= endTime) {
+      setMessage("Time to must be after time from.");
+      return;
+    }
     if (!canCreateAppointmentSpecialistAbsences) {
       setMessage("You do not have permission to create specialist absences.");
       return;
@@ -313,6 +350,40 @@ function AppointmentSpecialistAbsencesPanel({
 
     try {
       setSaving(true);
+      const editingItemIds = Array.from(
+        new Set(
+          (Array.isArray(editingItem?.itemIds) ? editingItem.itemIds : [editingItem?.id])
+            .map((value) => String(value || "").trim())
+            .filter(Boolean)
+        )
+      );
+      const isEditMode = editingItemIds.length > 0;
+      if (
+        isEditMode
+        && String(editingItem?.specialistId || "").trim() === specialistId
+        && String(editingItem?.dateFrom || "").trim() === dateFrom
+        && String(editingItem?.dateTo || "").trim() === dateTo
+        && String(editingItem?.startTime || "").trim() === startTime
+        && String(editingItem?.endTime || "").trim() === endTime
+        && String(editingItem?.reason || "").trim() === reason
+      ) {
+        setCreateFormOpen(false);
+        setEditingItem(null);
+        setMessage("No changes to save.");
+        return;
+      }
+      if (isEditMode) {
+        for (const id of editingItemIds) {
+          const deleteResponse = await apiFetch(`/api/appointments/absences/${encodeURIComponent(id)}`, {
+            method: "DELETE"
+          });
+          const deleteData = await readApiResponseData(deleteResponse);
+          if (!deleteResponse.ok) {
+            setMessage(getApiErrorMessage(deleteResponse, deleteData, "Failed to update specialist absence."));
+            return;
+          }
+        }
+      }
       const response = await apiFetch("/api/appointments/absences", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -320,6 +391,8 @@ function AppointmentSpecialistAbsencesPanel({
           specialistId,
           dateFrom,
           dateTo,
+          startTime,
+          endTime,
           reason
         })
       });
@@ -330,8 +403,9 @@ function AppointmentSpecialistAbsencesPanel({
       }
 
       setForm(createEmptyForm(todayYmd, specialistId));
+      setEditingItem(null);
       setCreateFormOpen(false);
-      setMessage(String(data?.message || "Specialist absence saved."));
+      setMessage(String(data?.message || (isEditMode ? "Specialist absence updated." : "Specialist absence saved.")));
       dispatchPlannerRefresh({
         absenceDate: dateFrom,
         dateFrom,
@@ -351,6 +425,9 @@ function AppointmentSpecialistAbsencesPanel({
     form.dateFrom,
     form.dateTo,
     form.reason,
+    form.startTime,
+    form.endTime,
+    editingItem,
     loadAbsences,
     todayYmd
   ]);
@@ -417,10 +494,10 @@ function AppointmentSpecialistAbsencesPanel({
         className="logout-confirm-modal settings-edit-modal appointment-breaks-add-modal appointment-specialist-absence-modal"
         aria-modal="true"
         role="dialog"
-        aria-label="Add specialist absence"
+        aria-label={editingItem ? "Edit specialist absence" : "Add specialist absence"}
       >
         <div className="appointment-breaks-add-modal-head">
-          <h3>Add Specialist Absence</h3>
+          <h3>{editingItem ? "Edit Specialist Absence" : "Add Specialist Absence"}</h3>
           <button
             id="closeAppointmentSpecialistAbsenceCreateModalBtn"
             type="button"
@@ -475,6 +552,32 @@ function AppointmentSpecialistAbsencesPanel({
                 onChange={(event) => {
                   const value = String(event.target.value || "").trim();
                   setForm((prev) => ({ ...prev, dateTo: value }));
+                }}
+              />
+            </label>
+          </div>
+          <div className="appointment-specialist-absence-date-row">
+            <label className="field appointment-specialist-absence-field" htmlFor="appointmentSpecialistAbsenceStartTimeInput">
+              <span>Time From</span>
+              <input
+                id="appointmentSpecialistAbsenceStartTimeInput"
+                type="time"
+                value={form.startTime}
+                onChange={(event) => {
+                  const value = String(event.target.value || "").trim();
+                  setForm((prev) => ({ ...prev, startTime: value }));
+                }}
+              />
+            </label>
+            <label className="field appointment-specialist-absence-field" htmlFor="appointmentSpecialistAbsenceEndTimeInput">
+              <span>Time To</span>
+              <input
+                id="appointmentSpecialistAbsenceEndTimeInput"
+                type="time"
+                value={form.endTime}
+                onChange={(event) => {
+                  const value = String(event.target.value || "").trim();
+                  setForm((prev) => ({ ...prev, endTime: value }));
                 }}
               />
             </label>
@@ -544,23 +647,24 @@ function AppointmentSpecialistAbsencesPanel({
         <div className="appointment-breaks-table-wrap all-users-table-wrap">
           <table className="appointment-breaks-table all-users-table" aria-label="Specialist absences table">
             <thead>
-              <tr>
-                <th>Specialist</th>
-                <th>Date From</th>
-                <th>Date To</th>
-                <th>Reason</th>
-                <th>Updated</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
+            <tr>
+              <th>Specialist</th>
+              <th>Date From</th>
+              <th>Date To</th>
+              <th>Time</th>
+              <th>Reason</th>
+              <th>Edit</th>
+              <th>Delete</th>
+            </tr>
+          </thead>
+          <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="6" className="all-users-state">Loading...</td>
+                  <td colSpan="7" className="all-users-state">Loading...</td>
                 </tr>
               ) : groupedItems.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="all-users-state">No specialist absences yet.</td>
+                  <td colSpan="7" className="all-users-state">No specialist absences yet.</td>
                 </tr>
               ) : (
                 groupedItems.map((item) => (
@@ -568,8 +672,20 @@ function AppointmentSpecialistAbsencesPanel({
                     <td>{item.specialistName || specialistDisplayName || "-"}</td>
                     <td>{item.dateFrom || "-"}</td>
                     <td>{item.dateTo || "-"}</td>
+                    <td>{formatAbsenceTimeRange(item.startTime, item.endTime)}</td>
                     <td>{item.reason || "-"}</td>
-                    <td>{formatDateTimeLabel(item.updatedAt)}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="table-action-btn"
+                        disabled={saving || !canEditAppointmentSpecialistAbsences}
+                        onClick={() => {
+                          openEditForm(item);
+                        }}
+                      >
+                        Edit
+                      </button>
+                    </td>
                     <td>
                       <button
                         type="button"

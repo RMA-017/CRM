@@ -741,17 +741,18 @@ function AppointmentPlannerGrid({
     weekDays.reduce((acc, day) => {
       const blockedByTime = {};
       const dayDate = formatDateYmd(day.date);
-      const absenceItem = (Array.isArray(absencesForSpecialist) ? absencesForSpecialist : []).find(
+      const dayAbsenceItems = (Array.isArray(absencesForSpecialist) ? absencesForSpecialist : []).filter(
         (item) => String(item?.absenceDate || "").trim() === dayDate
       );
-      if (!absenceItem) {
+      if (dayAbsenceItems.length === 0) {
         acc[day.key] = blockedByTime;
         return acc;
       }
 
       const dayMinutes = workingHoursMinutesByDay[day.key] || { start: null, end: null };
-      const reasonFull = String(absenceItem?.reason || "").trim() || "Specialist absent";
-      const reasonShort = truncateWithEllipsis(reasonFull, 18) || "Absent";
+      const slotIntervalMinutes = Number.parseInt(String(settings?.slotInterval || "30"), 10) || 30;
+      const slotSubDivisionsNum = Math.max(1, Number.parseInt(String(settings?.slotSubDivisions || "1"), 10) || 1);
+      const effectiveSlotMinutes = Math.max(1, Math.floor(slotIntervalMinutes / slotSubDivisionsNum));
       timeSlots.forEach((slot) => {
         const slotMinutes = slotMinutesByValue[slot];
         if (
@@ -763,6 +764,25 @@ function AppointmentPlannerGrid({
         ) {
           return;
         }
+        const slotEndMinutes = slotMinutes + effectiveSlotMinutes;
+        const blockingAbsence = dayAbsenceItems.find((item) => {
+          const startMinutes = normalizeTimeToMinutes(item?.startTime);
+          const endMinutes = normalizeTimeToMinutes(item?.endTime);
+          if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+            return true;
+          }
+          return slotMinutes < endMinutes && startMinutes < slotEndMinutes;
+        });
+        if (!blockingAbsence) {
+          return;
+        }
+        const reasonBase = String(blockingAbsence?.reason || "").trim() || "Specialist absent";
+        const absenceStartTime = String(blockingAbsence?.startTime || "").trim();
+        const absenceEndTime = String(blockingAbsence?.endTime || "").trim();
+        const reasonFull = absenceStartTime && absenceEndTime
+          ? `${reasonBase} (${absenceStartTime}-${absenceEndTime})`
+          : reasonBase;
+        const reasonShort = truncateWithEllipsis(reasonBase, 18) || "Absent";
         blockedByTime[slot] = {
           reasonShort,
           reasonFull
@@ -772,7 +792,7 @@ function AppointmentPlannerGrid({
       acc[day.key] = blockedByTime;
       return acc;
     }, {})
-  ), [absencesForSpecialist, slotMinutesByValue, timeSlots, weekDays, workingHoursMinutesByDay]);
+  ), [absencesForSpecialist, settings?.slotInterval, settings?.slotSubDivisions, slotMinutesByValue, timeSlots, weekDays, workingHoursMinutesByDay]);
   const appointmentLookupByDay = useMemo(() => (
     weekDays.reduce((acc, day) => {
       const dayItems = Array.isArray(appointmentsByDay[day.key]) ? appointmentsByDay[day.key] : [];
@@ -2967,6 +2987,8 @@ function AppointmentScheduler({
       const normalizedItems = (Array.isArray(data?.items) ? data.items : []).map((item) => ({
         id: String(item?.id || "").trim(),
         absenceDate: String(item?.absenceDate || "").trim(),
+        startTime: String(item?.startTime || "").trim(),
+        endTime: String(item?.endTime || "").trim(),
         reason: String(item?.reason || "").trim()
       })).filter((item) => Boolean(item.id) && Boolean(item.absenceDate));
 
@@ -4260,11 +4282,11 @@ function AppointmentScheduler({
                 {!vipOnly ? (
                   <div className="appointment-client-select-row">
                     <div className="field appointment-client-vip-field">
-                      <label htmlFor="appointmentClientVipOnly">Active</label>
                       <label
                         className={`appointment-client-vip-toggle${(vipOnly || clientVipOnly) ? " is-active" : ""}`}
                         htmlFor="appointmentClientVipOnly"
                       >
+                        <span>Active</span>
                         <input
                           id="appointmentClientVipOnly"
                           type="checkbox"

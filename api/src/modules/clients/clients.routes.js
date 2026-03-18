@@ -24,6 +24,11 @@ import {
 } from "./vip-daily-routines.js";
 import { normalizeTimeHm, toTimeMinutes } from "../appointments/time.js";
 import {
+  hasAppointmentConflictForVipRoutine,
+  hasBreakConflictForVipRoutine,
+  hasWorkScheduleAbsenceForVipRoutine
+} from "../appointments/services/appointment-schedules.service.js";
+import {
   createClientMedicalHistoryEntry,
   createClient,
   deleteAllClientMedicalHistoryEntries,
@@ -664,6 +669,8 @@ function mapVipNormMonitoringRecord(row) {
   const positionLabel = String(row?.position_label || row?.positionLabel || "").trim();
   const weeklyNorm = Number.parseInt(String(row?.max_per_week || row?.maxPerWeek || "0"), 10) || 0;
   const currentBooked = Number.parseInt(String(row?.current_booked || row?.currentBooked || "0"), 10) || 0;
+  const confirmedCount = Number.parseInt(String(row?.confirmed_count || row?.confirmedCount || "0"), 10) || 0;
+  const cancelledCount = Number.parseInt(String(row?.cancelled_count || row?.cancelledCount || "0"), 10) || 0;
   const specialists = normalizeVipNormMonitoringSpecialists(
     row?.linked_specialists,
     row?.linkedSpecialists,
@@ -715,6 +722,10 @@ function mapVipNormMonitoringRecord(row) {
     weekly_norm: weeklyNorm,
     currentBooked,
     current_booked: currentBooked,
+    confirmedCount,
+    confirmed_count: confirmedCount,
+    cancelledCount,
+    cancelled_count: cancelledCount,
     status,
     statusKey,
     status_key: statusKey,
@@ -2060,6 +2071,43 @@ async function clientsRoutes(fastify) {
           if (!classAllowed) {
             return reply.status(400).send({ field: "classId", message: "Selected class is not allowed." });
           }
+        }
+
+        const hasAppointmentConflict = await hasAppointmentConflictForVipRoutine({
+          organizationId: authContext.organizationId,
+          classId,
+          dayOfWeek,
+          startTime,
+          endTime
+        });
+        if (hasAppointmentConflict) {
+          return reply.status(409).send({
+            message: "This time slot conflicts with existing appointments for a specialist or client in this class."
+          });
+        }
+
+        const hasBreakConflict = await hasBreakConflictForVipRoutine({
+          organizationId: authContext.organizationId,
+          classId,
+          dayOfWeek,
+          startTime,
+          endTime
+        });
+        if (hasBreakConflict) {
+          return reply.status(409).send({
+            message: "This time slot conflicts with a scheduled break for a specialist in this class."
+          });
+        }
+
+        const hasAbsenceConflict = await hasWorkScheduleAbsenceForVipRoutine({
+          organizationId: authContext.organizationId,
+          classId,
+          dayOfWeek
+        });
+        if (hasAbsenceConflict) {
+          return reply.status(409).send({
+            message: "A specialist in this class is marked as unavailable on this day of week."
+          });
         }
 
         const item = await upsertVipClassDailyRoutine({

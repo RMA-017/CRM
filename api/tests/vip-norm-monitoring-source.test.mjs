@@ -65,20 +65,20 @@ test("VIP norm monitoring route uses dedicated feature and permission access", a
 
   assert.match(
     routeSource,
-    /const rawStatusKey = String\(row\?\.status_key[\s\S]*No norm configured/s,
-    "VIP norm monitoring mapping should preserve backend status keys instead of collapsing everything to booked-vs-norm only."
-  );
-
-  assert.match(
-    routeSource,
-    /currentBooked > weeklyNorm[\s\S]*"exceeded"[\s\S]*currentBooked < weeklyNorm[\s\S]*"limit-reached"[\s\S]*"normal"/s,
-    "VIP norm monitoring fallback status logic should treat greater as Exceeded, less as Limit reached, and equal as Normal."
+    /const confirmedCount = Number\.parseInt\(String\(row\?\.confirmed_count[\s\S]*const cancelledCount = Number\.parseInt\(String\(row\?\.cancelled_count/s,
+    "VIP norm monitoring mapping should expose confirmed and cancelled lesson counters from the backend response."
   );
 
   assert.match(
     serviceSource,
-    /WHEN mr\.current_booked > mr\.max_per_week THEN 'Exceeded'[\s\S]*WHEN mr\.current_booked < mr\.max_per_week THEN 'Limit reached'[\s\S]*ELSE 'Normal'/s,
-    "VIP norm monitoring SQL should treat greater as Exceeded, less as Limit reached, and equal as Normal."
+    /COUNT\(DISTINCT ss\.schedule_id\)::int AS current_booked[\s\S]*COUNT\(DISTINCT ss\.schedule_id\) FILTER \([\s\S]*'confirmed'[\s\S]*AS confirmed_count[\s\S]*COUNT\(DISTINCT ss\.schedule_id\) FILTER \([\s\S]*'cancelled', 'no-show'[\s\S]*AS cancelled_count/s,
+    "VIP norm monitoring SQL should compute total weekly bookings plus dedicated confirmed and cancelled\/no-show counters."
+  );
+
+  assert.match(
+    serviceSource,
+    /AND s\.status IN \('pending', 'confirmed', 'cancelled', 'no-show'\)/,
+    "VIP norm monitoring should treat all recorded weekly lesson statuses as booked lessons for the monitoring table."
   );
 
   assert.match(

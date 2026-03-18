@@ -32,6 +32,8 @@ import {
   replaceAppointmentBreaksBySpecialist
 } from "./services/appointment-breaks.service.js";
 import {
+  hasVipRoutineConflictForSpecialist,
+  hasVipRoutineConflictForClient,
   createAppointmentSchedule,
   deleteAppointmentSchedulesByIds,
   ensureAutoRollingRecurringSchedulesCoverRange,
@@ -192,6 +194,8 @@ async function appointmentSettingsRoutes(fastify) {
     deleteAppointmentSpecialistAbsenceById,
     deleteAppointmentWorkScheduleEntryById,
     hasAppointmentSpecialistAbsenceConflict,
+    hasVipRoutineConflictForSpecialist,
+    hasVipRoutineConflictForClient,
     replaceAppointmentDefaultWeeklyWorkSchedule,
     getAppointmentBreaksBySpecialistAndDays,
     getAppointmentScheduleTargetsByScope,

@@ -63,8 +63,8 @@ test("VIP norm monitoring is wired into routes, menu, panel filters, and dedicat
 
   assert.match(
     panelSource,
-    /<th>Client<\/th>[\s\S]*<th>Position<\/th>[\s\S]*<th>Weekly norm<\/th>[\s\S]*<th>Booked this week<\/th>[\s\S]*<th>Status<\/th>/s,
-    "VIP norm monitoring table should render the expected columns."
+    /<th>Client<\/th>[\s\S]*<th>Position<\/th>[\s\S]*<th>Weekly norm<\/th>[\s\S]*<th>Booked this week<\/th>[\s\S]*<th>Confirmed<\/th>[\s\S]*<th>Cancelled<\/th>/s,
+    "VIP norm monitoring table should render the expected numeric monitoring columns."
   );
 
   assert.doesNotMatch(
@@ -77,5 +77,11 @@ test("VIP norm monitoring is wired into routes, menu, panel filters, and dedicat
     panelSource,
     /item\.weeklyNorm > 0 \? item\.weeklyNorm : "-"/,
     "VIP norm monitoring should render a placeholder weekly norm when setup is incomplete."
+  );
+
+  assert.match(
+    hookSource,
+    /confirmedCount: Number\.parseInt\(String\(item\?\.confirmedCount \|\| item\?\.confirmed_count \|\| "0"\), 10\) \|\| 0[\s\S]*cancelledCount: Number\.parseInt\(String\(item\?\.cancelledCount \|\| item\?\.cancelled_count \|\| "0"\), 10\) \|\| 0/s,
+    "VIP norm monitoring hook should normalize confirmed and cancelled lesson counters."
   );
 });

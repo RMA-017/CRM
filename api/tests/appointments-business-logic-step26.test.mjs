@@ -173,10 +173,12 @@ function createScheduleContext(overrides = {}) {
     getAppointmentPlannerReportFilters: async () => ({ specialists: [], clients: [] }),
     getAppointmentPlannerReport: async () => ({ summary: {}, details: [], specialists: [], period: {} }),
     getAppointmentClientScopeInfo: async () => null,
+    ensureAutoRollingRecurringSchedulesCoverRange: async () => ({ changed: false }),
     getAppointmentSchedulesByRange: async () => [],
     isVipClassAssignedToUser: async () => true,
     getAppointmentHistoryLockDaysByOrganization: async () => 0,
     getAppointmentSettingsByOrganization: async () => ({ visibleWeekDays: ["mon", "tue", "wed", "thu", "fri"] }),
+    listAppointmentSpecialistAbsences: async () => [],
     getAppointmentBreaksBySpecialistAndDays: async () => [],
     getAppointmentScheduleTargetsByScope: async () => ({
       items: [],
@@ -207,8 +209,15 @@ function createReferenceContext(overrides = {}) {
       authContext: request.authContext,
       requester: request.authContext?.requester
     }),
+    hasPermission: async () => true,
+    requesterHasOrgFeature: (requester, feature) => (
+      Array.isArray(requester?.organization_allowed_features)
+      && requester.organization_allowed_features.includes(feature)
+    ),
     PERMISSIONS: {
-      APPOINTMENTS_PLANNER_READ: "appointments.planner.read"
+      APPOINTMENTS_PLANNER_READ: "appointments.planner.read",
+      APPOINTMENTS_SPECIALIST_ABSENCES_READ: "appointments.specialist-absences.read",
+      APPOINTMENTS_SPECIALIST_ABSENCES_CREATE: "appointments.specialist-absences.create"
     },
     parsePositiveIntegerOr,
     resolveOwnAppointmentSpecialistUserId: () => null,
@@ -249,7 +258,7 @@ function createBreaksContext(overrides = {}) {
   };
 }
 
-test("specialists reference endpoint scopes specialist users to their own record", async () => {
+test("specialists reference endpoint keeps all specialists visible for planner readers", async () => {
   const recorder = createRouteRecorder();
   registerAppointmentReferenceRoutes(
     recorder.fastify,
@@ -269,7 +278,10 @@ test("specialists reference endpoint scopes specialist users to their own record
   await route.handler(createAccessRequest({ features: ["appointments.planner"] }), reply);
 
   assert.equal(reply.state.statusCode, 200);
-  assert.deepEqual(reply.state.payload?.items, [{ id: "7", name: "Teacher One" }]);
+  assert.deepEqual(reply.state.payload?.items, [
+    { id: "7", name: "Teacher One" },
+    { id: "8", name: "Teacher Two" }
+  ]);
 });
 
 test("vip schedules read allows my class permission without general appointments read", async () => {
@@ -546,14 +558,16 @@ test("planner report blocks specialist users from querying another specialist", 
   assert.equal(reply.state.payload?.message, "Forbidden.");
 });
 
-test("schedule read blocks specialist users from querying another specialist planner", async () => {
+test("schedule read allows planner readers to query another specialist planner", async () => {
   const recorder = createRouteRecorder();
+  let capturedArgs = null;
   registerAppointmentScheduleRoutes(
     recorder.fastify,
     createScheduleContext({
       resolveOwnAppointmentSpecialistUserId: () => 7,
-      getAppointmentSchedulesByRange: async () => {
-        throw new Error("Schedules should not load for another specialist.");
+      getAppointmentSchedulesByRange: async (args) => {
+        capturedArgs = args;
+        return [];
       }
     })
   );
@@ -574,8 +588,42 @@ test("schedule read blocks specialist users from querying another specialist pla
     reply
   );
 
-  assert.equal(reply.state.statusCode, 403);
-  assert.equal(reply.state.payload?.message, "Forbidden.");
+  assert.equal(reply.state.statusCode, 200);
+  assert.equal(capturedArgs?.specialistId, 9);
+});
+
+test("breaks read allows planner readers to query another specialist", async () => {
+  const recorder = createRouteRecorder();
+  let capturedArgs = null;
+
+  registerAppointmentBreakRoutes(
+    recorder.fastify,
+    createBreaksContext({
+      resolveOwnAppointmentSpecialistUserId: () => 7,
+      getAppointmentBreaksBySpecialist: async (args) => {
+        capturedArgs = args;
+        return [];
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "GET", "/breaks");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      query: { specialistId: "9" }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 200);
+  assert.deepEqual(capturedArgs, {
+    organizationId: 3,
+    specialistId: 9
+  });
 });
 
 test("schedule read blocks assigned-scope access to an unassigned VIP client", async () => {

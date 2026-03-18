@@ -44,20 +44,20 @@ test("appointment specialist absence routes and schedule guards stay registered"
 
   assert.match(
     absencesRouteSource,
-    /fallbackToOwnUser:\s*canReadSpecialistAbsences[\s\S]*requestedSpecialistId[\s\S]*fallbackOnlyWhenSpecialistIsUnspecified:\s*true[\s\S]*fallbackToOwnUser:\s*true/s,
-    "Specialist absences routes should only self-scope read access when no specialist was explicitly requested, while keeping write actions self-scoped."
+    /const ownSpecialistUserId = canReadPlannerAbsences\s*\?\s*0\s*:\s*resolveSelfScopedSpecialistUserId\([\s\S]*fallbackToOwnUser:\s*canReadSpecialistAbsences[\s\S]*fallbackOnlyWhenSpecialistIsUnspecified:\s*true[\s\S]*fallbackToOwnUser:\s*true/s,
+    "Specialist absences routes should let planner readers inspect any specialist while keeping dedicated self-scoped absence workflows intact."
   );
 
   assert.match(
     schemasSource,
-    /absenceCreateBody[\s\S]*anyOf:[\s\S]*absenceDate[\s\S]*dateFrom[\s\S]*properties:[\s\S]*dateFrom:[\s\S]*dateTo:/s,
-    "Specialist absences create schema should accept either a single date or a date from\/to range."
+    /absenceCreateBody[\s\S]*anyOf:[\s\S]*absenceDate[\s\S]*dateFrom[\s\S]*properties:[\s\S]*dateFrom:[\s\S]*dateTo:[\s\S]*startTime:[\s\S]*endTime:/s,
+    "Specialist absences create schema should accept date ranges plus optional time from\/to values."
   );
 
   assert.match(
     absencesRouteSource,
-    /buildDateRange[\s\S]*withAppointmentTransaction[\s\S]*Specialist absence saved for \$\{savedCount\} days\./s,
-    "Specialist absences create route should expand date ranges inside one transaction."
+    /buildDateRange[\s\S]*const startTime = String\(request\.body\?\.startTime \|\| ""\)\.trim\(\);[\s\S]*Both start and end time are required\.[\s\S]*withAppointmentTransaction[\s\S]*startTime,[\s\S]*endTime,[\s\S]*Specialist absence saved for \$\{savedCount\} days\./s,
+    "Specialist absences create route should validate and persist optional time ranges inside one transaction."
   );
 
   assert.match(
@@ -92,7 +92,19 @@ test("appointment specialist absence routes and schedule guards stay registered"
 
   assert.match(
     schedulesSource,
-    /listAppointmentSpecialistAbsences/,
-    "Schedule routes should guard create\/update flows against specialist absences."
+    /buildSpecialistAbsenceRangesByDate[\s\S]*hasSpecialistAbsenceConflict[\s\S]*listAppointmentSpecialistAbsences/s,
+    "Schedule routes should guard create\/update flows against specialist absences using date and time overlap checks."
+  );
+
+  assert.match(
+    serviceSource,
+    /mapAppointmentSpecialistAbsenceItem[\s\S]*startTime: normalizeTimeHm\(row\?\.start_time\),[\s\S]*endTime: normalizeTimeHm\(row\?\.end_time\)/s,
+    "Specialist absence items should expose start and end time values."
+  );
+
+  assert.match(
+    serviceSource,
+    /INSERT INTO appointment_working_hours[\s\S]*start_time,[\s\S]*end_time[\s\S]*EXCLUDED\.start_time[\s\S]*EXCLUDED\.end_time/s,
+    "Specialist absence saves should persist time ranges on the exception row."
   );
 });

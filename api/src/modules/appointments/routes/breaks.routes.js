@@ -52,7 +52,9 @@ export function registerAppointmentBreakRoutes(fastify, context) {
         if (!specialistId) {
           return reply.status(400).send({ field: "specialistId", message: "Specialist is required." });
         }
-        const ownSpecialistUserId = resolveOwnAppointmentSpecialistUserId(access);
+        const ownSpecialistUserId = canReadPlanner
+          ? null
+          : resolveOwnAppointmentSpecialistUserId(access);
         if (ownSpecialistUserId && specialistId !== ownSpecialistUserId) {
           return reply.status(403).send({ message: "Forbidden." });
         }

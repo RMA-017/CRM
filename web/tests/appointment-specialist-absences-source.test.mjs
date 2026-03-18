@@ -80,26 +80,38 @@ test("specialist absences menu and planner source wiring stay in place", async (
 
   assert.match(
     panelSource,
-    /apiFetch\("\/api\/appointments\/specialists"[\s\S]*appointmentSpecialistAbsenceSpecialistSelect[\s\S]*appointmentSpecialistAbsenceDateFromInput[\s\S]*appointmentSpecialistAbsenceDateToInput/s,
-    "Specialist absences create modal should load DB specialists into a select and keep date from\/to fields together."
+    /apiFetch\("\/api\/appointments\/specialists"[\s\S]*appointmentSpecialistAbsenceSpecialistSelect[\s\S]*appointmentSpecialistAbsenceDateFromInput[\s\S]*appointmentSpecialistAbsenceDateToInput[\s\S]*appointmentSpecialistAbsenceStartTimeInput[\s\S]*appointmentSpecialistAbsenceEndTimeInput/s,
+    "Specialist absences create modal should load DB specialists into a select and include date plus time from\/to inputs."
   );
 
   assert.match(
     panelSource,
-    /function buildAbsenceRangeGroups\(items\) \{[\s\S]*itemIds[\s\S]*dateFrom[\s\S]*dateTo/s,
-    "Specialist absences panel should group saved day rows back into visible date ranges."
+    /function buildAbsenceRangeGroups\(items\) \{[\s\S]*itemIds[\s\S]*dateFrom[\s\S]*dateTo[\s\S]*startTime[\s\S]*endTime/s,
+    "Specialist absences panel should group saved day rows back into visible date and time ranges."
   );
 
   assert.match(
     panelSource,
-    /<th>Specialist<\/th>[\s\S]*<th>Date From<\/th>[\s\S]*<th>Date To<\/th>[\s\S]*<th>Reason<\/th>/s,
-    "Specialist absences table should show the specialist, date range, and reason from the add modal."
+    /<th>Specialist<\/th>[\s\S]*<th>Date From<\/th>[\s\S]*<th>Date To<\/th>[\s\S]*<th>Time<\/th>[\s\S]*<th>Reason<\/th>[\s\S]*<th>Edit<\/th>[\s\S]*<th>Delete<\/th>/s,
+    "Specialist absences table should show the specialist, date range, time range, reason, and separate Edit/Delete actions."
+  );
+
+  assert.match(
+    panelSource,
+    /function formatAbsenceTimeRange\(startTime = "", endTime = ""\) \{[\s\S]*return `\$\{normalizedStartTime\} - \$\{normalizedEndTime\}`[\s\S]*return "All day";/s,
+    "Specialist absences table should format the stored time range for the dedicated Time column."
   );
 
   assert.match(
     panelSource,
     /for \(const id of itemIds\) \{[\s\S]*Specialist absence range deleted\./s,
     "Deleting a grouped specialist absence row should remove the whole saved range."
+  );
+
+  assert.match(
+    panelSource,
+    /const \[editingItem, setEditingItem\] = useState\(null\);[\s\S]*const openEditForm = useCallback\(\(item\) => \{[\s\S]*Edit Specialist Absence/s,
+    "Specialist absences panel should reuse the modal for editing existing ranges."
   );
 
   assert.match(

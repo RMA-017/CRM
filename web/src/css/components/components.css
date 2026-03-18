@@ -2160,49 +2160,6 @@ label.field > span:first-child,
   text-align: center;
 }
 
-.vip-norm-status-cell {
-  text-align: center;
-}
-
-.vip-norm-status-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 108px;
-  height: 24px;
-  padding: 0 10px;
-  border-radius: 999px;
-  font-size: var(--fs-small);
-  font-weight: 700;
-  line-height: 1;
-}
-
-.vip-norm-status-pill-normal {
-  background: rgba(15, 122, 74, 0.12);
-  color: #0f7a4a;
-}
-
-.vip-norm-status-pill-limit-reached {
-  background: rgba(164, 99, 0, 0.14);
-  color: #a46300;
-}
-
-.vip-norm-status-pill-exceeded {
-  background: rgba(180, 35, 24, 0.12);
-  color: #b42318;
-}
-
-.vip-norm-status-pill-no-assignment,
-.vip-norm-status-pill-no-position {
-  background: rgba(102, 112, 133, 0.12);
-  color: #475467;
-}
-
-.vip-norm-status-pill-no-norm {
-  background: rgba(181, 71, 8, 0.12);
-  color: #b54708;
-}
-
 .planner-report-toolbar {
   display: flex;
   align-items: flex-end;
@@ -6087,12 +6044,11 @@ label.field > span:first-child,
 }
 
 .appointment-client-vip-field {
-  gap: 0;
   min-width: 0;
 }
 
 .appointment-client-vip-field > label:first-child {
-  margin: 0 0 0 4px;
+  margin: 0;
   line-height: normal;
 }
 
@@ -6112,8 +6068,8 @@ label.field > span:first-child,
   color: var(--text-main);
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 12px;
   padding: 8px 12px;
   font-size: var(--fs-small);
   font-family: inherit;
@@ -6127,6 +6083,12 @@ label.field > span:first-child,
     box-shadow var(--dur) ease,
     background var(--dur) ease,
     color var(--dur) ease;
+}
+
+.appointment-client-vip-toggle > span {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
 }
 
 .appointment-client-vip-toggle input[type="checkbox"] {

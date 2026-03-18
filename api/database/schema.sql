@@ -460,6 +460,10 @@ CREATE TABLE appointment_breaks (
 CREATE INDEX idx_appointment_breaks_specialist_week
   ON appointment_breaks (organization_id, specialist_id, day_of_week, is_active, start_time);
 
+CREATE INDEX idx_appointment_breaks_org_day
+  ON appointment_breaks (organization_id, day_of_week)
+  WHERE is_active = TRUE;
+
 CREATE UNIQUE INDEX uq_appointment_breaks_exact_slot
   ON appointment_breaks (organization_id, specialist_id, day_of_week, start_time, end_time, break_type);
 

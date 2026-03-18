@@ -44,8 +44,78 @@ function buildClientScheduleConflictMessage(appointmentDate = "") {
     : "This client already has another appointment at this time.";
 }
 
-function buildSpecialistAbsenceConflictMessage(appointmentDate = "") {
+function toAbsenceTimeMinutes(value) {
+  const normalized = String(value || "").trim();
+  if (!/^\d{2}:\d{2}$/.test(normalized)) {
+    return null;
+  }
+  const [hoursText, minutesText] = normalized.split(":");
+  const hours = Number.parseInt(hoursText, 10);
+  const minutes = Number.parseInt(minutesText, 10);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return null;
+  }
+  return (hours * 60) + minutes;
+}
+
+function buildSpecialistAbsenceRangesByDate(items) {
+  const rangesByDate = new Map();
+  (Array.isArray(items) ? items : []).forEach((item) => {
+    const absenceDate = String(item?.absenceDate || "").trim();
+    if (!absenceDate) {
+      return;
+    }
+    const startTime = String(item?.startTime || "").trim();
+    const endTime = String(item?.endTime || "").trim();
+    const startMinutes = toAbsenceTimeMinutes(startTime);
+    const endMinutes = toAbsenceTimeMinutes(endTime);
+    const list = rangesByDate.get(absenceDate) || [];
+    list.push({
+      startTime,
+      endTime,
+      startMinutes,
+      endMinutes,
+      reason: String(item?.reason || "").trim()
+    });
+    rangesByDate.set(absenceDate, list);
+  });
+  return rangesByDate;
+}
+
+function hasSpecialistAbsenceConflict({
+  absenceRangesByDate,
+  appointmentDate,
+  startTime,
+  endTime
+}) {
+  const normalizedAppointmentDate = String(appointmentDate || "").trim();
+  if (!normalizedAppointmentDate) {
+    return null;
+  }
+  const ranges = absenceRangesByDate instanceof Map ? (absenceRangesByDate.get(normalizedAppointmentDate) || []) : [];
+  if (ranges.length === 0) {
+    return null;
+  }
+  const appointmentStartMinutes = toAbsenceTimeMinutes(startTime);
+  const appointmentEndMinutes = toAbsenceTimeMinutes(endTime);
+  if (appointmentStartMinutes === null || appointmentEndMinutes === null || appointmentStartMinutes >= appointmentEndMinutes) {
+    return null;
+  }
+  return ranges.find((range) => {
+    if (range.startMinutes === null || range.endMinutes === null || range.startMinutes >= range.endMinutes) {
+      return true;
+    }
+    return appointmentStartMinutes < range.endMinutes && range.startMinutes < appointmentEndMinutes;
+  }) || null;
+}
+
+function buildSpecialistAbsenceConflictMessage(appointmentDate = "", conflict = null) {
   const normalizedDate = String(appointmentDate || "").trim();
+  const startTime = String(conflict?.startTime || "").trim();
+  const endTime = String(conflict?.endTime || "").trim();
+  if (normalizedDate && startTime && endTime) {
+    return `Specialist is marked absent on ${normalizedDate} from ${startTime} to ${endTime}.`;
+  }
   return normalizedDate
     ? `Specialist is marked absent on ${normalizedDate}.`
     : "Specialist is marked absent on the selected date.";
@@ -125,6 +195,8 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     getAppointmentScheduleTargetsByScope,
     hasAppointmentClientConflict,
     hasAppointmentScheduleConflict,
+    hasVipRoutineConflictForSpecialist,
+    hasVipRoutineConflictForClient,
     createAppointmentSchedule,
     updateAppointmentScheduleByIdWithRepeatMeta,
     updateAppointmentSchedulesByIds,
@@ -325,7 +397,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         }
 
         const access = { authContext, requester };
-        const ownSpecialistUserId = !vipOnly && !classId
+        const ownSpecialistUserId = !vipOnly && !classId && !canReadAppointments
           ? resolveOwnAppointmentSpecialistUserId(access)
           : null;
         if (ownSpecialistUserId && requestedSpecialistId && requestedSpecialistId !== ownSpecialistUserId) {
@@ -634,20 +706,16 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                 })
               )
             : new Map();
-          const absenceDateSet = shouldEnforceAvailability
-            ? new Set(
-                (
-                  await listAppointmentSpecialistAbsences({
-                    organizationId: access.authContext.organizationId,
-                    specialistId,
-                    dateFrom: recurringDates[0],
-                    dateTo: recurringDates[recurringDates.length - 1]
-                  })
-                )
-                  .map((item) => String(item?.absenceDate || "").trim())
-                  .filter(Boolean)
+          const absenceRangesByDate = shouldEnforceAvailability
+            ? buildSpecialistAbsenceRangesByDate(
+                await listAppointmentSpecialistAbsences({
+                  organizationId: access.authContext.organizationId,
+                  specialistId,
+                  dateFrom: recurringDates[0],
+                  dateTo: recurringDates[recurringDates.length - 1]
+                })
               )
-            : new Set();
+            : new Map();
           const { createdItems, skippedDates } = await withAppointmentTransaction(async (db) => {
             const nextCreatedItems = [];
             const nextSkippedDates = [];
@@ -655,13 +723,19 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
 
             for (const recurringDate of recurringDates) {
               if (shouldEnforceAvailability) {
-                if (absenceDateSet.has(recurringDate)) {
+                const absenceConflict = hasSpecialistAbsenceConflict({
+                  absenceRangesByDate,
+                  appointmentDate: recurringDate,
+                  startTime,
+                  endTime
+                });
+                if (absenceConflict) {
                   if (repeat.skipConflicts) {
                     nextSkippedDates.push(recurringDate);
                     continue;
                   }
                   throw createRouteError(409, {
-                    message: buildSpecialistAbsenceConflictMessage(recurringDate)
+                    message: buildSpecialistAbsenceConflictMessage(recurringDate, absenceConflict)
                   });
                 }
 
@@ -733,6 +807,24 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                   throw createRouteError(409, { message: `Slot conflict on ${recurringDate}.` });
                 }
 
+                const hasVipSpecialistConflict = await hasVipRoutineConflictForSpecialist({
+                  organizationId: access.authContext.organizationId,
+                  specialistId,
+                  appointmentDate: recurringDate,
+                  startTime,
+                  endTime,
+                  db
+                });
+                if (hasVipSpecialistConflict) {
+                  if (repeat.skipConflicts) {
+                    nextSkippedDates.push(recurringDate);
+                    continue;
+                  }
+                  throw createRouteError(409, {
+                    message: `Specialist has a VIP Daily Routine conflict on ${recurringDate}.`
+                  });
+                }
+
                 const hasClientConflict = await hasAppointmentClientConflict({
                   organizationId: access.authContext.organizationId,
                   clientId,
@@ -748,6 +840,24 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                   }
                   throw createRouteError(409, {
                     message: buildClientScheduleConflictMessage(recurringDate)
+                  });
+                }
+
+                const hasVipClientConflict = await hasVipRoutineConflictForClient({
+                  organizationId: access.authContext.organizationId,
+                  clientId,
+                  appointmentDate: recurringDate,
+                  startTime,
+                  endTime,
+                  db
+                });
+                if (hasVipClientConflict) {
+                  if (repeat.skipConflicts) {
+                    nextSkippedDates.push(recurringDate);
+                    continue;
+                  }
+                  throw createRouteError(409, {
+                    message: `Client has a VIP Daily Routine conflict on ${recurringDate}.`
                   });
                 }
               }
@@ -845,9 +955,15 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             dateFrom: appointmentDate,
             dateTo: appointmentDate
           });
-          if (absenceItems.length > 0) {
+          const absenceConflict = hasSpecialistAbsenceConflict({
+            absenceRangesByDate: buildSpecialistAbsenceRangesByDate(absenceItems),
+            appointmentDate,
+            startTime,
+            endTime
+          });
+          if (absenceConflict) {
             return reply.status(409).send({
-              message: buildSpecialistAbsenceConflictMessage(appointmentDate)
+              message: buildSpecialistAbsenceConflictMessage(appointmentDate, absenceConflict)
             });
           }
 
@@ -908,6 +1024,19 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             return reply.status(409).send({ message: "This slot conflicts with existing appointment." });
           }
 
+          const hasVipSpecialistConflict = await hasVipRoutineConflictForSpecialist({
+            organizationId: access.authContext.organizationId,
+            specialistId,
+            appointmentDate,
+            startTime,
+            endTime
+          });
+          if (hasVipSpecialistConflict) {
+            return reply.status(409).send({
+              message: "This slot conflicts with the specialist's VIP Daily Routine."
+            });
+          }
+
           const hasClientConflict = await hasAppointmentClientConflict({
             organizationId: access.authContext.organizationId,
             clientId,
@@ -917,6 +1046,19 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           });
           if (hasClientConflict) {
             return reply.status(409).send({ message: buildClientScheduleConflictMessage() });
+          }
+
+          const hasVipClientConflict = await hasVipRoutineConflictForClient({
+            organizationId: access.authContext.organizationId,
+            clientId,
+            appointmentDate,
+            startTime,
+            endTime
+          });
+          if (hasVipClientConflict) {
+            return reply.status(409).send({
+              message: "This slot conflicts with the client's VIP Daily Routine."
+            });
           }
         }
 
@@ -1253,25 +1395,27 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                 })
               )
             : new Map();
-          const absenceDateSet = shouldEnforceAvailability
-            ? new Set(
-                (
-                  await listAppointmentSpecialistAbsences({
-                    organizationId: access.authContext.organizationId,
-                    specialistId,
-                    dateFrom: recurringDates[0],
-                    dateTo: recurringDates[recurringDates.length - 1]
-                  })
-                )
-                  .map((item) => String(item?.absenceDate || "").trim())
-                  .filter(Boolean)
+          const absenceRangesByDate = shouldEnforceAvailability
+            ? buildSpecialistAbsenceRangesByDate(
+                await listAppointmentSpecialistAbsences({
+                  organizationId: access.authContext.organizationId,
+                  specialistId,
+                  dateFrom: recurringDates[0],
+                  dateTo: recurringDates[recurringDates.length - 1]
+                })
               )
-            : new Set();
+            : new Map();
           const { anchorItem, createdItems, skippedDates } = await withAppointmentTransaction(async (db) => {
             if (shouldEnforceAvailability) {
-              if (absenceDateSet.has(appointmentDate)) {
+              const anchorAbsenceConflict = hasSpecialistAbsenceConflict({
+                absenceRangesByDate,
+                appointmentDate,
+                startTime,
+                endTime
+              });
+              if (anchorAbsenceConflict) {
                 throw createRouteError(409, {
-                  message: buildSpecialistAbsenceConflictMessage(appointmentDate)
+                  message: buildSpecialistAbsenceConflictMessage(appointmentDate, anchorAbsenceConflict)
                 });
               }
 
@@ -1322,6 +1466,20 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                 throw createRouteError(409, { message: "This slot conflicts with existing appointment." });
               }
 
+              const hasAnchorVipSpecialistConflict = await hasVipRoutineConflictForSpecialist({
+                organizationId: access.authContext.organizationId,
+                specialistId,
+                appointmentDate,
+                startTime,
+                endTime,
+                db
+              });
+              if (hasAnchorVipSpecialistConflict) {
+                throw createRouteError(409, {
+                  message: "This slot conflicts with the specialist's VIP Daily Routine."
+                });
+              }
+
               const hasAnchorClientConflict = await hasAppointmentClientConflict({
                 organizationId: access.authContext.organizationId,
                 clientId,
@@ -1334,6 +1492,20 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               if (hasAnchorClientConflict) {
                 throw createRouteError(409, {
                   message: buildClientScheduleConflictMessage()
+                });
+              }
+
+              const hasAnchorVipClientConflict = await hasVipRoutineConflictForClient({
+                organizationId: access.authContext.organizationId,
+                clientId,
+                appointmentDate,
+                startTime,
+                endTime,
+                db
+              });
+              if (hasAnchorVipClientConflict) {
+                throw createRouteError(409, {
+                  message: "This slot conflicts with the client's VIP Daily Routine."
                 });
               }
             }
@@ -1371,13 +1543,19 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               }
 
               if (shouldEnforceAvailability) {
-                if (absenceDateSet.has(recurringDate)) {
+                const recurringAbsenceConflict = hasSpecialistAbsenceConflict({
+                  absenceRangesByDate,
+                  appointmentDate: recurringDate,
+                  startTime,
+                  endTime
+                });
+                if (recurringAbsenceConflict) {
                   if (repeat.skipConflicts) {
                     nextSkippedDates.push(recurringDate);
                     continue;
                   }
                   throw createRouteError(409, {
-                    message: buildSpecialistAbsenceConflictMessage(recurringDate)
+                    message: buildSpecialistAbsenceConflictMessage(recurringDate, recurringAbsenceConflict)
                   });
                 }
 
@@ -1449,6 +1627,24 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                   throw createRouteError(409, { message: `Slot conflict on ${recurringDate}.` });
                 }
 
+                const hasVipSpecialistConflict2 = await hasVipRoutineConflictForSpecialist({
+                  organizationId: access.authContext.organizationId,
+                  specialistId,
+                  appointmentDate: recurringDate,
+                  startTime,
+                  endTime,
+                  db
+                });
+                if (hasVipSpecialistConflict2) {
+                  if (repeat.skipConflicts) {
+                    nextSkippedDates.push(recurringDate);
+                    continue;
+                  }
+                  throw createRouteError(409, {
+                    message: `Specialist has a VIP Daily Routine conflict on ${recurringDate}.`
+                  });
+                }
+
                 const hasClientConflict = await hasAppointmentClientConflict({
                   organizationId: access.authContext.organizationId,
                   clientId,
@@ -1464,6 +1660,24 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                   }
                   throw createRouteError(409, {
                     message: buildClientScheduleConflictMessage(recurringDate)
+                  });
+                }
+
+                const hasVipClientConflict2 = await hasVipRoutineConflictForClient({
+                  organizationId: access.authContext.organizationId,
+                  clientId,
+                  appointmentDate: recurringDate,
+                  startTime,
+                  endTime,
+                  db
+                });
+                if (hasVipClientConflict2) {
+                  if (repeat.skipConflicts) {
+                    nextSkippedDates.push(recurringDate);
+                    continue;
+                  }
+                  throw createRouteError(409, {
+                    message: `Client has a VIP Daily Routine conflict on ${recurringDate}.`
                   });
                 }
               }
@@ -1549,20 +1763,16 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             applyAppointmentDate ? appointmentDate : item.appointmentDate
           ));
           const sortedValidationDates = [...validationDates].filter(Boolean).sort((left, right) => left.localeCompare(right));
-          const absenceDateSet = sortedValidationDates.length > 0
-            ? new Set(
-                (
-                  await listAppointmentSpecialistAbsences({
-                    organizationId: access.authContext.organizationId,
-                    specialistId,
-                    dateFrom: sortedValidationDates[0],
-                    dateTo: sortedValidationDates[sortedValidationDates.length - 1]
-                  })
-                )
-                  .map((item) => String(item?.absenceDate || "").trim())
-                  .filter(Boolean)
+          const absenceRangesByDate = sortedValidationDates.length > 0
+            ? buildSpecialistAbsenceRangesByDate(
+                await listAppointmentSpecialistAbsences({
+                  organizationId: access.authContext.organizationId,
+                  specialistId,
+                  dateFrom: sortedValidationDates[0],
+                  dateTo: sortedValidationDates[sortedValidationDates.length - 1]
+                })
               )
-            : new Set();
+            : new Map();
           const breakRangesByDay = buildBreakRangesByDay(
             await getAppointmentBreaksBySpecialistAndDays({
               organizationId: access.authContext.organizationId,
@@ -1573,9 +1783,15 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
 
           for (const item of target.items) {
             const conflictDate = applyAppointmentDate ? appointmentDate : item.appointmentDate;
-            if (absenceDateSet.has(conflictDate)) {
+            const absenceConflict = hasSpecialistAbsenceConflict({
+              absenceRangesByDate,
+              appointmentDate: conflictDate,
+              startTime,
+              endTime
+            });
+            if (absenceConflict) {
               return reply.status(409).send({
-                message: buildSpecialistAbsenceConflictMessage(conflictDate)
+                message: buildSpecialistAbsenceConflictMessage(conflictDate, absenceConflict)
               });
             }
 
@@ -1651,6 +1867,21 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               return reply.status(409).send({ message: "This slot conflicts with existing appointment." });
             }
 
+            const hasVipSpecialistConflict3 = await hasVipRoutineConflictForSpecialist({
+              organizationId: access.authContext.organizationId,
+              specialistId,
+              appointmentDate: conflictDate,
+              startTime,
+              endTime
+            });
+            if (hasVipSpecialistConflict3) {
+              return reply.status(409).send({
+                message: target.items.length > 1
+                  ? `Specialist has a VIP Daily Routine conflict on ${conflictDate}.`
+                  : "This slot conflicts with the specialist's VIP Daily Routine."
+              });
+            }
+
             const hasClientConflict = await hasAppointmentClientConflict({
               organizationId: access.authContext.organizationId,
               clientId,
@@ -1667,6 +1898,21 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               }
               return reply.status(409).send({
                 message: buildClientScheduleConflictMessage()
+              });
+            }
+
+            const hasVipClientConflict3 = await hasVipRoutineConflictForClient({
+              organizationId: access.authContext.organizationId,
+              clientId,
+              appointmentDate: conflictDate,
+              startTime,
+              endTime
+            });
+            if (hasVipClientConflict3) {
+              return reply.status(409).send({
+                message: target.items.length > 1
+                  ? `Client has a VIP Daily Routine conflict on ${conflictDate}.`
+                  : "This slot conflicts with the client's VIP Daily Routine."
               });
             }
           }

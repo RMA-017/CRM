@@ -893,6 +893,115 @@ test("appointment settings read allows my-children users without work-schedule p
   }
 });
 
+test("appointment settings read lets planner readers request another specialist settings", async () => {
+  const recorder = createRouteRecorder();
+  let capturedSpecialistId = null;
+  const restoreQuery = stubPoolQuery(async () => ({ rows: [] }));
+
+  registerAppointmentSettingsConfigRoutes(recorder.fastify, {
+    setNoCacheHeaders() {},
+    requesterHasOrgFeature(requester, featureKey) {
+      const enabledFeatures = new Set(requester?.orgFeatures || []);
+      return enabledFeatures.has(featureKey);
+    },
+    hasPermission: async (_roleId, permissionCode) => permissionCode === "appointments.planner.read",
+    PERMISSIONS: {
+      APPOINTMENTS_PLANNER_READ: "appointments.planner.read",
+      APPOINTMENTS_VIP_CLIENTS_MY_CLASS: "appointments.vip.my-class",
+      APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip.my-children",
+      SETTINGS_APPOINTMENTS_READ: "settings.appointments.read",
+      SETTINGS_APPOINTMENTS_UPDATE: "settings.appointments.update",
+      APPOINTMENTS_WORK_SCHEDULE_READ: "appointments.work-schedule.read",
+      APPOINTMENTS_WORK_SCHEDULE_CREATE: "appointments.work-schedule.create",
+      APPOINTMENTS_WORK_SCHEDULE_UPDATE: "appointments.work-schedule.update",
+      APPOINTMENTS_WORK_SCHEDULE_DELETE: "appointments.work-schedule.delete"
+    },
+    DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS: 10,
+    DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX: 18,
+    parseOptionalOrganizationId(value) {
+      const parsed = Number.parseInt(String(value || "").trim(), 10);
+      return {
+        value: Number.isInteger(parsed) && parsed > 0 ? parsed : null,
+        error: null
+      };
+    },
+    resolveTargetOrganizationId(access, requestedOrganizationId) {
+      return requestedOrganizationId || access?.authContext?.organizationId || null;
+    },
+    parsePositiveIntegerOr(value, fallback = 0) {
+      const parsed = Number.parseInt(String(value || "").trim(), 10);
+      return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+    },
+    resolveOwnAppointmentSpecialistUserId() {
+      return 7;
+    },
+    toAppointmentDayNum(value) {
+      return {
+        mon: 1,
+        tue: 2,
+        wed: 3,
+        thu: 4,
+        fri: 5,
+        sat: 6,
+        sun: 7
+      }[String(value || "").trim().toLowerCase()] || 0;
+    },
+    normalizeDurationOptions() {
+      return [];
+    },
+    normalizeReminderChannels() {
+      return [];
+    },
+    normalizeVisibleWeekDays() {
+      return [];
+    },
+    validateSettingsPayload() {
+      return null;
+    },
+    getAppointmentSettingsByOrganization: async (_organizationId, options = {}) => {
+      capturedSpecialistId = options?.specialistId ?? null;
+      return { visibleWeekDays: [1, 2, 3, 4, 5] };
+    },
+    saveAppointmentSettings: async () => ({}),
+    withAppointmentTransaction: async (callback) => callback({
+      query: async () => ({ rows: [], rowCount: 0 })
+    }),
+    listAppointmentWorkSchedule: async () => [],
+    listAppointmentWorkScheduleStaffByOrganization: async () => [],
+    createAppointmentWorkScheduleEntry: async () => ({ id: 99 }),
+    updateAppointmentWorkScheduleEntryById: async () => null,
+    deleteAppointmentWorkScheduleEntryById: async () => ({ rowCount: 0 }),
+    replaceAppointmentDefaultWeeklyWorkSchedule: async () => []
+  });
+
+  try {
+    const readRoute = recorder.routes.find((item) => item.method === "GET" && item.path === "/settings");
+    const reply = createReplyRecorder();
+    await readRoute.handler(
+      {
+        authContext: {
+          userId: 7,
+          organizationId: 3,
+          requester: {
+            role_id: 4,
+            is_admin: false,
+            is_platform_admin: false,
+            orgFeatures: ["appointments.planner"]
+          }
+        },
+        query: { specialistId: "9" },
+        log: { error() {} }
+      },
+      reply
+    );
+
+    assert.equal(reply.state.statusCode, 200);
+    assert.equal(capturedSpecialistId, 9);
+  } finally {
+    restoreQuery();
+  }
+});
+
 test("appointment settings patch does not require work-schedule permissions for settings users", async () => {
   const recorder = createRouteRecorder();
   const permissionSet = new Set([

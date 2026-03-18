@@ -94,15 +94,16 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
-        const access = { authContext, requester };
         const requestedSpecialistId = parsePositiveIntegerOr(request.query?.specialistId, 0);
-        const ownSpecialistUserId = resolveSelfScopedSpecialistUserId({
-          authContext,
-          requester,
-          fallbackToOwnUser: canReadSpecialistAbsences,
-          requestedSpecialistId,
-          fallbackOnlyWhenSpecialistIsUnspecified: true
-        });
+        const ownSpecialistUserId = canReadPlannerAbsences
+          ? 0
+          : resolveSelfScopedSpecialistUserId({
+              authContext,
+              requester,
+              fallbackToOwnUser: canReadSpecialistAbsences,
+              requestedSpecialistId,
+              fallbackOnlyWhenSpecialistIsUnspecified: true
+            });
         const specialistId = ownSpecialistUserId || requestedSpecialistId;
         if (ownSpecialistUserId && requestedSpecialistId && requestedSpecialistId !== ownSpecialistUserId) {
           return reply.status(403).send({ message: "Forbidden." });
@@ -172,6 +173,8 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
 
         const dateFrom = String(request.body?.dateFrom || request.body?.absenceDate || "").trim();
         const dateTo = String(request.body?.dateTo || dateFrom).trim();
+        const startTime = String(request.body?.startTime || "").trim();
+        const endTime = String(request.body?.endTime || "").trim();
         const reason = String(request.body?.reason || "").trim();
         if (!specialistId) {
           return reply.status(400).send({ field: "specialistId", message: "Specialist is required." });
@@ -184,6 +187,15 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
         }
         if (dateFrom > dateTo) {
           return reply.status(400).send({ field: "dateRange", message: "Date to must be on or after date from." });
+        }
+        if ((startTime && !endTime) || (!startTime && endTime)) {
+          return reply.status(400).send({ field: "timeRange", message: "Both start and end time are required." });
+        }
+        if ((startTime && !/^\d{2}:\d{2}$/.test(startTime)) || (endTime && !/^\d{2}:\d{2}$/.test(endTime))) {
+          return reply.status(400).send({ field: "timeRange", message: "Invalid time range." });
+        }
+        if (startTime && endTime && startTime >= endTime) {
+          return reply.status(400).send({ field: "timeRange", message: "End time must be after start time." });
         }
 
         const absenceDates = buildDateRange(dateFrom, dateTo);
@@ -200,6 +212,8 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
               actorUserId: authContext.userId,
               specialistId,
               absenceDate,
+              startTime,
+              endTime,
               reason,
               db
             });
@@ -239,6 +253,8 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
             absenceDate: dateFrom,
             dateFrom,
             dateTo,
+            startTime,
+            endTime,
             savedCount,
             cancelledCount
           }
@@ -250,6 +266,8 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
           items,
           dateFrom,
           dateTo,
+          startTime,
+          endTime,
           savedCount,
           cancelledCount,
           cancelledItems

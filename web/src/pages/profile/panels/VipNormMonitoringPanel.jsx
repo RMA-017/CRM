@@ -166,14 +166,15 @@ function VipNormMonitoringPanel({
               <th>Position</th>
               <th>Weekly norm</th>
               <th>Booked this week</th>
-              <th>Status</th>
+              <th>Confirmed</th>
+              <th>Cancelled</th>
             </tr>
           </thead>
           <tbody>
             {vipNormMonitoringLoading ? (
               [0, 1, 2, 3, 4].map((index) => (
                 <tr key={index} aria-hidden="true">
-                  <td colSpan="5" className="skel" />
+                  <td colSpan="6" className="skel" />
                 </tr>
               ))
             ) : visibleItems.length > 0 ? visibleItems.map((item) => (
@@ -182,15 +183,12 @@ function VipNormMonitoringPanel({
                 <td>{item.positionLabel || "-"}</td>
                 <td style={{ textAlign: "center" }}>{item.weeklyNorm > 0 ? item.weeklyNorm : "-"}</td>
                 <td style={{ textAlign: "center" }}>{item.currentBooked}</td>
-                <td className="vip-norm-status-cell">
-                  <span className={`vip-norm-status-pill vip-norm-status-pill-${item.statusKey || "normal"}`}>
-                    {item.status || "Normal"}
-                  </span>
-                </td>
+                <td style={{ textAlign: "center" }}>{item.confirmedCount}</td>
+                <td style={{ textAlign: "center" }}>{item.cancelledCount}</td>
               </tr>
             )) : (
               <tr>
-                <td colSpan="5" className="all-users-state">No norm monitoring records found.</td>
+                <td colSpan="6" className="all-users-state">No norm monitoring records found.</td>
               </tr>
             )}
           </tbody>

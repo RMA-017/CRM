@@ -19,6 +19,10 @@ const clientsReferenceCache = createTtlCache({
   maxEntries: 128,
   defaultTtlMs: 30_000
 });
+const vipNormMonitoringCache = createTtlCache({
+  maxEntries: 64,
+  defaultTtlMs: 30_000
+});
 
 function cloneVipAssignableUsers(items) {
   return (Array.isArray(items) ? items : []).map((item) => ({
@@ -883,6 +887,13 @@ export async function getVipNormMonitoringRows({
 
   const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 5000) : 2000;
   const normalizedAssignedUserId = Number.parseInt(String(assignedUserId || "").trim(), 10) || null;
+
+  const cacheKey = `norm:${organizationId}:${normalizedAssignedUserId ?? 0}:${safeLimit}`;
+  const cached = vipNormMonitoringCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const { rows } = await pool.query(
     `WITH vip_clients AS (
        SELECT
@@ -941,6 +952,7 @@ export async function getVipNormMonitoringRows({
            WHEN an.id IS NULL THEN 'no-norm'
            ELSE 'ready'
          END AS setup_state,
+         s.status AS schedule_status,
          s.id AS schedule_id
        FROM vip_clients vc
        JOIN appointment_schedules s
@@ -948,7 +960,7 @@ export async function getVipNormMonitoringRows({
         AND s.client_id = vc.client_id
         AND s.appointment_date >= date_trunc('week', CURRENT_DATE)::date
         AND s.appointment_date < (date_trunc('week', CURRENT_DATE)::date + INTERVAL '7 days')
-        AND s.status IN ('pending', 'confirmed')
+        AND s.status IN ('pending', 'confirmed', 'cancelled', 'no-show')
        LEFT JOIN users scheduled_specialist
          ON scheduled_specialist.id = s.specialist_id
         AND scheduled_specialist.organization_id = $1
@@ -978,6 +990,12 @@ export async function getVipNormMonitoringRows({
            ELSE 'ready'
          END AS setup_state,
          COUNT(DISTINCT ss.schedule_id)::int AS current_booked,
+         COUNT(DISTINCT ss.schedule_id) FILTER (
+           WHERE LOWER(TRIM(COALESCE(ss.schedule_status, ''))) = 'confirmed'
+         )::int AS confirmed_count,
+         COUNT(DISTINCT ss.schedule_id) FILTER (
+           WHERE LOWER(TRIM(COALESCE(ss.schedule_status, ''))) IN ('cancelled', 'no-show')
+         )::int AS cancelled_count,
          COALESCE(
            jsonb_agg(
              DISTINCT jsonb_build_object(
@@ -1134,6 +1152,8 @@ export async function getVipNormMonitoringRows({
            ELSE 'ready'
          END AS setup_state,
          0::int AS current_booked,
+         0::int AS confirmed_count,
+         0::int AS cancelled_count,
          COALESCE(
            jsonb_agg(
              DISTINCT jsonb_build_object(
@@ -1165,6 +1185,8 @@ export async function getVipNormMonitoringRows({
          sp.position_label,
          sp.max_per_week,
          sp.current_booked,
+         sp.confirmed_count,
+         sp.cancelled_count,
          sp.linked_specialists,
          sp.linked_specialists AS scheduled_specialists,
          sp.setup_state
@@ -1184,6 +1206,8 @@ export async function getVipNormMonitoringRows({
          fp.position_label,
          fp.max_per_week,
          fp.current_booked,
+         fp.confirmed_count,
+         fp.cancelled_count,
          fp.linked_specialists,
          '[]'::jsonb AS scheduled_specialists,
          fp.setup_state
@@ -1200,6 +1224,8 @@ export async function getVipNormMonitoringRows({
        mr.position_label,
        mr.max_per_week,
        mr.current_booked,
+       mr.confirmed_count,
+       mr.cancelled_count,
        mr.linked_specialists,
        mr.scheduled_specialists,
        CASE
@@ -1228,7 +1254,9 @@ export async function getVipNormMonitoringRows({
     [organizationId, safeLimit, normalizedAssignedUserId]
   );
 
-  return rows || [];
+  const result = rows || [];
+  vipNormMonitoringCache.set(cacheKey, result);
+  return result;
 }
 
 export async function findVipTutorAssignmentByClientId({
@@ -1433,12 +1461,7 @@ export async function getVipClassDailyRoutines({
        vcta.class_name,
        vcta.teacher_user_id::text AS teacher_user_id,
        COALESCE(NULLIF(TRIM(teacher_u.full_name), ''), NULLIF(TRIM(teacher_u.username), ''), '') AS teacher_name,
-       (
-         SELECT COUNT(*)
-           FROM vip_client_tutor_assignments vta
-          WHERE vta.organization_id = r.organization_id
-            AND vta.class_assignment_id = r.class_assignment_id
-       )::integer AS children_count,
+       COALESCE(vta_counts.children_count, 0) AS children_count,
        r.day_of_week,
        r.activity_type,
        TO_CHAR(r.start_time, 'HH24:MI') AS start_time,
@@ -1456,6 +1479,12 @@ export async function getVipClassDailyRoutines({
       LEFT JOIN users teacher_u
         ON teacher_u.id = vcta.teacher_user_id
        AND teacher_u.organization_id = r.organization_id
+      LEFT JOIN (
+        SELECT class_assignment_id, COUNT(*)::int AS children_count
+          FROM vip_client_tutor_assignments
+         WHERE organization_id = $1
+         GROUP BY class_assignment_id
+      ) vta_counts ON vta_counts.class_assignment_id = r.class_assignment_id
       WHERE ${whereParts.join(" AND ")}
       ORDER BY
         LOWER(vcta.class_name) ASC,

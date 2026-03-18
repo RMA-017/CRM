@@ -89,6 +89,8 @@ export const appointmentRouteSchemas = Object.freeze({
       absenceDate: dateYmdSchema,
       dateFrom: dateYmdSchema,
       dateTo: dateYmdSchema,
+      startTime: timeHmSchema,
+      endTime: timeHmSchema,
       reason: { type: "string", maxLength: 120 }
     }
   },
