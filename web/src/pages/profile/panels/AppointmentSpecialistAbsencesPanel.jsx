@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import CustomSelect from "../../../components/CustomSelect.jsx";
 import { apiFetch, getApiErrorMessage, readApiResponseData } from "../../../lib/api.js";
 import { formatDateForInput } from "../../../lib/formatters.js";
@@ -303,88 +304,11 @@ function AppointmentSpecialistAbsencesPanel({
     }
   }, [canDeleteAppointmentSpecialistAbsences, dispatchPlannerRefresh, loadAbsences]);
 
-  return (
-    <section id="appointmentSpecialistAbsencesPanel" className="all-users-panel settings-panel">
-      <div className="all-users-head">
-        <h3>Specialist Absences</h3>
-        <div className="all-users-head-actions">
-          <button
-            id="openAppointmentSpecialistAbsenceCreateBtn"
-            type="button"
-            className="header-btn appointment-breaks-add-icon-btn"
-            aria-label="Add specialist absence"
-            title="Add specialist absence"
-            hidden={!canCreateAppointmentSpecialistAbsences}
-            onClick={openCreateForm}
-          >
-            +
-          </button>
-          <button
-            id="closeAppointmentSpecialistAbsencesBtn"
-            type="button"
-            className="header-btn panel-close-btn"
-            aria-label="Close specialist absences panel"
-            onClick={closeAppointmentSpecialistAbsencesPanel}
-          >
-            ×
-          </button>
-        </div>
-      </div>
-
-      <p className="all-users-state" hidden={loading || !message || createFormOpen}>{message}</p>
-
-      <div className="appointment-breaks-view" aria-label="Specialist absences list">
-        <div className="appointment-breaks-table-wrap all-users-table-wrap">
-          <table className="appointment-breaks-table all-users-table" aria-label="Specialist absences table">
-            <thead>
-              <tr>
-                <th>Specialist</th>
-                <th>Date</th>
-                <th>Reason</th>
-                <th>Updated</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan="5" className="all-users-state">Loading...</td>
-                </tr>
-              ) : items.length === 0 ? (
-                <tr>
-                  <td colSpan="5" className="all-users-state">No specialist absences yet.</td>
-                </tr>
-              ) : (
-                items.map((item) => (
-                  <tr key={item.id}>
-                    <td>{item.specialistName || specialistDisplayName || "-"}</td>
-                    <td>{item.absenceDate || "-"}</td>
-                    <td>{item.reason || "-"}</td>
-                    <td>{formatDateTimeLabel(item.updatedAt)}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="table-action-btn danger"
-                        disabled={deletingId === item.id || !canDeleteAppointmentSpecialistAbsences}
-                        onClick={() => {
-                          void handleDelete(item);
-                        }}
-                      >
-                        {deletingId === item.id ? "Deleting..." : "Delete"}
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
+  const createModal = createFormOpen ? (
+    <>
       <section
         id="appointmentSpecialistAbsenceCreateModal"
         className="logout-confirm-modal settings-edit-modal appointment-breaks-add-modal appointment-specialist-absence-modal"
-        hidden={!createFormOpen}
         aria-modal="true"
         role="dialog"
         aria-label="Add specialist absence"
@@ -468,7 +392,7 @@ function AppointmentSpecialistAbsencesPanel({
             <button
               id="saveAppointmentSpecialistAbsenceBtn"
               type="submit"
-              className="header-btn"
+              className="btn"
               disabled={saving || !form.specialistId || !form.dateFrom || !form.dateTo || !canCreateAppointmentSpecialistAbsences}
             >
               {saving ? "Saving..." : "Save"}
@@ -476,7 +400,90 @@ function AppointmentSpecialistAbsencesPanel({
           </div>
         </form>
       </section>
-      <div className="login-overlay" hidden={!createFormOpen} onClick={closeCreateForm} />
+      <div className="login-overlay" onClick={closeCreateForm} />
+    </>
+  ) : null;
+
+  return (
+    <section id="appointmentSpecialistAbsencesPanel" className="all-users-panel settings-panel">
+      <div className="all-users-head">
+        <h3>Specialist Absences</h3>
+        <div className="all-users-head-actions">
+          <button
+            id="openAppointmentSpecialistAbsenceCreateBtn"
+            type="button"
+            className="header-btn appointment-breaks-add-icon-btn"
+            aria-label="Add specialist absence"
+            title="Add specialist absence"
+            hidden={!canCreateAppointmentSpecialistAbsences}
+            onClick={openCreateForm}
+          >
+            +
+          </button>
+          <button
+            id="closeAppointmentSpecialistAbsencesBtn"
+            type="button"
+            className="header-btn panel-close-btn"
+            aria-label="Close specialist absences panel"
+            onClick={closeAppointmentSpecialistAbsencesPanel}
+          >
+            ×
+          </button>
+        </div>
+      </div>
+
+      <p className="all-users-state" hidden={loading || !message || createFormOpen}>{message}</p>
+
+      <div className="appointment-breaks-view" aria-label="Specialist absences list">
+        <div className="appointment-breaks-table-wrap all-users-table-wrap">
+          <table className="appointment-breaks-table all-users-table" aria-label="Specialist absences table">
+            <thead>
+              <tr>
+                <th>Specialist</th>
+                <th>Date</th>
+                <th>Reason</th>
+                <th>Updated</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan="5" className="all-users-state">Loading...</td>
+                </tr>
+              ) : items.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="all-users-state">No specialist absences yet.</td>
+                </tr>
+              ) : (
+                items.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.specialistName || specialistDisplayName || "-"}</td>
+                    <td>{item.absenceDate || "-"}</td>
+                    <td>{item.reason || "-"}</td>
+                    <td>{formatDateTimeLabel(item.updatedAt)}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="table-action-btn danger"
+                        disabled={deletingId === item.id || !canDeleteAppointmentSpecialistAbsences}
+                        onClick={() => {
+                          void handleDelete(item);
+                        }}
+                      >
+                        {deletingId === item.id ? "Deleting..." : "Delete"}
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {createModal
+        ? (typeof document !== "undefined" ? createPortal(createModal, document.body) : createModal)
+        : null}
     </section>
   );
 }

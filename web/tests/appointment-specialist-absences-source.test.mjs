@@ -56,8 +56,8 @@ test("specialist absences menu and planner source wiring stay in place", async (
 
   assert.match(
     panelSource,
-    /const \[createFormOpen, setCreateFormOpen\] = useState\(false\);[\s\S]*id="appointmentSpecialistAbsenceCreateModal"[\s\S]*hidden=\{!createFormOpen\}/s,
-    "Specialist absences panel should keep the create modal hidden until add is requested."
+    /const \[createFormOpen, setCreateFormOpen\] = useState\(false\);[\s\S]*const createModal = createFormOpen \?/s,
+    "Specialist absences panel should only build the create modal when add is requested."
   );
 
   assert.match(
@@ -68,8 +68,14 @@ test("specialist absences menu and planner source wiring stay in place", async (
 
   assert.match(
     panelSource,
-    /className="logout-confirm-modal settings-edit-modal appointment-breaks-add-modal appointment-specialist-absence-modal"[\s\S]*className="login-overlay" hidden=\{!createFormOpen\}/s,
-    "Specialist absences add flow should open in a modal with an overlay."
+    /createPortal\(createModal,\s*document\.body\)/,
+    "Specialist absences add flow should render through a body portal."
+  );
+
+  assert.match(
+    panelSource,
+    /className="logout-confirm-modal settings-edit-modal appointment-breaks-add-modal appointment-specialist-absence-modal"[\s\S]*className="login-overlay"/s,
+    "Specialist absences add flow should keep the modal paired with an overlay."
   );
 
   assert.match(
@@ -86,8 +92,8 @@ test("specialist absences menu and planner source wiring stay in place", async (
 
   assert.match(
     panelSource,
-    /\{saving \? "Saving\.\.\." : "Save"\}/,
-    "Specialist absences modal should use a plain Save action label."
+    /id="saveAppointmentSpecialistAbsenceBtn"[\s\S]*className="btn"[\s\S]*\{saving \? "Saving\.\.\." : "Save"\}/s,
+    "Specialist absences modal should use the shared Save button styling and label."
   );
 
   assert.doesNotMatch(

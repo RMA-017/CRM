@@ -2151,7 +2151,7 @@ function AppointmentScheduler({
     : "single";
   const shouldLockEditDate = isEditRecurring && normalizedEditScope !== "single";
   const lockedVipServiceName = String(selectedSpecialistServiceName || "").trim() || "Specialist";
-  const isVipServiceLocked = Boolean(vipOnly || clientVipOnly);
+  const isVipServiceLocked = Boolean(vipOnly);
   const isVipAutoRollingRepeat = Boolean(vipOnly || clientVipOnly);
   const unlockedServiceNameRef = useRef(String(createForm.service || "").trim());
   const wasVipServiceLockedRef = useRef(isVipServiceLocked);
@@ -4258,11 +4258,6 @@ function AppointmentScheduler({
                               const nextRepeatUntil = getVipAutoRollingRepeatUntil();
                               if (nextRepeatUntil) {
                                 setCreateForm((prev) => ({ ...prev, repeatUntil: nextRepeatUntil }));
-                              }
-                            }
-                            if (checked) {
-                              if (createErrors.service) {
-                                setCreateErrors((prev) => ({ ...prev, service: "" }));
                               }
                             }
                             if (createErrors.repeatUntil) {

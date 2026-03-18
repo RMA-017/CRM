@@ -635,7 +635,7 @@ function mapVipAttendanceHistoryRecord(row) {
 
 function normalizeVipNormMonitoringSpecialists(...groups) {
   const map = new Map();
-  groups.flat().forEach((group) => {
+  groups.forEach((group) => {
     const items = Array.isArray(group) ? group : [];
     items.forEach((item) => {
       const id = String(item?.id || "").trim();

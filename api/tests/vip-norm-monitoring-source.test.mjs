@@ -68,4 +68,10 @@ test("VIP norm monitoring route uses dedicated feature and permission access", a
     /const rawStatusKey = String\(row\?\.status_key[\s\S]*No norm configured/s,
     "VIP norm monitoring mapping should preserve backend status keys instead of collapsing everything to booked-vs-norm only."
   );
+
+  assert.match(
+    routeSource,
+    /function normalizeVipNormMonitoringSpecialists\(\.\.\.groups\) \{[\s\S]*groups\.forEach\(\(group\) => \{[\s\S]*Array\.isArray\(group\) \? group : \[\]/s,
+    "VIP norm monitoring specialist normalization should iterate each specialist array directly so filter options and row matching stay populated."
+  );
 });

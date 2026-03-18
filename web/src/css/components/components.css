@@ -4895,14 +4895,6 @@ label.field > span:first-child,
   grid-template-columns: minmax(100px, 124px) minmax(0, 1fr);
 }
 
-#appointmentSpecialistAbsenceCreateModal.appointment-specialist-absence-modal {
-  width: calc(100vw - 24px);
-  max-width: calc(100vw - 24px);
-  max-height: calc(100dvh - 24px);
-  min-height: min(720px, calc(100dvh - 24px));
-  padding: 14px;
-}
-
 #appointmentSpecialistAbsenceCreateModal .appointment-specialist-absence-form {
   min-height: 0;
   flex: 1 1 auto;
@@ -4959,15 +4951,6 @@ label.field > span:first-child,
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-}
-
-#appointmentSpecialistAbsenceCreateModal .appointment-breaks-add-modal-actions {
-  justify-content: flex-end;
-}
-
-#appointmentSpecialistAbsenceCreateModal .appointment-breaks-add-modal-actions .header-btn {
-  width: 96px;
-  min-width: 96px;
 }
 
 #appointmentBreaksAddModal #appointmentBreaksAddSaveBtn,
@@ -6100,7 +6083,7 @@ label.field > span:first-child,
 }
 
 .appointment-client-vip-field {
-  gap: 5px;
+  gap: 0;
   min-width: 0;
 }
 

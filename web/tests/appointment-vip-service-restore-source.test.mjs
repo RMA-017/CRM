@@ -7,6 +7,18 @@ test("appointment create modal restores previous service when VIP lock turns off
 
   assert.match(
     source,
+    /const isVipServiceLocked = Boolean\(vipOnly\);/,
+    "Appointment scheduler should keep specialist-position service lock only for the dedicated VIP-only flow."
+  );
+
+  assert.doesNotMatch(
+    source,
+    /const isVipServiceLocked = Boolean\(vipOnly \|\| clientVipOnly\);/,
+    "Active toggle should no longer force the service name into the specialist position label."
+  );
+
+  assert.match(
+    source,
     /const unlockedServiceNameRef = useRef\(String\(createForm\.service \|\| ""\)\.trim\(\)\);/,
     "Appointment scheduler should keep the last unlocked service name before VIP mode overrides it."
   );
