@@ -114,7 +114,9 @@ export function useVipNormMonitoringSection({
         specialists: nextSpecialists
       });
       if (nextItems.length === 0) {
-        setVipNormMonitoringMessage("No norm monitoring records found.");
+        setVipNormMonitoringMessage(
+          "No norm monitoring records found. Check VIP assignments, specialist positions, and active appointment norms."
+        );
       }
     } catch {
       setVipNormMonitoringItems([]);

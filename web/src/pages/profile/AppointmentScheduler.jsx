@@ -616,7 +616,8 @@ function mapScheduleItemToPlannerCard(item) {
     status: String(item?.status || "pending").trim().toLowerCase(),
     note: String(item?.note || "").trim(),
     repeatType: String(item?.repeatType || "none").trim().toLowerCase(),
-    repeatGroupKey: String(item?.repeatGroupKey || "").trim()
+    repeatGroupKey: String(item?.repeatGroupKey || "").trim(),
+    isAutoRollingRepeat: Boolean(item?.isAutoRollingRepeat || item?.is_auto_rolling_repeat)
   };
 }
 
@@ -2156,8 +2157,8 @@ function AppointmentScheduler({
     : "single";
   const shouldLockEditDate = isEditRecurring && normalizedEditScope !== "single";
   const lockedVipServiceName = String(selectedSpecialistServiceName || "").trim() || "Specialist";
-  const isVipServiceLocked = Boolean(vipOnly || clientVipOnly || selectedClient?.isVip);
-  const isVipAutoRollingRepeat = Boolean(vipOnly || clientVipOnly || selectedClient?.isVip);
+  const isVipServiceLocked = Boolean(vipOnly || clientVipOnly);
+  const isVipAutoRollingRepeat = Boolean(vipOnly || clientVipOnly);
   const unlockedServiceNameRef = useRef(String(createForm.service || "").trim());
   const wasVipServiceLockedRef = useRef(isVipServiceLocked);
   const wasVipAutoRollingRepeatRef = useRef(isVipAutoRollingRepeat);
@@ -3126,8 +3127,9 @@ function AppointmentScheduler({
       ? String(existingItem?.clientId || "").trim()
       : String(selectedPlannerClientFilterId || "").trim();
     const existingClientIsVip = Boolean(existingItem?.isVip);
+    const existingAutoRollingRepeat = Boolean(existingItem?.isAutoRollingRepeat);
 
-    setClientVipOnly(Boolean(vipOnly || existingClientIsVip));
+    setClientVipOnly(Boolean(vipOnly || existingAutoRollingRepeat));
     if (isEditMode && preselectedClientId) {
       setClientMap((prev) => {
         const previousClient = prev?.[preselectedClientId] && typeof prev[preselectedClientId] === "object"
@@ -3210,16 +3212,15 @@ function AppointmentScheduler({
       setClientOptions([]);
       return;
     }
-    const shouldFilterVipClients = isVipRecurringModal || vipOnly || clientVipOnly;
     const trimmedFirstName = String(clientSearch.firstName || "").trim();
     const trimmedLastName = String(clientSearch.lastName || "").trim();
     const combinedLength = `${trimmedFirstName}${trimmedLastName}`.length;
-    if (!shouldFilterVipClients && combinedLength === 0) {
+    if (combinedLength === 0) {
       setClientSearchMessage("");
       setClientOptions([]);
       return;
     }
-    if (!shouldFilterVipClients && combinedLength < 3) {
+    if (combinedLength < 3) {
       setClientSearchMessage("Type at least 3 letters.");
       setClientOptions([]);
       return;
@@ -3238,9 +3239,6 @@ function AppointmentScheduler({
         }
         if (trimmedLastName) {
           queryParams.set("lastName", trimmedLastName);
-        }
-        if (shouldFilterVipClients) {
-          queryParams.set("isVip", "true");
         }
 
         const response = await apiFetch(`/api/clients/search?${queryParams.toString()}`, {
@@ -3305,7 +3303,7 @@ function AppointmentScheduler({
       active = false;
       window.clearTimeout(timerId);
     };
-  }, [clientSearch.firstName, clientSearch.lastName, clientVipOnly, createModal.open, isVipRecurringModal, vipOnly]);
+  }, [clientSearch.firstName, clientSearch.lastName, createModal.open, vipOnly]);
 
   useEffect(() => {
     if (!createModal.open) {
@@ -4273,7 +4271,7 @@ function AppointmentScheduler({
                 {!vipOnly ? (
                   <div className="appointment-client-select-row">
                     <div className="field appointment-client-vip-field">
-                      <label htmlFor="appointmentClientVipOnly">VIP</label>
+                      <label htmlFor="appointmentClientVipOnly">Active</label>
                       <label
                         className={`appointment-client-vip-toggle${(vipOnly || clientVipOnly) ? " is-active" : ""}`}
                         htmlFor="appointmentClientVipOnly"
@@ -4287,13 +4285,8 @@ function AppointmentScheduler({
                             const checked = event.currentTarget.checked;
                             setClientVipOnly(checked);
                             if (checked) {
-                              setCreateForm((prev) => ({
-                                ...prev,
-                                clientId: "",
-                                service: lockedVipServiceName
-                              }));
-                              if (createErrors.clientId || createErrors.service) {
-                                setCreateErrors((prev) => ({ ...prev, clientId: "", service: "" }));
+                              if (createErrors.service) {
+                                setCreateErrors((prev) => ({ ...prev, service: "" }));
                               }
                             }
                           }}
@@ -4418,7 +4411,8 @@ function AppointmentScheduler({
                 <div className="appointment-modal-section">
                   <div className="appointment-repeat-block">
                     <div className="appointment-create-date-time-row appointment-repeat-head-row">
-                      <div className="field appointment-repeat-until-field">
+                      {!isVipAutoRollingRepeat ? (
+                        <div className="field appointment-repeat-until-field">
                           <label htmlFor="appointmentCreateRepeatUntil">Repeat Until</label>
                           <input
                             id="appointmentCreateRepeatUntil"
@@ -4426,10 +4420,7 @@ function AppointmentScheduler({
                             className={createErrors.repeatUntil ? "input-error" : ""}
                             value={createForm.repeatUntil}
                             min={createForm.appointmentDate || undefined}
-                            readOnly={isVipAutoRollingRepeat}
-                            disabled={isVipAutoRollingRepeat}
                             onInput={(event) => {
-                              if (isVipAutoRollingRepeat) return;
                               const nextValue = event.currentTarget.value;
                               setCreateForm((prev) => ({ ...prev, repeatUntil: nextValue }));
                               if (createErrors.repeatUntil) {
@@ -4438,6 +4429,7 @@ function AppointmentScheduler({
                             }}
                           />
                         </div>
+                      ) : null}
                       <div className="field appointment-repeat-title-field">
                         <label>Repeat weekly</label>
                         <div className="appointment-repeat-days" role="group" aria-label="Repeat weekdays">

@@ -56,6 +56,12 @@ test("VIP norm monitoring is wired into routes, menu, panel filters, and dedicat
 
   assert.match(
     panelSource,
+    /vipNormMonitoringMessage[\s\S]*id="vipNormMonitoringState"/s,
+    "VIP norm monitoring panel should render the monitoring status message."
+  );
+
+  assert.match(
+    panelSource,
     /<th>Client<\/th>[\s\S]*<th>Position<\/th>[\s\S]*<th>Weekly norm<\/th>[\s\S]*<th>Booked this week<\/th>[\s\S]*<th>Status<\/th>/s,
     "VIP norm monitoring table should render the expected columns."
   );

@@ -393,45 +393,38 @@ function StatisticsPlannerReportPanel({
             </article>
           </div>
 
-          <div className="planner-report-section-grid">
-            <section className="planner-report-section">
-              <div className="planner-report-section-head">
-                <h4>Lesson Details</h4>
-              </div>
-              <div className="all-users-table-wrap">
-                <table className="all-users-table planner-report-table is-detail-report" aria-label="Lesson status report details">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Start Time</th>
-                      <th>Duration</th>
-                      <th>Specialist</th>
-                      <th>Client</th>
-                      <th>Service</th>
-                      <th>Status</th>
+          <div className="all-users-table-wrap">
+            <table className="all-users-table planner-report-table is-detail-report" aria-label="Lesson status report details">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Start Time</th>
+                  <th>Duration</th>
+                  <th>Specialist</th>
+                  <th>Client</th>
+                  <th>Service</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(Array.isArray(reportData?.details) ? reportData.details : []).map((row) => {
+                  const statusPresentation = getPlannerReportStatusPresentation(row.status);
+                  return (
+                    <tr
+                      key={`plannerReportDetail_${row.appointmentId || `${row.appointmentDate}_${row.startTime}_${row.specialistId}_${row.clientId}_${row.serviceName}_${row.status}`}`}
+                    >
+                      <td>{row.appointmentDate || "-"}</td>
+                      <td>{row.startTime || "-"}</td>
+                      <td>{formatPlannerReportDuration(row.durationMinutes, row.startTime, row.endTime)}</td>
+                      <td>{row.specialistName || "-"}</td>
+                      <td>{row.clientName || "-"}</td>
+                      <td>{row.serviceName || "-"}</td>
+                      <td className={statusPresentation.className}>{statusPresentation.label}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {(Array.isArray(reportData?.details) ? reportData.details : []).map((row) => {
-                      const statusPresentation = getPlannerReportStatusPresentation(row.status);
-                      return (
-                        <tr
-                          key={`plannerReportDetail_${row.appointmentId || `${row.appointmentDate}_${row.startTime}_${row.specialistId}_${row.clientId}_${row.serviceName}_${row.status}`}`}
-                        >
-                          <td>{row.appointmentDate || "-"}</td>
-                          <td>{row.startTime || "-"}</td>
-                          <td>{formatPlannerReportDuration(row.durationMinutes, row.startTime, row.endTime)}</td>
-                          <td>{row.specialistName || "-"}</td>
-                          <td>{row.clientName || "-"}</td>
-                          <td>{row.serviceName || "-"}</td>
-                          <td className={statusPresentation.className}>{statusPresentation.label}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </>
       ) : null}

@@ -67,18 +67,28 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /const isVipAutoRollingRepeat = Boolean\(vipOnly \|\| clientVipOnly \|\| selectedClient\?\.isVip\);/,
-    "VIP clients should switch the planner modal into auto-rolling repeat mode."
+    /const isVipAutoRollingRepeat = Boolean\(vipOnly \|\| clientVipOnly\);/,
+    "Planner modal should drive auto-rolling repeat from the Active toggle."
+  );
+  assert.match(
+    source,
+    /<label htmlFor="appointmentClientVipOnly">Active<\/label>/,
+    "Planner modal should rename the VIP toggle to Active."
+  );
+  assert.doesNotMatch(
+    source,
+    /queryParams\.set\("isVip", "true"\)/,
+    "Planner modal client search should no longer force VIP-only filtering."
   );
   assert.match(
     source,
     /requestPayload\.repeat = \{[\s\S]*autoRolling: isVipAutoRollingRepeat/s,
-    "Planner modal should send autoRolling repeat metadata for VIP appointments."
+    "Planner modal should send autoRolling repeat metadata for active appointments."
   );
   assert.match(
     source,
     /!\s*isVipAutoRollingRepeat \? \([\s\S]*appointmentCreateRepeatUntil[\s\S]*\) : null/s,
-    "VIP auto-rolling repeat mode should hide the manual Repeat Until field."
+    "Active auto-rolling repeat mode should hide the manual Repeat Until field."
   );
   assert.match(
     source,

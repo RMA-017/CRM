@@ -241,6 +241,24 @@ test("specialist absences permissions are independent from planner permissions",
   assert.equal(access.canAccessForcedView, true);
 });
 
+test("specialist absences menu recognizes mutaxassis role labels", () => {
+  const access = readAccessSnapshot({
+    isAdmin: false,
+    isPlatformAdmin: false,
+    role: "Mutaxassis",
+    permissions: [
+      "appointments.specialist-absences",
+      "appointments.specialist-absences.read"
+    ],
+    orgFeatures: ["appointments.specialist_absences"]
+  }, "appointment-specialist-absences");
+
+  assert.equal(access.canReadAppointmentSpecialistAbsences, true);
+  assert.equal(access.canOpenAppointmentSpecialistAbsences, true);
+  assert.equal(access.hasAppointmentsMenuAccess, true);
+  assert.equal(access.canAccessForcedView, true);
+});
+
 test("planner read still enables specialist absence blocks without opening specialist absences submenu", () => {
   const access = readAccessSnapshot({
     isAdmin: false,

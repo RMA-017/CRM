@@ -966,32 +966,15 @@ main.home-main:has(#organizationsPanel) {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
-#statisticsPlannerReportPanel .planner-report-section-head {
-  flex-direction: row;
-  align-items: flex-start;
-}
-
-#statisticsPlannerReportPanel .planner-report-section-grid,
-#statisticsPlannerReportPanel .planner-report-section {
+#statisticsPlannerReportPanel .all-users-table-wrap {
+  width: 100%;
   overflow: visible;
 }
 
-#statisticsPlannerReportPanel .planner-report-section .all-users-table-wrap {
-  width: 100%;
-  overflow-x: visible;
-  overflow-y: auto;
-}
-
 #statisticsPlannerReportPanel .planner-report-table {
-  width: max-content;
-  min-width: 100%;
-  table-layout: auto;
-}
-
-#statisticsPlannerReportPanel .planner-report-table th,
-#statisticsPlannerReportPanel .planner-report-table td {
-  white-space: nowrap;
-  width: auto;
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
 }
 
 /* Appointment Settings panel — the form stacks responsively, so avoid forcing a

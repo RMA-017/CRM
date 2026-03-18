@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 
-test("appointment edit modal restores client select label and VIP state from the existing planner card", async () => {
+test("appointment edit modal restores client select label and active auto-repeat state from the existing planner card", async () => {
   const source = await readFile(new URL("../src/pages/profile/AppointmentScheduler.jsx", import.meta.url), "utf8");
 
   assert.match(
@@ -19,8 +19,8 @@ test("appointment edit modal restores client select label and VIP state from the
 
   assert.match(
     source,
-    /setClientVipOnly\(Boolean\(vipOnly \|\| existingClientIsVip\)\);/,
-    "Editing an existing VIP appointment should reopen the modal with the VIP toggle still active."
+    /const existingAutoRollingRepeat = Boolean\(existingItem\?\.isAutoRollingRepeat\);[\s\S]*setClientVipOnly\(Boolean\(vipOnly \|\| existingAutoRollingRepeat\)\);/s,
+    "Editing an existing auto-rolling appointment should reopen the modal with the Active toggle still enabled."
   );
 
   assert.match(

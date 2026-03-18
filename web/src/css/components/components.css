@@ -879,11 +879,6 @@ label.field > span:first-child,
   flex-shrink: 0;
 }
 
-.org-feature-accordion-toggle:hover {
-  color: var(--text-main);
-  background: var(--line);
-}
-
 .org-feature-accordion-children {
   flex: 0 0 auto;
   margin-top: 2px;
@@ -2059,7 +2054,7 @@ label.field > span:first-child,
   justify-content: flex-start;
   width: 100%;
   gap: 10px;
-  margin-bottom: 0;
+  margin-bottom: 10px;
 }
 
 .statistics-history-toolbar .field {
@@ -2279,6 +2274,12 @@ label.field > span:first-child,
   margin-top: 10px;
 }
 
+#statisticsPlannerReportPanel .all-users-table-wrap {
+  margin-top: 10px;
+  max-height: none;
+  overflow: visible;
+}
+
 .planner-report-summary-card {
   display: flex;
   flex-direction: column;
@@ -2324,57 +2325,6 @@ label.field > span:first-child,
   font-size: 1.5rem;
   line-height: 1;
   color: var(--text-main);
-}
-
-.planner-report-section-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.planner-report-section {
-  border: 1px solid #d8e4f2;
-  border-radius: 16px;
-  background: linear-gradient(180deg, #fbfdff 0%, #f6f9fd 100%);
-  padding: 0;
-  overflow: hidden;
-}
-
-.planner-report-section .all-users-table-wrap {
-  width: 100%;
-  max-width: none;
-  margin-left: 0;
-  margin-right: 0;
-  border-left: 0;
-  border-right: 0;
-  border-radius: 0;
-}
-
-.planner-report-section-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 10px;
-  margin: 10px 0;
-}
-
-.planner-report-section-head h4,
-.planner-report-section-head p {
-  margin: 0;
-}
-
-.planner-report-section-head h4 {
-  font-size: 1rem;
-  color: var(--text-main);
-  width: 100%;
-  text-align: center;
-}
-
-.planner-report-section-head p {
-  font-size: 0.82rem;
-  color: var(--text-muted);
-  text-align: right;
 }
 
 .planner-report-table {
@@ -2483,14 +2433,6 @@ label.field > span:first-child,
   .planner-report-load-btn {
     width: 100%;
     max-width: 100%;
-  }
-
-  .planner-report-section-head {
-    flex-direction: column;
-  }
-
-  .planner-report-section-head p {
-    text-align: left;
   }
 }
 

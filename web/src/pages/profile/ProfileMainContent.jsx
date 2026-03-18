@@ -42,6 +42,12 @@ const VipTutorAssignmentsPanel = lazy(() => import("./panels/VipTutorAssignments
 
 const VIP_ATTENDANCE_ABSENT_REASON_MAX_LENGTH = 64;
 const VIP_ATTENDANCE_EDIT_NOTE_MAX_LENGTH = 128;
+const SPECIALIST_ROLE_MATCHERS = Object.freeze([
+  "specialist",
+  "spetsialist",
+  "mutaxassis",
+  "специалист"
+]);
 
 const VIP_DAILY_ROUTINE_DAY_OPTIONS = [
   { value: "1", label: "Monday" },
@@ -244,7 +250,7 @@ function ProfileMainContent({
   onAppointmentNotification
 }) {
   const profileRoleText = `${String(profile?.role || "").trim().toLowerCase()} ${String(profile?.position || "").trim().toLowerCase()}`;
-  const isSpecialistUser = profileRoleText.includes("specialist") || profileRoleText.includes("spetsialist");
+  const isSpecialistUser = SPECIALIST_ROLE_MATCHERS.some((matcher) => profileRoleText.includes(matcher));
   const isProfileReady = Boolean(profile?.username);
   const showStatisticsBootstrapSkeleton = mainView === "statistics-class" && !isProfileReady;
   const showStatisticsPlannerReportBootstrapSkeleton = mainView === "statistics-planner-report" && !isProfileReady;
