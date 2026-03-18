@@ -4358,16 +4358,19 @@ export async function getAppointmentPlannerReport({
 export async function getAppointmentPlannerReportFilters({
   organizationId,
   assignedUserId = null,
-  specialistId = null
+  specialistId = null,
+  includeAllClients = false
 }) {
   await ensureAppointmentPlannerReportIndexes();
 
   const normalizedAssignedUserId = Number.parseInt(String(assignedUserId || "").trim(), 10) || 0;
   const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
+  const normalizedIncludeAllClients = includeAllClients === true;
   const cacheKey = [
     `org:${organizationId}`,
     `assigned:${normalizedAssignedUserId || 0}`,
-    `specialist:${normalizedSpecialistId || 0}`
+    `specialist:${normalizedSpecialistId || 0}`,
+    `allClients:${normalizedIncludeAllClients ? 1 : 0}`
   ].join("|");
   const cached = appointmentPlannerFilterCache.get(cacheKey);
   if (cached) {
@@ -4391,30 +4394,69 @@ export async function getAppointmentPlannerReportFilters({
           })}
         )`;
   }
+  const clientRowsPromise = normalizedIncludeAllClients
+    ? (() => {
+        const clientScopeParams = [organizationId];
+        let vipScopeSql = "";
+        if (normalizedAssignedUserId > 0) {
+          clientScopeParams.push(normalizedAssignedUserId);
+          vipScopeSql = `AND (
+                c.is_vip = FALSE
+                OR ${buildAssignedVipClientExistsSql({
+                  organizationRef: "c.organization_id",
+                  clientRef: "c.id",
+                  userParamRef: `$${clientScopeParams.length}`
+                })}
+              )`;
+        }
+
+        return pool.query(
+          `SELECT
+             c.id::text AS id,
+             c.first_name,
+             c.last_name,
+             c.middle_name,
+             c.is_vip
+            FROM clients c
+            JOIN organizations o
+              ON o.id = c.organization_id
+           WHERE c.organization_id = $1
+             AND o.is_active = TRUE
+             ${vipScopeSql}
+           ORDER BY
+             LOWER(TRIM(c.last_name)) ASC,
+             LOWER(TRIM(c.first_name)) ASC,
+             LOWER(TRIM(COALESCE(c.middle_name, ''))) ASC,
+             c.id ASC`,
+          clientScopeParams
+        );
+      })()
+    : pool.query(
+        `SELECT
+           c.id::text AS id,
+           c.first_name,
+           c.last_name,
+           c.middle_name,
+           c.is_vip
+          FROM appointment_schedules s
+          JOIN clients c
+            ON c.id = s.client_id
+           AND c.organization_id = s.organization_id
+         WHERE s.organization_id = $1
+           ${specialistFilterSql}
+           ${vipScopeSql}
+         GROUP BY c.id, c.first_name, c.last_name, c.middle_name, c.is_vip
+         ORDER BY
+           LOWER(TRIM(c.last_name)) ASC,
+           LOWER(TRIM(c.first_name)) ASC,
+           LOWER(TRIM(COALESCE(c.middle_name, ''))) ASC,
+           c.id ASC`,
+        clientQueryParams
+      );
+
   const [specialistRows, clientRowsResult] = await Promise.all([
     getAppointmentSpecialistsByOrganization(organizationId),
-    pool.query(
-      `SELECT
-         c.id::text AS id,
-         c.first_name,
-         c.last_name,
-         c.middle_name,
-         c.is_vip
-        FROM appointment_schedules s
-        JOIN clients c
-          ON c.id = s.client_id
-         AND c.organization_id = s.organization_id
-       WHERE s.organization_id = $1
-         ${specialistFilterSql}
-         ${vipScopeSql}
-       GROUP BY c.id, c.first_name, c.last_name, c.middle_name, c.is_vip
-       ORDER BY
-         LOWER(TRIM(c.last_name)) ASC,
-         LOWER(TRIM(c.first_name)) ASC,
-         LOWER(TRIM(COALESCE(c.middle_name, ''))) ASC,
-         c.id ASC`,
-      clientQueryParams
-    )
+    clientRowsPromise
   ]);
 
   const result = {

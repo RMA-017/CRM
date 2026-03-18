@@ -227,6 +227,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
       }
 
       try {
+        const includeAllClients = parseNullableBoolean(
+          request.query?.includeAllClients ?? request.query?.include_all_clients
+        ) === true;
         const ownSpecialistUserId = resolveOwnAppointmentSpecialistUserId(access);
         const vipReadScope = await resolveAppointmentVipReadScope({
           roleId: access.requester?.role_id,
@@ -243,7 +246,8 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const data = await getAppointmentPlannerReportFilters({
           organizationId: access.authContext.organizationId,
           assignedUserId,
-          specialistId: ownSpecialistUserId
+          specialistId: ownSpecialistUserId,
+          includeAllClients
         });
         if (ownSpecialistUserId) {
           data.specialists = (Array.isArray(data?.specialists) ? data.specialists : []).filter(

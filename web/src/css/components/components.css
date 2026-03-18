@@ -6126,10 +6126,11 @@ label.field > span:first-child,
   background: var(--input-bg);
   color: var(--text-main);
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 8px;
   font-size: var(--fs-small);
   font-family: inherit;
   line-height: normal;
@@ -6147,7 +6148,9 @@ label.field > span:first-child,
 .appointment-client-vip-toggle > span {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-width: 0;
+  text-align: center;
 }
 
 .appointment-client-vip-toggle input[type="checkbox"] {

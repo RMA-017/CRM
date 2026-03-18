@@ -384,7 +384,8 @@ test("planner report filters scope specialist users to their own specialist id",
   assert.deepEqual(capturedArgs, {
     organizationId: 3,
     assignedUserId: null,
-    specialistId: 7
+    specialistId: 7,
+    includeAllClients: false
   });
   assert.deepEqual(reply.state.payload?.specialists, [{ id: "7", name: "Teacher One" }]);
 });
@@ -414,7 +415,43 @@ test("planner report filters use assigned requester scope for VIP client options
   assert.deepEqual(capturedArgs, {
     organizationId: 3,
     assignedUserId: 7,
-    specialistId: null
+    specialistId: null,
+    includeAllClients: false
+  });
+});
+
+test("planner report filters can request all clients for planner toolbar", async () => {
+  const recorder = createRouteRecorder();
+  let capturedArgs = null;
+
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      getAppointmentPlannerReportFilters: async (args) => {
+        capturedArgs = args;
+        return { specialists: [], clients: [] };
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "GET", "/report/filters");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest(),
+      query: { includeAllClients: "true" }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 200);
+  assert.deepEqual(capturedArgs, {
+    organizationId: 3,
+    assignedUserId: null,
+    specialistId: null,
+    includeAllClients: true
   });
 });
 

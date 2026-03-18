@@ -7,8 +7,8 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
 
   assert.match(
     source,
-    /\/api\/appointments\/report\/filters/,
-    "Appointment scheduler should load global planner client filters."
+    /\/api\/appointments\/report\/filters\?includeAllClients=true/,
+    "Appointment scheduler should load all planner clients so the Client filter works for VIP and non-VIP records."
   );
   assert.match(
     source,
@@ -72,7 +72,7 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /<label htmlFor="appointmentClientVipOnly">Active<\/label>/,
+    /htmlFor="appointmentClientVipOnly"[\s\S]*?<span>Active<\/span>/,
     "Planner modal should rename the VIP toggle to Active."
   );
   assert.doesNotMatch(
@@ -97,7 +97,7 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /id="appointmentCreateTime"[\s\S]*menuWidthScale=\{0\.85\}/s,
+    /id="appointmentCreateTime"[\s\S]*menuWidthScale=\{0\.8\}/s,
     "Planner Start Time dropdown should shrink its opened menu width."
   );
   assert.match(

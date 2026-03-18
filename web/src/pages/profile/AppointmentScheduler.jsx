@@ -1666,7 +1666,7 @@ function AppointmentScheduler({
               })
             : Promise.resolve(null),
           !vipOnly && canReadStatisticsPlannerReport
-            ? apiFetch("/api/appointments/report/filters", {
+            ? apiFetch("/api/appointments/report/filters?includeAllClients=true", {
                 method: "GET",
                 cache: "no-store"
               })
@@ -4385,7 +4385,7 @@ function AppointmentScheduler({
                       placeholder="Select start time"
                       value={createForm.startTime}
                       options={timeSelectOptions}
-                      menuWidthScale={0.85}
+                      menuWidthScale={0.8}
                       error={Boolean(createErrors.startTime)}
                       onChange={(nextValue) => {
                         setCreateForm((prev) => ({ ...prev, startTime: nextValue }));
