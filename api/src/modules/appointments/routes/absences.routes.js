@@ -158,8 +158,7 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
         );
         const ownSpecialistUserId = resolveSelfScopedSpecialistUserId({
           authContext,
-          requester,
-          fallbackToOwnUser: true
+          requester
         });
         const requestedSpecialistId = parsePositiveIntegerOr(request.body?.specialistId, 0);
         const specialistId = ownSpecialistUserId || requestedSpecialistId;
@@ -308,8 +307,7 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
         const access = { authContext, requester };
         const ownSpecialistUserId = resolveSelfScopedSpecialistUserId({
           authContext,
-          requester,
-          fallbackToOwnUser: true
+          requester
         });
         if (!canDeleteSpecialistAbsences) {
           return reply.status(403).send({ message: "Forbidden." });

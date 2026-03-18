@@ -3,12 +3,13 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 
 test("specialist absences menu and planner source wiring stay in place", async () => {
-  const [sideMenuSource, appSource, schedulerSource, helpersSource, accessSource, panelSource] = await Promise.all([
+  const [sideMenuSource, appSource, schedulerSource, helpersSource, accessSource, mainContentSource, panelSource] = await Promise.all([
     readFile(new URL("../src/pages/profile/ProfileSideMenu.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/App.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/pages/profile/AppointmentScheduler.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/pages/profile/profile.helpers.js", import.meta.url), "utf8"),
     readFile(new URL("../src/pages/profile/useProfileAccess.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/pages/profile/ProfileMainContent.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/pages/profile/panels/AppointmentSpecialistAbsencesPanel.jsx", import.meta.url), "utf8")
   ]);
 
@@ -55,6 +56,12 @@ test("specialist absences menu and planner source wiring stay in place", async (
   );
 
   assert.match(
+    mainContentSource,
+    /<AppointmentSpecialistAbsencesPanel[\s\S]*currentUserId=\{String\(profile\?\.id \|\| ""\)\.trim\(\)\}[\s\S]*selfScopedToCurrentSpecialist=\{isSpecialistUser\}/s,
+    "Specialist absences panel should receive current specialist self-scope wiring from the profile shell."
+  );
+
+  assert.match(
     panelSource,
     /const \[createFormOpen, setCreateFormOpen\] = useState\(false\);[\s\S]*const createModal = createFormOpen \?/s,
     "Specialist absences panel should only build the create modal when add is requested."
@@ -80,8 +87,8 @@ test("specialist absences menu and planner source wiring stay in place", async (
 
   assert.match(
     panelSource,
-    /apiFetch\("\/api\/appointments\/specialists"[\s\S]*appointmentSpecialistAbsenceSpecialistSelect[\s\S]*appointmentSpecialistAbsenceDateFromInput[\s\S]*appointmentSpecialistAbsenceDateToInput[\s\S]*appointmentSpecialistAbsenceStartTimeInput[\s\S]*appointmentSpecialistAbsenceEndTimeInput/s,
-    "Specialist absences create modal should load DB specialists into a select and include date plus time from\/to inputs."
+    /const isSelfScopedSpecialistAbsences = selfScopedToCurrentSpecialist && Boolean\(normalizedCurrentUserId\);[\s\S]*query\.set\("specialistId", normalizedCurrentUserId\)[\s\S]*apiFetch\("\/api\/appointments\/specialists"[\s\S]*appointmentSpecialistAbsenceSpecialistSelect[\s\S]*disabled=\{saving \|\| specialistsLoading \|\| specialistOptions\.length === 0 \|\| isSelfScopedSpecialistAbsences\}[\s\S]*searchable=\{!isSelfScopedSpecialistAbsences\}[\s\S]*appointmentSpecialistAbsenceDateFromInput[\s\S]*appointmentSpecialistAbsenceDateToInput[\s\S]*appointmentSpecialistAbsenceStartTimeInput[\s\S]*appointmentSpecialistAbsenceEndTimeInput/s,
+    "Specialist absences create modal should self-scope specialists for specialist roles while keeping the date and time inputs."
   );
 
   assert.match(
@@ -92,8 +99,8 @@ test("specialist absences menu and planner source wiring stay in place", async (
 
   assert.match(
     panelSource,
-    /<th>Specialist<\/th>[\s\S]*<th>Date From<\/th>[\s\S]*<th>Date To<\/th>[\s\S]*<th>Time<\/th>[\s\S]*<th>Reason<\/th>[\s\S]*<th>Edit<\/th>[\s\S]*<th>Delete<\/th>/s,
-    "Specialist absences table should show the specialist, date range, time range, reason, and separate Edit/Delete actions."
+    /<th>Specialist<\/th>[\s\S]*<th>Date From<\/th>[\s\S]*<th>Date To<\/th>[\s\S]*<th>Time<\/th>[\s\S]*<th>Reason<\/th>[\s\S]*<th>Delete<\/th>/s,
+    "Specialist absences table should show the specialist, date range, time range, reason, and a delete action."
   );
 
   assert.match(
@@ -108,10 +115,10 @@ test("specialist absences menu and planner source wiring stay in place", async (
     "Deleting a grouped specialist absence row should remove the whole saved range."
   );
 
-  assert.match(
+  assert.doesNotMatch(
     panelSource,
-    /const \[editingItem, setEditingItem\] = useState\(null\);[\s\S]*const openEditForm = useCallback\(\(item\) => \{[\s\S]*Edit Specialist Absence/s,
-    "Specialist absences panel should reuse the modal for editing existing ranges."
+    /const \[editingItem, setEditingItem\] = useState\(null\);|const openEditForm = useCallback\(|>Edit</s,
+    "Specialist absences panel should no longer expose an edit flow."
   );
 
   assert.match(

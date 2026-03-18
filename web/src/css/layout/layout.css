@@ -697,8 +697,8 @@
   inset: 0;
   background: var(--overlay);
   z-index: var(--z-overlay-backdrop);
-  animation: overlayIn 180ms ease;
-  will-change: opacity;
+  animation: none;
+  will-change: auto;
 }
 
 @keyframes overlayIn {

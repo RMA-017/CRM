@@ -15,10 +15,10 @@
   padding: var(--modal-padding);
   box-shadow: var(--shadow-xl);
   z-index: var(--z-modal);
-  animation: modalIn 200ms var(--ease);
+  animation: none;
   backface-visibility: hidden;
   contain: paint;
-  will-change: transform, opacity;
+  will-change: auto;
 }
 
 @keyframes modalIn {
@@ -1380,8 +1380,8 @@ label.field > span:first-child,
   padding: var(--modal-padding);
   box-shadow: var(--shadow);
   z-index: 54;
-  animation: modalIn 200ms var(--ease);
-  will-change: transform, opacity;
+  animation: none;
+  will-change: auto;
 }
 
 .all-users-panel {
@@ -2126,38 +2126,75 @@ label.field > span:first-child,
   width: 88%;
 }
 
+#vipNormMonitoringPanel .all-users-table-wrap {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
 #vipNormMonitoringPanel .all-users-table {
   width: 100%;
-  min-width: 760px;
+  min-width: 0;
   table-layout: fixed;
+}
+
+#vipNormMonitoringPanel .all-users-table th,
+#vipNormMonitoringPanel .all-users-table td {
+  overflow: visible;
+  text-overflow: clip;
+  height: auto;
+  min-height: 30px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  line-height: 1.2;
+}
+
+#vipNormMonitoringPanel .all-users-table thead tr,
+#vipNormMonitoringPanel .all-users-table tbody tr {
+  height: auto;
 }
 
 #vipNormMonitoringPanel .all-users-table th:nth-child(1),
 #vipNormMonitoringPanel .all-users-table td:nth-child(1) {
-  width: 36%;
+  width: 30%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 #vipNormMonitoringPanel .all-users-table th:nth-child(2),
 #vipNormMonitoringPanel .all-users-table td:nth-child(2) {
   width: 22%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 #vipNormMonitoringPanel .all-users-table th:nth-child(3),
 #vipNormMonitoringPanel .all-users-table td:nth-child(3) {
-  width: 14%;
+  width: 12%;
   text-align: center;
+  white-space: nowrap;
 }
 
 #vipNormMonitoringPanel .all-users-table th:nth-child(4),
 #vipNormMonitoringPanel .all-users-table td:nth-child(4) {
-  width: 16%;
+  width: 12%;
   text-align: center;
+  white-space: nowrap;
 }
 
 #vipNormMonitoringPanel .all-users-table th:nth-child(5),
 #vipNormMonitoringPanel .all-users-table td:nth-child(5) {
   width: 12%;
   text-align: center;
+  white-space: nowrap;
+}
+
+#vipNormMonitoringPanel .all-users-table th:nth-child(6),
+#vipNormMonitoringPanel .all-users-table td:nth-child(6) {
+  width: 12%;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .planner-report-toolbar {
@@ -5161,7 +5198,7 @@ label.field > span:first-child,
 }
 
 #appointmentSpecialistAbsencesPanel .appointment-breaks-table {
-  min-width: 640px;
+  min-width: 860px;
   table-layout: fixed;
 }
 
@@ -5181,27 +5218,49 @@ label.field > span:first-child,
 
 #appointmentSpecialistAbsencesPanel .appointment-breaks-table th:nth-child(1),
 #appointmentSpecialistAbsencesPanel .appointment-breaks-table td:nth-child(1) {
-  width: 18%;
-  text-align: center;
+  width: 20%;
+  text-align: left;
 }
 
 #appointmentSpecialistAbsencesPanel .appointment-breaks-table th:nth-child(2),
 #appointmentSpecialistAbsencesPanel .appointment-breaks-table td:nth-child(2) {
-  width: 42%;
+  width: 13%;
+  text-align: center;
 }
 
 #appointmentSpecialistAbsencesPanel .appointment-breaks-table th:nth-child(3),
 #appointmentSpecialistAbsencesPanel .appointment-breaks-table td:nth-child(3) {
-  width: 22%;
+  width: 13%;
   text-align: center;
 }
 
 #appointmentSpecialistAbsencesPanel .appointment-breaks-table th:nth-child(4),
 #appointmentSpecialistAbsencesPanel .appointment-breaks-table td:nth-child(4) {
-  width: 120px;
-  min-width: 120px;
-  max-width: 120px;
+  width: 15%;
   text-align: center;
+}
+
+#appointmentSpecialistAbsencesPanel .appointment-breaks-table th:nth-child(5),
+#appointmentSpecialistAbsencesPanel .appointment-breaks-table td:nth-child(5) {
+  width: 31%;
+  text-align: left;
+}
+
+#appointmentSpecialistAbsencesPanel .appointment-breaks-table th:nth-child(6),
+#appointmentSpecialistAbsencesPanel .appointment-breaks-table td:nth-child(6) {
+  width: 8%;
+  min-width: 84px;
+  max-width: 84px;
+  text-align: center;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#appointmentSpecialistAbsencesPanel .appointment-breaks-table td:nth-child(6) .table-action-btn {
+  width: 72px;
+  min-width: 72px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 #appointmentBreaksPanel .appointment-breaks-table th:nth-child(1),

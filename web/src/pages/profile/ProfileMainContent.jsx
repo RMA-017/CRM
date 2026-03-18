@@ -987,6 +987,8 @@ function ProfileMainContent({
             canReadAppointmentSpecialistAbsences={canReadAppointmentSpecialistAbsences}
             canCreateAppointmentSpecialistAbsences={canCreateAppointmentSpecialistAbsences}
             canDeleteAppointmentSpecialistAbsences={canDeleteAppointmentSpecialistAbsences}
+            currentUserId={String(profile?.id || "").trim()}
+            selfScopedToCurrentSpecialist={isSpecialistUser}
             profileDisplayName={profileDisplayName}
             closeAppointmentSpecialistAbsencesPanel={closeAppointmentSpecialistAbsencesPanel}
           />

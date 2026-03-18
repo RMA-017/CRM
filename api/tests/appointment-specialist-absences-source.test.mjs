@@ -44,8 +44,8 @@ test("appointment specialist absence routes and schedule guards stay registered"
 
   assert.match(
     absencesRouteSource,
-    /const ownSpecialistUserId = canReadPlannerAbsences\s*\?\s*0\s*:\s*resolveSelfScopedSpecialistUserId\([\s\S]*fallbackToOwnUser:\s*canReadSpecialistAbsences[\s\S]*fallbackOnlyWhenSpecialistIsUnspecified:\s*true[\s\S]*fallbackToOwnUser:\s*true/s,
-    "Specialist absences routes should let planner readers inspect any specialist while keeping dedicated self-scoped absence workflows intact."
+    /const ownSpecialistUserId = canReadPlannerAbsences\s*\?\s*0\s*:\s*resolveSelfScopedSpecialistUserId\([\s\S]*fallbackToOwnUser:\s*canReadSpecialistAbsences[\s\S]*fallbackOnlyWhenSpecialistIsUnspecified:\s*true[\s\S]*const ownSpecialistUserId = resolveSelfScopedSpecialistUserId\(\{\s*authContext,\s*requester\s*\}\);[\s\S]*const ownSpecialistUserId = resolveSelfScopedSpecialistUserId\(\{\s*authContext,\s*requester\s*\}\);/s,
+    "Specialist absences routes should keep planner reads flexible while self-scoping only true specialist users for create and delete."
   );
 
   assert.match(

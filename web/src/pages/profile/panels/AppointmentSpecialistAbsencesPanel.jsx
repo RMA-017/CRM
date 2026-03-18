@@ -131,6 +131,8 @@ function AppointmentSpecialistAbsencesPanel({
   canReadAppointmentSpecialistAbsences,
   canCreateAppointmentSpecialistAbsences,
   canDeleteAppointmentSpecialistAbsences,
+  currentUserId,
+  selfScopedToCurrentSpecialist = false,
   profileDisplayName,
   closeAppointmentSpecialistAbsencesPanel
 }) {
@@ -142,14 +144,19 @@ function AppointmentSpecialistAbsencesPanel({
   const [deletingId, setDeletingId] = useState("");
   const [message, setMessage] = useState("");
   const [createFormOpen, setCreateFormOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
   const [specialistOptions, setSpecialistOptions] = useState([]);
   const [form, setForm] = useState(() => createEmptyForm(todayYmd));
   const dateInputRef = useRef(null);
-  const canEditAppointmentSpecialistAbsences = (
-    canCreateAppointmentSpecialistAbsences
-    && canDeleteAppointmentSpecialistAbsences
-  );
+  const normalizedCurrentUserId = String(currentUserId || "").trim();
+  const isSelfScopedSpecialistAbsences = selfScopedToCurrentSpecialist && Boolean(normalizedCurrentUserId);
+  const selfScopedSpecialistOptions = useMemo(() => (
+    isSelfScopedSpecialistAbsences
+      ? [{
+          value: normalizedCurrentUserId,
+          label: String(profileDisplayName || "").trim() || "My profile"
+        }]
+      : []
+  ), [isSelfScopedSpecialistAbsences, normalizedCurrentUserId, profileDisplayName]);
 
   const specialistDisplayName = useMemo(() => {
     const selectedSpecialistName = specialistOptions.find((item) => item.value === String(form.specialistId || "").trim())?.label || "";
@@ -180,10 +187,19 @@ function AppointmentSpecialistAbsencesPanel({
       if (!silent) {
         setLoading(true);
       }
-      const response = await apiFetch("/api/appointments/absences", {
-        method: "GET",
-        cache: "no-store"
-      });
+      const query = new URLSearchParams();
+      if (isSelfScopedSpecialistAbsences) {
+        query.set("specialistId", normalizedCurrentUserId);
+      }
+      const response = await apiFetch(
+        query.size > 0
+          ? `/api/appointments/absences?${query.toString()}`
+          : "/api/appointments/absences",
+        {
+          method: "GET",
+          cache: "no-store"
+        }
+      );
       const data = await readApiResponseData(response);
       if (!response.ok) {
         setItems([]);
@@ -215,11 +231,20 @@ function AppointmentSpecialistAbsencesPanel({
         setLoading(false);
       }
     }
-  }, [canReadAppointmentSpecialistAbsences]);
+  }, [canReadAppointmentSpecialistAbsences, isSelfScopedSpecialistAbsences, normalizedCurrentUserId]);
 
   const loadSpecialists = useCallback(async () => {
     if (!canCreateAppointmentSpecialistAbsences) {
       setSpecialistOptions([]);
+      return;
+    }
+    if (isSelfScopedSpecialistAbsences) {
+      setSpecialistOptions(selfScopedSpecialistOptions);
+      setForm((prev) => ({
+        ...prev,
+        specialistId: normalizedCurrentUserId
+      }));
+      setSpecialistsLoading(false);
       return;
     }
 
@@ -254,7 +279,12 @@ function AppointmentSpecialistAbsencesPanel({
     } finally {
       setSpecialistsLoading(false);
     }
-  }, [canCreateAppointmentSpecialistAbsences]);
+  }, [
+    canCreateAppointmentSpecialistAbsences,
+    isSelfScopedSpecialistAbsences,
+    normalizedCurrentUserId,
+    selfScopedSpecialistOptions
+  ]);
 
   useEffect(() => {
     void loadAbsences();
@@ -276,37 +306,16 @@ function AppointmentSpecialistAbsencesPanel({
       setMessage("You do not have permission to create specialist absences.");
       return;
     }
-    setEditingItem(null);
     setForm(createEmptyForm(todayYmd, specialistOptions[0]?.value || form.specialistId || ""));
     setMessage("");
     setCreateFormOpen(true);
   }, [canCreateAppointmentSpecialistAbsences, form.specialistId, specialistOptions, todayYmd]);
-
-  const openEditForm = useCallback((item) => {
-    if (!canEditAppointmentSpecialistAbsences) {
-      setMessage("You do not have permission to edit specialist absences.");
-      return;
-    }
-    const specialistId = String(item?.specialistId || "").trim() || String(specialistOptions[0]?.value || "").trim();
-    setEditingItem(item || null);
-    setForm({
-      specialistId,
-      dateFrom: String(item?.dateFrom || item?.absenceDate || todayYmd).trim(),
-      dateTo: String(item?.dateTo || item?.absenceDate || todayYmd).trim(),
-      startTime: String(item?.startTime || "").trim(),
-      endTime: String(item?.endTime || "").trim(),
-      reason: String(item?.reason || "").trim()
-    });
-    setMessage("");
-    setCreateFormOpen(true);
-  }, [canEditAppointmentSpecialistAbsences, specialistOptions, todayYmd]);
 
   const closeCreateForm = useCallback(() => {
     if (saving) {
       return;
     }
     setForm(createEmptyForm(todayYmd, specialistOptions[0]?.value || ""));
-    setEditingItem(null);
     setCreateFormOpen(false);
   }, [saving, specialistOptions, todayYmd]);
 
@@ -350,40 +359,6 @@ function AppointmentSpecialistAbsencesPanel({
 
     try {
       setSaving(true);
-      const editingItemIds = Array.from(
-        new Set(
-          (Array.isArray(editingItem?.itemIds) ? editingItem.itemIds : [editingItem?.id])
-            .map((value) => String(value || "").trim())
-            .filter(Boolean)
-        )
-      );
-      const isEditMode = editingItemIds.length > 0;
-      if (
-        isEditMode
-        && String(editingItem?.specialistId || "").trim() === specialistId
-        && String(editingItem?.dateFrom || "").trim() === dateFrom
-        && String(editingItem?.dateTo || "").trim() === dateTo
-        && String(editingItem?.startTime || "").trim() === startTime
-        && String(editingItem?.endTime || "").trim() === endTime
-        && String(editingItem?.reason || "").trim() === reason
-      ) {
-        setCreateFormOpen(false);
-        setEditingItem(null);
-        setMessage("No changes to save.");
-        return;
-      }
-      if (isEditMode) {
-        for (const id of editingItemIds) {
-          const deleteResponse = await apiFetch(`/api/appointments/absences/${encodeURIComponent(id)}`, {
-            method: "DELETE"
-          });
-          const deleteData = await readApiResponseData(deleteResponse);
-          if (!deleteResponse.ok) {
-            setMessage(getApiErrorMessage(deleteResponse, deleteData, "Failed to update specialist absence."));
-            return;
-          }
-        }
-      }
       const response = await apiFetch("/api/appointments/absences", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -403,9 +378,8 @@ function AppointmentSpecialistAbsencesPanel({
       }
 
       setForm(createEmptyForm(todayYmd, specialistId));
-      setEditingItem(null);
       setCreateFormOpen(false);
-      setMessage(String(data?.message || (isEditMode ? "Specialist absence updated." : "Specialist absence saved.")));
+      setMessage(String(data?.message || "Specialist absence saved."));
       dispatchPlannerRefresh({
         absenceDate: dateFrom,
         dateFrom,
@@ -427,7 +401,6 @@ function AppointmentSpecialistAbsencesPanel({
     form.reason,
     form.startTime,
     form.endTime,
-    editingItem,
     loadAbsences,
     todayYmd
   ]);
@@ -494,10 +467,10 @@ function AppointmentSpecialistAbsencesPanel({
         className="logout-confirm-modal settings-edit-modal appointment-breaks-add-modal appointment-specialist-absence-modal"
         aria-modal="true"
         role="dialog"
-        aria-label={editingItem ? "Edit specialist absence" : "Add specialist absence"}
+        aria-label="Add specialist absence"
       >
         <div className="appointment-breaks-add-modal-head">
-          <h3>{editingItem ? "Edit Specialist Absence" : "Add Specialist Absence"}</h3>
+          <h3>Add Specialist Absence</h3>
           <button
             id="closeAppointmentSpecialistAbsenceCreateModalBtn"
             type="button"
@@ -518,9 +491,9 @@ function AppointmentSpecialistAbsencesPanel({
               value={form.specialistId}
               options={specialistOptions}
               placeholder={specialistsLoading ? "Loading specialists..." : (specialistOptions.length > 0 ? "Select specialist" : "No specialists")}
-              disabled={saving || specialistsLoading || specialistOptions.length === 0}
-              searchable
-              searchThreshold={0}
+              disabled={saving || specialistsLoading || specialistOptions.length === 0 || isSelfScopedSpecialistAbsences}
+              searchable={!isSelfScopedSpecialistAbsences}
+              searchThreshold={isSelfScopedSpecialistAbsences ? 999 : 0}
               menuPortal
               forceOpenDown
               maxVisibleOptions={8}
@@ -653,18 +626,17 @@ function AppointmentSpecialistAbsencesPanel({
               <th>Date To</th>
               <th>Time</th>
               <th>Reason</th>
-              <th>Edit</th>
               <th>Delete</th>
             </tr>
           </thead>
           <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="all-users-state">Loading...</td>
+                  <td colSpan="6" className="all-users-state">Loading...</td>
                 </tr>
               ) : groupedItems.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="all-users-state">No specialist absences yet.</td>
+                  <td colSpan="6" className="all-users-state">No specialist absences yet.</td>
                 </tr>
               ) : (
                 groupedItems.map((item) => (
@@ -674,18 +646,6 @@ function AppointmentSpecialistAbsencesPanel({
                     <td>{item.dateTo || "-"}</td>
                     <td>{formatAbsenceTimeRange(item.startTime, item.endTime)}</td>
                     <td>{item.reason || "-"}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="table-action-btn"
-                        disabled={saving || !canEditAppointmentSpecialistAbsences}
-                        onClick={() => {
-                          openEditForm(item);
-                        }}
-                      >
-                        Edit
-                      </button>
-                    </td>
                     <td>
                       <button
                         type="button"

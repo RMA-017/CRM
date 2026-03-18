@@ -1047,8 +1047,38 @@ main.home-main:has(#appointmentNormsPanel) {
 }
 
 #vipNormMonitoringPanel .all-users-table-wrap {
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: auto;
+}
+
+#vipNormMonitoringPanel .all-users-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+#vipNormMonitoringPanel .all-users-table th,
+#vipNormMonitoringPanel .all-users-table td {
+  overflow: visible;
+  text-overflow: clip;
+}
+
+#vipNormMonitoringPanel .all-users-table th:nth-child(1),
+#vipNormMonitoringPanel .all-users-table td:nth-child(1),
+#vipNormMonitoringPanel .all-users-table th:nth-child(2),
+#vipNormMonitoringPanel .all-users-table td:nth-child(2) {
+  white-space: normal;
+}
+
+#vipNormMonitoringPanel .all-users-table th:nth-child(3),
+#vipNormMonitoringPanel .all-users-table td:nth-child(3),
+#vipNormMonitoringPanel .all-users-table th:nth-child(4),
+#vipNormMonitoringPanel .all-users-table td:nth-child(4),
+#vipNormMonitoringPanel .all-users-table th:nth-child(5),
+#vipNormMonitoringPanel .all-users-table td:nth-child(5),
+#vipNormMonitoringPanel .all-users-table th:nth-child(6),
+#vipNormMonitoringPanel .all-users-table td:nth-child(6) {
+  white-space: nowrap;
 }
 
 /* table-outer-scroll-wrap — horizontal scroll on parent (mobile) */
