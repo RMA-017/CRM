@@ -2155,15 +2155,18 @@ function AppointmentScheduler({
   const isVipAutoRollingRepeat = Boolean(vipOnly || clientVipOnly);
   const unlockedServiceNameRef = useRef(String(createForm.service || "").trim());
   const unlockedRepeatUntilRef = useRef(String(createForm.repeatUntil || "").trim());
+  const activeRepeatUntilSnapshotRef = useRef("");
   const wasVipServiceLockedRef = useRef(isVipServiceLocked);
   useEffect(() => {
     if (!createModal.open || isEditRecurring) {
+      activeRepeatUntilSnapshotRef.current = "";
       return;
     }
     unlockedRepeatUntilRef.current = String(createForm.repeatUntil || "").trim();
   }, [createModal.open, isEditRecurring]);
   useEffect(() => {
     if (!createModal.open || isEditRecurring) {
+      activeRepeatUntilSnapshotRef.current = "";
       return;
     }
     if (isVipAutoRollingRepeat) {
@@ -4269,10 +4272,14 @@ function AppointmentScheduler({
                           disabled={vipOnly || createSubmitting || createDeleting}
                           onChange={(event) => {
                             const checked = event.currentTarget.checked;
-                            const restoredRepeatUntil = String(unlockedRepeatUntilRef.current || "").trim();
                             if (checked) {
-                              unlockedRepeatUntilRef.current = String(createForm.repeatUntil || "").trim();
+                              const previousRepeatUntil = String(createForm.repeatUntil || "").trim();
+                              unlockedRepeatUntilRef.current = previousRepeatUntil;
+                              activeRepeatUntilSnapshotRef.current = previousRepeatUntil;
                             }
+                            const restoredRepeatUntil = String(
+                              activeRepeatUntilSnapshotRef.current || unlockedRepeatUntilRef.current || ""
+                            ).trim();
                             setClientVipOnly(checked);
                             setCreateForm((prev) => {
                               if (checked) {
@@ -4282,6 +4289,7 @@ function AppointmentScheduler({
                                 }
                                 return { ...prev, repeatUntil: nextRepeatUntil };
                               }
+                              activeRepeatUntilSnapshotRef.current = "";
                               if (String(prev.repeatUntil || "").trim() === restoredRepeatUntil) {
                                 return prev;
                               }

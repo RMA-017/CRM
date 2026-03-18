@@ -25,19 +25,19 @@ test("appointment create modal keeps repeat-until visible and restores the previ
 
   assert.match(
     source,
-    /const unlockedRepeatUntilRef = useRef\(String\(createForm\.repeatUntil \|\| ""\)\.trim\(\)\);/,
-    "Appointment scheduler should keep the last manual Repeat Until value before Active overrides it."
+    /const unlockedRepeatUntilRef = useRef\(String\(createForm\.repeatUntil \|\| ""\)\.trim\(\)\);[\s\S]*const activeRepeatUntilSnapshotRef = useRef\(""\);/s,
+    "Appointment scheduler should keep the last manual Repeat Until value and a dedicated snapshot before Active overrides it."
   );
 
   assert.match(
     source,
-    /if \(checked\) \{[\s\S]*unlockedRepeatUntilRef\.current = String\(createForm\.repeatUntil \|\| ""\)\.trim\(\);/s,
+    /if \(checked\) \{[\s\S]*const previousRepeatUntil = String\(createForm\.repeatUntil \|\| ""\)\.trim\(\);[\s\S]*unlockedRepeatUntilRef\.current = previousRepeatUntil;[\s\S]*activeRepeatUntilSnapshotRef\.current = previousRepeatUntil;/s,
     "Turning Active on should snapshot the previous Repeat Until value."
   );
 
   assert.match(
     source,
-    /if \(String\(prev\.repeatUntil \|\| ""\)\.trim\(\) === restoredRepeatUntil\) \{\s*return prev;\s*\}[\s\S]*repeatUntil: restoredRepeatUntil/s,
+    /const restoredRepeatUntil = String\([\s\S]*activeRepeatUntilSnapshotRef\.current \|\| unlockedRepeatUntilRef\.current \|\| ""[\s\S]*\)\.trim\(\);[\s\S]*activeRepeatUntilSnapshotRef\.current = ""[\s\S]*repeatUntil: restoredRepeatUntil/s,
     "Turning Active off should restore the previous Repeat Until value instead of clearing it."
   );
 });
