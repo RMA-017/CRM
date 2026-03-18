@@ -86,8 +86,20 @@ test("specialist absences menu and planner source wiring stay in place", async (
 
   assert.match(
     panelSource,
-    /<th>Specialist<\/th>[\s\S]*<th>Date<\/th>[\s\S]*<th>Reason<\/th>/s,
-    "Specialist absences table should show the specialist name alongside the saved dates."
+    /function buildAbsenceRangeGroups\(items\) \{[\s\S]*itemIds[\s\S]*dateFrom[\s\S]*dateTo/s,
+    "Specialist absences panel should group saved day rows back into visible date ranges."
+  );
+
+  assert.match(
+    panelSource,
+    /<th>Specialist<\/th>[\s\S]*<th>Date From<\/th>[\s\S]*<th>Date To<\/th>[\s\S]*<th>Reason<\/th>/s,
+    "Specialist absences table should show the specialist, date range, and reason from the add modal."
+  );
+
+  assert.match(
+    panelSource,
+    /for \(const id of itemIds\) \{[\s\S]*Specialist absence range deleted\./s,
+    "Deleting a grouped specialist absence row should remove the whole saved range."
   );
 
   assert.match(

@@ -1207,7 +1207,7 @@ export async function getVipNormMonitoringRows({
          WHEN mr.setup_state = 'no-position' THEN 'No position'
          WHEN mr.setup_state = 'no-norm' THEN 'No norm configured'
          WHEN mr.current_booked > mr.max_per_week THEN 'Exceeded'
-         WHEN mr.current_booked = mr.max_per_week THEN 'Limit reached'
+         WHEN mr.current_booked < mr.max_per_week THEN 'Limit reached'
          ELSE 'Normal'
        END AS status,
        CASE
@@ -1215,7 +1215,7 @@ export async function getVipNormMonitoringRows({
          WHEN mr.setup_state = 'no-position' THEN 'no-position'
          WHEN mr.setup_state = 'no-norm' THEN 'no-norm'
          WHEN mr.current_booked > mr.max_per_week THEN 'exceeded'
-         WHEN mr.current_booked = mr.max_per_week THEN 'limit-reached'
+         WHEN mr.current_booked < mr.max_per_week THEN 'limit-reached'
          ELSE 'normal'
        END AS status_key
       FROM monitoring_rows mr

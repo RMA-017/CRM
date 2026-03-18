@@ -16,7 +16,8 @@ function CustomSelect({
   maxVisibleOptions = null,
   searchable = false,
   searchPlaceholder = "Search...",
-  searchThreshold = 0
+  searchThreshold = 0,
+  menuWidthScale = 1
 }) {
   const wrapRef = useRef(null);
   const triggerRef = useRef(null);
@@ -39,6 +40,9 @@ function CustomSelect({
   const normalizedSearchThreshold = Number.isInteger(searchThreshold) && searchThreshold > 0
     ? searchThreshold
     : 0;
+  const normalizedMenuWidthScale = Number.isFinite(menuWidthScale) && menuWidthScale > 0
+    ? Math.max(0.5, Math.min(menuWidthScale, 2))
+    : 1;
   const shouldShowSearch = searchable && normalizedOptions.length >= normalizedSearchThreshold;
   const filteredOptions = useMemo(() => {
     if (!shouldShowSearch) {
@@ -98,7 +102,7 @@ function CustomSelect({
           ? (triggerRect.top - calculatedMaxHeight - 6)
           : (triggerRect.bottom + 6);
         const normalizedTop = Math.max(8, Math.min(preferredTop, window.innerHeight - calculatedMaxHeight - 8));
-        const menuWidth = Math.max(120, triggerRect.width);
+        const menuWidth = Math.max(120, triggerRect.width * normalizedMenuWidthScale);
         const rawLeft = menuAlign === "center"
           ? triggerRect.left + triggerRect.width / 2 - menuWidth / 2
           : menuAlign === "right"
@@ -129,7 +133,19 @@ function CustomSelect({
       window.removeEventListener("resize", updateLayout);
       window.removeEventListener("scroll", updateLayout, true);
     };
-  }, [filteredOptions.length, forceOpenDown, forceOpenUp, maxVisibleOptions, menuPortal, open]);
+  }, [filteredOptions.length, forceOpenDown, forceOpenUp, maxVisibleOptions, menuAlign, menuPortal, normalizedMenuWidthScale, open]);
+
+  const inlineMenuStyle = menuPortal
+    ? (menuPortalStyle || { position: "fixed", top: "-9999px", left: "-9999px", width: "0px", maxHeight: "0px" })
+    : {
+        ...(menuMaxHeight ? { maxHeight: menuMaxHeight } : {}),
+        ...(normalizedMenuWidthScale !== 1
+          ? {
+              width: `${normalizedMenuWidthScale * 100}%`,
+              right: "auto"
+            }
+          : {})
+      };
 
   useEffect(() => {
     if (!open && searchQuery) {
@@ -175,9 +191,7 @@ function CustomSelect({
       className="custom-select-menu"
       role="listbox"
       hidden={!open}
-      style={menuPortal
-        ? (menuPortalStyle || { position: "fixed", top: "-9999px", left: "-9999px", width: "0px", maxHeight: "0px" })
-        : (menuMaxHeight ? { maxHeight: menuMaxHeight } : undefined)}
+      style={inlineMenuStyle}
       onWheel={(event) => {
         event.stopPropagation();
       }}

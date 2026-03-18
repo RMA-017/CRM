@@ -71,6 +71,18 @@ test("VIP norm monitoring route uses dedicated feature and permission access", a
 
   assert.match(
     routeSource,
+    /currentBooked > weeklyNorm[\s\S]*"exceeded"[\s\S]*currentBooked < weeklyNorm[\s\S]*"limit-reached"[\s\S]*"normal"/s,
+    "VIP norm monitoring fallback status logic should treat greater as Exceeded, less as Limit reached, and equal as Normal."
+  );
+
+  assert.match(
+    serviceSource,
+    /WHEN mr\.current_booked > mr\.max_per_week THEN 'Exceeded'[\s\S]*WHEN mr\.current_booked < mr\.max_per_week THEN 'Limit reached'[\s\S]*ELSE 'Normal'/s,
+    "VIP norm monitoring SQL should treat greater as Exceeded, less as Limit reached, and equal as Normal."
+  );
+
+  assert.match(
+    routeSource,
     /function normalizeVipNormMonitoringSpecialists\(\.\.\.groups\) \{[\s\S]*groups\.forEach\(\(group\) => \{[\s\S]*Array\.isArray\(group\) \? group : \[\]/s,
     "VIP norm monitoring specialist normalization should iterate each specialist array directly so filter options and row matching stay populated."
   );

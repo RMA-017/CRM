@@ -40,6 +40,94 @@ function createEmptyForm(todayYmd, specialistId = "") {
   };
 }
 
+function addDaysYmd(value, days) {
+  const raw = String(value || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return "";
+  }
+  const date = new Date(`${raw}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function buildAbsenceRangeGroups(items) {
+  const buckets = new Map();
+
+  (Array.isArray(items) ? items : []).forEach((item) => {
+    const specialistId = String(item?.specialistId || "").trim();
+    const reason = String(item?.reason || "").trim();
+    const updatedAt = String(item?.updatedAt || item?.createdAt || "").trim();
+    const bucketKey = `${specialistId}__${reason}__${updatedAt}`;
+    const existing = buckets.get(bucketKey) || [];
+    existing.push(item);
+    buckets.set(bucketKey, existing);
+  });
+
+  const grouped = [];
+  buckets.forEach((bucketItems) => {
+    const sortedItems = bucketItems
+      .filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(String(item?.absenceDate || "").trim()))
+      .sort((left, right) => String(left?.absenceDate || "").localeCompare(String(right?.absenceDate || "")));
+
+    let currentGroup = null;
+    sortedItems.forEach((item) => {
+      const absenceDate = String(item?.absenceDate || "").trim();
+      if (!currentGroup) {
+        currentGroup = {
+          id: String(item?.id || "").trim(),
+          itemIds: [String(item?.id || "").trim()].filter(Boolean),
+          specialistId: String(item?.specialistId || "").trim(),
+          specialistName: String(item?.specialistName || "").trim(),
+          dateFrom: absenceDate,
+          dateTo: absenceDate,
+          reason: String(item?.reason || "").trim(),
+          createdAt: item?.createdAt || null,
+          updatedAt: item?.updatedAt || null
+        };
+        return;
+      }
+
+      const nextExpectedDate = addDaysYmd(currentGroup.dateTo, 1);
+      if (absenceDate === nextExpectedDate) {
+        currentGroup.dateTo = absenceDate;
+        currentGroup.itemIds.push(String(item?.id || "").trim());
+        return;
+      }
+
+      grouped.push(currentGroup);
+      currentGroup = {
+        id: String(item?.id || "").trim(),
+        itemIds: [String(item?.id || "").trim()].filter(Boolean),
+        specialistId: String(item?.specialistId || "").trim(),
+        specialistName: String(item?.specialistName || "").trim(),
+        dateFrom: absenceDate,
+        dateTo: absenceDate,
+        reason: String(item?.reason || "").trim(),
+        createdAt: item?.createdAt || null,
+        updatedAt: item?.updatedAt || null
+      };
+    });
+
+    if (currentGroup) {
+      grouped.push(currentGroup);
+    }
+  });
+
+  return grouped.sort((left, right) => {
+    const leftDate = String(left?.dateFrom || "");
+    const rightDate = String(right?.dateFrom || "");
+    if (leftDate !== rightDate) {
+      return leftDate.localeCompare(rightDate);
+    }
+    return String(left?.specialistName || "").localeCompare(String(right?.specialistName || ""), undefined, {
+      sensitivity: "base"
+    });
+  });
+}
+
 function AppointmentSpecialistAbsencesPanel({
   canReadAppointmentSpecialistAbsences,
   canCreateAppointmentSpecialistAbsences,
@@ -102,9 +190,11 @@ function AppointmentSpecialistAbsencesPanel({
       const nextItems = (Array.isArray(data?.items) ? data.items : [])
         .map((item) => ({
           id: String(item?.id || "").trim(),
+          specialistId: String(item?.specialistId || "").trim(),
           specialistName: String(item?.specialistName || "").trim(),
           absenceDate: String(item?.absenceDate || "").trim(),
           reason: String(item?.reason || "").trim(),
+          createdAt: item?.createdAt || null,
           updatedAt: item?.updatedAt || null
         }))
         .filter((item) => Boolean(item.id) && Boolean(item.absenceDate));
@@ -266,8 +356,14 @@ function AppointmentSpecialistAbsencesPanel({
   ]);
 
   const handleDelete = useCallback(async (item) => {
-    const id = String(item?.id || "").trim();
-    if (!id) {
+    const itemIds = Array.from(
+      new Set(
+        (Array.isArray(item?.itemIds) ? item.itemIds : [item?.id])
+          .map((value) => String(value || "").trim())
+          .filter(Boolean)
+      )
+    );
+    if (itemIds.length === 0) {
       return;
     }
     if (!canDeleteAppointmentSpecialistAbsences) {
@@ -282,19 +378,27 @@ function AppointmentSpecialistAbsencesPanel({
     }
 
     try {
-      setDeletingId(id);
-      const response = await apiFetch(`/api/appointments/absences/${encodeURIComponent(id)}`, {
-        method: "DELETE"
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        setMessage(getApiErrorMessage(response, data, "Failed to delete specialist absence."));
-        return;
+      setDeletingId(itemIds[0]);
+      for (const id of itemIds) {
+        const response = await apiFetch(`/api/appointments/absences/${encodeURIComponent(id)}`, {
+          method: "DELETE"
+        });
+        const data = await readApiResponseData(response);
+        if (!response.ok) {
+          setMessage(getApiErrorMessage(response, data, "Failed to delete specialist absence."));
+          return;
+        }
       }
 
-      setMessage(String(data?.message || "Specialist absence deleted."));
+      setMessage(
+        itemIds.length > 1
+          ? "Specialist absence range deleted."
+          : "Specialist absence deleted."
+      );
       dispatchPlannerRefresh({
-        absenceDate: String(item?.absenceDate || "").trim()
+        absenceDate: String(item?.dateFrom || item?.absenceDate || "").trim(),
+        dateFrom: String(item?.dateFrom || item?.absenceDate || "").trim(),
+        dateTo: String(item?.dateTo || item?.absenceDate || "").trim()
       });
       await loadAbsences({ silent: true });
     } catch {
@@ -303,6 +407,8 @@ function AppointmentSpecialistAbsencesPanel({
       setDeletingId("");
     }
   }, [canDeleteAppointmentSpecialistAbsences, dispatchPlannerRefresh, loadAbsences]);
+
+  const groupedItems = useMemo(() => buildAbsenceRangeGroups(items), [items]);
 
   const createModal = createFormOpen ? (
     <>
@@ -440,7 +546,8 @@ function AppointmentSpecialistAbsencesPanel({
             <thead>
               <tr>
                 <th>Specialist</th>
-                <th>Date</th>
+                <th>Date From</th>
+                <th>Date To</th>
                 <th>Reason</th>
                 <th>Updated</th>
                 <th>Action</th>
@@ -449,17 +556,18 @@ function AppointmentSpecialistAbsencesPanel({
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="5" className="all-users-state">Loading...</td>
+                  <td colSpan="6" className="all-users-state">Loading...</td>
                 </tr>
-              ) : items.length === 0 ? (
+              ) : groupedItems.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="all-users-state">No specialist absences yet.</td>
+                  <td colSpan="6" className="all-users-state">No specialist absences yet.</td>
                 </tr>
               ) : (
-                items.map((item) => (
+                groupedItems.map((item) => (
                   <tr key={item.id}>
                     <td>{item.specialistName || specialistDisplayName || "-"}</td>
-                    <td>{item.absenceDate || "-"}</td>
+                    <td>{item.dateFrom || "-"}</td>
+                    <td>{item.dateTo || "-"}</td>
                     <td>{item.reason || "-"}</td>
                     <td>{formatDateTimeLabel(item.updatedAt)}</td>
                     <td>

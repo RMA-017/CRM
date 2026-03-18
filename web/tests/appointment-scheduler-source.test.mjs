@@ -97,6 +97,11 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
+    /id="appointmentCreateTime"[\s\S]*menuWidthScale=\{0\.85\}/s,
+    "Planner Start Time dropdown should shrink its opened menu width."
+  );
+  assert.match(
+    source,
     /blockedTimes:\s*normalizePlannerBlockedTimeItems\(normalizedItem\.blockedTimes\)/,
     "Appointment settings should carry specialist blocked times into planner state."
   );

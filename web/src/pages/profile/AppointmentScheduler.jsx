@@ -2154,7 +2154,23 @@ function AppointmentScheduler({
   const isVipServiceLocked = Boolean(vipOnly);
   const isVipAutoRollingRepeat = Boolean(vipOnly || clientVipOnly);
   const unlockedServiceNameRef = useRef(String(createForm.service || "").trim());
+  const unlockedRepeatUntilRef = useRef(String(createForm.repeatUntil || "").trim());
   const wasVipServiceLockedRef = useRef(isVipServiceLocked);
+  useEffect(() => {
+    if (!createModal.open || isEditRecurring) {
+      return;
+    }
+    unlockedRepeatUntilRef.current = String(createForm.repeatUntil || "").trim();
+  }, [createModal.open, isEditRecurring]);
+  useEffect(() => {
+    if (!createModal.open || isEditRecurring) {
+      return;
+    }
+    if (isVipAutoRollingRepeat) {
+      return;
+    }
+    unlockedRepeatUntilRef.current = String(createForm.repeatUntil || "").trim();
+  }, [createForm.repeatUntil, createModal.open, isEditRecurring, isVipAutoRollingRepeat]);
   useEffect(() => {
     const wasVipServiceLocked = wasVipServiceLockedRef.current;
     wasVipServiceLockedRef.current = isVipServiceLocked;
@@ -4253,13 +4269,24 @@ function AppointmentScheduler({
                           disabled={vipOnly || createSubmitting || createDeleting}
                           onChange={(event) => {
                             const checked = event.currentTarget.checked;
-                            setClientVipOnly(checked);
+                            const restoredRepeatUntil = String(unlockedRepeatUntilRef.current || "").trim();
                             if (checked) {
-                              const nextRepeatUntil = getVipAutoRollingRepeatUntil();
-                              if (nextRepeatUntil) {
-                                setCreateForm((prev) => ({ ...prev, repeatUntil: nextRepeatUntil }));
-                              }
+                              unlockedRepeatUntilRef.current = String(createForm.repeatUntil || "").trim();
                             }
+                            setClientVipOnly(checked);
+                            setCreateForm((prev) => {
+                              if (checked) {
+                                const nextRepeatUntil = getVipAutoRollingRepeatUntil();
+                                if (!nextRepeatUntil) {
+                                  return prev;
+                                }
+                                return { ...prev, repeatUntil: nextRepeatUntil };
+                              }
+                              if (String(prev.repeatUntil || "").trim() === restoredRepeatUntil) {
+                                return prev;
+                              }
+                              return { ...prev, repeatUntil: restoredRepeatUntil };
+                            });
                             if (createErrors.repeatUntil) {
                               setCreateErrors((prev) => ({ ...prev, repeatUntil: "" }));
                             }
@@ -4328,6 +4355,7 @@ function AppointmentScheduler({
                       placeholder="Select start time"
                       value={createForm.startTime}
                       options={timeSelectOptions}
+                      menuWidthScale={0.85}
                       error={Boolean(createErrors.startTime)}
                       onChange={(nextValue) => {
                         setCreateForm((prev) => ({ ...prev, startTime: nextValue }));

@@ -674,7 +674,7 @@ function mapVipNormMonitoringRecord(row) {
   const statusKey = rawStatusKey || (
     currentBooked > weeklyNorm
       ? "exceeded"
-      : currentBooked === weeklyNorm
+      : currentBooked < weeklyNorm
         ? "limit-reached"
         : "normal"
   );
