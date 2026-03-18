@@ -535,6 +535,45 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
         ]
       }),
       defineFeature({
+        key: "appointments.specialist_absences",
+        label: "Specialist Absences",
+        sortOrder: 15,
+        permissions: [
+          definePermission({
+            constantKey: "APPOINTMENTS_SUBMENU_SPECIALIST_ABSENCES",
+            code: "appointments.specialist-absences",
+            label: "Appointments Specialist Absences Submenu",
+            uiLabel: "Open",
+            sortOrder: 70,
+            actionKey: "open"
+          }),
+          definePermission({
+            constantKey: "APPOINTMENTS_SPECIALIST_ABSENCES_READ",
+            code: "appointments.specialist-absences.read",
+            label: "Read Specialist Absences",
+            uiLabel: "Read",
+            sortOrder: 71,
+            actionKey: "read"
+          }),
+          definePermission({
+            constantKey: "APPOINTMENTS_SPECIALIST_ABSENCES_CREATE",
+            code: "appointments.specialist-absences.create",
+            label: "Create Specialist Absences",
+            uiLabel: "Create",
+            sortOrder: 72,
+            actionKey: "create"
+          }),
+          definePermission({
+            constantKey: "APPOINTMENTS_SPECIALIST_ABSENCES_DELETE",
+            code: "appointments.specialist-absences.delete",
+            label: "Delete Specialist Absences",
+            uiLabel: "Delete",
+            sortOrder: 73,
+            actionKey: "delete"
+          })
+        ]
+      }),
+      defineFeature({
         key: "appointments.breaks",
         label: "Breaks",
         sortOrder: 20,

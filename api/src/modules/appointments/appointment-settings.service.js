@@ -79,6 +79,20 @@ function cloneAppointmentStaffItems(items) {
   }));
 }
 
+function mapAppointmentSpecialistAbsenceItem(row) {
+  return {
+    id: String(row?.id || "").trim(),
+    organizationId: String(row?.organization_id || "").trim(),
+    specialistId: String(row?.user_id || row?.specialist_id || "").trim(),
+    specialistName: String(row?.specialist_name || row?.user_name || "").trim(),
+    specialistUsername: String(row?.specialist_username || row?.user_username || "").trim(),
+    absenceDate: normalizeWorkScheduleDate(row?.work_date || row?.absence_date),
+    reason: String(row?.reason || "").trim(),
+    createdAt: row?.created_at || null,
+    updatedAt: row?.updated_at || null
+  };
+}
+
 function cloneAppointmentPlannerFilterResult(value) {
   const data = value && typeof value === "object" ? value : {};
   return {
@@ -1385,6 +1399,427 @@ export async function deleteAppointmentWorkScheduleEntryById({
   );
 }
 
+async function getAppointmentSpecialistAbsenceDateSet({
+  organizationId,
+  specialistId,
+  dateFrom = null,
+  dateTo = null,
+  db = pool
+}) {
+  const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
+  const normalizedDateFrom = normalizeWorkScheduleDate(dateFrom) || null;
+  const normalizedDateTo = normalizeWorkScheduleDate(dateTo) || null;
+  if (!normalizedSpecialistId) {
+    return new Set();
+  }
+
+  const { rows } = await db.query(
+    `SELECT awh.work_date
+       FROM appointment_working_hours awh
+      WHERE awh.organization_id = $1
+        AND awh.user_id = $2
+        AND awh.rule_scope = 'exception'
+        AND awh.is_active = FALSE
+        AND ($3::date IS NULL OR awh.work_date >= $3::date)
+        AND ($4::date IS NULL OR awh.work_date <= $4::date)
+      ORDER BY awh.work_date ASC`,
+    [organizationId, normalizedSpecialistId, normalizedDateFrom, normalizedDateTo]
+  );
+
+  return new Set(
+    (rows || [])
+      .map((row) => normalizeWorkScheduleDate(row?.work_date))
+      .filter(Boolean)
+  );
+}
+
+export async function listAppointmentSpecialistAbsences({
+  organizationId,
+  specialistId,
+  dateFrom = null,
+  dateTo = null,
+  db = pool
+}) {
+  const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
+  const normalizedDateFrom = normalizeWorkScheduleDate(dateFrom) || null;
+  const normalizedDateTo = normalizeWorkScheduleDate(dateTo) || null;
+  if (!normalizedSpecialistId) {
+    return [];
+  }
+
+  const { rows } = await db.query(
+    `SELECT
+       awh.id,
+       awh.organization_id,
+       awh.user_id,
+       awh.work_date,
+       awh.reason,
+       awh.created_at,
+       awh.updated_at,
+       COALESCE(
+         NULLIF(TRIM(u.full_name), ''),
+         NULLIF(TRIM(u.username), ''),
+         CONCAT('Specialist #', awh.user_id::text)
+       ) AS specialist_name,
+       COALESCE(NULLIF(TRIM(u.username), ''), '') AS specialist_username
+      FROM appointment_working_hours awh
+      LEFT JOIN users u
+        ON u.id = awh.user_id
+       AND u.organization_id = awh.organization_id
+     WHERE awh.organization_id = $1
+       AND awh.user_id = $2
+       AND awh.rule_scope = 'exception'
+       AND awh.is_active = FALSE
+       AND ($3::date IS NULL OR awh.work_date >= $3::date)
+       AND ($4::date IS NULL OR awh.work_date <= $4::date)
+     ORDER BY awh.work_date ASC, awh.id ASC`,
+    [organizationId, normalizedSpecialistId, normalizedDateFrom, normalizedDateTo]
+  );
+
+  return (rows || []).map(mapAppointmentSpecialistAbsenceItem);
+}
+
+export async function hasAppointmentSpecialistAbsenceConflict({
+  organizationId,
+  specialistId,
+  appointmentDate,
+  db = pool
+}) {
+  const normalizedAppointmentDate = normalizeWorkScheduleDate(appointmentDate);
+  if (!normalizedAppointmentDate) {
+    return false;
+  }
+
+  const absenceDateSet = await getAppointmentSpecialistAbsenceDateSet({
+    organizationId,
+    specialistId,
+    dateFrom: normalizedAppointmentDate,
+    dateTo: normalizedAppointmentDate,
+    db
+  });
+  return absenceDateSet.has(normalizedAppointmentDate);
+}
+
+async function cancelAppointmentSchedulesForSpecialistAbsence({
+  organizationId,
+  actorUserId = null,
+  specialistId,
+  absenceDate,
+  db = pool
+}) {
+  await ensureAppointmentStatusHistorySchema();
+
+  const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
+  const normalizedAbsenceDate = normalizeWorkScheduleDate(absenceDate);
+  if (!normalizedSpecialistId || !normalizedAbsenceDate) {
+    return [];
+  }
+
+  const changedFieldsSql = buildScheduleChangedFieldsSql("u");
+  const previousSnapshotSql = buildScheduleSnapshotSql("u", "prev_");
+  const nextSnapshotSql = buildScheduleSnapshotSql("u");
+
+  const { rows } = await db.query(
+    `WITH target AS (
+       SELECT
+         s.id,
+         s.organization_id,
+         s.specialist_id,
+         s.client_id,
+         s.appointment_date,
+         s.start_time,
+         s.end_time,
+         s.duration_minutes,
+         s.service_name,
+         s.status,
+         s.note,
+         s.repeat_group_key,
+         s.repeat_type,
+         s.repeat_until_date,
+         s.repeat_days,
+         s.repeat_anchor_date,
+         s.is_repeat_root,
+         s.is_auto_rolling_repeat
+       FROM appointment_schedules s
+       WHERE s.organization_id = $1
+         AND s.specialist_id = $2
+         AND s.appointment_date = $3::date
+         AND s.status IN ('pending', 'confirmed')
+         AND (
+           s.appointment_date > TIMEZONE('Asia/Tashkent', NOW())::date
+           OR (
+             s.appointment_date = TIMEZONE('Asia/Tashkent', NOW())::date
+             AND s.end_time > TIMEZONE('Asia/Tashkent', NOW())::time
+           )
+         )
+     ),
+     updated AS (
+       UPDATE appointment_schedules s
+          SET status = 'cancelled',
+              updated_by = $4::integer,
+              updated_at = CURRENT_TIMESTAMP
+         FROM target t
+        WHERE s.organization_id = t.organization_id
+          AND s.id = t.id
+       RETURNING
+         s.*,
+         t.specialist_id AS prev_specialist_id,
+         t.client_id AS prev_client_id,
+         t.appointment_date AS prev_appointment_date,
+         t.start_time AS prev_start_time,
+         t.end_time AS prev_end_time,
+         t.duration_minutes AS prev_duration_minutes,
+         t.service_name AS prev_service_name,
+         t.status AS prev_status,
+         t.note AS prev_note,
+         t.repeat_group_key AS prev_repeat_group_key,
+         t.repeat_type AS prev_repeat_type,
+         t.repeat_until_date AS prev_repeat_until_date,
+         t.repeat_days AS prev_repeat_days,
+         t.repeat_anchor_date AS prev_repeat_anchor_date,
+         t.is_repeat_root AS prev_is_repeat_root
+     ),
+     history_rows AS (
+       SELECT
+         u.organization_id,
+         u.id AS appointment_schedule_id,
+         'status-changed' AS event_type,
+         u.prev_status AS previous_status,
+         u.status AS next_status,
+         ${changedFieldsSql} AS changed_fields,
+         jsonb_build_object(
+           'before', ${previousSnapshotSql},
+           'after', ${nextSnapshotSql},
+           'reason', 'specialist_absence'
+         ) AS details,
+         $4::integer AS changed_by
+       FROM updated u
+     ),
+     history_inserted AS (
+       INSERT INTO ${APPOINTMENT_STATUS_HISTORY_TABLE} (
+         organization_id,
+         appointment_schedule_id,
+         event_type,
+         previous_status,
+         next_status,
+         changed_fields,
+         details,
+         changed_by
+       )
+       SELECT
+         h.organization_id,
+         h.appointment_schedule_id,
+         h.event_type,
+         h.previous_status,
+         h.next_status,
+         h.changed_fields,
+         h.details,
+         h.changed_by
+       FROM history_rows h
+       WHERE CARDINALITY(h.changed_fields) > 0
+     )
+     SELECT
+       u.id,
+       u.organization_id,
+       u.specialist_id,
+       u.client_id,
+       u.appointment_date,
+       u.start_time,
+       u.end_time,
+       u.duration_minutes,
+       u.service_name,
+       u.status,
+       u.note,
+       u.repeat_group_key,
+       u.repeat_type,
+       u.repeat_until_date,
+       u.repeat_days,
+       u.repeat_anchor_date,
+       u.is_repeat_root,
+       u.is_auto_rolling_repeat,
+       u.created_at,
+       u.updated_at,
+       c.first_name,
+       c.last_name,
+       c.middle_name
+      FROM updated u
+      JOIN clients c
+        ON c.id = u.client_id
+       AND c.organization_id = u.organization_id
+      ORDER BY u.appointment_date ASC, u.start_time ASC, u.id ASC`,
+    [organizationId, normalizedSpecialistId, normalizedAbsenceDate, actorUserId || null]
+  );
+
+  clearAppointmentPlannerReportFilterCaches();
+  return (rows || []).map(toScheduleItem);
+}
+
+export async function createAppointmentSpecialistAbsence({
+  organizationId,
+  actorUserId = null,
+  specialistId,
+  absenceDate,
+  reason = "",
+  db = pool
+}) {
+  const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
+  const normalizedAbsenceDate = normalizeWorkScheduleDate(absenceDate);
+  const normalizedReason = normalizeWorkScheduleReason(reason);
+  if (!normalizedSpecialistId || !normalizedAbsenceDate) {
+    return {
+      item: null,
+      cancelledItems: []
+    };
+  }
+
+  const managesOwnTransaction = db === pool;
+  const client = managesOwnTransaction
+    ? await pool.connect()
+    : db;
+
+  try {
+    if (managesOwnTransaction) {
+      await client.query("BEGIN");
+    }
+
+    const { rows } = await client.query(
+      `WITH upserted AS (
+         INSERT INTO appointment_working_hours (
+           organization_id,
+           user_id,
+           rule_scope,
+           day_of_week,
+           work_date,
+           is_active,
+           start_time,
+           end_time,
+           reason,
+           created_by,
+           updated_by
+         )
+         VALUES (
+           $1,
+           $2,
+           'exception',
+           NULL,
+           $3::date,
+           FALSE,
+           NULL,
+           NULL,
+           NULLIF($4::text, ''),
+           $5::integer,
+           $5::integer
+         )
+         ON CONFLICT (organization_id, user_id, work_date)
+           WHERE rule_scope = 'exception' AND user_id IS NOT NULL
+         DO UPDATE SET
+           is_active = FALSE,
+           start_time = NULL,
+           end_time = NULL,
+           reason = EXCLUDED.reason,
+           updated_by = EXCLUDED.updated_by,
+           updated_at = CURRENT_TIMESTAMP
+         RETURNING *
+       )
+       SELECT
+         u.id,
+         u.organization_id,
+         u.user_id,
+         u.work_date,
+         u.reason,
+         u.created_at,
+         u.updated_at,
+         COALESCE(
+           NULLIF(TRIM(user_ref.full_name), ''),
+           NULLIF(TRIM(user_ref.username), ''),
+           CONCAT('Specialist #', u.user_id::text)
+         ) AS specialist_name,
+         COALESCE(NULLIF(TRIM(user_ref.username), ''), '') AS specialist_username
+        FROM upserted u
+        LEFT JOIN users user_ref
+          ON user_ref.id = u.user_id
+         AND user_ref.organization_id = u.organization_id`,
+      [
+        organizationId,
+        normalizedSpecialistId,
+        normalizedAbsenceDate,
+        normalizedReason,
+        actorUserId || null
+      ]
+    );
+
+    const cancelledItems = await cancelAppointmentSchedulesForSpecialistAbsence({
+      organizationId,
+      actorUserId,
+      specialistId: normalizedSpecialistId,
+      absenceDate: normalizedAbsenceDate,
+      db: client
+    });
+
+    if (managesOwnTransaction) {
+      await client.query("COMMIT");
+    }
+
+    return {
+      item: rows[0] ? mapAppointmentSpecialistAbsenceItem(rows[0]) : null,
+      cancelledItems
+    };
+  } catch (error) {
+    if (managesOwnTransaction) {
+      await client.query("ROLLBACK").catch(() => {});
+    }
+    throw error;
+  } finally {
+    if (managesOwnTransaction) {
+      client.release();
+    }
+  }
+}
+
+export async function deleteAppointmentSpecialistAbsenceById({
+  id,
+  organizationId,
+  specialistId = null,
+  db = pool
+}) {
+  const normalizedId = Number.parseInt(String(id || "").trim(), 10) || 0;
+  const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
+  if (!normalizedId) {
+    return {
+      rowCount: 0,
+      item: null
+    };
+  }
+
+  const params = [normalizedId, organizationId];
+  const specialistFilterSql = normalizedSpecialistId
+    ? `AND awh.user_id = $${params.push(normalizedSpecialistId)}`
+    : "";
+
+  const { rows } = await db.query(
+    `DELETE FROM appointment_working_hours awh
+      WHERE awh.id = $1
+        AND awh.organization_id = $2
+        AND awh.rule_scope = 'exception'
+        AND awh.is_active = FALSE
+        ${specialistFilterSql}
+      RETURNING
+        awh.id,
+        awh.organization_id,
+        awh.user_id,
+        awh.work_date,
+        awh.reason,
+        awh.created_at,
+        awh.updated_at`,
+    params
+  );
+
+  return {
+    rowCount: Array.isArray(rows) ? rows.length : 0,
+    item: rows[0] ? mapAppointmentSpecialistAbsenceItem(rows[0]) : null
+  };
+}
+
 export async function isVipClassAssignedToUser({
   organizationId,
   classId,
@@ -1727,6 +2162,7 @@ export async function ensureAutoRollingRecurringSchedulesCoverRange({
     await withAppointmentTransaction(async (db) => {
       let blockedRangesByDay = new Map();
       let breakRangesByDay = new Map();
+      let absenceDateSet = new Set();
 
       if (shouldEnforceAvailability && recurringDates.length > 0) {
         const settingsForRepeat = await getAppointmentSettingsByOrganization(
@@ -1742,8 +2178,19 @@ export async function ensureAutoRollingRecurringSchedulesCoverRange({
             db
           })
         );
+        absenceDateSet = await getAppointmentSpecialistAbsenceDateSet({
+          organizationId,
+          specialistId: root.specialist_id,
+          dateFrom: recurringDates[0],
+          dateTo: recurringDates[recurringDates.length - 1],
+          db
+        });
 
         for (const recurringDate of recurringDates) {
+          if (absenceDateSet.has(recurringDate)) {
+            continue;
+          }
+
           const workingHoursError = validateSlotAgainstWorkingHours({
             settings: settingsForRepeat,
             appointmentDate: recurringDate,

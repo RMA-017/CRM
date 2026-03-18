@@ -71,6 +71,18 @@ export function useProfileAccess(profile, forcedView) {
   const canCreateAppointmentBreaksPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_BREAKS_CREATE);
   const canUpdateAppointmentBreaksPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_BREAKS_UPDATE);
   const canDeleteAppointmentBreaksPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_BREAKS_DELETE);
+  const canOpenSpecialistAbsencesPermission = hasPermissionWithOrgFeature(
+    PERMISSIONS.APPOINTMENTS_SUBMENU_SPECIALIST_ABSENCES
+  );
+  const canReadAppointmentSpecialistAbsencesPermission = hasPermissionWithOrgFeature(
+    PERMISSIONS.APPOINTMENTS_SPECIALIST_ABSENCES_READ
+  );
+  const canCreateAppointmentSpecialistAbsencesPermission = hasPermissionWithOrgFeature(
+    PERMISSIONS.APPOINTMENTS_SPECIALIST_ABSENCES_CREATE
+  );
+  const canDeleteAppointmentSpecialistAbsencesPermission = hasPermissionWithOrgFeature(
+    PERMISSIONS.APPOINTMENTS_SPECIALIST_ABSENCES_DELETE
+  );
   const canReadVipClientsPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_READ);
   const canCreateVipClientsPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_CREATE);
   const canUpdateVipClientsPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_UPDATE);
@@ -130,6 +142,7 @@ export function useProfileAccess(profile, forcedView) {
   const usesAdvancedMenuPermissions = (
     canOpenPlannerPermission
     || canOpenBreaksPermission
+    || canOpenSpecialistAbsencesPermission
     || canReadAppointments
     || canCreateAppointments
     || canUpdateAppointments
@@ -138,6 +151,9 @@ export function useProfileAccess(profile, forcedView) {
     || canCreateAppointmentBreaksPermission
     || canUpdateAppointmentBreaksPermission
     || canDeleteAppointmentBreaksPermission
+    || canReadAppointmentSpecialistAbsencesPermission
+    || canCreateAppointmentSpecialistAbsencesPermission
+    || canDeleteAppointmentSpecialistAbsencesPermission
     || canOpenWorkSchedulePermission
     || canReadVipClientsPermission
     || canCreateVipClientsPermission
@@ -263,6 +279,23 @@ export function useProfileAccess(profile, forcedView) {
   );
   const rolePositionText = `${String(profile?.role || "").trim().toLowerCase()} ${String(profile?.position || "").trim().toLowerCase()}`;
   const isDirectorLike = rolePositionText.includes("director") || rolePositionText.includes("direktor");
+  const isSpecialistLike = rolePositionText.includes("specialist") || rolePositionText.includes("spetsialist");
+  const canReadAppointmentSpecialistAbsences = (
+    canReadAppointmentSpecialistAbsencesPermission
+    && hasOrgFeature("appointments.specialist_absences")
+  );
+  const canCreateAppointmentSpecialistAbsences = (
+    canCreateAppointmentSpecialistAbsencesPermission
+    && hasOrgFeature("appointments.specialist_absences")
+  );
+  const canDeleteAppointmentSpecialistAbsences = (
+    canDeleteAppointmentSpecialistAbsencesPermission
+    && hasOrgFeature("appointments.specialist_absences")
+  );
+  const canViewAppointmentSpecialistAbsenceBlocks = (
+    canReadAppointments
+    && hasOrgFeature("appointments.specialist_absences")
+  );
   const canReadAppointmentVipClients = canReadVipClientsPermission;
   const canCreateAppointmentVipClients = canCreateVipClientsPermission;
   const canUpdateAppointmentVipClients = canUpdateVipClientsPermission;
@@ -348,6 +381,15 @@ export function useProfileAccess(profile, forcedView) {
         ? canOpenWorkSchedulePermission
         : true
     );
+  const canOpenAppointmentSpecialistAbsences = (
+    canReadAppointmentSpecialistAbsences
+    && isSpecialistLike
+    && (
+      usesAdvancedMenuPermissions
+        ? canOpenSpecialistAbsencesPermission
+        : true
+    )
+  );
   const canOpenSettingsOrganizations = canReadSettingsOrganizations;
   const canOpenSettingsRoles = hasOrgFeature("settings.roles") && canReadSettingsRoles;
   const canOpenSettingsPositions = hasOrgFeature("settings.positions") && canReadSettingsPositions;
@@ -356,6 +398,7 @@ export function useProfileAccess(profile, forcedView) {
   const hasAppointmentsMenuAccess = (
     canOpenAppointmentSchedule
     || canOpenAppointmentBreaks
+    || canOpenAppointmentSpecialistAbsences
     || canOpenAppointmentVipClients
     || canOpenAppointmentWorkSchedule
   );
@@ -417,11 +460,11 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "appointment-breaks") {
       return canOpenAppointmentBreaks;
     }
+    if (forcedView === "appointment-specialist-absences") {
+      return canOpenAppointmentSpecialistAbsences;
+    }
     if (forcedView === "appointment-settings") {
       return canOpenAppointmentSettings;
-    }
-    if (forcedView === "appointment-work-schedule") {
-      return canOpenAppointmentWorkSchedule;
     }
     if (forcedView === "settings-organizations") {
       return canOpenSettingsOrganizations;
@@ -453,43 +496,18 @@ export function useProfileAccess(profile, forcedView) {
     return true;
   }, [
     canCreateUsers,
-    canCreateClients,
     canOpenAppointmentBreaks,
+    canOpenAppointmentSpecialistAbsences,
     canOpenAppointmentSchedule,
     canOpenAppointmentSettings,
     canOpenAppointmentWorkSchedule,
-    canReadAppointmentWorkSchedule,
-    canCreateAppointmentWorkSchedule,
-    canUpdateAppointmentWorkSchedule,
-    canDeleteAppointmentWorkSchedule,
-    canReadAppointmentBreaks,
-    canCreateAppointmentBreaks,
-    canUpdateAppointmentBreaks,
-    canDeleteAppointmentBreaks,
     canOpenAppointmentVipMyClass,
     canOpenAppointmentVipClients,
     canOpenAppointmentVipNormMonitoring,
     canOpenMyChildren,
     canOpenAppointmentVipDailyRoutines,
-    canReadAppointmentVipClients,
-    canCreateAppointmentVipClients,
-    canUpdateAppointmentVipClients,
-    canDeleteAppointmentVipClients,
     canOpenAppointmentVipClassAssignments,
     canOpenAppointmentVipTutorAssignments,
-    canOpenAppointmentVipAssignments,
-    canReadAppointmentVipClassAssignments,
-    canCreateAppointmentVipClassAssignments,
-    canUpdateAppointmentVipClassAssignments,
-    canDeleteAppointmentVipClassAssignments,
-    canReadAppointmentVipTutorAssignments,
-    canCreateAppointmentVipTutorAssignments,
-    canUpdateAppointmentVipTutorAssignments,
-    canDeleteAppointmentVipTutorAssignments,
-    canReadAppointmentVipAssignments,
-    canCreateAppointmentVipAssignments,
-    canUpdateAppointmentVipAssignments,
-    canDeleteAppointmentVipAssignments,
     canOpenAppointmentStatistics,
     canOpenStatisticsClassAttendance,
     canOpenStatisticsPlannerReport,
@@ -497,15 +515,13 @@ export function useProfileAccess(profile, forcedView) {
     canOpenSettingsNorms,
     canOpenSettingsPositions,
     canOpenSettingsRoles,
-    canReadStatisticsClassAttendancePermission,
-    canReadStatisticsPlannerReportPermission,
     hasClientsMenuAccess,
     canReadClientMedicalHistory,
+    canReadClients,
     canReadUsers,
     canSendNotifications,
     forcedView,
     hasAdminSettingsAccess,
-    hasSettingsMenuAccess,
     profile?.isPlatformAdmin
   ]);
 
@@ -532,6 +548,7 @@ export function useProfileAccess(profile, forcedView) {
     canOpenAppointmentSchedule,
     canOpenAppointmentVipMyClass,
     canOpenAppointmentBreaks,
+    canOpenAppointmentSpecialistAbsences,
     canOpenAppointmentSettings,
     canOpenAppointmentWorkSchedule,
     canReadAppointmentWorkSchedule,
@@ -539,6 +556,10 @@ export function useProfileAccess(profile, forcedView) {
     canUpdateAppointmentWorkSchedule,
     canDeleteAppointmentWorkSchedule,
     canReadAppointmentBreaks,
+    canReadAppointmentSpecialistAbsences,
+    canCreateAppointmentSpecialistAbsences,
+    canDeleteAppointmentSpecialistAbsences,
+    canViewAppointmentSpecialistAbsenceBlocks,
     canCreateAppointmentBreaks,
     canUpdateAppointmentBreaks,
     canDeleteAppointmentBreaks,

@@ -677,6 +677,7 @@ function AppointmentPlannerGrid({
   selectedClientId = "",
   breaksForSpecialist = [],
   blockedTimesForSpecialist = [],
+  absencesForSpecialist = [],
   slotCellHeightPx = DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
   now = new Date(),
   canCreateOnSpecialist = false,
@@ -741,6 +742,42 @@ function AppointmentPlannerGrid({
       return acc;
     }, {})
   ), [settings?.workingHours]);
+  const appointmentSpecialistAbsenceSlotsByDay = useMemo(() => (
+    weekDays.reduce((acc, day) => {
+      const blockedByTime = {};
+      const dayDate = formatDateYmd(day.date);
+      const absenceItem = (Array.isArray(absencesForSpecialist) ? absencesForSpecialist : []).find(
+        (item) => String(item?.absenceDate || "").trim() === dayDate
+      );
+      if (!absenceItem) {
+        acc[day.key] = blockedByTime;
+        return acc;
+      }
+
+      const dayMinutes = workingHoursMinutesByDay[day.key] || { start: null, end: null };
+      const reasonFull = String(absenceItem?.reason || "").trim() || "Specialist absent";
+      const reasonShort = truncateWithEllipsis(reasonFull, 18) || "Absent";
+      timeSlots.forEach((slot) => {
+        const slotMinutes = slotMinutesByValue[slot];
+        if (
+          slotMinutes === null
+          || dayMinutes.start === null
+          || dayMinutes.end === null
+          || slotMinutes < dayMinutes.start
+          || slotMinutes >= dayMinutes.end
+        ) {
+          return;
+        }
+        blockedByTime[slot] = {
+          reasonShort,
+          reasonFull
+        };
+      });
+
+      acc[day.key] = blockedByTime;
+      return acc;
+    }, {})
+  ), [absencesForSpecialist, slotMinutesByValue, timeSlots, weekDays, workingHoursMinutesByDay]);
   const appointmentLookupByDay = useMemo(() => (
     weekDays.reduce((acc, day) => {
       const dayItems = Array.isArray(appointmentsByDay[day.key]) ? appointmentsByDay[day.key] : [];
@@ -993,6 +1030,7 @@ function AppointmentPlannerGrid({
       const dayAppointments = appointmentLookupByDay[day.key] || {};
       const dayBlockedSlots = appointmentBlockedSlotsByDay[day.key] || {};
       const dayBreakSlots = appointmentBreakSlotsByDay[day.key] || {};
+      const dayAbsenceSlots = appointmentSpecialistAbsenceSlotsByDay[day.key] || {};
       const dayWorkScheduleBlockedSlots = appointmentWorkScheduleBlockedSlotsByDay[day.key] || {};
       const dayMinutes = workingHoursMinutesByDay[day.key] || { start: null, end: null };
 
@@ -1013,7 +1051,13 @@ function AppointmentPlannerGrid({
             if (appointmentSpanMap[groupSlot] === 0) {
               return false;
             }
-            if (dayAppointments[groupSlot] || dayBlockedSlots[groupSlot] || dayBreakSlots[groupSlot] || dayWorkScheduleBlockedSlots[groupSlot]) {
+            if (
+              dayAppointments[groupSlot]
+              || dayBlockedSlots[groupSlot]
+              || dayBreakSlots[groupSlot]
+              || dayAbsenceSlots[groupSlot]
+              || dayWorkScheduleBlockedSlots[groupSlot]
+            ) {
               return false;
             }
             const slotMinutes = slotMinutesByValue[groupSlot];
@@ -1034,7 +1078,13 @@ function AppointmentPlannerGrid({
         if (!firstSlot || spanMap[firstSlot] === 0) {
           continue;
         }
-        if (appointmentSpanMap[firstSlot] === 0 || dayAppointments[firstSlot] || dayBlockedSlots[firstSlot] || dayWorkScheduleBlockedSlots[firstSlot]) {
+        if (
+          appointmentSpanMap[firstSlot] === 0
+          || dayAppointments[firstSlot]
+          || dayBlockedSlots[firstSlot]
+          || dayAbsenceSlots[firstSlot]
+          || dayWorkScheduleBlockedSlots[firstSlot]
+        ) {
           continue;
         }
 
@@ -1046,7 +1096,13 @@ function AppointmentPlannerGrid({
         let span = 1;
         for (let nextIndex = startIndex + 1; nextIndex < timeSlots.length; nextIndex += 1) {
           const nextSlot = timeSlots[nextIndex];
-          if (!nextSlot || appointmentSpanMap[nextSlot] === 0 || dayAppointments[nextSlot] || dayBlockedSlots[nextSlot]) {
+          if (
+            !nextSlot
+            || appointmentSpanMap[nextSlot] === 0
+            || dayAppointments[nextSlot]
+            || dayBlockedSlots[nextSlot]
+            || dayAbsenceSlots[nextSlot]
+          ) {
             break;
           }
           const nextBreakType = normalizeBreakTypeKey(dayBreakSlots[nextSlot]?.breakType || "");
@@ -1074,6 +1130,51 @@ function AppointmentPlannerGrid({
           continue;
         }
         if (appointmentSpanMap[firstSlot] === 0 || dayAppointments[firstSlot] || dayBlockedSlots[firstSlot] || dayBreakSlots[firstSlot]) {
+          continue;
+        }
+
+        const firstReason = String(dayAbsenceSlots[firstSlot]?.reasonFull || "").trim();
+        if (!firstReason) {
+          continue;
+        }
+
+        let span = 1;
+        for (let nextIndex = startIndex + 1; nextIndex < timeSlots.length; nextIndex += 1) {
+          const nextSlot = timeSlots[nextIndex];
+          if (!nextSlot || appointmentSpanMap[nextSlot] === 0 || dayAppointments[nextSlot] || dayBlockedSlots[nextSlot] || dayBreakSlots[nextSlot]) {
+            break;
+          }
+          const nextReason = String(dayAbsenceSlots[nextSlot]?.reasonFull || "").trim();
+          if (!nextReason || nextReason !== firstReason) {
+            break;
+          }
+          span += 1;
+        }
+
+        if (span > 1) {
+          spanMap[firstSlot] = span;
+          for (let offset = 1; offset < span; offset += 1) {
+            const coveredSlot = timeSlots[startIndex + offset];
+            if (coveredSlot) {
+              spanMap[coveredSlot] = 0;
+            }
+          }
+          startIndex += span - 1;
+        }
+      }
+
+      for (let startIndex = 0; startIndex < timeSlots.length; startIndex += 1) {
+        const firstSlot = timeSlots[startIndex];
+        if (!firstSlot || spanMap[firstSlot] === 0) {
+          continue;
+        }
+        if (
+          appointmentSpanMap[firstSlot] === 0
+          || dayAppointments[firstSlot]
+          || dayBlockedSlots[firstSlot]
+          || dayBreakSlots[firstSlot]
+          || dayAbsenceSlots[firstSlot]
+        ) {
           continue;
         }
 
@@ -1113,6 +1214,7 @@ function AppointmentPlannerGrid({
   }, [
     appointmentBlockedSlotsByDay,
     appointmentBreakSlotsByDay,
+    appointmentSpecialistAbsenceSlotsByDay,
     appointmentWorkScheduleBlockedSlotsByDay,
     appointmentLookupByDay,
     appointmentRowSpanByDay,
@@ -1189,6 +1291,7 @@ function AppointmentPlannerGrid({
                     const item = appointmentLookupByDay[day.key]?.[slot] || null;
                     const blockedItem = appointmentBlockedSlotsByDay[day.key]?.[slot] || null;
                     const breakBlockedItem = appointmentBreakSlotsByDay[day.key]?.[slot] || null;
+                    const absenceBlockedItem = appointmentSpecialistAbsenceSlotsByDay[day.key]?.[slot] || null;
                     const workScheduleBlockedItem = appointmentWorkScheduleBlockedSlotsByDay[day.key]?.[slot] || null;
                     const appointmentRowSpan = appointmentRowSpanByDay[day.key]?.[slot];
                     const specialCellRowSpan = specialCellRowSpanByDay[day.key]?.[slot];
@@ -1251,6 +1354,7 @@ function AppointmentPlannerGrid({
                       isInsideWorkingHours
                       && !item
                       && !blockedItem
+                      && !absenceBlockedItem
                       && !workScheduleBlockedItem
                       && !breakBlockedItem
                       && canCreateOnSpecialist
@@ -1264,7 +1368,7 @@ function AppointmentPlannerGrid({
                       reachesBottom ? "appointment-td-reaches-bottom" : "",
                       isOffSlotCell ? "appointment-off-slot-td" : "",
                       statusCellClassName,
-                      workScheduleBlockedItem ? "appointment-work-schedule-blocked-td" : "",
+                      (absenceBlockedItem || workScheduleBlockedItem) ? "appointment-work-schedule-blocked-td" : "",
                       breakBlockedItem ? `appointment-break-type-${breakBlockedItem.breakType}-td` : "",
                     ].filter(Boolean).join(" ") || undefined;
 
@@ -1305,6 +1409,14 @@ function AppointmentPlannerGrid({
                             className={`appointment-occupied-slot appointment-status-${blockedItem.status}`}
                             aria-label={`Booked slot on ${day.label} at ${slot}`}
                           />
+                        ) : absenceBlockedItem ? (
+                          <span
+                            className="appointment-break-text-only appointment-work-schedule-blocked-text"
+                            aria-label={`Specialist absent on ${day.label} at ${slot}`}
+                            title={String(absenceBlockedItem.reasonFull || "").trim() || undefined}
+                          >
+                            <span className="appointment-break-slot-text">{absenceBlockedItem.reasonShort}</span>
+                          </span>
                         ) : workScheduleBlockedItem ? (
                           <span
                             className="appointment-break-text-only appointment-work-schedule-blocked-text"
@@ -1338,6 +1450,7 @@ function AppointmentPlannerGrid({
 function AppointmentScheduler({
   canReadAppointments = true,
   canReadAppointmentBreaks = true,
+  canViewAppointmentSpecialistAbsenceBlocks = true,
   canReadStatisticsPlannerReport = true,
   canCreateAppointments = true,
   canUpdateAppointments = true,
@@ -1385,6 +1498,8 @@ function AppointmentScheduler({
   const [appointmentsBySpecialist, setAppointmentsBySpecialist] = useState(() => ({}));
   const [appointmentsWeekKeyBySpecialist, setAppointmentsWeekKeyBySpecialist] = useState(() => ({}));
   const [breaksBySpecialist, setBreaksBySpecialist] = useState(() => ({}));
+  const [absencesBySpecialist, setAbsencesBySpecialist] = useState(() => ({}));
+  const [absencesWeekKeyBySpecialist, setAbsencesWeekKeyBySpecialist] = useState(() => ({}));
   const [createModal, setCreateModal] = useState({
     open: false,
     mode: "create",
@@ -1418,6 +1533,7 @@ function AppointmentScheduler({
   });
   const schedulesRequestIdRef = useRef(0);
   const breaksRequestIdRef = useRef(0);
+  const absencesRequestIdRef = useRef(0);
   const clientFocusedRequestIdRef = useRef(0);
   const normalizedCurrentUserId = String(currentUserId || "").trim();
   const normalizedSelectedPlannerClientFilterId = String(selectedPlannerClientFilterId || "").trim();
@@ -1890,6 +2006,13 @@ function AppointmentScheduler({
   const breaksForSpecialist = vipOnly
     ? []
     : (breaksBySpecialist[selectedSpecialistId] || []);
+  const absencesForSpecialist = (
+    vipOnly
+    || !selectedSpecialistId
+    || absencesWeekKeyBySpecialist[selectedSpecialistId] !== weekDataKey
+  )
+    ? []
+    : (absencesBySpecialist[selectedSpecialistId] || []);
   const blockedTimesForSpecialist = useMemo(() => (
     vipOnly ? [] : normalizePlannerBlockedTimeItems(settings.blockedTimes)
   ), [settings.blockedTimes, vipOnly]);
@@ -2806,6 +2929,89 @@ function AppointmentScheduler({
     }
   }, [canReadPlannerBreaks, selectedSpecialistId, vipOnly]);
 
+  const loadAbsencesForSelectedSpecialist = useCallback(async () => {
+    if (vipOnly || !selectedSpecialistId || weekDays.length === 0 || !canViewAppointmentSpecialistAbsenceBlocks) {
+      if (!vipOnly && selectedSpecialistId) {
+        setAbsencesBySpecialist((prev) => ({
+          ...prev,
+          [selectedSpecialistId]: []
+        }));
+        setAbsencesWeekKeyBySpecialist((prev) => ({
+          ...prev,
+          [selectedSpecialistId]: weekDataKey
+        }));
+      }
+      return;
+    }
+
+    const requestId = absencesRequestIdRef.current + 1;
+    absencesRequestIdRef.current = requestId;
+
+    try {
+      const response = await apiFetch(`/api/appointments/absences?${new URLSearchParams({
+        specialistId: String(selectedSpecialistId || "").trim(),
+        dateFrom: formatDateYmd(weekStartDate),
+        dateTo: formatDateYmd(weekEndDate)
+      }).toString()}`, {
+        method: "GET",
+        cache: "no-store"
+      });
+      const data = await readApiResponseData(response);
+      if (requestId !== absencesRequestIdRef.current) {
+        return;
+      }
+
+      if (!response.ok) {
+        setMessage(data?.message || "Failed to load specialist absences.");
+        setAbsencesBySpecialist((prev) => ({
+          ...prev,
+          [selectedSpecialistId]: []
+        }));
+        setAbsencesWeekKeyBySpecialist((prev) => ({
+          ...prev,
+          [selectedSpecialistId]: weekDataKey
+        }));
+        return;
+      }
+
+      const normalizedItems = (Array.isArray(data?.items) ? data.items : []).map((item) => ({
+        id: String(item?.id || "").trim(),
+        absenceDate: String(item?.absenceDate || "").trim(),
+        reason: String(item?.reason || "").trim()
+      })).filter((item) => Boolean(item.id) && Boolean(item.absenceDate));
+
+      setAbsencesBySpecialist((prev) => ({
+        ...prev,
+        [selectedSpecialistId]: normalizedItems
+      }));
+      setAbsencesWeekKeyBySpecialist((prev) => ({
+        ...prev,
+        [selectedSpecialistId]: weekDataKey
+      }));
+    } catch {
+      if (requestId !== absencesRequestIdRef.current) {
+        return;
+      }
+      setMessage("Failed to load specialist absences.");
+      setAbsencesBySpecialist((prev) => ({
+        ...prev,
+        [selectedSpecialistId]: []
+      }));
+      setAbsencesWeekKeyBySpecialist((prev) => ({
+        ...prev,
+        [selectedSpecialistId]: weekDataKey
+      }));
+    }
+  }, [
+    canViewAppointmentSpecialistAbsenceBlocks,
+    selectedSpecialistId,
+    vipOnly,
+    weekDataKey,
+    weekDays.length,
+    weekEndDate,
+    weekStartDate
+  ]);
+
   useEffect(() => {
     if (typeof window === "undefined") {
       return undefined;
@@ -2814,6 +3020,7 @@ function AppointmentScheduler({
     const handleExternalAppointmentChange = () => {
       loadSchedulesForCurrentWeek();
       loadBreaksForSelectedSpecialist();
+      loadAbsencesForSelectedSpecialist();
       void loadClientFocusedPlannerView();
       void loadAppointmentSettings({ silent: true });
     };
@@ -2822,7 +3029,13 @@ function AppointmentScheduler({
     return () => {
       window.removeEventListener("crm:appointment-change", handleExternalAppointmentChange);
     };
-  }, [loadAppointmentSettings, loadBreaksForSelectedSpecialist, loadClientFocusedPlannerView, loadSchedulesForCurrentWeek]);
+  }, [
+    loadAbsencesForSelectedSpecialist,
+    loadAppointmentSettings,
+    loadBreaksForSelectedSpecialist,
+    loadClientFocusedPlannerView,
+    loadSchedulesForCurrentWeek
+  ]);
 
   useEffect(() => {
     loadSchedulesForCurrentWeek();
@@ -2841,6 +3054,10 @@ function AppointmentScheduler({
   useEffect(() => {
     loadBreaksForSelectedSpecialist();
   }, [loadBreaksForSelectedSpecialist]);
+
+  useEffect(() => {
+    loadAbsencesForSelectedSpecialist();
+  }, [loadAbsencesForSelectedSpecialist]);
 
   function closeCreateModal() {
     setCreateModal({
@@ -3887,6 +4104,7 @@ function AppointmentScheduler({
               selectedClientId={normalizedSelectedPlannerClientFilterId}
               breaksForSpecialist={[]}
               blockedTimesForSpecialist={[]}
+              absencesForSpecialist={[]}
               slotCellHeightPx={slotCellHeightPx}
               now={now}
               canCreateOnSpecialist={false}
@@ -3908,6 +4126,7 @@ function AppointmentScheduler({
             rawAppointmentsByDay={rawAppointmentsByDay}
             breaksForSpecialist={breaksForSpecialist}
             blockedTimesForSpecialist={blockedTimesForSpecialist}
+            absencesForSpecialist={absencesForSpecialist}
             slotCellHeightPx={slotCellHeightPx}
             now={now}
             canCreateOnSpecialist={canCreateOnPlannerSpecialist(selectedSpecialistId)}

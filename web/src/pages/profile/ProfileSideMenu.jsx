@@ -24,6 +24,7 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
   canOpenAppointmentSchedule,
   canOpenAppointmentVipMyClass,
   canOpenAppointmentBreaks,
+  canOpenAppointmentSpecialistAbsences,
   canOpenAppointmentWorkSchedule,
   canOpenAppointmentVipClients,
   canOpenAppointmentVipNormMonitoring,
@@ -42,6 +43,7 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
   canOpenSettingsNorms,
   openAppointmentPanel,
   openAppointmentBreaksPanel,
+  openAppointmentSpecialistAbsencesPanel,
   openAppointmentWorkSchedulePanel,
   openAppointmentVipSchedulePanel,
   openAppointmentVipAttendancePanel,
@@ -303,6 +305,15 @@ const ProfileSideMenu = forwardRef(function ProfileSideMenu({
                 onClick={openAppointmentPanel}
               >
                 Planner
+              </button>
+              <button
+                id="openAppointmentSpecialistAbsencesBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                hidden={!canOpenAppointmentSpecialistAbsences}
+                onClick={openAppointmentSpecialistAbsencesPanel}
+              >
+                Specialist Absences
               </button>
               <button
                 id="openAppointmentUserWeeklyOverridesBtn"

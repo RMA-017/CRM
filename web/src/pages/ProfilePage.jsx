@@ -90,6 +90,11 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenAppointmentSchedule,
     canOpenAppointmentVipMyClass,
     canOpenAppointmentBreaks,
+    canOpenAppointmentSpecialistAbsences,
+    canReadAppointmentSpecialistAbsences,
+    canCreateAppointmentSpecialistAbsences,
+    canDeleteAppointmentSpecialistAbsences,
+    canViewAppointmentSpecialistAbsenceBlocks,
     canReadAppointmentBreaks,
     canCreateAppointmentBreaks,
     canUpdateAppointmentBreaks,
@@ -841,6 +846,8 @@ function ProfilePage({ forcedView = "none" }) {
     closeAppointmentPanel,
     openAppointmentBreaksPanel,
     closeAppointmentBreaksPanel,
+    openAppointmentSpecialistAbsencesPanel,
+    closeAppointmentSpecialistAbsencesPanel,
     openAppointmentVipSchedulePanel,
     closeAppointmentVipSchedulePanel,
     openAppointmentVipAttendancePanel,
@@ -886,6 +893,7 @@ function ProfilePage({ forcedView = "none" }) {
     canReadClients,
     canReadClientMedicalHistory,
     canOpenAppointmentSchedule,
+    canOpenAppointmentSpecialistAbsences,
     canOpenAppointmentVipMyClass,
     canOpenAppointmentBreaks,
     canOpenAppointmentWorkSchedule,
@@ -1417,6 +1425,10 @@ function ProfilePage({ forcedView = "none" }) {
           canCreateAppointments={canCreateAppointments}
           canUpdateAppointments={canUpdateAppointments}
           canReadAppointmentBreaks={canReadAppointmentBreaks}
+          canReadAppointmentSpecialistAbsences={canReadAppointmentSpecialistAbsences}
+          canCreateAppointmentSpecialistAbsences={canCreateAppointmentSpecialistAbsences}
+          canDeleteAppointmentSpecialistAbsences={canDeleteAppointmentSpecialistAbsences}
+          canViewAppointmentSpecialistAbsenceBlocks={canViewAppointmentSpecialistAbsenceBlocks}
           canReadStatisticsPlannerReportPermission={canReadStatisticsPlannerReportPermission}
           canCreateAppointmentBreaks={canCreateAppointmentBreaks}
           canUpdateAppointmentBreaks={canUpdateAppointmentBreaks}
@@ -1431,6 +1443,7 @@ function ProfilePage({ forcedView = "none" }) {
           canDeleteAppointments={canDeleteAppointments}
           closeAppointmentPanel={closeAppointmentPanel}
           closeAppointmentBreaksPanel={closeAppointmentBreaksPanel}
+          closeAppointmentSpecialistAbsencesPanel={closeAppointmentSpecialistAbsencesPanel}
           closeAppointmentVipSchedulePanel={closeAppointmentVipSchedulePanel}
           closeAppointmentVipAttendancePanel={closeAppointmentVipAttendancePanel}
           closeAppointmentVipNormMonitoringPanel={closeAppointmentVipNormMonitoringPanel}
@@ -1674,6 +1687,7 @@ function ProfilePage({ forcedView = "none" }) {
           canOpenAppointmentSchedule={canOpenAppointmentSchedule}
           canOpenAppointmentVipMyClass={canOpenAppointmentVipMyClass}
           canOpenAppointmentBreaks={canOpenAppointmentBreaks}
+          canOpenAppointmentSpecialistAbsences={canOpenAppointmentSpecialistAbsences}
           canOpenAppointmentWorkSchedule={canOpenAppointmentWorkSchedule}
           canOpenAppointmentVipClients={canOpenAppointmentVipClients}
           canOpenAppointmentVipNormMonitoring={canOpenAppointmentVipNormMonitoring}
@@ -1692,6 +1706,7 @@ function ProfilePage({ forcedView = "none" }) {
           canOpenSettingsNorms={canOpenSettingsNorms}
           openAppointmentPanel={openAppointmentPanel}
           openAppointmentBreaksPanel={openAppointmentBreaksPanel}
+          openAppointmentSpecialistAbsencesPanel={openAppointmentSpecialistAbsencesPanel}
           openAppointmentVipSchedulePanel={openAppointmentVipSchedulePanel}
           openAppointmentVipAttendancePanel={openAppointmentVipAttendancePanel}
           openAppointmentVipNormMonitoringPanel={openAppointmentVipNormMonitoringPanel}

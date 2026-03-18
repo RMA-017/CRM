@@ -26,6 +26,7 @@ const StatisticsClassPanel = lazy(() => import("./panels/StatisticsClassPanel.js
 const AppointmentBreaksShellPanel = lazy(() => import("./panels/AppointmentBreaksShellPanel.jsx"));
 const AppointmentNormsPanel = lazy(() => import("./panels/AppointmentNormsPanel.jsx"));
 const AppointmentPlannerPanel = lazy(() => import("./panels/AppointmentPlannerPanel.jsx"));
+const AppointmentSpecialistAbsencesPanel = lazy(() => import("./panels/AppointmentSpecialistAbsencesPanel.jsx"));
 const AppointmentSettingsShellPanel = lazy(() => import("./panels/AppointmentSettingsShellPanel.jsx"));
 const StatisticsPlannerReportPanel = lazy(() => import("./panels/StatisticsPlannerReportPanel.jsx"));
 const VipAssignmentModals = lazy(() => import("./panels/VipAssignmentModals.jsx"));
@@ -133,6 +134,10 @@ function ProfileMainContent({
   canReadAppointments,
   canUpdateAppointments,
   canReadAppointmentBreaks,
+  canReadAppointmentSpecialistAbsences,
+  canCreateAppointmentSpecialistAbsences,
+  canDeleteAppointmentSpecialistAbsences,
+  canViewAppointmentSpecialistAbsenceBlocks,
   canReadStatisticsPlannerReportPermission,
   canCreateAppointmentBreaks,
   canUpdateAppointmentBreaks,
@@ -147,6 +152,7 @@ function ProfileMainContent({
   canDeleteAppointments,
   closeAppointmentPanel,
   closeAppointmentBreaksPanel,
+  closeAppointmentSpecialistAbsencesPanel,
   closeAppointmentVipSchedulePanel,
   closeAppointmentVipAttendancePanel,
   closeAppointmentVipNormMonitoringPanel,
@@ -913,6 +919,7 @@ function ProfileMainContent({
           <AppointmentPlannerPanel
             canReadAppointments={canReadAppointments}
             canReadAppointmentBreaks={canReadAppointmentBreaks}
+            canViewAppointmentSpecialistAbsenceBlocks={canViewAppointmentSpecialistAbsenceBlocks}
             canReadStatisticsPlannerReport={canReadStatisticsPlannerReportPermission}
             canCreateAppointments={canCreateAppointments}
             canUpdateAppointments={canUpdateAppointments}
@@ -963,6 +970,17 @@ function ProfileMainContent({
             vipClassDailyRoutines={vipDailyRoutineItems}
             onNotification={onAppointmentNotification}
             onClose={closeAppointmentVipSchedulePanel}
+          />
+        </Suspense>
+      )}
+
+      {mainView === "appointment-specialist-absences" && (
+        <Suspense fallback={PANEL_LOADING_FALLBACK}>
+          <AppointmentSpecialistAbsencesPanel
+            canReadAppointmentSpecialistAbsences={canReadAppointmentSpecialistAbsences}
+            canCreateAppointmentSpecialistAbsences={canCreateAppointmentSpecialistAbsences}
+            canDeleteAppointmentSpecialistAbsences={canDeleteAppointmentSpecialistAbsences}
+            closeAppointmentSpecialistAbsencesPanel={closeAppointmentSpecialistAbsencesPanel}
           />
         </Suspense>
       )}

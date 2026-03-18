@@ -477,6 +477,7 @@ const FORCED_VIEW_REQUIRED_FEATURES = {
   "clients-medical-history": ["clients.medical_history"],
   "appointment": ["appointments.planner"],
   "appointment-breaks": ["appointments.breaks"],
+  "appointment-specialist-absences": ["appointments.specialist_absences"],
   "appointment-vip-attendance": ["vip_clients.attendance"],
   "appointment-vip-norm-monitoring": ["vip_clients.norm_monitoring"],
   "appointment-vip-my-children": ["vip_clients.my_children"],

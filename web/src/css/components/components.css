@@ -4423,7 +4423,7 @@ label.field > span:first-child,
   overflow: visible;
 }
 
-:is(#appointmentBreaksPanel, #appointmentVipTutorAssignmentsPanel) .appointment-breaks-view {
+:is(#appointmentBreaksPanel, #appointmentSpecialistAbsencesPanel, #appointmentVipTutorAssignmentsPanel) .appointment-breaks-view {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
@@ -4432,7 +4432,7 @@ label.field > span:first-child,
   overflow: visible;
 }
 
-:is(#appointmentBreaksPanel, #appointmentVipTutorAssignmentsPanel) .appointment-breaks-table-wrap {
+:is(#appointmentBreaksPanel, #appointmentSpecialistAbsencesPanel, #appointmentVipTutorAssignmentsPanel) .appointment-breaks-table-wrap {
   flex: 1 1 auto;
   min-height: 0;
   max-height: none;
@@ -4932,7 +4932,7 @@ label.field > span:first-child,
     overscroll-behavior-x: contain;
   }
 
-  :is(#appointmentBreaksPanel, #appointmentVipTutorAssignmentsPanel) .appointment-breaks-table-wrap {
+  :is(#appointmentBreaksPanel, #appointmentSpecialistAbsencesPanel, #appointmentVipTutorAssignmentsPanel) .appointment-breaks-table-wrap {
     max-height: calc(100dvh - 230px);
     overflow-y: auto;
   }
@@ -5156,8 +5156,15 @@ label.field > span:first-child,
   table-layout: fixed;
 }
 
+#appointmentSpecialistAbsencesPanel .appointment-breaks-table {
+  min-width: 640px;
+  table-layout: fixed;
+}
+
 #appointmentBreaksPanel .appointment-breaks-table th,
-#appointmentBreaksPanel .appointment-breaks-table td {
+#appointmentBreaksPanel .appointment-breaks-table td,
+#appointmentSpecialistAbsencesPanel .appointment-breaks-table th,
+#appointmentSpecialistAbsencesPanel .appointment-breaks-table td {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -5166,6 +5173,31 @@ label.field > span:first-child,
   min-height: 30px;
   line-height: 1;
   vertical-align: middle;
+}
+
+#appointmentSpecialistAbsencesPanel .appointment-breaks-table th:nth-child(1),
+#appointmentSpecialistAbsencesPanel .appointment-breaks-table td:nth-child(1) {
+  width: 18%;
+  text-align: center;
+}
+
+#appointmentSpecialistAbsencesPanel .appointment-breaks-table th:nth-child(2),
+#appointmentSpecialistAbsencesPanel .appointment-breaks-table td:nth-child(2) {
+  width: 42%;
+}
+
+#appointmentSpecialistAbsencesPanel .appointment-breaks-table th:nth-child(3),
+#appointmentSpecialistAbsencesPanel .appointment-breaks-table td:nth-child(3) {
+  width: 22%;
+  text-align: center;
+}
+
+#appointmentSpecialistAbsencesPanel .appointment-breaks-table th:nth-child(4),
+#appointmentSpecialistAbsencesPanel .appointment-breaks-table td:nth-child(4) {
+  width: 120px;
+  min-width: 120px;
+  max-width: 120px;
+  text-align: center;
 }
 
 #appointmentBreaksPanel .appointment-breaks-table th:nth-child(1),

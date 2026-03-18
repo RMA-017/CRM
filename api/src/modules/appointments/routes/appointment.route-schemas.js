@@ -68,6 +68,33 @@ const repeatPayloadSchema = {
 };
 
 export const appointmentRouteSchemas = Object.freeze({
+  absencesQuery: {
+    type: "object",
+    additionalProperties: true,
+    properties: {
+      specialistId: positiveIntegerLikeSchema,
+      dateFrom: dateYmdSchema,
+      dateTo: dateYmdSchema
+    }
+  },
+  absenceCreateBody: {
+    type: "object",
+    additionalProperties: true,
+    required: ["absenceDate"],
+    properties: {
+      specialistId: positiveIntegerLikeSchema,
+      absenceDate: dateYmdSchema,
+      reason: { type: "string", maxLength: 120 }
+    }
+  },
+  absenceIdParams: {
+    type: "object",
+    additionalProperties: true,
+    required: ["id"],
+    properties: {
+      id: positiveIntegerLikeSchema
+    }
+  },
   clientNoShowSummaryQuery: {
     type: "object",
     additionalProperties: true,

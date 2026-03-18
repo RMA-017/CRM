@@ -21,6 +21,12 @@ import {
   saveAppointmentSettings
 } from "./services/appointment-settings-config.service.js";
 import {
+  listAppointmentSpecialistAbsences,
+  createAppointmentSpecialistAbsence,
+  deleteAppointmentSpecialistAbsenceById,
+  hasAppointmentSpecialistAbsenceConflict
+} from "./services/appointment-absences.service.js";
+import {
   getAppointmentBreaksBySpecialist,
   getAppointmentBreaksBySpecialistAndDays,
   replaceAppointmentBreaksBySpecialist
@@ -47,6 +53,7 @@ import {
 import { subscribeAppointmentEvents } from "./appointment-events.js";
 import { isAllowedCorsOrigin } from "../../plugins/security.js";
 import { registerAppointmentBreakRoutes } from "./routes/breaks.routes.js";
+import { registerAppointmentAbsenceRoutes } from "./routes/absences.routes.js";
 import { registerAppointmentEventRoutes } from "./routes/events.routes.js";
 import { registerAppointmentReferenceRoutes } from "./routes/reference.routes.js";
 import { registerAppointmentScheduleRoutes } from "./routes/schedules.routes.js";
@@ -176,11 +183,15 @@ async function appointmentSettingsRoutes(fastify) {
     isVipClientAssignedToUser,
     getAppointmentHistoryLockDaysByOrganization,
     getAppointmentSettingsByOrganization,
+    listAppointmentSpecialistAbsences,
     listAppointmentWorkSchedule,
     listAppointmentWorkScheduleStaffByOrganization,
+    createAppointmentSpecialistAbsence,
     createAppointmentWorkScheduleEntry,
     updateAppointmentWorkScheduleEntryById,
+    deleteAppointmentSpecialistAbsenceById,
     deleteAppointmentWorkScheduleEntryById,
+    hasAppointmentSpecialistAbsenceConflict,
     replaceAppointmentDefaultWeeklyWorkSchedule,
     getAppointmentBreaksBySpecialistAndDays,
     getAppointmentScheduleTargetsByScope,
@@ -200,6 +211,7 @@ async function appointmentSettingsRoutes(fastify) {
   };
 
   registerAppointmentReferenceRoutes(fastify, routeContext);
+  registerAppointmentAbsenceRoutes(fastify, routeContext);
   registerAppointmentBreakRoutes(fastify, routeContext);
   registerAppointmentEventRoutes(fastify, routeContext);
   registerAppointmentScheduleRoutes(fastify, routeContext);

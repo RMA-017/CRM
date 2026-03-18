@@ -43,6 +43,7 @@ function App() {
       <Route path="/appointments" element={<Navigate to="/appointments/planner" replace />} />
       <Route path="/appointments/planner" element={<ProfilePage forcedView="appointment" />} />
       <Route path="/appointments/breaks" element={<ProfilePage forcedView="appointment-breaks" />} />
+      <Route path="/appointments/specialist-absences" element={<ProfilePage forcedView="appointment-specialist-absences" />} />
       <Route path="/appointments/work-schedule" element={<ProfilePage forcedView="appointment-work-schedule" />} />
       <Route path="/vip-clients/my-class" element={<ProfilePage forcedView="appointment-vip-schedule" />} />
       <Route path="/vip-clients/attendance" element={<ProfilePage forcedView="appointment-vip-attendance" />} />
@@ -93,6 +94,7 @@ function App() {
       <Route path="/profile/appointments" element={<Navigate to="/appointments/planner" replace />} />
       <Route path="/profile/appointments/planner" element={<Navigate to="/appointments/planner" replace />} />
       <Route path="/profile/appointments/breaks" element={<Navigate to="/appointments/breaks" replace />} />
+      <Route path="/profile/appointments/specialist-absences" element={<Navigate to="/appointments/specialist-absences" replace />} />
       <Route path="/profile/appointments/vip-schedule" element={<Navigate to="/vip-clients/my-class" replace />} />
       <Route path="/profile/appointments/vip-attendance" element={<Navigate to="/vip-clients/attendance" replace />} />
       <Route path="/profile/appointments/vip-norm-monitoring" element={<Navigate to="/vip-clients/norm-monitoring" replace />} />

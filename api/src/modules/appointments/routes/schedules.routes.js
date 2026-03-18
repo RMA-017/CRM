@@ -44,6 +44,13 @@ function buildClientScheduleConflictMessage(appointmentDate = "") {
     : "This client already has another appointment at this time.";
 }
 
+function buildSpecialistAbsenceConflictMessage(appointmentDate = "") {
+  const normalizedDate = String(appointmentDate || "").trim();
+  return normalizedDate
+    ? `Specialist is marked absent on ${normalizedDate}.`
+    : "Specialist is marked absent on the selected date.";
+}
+
 function formatUtcDateYmd(date) {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
     return "";
@@ -113,6 +120,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     isVipClassAssignedToUser,
     getAppointmentHistoryLockDaysByOrganization,
     getAppointmentSettingsByOrganization,
+    listAppointmentSpecialistAbsences,
     getAppointmentBreaksBySpecialistAndDays,
     getAppointmentScheduleTargetsByScope,
     hasAppointmentClientConflict,
@@ -626,6 +634,20 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                 })
               )
             : new Map();
+          const absenceDateSet = shouldEnforceAvailability
+            ? new Set(
+                (
+                  await listAppointmentSpecialistAbsences({
+                    organizationId: access.authContext.organizationId,
+                    specialistId,
+                    dateFrom: recurringDates[0],
+                    dateTo: recurringDates[recurringDates.length - 1]
+                  })
+                )
+                  .map((item) => String(item?.absenceDate || "").trim())
+                  .filter(Boolean)
+              )
+            : new Set();
           const { createdItems, skippedDates } = await withAppointmentTransaction(async (db) => {
             const nextCreatedItems = [];
             const nextSkippedDates = [];
@@ -633,6 +655,16 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
 
             for (const recurringDate of recurringDates) {
               if (shouldEnforceAvailability) {
+                if (absenceDateSet.has(recurringDate)) {
+                  if (repeat.skipConflicts) {
+                    nextSkippedDates.push(recurringDate);
+                    continue;
+                  }
+                  throw createRouteError(409, {
+                    message: buildSpecialistAbsenceConflictMessage(recurringDate)
+                  });
+                }
+
                 const workingHoursError = validateSlotAgainstWorkingHours({
                   settings: settingsForRepeat,
                   appointmentDate: recurringDate,
@@ -807,6 +839,18 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         }
 
         if (status === "pending" || status === "confirmed") {
+          const absenceItems = await listAppointmentSpecialistAbsences({
+            organizationId: access.authContext.organizationId,
+            specialistId,
+            dateFrom: appointmentDate,
+            dateTo: appointmentDate
+          });
+          if (absenceItems.length > 0) {
+            return reply.status(409).send({
+              message: buildSpecialistAbsenceConflictMessage(appointmentDate)
+            });
+          }
+
           const settingsForSlot = await getAppointmentSettingsByOrganization(
             access.authContext.organizationId,
             { specialistId }
@@ -1209,8 +1253,28 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                 })
               )
             : new Map();
+          const absenceDateSet = shouldEnforceAvailability
+            ? new Set(
+                (
+                  await listAppointmentSpecialistAbsences({
+                    organizationId: access.authContext.organizationId,
+                    specialistId,
+                    dateFrom: recurringDates[0],
+                    dateTo: recurringDates[recurringDates.length - 1]
+                  })
+                )
+                  .map((item) => String(item?.absenceDate || "").trim())
+                  .filter(Boolean)
+              )
+            : new Set();
           const { anchorItem, createdItems, skippedDates } = await withAppointmentTransaction(async (db) => {
             if (shouldEnforceAvailability) {
+              if (absenceDateSet.has(appointmentDate)) {
+                throw createRouteError(409, {
+                  message: buildSpecialistAbsenceConflictMessage(appointmentDate)
+                });
+              }
+
               const anchorWorkingHoursError = validateSlotAgainstWorkingHours({
                 settings: settingsForRepeat,
                 appointmentDate,
@@ -1307,6 +1371,16 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               }
 
               if (shouldEnforceAvailability) {
+                if (absenceDateSet.has(recurringDate)) {
+                  if (repeat.skipConflicts) {
+                    nextSkippedDates.push(recurringDate);
+                    continue;
+                  }
+                  throw createRouteError(409, {
+                    message: buildSpecialistAbsenceConflictMessage(recurringDate)
+                  });
+                }
+
                 const workingHoursError = validateSlotAgainstWorkingHours({
                   settings: settingsForRepeat,
                   appointmentDate: recurringDate,
@@ -1474,6 +1548,21 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           const validationDates = target.items.map((item) => (
             applyAppointmentDate ? appointmentDate : item.appointmentDate
           ));
+          const sortedValidationDates = [...validationDates].filter(Boolean).sort((left, right) => left.localeCompare(right));
+          const absenceDateSet = sortedValidationDates.length > 0
+            ? new Set(
+                (
+                  await listAppointmentSpecialistAbsences({
+                    organizationId: access.authContext.organizationId,
+                    specialistId,
+                    dateFrom: sortedValidationDates[0],
+                    dateTo: sortedValidationDates[sortedValidationDates.length - 1]
+                  })
+                )
+                  .map((item) => String(item?.absenceDate || "").trim())
+                  .filter(Boolean)
+              )
+            : new Set();
           const breakRangesByDay = buildBreakRangesByDay(
             await getAppointmentBreaksBySpecialistAndDays({
               organizationId: access.authContext.organizationId,
@@ -1484,6 +1573,12 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
 
           for (const item of target.items) {
             const conflictDate = applyAppointmentDate ? appointmentDate : item.appointmentDate;
+            if (absenceDateSet.has(conflictDate)) {
+              return reply.status(409).send({
+                message: buildSpecialistAbsenceConflictMessage(conflictDate)
+              });
+            }
+
             const workingHoursError = validateSlotAgainstWorkingHours({
               settings: settingsForAvailability,
               appointmentDate: conflictDate,

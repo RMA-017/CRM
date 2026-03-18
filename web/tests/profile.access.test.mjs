@@ -218,6 +218,46 @@ test("breaks permissions are independent from planner permissions", () => {
   assert.equal(access.canOpenAppointmentSchedule, false);
 });
 
+test("specialist absences permissions are independent from planner permissions", () => {
+  const access = readAccessSnapshot({
+    isAdmin: false,
+    isPlatformAdmin: false,
+    role: "Specialist",
+    permissions: [
+      "appointments.specialist-absences",
+      "appointments.specialist-absences.read",
+      "appointments.specialist-absences.create",
+      "appointments.specialist-absences.delete"
+    ],
+    orgFeatures: ["appointments.specialist_absences"]
+  }, "appointment-specialist-absences");
+
+  assert.equal(access.canOpenAppointmentSpecialistAbsences, true);
+  assert.equal(access.canReadAppointmentSpecialistAbsences, true);
+  assert.equal(access.canCreateAppointmentSpecialistAbsences, true);
+  assert.equal(access.canDeleteAppointmentSpecialistAbsences, true);
+  assert.equal(access.canOpenAppointmentSchedule, false);
+  assert.equal(access.hasAppointmentsMenuAccess, true);
+  assert.equal(access.canAccessForcedView, true);
+});
+
+test("planner read still enables specialist absence blocks without opening specialist absences submenu", () => {
+  const access = readAccessSnapshot({
+    isAdmin: false,
+    isPlatformAdmin: false,
+    role: "Manager",
+    permissions: [
+      "appointments.schedule",
+      "appointments.planner.read"
+    ],
+    orgFeatures: ["appointments.planner", "appointments.specialist_absences"]
+  });
+
+  assert.equal(access.canOpenAppointmentSchedule, true);
+  assert.equal(access.canViewAppointmentSpecialistAbsenceBlocks, true);
+  assert.equal(access.canOpenAppointmentSpecialistAbsences, false);
+});
+
 test("statistics permissions unlock statistics menu without clients read", () => {
   const classAttendanceAccess = readAccessSnapshot({
     isAdmin: false,

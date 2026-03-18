@@ -3,6 +3,7 @@ import AppointmentScheduler from "../AppointmentScheduler.jsx";
 function AppointmentPlannerPanel({
   canReadAppointments,
   canReadAppointmentBreaks,
+  canViewAppointmentSpecialistAbsenceBlocks,
   canReadStatisticsPlannerReport,
   canCreateAppointments,
   canUpdateAppointments,
@@ -29,6 +30,7 @@ function AppointmentPlannerPanel({
       <AppointmentScheduler
         canReadAppointments={canReadAppointments}
         canReadAppointmentBreaks={canReadAppointmentBreaks}
+        canViewAppointmentSpecialistAbsenceBlocks={canViewAppointmentSpecialistAbsenceBlocks}
         canReadStatisticsPlannerReport={canReadStatisticsPlannerReport}
         canCreateAppointments={canCreateAppointments}
         canUpdateAppointments={canUpdateAppointments}

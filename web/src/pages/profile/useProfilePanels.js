@@ -11,6 +11,7 @@ export function useProfilePanels({
   canReadClients,
   canReadClientMedicalHistory,
   canOpenAppointmentSchedule,
+  canOpenAppointmentSpecialistAbsences,
   canOpenAppointmentVipMyClass,
   canOpenAppointmentBreaks,
   canOpenAppointmentWorkSchedule,
@@ -92,6 +93,14 @@ export function useProfilePanels({
 
   const closeAppointmentBreaksPanel = useCallback(() => {
     closePanel("appointment-breaks");
+  }, [closePanel]);
+
+  const openAppointmentSpecialistAbsencesPanel = useCallback(() => {
+    openPanel("/appointments/specialist-absences", canOpenAppointmentSpecialistAbsences);
+  }, [canOpenAppointmentSpecialistAbsences, openPanel]);
+
+  const closeAppointmentSpecialistAbsencesPanel = useCallback(() => {
+    closePanel("appointment-specialist-absences");
   }, [closePanel]);
 
   const openAppointmentSettingsPanel = useCallback(() => {
@@ -262,6 +271,8 @@ export function useProfilePanels({
     closeAppointmentPanel,
     openAppointmentBreaksPanel,
     closeAppointmentBreaksPanel,
+    openAppointmentSpecialistAbsencesPanel,
+    closeAppointmentSpecialistAbsencesPanel,
     openAppointmentSettingsPanel,
     closeAppointmentSettingsPanel,
     openAppointmentWorkSchedulePanel,
