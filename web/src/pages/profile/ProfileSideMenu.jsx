@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 
-const CLOSE_ANIMATION_MS = 200;
+const CLOSE_ANIMATION_MS = 140;
 const CLOSED_SUBMENUS = Object.freeze({
   clients: false,
   vipClients: false,

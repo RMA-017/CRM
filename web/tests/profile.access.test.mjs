@@ -222,9 +222,8 @@ test("specialist absences permissions are independent from planner permissions",
   const access = readAccessSnapshot({
     isAdmin: false,
     isPlatformAdmin: false,
-    role: "Specialist",
+    role: "Manager",
     permissions: [
-      "appointments.specialist-absences",
       "appointments.specialist-absences.read",
       "appointments.specialist-absences.create",
       "appointments.specialist-absences.delete"
@@ -241,7 +240,7 @@ test("specialist absences permissions are independent from planner permissions",
   assert.equal(access.canAccessForcedView, true);
 });
 
-test("specialist absences menu recognizes mutaxassis role labels", () => {
+test("specialist absences submenu open permission also unlocks the menu", () => {
   const access = readAccessSnapshot({
     isAdmin: false,
     isPlatformAdmin: false,

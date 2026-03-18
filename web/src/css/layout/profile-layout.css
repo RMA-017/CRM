@@ -35,9 +35,8 @@
   width: min(260px, 86vw);
   height: 100dvh;
   background: var(--sidebar-bg);
-  box-shadow: none;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
   transform: translate3d(-100%, 0, 0);
-  opacity: 0;
   z-index: var(--z-side-menu);
   display: flex;
   flex-direction: column;
@@ -46,27 +45,21 @@
   visibility: hidden;
   pointer-events: none;
   backface-visibility: hidden;
-  contain: paint;
-  will-change: transform, opacity;
-  transition:
-    transform 180ms var(--ease),
-    opacity 180ms ease;
+  contain: layout paint;
+  will-change: transform;
+  transition: transform 140ms var(--ease);
 }
 
 .side-menu.open {
   transform: translate3d(0, 0, 0);
-  opacity: 1;
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.24);
   visibility: visible;
   pointer-events: auto;
 }
 
 .side-menu.closing {
   transform: translate3d(-100%, 0, 0);
-  opacity: 0;
   visibility: visible;
   pointer-events: none;
-  box-shadow: none;
 }
 
 .side-menu-head {
@@ -208,7 +201,7 @@
   z-index: var(--z-menu-overlay);
   opacity: 1;
   will-change: opacity;
-  transition: opacity 160ms ease;
+  transition: opacity 120ms ease;
 }
 
 .menu-overlay.closing {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CustomSelect from "../../../components/CustomSelect.jsx";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
+import { ALL_USERS_LIMIT } from "../profile.constants.js";
 
 function getCurrentMonthBounds() {
   const now = new Date();
@@ -115,6 +116,7 @@ function StatisticsPlannerReportPanel({
   const [reportMessage, setReportMessage] = useState("");
   const [hasAutoLoaded, setHasAutoLoaded] = useState(false);
   const [hasLoadedFilterOptions, setHasLoadedFilterOptions] = useState(false);
+  const [page, setPage] = useState(1);
   const reportRequestInFlightRef = useRef(false);
 
   const specialistOptions = useMemo(() => [
@@ -243,6 +245,10 @@ function StatisticsPlannerReportPanel({
     }
   }, [clientId, clientOptions]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [reportData]);
+
   const isLoading = showBootstrapSkeleton || reportLoading;
   const summary = reportData?.summary || {
     total: 0,
@@ -251,6 +257,13 @@ function StatisticsPlannerReportPanel({
     cancelled: 0,
     noShow: 0
   };
+  const detailRows = Array.isArray(reportData?.details) ? reportData.details : [];
+  const totalPages = Math.max(1, Math.ceil(detailRows.length / ALL_USERS_LIMIT) || 1);
+  const safePage = Math.min(page, totalPages);
+  const visibleDetailRows = detailRows.slice(
+    (safePage - 1) * ALL_USERS_LIMIT,
+    safePage * ALL_USERS_LIMIT
+  );
 
   return (
     <section id="statisticsPlannerReportPanel" className="all-users-panel">
@@ -407,7 +420,7 @@ function StatisticsPlannerReportPanel({
                 </tr>
               </thead>
               <tbody>
-                {(Array.isArray(reportData?.details) ? reportData.details : []).map((row) => {
+                {visibleDetailRows.length > 0 ? visibleDetailRows.map((row) => {
                   const statusPresentation = getPlannerReportStatusPresentation(row.status);
                   return (
                     <tr
@@ -422,9 +435,33 @@ function StatisticsPlannerReportPanel({
                       <td className={statusPresentation.className}>{statusPresentation.label}</td>
                     </tr>
                   );
-                })}
+                }) : (
+                  <tr>
+                    <td colSpan="7" className="all-users-state">No lesson records found.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
+          </div>
+
+          <div className="all-users-pagination" hidden={detailRows.length === 0 || totalPages <= 1}>
+            <button
+              type="button"
+              className="header-btn"
+              disabled={safePage <= 1}
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+            >
+              Previous
+            </button>
+            <span className="all-users-page-info">Page {safePage} of {totalPages}</span>
+            <button
+              type="button"
+              className="header-btn"
+              disabled={safePage >= totalPages}
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+            >
+              Next
+            </button>
           </div>
         </>
       ) : null}

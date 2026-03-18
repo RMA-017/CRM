@@ -5,13 +5,6 @@ import {
   isPermissionAllowedByFeatures
 } from "../../../../shared/access-registry.js";
 
-const SPECIALIST_ROLE_MATCHERS = Object.freeze([
-  "specialist",
-  "spetsialist",
-  "mutaxassis",
-  "специалист"
-]);
-
 export function useProfileAccess(profile, forcedView) {
   const permissionSet = useMemo(() => {
     if (!Array.isArray(profile?.permissions)) {
@@ -286,7 +279,6 @@ export function useProfileAccess(profile, forcedView) {
   );
   const rolePositionText = `${String(profile?.role || "").trim().toLowerCase()} ${String(profile?.position || "").trim().toLowerCase()}`;
   const isDirectorLike = rolePositionText.includes("director") || rolePositionText.includes("direktor");
-  const isSpecialistLike = SPECIALIST_ROLE_MATCHERS.some((matcher) => rolePositionText.includes(matcher));
   const canReadAppointmentSpecialistAbsences = (
     canReadAppointmentSpecialistAbsencesPermission
     && hasOrgFeature("appointments.specialist_absences")
@@ -390,10 +382,9 @@ export function useProfileAccess(profile, forcedView) {
     );
   const canOpenAppointmentSpecialistAbsences = (
     canReadAppointmentSpecialistAbsences
-    && isSpecialistLike
     && (
       usesAdvancedMenuPermissions
-        ? canOpenSpecialistAbsencesPermission
+        ? (canOpenSpecialistAbsencesPermission || canReadAppointmentSpecialistAbsencesPermission)
         : true
     )
   );

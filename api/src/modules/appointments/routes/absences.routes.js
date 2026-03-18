@@ -15,6 +15,21 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
     DATE_REGEX
   } = context;
 
+  function resolveSelfScopedSpecialistUserId({ authContext, requester, fallbackToOwnUser = false }) {
+    const roleScopedSpecialistUserId = resolveOwnAppointmentSpecialistUserId({ authContext, requester });
+    if (roleScopedSpecialistUserId) {
+      return roleScopedSpecialistUserId;
+    }
+    if (
+      fallbackToOwnUser
+      && !Boolean(requester?.is_admin)
+      && !Boolean(requester?.is_platform_admin)
+    ) {
+      return parsePositiveIntegerOr(authContext?.userId, 0);
+    }
+    return 0;
+  }
+
   fastify.get(
     "/absences",
     {
@@ -55,7 +70,11 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
         }
 
         const access = { authContext, requester };
-        const ownSpecialistUserId = resolveOwnAppointmentSpecialistUserId(access);
+        const ownSpecialistUserId = resolveSelfScopedSpecialistUserId({
+          authContext,
+          requester,
+          fallbackToOwnUser: canReadSpecialistAbsences
+        });
         const requestedSpecialistId = parsePositiveIntegerOr(request.query?.specialistId, 0);
         const specialistId = ownSpecialistUserId || requestedSpecialistId;
         if (ownSpecialistUserId && requestedSpecialistId && requestedSpecialistId !== ownSpecialistUserId) {
@@ -109,8 +128,11 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
           requesterHasOrgFeature(requester, "appointments.specialist_absences")
           && await hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_SPECIALIST_ABSENCES_CREATE)
         );
-        const access = { authContext, requester };
-        const ownSpecialistUserId = resolveOwnAppointmentSpecialistUserId(access);
+        const ownSpecialistUserId = resolveSelfScopedSpecialistUserId({
+          authContext,
+          requester,
+          fallbackToOwnUser: true
+        });
         const requestedSpecialistId = parsePositiveIntegerOr(request.body?.specialistId, 0);
         const specialistId = ownSpecialistUserId || requestedSpecialistId;
         if (!canCreateSpecialistAbsences) {
@@ -193,7 +215,11 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
           && await hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_SPECIALIST_ABSENCES_DELETE)
         );
         const access = { authContext, requester };
-        const ownSpecialistUserId = resolveOwnAppointmentSpecialistUserId(access);
+        const ownSpecialistUserId = resolveSelfScopedSpecialistUserId({
+          authContext,
+          requester,
+          fallbackToOwnUser: true
+        });
         if (!canDeleteSpecialistAbsences) {
           return reply.status(403).send({ message: "Forbidden." });
         }

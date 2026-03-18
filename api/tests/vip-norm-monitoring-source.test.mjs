@@ -34,13 +34,7 @@ test("VIP norm monitoring route uses dedicated feature and permission access", a
 
   assert.match(
     routeSource,
-    /resolveVipClientReadScope\(vipPermissions, requester\)/,
-    "VIP norm monitoring should respect the VIP client read scope."
-  );
-
-  assert.match(
-    routeSource,
-    /getVipNormMonitoringRows\(/,
-    "VIP norm monitoring route should use the dedicated monitoring query."
+    /fastify\.get\(\s*"\/vip-norm-monitoring"[\s\S]*getVipNormMonitoringRows\(\{[\s\S]*assignedUserId:\s*null/s,
+    "VIP norm monitoring should load organization-wide data for any role that has the dedicated permission."
   );
 });

@@ -1248,17 +1248,9 @@ async function clientsRoutes(fastify) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
-        const vipReadScope = resolveVipClientReadScope(vipPermissions, requester);
-        const assignedUserIdRaw = vipReadScope === "all" ? null : authContext.userId;
-        const assignedUserId = Number.parseInt(String(assignedUserIdRaw || "").trim(), 10);
-        const hasAssignedScope = Number.isInteger(assignedUserId) && assignedUserId > 0;
-        if (vipReadScope !== "all" && !hasAssignedScope) {
-          return reply.status(403).send({ message: "Forbidden." });
-        }
-
         const monitoringRows = await getVipNormMonitoringRows({
           organizationId: authContext.organizationId,
-          assignedUserId: hasAssignedScope ? assignedUserId : null,
+          assignedUserId: null,
           limit: 5000
         });
         const monitoringItems = (Array.isArray(monitoringRows) ? monitoringRows : []).map(mapVipNormMonitoringRecord);

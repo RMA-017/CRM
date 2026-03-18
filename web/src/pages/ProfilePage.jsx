@@ -530,7 +530,7 @@ function ProfilePage({ forcedView = "none" }) {
     };
 
     if (typeof window.requestIdleCallback === "function") {
-      const idleId = window.requestIdleCallback(warmProfileUi, { timeout: 1200 });
+      const idleId = window.requestIdleCallback(warmProfileUi, { timeout: 320 });
       return () => {
         if (typeof window.cancelIdleCallback === "function") {
           window.cancelIdleCallback(idleId);
@@ -538,7 +538,7 @@ function ProfilePage({ forcedView = "none" }) {
       };
     }
 
-    const timeoutId = window.setTimeout(warmProfileUi, 300);
+    const timeoutId = window.setTimeout(warmProfileUi, 120);
     return () => {
       window.clearTimeout(timeoutId);
     };
