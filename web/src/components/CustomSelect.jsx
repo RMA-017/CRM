@@ -17,7 +17,8 @@ function CustomSelect({
   searchable = false,
   searchPlaceholder = "Search...",
   searchThreshold = 0,
-  menuWidthScale = 1
+  menuWidthScale = 1,
+  menuHeightScale = 1
 }) {
   const wrapRef = useRef(null);
   const triggerRef = useRef(null);
@@ -42,6 +43,9 @@ function CustomSelect({
     : 0;
   const normalizedMenuWidthScale = Number.isFinite(menuWidthScale) && menuWidthScale > 0
     ? Math.max(0.5, Math.min(menuWidthScale, 2))
+    : 1;
+  const normalizedMenuHeightScale = Number.isFinite(menuHeightScale) && menuHeightScale > 0
+    ? Math.max(0.5, Math.min(menuHeightScale, 2))
     : 1;
   const shouldShowSearch = searchable && normalizedOptions.length >= normalizedSearchThreshold;
   const filteredOptions = useMemo(() => {
@@ -86,13 +90,14 @@ function CustomSelect({
       const desiredMenuHeight = visibleOptionsCount
         ? ((visibleOptionsCount * 40) + 8)
         : 184;
+      const scaledDesiredMenuHeight = Math.max(96, Math.round(desiredMenuHeight * normalizedMenuHeightScale));
       const shouldOpenUp = forceOpenDown
         ? false
         : (forceOpenUp
           ? true
-          : (spaceBelow < desiredMenuHeight && spaceAbove > spaceBelow));
+          : (spaceBelow < scaledDesiredMenuHeight && spaceAbove > spaceBelow));
       const availableSpace = shouldOpenUp ? spaceAbove : spaceBelow;
-      const calculatedMaxHeight = Math.max(120, Math.min(desiredMenuHeight, availableSpace - 8));
+      const calculatedMaxHeight = Math.max(96, Math.min(scaledDesiredMenuHeight, availableSpace - 8));
 
       setOpenUp(shouldOpenUp);
       setMenuMaxHeight(`${calculatedMaxHeight}px`);
@@ -133,7 +138,17 @@ function CustomSelect({
       window.removeEventListener("resize", updateLayout);
       window.removeEventListener("scroll", updateLayout, true);
     };
-  }, [filteredOptions.length, forceOpenDown, forceOpenUp, maxVisibleOptions, menuAlign, menuPortal, normalizedMenuWidthScale, open]);
+  }, [
+    filteredOptions.length,
+    forceOpenDown,
+    forceOpenUp,
+    maxVisibleOptions,
+    menuAlign,
+    menuPortal,
+    normalizedMenuHeightScale,
+    normalizedMenuWidthScale,
+    open
+  ]);
 
   const inlineMenuStyle = menuPortal
     ? (menuPortalStyle || { position: "fixed", top: "-9999px", left: "-9999px", width: "0px", maxHeight: "0px" })

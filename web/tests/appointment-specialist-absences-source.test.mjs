@@ -111,8 +111,8 @@ test("specialist absences menu and planner source wiring stay in place", async (
 
   assert.match(
     panelSource,
-    /for \(const id of itemIds\) \{[\s\S]*Specialist absence range deleted\./s,
-    "Deleting a grouped specialist absence row should remove the whole saved range."
+    /for \(const id of itemIds\) \{[\s\S]*apiFetch\(`\/api\/appointments\/absences\/\$\{encodeURIComponent\(id\)\}`[\s\S]*await loadAbsences\(\{ silent: true \}\);/s,
+    "Deleting a grouped specialist absence row should remove the whole saved range and silently refresh the list."
   );
 
   assert.doesNotMatch(
@@ -125,6 +125,18 @@ test("specialist absences menu and planner source wiring stay in place", async (
     panelSource,
     /id="saveAppointmentSpecialistAbsenceBtn"[\s\S]*className="btn"[\s\S]*\{saving \? "Saving\.\.\." : "Save"\}/s,
     "Specialist absences modal should use the shared Save button styling and label."
+  );
+
+  assert.doesNotMatch(
+    panelSource,
+    /appointmentSpecialistAbsenceReasonInput[\s\S]*all-users-state[\s\S]*saveAppointmentSpecialistAbsenceBtn/s,
+    "Specialist absences add modal should not render all-users-state messages between the form fields and Save button."
+  );
+
+  assert.doesNotMatch(
+    panelSource,
+    /className="all-users-state"|className=\{`all-users-state/,
+    "Specialist absences panel should not render inline all-users-state messages."
   );
 
   assert.doesNotMatch(

@@ -4282,11 +4282,11 @@ function AppointmentScheduler({
                 {!vipOnly ? (
                   <div className="appointment-client-select-row">
                     <div className="field appointment-client-vip-field">
+                      <label htmlFor="appointmentClientVipOnly">Active</label>
                       <label
                         className={`appointment-client-vip-toggle${(vipOnly || clientVipOnly) ? " is-active" : ""}`}
                         htmlFor="appointmentClientVipOnly"
                       >
-                        <span>Active</span>
                         <input
                           id="appointmentClientVipOnly"
                           type="checkbox"
@@ -4385,7 +4385,7 @@ function AppointmentScheduler({
                       placeholder="Select start time"
                       value={createForm.startTime}
                       options={timeSelectOptions}
-                      menuWidthScale={0.8}
+                      menuHeightScale={0.85}
                       error={Boolean(createErrors.startTime)}
                       onChange={(nextValue) => {
                         setCreateForm((prev) => ({ ...prev, startTime: nextValue }));

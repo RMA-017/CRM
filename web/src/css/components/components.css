@@ -4896,7 +4896,7 @@ label.field > span:first-child,
 #appointmentSpecialistAbsenceCreateModal .appointment-specialist-absence-form {
   min-height: 0;
   flex: 1 1 auto;
-  overflow: auto;
+  overflow: visible;
   align-content: start;
   gap: 12px;
 }
@@ -6092,9 +6092,9 @@ label.field > span:first-child,
 .appointment-client-select-row {
   width: 100%;
   display: grid;
-  grid-template-columns: 60px minmax(0, 1fr);
+  grid-template-columns: 64px minmax(0, 1fr);
   gap: 20px;
-  align-items: center;
+  align-items: start;
 }
 
 .appointment-create-modal .appointment-client-select-row .field {
@@ -6103,18 +6103,27 @@ label.field > span:first-child,
 }
 
 .appointment-client-vip-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
   min-width: 0;
 }
 
+.appointment-client-select-row .appointment-client-vip-field {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 5px;
+  min-width: 64px;
+}
+
 .appointment-client-vip-field > label:first-child {
-  margin: 0;
-  line-height: normal;
+  margin: 0 0 0 5px;
+  line-height: 1.15;
 }
 
-.appointment-client-vip-field > label.appointment-client-vip-toggle {
-  margin: 0;
-}
-
+.field > label.appointment-client-vip-toggle,
 .appointment-client-vip-toggle {
   margin: 0;
   width: 100%;
@@ -6126,15 +6135,8 @@ label.field > span:first-child,
   background: var(--input-bg);
   color: var(--text-main);
   display: inline-flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 6px 8px;
-  font-size: var(--fs-small);
-  font-family: inherit;
-  line-height: normal;
-  font-weight: 400;
   cursor: pointer;
   user-select: none;
   box-sizing: border-box;
@@ -6143,14 +6145,6 @@ label.field > span:first-child,
     box-shadow var(--dur) ease,
     background var(--dur) ease,
     color var(--dur) ease;
-}
-
-.appointment-client-vip-toggle > span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-  text-align: center;
 }
 
 .appointment-client-vip-toggle input[type="checkbox"] {
@@ -6164,6 +6158,10 @@ label.field > span:first-child,
   border-color: var(--accent-border-hover);
   background: rgba(64, 138, 243, 0.14);
   color: var(--brand);
+}
+
+.appointment-client-vip-field .field-error {
+  flex-basis: 100%;
 }
 
 .appointment-repeat-block {

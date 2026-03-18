@@ -142,7 +142,6 @@ function AppointmentSpecialistAbsencesPanel({
   const [specialistsLoading, setSpecialistsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState("");
-  const [message, setMessage] = useState("");
   const [createFormOpen, setCreateFormOpen] = useState(false);
   const [specialistOptions, setSpecialistOptions] = useState([]);
   const [form, setForm] = useState(() => createEmptyForm(todayYmd));
@@ -177,6 +176,14 @@ function AppointmentSpecialistAbsencesPanel({
     }));
   }, []);
 
+  const showAbsenceAlert = useCallback((text) => {
+    const message = String(text || "").trim();
+    if (!message || typeof window === "undefined" || typeof window.alert !== "function") {
+      return;
+    }
+    window.alert(message);
+  }, []);
+
   const loadAbsences = useCallback(async ({ silent = false } = {}) => {
     if (!canReadAppointmentSpecialistAbsences) {
       setItems([]);
@@ -203,7 +210,7 @@ function AppointmentSpecialistAbsencesPanel({
       const data = await readApiResponseData(response);
       if (!response.ok) {
         setItems([]);
-        setMessage(getApiErrorMessage(response, data, "Failed to load specialist absences."));
+        showAbsenceAlert(getApiErrorMessage(response, data, "Failed to load specialist absences."));
         return;
       }
 
@@ -222,16 +229,15 @@ function AppointmentSpecialistAbsencesPanel({
         .filter((item) => Boolean(item.id) && Boolean(item.absenceDate));
 
       setItems(nextItems);
-      setMessage("");
     } catch {
       setItems([]);
-      setMessage("Failed to load specialist absences.");
+      showAbsenceAlert("Failed to load specialist absences.");
     } finally {
       if (!silent) {
         setLoading(false);
       }
     }
-  }, [canReadAppointmentSpecialistAbsences, isSelfScopedSpecialistAbsences, normalizedCurrentUserId]);
+  }, [canReadAppointmentSpecialistAbsences, isSelfScopedSpecialistAbsences, normalizedCurrentUserId, showAbsenceAlert]);
 
   const loadSpecialists = useCallback(async () => {
     if (!canCreateAppointmentSpecialistAbsences) {
@@ -257,7 +263,7 @@ function AppointmentSpecialistAbsencesPanel({
       const data = await readApiResponseData(response);
       if (!response.ok) {
         setSpecialistOptions([]);
-        setMessage(getApiErrorMessage(response, data, "Failed to load specialists."));
+        showAbsenceAlert(getApiErrorMessage(response, data, "Failed to load specialists."));
         return;
       }
 
@@ -275,7 +281,7 @@ function AppointmentSpecialistAbsencesPanel({
       });
     } catch {
       setSpecialistOptions([]);
-      setMessage("Failed to load specialists.");
+      showAbsenceAlert("Failed to load specialists.");
     } finally {
       setSpecialistsLoading(false);
     }
@@ -283,7 +289,8 @@ function AppointmentSpecialistAbsencesPanel({
     canCreateAppointmentSpecialistAbsences,
     isSelfScopedSpecialistAbsences,
     normalizedCurrentUserId,
-    selfScopedSpecialistOptions
+    selfScopedSpecialistOptions,
+    showAbsenceAlert
   ]);
 
   useEffect(() => {
@@ -303,13 +310,12 @@ function AppointmentSpecialistAbsencesPanel({
 
   const openCreateForm = useCallback(() => {
     if (!canCreateAppointmentSpecialistAbsences) {
-      setMessage("You do not have permission to create specialist absences.");
+      showAbsenceAlert("You do not have permission to create specialist absences.");
       return;
     }
     setForm(createEmptyForm(todayYmd, specialistOptions[0]?.value || form.specialistId || ""));
-    setMessage("");
     setCreateFormOpen(true);
-  }, [canCreateAppointmentSpecialistAbsences, form.specialistId, specialistOptions, todayYmd]);
+  }, [canCreateAppointmentSpecialistAbsences, form.specialistId, showAbsenceAlert, specialistOptions, todayYmd]);
 
   const closeCreateForm = useCallback(() => {
     if (saving) {
@@ -329,31 +335,31 @@ function AppointmentSpecialistAbsencesPanel({
     const endTime = String(form.endTime || "").trim();
     const reason = String(form.reason || "").trim();
     if (!specialistId) {
-      setMessage("Specialist is required.");
+      showAbsenceAlert("Specialist is required.");
       return;
     }
     if (!dateFrom) {
-      setMessage("Date from is required.");
+      showAbsenceAlert("Date from is required.");
       return;
     }
     if (!dateTo) {
-      setMessage("Date to is required.");
+      showAbsenceAlert("Date to is required.");
       return;
     }
     if (dateFrom > dateTo) {
-      setMessage("Date to must be on or after date from.");
+      showAbsenceAlert("Date to must be on or after date from.");
       return;
     }
     if ((startTime && !endTime) || (!startTime && endTime)) {
-      setMessage("Both time fields are required.");
+      showAbsenceAlert("Both time fields are required.");
       return;
     }
     if (startTime && endTime && startTime >= endTime) {
-      setMessage("Time to must be after time from.");
+      showAbsenceAlert("Time to must be after time from.");
       return;
     }
     if (!canCreateAppointmentSpecialistAbsences) {
-      setMessage("You do not have permission to create specialist absences.");
+      showAbsenceAlert("You do not have permission to create specialist absences.");
       return;
     }
 
@@ -373,13 +379,12 @@ function AppointmentSpecialistAbsencesPanel({
       });
       const data = await readApiResponseData(response);
       if (!response.ok) {
-        setMessage(getApiErrorMessage(response, data, "Failed to save specialist absence."));
+        showAbsenceAlert(getApiErrorMessage(response, data, "Failed to save specialist absence."));
         return;
       }
 
       setForm(createEmptyForm(todayYmd, specialistId));
       setCreateFormOpen(false);
-      setMessage(String(data?.message || "Specialist absence saved."));
       dispatchPlannerRefresh({
         absenceDate: dateFrom,
         dateFrom,
@@ -388,7 +393,7 @@ function AppointmentSpecialistAbsencesPanel({
       });
       await loadAbsences({ silent: true });
     } catch {
-      setMessage("Failed to save specialist absence.");
+      showAbsenceAlert("Failed to save specialist absence.");
     } finally {
       setSaving(false);
     }
@@ -402,6 +407,7 @@ function AppointmentSpecialistAbsencesPanel({
     form.startTime,
     form.endTime,
     loadAbsences,
+    showAbsenceAlert,
     todayYmd
   ]);
 
@@ -417,7 +423,7 @@ function AppointmentSpecialistAbsencesPanel({
       return;
     }
     if (!canDeleteAppointmentSpecialistAbsences) {
-      setMessage("You do not have permission to delete specialist absences.");
+      showAbsenceAlert("You do not have permission to delete specialist absences.");
       return;
     }
     if (typeof window !== "undefined" && typeof window.confirm === "function") {
@@ -435,16 +441,11 @@ function AppointmentSpecialistAbsencesPanel({
         });
         const data = await readApiResponseData(response);
         if (!response.ok) {
-          setMessage(getApiErrorMessage(response, data, "Failed to delete specialist absence."));
+          showAbsenceAlert(getApiErrorMessage(response, data, "Failed to delete specialist absence."));
           return;
         }
       }
 
-      setMessage(
-        itemIds.length > 1
-          ? "Specialist absence range deleted."
-          : "Specialist absence deleted."
-      );
       dispatchPlannerRefresh({
         absenceDate: String(item?.dateFrom || item?.absenceDate || "").trim(),
         dateFrom: String(item?.dateFrom || item?.absenceDate || "").trim(),
@@ -452,11 +453,11 @@ function AppointmentSpecialistAbsencesPanel({
       });
       await loadAbsences({ silent: true });
     } catch {
-      setMessage("Failed to delete specialist absence.");
+      showAbsenceAlert("Failed to delete specialist absence.");
     } finally {
       setDeletingId("");
     }
-  }, [canDeleteAppointmentSpecialistAbsences, dispatchPlannerRefresh, loadAbsences]);
+  }, [canDeleteAppointmentSpecialistAbsences, dispatchPlannerRefresh, loadAbsences, showAbsenceAlert]);
 
   const groupedItems = useMemo(() => buildAbsenceRangeGroups(items), [items]);
 
@@ -569,7 +570,6 @@ function AppointmentSpecialistAbsencesPanel({
               }}
             />
           </label>
-          <p className="all-users-state" hidden={!message}>{message}</p>
           <div className="edit-actions appointment-breaks-add-modal-actions">
             <button
               id="saveAppointmentSpecialistAbsenceBtn"
@@ -614,8 +614,6 @@ function AppointmentSpecialistAbsencesPanel({
         </div>
       </div>
 
-      <p className="all-users-state" hidden={loading || !message || createFormOpen}>{message}</p>
-
       <div className="appointment-breaks-view" aria-label="Specialist absences list">
         <div className="appointment-breaks-table-wrap all-users-table-wrap">
           <table className="appointment-breaks-table all-users-table" aria-label="Specialist absences table">
@@ -630,15 +628,7 @@ function AppointmentSpecialistAbsencesPanel({
             </tr>
           </thead>
           <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan="6" className="all-users-state">Loading...</td>
-                </tr>
-              ) : groupedItems.length === 0 ? (
-                <tr>
-                  <td colSpan="6" className="all-users-state">No specialist absences yet.</td>
-                </tr>
-              ) : (
+              {!loading && groupedItems.length > 0 ? (
                 groupedItems.map((item) => (
                   <tr key={item.id}>
                     <td>{item.specialistName || specialistDisplayName || "-"}</td>
@@ -649,7 +639,7 @@ function AppointmentSpecialistAbsencesPanel({
                     <td>
                       <button
                         type="button"
-                        className="table-action-btn danger"
+                        className="table-action-btn table-action-btn-danger"
                         disabled={deletingId === item.id || !canDeleteAppointmentSpecialistAbsences}
                         onClick={() => {
                           void handleDelete(item);
@@ -660,7 +650,7 @@ function AppointmentSpecialistAbsencesPanel({
                     </td>
                   </tr>
                 ))
-              )}
+              ) : null}
             </tbody>
           </table>
         </div>

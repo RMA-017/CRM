@@ -72,7 +72,7 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /htmlFor="appointmentClientVipOnly"[\s\S]*?<span>Active<\/span>/,
+    /<label htmlFor="appointmentClientVipOnly">Active<\/label>[\s\S]*?className=\{`appointment-client-vip-toggle/,
     "Planner modal should rename the VIP toggle to Active."
   );
   assert.doesNotMatch(
@@ -97,8 +97,8 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /id="appointmentCreateTime"[\s\S]*menuWidthScale=\{0\.8\}/s,
-    "Planner Start Time dropdown should shrink its opened menu width."
+    /id="appointmentCreateTime"[\s\S]*menuHeightScale=\{0\.85\}/s,
+    "Planner Start Time dropdown should keep its default width and only shrink the opened menu height."
   );
   assert.match(
     source,
