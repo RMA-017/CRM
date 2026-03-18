@@ -2,12 +2,25 @@ import pool from "../../config/db.js";
 import { createTtlCache } from "../../lib/ttl-cache.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 import { normalizePermissionCode } from "../../lib/permission-codes.js";
+import { PERMISSIONS } from "./users.constants.js";
 
 const ROLE_PERMISSIONS_CACHE_TTL_MS = 15_000;
 const rolePermissionsCache = createTtlCache({
   maxEntries: 500,
   defaultTtlMs: ROLE_PERMISSIONS_CACHE_TTL_MS
 });
+const BASE_GRANTED_PERMISSION_CODES = Object.freeze([PERMISSIONS.PROFILE_READ]);
+
+function mergeBaseGrantedPermissionCodes(permissionCodes = []) {
+  return Array.from(
+    new Set([
+      ...BASE_GRANTED_PERMISSION_CODES,
+      ...(Array.isArray(permissionCodes) ? permissionCodes : [])
+    ]
+      .map((code) => normalizePermissionCode(code))
+      .filter(Boolean))
+  );
+}
 
 export function clearRolePermissionsCache(roleId = null) {
   const normalizedRoleId = parsePositiveInteger(roleId);
@@ -107,7 +120,7 @@ export async function getRolePermissions(roleId) {
 
   const cached = rolePermissionsCache.get(String(normalizedRoleId));
   if (cached !== undefined) {
-    return [...cached];
+    return mergeBaseGrantedPermissionCodes(cached);
   }
 
   const { rows } = await pool.query(
@@ -122,9 +135,9 @@ export async function getRolePermissions(roleId) {
     [normalizedRoleId]
   );
 
-  const permissions = rows
+  const permissions = mergeBaseGrantedPermissionCodes(rows
     .map((row) => normalizePermissionCode(row?.code))
-    .filter(Boolean);
+    .filter(Boolean));
   rolePermissionsCache.set(String(normalizedRoleId), [...permissions]);
   return permissions;
 }

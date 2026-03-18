@@ -151,7 +151,7 @@ test("authPreHandler clears auth cookie when requester cannot be resolved", { co
   }
 });
 
-test("profile routes enforce profile read and update permissions", { concurrency: false }, async () => {
+test("profile routes always allow own profile read and still enforce update permissions", { concurrency: false }, async () => {
   const recorder = createProfileRouteRecorder();
   await profileRoutes(recorder.fastify);
 
@@ -190,8 +190,9 @@ test("profile routes enforce profile read and update permissions", { concurrency
       log: { error() {} }
     }, getReply);
 
-    assert.equal(getReply.state.statusCode, 403);
-    assert.equal(getReply.state.payload?.message, "Forbidden.");
+    assert.equal(getReply.state.statusCode, 200);
+    assert.equal(getReply.state.payload?.username, "user");
+    assert.deepEqual(getReply.state.payload?.permissions, ["profile.read"]);
 
     clearRolePermissionsCache();
 

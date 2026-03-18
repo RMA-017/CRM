@@ -14,11 +14,20 @@ import {
   normalizeAllowedFeatures
 } from "../../lib/org-features.js";
 import { clearRolePermissionsCache } from "../users/access.service.js";
+import { PERMISSIONS } from "../users/users.constants.js";
 
 const settingsReadCache = createTtlCache({
   maxEntries: 128,
   defaultTtlMs: 30_000
 });
+const BASE_ROLE_PERMISSION_CODES = Object.freeze([PERMISSIONS.PROFILE_READ]);
+
+function mergeBaseRolePermissionCodes(permissionCodes = []) {
+  return normalizePermissionCodes([
+    ...BASE_ROLE_PERMISSION_CODES,
+    ...(Array.isArray(permissionCodes) ? permissionCodes : [])
+  ]);
+}
 
 function buildAllowedFeaturesCacheKey(allowedFeatures) {
   const normalized = normalizeAllowedFeatures(allowedFeatures);
@@ -73,7 +82,7 @@ function cloneRoleOptions(items) {
     isAdmin: Boolean(item?.isAdmin),
     isActive: Boolean(item?.isActive),
     createdAt: item?.createdAt ?? null,
-    permissionCodes: normalizePermissionCodes(item?.permissionCodes)
+    permissionCodes: mergeBaseRolePermissionCodes(item?.permissionCodes)
   }));
 }
 
@@ -111,17 +120,17 @@ function selectPermissionCodesForRoleWrite({
 }) {
   const normalizedAllowedFeatures = normalizeAllowedFeatures(allowedFeatures);
   if (Boolean(isAdmin)) {
-    return Array.from(
-      new Set(
-        (Array.isArray(activePermissionCodes) ? activePermissionCodes : [])
-          .map((code) => normalizePermissionCode(code))
-          .filter(Boolean)
-          .filter((code) => isPermissionAllowedByOrgFeatures(code, normalizedAllowedFeatures))
-      )
+    return mergeBaseRolePermissionCodes(
+      (Array.isArray(activePermissionCodes) ? activePermissionCodes : [])
+        .map((code) => normalizePermissionCode(code))
+        .filter(Boolean)
+        .filter((code) => isPermissionAllowedByOrgFeatures(code, normalizedAllowedFeatures))
     );
   }
 
-  return filterPermissionCodesByOrgFeatures(requestedPermissionCodes, normalizedAllowedFeatures);
+  return mergeBaseRolePermissionCodes(
+    filterPermissionCodesByOrgFeatures(requestedPermissionCodes, normalizedAllowedFeatures)
+  );
 }
 
 function mapPermissionOption(row) {
@@ -136,11 +145,11 @@ function mapPermissionOption(row) {
 }
 
 function mapRoleOption(row) {
-  const permissionCodes = filterKnownPermissionCodes(
+  const permissionCodes = mergeBaseRolePermissionCodes(filterKnownPermissionCodes(
     Array.isArray(row.permission_codes)
       ? row.permission_codes.map((code) => normalizePermissionCode(code))
       : []
-  );
+  ));
 
   return {
     id: String(row.id),
@@ -157,7 +166,9 @@ function mapRoleOption(row) {
 function filterRoleOptionByOrgFeatures(item, allowedFeatures) {
   return {
     ...item,
-    permissionCodes: filterPermissionCodesByOrgFeatures(item?.permissionCodes, allowedFeatures)
+    permissionCodes: mergeBaseRolePermissionCodes(
+      filterPermissionCodesByOrgFeatures(item?.permissionCodes, allowedFeatures)
+    )
   };
 }
 

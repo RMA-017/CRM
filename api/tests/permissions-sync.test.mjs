@@ -56,9 +56,15 @@ test("ensureSystemPermissions deactivates and unassigns unknown permission codes
     const deleteUnknownAssignmentsQuery = executedQueries.find(
       ({ text }) => text.includes("DELETE FROM role_permissions rp") && text.includes("LOWER(p.code) <> ALL($1::text[])")
     );
+    const baseProfileReadGrantQuery = executedQueries.find(
+      ({ text, params }) => text.includes("INSERT INTO role_permissions")
+        && text.includes("JOIN permissions p ON LOWER(p.code) = LOWER($1)")
+        && params[0] === "profile.read"
+    );
 
     assert.ok(deactivateUnknownQuery, "expected unknown permission cleanup query");
     assert.ok(deleteUnknownAssignmentsQuery, "expected unknown role-permission cleanup query");
+    assert.ok(baseProfileReadGrantQuery, "expected base profile.read grant query for active roles");
     assert.ok(Array.isArray(deactivateUnknownQuery.params[0]));
     assert.ok(deactivateUnknownQuery.params[0].includes("profile.read"));
     assert.equal(

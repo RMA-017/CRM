@@ -276,6 +276,16 @@ export async function ensureSystemPermissions(options = {}) {
     }
 
     await client.query(
+      `INSERT INTO role_permissions (role_id, permission_id)
+       SELECT r.id, p.id
+         FROM role_options r
+         JOIN permissions p ON LOWER(p.code) = LOWER($1)
+        WHERE r.is_active = TRUE
+       ON CONFLICT (role_id, permission_id) DO NOTHING`,
+      [PERMISSIONS.PROFILE_READ]
+    );
+
+    await client.query(
       `UPDATE permissions
           SET is_active = FALSE
         WHERE LOWER(code) <> ALL($1::text[])`,
