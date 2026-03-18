@@ -2285,10 +2285,34 @@ label.field > span:first-child,
   flex-direction: column;
   gap: 6px;
   padding: 12px 14px;
+  width: 100%;
   border: 1px solid #d8e4f2;
   border-radius: 14px;
   background: linear-gradient(180deg, #fbfdff 0%, #f4f8fd 100%);
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+  text-align: left;
+  cursor: pointer;
+  appearance: none;
+  transition:
+    transform var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease,
+    border-color var(--dur-fast) ease;
+}
+
+.planner-report-summary-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.planner-report-summary-card.is-active {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
+  border-color: var(--accent, #2563eb);
+}
+
+.planner-report-summary-card:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.32);
+  outline-offset: 2px;
 }
 
 .planner-report-summary-card.is-total {
@@ -2355,12 +2379,12 @@ label.field > span:first-child,
 
 .planner-report-table.is-detail-report th:nth-child(5),
 .planner-report-table.is-detail-report td:nth-child(5) {
-  width: 20%;
+  width: 30%;
 }
 
 .planner-report-table.is-detail-report th:nth-child(6),
 .planner-report-table.is-detail-report td:nth-child(6) {
-  width: 20%;
+  width: 10%;
 }
 
 .planner-report-table.is-detail-report th:nth-child(7),

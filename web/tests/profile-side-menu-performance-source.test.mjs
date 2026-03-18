@@ -29,20 +29,20 @@ test("profile side menu keeps submenu state batched and is pre-mounted for smoot
 
   assert.match(
     pageSource,
-    /<Suspense fallback=\{null\}>\s*<ProfileSideMenu/s,
-    "Profile page should render the side menu inside Suspense without an extra mounted guard."
+    /import ProfileSideMenu from "\.\/profile\/ProfileSideMenu\.jsx";/,
+    "Profile page should load the side menu eagerly to avoid first-open lag."
   );
 
   assert.match(
     menuSource,
-    /const CLOSE_ANIMATION_MS = 140;/,
-    "Profile side menu should keep close timing short to reduce perceived lag."
+    /const CLOSE_ANIMATION_MS = 90;/,
+    "Profile side menu should keep close timing very short to reduce perceived lag."
   );
 
-  assert.match(
+  assert.doesNotMatch(
     pageSource,
-    /requestIdleCallback\(warmProfileUi, \{ timeout: 320 \}\)/,
-    "Profile page should preload the side menu early enough to avoid first-open jank."
+    /loadProfileSideMenu|pendingSideMenuOpenRef|onMouseEnter=\{preloadSideMenu\}|onFocus=\{preloadSideMenu\}|<Suspense fallback=\{null\}>\s*<ProfileSideMenu/s,
+    "Profile page should avoid extra lazy-loading and hover-preload plumbing for the side menu."
   );
 
   assert.match(
@@ -53,7 +53,7 @@ test("profile side menu keeps submenu state batched and is pre-mounted for smoot
 
   assert.match(
     layoutSource,
-    /\.side-menu\s*\{[\s\S]*will-change: transform;[\s\S]*transition: transform 140ms var\(--ease\);/s,
+    /\.side-menu\s*\{[\s\S]*will-change: transform;[\s\S]*transition: transform 90ms var\(--ease\);/s,
     "Side menu should animate mainly via transform to keep the motion lightweight."
   );
 
@@ -61,5 +61,11 @@ test("profile side menu keeps submenu state batched and is pre-mounted for smoot
     layoutSource,
     /\.side-menu\.open\s*\{[\s\S]*box-shadow:/s,
     "Side menu open state should avoid toggling a heavier box-shadow during animation."
+  );
+
+  assert.match(
+    layoutSource,
+    /\.menu-overlay\.closing\s*\{[\s\S]*pointer-events: none;/s,
+    "Closing overlay should stop blocking interaction while it fades out."
   );
 });

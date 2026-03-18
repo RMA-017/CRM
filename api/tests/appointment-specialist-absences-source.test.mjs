@@ -41,8 +41,8 @@ test("appointment specialist absence routes and schedule guards stay registered"
 
   assert.match(
     absencesRouteSource,
-    /resolveSelfScopedSpecialistUserId[\s\S]*fallbackToOwnUser:\s*canReadSpecialistAbsences[\s\S]*fallbackToOwnUser:\s*true/s,
-    "Specialist absences routes should self-scope explicit absence permissions to the current user."
+    /fallbackToOwnUser:\s*canReadSpecialistAbsences[\s\S]*requestedSpecialistId[\s\S]*fallbackOnlyWhenSpecialistIsUnspecified:\s*true[\s\S]*fallbackToOwnUser:\s*true/s,
+    "Specialist absences routes should only self-scope read access when no specialist was explicitly requested, while keeping write actions self-scoped."
   );
 
   assert.match(

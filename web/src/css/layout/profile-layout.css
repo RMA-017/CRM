@@ -47,7 +47,7 @@
   backface-visibility: hidden;
   contain: layout paint;
   will-change: transform;
-  transition: transform 140ms var(--ease);
+  transition: transform 90ms var(--ease);
 }
 
 .side-menu.open {
@@ -201,11 +201,12 @@
   z-index: var(--z-menu-overlay);
   opacity: 1;
   will-change: opacity;
-  transition: opacity 120ms ease;
+  transition: opacity 90ms ease;
 }
 
 .menu-overlay.closing {
   opacity: 0;
+  pointer-events: none;
 }
 
 /* ---- Auth Form (profile sidebar) ---- */

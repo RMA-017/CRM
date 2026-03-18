@@ -15,7 +15,13 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
     DATE_REGEX
   } = context;
 
-  function resolveSelfScopedSpecialistUserId({ authContext, requester, fallbackToOwnUser = false }) {
+  function resolveSelfScopedSpecialistUserId({
+    authContext,
+    requester,
+    fallbackToOwnUser = false,
+    requestedSpecialistId = 0,
+    fallbackOnlyWhenSpecialistIsUnspecified = false
+  }) {
     const roleScopedSpecialistUserId = resolveOwnAppointmentSpecialistUserId({ authContext, requester });
     if (roleScopedSpecialistUserId) {
       return roleScopedSpecialistUserId;
@@ -24,6 +30,10 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
       fallbackToOwnUser
       && !Boolean(requester?.is_admin)
       && !Boolean(requester?.is_platform_admin)
+      && (
+        !fallbackOnlyWhenSpecialistIsUnspecified
+        || !parsePositiveIntegerOr(requestedSpecialistId, 0)
+      )
     ) {
       return parsePositiveIntegerOr(authContext?.userId, 0);
     }
@@ -70,12 +80,14 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
         }
 
         const access = { authContext, requester };
+        const requestedSpecialistId = parsePositiveIntegerOr(request.query?.specialistId, 0);
         const ownSpecialistUserId = resolveSelfScopedSpecialistUserId({
           authContext,
           requester,
-          fallbackToOwnUser: canReadSpecialistAbsences
+          fallbackToOwnUser: canReadSpecialistAbsences,
+          requestedSpecialistId,
+          fallbackOnlyWhenSpecialistIsUnspecified: true
         });
-        const requestedSpecialistId = parsePositiveIntegerOr(request.query?.specialistId, 0);
         const specialistId = ownSpecialistUserId || requestedSpecialistId;
         if (ownSpecialistUserId && requestedSpecialistId && requestedSpecialistId !== ownSpecialistUserId) {
           return reply.status(403).send({ message: "Forbidden." });

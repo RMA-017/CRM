@@ -96,6 +96,14 @@ function getPlannerReportStatusPresentation(statusValue) {
   };
 }
 
+function normalizePlannerReportStatusFilter(statusValue) {
+  const status = String(statusValue || "").trim().toLowerCase();
+  if (status === "confirmed" || status === "pending" || status === "cancelled" || status === "no-show") {
+    return status;
+  }
+  return "all";
+}
+
 function StatisticsPlannerReportPanel({
   closeStatisticsPanel,
   showBootstrapSkeleton = false,
@@ -117,6 +125,7 @@ function StatisticsPlannerReportPanel({
   const [hasAutoLoaded, setHasAutoLoaded] = useState(false);
   const [hasLoadedFilterOptions, setHasLoadedFilterOptions] = useState(false);
   const [page, setPage] = useState(1);
+  const [detailStatusFilter, setDetailStatusFilter] = useState("all");
   const reportRequestInFlightRef = useRef(false);
 
   const specialistOptions = useMemo(() => [
@@ -247,7 +256,7 @@ function StatisticsPlannerReportPanel({
 
   useEffect(() => {
     setPage(1);
-  }, [reportData]);
+  }, [detailStatusFilter, reportData]);
 
   const isLoading = showBootstrapSkeleton || reportLoading;
   const summary = reportData?.summary || {
@@ -258,9 +267,20 @@ function StatisticsPlannerReportPanel({
     noShow: 0
   };
   const detailRows = Array.isArray(reportData?.details) ? reportData.details : [];
-  const totalPages = Math.max(1, Math.ceil(detailRows.length / ALL_USERS_LIMIT) || 1);
+  const summaryItems = [
+    { key: "all", label: "Total Lessons", value: summary.total, className: "is-total" },
+    { key: "confirmed", label: "Confirmed", value: summary.confirmed, className: "is-confirmed" },
+    { key: "pending", label: "Pending", value: summary.pending, className: "is-pending" },
+    { key: "cancelled", label: "Cancelled", value: summary.cancelled, className: "is-cancelled" },
+    { key: "no-show", label: "No Show", value: summary.noShow, className: "is-no-show" }
+  ];
+  const filteredDetailRows = detailRows.filter((row) => (
+    detailStatusFilter === "all"
+      || normalizePlannerReportStatusFilter(row?.status) === detailStatusFilter
+  ));
+  const totalPages = Math.max(1, Math.ceil(filteredDetailRows.length / ALL_USERS_LIMIT) || 1);
   const safePage = Math.min(page, totalPages);
-  const visibleDetailRows = detailRows.slice(
+  const visibleDetailRows = filteredDetailRows.slice(
     (safePage - 1) * ALL_USERS_LIMIT,
     safePage * ALL_USERS_LIMIT
   );
@@ -384,26 +404,27 @@ function StatisticsPlannerReportPanel({
       {!isLoading && reportData ? (
         <>
           <div className="planner-report-summary-grid">
-            <article className="planner-report-summary-card is-total">
-              <span className="planner-report-summary-label">Total Lessons</span>
-              <strong className="planner-report-summary-value">{summary.total}</strong>
-            </article>
-            <article className="planner-report-summary-card is-confirmed">
-              <span className="planner-report-summary-label">Confirmed</span>
-              <strong className="planner-report-summary-value">{summary.confirmed}</strong>
-            </article>
-            <article className="planner-report-summary-card is-pending">
-              <span className="planner-report-summary-label">Pending</span>
-              <strong className="planner-report-summary-value">{summary.pending}</strong>
-            </article>
-            <article className="planner-report-summary-card is-cancelled">
-              <span className="planner-report-summary-label">Cancelled</span>
-              <strong className="planner-report-summary-value">{summary.cancelled}</strong>
-            </article>
-            <article className="planner-report-summary-card is-no-show">
-              <span className="planner-report-summary-label">No Show</span>
-              <strong className="planner-report-summary-value">{summary.noShow}</strong>
-            </article>
+            {summaryItems.map((item) => {
+              const isActive = detailStatusFilter === item.key;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={`planner-report-summary-card ${item.className}${isActive ? " is-active" : ""}`}
+                  aria-pressed={isActive ? "true" : "false"}
+                  onClick={() => {
+                    setDetailStatusFilter((current) => (
+                      current === item.key
+                        ? "all"
+                        : item.key
+                    ));
+                  }}
+                >
+                  <span className="planner-report-summary-label">{item.label}</span>
+                  <strong className="planner-report-summary-value">{item.value}</strong>
+                </button>
+              );
+            })}
           </div>
 
           <div className="all-users-table-wrap">
@@ -444,7 +465,7 @@ function StatisticsPlannerReportPanel({
             </table>
           </div>
 
-          <div className="all-users-pagination" hidden={detailRows.length === 0 || totalPages <= 1}>
+          <div className="all-users-pagination" hidden={filteredDetailRows.length === 0 || totalPages <= 1}>
             <button
               type="button"
               className="header-btn"
