@@ -2192,6 +2192,17 @@ label.field > span:first-child,
   color: #b42318;
 }
 
+.vip-norm-status-pill-no-assignment,
+.vip-norm-status-pill-no-position {
+  background: rgba(102, 112, 133, 0.12);
+  color: #475467;
+}
+
+.vip-norm-status-pill-no-norm {
+  background: rgba(181, 71, 8, 0.12);
+  color: #b54708;
+}
+
 .planner-report-toolbar {
   display: flex;
   align-items: flex-end;
@@ -4407,7 +4418,7 @@ label.field > span:first-child,
   margin: 10px 0 0;
 }
 
-:is(#appointmentBreaksPanel, #appointmentVipDailyRoutinesPanel, #appointmentWorkSchedulePanel, #appointmentNormsPanel, #organizationsPanel, #rolesPanel, #positionsPanel, #clientsPanel, #allUsersPanel) .appointment-breaks-add-icon-btn {
+:is(#appointmentBreaksPanel, #appointmentSpecialistAbsencesPanel, #appointmentVipDailyRoutinesPanel, #appointmentWorkSchedulePanel, #appointmentNormsPanel, #organizationsPanel, #rolesPanel, #positionsPanel, #clientsPanel, #allUsersPanel) .appointment-breaks-add-icon-btn {
   width: 30px;
   min-width: 30px;
   height: 30px;
@@ -4672,12 +4683,14 @@ label.field > span:first-child,
 }
 
 #appointmentBreaksAddModal h3,
+#appointmentSpecialistAbsenceCreateModal h3,
 #workScheduleUserOverridesModal h3 {
   margin: 2px 0 10px;
   font-size: var(--fs-md);
 }
 
 #appointmentBreaksAddModal .appointment-breaks-add-modal-head,
+#appointmentSpecialistAbsenceCreateModal .appointment-breaks-add-modal-head,
 #workScheduleUserOverridesModal .appointment-breaks-add-modal-head {
   display: flex;
   align-items: center;
@@ -4687,17 +4700,20 @@ label.field > span:first-child,
 }
 
 #appointmentBreaksAddModal .appointment-breaks-add-modal-head h3,
+#appointmentSpecialistAbsenceCreateModal .appointment-breaks-add-modal-head h3,
 #workScheduleUserOverridesModal .appointment-breaks-add-modal-head h3 {
   margin: 0;
   text-align: left;
 }
 
 #appointmentBreaksAddModal .appointment-breaks-add-modal-head .panel-close-btn,
+#appointmentSpecialistAbsenceCreateModal .appointment-breaks-add-modal-head .panel-close-btn,
 #workScheduleUserOverridesModal .appointment-breaks-add-modal-head .panel-close-btn {
   flex: 0 0 auto;
 }
 
 #appointmentBreaksAddModal .appointment-breaks-add-modal-form,
+#appointmentSpecialistAbsenceCreateModal .appointment-breaks-add-modal-form,
 #workScheduleUserOverridesModal .appointment-breaks-add-modal-form {
   display: grid;
   gap: 10px;
@@ -4859,6 +4875,7 @@ label.field > span:first-child,
 }
 
 #appointmentBreaksAddModal .appointment-breaks-add-modal-actions,
+#appointmentSpecialistAbsenceCreateModal .appointment-breaks-add-modal-actions,
 #workScheduleUserOverridesModal .appointment-breaks-add-modal-actions {
   margin: 0;
   justify-content: center;
@@ -4866,11 +4883,16 @@ label.field > span:first-child,
 }
 
 #appointmentBreaksAddModal .appointment-breaks-add-modal-actions .header-btn,
+#appointmentSpecialistAbsenceCreateModal .appointment-breaks-add-modal-actions .header-btn,
 #workScheduleUserOverridesModal .appointment-breaks-add-modal-actions .header-btn {
   width: 72px;
   min-width: 72px;
   height: var(--btn-height);
   padding: 0;
+}
+
+#appointmentSpecialistAbsenceCreateModal .appointment-setting-row {
+  grid-template-columns: minmax(100px, 124px) minmax(0, 1fr);
 }
 
 #appointmentBreaksAddModal #appointmentBreaksAddSaveBtn,

@@ -80,10 +80,15 @@ export const appointmentRouteSchemas = Object.freeze({
   absenceCreateBody: {
     type: "object",
     additionalProperties: true,
-    required: ["absenceDate"],
+    anyOf: [
+      { required: ["absenceDate"] },
+      { required: ["dateFrom"] }
+    ],
     properties: {
       specialistId: positiveIntegerLikeSchema,
       absenceDate: dateYmdSchema,
+      dateFrom: dateYmdSchema,
+      dateTo: dateYmdSchema,
       reason: { type: "string", maxLength: 120 }
     }
   },

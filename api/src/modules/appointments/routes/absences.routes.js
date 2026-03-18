@@ -10,10 +10,25 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
     resolveOwnAppointmentSpecialistUserId,
     listAppointmentSpecialistAbsences,
     createAppointmentSpecialistAbsence,
+    withAppointmentTransaction,
     deleteAppointmentSpecialistAbsenceById,
     broadcastAppointmentChange,
     DATE_REGEX
   } = context;
+
+  function buildDateRange(dateFrom, dateTo) {
+    const dates = [];
+    if (!DATE_REGEX.test(dateFrom) || !DATE_REGEX.test(dateTo) || dateFrom > dateTo) {
+      return dates;
+    }
+    const cursor = new Date(`${dateFrom}T00:00:00.000Z`);
+    const end = new Date(`${dateTo}T00:00:00.000Z`);
+    while (cursor.getTime() <= end.getTime()) {
+      dates.push(cursor.toISOString().slice(0, 10));
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+    return dates;
+  }
 
   function resolveSelfScopedSpecialistUserId({
     authContext,
@@ -153,28 +168,67 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
         if (ownSpecialistUserId && requestedSpecialistId && requestedSpecialistId !== ownSpecialistUserId) {
           return reply.status(403).send({ message: "Forbidden." });
         }
+        const access = { authContext, requester };
 
-        const absenceDate = String(request.body?.absenceDate || "").trim();
+        const dateFrom = String(request.body?.dateFrom || request.body?.absenceDate || "").trim();
+        const dateTo = String(request.body?.dateTo || dateFrom).trim();
         const reason = String(request.body?.reason || "").trim();
         if (!specialistId) {
           return reply.status(400).send({ field: "specialistId", message: "Specialist is required." });
         }
-        if (!DATE_REGEX.test(absenceDate)) {
-          return reply.status(400).send({ field: "absenceDate", message: "Valid date is required." });
+        if (!DATE_REGEX.test(dateFrom)) {
+          return reply.status(400).send({ field: "dateFrom", message: "Valid date from is required." });
+        }
+        if (!DATE_REGEX.test(dateTo)) {
+          return reply.status(400).send({ field: "dateTo", message: "Valid date to is required." });
+        }
+        if (dateFrom > dateTo) {
+          return reply.status(400).send({ field: "dateRange", message: "Date to must be on or after date from." });
         }
 
-        const { item, cancelledItems } = await createAppointmentSpecialistAbsence({
-          organizationId: authContext.organizationId,
-          actorUserId: authContext.userId,
-          specialistId,
-          absenceDate,
-          reason
+        const absenceDates = buildDateRange(dateFrom, dateTo);
+        if (absenceDates.length === 0) {
+          return reply.status(400).send({ field: "dateRange", message: "Invalid date range." });
+        }
+
+        const { items, cancelledItems } = await withAppointmentTransaction(async (db) => {
+          const savedItems = [];
+          let nextCancelledItems = [];
+          for (const absenceDate of absenceDates) {
+            const result = await createAppointmentSpecialistAbsence({
+              organizationId: authContext.organizationId,
+              actorUserId: authContext.userId,
+              specialistId,
+              absenceDate,
+              reason,
+              db
+            });
+            if (result?.item) {
+              savedItems.push(result.item);
+            }
+            if (Array.isArray(result?.cancelledItems) && result.cancelledItems.length > 0) {
+              nextCancelledItems = nextCancelledItems.concat(result.cancelledItems);
+            }
+          }
+          return {
+            items: savedItems,
+            cancelledItems: nextCancelledItems
+          };
         });
 
         const cancelledCount = Array.isArray(cancelledItems) ? cancelledItems.length : 0;
-        const message = cancelledCount > 0
-          ? `Specialist absence saved. ${cancelledCount} lessons cancelled.`
-          : "Specialist absence saved.";
+        const savedCount = Array.isArray(items) ? items.length : 0;
+        const message = savedCount > 1
+          ? (
+            cancelledCount > 0
+              ? `Specialist absence saved for ${savedCount} days. ${cancelledCount} lessons cancelled.`
+              : `Specialist absence saved for ${savedCount} days.`
+          )
+          : (
+            cancelledCount > 0
+              ? `Specialist absence saved. ${cancelledCount} lessons cancelled.`
+              : "Specialist absence saved."
+          );
 
         await broadcastAppointmentChange(access, {
           type: "specialist-absence-updated",
@@ -182,14 +236,21 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
           specialistIds: [specialistId],
           data: {
             specialistId: String(specialistId),
-            absenceDate,
+            absenceDate: dateFrom,
+            dateFrom,
+            dateTo,
+            savedCount,
             cancelledCount
           }
         });
 
         return reply.status(201).send({
           message,
-          item,
+          item: Array.isArray(items) && items.length > 0 ? items[0] : null,
+          items,
+          dateFrom,
+          dateTo,
+          savedCount,
           cancelledCount,
           cancelledItems
         });

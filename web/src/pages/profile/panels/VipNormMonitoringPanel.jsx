@@ -180,7 +180,7 @@ function VipNormMonitoringPanel({
               <tr key={item.id}>
                 <td>{formatClientLabel(item) || "-"}</td>
                 <td>{item.positionLabel || "-"}</td>
-                <td style={{ textAlign: "center" }}>{item.weeklyNorm}</td>
+                <td style={{ textAlign: "center" }}>{item.weeklyNorm > 0 ? item.weeklyNorm : "-"}</td>
                 <td style={{ textAlign: "center" }}>{item.currentBooked}</td>
                 <td className="vip-norm-status-cell">
                   <span className={`vip-norm-status-pill vip-norm-status-pill-${item.statusKey || "normal"}`}>

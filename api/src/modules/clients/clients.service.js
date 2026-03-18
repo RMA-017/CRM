@@ -884,98 +884,139 @@ export async function getVipNormMonitoringRows({
   const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 5000) : 2000;
   const normalizedAssignedUserId = Number.parseInt(String(assignedUserId || "").trim(), 10) || null;
   const { rows } = await pool.query(
-    `WITH scoped_sources AS (
+    `WITH vip_clients AS (
        SELECT
          c.id AS client_id,
          c.first_name,
          c.last_name,
          c.middle_name,
          vta.class_assignment_id,
+         vta.tutor_user_id,
          vcta.class_name,
+         vcta.teacher_user_id
+       FROM clients c
+       JOIN organizations o
+         ON o.id = c.organization_id
+       LEFT JOIN vip_client_tutor_assignments vta
+          ON vta.organization_id = c.organization_id
+         AND vta.client_id = c.id
+       LEFT JOIN vip_class_teacher_assignments vcta
+          ON vcta.organization_id = vta.organization_id
+         AND vcta.id = vta.class_assignment_id
+      WHERE c.organization_id = $1
+        AND o.is_active = TRUE
+        AND c.is_vip = TRUE
+        AND (
+          $3::integer IS NULL
+          OR vcta.teacher_user_id = $3::integer
+          OR vta.tutor_user_id = $3::integer
+        )
+     ),
+     scoped_sources AS (
+       SELECT
+         vc.client_id,
+         vc.first_name,
+         vc.last_name,
+         vc.middle_name,
+         NULL::bigint AS class_assignment_id,
+         ''::text AS class_name,
+         CONCAT('missing-assignment:', vc.client_id::text) AS position_key,
+         NULL::integer AS position_id,
+         'No assignment'::text AS position_label,
+         0::integer AS max_per_week,
+         NULL::integer AS linked_specialist_id,
+         ''::text AS linked_specialist_name,
+         'no-assignment'::text AS setup_state
+       FROM vip_clients vc
+       WHERE vc.class_assignment_id IS NULL
+
+       UNION ALL
+
+       SELECT
+         vc.client_id,
+         vc.first_name,
+         vc.last_name,
+         vc.middle_name,
+         vc.class_assignment_id,
+         COALESCE(NULLIF(TRIM(vc.class_name), ''), '') AS class_name,
+         CASE
+           WHEN teacher.position_id IS NULL THEN CONCAT('missing-position:teacher:', vc.client_id::text)
+           ELSE teacher.position_id::text
+         END AS position_key,
          teacher.position_id,
-         COALESCE(NULLIF(TRIM(po_teacher.label), ''), CONCAT('Position #', teacher.position_id::text)) AS position_label,
-         an.max_per_week,
+         CASE
+           WHEN teacher.position_id IS NULL THEN 'Teacher - No position'
+           ELSE COALESCE(NULLIF(TRIM(po_teacher.label), ''), CONCAT('Position #', teacher.position_id::text))
+         END AS position_label,
+         COALESCE(an.max_per_week, 0)::int AS max_per_week,
          teacher.id AS linked_specialist_id,
          COALESCE(
            NULLIF(TRIM(teacher.full_name), ''),
            NULLIF(TRIM(teacher.username), ''),
            CONCAT('User #', teacher.id::text)
-         ) AS linked_specialist_name
-        FROM clients c
-        JOIN organizations o
-          ON o.id = c.organization_id
-        JOIN vip_client_tutor_assignments vta
-          ON vta.organization_id = c.organization_id
-         AND vta.client_id = c.id
-        JOIN vip_class_teacher_assignments vcta
-          ON vcta.organization_id = vta.organization_id
-         AND vcta.id = vta.class_assignment_id
-        JOIN users teacher
-          ON teacher.id = vcta.teacher_user_id
-         AND teacher.organization_id = c.organization_id
-        JOIN appointment_norms an
-          ON an.organization_id = c.organization_id
-         AND an.position_id = teacher.position_id
-         AND an.is_active = TRUE
-        LEFT JOIN position_options po_teacher
-          ON po_teacher.id = teacher.position_id
-         AND po_teacher.organization_id = c.organization_id
-       WHERE c.organization_id = $1
-         AND o.is_active = TRUE
-         AND c.is_vip = TRUE
-         AND teacher.position_id IS NOT NULL
-         AND (
-           $3::integer IS NULL
-           OR vcta.teacher_user_id = $3::integer
-           OR vta.tutor_user_id = $3::integer
-         )
+         ) AS linked_specialist_name,
+         CASE
+           WHEN teacher.position_id IS NULL THEN 'no-position'
+           WHEN an.id IS NULL THEN 'no-norm'
+           ELSE 'ready'
+         END AS setup_state
+       FROM vip_clients vc
+       LEFT JOIN users teacher
+         ON teacher.id = vc.teacher_user_id
+        AND teacher.organization_id = $1
+       LEFT JOIN position_options po_teacher
+         ON po_teacher.id = teacher.position_id
+        AND po_teacher.organization_id = $1
+       LEFT JOIN appointment_norms an
+         ON an.organization_id = $1
+        AND an.position_id = teacher.position_id
+        AND an.is_active = TRUE
+       WHERE vc.class_assignment_id IS NOT NULL
+         AND vc.teacher_user_id IS NOT NULL
 
        UNION ALL
 
        SELECT
-         c.id AS client_id,
-         c.first_name,
-         c.last_name,
-         c.middle_name,
-         vta.class_assignment_id,
-         vcta.class_name,
+         vc.client_id,
+         vc.first_name,
+         vc.last_name,
+         vc.middle_name,
+         vc.class_assignment_id,
+         COALESCE(NULLIF(TRIM(vc.class_name), ''), '') AS class_name,
+         CASE
+           WHEN tutor.position_id IS NULL THEN CONCAT('missing-position:tutor:', vc.client_id::text)
+           ELSE tutor.position_id::text
+         END AS position_key,
          tutor.position_id,
-         COALESCE(NULLIF(TRIM(po_tutor.label), ''), CONCAT('Position #', tutor.position_id::text)) AS position_label,
-         an.max_per_week,
+         CASE
+           WHEN tutor.position_id IS NULL THEN 'Tutor - No position'
+           ELSE COALESCE(NULLIF(TRIM(po_tutor.label), ''), CONCAT('Position #', tutor.position_id::text))
+         END AS position_label,
+         COALESCE(an.max_per_week, 0)::int AS max_per_week,
          tutor.id AS linked_specialist_id,
          COALESCE(
            NULLIF(TRIM(tutor.full_name), ''),
            NULLIF(TRIM(tutor.username), ''),
            CONCAT('User #', tutor.id::text)
-         ) AS linked_specialist_name
-        FROM clients c
-        JOIN organizations o
-          ON o.id = c.organization_id
-        JOIN vip_client_tutor_assignments vta
-          ON vta.organization_id = c.organization_id
-         AND vta.client_id = c.id
-        JOIN vip_class_teacher_assignments vcta
-          ON vcta.organization_id = vta.organization_id
-         AND vcta.id = vta.class_assignment_id
-        JOIN users tutor
-          ON tutor.id = vta.tutor_user_id
-         AND tutor.organization_id = c.organization_id
-        JOIN appointment_norms an
-          ON an.organization_id = c.organization_id
-         AND an.position_id = tutor.position_id
-         AND an.is_active = TRUE
-        LEFT JOIN position_options po_tutor
-          ON po_tutor.id = tutor.position_id
-         AND po_tutor.organization_id = c.organization_id
-       WHERE c.organization_id = $1
-         AND o.is_active = TRUE
-         AND c.is_vip = TRUE
-         AND tutor.position_id IS NOT NULL
-         AND (
-           $3::integer IS NULL
-           OR vcta.teacher_user_id = $3::integer
-           OR vta.tutor_user_id = $3::integer
-         )
+         ) AS linked_specialist_name,
+         CASE
+           WHEN tutor.position_id IS NULL THEN 'no-position'
+           WHEN an.id IS NULL THEN 'no-norm'
+           ELSE 'ready'
+         END AS setup_state
+       FROM vip_clients vc
+       LEFT JOIN users tutor
+         ON tutor.id = vc.tutor_user_id
+        AND tutor.organization_id = $1
+       LEFT JOIN position_options po_tutor
+         ON po_tutor.id = tutor.position_id
+        AND po_tutor.organization_id = $1
+       LEFT JOIN appointment_norms an
+         ON an.organization_id = $1
+        AND an.position_id = tutor.position_id
+        AND an.is_active = TRUE
+       WHERE vc.class_assignment_id IS NOT NULL
+         AND vc.tutor_user_id IS NOT NULL
      ),
      client_positions AS (
        SELECT
@@ -985,9 +1026,16 @@ export async function getVipNormMonitoringRows({
          ss.middle_name,
          ss.class_assignment_id,
          MAX(ss.class_name) AS class_name,
-         ss.position_id,
+         ss.position_key,
+         MAX(ss.position_id) AS position_id,
          MAX(ss.position_label) AS position_label,
          MAX(ss.max_per_week)::int AS max_per_week,
+         CASE
+           WHEN BOOL_OR(ss.setup_state = 'no-assignment') THEN 'no-assignment'
+           WHEN BOOL_OR(ss.setup_state = 'no-position') THEN 'no-position'
+           WHEN BOOL_OR(ss.setup_state = 'no-norm') THEN 'no-norm'
+           ELSE 'ready'
+         END AS setup_state,
          COALESCE(
            jsonb_agg(
              DISTINCT jsonb_build_object(
@@ -1004,12 +1052,12 @@ export async function getVipNormMonitoringRows({
          ss.last_name,
          ss.middle_name,
          ss.class_assignment_id,
-         ss.position_id
+         ss.position_key
      ),
      appointment_counts AS (
        SELECT
          cp.client_id,
-         cp.position_id,
+         cp.position_key,
          COUNT(DISTINCT s.id)::int AS current_booked,
          COALESCE(
            jsonb_agg(
@@ -1036,28 +1084,44 @@ export async function getVipNormMonitoringRows({
           FROM jsonb_array_elements(cp.linked_specialists) ls
           WHERE ls->>'id' = s.specialist_id::text
         )
-       LEFT JOIN users su
-         ON su.id = s.specialist_id
+        LEFT JOIN users su
+          ON su.id = s.specialist_id
         AND su.organization_id = s.organization_id
-       GROUP BY cp.client_id, cp.position_id
+       GROUP BY cp.client_id, cp.position_key
      )
      SELECT
        cp.client_id::text AS client_id,
        cp.first_name,
        cp.last_name,
        cp.middle_name,
-       cp.class_assignment_id::text AS class_assignment_id,
+       COALESCE(cp.class_assignment_id::text, '') AS class_assignment_id,
        cp.class_name,
-       cp.position_id::text AS position_id,
+       COALESCE(cp.position_id::text, cp.position_key) AS position_id,
        cp.position_label,
        cp.max_per_week,
        COALESCE(ac.current_booked, 0) AS current_booked,
        cp.linked_specialists,
-       COALESCE(ac.scheduled_specialists, '[]'::jsonb) AS scheduled_specialists
+       COALESCE(ac.scheduled_specialists, '[]'::jsonb) AS scheduled_specialists,
+       CASE
+         WHEN cp.setup_state = 'no-assignment' THEN 'No assignment'
+         WHEN cp.setup_state = 'no-position' THEN 'No position'
+         WHEN cp.setup_state = 'no-norm' THEN 'No norm configured'
+         WHEN COALESCE(ac.current_booked, 0) > cp.max_per_week THEN 'Exceeded'
+         WHEN COALESCE(ac.current_booked, 0) = cp.max_per_week THEN 'Limit reached'
+         ELSE 'Normal'
+       END AS status,
+       CASE
+         WHEN cp.setup_state = 'no-assignment' THEN 'no-assignment'
+         WHEN cp.setup_state = 'no-position' THEN 'no-position'
+         WHEN cp.setup_state = 'no-norm' THEN 'no-norm'
+         WHEN COALESCE(ac.current_booked, 0) > cp.max_per_week THEN 'exceeded'
+         WHEN COALESCE(ac.current_booked, 0) = cp.max_per_week THEN 'limit-reached'
+         ELSE 'normal'
+       END AS status_key
       FROM client_positions cp
       LEFT JOIN appointment_counts ac
         ON ac.client_id = cp.client_id
-       AND ac.position_id = cp.position_id
+       AND ac.position_key = cp.position_key
       ORDER BY
         LOWER(cp.last_name) ASC,
         LOWER(cp.first_name) ASC,

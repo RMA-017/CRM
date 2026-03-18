@@ -22,7 +22,8 @@ function formatDateTimeLabel(value) {
 
 function createEmptyForm(todayYmd) {
   return {
-    absenceDate: String(todayYmd || "").trim(),
+    dateFrom: String(todayYmd || "").trim(),
+    dateTo: String(todayYmd || "").trim(),
     reason: ""
   };
 }
@@ -31,6 +32,7 @@ function AppointmentSpecialistAbsencesPanel({
   canReadAppointmentSpecialistAbsences,
   canCreateAppointmentSpecialistAbsences,
   canDeleteAppointmentSpecialistAbsences,
+  profileDisplayName,
   closeAppointmentSpecialistAbsencesPanel
 }) {
   const todayYmd = useMemo(() => formatDateForInput(new Date()), []);
@@ -42,6 +44,12 @@ function AppointmentSpecialistAbsencesPanel({
   const [createFormOpen, setCreateFormOpen] = useState(false);
   const [form, setForm] = useState(() => createEmptyForm(todayYmd));
   const dateInputRef = useRef(null);
+
+  const specialistDisplayName = useMemo(() => {
+    const firstItemName = String(items[0]?.specialistName || "").trim();
+    const fallbackName = String(profileDisplayName || "").trim();
+    return firstItemName || fallbackName || "Current specialist";
+  }, [items, profileDisplayName]);
 
   const dispatchPlannerRefresh = useCallback((detail = {}) => {
     if (typeof window === "undefined") {
@@ -79,6 +87,7 @@ function AppointmentSpecialistAbsencesPanel({
       const nextItems = (Array.isArray(data?.items) ? data.items : [])
         .map((item) => ({
           id: String(item?.id || "").trim(),
+          specialistName: String(item?.specialistName || "").trim(),
           absenceDate: String(item?.absenceDate || "").trim(),
           reason: String(item?.reason || "").trim(),
           updatedAt: item?.updatedAt || null
@@ -129,10 +138,19 @@ function AppointmentSpecialistAbsencesPanel({
   const handleSubmit = useCallback(async (event) => {
     event.preventDefault();
 
-    const absenceDate = String(form.absenceDate || "").trim();
+    const dateFrom = String(form.dateFrom || "").trim();
+    const dateTo = String(form.dateTo || "").trim();
     const reason = String(form.reason || "").trim();
-    if (!absenceDate) {
-      setMessage("Date is required.");
+    if (!dateFrom) {
+      setMessage("Date from is required.");
+      return;
+    }
+    if (!dateTo) {
+      setMessage("Date to is required.");
+      return;
+    }
+    if (dateFrom > dateTo) {
+      setMessage("Date to must be on or after date from.");
       return;
     }
     if (!canCreateAppointmentSpecialistAbsences) {
@@ -146,7 +164,8 @@ function AppointmentSpecialistAbsencesPanel({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          absenceDate,
+          dateFrom,
+          dateTo,
           reason
         })
       });
@@ -160,7 +179,9 @@ function AppointmentSpecialistAbsencesPanel({
       setCreateFormOpen(false);
       setMessage(String(data?.message || "Specialist absence saved."));
       dispatchPlannerRefresh({
-        absenceDate,
+        absenceDate: dateFrom,
+        dateFrom,
+        dateTo,
         cancelledCount: Number(data?.cancelledCount || 0)
       });
       await loadAbsences({ silent: true });
@@ -172,7 +193,8 @@ function AppointmentSpecialistAbsencesPanel({
   }, [
     canCreateAppointmentSpecialistAbsences,
     dispatchPlannerRefresh,
-    form.absenceDate,
+    form.dateFrom,
+    form.dateTo,
     form.reason,
     loadAbsences,
     todayYmd
@@ -245,68 +267,14 @@ function AppointmentSpecialistAbsencesPanel({
         </div>
       </div>
 
-      {createFormOpen ? (
-        <form className="appointment-settings-form" onSubmit={handleSubmit}>
-          <div className="appointment-setting-row">
-            <label htmlFor="appointmentSpecialistAbsenceDateInput">Date</label>
-            <div className="appointment-setting-inline">
-              <input
-                id="appointmentSpecialistAbsenceDateInput"
-                ref={dateInputRef}
-                type="date"
-                value={form.absenceDate}
-                onChange={(event) => {
-                  const value = String(event.target.value || "").trim();
-                  setForm((prev) => ({ ...prev, absenceDate: value }));
-                }}
-              />
-            </div>
-          </div>
-          <div className="appointment-setting-row">
-            <label htmlFor="appointmentSpecialistAbsenceReasonInput">Reason</label>
-            <div className="appointment-setting-inline">
-              <input
-                id="appointmentSpecialistAbsenceReasonInput"
-                type="text"
-                maxLength={120}
-                placeholder="Optional reason"
-                value={form.reason}
-                onChange={(event) => {
-                  const value = String(event.target.value || "").slice(0, 120);
-                  setForm((prev) => ({ ...prev, reason: value }));
-                }}
-              />
-            </div>
-          </div>
-          <div className="appointment-settings-actions">
-            <button
-              id="saveAppointmentSpecialistAbsenceBtn"
-              type="submit"
-              className="header-btn"
-              disabled={saving || !form.absenceDate || !canCreateAppointmentSpecialistAbsences}
-            >
-              {saving ? "Saving..." : "Save Absence"}
-            </button>
-            <button
-              id="cancelAppointmentSpecialistAbsenceCreateBtn"
-              type="button"
-              className="header-btn"
-              disabled={saving}
-              onClick={closeCreateForm}
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      ) : null}
-
-      <p className="all-users-state" hidden={loading || !message}>{message}</p>
+      <p className="all-users-state" hidden={loading || !message || createFormOpen}>{message}</p>
 
       <div className="appointment-breaks-view" aria-label="Specialist absences list">
         <div className="appointment-breaks-table-wrap all-users-table-wrap">
           <table className="appointment-breaks-table all-users-table" aria-label="Specialist absences table">
             <thead>
               <tr>
+                <th>Specialist</th>
                 <th>Date</th>
                 <th>Reason</th>
                 <th>Updated</th>
@@ -316,15 +284,16 @@ function AppointmentSpecialistAbsencesPanel({
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="4" className="all-users-state">Loading...</td>
+                  <td colSpan="5" className="all-users-state">Loading...</td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan="4" className="all-users-state">No specialist absences yet.</td>
+                  <td colSpan="5" className="all-users-state">No specialist absences yet.</td>
                 </tr>
               ) : (
                 items.map((item) => (
                   <tr key={item.id}>
+                    <td>{item.specialistName || specialistDisplayName || "-"}</td>
                     <td>{item.absenceDate || "-"}</td>
                     <td>{item.reason || "-"}</td>
                     <td>{formatDateTimeLabel(item.updatedAt)}</td>
@@ -347,6 +316,110 @@ function AppointmentSpecialistAbsencesPanel({
           </table>
         </div>
       </div>
+
+      <section
+        id="appointmentSpecialistAbsenceCreateModal"
+        className="logout-confirm-modal settings-edit-modal appointment-breaks-add-modal"
+        hidden={!createFormOpen}
+        aria-modal="true"
+        role="dialog"
+        aria-label="Add specialist absence"
+      >
+        <div className="appointment-breaks-add-modal-head">
+          <h3>Add Specialist Absence</h3>
+          <button
+            id="closeAppointmentSpecialistAbsenceCreateModalBtn"
+            type="button"
+            className="header-btn panel-close-btn"
+            aria-label="Close specialist absence create modal"
+            disabled={saving}
+            onClick={closeCreateForm}
+          >
+            ×
+          </button>
+        </div>
+
+        <form className="appointment-breaks-add-modal-form" onSubmit={handleSubmit}>
+          <div className="appointment-setting-row">
+            <label htmlFor="appointmentSpecialistAbsenceSpecialistName">Specialist</label>
+            <div className="appointment-setting-inline">
+              <input
+                id="appointmentSpecialistAbsenceSpecialistName"
+                type="text"
+                value={specialistDisplayName}
+                readOnly
+                tabIndex={-1}
+              />
+            </div>
+          </div>
+          <div className="appointment-setting-row">
+            <label htmlFor="appointmentSpecialistAbsenceDateFromInput">Date From</label>
+            <div className="appointment-setting-inline">
+              <input
+                id="appointmentSpecialistAbsenceDateFromInput"
+                ref={dateInputRef}
+                type="date"
+                value={form.dateFrom}
+                onChange={(event) => {
+                  const value = String(event.target.value || "").trim();
+                  setForm((prev) => ({ ...prev, dateFrom: value }));
+                }}
+              />
+            </div>
+          </div>
+          <div className="appointment-setting-row">
+            <label htmlFor="appointmentSpecialistAbsenceDateToInput">Date To</label>
+            <div className="appointment-setting-inline">
+              <input
+                id="appointmentSpecialistAbsenceDateToInput"
+                type="date"
+                value={form.dateTo}
+                onChange={(event) => {
+                  const value = String(event.target.value || "").trim();
+                  setForm((prev) => ({ ...prev, dateTo: value }));
+                }}
+              />
+            </div>
+          </div>
+          <div className="appointment-setting-row">
+            <label htmlFor="appointmentSpecialistAbsenceReasonInput">Reason</label>
+            <div className="appointment-setting-inline">
+              <input
+                id="appointmentSpecialistAbsenceReasonInput"
+                type="text"
+                maxLength={120}
+                placeholder="Optional reason"
+                value={form.reason}
+                onChange={(event) => {
+                  const value = String(event.target.value || "").slice(0, 120);
+                  setForm((prev) => ({ ...prev, reason: value }));
+                }}
+              />
+            </div>
+          </div>
+          <p className="all-users-state" hidden={!message}>{message}</p>
+          <div className="edit-actions appointment-breaks-add-modal-actions">
+            <button
+              id="saveAppointmentSpecialistAbsenceBtn"
+              type="submit"
+              className="header-btn"
+              disabled={saving || !form.dateFrom || !form.dateTo || !canCreateAppointmentSpecialistAbsences}
+            >
+              {saving ? "Saving..." : "Save Absence"}
+            </button>
+            <button
+              id="cancelAppointmentSpecialistAbsenceCreateBtn"
+              type="button"
+              className="header-btn"
+              disabled={saving}
+              onClick={closeCreateForm}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </section>
+      <div className="login-overlay" hidden={!createFormOpen} onClick={closeCreateForm} />
     </section>
   );
 }

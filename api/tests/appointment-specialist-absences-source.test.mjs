@@ -3,10 +3,11 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 
 test("appointment specialist absence routes and schedule guards stay registered", async () => {
-  const [routesSource, absencesRouteSource, schedulesSource] = await Promise.all([
+  const [routesSource, absencesRouteSource, schedulesSource, schemasSource] = await Promise.all([
     readFile(new URL("../src/modules/appointments/appointment-settings.routes.js", import.meta.url), "utf8"),
     readFile(new URL("../src/modules/appointments/routes/absences.routes.js", import.meta.url), "utf8"),
-    readFile(new URL("../src/modules/appointments/routes/schedules.routes.js", import.meta.url), "utf8")
+    readFile(new URL("../src/modules/appointments/routes/schedules.routes.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/modules/appointments/routes/appointment.route-schemas.js", import.meta.url), "utf8")
   ]);
 
   assert.match(
@@ -43,6 +44,18 @@ test("appointment specialist absence routes and schedule guards stay registered"
     absencesRouteSource,
     /fallbackToOwnUser:\s*canReadSpecialistAbsences[\s\S]*requestedSpecialistId[\s\S]*fallbackOnlyWhenSpecialistIsUnspecified:\s*true[\s\S]*fallbackToOwnUser:\s*true/s,
     "Specialist absences routes should only self-scope read access when no specialist was explicitly requested, while keeping write actions self-scoped."
+  );
+
+  assert.match(
+    schemasSource,
+    /absenceCreateBody[\s\S]*anyOf:[\s\S]*absenceDate[\s\S]*dateFrom[\s\S]*properties:[\s\S]*dateFrom:[\s\S]*dateTo:/s,
+    "Specialist absences create schema should accept either a single date or a date from\/to range."
+  );
+
+  assert.match(
+    absencesRouteSource,
+    /buildDateRange[\s\S]*withAppointmentTransaction[\s\S]*Specialist absence saved for \$\{savedCount\} days\./s,
+    "Specialist absences create route should expand date ranges inside one transaction."
   );
 
   assert.match(

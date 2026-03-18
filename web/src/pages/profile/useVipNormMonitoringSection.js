@@ -79,7 +79,7 @@ export function useVipNormMonitoringSection({
           statusKey: String(item?.statusKey || item?.status_key || "").trim().toLowerCase(),
           specialists: normalizeSpecialistItems(item?.specialists)
         }))
-        .filter((item) => Boolean(item.clientId) && Boolean(item.positionId));
+        .filter((item) => Boolean(item.clientId) && Boolean(item.id));
 
       const nextClients = (Array.isArray(data?.clients) ? data.clients : [])
         .map((item) => ({
@@ -114,9 +114,7 @@ export function useVipNormMonitoringSection({
         specialists: nextSpecialists
       });
       if (nextItems.length === 0) {
-        setVipNormMonitoringMessage(
-          "No norm monitoring records found. Check VIP assignments, specialist positions, and active appointment norms."
-        );
+        setVipNormMonitoringMessage("No VIP norm monitoring records found.");
       }
     } catch {
       setVipNormMonitoringItems([]);

@@ -143,6 +143,7 @@ function ProfileMainContent({
   canReadAppointmentSpecialistAbsences,
   canCreateAppointmentSpecialistAbsences,
   canDeleteAppointmentSpecialistAbsences,
+  profileDisplayName,
   canViewAppointmentSpecialistAbsenceBlocks,
   canReadStatisticsPlannerReportPermission,
   canCreateAppointmentBreaks,
@@ -986,6 +987,7 @@ function ProfileMainContent({
             canReadAppointmentSpecialistAbsences={canReadAppointmentSpecialistAbsences}
             canCreateAppointmentSpecialistAbsences={canCreateAppointmentSpecialistAbsences}
             canDeleteAppointmentSpecialistAbsences={canDeleteAppointmentSpecialistAbsences}
+            profileDisplayName={profileDisplayName}
             closeAppointmentSpecialistAbsencesPanel={closeAppointmentSpecialistAbsencesPanel}
           />
         </Suspense>

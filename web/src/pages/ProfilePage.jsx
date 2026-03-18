@@ -1399,6 +1399,7 @@ function ProfilePage({ forcedView = "none" }) {
           canReadAppointmentSpecialistAbsences={canReadAppointmentSpecialistAbsences}
           canCreateAppointmentSpecialistAbsences={canCreateAppointmentSpecialistAbsences}
           canDeleteAppointmentSpecialistAbsences={canDeleteAppointmentSpecialistAbsences}
+          profileDisplayName={String(profile?.fullName || profile?.username || "").trim()}
           canViewAppointmentSpecialistAbsenceBlocks={canViewAppointmentSpecialistAbsenceBlocks}
           canReadStatisticsPlannerReportPermission={canReadStatisticsPlannerReportPermission}
           canCreateAppointmentBreaks={canCreateAppointmentBreaks}

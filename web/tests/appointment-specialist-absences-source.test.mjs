@@ -56,13 +56,31 @@ test("specialist absences menu and planner source wiring stay in place", async (
 
   assert.match(
     panelSource,
-    /const \[createFormOpen, setCreateFormOpen\] = useState\(false\);[\s\S]*\{createFormOpen \? \(/s,
-    "Specialist absences panel should keep the create form hidden until add is requested."
+    /const \[createFormOpen, setCreateFormOpen\] = useState\(false\);[\s\S]*id="appointmentSpecialistAbsenceCreateModal"[\s\S]*hidden=\{!createFormOpen\}/s,
+    "Specialist absences panel should keep the create modal hidden until add is requested."
   );
 
   assert.match(
     panelSource,
     /setForm\(createEmptyForm\(todayYmd\)\);[\s\S]*setCreateFormOpen\(true\);/s,
     "Specialist absences add flow should reset the form before opening a new create entry."
+  );
+
+  assert.match(
+    panelSource,
+    /className="logout-confirm-modal settings-edit-modal appointment-breaks-add-modal"[\s\S]*className="login-overlay" hidden=\{!createFormOpen\}/s,
+    "Specialist absences add flow should open in a modal with an overlay."
+  );
+
+  assert.match(
+    panelSource,
+    /appointmentSpecialistAbsenceSpecialistName[\s\S]*appointmentSpecialistAbsenceDateFromInput[\s\S]*appointmentSpecialistAbsenceDateToInput/s,
+    "Specialist absences create modal should show specialist name and date from\/to fields."
+  );
+
+  assert.match(
+    panelSource,
+    /<th>Specialist<\/th>[\s\S]*<th>Date<\/th>[\s\S]*<th>Reason<\/th>/s,
+    "Specialist absences table should show the specialist name alongside the saved dates."
   );
 });

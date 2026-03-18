@@ -670,16 +670,28 @@ function mapVipNormMonitoringRecord(row) {
     row?.scheduled_specialists,
     row?.scheduledSpecialists
   );
-  const statusKey = currentBooked > weeklyNorm
-    ? "exceeded"
-    : currentBooked === weeklyNorm
-      ? "limit-reached"
-      : "normal";
-  const status = statusKey === "exceeded"
-    ? "Exceeded"
-    : statusKey === "limit-reached"
-      ? "Limit reached"
-      : "Normal";
+  const rawStatusKey = String(row?.status_key || row?.statusKey || "").trim().toLowerCase();
+  const statusKey = rawStatusKey || (
+    currentBooked > weeklyNorm
+      ? "exceeded"
+      : currentBooked === weeklyNorm
+        ? "limit-reached"
+        : "normal"
+  );
+  const rawStatus = String(row?.status || row?.statusLabel || "").trim();
+  const status = rawStatus || (
+    statusKey === "no-assignment"
+      ? "No assignment"
+      : statusKey === "no-position"
+        ? "No position"
+        : statusKey === "no-norm"
+          ? "No norm configured"
+          : statusKey === "exceeded"
+            ? "Exceeded"
+            : statusKey === "limit-reached"
+              ? "Limit reached"
+              : "Normal"
+  );
 
   return {
     id: `${clientId}_${positionId}`,
