@@ -1956,17 +1956,17 @@ label.field > span:first-child,
 
 #appointmentVipDailyRoutinesPanel .all-users-table th:nth-child(1),
 #appointmentVipDailyRoutinesPanel .all-users-table td:nth-child(1) {
-  width: 15%;
+  width: 8%;
 }
 
 #appointmentVipDailyRoutinesPanel .all-users-table th:nth-child(2),
 #appointmentVipDailyRoutinesPanel .all-users-table td:nth-child(2) {
-  width: 12%;
+  width: 8%;
 }
 
 #appointmentVipDailyRoutinesPanel .all-users-table th:nth-child(3),
 #appointmentVipDailyRoutinesPanel .all-users-table td:nth-child(3) {
-  width: 12%;
+  width: 8%;
 }
 
 #appointmentVipDailyRoutinesPanel .all-users-table th:nth-child(4),
@@ -1989,12 +1989,12 @@ label.field > span:first-child,
 
 #appointmentVipDailyRoutinesPanel .all-users-table th:nth-child(7),
 #appointmentVipDailyRoutinesPanel .all-users-table td:nth-child(7) {
-  width: 10%;
+  width: 14%;
 }
 
 #appointmentVipDailyRoutinesPanel .all-users-table th:nth-child(8),
 #appointmentVipDailyRoutinesPanel .all-users-table td:nth-child(8) {
-  width: 12%;
+  width: 18%;
 }
 
 #appointmentVipDailyRoutinesPanel .all-users-table th:nth-child(9),
