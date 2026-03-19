@@ -267,7 +267,7 @@
   }
 
   .appointment-grid {
-    width: max-content;
+    width: 100%;
     min-width: 1040px;
     table-layout: fixed;
   }
@@ -629,7 +629,7 @@
   }
 
   .appointment-grid {
-    width: max-content;
+    width: 100%;
     min-width: 1040px;
   }
 

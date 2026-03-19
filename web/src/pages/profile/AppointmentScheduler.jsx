@@ -2010,11 +2010,23 @@ function AppointmentScheduler({
   }, [plannerFilterClients, rawAppointmentsByDay, vipOnly, weekDays]);
   const plannerClientActiveOptions = useMemo(() => {
     const query = String(plannerClientSearch || "").trim();
-    if (query.length >= 3) {
-      return plannerClientSearchOptions;
+    const base = query.length >= 3 ? plannerClientSearchOptions : plannerClientFilterOptions;
+    if (
+      normalizedSelectedPlannerClientFilterId
+      && plannerClientSearchMap[normalizedSelectedPlannerClientFilterId]
+      && !base.some((o) => String(o?.value || "").trim() === normalizedSelectedPlannerClientFilterId)
+    ) {
+      const client = plannerClientSearchMap[normalizedSelectedPlannerClientFilterId];
+      return [{ value: normalizedSelectedPlannerClientFilterId, label: getClientDisplayName(client) }, ...base];
     }
-    return plannerClientFilterOptions;
-  }, [plannerClientSearch, plannerClientSearchOptions, plannerClientFilterOptions]);
+    return base;
+  }, [
+    normalizedSelectedPlannerClientFilterId,
+    plannerClientSearch,
+    plannerClientSearchMap,
+    plannerClientSearchOptions,
+    plannerClientFilterOptions
+  ]);
   useEffect(() => {
     if (vipOnly) {
       if (selectedPlannerClientFilterId) {
@@ -4361,11 +4373,6 @@ function AppointmentScheduler({
                   </div>
                 ) : null}
 
-                {!vipOnly && !isVipRecurringModal && clientSearchMessage && !clientSelectNotFound ? (
-                  <small className="appointment-client-search-hint">
-                    {clientSearchMessage}
-                  </small>
-                ) : null}
 
                 {!vipOnly ? (
                   <div className="appointment-client-select-row">
