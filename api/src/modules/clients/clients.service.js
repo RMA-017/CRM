@@ -1458,14 +1458,26 @@ export async function getVipClassDailyRoutines({
     `SELECT
        r.id::text AS id,
        r.class_assignment_id::text AS class_assignment_id,
-       vcta.class_name,
-       vcta.teacher_user_id::text AS teacher_user_id,
-       COALESCE(NULLIF(TRIM(teacher_u.full_name), ''), NULLIF(TRIM(teacher_u.username), ''), '') AS teacher_name,
-       COALESCE(vta_counts.children_count, 0) AS children_count,
-       r.day_of_week,
-       r.activity_type,
-       TO_CHAR(r.start_time, 'HH24:MI') AS start_time,
+      vcta.class_name,
+      vcta.teacher_user_id::text AS teacher_user_id,
+      COALESCE(NULLIF(TRIM(teacher_u.full_name), ''), NULLIF(TRIM(teacher_u.username), ''), '') AS teacher_name,
+      COALESCE(r.specialist_user_id, vcta.teacher_user_id)::text AS specialist_user_id,
+      COALESCE(
+        NULLIF(TRIM(specialist_u.full_name), ''),
+        NULLIF(TRIM(specialist_u.username), ''),
+        CASE
+          WHEN COALESCE(r.specialist_user_id, vcta.teacher_user_id) IS NOT NULL
+            THEN CONCAT('User #', COALESCE(r.specialist_user_id, vcta.teacher_user_id)::text)
+          ELSE ''
+        END
+      ) AS specialist_name,
+      COALESCE(NULLIF(TRIM(specialist_p.label), ''), NULLIF(TRIM(specialist_r.label), ''), '') AS specialist_role,
+      COALESCE(vta_counts.children_count, 0) AS children_count,
+      r.day_of_week,
+      r.activity_type,
+      TO_CHAR(r.start_time, 'HH24:MI') AS start_time,
        TO_CHAR(r.end_time, 'HH24:MI') AS end_time,
+       r.mandatory_exercises,
        r.note,
        r.created_by::text AS created_by,
        r.updated_by::text AS updated_by,
@@ -1479,6 +1491,13 @@ export async function getVipClassDailyRoutines({
       LEFT JOIN users teacher_u
         ON teacher_u.id = vcta.teacher_user_id
        AND teacher_u.organization_id = r.organization_id
+      LEFT JOIN users specialist_u
+        ON specialist_u.id = COALESCE(r.specialist_user_id, vcta.teacher_user_id)
+       AND specialist_u.organization_id = r.organization_id
+      LEFT JOIN role_options specialist_r
+        ON specialist_r.id = specialist_u.role_id
+      LEFT JOIN position_options specialist_p
+        ON specialist_p.id = specialist_u.position_id
       LEFT JOIN (
         SELECT class_assignment_id, COUNT(*)::int AS children_count
           FROM vip_client_tutor_assignments
@@ -1498,14 +1517,106 @@ export async function getVipClassDailyRoutines({
   return rows || [];
 }
 
+export async function getVipClassDailyRoutineSpecialists({
+  organizationId,
+  classId = null,
+  assignedUserId = null,
+  limit = 2000
+}) {
+  await ensureVipClassDailyRoutinesSchema();
+
+  const normalizedClassId = Number.parseInt(String(classId || "").trim(), 10) || 0;
+  const normalizedAssignedUserId = Number.parseInt(String(assignedUserId || "").trim(), 10) || 0;
+  const params = [organizationId];
+  const accessibleWhereParts = [];
+
+  if (normalizedClassId > 0) {
+    params.push(normalizedClassId);
+    accessibleWhereParts.push(`vcta.id = $${params.length}`);
+  }
+
+  if (normalizedAssignedUserId > 0) {
+    params.push(normalizedAssignedUserId);
+    accessibleWhereParts.push(
+      `(vcta.teacher_user_id = $${params.length}
+        OR EXISTS (
+          SELECT 1
+            FROM vip_client_tutor_assignments vta_scope
+           WHERE vta_scope.organization_id = vcta.organization_id
+             AND vta_scope.class_assignment_id = vcta.id
+             AND vta_scope.tutor_user_id = $${params.length}
+        ))`
+    );
+  }
+
+  params.push(Math.max(1, Math.min(Number.parseInt(String(limit || "").trim(), 10) || 2000, 5000)));
+  const accessibleWhereSql = accessibleWhereParts.length > 0
+    ? `AND ${accessibleWhereParts.join("\n          AND ")}`
+    : "";
+
+  const { rows } = await pool.query(
+    `WITH accessible_classes AS (
+       SELECT vcta.id, vcta.organization_id
+         FROM vip_class_teacher_assignments vcta
+         JOIN organizations o ON o.id = vcta.organization_id
+        WHERE vcta.organization_id = $1
+          AND o.is_active = TRUE
+          ${accessibleWhereSql}
+     ),
+     specialist_sources AS (
+       SELECT
+         ac.id AS class_assignment_id,
+         vcta.teacher_user_id AS specialist_user_id
+       FROM accessible_classes ac
+       JOIN vip_class_teacher_assignments vcta
+         ON vcta.organization_id = ac.organization_id
+        AND vcta.id = ac.id
+       WHERE vcta.teacher_user_id IS NOT NULL
+
+       UNION
+
+       SELECT
+         ac.id AS class_assignment_id,
+         vta.tutor_user_id AS specialist_user_id
+       FROM accessible_classes ac
+       JOIN vip_client_tutor_assignments vta
+         ON vta.organization_id = ac.organization_id
+        AND vta.class_assignment_id = ac.id
+       WHERE vta.tutor_user_id IS NOT NULL
+     )
+     SELECT
+       ss.class_assignment_id::text AS class_assignment_id,
+       ss.specialist_user_id::text AS specialist_user_id,
+       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS specialist_name,
+       COALESCE(NULLIF(TRIM(p.label), ''), NULLIF(TRIM(r.label), ''), 'Specialist') AS specialist_role
+      FROM specialist_sources ss
+      JOIN users u
+        ON u.id = ss.specialist_user_id
+       AND u.organization_id = $1
+      JOIN role_options r
+        ON r.id = u.role_id
+      LEFT JOIN position_options p
+        ON p.id = u.position_id
+     ORDER BY
+       ss.class_assignment_id ASC,
+       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), u.id::text) ASC
+     LIMIT $${params.length}`,
+    params
+  );
+
+  return rows || [];
+}
+
 export async function upsertVipClassDailyRoutine({
   organizationId,
   routineId = null,
   classId,
+  specialistId,
   dayOfWeek,
   activityType,
   startTime,
   endTime,
+  mandatoryExercises = "",
   note = "",
   updatedBy
 }) {
@@ -1513,14 +1624,17 @@ export async function upsertVipClassDailyRoutine({
 
   const normalizedRoutineId = Number.parseInt(String(routineId || "").trim(), 10) || 0;
   const normalizedClassId = Number.parseInt(String(classId || "").trim(), 10) || 0;
+  const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
   const normalizedDayOfWeek = normalizeVipDailyRoutineDayOfWeek(dayOfWeek);
   const normalizedActivityType = normalizeVipClassDailyRoutineActivityType(activityType);
   const normalizedStartTime = String(startTime || "").trim();
   const normalizedEndTime = String(endTime || "").trim();
+  const normalizedMandatoryExercises = String(mandatoryExercises || "").trim();
   const normalizedNote = String(note || "").trim();
 
   if (
     !normalizedClassId
+    || !normalizedSpecialistId
     || !normalizedDayOfWeek
     || !normalizedActivityType
     || !normalizedStartTime
@@ -1542,13 +1656,15 @@ export async function upsertVipClassDailyRoutine({
        ),
        updated AS (
          UPDATE vip_class_daily_routines r
-            SET class_assignment_id = tc.id,
-                day_of_week = $4::smallint,
-                activity_type = $5::text,
-                start_time = $6::time,
-                end_time = $7::time,
-                note = NULLIF($8::text, ''),
-                updated_by = $9::integer,
+           SET class_assignment_id = tc.id,
+                specialist_user_id = $4::integer,
+                day_of_week = $5::smallint,
+                activity_type = $6::text,
+                start_time = $7::time,
+                end_time = $8::time,
+                note = NULLIF($9::text, ''),
+                mandatory_exercises = NULLIF($10::text, ''),
+                updated_by = $11::integer,
                 updated_at = CURRENT_TIMESTAMP
            FROM target_class tc
           WHERE r.organization_id = $1
@@ -1561,6 +1677,9 @@ export async function upsertVipClassDailyRoutine({
          vcta.class_name,
          vcta.teacher_user_id::text AS teacher_user_id,
          COALESCE(NULLIF(TRIM(teacher_u.full_name), ''), NULLIF(TRIM(teacher_u.username), ''), '') AS teacher_name,
+          u.specialist_user_id::text AS specialist_user_id,
+          COALESCE(NULLIF(TRIM(specialist_u.full_name), ''), NULLIF(TRIM(specialist_u.username), ''), CONCAT('User #', u.specialist_user_id::text)) AS specialist_name,
+          COALESCE(NULLIF(TRIM(specialist_p.label), ''), NULLIF(TRIM(specialist_r.label), ''), 'Specialist') AS specialist_role,
           (
             SELECT COUNT(*)
               FROM vip_client_tutor_assignments vta
@@ -1571,6 +1690,7 @@ export async function upsertVipClassDailyRoutine({
           u.activity_type,
           TO_CHAR(u.start_time, 'HH24:MI') AS start_time,
           TO_CHAR(u.end_time, 'HH24:MI') AS end_time,
+          u.mandatory_exercises,
           u.note,
           u.created_by::text AS created_by,
           u.updated_by::text AS updated_by,
@@ -1582,16 +1702,25 @@ export async function upsertVipClassDailyRoutine({
          AND vcta.id = u.class_assignment_id
         LEFT JOIN users teacher_u
           ON teacher_u.id = vcta.teacher_user_id
-         AND teacher_u.organization_id = $1`,
+         AND teacher_u.organization_id = $1
+        LEFT JOIN users specialist_u
+          ON specialist_u.id = u.specialist_user_id
+         AND specialist_u.organization_id = $1
+        LEFT JOIN role_options specialist_r
+          ON specialist_r.id = specialist_u.role_id
+        LEFT JOIN position_options specialist_p
+          ON specialist_p.id = specialist_u.position_id`,
       [
         organizationId,
         normalizedRoutineId,
         normalizedClassId,
+        normalizedSpecialistId,
         normalizedDayOfWeek,
         normalizedActivityType,
         normalizedStartTime,
         normalizedEndTime,
         normalizedNote,
+        normalizedMandatoryExercises,
         updatedBy || null
       ]
     );
@@ -1613,10 +1742,12 @@ export async function upsertVipClassDailyRoutine({
        INSERT INTO vip_class_daily_routines (
          organization_id,
          class_assignment_id,
+         specialist_user_id,
          day_of_week,
          activity_type,
          start_time,
          end_time,
+         mandatory_exercises,
          note,
          created_by,
          updated_by
@@ -1624,13 +1755,15 @@ export async function upsertVipClassDailyRoutine({
        SELECT
          $1,
          tc.id,
-         $3::smallint,
-         $4::text,
-         $5::time,
+         $3::integer,
+         $4::smallint,
+         $5::text,
          $6::time,
-         NULLIF($7::text, ''),
-         $8::integer,
-         $8::integer
+         $7::time,
+         NULLIF($8::text, ''),
+         NULLIF($9::text, ''),
+         $10::integer,
+         $10::integer
        FROM target_class tc
        RETURNING *
      )
@@ -1640,6 +1773,9 @@ export async function upsertVipClassDailyRoutine({
        vcta.class_name,
        vcta.teacher_user_id::text AS teacher_user_id,
        COALESCE(NULLIF(TRIM(teacher_u.full_name), ''), NULLIF(TRIM(teacher_u.username), ''), '') AS teacher_name,
+       i.specialist_user_id::text AS specialist_user_id,
+       COALESCE(NULLIF(TRIM(specialist_u.full_name), ''), NULLIF(TRIM(specialist_u.username), ''), CONCAT('User #', i.specialist_user_id::text)) AS specialist_name,
+       COALESCE(NULLIF(TRIM(specialist_p.label), ''), NULLIF(TRIM(specialist_r.label), ''), 'Specialist') AS specialist_role,
         (
           SELECT COUNT(*)
             FROM vip_client_tutor_assignments vta
@@ -1650,6 +1786,7 @@ export async function upsertVipClassDailyRoutine({
         i.activity_type,
         TO_CHAR(i.start_time, 'HH24:MI') AS start_time,
         TO_CHAR(i.end_time, 'HH24:MI') AS end_time,
+        i.mandatory_exercises,
         i.note,
         i.created_by::text AS created_by,
         i.updated_by::text AS updated_by,
@@ -1661,14 +1798,23 @@ export async function upsertVipClassDailyRoutine({
        AND vcta.id = i.class_assignment_id
       LEFT JOIN users teacher_u
         ON teacher_u.id = vcta.teacher_user_id
-       AND teacher_u.organization_id = $1`,
+       AND teacher_u.organization_id = $1
+      LEFT JOIN users specialist_u
+        ON specialist_u.id = i.specialist_user_id
+       AND specialist_u.organization_id = $1
+      LEFT JOIN role_options specialist_r
+        ON specialist_r.id = specialist_u.role_id
+      LEFT JOIN position_options specialist_p
+        ON specialist_p.id = specialist_u.position_id`,
     [
       organizationId,
       normalizedClassId,
+      normalizedSpecialistId,
       normalizedDayOfWeek,
       normalizedActivityType,
       normalizedStartTime,
       normalizedEndTime,
+      normalizedMandatoryExercises,
       normalizedNote,
       updatedBy || null
     ]

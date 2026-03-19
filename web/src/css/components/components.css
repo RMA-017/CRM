@@ -4232,8 +4232,12 @@ label.field > span:first-child,
   background: linear-gradient(180deg, rgba(254, 202, 202, 0.85) 0%, rgba(254, 242, 242, 0.95) 100%) !important;
 }
 
-.appointment-card:is(.appointment-status-confirmed, .appointment-status-pending, .appointment-status-cancelled, .appointment-status-no-show),
-.appointment-occupied-slot:is(.appointment-status-confirmed, .appointment-status-pending, .appointment-status-cancelled, .appointment-status-no-show) {
+.appointment-grid tbody td.appointment-status-cell-routine {
+  background: linear-gradient(180deg, rgba(219, 234, 254, 0.82) 0%, rgba(239, 246, 255, 0.96) 100%) !important;
+}
+
+.appointment-card:is(.appointment-status-confirmed, .appointment-status-pending, .appointment-status-cancelled, .appointment-status-no-show, .appointment-status-routine),
+.appointment-occupied-slot:is(.appointment-status-confirmed, .appointment-status-pending, .appointment-status-cancelled, .appointment-status-no-show, .appointment-status-routine) {
   margin: 0;
   padding: 0;
   border: 0;
@@ -4243,13 +4247,13 @@ label.field > span:first-child,
   background: transparent !important;
 }
 
-.appointment-card.appointment-card-multi-slot.appointment-card-btn:is(.appointment-status-pending, .appointment-status-confirmed, .appointment-status-cancelled, .appointment-status-no-show) {
+.appointment-card.appointment-card-multi-slot.appointment-card-btn:is(.appointment-status-pending, .appointment-status-confirmed, .appointment-status-cancelled, .appointment-status-no-show, .appointment-status-routine) {
   margin: 0;
   border: 0;
 }
 
-.appointment-card.appointment-card-multi-slot.appointment-card-btn:is(.appointment-status-pending, .appointment-status-confirmed, .appointment-status-cancelled, .appointment-status-no-show):focus,
-.appointment-card.appointment-card-multi-slot.appointment-card-btn:is(.appointment-status-pending, .appointment-status-confirmed, .appointment-status-cancelled, .appointment-status-no-show):focus-visible {
+.appointment-card.appointment-card-multi-slot.appointment-card-btn:is(.appointment-status-pending, .appointment-status-confirmed, .appointment-status-cancelled, .appointment-status-no-show, .appointment-status-routine):focus,
+.appointment-card.appointment-card-multi-slot.appointment-card-btn:is(.appointment-status-pending, .appointment-status-confirmed, .appointment-status-cancelled, .appointment-status-no-show, .appointment-status-routine):focus-visible {
   outline: none;
   box-shadow: none;
   border: 0;
@@ -4269,6 +4273,10 @@ label.field > span:first-child,
 
 .appointment-card-multi-slot.appointment-status-no-show {
   border-left: 3px solid rgba(185, 28, 28, 0.72) !important;
+}
+
+.appointment-card-multi-slot.appointment-status-routine {
+  border-left: 3px solid rgba(37, 99, 235, 0.6) !important;
 }
 
 .appointment-grid tbody td.appointment-off-slot-td {

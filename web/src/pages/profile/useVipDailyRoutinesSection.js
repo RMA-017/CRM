@@ -21,6 +21,7 @@ export function useVipDailyRoutinesSection({
 }) {
   const [vipDailyRoutineItems, setVipDailyRoutineItems] = useState([]);
   const [vipDailyRoutineClasses, setVipDailyRoutineClasses] = useState([]);
+  const [vipDailyRoutineSpecialists, setVipDailyRoutineSpecialists] = useState([]);
   const [vipDailyRoutineMessage, setVipDailyRoutineMessage] = useState("");
   const [vipDailyRoutineLoading, setVipDailyRoutineLoading] = useState(false);
   const [vipDailyRoutineSavingById, setVipDailyRoutineSavingById] = useState({});
@@ -30,12 +31,13 @@ export function useVipDailyRoutinesSection({
     classId = "",
     dayOfWeek = ""
   } = {}) => {
-    if (!canReadVipDailyRoutines) {
-      setVipDailyRoutineItems([]);
-      setVipDailyRoutineClasses([]);
-      setVipDailyRoutineMessage("You do not have permission to view VIP daily routines.");
-      return;
-    }
+      if (!canReadVipDailyRoutines) {
+        setVipDailyRoutineItems([]);
+        setVipDailyRoutineClasses([]);
+        setVipDailyRoutineSpecialists([]);
+        setVipDailyRoutineMessage("You do not have permission to view VIP daily routines.");
+        return;
+      }
 
     const normalizedClassId = String(classId || "").trim();
     const parsedDayOfWeek = Number.parseInt(String(dayOfWeek || "").trim(), 10);
@@ -67,6 +69,7 @@ export function useVipDailyRoutinesSection({
         }
         setVipDailyRoutineItems([]);
         setVipDailyRoutineClasses([]);
+        setVipDailyRoutineSpecialists([]);
         setVipDailyRoutineMessage(data?.message || "Failed to load VIP daily routines.");
         return;
       }
@@ -81,15 +84,25 @@ export function useVipDailyRoutinesSection({
           .map((item) => mapVipClassDailyRoutineItem(item))
           .filter((item) => Boolean(item.id) && Boolean(item.classId))
       );
+      const nextSpecialists = (Array.isArray(data?.specialists) ? data.specialists : [])
+        .map((item) => ({
+          classId: String(item?.classId || item?.class_id || "").trim(),
+          specialistId: String(item?.specialistId || item?.specialist_id || "").trim(),
+          specialistName: String(item?.specialistName || item?.specialist_name || "").trim(),
+          specialistRole: String(item?.specialistRole || item?.specialist_role || "").trim()
+        }))
+        .filter((item) => Boolean(item.classId) && Boolean(item.specialistId));
 
       setVipDailyRoutineClasses(nextClasses);
       setVipDailyRoutineItems(nextItems);
+      setVipDailyRoutineSpecialists(nextSpecialists);
       if (nextItems.length === 0) {
         setVipDailyRoutineMessage("No daily routines found.");
       }
     } catch {
       setVipDailyRoutineItems([]);
       setVipDailyRoutineClasses([]);
+      setVipDailyRoutineSpecialists([]);
       setVipDailyRoutineMessage("Failed to load VIP daily routines.");
     } finally {
       setVipDailyRoutineLoading(false);
@@ -103,6 +116,7 @@ export function useVipDailyRoutinesSection({
     activityType = "",
     startTime = "",
     endTime = "",
+    mandatoryExercises = "",
     note = ""
   } = {}) => {
     const normalizedId = String(id || "").trim();
@@ -123,6 +137,7 @@ export function useVipDailyRoutinesSection({
     const normalizedActivityType = normalizeVipDailyRoutineActivityType(activityType);
     const normalizedStartTime = String(startTime || "").trim();
     const normalizedEndTime = String(endTime || "").trim();
+    const normalizedMandatoryExercises = String(mandatoryExercises || "").trim();
     const normalizedNote = String(note || "").trim();
 
     if (!normalizedClassId) {
@@ -158,6 +173,7 @@ export function useVipDailyRoutinesSection({
           activityType: normalizedActivityType,
           startTime: normalizedStartTime,
           endTime: normalizedEndTime,
+          mandatoryExercises: normalizedMandatoryExercises,
           note: normalizedNote
         })
       });
@@ -257,6 +273,7 @@ export function useVipDailyRoutinesSection({
   return {
     vipDailyRoutineItems,
     vipDailyRoutineClasses,
+    vipDailyRoutineSpecialists,
     vipDailyRoutineMessage,
     vipDailyRoutineLoading,
     vipDailyRoutineSavingById,

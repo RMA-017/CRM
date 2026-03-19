@@ -588,8 +588,11 @@ function buildEmptyAppointmentsByDay(weekDays = []) {
 
 function mapScheduleItemToPlannerCard(item) {
   const startTime = String(item?.startTime || "").trim();
+  const itemType = String(item?.itemType || "").trim().toLowerCase();
+  const isRoutineItem = itemType === "daily-routine";
   return {
     id: String(item?.id || ""),
+    itemType,
     specialistId: String(item?.specialistId || "").trim(),
     specialist: String(item?.specialistName || "").trim()
       || (String(item?.specialistId || "").trim() ? `Specialist #${String(item?.specialistId || "").trim()}` : "Specialist"),
@@ -598,18 +601,35 @@ function mapScheduleItemToPlannerCard(item) {
     time: startTime,
     endTime: String(item?.endTime || "").trim(),
     durationMinutes: String(item?.durationMinutes || "").trim() || getDurationMinutesFromTimes(startTime, item?.endTime),
-    client: getClientCardName({
-      id: item?.clientId,
-      firstName: item?.clientFirstName,
-      lastName: item?.clientLastName
-    }),
+    client: isRoutineItem
+      ? (
+        String(item?.serviceName || "").trim()
+        || "VIP Daily Routine"
+      )
+      : getClientCardName({
+          id: item?.clientId,
+          firstName: item?.clientFirstName,
+          lastName: item?.clientLastName
+        }),
     clientFirstName: String(item?.clientFirstName || "").trim(),
     clientLastName: String(item?.clientLastName || "").trim(),
     clientMiddleName: String(item?.clientMiddleName || "").trim(),
     isVip: Boolean(item?.isVip),
-    service: String(item?.serviceName || "").trim(),
-    status: String(item?.status || "pending").trim().toLowerCase(),
+    service: isRoutineItem
+      ? (
+        String(item?.mandatoryExercises || "").trim()
+        || String(item?.note || "").trim()
+        || String(item?.className || "").trim()
+        || "VIP Daily Routine"
+      )
+      : String(item?.serviceName || "").trim(),
+    status: isRoutineItem
+      ? "routine"
+      : String(item?.status || "pending").trim().toLowerCase(),
     note: String(item?.note || "").trim(),
+    mandatoryExercises: String(item?.mandatoryExercises || "").trim(),
+    activityType: String(item?.activityType || "").trim().toLowerCase(),
+    className: String(item?.className || "").trim(),
     repeatType: String(item?.repeatType || "none").trim().toLowerCase(),
     repeatGroupKey: String(item?.repeatGroupKey || "").trim(),
     isAutoRollingRepeat: Boolean(item?.isAutoRollingRepeat || item?.is_auto_rolling_repeat)
@@ -1369,9 +1389,11 @@ function AppointmentPlannerGrid({
                       || statusKey === "pending"
                       || statusKey === "cancelled"
                       || statusKey === "no-show"
+                      || statusKey === "routine"
                     )
                       ? `appointment-status-cell-${statusKey}`
                       : "";
+                    const isRoutineCard = String(item?.itemType || "").trim().toLowerCase() === "daily-routine";
                     const canOpenCreateFromCell = (
                       isInsideWorkingHours
                       && !item
@@ -1407,7 +1429,7 @@ function AppointmentPlannerGrid({
                         {!isInsideWorkingHours ? (
                           null
                         ) : item ? (
-                          (canMutateAppointmentSpecialist(item) && (canUpdateAppointments || canDeleteAppointments)) ? (
+                          (!isRoutineCard && canMutateAppointmentSpecialist(item) && (canUpdateAppointments || canDeleteAppointments)) ? (
                             <button
                               type="button"
                               className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""}${isCompactAppointmentCard ? " appointment-card-compact" : ""} appointment-card-btn appointment-status-${item.status}`}
@@ -1420,7 +1442,7 @@ function AppointmentPlannerGrid({
                           ) : (
                             <div
                               className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""}${isCompactAppointmentCard ? " appointment-card-compact" : ""} appointment-status-${item.status}`}
-                              aria-label={`Appointment on ${day.label} at ${slot}`}
+                              aria-label={isRoutineCard ? `Daily routine on ${day.label} at ${slot}` : `Appointment on ${day.label} at ${slot}`}
                             >
                               <p className="appointment-client">{cardPrimaryText}</p>
                               {!isCompactAppointmentCard ? <p className="appointment-service">{cardSecondaryText}</p> : null}
@@ -2457,6 +2479,7 @@ function AppointmentScheduler({
 
         const routineId = String(routine?.id || "").trim() || `${classId}-${dayKey}-${startTime}-${index}`;
         const activityLabel = formatVipDailyRoutineActivityLabel(routine?.activityType || routine?.activity_type);
+        const mandatoryExercises = String(routine?.mandatoryExercises || routine?.mandatory_exercises || "").trim();
         const note = String(routine?.note || "").trim();
         const timeLabel = formatAppointmentTimeRangeLabel(startTime, endTime) || startTime;
         const startMinutes = normalizeTimeToMinutes(startTime);
@@ -2468,7 +2491,7 @@ function AppointmentScheduler({
           startMinutes,
           timeLabel,
           primaryText: activityLabel,
-          secondaryText: note || "Daily routine",
+          secondaryText: mandatoryExercises || note || "Daily routine",
           status: "routine",
           specialistId: "",
           clientId: "",
@@ -2477,6 +2500,7 @@ function AppointmentScheduler({
           endTime,
           durationMinutes: getDurationMinutesFromTimes(startTime, endTime),
           serviceName: activityLabel,
+          mandatoryExercises,
           note
         });
       });
@@ -3154,6 +3178,12 @@ function AppointmentScheduler({
     }
     void loadClientFocusedPlannerView();
   }, [isClientFocusedMode, loadClientFocusedPlannerView]);
+
+  useEffect(() => {
+    if (vipOnly && canRenderPlannerData && selectedSpecialistId && vipWeeklyClientRows.length === 0) {
+      window.alert("No VIP clients found in selected class.");
+    }
+  }, [canRenderPlannerData, selectedSpecialistId, vipOnly, vipWeeklyClientRows.length]);
 
   useEffect(() => {
     loadBreaksForSelectedSpecialist();
@@ -4089,9 +4119,6 @@ function AppointmentScheduler({
       {canRenderPlannerData ? (
         vipOnly ? (
           <>
-            <p className="all-users-state" hidden={Boolean(selectedSpecialistId) && vipWeeklyClientRows.length > 0}>
-              {selectedSpecialistId ? "No VIP clients found in selected class." : "Select class to view schedules."}
-            </p>
             <div
               className="appointment-vip-weekly-grid-wrap"
               key={weekRenderKey}

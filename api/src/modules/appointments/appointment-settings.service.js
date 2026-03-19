@@ -306,6 +306,38 @@ function buildAssignedVipClientExistsSql({
          )`;
 }
 
+function buildVipDailyRoutineSpecialistMatchSql({
+  specialistParamRef,
+  routineAlias = "vdr"
+}) {
+  const routineSpecialistRef = `${routineAlias}.specialist_user_id`;
+  const routineOrganizationRef = `${routineAlias}.organization_id`;
+  const routineClassAssignmentRef = `${routineAlias}.class_assignment_id`;
+
+  return `(
+    ${routineSpecialistRef} = ${specialistParamRef}
+    OR (
+      ${routineSpecialistRef} IS NULL
+      AND (
+        EXISTS (
+          SELECT 1
+            FROM vip_class_teacher_assignments vcta
+           WHERE vcta.id = ${routineClassAssignmentRef}
+             AND vcta.organization_id = ${routineOrganizationRef}
+             AND vcta.teacher_user_id = ${specialistParamRef}
+        )
+        OR EXISTS (
+          SELECT 1
+            FROM vip_client_tutor_assignments vta
+           WHERE vta.class_assignment_id = ${routineClassAssignmentRef}
+             AND vta.organization_id = ${routineOrganizationRef}
+             AND vta.tutor_user_id = ${specialistParamRef}
+        )
+      )
+    )
+  )`;
+}
+
 function formatAppointmentDayLabel(dayOfWeek) {
   const dayKey = toAppointmentDayKey(dayOfWeek);
   if (!dayKey) {
@@ -869,20 +901,9 @@ async function assertWorkScheduleTargetsHaveNoVipRoutines({
        FROM vip_class_daily_routines vdr
       WHERE vdr.organization_id = $1
         AND vdr.day_of_week = $2
-        AND (
-          EXISTS (
-            SELECT 1 FROM vip_class_teacher_assignments vcta
-             WHERE vcta.id = vdr.class_assignment_id
-               AND vcta.organization_id = vdr.organization_id
-               AND vcta.teacher_user_id = $3
-          )
-          OR EXISTS (
-            SELECT 1 FROM vip_client_tutor_assignments vta
-             WHERE vta.class_assignment_id = vdr.class_assignment_id
-               AND vta.organization_id = vdr.organization_id
-               AND vta.tutor_user_id = $3
-          )
-        )
+        AND ${buildVipDailyRoutineSpecialistMatchSql({
+          specialistParamRef: "$3"
+        })}
       LIMIT 1`,
     [organizationId, effectiveDayOfWeek, userId]
   );
@@ -931,6 +952,47 @@ async function getAppointmentSettingsColumnFlags(tableName = APPOINTMENT_SETTING
 }
 
 function toScheduleItem(row) {
+  const itemType = String(row?.item_type || "").trim().toLowerCase();
+  if (itemType === "daily-routine") {
+    const durationFromRow = Number.parseInt(String(row?.duration_minutes ?? "").trim(), 10);
+    const durationMinutes = Number.isInteger(durationFromRow) && durationFromRow > 0
+      ? durationFromRow
+      : getDurationMinutesFromAppointmentTimes(row?.start_time, row?.end_time, { allowSeconds: true });
+    return {
+      id: `routine-${String(row?.id || "").trim()}`,
+      itemType: "daily-routine",
+      organizationId: String(row?.organization_id || "").trim(),
+      specialistId: String(row?.specialist_id || "").trim(),
+      specialistName: String(row?.specialist_name || "").trim(),
+      specialistPosition: String(row?.specialist_position || "").trim(),
+      clientId: "",
+      appointmentDate: normalizeDateYmd(row?.appointment_date),
+      startTime: normalizeTimeHm(row?.start_time),
+      endTime: normalizeTimeHm(row?.end_time),
+      durationMinutes: String(durationMinutes || ""),
+      serviceName: String(row?.service_name || "").trim(),
+      status: "routine",
+      note: String(row?.note || "").trim(),
+      mandatoryExercises: String(row?.mandatory_exercises || "").trim(),
+      activityType: String(row?.activity_type || "").trim().toLowerCase(),
+      classId: String(row?.class_assignment_id || "").trim(),
+      className: String(row?.class_name || "").trim(),
+      repeatType: "weekly",
+      repeatGroupKey: "",
+      repeatUntilDate: "",
+      repeatDays: [],
+      repeatAnchorDate: "",
+      isRepeatRoot: false,
+      isAutoRollingRepeat: false,
+      isRecurring: true,
+      clientFirstName: "",
+      clientLastName: "",
+      clientMiddleName: "",
+      isVip: true,
+      createdAt: row?.created_at || null,
+      updatedAt: row?.updated_at || null
+    };
+  }
   const status = String(row?.status || "").trim().toLowerCase();
   const repeatType = normalizeRepeatType(row?.repeat_type);
   const repeatGroupKey = String(row?.repeat_group_key || "").trim();
@@ -967,6 +1029,99 @@ function toScheduleItem(row) {
     createdAt: row?.created_at || null,
     updatedAt: row?.updated_at || null
   };
+}
+
+async function listVipDailyRoutineScheduleItems({
+  organizationId,
+  specialistId,
+  clientId = null,
+  dateFrom,
+  dateTo,
+  db = pool
+}) {
+  const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
+  const normalizedClientId = Number.parseInt(String(clientId || "").trim(), 10) || 0;
+  if (!normalizedSpecialistId) {
+    return [];
+  }
+
+  const params = [organizationId, dateFrom, dateTo, normalizedSpecialistId];
+  const whereParts = [
+    "vdr.organization_id = $1",
+    "COALESCE(vdr.specialist_user_id, vcta.teacher_user_id) = $4"
+  ];
+
+  if (normalizedClientId > 0) {
+    params.push(normalizedClientId);
+    whereParts.push(
+      `EXISTS (
+         SELECT 1
+           FROM vip_client_tutor_assignments vta
+          WHERE vta.organization_id = vdr.organization_id
+            AND vta.class_assignment_id = vdr.class_assignment_id
+            AND vta.client_id = $${params.length}
+       )`
+    );
+  }
+
+  const { rows } = await (db || pool).query(
+    `WITH day_series AS (
+       SELECT generate_series($2::date, $3::date, INTERVAL '1 day')::date AS routine_date
+     )
+     SELECT
+       vdr.id,
+       vdr.organization_id,
+       COALESCE(vdr.specialist_user_id, vcta.teacher_user_id) AS specialist_id,
+       ds.routine_date AS appointment_date,
+       TO_CHAR(vdr.start_time, 'HH24:MI') AS start_time,
+       TO_CHAR(vdr.end_time, 'HH24:MI') AS end_time,
+       GREATEST(1, FLOOR(EXTRACT(EPOCH FROM (vdr.end_time - vdr.start_time)) / 60))::int AS duration_minutes,
+       CASE vdr.activity_type
+         WHEN 'lesson' THEN 'Group lesson'
+         WHEN 'breakfast' THEN 'Breakfast'
+         WHEN 'lunch' THEN 'Lunch'
+         WHEN 'afternoon-snack' THEN 'Afternoon snack'
+         WHEN 'sleep' THEN 'Sleep time'
+         ELSE 'Other'
+       END AS service_name,
+       'routine'::text AS status,
+       vdr.note,
+       vdr.mandatory_exercises,
+       vdr.activity_type,
+       'daily-routine'::text AS item_type,
+       vdr.class_assignment_id::text AS class_assignment_id,
+       vcta.class_name,
+       COALESCE(
+         NULLIF(TRIM(specialist_u.full_name), ''),
+         NULLIF(TRIM(specialist_u.username), ''),
+         CONCAT('User #', COALESCE(vdr.specialist_user_id, vcta.teacher_user_id)::text)
+       ) AS specialist_name,
+       COALESCE(NULLIF(TRIM(specialist_p.label), ''), NULLIF(TRIM(specialist_r.label), ''), 'Specialist') AS specialist_position,
+       TRUE AS is_vip,
+       vdr.created_at,
+       vdr.updated_at
+      FROM vip_class_daily_routines vdr
+      JOIN vip_class_teacher_assignments vcta
+        ON vcta.organization_id = vdr.organization_id
+       AND vcta.id = vdr.class_assignment_id
+      JOIN day_series ds
+        ON EXTRACT(ISODOW FROM ds.routine_date)::smallint = vdr.day_of_week
+      LEFT JOIN users specialist_u
+        ON specialist_u.id = COALESCE(vdr.specialist_user_id, vcta.teacher_user_id)
+       AND specialist_u.organization_id = vdr.organization_id
+      LEFT JOIN role_options specialist_r
+        ON specialist_r.id = specialist_u.role_id
+      LEFT JOIN position_options specialist_p
+        ON specialist_p.id = specialist_u.position_id
+     WHERE ${whereParts.join("\n       AND ")}
+     ORDER BY
+       ds.routine_date ASC,
+       vdr.start_time ASC,
+       vdr.id ASC`,
+    params
+  );
+
+  return rows || [];
 }
 
 export async function withAppointmentTransaction(callback) {
@@ -2125,52 +2280,72 @@ export async function getAppointmentSchedulesByRange({
       LEFT JOIN position_options p
         ON p.id = u.position_id`;
 
-  const { rows } = await pool.query(
-    `SELECT
-       s.id,
-       s.organization_id,
-       s.specialist_id,
-       s.client_id,
-       s.appointment_date,
-       s.start_time,
-       s.end_time,
-       s.duration_minutes,
-       s.service_name,
-       s.status,
-       s.note,
-       s.repeat_group_key,
-       s.repeat_type,
-       s.repeat_until_date,
-       s.repeat_days,
-       s.repeat_anchor_date,
-       s.is_repeat_root,
-       s.is_auto_rolling_repeat,
-      s.created_at,
-      s.updated_at,
-      COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('Specialist #', s.specialist_id::text)) AS specialist_name,
-      ${specialistPositionSelect}
-      c.first_name,
-      c.last_name,
-      c.middle_name
-      FROM ${tableName} s
-      LEFT JOIN users u
-        ON u.id = s.specialist_id
-       AND u.organization_id = s.organization_id
-      ${specialistPositionJoin}
-      JOIN clients c
-        ON c.id = s.client_id
-       AND c.organization_id = s.organization_id
-      WHERE ${whereParts.join("\n        AND ")}
-      ORDER BY
-        s.appointment_date ASC,
-        s.start_time ASC,
-        CASE WHEN s.status IN ('pending', 'confirmed') THEN 0 ELSE 1 END ASC,
-        s.updated_at DESC,
-        s.id DESC`,
-    params
-  );
+  const [appointmentResult, vipRoutineRows] = await Promise.all([
+    pool.query(
+      `SELECT
+         s.id,
+         s.organization_id,
+         s.specialist_id,
+         s.client_id,
+         s.appointment_date,
+         s.start_time,
+         s.end_time,
+         s.duration_minutes,
+         s.service_name,
+         s.status,
+         s.note,
+         s.repeat_group_key,
+         s.repeat_type,
+         s.repeat_until_date,
+         s.repeat_days,
+         s.repeat_anchor_date,
+         s.is_repeat_root,
+         s.is_auto_rolling_repeat,
+        s.created_at,
+        s.updated_at,
+        COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('Specialist #', s.specialist_id::text)) AS specialist_name,
+        ${specialistPositionSelect}
+        c.first_name,
+        c.last_name,
+        c.middle_name
+        FROM ${tableName} s
+        LEFT JOIN users u
+          ON u.id = s.specialist_id
+         AND u.organization_id = s.organization_id
+        ${specialistPositionJoin}
+        JOIN clients c
+          ON c.id = s.client_id
+         AND c.organization_id = s.organization_id
+        WHERE ${whereParts.join("\n        AND ")}
+        ORDER BY
+          s.appointment_date ASC,
+          s.start_time ASC,
+          CASE WHEN s.status IN ('pending', 'confirmed') THEN 0 ELSE 1 END ASC,
+          s.updated_at DESC,
+          s.id DESC`,
+      params
+    ),
+    !vipOnly && normalizedSpecialistId > 0
+      ? listVipDailyRoutineScheduleItems({
+          organizationId,
+          specialistId: normalizedSpecialistId,
+          clientId: normalizedClientId || null,
+          dateFrom,
+          dateTo
+        })
+      : Promise.resolve([])
+  ]);
 
-  return (rows || []).map(toScheduleItem);
+  const items = [...(appointmentResult?.rows || []), ...(Array.isArray(vipRoutineRows) ? vipRoutineRows : [])]
+    .map(toScheduleItem);
+
+  items.sort((left, right) => (
+    String(left?.appointmentDate || "").localeCompare(String(right?.appointmentDate || ""))
+    || String(left?.startTime || "").localeCompare(String(right?.startTime || ""))
+    || String(left?.id || "").localeCompare(String(right?.id || ""))
+  ));
+
+  return items;
 }
 
 async function listAutoRollingRepeatRoots({
@@ -2743,29 +2918,18 @@ export async function replaceAppointmentBreaksBySpecialist({
          TO_CHAR(ai.start_time, 'HH24:MI') AS break_start_time,
          TO_CHAR(ai.end_time, 'HH24:MI') AS break_end_time
        FROM active_incoming ai
-       WHERE EXISTS (
-         SELECT 1
-         FROM vip_class_daily_routines vdr
-         WHERE vdr.organization_id = $1
-           AND vdr.day_of_week = ai.day_of_week
-           AND ($4::date + ai.start_time) < ($4::date + vdr.end_time)
-           AND ($4::date + vdr.start_time) < ($4::date + ai.end_time)
-           AND (
-             EXISTS (
-               SELECT 1 FROM vip_class_teacher_assignments vcta
-                WHERE vcta.id = vdr.class_assignment_id
-                  AND vcta.organization_id = vdr.organization_id
-                  AND vcta.teacher_user_id = $2
-             )
-             OR EXISTS (
-               SELECT 1 FROM vip_client_tutor_assignments vta
-                WHERE vta.class_assignment_id = vdr.class_assignment_id
-                  AND vta.organization_id = vdr.organization_id
-                  AND vta.tutor_user_id = $2
-             )
-           )
-       )
-       LIMIT 1`,
+        WHERE EXISTS (
+          SELECT 1
+          FROM vip_class_daily_routines vdr
+          WHERE vdr.organization_id = $1
+            AND vdr.day_of_week = ai.day_of_week
+            AND ($4::date + ai.start_time) < ($4::date + vdr.end_time)
+            AND ($4::date + vdr.start_time) < ($4::date + ai.end_time)
+            AND ${buildVipDailyRoutineSpecialistMatchSql({
+              specialistParamRef: "$2"
+            })}
+        )
+        LIMIT 1`,
       [organizationId, specialistId, breaksPayloadJson, "2000-01-01"]
     );
 
@@ -2924,20 +3088,9 @@ export async function hasVipRoutineConflictForSpecialist({
         AND vdr.day_of_week = EXTRACT(ISODOW FROM $3::date)::smallint
         AND ($4::time < vdr.end_time)
         AND (vdr.start_time < $5::time)
-        AND (
-          EXISTS (
-            SELECT 1 FROM vip_class_teacher_assignments vcta
-             WHERE vcta.id = vdr.class_assignment_id
-               AND vcta.organization_id = vdr.organization_id
-               AND vcta.teacher_user_id = $2
-          )
-          OR EXISTS (
-            SELECT 1 FROM vip_client_tutor_assignments vta
-             WHERE vta.class_assignment_id = vdr.class_assignment_id
-               AND vta.organization_id = vdr.organization_id
-               AND vta.tutor_user_id = $2
-          )
-        )
+        AND ${buildVipDailyRoutineSpecialistMatchSql({
+          specialistParamRef: "$2"
+        })}
       LIMIT 1`,
     [organizationId, specialistId, appointmentDate, startTime, endTime]
   );
@@ -2971,12 +3124,17 @@ export async function hasVipRoutineConflictForClient({
 
 export async function hasBreakConflictForVipRoutine({
   organizationId,
-  classId,
+  specialistId,
   dayOfWeek,
   startTime,
   endTime,
   db = pool
 }) {
+  const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
+  if (!normalizedSpecialistId) {
+    return false;
+  }
+
   const { rows } = await (db || pool).query(
     `SELECT 1
        FROM appointment_breaks ab
@@ -2985,29 +3143,24 @@ export async function hasBreakConflictForVipRoutine({
         AND ab.day_of_week = $2
         AND ($3::time < ab.end_time)
         AND (ab.start_time < $4::time)
-        AND ab.specialist_id IN (
-          SELECT vcta.teacher_user_id
-            FROM vip_class_teacher_assignments vcta
-           WHERE vcta.id = $5
-             AND vcta.organization_id = $1
-          UNION
-          SELECT vta.tutor_user_id
-            FROM vip_client_tutor_assignments vta
-           WHERE vta.class_assignment_id = $5
-             AND vta.organization_id = $1
-        )
+        AND ab.specialist_id = $5
       LIMIT 1`,
-    [organizationId, dayOfWeek, startTime, endTime, classId]
+    [organizationId, dayOfWeek, startTime, endTime, normalizedSpecialistId]
   );
   return Boolean(rows[0]);
 }
 
 export async function hasWorkScheduleAbsenceForVipRoutine({
   organizationId,
-  classId,
+  specialistId,
   dayOfWeek,
   db = pool
 }) {
+  const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
+  if (!normalizedSpecialistId) {
+    return false;
+  }
+
   const { rows } = await (db || pool).query(
     `SELECT 1
        FROM appointment_working_hours awh
@@ -3015,19 +3168,9 @@ export async function hasWorkScheduleAbsenceForVipRoutine({
         AND awh.rule_scope = 'weekly'
         AND awh.day_of_week = $2
         AND awh.is_active = FALSE
-        AND awh.user_id IN (
-          SELECT vcta.teacher_user_id
-            FROM vip_class_teacher_assignments vcta
-           WHERE vcta.id = $3
-             AND vcta.organization_id = $1
-          UNION
-          SELECT vta.tutor_user_id
-            FROM vip_client_tutor_assignments vta
-           WHERE vta.class_assignment_id = $3
-             AND vta.organization_id = $1
-        )
+        AND awh.user_id = $3
       LIMIT 1`,
-    [organizationId, dayOfWeek, classId]
+    [organizationId, dayOfWeek, normalizedSpecialistId]
   );
   return Boolean(rows[0]);
 }
@@ -3035,43 +3178,53 @@ export async function hasWorkScheduleAbsenceForVipRoutine({
 export async function hasAppointmentConflictForVipRoutine({
   organizationId,
   classId,
+  specialistId,
   dayOfWeek,
   startTime,
   endTime,
   db = pool
 }) {
+  const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
+  if (!normalizedSpecialistId) {
+    return null;
+  }
+
   const { rows } = await (db || pool).query(
-    `SELECT 1
+    `SELECT
+       s.id::text AS appointment_id,
+       s.appointment_date::text AS appointment_date,
+       TO_CHAR(s.start_time, 'HH24:MI') AS appointment_start_time,
+       TO_CHAR(s.end_time, 'HH24:MI') AS appointment_end_time,
+       CONCAT_WS(' ', NULLIF(TRIM(c.first_name), ''), NULLIF(TRIM(c.last_name), '')) AS client_name
        FROM appointment_schedules s
+       LEFT JOIN clients c
+         ON c.id = s.client_id
+        AND c.organization_id = s.organization_id
       WHERE s.organization_id = $1
         AND s.status IN ('pending', 'confirmed')
         AND s.appointment_date >= CURRENT_DATE
         AND EXTRACT(ISODOW FROM s.appointment_date)::smallint = $2
         AND ($3::time < s.end_time)
         AND (s.start_time < $4::time)
-        AND (
-          s.specialist_id IN (
-            SELECT vcta.teacher_user_id
-              FROM vip_class_teacher_assignments vcta
-             WHERE vcta.id = $5
-               AND vcta.organization_id = $1
-            UNION
-            SELECT vta.tutor_user_id
-              FROM vip_client_tutor_assignments vta
-             WHERE vta.class_assignment_id = $5
-               AND vta.organization_id = $1
-          )
-          OR s.client_id IN (
-            SELECT vta.client_id
-              FROM vip_client_tutor_assignments vta
-             WHERE vta.class_assignment_id = $5
-               AND vta.organization_id = $1
-          )
-        )
+        AND s.specialist_id = $5
+      ORDER BY
+        s.appointment_date ASC,
+        s.start_time ASC,
+        s.id ASC
       LIMIT 1`,
-    [organizationId, dayOfWeek, startTime, endTime, classId]
+    [organizationId, dayOfWeek, startTime, endTime, normalizedSpecialistId]
   );
-  return Boolean(rows[0]);
+  if (!rows[0]) {
+    return null;
+  }
+
+  return {
+    appointmentId: String(rows[0]?.appointment_id || "").trim(),
+    appointmentDate: normalizeDateYmd(rows[0]?.appointment_date),
+    startTime: normalizeTimeHm(rows[0]?.appointment_start_time),
+    endTime: normalizeTimeHm(rows[0]?.appointment_end_time),
+    clientName: String(rows[0]?.client_name || "").trim()
+  };
 }
 
 export async function createAppointmentSchedule({

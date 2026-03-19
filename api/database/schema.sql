@@ -313,6 +313,8 @@ CREATE TABLE vip_class_daily_routines (
   activity_type VARCHAR(16) NOT NULL CHECK (activity_type IN ('lesson', 'breakfast', 'lunch', 'afternoon-snack', 'sleep', 'other')),
   start_time TIME NOT NULL,
   end_time TIME NOT NULL,
+  specialist_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  mandatory_exercises VARCHAR(500),
   note VARCHAR(255),
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -335,6 +337,9 @@ CREATE TABLE vip_class_daily_routines (
 
 CREATE INDEX idx_vip_class_daily_routines_org_class_day_time
   ON vip_class_daily_routines (organization_id, class_assignment_id, day_of_week, start_time, id);
+
+CREATE INDEX idx_vip_class_daily_routines_org_specialist_day_time
+  ON vip_class_daily_routines (organization_id, specialist_user_id, day_of_week, start_time, id);
 
 CREATE INDEX idx_vip_class_daily_routines_org_day_time
   ON vip_class_daily_routines (organization_id, day_of_week, start_time, id);

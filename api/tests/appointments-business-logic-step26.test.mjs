@@ -187,6 +187,8 @@ function createScheduleContext(overrides = {}) {
     }),
     hasAppointmentClientConflict: async () => false,
     hasAppointmentScheduleConflict: async () => false,
+    hasVipRoutineConflictForSpecialist: async () => false,
+    hasVipRoutineConflictForClient: async () => false,
     createAppointmentSchedule: async () => ({ id: "91" }),
     updateAppointmentScheduleByIdWithRepeatMeta: async () => ({ id: "91" }),
     updateAppointmentSchedulesByIds: async () => ([{ id: "91" }]),

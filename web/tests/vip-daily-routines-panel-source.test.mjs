@@ -34,4 +34,16 @@ test("VIP daily routines panel uses shared custom selects for filters", async ()
     /const activityOptions = useMemo\(\(\) => \[\.\.\.VIP_DAILY_ROUTINE_ACTIVITY_OPTIONS\], \[\]\);/,
     "Activity filter should reuse the shared VIP daily routine activity options."
   );
+
+  assert.match(
+    source,
+    /<th>Specialist<\/th>/,
+    "VIP daily routines table should expose the selected specialist column."
+  );
+
+  assert.match(
+    source,
+    /<th>Mandatory exercises<\/th>/,
+    "VIP daily routines table should expose the mandatory exercises column."
+  );
 });

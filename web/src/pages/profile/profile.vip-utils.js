@@ -282,6 +282,9 @@ export function mapVipClassDailyRoutineItem(item) {
   const className = String(item?.className || item?.class_name || "").trim();
   const teacherId = String(item?.teacherId || item?.teacher_id || item?.teacher_user_id || "").trim();
   const teacherName = String(item?.teacherName || item?.teacher_name || "").trim();
+  const specialistId = String(item?.specialistId || item?.specialist_id || item?.specialist_user_id || "").trim();
+  const specialistName = String(item?.specialistName || item?.specialist_name || "").trim();
+  const specialistRole = String(item?.specialistRole || item?.specialist_role || "").trim();
   const childrenCountRaw = Number.parseInt(String(item?.childrenCount ?? item?.children_count ?? "0"), 10);
   const childrenCount = Number.isInteger(childrenCountRaw) && childrenCountRaw > 0 ? childrenCountRaw : 0;
   const dayOfWeekRaw = Number.parseInt(String(item?.dayOfWeek ?? item?.day_of_week ?? "0"), 10);
@@ -289,6 +292,7 @@ export function mapVipClassDailyRoutineItem(item) {
   const activityType = String(item?.activityType || item?.activity_type || "").trim().toLowerCase();
   const startTime = String(item?.startTime || item?.start_time || "").trim();
   const endTime = String(item?.endTime || item?.end_time || "").trim();
+  const mandatoryExercises = String(item?.mandatoryExercises || item?.mandatory_exercises || "").trim();
   const note = String(item?.note || "").trim();
   return {
     id,
@@ -296,11 +300,15 @@ export function mapVipClassDailyRoutineItem(item) {
     className,
     teacherId,
     teacherName,
+    specialistId,
+    specialistName,
+    specialistRole,
     childrenCount,
     dayOfWeek,
     activityType,
     startTime,
     endTime,
+    mandatoryExercises,
     note
   };
 }

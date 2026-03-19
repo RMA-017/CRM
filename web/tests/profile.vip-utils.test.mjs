@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   VIP_DAILY_ROUTINE_ACTIVITY_OPTIONS,
   formatVipDailyRoutineActivityLabel,
+  mapVipClassDailyRoutineItem,
   normalizeVipDailyRoutineActivityType
 } from "../src/pages/profile/profile.vip-utils.js";
 
@@ -35,4 +36,42 @@ test("vip daily routine formatter keeps labels stable for strict and legacy valu
   assert.equal(formatVipDailyRoutineActivityLabel("sleep-time"), "Sleep time");
   assert.equal(formatVipDailyRoutineActivityLabel("other"), "Other");
   assert.equal(formatVipDailyRoutineActivityLabel("unknown"), "-");
+});
+
+test("vip daily routine item mapping preserves mandatory exercises", () => {
+  assert.deepEqual(
+    mapVipClassDailyRoutineItem({
+      id: "7",
+      class_id: "11",
+      class_name: "Morning Group",
+      teacher_id: "4",
+      teacher_name: "Teacher",
+      specialist_user_id: "9",
+      specialist_name: "Tutor One",
+      specialist_role: "Speech therapist",
+      day_of_week: 2,
+      activity_type: "lesson",
+      start_time: "09:00",
+      end_time: "10:00",
+      mandatory_exercises: "Workbook pages 4-5",
+      note: "Bring pencils"
+    }),
+    {
+      id: "7",
+      classId: "11",
+      className: "Morning Group",
+      teacherId: "4",
+      teacherName: "Teacher",
+      specialistId: "9",
+      specialistName: "Tutor One",
+      specialistRole: "Speech therapist",
+      childrenCount: 0,
+      dayOfWeek: 2,
+      activityType: "lesson",
+      startTime: "09:00",
+      endTime: "10:00",
+      mandatoryExercises: "Workbook pages 4-5",
+      note: "Bring pencils"
+    }
+  );
 });

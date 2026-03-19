@@ -51,6 +51,12 @@ function VipDailyRoutinesPanel({
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const pageRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  useEffect(() => {
+    if (!vipDailyRoutineLoading && vipDailyRoutineMessage) {
+      window.alert(vipDailyRoutineMessage);
+    }
+  }, [vipDailyRoutineLoading, vipDailyRoutineMessage]);
+
   return (
     <section id="appointmentVipDailyRoutinesPanel" className="all-users-panel">
       <div className="all-users-head">
@@ -108,20 +114,18 @@ function VipDailyRoutinesPanel({
         </div>
       </div>
 
-      <p className="all-users-state" hidden={vipDailyRoutineLoading || !vipDailyRoutineMessage}>
-        {vipDailyRoutineMessage}
-      </p>
-
       <div className="all-users-table-wrap" hidden={!vipDailyRoutineLoading && vipDailyRoutineRows.length === 0}>
         <table className="all-users-table" aria-label="VIP daily routines table">
           <thead>
             <tr>
               <th>Class</th>
               <th>Teacher</th>
+              <th>Specialist</th>
               <th>Children</th>
               <th>Day</th>
               <th>Time</th>
               <th>Activity</th>
+              <th>Mandatory exercises</th>
               <th>Note</th>
               <th>Edit</th>
               <th>Delete</th>
@@ -131,7 +135,7 @@ function VipDailyRoutinesPanel({
             {vipDailyRoutineLoading ? (
               [0, 1, 2, 3, 4].map((i) => (
                 <tr key={i} aria-hidden="true">
-                  <td colSpan="9" className="skel" />
+                  <td colSpan="11" className="skel" />
                 </tr>
               ))
             ) : pageRows.map((row, index) => {
@@ -146,10 +150,12 @@ function VipDailyRoutinesPanel({
                 <tr key={`vipDailyRoutineRow_${rowId || index}`}>
                   <td>{classLabel}</td>
                   <td>{String(row?.teacherName || "").trim() || "-"}</td>
+                  <td>{String(row?.specialistName || "").trim() || "-"}</td>
                   <td>{Number.parseInt(String(row?.childrenCount || "0"), 10) || 0}</td>
                   <td>{formatVipDailyRoutineDayLabel(row?.dayOfWeek)}</td>
                   <td>{timeRange}</td>
                   <td>{formatVipDailyRoutineActivityLabel(row?.activityType)}</td>
+                  <td>{String(row?.mandatoryExercises || "").trim() || "-"}</td>
                   <td>{String(row?.note || "").trim() || "-"}</td>
                   <td>
                     <button

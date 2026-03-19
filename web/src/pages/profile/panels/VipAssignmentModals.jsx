@@ -30,9 +30,11 @@ function VipAssignmentModals({
   closeVipDailyRoutineEditModal,
   handleVipDailyRoutineSave,
   vipDailyRoutineClassOptions,
+  vipDailyRoutineSpecialistOptions,
   vipDailyRoutineActivityOptions,
   vipDailyRoutineVisibleWeekDays,
   setVipDailyRoutineEditModal,
+  vipDailyRoutineMandatoryExercisesMaxLength,
   vipDailyRoutineNoteMaxLength,
   vipDailyRoutineEditSaving,
   vipDailyRoutineDeleteModal,
@@ -158,6 +160,27 @@ function VipAssignmentModals({
                 </div>
               </div>
               <div>
+                <span>Specialist</span>
+                <CustomSelect
+                  id="vipDailyRoutineSpecialistSelect"
+                  placeholder={vipDailyRoutineSpecialistOptions.length > 0 ? "Select specialist" : "No specialists"}
+                  value={String(vipDailyRoutineEditModal.specialistId || "")}
+                  options={vipDailyRoutineSpecialistOptions}
+                  searchable
+                  searchThreshold={8}
+                  menuPortal
+                  maxVisibleOptions={8}
+                  disabled={vipDailyRoutineSpecialistOptions.length === 0}
+                  onChange={(nextValue) => {
+                    setVipDailyRoutineEditModal((prev) => ({
+                      ...prev,
+                      specialistId: String(nextValue || "").trim(),
+                      error: ""
+                    }));
+                  }}
+                />
+              </div>
+              <div>
                 <span>Activity</span>
                 <CustomSelect
                   id="vipDailyRoutineActivitySelect"
@@ -209,6 +232,25 @@ function VipAssignmentModals({
                 </label>
               </div>
             </div>
+
+            <label htmlFor="vipDailyRoutineMandatoryExercisesInput">
+              <span>Mandatory exercises</span>
+              <textarea
+                id="vipDailyRoutineMandatoryExercisesInput"
+                className="notify-textarea"
+                value={vipDailyRoutineEditModal.mandatoryExercises}
+                maxLength={vipDailyRoutineMandatoryExercisesMaxLength}
+                placeholder="Visible to everyone"
+                onChange={(event) => {
+                  const nextValue = String(event.currentTarget.value || "").slice(0, vipDailyRoutineMandatoryExercisesMaxLength);
+                  setVipDailyRoutineEditModal((prev) => ({
+                    ...prev,
+                    mandatoryExercises: nextValue,
+                    error: ""
+                  }));
+                }}
+              />
+            </label>
 
             <label htmlFor="vipDailyRoutineNoteInput">
               <span>Note</span>

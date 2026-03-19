@@ -49,6 +49,7 @@ import {
   getVipClassAssignmentOptions,
   getVipClassAssignments,
   getVipClassDailyRoutines,
+  getVipClassDailyRoutineSpecialists,
   getVipAttendanceHistory,
   getVipNormMonitoringRows,
   getVipClientOptionsByOrganization,
@@ -954,6 +955,9 @@ function mapVipClassDailyRoutineRecord(row) {
   const className = String(row?.class_name || row?.className || "").trim();
   const teacherId = String(row?.teacher_user_id || row?.teacher_id || row?.teacherId || "").trim();
   const teacherName = String(row?.teacher_name || row?.teacherName || "").trim();
+  const specialistId = String(row?.specialist_user_id || row?.specialistId || row?.specialist_id || "").trim();
+  const specialistName = String(row?.specialist_name || row?.specialistName || "").trim();
+  const specialistRole = String(row?.specialist_role || row?.specialistRole || "").trim();
   const childrenCountRaw = Number.parseInt(String(row?.children_count ?? row?.childrenCount ?? "0"), 10);
   const childrenCount = Number.isInteger(childrenCountRaw) && childrenCountRaw > 0 ? childrenCountRaw : 0;
   const dayOfWeek = Number.parseInt(String(row?.day_of_week || row?.dayOfWeek || ""), 10) || 0;
@@ -963,6 +967,7 @@ function mapVipClassDailyRoutineRecord(row) {
   });
   const startTime = normalizeTimeHm(row?.start_time || row?.startTime);
   const endTime = normalizeTimeHm(row?.end_time || row?.endTime);
+  const mandatoryExercises = String(row?.mandatory_exercises || row?.mandatoryExercises || "").trim();
   const note = String(row?.note || "").trim();
   const createdAt = row?.created_at || row?.createdAt || null;
   const updatedAt = row?.updated_at || row?.updatedAt || null;
@@ -977,6 +982,13 @@ function mapVipClassDailyRoutineRecord(row) {
     teacher_id: teacherId,
     teacherName,
     teacher_name: teacherName,
+    specialistId,
+    specialist_id: specialistId,
+    specialist_user_id: specialistId,
+    specialistName,
+    specialist_name: specialistName,
+    specialistRole,
+    specialist_role: specialistRole,
     childrenCount,
     children_count: childrenCount,
     dayOfWeek,
@@ -989,6 +1001,8 @@ function mapVipClassDailyRoutineRecord(row) {
     start_time: startTime,
     endTime,
     end_time: endTime,
+    mandatoryExercises,
+    mandatory_exercises: mandatoryExercises,
     note,
     createdAt,
     created_at: createdAt,
@@ -1917,7 +1931,7 @@ async function clientsRoutes(fastify) {
           ? null
           : authContext.userId;
 
-        const [rows, classOptions] = await Promise.all([
+        const [rows, classOptions, specialistOptions] = await Promise.all([
           getVipClassDailyRoutines({
             organizationId: authContext.organizationId,
             classId: classId || null,
@@ -1929,6 +1943,11 @@ async function clientsRoutes(fastify) {
             organizationId: authContext.organizationId,
             assignedUserId,
             limit: 2000
+          }),
+          getVipClassDailyRoutineSpecialists({
+            organizationId: authContext.organizationId,
+            assignedUserId,
+            limit: 3000
           })
         ]);
 
@@ -1941,7 +1960,15 @@ async function clientsRoutes(fastify) {
               teacherId: String(item?.teacher_user_id || item?.teacherId || "").trim(),
               teacherName: String(item?.teacher_name || item?.teacherName || "").trim()
             }))
-            .filter((item) => Boolean(item.id))
+            .filter((item) => Boolean(item.id)),
+          specialists: (Array.isArray(specialistOptions) ? specialistOptions : [])
+            .map((item) => ({
+              classId: String(item?.class_assignment_id || item?.classId || "").trim(),
+              specialistId: String(item?.specialist_user_id || item?.specialistId || "").trim(),
+              specialistName: String(item?.specialist_name || item?.specialistName || "").trim(),
+              specialistRole: String(item?.specialist_role || item?.specialistRole || "").trim()
+            }))
+            .filter((item) => Boolean(item.classId) && Boolean(item.specialistId))
         });
       } catch (error) {
         if (sendMigrationRequired(reply, error, "VIP class daily routine migration is required.", { includeDetails: true })) {
@@ -1971,6 +1998,15 @@ async function clientsRoutes(fastify) {
       );
       if (!classId) {
         return reply.status(400).send({ field: "classId", message: "Class is required." });
+      }
+      const specialistId = parsePositiveInteger(
+        payload?.specialistId
+        ?? payload?.specialist_id
+        ?? payload?.specialistUserId
+        ?? payload?.specialist_user_id
+      );
+      if (!specialistId) {
+        return reply.status(400).send({ field: "specialistId", message: "Specialist is required." });
       }
 
       const dayOfWeek = normalizeVipDailyRoutineDayOfWeek(
@@ -2018,6 +2054,13 @@ async function clientsRoutes(fastify) {
         });
       }
 
+      const mandatoryExercises = String(payload?.mandatoryExercises ?? payload?.mandatory_exercises ?? "").trim();
+      if (mandatoryExercises.length > 500) {
+        return reply.status(400).send({
+          field: "mandatoryExercises",
+          message: "Mandatory exercises are too long (max 500)."
+        });
+      }
       const note = String(payload?.note || "").trim();
       if (note.length > 255) {
         return reply.status(400).send({ field: "note", message: "Note is too long (max 255)." });
@@ -2072,41 +2115,69 @@ async function clientsRoutes(fastify) {
             return reply.status(400).send({ field: "classId", message: "Selected class is not allowed." });
           }
         }
+        const allowedSpecialists = await getVipClassDailyRoutineSpecialists({
+          organizationId: authContext.organizationId,
+          classId,
+          assignedUserId,
+          limit: 200
+        });
+        const isAllowedSpecialist = (Array.isArray(allowedSpecialists) ? allowedSpecialists : []).some(
+          (item) => (
+            String(item?.class_assignment_id || "").trim() === String(classId)
+            && String(item?.specialist_user_id || "").trim() === String(specialistId)
+          )
+        );
+        if (!isAllowedSpecialist) {
+          return reply.status(400).send({ field: "specialistId", message: "Selected specialist is not allowed for this class." });
+        }
 
         const hasAppointmentConflict = await hasAppointmentConflictForVipRoutine({
           organizationId: authContext.organizationId,
           classId,
+          specialistId,
           dayOfWeek,
           startTime,
           endTime
         });
         if (hasAppointmentConflict) {
+          const conflictDate = String(hasAppointmentConflict?.appointmentDate || "").trim();
+          const conflictStart = String(hasAppointmentConflict?.startTime || "").trim();
+          const conflictEnd = String(hasAppointmentConflict?.endTime || "").trim();
+          const conflictClientName = String(hasAppointmentConflict?.clientName || "").trim();
+          const conflictDetails = [
+            conflictDate,
+            conflictStart && conflictEnd ? `${conflictStart}-${conflictEnd}` : "",
+            conflictClientName ? `(${conflictClientName})` : ""
+          ].filter(Boolean).join(" ");
           return reply.status(409).send({
-            message: "This time slot conflicts with existing appointments for a specialist or client in this class."
+            message: conflictDetails
+              ? `The selected specialist already has an appointment at this time: ${conflictDetails}.`
+              : "The selected specialist already has an appointment at this time."
           });
         }
 
         const hasBreakConflict = await hasBreakConflictForVipRoutine({
           organizationId: authContext.organizationId,
           classId,
+          specialistId,
           dayOfWeek,
           startTime,
           endTime
         });
         if (hasBreakConflict) {
           return reply.status(409).send({
-            message: "This time slot conflicts with a scheduled break for a specialist in this class."
+            message: "This time slot conflicts with a scheduled break for the selected specialist."
           });
         }
 
         const hasAbsenceConflict = await hasWorkScheduleAbsenceForVipRoutine({
           organizationId: authContext.organizationId,
-          classId,
+          specialistId,
           dayOfWeek
         });
         if (hasAbsenceConflict) {
           return reply.status(409).send({
-            message: "A specialist in this class is marked as unavailable on this day of week."
+            message: "The selected specialist is marked as unavailable on this day of week."
           });
         }
 
@@ -2114,10 +2185,12 @@ async function clientsRoutes(fastify) {
           organizationId: authContext.organizationId,
           routineId: routineId || null,
           classId,
+          specialistId,
           dayOfWeek,
           activityType,
           startTime,
           endTime,
+          mandatoryExercises,
           note,
           updatedBy: authContext.userId
         });
