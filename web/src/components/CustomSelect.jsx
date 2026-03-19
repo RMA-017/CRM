@@ -89,10 +89,11 @@ function CustomSelect({
       const visibleOptionsCount = normalizedMaxVisibleOptions
         ? Math.max(1, Math.min(filteredOptions.length, normalizedMaxVisibleOptions))
         : null;
+      const searchBlockHeight = shouldShowSearch ? 40 : 0;
       const desiredMenuHeight = visibleOptionsCount
-        ? ((visibleOptionsCount * 40) + 8)
+        ? ((visibleOptionsCount * 40) + 8 + searchBlockHeight)
         : 184;
-      const scaledDesiredMenuHeight = Math.max(96, Math.round(desiredMenuHeight * normalizedMenuHeightScale));
+      const scaledDesiredMenuHeight = Math.max(96 + searchBlockHeight, Math.round(desiredMenuHeight * normalizedMenuHeightScale));
       const shouldOpenUp = forceOpenDown
         ? false
         : (forceOpenUp
