@@ -4193,6 +4193,11 @@ label.field > span:first-child,
   z-index: 2;
 }
 
+.appointment-grid tbody td.appointment-booked-time-td.appointment-booked-time-td-compact:hover::after {
+  content: attr(data-time-range);
+  white-space: nowrap;
+}
+
 .is-vip-schedule .appointment-grid tbody td.appointment-day-col-gap.appointment-create-slot-td {
   cursor: default;
   pointer-events: none;
@@ -6033,6 +6038,19 @@ label.field > span:first-child,
 
 .appointment-create-modal .field-error {
   display: none !important;
+}
+
+.appointment-client-search-hint {
+  display: block;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--text-muted);
+  margin: 2px 0 0;
+}
+
+.appointment-client-search-hint.is-error {
+  color: var(--danger);
 }
 
 .appointment-create-warning {

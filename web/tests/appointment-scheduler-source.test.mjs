@@ -67,6 +67,31 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
+    /const COMPACT_APPOINTMENT_CARD_MAX_HEIGHT_PX = 24;/,
+    "Appointment planner should define a compact-card height threshold for very small cells."
+  );
+  assert.match(
+    source,
+    /const appointmentCardHeightPx = effectiveRowSpan \* slotCellHeightPx;\s*const isCompactAppointmentCard = appointmentCardHeightPx <= COMPACT_APPOINTMENT_CARD_MAX_HEIGHT_PX;/s,
+    "Appointment planner should derive compact card mode from rendered slot height."
+  );
+  assert.match(
+    source,
+    /appointment-booked-time-td appointment-booked-time-td-compact/,
+    "Compact appointment cards should switch hover overlays to a single-line time label."
+  );
+  assert.match(
+    source,
+    /appointment-card-compact/,
+    "Appointment planner should add the compact card class when the cell is too short."
+  );
+  assert.match(
+    source,
+    /!isCompactAppointmentCard \? <p className="appointment-service">\{cardSecondaryText\}<\/p> : null/,
+    "Compact appointment cards should hide the secondary service line and keep only the primary label."
+  );
+  assert.match(
+    source,
     /const isVipAutoRollingRepeat = Boolean\(vipOnly \|\| clientVipOnly\);/,
     "Planner modal should drive auto-rolling repeat from the Active toggle."
   );

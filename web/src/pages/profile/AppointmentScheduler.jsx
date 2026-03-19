@@ -41,6 +41,7 @@ const FULL_CELL_BREAK_TYPES = new Set(["lunch", "meeting", "training", "other"])
 const DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 18;
 const MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 12;
 const MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 72;
+const COMPACT_APPOINTMENT_CARD_MAX_HEIGHT_PX = 24;
 const DEFAULT_APPOINTMENT_SERVICE_NAME = "Consultation";
 const VIP_AUTO_ROLLING_REPEAT_WINDOW_DAYS = 30;
 
@@ -1321,6 +1322,8 @@ function AppointmentPlannerGrid({
                         : (specialCellRowSpan && specialCellRowSpan > 1 ? specialCellRowSpan : 1)
                     );
                     const tdRowSpan = effectiveRowSpan > 1 ? effectiveRowSpan : undefined;
+                    const appointmentCardHeightPx = effectiveRowSpan * slotCellHeightPx;
+                    const isCompactAppointmentCard = appointmentCardHeightPx <= COMPACT_APPOINTMENT_CARD_MAX_HEIGHT_PX;
                     const reachesBottom = Boolean(
                       tdRowSpan
                       && Number.isInteger(slotIndex)
@@ -1347,7 +1350,11 @@ function AppointmentPlannerGrid({
                       )
                       : "";
                     const timeHoverCellClassName = cardTimeRangeLabel
-                      ? "appointment-booked-time-td"
+                      ? (
+                        isCompactAppointmentCard
+                          ? "appointment-booked-time-td appointment-booked-time-td-compact"
+                          : "appointment-booked-time-td"
+                      )
                       : "";
                     const isOffSlotCell = !isInsideWorkingHours;
                     const blockedStatus = (
@@ -1403,20 +1410,20 @@ function AppointmentPlannerGrid({
                           (canMutateAppointmentSpecialist(item) && (canUpdateAppointments || canDeleteAppointments)) ? (
                             <button
                               type="button"
-                              className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""} appointment-card-btn appointment-status-${item.status}`}
+                              className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""}${isCompactAppointmentCard ? " appointment-card-compact" : ""} appointment-card-btn appointment-status-${item.status}`}
                               onClick={() => onOpenCreateModal(day, slot, item)}
                               aria-label={`Edit appointment on ${day.label} at ${slot}`}
                             >
                               <p className="appointment-client">{cardPrimaryText}</p>
-                              <p className="appointment-service">{cardSecondaryText}</p>
+                              {!isCompactAppointmentCard ? <p className="appointment-service">{cardSecondaryText}</p> : null}
                             </button>
                           ) : (
                             <div
-                              className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""} appointment-status-${item.status}`}
+                              className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""}${isCompactAppointmentCard ? " appointment-card-compact" : ""} appointment-status-${item.status}`}
                               aria-label={`Appointment on ${day.label} at ${slot}`}
                             >
                               <p className="appointment-client">{cardPrimaryText}</p>
-                              <p className="appointment-service">{cardSecondaryText}</p>
+                              {!isCompactAppointmentCard ? <p className="appointment-service">{cardSecondaryText}</p> : null}
                             </div>
                           )
                         ) : (blockedItem && blockedItem.hiddenByFilter !== true) ? (
@@ -2100,7 +2107,7 @@ function AppointmentScheduler({
     [visibleRepeatDayKeys]
   );
   const clientSelectNotFound = clientSearchMessage === "No clients found.";
-  const clientSelectHasError = Boolean(createErrors.clientId) || clientSelectNotFound;
+  const clientSelectHasError = Boolean(createErrors.clientId) || (clientSelectNotFound && !createForm.clientId);
   const selectedClient = createForm.clientId ? (clientMap[createForm.clientId] || null) : null;
   const clientSelectOptions = useMemo(() => {
     const currentId = String(createForm.clientId || "").trim();
@@ -4279,6 +4286,12 @@ function AppointmentScheduler({
                   </div>
                 ) : null}
 
+                {!vipOnly && !isVipRecurringModal && clientSearchMessage ? (
+                  <small className={`appointment-client-search-hint${clientSelectNotFound ? " is-error" : ""}`}>
+                    {clientSearchMessage}
+                  </small>
+                ) : null}
+
                 {!vipOnly ? (
                   <div className="appointment-client-select-row">
                     <div className="field appointment-client-vip-field">
@@ -4334,6 +4347,7 @@ function AppointmentScheduler({
                         maxVisibleOptions={10}
                         menuPortal
                         error={clientSelectHasError}
+                        emptyText={!createForm.clientId && !clientSearchMessage ? "Search by name above" : "No options found."}
                         onChange={(nextValue) => {
                           setCreateForm((prev) => ({ ...prev, clientId: nextValue }));
                           if (createErrors.clientId) {

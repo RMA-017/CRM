@@ -18,7 +18,8 @@ function CustomSelect({
   searchPlaceholder = "Search...",
   searchThreshold = 0,
   menuWidthScale = 1,
-  menuHeightScale = 1
+  menuHeightScale = 1,
+  emptyText = "No options found."
 }) {
   const wrapRef = useRef(null);
   const triggerRef = useRef(null);
@@ -243,7 +244,7 @@ function CustomSelect({
             </button>
           ))
         ) : (
-          <div className="custom-select-empty">No options found.</div>
+          <div className="custom-select-empty">{emptyText}</div>
         )
       ) : null}
     </div>
