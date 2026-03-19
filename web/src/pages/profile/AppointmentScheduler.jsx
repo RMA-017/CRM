@@ -1509,6 +1509,9 @@ function AppointmentScheduler({
   const [vipConfirmingByAppointmentId, setVipConfirmingByAppointmentId] = useState(() => ({}));
   const [selectedPlannerClientFilterId, setSelectedPlannerClientFilterId] = useState("");
   const [plannerFilterClients, setPlannerFilterClients] = useState([]);
+  const [plannerClientSearch, setPlannerClientSearch] = useState("");
+  const [plannerClientSearchOptions, setPlannerClientSearchOptions] = useState([]);
+  const [plannerClientSearchMap, setPlannerClientSearchMap] = useState(() => ({}));
   const [clientFocusedPlannerSpecialists, setClientFocusedPlannerSpecialists] = useState([]);
   const [clientFocusedSchedulesBySpecialist, setClientFocusedSchedulesBySpecialist] = useState(() => ({}));
   const [clientFocusedPlannerWeekKey, setClientFocusedPlannerWeekKey] = useState("");
@@ -2005,6 +2008,13 @@ function AppointmentScheduler({
       .sort((left, right) => left[1].localeCompare(right[1], undefined, { sensitivity: "base" }))
       .map(([value, label]) => ({ value, label }));
   }, [plannerFilterClients, rawAppointmentsByDay, vipOnly, weekDays]);
+  const plannerClientActiveOptions = useMemo(() => {
+    const query = String(plannerClientSearch || "").trim();
+    if (query.length >= 3) {
+      return plannerClientSearchOptions;
+    }
+    return plannerClientFilterOptions;
+  }, [plannerClientSearch, plannerClientSearchOptions, plannerClientFilterOptions]);
   useEffect(() => {
     if (vipOnly) {
       if (selectedPlannerClientFilterId) {
@@ -2018,13 +2028,72 @@ function AppointmentScheduler({
       return;
     }
 
+    if (plannerClientSearchMap[normalizedClientId]) {
+      return;
+    }
+
     const isStillVisible = plannerClientFilterOptions.some(
       (option) => String(option?.value || "").trim() === normalizedClientId
     );
     if (!isStillVisible) {
       setSelectedPlannerClientFilterId("");
     }
-  }, [plannerClientFilterOptions, selectedPlannerClientFilterId, vipOnly]);
+  }, [plannerClientFilterOptions, plannerClientSearchMap, selectedPlannerClientFilterId, vipOnly]);
+  useEffect(() => {
+    if (vipOnly) {
+      return;
+    }
+    const query = String(plannerClientSearch || "").trim();
+    if (query.length < 3) {
+      setPlannerClientSearchOptions([]);
+      return;
+    }
+    const parts = query.split(/\s+/);
+    const firstName = parts[0] || "";
+    const lastName = parts.slice(1).join(" ") || "";
+    const params = new URLSearchParams({ limit: "50" });
+    if (firstName) {
+      params.set("firstName", firstName);
+    }
+    if (lastName) {
+      params.set("lastName", lastName);
+    }
+    let active = true;
+    const timerId = window.setTimeout(async () => {
+      try {
+        const response = await apiFetch(`/api/clients/search?${params}`);
+        const data = await readApiResponseData(response);
+        if (active && Array.isArray(data?.items)) {
+          const nextMap = {};
+          const nextOptions = [];
+          data.items.forEach((c) => {
+            const clientId = String(c?.id || "").trim();
+            if (!clientId) {
+              return;
+            }
+            const client = {
+              id: clientId,
+              firstName: String(c?.firstName || "").trim(),
+              lastName: String(c?.lastName || "").trim(),
+              middleName: String(c?.middleName || "").trim()
+            };
+            nextMap[clientId] = client;
+            nextOptions.push({ value: clientId, label: getClientDisplayName(client) });
+          });
+          setPlannerClientSearchMap((prev) => ({ ...prev, ...nextMap }));
+          setPlannerClientSearchOptions(nextOptions);
+        }
+      } catch {
+        if (active) {
+          setPlannerClientSearchOptions([]);
+        }
+      }
+    }, 250);
+    return () => {
+      active = false;
+      clearTimeout(timerId);
+    };
+  }, [plannerClientSearch, vipOnly]);
   const breaksForSpecialist = vipOnly
     ? []
     : (breaksBySpecialist[selectedSpecialistId] || []);
@@ -2108,6 +2177,11 @@ function AppointmentScheduler({
   );
   const clientSelectNotFound = clientSearchMessage === "No clients found.";
   const clientSelectHasError = Boolean(createErrors.clientId) || (clientSelectNotFound && !createForm.clientId);
+  useEffect(() => {
+    if (clientSelectNotFound && clientSearchMessage && createModal.open) {
+      showImmediateAlert(clientSearchMessage);
+    }
+  }, [clientSearchMessage, clientSelectNotFound, createModal.open]);
   const selectedClient = createForm.clientId ? (clientMap[createForm.clientId] || null) : null;
   const clientSelectOptions = useMemo(() => {
     const currentId = String(createForm.clientId || "").trim();
@@ -2454,8 +2528,8 @@ function AppointmentScheduler({
   const selectedPlannerFilterClient = useMemo(() => (
     (Array.isArray(plannerFilterClients) ? plannerFilterClients : []).find(
       (client) => String(client?.id || "").trim() === normalizedSelectedPlannerClientFilterId
-    ) || null
-  ), [normalizedSelectedPlannerClientFilterId, plannerFilterClients]);
+    ) || plannerClientSearchMap[normalizedSelectedPlannerClientFilterId] || null
+  ), [normalizedSelectedPlannerClientFilterId, plannerFilterClients, plannerClientSearchMap]);
   const clientFocusedAppointmentsByDay = useMemo(() => {
     if (!isClientFocusedMode) {
       return {};
@@ -3943,12 +4017,13 @@ function AppointmentScheduler({
                   id="appointmentPlannerClientFilterSelect"
                   placeholder="Select client"
                   value={selectedPlannerClientFilterId}
-                  options={plannerClientFilterOptions}
+                  options={plannerClientActiveOptions}
                   searchable
                   searchPlaceholder="Search client"
                   searchThreshold={0}
                   maxVisibleOptions={10}
-                  disabled={plannerClientFilterOptions.length <= 1}
+                  onSearchChange={setPlannerClientSearch}
+                  emptyText={String(plannerClientSearch || "").trim().length >= 3 ? "No clients found." : "Type to search"}
                   onChange={(nextValue) => {
                     const nextClientId = String(nextValue || "").trim();
                     setSelectedPlannerClientFilterId(nextClientId);
@@ -4286,8 +4361,8 @@ function AppointmentScheduler({
                   </div>
                 ) : null}
 
-                {!vipOnly && !isVipRecurringModal && clientSearchMessage ? (
-                  <small className={`appointment-client-search-hint${clientSelectNotFound ? " is-error" : ""}`}>
+                {!vipOnly && !isVipRecurringModal && clientSearchMessage && !clientSelectNotFound ? (
+                  <small className="appointment-client-search-hint">
                     {clientSearchMessage}
                   </small>
                 ) : null}

@@ -19,7 +19,8 @@ function CustomSelect({
   searchThreshold = 0,
   menuWidthScale = 1,
   menuHeightScale = 1,
-  emptyText = "No options found."
+  emptyText = "No options found.",
+  onSearchChange = null
 }) {
   const wrapRef = useRef(null);
   const triggerRef = useRef(null);
@@ -166,8 +167,11 @@ function CustomSelect({
   useEffect(() => {
     if (!open && searchQuery) {
       setSearchQuery("");
+      if (typeof onSearchChange === "function") {
+        onSearchChange("");
+      }
     }
-  }, [open, searchQuery]);
+  }, [onSearchChange, open, searchQuery]);
 
   useEffect(() => {
     if (disabled && open) {
@@ -222,7 +226,13 @@ function CustomSelect({
             className="custom-select-search-input"
             placeholder={searchPlaceholder}
             value={searchQuery}
-            onChange={(event) => setSearchQuery(event.currentTarget.value)}
+            onChange={(event) => {
+                const val = event.currentTarget.value;
+                setSearchQuery(val);
+                if (typeof onSearchChange === "function") {
+                  onSearchChange(val);
+                }
+              }}
             onMouseDown={(event) => event.stopPropagation()}
           />
         </div>
