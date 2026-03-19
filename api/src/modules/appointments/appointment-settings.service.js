@@ -367,31 +367,7 @@ function buildVipDailyRoutineSpecialistMatchSql({
   routineAlias = "vdr"
 }) {
   const routineSpecialistRef = `${routineAlias}.specialist_user_id`;
-  const routineOrganizationRef = `${routineAlias}.organization_id`;
-  const routineClassAssignmentRef = `${routineAlias}.class_assignment_id`;
-
-  return `(
-    ${routineSpecialistRef} = ${specialistParamRef}
-    OR (
-      ${routineSpecialistRef} IS NULL
-      AND (
-        EXISTS (
-          SELECT 1
-            FROM vip_class_teacher_assignments vcta
-           WHERE vcta.id = ${routineClassAssignmentRef}
-             AND vcta.organization_id = ${routineOrganizationRef}
-             AND vcta.teacher_user_id = ${specialistParamRef}
-        )
-        OR EXISTS (
-          SELECT 1
-            FROM vip_client_tutor_assignments vta
-           WHERE vta.class_assignment_id = ${routineClassAssignmentRef}
-             AND vta.organization_id = ${routineOrganizationRef}
-             AND vta.tutor_user_id = ${specialistParamRef}
-        )
-      )
-    )
-  )`;
+  return `${routineSpecialistRef} = ${specialistParamRef}`;
 }
 
 function formatAppointmentDayLabel(dayOfWeek) {
@@ -3248,9 +3224,31 @@ export async function hasAppointmentConflictForVipRoutine({
   endTime,
   db = pool
 }) {
+  const normalizedClassId = Number.parseInt(String(classId || "").trim(), 10) || 0;
   const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
-  if (!normalizedSpecialistId) {
+  if (!normalizedClassId && !normalizedSpecialistId) {
     return null;
+  }
+
+  const params = [organizationId, dayOfWeek, startTime, endTime];
+  let specialistMatchSql = "FALSE";
+  let classClientMatchSql = "FALSE";
+  let specialistPrioritySql = "1";
+
+  if (normalizedSpecialistId) {
+    params.push(normalizedSpecialistId);
+    specialistMatchSql = `s.specialist_id = $${params.length}`;
+    specialistPrioritySql = `CASE WHEN s.specialist_id = $${params.length} THEN 0 ELSE 1 END`;
+  }
+  if (normalizedClassId) {
+    params.push(normalizedClassId);
+    classClientMatchSql = `EXISTS (
+      SELECT 1
+        FROM vip_client_tutor_assignments vta
+       WHERE vta.organization_id = s.organization_id
+         AND vta.class_assignment_id = $${params.length}
+         AND vta.client_id = s.client_id
+    )`;
   }
 
   const { rows } = await (db || pool).query(
@@ -3259,7 +3257,11 @@ export async function hasAppointmentConflictForVipRoutine({
        s.appointment_date::text AS appointment_date,
        TO_CHAR(s.start_time, 'HH24:MI') AS appointment_start_time,
        TO_CHAR(s.end_time, 'HH24:MI') AS appointment_end_time,
-       CONCAT_WS(' ', NULLIF(TRIM(c.first_name), ''), NULLIF(TRIM(c.last_name), '')) AS client_name
+       CONCAT_WS(' ', NULLIF(TRIM(c.first_name), ''), NULLIF(TRIM(c.last_name), '')) AS client_name,
+       CASE
+         WHEN ${specialistMatchSql} THEN 'specialist'
+         ELSE 'client'
+       END AS conflict_scope
        FROM appointment_schedules s
        LEFT JOIN clients c
          ON c.id = s.client_id
@@ -3270,13 +3272,17 @@ export async function hasAppointmentConflictForVipRoutine({
         AND EXTRACT(ISODOW FROM s.appointment_date)::smallint = $2
         AND ($3::time < s.end_time)
         AND (s.start_time < $4::time)
-        AND s.specialist_id = $5
+        AND (
+          ${specialistMatchSql}
+          OR ${classClientMatchSql}
+        )
       ORDER BY
+        ${specialistPrioritySql},
         s.appointment_date ASC,
         s.start_time ASC,
         s.id ASC
       LIMIT 1`,
-    [organizationId, dayOfWeek, startTime, endTime, normalizedSpecialistId]
+    params
   );
   if (!rows[0]) {
     return null;
@@ -3287,7 +3293,10 @@ export async function hasAppointmentConflictForVipRoutine({
     appointmentDate: normalizeDateYmd(rows[0]?.appointment_date),
     startTime: normalizeTimeHm(rows[0]?.appointment_start_time),
     endTime: normalizeTimeHm(rows[0]?.appointment_end_time),
-    clientName: String(rows[0]?.client_name || "").trim()
+    clientName: String(rows[0]?.client_name || "").trim(),
+    conflictScope: String(rows[0]?.conflict_scope || "").trim().toLowerCase() === "specialist"
+      ? "specialist"
+      : "client"
   };
 }
 

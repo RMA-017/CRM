@@ -587,6 +587,9 @@ test("vip daily routine save allows class-level routines without selecting a spe
       specialistConflictQueried = true;
       return { rows: [] };
     }
+    if (queryText.includes("FROM appointment_schedules s")) {
+      return { rows: [] };
+    }
     if (queryText.includes("INSERT INTO vip_class_daily_routines")) {
       return {
         rows: [{
@@ -647,6 +650,107 @@ test("vip daily routine save allows class-level routines without selecting a spe
     assert.equal(reply.state.payload?.item?.specialistId, "");
     assert.equal(specialistListQueried, false);
     assert.equal(specialistConflictQueried, false);
+  } finally {
+    resetClientsServiceSchemaCacheForTests();
+    clearRolePermissionsCache();
+    restoreQuery();
+  }
+});
+
+test("vip daily routine save blocks class-level routines when a child in the class already has an appointment", async () => {
+  const recorder = createRouteRecorder();
+  await clientsRoutes(recorder.fastify);
+
+  const route = recorder.routes.find((item) => item.method === "PUT" && item.path === "/vip-class-daily-routines");
+  assert.equal(typeof route?.handler, "function");
+
+  resetClientsServiceSchemaCacheForTests();
+  clearRolePermissionsCache();
+  const restoreQuery = stubPoolQuery(async (sql, params = []) => {
+    const queryText = String(sql || "");
+
+    if (queryText.includes("FROM information_schema.tables")) {
+      return {
+        rows: (Array.isArray(params[1]) ? params[1] : []).map((tableName) => ({ table_name: tableName }))
+      };
+    }
+    if (queryText.includes("FROM information_schema.columns")) {
+      return {
+        rows: [
+          { column_name: "organization_id" },
+          { column_name: "class_assignment_id" },
+          { column_name: "day_of_week" },
+          { column_name: "activity_type" },
+          { column_name: "start_time" },
+          { column_name: "end_time" },
+          { column_name: "specialist_user_id" },
+          { column_name: "mandatory_exercises" },
+          { column_name: "note" },
+          { column_name: "created_by" },
+          { column_name: "updated_by" },
+          { column_name: "created_at" },
+          { column_name: "updated_at" }
+        ]
+      };
+    }
+    if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
+      return {
+        rows: [
+          { code: "appointments.vip-clients.read" },
+          { code: "appointments.vip-clients.create" },
+          { code: "appointments.vip-clients.daily-routines" },
+          { code: "appointments.vip-clients.scope.all" }
+        ]
+      };
+    }
+    if (queryText.includes("appointment_schedules")) {
+      return {
+        rows: [{
+          appointment_id: "92",
+          appointment_date: "2026-03-23",
+          appointment_start_time: "09:30",
+          appointment_end_time: "10:00",
+          client_name: "Class Child",
+          conflict_scope: "client"
+        }]
+      };
+    }
+
+    throw new Error(`Unexpected query in test: ${queryText}`);
+  });
+
+  try {
+    const reply = createReplyRecorder();
+    await route.handler({
+      authContext: {
+        userId: 7,
+        organizationId: 3,
+        requester: {
+          id: 7,
+          role_id: 11,
+          is_admin: false,
+          is_platform_admin: false,
+          role_label: "manager",
+          position_label: "staff",
+          organization_allowed_features: ["vip_clients.daily_routines"]
+        }
+      },
+      body: {
+        classId: "99",
+        dayOfWeek: "1",
+        activityType: "lesson",
+        startTime: "09:00",
+        endTime: "10:00",
+        note: "Math topic"
+      },
+      log: { error() {} }
+    }, reply);
+
+    assert.equal(reply.state.statusCode, 409);
+    assert.equal(
+      reply.state.payload?.message,
+      "This time slot conflicts with an existing appointment for a child in this class: 2026-03-23 09:30-10:00 (Class Child)."
+    );
   } finally {
     resetClientsServiceSchemaCacheForTests();
     clearRolePermissionsCache();

@@ -2155,31 +2155,6 @@ async function clientsRoutes(fastify) {
             });
           }
 
-          const hasAppointmentConflict = await hasAppointmentConflictForVipRoutine({
-            organizationId: authContext.organizationId,
-            classId,
-            specialistId,
-            dayOfWeek,
-            startTime,
-            endTime
-          });
-          if (hasAppointmentConflict) {
-            const conflictDate = String(hasAppointmentConflict?.appointmentDate || "").trim();
-            const conflictStart = String(hasAppointmentConflict?.startTime || "").trim();
-            const conflictEnd = String(hasAppointmentConflict?.endTime || "").trim();
-            const conflictClientName = String(hasAppointmentConflict?.clientName || "").trim();
-            const conflictDetails = [
-              conflictDate,
-              conflictStart && conflictEnd ? `${conflictStart}-${conflictEnd}` : "",
-              conflictClientName ? `(${conflictClientName})` : ""
-            ].filter(Boolean).join(" ");
-            return reply.status(409).send({
-              message: conflictDetails
-                ? `The selected specialist already has an appointment at this time: ${conflictDetails}.`
-                : "The selected specialist already has an appointment at this time."
-            });
-          }
-
           const hasBreakConflict = await hasBreakConflictForVipRoutine({
             organizationId: authContext.organizationId,
             classId,
@@ -2204,6 +2179,40 @@ async function clientsRoutes(fastify) {
               message: "The selected specialist is marked as unavailable on this day of week."
             });
           }
+        }
+
+        const hasAppointmentConflict = await hasAppointmentConflictForVipRoutine({
+          organizationId: authContext.organizationId,
+          classId,
+          specialistId,
+          dayOfWeek,
+          startTime,
+          endTime
+        });
+        if (hasAppointmentConflict) {
+          const conflictDate = String(hasAppointmentConflict?.appointmentDate || "").trim();
+          const conflictStart = String(hasAppointmentConflict?.startTime || "").trim();
+          const conflictEnd = String(hasAppointmentConflict?.endTime || "").trim();
+          const conflictClientName = String(hasAppointmentConflict?.clientName || "").trim();
+          const conflictScope = String(hasAppointmentConflict?.conflictScope || "").trim().toLowerCase();
+          const conflictDetails = [
+            conflictDate,
+            conflictStart && conflictEnd ? `${conflictStart}-${conflictEnd}` : "",
+            conflictClientName ? `(${conflictClientName})` : ""
+          ].filter(Boolean).join(" ");
+          return reply.status(409).send({
+            message: conflictScope === "client"
+              ? (
+                conflictDetails
+                  ? `This time slot conflicts with an existing appointment for a child in this class: ${conflictDetails}.`
+                  : "This time slot conflicts with an existing appointment for a child in this class."
+              )
+              : (
+                conflictDetails
+                  ? `The selected specialist already has an appointment at this time: ${conflictDetails}.`
+                  : "The selected specialist already has an appointment at this time."
+              )
+          });
         }
 
         const item = await upsertVipClassDailyRoutine({
