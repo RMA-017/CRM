@@ -579,7 +579,7 @@ test("vip daily routine save allows class-level routines without selecting a spe
         ]
       };
     }
-    if (queryText.includes("WITH accessible_classes AS") && queryText.includes("FROM specialist_sources ss")) {
+    if (queryText.includes("WITH accessible_classes AS") && queryText.includes("organization_specialists")) {
       specialistListQueried = true;
       return { rows: [] };
     }
@@ -804,7 +804,7 @@ test("vip daily routine save blocks overlapping routine times for the same speci
         ]
       };
     }
-    if (queryText.includes("WITH accessible_classes AS") && queryText.includes("FROM specialist_sources ss")) {
+    if (queryText.includes("WITH accessible_classes AS") && queryText.includes("organization_specialists")) {
       return {
         rows: [{
           class_assignment_id: "99",
@@ -1804,6 +1804,142 @@ test("vip daily routines list returns migration-required when specialist schema 
       "specialist_user_id",
       "mandatory_exercises"
     ]);
+  } finally {
+    clearRolePermissionsCache();
+    resetClientsServiceSchemaCacheForTests();
+    restoreQuery();
+  }
+});
+
+test("vip daily routines list only exposes real specialists in picker and row payloads", async () => {
+  const recorder = createRouteRecorder();
+  await clientsRoutes(recorder.fastify);
+
+  const route = recorder.routes.find((item) => item.method === "GET" && item.path === "/vip-class-daily-routines");
+  assert.equal(typeof route?.handler, "function");
+
+  clearRolePermissionsCache();
+  resetClientsServiceSchemaCacheForTests();
+  const restoreQuery = stubPoolQuery(async (sql, params = []) => {
+    const queryText = String(sql || "");
+
+    if (queryText.includes("FROM information_schema.tables")) {
+      return {
+        rows: [
+          { table_name: "vip_class_teacher_assignments" },
+          { table_name: "vip_client_tutor_assignments" },
+          { table_name: "vip_class_teacher_assignment_history" },
+          { table_name: "vip_client_tutor_assignment_history" },
+          { table_name: "vip_class_daily_routines" }
+        ]
+      };
+    }
+    if (queryText.includes("FROM information_schema.columns")) {
+      return {
+        rows: [
+          { column_name: "organization_id" },
+          { column_name: "class_assignment_id" },
+          { column_name: "day_of_week" },
+          { column_name: "activity_type" },
+          { column_name: "start_time" },
+          { column_name: "end_time" },
+          { column_name: "specialist_user_id" },
+          { column_name: "mandatory_exercises" },
+          { column_name: "note" },
+          { column_name: "created_by" },
+          { column_name: "updated_by" },
+          { column_name: "created_at" },
+          { column_name: "updated_at" }
+        ]
+      };
+    }
+    if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
+      return {
+        rows: [
+          { code: "appointments.vip-clients.read" },
+          { code: "appointments.vip-clients.daily-routines" },
+          { code: "appointments.vip-clients.scope.all" }
+        ]
+      };
+    }
+    if (queryText.includes("FROM vip_class_daily_routines r") && queryText.includes("LEFT JOIN users specialist_u")) {
+      return {
+        rows: [{
+          id: "41",
+          class_assignment_id: "99",
+          class_name: "Alpha",
+          teacher_user_id: "4",
+          teacher_name: "Teacher Bek",
+          specialist_user_id: "77",
+          specialist_name: "Tutor Hasan",
+          specialist_role: "Tutor",
+          children_count: 6,
+          day_of_week: 2,
+          activity_type: "lesson",
+          start_time: "10:00",
+          end_time: "11:00",
+          mandatory_exercises: "",
+          note: "Speech block",
+          created_by: "7",
+          updated_by: "7",
+          created_at: "2026-03-19T10:00:00.000Z",
+          updated_at: "2026-03-19T10:00:00.000Z"
+        }]
+      };
+    }
+    if (queryText.includes("FROM vip_class_teacher_assignments va") && queryText.includes("vta_scope")) {
+      return {
+        rows: [{
+          id: "99",
+          class_name: "Alpha",
+          teacher_user_id: "4",
+          teacher_name: "Teacher Bek"
+        }]
+      };
+    }
+    if (queryText.includes("WITH accessible_classes AS") && queryText.includes("organization_specialists")) {
+      return {
+        rows: [{
+          class_assignment_id: "99",
+          specialist_user_id: "9",
+          specialist_name: "Ali",
+          specialist_role: "Speech therapist Specialist"
+        }]
+      };
+    }
+
+    throw new Error(`Unexpected query in test: ${queryText}`);
+  });
+
+  try {
+    const reply = createReplyRecorder();
+    await route.handler({
+      authContext: {
+        userId: 7,
+        organizationId: 3,
+        requester: {
+          id: 7,
+          role_id: 11,
+          is_admin: false,
+          is_platform_admin: false,
+          role_label: "teacher",
+          position_label: "staff",
+          organization_allowed_features: ["vip_clients.daily_routines"]
+        }
+      },
+      query: { limit: "2000" },
+      log: { error() {} }
+    }, reply);
+
+    assert.equal(reply.state.statusCode, 200);
+    assert.equal(reply.state.payload?.items?.[0]?.specialistId, "");
+    assert.equal(reply.state.payload?.items?.[0]?.specialistName, "");
+    assert.deepEqual(reply.state.payload?.specialists, [{
+      classId: "99",
+      specialistId: "9",
+      specialistName: "Ali",
+      specialistRole: "Speech therapist Specialist"
+    }]);
   } finally {
     clearRolePermissionsCache();
     resetClientsServiceSchemaCacheForTests();

@@ -11,10 +11,6 @@ import {
   normalizeVipClassDailyRoutineActivityType,
   normalizeVipDailyRoutineDayOfWeek
 } from "./vip-daily-routines.js";
-import {
-  isSpecialistLikeRoleLabel,
-  joinNormalizedRoleLabelParts
-} from "../../lib/role-labels.js";
 
 let vipAttendanceSchemaInitPromise = null;
 let vipAssignmentsSchemaInitPromise = null;
@@ -1504,7 +1500,16 @@ export async function getVipClassDailyRoutines({
           ELSE ''
         END
       ) AS specialist_name,
-      COALESCE(NULLIF(TRIM(specialist_p.label), ''), NULLIF(TRIM(specialist_r.label), ''), '') AS specialist_role,
+      CASE
+        WHEN r.specialist_user_id IS NOT NULL THEN COALESCE(
+          NULLIF(
+            TRIM(CONCAT_WS(' ', NULLIF(TRIM(specialist_p.label), ''), NULLIF(TRIM(specialist_r.label), ''))),
+            ''
+          ),
+          'Specialist'
+        )
+        ELSE ''
+      END AS specialist_role,
       COALESCE(vta_counts.children_count, 0) AS children_count,
       r.day_of_week,
       r.activity_type,
@@ -1596,57 +1601,55 @@ export async function getVipClassDailyRoutineSpecialists({
           AND o.is_active = TRUE
           ${accessibleWhereSql}
      ),
-     specialist_sources AS (
+     organization_specialists AS (
        SELECT
-         ac.id AS class_assignment_id,
-         vcta.teacher_user_id AS specialist_user_id
-       FROM accessible_classes ac
-       JOIN vip_class_teacher_assignments vcta
-         ON vcta.organization_id = ac.organization_id
-        AND vcta.id = ac.id
-       WHERE vcta.teacher_user_id IS NOT NULL
-
-       UNION
-
-       SELECT
-         ac.id AS class_assignment_id,
-         vta.tutor_user_id AS specialist_user_id
-       FROM accessible_classes ac
-       JOIN vip_client_tutor_assignments vta
-         ON vta.organization_id = ac.organization_id
-        AND vta.class_assignment_id = ac.id
-       WHERE vta.tutor_user_id IS NOT NULL
+         u.id::text AS specialist_user_id,
+         COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS specialist_name,
+         COALESCE(
+           NULLIF(
+             TRIM(CONCAT_WS(' ', NULLIF(TRIM(p.label), ''), NULLIF(TRIM(r.label), ''))),
+             ''
+           ),
+           'Specialist'
+         ) AS specialist_role
+        FROM users u
+        JOIN organizations o
+          ON o.id = u.organization_id
+        JOIN role_options r
+          ON r.id = u.role_id
+        LEFT JOIN position_options p
+          ON p.id = u.position_id
+       WHERE u.organization_id = $1
+         AND o.is_active = TRUE
+         AND r.is_active = TRUE
+         AND (
+           LOWER(TRIM(r.label)) LIKE '%specialist%'
+           OR LOWER(TRIM(r.label)) LIKE '%spetsialist%'
+           OR LOWER(TRIM(r.label)) LIKE '%mutaxassis%'
+           OR LOWER(TRIM(r.label)) LIKE '%специалист%'
+           OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%specialist%'
+           OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%spetsialist%'
+           OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%mutaxassis%'
+           OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%специалист%'
+         )
      )
      SELECT
-       ss.class_assignment_id::text AS class_assignment_id,
-       ss.specialist_user_id::text AS specialist_user_id,
-       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS specialist_name,
-       NULLIF(TRIM(p.label), '') AS position_label,
-       NULLIF(TRIM(r.label), '') AS role_label,
-       COALESCE(NULLIF(TRIM(p.label), ''), NULLIF(TRIM(r.label), ''), 'Specialist') AS specialist_role
-      FROM specialist_sources ss
-      JOIN users u
-        ON u.id = ss.specialist_user_id
-       AND u.organization_id = $1
-      JOIN role_options r
-        ON r.id = u.role_id
-      LEFT JOIN position_options p
-        ON p.id = u.position_id
+       ac.id::text AS class_assignment_id,
+       os.specialist_user_id,
+       os.specialist_name,
+       os.specialist_role
+      FROM accessible_classes ac
+      JOIN organization_specialists os
+        ON TRUE
      ORDER BY
-       ss.class_assignment_id ASC,
-       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), u.id::text) ASC
+       ac.id ASC,
+       LOWER(os.specialist_name) ASC,
+       os.specialist_user_id ASC
      LIMIT $${params.length}`,
     params
   );
 
-  return (rows || []).filter((row) => {
-    const combinedRoleLabel = joinNormalizedRoleLabelParts(
-      row?.position_label,
-      row?.role_label,
-      row?.specialist_role
-    );
-    return isSpecialistLikeRoleLabel(combinedRoleLabel);
-  }).map((row) => ({
+  return (rows || []).map((row) => ({
     class_assignment_id: row?.class_assignment_id,
     specialist_user_id: row?.specialist_user_id,
     specialist_name: row?.specialist_name,
@@ -1801,7 +1804,16 @@ export async function upsertVipClassDailyRoutine({
          COALESCE(NULLIF(TRIM(teacher_u.full_name), ''), NULLIF(TRIM(teacher_u.username), ''), '') AS teacher_name,
           u.specialist_user_id::text AS specialist_user_id,
           COALESCE(NULLIF(TRIM(specialist_u.full_name), ''), NULLIF(TRIM(specialist_u.username), ''), CONCAT('User #', u.specialist_user_id::text)) AS specialist_name,
-          COALESCE(NULLIF(TRIM(specialist_p.label), ''), NULLIF(TRIM(specialist_r.label), ''), 'Specialist') AS specialist_role,
+          CASE
+            WHEN u.specialist_user_id IS NOT NULL THEN COALESCE(
+              NULLIF(
+                TRIM(CONCAT_WS(' ', NULLIF(TRIM(specialist_p.label), ''), NULLIF(TRIM(specialist_r.label), ''))),
+                ''
+              ),
+              'Specialist'
+            )
+            ELSE ''
+          END AS specialist_role,
           (
             SELECT COUNT(*)
               FROM vip_client_tutor_assignments vta
@@ -1897,7 +1909,16 @@ export async function upsertVipClassDailyRoutine({
        COALESCE(NULLIF(TRIM(teacher_u.full_name), ''), NULLIF(TRIM(teacher_u.username), ''), '') AS teacher_name,
        i.specialist_user_id::text AS specialist_user_id,
        COALESCE(NULLIF(TRIM(specialist_u.full_name), ''), NULLIF(TRIM(specialist_u.username), ''), CONCAT('User #', i.specialist_user_id::text)) AS specialist_name,
-       COALESCE(NULLIF(TRIM(specialist_p.label), ''), NULLIF(TRIM(specialist_r.label), ''), 'Specialist') AS specialist_role,
+       CASE
+         WHEN i.specialist_user_id IS NOT NULL THEN COALESCE(
+           NULLIF(
+             TRIM(CONCAT_WS(' ', NULLIF(TRIM(specialist_p.label), ''), NULLIF(TRIM(specialist_r.label), ''))),
+             ''
+           ),
+           'Specialist'
+         )
+         ELSE ''
+       END AS specialist_role,
         (
           SELECT COUNT(*)
             FROM vip_client_tutor_assignments vta

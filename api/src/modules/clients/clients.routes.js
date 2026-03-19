@@ -10,6 +10,7 @@ import {
 import { parseNullableBoolean } from "../../lib/request-parsers.js";
 import {
   isDirectorLikeRoleLabel,
+  isSpecialistLikeRoleLabel,
   joinNormalizedRoleLabelParts
 } from "../../lib/role-labels.js";
 import { createTtlCache } from "../../lib/ttl-cache.js";
@@ -956,9 +957,16 @@ function mapVipClassDailyRoutineRecord(row) {
   const className = String(row?.class_name || row?.className || "").trim();
   const teacherId = String(row?.teacher_user_id || row?.teacher_id || row?.teacherId || "").trim();
   const teacherName = String(row?.teacher_name || row?.teacherName || "").trim();
-  const specialistId = String(row?.specialist_user_id || row?.specialistId || row?.specialist_id || "").trim();
-  const specialistName = String(row?.specialist_name || row?.specialistName || "").trim();
-  const specialistRole = String(row?.specialist_role || row?.specialistRole || "").trim();
+  const rawSpecialistId = String(row?.specialist_user_id || row?.specialistId || row?.specialist_id || "").trim();
+  const rawSpecialistName = String(row?.specialist_name || row?.specialistName || "").trim();
+  const rawSpecialistRole = String(row?.specialist_role || row?.specialistRole || "").trim();
+  const hasValidSpecialist = Boolean(
+    rawSpecialistId
+    && isSpecialistLikeRoleLabel(joinNormalizedRoleLabelParts(rawSpecialistRole))
+  );
+  const specialistId = hasValidSpecialist ? rawSpecialistId : "";
+  const specialistName = hasValidSpecialist ? rawSpecialistName : "";
+  const specialistRole = hasValidSpecialist ? rawSpecialistRole : "";
   const childrenCountRaw = Number.parseInt(String(row?.children_count ?? row?.childrenCount ?? "0"), 10);
   const childrenCount = Number.isInteger(childrenCountRaw) && childrenCountRaw > 0 ? childrenCountRaw : 0;
   const dayOfWeek = Number.parseInt(String(row?.day_of_week || row?.dayOfWeek || ""), 10) || 0;

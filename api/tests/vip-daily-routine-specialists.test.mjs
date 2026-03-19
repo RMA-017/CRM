@@ -17,6 +17,7 @@ function stubPoolQuery(implementation) {
 
 test("VIP daily routine specialist picker only keeps specialist-role users", async () => {
   resetClientsServiceSchemaCacheForTests();
+  let capturedSql = "";
 
   const restoreQuery = stubPoolQuery(async (sql, params = []) => {
     const queryText = String(sql || "");
@@ -45,24 +46,15 @@ test("VIP daily routine specialist picker only keeps specialist-role users", asy
         ]
       };
     }
-    if (queryText.includes("FROM specialist_sources ss")) {
+    if (queryText.includes("WITH accessible_classes AS") && queryText.includes("organization_specialists")) {
+      capturedSql = queryText;
       return {
         rows: [
           {
             class_assignment_id: "99",
             specialist_user_id: "9",
             specialist_name: "Ali",
-            position_label: "Speech therapist",
-            role_label: "Specialist",
-            specialist_role: "Speech therapist"
-          },
-          {
-            class_assignment_id: "99",
-            specialist_user_id: "10",
-            specialist_name: "Teacher",
-            position_label: "",
-            role_label: "Teacher",
-            specialist_role: "Teacher"
+            specialist_role: "Speech therapist Specialist"
           }
         ]
       };
@@ -78,12 +70,16 @@ test("VIP daily routine specialist picker only keeps specialist-role users", asy
       limit: 50
     });
 
+    assert.match(capturedSql, /organization_specialists/);
+    assert.match(capturedSql, /LOWER\(TRIM\(r\.label\)\) LIKE '%specialist%'/);
+    assert.doesNotMatch(capturedSql, /teacher_user_id AS specialist_user_id/);
+    assert.doesNotMatch(capturedSql, /tutor_user_id AS specialist_user_id/);
     assert.deepEqual(items, [
       {
         class_assignment_id: "99",
         specialist_user_id: "9",
         specialist_name: "Ali",
-        specialist_role: "Speech therapist"
+        specialist_role: "Speech therapist Specialist"
       }
     ]);
   } finally {
