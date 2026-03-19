@@ -2010,7 +2010,7 @@ function AppointmentScheduler({
   }, [plannerFilterClients, rawAppointmentsByDay, vipOnly, weekDays]);
   const plannerClientActiveOptions = useMemo(() => {
     const query = String(plannerClientSearch || "").trim();
-    const base = query.length >= 3 ? plannerClientSearchOptions : plannerClientFilterOptions;
+    const base = query.length >= 3 ? plannerClientSearchOptions : [];
     if (
       normalizedSelectedPlannerClientFilterId
       && plannerClientSearchMap[normalizedSelectedPlannerClientFilterId]
@@ -2024,8 +2024,7 @@ function AppointmentScheduler({
     normalizedSelectedPlannerClientFilterId,
     plannerClientSearch,
     plannerClientSearchMap,
-    plannerClientSearchOptions,
-    plannerClientFilterOptions
+    plannerClientSearchOptions
   ]);
   useEffect(() => {
     if (vipOnly) {
