@@ -1961,12 +1961,12 @@ label.field > span:first-child,
 
 #appointmentVipDailyRoutinesPanel .all-users-table th:nth-child(2),
 #appointmentVipDailyRoutinesPanel .all-users-table td:nth-child(2) {
-  width: 8%;
+  width: 12%;
 }
 
 #appointmentVipDailyRoutinesPanel .all-users-table th:nth-child(3),
 #appointmentVipDailyRoutinesPanel .all-users-table td:nth-child(3) {
-  width: 8%;
+  width: 12%;
 }
 
 #appointmentVipDailyRoutinesPanel .all-users-table th:nth-child(4),
@@ -1989,21 +1989,21 @@ label.field > span:first-child,
 
 #appointmentVipDailyRoutinesPanel .all-users-table th:nth-child(7),
 #appointmentVipDailyRoutinesPanel .all-users-table td:nth-child(7) {
-  width: 14%;
+  width: 10%;
 }
 
 #appointmentVipDailyRoutinesPanel .all-users-table th:nth-child(8),
 #appointmentVipDailyRoutinesPanel .all-users-table td:nth-child(8) {
-  width: 18%;
+  width: 14%;
 }
 
 #appointmentVipDailyRoutinesPanel .all-users-table th:nth-child(9),
 #appointmentVipDailyRoutinesPanel .all-users-table td:nth-child(9),
 #appointmentVipDailyRoutinesPanel .all-users-table th:nth-child(10),
 #appointmentVipDailyRoutinesPanel .all-users-table td:nth-child(10) {
-  width: 88px;
-  min-width: 88px;
-  max-width: 88px;
+  width: 80px;
+  min-width: 80px;
+  max-width: 80px;
   text-align: center;
   padding-left: 3px;
   padding-right: 3px;
