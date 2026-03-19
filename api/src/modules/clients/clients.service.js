@@ -1733,6 +1733,82 @@ export async function findVipClassDailyRoutineConflictForSpecialist({
   };
 }
 
+export async function findVipClassDailyRoutineConflictForClass({
+  organizationId,
+  routineId = null,
+  classId,
+  dayOfWeek,
+  startTime,
+  endTime,
+  db = pool
+}) {
+  await ensureVipClassDailyRoutinesSchema();
+
+  const normalizedRoutineId = Number.parseInt(String(routineId || "").trim(), 10) || 0;
+  const normalizedClassId = Number.parseInt(String(classId || "").trim(), 10) || 0;
+  const normalizedDayOfWeek = normalizeVipDailyRoutineDayOfWeek(dayOfWeek);
+  const normalizedStartTime = String(startTime || "").trim();
+  const normalizedEndTime = String(endTime || "").trim();
+
+  if (
+    !normalizedClassId
+    || !normalizedDayOfWeek
+    || !normalizedStartTime
+    || !normalizedEndTime
+  ) {
+    return null;
+  }
+
+  const params = [
+    organizationId,
+    normalizedClassId,
+    normalizedDayOfWeek,
+    normalizedStartTime,
+    normalizedEndTime
+  ];
+  const excludeCurrentRoutineSql = normalizedRoutineId > 0
+    ? `AND r.id <> $${params.push(normalizedRoutineId)}`
+    : "";
+
+  const { rows } = await (db || pool).query(
+    `SELECT
+       r.id::text AS id,
+       r.class_assignment_id::text AS class_assignment_id,
+       COALESCE(NULLIF(TRIM(vcta.class_name), ''), CONCAT('Class #', r.class_assignment_id::text)) AS class_name,
+       r.activity_type,
+       TO_CHAR(r.start_time, 'HH24:MI') AS start_time,
+       TO_CHAR(r.end_time, 'HH24:MI') AS end_time
+      FROM vip_class_daily_routines r
+      LEFT JOIN vip_class_teacher_assignments vcta
+        ON vcta.organization_id = r.organization_id
+       AND vcta.id = r.class_assignment_id
+      WHERE r.organization_id = $1
+        AND r.class_assignment_id = $2
+        AND r.day_of_week = $3
+        AND ($4::time < r.end_time)
+        AND (r.start_time < $5::time)
+        ${excludeCurrentRoutineSql}
+      ORDER BY
+        r.start_time ASC,
+        r.id ASC
+      LIMIT 1`,
+    params
+  );
+
+  if (!rows[0]) {
+    return null;
+  }
+
+  return {
+    routineId: String(rows[0]?.id || "").trim(),
+    classId: String(rows[0]?.class_assignment_id || "").trim(),
+    className: String(rows[0]?.class_name || "").trim(),
+    activityType: normalizeVipClassDailyRoutineActivityType(rows[0]?.activity_type),
+    startTime: String(rows[0]?.start_time || "").trim(),
+    endTime: String(rows[0]?.end_time || "").trim()
+  };
+}
+
 export async function upsertVipClassDailyRoutine({
   organizationId,
   routineId = null,

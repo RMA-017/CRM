@@ -1,6 +1,7 @@
 import { sendMigrationRequired, setNoCacheHeaders } from "../../lib/http.js";
 import { toBoundedInteger } from "../../lib/bounded-integer.js";
 import { parsePositiveInteger } from "../../lib/number.js";
+import { isUniqueOrExclusionConflict } from "../../lib/db-utils.js";
 import {
   getTodayYmd,
   isValidDateYmd,
@@ -38,6 +39,7 @@ import {
   deleteClientById,
   findVipClientAttendanceByDate,
   findVipClassDailyRoutineById,
+  findVipClassDailyRoutineConflictForClass,
   findVipClassDailyRoutineConflictForSpecialist,
   findClientsRequester,
   findVipTutorAssignmentByClientId,
@@ -2121,6 +2123,31 @@ async function clientsRoutes(fastify) {
             return reply.status(400).send({ field: "classId", message: "Selected class is not allowed." });
           }
         }
+
+        const hasClassRoutineConflict = await findVipClassDailyRoutineConflictForClass({
+          organizationId: authContext.organizationId,
+          routineId,
+          classId,
+          dayOfWeek,
+          startTime,
+          endTime
+        });
+        if (hasClassRoutineConflict) {
+          const conflictStart = String(hasClassRoutineConflict?.startTime || "").trim();
+          const conflictEnd = String(hasClassRoutineConflict?.endTime || "").trim();
+          const conflictActivityType = String(hasClassRoutineConflict?.activityType || "").trim().replace(/-/g, " ");
+          const conflictDetails = [
+            conflictStart && conflictEnd ? `${conflictStart}-${conflictEnd}` : "",
+            conflictActivityType ? `(${conflictActivityType})` : ""
+          ].filter(Boolean).join(" ");
+          return reply.status(409).send({
+            field: "time",
+            message: conflictDetails
+              ? `This class already has a VIP daily routine at this time: ${conflictDetails}.`
+              : "This class already has a VIP daily routine at this time."
+          });
+        }
+
         if (specialistId) {
           const allowedSpecialists = await getVipClassDailyRoutineSpecialists({
             organizationId: authContext.organizationId,
@@ -2245,10 +2272,16 @@ async function clientsRoutes(fastify) {
           item: mapVipClassDailyRoutineRecord(item)
         });
       } catch (error) {
-        if (error?.code === "23505") {
+        if (isUniqueOrExclusionConflict(error)) {
           return reply.status(409).send({
             field: "time",
-            message: "A routine with the same time slot already exists."
+            message: "This class already has a VIP daily routine at this time."
+          });
+        }
+        if (error?.code === "23503") {
+          return reply.status(400).send({
+            field: "specialistId",
+            message: "Selected specialist is invalid."
           });
         }
         if (error?.code === "23514" || error?.code === "22P02") {
