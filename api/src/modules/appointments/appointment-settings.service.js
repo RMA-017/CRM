@@ -120,15 +120,39 @@ export function clearAppointmentPlannerReportFilterCaches() {
   appointmentPlannerFilterCache.clear();
 }
 
+export function resetAppointmentServiceSchemaCacheForTests() {
+  appointmentStatusHistorySchemaInitPromise = null;
+  appointmentPlannerReportIndexInitPromise = null;
+  appointmentSettingsColumnFlagsPromise = null;
+  vipClassDailyRoutineSchemaInitPromise = null;
+  clearAppointmentReferenceCaches();
+  clearAppointmentPlannerReportFilterCaches();
+}
+
 const APPOINTMENT_SCHEDULES_TABLE = "appointment_schedules";
 const APPOINTMENT_STATUS_HISTORY_TABLE = "appointment_status_history";
 const APPOINTMENT_SETTINGS_TABLE = "appointment_settings";
+const VIP_CLASS_DAILY_ROUTINES_TABLE = "vip_class_daily_routines";
 const WORK_SCHEDULE_CONFLICT_CODE = "WORK_SCHEDULE_CONFLICT";
 const WORK_SCHEDULE_PARENT_CONFLICT_CODE = "WORK_SCHEDULE_PARENT_CONFLICT";
 const VIP_AUTO_ROLLING_REPEAT_WINDOW_DAYS = 30;
+const VIP_CLASS_DAILY_ROUTINE_REQUIRED_COLUMNS = [
+  "organization_id",
+  "class_assignment_id",
+  "day_of_week",
+  "activity_type",
+  "start_time",
+  "end_time",
+  "specialist_user_id",
+  "mandatory_exercises",
+  "note",
+  "created_at",
+  "updated_at"
+];
 let appointmentStatusHistorySchemaInitPromise = null;
 let appointmentPlannerReportIndexInitPromise = null;
 let appointmentSettingsColumnFlagsPromise = null;
+let vipClassDailyRoutineSchemaInitPromise = null;
 
 export {
   DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS,
@@ -259,6 +283,38 @@ async function ensureAppointmentPlannerReportIndexes() {
   }
 
   return appointmentPlannerReportIndexInitPromise;
+}
+
+async function ensureVipClassDailyRoutineSchema() {
+  if (!vipClassDailyRoutineSchemaInitPromise) {
+    vipClassDailyRoutineSchemaInitPromise = (async () => {
+      const existingTables = await getExistingTableNames({
+        tableNames: [VIP_CLASS_DAILY_ROUTINES_TABLE]
+      });
+      if (!existingTables.has(VIP_CLASS_DAILY_ROUTINES_TABLE)) {
+        throw createMigrationRequiredError("VIP class daily routine migration is required.", {
+          missingTables: [VIP_CLASS_DAILY_ROUTINES_TABLE]
+        });
+      }
+
+      const existingColumns = await getTableColumnNames({
+        tableName: VIP_CLASS_DAILY_ROUTINES_TABLE
+      });
+      const missingColumns = getMissingNames(existingColumns, VIP_CLASS_DAILY_ROUTINE_REQUIRED_COLUMNS);
+      if (missingColumns.length > 0) {
+        throw createMigrationRequiredError("VIP class daily routine migration is required.", {
+          missingColumns: {
+            [VIP_CLASS_DAILY_ROUTINES_TABLE]: missingColumns
+          }
+        });
+      }
+    })().catch((error) => {
+      vipClassDailyRoutineSchemaInitPromise = null;
+      throw error;
+    });
+  }
+
+  return vipClassDailyRoutineSchemaInitPromise;
 }
 
 function getAppointmentSchedulesTableName() {
@@ -894,6 +950,8 @@ async function assertWorkScheduleTargetsHaveNoVipRoutines({
     return;
   }
 
+  await ensureVipClassDailyRoutineSchema();
+
   const { rows } = await pool.query(
     `SELECT vdr.day_of_week,
        TO_CHAR(vdr.start_time, 'HH24:MI') AS routine_start_time,
@@ -1044,6 +1102,8 @@ async function listVipDailyRoutineScheduleItems({
   if (!normalizedSpecialistId) {
     return [];
   }
+
+  await ensureVipClassDailyRoutineSchema();
 
   const params = [organizationId, dateFrom, dateTo, normalizedSpecialistId];
   const whereParts = [
@@ -2895,6 +2955,8 @@ export async function replaceAppointmentBreaksBySpecialist({
       throw error;
     }
 
+    await ensureVipClassDailyRoutineSchema();
+
     const { rows: vipConflictRows } = await trx.query(
       `WITH incoming AS (
          SELECT
@@ -3081,6 +3143,8 @@ export async function hasVipRoutineConflictForSpecialist({
   endTime,
   db = pool
 }) {
+  await ensureVipClassDailyRoutineSchema();
+
   const { rows } = await (db || pool).query(
     `SELECT 1
        FROM vip_class_daily_routines vdr

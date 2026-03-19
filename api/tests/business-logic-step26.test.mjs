@@ -88,6 +88,25 @@ test("vip tutor assignment update requires update permission when assignment alr
         rows: (Array.isArray(params[1]) ? params[1] : []).map((tableName) => ({ table_name: tableName }))
       };
     }
+    if (queryText.includes("FROM information_schema.columns")) {
+      return {
+        rows: [
+          { column_name: "organization_id" },
+          { column_name: "class_assignment_id" },
+          { column_name: "day_of_week" },
+          { column_name: "activity_type" },
+          { column_name: "start_time" },
+          { column_name: "end_time" },
+          { column_name: "specialist_user_id" },
+          { column_name: "mandatory_exercises" },
+          { column_name: "note" },
+          { column_name: "created_by" },
+          { column_name: "updated_by" },
+          { column_name: "created_at" },
+          { column_name: "updated_at" }
+        ]
+      };
+    }
     if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
       return {
         rows: [
@@ -293,6 +312,25 @@ test("vip attendance update requires update permission when attendance already e
     if (queryText.includes("FROM information_schema.tables")) {
       return {
         rows: (Array.isArray(params[1]) ? params[1] : []).map((tableName) => ({ table_name: tableName }))
+      };
+    }
+    if (queryText.includes("FROM information_schema.columns")) {
+      return {
+        rows: [
+          { column_name: "organization_id" },
+          { column_name: "class_assignment_id" },
+          { column_name: "day_of_week" },
+          { column_name: "activity_type" },
+          { column_name: "start_time" },
+          { column_name: "end_time" },
+          { column_name: "specialist_user_id" },
+          { column_name: "mandatory_exercises" },
+          { column_name: "note" },
+          { column_name: "created_by" },
+          { column_name: "updated_by" },
+          { column_name: "created_at" },
+          { column_name: "updated_at" }
+        ]
       };
     }
     if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
@@ -507,6 +545,25 @@ test("vip daily routine save blocks overlapping routine times for the same speci
     if (queryText.includes("FROM information_schema.tables")) {
       return {
         rows: (Array.isArray(params[1]) ? params[1] : []).map((tableName) => ({ table_name: tableName }))
+      };
+    }
+    if (queryText.includes("FROM information_schema.columns")) {
+      return {
+        rows: [
+          { column_name: "organization_id" },
+          { column_name: "class_assignment_id" },
+          { column_name: "day_of_week" },
+          { column_name: "activity_type" },
+          { column_name: "start_time" },
+          { column_name: "end_time" },
+          { column_name: "specialist_user_id" },
+          { column_name: "mandatory_exercises" },
+          { column_name: "note" },
+          { column_name: "created_by" },
+          { column_name: "updated_by" },
+          { column_name: "created_at" },
+          { column_name: "updated_at" }
+        ]
       };
     }
     if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
@@ -1429,6 +1486,95 @@ test("vip client search returns migration-required when vip schema is missing", 
 
     assert.equal(reply.state.statusCode, 409);
     assert.equal(reply.state.payload?.code, "MIGRATION_REQUIRED");
+  } finally {
+    clearRolePermissionsCache();
+    resetClientsServiceSchemaCacheForTests();
+    restoreQuery();
+  }
+});
+
+test("vip daily routines list returns migration-required when specialist schema columns are missing", async () => {
+  const recorder = createRouteRecorder();
+  await clientsRoutes(recorder.fastify);
+
+  const route = recorder.routes.find((item) => item.method === "GET" && item.path === "/vip-class-daily-routines");
+  assert.equal(typeof route?.handler, "function");
+
+  clearRolePermissionsCache();
+  resetClientsServiceSchemaCacheForTests();
+  const restoreQuery = stubPoolQuery(async (sql, params = []) => {
+    const queryText = String(sql || "");
+
+    if (queryText.includes("FROM information_schema.tables")) {
+      return {
+        rows: [
+          { table_name: "vip_class_teacher_assignments" },
+          { table_name: "vip_client_tutor_assignments" },
+          { table_name: "vip_class_teacher_assignment_history" },
+          { table_name: "vip_client_tutor_assignment_history" },
+          { table_name: "vip_class_daily_routines" }
+        ]
+      };
+    }
+    if (queryText.includes("FROM information_schema.columns")) {
+      return {
+        rows: [
+          { column_name: "organization_id" },
+          { column_name: "class_assignment_id" },
+          { column_name: "day_of_week" },
+          { column_name: "activity_type" },
+          { column_name: "start_time" },
+          { column_name: "end_time" },
+          { column_name: "note" },
+          { column_name: "created_by" },
+          { column_name: "updated_by" },
+          { column_name: "created_at" },
+          { column_name: "updated_at" }
+        ]
+      };
+    }
+    if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
+      return {
+        rows: [
+          { code: "appointments.vip-clients.read" },
+          { code: "appointments.vip-clients.daily-routines" },
+          { code: "appointments.vip-clients.scope.all" }
+        ]
+      };
+    }
+    if (queryText.includes("FROM vip_class_teacher_assignments va")) {
+      return { rows: [] };
+    }
+
+    throw new Error(`Unexpected query in test: ${queryText}`);
+  });
+
+  try {
+    const reply = createReplyRecorder();
+    await route.handler({
+      authContext: {
+        userId: 7,
+        organizationId: 3,
+        requester: {
+          id: 7,
+          role_id: 11,
+          is_admin: false,
+          is_platform_admin: false,
+          role_label: "teacher",
+          position_label: "staff",
+          organization_allowed_features: ["vip_clients.daily_routines"]
+        }
+      },
+      query: { limit: "2000" },
+      log: { error() {} }
+    }, reply);
+
+    assert.equal(reply.state.statusCode, 409);
+    assert.equal(reply.state.payload?.code, "MIGRATION_REQUIRED");
+    assert.deepEqual(reply.state.payload?.details?.missingColumns?.vip_class_daily_routines, [
+      "specialist_user_id",
+      "mandatory_exercises"
+    ]);
   } finally {
     clearRolePermissionsCache();
     resetClientsServiceSchemaCacheForTests();

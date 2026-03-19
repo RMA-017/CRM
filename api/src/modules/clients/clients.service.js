@@ -3,7 +3,9 @@ import { getTodayYmd } from "../../lib/date.js";
 import { createTtlCache } from "../../lib/ttl-cache.js";
 import {
   createMigrationRequiredError,
-  getExistingTableNames
+  getExistingTableNames,
+  getMissingNames,
+  getTableColumnNames
 } from "../../lib/schema-guard.js";
 import {
   normalizeVipClassDailyRoutineActivityType,
@@ -23,6 +25,21 @@ const vipNormMonitoringCache = createTtlCache({
   maxEntries: 64,
   defaultTtlMs: 30_000
 });
+const VIP_CLASS_DAILY_ROUTINES_REQUIRED_COLUMNS = [
+  "organization_id",
+  "class_assignment_id",
+  "day_of_week",
+  "activity_type",
+  "start_time",
+  "end_time",
+  "specialist_user_id",
+  "mandatory_exercises",
+  "note",
+  "created_by",
+  "updated_by",
+  "created_at",
+  "updated_at"
+];
 
 function cloneVipAssignableUsers(items) {
   return (Array.isArray(items) ? items : []).map((item) => ({
@@ -153,6 +170,18 @@ async function ensureVipClassDailyRoutinesSchema() {
       const missingTables = ["vip_class_daily_routines"].filter((tableName) => !existingTables.has(tableName));
       if (missingTables.length > 0) {
         throw buildMissingTablesError("VIP class daily routine migration is required.", missingTables);
+      }
+
+      const existingColumns = await getTableColumnNames({
+        tableName: "vip_class_daily_routines"
+      });
+      const missingColumns = getMissingNames(existingColumns, VIP_CLASS_DAILY_ROUTINES_REQUIRED_COLUMNS);
+      if (missingColumns.length > 0) {
+        throw createMigrationRequiredError("VIP class daily routine migration is required.", {
+          missingColumns: {
+            vip_class_daily_routines: missingColumns
+          }
+        });
       }
     })().catch((error) => {
       vipClassDailyRoutinesSchemaInitPromise = null;

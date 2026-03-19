@@ -517,6 +517,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
 
         return reply.send({ items });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "VIP class daily routine migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error fetching appointment schedules");
         return reply.status(500).send({ message: "Internal server error." });
       }

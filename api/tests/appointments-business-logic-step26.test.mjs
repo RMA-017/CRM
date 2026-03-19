@@ -325,6 +325,45 @@ test("vip schedules read allows my class permission without general appointments
   assert.equal(reply.state.payload?.items?.[0]?.id, "91");
 });
 
+test("vip schedules read returns migration-required when VIP routine schema is missing", async () => {
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      getAppointmentSchedulesByRange: async () => {
+        const error = new Error("VIP class daily routine migration is required.");
+        error.code = "MIGRATION_REQUIRED";
+        error.details = {
+          missingColumns: {
+            vip_class_daily_routines: ["specialist_user_id", "mandatory_exercises"]
+          }
+        };
+        throw error;
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "GET", "/schedules");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler({
+    ...createAccessRequest({ features: ["appointments.planner"] }),
+    query: {
+      dateFrom: "2026-03-16",
+      dateTo: "2026-03-21",
+      specialistId: "74"
+    }
+  }, reply);
+
+  assert.equal(reply.state.statusCode, 409);
+  assert.equal(reply.state.payload?.code, "MIGRATION_REQUIRED");
+  assert.deepEqual(reply.state.payload?.details?.missingColumns?.vip_class_daily_routines, [
+    "specialist_user_id",
+    "mandatory_exercises"
+  ]);
+});
+
 test("client no-show summary blocks assigned-scope access to unassigned VIP clients", async () => {
   const recorder = createRouteRecorder();
   registerAppointmentReferenceRoutes(
