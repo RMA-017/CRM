@@ -64,7 +64,6 @@ const VIP_DAILY_ROUTINE_DAY_LABEL_BY_VALUE = Object.freeze(
     return acc;
   }, {})
 );
-const VIP_DAILY_ROUTINE_MANDATORY_EXERCISES_MAX_LENGTH = 500;
 const VIP_DAILY_ROUTINE_NOTE_MAX_LENGTH = 255;
 const PANEL_LOADING_FALLBACK = (
   <div className="all-users-panel" aria-hidden="true" />
@@ -474,8 +473,7 @@ function ProfileMainContent({
     saveVipAssignment,
     maxAbsentReasonLength: VIP_ATTENDANCE_ABSENT_REASON_MAX_LENGTH,
     maxEditNoteLength: VIP_ATTENDANCE_EDIT_NOTE_MAX_LENGTH,
-    vipDailyRoutineNoteMaxLength: VIP_DAILY_ROUTINE_NOTE_MAX_LENGTH,
-    vipDailyRoutineMandatoryExercisesMaxLength: VIP_DAILY_ROUTINE_MANDATORY_EXERCISES_MAX_LENGTH
+    vipDailyRoutineNoteMaxLength: VIP_DAILY_ROUTINE_NOTE_MAX_LENGTH
   });
 
   useEffect(() => {
@@ -1289,7 +1287,6 @@ function ProfileMainContent({
             vipDailyRoutineActivityOptions={VIP_DAILY_ROUTINE_ACTIVITY_OPTIONS}
             vipDailyRoutineVisibleWeekDays={vipDailyRoutineVisibleWeekDays}
             setVipDailyRoutineEditModal={setVipDailyRoutineEditModal}
-            vipDailyRoutineMandatoryExercisesMaxLength={VIP_DAILY_ROUTINE_MANDATORY_EXERCISES_MAX_LENGTH}
             vipDailyRoutineNoteMaxLength={VIP_DAILY_ROUTINE_NOTE_MAX_LENGTH}
             vipDailyRoutineEditSaving={vipDailyRoutineEditSaving}
             vipDailyRoutineDeleteModal={vipDailyRoutineDeleteModal}

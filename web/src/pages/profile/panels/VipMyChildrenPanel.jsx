@@ -248,7 +248,6 @@ function VipMyChildrenPanel({
       itemType: "daily-routine",
       status: "routine",
       routineLabel: formatVipDailyRoutineActivityLabel(routine?.activityType || routine?.activity_type),
-      mandatoryExercises: String(routine?.mandatoryExercises || routine?.mandatory_exercises || "").trim(),
       note: String(routine?.note || "").trim(),
       startTime,
       endTime,
@@ -307,18 +306,15 @@ function VipMyChildrenPanel({
       : (String(item?.specialistName || "").trim() || "-");
     const specialistPosition = String(item?.specialistPosition || "").trim();
     const serviceName = String(item?.serviceName || "").trim();
-    const mandatoryExercises = String(item?.mandatoryExercises || "").trim();
     const note = String(item?.note || "").trim();
     const secondaryLabel = isRoutineItem
-      ? (mandatoryExercises || note || "Daily routine")
+      ? (note || "Daily routine")
       : (specialistPosition || serviceName || "-");
     const status = isRoutineItem
       ? "routine"
       : String(item?.status || "").trim().toLowerCase();
     const statusLabel = isRoutineItem ? "Routine" : formatAppointmentStatusLabel(status);
-    const extraNote = isRoutineItem
-      ? (mandatoryExercises ? note : "")
-      : note;
+    const extraNote = isRoutineItem ? "" : note;
     const isPending = !isRoutineItem && status === "pending";
     const itemIdKey = String(item?.id || item?.appointmentId || "").trim();
     const isConfirming = Boolean(itemIdKey && confirmingByAppointmentId?.[itemIdKey]);

@@ -125,7 +125,6 @@ function VipDailyRoutinesPanel({
               <th>Day</th>
               <th>Time</th>
               <th>Activity</th>
-              <th>Mandatory exercises</th>
               <th>Note</th>
               <th>Edit</th>
               <th>Delete</th>
@@ -135,7 +134,7 @@ function VipDailyRoutinesPanel({
             {vipDailyRoutineLoading ? (
               [0, 1, 2, 3, 4].map((i) => (
                 <tr key={i} aria-hidden="true">
-                  <td colSpan="11" className="skel" />
+                  <td colSpan="10" className="skel" />
                 </tr>
               ))
             ) : pageRows.map((row, index) => {
@@ -155,7 +154,6 @@ function VipDailyRoutinesPanel({
                   <td>{formatVipDailyRoutineDayLabel(row?.dayOfWeek)}</td>
                   <td>{timeRange}</td>
                   <td>{formatVipDailyRoutineActivityLabel(row?.activityType)}</td>
-                  <td>{String(row?.mandatoryExercises || "").trim() || "-"}</td>
                   <td>{String(row?.note || "").trim() || "-"}</td>
                   <td>
                     <button

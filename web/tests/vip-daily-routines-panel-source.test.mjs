@@ -41,9 +41,9 @@ test("VIP daily routines panel uses shared custom selects for filters", async ()
     "VIP daily routines table should expose the selected specialist column."
   );
 
-  assert.match(
+  assert.doesNotMatch(
     source,
     /<th>Mandatory exercises<\/th>/,
-    "VIP daily routines table should expose the mandatory exercises column."
+    "VIP daily routines table should no longer expose the removed mandatory exercises column."
   );
 });

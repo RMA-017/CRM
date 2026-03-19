@@ -292,7 +292,6 @@ export function mapVipClassDailyRoutineItem(item) {
   const activityType = String(item?.activityType || item?.activity_type || "").trim().toLowerCase();
   const startTime = String(item?.startTime || item?.start_time || "").trim();
   const endTime = String(item?.endTime || item?.end_time || "").trim();
-  const mandatoryExercises = String(item?.mandatoryExercises || item?.mandatory_exercises || "").trim();
   const note = String(item?.note || "").trim();
   return {
     id,
@@ -308,7 +307,6 @@ export function mapVipClassDailyRoutineItem(item) {
     activityType,
     startTime,
     endTime,
-    mandatoryExercises,
     note
   };
 }

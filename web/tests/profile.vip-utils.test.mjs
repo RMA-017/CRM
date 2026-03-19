@@ -38,7 +38,7 @@ test("vip daily routine formatter keeps labels stable for strict and legacy valu
   assert.equal(formatVipDailyRoutineActivityLabel("unknown"), "-");
 });
 
-test("vip daily routine item mapping preserves mandatory exercises", () => {
+test("vip daily routine item mapping keeps specialist and note fields stable", () => {
   assert.deepEqual(
     mapVipClassDailyRoutineItem({
       id: "7",
@@ -53,7 +53,6 @@ test("vip daily routine item mapping preserves mandatory exercises", () => {
       activity_type: "lesson",
       start_time: "09:00",
       end_time: "10:00",
-      mandatory_exercises: "Workbook pages 4-5",
       note: "Bring pencils"
     }),
     {
@@ -70,7 +69,6 @@ test("vip daily routine item mapping preserves mandatory exercises", () => {
       activityType: "lesson",
       startTime: "09:00",
       endTime: "10:00",
-      mandatoryExercises: "Workbook pages 4-5",
       note: "Bring pencils"
     }
   );

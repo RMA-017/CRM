@@ -3,7 +3,7 @@ import test from "node:test";
 
 import pool from "../src/config/db.js";
 import {
-  findVipClassDailyRoutineConflictForSpecialist,
+  getVipClassDailyRoutineSpecialists,
   resetClientsServiceSchemaCacheForTests
 } from "../src/modules/clients/clients.service.js";
 
@@ -15,11 +15,9 @@ function stubPoolQuery(implementation) {
   };
 }
 
-test("VIP daily routine specialist overlap lookup excludes the current routine on edit", async () => {
-  let capturedSql = "";
-  let capturedParams = [];
-
+test("VIP daily routine specialist picker only keeps specialist-role users", async () => {
   resetClientsServiceSchemaCacheForTests();
+
   const restoreQuery = stubPoolQuery(async (sql, params = []) => {
     const queryText = String(sql || "");
 
@@ -47,18 +45,26 @@ test("VIP daily routine specialist overlap lookup excludes the current routine o
         ]
       };
     }
-    if (queryText.includes("FROM vip_class_daily_routines r") && queryText.includes("r.specialist_user_id = $2")) {
-      capturedSql = queryText;
-      capturedParams = Array.isArray(params) ? params : [];
+    if (queryText.includes("FROM specialist_sources ss")) {
       return {
-        rows: [{
-          id: "81",
-          class_assignment_id: "12",
-          class_name: "Alpha",
-          activity_type: "afternoon-snack",
-          start_time: "09:00",
-          end_time: "10:00"
-        }]
+        rows: [
+          {
+            class_assignment_id: "99",
+            specialist_user_id: "9",
+            specialist_name: "Ali",
+            position_label: "Speech therapist",
+            role_label: "Specialist",
+            specialist_role: "Speech therapist"
+          },
+          {
+            class_assignment_id: "99",
+            specialist_user_id: "10",
+            specialist_name: "Teacher",
+            position_label: "",
+            role_label: "Teacher",
+            specialist_role: "Teacher"
+          }
+        ]
       };
     }
 
@@ -66,25 +72,20 @@ test("VIP daily routine specialist overlap lookup excludes the current routine o
   });
 
   try {
-    const conflict = await findVipClassDailyRoutineConflictForSpecialist({
+    const items = await getVipClassDailyRoutineSpecialists({
       organizationId: 3,
-      routineId: 55,
-      specialistId: 9,
-      dayOfWeek: 1,
-      startTime: "09:30",
-      endTime: "09:45"
+      classId: 99,
+      limit: 50
     });
 
-    assert.match(capturedSql, /r\.id <> \$6/);
-    assert.deepEqual(capturedParams, [3, 9, 1, "09:30", "09:45", 55]);
-    assert.deepEqual(conflict, {
-      routineId: "81",
-      classId: "12",
-      className: "Alpha",
-      activityType: "afternoon-snack",
-      startTime: "09:00",
-      endTime: "10:00"
-    });
+    assert.deepEqual(items, [
+      {
+        class_assignment_id: "99",
+        specialist_user_id: "9",
+        specialist_name: "Ali",
+        specialist_role: "Speech therapist"
+      }
+    ]);
   } finally {
     resetClientsServiceSchemaCacheForTests();
     restoreQuery();

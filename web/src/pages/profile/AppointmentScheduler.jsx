@@ -603,7 +603,8 @@ function mapScheduleItemToPlannerCard(item) {
     durationMinutes: String(item?.durationMinutes || "").trim() || getDurationMinutesFromTimes(startTime, item?.endTime),
     client: isRoutineItem
       ? (
-        String(item?.serviceName || "").trim()
+        String(item?.className || "").trim()
+        || String(item?.serviceName || "").trim()
         || "VIP Daily Routine"
       )
       : getClientCardName({
@@ -617,17 +618,15 @@ function mapScheduleItemToPlannerCard(item) {
     isVip: Boolean(item?.isVip),
     service: isRoutineItem
       ? (
-        String(item?.mandatoryExercises || "").trim()
+        String(item?.serviceName || "").trim()
         || String(item?.note || "").trim()
-        || String(item?.className || "").trim()
-        || "VIP Daily Routine"
+        || "Daily routine"
       )
       : String(item?.serviceName || "").trim(),
     status: isRoutineItem
       ? "routine"
       : String(item?.status || "pending").trim().toLowerCase(),
     note: String(item?.note || "").trim(),
-    mandatoryExercises: String(item?.mandatoryExercises || "").trim(),
     activityType: String(item?.activityType || "").trim().toLowerCase(),
     className: String(item?.className || "").trim(),
     repeatType: String(item?.repeatType || "none").trim().toLowerCase(),
@@ -2479,7 +2478,6 @@ function AppointmentScheduler({
 
         const routineId = String(routine?.id || "").trim() || `${classId}-${dayKey}-${startTime}-${index}`;
         const activityLabel = formatVipDailyRoutineActivityLabel(routine?.activityType || routine?.activity_type);
-        const mandatoryExercises = String(routine?.mandatoryExercises || routine?.mandatory_exercises || "").trim();
         const note = String(routine?.note || "").trim();
         const timeLabel = formatAppointmentTimeRangeLabel(startTime, endTime) || startTime;
         const startMinutes = normalizeTimeToMinutes(startTime);
@@ -2491,7 +2489,7 @@ function AppointmentScheduler({
           startMinutes,
           timeLabel,
           primaryText: activityLabel,
-          secondaryText: mandatoryExercises || note || "Daily routine",
+          secondaryText: note || "Daily routine",
           status: "routine",
           specialistId: "",
           clientId: "",
@@ -2500,7 +2498,6 @@ function AppointmentScheduler({
           endTime,
           durationMinutes: getDurationMinutesFromTimes(startTime, endTime),
           serviceName: activityLabel,
-          mandatoryExercises,
           note
         });
       });

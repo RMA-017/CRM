@@ -1108,7 +1108,7 @@ async function listVipDailyRoutineScheduleItems({
   const params = [organizationId, dateFrom, dateTo, normalizedSpecialistId];
   const whereParts = [
     "vdr.organization_id = $1",
-    "COALESCE(vdr.specialist_user_id, vcta.teacher_user_id) = $4"
+    "vdr.specialist_user_id = $4"
   ];
 
   if (normalizedClientId > 0) {
@@ -1131,7 +1131,7 @@ async function listVipDailyRoutineScheduleItems({
      SELECT
        vdr.id,
        vdr.organization_id,
-       COALESCE(vdr.specialist_user_id, vcta.teacher_user_id) AS specialist_id,
+       vdr.specialist_user_id AS specialist_id,
        ds.routine_date AS appointment_date,
        TO_CHAR(vdr.start_time, 'HH24:MI') AS start_time,
        TO_CHAR(vdr.end_time, 'HH24:MI') AS end_time,
@@ -1154,7 +1154,7 @@ async function listVipDailyRoutineScheduleItems({
        COALESCE(
          NULLIF(TRIM(specialist_u.full_name), ''),
          NULLIF(TRIM(specialist_u.username), ''),
-         CONCAT('User #', COALESCE(vdr.specialist_user_id, vcta.teacher_user_id)::text)
+         CONCAT('User #', vdr.specialist_user_id::text)
        ) AS specialist_name,
        COALESCE(NULLIF(TRIM(specialist_p.label), ''), NULLIF(TRIM(specialist_r.label), ''), 'Specialist') AS specialist_position,
        TRUE AS is_vip,
@@ -1167,7 +1167,7 @@ async function listVipDailyRoutineScheduleItems({
       JOIN day_series ds
         ON EXTRACT(ISODOW FROM ds.routine_date)::smallint = vdr.day_of_week
       LEFT JOIN users specialist_u
-        ON specialist_u.id = COALESCE(vdr.specialist_user_id, vcta.teacher_user_id)
+        ON specialist_u.id = vdr.specialist_user_id
        AND specialist_u.organization_id = vdr.organization_id
       LEFT JOIN role_options specialist_r
         ON specialist_r.id = specialist_u.role_id

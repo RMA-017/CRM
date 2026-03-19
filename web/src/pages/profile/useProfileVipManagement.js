@@ -8,6 +8,8 @@ import {
   normalizeMyChildrenVisibleWeekDays
 } from "./profile.vip-utils.js";
 
+const VIP_DAILY_ROUTINE_NO_SPECIALIST_VALUE = "__none__";
+
 function formatVipDailyRoutineClassLabel(item) {
   const classId = String(item?.id || item?.classId || item?.class_id || "").trim();
   const className = String(item?.className || item?.class_name || "").trim();
@@ -51,8 +53,7 @@ export default function useProfileVipManagement({
   saveVipAssignment,
   maxAbsentReasonLength,
   maxEditNoteLength,
-  vipDailyRoutineNoteMaxLength,
-  vipDailyRoutineMandatoryExercisesMaxLength
+  vipDailyRoutineNoteMaxLength
 }) {
   const [vipAttendanceFilter, setVipAttendanceFilter] = useState("all");
   const [vipAttendanceClassFilter, setVipAttendanceClassFilter] = useState("all");
@@ -78,11 +79,11 @@ export default function useProfileVipManagement({
     open: false,
     id: "",
     classId: "",
+    specialistId: "",
     dayOfWeek: [],
     activityType: "lesson",
     startTime: "",
     endTime: "",
-    mandatoryExercises: "",
     note: "",
     error: ""
   });
@@ -196,7 +197,6 @@ export default function useProfileVipManagement({
       activityType: "lesson",
       startTime: "",
       endTime: "",
-      mandatoryExercises: "",
       note: "",
       error: ""
     });
@@ -515,24 +515,30 @@ export default function useProfileVipManagement({
       .map((item) => {
         const specialistId = String(item?.specialistId || "").trim();
         const specialistName = String(item?.specialistName || "").trim();
-        const specialistRole = String(item?.specialistRole || "").trim();
         if (!specialistId) {
           return null;
         }
         return {
           value: specialistId,
-          label: specialistRole ? `${specialistName || `Specialist #${specialistId}`} (${specialistRole})` : (specialistName || `Specialist #${specialistId}`)
+          label: specialistName || `Specialist #${specialistId}`
         };
       })
       .filter(Boolean);
     const seen = new Set();
-    return items.filter((item) => {
+    const uniqueItems = items.filter((item) => {
       if (!item?.value || seen.has(item.value)) {
         return false;
       }
       seen.add(item.value);
       return true;
     });
+    if (!selectedClassId) {
+      return uniqueItems;
+    }
+    return [
+      { value: VIP_DAILY_ROUTINE_NO_SPECIALIST_VALUE, label: "No specialist" },
+      ...uniqueItems
+    ];
   }, [vipDailyRoutineEditModal.classId, vipDailyRoutineSpecialists]);
 
   const vipDailyRoutineRows = sortVipClassDailyRoutineRows(vipDailyRoutineItems);
@@ -542,14 +548,13 @@ export default function useProfileVipManagement({
       return;
     }
     const selectedSpecialistId = String(vipDailyRoutineEditModal.specialistId || "").trim();
-    const fallbackSpecialistId = String(vipDailyRoutineSpecialistOptions[0]?.value || "").trim();
     const specialistStillAvailable = vipDailyRoutineSpecialistOptions.some((item) => item.value === selectedSpecialistId);
-    if ((selectedSpecialistId && specialistStillAvailable) || (!selectedSpecialistId && !fallbackSpecialistId)) {
+    if (!selectedSpecialistId || specialistStillAvailable) {
       return;
     }
     setVipDailyRoutineEditModal((prev) => ({
       ...prev,
-      specialistId: specialistStillAvailable ? selectedSpecialistId : fallbackSpecialistId
+      specialistId: ""
     }));
   }, [
     vipDailyRoutineEditModal.open,
@@ -559,20 +564,15 @@ export default function useProfileVipManagement({
 
   function openVipDailyRoutineAddModal() {
     const preferredClassId = String(vipDailyRoutineClassOptions[0]?.value || "").trim();
-    const preferredSpecialistId = String(
-      (Array.isArray(vipDailyRoutineSpecialists) ? vipDailyRoutineSpecialists : [])
-        .find((item) => String(item?.classId || "").trim() === preferredClassId)?.specialistId || ""
-    ).trim();
     setVipDailyRoutineEditModal({
       open: true,
       id: "",
       classId: preferredClassId,
-      specialistId: preferredSpecialistId,
+      specialistId: "",
       dayOfWeek: [],
       activityType: "lesson",
       startTime: "",
       endTime: "",
-      mandatoryExercises: "",
       note: "",
       error: ""
     });
@@ -593,7 +593,6 @@ export default function useProfileVipManagement({
       activityType: normalizeVipDailyRoutineActivityType(row?.activityType) || "lesson",
       startTime: String(row?.startTime || "").trim(),
       endTime: String(row?.endTime || "").trim(),
-      mandatoryExercises: String(row?.mandatoryExercises || "").trim(),
       note: String(row?.note || "").trim(),
       error: ""
     });
@@ -610,7 +609,6 @@ export default function useProfileVipManagement({
       activityType: "lesson",
       startTime: "",
       endTime: "",
-      mandatoryExercises: "",
       note: "",
       error: ""
     });
@@ -648,15 +646,10 @@ export default function useProfileVipManagement({
     const activityType = normalizeVipDailyRoutineActivityType(vipDailyRoutineEditModal.activityType);
     const startTime = String(vipDailyRoutineEditModal.startTime || "").trim();
     const endTime = String(vipDailyRoutineEditModal.endTime || "").trim();
-    const mandatoryExercises = String(vipDailyRoutineEditModal.mandatoryExercises || "").trim();
     const note = String(vipDailyRoutineEditModal.note || "").trim();
 
     if (!classId) {
       setVipDailyRoutineModalError("Class is required.");
-      return;
-    }
-    if (!specialistId) {
-      setVipDailyRoutineModalError("Specialist is required.");
       return;
     }
     if (daysArray.length === 0) {
@@ -675,12 +668,6 @@ export default function useProfileVipManagement({
       setVipDailyRoutineModalError("End time must be later than start time.");
       return;
     }
-    if (mandatoryExercises.length > vipDailyRoutineMandatoryExercisesMaxLength) {
-      setVipDailyRoutineModalError(
-        `Mandatory exercises are too long (max ${vipDailyRoutineMandatoryExercisesMaxLength}).`
-      );
-      return;
-    }
     if (note.length > vipDailyRoutineNoteMaxLength) {
       setVipDailyRoutineModalError(`Note is too long (max ${vipDailyRoutineNoteMaxLength}).`);
       return;
@@ -691,12 +678,11 @@ export default function useProfileVipManagement({
       const saveResult = await saveVipDailyRoutine({
         id: routineId,
         classId,
-        specialistId,
+        specialistId: specialistId || null,
         dayOfWeek: Number.parseInt(daysArray[0], 10),
         activityType,
         startTime,
         endTime,
-        mandatoryExercises,
         note
       });
       if (!saveResult?.ok) {
@@ -709,12 +695,11 @@ export default function useProfileVipManagement({
         const saveResult = await saveVipDailyRoutine({
           id: "",
           classId,
-          specialistId,
+          specialistId: specialistId || null,
           dayOfWeek: Number.parseInt(day, 10),
           activityType,
           startTime,
           endTime,
-          mandatoryExercises,
           note
         });
         if (!saveResult?.ok) {

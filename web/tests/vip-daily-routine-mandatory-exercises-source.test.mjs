@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 
-test("VIP daily routines wire mandatory exercises and specialist selection through modal, save, and shared views", async () => {
+test("VIP daily routines keep specialist selection optional while planner cards show class and activity", async () => {
   const [modalsSource, sectionSource, managementSource, schedulerSource, myChildrenSource] = await Promise.all([
     readFile(new URL("../src/pages/profile/panels/VipAssignmentModals.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/pages/profile/useVipDailyRoutinesSection.js", import.meta.url), "utf8"),
@@ -11,40 +11,40 @@ test("VIP daily routines wire mandatory exercises and specialist selection throu
     readFile(new URL("../src/pages/profile/panels/VipMyChildrenPanel.jsx", import.meta.url), "utf8")
   ]);
 
-  assert.match(
+  assert.doesNotMatch(
     modalsSource,
-    /id="vipDailyRoutineMandatoryExercisesInput"[\s\S]*placeholder="Visible to everyone"/,
-    "VIP daily routine modal should expose a mandatory exercises textarea that is marked as visible to everyone."
+    /id="vipDailyRoutineMandatoryExercisesInput"/,
+    "VIP daily routine modal should no longer expose the removed mandatory exercises field."
   );
 
   assert.match(
     modalsSource,
-    /id="vipDailyRoutineSpecialistSelect"[\s\S]*options={vipDailyRoutineSpecialistOptions}/,
-    "VIP daily routine modal should let users choose which specialist the shared routine belongs to."
+    /id="vipDailyRoutineSpecialistSelect"[\s\S]*placeholder=\{String\(vipDailyRoutineEditModal\.classId \|\| ""\)\.trim\(\) \? "Optional specialist" : "Select class first"\}/,
+    "VIP daily routine modal should keep the specialist picker optional."
   );
 
   assert.match(
     sectionSource,
-    /mandatoryExercises:\s*normalizedMandatoryExercises/,
-    "VIP daily routine save requests should send mandatory exercises to the API."
+    /specialistId:\s*normalizedSpecialistId \|\| null/,
+    "VIP daily routine save requests should send the selected specialist when provided and allow null otherwise."
+  );
+
+  assert.doesNotMatch(
+    managementSource,
+    /Specialist is required\./,
+    "VIP daily routine save flow should no longer require a specialist selection."
   );
 
   assert.match(
     managementSource,
-    /if \(!specialistId\) \{\s*setVipDailyRoutineModalError\("Specialist is required\."\);/s,
-    "VIP daily routine save flow should require a specialist selection."
-  );
-
-  assert.match(
-    managementSource,
-    /saveVipDailyRoutine\(\{\s*[\s\S]*specialistId,/,
+    /saveVipDailyRoutine\(\{\s*[\s\S]*specialistId:\s*specialistId \|\| null,/,
     "VIP daily routine save requests should send the selected specialist to the API."
   );
 
   assert.match(
     schedulerSource,
-    /secondaryText:\s*mandatoryExercises \|\| note \|\| "Daily routine"/,
-    "VIP scheduler routine cards should prefer mandatory exercises in the shared routine text."
+    /client:\s*isRoutineItem[\s\S]*String\(item\?\.className \|\| ""\)\.trim\(\)[\s\S]*service:\s*isRoutineItem[\s\S]*String\(item\?\.serviceName \|\| ""\)\.trim\(\)/s,
+    "VIP scheduler routine cards should show class on the primary line and activity on the secondary line."
   );
 
   assert.match(
@@ -53,15 +53,15 @@ test("VIP daily routines wire mandatory exercises and specialist selection throu
     "Specialist planner should render shared daily routines as non-editable routine cards."
   );
 
-  assert.match(
+  assert.doesNotMatch(
     myChildrenSource,
-    /mandatoryExercises:\s*String\(routine\?\.mandatoryExercises \|\| routine\?\.mandatory_exercises \|\| ""\)\.trim\(\)/,
-    "My Children routine items should receive mandatory exercises from shared routine data."
+    /mandatoryExercises/,
+    "My Children routine items should no longer depend on the removed mandatory exercises field."
   );
 
-  assert.match(
+  assert.doesNotMatch(
     myChildrenSource,
-    /\?\s*\(mandatoryExercises \|\| note \|\| "Daily routine"\)/,
-    "My Children routine cards should show mandatory exercises to parents when available."
+    /mandatoryExercises \|\| note/,
+    "My Children routine cards should not try to render mandatory exercises anymore."
   );
 });

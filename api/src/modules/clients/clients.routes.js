@@ -2006,9 +2006,6 @@ async function clientsRoutes(fastify) {
         ?? payload?.specialistUserId
         ?? payload?.specialist_user_id
       );
-      if (!specialistId) {
-        return reply.status(400).send({ field: "specialistId", message: "Specialist is required." });
-      }
 
       const dayOfWeek = normalizeVipDailyRoutineDayOfWeek(
         payload?.dayOfWeek
@@ -2116,102 +2113,104 @@ async function clientsRoutes(fastify) {
             return reply.status(400).send({ field: "classId", message: "Selected class is not allowed." });
           }
         }
-        const allowedSpecialists = await getVipClassDailyRoutineSpecialists({
-          organizationId: authContext.organizationId,
-          classId,
-          assignedUserId,
-          limit: 200
-        });
-        const isAllowedSpecialist = (Array.isArray(allowedSpecialists) ? allowedSpecialists : []).some(
-          (item) => (
-            String(item?.class_assignment_id || "").trim() === String(classId)
-            && String(item?.specialist_user_id || "").trim() === String(specialistId)
-          )
-        );
-        if (!isAllowedSpecialist) {
-          return reply.status(400).send({ field: "specialistId", message: "Selected specialist is not allowed for this class." });
-        }
-
-        const hasRoutineConflict = await findVipClassDailyRoutineConflictForSpecialist({
-          organizationId: authContext.organizationId,
-          routineId,
-          specialistId,
-          dayOfWeek,
-          startTime,
-          endTime
-        });
-        if (hasRoutineConflict) {
-          const conflictClassName = String(hasRoutineConflict?.className || "").trim();
-          const conflictStart = String(hasRoutineConflict?.startTime || "").trim();
-          const conflictEnd = String(hasRoutineConflict?.endTime || "").trim();
-          const conflictActivityType = String(hasRoutineConflict?.activityType || "").trim().replace(/-/g, " ");
-          const conflictDetails = [
-            conflictClassName,
-            conflictStart && conflictEnd ? `${conflictStart}-${conflictEnd}` : "",
-            conflictActivityType ? `(${conflictActivityType})` : ""
-          ].filter(Boolean).join(" ");
-          return reply.status(409).send({
-            message: conflictDetails
-              ? `The selected specialist already has another VIP daily routine at this time: ${conflictDetails}.`
-              : "The selected specialist already has another VIP daily routine at this time."
+        if (specialistId) {
+          const allowedSpecialists = await getVipClassDailyRoutineSpecialists({
+            organizationId: authContext.organizationId,
+            classId,
+            assignedUserId,
+            limit: 200
           });
-        }
+          const isAllowedSpecialist = (Array.isArray(allowedSpecialists) ? allowedSpecialists : []).some(
+            (item) => (
+              String(item?.class_assignment_id || "").trim() === String(classId)
+              && String(item?.specialist_user_id || "").trim() === String(specialistId)
+            )
+          );
+          if (!isAllowedSpecialist) {
+            return reply.status(400).send({ field: "specialistId", message: "Selected specialist is not allowed for this class." });
+          }
 
-        const hasAppointmentConflict = await hasAppointmentConflictForVipRoutine({
-          organizationId: authContext.organizationId,
-          classId,
-          specialistId,
-          dayOfWeek,
-          startTime,
-          endTime
-        });
-        if (hasAppointmentConflict) {
-          const conflictDate = String(hasAppointmentConflict?.appointmentDate || "").trim();
-          const conflictStart = String(hasAppointmentConflict?.startTime || "").trim();
-          const conflictEnd = String(hasAppointmentConflict?.endTime || "").trim();
-          const conflictClientName = String(hasAppointmentConflict?.clientName || "").trim();
-          const conflictDetails = [
-            conflictDate,
-            conflictStart && conflictEnd ? `${conflictStart}-${conflictEnd}` : "",
-            conflictClientName ? `(${conflictClientName})` : ""
-          ].filter(Boolean).join(" ");
-          return reply.status(409).send({
-            message: conflictDetails
-              ? `The selected specialist already has an appointment at this time: ${conflictDetails}.`
-              : "The selected specialist already has an appointment at this time."
+          const hasRoutineConflict = await findVipClassDailyRoutineConflictForSpecialist({
+            organizationId: authContext.organizationId,
+            routineId,
+            specialistId,
+            dayOfWeek,
+            startTime,
+            endTime
           });
-        }
+          if (hasRoutineConflict) {
+            const conflictClassName = String(hasRoutineConflict?.className || "").trim();
+            const conflictStart = String(hasRoutineConflict?.startTime || "").trim();
+            const conflictEnd = String(hasRoutineConflict?.endTime || "").trim();
+            const conflictActivityType = String(hasRoutineConflict?.activityType || "").trim().replace(/-/g, " ");
+            const conflictDetails = [
+              conflictClassName,
+              conflictStart && conflictEnd ? `${conflictStart}-${conflictEnd}` : "",
+              conflictActivityType ? `(${conflictActivityType})` : ""
+            ].filter(Boolean).join(" ");
+            return reply.status(409).send({
+              message: conflictDetails
+                ? `The selected specialist already has another VIP daily routine at this time: ${conflictDetails}.`
+                : "The selected specialist already has another VIP daily routine at this time."
+            });
+          }
 
-        const hasBreakConflict = await hasBreakConflictForVipRoutine({
-          organizationId: authContext.organizationId,
-          classId,
-          specialistId,
-          dayOfWeek,
-          startTime,
-          endTime
-        });
-        if (hasBreakConflict) {
-          return reply.status(409).send({
-            message: "This time slot conflicts with a scheduled break for the selected specialist."
+          const hasAppointmentConflict = await hasAppointmentConflictForVipRoutine({
+            organizationId: authContext.organizationId,
+            classId,
+            specialistId,
+            dayOfWeek,
+            startTime,
+            endTime
           });
-        }
+          if (hasAppointmentConflict) {
+            const conflictDate = String(hasAppointmentConflict?.appointmentDate || "").trim();
+            const conflictStart = String(hasAppointmentConflict?.startTime || "").trim();
+            const conflictEnd = String(hasAppointmentConflict?.endTime || "").trim();
+            const conflictClientName = String(hasAppointmentConflict?.clientName || "").trim();
+            const conflictDetails = [
+              conflictDate,
+              conflictStart && conflictEnd ? `${conflictStart}-${conflictEnd}` : "",
+              conflictClientName ? `(${conflictClientName})` : ""
+            ].filter(Boolean).join(" ");
+            return reply.status(409).send({
+              message: conflictDetails
+                ? `The selected specialist already has an appointment at this time: ${conflictDetails}.`
+                : "The selected specialist already has an appointment at this time."
+            });
+          }
 
-        const hasAbsenceConflict = await hasWorkScheduleAbsenceForVipRoutine({
-          organizationId: authContext.organizationId,
-          specialistId,
-          dayOfWeek
-        });
-        if (hasAbsenceConflict) {
-          return reply.status(409).send({
-            message: "The selected specialist is marked as unavailable on this day of week."
+          const hasBreakConflict = await hasBreakConflictForVipRoutine({
+            organizationId: authContext.organizationId,
+            classId,
+            specialistId,
+            dayOfWeek,
+            startTime,
+            endTime
           });
+          if (hasBreakConflict) {
+            return reply.status(409).send({
+              message: "This time slot conflicts with a scheduled break for the selected specialist."
+            });
+          }
+
+          const hasAbsenceConflict = await hasWorkScheduleAbsenceForVipRoutine({
+            organizationId: authContext.organizationId,
+            specialistId,
+            dayOfWeek
+          });
+          if (hasAbsenceConflict) {
+            return reply.status(409).send({
+              message: "The selected specialist is marked as unavailable on this day of week."
+            });
+          }
         }
 
         const item = await upsertVipClassDailyRoutine({
           organizationId: authContext.organizationId,
           routineId: routineId || null,
           classId,
-          specialistId,
+          specialistId: specialistId || null,
           dayOfWeek,
           activityType,
           startTime,

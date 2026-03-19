@@ -6,6 +6,8 @@ import {
   normalizeMyChildrenVisibleWeekDays
 } from "../profile.vip-utils.js";
 
+const VIP_DAILY_ROUTINE_NO_SPECIALIST_VALUE = "__none__";
+
 function buildVipDayChips(visibleWeekDays = [], selectedDayValues = []) {
   const visibleDayKeys = normalizeMyChildrenVisibleWeekDays(visibleWeekDays);
   const selectedDayKeys = Array.from(
@@ -34,7 +36,6 @@ function VipAssignmentModals({
   vipDailyRoutineActivityOptions,
   vipDailyRoutineVisibleWeekDays,
   setVipDailyRoutineEditModal,
-  vipDailyRoutineMandatoryExercisesMaxLength,
   vipDailyRoutineNoteMaxLength,
   vipDailyRoutineEditSaving,
   vipDailyRoutineDeleteModal,
@@ -163,18 +164,20 @@ function VipAssignmentModals({
                 <span>Specialist</span>
                 <CustomSelect
                   id="vipDailyRoutineSpecialistSelect"
-                  placeholder={vipDailyRoutineSpecialistOptions.length > 0 ? "Select specialist" : "No specialists"}
+                  placeholder={String(vipDailyRoutineEditModal.classId || "").trim() ? "Optional specialist" : "Select class first"}
                   value={String(vipDailyRoutineEditModal.specialistId || "")}
                   options={vipDailyRoutineSpecialistOptions}
                   searchable
                   searchThreshold={8}
                   menuPortal
                   maxVisibleOptions={8}
-                  disabled={vipDailyRoutineSpecialistOptions.length === 0}
+                  disabled={!String(vipDailyRoutineEditModal.classId || "").trim()}
+                  emptyText="No specialist roles found."
                   onChange={(nextValue) => {
+                    const normalizedValue = String(nextValue || "").trim();
                     setVipDailyRoutineEditModal((prev) => ({
                       ...prev,
-                      specialistId: String(nextValue || "").trim(),
+                      specialistId: normalizedValue === VIP_DAILY_ROUTINE_NO_SPECIALIST_VALUE ? "" : normalizedValue,
                       error: ""
                     }));
                   }}
@@ -232,25 +235,6 @@ function VipAssignmentModals({
                 </label>
               </div>
             </div>
-
-            <label htmlFor="vipDailyRoutineMandatoryExercisesInput">
-              <span>Mandatory exercises</span>
-              <textarea
-                id="vipDailyRoutineMandatoryExercisesInput"
-                className="notify-textarea"
-                value={vipDailyRoutineEditModal.mandatoryExercises}
-                maxLength={vipDailyRoutineMandatoryExercisesMaxLength}
-                placeholder="Visible to everyone"
-                onChange={(event) => {
-                  const nextValue = String(event.currentTarget.value || "").slice(0, vipDailyRoutineMandatoryExercisesMaxLength);
-                  setVipDailyRoutineEditModal((prev) => ({
-                    ...prev,
-                    mandatoryExercises: nextValue,
-                    error: ""
-                  }));
-                }}
-              />
-            </label>
 
             <label htmlFor="vipDailyRoutineNoteInput">
               <span>Note</span>

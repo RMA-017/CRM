@@ -530,6 +530,130 @@ test("vip daily routine update blocks assigned-scope users from editing unassign
   }
 });
 
+test("vip daily routine save allows class-level routines without selecting a specialist", async () => {
+  const recorder = createRouteRecorder();
+  await clientsRoutes(recorder.fastify);
+
+  const route = recorder.routes.find((item) => item.method === "PUT" && item.path === "/vip-class-daily-routines");
+  assert.equal(typeof route?.handler, "function");
+
+  let specialistListQueried = false;
+  let specialistConflictQueried = false;
+
+  resetClientsServiceSchemaCacheForTests();
+  clearRolePermissionsCache();
+  const restoreQuery = stubPoolQuery(async (sql, params = []) => {
+    const queryText = String(sql || "");
+
+    if (queryText.includes("FROM information_schema.tables")) {
+      return {
+        rows: (Array.isArray(params[1]) ? params[1] : []).map((tableName) => ({ table_name: tableName }))
+      };
+    }
+    if (queryText.includes("FROM information_schema.columns")) {
+      return {
+        rows: [
+          { column_name: "organization_id" },
+          { column_name: "class_assignment_id" },
+          { column_name: "day_of_week" },
+          { column_name: "activity_type" },
+          { column_name: "start_time" },
+          { column_name: "end_time" },
+          { column_name: "specialist_user_id" },
+          { column_name: "mandatory_exercises" },
+          { column_name: "note" },
+          { column_name: "created_by" },
+          { column_name: "updated_by" },
+          { column_name: "created_at" },
+          { column_name: "updated_at" }
+        ]
+      };
+    }
+    if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
+      return {
+        rows: [
+          { code: "appointments.vip-clients.read" },
+          { code: "appointments.vip-clients.create" },
+          { code: "appointments.vip-clients.daily-routines" },
+          { code: "appointments.vip-clients.scope.all" }
+        ]
+      };
+    }
+    if (queryText.includes("WITH accessible_classes AS") && queryText.includes("FROM specialist_sources ss")) {
+      specialistListQueried = true;
+      return { rows: [] };
+    }
+    if (queryText.includes("FROM vip_class_daily_routines r") && queryText.includes("r.specialist_user_id = $2")) {
+      specialistConflictQueried = true;
+      return { rows: [] };
+    }
+    if (queryText.includes("INSERT INTO vip_class_daily_routines")) {
+      return {
+        rows: [{
+          id: "88",
+          class_assignment_id: "99",
+          class_name: "Alpha",
+          teacher_user_id: "4",
+          teacher_name: "Teacher",
+          specialist_user_id: null,
+          specialist_name: "",
+          specialist_role: "",
+          children_count: 5,
+          day_of_week: 1,
+          activity_type: "lesson",
+          start_time: "09:00",
+          end_time: "10:00",
+          mandatory_exercises: "",
+          note: "Math topic",
+          created_by: "7",
+          updated_by: "7",
+          created_at: "2026-03-19T09:00:00.000Z",
+          updated_at: "2026-03-19T09:00:00.000Z"
+        }]
+      };
+    }
+
+    throw new Error(`Unexpected query in test: ${queryText}`);
+  });
+
+  try {
+    const reply = createReplyRecorder();
+    await route.handler({
+      authContext: {
+        userId: 7,
+        organizationId: 3,
+        requester: {
+          id: 7,
+          role_id: 11,
+          is_admin: false,
+          is_platform_admin: false,
+          role_label: "manager",
+          position_label: "staff",
+          organization_allowed_features: ["vip_clients.daily_routines"]
+        }
+      },
+      body: {
+        classId: "99",
+        dayOfWeek: "1",
+        activityType: "lesson",
+        startTime: "09:00",
+        endTime: "10:00",
+        note: "Math topic"
+      },
+      log: { error() {} }
+    }, reply);
+
+    assert.equal(reply.state.statusCode, 200);
+    assert.equal(reply.state.payload?.item?.specialistId, "");
+    assert.equal(specialistListQueried, false);
+    assert.equal(specialistConflictQueried, false);
+  } finally {
+    resetClientsServiceSchemaCacheForTests();
+    clearRolePermissionsCache();
+    restoreQuery();
+  }
+});
+
 test("vip daily routine save blocks overlapping routine times for the same specialist across classes", async () => {
   const recorder = createRouteRecorder();
   await clientsRoutes(recorder.fastify);
@@ -582,11 +706,11 @@ test("vip daily routine save blocks overlapping routine times for the same speci
           class_assignment_id: "99",
           specialist_user_id: "9",
           specialist_name: "Teacher Ali",
-          specialist_role: "Teacher"
+          specialist_role: "Specialist"
         }]
       };
     }
-    if (queryText.includes("FROM vip_class_daily_routines r") && queryText.includes("COALESCE(r.specialist_user_id, vcta.teacher_user_id) = $2")) {
+    if (queryText.includes("FROM vip_class_daily_routines r") && queryText.includes("r.specialist_user_id = $2")) {
       return {
         rows: [{
           id: "81",
@@ -641,6 +765,7 @@ test("vip daily routine save blocks overlapping routine times for the same speci
     restoreQuery();
   }
 });
+
 
 test("vip attendance teachers endpoint scopes assigned-only users to their related class teachers", async () => {
   const recorder = createRouteRecorder();

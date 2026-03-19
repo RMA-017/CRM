@@ -112,11 +112,11 @@ export function useVipDailyRoutinesSection({
   const saveVipDailyRoutine = useCallback(async ({
     id = "",
     classId = "",
+    specialistId = "",
     dayOfWeek = 0,
     activityType = "",
     startTime = "",
     endTime = "",
-    mandatoryExercises = "",
     note = ""
   } = {}) => {
     const normalizedId = String(id || "").trim();
@@ -133,11 +133,11 @@ export function useVipDailyRoutinesSection({
     }
 
     const normalizedClassId = String(classId || "").trim();
+    const normalizedSpecialistId = String(specialistId || "").trim();
     const parsedDayOfWeek = Number.parseInt(String(dayOfWeek || "").trim(), 10);
     const normalizedActivityType = normalizeVipDailyRoutineActivityType(activityType);
     const normalizedStartTime = String(startTime || "").trim();
     const normalizedEndTime = String(endTime || "").trim();
-    const normalizedMandatoryExercises = String(mandatoryExercises || "").trim();
     const normalizedNote = String(note || "").trim();
 
     if (!normalizedClassId) {
@@ -169,11 +169,11 @@ export function useVipDailyRoutinesSection({
         body: JSON.stringify({
           id: normalizedId || null,
           classId: normalizedClassId,
+          specialistId: normalizedSpecialistId || null,
           dayOfWeek: parsedDayOfWeek,
           activityType: normalizedActivityType,
           startTime: normalizedStartTime,
           endTime: normalizedEndTime,
-          mandatoryExercises: normalizedMandatoryExercises,
           note: normalizedNote
         })
       });

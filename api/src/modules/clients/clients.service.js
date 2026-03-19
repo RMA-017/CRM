@@ -11,6 +11,10 @@ import {
   normalizeVipClassDailyRoutineActivityType,
   normalizeVipDailyRoutineDayOfWeek
 } from "./vip-daily-routines.js";
+import {
+  isSpecialistLikeRoleLabel,
+  joinNormalizedRoleLabelParts
+} from "../../lib/role-labels.js";
 
 let vipAttendanceSchemaInitPromise = null;
 let vipAssignmentsSchemaInitPromise = null;
@@ -1490,13 +1494,13 @@ export async function getVipClassDailyRoutines({
       vcta.class_name,
       vcta.teacher_user_id::text AS teacher_user_id,
       COALESCE(NULLIF(TRIM(teacher_u.full_name), ''), NULLIF(TRIM(teacher_u.username), ''), '') AS teacher_name,
-      COALESCE(r.specialist_user_id, vcta.teacher_user_id)::text AS specialist_user_id,
+      r.specialist_user_id::text AS specialist_user_id,
       COALESCE(
         NULLIF(TRIM(specialist_u.full_name), ''),
         NULLIF(TRIM(specialist_u.username), ''),
         CASE
-          WHEN COALESCE(r.specialist_user_id, vcta.teacher_user_id) IS NOT NULL
-            THEN CONCAT('User #', COALESCE(r.specialist_user_id, vcta.teacher_user_id)::text)
+          WHEN r.specialist_user_id IS NOT NULL
+            THEN CONCAT('User #', r.specialist_user_id::text)
           ELSE ''
         END
       ) AS specialist_name,
@@ -1521,7 +1525,7 @@ export async function getVipClassDailyRoutines({
         ON teacher_u.id = vcta.teacher_user_id
        AND teacher_u.organization_id = r.organization_id
       LEFT JOIN users specialist_u
-        ON specialist_u.id = COALESCE(r.specialist_user_id, vcta.teacher_user_id)
+        ON specialist_u.id = r.specialist_user_id
        AND specialist_u.organization_id = r.organization_id
       LEFT JOIN role_options specialist_r
         ON specialist_r.id = specialist_u.role_id
@@ -1617,6 +1621,8 @@ export async function getVipClassDailyRoutineSpecialists({
        ss.class_assignment_id::text AS class_assignment_id,
        ss.specialist_user_id::text AS specialist_user_id,
        COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS specialist_name,
+       NULLIF(TRIM(p.label), '') AS position_label,
+       NULLIF(TRIM(r.label), '') AS role_label,
        COALESCE(NULLIF(TRIM(p.label), ''), NULLIF(TRIM(r.label), ''), 'Specialist') AS specialist_role
       FROM specialist_sources ss
       JOIN users u
@@ -1633,7 +1639,19 @@ export async function getVipClassDailyRoutineSpecialists({
     params
   );
 
-  return rows || [];
+  return (rows || []).filter((row) => {
+    const combinedRoleLabel = joinNormalizedRoleLabelParts(
+      row?.position_label,
+      row?.role_label,
+      row?.specialist_role
+    );
+    return isSpecialistLikeRoleLabel(combinedRoleLabel);
+  }).map((row) => ({
+    class_assignment_id: row?.class_assignment_id,
+    specialist_user_id: row?.specialist_user_id,
+    specialist_name: row?.specialist_name,
+    specialist_role: row?.specialist_role
+  }));
 }
 
 export async function findVipClassDailyRoutineConflictForSpecialist({
@@ -1689,7 +1707,7 @@ export async function findVipClassDailyRoutineConflictForSpecialist({
         AND r.day_of_week = $3
         AND ($4::time < r.end_time)
         AND (r.start_time < $5::time)
-        AND COALESCE(r.specialist_user_id, vcta.teacher_user_id) = $2
+        AND r.specialist_user_id = $2
         ${excludeCurrentRoutineSql}
       ORDER BY
         r.start_time ASC,
@@ -1739,7 +1757,6 @@ export async function upsertVipClassDailyRoutine({
 
   if (
     !normalizedClassId
-    || !normalizedSpecialistId
     || !normalizedDayOfWeek
     || !normalizedActivityType
     || !normalizedStartTime
@@ -1819,7 +1836,7 @@ export async function upsertVipClassDailyRoutine({
         organizationId,
         normalizedRoutineId,
         normalizedClassId,
-        normalizedSpecialistId,
+        normalizedSpecialistId || null,
         normalizedDayOfWeek,
         normalizedActivityType,
         normalizedStartTime,
@@ -1914,7 +1931,7 @@ export async function upsertVipClassDailyRoutine({
     [
       organizationId,
       normalizedClassId,
-      normalizedSpecialistId,
+      normalizedSpecialistId || null,
       normalizedDayOfWeek,
       normalizedActivityType,
       normalizedStartTime,
