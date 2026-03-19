@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiFetch, readApiResponseData } from "../../lib/api.js";
 import { sortVipClassDailyRoutineRows } from "./profile.helpers.js";
 import {

@@ -37,6 +37,7 @@ import {
   deleteClientById,
   findVipClientAttendanceByDate,
   findVipClassDailyRoutineById,
+  findVipClassDailyRoutineConflictForSpecialist,
   findClientsRequester,
   findVipTutorAssignmentByClientId,
   getClientMedicalHistoryClientsPage,
@@ -2129,6 +2130,31 @@ async function clientsRoutes(fastify) {
         );
         if (!isAllowedSpecialist) {
           return reply.status(400).send({ field: "specialistId", message: "Selected specialist is not allowed for this class." });
+        }
+
+        const hasRoutineConflict = await findVipClassDailyRoutineConflictForSpecialist({
+          organizationId: authContext.organizationId,
+          routineId,
+          specialistId,
+          dayOfWeek,
+          startTime,
+          endTime
+        });
+        if (hasRoutineConflict) {
+          const conflictClassName = String(hasRoutineConflict?.className || "").trim();
+          const conflictStart = String(hasRoutineConflict?.startTime || "").trim();
+          const conflictEnd = String(hasRoutineConflict?.endTime || "").trim();
+          const conflictActivityType = String(hasRoutineConflict?.activityType || "").trim().replace(/-/g, " ");
+          const conflictDetails = [
+            conflictClassName,
+            conflictStart && conflictEnd ? `${conflictStart}-${conflictEnd}` : "",
+            conflictActivityType ? `(${conflictActivityType})` : ""
+          ].filter(Boolean).join(" ");
+          return reply.status(409).send({
+            message: conflictDetails
+              ? `The selected specialist already has another VIP daily routine at this time: ${conflictDetails}.`
+              : "The selected specialist already has another VIP daily routine at this time."
+          });
         }
 
         const hasAppointmentConflict = await hasAppointmentConflictForVipRoutine({

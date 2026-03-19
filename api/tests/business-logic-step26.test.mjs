@@ -474,6 +474,7 @@ test("vip daily routine update blocks assigned-scope users from editing unassign
       body: {
         id: "55",
         classId: "99",
+        specialistId: "9",
         dayOfWeek: "1",
         activityType: "lesson",
         startTime: "09:00",
@@ -486,6 +487,99 @@ test("vip daily routine update blocks assigned-scope users from editing unassign
     assert.equal(reply.state.statusCode, 403);
     assert.equal(reply.state.payload?.message, "Forbidden.");
   } finally {
+    clearRolePermissionsCache();
+    restoreQuery();
+  }
+});
+
+test("vip daily routine save blocks overlapping routine times for the same specialist across classes", async () => {
+  const recorder = createRouteRecorder();
+  await clientsRoutes(recorder.fastify);
+
+  const route = recorder.routes.find((item) => item.method === "PUT" && item.path === "/vip-class-daily-routines");
+  assert.equal(typeof route?.handler, "function");
+
+  resetClientsServiceSchemaCacheForTests();
+  clearRolePermissionsCache();
+  const restoreQuery = stubPoolQuery(async (sql, params = []) => {
+    const queryText = String(sql || "");
+
+    if (queryText.includes("FROM information_schema.tables")) {
+      return {
+        rows: (Array.isArray(params[1]) ? params[1] : []).map((tableName) => ({ table_name: tableName }))
+      };
+    }
+    if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
+      return {
+        rows: [
+          { code: "appointments.vip-clients.read" },
+          { code: "appointments.vip-clients.create" },
+          { code: "appointments.vip-clients.daily-routines" },
+          { code: "appointments.vip-clients.scope.all" }
+        ]
+      };
+    }
+    if (queryText.includes("WITH accessible_classes AS") && queryText.includes("FROM specialist_sources ss")) {
+      return {
+        rows: [{
+          class_assignment_id: "99",
+          specialist_user_id: "9",
+          specialist_name: "Teacher Ali",
+          specialist_role: "Teacher"
+        }]
+      };
+    }
+    if (queryText.includes("FROM vip_class_daily_routines r") && queryText.includes("COALESCE(r.specialist_user_id, vcta.teacher_user_id) = $2")) {
+      return {
+        rows: [{
+          id: "81",
+          class_assignment_id: "12",
+          class_name: "Alpha",
+          activity_type: "lesson",
+          start_time: "09:00",
+          end_time: "10:00"
+        }]
+      };
+    }
+
+    throw new Error(`Unexpected query in test: ${queryText}`);
+  });
+
+  try {
+    const reply = createReplyRecorder();
+    await route.handler({
+      authContext: {
+        userId: 7,
+        organizationId: 3,
+        requester: {
+          id: 7,
+          role_id: 11,
+          is_admin: false,
+          is_platform_admin: false,
+          role_label: "manager",
+          position_label: "staff",
+          organization_allowed_features: ["vip_clients.daily_routines"]
+        }
+      },
+      body: {
+        classId: "99",
+        specialistId: "9",
+        dayOfWeek: "1",
+        activityType: "breakfast",
+        startTime: "09:30",
+        endTime: "09:45",
+        note: ""
+      },
+      log: { error() {} }
+    }, reply);
+
+    assert.equal(reply.state.statusCode, 409);
+    assert.equal(
+      reply.state.payload?.message,
+      "The selected specialist already has another VIP daily routine at this time: Alpha 09:00-10:00 (lesson)."
+    );
+  } finally {
+    resetClientsServiceSchemaCacheForTests();
     clearRolePermissionsCache();
     restoreQuery();
   }
