@@ -1683,6 +1683,8 @@ label.field > span:first-child,
 .ws-default-time-field input {
   width: 100%;
   min-width: 0;
+  min-inline-size: 0;
+  box-sizing: border-box;
 }
 
 .ws-default-table td:nth-child(1) {
@@ -2286,7 +2288,8 @@ label.field > span:first-child,
 #statisticsPlannerReportPanel .all-users-table-wrap {
   margin-top: 10px;
   max-height: none;
-  overflow: visible;
+  overflow-x: visible;
+  overflow-y: visible;
 }
 
 .planner-report-summary-card {
@@ -2362,6 +2365,13 @@ label.field > span:first-child,
   table-layout: fixed;
 }
 
+#statisticsPlannerReportPanel .planner-report-table th,
+#statisticsPlannerReportPanel .planner-report-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .planner-report-table.is-detail-report th:nth-child(1),
 .planner-report-table.is-detail-report td:nth-child(1) {
   width: 10%;
@@ -2386,6 +2396,21 @@ label.field > span:first-child,
 .planner-report-table.is-detail-report th:nth-child(5),
 .planner-report-table.is-detail-report td:nth-child(5) {
   width: 30%;
+}
+
+.planner-report-client-cell {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.planner-report-client-text {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .planner-report-table.is-detail-report th:nth-child(6),
@@ -2691,22 +2716,37 @@ label.field > span:first-child,
 .vip-attendance-edit-actions {
   margin-top: 0;
   justify-content: center;
+  align-items: center;
+  flex-wrap: nowrap;
 }
 
-.vip-attendance-edit-actions .btn {
-  min-width: var(--btn-fixed-width);
-}
-
-.vip-attendance-edit-actions .table-action-btn {
-  width: 72px;
-  min-width: 72px;
+.vip-attendance-edit-actions .btn,
+.vip-attendance-edit-actions .table-action-btn,
+.vip-attendance-edit-actions .header-btn {
+  width: 96px;
+  min-width: 96px;
+  max-width: 96px;
+  height: var(--btn-height);
+  min-height: var(--btn-height);
   padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   line-height: 1;
 }
 
-#saveVipAttendanceEditBtn {
+#deleteVipAttendanceEditBtn {
   width: 72px;
   min-width: 72px;
+  max-width: 72px;
+  height: 30px;
+  min-height: 30px;
+}
+
+#saveVipAttendanceEditBtn {
+  width: 96px;
+  min-width: 96px;
+  max-width: 96px;
   padding: 0;
   line-height: 1;
 }
@@ -3907,7 +3947,7 @@ label.field > span:first-child,
 .appointment-grid tbody th {
   position: sticky;
   left: 0;
-  z-index: 1;
+  z-index: 3;
   background: linear-gradient(180deg, #f8fbff 0%, #f0f5fb 100%);
   color: #41516a;
   font-weight: 700;
@@ -3920,6 +3960,7 @@ label.field > span:first-child,
 
 .appointment-grid tbody th.appointment-time-col {
   padding: 0 6px;
+  z-index: 5;
 }
 
 .appointment-grid tbody tr:nth-child(even) td:not(.appointment-off-slot-td):not(.appointment-break-type-lunch-td):not(.appointment-break-type-meeting-td):not(.appointment-break-type-training-td):not(.appointment-break-type-other-td):not(.appointment-work-schedule-blocked-td) {
@@ -4990,7 +5031,11 @@ label.field > span:first-child,
     overscroll-behavior-x: contain;
   }
 
-  :is(#appointmentBreaksPanel, #appointmentSpecialistAbsencesPanel, #appointmentVipTutorAssignmentsPanel) .appointment-breaks-table-wrap {
+  #appointmentBreaksPanel .appointment-breaks-table-wrap.all-users-table-wrap:has(> .appointment-breaks-table:not(.class-assignments-table)) {
+    overflow-y: hidden;
+  }
+
+  #appointmentSpecialistAbsencesPanel .appointment-breaks-table-wrap {
     max-height: calc(100dvh - 230px);
     overflow-y: auto;
   }
@@ -5408,9 +5453,9 @@ label.field > span:first-child,
 
 #appointmentBreaksPanel .class-assignments-table th:nth-child(6),
 #appointmentBreaksPanel .class-assignments-table td:nth-child(6) {
-  width: 64px;
-  min-width: 64px;
-  max-width: 64px;
+  width: 76px;
+  min-width: 76px;
+  max-width: 76px;
   text-align: center;
 }
 
@@ -5422,8 +5467,8 @@ label.field > span:first-child,
 }
 
 #appointmentBreaksPanel .class-assignments-table td:nth-child(6) .table-action-btn {
-  width: 64px;
-  min-width: 64px;
+  width: 76px;
+  min-width: 76px;
   margin-left: auto;
   margin-right: auto;
 }
@@ -5431,6 +5476,11 @@ label.field > span:first-child,
 #appointmentVipTutorAssignmentsPanel .tutor-assignments-table {
   min-width: 980px;
   table-layout: fixed;
+}
+
+#appointmentVipTutorAssignmentsPanel .appointment-breaks-table-wrap.all-users-table-wrap {
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 #appointmentVipTutorAssignmentsPanel .tutor-assignments-table th:nth-child(1),
@@ -5932,6 +5982,32 @@ label.field > span:first-child,
     align-items: center;
   }
 
+}
+
+@media (max-width: 620px) {
+  .ws-default-day-row {
+    grid-template-columns: 36px minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px;
+    align-items: start;
+  }
+
+  .ws-default-time-field {
+    width: 100%;
+    max-width: 110px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+    align-items: start;
+  }
+
+  .ws-default-time-field span {
+    font-size: 10px;
+    line-height: 1.1;
+  }
+
+  .ws-default-time-field input {
+    padding-left: 6px;
+    padding-right: 4px;
+  }
 }
 
 .appointment-create-modal {

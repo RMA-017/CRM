@@ -463,7 +463,11 @@ function StatisticsPlannerReportPanel({
                       <td>{row.startTime || "-"}</td>
                       <td>{formatPlannerReportDuration(row.durationMinutes, row.startTime, row.endTime)}</td>
                       <td>{row.specialistName || "-"}</td>
-                      <td>{row.clientName || "-"}</td>
+                      <td className="planner-report-client-cell">
+                        <span className="planner-report-client-text" title={row.clientName || "-"}>
+                          {row.clientName || "-"}
+                        </span>
+                      </td>
                       <td>{row.serviceName || "-"}</td>
                       <td className={statusPresentation.className}>{statusPresentation.label}</td>
                     </tr>

@@ -634,7 +634,15 @@
   }
 
   .appointment-vip-weekly-grid {
-    min-width: 760px;
+    min-width: 900px;
+  }
+
+  #appointmentVipSchedulePanel .appointment-vip-weekly-grid-wrap,
+  #appointmentVipMyChildrenPanel .appointment-vip-weekly-grid-wrap {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
   }
 
   .settings-permissions-grid-group {
@@ -741,7 +749,25 @@
 
 @media (max-width: 560px) {
   .vip-attendance-edit-grid {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .vip-attendance-edit-grid input[type="datetime-local"] {
+    width: 100%;
+    min-width: 0;
+    min-inline-size: 0;
+  }
+
+  .vip-attendance-edit-actions {
+    justify-content: center;
+    flex-wrap: nowrap;
+  }
+
+  #deleteVipAttendanceEditBtn {
+    width: 96px;
+    min-width: 96px;
+    max-width: 96px;
   }
 
   .vip-attendance-summary .vip-attendance-filter-btn {
@@ -762,26 +788,19 @@
   }
 
   #appointmentBreaksAddModal .appointment-breaks-add-row-line-bottom-item,
-  #workScheduleUserOverridesModal .appointment-breaks-add-row-line-bottom-item,
   #appointmentBreaksEditModal .appointment-breaks-add-row-line-bottom-item {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  #appointmentBreaksAddModal .appointment-breaks-add-row-line-bottom-item .appointment-breaks-add-inline-actions,
-  #workScheduleUserOverridesModal .appointment-breaks-add-row-line-bottom-item .appointment-breaks-add-inline-actions {
+  #appointmentBreaksAddModal .appointment-breaks-add-row-line-bottom-item .appointment-breaks-add-inline-actions {
     grid-column: 1 / -1;
   }
 
-  #workScheduleUserOverridesModal .appointment-breaks-add-row-line-bottom-item > :nth-child(1) {
-    grid-column: 1 / -1;
-  }
-
-  #workScheduleUserOverridesModal .appointment-breaks-add-row-line-bottom-item > :nth-child(4) {
-    grid-column: 1 / -1;
+  #workScheduleUserOverridesModal .appointment-breaks-add-row-line-bottom-item {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   #workScheduleUserOverridesModal .appointment-breaks-add-row-line-bottom-item .appointment-breaks-add-inline-actions {
-    grid-column: 1 / -1;
     justify-content: center;
   }
 
@@ -968,7 +987,9 @@ main.home-main:has(#organizationsPanel) {
 
 #statisticsPlannerReportPanel .all-users-table-wrap {
   width: 100%;
-  overflow: visible;
+  max-height: none;
+  overflow-x: visible;
+  overflow-y: visible;
 }
 
 #statisticsPlannerReportPanel .planner-report-table {
@@ -1083,6 +1104,23 @@ main.home-main:has(#appointmentNormsPanel) {
 
 /* table-outer-scroll-wrap — horizontal scroll on parent (mobile) */
 @media (max-width: 860px) {
+  /* Monitoring panel — scrollbar at viewport bottom on mobile only */
+  main.home-main:has(#monitoringPanel) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  #monitoringPanel {
+    overflow-x: visible;
+    min-width: 640px;
+  }
+
+  #monitoringPanel .monitoring-table-wrap {
+    overflow-x: visible;
+    overflow-y: visible;
+  }
+
   .table-outer-scroll-wrap {
     overflow-x: auto;
     overscroll-behavior-x: contain;

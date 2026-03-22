@@ -11,7 +11,7 @@ import {
 } from "./profile.vip-utils.js";
 
 function getInitialMyChildrenIsCompact() {
-  return typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches;
+  return false;
 }
 
 export function useProfileMyChildren({
@@ -343,12 +343,11 @@ export function useProfileMyChildren({
       return;
     }
     const mq = window.matchMedia("(max-width: 860px)");
-    const handleViewportChange = (event) => {
-      setMyChildrenIsCompact(event.matches);
-      if (!event.matches) {
-        setMyChildrenDateYmd((prev) => getMyChildrenWeekStartYmd(prev, todayYmd));
-      }
+    const handleViewportChange = () => {
+      setMyChildrenIsCompact(false);
+      setMyChildrenDateYmd((prev) => getMyChildrenWeekStartYmd(prev, todayYmd));
     };
+    handleViewportChange();
     mq.addEventListener("change", handleViewportChange);
     return () => {
       mq.removeEventListener("change", handleViewportChange);
