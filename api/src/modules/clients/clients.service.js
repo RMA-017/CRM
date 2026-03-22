@@ -317,6 +317,49 @@ async function getVipAssignableUsersByKeywords(organizationId, keywords = []) {
   return items;
 }
 
+async function getOrganizationUsersByExactPositionLabels(organizationId, positionLabels = []) {
+  const normalizedLabels = Array.isArray(positionLabels)
+    ? Array.from(new Set(positionLabels.map((label) => normalizeSearchToken(label)).filter(Boolean)))
+    : [];
+  if (normalizedLabels.length === 0) {
+    return [];
+  }
+
+  const cacheKey = `organization-users-by-position|org:${organizationId}|positions:${normalizedLabels.join(",")}`;
+  const cached = clientsReferenceCache.get(cacheKey);
+  if (cached) {
+    return cloneVipAssignableUsers(cached);
+  }
+
+  const params = [organizationId];
+  const positionClauses = normalizedLabels.map((label) => {
+    params.push(label);
+    return `LOWER(TRIM(COALESCE(p.label, ''))) = $${params.length}`;
+  });
+
+  const { rows } = await pool.query(
+    `SELECT
+       u.id::text AS id,
+       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS name
+      FROM users u
+      JOIN organizations o ON o.id = u.organization_id
+      JOIN role_options r ON r.id = u.role_id
+       AND r.is_active = TRUE
+      LEFT JOIN position_options p ON p.id = u.position_id
+      WHERE u.organization_id = $1
+        AND o.is_active = TRUE
+        AND (${positionClauses.join(" OR ")})
+      ORDER BY
+        COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), u.id::text) ASC,
+        u.id ASC`,
+    params
+  );
+
+  const items = rows || [];
+  clientsReferenceCache.set(cacheKey, cloneVipAssignableUsers(items));
+  return items;
+}
+
 async function getOrganizationUsersByOrganization(organizationId) {
   const cacheKey = `organization-users|org:${organizationId}`;
   const cached = clientsReferenceCache.get(cacheKey);
@@ -350,6 +393,14 @@ export async function getVipAttendanceTeachersByOrganization(organizationId) {
     "tutor",
     "coach"
   ]);
+}
+
+export async function getVipAttendanceEducatorsByOrganization(organizationId) {
+  return getOrganizationUsersByExactPositionLabels(organizationId, ["educator"]);
+}
+
+export async function getVipAttendanceTutorsByOrganization(organizationId) {
+  return getOrganizationUsersByExactPositionLabels(organizationId, ["tutor"]);
 }
 
 export async function getVipClientOptionsByOrganization({

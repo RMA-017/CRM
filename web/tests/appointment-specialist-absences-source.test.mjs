@@ -21,7 +21,7 @@ test("specialist absences menu and planner source wiring stay in place", async (
 
   assert.match(
     appSource,
-    /path="\/appointments\/specialist-absences"[\s\S]*forcedView="appointment-specialist-absences"/,
+    /\/appointments\/specialist-absences[\s\S]*appointment-specialist-absences/,
     "App routes should wire the specialist absences panel URL."
   );
 

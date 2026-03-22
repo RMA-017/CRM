@@ -23,10 +23,6 @@ export default defineConfig({
             return "vendor-react";
           }
 
-          if (id.includes("face-api.js")) {
-            return "vendor-face-api";
-          }
-
           return "vendor";
         }
       }

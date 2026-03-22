@@ -2723,11 +2723,11 @@ label.field > span:first-child,
 .vip-attendance-edit-actions .btn,
 .vip-attendance-edit-actions .table-action-btn,
 .vip-attendance-edit-actions .header-btn {
-  width: 96px;
-  min-width: 96px;
-  max-width: 96px;
-  height: var(--btn-height);
-  min-height: var(--btn-height);
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+  height: 25px;
+  min-height: 25px;
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -2744,9 +2744,11 @@ label.field > span:first-child,
 }
 
 #saveVipAttendanceEditBtn {
-  width: 96px;
-  min-width: 96px;
-  max-width: 96px;
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+  height: 25px;
+  min-height: 25px;
   padding: 0;
   line-height: 1;
 }

@@ -451,7 +451,7 @@ function StatisticsClassPanel({
           />
         </label>
         <label className="field" htmlFor="statisticsTeacherFilterSelect">
-          <span>Teacher</span>
+          <span>Educator</span>
           <CustomSelect
             id="statisticsTeacherFilterSelect"
             value={statisticsHistoryTeacherId}

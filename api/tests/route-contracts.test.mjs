@@ -76,8 +76,10 @@ test("appointments routes expose stable contract", async () => {
   assertRateLimitConfigured(recorder.routes);
 
   assert.deepEqual(toRouteSignatures(recorder.routes), [
+    "DELETE /absences/:id",
     "DELETE /schedules/:id",
     "DELETE /work-schedule/:id",
+    "GET /absences",
     "GET /breaks",
     "GET /client-no-show-summary",
     "GET /events",
@@ -91,11 +93,21 @@ test("appointments routes expose stable contract", async () => {
     "PATCH /schedules/:id",
     "PATCH /settings",
     "PATCH /work-schedule/:id",
+    "POST /absences",
     "POST /schedules",
     "POST /work-schedule",
     "PUT /breaks",
     "PUT /work-schedule/default-weekly"
   ]);
+
+  const absencesGet = findRoute(recorder.routes, "GET", "/absences");
+  assert.equal(typeof absencesGet?.options?.schema?.querystring, "object");
+
+  const absencesPost = findRoute(recorder.routes, "POST", "/absences");
+  assert.equal(typeof absencesPost?.options?.schema?.body, "object");
+
+  const absencesDelete = findRoute(recorder.routes, "DELETE", "/absences/:id");
+  assert.equal(typeof absencesDelete?.options?.schema?.params, "object");
 
   const schedulesGet = findRoute(recorder.routes, "GET", "/schedules");
   assert.equal(typeof schedulesGet?.options?.schema, "object");

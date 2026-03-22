@@ -23,7 +23,7 @@ test("appointment planner read-only mode keeps report filters gated while planne
 
   assert.match(
     schedulerSource,
-    /!vipOnly && canReadStatisticsPlannerReport\s*\?\s*apiFetch\("\/api\/appointments\/report\/filters"/s,
+    /!vipOnly && canReadStatisticsPlannerReport\s*\?\s*apiFetch\("\/api\/appointments\/report\/filters(?:\?includeAllClients=true)?"/s,
     "Planner report filters should only load when the dedicated statistics permission is present."
   );
 

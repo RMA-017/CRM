@@ -178,3 +178,124 @@ test("vip attendance history route allows statistics readers without clients.rea
     restoreQuery();
   }
 });
+
+test("vip attendance history filters only expose educator and tutor positions in report selects", { concurrency: false }, async () => {
+  const recorder = createClientsRouteRecorder();
+  await clientsRoutes(recorder.fastify);
+
+  const historyRoute = findRecordedRoute(recorder.routes, "GET", "/vip-attendance/history");
+  assert.equal(typeof historyRoute?.handler, "function");
+
+  const restoreQuery = stubPoolQuery(async (sql, params = []) => {
+    const queryText = String(sql || "");
+
+    if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
+      return {
+        rows: [
+          { code: "appointments.statistics.class-attendance" }
+        ]
+      };
+    }
+
+    if (queryText.includes("FROM information_schema.tables")) {
+      const tableNames = Array.isArray(params?.[1]) ? params[1] : [];
+      return {
+        rows: tableNames.map((tableName) => ({ table_name: tableName }))
+      };
+    }
+
+    if (queryText.includes("FROM vip_client_attendance vca")) {
+      return { rows: [] };
+    }
+
+    if (queryText.includes("FROM vip_class_teacher_assignments va")) {
+      return {
+        rows: [
+          {
+            id: "201",
+            class_name: "Morning Group",
+            teacher_user_id: "301",
+            teacher_name: "Educator One"
+          }
+        ]
+      };
+    }
+
+    if (
+      queryText.includes("FROM users u")
+      && queryText.includes("LEFT JOIN position_options p ON p.id = u.position_id")
+      && queryText.includes("LOWER(TRIM(COALESCE(p.label, '')))")
+    ) {
+      const normalizedPosition = String(params?.[1] || "").trim().toLowerCase();
+      if (normalizedPosition === "educator") {
+        return {
+          rows: [
+            { id: "301", name: "Educator One" }
+          ]
+        };
+      }
+      if (normalizedPosition === "tutor") {
+        return {
+          rows: [
+            { id: "401", name: "Tutor One" }
+          ]
+        };
+      }
+    }
+
+    if (queryText.includes("FROM clients c") && queryText.includes("AND c.is_vip = TRUE")) {
+      return {
+        rows: [
+          {
+            id: "101",
+            first_name: "Ali",
+            last_name: "Valiyev",
+            middle_name: ""
+          }
+        ]
+      };
+    }
+
+    throw new Error(`Unexpected query in test: ${queryText} :: ${JSON.stringify(params)}`);
+  });
+
+  try {
+    clearRolePermissionsCache();
+    resetClientsServiceSchemaCacheForTests();
+
+    const reply = createReplyRecorder();
+    await historyRoute.handler({
+      authContext: {
+        userId: 77,
+        organizationId: 5,
+        requester: {
+          id: 77,
+          role_id: 9,
+          is_admin: true,
+          is_platform_admin: false,
+          role_label: "Administrator",
+          position_label: "Manager",
+          organization_allowed_features: ["statistics.class_attendance"]
+        }
+      },
+      query: {
+        from: "2026-03-01",
+        to: "2026-03-16",
+        limit: "25"
+      },
+      log: { error() {} }
+    }, reply);
+
+    assert.equal(reply.state.statusCode, 200);
+    assert.deepEqual(reply.state.payload?.teachers, [
+      { id: "301", name: "Educator One" }
+    ]);
+    assert.deepEqual(reply.state.payload?.tutors, [
+      { id: "401", name: "Tutor One" }
+    ]);
+  } finally {
+    clearRolePermissionsCache();
+    resetClientsServiceSchemaCacheForTests();
+    restoreQuery();
+  }
+});

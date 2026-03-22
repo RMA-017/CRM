@@ -5,6 +5,115 @@ import { loadProfilePage } from "./lib/load-profile-page.js";
 const HomePage = lazy(() => import("./pages/HomePage.jsx"));
 const ProfilePage = lazy(loadProfilePage);
 
+const PROFILE_VIEW_ROUTES = Object.freeze([
+  { path: "/profile", forcedView: "none" },
+  { path: "/users/allusers", forcedView: "all-users" },
+  { path: "/users/create", forcedView: "create-user" },
+  { path: "/clients/allclients", forcedView: "clients-all" },
+  { path: "/clients/medical-history", forcedView: "clients-medical-history" },
+  { path: "/appointments/planner", forcedView: "appointment" },
+  { path: "/appointments/breaks", forcedView: "appointment-breaks" },
+  { path: "/appointments/specialist-absences", forcedView: "appointment-specialist-absences" },
+  { path: "/appointments/work-schedule", forcedView: "appointment-work-schedule" },
+  { path: "/vip-clients/my-class", forcedView: "appointment-vip-schedule" },
+  { path: "/vip-clients/attendance", forcedView: "appointment-vip-attendance" },
+  { path: "/vip-clients/norm-monitoring", forcedView: "appointment-vip-norm-monitoring" },
+  { path: "/vip-clients/my-children", forcedView: "appointment-vip-my-children" },
+  { path: "/vip-clients/daily-routines", forcedView: "appointment-vip-daily-routines" },
+  { path: "/assignments/class", forcedView: "appointment-vip-assignments" },
+  { path: "/assignments/tutor", forcedView: "appointment-vip-tutor-assignments" },
+  { path: "/settings/appointments", forcedView: "appointment-settings" },
+  { path: "/statistics/vip-class-attendance-report", forcedView: "statistics-class" },
+  { path: "/statistics/planner-report", forcedView: "statistics-planner-report" },
+  { path: "/admin-settings/organizations", forcedView: "settings-organizations" },
+  { path: "/settings/roles", forcedView: "settings-roles" },
+  { path: "/settings/positions", forcedView: "settings-positions" },
+  { path: "/settings/appointment-norms", forcedView: "settings-appointment-norms" },
+  { path: "/notifications", forcedView: "notifications-send" },
+  { path: "/admin-settings/monitoring", forcedView: "settings-monitoring" }
+]);
+
+const REDIRECT_ROUTE_GROUPS = Object.freeze([
+  {
+    to: "/clients/allclients",
+    paths: ["/clients/create", "/clients", "/profile/clients", "/profile/clients/allclients", "/profile/clients/create"]
+  },
+  {
+    to: "/appointments/planner",
+    paths: ["/appointments", "/profile/appointments", "/profile/appointments/planner"]
+  },
+  {
+    to: "/vip-clients/my-class",
+    paths: ["/appointments/vip-schedule", "/profile/vip-clients", "/profile/vip-clients/my-class", "/profile/appointments/vip-schedule"]
+  },
+  {
+    to: "/vip-clients/attendance",
+    paths: ["/appointments/vip-attendance", "/profile/vip-clients/attendance", "/profile/appointments/vip-attendance"]
+  },
+  {
+    to: "/vip-clients/norm-monitoring",
+    paths: ["/appointments/vip-norm-monitoring", "/profile/vip-clients/norm-monitoring", "/profile/appointments/vip-norm-monitoring"]
+  },
+  {
+    to: "/vip-clients/my-children",
+    paths: ["/appointments/vip-my-children", "/profile/vip-clients/my-children", "/profile/appointments/vip-my-children"]
+  },
+  {
+    to: "/vip-clients/daily-routines",
+    paths: ["/appointments/vip-daily-routines", "/profile/vip-clients/daily-routines", "/profile/appointments/vip-daily-routines"]
+  },
+  {
+    to: "/assignments/class",
+    paths: ["/assignments", "/appointments/vip-assignments", "/profile/assignments", "/profile/assignments/class", "/profile/appointments/vip-assignments"]
+  },
+  {
+    to: "/assignments/tutor",
+    paths: ["/appointments/vip-tutor-assignments", "/profile/assignments/tutor", "/profile/appointments/vip-tutor-assignments"]
+  },
+  {
+    to: "/appointments/work-schedule",
+    paths: ["/settings/work-schedule", "/profile/settings/work-schedule", "/profile/appointments/work-schedule"]
+  },
+  {
+    to: "/statistics/vip-class-attendance-report",
+    paths: ["/statistics", "/statistics/class", "/profile/statistics", "/profile/statistics/vip-class-attendance-report", "/profile/statistics/class"]
+  },
+  {
+    to: "/notifications",
+    paths: [
+      "/settings/notification",
+      "/settings/notification-settings",
+      "/settings/notifications",
+      "/profile/settings/notification",
+      "/profile/settings/notification-settings",
+      "/profile/settings/notifications",
+      "/profile/notifications"
+    ]
+  },
+  {
+    to: "/admin-settings/organizations",
+    paths: ["/settings/organizations", "/profile/admin-settings/organizations", "/profile/settings/organizations"]
+  },
+  {
+    to: "/admin-settings/monitoring",
+    paths: ["/settings/monitoring", "/profile/admin-settings/monitoring", "/profile/settings/monitoring"]
+  },
+  {
+    to: "/profile",
+    paths: ["/profile/my-profile", "/profile/users"]
+  },
+  { to: "/users/allusers", paths: ["/profile/users/allusers"] },
+  { to: "/users/create", paths: ["/profile/users/create"] },
+  { to: "/clients/medical-history", paths: ["/profile/clients/medical-history"] },
+  { to: "/appointments/breaks", paths: ["/profile/appointments/breaks"] },
+  { to: "/appointments/specialist-absences", paths: ["/profile/appointments/specialist-absences"] },
+  { to: "/settings/appointments", paths: ["/appointments/settings", "/profile/appointments/settings", "/profile/settings/appointments"] },
+  { to: "/statistics/planner-report", paths: ["/profile/statistics/planner-report"] },
+  { to: "/settings/roles", paths: ["/profile/settings/roles"] },
+  { to: "/settings/positions", paths: ["/profile/settings/positions"] },
+  { to: "/", paths: ["/home"] }
+]);
+
 function NotFoundPage() {
   return (
     <div className="home-layout">
@@ -31,102 +140,26 @@ function NotFoundPage() {
 function App() {
   return (
     <Suspense fallback={null}>
-    <Routes>
-      <Route path="/" element={<HomePage />} />
-      <Route path="/profile" element={<ProfilePage forcedView="none" />} />
-      <Route path="/users/allusers" element={<ProfilePage forcedView="all-users" />} />
-      <Route path="/users/create" element={<ProfilePage forcedView="create-user" />} />
-      <Route path="/clients/allclients" element={<ProfilePage forcedView="clients-all" />} />
-      <Route path="/clients/medical-history" element={<ProfilePage forcedView="clients-medical-history" />} />
-      <Route path="/clients/create" element={<Navigate to="/clients/allclients" replace />} />
-      <Route path="/clients" element={<Navigate to="/clients/allclients" replace />} />
-      <Route path="/appointments" element={<Navigate to="/appointments/planner" replace />} />
-      <Route path="/appointments/planner" element={<ProfilePage forcedView="appointment" />} />
-      <Route path="/appointments/breaks" element={<ProfilePage forcedView="appointment-breaks" />} />
-      <Route path="/appointments/specialist-absences" element={<ProfilePage forcedView="appointment-specialist-absences" />} />
-      <Route path="/appointments/work-schedule" element={<ProfilePage forcedView="appointment-work-schedule" />} />
-      <Route path="/vip-clients/my-class" element={<ProfilePage forcedView="appointment-vip-schedule" />} />
-      <Route path="/vip-clients/attendance" element={<ProfilePage forcedView="appointment-vip-attendance" />} />
-      <Route path="/vip-clients/norm-monitoring" element={<ProfilePage forcedView="appointment-vip-norm-monitoring" />} />
-      <Route path="/vip-clients/my-children" element={<ProfilePage forcedView="appointment-vip-my-children" />} />
-      <Route path="/vip-clients/daily-routines" element={<ProfilePage forcedView="appointment-vip-daily-routines" />} />
-      <Route path="/appointments/vip-schedule" element={<Navigate to="/vip-clients/my-class" replace />} />
-      <Route path="/appointments/vip-attendance" element={<Navigate to="/vip-clients/attendance" replace />} />
-      <Route path="/appointments/vip-norm-monitoring" element={<Navigate to="/vip-clients/norm-monitoring" replace />} />
-      <Route path="/appointments/vip-my-children" element={<Navigate to="/vip-clients/my-children" replace />} />
-      <Route path="/appointments/vip-daily-routines" element={<Navigate to="/vip-clients/daily-routines" replace />} />
-      <Route path="/assignments" element={<Navigate to="/assignments/class" replace />} />
-      <Route path="/assignments/class" element={<ProfilePage forcedView="appointment-vip-assignments" />} />
-      <Route path="/assignments/tutor" element={<ProfilePage forcedView="appointment-vip-tutor-assignments" />} />
-      <Route path="/appointments/vip-assignments" element={<Navigate to="/assignments/class" replace />} />
-      <Route path="/appointments/vip-tutor-assignments" element={<Navigate to="/assignments/tutor" replace />} />
-      <Route path="/settings/appointments" element={<ProfilePage forcedView="appointment-settings" />} />
-      <Route path="/settings/work-schedule" element={<Navigate to="/appointments/work-schedule" replace />} />
-      <Route path="/statistics" element={<Navigate to="/statistics/vip-class-attendance-report" replace />} />
-      <Route path="/statistics/vip-class-attendance-report" element={<ProfilePage forcedView="statistics-class" />} />
-      <Route path="/statistics/planner-report" element={<ProfilePage forcedView="statistics-planner-report" />} />
-      <Route path="/statistics/class" element={<Navigate to="/statistics/vip-class-attendance-report" replace />} />
-      <Route path="/admin-settings/organizations" element={<ProfilePage forcedView="settings-organizations" />} />
-      <Route path="/settings/roles" element={<ProfilePage forcedView="settings-roles" />} />
-      <Route path="/settings/positions" element={<ProfilePage forcedView="settings-positions" />} />
-      <Route path="/settings/appointment-norms" element={<ProfilePage forcedView="settings-appointment-norms" />} />
-      <Route path="/settings/notification" element={<Navigate to="/notifications" replace />} />
-      <Route path="/settings/notification-settings" element={<Navigate to="/notifications" replace />} />
-      <Route path="/settings/notifications" element={<Navigate to="/notifications" replace />} />
-      <Route path="/notifications" element={<ProfilePage forcedView="notifications-send" />} />
-      <Route path="/admin-settings/monitoring" element={<ProfilePage forcedView="settings-monitoring" />} />
-      <Route path="/settings/organizations" element={<Navigate to="/admin-settings/organizations" replace />} />
-      <Route path="/settings/monitoring" element={<Navigate to="/admin-settings/monitoring" replace />} />
-      <Route path="/profile/my-profile" element={<Navigate to="/profile" replace />} />
-      <Route path="/profile/users" element={<Navigate to="/profile" replace />} />
-      <Route path="/profile/users/allusers" element={<Navigate to="/users/allusers" replace />} />
-      <Route path="/profile/users/create" element={<Navigate to="/users/create" replace />} />
-      <Route path="/profile/clients" element={<Navigate to="/clients/allclients" replace />} />
-      <Route path="/profile/clients/allclients" element={<Navigate to="/clients/allclients" replace />} />
-      <Route path="/profile/clients/medical-history" element={<Navigate to="/clients/medical-history" replace />} />
-      <Route path="/profile/clients/create" element={<Navigate to="/clients/allclients" replace />} />
-      <Route path="/profile/vip-clients" element={<Navigate to="/vip-clients/my-class" replace />} />
-      <Route path="/profile/vip-clients/my-class" element={<Navigate to="/vip-clients/my-class" replace />} />
-      <Route path="/profile/vip-clients/attendance" element={<Navigate to="/vip-clients/attendance" replace />} />
-      <Route path="/profile/vip-clients/norm-monitoring" element={<Navigate to="/vip-clients/norm-monitoring" replace />} />
-      <Route path="/profile/vip-clients/my-children" element={<Navigate to="/vip-clients/my-children" replace />} />
-      <Route path="/profile/vip-clients/daily-routines" element={<Navigate to="/vip-clients/daily-routines" replace />} />
-      <Route path="/profile/appointments" element={<Navigate to="/appointments/planner" replace />} />
-      <Route path="/profile/appointments/planner" element={<Navigate to="/appointments/planner" replace />} />
-      <Route path="/profile/appointments/breaks" element={<Navigate to="/appointments/breaks" replace />} />
-      <Route path="/profile/appointments/specialist-absences" element={<Navigate to="/appointments/specialist-absences" replace />} />
-      <Route path="/profile/appointments/vip-schedule" element={<Navigate to="/vip-clients/my-class" replace />} />
-      <Route path="/profile/appointments/vip-attendance" element={<Navigate to="/vip-clients/attendance" replace />} />
-      <Route path="/profile/appointments/vip-norm-monitoring" element={<Navigate to="/vip-clients/norm-monitoring" replace />} />
-      <Route path="/profile/appointments/vip-my-children" element={<Navigate to="/vip-clients/my-children" replace />} />
-      <Route path="/profile/appointments/vip-daily-routines" element={<Navigate to="/vip-clients/daily-routines" replace />} />
-      <Route path="/profile/assignments" element={<Navigate to="/assignments/class" replace />} />
-      <Route path="/profile/assignments/class" element={<Navigate to="/assignments/class" replace />} />
-      <Route path="/profile/assignments/tutor" element={<Navigate to="/assignments/tutor" replace />} />
-      <Route path="/profile/appointments/vip-assignments" element={<Navigate to="/assignments/class" replace />} />
-      <Route path="/profile/appointments/vip-tutor-assignments" element={<Navigate to="/assignments/tutor" replace />} />
-      <Route path="/profile/appointments/settings" element={<Navigate to="/settings/appointments" replace />} />
-      <Route path="/profile/settings/work-schedule" element={<Navigate to="/appointments/work-schedule" replace />} />
-      <Route path="/profile/statistics" element={<Navigate to="/statistics/vip-class-attendance-report" replace />} />
-      <Route path="/profile/statistics/vip-class-attendance-report" element={<Navigate to="/statistics/vip-class-attendance-report" replace />} />
-      <Route path="/profile/statistics/class" element={<Navigate to="/statistics/vip-class-attendance-report" replace />} />
-      <Route path="/profile/statistics/planner-report" element={<Navigate to="/statistics/planner-report" replace />} />
-      <Route path="/profile/admin-settings/organizations" element={<Navigate to="/admin-settings/organizations" replace />} />
-      <Route path="/profile/admin-settings/monitoring" element={<Navigate to="/admin-settings/monitoring" replace />} />
-      <Route path="/appointments/settings" element={<Navigate to="/settings/appointments" replace />} />
-      <Route path="/profile/appointments/work-schedule" element={<Navigate to="/appointments/work-schedule" replace />} />
-      <Route path="/profile/settings/organizations" element={<Navigate to="/admin-settings/organizations" replace />} />
-      <Route path="/profile/settings/appointments" element={<Navigate to="/settings/appointments" replace />} />
-      <Route path="/profile/settings/roles" element={<Navigate to="/settings/roles" replace />} />
-      <Route path="/profile/settings/positions" element={<Navigate to="/settings/positions" replace />} />
-      <Route path="/profile/settings/notification" element={<Navigate to="/notifications" replace />} />
-      <Route path="/profile/settings/notification-settings" element={<Navigate to="/notifications" replace />} />
-      <Route path="/profile/settings/notifications" element={<Navigate to="/notifications" replace />} />
-      <Route path="/profile/notifications" element={<Navigate to="/notifications" replace />} />
-      <Route path="/profile/settings/monitoring" element={<Navigate to="/admin-settings/monitoring" replace />} />
-      <Route path="/home" element={<Navigate to="/" replace />} />
-      <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        {PROFILE_VIEW_ROUTES.map(({ path, forcedView }) => (
+          <Route
+            key={path}
+            path={path}
+            element={<ProfilePage forcedView={forcedView} />}
+          />
+        ))}
+        {REDIRECT_ROUTE_GROUPS.flatMap(({ to, paths }) => (
+          paths.map((path) => (
+            <Route
+              key={path}
+              path={path}
+              element={<Navigate to={to} replace />}
+            />
+          ))
+        ))}
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
     </Suspense>
   );
 }

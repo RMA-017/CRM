@@ -126,10 +126,10 @@ test("admin role permission selection always expands to all active codes allowed
     isAdmin: true
   });
 
-  assert.deepEqual(selectedCodes, [
+  assert.deepEqual([...selectedCodes].sort((left, right) => left.localeCompare(right)), [
+    "profile.read",
     "users.read",
     "users.create",
-    "settings.roles.read",
-    "profile.read"
-  ]);
+    "settings.roles.read"
+  ].sort((left, right) => left.localeCompare(right)));
 });

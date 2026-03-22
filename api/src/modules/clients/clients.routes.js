@@ -57,7 +57,9 @@ import {
   getVipAttendanceHistory,
   getVipNormMonitoringRows,
   getVipClientOptionsByOrganization,
+  getVipAttendanceEducatorsByOrganization,
   getVipAttendanceTeachersByOrganization,
+  getVipAttendanceTutorsByOrganization,
   isVipClientAssignedToUser,
   isVipClassAssignedToUser,
   getVipTutorAssignmentHistory,
@@ -1153,7 +1155,7 @@ async function clientsRoutes(fastify) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
-        const [rows, classOptions, teacherOptions, clientOptions, assignmentOptions] = await Promise.all([
+        const [rows, classOptions, educatorOptions, clientOptions, tutorOptions] = await Promise.all([
           getVipAttendanceHistory({
             organizationId: authContext.organizationId,
             fromDate,
@@ -1172,7 +1174,7 @@ async function clientsRoutes(fastify) {
           }),
           hasAssignedScope
             ? Promise.resolve([])
-            : getVipAttendanceTeachersByOrganization(authContext.organizationId),
+            : getVipAttendanceEducatorsByOrganization(authContext.organizationId),
           hasAssignedScope
             ? Promise.resolve([])
             : getVipClientOptionsByOrganization({
@@ -1180,8 +1182,8 @@ async function clientsRoutes(fastify) {
               limit: 2000
             }),
           hasAssignedScope
-            ? Promise.resolve({ tutors: [] })
-            : getVipAssignmentOptionsByOrganization(authContext.organizationId)
+            ? Promise.resolve([])
+            : getVipAttendanceTutorsByOrganization(authContext.organizationId)
         ]);
         const historyRows = Array.isArray(rows) ? rows : [];
         const scopedTeachers = Array.from(
@@ -1238,7 +1240,7 @@ async function clientsRoutes(fastify) {
             .filter((item) => Boolean(item.id)),
           teachers: hasAssignedScope
             ? scopedTeachers
-            : (Array.isArray(teacherOptions) ? teacherOptions : [])
+            : (Array.isArray(educatorOptions) ? educatorOptions : [])
               .map((item) => ({
                 id: String(item?.id || "").trim(),
                 name: String(item?.name || "").trim()
@@ -1246,7 +1248,7 @@ async function clientsRoutes(fastify) {
               .filter((item) => Boolean(item.id)),
           tutors: hasAssignedScope
             ? scopedTutors
-            : (Array.isArray(assignmentOptions?.tutors) ? assignmentOptions.tutors : [])
+            : (Array.isArray(tutorOptions) ? tutorOptions : [])
               .map((item) => ({
                 id: String(item?.id || "").trim(),
                 name: String(item?.name || "").trim()

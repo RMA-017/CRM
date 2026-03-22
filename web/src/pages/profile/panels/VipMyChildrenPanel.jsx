@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import CustomSelect from "../../../components/CustomSelect.jsx";
 import {
   MY_CHILDREN_DAY_ITEMS,
@@ -16,9 +17,11 @@ function formatMyChildrenWeekRange(days, { compact = false } = {}) {
     return "";
   }
   if (compact) {
-    const day = String(first.getDate()).padStart(2, "0");
-    const month = String(first.getMonth() + 1).padStart(2, "0");
-    return `${day}.${month}`;
+    const firstDay = String(first.getDate()).padStart(2, "0");
+    const firstMonth = String(first.getMonth() + 1).padStart(2, "0");
+    const lastDay = String(last.getDate()).padStart(2, "0");
+    const lastMonth = String(last.getMonth() + 1).padStart(2, "0");
+    return `${firstDay}.${firstMonth} - ${lastDay}.${lastMonth}`;
   }
   return `${first.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })} - ${last.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}`;
 }
@@ -103,6 +106,12 @@ function VipMyChildrenPanel({
   const showAllChildren = !normalizedSelectedClientId;
   const selectedChild = rawChildOptions.find((item) => String(item?.id || "").trim() === normalizedSelectedClientId) || null;
   const selectedChildOption = childOptions.find((item) => item.value === normalizedSelectedClientId) || null;
+  const [compactWeekRange, setCompactWeekRange] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    return window.matchMedia("(max-width: 860px)").matches;
+  });
   const currentDate = /^\d{4}-\d{2}-\d{2}$/.test(dateYmd)
     ? new Date(`${dateYmd}T00:00:00`)
     : null;
@@ -130,6 +139,22 @@ function VipMyChildrenPanel({
         };
       })
     : [];
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+    const mediaQuery = window.matchMedia("(max-width: 860px)");
+    const handleViewportChange = () => {
+      setCompactWeekRange(mediaQuery.matches);
+    };
+    handleViewportChange();
+    mediaQuery.addEventListener("change", handleViewportChange);
+    return () => {
+      mediaQuery.removeEventListener("change", handleViewportChange);
+    };
+  }, []);
+
   const selectedDayLabel = currentDate
     ? currentDate.toLocaleDateString("en-US", { weekday: "short" })
     : "Day";
@@ -140,7 +165,7 @@ function VipMyChildrenPanel({
     if (isCompact) {
       return currentDate.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
     }
-    return formatMyChildrenWeekRange(myChildrenWeekDays);
+    return formatMyChildrenWeekRange(myChildrenWeekDays, { compact: compactWeekRange });
   })();
   const isSelectedDayToday = Boolean(
     currentDate
