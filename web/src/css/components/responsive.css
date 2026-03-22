@@ -168,8 +168,8 @@
 
   .appointment-create-modal {
     width: calc(100vw - 30px);
-    max-height: calc(100dvh - 96px);
-    padding: 8px;
+    max-height: calc(100dvh - 118px);
+    padding: 7px;
     overflow-y: hidden;
     overflow-x: hidden;
     --appointment-repeat-chip-height: 30px;
@@ -293,8 +293,8 @@
   }
 
   .appointment-create-modal .appointment-modal-section {
-    padding: 4px 0;
-    gap: 6px;
+    padding: 3px 0;
+    gap: 5px;
   }
 
   .appointment-create-modal .auth-form {
@@ -302,7 +302,7 @@
   }
 
   .appointment-create-modal .appointment-create-fields {
-    padding-right: 6px;
+    padding-right: 5px;
   }
 
   .appointment-create-modal .appointment-client-search-row,
@@ -354,8 +354,8 @@
 
   .appointment-create-modal .appointment-create-actions {
     flex-wrap: wrap;
-    gap: 6px;
-    padding: 4px 0 2px 0;
+    gap: 5px;
+    padding: 3px 0 1px 0;
   }
 
   /* Appointment settings / breaks */
@@ -585,8 +585,8 @@
 
   .appointment-create-modal {
     width: calc(100vw - 24px);
-    max-height: calc(100dvh - 104px);
-    padding: 8px;
+    max-height: calc(100dvh - 126px);
+    padding: 7px;
     overflow-y: hidden;
     overflow-x: hidden;
     --appointment-repeat-chip-height: 30px;
