@@ -1199,18 +1199,10 @@ export async function getAppointmentSpecialistsByOrganization(organizationId) {
          OR LOWER(TRIM(r.label)) LIKE '%spetsialist%'
          OR LOWER(TRIM(r.label)) LIKE '%mutaxassis%'
          OR LOWER(TRIM(r.label)) LIKE '%специалист%'
-         OR LOWER(TRIM(r.label)) LIKE '%educator%'
-         OR LOWER(TRIM(r.label)) LIKE '%teacher%'
-         OR LOWER(TRIM(r.label)) LIKE '%tutor%'
-         OR LOWER(TRIM(r.label)) LIKE '%coach%'
          OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%specialist%'
          OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%spetsialist%'
          OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%mutaxassis%'
          OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%специалист%'
-         OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%educator%'
-         OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%teacher%'
-         OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%tutor%'
-         OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%coach%'
        )
      ORDER BY
       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), u.id::text) ASC`,

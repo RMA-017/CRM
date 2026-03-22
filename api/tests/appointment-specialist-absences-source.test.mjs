@@ -84,6 +84,12 @@ test("appointment specialist absence routes and schedule guards stay registered"
     "Appointment specialist lookup should include localized specialist role labels."
   );
 
+  assert.doesNotMatch(
+    serviceSource,
+    /LIKE '%educator%'|LIKE '%teacher%'|LIKE '%tutor%'|LIKE '%coach%'/,
+    "Appointment specialist lookup should stay limited to specialist role labels for planner workflows."
+  );
+
   assert.match(
     schedulesSource,
     /buildSpecialistAbsenceConflictMessage/,
