@@ -4121,7 +4121,11 @@ function AppointmentScheduler({
               key={weekRenderKey}
               hidden={!selectedSpecialistId || vipWeeklyClientRows.length === 0}
             >
-              <table className="appointment-vip-weekly-grid" aria-label="VIP class weekly schedule table">
+              <table
+                className="appointment-vip-weekly-grid"
+                aria-label="VIP class weekly schedule table"
+                style={{ minWidth: `${Math.max(900, Math.max(1, weekDays.length) * 180)}px` }}
+              >
                 <thead>
                   <tr>
                     {weekDays.map((day) => {
@@ -4266,7 +4270,10 @@ function AppointmentScheduler({
       ) : (
         vipOnly ? (
           <div className="appointment-vip-weekly-grid-wrap" aria-hidden="true">
-            <table className="appointment-vip-weekly-grid">
+            <table
+              className="appointment-vip-weekly-grid"
+              style={{ minWidth: `${Math.max(900, SKEL_DAYS.length * 180)}px` }}
+            >
               <thead>
                 <tr>
                   {SKEL_DAYS.map((d) => (

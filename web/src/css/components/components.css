@@ -2739,8 +2739,8 @@ label.field > span:first-child,
   width: 72px;
   min-width: 72px;
   max-width: 72px;
-  height: 30px;
-  min-height: 30px;
+  height: 25px;
+  min-height: 25px;
 }
 
 #saveVipAttendanceEditBtn {
@@ -3038,8 +3038,8 @@ label.field > span:first-child,
   width: 72px;
   min-width: 72px;
   max-width: 72px;
-  height: 34px;
-  min-height: 34px;
+  height: 25px;
+  min-height: 25px;
   padding: 0;
 }
 
@@ -3125,21 +3125,26 @@ label.field > span:first-child,
 
 #statisticsClassPanel .all-users-table th:nth-child(9),
 #statisticsClassPanel .all-users-table td:nth-child(9) {
-  width: 8%;
+  width: 160px;
+  min-width: 160px;
+  max-width: 160px;
   text-align: center;
   overflow: visible;
 }
 
 #statisticsClassPanel .all-users-table td:nth-child(9) .table-action-btn {
-  width: auto;
-  min-width: unset;
-  padding: 0 7px;
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+  padding: 0;
 }
 
 #statisticsClassPanel .all-users-table td:nth-child(9) .statistics-actions-wrap {
   display: inline-flex;
   gap: 4px;
   align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
 }
 
 .panel-search-bar {
@@ -4916,13 +4921,13 @@ label.field > span:first-child,
   align-self: end;
 }
 
-#appointmentBreaksAddModal .appointment-breaks-add-inline-actions .header-btn,
 #appointmentBreaksAddModal .appointment-breaks-add-inline-actions .table-action-btn,
-#workScheduleUserOverridesModal .appointment-breaks-add-inline-actions .header-btn,
 #workScheduleUserOverridesModal .appointment-breaks-add-inline-actions .table-action-btn {
   width: 72px;
   min-width: 72px;
-  height: var(--input-height);
+  max-width: 72px;
+  height: 25px;
+  min-height: 25px;
   padding: 0;
 }
 
@@ -5445,30 +5450,32 @@ label.field > span:first-child,
 
 #appointmentBreaksPanel .class-assignments-table th:nth-child(5),
 #appointmentBreaksPanel .class-assignments-table td:nth-child(5) {
-  width: 64px;
-  min-width: 64px;
-  max-width: 64px;
+  width: 82px;
+  min-width: 82px;
+  max-width: 82px;
   text-align: center;
 }
 
 #appointmentBreaksPanel .class-assignments-table th:nth-child(6),
 #appointmentBreaksPanel .class-assignments-table td:nth-child(6) {
-  width: 76px;
-  min-width: 76px;
-  max-width: 76px;
+  width: 82px;
+  min-width: 82px;
+  max-width: 82px;
   text-align: center;
 }
 
 #appointmentBreaksPanel .class-assignments-table td:nth-child(5) .table-action-btn {
-  width: 64px;
-  min-width: 64px;
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
   margin-left: auto;
   margin-right: auto;
 }
 
 #appointmentBreaksPanel .class-assignments-table td:nth-child(6) .table-action-btn {
-  width: 76px;
-  min-width: 76px;
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
   margin-left: auto;
   margin-right: auto;
 }

@@ -754,9 +754,16 @@
   }
 
   .vip-attendance-edit-grid input[type="datetime-local"] {
-    width: 100%;
+    display: block;
+    width: min(100%, 148px);
+    max-width: 148px;
     min-width: 0;
     min-inline-size: 0;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 6px;
+    padding-right: 6px;
+    font-size: 12px;
   }
 
   .vip-attendance-edit-actions {
@@ -765,9 +772,11 @@
   }
 
   #deleteVipAttendanceEditBtn {
-    width: 96px;
-    min-width: 96px;
-    max-width: 96px;
+    width: 72px;
+    min-width: 72px;
+    max-width: 72px;
+    height: 25px;
+    min-height: 25px;
   }
 
   .vip-attendance-summary .vip-attendance-filter-btn {

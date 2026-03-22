@@ -671,15 +671,15 @@ function WorkSchedulePanel({
           hidden={!isWeeklyOverridesModalOpen}
           aria-modal="true"
           role="dialog"
-          aria-label="Add blocked time"
+          aria-label={isEditingWeeklyOverride ? "Edit blocked time" : "Add blocked time"}
         >
           <div className="appointment-breaks-add-modal-head">
-            <h3>Add Blocked Time</h3>
+            <h3>{isEditingWeeklyOverride ? "Edit Blocked Time" : "Add Blocked Time"}</h3>
             <button
               id="closeWorkScheduleUserOverridesModalBtn"
               type="button"
               className="header-btn panel-close-btn"
-              aria-label="Close add blocked time modal"
+              aria-label={isEditingWeeklyOverride ? "Close edit blocked time modal" : "Close add blocked time modal"}
               onClick={closeWeeklyOverridesModal}
             >
               ×
@@ -695,9 +695,9 @@ function WorkSchedulePanel({
           >
             <div className="appointment-breaks-add-rows appointment-breaks-add-rows-scroll">
               {isEditingWeeklyOverride ? (
-                <>
-                  <div className="ws-form-row ws-form-row-full">
-                    <label className="field ws-field-user">
+                <div className="appointment-breaks-add-row">
+                  <div className="appointment-breaks-add-row-line appointment-breaks-add-row-line-top">
+                    <div className="appointment-breaks-add-field">
                       <span>User</span>
                       <CustomSelect
                         id="workScheduleUserOverridesUserSelect"
@@ -710,54 +710,59 @@ function WorkSchedulePanel({
                         maxVisibleOptions={6}
                         onChange={(nextValue) => setWeeklyUserId(String(nextValue || "").trim())}
                       />
-                    </label>
+                    </div>
                   </div>
 
-                  <div className="ws-form-row ws-form-row-wide">
-                    <label className="field ws-field-day">
-                      <span>Day</span>
-                      <CustomSelect
-                        id="workScheduleUserOverridesDaySelect"
-                        placeholder="Day"
-                        value={weeklyForm.dayOfWeek}
-                        options={weeklyDayOptions}
-                        disabled={!canUpdateWorkSchedule || mutating}
-                        menuPortal
-                        forceOpenDown
-                        maxVisibleOptions={7}
-                        onChange={(nextValue) => setWeeklyForm((prev) => ({ ...prev, dayOfWeek: String(nextValue || "1") }))}
-                      />
-                    </label>
-                    <label className="field ws-field-time">
-                      <span>Start</span>
-                      <input
-                        type="time"
-                        value={weeklyForm.startTime}
-                        disabled={!canUpdateWorkSchedule || mutating}
-                        onChange={(event) => setWeeklyForm((prev) => ({ ...prev, startTime: String(event.target.value || "") }))}
-                      />
-                    </label>
-                    <label className="field ws-field-time">
-                      <span>End</span>
-                      <input
-                        type="time"
-                        value={weeklyForm.endTime}
-                        disabled={!canUpdateWorkSchedule || mutating}
-                        onChange={(event) => setWeeklyForm((prev) => ({ ...prev, endTime: String(event.target.value || "") }))}
-                      />
-                    </label>
-                    <label className="field ws-field-reason">
-                      <span>Reason</span>
-                      <input
-                        type="text"
-                        maxLength={120}
-                        value={weeklyForm.reason}
-                        disabled={!canUpdateWorkSchedule || mutating}
-                        onChange={(event) => setWeeklyForm((prev) => ({ ...prev, reason: String(event.target.value || "") }))}
-                      />
-                    </label>
+                  <div className="appointment-breaks-add-row-line appointment-breaks-add-row-line-bottom">
+                    <div className="appointment-breaks-add-row-line-bottom-item">
+                      <div className="appointment-breaks-add-field">
+                        <span>Day</span>
+                        <CustomSelect
+                          id="workScheduleUserOverridesDaySelect"
+                          placeholder="Day"
+                          value={weeklyForm.dayOfWeek}
+                          options={weeklyDayOptions}
+                          disabled={!canUpdateWorkSchedule || mutating}
+                          menuPortal
+                          forceOpenDown
+                          maxVisibleOptions={7}
+                          onChange={(nextValue) => setWeeklyForm((prev) => ({ ...prev, dayOfWeek: String(nextValue || "1") }))}
+                        />
+                      </div>
+                      <label className="appointment-breaks-add-field" htmlFor="workScheduleUserOverridesStartEdit">
+                        <span>Start</span>
+                        <input
+                          id="workScheduleUserOverridesStartEdit"
+                          type="time"
+                          value={weeklyForm.startTime}
+                          disabled={!canUpdateWorkSchedule || mutating}
+                          onChange={(event) => setWeeklyForm((prev) => ({ ...prev, startTime: String(event.target.value || "") }))}
+                        />
+                      </label>
+                      <label className="appointment-breaks-add-field" htmlFor="workScheduleUserOverridesEndEdit">
+                        <span>End</span>
+                        <input
+                          id="workScheduleUserOverridesEndEdit"
+                          type="time"
+                          value={weeklyForm.endTime}
+                          disabled={!canUpdateWorkSchedule || mutating}
+                          onChange={(event) => setWeeklyForm((prev) => ({ ...prev, endTime: String(event.target.value || "") }))}
+                        />
+                      </label>
+                      <label className="appointment-breaks-add-field" htmlFor="workScheduleUserOverridesReasonEdit">
+                        <span>Reason</span>
+                        <input
+                          id="workScheduleUserOverridesReasonEdit"
+                          type="text"
+                          maxLength={120}
+                          value={weeklyForm.reason}
+                          disabled={!canUpdateWorkSchedule || mutating}
+                          onChange={(event) => setWeeklyForm((prev) => ({ ...prev, reason: String(event.target.value || "") }))}
+                        />
+                      </label>
+                    </div>
                   </div>
-                </>
+                </div>
               ) : (
                 <div className="appointment-breaks-add-row">
                   <div className="appointment-breaks-add-row-line appointment-breaks-add-row-line-top">

@@ -425,7 +425,11 @@ function VipMyChildrenPanel({
           className="appointment-vip-weekly-grid-wrap appointment-vip-my-children-grid-wrap"
           hidden={!showMyChildrenBoard}
         >
-          <table className="appointment-vip-weekly-grid appointment-vip-my-children-grid" aria-label="My children weekly schedule table">
+          <table
+            className="appointment-vip-weekly-grid appointment-vip-my-children-grid"
+            aria-label="My children weekly schedule table"
+            style={{ minWidth: `${Math.max(900, Math.max(1, visibleMyChildrenWeekDays.length) * 180)}px` }}
+          >
             <thead>
               <tr>
                 {visibleMyChildrenWeekDays.map((day) => (
