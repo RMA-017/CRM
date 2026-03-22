@@ -122,11 +122,10 @@ function StatisticsPlannerReportPanel({
   });
   const [reportLoading, setReportLoading] = useState(false);
   const [reportMessage, setReportMessage] = useState("");
-  const [hasAutoLoaded, setHasAutoLoaded] = useState(false);
   const [hasLoadedFilterOptions, setHasLoadedFilterOptions] = useState(false);
   const [page, setPage] = useState(1);
   const [detailStatusFilter, setDetailStatusFilter] = useState("all");
-  const reportRequestInFlightRef = useRef(false);
+  const reportRequestIdRef = useRef(0);
 
   const specialistOptions = useMemo(() => [
     { value: "", label: "All specialists" },
@@ -151,7 +150,7 @@ function StatisticsPlannerReportPanel({
 
   const loadFilterOptions = useCallback(async () => {
     try {
-      const response = await apiFetch("/api/appointments/report/filters", {
+      const response = await apiFetch("/api/appointments/report/filters?includeAllClients=true", {
         method: "GET",
         cache: "no-store"
       });
@@ -176,16 +175,13 @@ function StatisticsPlannerReportPanel({
     nextSpecialistId = "",
     nextClientId = ""
   } = {}) => {
-    if (reportRequestInFlightRef.current) {
-      return;
-    }
-
     const normalizedFrom = String(fromDate || "").trim() || initialBounds.from;
     const normalizedTo = String(toDate || "").trim() || initialBounds.to;
     const normalizedSpecialistId = String(nextSpecialistId || "").trim();
     const normalizedClientId = String(nextClientId || "").trim();
+    const requestId = reportRequestIdRef.current + 1;
+    reportRequestIdRef.current = requestId;
 
-    reportRequestInFlightRef.current = true;
     setReportLoading(true);
     setReportMessage("");
     try {
@@ -207,6 +203,9 @@ function StatisticsPlannerReportPanel({
         cache: "no-store"
       });
       const data = await readApiResponseData(response);
+      if (requestId !== reportRequestIdRef.current) {
+        return;
+      }
       if (!response.ok) {
         setReportData(null);
         setReportMessage(String(data?.message || "Failed to load planner report.").trim());
@@ -215,16 +214,20 @@ function StatisticsPlannerReportPanel({
 
       setReportData(data);
     } catch {
+      if (requestId !== reportRequestIdRef.current) {
+        return;
+      }
       setReportData(null);
       setReportMessage("Unexpected error. Please try again.");
     } finally {
-      reportRequestInFlightRef.current = false;
-      setReportLoading(false);
+      if (requestId === reportRequestIdRef.current) {
+        setReportLoading(false);
+      }
     }
   }, [initialBounds.from, initialBounds.to]);
 
   useEffect(() => {
-    if (showBootstrapSkeleton || hasAutoLoaded) {
+    if (showBootstrapSkeleton || !canReadReport) {
       return;
     }
     void loadReport({
@@ -234,8 +237,7 @@ function StatisticsPlannerReportPanel({
       nextSpecialistId: specialistId,
       nextClientId: clientId
     });
-    setHasAutoLoaded(true);
-  }, [clientId, from, hasAutoLoaded, loadReport, showBootstrapSkeleton, specialistId, to, vipOnly]);
+  }, [canReadReport, clientId, from, loadReport, showBootstrapSkeleton, specialistId, to, vipOnly]);
 
   useEffect(() => {
     if (showBootstrapSkeleton || hasLoadedFilterOptions || !canReadReport) {
@@ -253,6 +255,15 @@ function StatisticsPlannerReportPanel({
       setClientId("");
     }
   }, [clientId, clientOptions]);
+
+  useEffect(() => {
+    if (!specialistId) {
+      return;
+    }
+    if (!specialistOptions.some((item) => item.value === specialistId)) {
+      setSpecialistId("");
+    }
+  }, [specialistId, specialistOptions]);
 
   useEffect(() => {
     setPage(1);

@@ -10,6 +10,24 @@ test("statistics planner report detail table uses 20-row pagination and summary 
 
   assert.match(
     source,
+    /\/api\/appointments\/report\/filters\?includeAllClients=true/,
+    "Planner report toolbar should load the full scoped client list so the Client filter is always usable."
+  );
+
+  assert.match(
+    source,
+    /const requestId = reportRequestIdRef\.current \+ 1;[\s\S]*if \(requestId !== reportRequestIdRef\.current\) \{\s*return;\s*\}/s,
+    "Planner report should ignore stale responses so rapid filter changes keep the latest result."
+  );
+
+  assert.match(
+    source,
+    /useEffect\(\(\) => \{\s*if \(showBootstrapSkeleton \|\| !canReadReport\) \{\s*return;\s*\}[\s\S]*void loadReport\(\{[\s\S]*nextSpecialistId: specialistId,[\s\S]*nextClientId: clientId[\s\S]*\}\);/s,
+    "Planner report should reload when toolbar filters change so specialist and client selects affect the report immediately."
+  );
+
+  assert.match(
+    source,
     /import \{ ALL_USERS_LIMIT \} from "\.\.\/profile\.constants\.js";/,
     "Planner report should reuse the shared 20-row page size constant."
   );
