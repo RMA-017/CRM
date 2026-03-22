@@ -21,6 +21,22 @@ function formatPlannerReportClientLabel(item) {
   return [lastName, firstName, middleName].filter(Boolean).join(" ").trim() || `Client #${String(item?.id || "").trim()}`;
 }
 
+function mergePlannerReportSelectOptions(primaryOptions = [], fallbackOptions = []) {
+  const optionMap = new Map();
+  [...(Array.isArray(primaryOptions) ? primaryOptions : []), ...(Array.isArray(fallbackOptions) ? fallbackOptions : [])]
+    .forEach((option) => {
+      const value = String(option?.value || "").trim();
+      const label = String(option?.label || "").trim();
+      if (value && label && !optionMap.has(value)) {
+        optionMap.set(value, label);
+      }
+    });
+
+  return [...optionMap.entries()]
+    .map(([value, label]) => ({ value, label }))
+    .sort((left, right) => left.label.localeCompare(right.label, undefined, { sensitivity: "base" }));
+}
+
 function formatPlannerReportDuration(durationMinutesValue, startTimeValue, endTimeValue) {
   const normalizedDurationMinutes = Number.parseInt(String(durationMinutesValue || "0"), 10) || 0;
   if (normalizedDurationMinutes > 0) {
@@ -129,24 +145,40 @@ function StatisticsPlannerReportPanel({
 
   const specialistOptions = useMemo(() => [
     { value: "", label: "All specialists" },
-    ...(Array.isArray(reportFilterOptions?.specialists) ? reportFilterOptions.specialists : [])
-      .map((item) => ({
-        value: String(item?.id || "").trim(),
-        label: String(item?.name || "").trim()
-      }))
-      .filter((item) => Boolean(item.value) && Boolean(item.label))
-  ], [reportFilterOptions?.specialists]);
+    ...mergePlannerReportSelectOptions(
+      (Array.isArray(reportFilterOptions?.specialists) ? reportFilterOptions.specialists : [])
+        .map((item) => ({
+          value: String(item?.id || "").trim(),
+          label: String(item?.name || "").trim()
+        }))
+        .filter((item) => Boolean(item.value) && Boolean(item.label)),
+      (Array.isArray(reportData?.details) ? reportData.details : [])
+        .map((row) => ({
+          value: String(row?.specialistId || "").trim(),
+          label: String(row?.specialistName || "").trim()
+        }))
+        .filter((item) => Boolean(item.value) && Boolean(item.label))
+    )
+  ], [reportData?.details, reportFilterOptions?.specialists]);
 
   const clientOptions = useMemo(() => [
     { value: "", label: "All clients" },
-    ...(Array.isArray(reportFilterOptions?.clients) ? reportFilterOptions.clients : [])
-      .filter((item) => (vipOnly ? Boolean(item?.isVip) : true))
+    ...mergePlannerReportSelectOptions(
+      (Array.isArray(reportFilterOptions?.clients) ? reportFilterOptions.clients : [])
+        .filter((item) => (vipOnly ? Boolean(item?.isVip) : true))
+        .map((item) => ({
+          value: String(item?.id || "").trim(),
+          label: formatPlannerReportClientLabel(item)
+        }))
+        .filter((item) => Boolean(item.value) && Boolean(item.label)),
+      (Array.isArray(reportData?.details) ? reportData.details : [])
       .map((item) => ({
-        value: String(item?.id || "").trim(),
-        label: formatPlannerReportClientLabel(item)
+        value: String(item?.clientId || "").trim(),
+        label: String(item?.clientName || "").trim()
       }))
       .filter((item) => Boolean(item.value) && Boolean(item.label))
-  ], [reportFilterOptions?.clients, vipOnly]);
+    )
+  ], [reportData?.details, reportFilterOptions?.clients, vipOnly]);
 
   const loadFilterOptions = useCallback(async () => {
     try {

@@ -1894,6 +1894,11 @@ function AppointmentScheduler({
           if (!vipOnly && normalizedSelectedPlannerClientFilterId) {
             return "";
           }
+          const persisted = readStoredSchedulerSelectionId(vipOnly, currentUserId);
+          const preferredId = String(prev || persisted || "").trim();
+          if (preferredId && nextSpecialists.some((itemValue) => itemValue.id === preferredId)) {
+            return preferredId;
+          }
           if (
             !vipOnly
             && restrictCreateToOwnSpecialist
@@ -1901,11 +1906,6 @@ function AppointmentScheduler({
             && nextSpecialists.some((itemValue) => itemValue.id === normalizedCurrentUserId)
           ) {
             return normalizedCurrentUserId;
-          }
-          const persisted = readStoredSchedulerSelectionId(vipOnly, currentUserId);
-          const preferredId = String(prev || persisted || "").trim();
-          if (preferredId && nextSpecialists.some((itemValue) => itemValue.id === preferredId)) {
-            return preferredId;
           }
           return nextSpecialists[0]?.id || "";
         });

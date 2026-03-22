@@ -28,6 +28,12 @@ test("statistics planner report detail table uses 20-row pagination and summary 
 
   assert.match(
     source,
+    /mergePlannerReportSelectOptions[\s\S]*reportData\?\.details[\s\S]*specialistName[\s\S]*clientName/s,
+    "Planner report toolbar should fall back to the currently loaded detail rows when filter metadata is empty."
+  );
+
+  assert.match(
+    source,
     /import \{ ALL_USERS_LIMIT \} from "\.\.\/profile\.constants\.js";/,
     "Planner report should reuse the shared 20-row page size constant."
   );

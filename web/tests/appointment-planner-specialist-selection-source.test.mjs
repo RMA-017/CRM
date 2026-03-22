@@ -22,8 +22,8 @@ test("appointment planner keeps specialist selection user-scoped and defaults sp
 
   assert.match(
     schedulerSource,
-    /if \(\s*!vipOnly\s*&&\s*restrictCreateToOwnSpecialist\s*&&\s*normalizedCurrentUserId[\s\S]*return normalizedCurrentUserId;/,
-    "Specialist-scoped planner users should default to their own specialist id when the planner loads."
+    /const preferredId = String\(prev \|\| persisted \|\| ""\)\.trim\(\);[\s\S]*if \(preferredId && nextSpecialists\.some\(\(itemValue\) => itemValue\.id === preferredId\)\) \{\s*return preferredId;\s*\}[\s\S]*if \(\s*!vipOnly\s*&&\s*restrictCreateToOwnSpecialist\s*&&\s*normalizedCurrentUserId[\s\S]*return normalizedCurrentUserId;/s,
+    "Specialist-scoped planner users should default to their own planner only when they do not already have a valid selected specialist."
   );
 
   assert.match(
