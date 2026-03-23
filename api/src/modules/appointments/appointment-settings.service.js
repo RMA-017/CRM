@@ -1193,6 +1193,28 @@ async function listVipDailyRoutineScheduleItems({
   }
 }
 
+function isMissingVipAssignmentScopeSchemaError(error) {
+  const errorCode = String(error?.code || "").trim();
+  const errorMessage = String(error?.message || "").trim().toLowerCase();
+
+  if (errorCode === "42P01") {
+    return (
+      errorMessage.includes("vip_client_tutor_assignments")
+      || errorMessage.includes("vip_class_teacher_assignments")
+    );
+  }
+
+  if (errorCode === "42703") {
+    return (
+      errorMessage.includes("class_assignment_id")
+      || errorMessage.includes("teacher_user_id")
+      || errorMessage.includes("tutor_user_id")
+    );
+  }
+
+  return false;
+}
+
 export async function withAppointmentTransaction(callback) {
   const client = await pool.connect();
   try {
@@ -2485,34 +2507,43 @@ async function listAutoRollingRepeatRoots({
     }
   }
 
-  const { rows } = await db.query(
-    `SELECT
-       s.id,
-       s.organization_id,
-       s.specialist_id,
-       s.client_id,
-       s.start_time,
-       s.end_time,
-       s.duration_minutes,
-       s.service_name,
-       s.status,
-       s.note,
-       s.repeat_group_key,
-       s.repeat_until_date,
-       s.repeat_days,
-       s.repeat_anchor_date,
-       s.created_by,
-       s.updated_by
-      FROM ${tableName} s
-      JOIN clients c
-        ON c.id = s.client_id
-       AND c.organization_id = s.organization_id
-      WHERE ${whereParts.join("\n        AND ")}
-      ORDER BY s.repeat_until_date ASC, s.id ASC`,
-    params
-  );
+  try {
+    const { rows } = await db.query(
+      `SELECT
+         s.id,
+         s.organization_id,
+         s.specialist_id,
+         s.client_id,
+         s.start_time,
+         s.end_time,
+         s.duration_minutes,
+         s.service_name,
+         s.status,
+         s.note,
+         s.repeat_group_key,
+         s.repeat_until_date,
+         s.repeat_days,
+         s.repeat_anchor_date,
+         s.created_by,
+         s.updated_by
+        FROM ${tableName} s
+        JOIN clients c
+          ON c.id = s.client_id
+         AND c.organization_id = s.organization_id
+        WHERE ${whereParts.join("\n        AND ")}
+        ORDER BY s.repeat_until_date ASC, s.id ASC`,
+      params
+    );
 
-  return Array.isArray(rows) ? rows : [];
+    return Array.isArray(rows) ? rows : [];
+  } catch (error) {
+    // Older VIP schemas can miss assignment tables/columns used only for auto-rolling scope checks.
+    // In that case we skip auto-extension instead of failing the whole planner read.
+    if (isMissingVipAssignmentScopeSchemaError(error)) {
+      return [];
+    }
+    throw error;
+  }
 }
 
 async function updateAppointmentRepeatUntilDateByGroupKey({

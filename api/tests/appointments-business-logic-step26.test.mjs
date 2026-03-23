@@ -1139,7 +1139,7 @@ test("schedule delete blocks specialist users from deleting another specialist s
   );
 
   assert.equal(reply.state.statusCode, 403);
-  assert.equal(reply.state.payload?.message, "Forbidden.");
+  assert.equal(reply.state.payload?.message, "You can only delete appointment in your own planner.");
 });
 
 test("schedule delete blocks assigned-scope writes for unassigned VIP schedules", async () => {
@@ -1179,7 +1179,7 @@ test("schedule delete blocks assigned-scope writes for unassigned VIP schedules"
   );
 
   assert.equal(reply.state.statusCode, 403);
-  assert.equal(reply.state.payload?.message, "Forbidden.");
+  assert.equal(reply.state.payload?.message, "You can only delete VIP appointment assigned to you.");
 });
 
 test("breaks routes block specialist users from accessing another specialist", async () => {

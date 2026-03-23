@@ -75,10 +75,15 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
     /if \(!vipOnly && normalizedSelectedPlannerClientFilterId\) \{\s*return "";\s*\}/s,
     "Client-focused mode should keep the chosen specialist instead of clearing it."
   );
-  assert.doesNotMatch(
+  assert.match(
     source,
-    /if \(nextClientId\) \{\s*setSelectedSpecialistId\(""\);\s*\}/s,
-    "Selecting a client should no longer clear the specialist because client-focused create needs both values."
+    /onChange=\{\(nextValue\) => \{[\s\S]*const nextSpecialistId = String\(nextValue \|\| ""\)\.trim\(\);[\s\S]*setSelectedSpecialistId\(nextSpecialistId\);[\s\S]*if \(nextSpecialistId\) \{[\s\S]*setSelectedPlannerClientFilterId\(""\);[\s\S]*\}/s,
+    "Selecting a specialist in the toolbar should clear the client filter."
+  );
+  assert.match(
+    source,
+    /onChange=\{\(nextValue\) => \{[\s\S]*const nextClientId = String\(nextValue \|\| ""\)\.trim\(\);[\s\S]*setSelectedPlannerClientFilterId\(nextClientId\);[\s\S]*if \(nextClientId\) \{[\s\S]*setSelectedSpecialistId\(""\);[\s\S]*\}/s,
+    "Selecting a client in the toolbar should clear the specialist filter."
   );
   assert.match(
     source,

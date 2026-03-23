@@ -44,6 +44,18 @@ function buildClientScheduleConflictMessage(appointmentDate = "") {
     : "This client already has another appointment at this time.";
 }
 
+function buildDeleteScopeLabel(scope = "single") {
+  return scope === "single" ? "appointment" : "appointment series";
+}
+
+function buildOwnPlannerDeleteForbiddenMessage(scope = "single") {
+  return `You can only delete ${buildDeleteScopeLabel(scope)} in your own planner.`;
+}
+
+function buildVipAssignedDeleteForbiddenMessage(scope = "single") {
+  return `You can only delete VIP ${buildDeleteScopeLabel(scope)} assigned to you.`;
+}
+
 function toAbsenceTimeMinutes(value) {
   const normalized = String(value || "").trim();
   if (!/^\d{2}:\d{2}$/.test(normalized)) {
@@ -2034,7 +2046,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           ownSpecialistUserId
           && target.items.some((item) => Number.parseInt(String(item?.specialistId || ""), 10) !== ownSpecialistUserId)
         ) {
-          return reply.status(403).send({ message: "Forbidden." });
+          return reply.status(403).send({ message: buildOwnPlannerDeleteForbiddenMessage(target.scope) });
         }
         if (target.items.some((item) => item?.isVip === true)) {
           const vipReadScope = await resolveAppointmentVipReadScope({
@@ -2044,7 +2056,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           if (vipReadScope !== "all") {
             const requesterUserId = parsePositiveIntegerOr(access.authContext?.userId, 0);
             if (!requesterUserId) {
-              return reply.status(403).send({ message: "Forbidden." });
+              return reply.status(403).send({ message: buildVipAssignedDeleteForbiddenMessage(target.scope) });
             }
             for (const item of target.items) {
               if (item?.isVip !== true) {
@@ -2056,7 +2068,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                 userId: requesterUserId
               });
               if (!isAssignedClient) {
-                return reply.status(403).send({ message: "Forbidden." });
+                return reply.status(403).send({ message: buildVipAssignedDeleteForbiddenMessage(target.scope) });
               }
             }
           }

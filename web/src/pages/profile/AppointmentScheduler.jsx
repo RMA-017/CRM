@@ -4155,7 +4155,11 @@ function AppointmentScheduler({
                 maxVisibleOptions={10}
                 error={specialistSelectError}
                 onChange={(nextValue) => {
-                  setSelectedSpecialistId(nextValue);
+                  const nextSpecialistId = String(nextValue || "").trim();
+                  setSelectedSpecialistId(nextSpecialistId);
+                  if (nextSpecialistId) {
+                    setSelectedPlannerClientFilterId("");
+                  }
                   if (specialistSelectError) {
                     setSpecialistSelectError(false);
                   }
@@ -4184,6 +4188,9 @@ function AppointmentScheduler({
                   onChange={(nextValue) => {
                     const nextClientId = String(nextValue || "").trim();
                     setSelectedPlannerClientFilterId(nextClientId);
+                    if (nextClientId) {
+                      setSelectedSpecialistId("");
+                    }
                   }}
                 />
               </div>

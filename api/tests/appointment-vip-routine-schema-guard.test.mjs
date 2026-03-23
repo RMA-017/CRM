@@ -3,6 +3,7 @@ import test from "node:test";
 
 import pool from "../src/config/db.js";
 import {
+  ensureAutoRollingRecurringSchedulesCoverRange,
   getAppointmentSchedulesByRange,
   resetAppointmentServiceSchemaCacheForTests
 } from "../src/modules/appointments/appointment-settings.service.js";
@@ -154,6 +155,43 @@ test("appointment schedules range includes VIP routine items for client-focused 
     assert.equal(items[0]?.className, "Alpha");
     assert.equal(items[0]?.specialistId, "91");
     assert.equal(items[0]?.appointmentDate, "2026-03-17");
+  } finally {
+    resetAppointmentServiceSchemaCacheForTests();
+    restoreQuery();
+  }
+});
+
+test("auto-rolling VIP planner read skips assignment-schema-dependent root lookup when legacy VIP tables are missing", async () => {
+  resetAppointmentServiceSchemaCacheForTests();
+
+  const restoreQuery = stubPoolQuery(async (sql) => {
+    const queryText = String(sql || "");
+
+    if (queryText.includes("FROM appointment_schedules s")) {
+      const error = new Error('relation "vip_class_teacher_assignments" does not exist');
+      error.code = "42P01";
+      throw error;
+    }
+
+    throw new Error(`Unexpected query in test: ${queryText}`);
+  });
+
+  try {
+    const result = await ensureAutoRollingRecurringSchedulesCoverRange({
+      organizationId: 3,
+      specialistId: null,
+      clientId: 44,
+      classId: null,
+      assignedUserId: 91,
+      dateTo: "2026-03-21",
+      vipOnly: true
+    });
+
+    assert.deepEqual(result, {
+      changed: false,
+      extendedGroupCount: 0,
+      createdCount: 0
+    });
   } finally {
     resetAppointmentServiceSchemaCacheForTests();
     restoreQuery();
