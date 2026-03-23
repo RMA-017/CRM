@@ -75,3 +75,54 @@ test("ensureSystemPermissions deactivates and unassigns unknown permission codes
     restoreConnect();
   }
 });
+
+test("ensureSystemPermissions keeps planner read sync but does not recreate my class access", async () => {
+  const executedQueries = [];
+  const restoreConnect = stubPoolConnect(async (sql, params = []) => {
+    const text = String(sql || "");
+    executedQueries.push({ text, params });
+
+    if (text === "BEGIN" || text === "COMMIT" || text === "ROLLBACK") {
+      return { rows: [] };
+    }
+    if (text.includes("INSERT INTO permissions")) {
+      return { rows: [] };
+    }
+    if (text.includes("UPDATE permissions")) {
+      return { rows: [] };
+    }
+    if (text.includes("INSERT INTO role_permissions")) {
+      return { rows: [] };
+    }
+    if (text.includes("DELETE FROM role_permissions rp")) {
+      return { rows: [] };
+    }
+    if (text.includes("FROM role_options r") && text.includes("JOIN organizations o")) {
+      return { rows: [] };
+    }
+
+    throw new Error(`Unexpected SQL: ${text}`);
+  });
+
+  try {
+    await ensureSystemPermissions({
+      useAdvisoryLock: false
+    });
+
+    const plannerReadCopyQuery = executedQueries.find(
+      ({ text, params }) => text.includes("INSERT INTO role_permissions")
+        && params[0] === "appointments.schedule"
+        && params[1] === "appointments.planner.read"
+    );
+    const myClassCopyQuery = executedQueries.find(
+      ({ text, params }) => text.includes("INSERT INTO role_permissions")
+        && params[0] === "appointments.schedule"
+        && params[1] === "appointments.vip-clients.my-class"
+    );
+
+    assert.ok(plannerReadCopyQuery, "expected planner submenu to keep syncing planner read");
+    assert.equal(myClassCopyQuery, undefined, "did not expect planner submenu to recreate my class access");
+  } finally {
+    restoreConnect();
+  }
+});
