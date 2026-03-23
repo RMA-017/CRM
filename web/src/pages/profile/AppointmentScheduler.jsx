@@ -1995,8 +1995,13 @@ function AppointmentScheduler({
         const shouldRestoreClientFocus = (
           !vipOnly
           && preferredClientId
-          && nextPlannerClients.some((client) => client.id === preferredClientId)
-          && (Boolean(selectedPlannerClientFilterId) || persistedPlannerFilterMode === "client")
+          && (
+            Boolean(selectedPlannerClientFilterId)
+            || (
+              persistedPlannerFilterMode === "client"
+              && nextPlannerClients.some((client) => client.id === preferredClientId)
+            )
+          )
         );
 
         setSettings(mapSchedulerSettingsFromApiItem(item));
@@ -2211,6 +2216,14 @@ function AppointmentScheduler({
     }
 
     if (plannerClientSearchMap[normalizedClientId]) {
+      return;
+    }
+
+    const hasClientValidationSource = (
+      plannerClientFilterOptions.length > 0
+      || Boolean(plannerClientSearchMap[normalizedClientId])
+    );
+    if (!hasClientValidationSource) {
       return;
     }
 

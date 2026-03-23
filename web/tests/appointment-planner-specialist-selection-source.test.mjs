@@ -34,14 +34,20 @@ test("appointment planner keeps toolbar selection user-scoped and restores the l
 
   assert.match(
     schedulerSource,
-    /const shouldRestoreClientFocus = \([\s\S]*persistedPlannerFilterMode === "client"[\s\S]*\);[\s\S]*if \(shouldRestoreClientFocus\) \{[\s\S]*setSelectedPlannerClientFilterId\(preferredClientId\);[\s\S]*setSelectedSpecialistId\(""\);/s,
-    "Planner bootstrap should reopen in client mode when the last saved toolbar state was a client selection."
+    /const shouldRestoreClientFocus = \([\s\S]*Boolean\(selectedPlannerClientFilterId\)[\s\S]*persistedPlannerFilterMode === "client"[\s\S]*nextPlannerClients\.some\(\(client\) => client\.id === preferredClientId\)[\s\S]*\);[\s\S]*if \(shouldRestoreClientFocus\) \{[\s\S]*setSelectedPlannerClientFilterId\(preferredClientId\);[\s\S]*setSelectedSpecialistId\(""\);/s,
+    "Planner bootstrap should keep an active client selection in client mode instead of falling back to a specialist."
   );
 
   assert.match(
     schedulerSource,
     /if \(!isSchedulerInitialized\) \{\s*return;\s*\}[\s\S]*const normalizedClientId = String\(selectedPlannerClientFilterId \|\| ""\)\.trim\(\);/s,
     "Planner should not clear the restored client selection before the initial toolbar data finishes loading."
+  );
+
+  assert.match(
+    schedulerSource,
+    /const hasClientValidationSource = \([\s\S]*plannerClientFilterOptions\.length > 0[\s\S]*Boolean\(plannerClientSearchMap\[normalizedClientId\]\)[\s\S]*\);\s*if \(!hasClientValidationSource\) \{\s*return;\s*\}/s,
+    "Planner should keep the selected client while the validation sources are still unavailable."
   );
 
   assert.match(
