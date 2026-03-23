@@ -7,8 +7,8 @@ test("appointment create modal keeps repeat-until visible and restores the previ
 
   assert.match(
     source,
-    /function getVipAutoRollingRepeatUntil\(\) \{[\s\S]*const baseDate = new Date\(\);[\s\S]*VIP_AUTO_ROLLING_REPEAT_WINDOW_DAYS - 1/s,
-    "Appointment scheduler should calculate Active repeat-until from the current date."
+    /function getVipAutoRollingRepeatUntil\(appointmentDate = ""\) \{[\s\S]*const normalizedAppointmentDate = String\(appointmentDate \|\| ""\)\.trim\(\);[\s\S]*const baseDate = \([\s\S]*appointmentBaseDate > today[\s\S]*VIP_AUTO_ROLLING_REPEAT_WINDOW_DAYS - 1/s,
+    "Appointment scheduler should calculate Active repeat-until from the later of today and the selected appointment date."
   );
 
   assert.match(
@@ -19,8 +19,14 @@ test("appointment create modal keeps repeat-until visible and restores the previ
 
   assert.match(
     source,
-    /if \(checked\) \{[\s\S]*const nextRepeatUntil = getVipAutoRollingRepeatUntil\(\);[\s\S]*repeatUntil: nextRepeatUntil/s,
-    "Active toggle should immediately fill repeat-until when it is turned on."
+    /if \(checked\) \{[\s\S]*const nextRepeatUntil = getVipAutoRollingRepeatUntil\(prev\.appointmentDate\);[\s\S]*repeatUntil: nextRepeatUntil/s,
+    "Active toggle should immediately fill repeat-until when it is turned on using the selected appointment date."
+  );
+
+  assert.match(
+    source,
+    /const nextMinimumRepeatUntil = isVipAutoRollingRepeat\s*\?\s*getVipAutoRollingRepeatUntil\(nextValue\)\s*:\s*nextValue;/s,
+    "Changing the appointment date while Active is enabled should keep Repeat Until aligned with the new date."
   );
 
   assert.match(

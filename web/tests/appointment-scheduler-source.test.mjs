@@ -157,8 +157,13 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /if \(checked\) \{[\s\S]*const nextRepeatUntil = getVipAutoRollingRepeatUntil\(\);[\s\S]*repeatUntil: nextRepeatUntil/s,
-    "Planner modal should auto-fill Repeat Until from today when Active is turned on."
+    /if \(checked\) \{[\s\S]*const nextRepeatUntil = getVipAutoRollingRepeatUntil\(prev\.appointmentDate\);[\s\S]*repeatUntil: nextRepeatUntil/s,
+    "Planner modal should auto-fill Repeat Until from the selected appointment date when Active is turned on."
+  );
+  assert.match(
+    source,
+    /const nextMinimumRepeatUntil = isVipAutoRollingRepeat\s*\?\s*getVipAutoRollingRepeatUntil\(nextValue\)\s*:\s*nextValue;/s,
+    "Planner modal should keep Repeat Until in sync with later appointment dates while Active is enabled."
   );
   assert.match(
     source,

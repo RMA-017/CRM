@@ -294,12 +294,25 @@ function getEndOfNextWeek(date) {
   return addDays(baseDate, daysToEndNextWeek);
 }
 
-function getVipAutoRollingRepeatUntil() {
-  const baseDate = new Date();
-  if (Number.isNaN(baseDate.getTime())) {
+function getVipAutoRollingRepeatUntil(appointmentDate = "") {
+  const today = new Date();
+  if (Number.isNaN(today.getTime())) {
     return "";
   }
-  baseDate.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+
+  const normalizedAppointmentDate = String(appointmentDate || "").trim();
+  const appointmentBaseDate = isValidDateYmd(normalizedAppointmentDate)
+    ? new Date(`${normalizedAppointmentDate}T00:00:00`)
+    : null;
+  const baseDate = (
+    appointmentBaseDate instanceof Date
+    && !Number.isNaN(appointmentBaseDate.getTime())
+    && appointmentBaseDate > today
+  )
+    ? appointmentBaseDate
+    : today;
+
   return formatDateYmd(addDays(baseDate, Math.max(0, VIP_AUTO_ROLLING_REPEAT_WINDOW_DAYS - 1)));
 }
 
@@ -2518,7 +2531,7 @@ function AppointmentScheduler({
     if (!createModal.open || isEditRecurring || !isVipAutoRollingRepeat || String(createForm.repeatUntil || "").trim()) {
       return;
     }
-    const nextRepeatUntil = getVipAutoRollingRepeatUntil();
+    const nextRepeatUntil = getVipAutoRollingRepeatUntil(createForm.appointmentDate);
     if (!nextRepeatUntil || nextRepeatUntil === String(createForm.repeatUntil || "").trim()) {
       return;
     }
@@ -2529,6 +2542,7 @@ function AppointmentScheduler({
     }
   }, [
     createErrors.repeatUntil,
+    createForm.appointmentDate,
     createForm.repeatUntil,
     createModal.open,
     isEditRecurring,
@@ -4669,7 +4683,7 @@ function AppointmentScheduler({
                             setClientVipOnly(checked);
                             setCreateForm((prev) => {
                               if (checked) {
-                                const nextRepeatUntil = getVipAutoRollingRepeatUntil();
+                                const nextRepeatUntil = getVipAutoRollingRepeatUntil(prev.appointmentDate);
                                 if (!nextRepeatUntil) {
                                   return prev;
                                 }
@@ -4740,8 +4754,11 @@ function AppointmentScheduler({
                           const nextValue = event.currentTarget.value;
                           setCreateForm((prev) => {
                             const nextForm = { ...prev, appointmentDate: nextValue };
-                            if (!prev.repeatUntil || prev.repeatUntil < nextValue) {
-                              nextForm.repeatUntil = nextValue;
+                            const nextMinimumRepeatUntil = isVipAutoRollingRepeat
+                              ? getVipAutoRollingRepeatUntil(nextValue)
+                              : nextValue;
+                            if (!prev.repeatUntil || prev.repeatUntil < nextMinimumRepeatUntil) {
+                              nextForm.repeatUntil = nextMinimumRepeatUntil;
                             }
                             return nextForm;
                           });
