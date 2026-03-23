@@ -35,6 +35,8 @@ const DAY_NUM_TO_KEY = Object.freeze(
 );
 const MAX_REPEAT_RANGE_DAYS = 366;
 const APPOINTMENT_SPECIALIST_STORAGE_KEY = "crm_appointment_selected_specialist_id";
+const APPOINTMENT_PLANNER_CLIENT_STORAGE_KEY = "crm_appointment_selected_client_id";
+const APPOINTMENT_PLANNER_FILTER_MODE_STORAGE_KEY = "crm_appointment_selected_filter_mode";
 const APPOINTMENT_VIP_CLIENT_STORAGE_KEY = "crm_appointment_selected_vip_client_id";
 const ACTIVE_SCHEDULE_STATUSES = new Set(["pending", "confirmed"]);
 const FULL_CELL_BREAK_TYPES = new Set(["lunch", "meeting", "training", "other"]);
@@ -80,12 +82,24 @@ function normalizeBreakTypeKey(value) {
   return normalizedType;
 }
 
+function getUserScopedSchedulerStorageKey(baseKey, currentUserId = "") {
+  const normalizedCurrentUserId = String(currentUserId || "").trim();
+  return normalizedCurrentUserId ? `${baseKey}:${normalizedCurrentUserId}` : baseKey;
+}
+
 function getSchedulerSelectionStorageKey(vipOnly = false, currentUserId = "") {
   const baseKey = vipOnly
     ? APPOINTMENT_VIP_CLIENT_STORAGE_KEY
     : APPOINTMENT_SPECIALIST_STORAGE_KEY;
-  const normalizedCurrentUserId = String(currentUserId || "").trim();
-  return normalizedCurrentUserId ? `${baseKey}:${normalizedCurrentUserId}` : baseKey;
+  return getUserScopedSchedulerStorageKey(baseKey, currentUserId);
+}
+
+function getPlannerClientSelectionStorageKey(currentUserId = "") {
+  return getUserScopedSchedulerStorageKey(APPOINTMENT_PLANNER_CLIENT_STORAGE_KEY, currentUserId);
+}
+
+function getPlannerFilterModeStorageKey(currentUserId = "") {
+  return getUserScopedSchedulerStorageKey(APPOINTMENT_PLANNER_FILTER_MODE_STORAGE_KEY, currentUserId);
 }
 
 function readStoredSchedulerSelectionId(vipOnly = false, currentUserId = "") {
@@ -94,6 +108,23 @@ function readStoredSchedulerSelectionId(vipOnly = false, currentUserId = "") {
   }
   const storageKey = getSchedulerSelectionStorageKey(vipOnly, currentUserId);
   return String(window.localStorage.getItem(storageKey) || "").trim();
+}
+
+function readStoredPlannerClientSelectionId(currentUserId = "") {
+  if (typeof window === "undefined") {
+    return "";
+  }
+  const storageKey = getPlannerClientSelectionStorageKey(currentUserId);
+  return String(window.localStorage.getItem(storageKey) || "").trim();
+}
+
+function readStoredPlannerFilterMode(currentUserId = "") {
+  if (typeof window === "undefined") {
+    return "";
+  }
+  const storageKey = getPlannerFilterModeStorageKey(currentUserId);
+  const normalizedMode = String(window.localStorage.getItem(storageKey) || "").trim().toLowerCase();
+  return ["specialist", "client"].includes(normalizedMode) ? normalizedMode : "";
 }
 
 function createEmptyClientForm({
@@ -1570,7 +1601,11 @@ function AppointmentScheduler({
   const [vipSchedulesByClass, setVipSchedulesByClass] = useState(() => ({}));
   const [vipSchedulesWeekKeyByClass, setVipSchedulesWeekKeyByClass] = useState(() => ({}));
   const [vipConfirmingByAppointmentId, setVipConfirmingByAppointmentId] = useState(() => ({}));
-  const [selectedPlannerClientFilterId, setSelectedPlannerClientFilterId] = useState("");
+  const [selectedPlannerClientFilterId, setSelectedPlannerClientFilterId] = useState(() => (
+    !vipOnly && readStoredPlannerFilterMode(currentUserId) === "client"
+      ? readStoredPlannerClientSelectionId(currentUserId)
+      : ""
+  ));
   const [plannerFilterClients, setPlannerFilterClients] = useState([]);
   const [plannerClientSearch, setPlannerClientSearch] = useState("");
   const [plannerClientSearchOptions, setPlannerClientSearchOptions] = useState([]);
@@ -1580,7 +1615,11 @@ function AppointmentScheduler({
   const [clientFocusedPlannerWeekKey, setClientFocusedPlannerWeekKey] = useState("");
   const [selectedVipClientFilterId, setSelectedVipClientFilterId] = useState("");
   const [selectedSpecialistId, setSelectedSpecialistId] = useState(
-    () => readStoredSchedulerSelectionId(vipOnly, currentUserId)
+    () => (
+      !vipOnly && readStoredPlannerFilterMode(currentUserId) === "client"
+        ? ""
+        : readStoredSchedulerSelectionId(vipOnly, currentUserId)
+    )
   );
   const [specialistSelectError, setSpecialistSelectError] = useState(false);
   const [appointmentsBySpecialist, setAppointmentsBySpecialist] = useState(() => ({}));
@@ -1907,11 +1946,8 @@ function AppointmentScheduler({
             }, {})
           : {};
 
-        setSettings(mapSchedulerSettingsFromApiItem(item));
-        setSpecialists(nextSpecialists);
-        setSpecialistRoleById(nextSpecialistRoleById);
-        if (!vipOnly && plannerFiltersResponse?.ok) {
-          const nextPlannerClients = (Array.isArray(plannerFiltersData?.clients) ? plannerFiltersData.clients : [])
+        const nextPlannerClients = !vipOnly && plannerFiltersResponse?.ok
+          ? (Array.isArray(plannerFiltersData?.clients) ? plannerFiltersData.clients : [])
             .map((client) => ({
               id: String(client?.id || "").trim(),
               firstName: String(client?.firstName || "").trim(),
@@ -1920,21 +1956,14 @@ function AppointmentScheduler({
               isVip: Boolean(client?.isVip)
             }))
             .filter((client) => Boolean(client.id))
-            .sort((left, right) => getClientDisplayName(left).localeCompare(getClientDisplayName(right)));
-          setPlannerFilterClients(nextPlannerClients);
-        } else if (!vipOnly) {
-          setPlannerFilterClients([]);
-        }
-        setVipClientsByClassId(vipOnly ? nextVipClientsByClassId : {});
-        if (vipOnly) {
-          setVipSchedulesByClass({});
-          setVipSchedulesWeekKeyByClass({});
-        }
-        setSelectedSpecialistId((prev) => {
-          const persisted = readStoredSchedulerSelectionId(vipOnly, currentUserId);
-          const preferredId = String(prev || persisted || "").trim();
-          if (preferredId && nextSpecialists.some((itemValue) => itemValue.id === preferredId)) {
-            return preferredId;
+            .sort((left, right) => getClientDisplayName(left).localeCompare(getClientDisplayName(right)))
+          : [];
+
+        const persistedSpecialistId = readStoredSchedulerSelectionId(vipOnly, currentUserId);
+        const preferredSpecialistId = String(selectedSpecialistId || persistedSpecialistId || "").trim();
+        const nextSelectedSpecialistId = (() => {
+          if (preferredSpecialistId && nextSpecialists.some((itemValue) => itemValue.id === preferredSpecialistId)) {
+            return preferredSpecialistId;
           }
           if (
             !vipOnly
@@ -1945,7 +1974,38 @@ function AppointmentScheduler({
             return normalizedCurrentUserId;
           }
           return nextSpecialists[0]?.id || "";
-        });
+        })();
+
+        const persistedPlannerFilterMode = !vipOnly ? readStoredPlannerFilterMode(currentUserId) : "";
+        const persistedPlannerClientId = !vipOnly ? readStoredPlannerClientSelectionId(currentUserId) : "";
+        const preferredClientId = String(selectedPlannerClientFilterId || persistedPlannerClientId || "").trim();
+        const shouldRestoreClientFocus = (
+          !vipOnly
+          && preferredClientId
+          && nextPlannerClients.some((client) => client.id === preferredClientId)
+          && (Boolean(selectedPlannerClientFilterId) || persistedPlannerFilterMode === "client")
+        );
+
+        setSettings(mapSchedulerSettingsFromApiItem(item));
+        setSpecialists(nextSpecialists);
+        setSpecialistRoleById(nextSpecialistRoleById);
+        if (!vipOnly) {
+          setPlannerFilterClients(nextPlannerClients);
+        }
+        setVipClientsByClassId(vipOnly ? nextVipClientsByClassId : {});
+        if (vipOnly) {
+          setVipSchedulesByClass({});
+          setVipSchedulesWeekKeyByClass({});
+        }
+        if (shouldRestoreClientFocus) {
+          setSelectedPlannerClientFilterId(preferredClientId);
+          setSelectedSpecialistId("");
+        } else {
+          if (!vipOnly) {
+            setSelectedPlannerClientFilterId("");
+          }
+          setSelectedSpecialistId(nextSelectedSpecialistId);
+        }
       } catch {
         if (active) {
           setMessage("Failed to load appointment planner.");
@@ -1977,15 +2037,39 @@ function AppointmentScheduler({
       return;
     }
 
-    const storageKey = getSchedulerSelectionStorageKey(vipOnly, currentUserId);
-    const specialistId = String(selectedSpecialistId || "").trim();
-    if (!specialistId) {
-      window.localStorage.removeItem(storageKey);
+    if (vipOnly) {
+      const storageKey = getSchedulerSelectionStorageKey(true, currentUserId);
+      const specialistId = String(selectedSpecialistId || "").trim();
+      if (!specialistId) {
+        window.localStorage.removeItem(storageKey);
+        return;
+      }
+
+      window.localStorage.setItem(storageKey, specialistId);
       return;
     }
 
-    window.localStorage.setItem(storageKey, specialistId);
-  }, [currentUserId, selectedSpecialistId, vipOnly]);
+    const specialistStorageKey = getSchedulerSelectionStorageKey(false, currentUserId);
+    const clientStorageKey = getPlannerClientSelectionStorageKey(currentUserId);
+    const modeStorageKey = getPlannerFilterModeStorageKey(currentUserId);
+    const specialistId = String(selectedSpecialistId || "").trim();
+    const clientId = String(selectedPlannerClientFilterId || "").trim();
+
+    if (specialistId) {
+      window.localStorage.setItem(specialistStorageKey, specialistId);
+    }
+    if (clientId) {
+      window.localStorage.setItem(clientStorageKey, clientId);
+    }
+
+    if (clientId) {
+      window.localStorage.setItem(modeStorageKey, "client");
+    } else if (specialistId) {
+      window.localStorage.setItem(modeStorageKey, "specialist");
+    } else {
+      window.localStorage.removeItem(modeStorageKey);
+    }
+  }, [currentUserId, selectedPlannerClientFilterId, selectedSpecialistId, vipOnly]);
 
   const weekDays = useMemo(() => {
     const visibleDays = normalizeVisibleDays(settings.visibleWeekDays);

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 
-test("appointment planner keeps specialist selection user-scoped and defaults specialist users to their own planner", async () => {
+test("appointment planner keeps toolbar selection user-scoped and restores the last active planner filter", async () => {
   const schedulerSource = await readFile(
     new URL("../src/pages/profile/AppointmentScheduler.jsx", import.meta.url),
     "utf8"
@@ -10,8 +10,8 @@ test("appointment planner keeps specialist selection user-scoped and defaults sp
 
   assert.match(
     schedulerSource,
-    /function getSchedulerSelectionStorageKey\(vipOnly = false,\s*currentUserId = ""\)[\s\S]*normalizedCurrentUserId \? `\$\{baseKey\}:\$\{normalizedCurrentUserId\}` : baseKey;/,
-    "Planner storage key should be scoped per current user so one user's selected specialist does not leak into another session."
+    /function getUserScopedSchedulerStorageKey\(baseKey,\s*currentUserId = ""\)[\s\S]*normalizedCurrentUserId \? `\$\{baseKey\}:\$\{normalizedCurrentUserId\}` : baseKey;/,
+    "Planner storage keys should be scoped per current user so one user's filters do not leak into another session."
   );
 
   assert.match(
@@ -22,13 +22,25 @@ test("appointment planner keeps specialist selection user-scoped and defaults sp
 
   assert.match(
     schedulerSource,
-    /const preferredId = String\(prev \|\| persisted \|\| ""\)\.trim\(\);[\s\S]*if \(preferredId && nextSpecialists\.some\(\(itemValue\) => itemValue\.id === preferredId\)\) \{\s*return preferredId;\s*\}[\s\S]*if \(\s*!vipOnly\s*&&\s*restrictCreateToOwnSpecialist\s*&&\s*normalizedCurrentUserId[\s\S]*return normalizedCurrentUserId;/s,
+    /const nextSelectedSpecialistId = \(\(\) => \{[\s\S]*if \(preferredSpecialistId && nextSpecialists\.some\(\(itemValue\) => itemValue\.id === preferredSpecialistId\)\) \{\s*return preferredSpecialistId;\s*\}[\s\S]*if \(\s*!vipOnly\s*&&\s*restrictCreateToOwnSpecialist\s*&&\s*normalizedCurrentUserId[\s\S]*return normalizedCurrentUserId;/s,
     "Specialist-scoped planner users should default to their own planner only when they do not already have a valid selected specialist."
   );
 
   assert.match(
     schedulerSource,
-    /getSchedulerSelectionStorageKey\(vipOnly,\s*currentUserId\)/,
-    "Planner should also persist specialist selection back into the current user's own storage key."
+    /readStoredPlannerFilterMode\(currentUserId\) === "client"\s*\?\s*readStoredPlannerClientSelectionId\(currentUserId\)\s*:\s*""/,
+    "Planner should restore the saved client filter when client mode was the last active toolbar mode."
+  );
+
+  assert.match(
+    schedulerSource,
+    /const shouldRestoreClientFocus = \([\s\S]*persistedPlannerFilterMode === "client"[\s\S]*\);[\s\S]*if \(shouldRestoreClientFocus\) \{[\s\S]*setSelectedPlannerClientFilterId\(preferredClientId\);[\s\S]*setSelectedSpecialistId\(""\);/s,
+    "Planner bootstrap should reopen in client mode when the last saved toolbar state was a client selection."
+  );
+
+  assert.match(
+    schedulerSource,
+    /window\.localStorage\.setItem\(clientStorageKey,\s*clientId\);[\s\S]*window\.localStorage\.setItem\(modeStorageKey,\s*"client"\);[\s\S]*window\.localStorage\.setItem\(modeStorageKey,\s*"specialist"\);/s,
+    "Planner should persist both the selected ids and which toolbar mode was last active."
   );
 });

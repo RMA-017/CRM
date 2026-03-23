@@ -737,7 +737,10 @@ function toWorkScheduleConflictTarget(value = {}) {
       specialistId: state.userId,
       ruleScope: state.ruleScope,
       dayOfWeek: state.dayOfWeek,
-      workDate: null
+      workDate: null,
+      isActive: state.isActive === true,
+      startTime: state.isActive === true ? state.startTime : null,
+      endTime: state.isActive === true ? state.endTime : null
     };
   }
   if (state.ruleScope === "exception" && state.workDate) {
@@ -745,7 +748,10 @@ function toWorkScheduleConflictTarget(value = {}) {
       specialistId: state.userId,
       ruleScope: state.ruleScope,
       dayOfWeek: null,
-      workDate: state.workDate
+      workDate: state.workDate,
+      isActive: state.isActive === true,
+      startTime: state.isActive === true ? state.startTime : null,
+      endTime: state.isActive === true ? state.endTime : null
     };
   }
   return null;
@@ -793,7 +799,10 @@ async function findFutureWorkScheduleConflict({
             item.specialistId,
             item.ruleScope,
             item.dayOfWeek || "",
-            item.workDate || ""
+            item.workDate || "",
+            item.isActive === true ? "1" : "0",
+            item.startTime || "",
+            item.endTime || ""
           ].join("|");
           return [key, item];
         })
@@ -810,7 +819,10 @@ async function findFutureWorkScheduleConflict({
          (item->>'specialistId')::integer AS specialist_id,
          NULLIF(TRIM(item->>'ruleScope'), '')::text AS rule_scope,
          NULLIF(TRIM(item->>'dayOfWeek'), '')::smallint AS day_of_week,
-         NULLIF(TRIM(item->>'workDate'), '')::date AS work_date
+         NULLIF(TRIM(item->>'workDate'), '')::date AS work_date,
+         COALESCE((item->>'isActive')::boolean, FALSE) AS is_active,
+         NULLIF(TRIM(item->>'startTime'), '')::time AS start_time,
+         NULLIF(TRIM(item->>'endTime'), '')::time AS end_time
        FROM jsonb_array_elements($2::jsonb) AS item
      ),
      normalized AS (
@@ -818,7 +830,10 @@ async function findFutureWorkScheduleConflict({
          i.specialist_id,
          i.rule_scope,
          i.day_of_week,
-         i.work_date
+         i.work_date,
+         i.is_active,
+         i.start_time,
+         i.end_time
        FROM incoming i
        WHERE i.specialist_id IS NOT NULL
          AND (
@@ -843,7 +858,13 @@ async function findFutureWorkScheduleConflict({
         ON s.organization_id = $1
        AND s.specialist_id = n.specialist_id
        AND s.status IN ('pending', 'confirmed')
-       AND s.appointment_date >= TIMEZONE('Asia/Tashkent', NOW())::date
+       AND (
+         s.appointment_date > TIMEZONE('Asia/Tashkent', NOW())::date
+         OR (
+           s.appointment_date = TIMEZONE('Asia/Tashkent', NOW())::date
+           AND s.end_time > TIMEZONE('Asia/Tashkent', NOW())::time
+         )
+       )
        AND (
          (n.rule_scope = 'weekly' AND EXTRACT(ISODOW FROM s.appointment_date)::smallint = n.day_of_week)
          OR
@@ -852,6 +873,12 @@ async function findFutureWorkScheduleConflict({
       LEFT JOIN users u
         ON u.id = s.specialist_id
        AND u.organization_id = s.organization_id
+     WHERE (
+       n.is_active = FALSE
+       OR n.start_time IS NULL
+       OR n.end_time IS NULL
+       OR (s.start_time < n.end_time AND n.start_time < s.end_time)
+     )
      ORDER BY s.appointment_date ASC, s.start_time ASC, s.id ASC
      LIMIT 1`,
     [organizationId, JSON.stringify(normalizedTargets)]
@@ -1522,7 +1549,10 @@ export async function createAppointmentWorkScheduleEntry({
       userId: normalizedUserId,
       ruleScope: normalizedScope,
       dayOfWeek: finalDayOfWeek,
-      workDate: finalWorkDate
+      workDate: finalWorkDate,
+      isActive: normalizedIsActive,
+      startTime: finalStartTime,
+      endTime: finalEndTime
     }]
   });
 
@@ -1648,15 +1678,15 @@ export async function updateAppointmentWorkScheduleEntryById({
     });
     await assertWorkScheduleTargetsHaveNoFutureAppointments({
       organizationId,
-      targets: [
-        existingEntry,
-        {
-          userId: normalizedUserId,
-          ruleScope: normalizedScope,
-          dayOfWeek: finalDayOfWeek,
-          workDate: finalWorkDate
-        }
-      ]
+      targets: [{
+        userId: normalizedUserId,
+        ruleScope: normalizedScope,
+        dayOfWeek: finalDayOfWeek,
+        workDate: finalWorkDate,
+        isActive: normalizedIsActive,
+        startTime: finalStartTime,
+        endTime: finalEndTime
+      }]
     });
 
     await assertWorkScheduleTargetsHaveNoVipRoutines({
@@ -1723,11 +1753,6 @@ export async function deleteAppointmentWorkScheduleEntryById({
   if (!existingEntry) {
     return { rowCount: 0 };
   }
-
-  await assertWorkScheduleTargetsHaveNoFutureAppointments({
-    organizationId,
-    targets: [existingEntry]
-  });
 
   return pool.query(
     `DELETE FROM appointment_working_hours

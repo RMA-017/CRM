@@ -255,7 +255,96 @@ test("updateAppointmentWorkScheduleEntryById blocks availability changes when fu
   }
 });
 
-test("deleteAppointmentWorkScheduleEntryById blocks deletion while future lessons still exist", async () => {
+test("updateAppointmentWorkScheduleEntryById allows blocked-time changes when future lessons stay outside the new range", async () => {
+  let updateAttempted = false;
+  const restoreQuery = stubPoolQuery(async (sql, params = []) => {
+    const queryText = String(sql || "");
+    if (queryText.includes("FROM appointment_working_hours awh") && queryText.includes("WHERE awh.id = $1")) {
+      assert.deepEqual(params, [12, 7]);
+      return {
+        rows: [{
+          id: 12,
+          organization_id: 7,
+          user_id: 9,
+          rule_scope: "weekly",
+          day_of_week: 1,
+          work_date: null,
+          is_active: true,
+          start_time: "09:00",
+          end_time: "14:00",
+          reason: "Unavailable"
+        }]
+      };
+    }
+    if (queryText.includes("FROM appointment_working_hours") && queryText.includes("user_id IS NULL")) {
+      assert.deepEqual(params, [7]);
+      return {
+        rows: [{
+          day_of_week: 1,
+          is_active: true,
+          start_time: "08:00",
+          end_time: "18:00"
+        }]
+      };
+    }
+    if (queryText.includes("jsonb_array_elements($2::jsonb)") && queryText.includes("appointment_schedules s")) {
+      assert.equal(params[0], 7);
+      assert.deepEqual(JSON.parse(params[1]), [{
+        specialistId: 9,
+        ruleScope: "weekly",
+        dayOfWeek: 1,
+        workDate: null,
+        isActive: true,
+        startTime: "08:30",
+        endTime: "14:00"
+      }]);
+      return { rows: [] };
+    }
+    if (queryText.includes("WITH updated AS")) {
+      updateAttempted = true;
+      return {
+        rows: [{
+          id: 12,
+          organization_id: 7,
+          user_id: 9,
+          user_name: "Alice Specialist",
+          user_username: "alice",
+          rule_scope: "weekly",
+          day_of_week: 1,
+          work_date: null,
+          is_active: true,
+          start_time: "08:30",
+          end_time: "14:00",
+          reason: "Unavailable"
+        }]
+      };
+    }
+    throw new Error(`Unexpected SQL: ${queryText}`);
+  });
+
+  try {
+    const item = await updateAppointmentWorkScheduleEntryById({
+      id: 12,
+      organizationId: 7,
+      actorUserId: 1,
+      userId: 9,
+      ruleScope: "weekly",
+      dayOfWeek: 1,
+      isActive: true,
+      startTime: "08:30",
+      endTime: "14:00",
+      reason: "Unavailable"
+    });
+
+    assert.equal(updateAttempted, true);
+    assert.equal(item?.startTime, "08:30");
+    assert.equal(item?.endTime, "14:00");
+  } finally {
+    restoreQuery();
+  }
+});
+
+test("deleteAppointmentWorkScheduleEntryById allows deletion while future lessons still exist", async () => {
   let deleteAttempted = false;
   const restoreQuery = stubPoolQuery(async (sql, params = []) => {
     const queryText = String(sql || "");
@@ -276,18 +365,6 @@ test("deleteAppointmentWorkScheduleEntryById blocks deletion while future lesson
         }]
       };
     }
-    if (queryText.includes("jsonb_array_elements($2::jsonb)") && queryText.includes("appointment_schedules s")) {
-      return {
-        rows: [{
-          appointment_id: 43,
-          specialist_id: 9,
-          specialist_name: "Alice Specialist",
-          appointment_date: "2026-03-19",
-          appointment_start_time: "13:00",
-          appointment_end_time: "13:30"
-        }]
-      };
-    }
     if (queryText.includes("DELETE FROM appointment_working_hours")) {
       deleteAttempted = true;
       return { rowCount: 1 };
@@ -296,18 +373,12 @@ test("deleteAppointmentWorkScheduleEntryById blocks deletion while future lesson
   });
 
   try {
-    await assert.rejects(
-      () => deleteAppointmentWorkScheduleEntryById({
-        id: 13,
-        organizationId: 7
-      }),
-      (error) => {
-        assert.equal(error?.code, "WORK_SCHEDULE_CONFLICT");
-        assert.equal(error?.statusCode, 409);
-        return true;
-      }
-    );
-    assert.equal(deleteAttempted, false);
+    const result = await deleteAppointmentWorkScheduleEntryById({
+      id: 13,
+      organizationId: 7
+    });
+    assert.equal(deleteAttempted, true);
+    assert.equal(result?.rowCount, 1);
   } finally {
     restoreQuery();
   }
