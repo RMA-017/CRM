@@ -2188,6 +2188,9 @@ function AppointmentScheduler({
       }
       return;
     }
+    if (!isSchedulerInitialized) {
+      return;
+    }
 
     const normalizedClientId = String(selectedPlannerClientFilterId || "").trim();
     if (!normalizedClientId) {
@@ -2204,7 +2207,7 @@ function AppointmentScheduler({
     if (!isStillVisible) {
       setSelectedPlannerClientFilterId("");
     }
-  }, [plannerClientFilterOptions, plannerClientSearchMap, selectedPlannerClientFilterId, vipOnly]);
+  }, [isSchedulerInitialized, plannerClientFilterOptions, plannerClientSearchMap, selectedPlannerClientFilterId, vipOnly]);
   useEffect(() => {
     if (vipOnly) {
       return;

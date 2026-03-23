@@ -40,6 +40,12 @@ test("appointment planner keeps toolbar selection user-scoped and restores the l
 
   assert.match(
     schedulerSource,
+    /if \(!isSchedulerInitialized\) \{\s*return;\s*\}[\s\S]*const normalizedClientId = String\(selectedPlannerClientFilterId \|\| ""\)\.trim\(\);/s,
+    "Planner should not clear the restored client selection before the initial toolbar data finishes loading."
+  );
+
+  assert.match(
+    schedulerSource,
     /window\.localStorage\.setItem\(clientStorageKey,\s*clientId\);[\s\S]*window\.localStorage\.setItem\(modeStorageKey,\s*"client"\);[\s\S]*window\.localStorage\.setItem\(modeStorageKey,\s*"specialist"\);/s,
     "Planner should persist both the selected ids and which toolbar mode was last active."
   );
