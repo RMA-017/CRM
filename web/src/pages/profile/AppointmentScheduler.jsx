@@ -1383,19 +1383,28 @@ function AppointmentPlannerGrid({
                       && (slotIndex + effectiveRowSpan >= timeSlots.length)
                     );
                     const isClientCardMode = cardDisplayMode === "client";
-                    const cardPrimaryText = isClientCardMode
-                      ? (String(item?.specialist || "").trim() || "Specialist")
-                      : (String(item?.client || "").trim() || "Client");
-                    const cardSecondaryText = isClientCardMode
-                      ? (
-                        formatServiceLine(String(item?.service || "").trim(), item?.durationMinutes)
-                        || String(item?.service || "").trim()
-                        || "Service"
-                      )
-                      : (String(item?.service || "").trim() || "Service");
+                    const isRoutineCard = String(item?.itemType || "").trim().toLowerCase() === "daily-routine";
                     const cardTimeRangeLabel = item
                       ? formatAppointmentTimeRangeLabel(item?.time || slot, item?.endTime, item?.durationMinutes)
                       : "";
+                    const cardPrimaryText = isClientCardMode
+                      ? (
+                        isRoutineCard
+                          ? "Daily routine"
+                          : (String(item?.specialist || "").trim() || "Specialist")
+                      )
+                      : (String(item?.client || "").trim() || "Client");
+                    const cardSecondaryText = isClientCardMode
+                      ? (
+                        isRoutineCard
+                          ? (cardTimeRangeLabel || "Daily routine")
+                          : (
+                            formatServiceLine(String(item?.service || "").trim(), item?.durationMinutes)
+                            || String(item?.service || "").trim()
+                            || "Service"
+                          )
+                      )
+                      : (String(item?.service || "").trim() || "Service");
                     const cardDurationLabel = item
                       ? (
                         formatBookingDurationLabel(item?.durationMinutes)
@@ -1426,7 +1435,6 @@ function AppointmentPlannerGrid({
                     )
                       ? `appointment-status-cell-${statusKey}`
                       : "";
-                    const isRoutineCard = String(item?.itemType || "").trim().toLowerCase() === "daily-routine";
                     const canOpenCreateFromCell = (
                       isInsideWorkingHours
                       && !item

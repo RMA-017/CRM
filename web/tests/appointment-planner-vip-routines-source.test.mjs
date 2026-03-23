@@ -40,4 +40,16 @@ test("appointment planner client-focused VIP view keeps daily routines visible",
     /const isVisibleForSelectedClient = shouldIncludeClientFocusedPlannerItem\(event, normalizedClientId\);[\s\S]*const isHiddenByClientFilter = Boolean\(normalizedClientId\) && !isVisibleForSelectedClient;/,
     "Planner slot blocking should treat visible daily-routine cards as part of the selected client view."
   );
+
+  assert.match(
+    source,
+    /const cardPrimaryText = isClientCardMode[\s\S]*isRoutineCard\s*\?\s*"Daily routine"[\s\S]*String\(item\?\.specialist \|\| ""\)\.trim\(\) \|\| "Specialist"/,
+    "Client-focused daily routine cards should hide educator names and use a neutral routine label."
+  );
+
+  assert.match(
+    source,
+    /const cardSecondaryText = isClientCardMode[\s\S]*isRoutineCard\s*\?\s*\(cardTimeRangeLabel \|\| "Daily routine"\)/,
+    "Client-focused daily routine cards should show only the routine time on the secondary line."
+  );
 });
