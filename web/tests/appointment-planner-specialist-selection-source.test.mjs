@@ -10,6 +10,12 @@ test("appointment planner keeps toolbar selection user-scoped and restores the l
 
   assert.match(
     schedulerSource,
+    /function readScopedOrLegacyStorageValue\(baseKey,\s*currentUserId = ""\)[\s\S]*const scopedKey = getUserScopedSchedulerStorageKey\(baseKey,\s*currentUserId\);[\s\S]*window\.localStorage\.getItem\(baseKey\)/s,
+    "Planner storage readers should fall back to legacy unscoped keys so older saved selections still restore after reload."
+  );
+
+  assert.match(
+    schedulerSource,
     /function getUserScopedSchedulerStorageKey\(baseKey,\s*currentUserId = ""\)[\s\S]*normalizedCurrentUserId \? `\$\{baseKey\}:\$\{normalizedCurrentUserId\}` : baseKey;/,
     "Planner storage keys should be scoped per current user so one user's filters do not leak into another session."
   );
@@ -40,6 +46,12 @@ test("appointment planner keeps toolbar selection user-scoped and restores the l
 
   assert.match(
     schedulerSource,
+    /const hydrationKey = `\$\{vipOnly \? "vip" : "planner"\}:\$\{normalizedCurrentUserId\}`;[\s\S]*if \(hydratedPlannerStorageUserKeyRef\.current === hydrationKey\) \{\s*return;\s*\}[\s\S]*persistedPlannerFilterMode === "client" && persistedPlannerClientId[\s\S]*setSelectedPlannerClientFilterId\(persistedPlannerClientId\);[\s\S]*setSelectedSpecialistId\(""\);/s,
+    "Planner should rehydrate the saved specialist or client selection once the current user id becomes available."
+  );
+
+  assert.match(
+    schedulerSource,
     /if \(!isSchedulerInitialized\) \{\s*return;\s*\}[\s\S]*const normalizedClientId = String\(selectedPlannerClientFilterId \|\| ""\)\.trim\(\);/s,
     "Planner should not clear the restored client selection before the initial toolbar data finishes loading."
   );
@@ -54,5 +66,11 @@ test("appointment planner keeps toolbar selection user-scoped and restores the l
     schedulerSource,
     /window\.localStorage\.setItem\(clientStorageKey,\s*clientId\);[\s\S]*window\.localStorage\.setItem\(modeStorageKey,\s*"client"\);[\s\S]*window\.localStorage\.setItem\(modeStorageKey,\s*"specialist"\);/s,
     "Planner should persist both the selected ids and which toolbar mode was last active."
+  );
+
+  assert.match(
+    schedulerSource,
+    /if \(!normalizedCurrentUserId\) \{\s*return;\s*\}[\s\S]*const specialistStorageKey = getSchedulerSelectionStorageKey\(false,\s*currentUserId\);/s,
+    "Planner should avoid overwriting stored selections before the current user id is known."
   );
 });
