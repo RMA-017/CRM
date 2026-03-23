@@ -43,8 +43,8 @@ test("appointment planner client-focused VIP view keeps daily routines visible",
 
   assert.match(
     source,
-    /const cardPrimaryText = isClientCardMode[\s\S]*isRoutineCard\s*\?\s*"Daily routine"[\s\S]*String\(item\?\.specialist \|\| ""\)\.trim\(\) \|\| "Specialist"/,
-    "Client-focused daily routine cards should hide educator names and use a neutral routine label."
+    /const cardPrimaryText = isClientCardMode[\s\S]*isRoutineCard\s*\?\s*\(String\(item\?\.service \|\| ""\)\.trim\(\) \|\| "Daily routine"\)[\s\S]*String\(item\?\.specialist \|\| ""\)\.trim\(\) \|\| "Specialist"/,
+    "Client-focused daily routine cards should hide educator names and use the routine activity label."
   );
 
   assert.match(

@@ -1390,7 +1390,7 @@ function AppointmentPlannerGrid({
                     const cardPrimaryText = isClientCardMode
                       ? (
                         isRoutineCard
-                          ? "Daily routine"
+                          ? (String(item?.service || "").trim() || "Daily routine")
                           : (String(item?.specialist || "").trim() || "Specialist")
                       )
                       : (String(item?.client || "").trim() || "Client");
