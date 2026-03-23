@@ -1643,6 +1643,7 @@ function AppointmentScheduler({
       const settingsQuery = new URLSearchParams();
       if (
         !vipOnly
+        && !isClientFocusedMode
         && String(selectedSpecialistId || "").trim()
       ) {
         settingsQuery.set("specialistId", String(selectedSpecialistId || "").trim());
@@ -1668,7 +1669,7 @@ function AppointmentScheduler({
         setMessage("Failed to load appointment settings.");
       }
     }
-  }, [normalizedSelectedPlannerClientFilterId, selectedSpecialistId, vipOnly]);
+  }, [isClientFocusedMode, selectedSpecialistId, vipOnly]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -2167,19 +2168,20 @@ function AppointmentScheduler({
       clearTimeout(timerId);
     };
   }, [plannerClientSearch, vipOnly]);
-  const breaksForSpecialist = vipOnly
+  const breaksForSpecialist = vipOnly || isClientFocusedMode
     ? []
     : (breaksBySpecialist[selectedSpecialistId] || []);
   const absencesForSpecialist = (
     vipOnly
+    || isClientFocusedMode
     || !selectedSpecialistId
     || absencesWeekKeyBySpecialist[selectedSpecialistId] !== weekDataKey
   )
     ? []
     : (absencesBySpecialist[selectedSpecialistId] || []);
   const blockedTimesForSpecialist = useMemo(() => (
-    vipOnly ? [] : normalizePlannerBlockedTimeItems(settings.blockedTimes)
-  ), [settings.blockedTimes, vipOnly]);
+    (vipOnly || isClientFocusedMode) ? [] : normalizePlannerBlockedTimeItems(settings.blockedTimes)
+  ), [isClientFocusedMode, settings.blockedTimes, vipOnly]);
   const findLocalScheduleConflict = useCallback(({
     appointmentDate,
     startTime,
@@ -3045,7 +3047,7 @@ function AppointmentScheduler({
   ]);
 
   const loadBreaksForSelectedSpecialist = useCallback(async () => {
-    if (vipOnly || !selectedSpecialistId || !canReadPlannerBreaks) {
+    if (vipOnly || isClientFocusedMode || !selectedSpecialistId || !canReadPlannerBreaks) {
       if (!vipOnly && selectedSpecialistId) {
         setBreaksBySpecialist((prev) => ({
           ...prev,
@@ -3106,10 +3108,16 @@ function AppointmentScheduler({
         [selectedSpecialistId]: []
       }));
     }
-  }, [canReadPlannerBreaks, selectedSpecialistId, vipOnly]);
+  }, [canReadPlannerBreaks, isClientFocusedMode, selectedSpecialistId, vipOnly]);
 
   const loadAbsencesForSelectedSpecialist = useCallback(async () => {
-    if (vipOnly || !selectedSpecialistId || weekDays.length === 0 || !canViewAppointmentSpecialistAbsenceBlocks) {
+    if (
+      vipOnly
+      || isClientFocusedMode
+      || !selectedSpecialistId
+      || weekDays.length === 0
+      || !canViewAppointmentSpecialistAbsenceBlocks
+    ) {
       if (!vipOnly && selectedSpecialistId) {
         setAbsencesBySpecialist((prev) => ({
           ...prev,
@@ -3185,6 +3193,7 @@ function AppointmentScheduler({
     }
   }, [
     canViewAppointmentSpecialistAbsenceBlocks,
+    isClientFocusedMode,
     selectedSpecialistId,
     vipOnly,
     weekDataKey,

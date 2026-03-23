@@ -43,7 +43,7 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   assert.match(
     source,
     /<AppointmentPlannerGrid[\s\S]*rawAppointmentsByDay=\{clientFocusedAppointmentsByDay\}[\s\S]*breaksForSpecialist=\{breaksForSpecialist\}[\s\S]*blockedTimesForSpecialist=\{blockedTimesForSpecialist\}[\s\S]*absencesForSpecialist=\{absencesForSpecialist\}[\s\S]*canCreateOnSpecialist=\{canOpenClientFocusedCreateModal\}/s,
-    "Client-focused mode should keep shared break, work schedule, and absence overlays while opening create from the grid independently of the toolbar specialist."
+    "Client-focused mode should still reuse the shared grid while create stays available from the client view."
   );
   assert.match(
     source,
@@ -52,8 +52,23 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /!vipOnly\s*&&\s*String\(selectedSpecialistId \|\| ""\)\.trim\(\)/s,
-    "Planner settings should follow the selected specialist even in client-focused mode so work schedule guards stay accurate."
+    /!vipOnly[\s\S]*&& !isClientFocusedMode[\s\S]*&& String\(selectedSpecialistId \|\| ""\)\.trim\(\)/s,
+    "Planner settings should stop following the selected specialist once the planner switches into client-focused mode."
+  );
+  assert.match(
+    source,
+    /const breaksForSpecialist = vipOnly \|\| isClientFocusedMode\s*\? \[\]\s*:\s*\(breaksBySpecialist\[selectedSpecialistId\] \|\| \[\]\);/s,
+    "Client-focused mode should clear specialist break overlays from the grid."
+  );
+  assert.match(
+    source,
+    /const absencesForSpecialist = \([\s\S]*vipOnly[\s\S]*\|\|\s*isClientFocusedMode[\s\S]*\? \[\][\s\S]*:\s*\(absencesBySpecialist\[selectedSpecialistId\] \|\| \[\]\);/s,
+    "Client-focused mode should clear specialist absence overlays from the grid."
+  );
+  assert.match(
+    source,
+    /const blockedTimesForSpecialist = useMemo\(\(\) => \(\s*\(vipOnly \|\| isClientFocusedMode\) \? \[\] : normalizePlannerBlockedTimeItems\(settings\.blockedTimes\)\s*\)/s,
+    "Client-focused mode should clear specialist blocked-time overlays from the grid."
   );
   assert.doesNotMatch(
     source,

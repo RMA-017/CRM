@@ -29,8 +29,8 @@ test("appointment planner read-only mode keeps report filters gated while planne
 
   assert.match(
     schedulerSource,
-    /if \(vipOnly \|\| !selectedSpecialistId \|\| !canReadPlannerBreaks\)/,
-    "Appointment breaks should load in the planner when either planner read or breaks read access is present."
+    /if \(vipOnly \|\| isClientFocusedMode \|\| !selectedSpecialistId \|\| !canReadPlannerBreaks\)/,
+    "Appointment breaks should load in specialist mode when either planner read or breaks read access is present, and stay hidden in client-focused mode."
   );
 
   assert.match(
