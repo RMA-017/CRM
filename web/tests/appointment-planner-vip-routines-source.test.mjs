@@ -28,4 +28,16 @@ test("appointment planner client-focused VIP view keeps daily routines visible",
     /rawDayItems\.forEach\(\(item\) => \{[\s\S]*shouldIncludeClientFocusedPlannerItem\(item, normalizedSelectedPlannerClientFilterId\)/,
     "Client-focused planner should no longer filter out VIP routine cards by empty clientId."
   );
+
+  assert.match(
+    source,
+    /const appointmentsByDay = useMemo\(\(\) => \{[\s\S]*shouldIncludeClientFocusedPlannerItem\(item, normalizedClientId\)/,
+    "Planner grid should keep daily-routine cards visible after the selected client filter is applied."
+  );
+
+  assert.match(
+    source,
+    /const isVisibleForSelectedClient = shouldIncludeClientFocusedPlannerItem\(event, normalizedClientId\);[\s\S]*const isHiddenByClientFilter = Boolean\(normalizedClientId\) && !isVisibleForSelectedClient;/,
+    "Planner slot blocking should treat visible daily-routine cards as part of the selected client view."
+  );
 });

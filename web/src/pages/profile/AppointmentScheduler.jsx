@@ -764,7 +764,7 @@ function AppointmentPlannerGrid({
     return weekDays.reduce((acc, day) => {
       const dayItems = Array.isArray(rawAppointmentsByDay?.[day.key]) ? rawAppointmentsByDay[day.key] : [];
       acc[day.key] = dayItems.filter(
-        (item) => String(item?.clientId || "").trim() === normalizedClientId
+        (item) => shouldIncludeClientFocusedPlannerItem(item, normalizedClientId)
       );
       return acc;
     }, {});
@@ -912,8 +912,8 @@ function AppointmentPlannerGrid({
         }
 
         const status = String(event?.status || "pending").trim().toLowerCase();
-        const eventClientId = String(event?.clientId || "").trim();
-        const isHiddenByClientFilter = Boolean(normalizedClientId) && eventClientId !== normalizedClientId;
+        const isVisibleForSelectedClient = shouldIncludeClientFocusedPlannerItem(event, normalizedClientId);
+        const isHiddenByClientFilter = Boolean(normalizedClientId) && !isVisibleForSelectedClient;
         const blockedPayload = isHiddenByClientFilter
           ? { status, hiddenByFilter: true }
           : { status, hiddenByFilter: false };
