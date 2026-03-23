@@ -2563,7 +2563,7 @@ async function clientsRoutes(fastify) {
           });
         const canWriteVipAttendance = resetAttendance
           ? vipPermissions.canDeleteVipClients
-          : (existingAttendance ? vipPermissions.canUpdateVipClients : vipPermissions.canCreateVipClients);
+          : (vipPermissions.canCreateVipClients || vipPermissions.canUpdateVipClients);
         if (!vipPermissions.canReadVipClients || !canWriteVipAttendance) {
           return reply.status(403).send({ message: "Forbidden." });
         }

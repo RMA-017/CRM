@@ -298,7 +298,7 @@ test("vip tutor assignment update blocks assigned-scope users from editing unass
   }
 });
 
-test("vip attendance update requires update permission when attendance already exists", async () => {
+test("vip attendance allows create permission when attendance already exists", async () => {
   const recorder = createRouteRecorder();
   await clientsRoutes(recorder.fastify);
 
@@ -352,6 +352,19 @@ test("vip attendance update requires update permission when attendance already e
       };
     }
 
+    if (queryText.includes("WITH target_client AS")) {
+      return {
+        rows: [{
+          client_id: "44",
+          attendance_date: "2026-03-09",
+          attendance_status: "present",
+          arrived_at: null,
+          left_at: null,
+          attendance_note: ""
+        }]
+      };
+    }
+
     throw new Error(`Unexpected query in test: ${queryText}`);
   });
 
@@ -379,15 +392,15 @@ test("vip attendance update requires update permission when attendance already e
       log: { error() {} }
     }, reply);
 
-    assert.equal(reply.state.statusCode, 403);
-    assert.equal(reply.state.payload?.message, "Forbidden.");
+    assert.equal(reply.state.statusCode, 200);
+    assert.equal(reply.state.payload?.message, "VIP attendance updated.");
   } finally {
     clearRolePermissionsCache();
     restoreQuery();
   }
 });
 
-test("vip attendance create requires create permission when attendance does not exist", async () => {
+test("vip attendance allows update permission when attendance does not exist", async () => {
   const recorder = createRouteRecorder();
   await clientsRoutes(recorder.fastify);
 
@@ -416,6 +429,19 @@ test("vip attendance create requires create permission when attendance does not 
       return { rows: [] };
     }
 
+    if (queryText.includes("WITH target_client AS")) {
+      return {
+        rows: [{
+          client_id: "44",
+          attendance_date: "2026-03-09",
+          attendance_status: "present",
+          arrived_at: null,
+          left_at: null,
+          attendance_note: ""
+        }]
+      };
+    }
+
     throw new Error(`Unexpected query in test: ${queryText}`);
   });
 
@@ -443,8 +469,8 @@ test("vip attendance create requires create permission when attendance does not 
       log: { error() {} }
     }, reply);
 
-    assert.equal(reply.state.statusCode, 403);
-    assert.equal(reply.state.payload?.message, "Forbidden.");
+    assert.equal(reply.state.statusCode, 200);
+    assert.equal(reply.state.payload?.message, "VIP attendance saved.");
   } finally {
     clearRolePermissionsCache();
     restoreQuery();
