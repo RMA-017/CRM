@@ -1075,17 +1075,19 @@ async function listVipDailyRoutineScheduleItems({
 }) {
   const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
   const normalizedClientId = Number.parseInt(String(clientId || "").trim(), 10) || 0;
-  if (!normalizedSpecialistId) {
+  if (!normalizedSpecialistId && !normalizedClientId) {
     return [];
   }
 
   await ensureVipClassDailyRoutineSchema();
 
-  const params = [organizationId, dateFrom, dateTo, normalizedSpecialistId];
-  const whereParts = [
-    "vdr.organization_id = $1",
-    "vdr.specialist_user_id = $4"
-  ];
+  const params = [organizationId, dateFrom, dateTo];
+  const whereParts = ["vdr.organization_id = $1"];
+
+  if (normalizedSpecialistId > 0) {
+    params.push(normalizedSpecialistId);
+    whereParts.push(`vdr.specialist_user_id = $${params.length}`);
+  }
 
   if (normalizedClientId > 0) {
     params.push(normalizedClientId);
@@ -2361,10 +2363,10 @@ export async function getAppointmentSchedulesByRange({
           s.id DESC`,
       params
     ),
-    !vipOnly && normalizedSpecialistId > 0
+    ((!vipOnly && normalizedSpecialistId > 0) || (vipOnly && normalizedClientId > 0))
       ? listVipDailyRoutineScheduleItems({
           organizationId,
-          specialistId: normalizedSpecialistId,
+          specialistId: normalizedSpecialistId || null,
           clientId: normalizedClientId || null,
           dateFrom,
           dateTo

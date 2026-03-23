@@ -316,20 +316,23 @@
   padding-bottom: 0;
 }
 
-#usersCreateModal.logout-confirm-modal.all-users-edit-modal {
+#usersCreateModal.logout-confirm-modal.all-users-edit-modal,
+#clientsCreateModal.logout-confirm-modal.all-users-edit-modal {
   height: auto;
   min-height: 0;
   max-height: calc(100dvh - 24px);
   grid-template-rows: auto auto;
 }
 
-#usersCreateModal .auth-form {
+#usersCreateModal .auth-form,
+#clientsCreateModal .auth-form {
   min-height: 0;
   grid-template-rows: auto auto;
   align-content: start;
 }
 
-#usersCreateModal .all-users-edit-fields {
+#usersCreateModal .all-users-edit-fields,
+#clientsCreateModal .all-users-edit-fields {
   overflow: visible;
 }
 

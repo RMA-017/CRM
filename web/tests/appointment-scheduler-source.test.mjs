@@ -22,11 +22,6 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /if \(selectedPlannerClientFilterId\) \{\s*setSelectedPlannerClientFilterId\(""\);/s,
-    "Selecting a specialist should clear the client filter so specialist mode becomes active again."
-  );
-  assert.match(
-    source,
     /id=\"appointmentPlannerClientFilterSelect\"[\s\S]*?searchable[\s\S]*?searchThreshold=\{0\}/,
     "Client filter should expose search input in the planner toolbar."
   );
@@ -47,18 +42,43 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
+    /<AppointmentPlannerGrid[\s\S]*rawAppointmentsByDay=\{clientFocusedAppointmentsByDay\}[\s\S]*breaksForSpecialist=\{breaksForSpecialist\}[\s\S]*blockedTimesForSpecialist=\{blockedTimesForSpecialist\}[\s\S]*absencesForSpecialist=\{absencesForSpecialist\}[\s\S]*canCreateOnSpecialist=\{canOpenClientFocusedCreateModal\}/s,
+    "Client-focused mode should keep shared break, work schedule, and absence overlays while opening create from the grid independently of the toolbar specialist."
+  );
+  assert.match(
+    source,
     /<AppointmentPlannerGrid[\s\S]*onOpenCreateModal=\{openCreateModal\}/s,
     "Client-focused planner should reuse the main planner modal for editing appointments from the grid."
   );
   assert.match(
     source,
-    /!vipOnly\s*&&\s*!normalizedSelectedPlannerClientFilterId\s*&&\s*String\(selectedSpecialistId \|\| ""\)\.trim\(\)/s,
-    "Client mode should keep appointment settings on the organization default schedule instead of specialist-specific settings."
+    /!vipOnly\s*&&\s*String\(selectedSpecialistId \|\| ""\)\.trim\(\)/s,
+    "Planner settings should follow the selected specialist even in client-focused mode so work schedule guards stay accurate."
+  );
+  assert.doesNotMatch(
+    source,
+    /if \(!vipOnly && normalizedSelectedPlannerClientFilterId\) \{\s*return "";\s*\}/s,
+    "Client-focused mode should keep the chosen specialist instead of clearing it."
+  );
+  assert.doesNotMatch(
+    source,
+    /if \(nextClientId\) \{\s*setSelectedSpecialistId\(""\);\s*\}/s,
+    "Selecting a client should no longer clear the specialist because client-focused create needs both values."
   );
   assert.match(
     source,
-    /if \(!vipOnly && normalizedSelectedPlannerClientFilterId\) \{\s*return "";\s*\}/s,
-    "Client mode should not auto-select a specialist again after a client is chosen."
+    /const isClientFocusedCreateContext = !isEditMode && isClientFocusedMode;[\s\S]*if \(!slotSpecialistId && !isClientFocusedCreateContext\)/s,
+    "Client-focused create should open without requiring a toolbar specialist while specialist mode still keeps the old guard."
+  );
+  assert.match(
+    source,
+    /isClientFocusedCreateMode \? \([\s\S]*id="appointmentCreateSpecialistSelect"[\s\S]*options=\{clientFocusedCreateSpecialistOptions\}/s,
+    "Client-focused To Planner modal should replace the client name search with a specialist select."
+  );
+  assert.match(
+    source,
+    /label htmlFor=\{isClientFocusedCreateMode \? "appointmentCreateClientReadonly" : "appointmentCreateClientSelect"\}[\s\S]*id="appointmentCreateClientReadonly"[\s\S]*readOnly[\s\S]*disabled/s,
+    "Client-focused To Planner modal should keep the selected client locked in a readonly field."
   );
   assert.match(
     source,

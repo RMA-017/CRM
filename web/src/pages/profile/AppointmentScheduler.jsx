@@ -657,6 +657,38 @@ function buildPlannerAppointmentsByDay(items, weekDays = []) {
   return byDay;
 }
 
+function getClientFocusedPlannerGroupMeta(item, index = 0) {
+  const itemType = String(item?.itemType || "").trim().toLowerCase();
+  const isRoutineItem = itemType === "daily-routine";
+  const specialistId = String(item?.specialistId || "").trim();
+  if (specialistId) {
+    return {
+      id: specialistId,
+      name: String(item?.specialistName || "").trim() || `Specialist #${specialistId}`
+    };
+  }
+  if (isRoutineItem) {
+    const classId = String(item?.classId || "").trim();
+    const className = String(item?.className || "").trim();
+    return {
+      id: classId ? `routine-class-${classId}` : `routine-${index}`,
+      name: className ? `Class routine: ${className}` : "Class routine"
+    };
+  }
+  return {
+    id: "",
+    name: ""
+  };
+}
+
+function shouldIncludeClientFocusedPlannerItem(item, selectedClientId = "") {
+  const itemType = String(item?.itemType || "").trim().toLowerCase();
+  if (itemType === "daily-routine") {
+    return true;
+  }
+  return String(item?.clientId || "").trim() === String(selectedClientId || "").trim();
+}
+
 function alwaysFalse() {
   return false;
 }
@@ -1611,7 +1643,6 @@ function AppointmentScheduler({
       const settingsQuery = new URLSearchParams();
       if (
         !vipOnly
-        && !normalizedSelectedPlannerClientFilterId
         && String(selectedSpecialistId || "").trim()
       ) {
         settingsQuery.set("specialistId", String(selectedSpecialistId || "").trim());
@@ -1891,9 +1922,6 @@ function AppointmentScheduler({
           setVipSchedulesWeekKeyByClass({});
         }
         setSelectedSpecialistId((prev) => {
-          if (!vipOnly && normalizedSelectedPlannerClientFilterId) {
-            return "";
-          }
           const persisted = readStoredSchedulerSelectionId(vipOnly, currentUserId);
           const preferredId = String(prev || persisted || "").trim();
           if (preferredId && nextSpecialists.some((itemValue) => itemValue.id === preferredId)) {
@@ -2212,6 +2240,14 @@ function AppointmentScheduler({
         : `${specialist.name} (${specialist.role})`
     }))
   ), [specialists, vipOnly]);
+  const clientFocusedCreateSpecialistOptions = useMemo(() => (
+    specialistOptions.filter((option) => canCreateOnPlannerSpecialist(option.value))
+  ), [canCreateOnPlannerSpecialist, specialistOptions]);
+  const canOpenClientFocusedCreateModal = (
+    !vipOnly
+    && canCreateAppointments
+    && clientFocusedCreateSpecialistOptions.length > 0
+  );
   const visibleRepeatDayKeys = useMemo(
     () => normalizeVisibleDays(settings.visibleWeekDays),
     [settings.visibleWeekDays]
@@ -2289,6 +2325,12 @@ function AppointmentScheduler({
     ).trim();
   }, [createModal.specialistId, selectedSpecialistId, specialistRoleById, specialists, vipOnly]);
   const isEditMode = createModal.mode === "edit";
+  const isClientFocusedCreateMode = (
+    createModal.open
+    && !vipOnly
+    && !isEditMode
+    && isClientFocusedMode
+  );
   const isEditRecurring = isEditMode
     && createModal.repeatType === "weekly"
     && Boolean(String(createModal.repeatGroupKey || "").trim());
@@ -2590,7 +2632,7 @@ function AppointmentScheduler({
           ? clientFocusedSchedulesBySpecialist[specialistId][day.key]
           : [];
         rawDayItems.forEach((item) => {
-          if (String(item?.clientId || "").trim() !== normalizedSelectedPlannerClientFilterId) {
+          if (!shouldIncludeClientFocusedPlannerItem(item, normalizedSelectedPlannerClientFilterId)) {
             return;
           }
           dayItemsByKey[day.key].push({
@@ -2671,15 +2713,16 @@ function AppointmentScheduler({
       const scheduleItems = Array.isArray(data?.items) ? data.items : [];
       const specialistsById = new Map();
       const clientSchedulesBySpecialist = {};
-      scheduleItems.forEach((item) => {
-        const specialistId = String(item?.specialistId || "").trim();
+      scheduleItems.forEach((item, index) => {
+        const groupMeta = getClientFocusedPlannerGroupMeta(item, index);
+        const specialistId = String(groupMeta.id || "").trim();
         if (!specialistId) {
           return;
         }
         if (!specialistsById.has(specialistId)) {
           specialistsById.set(specialistId, {
             id: specialistId,
-            name: String(item?.specialistName || "").trim() || `Specialist #${specialistId}`
+            name: String(groupMeta.name || "").trim() || `Specialist #${specialistId}`
           });
         }
         if (!Array.isArray(clientSchedulesBySpecialist[specialistId])) {
@@ -3229,9 +3272,17 @@ function AppointmentScheduler({
 
   function openCreateModal(day, slot, existingItem = null, specialistIdOverride = "") {
     const isEditMode = Boolean(existingItem);
+    const isClientFocusedCreateContext = !isEditMode && isClientFocusedMode;
     const slotSpecialistId = isEditMode
       ? String(existingItem?.specialistId || "").trim()
       : String(specialistIdOverride || selectedSpecialistId || "").trim();
+    const fallbackCreateSpecialistId = String(clientFocusedCreateSpecialistOptions[0]?.value || "").trim();
+    const preferredCreateSpecialistId = (
+      slotSpecialistId
+      && clientFocusedCreateSpecialistOptions.some((option) => String(option?.value || "").trim() === slotSpecialistId)
+    )
+      ? slotSpecialistId
+      : fallbackCreateSpecialistId;
     if (isEditMode) {
       if (!canMutateSpecialistId(slotSpecialistId)) {
         setMessage("You can only edit appointments in your own planner.");
@@ -3243,6 +3294,11 @@ function AppointmentScheduler({
       }
     } else if (vipOnly) {
       return;
+    } else if (isClientFocusedCreateContext) {
+      if (!canOpenClientFocusedCreateModal) {
+        setMessage("You do not have permission to create appointments.");
+        return;
+      }
     } else if (!canCreateOnPlannerSpecialist(slotSpecialistId)) {
       setMessage(
         canCreateAppointments
@@ -3252,7 +3308,7 @@ function AppointmentScheduler({
       return;
     }
 
-    if (!slotSpecialistId) {
+    if (!slotSpecialistId && !isClientFocusedCreateContext) {
       setSpecialistSelectError(true);
       return;
     }
@@ -3296,12 +3352,39 @@ function AppointmentScheduler({
         };
       });
     }
+    if (!isEditMode && isClientFocusedCreateContext && preselectedClientId) {
+      setClientMap((prev) => {
+        const previousClient = prev?.[preselectedClientId] && typeof prev[preselectedClientId] === "object"
+          ? prev[preselectedClientId]
+          : {};
+        return {
+          ...prev,
+          [preselectedClientId]: {
+            ...previousClient,
+            id: preselectedClientId,
+            firstName: String(selectedPlannerFilterClient?.firstName || previousClient?.firstName || "").trim(),
+            lastName: String(selectedPlannerFilterClient?.lastName || previousClient?.lastName || "").trim(),
+            middleName: String(selectedPlannerFilterClient?.middleName || previousClient?.middleName || "").trim(),
+            displayName: String(
+              selectedPlannerFilterClient
+                ? getClientDisplayName(selectedPlannerFilterClient)
+                : (previousClient?.displayName || clientFocusedSelectedClientLabel || "")
+            ).trim(),
+            phone: String(previousClient?.phone || "").trim(),
+            tgMail: String(previousClient?.tgMail || "").trim(),
+            birthday: String(previousClient?.birthday || "").trim(),
+            isVip: Boolean(selectedPlannerFilterClient?.isVip || previousClient?.isVip),
+            note: String(previousClient?.note || "").trim()
+          }
+        };
+      });
+    }
 
     setCreateModal({
       open: true,
       mode: existingItem ? "edit" : "create",
       appointmentId: String(existingItem?.id || ""),
-      specialistId: slotSpecialistId,
+      specialistId: isClientFocusedCreateContext ? preferredCreateSpecialistId : slotSpecialistId,
       dayKey: day.key,
       dayLabel: day.label,
       date: day.date,
@@ -3351,6 +3434,11 @@ function AppointmentScheduler({
       return;
     }
     if (vipOnly) {
+      setClientSearchMessage("");
+      setClientOptions([]);
+      return;
+    }
+    if (isClientFocusedCreateMode) {
       setClientSearchMessage("");
       setClientOptions([]);
       return;
@@ -3446,7 +3534,7 @@ function AppointmentScheduler({
       active = false;
       window.clearTimeout(timerId);
     };
-  }, [clientSearch.firstName, clientSearch.lastName, createModal.open, vipOnly]);
+  }, [clientSearch.firstName, clientSearch.lastName, createModal.open, isClientFocusedCreateMode, vipOnly]);
 
   useEffect(() => {
     if (!createModal.open) {
@@ -3603,7 +3691,12 @@ function AppointmentScheduler({
     if (!createModal.open) {
       return;
     }
-    if (!isEditMode && !canCreateOnPlannerSpecialist(createModal.specialistId)) {
+    const specialistId = String(createModal.specialistId || "").trim();
+    if (!specialistId) {
+      setCreateErrors({ specialistId: "Specialist is required." });
+      return;
+    }
+    if (!isEditMode && !canCreateOnPlannerSpecialist(specialistId)) {
       setCreateErrors({
         form: canCreateAppointments
           ? "You can only create appointments in your own planner."
@@ -3654,11 +3747,6 @@ function AppointmentScheduler({
         return;
       }
 
-      const specialistId = String(createModal.specialistId || "");
-      if (!specialistId) {
-        setCreateErrors({ specialistId: "Specialist is required." });
-        return;
-      }
       if (!canMutateSpecialistId(specialistId)) {
         setCreateErrors({
           specialistId: isEditMode
@@ -3687,7 +3775,11 @@ function AppointmentScheduler({
       const endTime = minutesToTime(startMinutes + durationMinutes);
       const shouldShowImmediateAlert = typeof onNotification === "function";
       const normalizedStatus = String(nextPayload.status || "").trim().toLowerCase();
-      if (ACTIVE_SCHEDULE_STATUSES.has(normalizedStatus)) {
+      const shouldCheckLocalConflict = (
+        !isClientFocusedMode
+        || String(selectedSpecialistId || "").trim() === specialistId
+      );
+      if (ACTIVE_SCHEDULE_STATUSES.has(normalizedStatus) && shouldCheckLocalConflict) {
         const localConflict = findLocalScheduleConflict({
           appointmentDate,
           startTime,
@@ -4047,9 +4139,6 @@ function AppointmentScheduler({
                 error={specialistSelectError}
                 onChange={(nextValue) => {
                   setSelectedSpecialistId(nextValue);
-                  if (selectedPlannerClientFilterId) {
-                    setSelectedPlannerClientFilterId("");
-                  }
                   if (specialistSelectError) {
                     setSpecialistSelectError(false);
                   }
@@ -4078,9 +4167,6 @@ function AppointmentScheduler({
                   onChange={(nextValue) => {
                     const nextClientId = String(nextValue || "").trim();
                     setSelectedPlannerClientFilterId(nextClientId);
-                    if (nextClientId) {
-                      setSelectedSpecialistId("");
-                    }
                   }}
                 />
               </div>
@@ -4245,12 +4331,12 @@ function AppointmentScheduler({
               settings={settings}
               rawAppointmentsByDay={clientFocusedAppointmentsByDay}
               selectedClientId={normalizedSelectedPlannerClientFilterId}
-              breaksForSpecialist={[]}
-              blockedTimesForSpecialist={[]}
-              absencesForSpecialist={[]}
+              breaksForSpecialist={breaksForSpecialist}
+              blockedTimesForSpecialist={blockedTimesForSpecialist}
+              absencesForSpecialist={absencesForSpecialist}
               slotCellHeightPx={slotCellHeightPx}
               now={now}
-              canCreateOnSpecialist={false}
+              canCreateOnSpecialist={canOpenClientFocusedCreateModal}
               canUpdateAppointments={canUpdateAppointments}
               canDeleteAppointments={canDeleteAppointments}
               canMutateAppointmentSpecialist={canMutateAppointmentSpecialist}
@@ -4386,34 +4472,61 @@ function AppointmentScheduler({
               {/* ── Client ── */}
               <div className="appointment-modal-section">
                 {!vipOnly && !isVipRecurringModal ? (
-                  <div className="appointment-client-search-row">
-                    <div className="field">
-                      <label htmlFor="appointmentClientSearchFirst">First name</label>
-                      <input
-                        id="appointmentClientSearchFirst"
-                        type="text"
-                        placeholder="First name"
-                        value={clientSearch.firstName}
-                        onInput={(event) => {
-                          const nextValue = event.currentTarget.value;
-                          setClientSearch((prev) => ({ ...prev, firstName: nextValue }));
-                        }}
-                      />
+                  isClientFocusedCreateMode ? (
+                    <div className="appointment-client-search-row">
+                      <div className="field">
+                        <label htmlFor="appointmentCreateSpecialistSelect">Specialist</label>
+                        <CustomSelect
+                          id="appointmentCreateSpecialistSelect"
+                          placeholder="Select specialist"
+                          value={createModal.specialistId}
+                          options={clientFocusedCreateSpecialistOptions}
+                          searchable
+                          searchPlaceholder="Search specialist"
+                          searchThreshold={20}
+                          maxVisibleOptions={10}
+                          error={Boolean(createErrors.specialistId)}
+                          disabled={createSubmitting || createDeleting}
+                          onChange={(nextValue) => {
+                            setCreateModal((prev) => ({ ...prev, specialistId: nextValue }));
+                            if (createErrors.specialistId) {
+                              setCreateErrors((prev) => ({ ...prev, specialistId: "" }));
+                            }
+                          }}
+                        />
+                        <small className="field-error">{createErrors.specialistId || ""}</small>
+                      </div>
                     </div>
-                    <div className="field">
-                      <label htmlFor="appointmentClientSearchLast">Last name</label>
-                      <input
-                        id="appointmentClientSearchLast"
-                        type="text"
-                        placeholder="Last name"
-                        value={clientSearch.lastName}
-                        onInput={(event) => {
-                          const nextValue = event.currentTarget.value;
-                          setClientSearch((prev) => ({ ...prev, lastName: nextValue }));
-                        }}
-                      />
+                  ) : (
+                    <div className="appointment-client-search-row">
+                      <div className="field">
+                        <label htmlFor="appointmentClientSearchFirst">First name</label>
+                        <input
+                          id="appointmentClientSearchFirst"
+                          type="text"
+                          placeholder="First name"
+                          value={clientSearch.firstName}
+                          onInput={(event) => {
+                            const nextValue = event.currentTarget.value;
+                            setClientSearch((prev) => ({ ...prev, firstName: nextValue }));
+                          }}
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor="appointmentClientSearchLast">Last name</label>
+                        <input
+                          id="appointmentClientSearchLast"
+                          type="text"
+                          placeholder="Last name"
+                          value={clientSearch.lastName}
+                          onInput={(event) => {
+                            const nextValue = event.currentTarget.value;
+                            setClientSearch((prev) => ({ ...prev, lastName: nextValue }));
+                          }}
+                        />
+                      </div>
                     </div>
-                  </div>
+                  )
                 ) : null}
 
 
@@ -4463,23 +4576,34 @@ function AppointmentScheduler({
                       </label>
                     </div>
                     <div className="field">
-                      <label htmlFor="appointmentCreateClientSelect">Client</label>
-                      <CustomSelect
-                        id="appointmentCreateClientSelect"
-                        placeholder="Select client"
-                        value={createForm.clientId}
-                        options={clientSelectOptions}
-                        maxVisibleOptions={10}
-                        menuPortal
-                        error={clientSelectHasError}
-                        emptyText={!createForm.clientId && !clientSearchMessage ? "Search by name above" : "No options found."}
-                        onChange={(nextValue) => {
-                          setCreateForm((prev) => ({ ...prev, clientId: nextValue }));
-                          if (createErrors.clientId) {
-                            setCreateErrors((prev) => ({ ...prev, clientId: "" }));
-                          }
-                        }}
-                      />
+                      <label htmlFor={isClientFocusedCreateMode ? "appointmentCreateClientReadonly" : "appointmentCreateClientSelect"}>Client</label>
+                      {isClientFocusedCreateMode ? (
+                        <input
+                          id="appointmentCreateClientReadonly"
+                          type="text"
+                          value={clientFocusedSelectedClientLabel}
+                          readOnly
+                          disabled
+                        />
+                      ) : (
+                        <CustomSelect
+                          id="appointmentCreateClientSelect"
+                          placeholder="Select client"
+                          value={createForm.clientId}
+                          options={clientSelectOptions}
+                          maxVisibleOptions={10}
+                          menuPortal
+                          error={clientSelectHasError}
+                          emptyText={!createForm.clientId && !clientSearchMessage ? "Search by name above" : "No options found."}
+                          onChange={(nextValue) => {
+                            setCreateForm((prev) => ({ ...prev, clientId: nextValue }));
+                            if (createErrors.clientId) {
+                              setCreateErrors((prev) => ({ ...prev, clientId: "" }));
+                            }
+                          }}
+                        />
+                      )}
+                      <small className="field-error">{createErrors.clientId || ""}</small>
                     </div>
                   </div>
                 ) : null}
