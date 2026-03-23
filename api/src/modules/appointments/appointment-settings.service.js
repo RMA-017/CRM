@@ -1102,64 +1102,95 @@ async function listVipDailyRoutineScheduleItems({
     );
   }
 
-  const { rows } = await (db || pool).query(
-    `WITH day_series AS (
-       SELECT generate_series($2::date, $3::date, INTERVAL '1 day')::date AS routine_date
-     )
-     SELECT
-       vdr.id,
-       vdr.organization_id,
-       vdr.specialist_user_id AS specialist_id,
-       ds.routine_date AS appointment_date,
-       TO_CHAR(vdr.start_time, 'HH24:MI') AS start_time,
-       TO_CHAR(vdr.end_time, 'HH24:MI') AS end_time,
-       GREATEST(1, FLOOR(EXTRACT(EPOCH FROM (vdr.end_time - vdr.start_time)) / 60))::int AS duration_minutes,
-       CASE vdr.activity_type
-         WHEN 'lesson' THEN 'Group lesson'
-         WHEN 'breakfast' THEN 'Breakfast'
-         WHEN 'lunch' THEN 'Lunch'
-         WHEN 'afternoon-snack' THEN 'Afternoon snack'
-         WHEN 'sleep' THEN 'Sleep time'
-         ELSE 'Other'
-       END AS service_name,
-       'routine'::text AS status,
-       vdr.note,
-       vdr.mandatory_exercises,
-       vdr.activity_type,
-       'daily-routine'::text AS item_type,
-       vdr.class_assignment_id::text AS class_assignment_id,
-       vcta.class_name,
-       COALESCE(
-         NULLIF(TRIM(specialist_u.full_name), ''),
-         NULLIF(TRIM(specialist_u.username), ''),
-         CONCAT('User #', vdr.specialist_user_id::text)
-       ) AS specialist_name,
-       COALESCE(NULLIF(TRIM(specialist_p.label), ''), NULLIF(TRIM(specialist_r.label), ''), 'Specialist') AS specialist_position,
-       TRUE AS is_vip,
-       vdr.created_at,
-       vdr.updated_at
-      FROM vip_class_daily_routines vdr
-      JOIN vip_class_teacher_assignments vcta
+  const runRoutineQuery = async ({ includeClassMetadata = true } = {}) => {
+    const classNameSelect = includeClassMetadata
+      ? "COALESCE(NULLIF(TRIM(vcta.class_name), ''), CONCAT('Class #', vdr.class_assignment_id::text)) AS class_name,"
+      : "CONCAT('Class #', vdr.class_assignment_id::text) AS class_name,";
+    const classJoinSql = includeClassMetadata
+      ? `LEFT JOIN vip_class_teacher_assignments vcta
         ON vcta.organization_id = vdr.organization_id
-       AND vcta.id = vdr.class_assignment_id
-      JOIN day_series ds
-        ON EXTRACT(ISODOW FROM ds.routine_date)::smallint = vdr.day_of_week
-      LEFT JOIN users specialist_u
-        ON specialist_u.id = vdr.specialist_user_id
-       AND specialist_u.organization_id = vdr.organization_id
-      LEFT JOIN role_options specialist_r
-        ON specialist_r.id = specialist_u.role_id
-      LEFT JOIN position_options specialist_p
-        ON specialist_p.id = specialist_u.position_id
-     WHERE ${whereParts.join("\n       AND ")}
-     ORDER BY
-       ds.routine_date ASC,
-       vdr.start_time ASC,
-       vdr.id ASC`,
-    params
-  );
+       AND vcta.id = vdr.class_assignment_id`
+      : "";
 
-  return rows || [];
+    const { rows } = await (db || pool).query(
+      `WITH day_series AS (
+         SELECT generate_series($2::date, $3::date, INTERVAL '1 day')::date AS routine_date
+       )
+       SELECT
+         vdr.id,
+         vdr.organization_id,
+         vdr.specialist_user_id AS specialist_id,
+         ds.routine_date AS appointment_date,
+         TO_CHAR(vdr.start_time, 'HH24:MI') AS start_time,
+         TO_CHAR(vdr.end_time, 'HH24:MI') AS end_time,
+         GREATEST(1, FLOOR(EXTRACT(EPOCH FROM (vdr.end_time - vdr.start_time)) / 60))::int AS duration_minutes,
+         CASE vdr.activity_type
+           WHEN 'lesson' THEN 'Group lesson'
+           WHEN 'breakfast' THEN 'Breakfast'
+           WHEN 'lunch' THEN 'Lunch'
+           WHEN 'afternoon-snack' THEN 'Afternoon snack'
+           WHEN 'sleep' THEN 'Sleep time'
+           ELSE 'Other'
+         END AS service_name,
+         'routine'::text AS status,
+         vdr.note,
+         vdr.mandatory_exercises,
+         vdr.activity_type,
+         'daily-routine'::text AS item_type,
+         vdr.class_assignment_id::text AS class_assignment_id,
+         ${classNameSelect}
+         COALESCE(
+           NULLIF(TRIM(specialist_u.full_name), ''),
+           NULLIF(TRIM(specialist_u.username), ''),
+           CONCAT('User #', vdr.specialist_user_id::text)
+         ) AS specialist_name,
+         COALESCE(NULLIF(TRIM(specialist_p.label), ''), NULLIF(TRIM(specialist_r.label), ''), 'Specialist') AS specialist_position,
+         TRUE AS is_vip,
+         vdr.created_at,
+         vdr.updated_at
+        FROM vip_class_daily_routines vdr
+        ${classJoinSql}
+        JOIN day_series ds
+          ON EXTRACT(ISODOW FROM ds.routine_date)::smallint = vdr.day_of_week
+        LEFT JOIN users specialist_u
+          ON specialist_u.id = vdr.specialist_user_id
+         AND specialist_u.organization_id = vdr.organization_id
+        LEFT JOIN role_options specialist_r
+          ON specialist_r.id = specialist_u.role_id
+        LEFT JOIN position_options specialist_p
+          ON specialist_p.id = specialist_u.position_id
+       WHERE ${whereParts.join("\n       AND ")}
+       ORDER BY
+         ds.routine_date ASC,
+         vdr.start_time ASC,
+         vdr.id ASC`,
+      params
+    );
+
+    return rows || [];
+  };
+
+  try {
+    return await runRoutineQuery({ includeClassMetadata: true });
+  } catch (error) {
+    const errorMessage = String(error?.message || "").trim().toLowerCase();
+    const missingClientScopeTable = (
+      error?.code === "42P01"
+      && errorMessage.includes("vip_client_tutor_assignments")
+    );
+    if (missingClientScopeTable) {
+      return [];
+    }
+
+    const missingClassMetadata = (
+      (error?.code === "42P01" && errorMessage.includes("vip_class_teacher_assignments"))
+      || (error?.code === "42703" && errorMessage.includes("class_name"))
+    );
+    if (missingClassMetadata) {
+      return runRoutineQuery({ includeClassMetadata: false });
+    }
+    throw error;
+  }
 }
 
 export async function withAppointmentTransaction(callback) {
