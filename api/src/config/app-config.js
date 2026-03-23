@@ -44,8 +44,8 @@ export const appConfig = {
     timeWindow: toNumber(process.env.API_RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000)
   },
   loginRateLimit: {
-    max: toNumber(process.env.LOGIN_RATE_LIMIT_MAX, 10),
-    timeWindow: toNumber(process.env.LOGIN_RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000)
+    max: toNumber(process.env.LOGIN_RATE_LIMIT_MAX, 1),
+    timeWindow: toNumber(process.env.LOGIN_RATE_LIMIT_WINDOW_MS, 60 * 1000)
   },
   permissionsSync: {
     enabled: toBooleanFlag(process.env.PERMISSIONS_SYNC_ON_STARTUP, true),
