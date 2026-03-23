@@ -6207,6 +6207,14 @@ label.field > span:first-child,
   align-items: start;
 }
 
+.appointment-client-search-row.appointment-client-search-row-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.appointment-client-search-row.appointment-client-search-row-single .field {
+  min-width: 0;
+}
+
 .appointment-client-select-row {
   width: 100%;
   display: grid;

@@ -4473,7 +4473,7 @@ function AppointmentScheduler({
               <div className="appointment-modal-section">
                 {!vipOnly && !isVipRecurringModal ? (
                   isClientFocusedCreateMode ? (
-                    <div className="appointment-client-search-row">
+                    <div className="appointment-client-search-row appointment-client-search-row-single">
                       <div className="field">
                         <label htmlFor="appointmentCreateSpecialistSelect">Specialist</label>
                         <CustomSelect
@@ -4484,7 +4484,9 @@ function AppointmentScheduler({
                           searchable
                           searchPlaceholder="Search specialist"
                           searchThreshold={20}
-                          maxVisibleOptions={10}
+                          maxVisibleOptions={6}
+                          menuPortal
+                          menuHeightScale={0.72}
                           error={Boolean(createErrors.specialistId)}
                           disabled={createSubmitting || createDeleting}
                           onChange={(nextValue) => {
