@@ -1381,6 +1381,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           item
         });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "Appointment status history migration is required.", { includeDetails: true })) {
+          return;
+        }
         if (Number.isInteger(error?.statusCode) && error?.payload) {
           return reply.status(error.statusCode).send(error.payload);
         }
@@ -2835,6 +2838,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           }
         });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "Appointment status history migration is required.", { includeDetails: true })) {
+          return;
+        }
         if (Number.isInteger(error?.statusCode) && error?.payload) {
           return reply.status(error.statusCode).send(error.payload);
         }
@@ -3134,6 +3140,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           }
         });
       } catch (error) {
+        if (sendMigrationRequired(reply, error, "Appointment status history migration is required.", { includeDetails: true })) {
+          return;
+        }
         request.log.error({ err: error }, "Error deleting appointment schedule");
         return reply.status(500).send({ message: "Internal server error." });
       }

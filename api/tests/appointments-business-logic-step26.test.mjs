@@ -1239,6 +1239,73 @@ test("schedule update maps invalid repeat cast errors to invalid appointment dat
   assert.equal(reply.state.payload?.message, "Invalid appointment data.");
 });
 
+test("schedule update returns migration-required when appointment status history schema is missing", async () => {
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      getAppointmentScheduleTargetsByScope: async () => ({
+        anchorId: 91,
+        anchorAppointmentDate: "2026-03-09",
+        repeatGroupKey: "",
+        isRecurring: false,
+        scope: "single",
+        items: [
+          {
+            id: 91,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-09",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "pending",
+            note: "",
+            isVip: false
+          }
+        ]
+      }),
+      updateAppointmentSchedulesByIds: async () => {
+        const error = new Error("Appointment status history migration is required.");
+        error.code = "MIGRATION_REQUIRED";
+        error.details = {
+          missingTables: ["appointment_status_history"]
+        };
+        throw error;
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "PATCH", "/schedules/:id");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      params: { id: "91" },
+      query: { scope: "single" },
+      body: {
+        specialistId: "7",
+        clientId: "44",
+        appointmentDate: "2026-03-10",
+        startTime: "10:30",
+        endTime: "11:30",
+        durationMinutes: "60",
+        service: "Lesson",
+        status: "pending",
+        note: ""
+      }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 409);
+  assert.equal(reply.state.payload?.code, "MIGRATION_REQUIRED");
+  assert.deepEqual(reply.state.payload?.details?.missingTables, ["appointment_status_history"]);
+});
+
 test("schedule update reconciles recurring all-scope edits without falling back to bulk update", async () => {
   const deletedIds = [];
   const updatedIds = [];
