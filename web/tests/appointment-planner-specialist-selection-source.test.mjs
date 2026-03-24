@@ -28,6 +28,12 @@ test("appointment planner keeps toolbar selection user-scoped and restores the l
 
   assert.match(
     schedulerSource,
+    /const preferredSpecialistId = String\(persistedSpecialistId \|\| selectedSpecialistId \|\| ""\)\.trim\(\);/,
+    "Planner bootstrap should prefer the persisted scoped specialist selection over stale in-memory state."
+  );
+
+  assert.match(
+    schedulerSource,
     /const nextSelectedSpecialistId = \(\(\) => \{[\s\S]*if \(preferredSpecialistId && nextSpecialists\.some\(\(itemValue\) => itemValue\.id === preferredSpecialistId\)\) \{\s*return preferredSpecialistId;\s*\}[\s\S]*if \(\s*!vipOnly\s*&&\s*restrictCreateToOwnSpecialist\s*&&\s*normalizedCurrentUserId[\s\S]*return normalizedCurrentUserId;/s,
     "Specialist-scoped planner users should default to their own planner only when they do not already have a valid selected specialist."
   );
@@ -36,6 +42,12 @@ test("appointment planner keeps toolbar selection user-scoped and restores the l
     schedulerSource,
     /readStoredPlannerFilterMode\(currentUserId\) === "client"\s*\?\s*readStoredPlannerClientSelectionId\(currentUserId\)\s*:\s*""/,
     "Planner should restore the saved client filter when client mode was the last active toolbar mode."
+  );
+
+  assert.match(
+    schedulerSource,
+    /const preferredClientId = String\(persistedPlannerClientId \|\| selectedPlannerClientFilterId \|\| ""\)\.trim\(\);/,
+    "Planner bootstrap should prefer the persisted scoped client selection over stale in-memory state."
   );
 
   assert.match(

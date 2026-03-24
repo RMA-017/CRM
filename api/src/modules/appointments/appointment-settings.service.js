@@ -149,6 +149,7 @@ const VIP_CLASS_DAILY_ROUTINE_REQUIRED_COLUMNS = [
   "created_at",
   "updated_at"
 ];
+const UUID_LIKE_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 let appointmentStatusHistorySchemaInitPromise = null;
 let appointmentPlannerReportIndexInitPromise = null;
 let appointmentSettingsColumnFlagsPromise = null;
@@ -211,6 +212,11 @@ function formatUtcDateYmd(date) {
     return "";
   }
   return `${String(date.getUTCFullYear())}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+}
+
+function normalizeUuidString(value) {
+  const normalized = String(value || "").trim();
+  return UUID_LIKE_REGEX.test(normalized) ? normalized : "";
 }
 
 function addDaysToDateYmd(value, days) {
@@ -1056,7 +1062,7 @@ function toScheduleItem(row) {
   }
   const status = String(row?.status || "").trim().toLowerCase();
   const repeatType = normalizeRepeatType(row?.repeat_type);
-  const repeatGroupKey = String(row?.repeat_group_key || "").trim();
+  const repeatGroupKey = normalizeUuidString(row?.repeat_group_key);
   const durationFromRow = Number.parseInt(String(row?.duration_minutes ?? "").trim(), 10);
   const durationMinutes = Number.isInteger(durationFromRow) && durationFromRow > 0
     ? durationFromRow
@@ -3549,7 +3555,7 @@ export async function getAppointmentScheduleTargetsByScope({
     status: String(row?.status || "").trim().toLowerCase(),
     note: String(row?.note || "").trim(),
     repeatType: normalizeRepeatType(row?.repeat_type),
-    repeatGroupKey: String(row?.repeat_group_key || "").trim(),
+    repeatGroupKey: normalizeUuidString(row?.repeat_group_key),
     repeatUntilDate: normalizeDateYmd(row?.repeat_until_date),
     repeatDays: mapRepeatDayNumsToKeys(row?.repeat_days),
     repeatAnchorDate: normalizeDateYmd(row?.repeat_anchor_date),
@@ -3614,7 +3620,7 @@ export async function getAppointmentScheduleTargetsByScope({
     };
   }
 
-  const repeatGroupKey = String(anchor.repeat_group_key || "").trim();
+  const repeatGroupKey = normalizeUuidString(anchor.repeat_group_key);
   const isRecurring = normalizeRepeatType(anchor.repeat_type) === "weekly" && Boolean(repeatGroupKey);
   const effectiveScope = isRecurring ? normalizedScope : "single";
 

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const referenceRoutesModule = await import("../src/modules/appointments/routes/reference.routes.js");
@@ -8,6 +9,31 @@ const schedulesRoutesModule = await import("../src/modules/appointments/routes/s
 const { registerAppointmentReferenceRoutes } = referenceRoutesModule;
 const { registerAppointmentBreakRoutes } = breaksRoutesModule;
 const { registerAppointmentScheduleRoutes } = schedulesRoutesModule;
+
+test("appointment schedule service normalizes malformed repeat group keys before recurring update logic", async () => {
+  const source = await readFile(
+    new URL("../src/modules/appointments/appointment-settings.service.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    source,
+    /const UUID_LIKE_REGEX = .*?;\s*[\s\S]*function normalizeUuidString\(value\)/s,
+    "Appointment schedule service should keep repeat-group normalization behind a shared UUID helper."
+  );
+
+  assert.match(
+    source,
+    /const repeatGroupKey = normalizeUuidString\(row\?\.repeat_group_key\);[\s\S]*isRecurring: repeatType === "weekly" && Boolean\(repeatGroupKey\)/s,
+    "Planner schedule items should stop treating malformed repeat group keys as recurring series."
+  );
+
+  assert.match(
+    source,
+    /repeatGroupKey: normalizeUuidString\(row\?\.repeat_group_key\),[\s\S]*const repeatGroupKey = normalizeUuidString\(anchor\.repeat_group_key\);/s,
+    "Schedule target loading should normalize malformed repeat group keys before recurring update logic runs."
+  );
+});
 
 function createReplyRecorder() {
   const state = {
@@ -1613,6 +1639,171 @@ test("schedule update detaches a single recurring occurrence without deleting th
   );
   assert.equal(reply.state.payload?.summary?.scope, "single");
   assert.equal(reply.state.payload?.summary?.affectedCount, 1);
+});
+
+test("schedule update detaches a single recurring occurrence even when repeat meta needs fallback values", async () => {
+  const repeatMetaCalls = [];
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      randomUUID: () => "77777777-7777-7777-7777-777777777777",
+      parseDateYmdToUtcDate: (value) => new Date(`${String(value || "").trim()}T00:00:00.000Z`),
+      toDayKeyFromUtcDate: (value) => {
+        const dayKeyByWeekday = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+        return dayKeyByWeekday[value.getUTCDay()] || "";
+      },
+      toAppointmentDayNum: (value) => ({
+        mon: 1,
+        tue: 2,
+        wed: 3,
+        thu: 4,
+        fri: 5,
+        sat: 6,
+        sun: 7
+      })[String(value || "").trim().toLowerCase()] || 0,
+      getAppointmentScheduleTargetsByScope: async () => ({
+        anchorId: 91,
+        anchorAppointmentDate: "2026-03-09",
+        repeatGroupKey: "",
+        repeatUntilDate: "",
+        repeatAnchorDate: "",
+        repeatDays: [],
+        isAutoRollingRepeat: false,
+        isRecurring: true,
+        scope: "single",
+        items: [
+          {
+            id: 91,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-09",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "pending",
+            note: "",
+            isRepeatRoot: true,
+            isVip: false
+          }
+        ],
+        seriesItems: [
+          {
+            id: 91,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-09",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "pending",
+            note: "",
+            isRepeatRoot: true,
+            isVip: false
+          },
+          {
+            id: 92,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-11",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "pending",
+            note: "",
+            isRepeatRoot: false,
+            isVip: false
+          },
+          {
+            id: 93,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-13",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "pending",
+            note: "",
+            isRepeatRoot: false,
+            isVip: false
+          }
+        ]
+      }),
+      updateAppointmentSchedulesByIds: async () => ([{
+        id: "91",
+        specialistId: "7",
+        clientId: "44",
+        appointmentDate: "2026-03-10",
+        startTime: "10:30",
+        endTime: "11:30"
+      }]),
+      updateAppointmentScheduleByIdWithRepeatMeta: async (payload) => {
+        repeatMetaCalls.push(payload);
+        return {
+          id: String(payload.id),
+          appointmentDate: payload.appointmentDate
+        };
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "PATCH", "/schedules/:id");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      params: { id: "91" },
+      query: { scope: "single" },
+      body: {
+        specialistId: "7",
+        clientId: "44",
+        appointmentDate: "2026-03-10",
+        startTime: "10:30",
+        endTime: "11:30",
+        durationMinutes: "60",
+        service: "Lesson",
+        status: "pending",
+        note: ""
+      }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 200);
+  assert.deepEqual(
+    repeatMetaCalls.map((item) => ({
+      id: item.id,
+      repeatGroupKey: item.repeatGroupKey,
+      repeatUntilDate: item.repeatUntilDate,
+      repeatAnchorDate: item.repeatAnchorDate,
+      repeatDays: item.repeatDays,
+      isRepeatRoot: item.isRepeatRoot
+    })),
+    [
+      {
+        id: 92,
+        repeatGroupKey: "77777777-7777-7777-7777-777777777777",
+        repeatUntilDate: "2026-03-13",
+        repeatAnchorDate: "2026-03-11",
+        repeatDays: [3, 5],
+        isRepeatRoot: true
+      },
+      {
+        id: 93,
+        repeatGroupKey: "77777777-7777-7777-7777-777777777777",
+        repeatUntilDate: "2026-03-13",
+        repeatAnchorDate: "2026-03-11",
+        repeatDays: [3, 5],
+        isRepeatRoot: false
+      }
+    ]
+  );
 });
 
 test("schedule update splits a selected weekday branch into a new recurring future series", async () => {

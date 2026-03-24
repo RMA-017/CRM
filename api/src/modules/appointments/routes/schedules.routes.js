@@ -2045,6 +2045,17 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           const nextRepeatDayNums = nextRepeatDayKeys
             .map((dayKey) => toAppointmentDayNum(dayKey))
             .filter((dayNum) => Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 7);
+          const nextSeriesRepeatGroupKey = String(target.repeatGroupKey || "").trim() || randomUUID();
+          const nextSeriesRepeatUntilDate = String(
+            target.repeatUntilDate
+            || remainingSeriesItems[remainingSeriesItems.length - 1]?.appointmentDate
+            || ""
+          ).trim();
+          const nextSeriesRepeatAnchorDate = String(
+            remainingSeriesItems[0]?.appointmentDate
+            || target.repeatAnchorDate
+            || ""
+          ).trim();
 
           const items = await withAppointmentTransaction(async (db) => {
             const updatedItems = await updateAppointmentSchedulesByIds({
@@ -2067,7 +2078,6 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
 
             if (anchorItem?.isRepeatRoot && remainingSeriesItems.length > 0) {
               const nextRootItem = remainingSeriesItems[0];
-              const nextRepeatAnchorDate = String(nextRootItem?.appointmentDate || "").trim();
               for (const seriesItem of remainingSeriesItems) {
                 await updateAppointmentScheduleByIdWithRepeatMeta({
                   organizationId: access.authContext.organizationId,
@@ -2082,10 +2092,10 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                   serviceName: seriesItem.serviceName,
                   status: seriesItem.status,
                   note: seriesItem.note,
-                  repeatGroupKey: String(target.repeatGroupKey || "").trim(),
-                  repeatUntilDate: String(target.repeatUntilDate || "").trim(),
+                  repeatGroupKey: nextSeriesRepeatGroupKey,
+                  repeatUntilDate: nextSeriesRepeatUntilDate,
                   repeatDays: nextRepeatDayNums,
-                  repeatAnchorDate: nextRepeatAnchorDate,
+                  repeatAnchorDate: nextSeriesRepeatAnchorDate,
                   isRepeatRoot: Number.parseInt(String(seriesItem?.id || ""), 10) === Number.parseInt(String(nextRootItem?.id || ""), 10),
                   isAutoRollingRepeat: Boolean(target.isAutoRollingRepeat),
                   db

@@ -2261,7 +2261,7 @@ function AppointmentScheduler({
           : [];
 
         const persistedSpecialistId = readStoredSchedulerSelectionId(vipOnly, currentUserId);
-        const preferredSpecialistId = String(selectedSpecialistId || persistedSpecialistId || "").trim();
+        const preferredSpecialistId = String(persistedSpecialistId || selectedSpecialistId || "").trim();
         const nextSelectedSpecialistId = (() => {
           if (preferredSpecialistId && nextSpecialists.some((itemValue) => itemValue.id === preferredSpecialistId)) {
             return preferredSpecialistId;
@@ -2282,7 +2282,7 @@ function AppointmentScheduler({
         const persistedPlannerClientSnapshot = !vipOnly
           ? readStoredPlannerClientSelectionSnapshot(currentUserId)
           : null;
-        const preferredClientId = String(selectedPlannerClientFilterId || persistedPlannerClientId || "").trim();
+        const preferredClientId = String(persistedPlannerClientId || selectedPlannerClientFilterId || "").trim();
         const shouldRestoreClientFocus = (
           !vipOnly
           && preferredClientId
