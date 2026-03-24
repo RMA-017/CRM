@@ -2186,6 +2186,24 @@ function AppointmentScheduler({
     vipOnly
   ]);
 
+  const selectedPlannerFilterClient = useMemo(() => (
+    (Array.isArray(plannerFilterClients) ? plannerFilterClients : []).find(
+      (client) => String(client?.id || "").trim() === normalizedSelectedPlannerClientFilterId
+    )
+    || plannerClientSearchMap[normalizedSelectedPlannerClientFilterId]
+    || (
+      String(storedPlannerClientSnapshot?.id || "").trim() === normalizedSelectedPlannerClientFilterId
+        ? storedPlannerClientSnapshot
+        : null
+    )
+    || null
+  ), [
+    normalizedSelectedPlannerClientFilterId,
+    plannerFilterClients,
+    plannerClientSearchMap,
+    storedPlannerClientSnapshot
+  ]);
+
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -2214,21 +2232,12 @@ function AppointmentScheduler({
     const clientId = String(selectedPlannerClientFilterId || "").trim();
     const selectedClientSnapshot = clientId
       ? normalizePlannerStoredClientSnapshot(
-          (Array.isArray(plannerFilterClients) ? plannerFilterClients : []).find(
-            (client) => String(client?.id || "").trim() === clientId
-          )
-          || plannerClientSearchMap[clientId]
-          || (
-            String(storedPlannerClientSnapshot?.id || "").trim() === clientId
-              ? storedPlannerClientSnapshot
+          (
+            String(selectedPlannerFilterClient?.id || "").trim() === clientId
+              ? selectedPlannerFilterClient
               : null
           )
-          || {
-            id: clientId,
-            displayName: plannerClientFilterOptions.find(
-              (option) => String(option?.value || "").trim() === clientId
-            )?.label || ""
-          }
+          || { id: clientId }
         )
       : null;
 
@@ -2259,9 +2268,7 @@ function AppointmentScheduler({
   }, [
     currentUserId,
     normalizedCurrentUserId,
-    plannerClientFilterOptions,
-    plannerClientSearchMap,
-    plannerFilterClients,
+    selectedPlannerFilterClient,
     selectedPlannerClientFilterId,
     selectedSpecialistId,
     storedPlannerClientSnapshot,
@@ -2928,23 +2935,6 @@ function AppointmentScheduler({
     vipSchedulesWeekKeyByClass,
     weekDataKey,
     weekDays
-  ]);
-  const selectedPlannerFilterClient = useMemo(() => (
-    (Array.isArray(plannerFilterClients) ? plannerFilterClients : []).find(
-      (client) => String(client?.id || "").trim() === normalizedSelectedPlannerClientFilterId
-    )
-    || plannerClientSearchMap[normalizedSelectedPlannerClientFilterId]
-    || (
-      String(storedPlannerClientSnapshot?.id || "").trim() === normalizedSelectedPlannerClientFilterId
-        ? storedPlannerClientSnapshot
-        : null
-    )
-    || null
-  ), [
-    normalizedSelectedPlannerClientFilterId,
-    plannerFilterClients,
-    plannerClientSearchMap,
-    storedPlannerClientSnapshot
   ]);
   const clientFocusedAppointmentsByDay = useMemo(() => {
     if (!isClientFocusedMode) {
