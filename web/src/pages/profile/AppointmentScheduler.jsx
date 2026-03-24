@@ -169,6 +169,19 @@ function arePlannerClientSnapshotsEqual(left, right) {
   );
 }
 
+function hasPlannerClientSnapshotDisplay(value) {
+  const normalizedValue = normalizePlannerStoredClientSnapshot(value);
+  if (!normalizedValue) {
+    return false;
+  }
+  return Boolean(
+    normalizedValue.firstName
+    || normalizedValue.lastName
+    || normalizedValue.middleName
+    || normalizedValue.displayName
+  );
+}
+
 function getPlannerClientSnapshotStorageKey(currentUserId = "") {
   return getUserScopedSchedulerStorageKey(APPOINTMENT_PLANNER_CLIENT_SNAPSHOT_STORAGE_KEY, currentUserId);
 }
@@ -2230,14 +2243,27 @@ function AppointmentScheduler({
     const modeStorageKey = getPlannerFilterModeStorageKey(currentUserId);
     const specialistId = String(selectedSpecialistId || "").trim();
     const clientId = String(selectedPlannerClientFilterId || "").trim();
+    const normalizedStoredPlannerClientSnapshot = (
+      String(storedPlannerClientSnapshot?.id || "").trim() === clientId
+        ? normalizePlannerStoredClientSnapshot(storedPlannerClientSnapshot)
+        : null
+    );
     const selectedClientSnapshot = clientId
       ? normalizePlannerStoredClientSnapshot(
-          (
-            String(selectedPlannerFilterClient?.id || "").trim() === clientId
-              ? selectedPlannerFilterClient
-              : null
-          )
-          || { id: clientId }
+          (() => {
+            const matchedSelectedClient = (
+              String(selectedPlannerFilterClient?.id || "").trim() === clientId
+                ? normalizePlannerStoredClientSnapshot(selectedPlannerFilterClient)
+                : null
+            );
+            if (hasPlannerClientSnapshotDisplay(matchedSelectedClient)) {
+              return matchedSelectedClient;
+            }
+            if (hasPlannerClientSnapshotDisplay(normalizedStoredPlannerClientSnapshot)) {
+              return normalizedStoredPlannerClientSnapshot;
+            }
+            return matchedSelectedClient || normalizedStoredPlannerClientSnapshot || { id: clientId };
+          })()
         )
       : null;
 
@@ -4508,6 +4534,30 @@ function AppointmentScheduler({
                   onChange={(nextValue) => {
                     const nextClientId = String(nextValue || "").trim();
                     setSelectedPlannerClientFilterId(nextClientId);
+                    setStoredPlannerClientSnapshot(
+                      nextClientId
+                        ? normalizePlannerStoredClientSnapshot(
+                            plannerClientSearchMap[nextClientId]
+                            || (Array.isArray(plannerFilterClients) ? plannerFilterClients : []).find(
+                              (client) => String(client?.id || "").trim() === nextClientId
+                            )
+                            || (
+                              plannerClientActiveOptions.find(
+                                (option) => String(option?.value || "").trim() === nextClientId
+                              )
+                                ? {
+                                    id: nextClientId,
+                                    displayName: String(
+                                      plannerClientActiveOptions.find(
+                                        (option) => String(option?.value || "").trim() === nextClientId
+                                      )?.label || ""
+                                    ).trim()
+                                  }
+                                : null
+                            )
+                          )
+                        : null
+                    );
                     if (nextClientId) {
                       setSelectedSpecialistId("");
                     }
