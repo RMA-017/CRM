@@ -1850,6 +1850,7 @@ function AppointmentScheduler({
     )
   );
   const hydratedPlannerStorageUserKeyRef = useRef("");
+  const [hydratedPlannerStorageKey, setHydratedPlannerStorageKey] = useState("");
   const [specialistSelectError, setSpecialistSelectError] = useState(false);
   const [appointmentsBySpecialist, setAppointmentsBySpecialist] = useState(() => ({}));
   const [appointmentsWeekKeyBySpecialist, setAppointmentsWeekKeyBySpecialist] = useState(() => ({}));
@@ -1900,12 +1901,15 @@ function AppointmentScheduler({
   const [clientFocusedPreviewWeekKey, setClientFocusedPreviewWeekKey] = useState("");
   const normalizedCurrentUserId = String(currentUserId || "").trim();
   const normalizedSelectedPlannerClientFilterId = String(selectedPlannerClientFilterId || "").trim();
+  const currentPlannerStorageHydrationKey = normalizedCurrentUserId
+    ? `${vipOnly ? "vip" : "planner"}:${normalizedCurrentUserId}`
+    : "";
   useEffect(() => {
     if (!normalizedCurrentUserId) {
       return;
     }
 
-    const hydrationKey = `${vipOnly ? "vip" : "planner"}:${normalizedCurrentUserId}`;
+    const hydrationKey = currentPlannerStorageHydrationKey;
     if (hydratedPlannerStorageUserKeyRef.current === hydrationKey) {
       return;
     }
@@ -1916,6 +1920,7 @@ function AppointmentScheduler({
       if (persistedVipSelectionId) {
         setSelectedSpecialistId(persistedVipSelectionId);
       }
+      setHydratedPlannerStorageKey(hydrationKey);
       return;
     }
 
@@ -1932,6 +1937,7 @@ function AppointmentScheduler({
           : null
       );
       setSelectedSpecialistId("");
+      setHydratedPlannerStorageKey(hydrationKey);
       return;
     }
 
@@ -1940,7 +1946,8 @@ function AppointmentScheduler({
       setSelectedPlannerClientFilterId("");
       setStoredPlannerClientSnapshot(null);
     }
-  }, [normalizedCurrentUserId, vipOnly]);
+    setHydratedPlannerStorageKey(hydrationKey);
+  }, [currentPlannerStorageHydrationKey, normalizedCurrentUserId, vipOnly]);
   const canMutateSpecialistId = useCallback((value) => {
     if (!restrictCreateToOwnSpecialist) {
       return true;
@@ -2243,7 +2250,10 @@ function AppointmentScheduler({
             Boolean(selectedPlannerClientFilterId)
             || (
               persistedPlannerFilterMode === "client"
-              && nextPlannerClients.some((client) => client.id === preferredClientId)
+              && (
+                nextPlannerClients.some((client) => client.id === preferredClientId)
+                || String(persistedPlannerClientSnapshot?.id || "").trim() === preferredClientId
+              )
             )
           )
         );
@@ -2322,6 +2332,9 @@ function AppointmentScheduler({
     if (!normalizedCurrentUserId) {
       return;
     }
+    if (hydratedPlannerStorageKey !== currentPlannerStorageHydrationKey) {
+      return;
+    }
 
     if (vipOnly) {
       const storageKey = getSchedulerSelectionStorageKey(true, currentUserId);
@@ -2392,6 +2405,8 @@ function AppointmentScheduler({
   }, [
     currentUserId,
     normalizedCurrentUserId,
+    currentPlannerStorageHydrationKey,
+    hydratedPlannerStorageKey,
     selectedPlannerFilterClient,
     selectedPlannerClientFilterId,
     selectedSpecialistId,

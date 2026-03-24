@@ -939,8 +939,8 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             return reply.status(400).send(repeatDaysValidation.error);
           }
 
-          const requestedRepeatDayKeys = repeatDaysValidation.normalizedDayKeys;
-          if (requestedRepeatDayKeys.length === 0) {
+          const repeatDayKeys = repeatDaysValidation.normalizedDayKeys;
+          if (repeatDayKeys.length === 0) {
             return reply.status(400).send({
               field: "repeatDays",
               message: "Select at least one repeat day."

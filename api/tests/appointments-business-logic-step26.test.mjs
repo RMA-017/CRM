@@ -911,6 +911,69 @@ test("schedule create blocks specialist blocked work schedule slots", async () =
   );
 });
 
+test("schedule create builds recurring appointments from normalized repeat weekdays without crashing", async () => {
+  const createdPayloads = [];
+  let recurringDatesArg = null;
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      validateRepeatDaysAgainstVisibleWeekDays: () => ({
+        error: null,
+        normalizedDayKeys: ["mon", "wed", "fri"]
+      }),
+      buildWeeklyRecurringDates: ({ dayKeys }) => {
+        recurringDatesArg = Array.isArray(dayKeys) ? [...dayKeys] : dayKeys;
+        return ["2026-03-09", "2026-03-11", "2026-03-13"];
+      },
+      createAppointmentSchedule: async (payload) => {
+        createdPayloads.push(payload);
+        return {
+          id: String(90 + createdPayloads.length),
+          specialistId: String(payload.specialistId),
+          clientId: String(payload.clientId),
+          appointmentDate: payload.appointmentDate,
+          startTime: payload.startTime,
+          endTime: payload.endTime
+        };
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "POST", "/schedules");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      body: {
+        specialistId: "9",
+        clientId: "44",
+        appointmentDate: "2026-03-09",
+        startTime: "09:00",
+        endTime: "10:00",
+        durationMinutes: "60",
+        service: "Lesson",
+        status: "pending",
+        note: "",
+        repeat: {
+          enabled: true,
+          untilDate: "2026-03-31",
+          dayKeys: ["Mon", "Wed", "Fri"]
+        }
+      }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 201);
+  assert.deepEqual(recurringDatesArg, ["mon", "wed", "fri"]);
+  assert.equal(createdPayloads.length, 3);
+  assert.deepEqual(createdPayloads.map((item) => item.repeatDays), [[1, 1, 1], [1, 1, 1], [1, 1, 1]]);
+  assert.equal(reply.state.payload?.summary?.createdCount, 3);
+});
+
 test("schedule update blocks specialist users from editing another specialist schedule", async () => {
   const recorder = createRouteRecorder();
   registerAppointmentScheduleRoutes(

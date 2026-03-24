@@ -40,14 +40,20 @@ test("appointment planner keeps toolbar selection user-scoped and restores the l
 
   assert.match(
     schedulerSource,
-    /const shouldRestoreClientFocus = \([\s\S]*Boolean\(selectedPlannerClientFilterId\)[\s\S]*persistedPlannerFilterMode === "client"[\s\S]*nextPlannerClients\.some\(\(client\) => client\.id === preferredClientId\)[\s\S]*\);[\s\S]*if \(shouldRestoreClientFocus\) \{[\s\S]*setSelectedPlannerClientFilterId\(preferredClientId\);[\s\S]*setSelectedSpecialistId\(""\);/s,
-    "Planner bootstrap should keep an active client selection in client mode instead of falling back to a specialist."
+    /const shouldRestoreClientFocus = \([\s\S]*Boolean\(selectedPlannerClientFilterId\)[\s\S]*persistedPlannerFilterMode === "client"[\s\S]*nextPlannerClients\.some\(\(client\) => client\.id === preferredClientId\)[\s\S]*String\(persistedPlannerClientSnapshot\?\.id \|\| ""\)\.trim\(\) === preferredClientId[\s\S]*\);[\s\S]*if \(shouldRestoreClientFocus\) \{[\s\S]*setSelectedPlannerClientFilterId\(preferredClientId\);[\s\S]*setSelectedSpecialistId\(""\);/s,
+    "Planner bootstrap should keep an active client selection in client mode instead of falling back to a specialist, even when only the saved client snapshot is available."
   );
 
   assert.match(
     schedulerSource,
-    /const hydrationKey = `\$\{vipOnly \? "vip" : "planner"\}:\$\{normalizedCurrentUserId\}`;[\s\S]*if \(hydratedPlannerStorageUserKeyRef\.current === hydrationKey\) \{\s*return;\s*\}[\s\S]*persistedPlannerFilterMode === "client" && persistedPlannerClientId[\s\S]*setSelectedPlannerClientFilterId\(persistedPlannerClientId\);[\s\S]*setSelectedSpecialistId\(""\);/s,
+    /const currentPlannerStorageHydrationKey = normalizedCurrentUserId[\s\S]*const hydrationKey = currentPlannerStorageHydrationKey;[\s\S]*if \(hydratedPlannerStorageUserKeyRef\.current === hydrationKey\) \{\s*return;\s*\}[\s\S]*persistedPlannerFilterMode === "client" && persistedPlannerClientId[\s\S]*setSelectedPlannerClientFilterId\(persistedPlannerClientId\);[\s\S]*setSelectedSpecialistId\(""\);[\s\S]*setHydratedPlannerStorageKey\(hydrationKey\);/s,
     "Planner should rehydrate the saved specialist or client selection once the current user id becomes available."
+  );
+
+  assert.match(
+    schedulerSource,
+    /const \[hydratedPlannerStorageKey,\s*setHydratedPlannerStorageKey\] = useState\(""\);[\s\S]*const currentPlannerStorageHydrationKey = normalizedCurrentUserId[\s\S]*if \(hydratedPlannerStorageKey !== currentPlannerStorageHydrationKey\) \{\s*return;\s*\}/s,
+    "Planner should not overwrite scoped storage until the current user's saved selection has been hydrated."
   );
 
   assert.match(
