@@ -5420,6 +5420,9 @@ function AppointmentScheduler({
                       placeholder="Select start time"
                       value={createForm.startTime}
                       options={timeSelectOptions}
+                      menuPortal
+                      forceOpenDown={!compactWeekRange}
+                      forceOpenUp={compactWeekRange}
                       menuHeightScale={0.85}
                       error={Boolean(createErrors.startTime)}
                       onChange={(nextValue) => {
@@ -5439,6 +5442,9 @@ function AppointmentScheduler({
                       placeholder="Select duration"
                       value={createForm.durationMinutes}
                       options={durationSelectOptions}
+                      menuPortal
+                      forceOpenDown={!compactWeekRange}
+                      forceOpenUp={compactWeekRange}
                       error={Boolean(createErrors.durationMinutes)}
                       onChange={(nextValue) => {
                         setCreateForm((prev) => ({ ...prev, durationMinutes: nextValue }));
