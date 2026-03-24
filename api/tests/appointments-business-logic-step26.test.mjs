@@ -1176,6 +1176,69 @@ test("schedule update allows status-only edits for active appointments without r
   assert.equal(reply.state.payload?.message, "Appointment updated.");
 });
 
+test("schedule update maps invalid repeat cast errors to invalid appointment data", async () => {
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      getAppointmentScheduleTargetsByScope: async () => ({
+        anchorId: 91,
+        anchorAppointmentDate: "2026-03-09",
+        repeatGroupKey: "",
+        isRecurring: false,
+        scope: "single",
+        items: [
+          {
+            id: 91,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-09",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "pending",
+            note: "",
+            isVip: false
+          }
+        ]
+      }),
+      updateAppointmentSchedulesByIds: async () => {
+        const error = new Error("invalid input syntax for type uuid");
+        error.code = "22P02";
+        throw error;
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "PATCH", "/schedules/:id");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      params: { id: "91" },
+      query: { scope: "single" },
+      body: {
+        specialistId: "7",
+        clientId: "44",
+        appointmentDate: "2026-03-10",
+        startTime: "10:30",
+        endTime: "11:30",
+        durationMinutes: "60",
+        service: "Lesson",
+        status: "pending",
+        note: ""
+      }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 400);
+  assert.equal(reply.state.payload?.message, "Invalid appointment data.");
+});
+
 test("schedule update reconciles recurring all-scope edits without falling back to bulk update", async () => {
   const deletedIds = [];
   const updatedIds = [];

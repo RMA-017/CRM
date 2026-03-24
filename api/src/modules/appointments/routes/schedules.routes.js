@@ -1393,7 +1393,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         if (error?.code === "23503") {
           return reply.status(400).send({ message: "Invalid specialist or client." });
         }
-        if (error?.code === "23514") {
+        if (error?.code === "23514" || error?.code === "22P02" || error?.code === "22007") {
           return reply.status(400).send({ message: "Invalid appointment data." });
         }
         request.log.error({ err: error }, "Error creating appointment schedule");
@@ -2847,7 +2847,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         if (error?.code === "23503") {
           return reply.status(400).send({ message: "Invalid specialist or client." });
         }
-        if (error?.code === "23514") {
+        if (error?.code === "23514" || error?.code === "22P02" || error?.code === "22007") {
           return reply.status(400).send({ message: "Invalid appointment data." });
         }
         request.log.error({ err: error }, "Error updating appointment schedule");
