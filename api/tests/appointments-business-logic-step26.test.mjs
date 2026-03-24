@@ -33,6 +33,12 @@ test("appointment schedule service normalizes malformed repeat group keys before
     /repeatGroupKey: normalizeUuidString\(row\?\.repeat_group_key\),[\s\S]*const repeatGroupKey = normalizeUuidString\(anchor\.repeat_group_key\);/s,
     "Schedule target loading should normalize malformed repeat group keys before recurring update logic runs."
   );
+
+  assert.match(
+    source,
+    /repeat_group_key = CASE WHEN \$12::boolean THEN NULL ELSE s\.repeat_group_key END,[\s\S]*repeat_type = CASE WHEN \$12::boolean THEN 'none' ELSE s\.repeat_type END,/s,
+    "Clearing repeat metadata should reset repeat_type to 'none' instead of NULL."
+  );
 });
 
 function createReplyRecorder() {

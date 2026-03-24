@@ -3752,7 +3752,7 @@ export async function updateAppointmentSchedulesByIds({
               status = $8,
               note = $9,
               repeat_group_key = CASE WHEN $12::boolean THEN NULL ELSE s.repeat_group_key END,
-              repeat_type = CASE WHEN $12::boolean THEN NULL ELSE s.repeat_type END,
+              repeat_type = CASE WHEN $12::boolean THEN 'none' ELSE s.repeat_type END,
               repeat_until_date = CASE WHEN $12::boolean THEN NULL ELSE s.repeat_until_date END,
               repeat_days = CASE WHEN $12::boolean THEN NULL ELSE s.repeat_days END,
               repeat_anchor_date = CASE WHEN $12::boolean THEN NULL ELSE s.repeat_anchor_date END,
