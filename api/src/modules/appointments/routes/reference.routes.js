@@ -99,7 +99,8 @@ export function registerAppointmentReferenceRoutes(fastify, context) {
           return reply.status(404).send({ message: "Client not found." });
         }
 
-        if (clientScopeInfo.isVip) {
+        const ownSpecialistUserId = resolveOwnAppointmentSpecialistUserId(access);
+        if (clientScopeInfo.isVip && !ownSpecialistUserId) {
           const vipReadScope = await resolveAppointmentVipReadScope({
             roleId: access.requester?.role_id,
             requester: access.requester

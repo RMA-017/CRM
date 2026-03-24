@@ -153,7 +153,10 @@ function createScheduleContext(overrides = {}) {
     normalizeVisibleWeekDays: (value) => (Array.isArray(value) ? value : []),
     validateSchedulePayload: () => ({}),
     validateScheduleRepeatPayload: () => null,
-    validateRepeatDaysAgainstVisibleWeekDays: () => ({ error: null, normalizedDayKeys: [] }),
+    validateRepeatDaysAgainstVisibleWeekDays: ({ repeatDayKeys }) => ({
+      error: null,
+      normalizedDayKeys: Array.isArray(repeatDayKeys) ? repeatDayKeys : []
+    }),
     validateSlotAgainstWorkingHours: () => null,
     getDurationMinutesFromTimes: () => 60,
     getHistoryLockErrorForRequester: () => null,
@@ -1008,6 +1011,314 @@ test("schedule update blocks client double-booking across specialists", async ()
 
   assert.equal(reply.state.statusCode, 409);
   assert.equal(reply.state.payload?.message, "This client already has another appointment at this time.");
+});
+
+test("schedule update reconciles recurring all-scope edits without falling back to bulk update", async () => {
+  const deletedIds = [];
+  const updatedIds = [];
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      buildWeeklyRecurringDates: () => ["2026-03-09"],
+      getAppointmentScheduleTargetsByScope: async () => ({
+        anchorId: 91,
+        anchorAppointmentDate: "2026-03-09",
+        repeatGroupKey: "old-group",
+        repeatAnchorDate: "2026-03-09",
+        repeatDays: ["mon", "wed"],
+        isRecurring: true,
+        scope: "all",
+        items: [
+          {
+            id: 91,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-09",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "pending",
+            note: "",
+            isVip: false
+          },
+          {
+            id: 92,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-11",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "pending",
+            note: "",
+            isVip: false
+          }
+        ],
+        seriesItems: [
+          {
+            id: 91,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-09",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "pending",
+            note: "",
+            isVip: false
+          },
+          {
+            id: 92,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-11",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "pending",
+            note: "",
+            isVip: false
+          }
+        ]
+      }),
+      updateAppointmentScheduleByIdWithRepeatMeta: async (payload) => {
+        updatedIds.push(payload.id);
+        return {
+          id: String(payload.id),
+          specialistId: String(payload.specialistId),
+          clientId: String(payload.clientId),
+          appointmentDate: payload.appointmentDate,
+          startTime: payload.startTime,
+          endTime: payload.endTime
+        };
+      },
+      deleteAppointmentSchedulesByIds: async ({ ids }) => {
+        deletedIds.push(...ids);
+        return ids.length;
+      },
+      updateAppointmentSchedulesByIds: async () => {
+        throw new Error("Recurring series edits should not use the generic bulk update helper.");
+      },
+      createAppointmentSchedule: async () => {
+        throw new Error("No new dates should be created in this reconcile case.");
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "PATCH", "/schedules/:id");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      params: { id: "91" },
+      query: { scope: "all" },
+      body: {
+        specialistId: "7",
+        clientId: "44",
+        appointmentDate: "2026-03-09",
+        startTime: "09:30",
+        endTime: "10:30",
+        durationMinutes: "60",
+        service: "Lesson",
+        status: "pending",
+        note: "",
+        repeat: {
+          enabled: true,
+          untilDate: "2026-03-30",
+          dayKeys: ["mon"]
+        }
+      }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 200);
+  assert.deepEqual(updatedIds, [91]);
+  assert.deepEqual(deletedIds, [92]);
+  assert.equal(reply.state.payload?.summary?.scope, "all");
+  assert.equal(reply.state.payload?.summary?.affectedCount, 1);
+});
+
+test("schedule update splits recurring future edits into a new series and truncates the past slice", async () => {
+  const updateCalls = [];
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      randomUUID: () => "22222222-2222-2222-2222-222222222222",
+      parseDateYmdToUtcDate: (value) => new Date(`${String(value || "").trim()}T00:00:00.000Z`),
+      buildWeeklyRecurringDates: () => ["2026-03-16", "2026-03-23"],
+      getAppointmentScheduleTargetsByScope: async () => ({
+        anchorId: 92,
+        anchorAppointmentDate: "2026-03-16",
+        repeatGroupKey: "old-group",
+        repeatAnchorDate: "2026-03-09",
+        repeatDays: ["mon"],
+        isRecurring: true,
+        scope: "future",
+        items: [
+          {
+            id: 92,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-16",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "pending",
+            note: "",
+            isVip: false
+          },
+          {
+            id: 93,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-23",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "pending",
+            note: "",
+            isVip: false
+          }
+        ],
+        seriesItems: [
+          {
+            id: 91,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-09",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "pending",
+            note: "",
+            isVip: false
+          },
+          {
+            id: 92,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-16",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "pending",
+            note: "",
+            isVip: false
+          },
+          {
+            id: 93,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-23",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "pending",
+            note: "",
+            isVip: false
+          }
+        ]
+      }),
+      updateAppointmentScheduleByIdWithRepeatMeta: async (payload) => {
+        updateCalls.push(payload);
+        return {
+          id: String(payload.id),
+          specialistId: String(payload.specialistId),
+          clientId: String(payload.clientId),
+          appointmentDate: payload.appointmentDate,
+          startTime: payload.startTime,
+          endTime: payload.endTime
+        };
+      },
+      updateAppointmentSchedulesByIds: async () => {
+        throw new Error("Recurring future edits should not use the generic bulk update helper.");
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "PATCH", "/schedules/:id");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      params: { id: "92" },
+      query: { scope: "future" },
+      body: {
+        specialistId: "7",
+        clientId: "44",
+        appointmentDate: "2026-03-16",
+        startTime: "09:30",
+        endTime: "10:30",
+        durationMinutes: "60",
+        service: "Lesson",
+        status: "pending",
+        note: "",
+        repeat: {
+          enabled: true,
+          untilDate: "2026-03-30",
+          dayKeys: ["mon"]
+        }
+      }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 200);
+  assert.equal(updateCalls.length, 3);
+  assert.deepEqual(
+    updateCalls.map((item) => ({
+      id: item.id,
+      repeatGroupKey: item.repeatGroupKey,
+      repeatUntilDate: item.repeatUntilDate,
+      repeatAnchorDate: item.repeatAnchorDate,
+      isRepeatRoot: item.isRepeatRoot,
+      isAutoRollingRepeat: item.isAutoRollingRepeat
+    })),
+    [
+      {
+        id: 91,
+        repeatGroupKey: "old-group",
+        repeatUntilDate: "2026-03-15",
+        repeatAnchorDate: "2026-03-09",
+        isRepeatRoot: true,
+        isAutoRollingRepeat: false
+      },
+      {
+        id: 92,
+        repeatGroupKey: "22222222-2222-2222-2222-222222222222",
+        repeatUntilDate: "2026-03-30",
+        repeatAnchorDate: "2026-03-16",
+        isRepeatRoot: true,
+        isAutoRollingRepeat: false
+      },
+      {
+        id: 93,
+        repeatGroupKey: "22222222-2222-2222-2222-222222222222",
+        repeatUntilDate: "2026-03-30",
+        repeatAnchorDate: "2026-03-16",
+        isRepeatRoot: false,
+        isAutoRollingRepeat: false
+      }
+    ]
+  );
+  assert.equal(reply.state.payload?.summary?.scope, "future");
+  assert.equal(reply.state.payload?.summary?.affectedCount, 2);
 });
 
 test("schedule create maps client overlap exclusion constraint to a client conflict message", async () => {

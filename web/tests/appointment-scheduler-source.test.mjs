@@ -186,3 +186,38 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
     "Planner should render blocked work schedule cells with a dedicated class."
   );
 });
+
+test("Appointment scheduler recurring edit restores and submits series repeat settings", async () => {
+  const source = await readFile(new URL("../src/pages/profile/AppointmentScheduler.jsx", import.meta.url), "utf8");
+
+  assert.match(
+    source,
+    /repeatUntilDate:\s*String\(item\?\.repeatUntilDate \|\| ""\)\.trim\(\),[\s\S]*repeatDays,[\s\S]*repeatAnchorDate:\s*String\(item\?\.repeatAnchorDate \|\| ""\)\.trim\(\),[\s\S]*isRepeatRoot:\s*Boolean\(item\?\.isRepeatRoot\)/s,
+    "Planner cards should keep recurring metadata so edit modal can restore the current series pattern."
+  );
+  assert.match(
+    source,
+    /const existingRepeatDays = Array\.isArray\(existingItem\?\.repeatDays\)[\s\S]*repeatEnabled:\s*isExistingRecurring,[\s\S]*repeatUntil:\s*isExistingRecurring[\s\S]*existingItem\?\.repeatUntilDate[\s\S]*repeatDays:\s*isExistingRecurring \? existingRepeatDays : \[\]/s,
+    "Editing an existing recurring appointment should prefill repeat controls from the current series."
+  );
+  assert.match(
+    source,
+    /const canEditRecurringSeriesPattern = !isEditRecurring \|\| normalizedEditScope !== "single";/,
+    "Recurring edit modal should know when the user is editing the whole series instead of a single item."
+  );
+  assert.match(
+    source,
+    /!\s*isVipRecurringModal[\s\S]*appointmentCreateRepeatUntil[\s\S]*disabled=\{!canEditRecurringSeriesPattern \|\| createSubmitting \|\| createDeleting\}/s,
+    "Recurring edit modal should keep repeat controls visible while single-scope edits stay read-only."
+  );
+  assert.match(
+    source,
+    /const allowRepeatValidationInEdit = isEditMode && \(!isEditRecurring \|\| nextPayload\.editScope !== "single"\);[\s\S]*requireRepeat:\s*\(recurringOnly && !isEditMode\) \|\| \(isEditRecurring && nextPayload\.editScope !== "single"\)/s,
+    "Series edit validation should require repeat fields for future and all-scope updates."
+  );
+  assert.match(
+    source,
+    /const shouldSendRepeat = recurringOnly[\s\S]*nextPayload\.editScope !== "single"/s,
+    "Series edit submit should send repeat payload when future or all-in-series scope is selected."
+  );
+});

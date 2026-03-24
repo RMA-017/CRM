@@ -3536,6 +3536,39 @@ export async function getAppointmentScheduleTargetsByScope({
 }) {
   const normalizedScope = normalizeScheduleScope(scope);
   const tableName = getAppointmentSchedulesTableName(scheduleScope);
+  const mapRowToTargetItem = (row) => ({
+    id: Number.parseInt(String(row?.id || ""), 10),
+    specialistId: Number.parseInt(String(row?.specialist_id || ""), 10),
+    clientId: Number.parseInt(String(row?.client_id || ""), 10),
+    appointmentDate: normalizeDateYmd(row?.appointment_date),
+    startTime: normalizeTimeHm(row?.start_time),
+    endTime: normalizeTimeHm(row?.end_time),
+    durationMinutes: Number.parseInt(String(row?.duration_minutes || ""), 10)
+      || getDurationMinutesFromAppointmentTimes(row?.start_time, row?.end_time, { allowSeconds: true }),
+    serviceName: String(row?.service_name || "").trim(),
+    status: String(row?.status || "").trim().toLowerCase(),
+    note: String(row?.note || "").trim(),
+    repeatType: normalizeRepeatType(row?.repeat_type),
+    repeatGroupKey: String(row?.repeat_group_key || "").trim(),
+    repeatUntilDate: normalizeDateYmd(row?.repeat_until_date),
+    repeatDays: mapRepeatDayNumsToKeys(row?.repeat_days),
+    repeatAnchorDate: normalizeDateYmd(row?.repeat_anchor_date),
+    isRepeatRoot: Boolean(row?.is_repeat_root),
+    isAutoRollingRepeat: Boolean(row?.is_auto_rolling_repeat),
+    isVip: Boolean(row?.is_vip),
+    clientFirstName: String(row?.first_name || "").trim(),
+    clientLastName: String(row?.last_name || "").trim(),
+    clientMiddleName: String(row?.middle_name || "").trim()
+  });
+  const targetItemFilter = (row) => (
+    Number.isInteger(row.id)
+    && row.id > 0
+    && Number.isInteger(row.specialistId)
+    && row.specialistId > 0
+    && Number.isInteger(row.clientId)
+    && row.clientId > 0
+    && row.appointmentDate
+  );
   const anchorResult = await pool.query(
     `SELECT
        s.id,
@@ -3550,6 +3583,10 @@ export async function getAppointmentScheduleTargetsByScope({
        s.note,
        s.repeat_group_key,
        s.repeat_type,
+       s.repeat_until_date,
+       s.repeat_days,
+       s.repeat_anchor_date,
+       s.is_repeat_root,
        s.is_auto_rolling_repeat,
        c.is_vip,
        c.first_name,
@@ -3581,8 +3618,8 @@ export async function getAppointmentScheduleTargetsByScope({
   const isRecurring = normalizeRepeatType(anchor.repeat_type) === "weekly" && Boolean(repeatGroupKey);
   const effectiveScope = isRecurring ? normalizedScope : "single";
 
-  let rows = [];
-  if (effectiveScope === "all") {
+  let seriesRows = [];
+  if (isRecurring) {
     const result = await pool.query(
       `SELECT
          s.id,
@@ -3595,6 +3632,12 @@ export async function getAppointmentScheduleTargetsByScope({
          s.service_name,
          s.status,
          s.note,
+         s.repeat_group_key,
+         s.repeat_type,
+         s.repeat_until_date,
+         s.repeat_days,
+         s.repeat_anchor_date,
+         s.is_repeat_root,
          s.is_auto_rolling_repeat,
          c.is_vip,
          c.first_name,
@@ -3603,42 +3646,21 @@ export async function getAppointmentScheduleTargetsByScope({
        FROM ${tableName} s
        JOIN clients c
          ON c.id = s.client_id
-        AND c.organization_id = s.organization_id
+         AND c.organization_id = s.organization_id
        WHERE s.organization_id = $1
          AND s.repeat_group_key = $2::uuid
        ORDER BY s.appointment_date ASC, s.start_time ASC, s.id ASC`,
       [organizationId, repeatGroupKey]
     );
-    rows = result.rows || [];
+    seriesRows = result.rows || [];
+  }
+
+  let rows = [];
+  if (effectiveScope === "all") {
+    rows = seriesRows;
   } else if (effectiveScope === "future") {
-    const result = await pool.query(
-      `SELECT
-         s.id,
-         s.specialist_id,
-         s.client_id,
-         s.appointment_date,
-         s.start_time,
-         s.end_time,
-         s.duration_minutes,
-         s.service_name,
-         s.status,
-         s.note,
-         s.is_auto_rolling_repeat,
-         c.is_vip,
-         c.first_name,
-         c.last_name,
-         c.middle_name
-       FROM ${tableName} s
-       JOIN clients c
-         ON c.id = s.client_id
-        AND c.organization_id = s.organization_id
-       WHERE s.organization_id = $1
-         AND s.repeat_group_key = $2::uuid
-         AND s.appointment_date >= $3::date
-       ORDER BY s.appointment_date ASC, s.start_time ASC, s.id ASC`,
-      [organizationId, repeatGroupKey, anchor.appointment_date]
-    );
-    rows = result.rows || [];
+    const anchorAppointmentDate = normalizeDateYmd(anchor.appointment_date);
+    rows = seriesRows.filter((row) => normalizeDateYmd(row?.appointment_date) >= anchorAppointmentDate);
   } else {
     rows = [anchor];
   }
@@ -3647,36 +3669,14 @@ export async function getAppointmentScheduleTargetsByScope({
     anchorId: Number.parseInt(String(anchor.id), 10) || 0,
     anchorAppointmentDate: normalizeDateYmd(anchor.appointment_date),
     repeatGroupKey: isRecurring ? repeatGroupKey : "",
+    repeatUntilDate: isRecurring ? normalizeDateYmd(anchor.repeat_until_date) : "",
+    repeatDays: isRecurring ? mapRepeatDayNumsToKeys(anchor.repeat_days) : [],
+    repeatAnchorDate: isRecurring ? normalizeDateYmd(anchor.repeat_anchor_date) : "",
+    isAutoRollingRepeat: isRecurring ? Boolean(anchor.is_auto_rolling_repeat) : false,
     isRecurring,
     scope: effectiveScope,
-    items: rows
-      .map((row) => ({
-        id: Number.parseInt(String(row?.id || ""), 10),
-        specialistId: Number.parseInt(String(row?.specialist_id || ""), 10),
-        clientId: Number.parseInt(String(row?.client_id || ""), 10),
-        appointmentDate: normalizeDateYmd(row?.appointment_date),
-        startTime: normalizeTimeHm(row?.start_time),
-        endTime: normalizeTimeHm(row?.end_time),
-        durationMinutes: Number.parseInt(String(row?.duration_minutes || ""), 10)
-          || getDurationMinutesFromAppointmentTimes(row?.start_time, row?.end_time, { allowSeconds: true }),
-        serviceName: String(row?.service_name || "").trim(),
-        status: String(row?.status || "").trim().toLowerCase(),
-        note: String(row?.note || "").trim(),
-        isAutoRollingRepeat: Boolean(row?.is_auto_rolling_repeat),
-        isVip: Boolean(row?.is_vip),
-        clientFirstName: String(row?.first_name || "").trim(),
-        clientLastName: String(row?.last_name || "").trim(),
-        clientMiddleName: String(row?.middle_name || "").trim()
-      }))
-      .filter((row) => (
-        Number.isInteger(row.id)
-        && row.id > 0
-        && Number.isInteger(row.specialistId)
-        && row.specialistId > 0
-        && Number.isInteger(row.clientId)
-        && row.clientId > 0
-        && row.appointmentDate
-      ))
+    items: rows.map(mapRowToTargetItem).filter(targetItemFilter),
+    seriesItems: seriesRows.map(mapRowToTargetItem).filter(targetItemFilter)
   };
 }
 
@@ -4054,7 +4054,8 @@ export async function deleteAppointmentSchedulesByIds({
   organizationId,
   ids,
   actorUserId = null,
-  scheduleScope = "default"
+  scheduleScope = "default",
+  db = pool
 }) {
   await ensureAppointmentStatusHistorySchema();
 
@@ -4065,7 +4066,7 @@ export async function deleteAppointmentSchedulesByIds({
   const tableName = getAppointmentSchedulesTableName(scheduleScope);
   const previousSnapshotSql = buildScheduleSnapshotSql("d");
 
-  const { rows } = await pool.query(
+  const { rows } = await db.query(
     `WITH deleted AS (
        DELETE FROM ${tableName}
         WHERE organization_id = $1

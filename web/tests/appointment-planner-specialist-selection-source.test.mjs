@@ -70,6 +70,24 @@ test("appointment planner keeps toolbar selection user-scoped and restores the l
 
   assert.match(
     schedulerSource,
+    /const APPOINTMENT_PLANNER_CLIENT_SNAPSHOT_STORAGE_KEY = "crm_appointment_selected_client_snapshot";[\s\S]*function readStoredPlannerClientSelectionSnapshot\(currentUserId = ""\)/s,
+    "Planner should keep a persisted client snapshot so the selected client label survives reloads before toolbar options finish loading."
+  );
+
+  assert.match(
+    schedulerSource,
+    /window\.localStorage\.setItem\(clientSnapshotStorageKey,\s*JSON\.stringify\(selectedClientSnapshot\)\);[\s\S]*setStoredPlannerClientSnapshot\(\(prev\)\s*=>\s*\([\s\S]*arePlannerClientSnapshotsEqual\(prev,\s*selectedClientSnapshot\)[\s\S]*selectedClientSnapshot[\s\S]*\)\);/s,
+    "Planner should persist and mirror the selected client snapshot whenever client mode is active."
+  );
+
+  assert.match(
+    schedulerSource,
+    /const selectedClientOption = normalizedSelectedPlannerClientFilterId[\s\S]*selectedPlannerFilterClient[\s\S]*getClientDisplayName\(selectedPlannerFilterClient\)[\s\S]*return \[selectedClientOption,\s*\.\.\.base\];/s,
+    "Planner client select should re-inject the restored client option so the label stays visible after reload."
+  );
+
+  assert.match(
+    schedulerSource,
     /if \(!normalizedCurrentUserId\) \{\s*return;\s*\}[\s\S]*const specialistStorageKey = getSchedulerSelectionStorageKey\(false,\s*currentUserId\);/s,
     "Planner should avoid overwriting stored selections before the current user id is known."
   );

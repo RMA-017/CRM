@@ -36,6 +36,7 @@ const DAY_NUM_TO_KEY = Object.freeze(
 const MAX_REPEAT_RANGE_DAYS = 366;
 const APPOINTMENT_SPECIALIST_STORAGE_KEY = "crm_appointment_selected_specialist_id";
 const APPOINTMENT_PLANNER_CLIENT_STORAGE_KEY = "crm_appointment_selected_client_id";
+const APPOINTMENT_PLANNER_CLIENT_SNAPSHOT_STORAGE_KEY = "crm_appointment_selected_client_snapshot";
 const APPOINTMENT_PLANNER_FILTER_MODE_STORAGE_KEY = "crm_appointment_selected_filter_mode";
 const APPOINTMENT_VIP_CLIENT_STORAGE_KEY = "crm_appointment_selected_vip_client_id";
 const ACTIVE_SCHEDULE_STATUSES = new Set(["pending", "confirmed"]);
@@ -130,6 +131,59 @@ function readStoredSchedulerSelectionId(vipOnly = false, currentUserId = "") {
 
 function readStoredPlannerClientSelectionId(currentUserId = "") {
   return readScopedOrLegacyStorageValue(APPOINTMENT_PLANNER_CLIENT_STORAGE_KEY, currentUserId);
+}
+
+function normalizePlannerStoredClientSnapshot(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const id = String(source.id || "").trim();
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    firstName: String(source.firstName || "").trim(),
+    lastName: String(source.lastName || "").trim(),
+    middleName: String(source.middleName || "").trim(),
+    displayName: String(source.displayName || source.name || "").trim(),
+    isVip: Boolean(source.isVip)
+  };
+}
+
+function arePlannerClientSnapshotsEqual(left, right) {
+  const normalizedLeft = normalizePlannerStoredClientSnapshot(left);
+  const normalizedRight = normalizePlannerStoredClientSnapshot(right);
+  if (!normalizedLeft && !normalizedRight) {
+    return true;
+  }
+  if (!normalizedLeft || !normalizedRight) {
+    return false;
+  }
+  return (
+    normalizedLeft.id === normalizedRight.id
+    && normalizedLeft.firstName === normalizedRight.firstName
+    && normalizedLeft.lastName === normalizedRight.lastName
+    && normalizedLeft.middleName === normalizedRight.middleName
+    && normalizedLeft.displayName === normalizedRight.displayName
+    && normalizedLeft.isVip === normalizedRight.isVip
+  );
+}
+
+function getPlannerClientSnapshotStorageKey(currentUserId = "") {
+  return getUserScopedSchedulerStorageKey(APPOINTMENT_PLANNER_CLIENT_SNAPSHOT_STORAGE_KEY, currentUserId);
+}
+
+function readStoredPlannerClientSelectionSnapshot(currentUserId = "") {
+  const rawValue = readScopedOrLegacyStorageValue(APPOINTMENT_PLANNER_CLIENT_SNAPSHOT_STORAGE_KEY, currentUserId);
+  if (!rawValue) {
+    return null;
+  }
+
+  try {
+    return normalizePlannerStoredClientSnapshot(JSON.parse(rawValue));
+  } catch {
+    return null;
+  }
 }
 
 function readStoredPlannerFilterMode(currentUserId = "") {
@@ -649,6 +703,15 @@ function mapScheduleItemToPlannerCard(item) {
   const startTime = String(item?.startTime || "").trim();
   const itemType = String(item?.itemType || "").trim().toLowerCase();
   const isRoutineItem = itemType === "daily-routine";
+  const repeatDays = Array.isArray(item?.repeatDays)
+    ? Array.from(
+        new Set(
+          item.repeatDays
+            .map((day) => String(day || "").trim().toLowerCase())
+            .filter((day) => DAY_KEYS_SET.has(day))
+        )
+      )
+    : [];
   return {
     id: String(item?.id || ""),
     itemType,
@@ -690,6 +753,10 @@ function mapScheduleItemToPlannerCard(item) {
     className: String(item?.className || "").trim(),
     repeatType: String(item?.repeatType || "none").trim().toLowerCase(),
     repeatGroupKey: String(item?.repeatGroupKey || "").trim(),
+    repeatUntilDate: String(item?.repeatUntilDate || "").trim(),
+    repeatDays,
+    repeatAnchorDate: String(item?.repeatAnchorDate || "").trim(),
+    isRepeatRoot: Boolean(item?.isRepeatRoot),
     isAutoRollingRepeat: Boolean(item?.isAutoRollingRepeat || item?.is_auto_rolling_repeat)
   };
 }
@@ -1632,6 +1699,11 @@ function AppointmentScheduler({
       ? readStoredPlannerClientSelectionId(currentUserId)
       : ""
   ));
+  const [storedPlannerClientSnapshot, setStoredPlannerClientSnapshot] = useState(() => (
+    !vipOnly && readStoredPlannerFilterMode(currentUserId) === "client"
+      ? readStoredPlannerClientSelectionSnapshot(currentUserId)
+      : null
+  ));
   const [plannerFilterClients, setPlannerFilterClients] = useState([]);
   const [plannerClientSearch, setPlannerClientSearch] = useState("");
   const [plannerClientSearchOptions, setPlannerClientSearchOptions] = useState([]);
@@ -1712,10 +1784,16 @@ function AppointmentScheduler({
 
     const persistedPlannerFilterMode = readStoredPlannerFilterMode(normalizedCurrentUserId);
     const persistedPlannerClientId = readStoredPlannerClientSelectionId(normalizedCurrentUserId);
+    const persistedPlannerClientSnapshot = readStoredPlannerClientSelectionSnapshot(normalizedCurrentUserId);
     const persistedSpecialistId = readStoredSchedulerSelectionId(false, normalizedCurrentUserId);
 
     if (persistedPlannerFilterMode === "client" && persistedPlannerClientId) {
       setSelectedPlannerClientFilterId(persistedPlannerClientId);
+      setStoredPlannerClientSnapshot(
+        String(persistedPlannerClientSnapshot?.id || "").trim() === persistedPlannerClientId
+          ? persistedPlannerClientSnapshot
+          : null
+      );
       setSelectedSpecialistId("");
       return;
     }
@@ -1723,6 +1801,7 @@ function AppointmentScheduler({
     if (persistedSpecialistId) {
       setSelectedSpecialistId(persistedSpecialistId);
       setSelectedPlannerClientFilterId("");
+      setStoredPlannerClientSnapshot(null);
     }
   }, [normalizedCurrentUserId, vipOnly]);
   const canMutateSpecialistId = useCallback((value) => {
@@ -2039,6 +2118,9 @@ function AppointmentScheduler({
 
         const persistedPlannerFilterMode = !vipOnly ? readStoredPlannerFilterMode(currentUserId) : "";
         const persistedPlannerClientId = !vipOnly ? readStoredPlannerClientSelectionId(currentUserId) : "";
+        const persistedPlannerClientSnapshot = !vipOnly
+          ? readStoredPlannerClientSelectionSnapshot(currentUserId)
+          : null;
         const preferredClientId = String(selectedPlannerClientFilterId || persistedPlannerClientId || "").trim();
         const shouldRestoreClientFocus = (
           !vipOnly
@@ -2065,10 +2147,16 @@ function AppointmentScheduler({
         }
         if (shouldRestoreClientFocus) {
           setSelectedPlannerClientFilterId(preferredClientId);
+          setStoredPlannerClientSnapshot(
+            String(persistedPlannerClientSnapshot?.id || "").trim() === preferredClientId
+              ? persistedPlannerClientSnapshot
+              : null
+          );
           setSelectedSpecialistId("");
         } else {
           if (!vipOnly) {
             setSelectedPlannerClientFilterId("");
+            setStoredPlannerClientSnapshot(null);
           }
           setSelectedSpecialistId(nextSelectedSpecialistId);
         }
@@ -2120,15 +2208,40 @@ function AppointmentScheduler({
 
     const specialistStorageKey = getSchedulerSelectionStorageKey(false, currentUserId);
     const clientStorageKey = getPlannerClientSelectionStorageKey(currentUserId);
+    const clientSnapshotStorageKey = getPlannerClientSnapshotStorageKey(currentUserId);
     const modeStorageKey = getPlannerFilterModeStorageKey(currentUserId);
     const specialistId = String(selectedSpecialistId || "").trim();
     const clientId = String(selectedPlannerClientFilterId || "").trim();
+    const selectedClientSnapshot = clientId
+      ? normalizePlannerStoredClientSnapshot(
+          (Array.isArray(plannerFilterClients) ? plannerFilterClients : []).find(
+            (client) => String(client?.id || "").trim() === clientId
+          )
+          || plannerClientSearchMap[clientId]
+          || (
+            String(storedPlannerClientSnapshot?.id || "").trim() === clientId
+              ? storedPlannerClientSnapshot
+              : null
+          )
+          || {
+            id: clientId,
+            displayName: plannerClientFilterOptions.find(
+              (option) => String(option?.value || "").trim() === clientId
+            )?.label || ""
+          }
+        )
+      : null;
 
     if (specialistId) {
       window.localStorage.setItem(specialistStorageKey, specialistId);
     }
     if (clientId) {
       window.localStorage.setItem(clientStorageKey, clientId);
+      if (selectedClientSnapshot) {
+        window.localStorage.setItem(clientSnapshotStorageKey, JSON.stringify(selectedClientSnapshot));
+      }
+    } else {
+      window.localStorage.removeItem(clientSnapshotStorageKey);
     }
 
     if (clientId) {
@@ -2138,7 +2251,22 @@ function AppointmentScheduler({
     } else {
       window.localStorage.removeItem(modeStorageKey);
     }
-  }, [currentUserId, normalizedCurrentUserId, selectedPlannerClientFilterId, selectedSpecialistId, vipOnly]);
+    setStoredPlannerClientSnapshot((prev) => (
+      arePlannerClientSnapshotsEqual(prev, selectedClientSnapshot)
+        ? prev
+        : selectedClientSnapshot
+    ));
+  }, [
+    currentUserId,
+    normalizedCurrentUserId,
+    plannerClientFilterOptions,
+    plannerClientSearchMap,
+    plannerFilterClients,
+    selectedPlannerClientFilterId,
+    selectedSpecialistId,
+    storedPlannerClientSnapshot,
+    vipOnly
+  ]);
 
   const weekDays = useMemo(() => {
     const visibleDays = normalizeVisibleDays(settings.visibleWeekDays);
@@ -2235,20 +2363,33 @@ function AppointmentScheduler({
   const plannerClientActiveOptions = useMemo(() => {
     const query = String(plannerClientSearch || "").trim();
     const base = query.length >= 3 ? plannerClientSearchOptions : [];
+    const selectedClientOption = normalizedSelectedPlannerClientFilterId
+      ? (
+          selectedPlannerFilterClient
+            ? {
+                value: normalizedSelectedPlannerClientFilterId,
+                label: getClientDisplayName(selectedPlannerFilterClient)
+              }
+            : (
+                plannerClientFilterOptions.find(
+                  (option) => String(option?.value || "").trim() === normalizedSelectedPlannerClientFilterId
+                ) || null
+              )
+        )
+      : null;
     if (
-      normalizedSelectedPlannerClientFilterId
-      && plannerClientSearchMap[normalizedSelectedPlannerClientFilterId]
+      selectedClientOption
       && !base.some((o) => String(o?.value || "").trim() === normalizedSelectedPlannerClientFilterId)
     ) {
-      const client = plannerClientSearchMap[normalizedSelectedPlannerClientFilterId];
-      return [{ value: normalizedSelectedPlannerClientFilterId, label: getClientDisplayName(client) }, ...base];
+      return [selectedClientOption, ...base];
     }
     return base;
   }, [
     normalizedSelectedPlannerClientFilterId,
+    plannerClientFilterOptions,
     plannerClientSearch,
-    plannerClientSearchMap,
-    plannerClientSearchOptions
+    plannerClientSearchOptions,
+    selectedPlannerFilterClient
   ]);
   useEffect(() => {
     if (vipOnly) {
@@ -2511,6 +2652,7 @@ function AppointmentScheduler({
   const normalizedEditScope = EDIT_SCOPE_OPTIONS.some((option) => option.value === createForm.editScope)
     ? createForm.editScope
     : "single";
+  const canEditRecurringSeriesPattern = !isEditRecurring || normalizedEditScope !== "single";
   const shouldLockEditDate = isEditRecurring && normalizedEditScope !== "single";
   const lockedVipServiceName = String(selectedSpecialistServiceName || "").trim() || "Specialist";
   const isVipServiceLocked = Boolean(vipOnly);
@@ -2790,8 +2932,20 @@ function AppointmentScheduler({
   const selectedPlannerFilterClient = useMemo(() => (
     (Array.isArray(plannerFilterClients) ? plannerFilterClients : []).find(
       (client) => String(client?.id || "").trim() === normalizedSelectedPlannerClientFilterId
-    ) || plannerClientSearchMap[normalizedSelectedPlannerClientFilterId] || null
-  ), [normalizedSelectedPlannerClientFilterId, plannerFilterClients, plannerClientSearchMap]);
+    )
+    || plannerClientSearchMap[normalizedSelectedPlannerClientFilterId]
+    || (
+      String(storedPlannerClientSnapshot?.id || "").trim() === normalizedSelectedPlannerClientFilterId
+        ? storedPlannerClientSnapshot
+        : null
+    )
+    || null
+  ), [
+    normalizedSelectedPlannerClientFilterId,
+    plannerFilterClients,
+    plannerClientSearchMap,
+    storedPlannerClientSnapshot
+  ]);
   const clientFocusedAppointmentsByDay = useMemo(() => {
     if (!isClientFocusedMode) {
       return {};
@@ -3578,6 +3732,15 @@ function AppointmentScheduler({
       String(existingItem?.repeatType || "").trim().toLowerCase() === "weekly"
       && String(existingItem?.repeatGroupKey || "").trim()
     );
+    const existingRepeatDays = Array.isArray(existingItem?.repeatDays)
+      ? Array.from(
+          new Set(
+            existingItem.repeatDays
+              .map((repeatDay) => String(repeatDay || "").trim().toLowerCase())
+              .filter((repeatDay) => DAY_KEYS_SET.has(repeatDay))
+          )
+        )
+      : [];
     if (existingItem) {
       setCreateForm({
         clientId: preselectedClientId,
@@ -3588,9 +3751,11 @@ function AppointmentScheduler({
         status: String(existingItem?.status || "pending"),
         note: String(existingItem?.note || ""),
         editScope: "single",
-        repeatEnabled: false,
-        repeatUntil: isExistingRecurring ? "" : appointmentDate,
-        repeatDays: []
+        repeatEnabled: isExistingRecurring,
+        repeatUntil: isExistingRecurring
+          ? String(existingItem?.repeatUntilDate || appointmentDate || "").trim()
+          : appointmentDate,
+        repeatDays: isExistingRecurring ? existingRepeatDays : []
       });
     } else {
       const defaultRepeatUntil = recurringOnly
@@ -3918,11 +4083,11 @@ function AppointmentScheduler({
           : []
       };
 
-      const allowRepeatValidationInEdit = isEditMode && !isEditRecurring;
+      const allowRepeatValidationInEdit = isEditMode && (!isEditRecurring || nextPayload.editScope !== "single");
       const errors = validateCreateForm(nextPayload, {
         isEditMode,
         allowRepeatValidationInEdit,
-        requireRepeat: recurringOnly && !isEditMode
+        requireRepeat: (recurringOnly && !isEditMode) || (isEditRecurring && nextPayload.editScope !== "single")
       });
       if (Object.keys(errors).length > 0) {
         setCreateErrors(errors);
@@ -4022,10 +4187,10 @@ function AppointmentScheduler({
         note: nextPayload.note
       };
       const shouldSendRepeat = recurringOnly
-        ? (!isEditMode || !isEditRecurring)
+        ? (!isEditMode || !isEditRecurring || nextPayload.editScope !== "single")
         : (
           nextPayload.repeatDays.length > 0
-          && (!isEditMode || !isEditRecurring)
+          && (!isEditMode || !isEditRecurring || nextPayload.editScope !== "single")
         );
       if (shouldSendRepeat) {
         requestPayload.repeat = {
@@ -4894,7 +5059,7 @@ function AppointmentScheduler({
               </div>
 
               {/* ── Repeat ── */}
-              {!isVipRecurringModal && !isEditRecurring ? (
+              {!isVipRecurringModal ? (
                 <div className="appointment-modal-section">
                   <div className="appointment-repeat-block">
                     <div className="appointment-create-date-time-row appointment-repeat-head-row">
@@ -4906,6 +5071,7 @@ function AppointmentScheduler({
                           className={createErrors.repeatUntil ? "input-error" : ""}
                           value={createForm.repeatUntil}
                           min={createForm.appointmentDate || undefined}
+                          disabled={!canEditRecurringSeriesPattern || createSubmitting || createDeleting}
                           onInput={(event) => {
                             const nextValue = event.currentTarget.value;
                             setCreateForm((prev) => ({ ...prev, repeatUntil: nextValue }));
@@ -4928,6 +5094,7 @@ function AppointmentScheduler({
                                 <input
                                   type="checkbox"
                                   checked={checked}
+                                  disabled={!canEditRecurringSeriesPattern || createSubmitting || createDeleting}
                                   onChange={() => toggleRepeatDay(day.key)}
                                 />
                                 <span>{day.label.slice(0, 3)}</span>
