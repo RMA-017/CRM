@@ -207,6 +207,11 @@ test("Appointment scheduler recurring edit restores and submits series repeat se
   );
   assert.match(
     source,
+    /const recurringEditScopeHint = isEditRecurring[\s\S]*This only edits the selected lesson[\s\S]*Series edit is active[\s\S]*appointmentEditScope[\s\S]*appointment-client-search-hint/s,
+    "Recurring edit modal should explain the difference between moving one lesson and editing the recurring pattern."
+  );
+  assert.match(
+    source,
     /!\s*isVipRecurringModal[\s\S]*appointmentCreateRepeatUntil[\s\S]*disabled=\{!canEditRecurringSeriesPattern \|\| createSubmitting \|\| createDeleting\}/s,
     "Recurring edit modal should keep repeat controls visible while single-scope edits stay read-only."
   );

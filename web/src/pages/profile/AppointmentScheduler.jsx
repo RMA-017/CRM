@@ -2687,6 +2687,13 @@ function AppointmentScheduler({
     : "single";
   const canEditRecurringSeriesPattern = !isEditRecurring || normalizedEditScope !== "single";
   const shouldLockEditDate = isEditRecurring && normalizedEditScope !== "single";
+  const recurringEditScopeHint = isEditRecurring
+    ? (
+        normalizedEditScope === "single"
+          ? "This only edits the selected lesson. Use Date and Start Time below to move this one lesson."
+          : "Series edit is active. Repeat weekdays and Repeat Until below will update the recurring pattern."
+      )
+    : "";
   const lockedVipServiceName = String(selectedSpecialistServiceName || "").trim() || "Specialist";
   const isVipServiceLocked = Boolean(vipOnly);
   const isVipAutoRollingRepeat = Boolean(vipOnly || clientVipOnly);
@@ -4533,31 +4540,46 @@ function AppointmentScheduler({
                   emptyText={String(plannerClientSearch || "").trim().length >= 3 ? "No clients found." : "Type to search"}
                   onChange={(nextValue) => {
                     const nextClientId = String(nextValue || "").trim();
-                    setSelectedPlannerClientFilterId(nextClientId);
-                    setStoredPlannerClientSnapshot(
-                      nextClientId
-                        ? normalizePlannerStoredClientSnapshot(
-                            plannerClientSearchMap[nextClientId]
-                            || (Array.isArray(plannerFilterClients) ? plannerFilterClients : []).find(
-                              (client) => String(client?.id || "").trim() === nextClientId
-                            )
-                            || (
-                              plannerClientActiveOptions.find(
-                                (option) => String(option?.value || "").trim() === nextClientId
-                              )
-                                ? {
-                                    id: nextClientId,
-                                    displayName: String(
-                                      plannerClientActiveOptions.find(
-                                        (option) => String(option?.value || "").trim() === nextClientId
-                                      )?.label || ""
-                                    ).trim()
-                                  }
-                                : null
-                            )
-                          )
-                        : null
+                    const matchedClientOption = plannerClientActiveOptions.find(
+                      (option) => String(option?.value || "").trim() === nextClientId
                     );
+                    const nextClientSnapshot = nextClientId
+                      ? normalizePlannerStoredClientSnapshot(
+                          plannerClientSearchMap[nextClientId]
+                          || (Array.isArray(plannerFilterClients) ? plannerFilterClients : []).find(
+                            (client) => String(client?.id || "").trim() === nextClientId
+                          )
+                          || (
+                            matchedClientOption
+                              ? {
+                                  id: nextClientId,
+                                  displayName: String(matchedClientOption?.label || "").trim()
+                                }
+                              : null
+                          )
+                        )
+                      : null;
+                    setSelectedPlannerClientFilterId(nextClientId);
+                    setStoredPlannerClientSnapshot(nextClientSnapshot);
+                    if (typeof window !== "undefined" && normalizedCurrentUserId) {
+                      const clientStorageKey = getPlannerClientSelectionStorageKey(currentUserId);
+                      const clientSnapshotStorageKey = getPlannerClientSnapshotStorageKey(currentUserId);
+                      const modeStorageKey = getPlannerFilterModeStorageKey(currentUserId);
+                      if (nextClientId) {
+                        window.localStorage.setItem(clientStorageKey, nextClientId);
+                        window.localStorage.setItem(modeStorageKey, "client");
+                        if (nextClientSnapshot) {
+                          window.localStorage.setItem(
+                            clientSnapshotStorageKey,
+                            JSON.stringify(nextClientSnapshot)
+                          );
+                        } else {
+                          window.localStorage.removeItem(clientSnapshotStorageKey);
+                        }
+                      } else {
+                        window.localStorage.removeItem(clientSnapshotStorageKey);
+                      }
+                    }
                     if (nextClientId) {
                       setSelectedSpecialistId("");
                     }
@@ -5098,6 +5120,33 @@ function AppointmentScheduler({
                 </div>
               </div>
 
+              {/* ── Edit scope (recurring only) ── */}
+              {createModal.mode === "edit" && isEditRecurring ? (
+                <div className="appointment-modal-section">
+                  <div className="field appointment-edit-scope-field">
+                    <label htmlFor="appointmentEditScope">Apply to</label>
+                    <CustomSelect
+                      id="appointmentEditScope"
+                      placeholder="Select scope"
+                      value={normalizedEditScope}
+                      options={EDIT_SCOPE_OPTIONS}
+                      menuPortal
+                      forceOpenDown={!compactWeekRange}
+                      forceOpenUp={compactWeekRange}
+                      onChange={(nextValue) => {
+                        const nextScope = EDIT_SCOPE_OPTIONS.some((option) => option.value === nextValue)
+                          ? nextValue
+                          : "single";
+                        setCreateForm((prev) => ({ ...prev, editScope: nextScope }));
+                      }}
+                    />
+                    <small className="appointment-client-search-hint">
+                      {recurringEditScopeHint}
+                    </small>
+                  </div>
+                </div>
+              ) : null}
+
               {/* ── Repeat ── */}
               {!isVipRecurringModal ? (
                 <div className="appointment-modal-section">
@@ -5146,30 +5195,6 @@ function AppointmentScheduler({
                     </div>
 
                     <small className="field-error">{createErrors.repeatDays || createErrors.repeatUntil || ""}</small>
-                  </div>
-                </div>
-              ) : null}
-
-              {/* ── Edit scope (recurring only) ── */}
-              {createModal.mode === "edit" && isEditRecurring ? (
-                <div className="appointment-modal-section">
-                  <div className="field appointment-edit-scope-field">
-                    <label htmlFor="appointmentEditScope">Apply to</label>
-                    <CustomSelect
-                      id="appointmentEditScope"
-                      placeholder="Select scope"
-                      value={normalizedEditScope}
-                      options={EDIT_SCOPE_OPTIONS}
-                      menuPortal
-                      forceOpenDown={!compactWeekRange}
-                      forceOpenUp={compactWeekRange}
-                      onChange={(nextValue) => {
-                        const nextScope = EDIT_SCOPE_OPTIONS.some((option) => option.value === nextValue)
-                          ? nextValue
-                          : "single";
-                        setCreateForm((prev) => ({ ...prev, editScope: nextScope }));
-                      }}
-                    />
                   </div>
                 </div>
               ) : null}
