@@ -496,6 +496,123 @@ function isInsideWorkingHoursByMinutes(slotMinutes, dayMinutes) {
   );
 }
 
+function rangesOverlap(startMinutes, endMinutes, rangeStartMinutes, rangeEndMinutes) {
+  return (
+    startMinutes !== null
+    && endMinutes !== null
+    && rangeStartMinutes !== null
+    && rangeEndMinutes !== null
+    && endMinutes > startMinutes
+    && rangeEndMinutes > rangeStartMinutes
+    && startMinutes < rangeEndMinutes
+    && rangeStartMinutes < endMinutes
+  );
+}
+
+function getPlannerRangeDayKey(item) {
+  const dayKeyFromField = String(item?.dayKey || "").trim().toLowerCase();
+  if (DAY_KEYS_SET.has(dayKeyFromField)) {
+    return dayKeyFromField;
+  }
+  const dayOfWeek = Number.parseInt(String(item?.dayOfWeek ?? "").trim(), 10);
+  return DAY_NUM_TO_KEY[dayOfWeek] || "";
+}
+
+function findPlannerBreakConflict(items, appointmentDate, startTime, endTime) {
+  const targetDayKey = getDayKeyFromDateYmd(appointmentDate);
+  const startMinutes = normalizeTimeToMinutes(startTime);
+  const endMinutes = normalizeTimeToMinutes(endTime);
+  if (!targetDayKey || startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+    return null;
+  }
+
+  const hit = (Array.isArray(items) ? items : []).find((item) => {
+    if (item?.isActive === false || getPlannerRangeDayKey(item) !== targetDayKey) {
+      return false;
+    }
+    return rangesOverlap(
+      startMinutes,
+      endMinutes,
+      normalizeTimeToMinutes(item?.startTime),
+      normalizeTimeToMinutes(item?.endTime)
+    );
+  });
+  if (!hit) {
+    return null;
+  }
+  const reason = formatBreakReason(hit);
+  return String(reason?.full || "").trim() || "Break";
+}
+
+function findPlannerBlockedTimeConflict(items, appointmentDate, startTime, endTime) {
+  const targetDayKey = getDayKeyFromDateYmd(appointmentDate);
+  const startMinutes = normalizeTimeToMinutes(startTime);
+  const endMinutes = normalizeTimeToMinutes(endTime);
+  if (!targetDayKey || startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+    return null;
+  }
+
+  const hit = (Array.isArray(items) ? items : []).find((item) => {
+    if (item?.isActive === false || getPlannerRangeDayKey(item) !== targetDayKey) {
+      return false;
+    }
+    return rangesOverlap(
+      startMinutes,
+      endMinutes,
+      normalizeTimeToMinutes(item?.startTime),
+      normalizeTimeToMinutes(item?.endTime)
+    );
+  });
+  if (!hit) {
+    return null;
+  }
+  return String(hit?.reason || "").trim() || "Blocked";
+}
+
+function findPlannerAbsenceConflict(items, appointmentDate, startTime, endTime) {
+  const targetDate = String(appointmentDate || "").trim();
+  const startMinutes = normalizeTimeToMinutes(startTime);
+  const endMinutes = normalizeTimeToMinutes(endTime);
+  if (!targetDate || startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+    return null;
+  }
+
+  const hit = (Array.isArray(items) ? items : []).find((item) => {
+    if (String(item?.absenceDate || "").trim() !== targetDate) {
+      return false;
+    }
+    const absenceStartMinutes = normalizeTimeToMinutes(item?.startTime);
+    const absenceEndMinutes = normalizeTimeToMinutes(item?.endTime);
+    if (absenceStartMinutes === null || absenceEndMinutes === null || absenceEndMinutes <= absenceStartMinutes) {
+      return true;
+    }
+    return rangesOverlap(startMinutes, endMinutes, absenceStartMinutes, absenceEndMinutes);
+  });
+  if (!hit) {
+    return null;
+  }
+  return String(hit?.reason || "").trim() || "Specialist absent";
+}
+
+function getPlannerWorkingHoursConflictMessage(settings, appointmentDate, startTime, endTime) {
+  const targetDayKey = getDayKeyFromDateYmd(appointmentDate);
+  const startMinutes = normalizeTimeToMinutes(startTime);
+  const endMinutes = normalizeTimeToMinutes(endTime);
+  if (!targetDayKey || startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+    return "";
+  }
+  const dayHours = settings?.workingHours?.[targetDayKey] || {};
+  const dayStartMinutes = normalizeTimeToMinutes(dayHours?.start);
+  const dayEndMinutes = normalizeTimeToMinutes(dayHours?.end);
+  if (dayStartMinutes === null || dayEndMinutes === null || dayEndMinutes <= dayStartMinutes) {
+    return "Specialist is unavailable on this day.";
+  }
+  if (startMinutes < dayStartMinutes || endMinutes > dayEndMinutes) {
+    return "Selected time is outside specialist working hours.";
+  }
+  return "";
+}
+
 function isEligibleBreakTypeForFullCell(breakType) {
   const normalizedType = normalizeBreakTypeKey(breakType);
   return FULL_CELL_BREAK_TYPES.has(normalizedType);
@@ -1775,6 +1892,12 @@ function AppointmentScheduler({
   const breaksRequestIdRef = useRef(0);
   const absencesRequestIdRef = useRef(0);
   const clientFocusedRequestIdRef = useRef(0);
+  const clientFocusedPreviewRequestIdRef = useRef(0);
+  const [clientFocusedPreviewAppointmentsByDay, setClientFocusedPreviewAppointmentsByDay] = useState(() => ({}));
+  const [clientFocusedPreviewSettings, setClientFocusedPreviewSettings] = useState(null);
+  const [clientFocusedPreviewBreaks, setClientFocusedPreviewBreaks] = useState([]);
+  const [clientFocusedPreviewAbsences, setClientFocusedPreviewAbsences] = useState([]);
+  const [clientFocusedPreviewWeekKey, setClientFocusedPreviewWeekKey] = useState("");
   const normalizedCurrentUserId = String(currentUserId || "").trim();
   const normalizedSelectedPlannerClientFilterId = String(selectedPlannerClientFilterId || "").trim();
   useEffect(() => {
@@ -1873,6 +1996,10 @@ function AppointmentScheduler({
   }, [isClientFocusedMode, selectedSpecialistId, vipOnly]);
 
   useEffect(() => {
+    void loadAppointmentSettings();
+  }, [loadAppointmentSettings]);
+
+  useEffect(() => {
     if (typeof window === "undefined") {
       return undefined;
     }
@@ -1903,24 +2030,7 @@ function AppointmentScheduler({
     async function loadData() {
       try {
         setMessage("");
-
-        const settingsQuery = new URLSearchParams();
-        if (
-          !vipOnly
-          && !normalizedSelectedPlannerClientFilterId
-          && String(selectedSpecialistId || "").trim()
-        ) {
-          settingsQuery.set("specialistId", String(selectedSpecialistId || "").trim());
-        }
-        const settingsUrl = settingsQuery.size > 0
-          ? `/api/appointments/settings?${settingsQuery.toString()}`
-          : "/api/appointments/settings";
-
-        const [settingsResponse, specialistsResponse, specialistRolesResponse, plannerFiltersResponse] = await Promise.all([
-          apiFetch(settingsUrl, {
-            method: "GET",
-            cache: "no-store"
-          }),
+        const [specialistsResponse, specialistRolesResponse, plannerFiltersResponse] = await Promise.all([
           apiFetch(vipOnly ? "/api/clients/vip-tutor-assignments?limit=500" : "/api/appointments/specialists", {
             method: "GET",
             cache: "no-store"
@@ -1939,7 +2049,6 @@ function AppointmentScheduler({
             : Promise.resolve(null)
         ]);
 
-        const settingsData = await readApiResponseData(settingsResponse);
         let specialistsData = await readApiResponseData(specialistsResponse);
         const specialistRolesData = specialistRolesResponse
           ? await readApiResponseData(specialistRolesResponse)
@@ -1949,11 +2058,6 @@ function AppointmentScheduler({
           : null;
 
         if (!active) {
-          return;
-        }
-
-        if (!settingsResponse.ok) {
-          setMessage(settingsData?.message || "Failed to load appointment settings.");
           return;
         }
 
@@ -1981,10 +2085,6 @@ function AppointmentScheduler({
             return;
           }
         }
-
-        const item = settingsData?.item && typeof settingsData.item === "object"
-          ? settingsData.item
-          : {};
 
         const nextVipClientsByClassId = {};
         const fallbackClassLabelById = {};
@@ -2148,7 +2248,6 @@ function AppointmentScheduler({
           )
         );
 
-        setSettings(mapSchedulerSettingsFromApiItem(item));
         setSpecialists(nextSpecialists);
         setSpecialistRoleById(nextSpecialistRoleById);
         if (!vipOnly) {
@@ -2194,9 +2293,7 @@ function AppointmentScheduler({
     canReadStatisticsPlannerReport,
     currentUserId,
     normalizedCurrentUserId,
-    normalizedSelectedPlannerClientFilterId,
     restrictCreateToOwnSpecialist,
-    selectedSpecialistId,
     vipOnly
   ]);
 
@@ -2316,6 +2413,23 @@ function AppointmentScheduler({
   const weekDataKey = useMemo(() => (
     weekDays.map((day) => `${day.key}:${formatDateYmd(day.date)}`).join("|")
   ), [weekDays]);
+  const clientFocusedModalPreviewSpecialistId = (
+    !vipOnly
+    && isClientFocusedMode
+    && createModal.open
+  )
+    ? String(createModal.specialistId || "").trim()
+    : "";
+  const clientFocusedPreviewDataKey = useMemo(() => (
+    clientFocusedModalPreviewSpecialistId
+      ? `${clientFocusedModalPreviewSpecialistId}:${weekDataKey}`
+      : ""
+  ), [clientFocusedModalPreviewSpecialistId, weekDataKey]);
+  const canUseClientFocusedAvailabilityPreview = (
+    Boolean(clientFocusedModalPreviewSpecialistId)
+    && clientFocusedPreviewWeekKey === clientFocusedPreviewDataKey
+    && String(createModal.specialistId || "").trim() === clientFocusedModalPreviewSpecialistId
+  );
   const weekRenderKey = useMemo(() => (
     `${String(selectedSpecialistId || "").trim()}:${weekDays.map((day) => `${day.key}:${formatDateYmd(day.date)}`).join("|")}`
   ), [selectedSpecialistId, weekDays]);
@@ -2533,7 +2647,8 @@ function AppointmentScheduler({
     appointmentDate,
     startTime,
     endTime,
-    excludeAppointmentId = ""
+    excludeAppointmentId = "",
+    appointmentsByDay = rawAppointmentsByDay
   }) => {
     const dayKey = getDayKeyFromDateYmd(appointmentDate);
     if (!dayKey) {
@@ -2546,7 +2661,7 @@ function AppointmentScheduler({
     }
 
     const excludedId = String(excludeAppointmentId || "").trim();
-    const dayItems = Array.isArray(rawAppointmentsByDay[dayKey]) ? rawAppointmentsByDay[dayKey] : [];
+    const dayItems = Array.isArray(appointmentsByDay?.[dayKey]) ? appointmentsByDay[dayKey] : [];
     const hit = dayItems.find((item) => {
       const itemId = String(item?.id || "").trim();
       if (excludedId && itemId && itemId === excludedId) {
@@ -3649,6 +3764,125 @@ function AppointmentScheduler({
     loadAbsencesForSelectedSpecialist();
   }, [loadAbsencesForSelectedSpecialist]);
 
+  useEffect(() => {
+    if (!clientFocusedModalPreviewSpecialistId || weekDays.length === 0) {
+      setClientFocusedPreviewAppointmentsByDay({});
+      setClientFocusedPreviewSettings(null);
+      setClientFocusedPreviewBreaks([]);
+      setClientFocusedPreviewAbsences([]);
+      setClientFocusedPreviewWeekKey("");
+      return;
+    }
+
+    const dateFrom = formatDateYmd(weekStartDate);
+    const dateTo = formatDateYmd(weekEndDate);
+    if (!dateFrom || !dateTo) {
+      return;
+    }
+
+    const requestId = clientFocusedPreviewRequestIdRef.current + 1;
+    clientFocusedPreviewRequestIdRef.current = requestId;
+
+    async function loadClientFocusedPreview() {
+      try {
+        const [settingsResponse, schedulesResponse, breaksResponse, absencesResponse] = await Promise.all([
+          apiFetch(`/api/appointments/settings?${new URLSearchParams({
+            specialistId: clientFocusedModalPreviewSpecialistId
+          }).toString()}`, {
+            method: "GET",
+            cache: "no-store"
+          }),
+          apiFetch(`/api/appointments/schedules?${new URLSearchParams({
+            specialistId: clientFocusedModalPreviewSpecialistId,
+            dateFrom,
+            dateTo
+          }).toString()}`, {
+            method: "GET",
+            cache: "no-store"
+          }),
+          canReadPlannerBreaks
+            ? apiFetch(`/api/appointments/breaks?${new URLSearchParams({
+                specialistId: clientFocusedModalPreviewSpecialistId
+              }).toString()}`, {
+                method: "GET",
+                cache: "no-store"
+              })
+            : Promise.resolve(null),
+          canViewAppointmentSpecialistAbsenceBlocks
+            ? apiFetch(`/api/appointments/absences?${new URLSearchParams({
+                specialistId: clientFocusedModalPreviewSpecialistId,
+                dateFrom,
+                dateTo
+              }).toString()}`, {
+                method: "GET",
+                cache: "no-store"
+              })
+            : Promise.resolve(null)
+        ]);
+        const [settingsData, schedulesData, breaksData, absencesData] = await Promise.all([
+          readApiResponseData(settingsResponse),
+          readApiResponseData(schedulesResponse),
+          breaksResponse ? readApiResponseData(breaksResponse) : Promise.resolve(null),
+          absencesResponse ? readApiResponseData(absencesResponse) : Promise.resolve(null)
+        ]);
+
+        if (requestId !== clientFocusedPreviewRequestIdRef.current) {
+          return;
+        }
+
+        setClientFocusedPreviewSettings(
+          settingsResponse.ok
+            ? mapSchedulerSettingsFromApiItem(settingsData?.item)
+            : null
+        );
+        setClientFocusedPreviewAppointmentsByDay(
+          schedulesResponse.ok
+            ? buildPlannerAppointmentsByDay(
+                Array.isArray(schedulesData?.items) ? schedulesData.items : [],
+                weekDays
+              )
+            : {}
+        );
+        setClientFocusedPreviewBreaks(
+          breaksResponse?.ok
+            ? normalizePlannerBreakItems(Array.isArray(breaksData?.items) ? breaksData.items : [])
+            : []
+        );
+        setClientFocusedPreviewAbsences(
+          absencesResponse?.ok
+            ? (Array.isArray(absencesData?.items) ? absencesData.items : []).map((item) => ({
+                id: String(item?.id || "").trim(),
+                absenceDate: String(item?.absenceDate || "").trim(),
+                startTime: String(item?.startTime || "").trim(),
+                endTime: String(item?.endTime || "").trim(),
+                reason: String(item?.reason || "").trim()
+              })).filter((item) => Boolean(item.id) && Boolean(item.absenceDate))
+            : []
+        );
+        setClientFocusedPreviewWeekKey(clientFocusedPreviewDataKey);
+      } catch {
+        if (requestId !== clientFocusedPreviewRequestIdRef.current) {
+          return;
+        }
+        setClientFocusedPreviewAppointmentsByDay({});
+        setClientFocusedPreviewSettings(null);
+        setClientFocusedPreviewBreaks([]);
+        setClientFocusedPreviewAbsences([]);
+        setClientFocusedPreviewWeekKey(clientFocusedPreviewDataKey);
+      }
+    }
+
+    void loadClientFocusedPreview();
+  }, [
+    canReadPlannerBreaks,
+    canViewAppointmentSpecialistAbsenceBlocks,
+    clientFocusedModalPreviewSpecialistId,
+    clientFocusedPreviewDataKey,
+    weekDays,
+    weekEndDate,
+    weekStartDate
+  ]);
+
   function closeCreateModal() {
     setCreateModal({
       open: false,
@@ -4191,16 +4425,91 @@ function AppointmentScheduler({
       const endTime = minutesToTime(startMinutes + durationMinutes);
       const shouldShowImmediateAlert = typeof onNotification === "function";
       const normalizedStatus = String(nextPayload.status || "").trim().toLowerCase();
+      const shouldUseClientFocusedPreview = (
+        isClientFocusedMode
+        && canUseClientFocusedAvailabilityPreview
+        && clientFocusedModalPreviewSpecialistId === specialistId
+      );
+      const localConflictAppointmentsByDay = shouldUseClientFocusedPreview
+        ? clientFocusedPreviewAppointmentsByDay
+        : rawAppointmentsByDay;
       const shouldCheckLocalConflict = (
         !isClientFocusedMode
         || String(selectedSpecialistId || "").trim() === specialistId
+        || shouldUseClientFocusedPreview
       );
       if (ACTIVE_SCHEDULE_STATUSES.has(normalizedStatus) && shouldCheckLocalConflict) {
+        if (shouldUseClientFocusedPreview) {
+          const workingHoursConflictMessage = getPlannerWorkingHoursConflictMessage(
+            clientFocusedPreviewSettings,
+            appointmentDate,
+            startTime,
+            endTime
+          );
+          if (workingHoursConflictMessage) {
+            setCreateErrors({ form: workingHoursConflictMessage });
+            setMessage(workingHoursConflictMessage);
+            if (shouldShowImmediateAlert) {
+              showImmediateAlert(workingHoursConflictMessage);
+            }
+            return;
+          }
+
+          const blockedTimeConflictReason = findPlannerBlockedTimeConflict(
+            clientFocusedPreviewSettings?.blockedTimes,
+            appointmentDate,
+            startTime,
+            endTime
+          );
+          if (blockedTimeConflictReason) {
+            const blockedTimeConflictMessage = `Selected time overlaps blocked time: ${blockedTimeConflictReason}.`;
+            setCreateErrors({ form: blockedTimeConflictMessage });
+            setMessage(blockedTimeConflictMessage);
+            if (shouldShowImmediateAlert) {
+              showImmediateAlert(blockedTimeConflictMessage);
+            }
+            return;
+          }
+
+          const breakConflictReason = findPlannerBreakConflict(
+            clientFocusedPreviewBreaks,
+            appointmentDate,
+            startTime,
+            endTime
+          );
+          if (breakConflictReason) {
+            const breakConflictMessage = `Selected time overlaps specialist break: ${breakConflictReason}.`;
+            setCreateErrors({ form: breakConflictMessage });
+            setMessage(breakConflictMessage);
+            if (shouldShowImmediateAlert) {
+              showImmediateAlert(breakConflictMessage);
+            }
+            return;
+          }
+
+          const absenceConflictReason = findPlannerAbsenceConflict(
+            clientFocusedPreviewAbsences,
+            appointmentDate,
+            startTime,
+            endTime
+          );
+          if (absenceConflictReason) {
+            const absenceConflictMessage = `Selected time overlaps specialist absence: ${absenceConflictReason}.`;
+            setCreateErrors({ form: absenceConflictMessage });
+            setMessage(absenceConflictMessage);
+            if (shouldShowImmediateAlert) {
+              showImmediateAlert(absenceConflictMessage);
+            }
+            return;
+          }
+        }
+
         const localConflict = findLocalScheduleConflict({
           appointmentDate,
           startTime,
           endTime,
-          excludeAppointmentId: isEditMode ? String(createModal.appointmentId || "").trim() : ""
+          excludeAppointmentId: isEditMode ? String(createModal.appointmentId || "").trim() : "",
+          appointmentsByDay: localConflictAppointmentsByDay
         });
         if (localConflict) {
           const localConflictTime = [localConflict.startTime, localConflict.endTime].filter(Boolean).join(" - ");
@@ -4607,25 +4916,6 @@ function AppointmentScheduler({
                       : null;
                     setSelectedPlannerClientFilterId(nextClientId);
                     setStoredPlannerClientSnapshot(nextClientSnapshot);
-                    if (typeof window !== "undefined" && normalizedCurrentUserId) {
-                      const clientStorageKey = getPlannerClientSelectionStorageKey(currentUserId);
-                      const clientSnapshotStorageKey = getPlannerClientSnapshotStorageKey(currentUserId);
-                      const modeStorageKey = getPlannerFilterModeStorageKey(currentUserId);
-                      if (nextClientId) {
-                        window.localStorage.setItem(clientStorageKey, nextClientId);
-                        window.localStorage.setItem(modeStorageKey, "client");
-                        if (nextClientSnapshot) {
-                          window.localStorage.setItem(
-                            clientSnapshotStorageKey,
-                            JSON.stringify(nextClientSnapshot)
-                          );
-                        } else {
-                          window.localStorage.removeItem(clientSnapshotStorageKey);
-                        }
-                      } else {
-                        window.localStorage.removeItem(clientSnapshotStorageKey);
-                      }
-                    }
                     if (nextClientId) {
                       setSelectedSpecialistId("");
                     }

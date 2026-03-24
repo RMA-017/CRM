@@ -939,8 +939,8 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             return reply.status(400).send(repeatDaysValidation.error);
           }
 
-          const repeatDayKeys = repeatDaysValidation.normalizedDayKeys;
-          if (repeatDayKeys.length === 0) {
+          const requestedRepeatDayKeys = repeatDaysValidation.normalizedDayKeys;
+          if (requestedRepeatDayKeys.length === 0) {
             return reply.status(400).send({
               field: "repeatDays",
               message: "Select at least one repeat day."
@@ -2137,14 +2137,35 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             return reply.status(400).send(repeatDaysValidation.error);
           }
 
-          const repeatDayKeys = repeatDaysValidation.normalizedDayKeys;
-          if (repeatDayKeys.length === 0) {
+          const requestedRepeatDayKeys = repeatDaysValidation.normalizedDayKeys;
+          if (requestedRepeatDayKeys.length === 0) {
             return reply.status(400).send({
               field: "repeatDays",
               message: "Select at least one repeat day."
             });
           }
 
+          const seriesItems = sortScheduleItems(
+            Array.isArray(target.seriesItems) && target.seriesItems.length > 0
+              ? target.seriesItems
+              : target.items
+          );
+          const originalRepeatDayKeys = normalizeVisibleWeekDays(
+            Array.isArray(target.repeatDays) && target.repeatDays.length > 0
+              ? target.repeatDays
+              : inferRepeatDayKeysFromSeriesItems(seriesItems)
+          );
+          const sourceSeriesDayKey = String(
+            toDayKeyFromUtcDate(parseDateYmdToUtcDate(target.anchorAppointmentDate)) || ""
+          ).trim().toLowerCase();
+          const repeatDayKeys = (
+            target.scope === "future"
+            && originalRepeatDayKeys.length > 1
+            && Boolean(sourceSeriesDayKey)
+            && haveSameNormalizedDayKeys(requestedRepeatDayKeys, originalRepeatDayKeys)
+          )
+            ? [sourceSeriesDayKey]
+            : requestedRepeatDayKeys;
           const recurringStartDate = target.scope === "all"
             ? String(target.repeatAnchorDate || target.anchorAppointmentDate || appointmentDate).trim()
             : String(target.anchorAppointmentDate || appointmentDate).trim();
@@ -2178,23 +2199,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               message: "Select at least one repeat day."
             });
           }
-
-          const seriesItems = sortScheduleItems(
-            Array.isArray(target.seriesItems) && target.seriesItems.length > 0
-              ? target.seriesItems
-              : target.items
-          );
-          const originalRepeatDayKeys = normalizeVisibleWeekDays(
-            Array.isArray(target.repeatDays) && target.repeatDays.length > 0
-              ? target.repeatDays
-              : inferRepeatDayKeysFromSeriesItems(seriesItems)
-          );
           const originalRepeatDayNums = originalRepeatDayKeys
             .map((dayKey) => toAppointmentDayNum(dayKey))
             .filter((dayNum) => Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 7);
-          const sourceSeriesDayKey = String(
-            toDayKeyFromUtcDate(parseDateYmdToUtcDate(target.anchorAppointmentDate)) || ""
-          ).trim().toLowerCase();
           const shouldSplitSelectedRecurringDay = (
             originalRepeatDayKeys.length > 1
             && Boolean(sourceSeriesDayKey)
@@ -2909,12 +2916,177 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             }
           }
         }
+        let effectiveDeleteItems = sortScheduleItems(target.items);
+        const deleteSpecialistIds = Array.from(
+          new Set(
+            effectiveDeleteItems
+              .map((item) => Number.parseInt(String(item?.specialistId || ""), 10))
+              .filter((value) => Number.isInteger(value) && value > 0)
+          )
+        );
+        const canSplitRecurringFutureDelete = target.isRecurring && target.scope === "future";
+        if (canSplitRecurringFutureDelete) {
+          const seriesItems = sortScheduleItems(
+            Array.isArray(target.seriesItems) && target.seriesItems.length > 0
+              ? target.seriesItems
+              : target.items
+          );
+          const originalRepeatDayKeys = normalizeVisibleWeekDays(
+            Array.isArray(target.repeatDays) && target.repeatDays.length > 0
+              ? target.repeatDays
+              : inferRepeatDayKeysFromSeriesItems(seriesItems)
+          );
+          const sourceSeriesDayKey = String(
+            toDayKeyFromUtcDate(parseDateYmdToUtcDate(target.anchorAppointmentDate)) || ""
+          ).trim().toLowerCase();
+          if (originalRepeatDayKeys.length > 1 && sourceSeriesDayKey) {
+            const branchItems = effectiveDeleteItems.filter(
+              (item) => getScheduleItemDayKey(item) === sourceSeriesDayKey
+            );
+            const branchDeletedIds = branchItems.map((item) => item.id);
+            if (branchDeletedIds.length > 0 && branchDeletedIds.length !== effectiveDeleteItems.length) {
+              const historyLockDays = await getAppointmentHistoryLockDaysByOrganization(
+                access.authContext.organizationId
+              );
+              const historyLockError = getHistoryLockErrorForRequester(
+                access.requester,
+                branchItems.map((item) => item.appointmentDate),
+                historyLockDays
+              );
+              if (historyLockError) {
+                return reply.status(403).send(historyLockError);
+              }
+
+              const previousSeriesItems = seriesItems.filter(
+                (item) => String(item?.appointmentDate || "").trim() < String(target.anchorAppointmentDate || "").trim()
+              );
+              const remainingFutureItems = seriesItems.filter(
+                (item) => (
+                  String(item?.appointmentDate || "").trim() >= String(target.anchorAppointmentDate || "").trim()
+                  && getScheduleItemDayKey(item) !== sourceSeriesDayKey
+                )
+              );
+              const previousRepeatUntilDate = shiftDateYmd(target.anchorAppointmentDate, -1);
+              const remainingRepeatDayKeys = originalRepeatDayKeys.filter((dayKey) => dayKey !== sourceSeriesDayKey);
+              const remainingRepeatDayNums = remainingRepeatDayKeys
+                .map((dayKey) => toAppointmentDayNum(dayKey))
+                .filter((dayNum) => Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 7);
+              const remainingFutureGroupKey = (
+                remainingFutureItems.length > 0
+                && remainingRepeatDayNums.length > 0
+              )
+                ? randomUUID()
+                : "";
+              const remainingFutureAnchorDate = String(remainingFutureItems[0]?.appointmentDate || "").trim();
+
+              const deletedCount = await withAppointmentTransaction(async (db) => {
+                if (previousSeriesItems.length > 0 && previousRepeatUntilDate) {
+                  const previousRepeatAnchorDate = String(previousSeriesItems[0]?.appointmentDate || "").trim();
+                  for (const previousItem of previousSeriesItems) {
+                    await updateAppointmentScheduleByIdWithRepeatMeta({
+                      organizationId: access.authContext.organizationId,
+                      actorUserId: access.authContext.userId,
+                      id: previousItem.id,
+                      specialistId: previousItem.specialistId,
+                      clientId: previousItem.clientId,
+                      appointmentDate: previousItem.appointmentDate,
+                      startTime: previousItem.startTime,
+                      endTime: previousItem.endTime,
+                      durationMinutes: previousItem.durationMinutes,
+                      serviceName: previousItem.serviceName,
+                      status: previousItem.status,
+                      note: previousItem.note,
+                      repeatGroupKey: String(target.repeatGroupKey || "").trim(),
+                      repeatUntilDate: previousRepeatUntilDate,
+                      repeatDays: originalRepeatDayKeys
+                        .map((dayKey) => toAppointmentDayNum(dayKey))
+                        .filter((dayNum) => Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 7),
+                      repeatAnchorDate: previousRepeatAnchorDate,
+                      isRepeatRoot: String(previousItem?.appointmentDate || "").trim() === previousRepeatAnchorDate,
+                      isAutoRollingRepeat: false,
+                      db
+                    });
+                  }
+                }
+
+                if (
+                  remainingFutureItems.length > 0
+                  && remainingRepeatDayNums.length > 0
+                  && remainingFutureGroupKey
+                  && remainingFutureAnchorDate
+                ) {
+                  for (const remainingItem of remainingFutureItems) {
+                    await updateAppointmentScheduleByIdWithRepeatMeta({
+                      organizationId: access.authContext.organizationId,
+                      actorUserId: access.authContext.userId,
+                      id: remainingItem.id,
+                      specialistId: remainingItem.specialistId,
+                      clientId: remainingItem.clientId,
+                      appointmentDate: remainingItem.appointmentDate,
+                      startTime: remainingItem.startTime,
+                      endTime: remainingItem.endTime,
+                      durationMinutes: remainingItem.durationMinutes,
+                      serviceName: remainingItem.serviceName,
+                      status: remainingItem.status,
+                      note: remainingItem.note,
+                      repeatGroupKey: remainingFutureGroupKey,
+                      repeatUntilDate: String(target.repeatUntilDate || "").trim(),
+                      repeatDays: remainingRepeatDayNums,
+                      repeatAnchorDate: remainingFutureAnchorDate,
+                      isRepeatRoot: String(remainingItem?.appointmentDate || "").trim() === remainingFutureAnchorDate,
+                      isAutoRollingRepeat: Boolean(target.isAutoRollingRepeat),
+                      db
+                    });
+                  }
+                }
+
+                return deleteAppointmentSchedulesByIds({
+                  organizationId: access.authContext.organizationId,
+                  ids: branchDeletedIds,
+                  actorUserId: access.authContext.userId,
+                  db
+                });
+              });
+
+              if (deletedCount <= 0) {
+                return reply.status(404).send({ message: "Appointment not found." });
+              }
+
+              const scheduleNotification = buildScheduleNotification("delete", branchItems, access?.requester);
+              const specialistIds = Array.from(
+                new Set(
+                  [
+                    ...deleteSpecialistIds,
+                    ...seriesItems.map((item) => Number.parseInt(String(item?.specialistId || ""), 10))
+                  ].filter((value) => Number.isInteger(value) && value > 0)
+                )
+              );
+
+              await broadcastAppointmentChange(access, {
+                type: "schedule-deleted",
+                message: scheduleNotification.message,
+                specialistIds,
+                data: scheduleNotification.data
+              });
+              schedulesReadCache.clear();
+
+              return reply.send({
+                message: `${deletedCount} appointments deleted.`,
+                summary: {
+                  scope: target.scope,
+                  deletedCount
+                }
+              });
+            }
+            effectiveDeleteItems = branchItems;
+          }
+        }
         const historyLockDays = await getAppointmentHistoryLockDaysByOrganization(
           access.authContext.organizationId
         );
         const historyLockError = getHistoryLockErrorForRequester(
           access.requester,
-          target.items.map((item) => item.appointmentDate),
+          effectiveDeleteItems.map((item) => item.appointmentDate),
           historyLockDays
         );
         if (historyLockError) {
@@ -2923,7 +3095,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
 
         const deletedCount = await deleteAppointmentSchedulesByIds({
           organizationId: access.authContext.organizationId,
-          ids: target.items.map((item) => item.id),
+          ids: effectiveDeleteItems.map((item) => item.id),
           actorUserId: access.authContext.userId
         });
 
@@ -2934,12 +3106,12 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const message = target.scope === "single"
           ? "Appointment deleted."
           : `${deletedCount} appointments deleted.`;
-        const scheduleNotification = buildScheduleNotification("delete", target.items, access?.requester);
+        const scheduleNotification = buildScheduleNotification("delete", effectiveDeleteItems, access?.requester);
 
         await broadcastAppointmentChange(access, {
           type: "schedule-deleted",
           message: scheduleNotification.message,
-          specialistIds: target.items.map((item) => item.specialistId),
+          specialistIds: deleteSpecialistIds,
           data: scheduleNotification.data
         });
         schedulesReadCache.clear();

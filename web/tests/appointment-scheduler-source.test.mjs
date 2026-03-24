@@ -97,6 +97,21 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
+    /const clientFocusedModalPreviewSpecialistId = \([\s\S]*createModal\.open[\s\S]*String\(createModal\.specialistId \|\| ""\)\.trim\(\)/s,
+    "Client-focused planner should derive a preview specialist id from the modal selection without reviving the toolbar specialist filter."
+  );
+  assert.match(
+    source,
+    /apiFetch\(`\/api\/appointments\/settings\?\$\{new URLSearchParams\(\{\s*specialistId: clientFocusedModalPreviewSpecialistId/s,
+    "Client-focused planner should load the selected modal specialist settings for local availability preview."
+  );
+  assert.match(
+    source,
+    /const shouldUseClientFocusedPreview = \([\s\S]*canUseClientFocusedAvailabilityPreview[\s\S]*clientFocusedModalPreviewSpecialistId === specialistId[\s\S]*appointmentsByDay: localConflictAppointmentsByDay/s,
+    "Client-focused planner submit should switch local conflict checks to the selected modal specialist preview when available."
+  );
+  assert.match(
+    source,
     /label htmlFor=\{isClientFocusedCreateMode \? "appointmentCreateClientReadonly" : "appointmentCreateClientSelect"\}[\s\S]*id="appointmentCreateClientReadonly"[\s\S]*readOnly[\s\S]*disabled/s,
     "Client-focused To Planner modal should keep the selected client locked in a readonly field."
   );
