@@ -1653,9 +1653,9 @@ function AppointmentPlannerGrid({
                         isRoutineCard
                           ? (cardTimeRangeLabel || "Daily routine")
                           : (
-                            formatServiceLine(String(item?.service || "").trim(), item?.durationMinutes)
-                            || String(item?.service || "").trim()
-                            || "Service"
+                            String(item?.secondaryText || "").trim()
+                            || String(item?.specialistPosition || "").trim()
+                            || "Specialist"
                           )
                       )
                       : (String(item?.service || "").trim() || "Service");
@@ -1963,6 +1963,46 @@ function AppointmentScheduler({
     && canCreateAppointments
     && canMutateSpecialistId(specialistId)
   ), [canCreateAppointments, canMutateSpecialistId, vipOnly]);
+  const persistPlannerToolbarSelectionSync = useCallback(({
+    specialistId = "",
+    clientId = "",
+    clientSnapshot = null
+  } = {}) => {
+    if (typeof window === "undefined" || !normalizedCurrentUserId) {
+      return;
+    }
+
+    if (vipOnly) {
+      const vipStorageKey = getSchedulerSelectionStorageKey(true, currentUserId);
+      const normalizedVipSpecialistId = String(specialistId || "").trim();
+      if (normalizedVipSpecialistId) {
+        window.localStorage.setItem(vipStorageKey, normalizedVipSpecialistId);
+      }
+      return;
+    }
+
+    const specialistStorageKey = getSchedulerSelectionStorageKey(false, currentUserId);
+    const clientStorageKey = getPlannerClientSelectionStorageKey(currentUserId);
+    const clientSnapshotStorageKey = getPlannerClientSnapshotStorageKey(currentUserId);
+    const modeStorageKey = getPlannerFilterModeStorageKey(currentUserId);
+    const normalizedSpecialistId = String(specialistId || "").trim();
+    const normalizedClientId = String(clientId || "").trim();
+    const normalizedClientSnapshot = normalizePlannerStoredClientSnapshot(clientSnapshot);
+
+    if (normalizedSpecialistId) {
+      window.localStorage.setItem(specialistStorageKey, normalizedSpecialistId);
+      window.localStorage.setItem(modeStorageKey, "specialist");
+      return;
+    }
+
+    if (normalizedClientId) {
+      window.localStorage.setItem(clientStorageKey, normalizedClientId);
+      if (normalizedClientSnapshot) {
+        window.localStorage.setItem(clientSnapshotStorageKey, JSON.stringify(normalizedClientSnapshot));
+      }
+      window.localStorage.setItem(modeStorageKey, "client");
+    }
+  }, [currentUserId, normalizedCurrentUserId, vipOnly]);
   const isClientFocusedMode = !vipOnly && Boolean(normalizedSelectedPlannerClientFilterId);
   const weekStartDate = useMemo(() => addDays(getStartOfWeek(new Date()), weekOffset * 7), [weekOffset]);
   const weekEndDate = useMemo(() => addDays(weekStartDate, 6), [weekStartDate]);
@@ -3423,11 +3463,11 @@ function AppointmentScheduler({
           }
           const specialistId = String(item?.specialistId || "").trim();
           const specialistRoleFallback = String(specialistRoleById[specialistId] || "").trim();
-          const serviceText = formatVipServiceLine(
-            item?.specialistPosition,
-            item?.serviceName,
-            "",
-            specialistRoleFallback
+          const specialistPositionText = truncateWithEllipsis(
+            String(item?.specialistPosition || "").trim()
+              || specialistRoleFallback
+              || "Specialist",
+            24
           );
           const timeLabel = formatAppointmentTimeRangeLabel(startTime, item?.endTime, item?.durationMinutes) || startTime;
 
@@ -3439,7 +3479,7 @@ function AppointmentScheduler({
             timeLabel,
             primaryText: String(item?.specialistName || "").trim()
               || (specialistId ? `Specialist #${specialistId}` : "Specialist"),
-            secondaryText: serviceText || String(item?.serviceName || "").trim() || "Service",
+            secondaryText: specialistPositionText,
             status: String(item?.status || "").trim().toLowerCase().replace(/_/g, "-"),
             specialistId,
             clientId,
@@ -4879,6 +4919,7 @@ function AppointmentScheduler({
                 error={specialistSelectError}
                 onChange={(nextValue) => {
                   const nextSpecialistId = String(nextValue || "").trim();
+                  persistPlannerToolbarSelectionSync({ specialistId: nextSpecialistId });
                   setSelectedSpecialistId(nextSpecialistId);
                   if (nextSpecialistId) {
                     setSelectedPlannerClientFilterId("");
@@ -4929,6 +4970,10 @@ function AppointmentScheduler({
                           )
                         )
                       : null;
+                    persistPlannerToolbarSelectionSync({
+                      clientId: nextClientId,
+                      clientSnapshot: nextClientSnapshot
+                    });
                     setSelectedPlannerClientFilterId(nextClientId);
                     setStoredPlannerClientSnapshot(nextClientSnapshot);
                     if (nextClientId) {

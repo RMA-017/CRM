@@ -122,6 +122,16 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
+    /isRoutineCard[\s\S]*String\(item\?\.secondaryText \|\| ""\)\.trim\(\)[\s\S]*String\(item\?\.specialistPosition \|\| ""\)\.trim\(\)[\s\S]*"Specialist"/s,
+    "Client mode planner cards should prefer specialist position text instead of appointment service names."
+  );
+  assert.match(
+    source,
+    /const specialistPositionText = truncateWithEllipsis\([\s\S]*item\?\.specialistPosition[\s\S]*specialistRoleFallback[\s\S]*"Specialist"[\s\S]*secondaryText: specialistPositionText/s,
+    "Client-focused planner rows should derive their secondary text from the specialist position fallback chain."
+  );
+  assert.match(
+    source,
     /const COMPACT_APPOINTMENT_CARD_MAX_HEIGHT_PX = 24;/,
     "Appointment planner should define a compact-card height threshold for very small cells."
   );
