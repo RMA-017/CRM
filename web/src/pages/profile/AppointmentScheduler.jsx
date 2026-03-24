@@ -2687,13 +2687,6 @@ function AppointmentScheduler({
     : "single";
   const canEditRecurringSeriesPattern = !isEditRecurring || normalizedEditScope !== "single";
   const shouldLockEditDate = isEditRecurring && normalizedEditScope !== "single";
-  const recurringEditScopeHint = isEditRecurring
-    ? (
-        normalizedEditScope === "single"
-          ? "This only edits the selected lesson. Use Date and Start Time below to move this one lesson."
-          : "Series edit is active. Repeat weekdays and Repeat Until below will update the recurring pattern."
-      )
-    : "";
   const lockedVipServiceName = String(selectedSpecialistServiceName || "").trim() || "Specialist";
   const isVipServiceLocked = Boolean(vipOnly);
   const isVipAutoRollingRepeat = Boolean(vipOnly || clientVipOnly);
@@ -5140,9 +5133,6 @@ function AppointmentScheduler({
                         setCreateForm((prev) => ({ ...prev, editScope: nextScope }));
                       }}
                     />
-                    <small className="appointment-client-search-hint">
-                      {recurringEditScopeHint}
-                    </small>
                   </div>
                 </div>
               ) : null}

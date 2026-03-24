@@ -3694,7 +3694,9 @@ export async function updateAppointmentSchedulesByIds({
   status,
   note,
   applyAppointmentDate = true,
-  scheduleScope = "default"
+  clearRepeatMeta = false,
+  scheduleScope = "default",
+  db = pool
 }) {
   await ensureAppointmentStatusHistorySchema();
 
@@ -3707,7 +3709,7 @@ export async function updateAppointmentSchedulesByIds({
   const previousSnapshotSql = buildScheduleSnapshotSql("u", "prev_");
   const nextSnapshotSql = buildScheduleSnapshotSql("u");
 
-  const { rows } = await pool.query(
+  const { rows } = await db.query(
     `WITH target AS (
        SELECT
          s.id,
@@ -3729,8 +3731,8 @@ export async function updateAppointmentSchedulesByIds({
          s.is_repeat_root,
          s.is_auto_rolling_repeat
        FROM ${tableName} s
-       WHERE s.organization_id = $12
-         AND s.id = ANY($13::integer[])
+       WHERE s.organization_id = $13
+         AND s.id = ANY($14::integer[])
      ),
      updated AS (
        UPDATE ${tableName} s
@@ -3743,6 +3745,13 @@ export async function updateAppointmentSchedulesByIds({
               service_name = $7,
               status = $8,
               note = $9,
+              repeat_group_key = CASE WHEN $12::boolean THEN NULL ELSE s.repeat_group_key END,
+              repeat_type = CASE WHEN $12::boolean THEN NULL ELSE s.repeat_type END,
+              repeat_until_date = CASE WHEN $12::boolean THEN NULL ELSE s.repeat_until_date END,
+              repeat_days = CASE WHEN $12::boolean THEN NULL ELSE s.repeat_days END,
+              repeat_anchor_date = CASE WHEN $12::boolean THEN NULL ELSE s.repeat_anchor_date END,
+              is_repeat_root = CASE WHEN $12::boolean THEN FALSE ELSE s.is_repeat_root END,
+              is_auto_rolling_repeat = CASE WHEN $12::boolean THEN FALSE ELSE s.is_auto_rolling_repeat END,
               updated_by = $10,
               updated_at = CURRENT_TIMESTAMP
          FROM target t
@@ -3764,7 +3773,8 @@ export async function updateAppointmentSchedulesByIds({
          t.repeat_until_date AS prev_repeat_until_date,
          t.repeat_days AS prev_repeat_days,
          t.repeat_anchor_date AS prev_repeat_anchor_date,
-         t.is_repeat_root AS prev_is_repeat_root
+         t.is_repeat_root AS prev_is_repeat_root,
+         t.is_auto_rolling_repeat AS prev_is_auto_rolling_repeat
      ),
      history_rows AS (
        SELECT
@@ -3848,6 +3858,7 @@ export async function updateAppointmentSchedulesByIds({
       note || null,
       actorUserId || null,
       Boolean(applyAppointmentDate),
+      Boolean(clearRepeatMeta),
       organizationId,
       normalizedIds
     ]

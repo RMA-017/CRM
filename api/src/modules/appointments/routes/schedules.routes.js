@@ -2013,6 +2013,98 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           });
         }
 
+        const shouldDetachRecurringSingleEdit = target.isRecurring && target.scope === "single" && !repeat.enabled;
+        if (shouldDetachRecurringSingleEdit) {
+          const anchorItem = target.items[0] || null;
+          const seriesItems = sortScheduleItems(
+            Array.isArray(target.seriesItems) && target.seriesItems.length > 0
+              ? target.seriesItems
+              : target.items
+          );
+          const remainingSeriesItems = seriesItems.filter(
+            (item) => Number.parseInt(String(item?.id || ""), 10) !== Number.parseInt(String(anchorItem?.id || ""), 10)
+          );
+          const nextRepeatDayKeys = normalizeVisibleWeekDays(
+            Array.isArray(target.repeatDays) && target.repeatDays.length > 0
+              ? target.repeatDays
+              : inferRepeatDayKeysFromSeriesItems(remainingSeriesItems)
+          );
+          const nextRepeatDayNums = nextRepeatDayKeys
+            .map((dayKey) => toAppointmentDayNum(dayKey))
+            .filter((dayNum) => Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 7);
+
+          const items = await withAppointmentTransaction(async (db) => {
+            const updatedItems = await updateAppointmentSchedulesByIds({
+              organizationId: access.authContext.organizationId,
+              actorUserId: access.authContext.userId,
+              ids: target.items.map((item) => item.id),
+              specialistId,
+              clientId,
+              appointmentDate,
+              startTime,
+              endTime,
+              durationMinutes,
+              serviceName,
+              status,
+              note,
+              applyAppointmentDate: true,
+              clearRepeatMeta: true,
+              db
+            });
+
+            if (anchorItem?.isRepeatRoot && remainingSeriesItems.length > 0) {
+              const nextRootItem = remainingSeriesItems[0];
+              const nextRepeatAnchorDate = String(nextRootItem?.appointmentDate || "").trim();
+              for (const seriesItem of remainingSeriesItems) {
+                await updateAppointmentScheduleByIdWithRepeatMeta({
+                  organizationId: access.authContext.organizationId,
+                  actorUserId: access.authContext.userId,
+                  id: seriesItem.id,
+                  specialistId: seriesItem.specialistId,
+                  clientId: seriesItem.clientId,
+                  appointmentDate: seriesItem.appointmentDate,
+                  startTime: seriesItem.startTime,
+                  endTime: seriesItem.endTime,
+                  durationMinutes: seriesItem.durationMinutes,
+                  serviceName: seriesItem.serviceName,
+                  status: seriesItem.status,
+                  note: seriesItem.note,
+                  repeatGroupKey: String(target.repeatGroupKey || "").trim(),
+                  repeatUntilDate: String(target.repeatUntilDate || "").trim(),
+                  repeatDays: nextRepeatDayNums,
+                  repeatAnchorDate: nextRepeatAnchorDate,
+                  isRepeatRoot: Number.parseInt(String(seriesItem?.id || ""), 10) === Number.parseInt(String(nextRootItem?.id || ""), 10),
+                  isAutoRollingRepeat: Boolean(target.isAutoRollingRepeat),
+                  db
+                });
+              }
+            }
+
+            return sortScheduleItems(updatedItems);
+          });
+
+          const updatedAnchorItem = items[0] || anchorItem;
+          const scheduleNotification = buildScheduleNotification("edit", items, access?.requester);
+
+          await broadcastAppointmentChange(access, {
+            type: "schedule-updated",
+            message: scheduleNotification.message,
+            specialistIds: [specialistId],
+            data: scheduleNotification.data
+          });
+          schedulesReadCache.clear();
+
+          return reply.send({
+            message: "Appointment updated.",
+            item: updatedAnchorItem,
+            items,
+            summary: {
+              scope: "single",
+              affectedCount: items.length
+            }
+          });
+        }
+
         const shouldReconcileRecurringSeries = repeat.enabled && target.isRecurring && target.scope !== "single";
         if (shouldReconcileRecurringSeries) {
           const repeatError = validateScheduleRepeatPayload(repeat, appointmentDate);

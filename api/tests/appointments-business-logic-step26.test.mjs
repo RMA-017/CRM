@@ -1321,6 +1321,163 @@ test("schedule update splits recurring future edits into a new series and trunca
   assert.equal(reply.state.payload?.summary?.affectedCount, 2);
 });
 
+test("schedule update detaches a single recurring occurrence without deleting the rest of the series", async () => {
+  const detachedCalls = [];
+  const repeatMetaCalls = [];
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      getAppointmentScheduleTargetsByScope: async () => ({
+        anchorId: 91,
+        anchorAppointmentDate: "2026-03-09",
+        repeatGroupKey: "old-group",
+        repeatUntilDate: "2026-03-30",
+        repeatAnchorDate: "2026-03-09",
+        repeatDays: ["mon", "wed", "fri"],
+        isAutoRollingRepeat: false,
+        isRecurring: true,
+        scope: "single",
+        items: [
+          {
+            id: 91,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-09",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "pending",
+            note: "",
+            isRepeatRoot: true,
+            isVip: false
+          }
+        ],
+        seriesItems: [
+          {
+            id: 91,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-09",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "pending",
+            note: "",
+            isRepeatRoot: true,
+            isVip: false
+          },
+          {
+            id: 92,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-11",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "pending",
+            note: "",
+            isRepeatRoot: false,
+            isVip: false
+          },
+          {
+            id: 93,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-13",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "pending",
+            note: "",
+            isRepeatRoot: false,
+            isVip: false
+          }
+        ]
+      }),
+      updateAppointmentSchedulesByIds: async (payload) => {
+        detachedCalls.push(payload);
+        return [{
+          id: "91",
+          specialistId: String(payload.specialistId),
+          clientId: String(payload.clientId),
+          appointmentDate: payload.appointmentDate,
+          startTime: payload.startTime,
+          endTime: payload.endTime
+        }];
+      },
+      updateAppointmentScheduleByIdWithRepeatMeta: async (payload) => {
+        repeatMetaCalls.push(payload);
+        return {
+          id: String(payload.id),
+          specialistId: String(payload.specialistId),
+          clientId: String(payload.clientId),
+          appointmentDate: payload.appointmentDate,
+          startTime: payload.startTime,
+          endTime: payload.endTime
+        };
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "PATCH", "/schedules/:id");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      params: { id: "91" },
+      query: { scope: "single" },
+      body: {
+        specialistId: "7",
+        clientId: "44",
+        appointmentDate: "2026-03-10",
+        startTime: "10:30",
+        endTime: "11:30",
+        durationMinutes: "60",
+        service: "Lesson",
+        status: "pending",
+        note: ""
+      }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 200);
+  assert.equal(detachedCalls.length, 1);
+  assert.equal(detachedCalls[0]?.clearRepeatMeta, true);
+  assert.deepEqual(detachedCalls[0]?.ids, [91]);
+  assert.deepEqual(
+    repeatMetaCalls.map((item) => ({
+      id: item.id,
+      repeatGroupKey: item.repeatGroupKey,
+      repeatAnchorDate: item.repeatAnchorDate,
+      isRepeatRoot: item.isRepeatRoot
+    })),
+    [
+      {
+        id: 92,
+        repeatGroupKey: "old-group",
+        repeatAnchorDate: "2026-03-11",
+        isRepeatRoot: true
+      },
+      {
+        id: 93,
+        repeatGroupKey: "old-group",
+        repeatAnchorDate: "2026-03-11",
+        isRepeatRoot: false
+      }
+    ]
+  );
+  assert.equal(reply.state.payload?.summary?.scope, "single");
+  assert.equal(reply.state.payload?.summary?.affectedCount, 1);
+});
+
 test("schedule create maps client overlap exclusion constraint to a client conflict message", async () => {
   const recorder = createRouteRecorder();
   registerAppointmentScheduleRoutes(
