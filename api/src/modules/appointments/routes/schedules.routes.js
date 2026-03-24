@@ -265,17 +265,30 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
   function inferRepeatDayKeysFromSeriesItems(items) {
     const dayKeys = [];
     for (const item of Array.isArray(items) ? items : []) {
-      const appointmentDate = String(item?.appointmentDate || "").trim();
-      const appointmentUtcDate = parseDateYmdToUtcDate(appointmentDate);
-      if (!appointmentUtcDate) {
-        continue;
-      }
-      const dayKey = String(toDayKeyFromUtcDate(appointmentUtcDate) || "").trim().toLowerCase();
+      const dayKey = getScheduleItemDayKey(item);
       if (dayKey) {
         dayKeys.push(dayKey);
       }
     }
     return normalizeVisibleWeekDays(dayKeys);
+  }
+
+  function getScheduleItemDayKey(item) {
+    const appointmentDate = String(item?.appointmentDate || "").trim();
+    const appointmentUtcDate = parseDateYmdToUtcDate(appointmentDate);
+    if (!appointmentUtcDate) {
+      return "";
+    }
+    return String(toDayKeyFromUtcDate(appointmentUtcDate) || "").trim().toLowerCase();
+  }
+
+  function haveSameNormalizedDayKeys(left, right) {
+    const normalizedLeft = normalizeVisibleWeekDays(Array.isArray(left) ? left : []);
+    const normalizedRight = normalizeVisibleWeekDays(Array.isArray(right) ? right : []);
+    if (normalizedLeft.length !== normalizedRight.length) {
+      return false;
+    }
+    return normalizedLeft.every((dayKey, index) => dayKey === normalizedRight[index]);
   }
 
   async function assertRecurringSeriesUpdateHasNoConflicts({
@@ -2171,6 +2184,251 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               ? target.seriesItems
               : target.items
           );
+          const originalRepeatDayKeys = normalizeVisibleWeekDays(
+            Array.isArray(target.repeatDays) && target.repeatDays.length > 0
+              ? target.repeatDays
+              : inferRepeatDayKeysFromSeriesItems(seriesItems)
+          );
+          const originalRepeatDayNums = originalRepeatDayKeys
+            .map((dayKey) => toAppointmentDayNum(dayKey))
+            .filter((dayNum) => Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 7);
+          const sourceSeriesDayKey = String(
+            toDayKeyFromUtcDate(parseDateYmdToUtcDate(target.anchorAppointmentDate)) || ""
+          ).trim().toLowerCase();
+          const shouldSplitSelectedRecurringDay = (
+            originalRepeatDayKeys.length > 1
+            && Boolean(sourceSeriesDayKey)
+            && !haveSameNormalizedDayKeys(repeatDayKeys, originalRepeatDayKeys)
+          );
+          if (shouldSplitSelectedRecurringDay) {
+            const splitSourceItems = seriesItems.filter((item) => getScheduleItemDayKey(item) === sourceSeriesDayKey);
+            if (splitSourceItems.length > 0) {
+              const scopedSourceItems = target.scope === "all"
+                ? splitSourceItems
+                : splitSourceItems.filter(
+                    (item) => String(item?.appointmentDate || "").trim() >= String(target.anchorAppointmentDate || "").trim()
+                  );
+              const splitRecurringDateSet = new Set(recurringDates);
+              const scopedSourceItemsByDate = buildScheduleItemsByDate(scopedSourceItems);
+              const keptSplitItems = scopedSourceItems.filter(
+                (item) => splitRecurringDateSet.has(String(item?.appointmentDate || "").trim())
+              );
+              const keptSplitDateSet = new Set(
+                keptSplitItems.map((item) => String(item?.appointmentDate || "").trim())
+              );
+              const deletedSplitItems = scopedSourceItems.filter(
+                (item) => !splitRecurringDateSet.has(String(item?.appointmentDate || "").trim())
+              );
+              const createdSplitDates = recurringDates.filter((dateValue) => !keptSplitDateSet.has(dateValue));
+              const remainingRepeatDayKeys = originalRepeatDayKeys.filter((dayKey) => dayKey !== sourceSeriesDayKey);
+              const remainingRepeatDayNums = remainingRepeatDayKeys
+                .map((dayKey) => toAppointmentDayNum(dayKey))
+                .filter((dayNum) => Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 7);
+              const previousSeriesItems = target.scope === "future"
+                ? seriesItems.filter(
+                    (item) => String(item?.appointmentDate || "").trim() < String(target.anchorAppointmentDate || "").trim()
+                  )
+                : [];
+              const previousRepeatUntilDate = shiftDateYmd(target.anchorAppointmentDate, -1);
+              const remainingContinuationItems = target.scope === "all"
+                ? seriesItems.filter((item) => getScheduleItemDayKey(item) !== sourceSeriesDayKey)
+                : seriesItems.filter(
+                    (item) => (
+                      String(item?.appointmentDate || "").trim() >= String(target.anchorAppointmentDate || "").trim()
+                      && getScheduleItemDayKey(item) !== sourceSeriesDayKey
+                    )
+                  );
+              const remainingContinuationGroupKey = remainingContinuationItems.length > 0
+                ? (
+                  target.scope === "all"
+                    ? String(target.repeatGroupKey || "").trim()
+                    : randomUUID()
+                )
+                : "";
+              const remainingContinuationRepeatUntilDate = String(target.repeatUntilDate || "").trim();
+              const remainingContinuationAnchorDate = String(
+                remainingContinuationItems[0]?.appointmentDate || ""
+              ).trim();
+              const splitRepeatGroupKey = randomUUID();
+              const splitRepeatAnchorDate = recurringDates[0];
+
+              const items = await withAppointmentTransaction(async (db) => {
+                await assertRecurringSeriesUpdateHasNoConflicts({
+                  organizationId: access.authContext.organizationId,
+                  appointmentDates: recurringDates,
+                  existingItemsByDate: scopedSourceItemsByDate,
+                  specialistId,
+                  clientId,
+                  startTime,
+                  endTime,
+                  status,
+                  db
+                });
+
+                if (deletedSplitItems.length > 0) {
+                  await deleteAppointmentSchedulesByIds({
+                    organizationId: access.authContext.organizationId,
+                    ids: deletedSplitItems.map((item) => item.id),
+                    actorUserId: access.authContext.userId,
+                    db
+                  });
+                }
+
+                if (previousSeriesItems.length > 0 && previousRepeatUntilDate) {
+                  const previousRepeatAnchorDate = String(previousSeriesItems[0]?.appointmentDate || "").trim();
+                  for (const previousItem of previousSeriesItems) {
+                    await updateAppointmentScheduleByIdWithRepeatMeta({
+                      organizationId: access.authContext.organizationId,
+                      actorUserId: access.authContext.userId,
+                      id: previousItem.id,
+                      specialistId: previousItem.specialistId,
+                      clientId: previousItem.clientId,
+                      appointmentDate: previousItem.appointmentDate,
+                      startTime: previousItem.startTime,
+                      endTime: previousItem.endTime,
+                      durationMinutes: previousItem.durationMinutes,
+                      serviceName: previousItem.serviceName,
+                      status: previousItem.status,
+                      note: previousItem.note,
+                      repeatGroupKey: String(target.repeatGroupKey || "").trim(),
+                      repeatUntilDate: previousRepeatUntilDate,
+                      repeatDays: originalRepeatDayNums,
+                      repeatAnchorDate: previousRepeatAnchorDate,
+                      isRepeatRoot: String(previousItem?.appointmentDate || "").trim() === previousRepeatAnchorDate,
+                      isAutoRollingRepeat: false,
+                      db
+                    });
+                  }
+                }
+
+                if (
+                  remainingContinuationItems.length > 0
+                  && remainingRepeatDayNums.length > 0
+                  && remainingContinuationGroupKey
+                  && remainingContinuationAnchorDate
+                  && remainingContinuationRepeatUntilDate
+                ) {
+                  for (const remainingItem of remainingContinuationItems) {
+                    await updateAppointmentScheduleByIdWithRepeatMeta({
+                      organizationId: access.authContext.organizationId,
+                      actorUserId: access.authContext.userId,
+                      id: remainingItem.id,
+                      specialistId: remainingItem.specialistId,
+                      clientId: remainingItem.clientId,
+                      appointmentDate: remainingItem.appointmentDate,
+                      startTime: remainingItem.startTime,
+                      endTime: remainingItem.endTime,
+                      durationMinutes: remainingItem.durationMinutes,
+                      serviceName: remainingItem.serviceName,
+                      status: remainingItem.status,
+                      note: remainingItem.note,
+                      repeatGroupKey: remainingContinuationGroupKey,
+                      repeatUntilDate: remainingContinuationRepeatUntilDate,
+                      repeatDays: remainingRepeatDayNums,
+                      repeatAnchorDate: remainingContinuationAnchorDate,
+                      isRepeatRoot: String(remainingItem?.appointmentDate || "").trim() === remainingContinuationAnchorDate,
+                      isAutoRollingRepeat: Boolean(target.isAutoRollingRepeat),
+                      db
+                    });
+                  }
+                }
+
+                const nextItems = [];
+                for (const keptSplitItem of keptSplitItems) {
+                  const updatedItem = await updateAppointmentScheduleByIdWithRepeatMeta({
+                    organizationId: access.authContext.organizationId,
+                    actorUserId: access.authContext.userId,
+                    id: keptSplitItem.id,
+                    specialistId,
+                    clientId,
+                    appointmentDate: keptSplitItem.appointmentDate,
+                    startTime,
+                    endTime,
+                    durationMinutes,
+                    serviceName,
+                    status,
+                    note,
+                    repeatGroupKey: splitRepeatGroupKey,
+                    repeatUntilDate: repeat.untilDate,
+                    repeatDays: repeatDayNums,
+                    repeatAnchorDate: splitRepeatAnchorDate,
+                    isRepeatRoot: String(keptSplitItem?.appointmentDate || "").trim() === splitRepeatAnchorDate,
+                    isAutoRollingRepeat: repeat.autoRolling === true,
+                    db
+                  });
+                  if (updatedItem) {
+                    nextItems.push(updatedItem);
+                  }
+                }
+
+                for (const recurringDate of createdSplitDates) {
+                  const createdItem = await createAppointmentSchedule({
+                    organizationId: access.authContext.organizationId,
+                    actorUserId: access.authContext.userId,
+                    specialistId,
+                    clientId,
+                    appointmentDate: recurringDate,
+                    startTime,
+                    endTime,
+                    durationMinutes,
+                    serviceName,
+                    status,
+                    note,
+                    repeatGroupKey: splitRepeatGroupKey,
+                    repeatType: "weekly",
+                    repeatUntilDate: repeat.untilDate,
+                    repeatDays: repeatDayNums,
+                    repeatAnchorDate: splitRepeatAnchorDate,
+                    isRepeatRoot: recurringDate === splitRepeatAnchorDate,
+                    isAutoRollingRepeat: repeat.autoRolling === true,
+                    db
+                  });
+                  if (createdItem) {
+                    nextItems.push(createdItem);
+                  }
+                }
+
+                return sortScheduleItems(nextItems);
+              });
+
+              if (!Array.isArray(items) || items.length === 0) {
+                return reply.status(404).send({ message: "Appointment not found." });
+              }
+
+              const anchorItem = items.find(
+                (item) => String(item?.appointmentDate || "").trim() === String(target.anchorAppointmentDate || "").trim()
+              ) || items[0];
+              const affectedCount = items.length;
+              const scheduleNotification = buildScheduleNotification("edit", items, access?.requester);
+              const specialistIds = Array.from(
+                new Set(
+                  [
+                    specialistId,
+                    ...seriesItems.map((item) => Number.parseInt(String(item?.specialistId || ""), 10))
+                  ].filter((value) => Number.isInteger(value) && value > 0)
+                )
+              );
+
+              await broadcastAppointmentChange(access, {
+                type: "schedule-updated",
+                message: scheduleNotification.message,
+                specialistIds,
+                data: scheduleNotification.data
+              });
+              schedulesReadCache.clear();
+
+              return reply.send({
+                message: `${affectedCount} appointments updated.`,
+                item: anchorItem,
+                items,
+                summary: {
+                  scope: target.scope,
+                  affectedCount
+                }
+              });
+            }
+          }
+
           const scopedItems = sortScheduleItems(target.items);
           const scopedItemsByDate = buildScheduleItemsByDate(scopedItems);
           const recurringDateSet = new Set(recurringDates);
@@ -2185,14 +2443,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           const previousSeriesItems = target.scope === "future"
             ? seriesItems.filter((item) => String(item?.appointmentDate || "").trim() < String(target.anchorAppointmentDate || "").trim())
             : [];
-          const previousRepeatDayKeys = normalizeVisibleWeekDays(
-            Array.isArray(target.repeatDays) && target.repeatDays.length > 0
-              ? target.repeatDays
-              : inferRepeatDayKeysFromSeriesItems(seriesItems)
-          );
-          const previousRepeatDayNums = previousRepeatDayKeys
-            .map((dayKey) => toAppointmentDayNum(dayKey))
-            .filter((dayNum) => Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 7);
+          const previousRepeatDayNums = originalRepeatDayNums;
           const previousRepeatUntilDate = shiftDateYmd(target.anchorAppointmentDate, -1);
 
           const items = await withAppointmentTransaction(async (db) => {
@@ -2368,9 +2619,26 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               dayNums: collectDayNumsFromDates(validationDates)
             })
           );
+          const blockedRangesByDay = buildWorkScheduleBlockRangesByDay(settingsForAvailability?.blockedTimes);
 
           for (const item of target.items) {
             const conflictDate = applyAppointmentDate ? appointmentDate : item.appointmentDate;
+            const previousStatus = String(item?.status || "").trim().toLowerCase();
+            const wasPreviouslyActive = previousStatus === "pending" || previousStatus === "confirmed";
+            const previousDurationMinutes = Number.parseInt(String(item?.durationMinutes || "").trim(), 10)
+              || getDurationMinutesFromTimes(item?.startTime, item?.endTime);
+            const scheduleChanged = (
+              Number.parseInt(String(item?.specialistId || ""), 10) !== specialistId
+              || Number.parseInt(String(item?.clientId || ""), 10) !== clientId
+              || (applyAppointmentDate && String(item?.appointmentDate || "").trim() !== appointmentDate)
+              || String(item?.startTime || "").trim() !== startTime
+              || String(item?.endTime || "").trim() !== endTime
+              || previousDurationMinutes !== durationMinutes
+            );
+            if (!scheduleChanged && wasPreviouslyActive) {
+              continue;
+            }
+
             const absenceConflict = hasSpecialistAbsenceConflict({
               absenceRangesByDate,
               appointmentDate: conflictDate,
@@ -2399,7 +2667,6 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               return reply.status(400).send(workingHoursError);
             }
 
-            const blockedRangesByDay = buildWorkScheduleBlockRangesByDay(settingsForAvailability?.blockedTimes);
             const blockedConflict = hasSpecialistWorkScheduleConflict({
               blockedRangesByDay,
               appointmentDate: conflictDate,

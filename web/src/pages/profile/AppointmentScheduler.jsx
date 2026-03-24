@@ -1749,7 +1749,8 @@ function AppointmentScheduler({
     date: null,
     time: "",
     repeatType: "none",
-    repeatGroupKey: ""
+    repeatGroupKey: "",
+    originalRepeatDays: []
   });
   const [createForm, setCreateForm] = useState(createEmptyClientForm);
   const [createErrors, setCreateErrors] = useState({});
@@ -2687,6 +2688,15 @@ function AppointmentScheduler({
     : "single";
   const canEditRecurringSeriesPattern = !isEditRecurring || normalizedEditScope !== "single";
   const shouldLockEditDate = isEditRecurring && normalizedEditScope !== "single";
+  const originalRecurringEditRepeatDays = Array.isArray(createModal.originalRepeatDays)
+    ? Array.from(
+        new Set(
+          createModal.originalRepeatDays
+            .map((day) => String(day || "").trim().toLowerCase())
+            .filter((day) => DAY_KEYS_SET.has(day))
+        )
+      )
+    : [];
   const lockedVipServiceName = String(selectedSpecialistServiceName || "").trim() || "Specialist";
   const isVipServiceLocked = Boolean(vipOnly);
   const isVipAutoRollingRepeat = Boolean(vipOnly || clientVipOnly);
@@ -2694,6 +2704,47 @@ function AppointmentScheduler({
   const unlockedRepeatUntilRef = useRef(String(createForm.repeatUntil || "").trim());
   const activeRepeatUntilSnapshotRef = useRef("");
   const wasVipServiceLockedRef = useRef(isVipServiceLocked);
+  useEffect(() => {
+    if (!createModal.open || !isEditRecurring || normalizedEditScope === "single") {
+      return;
+    }
+    const sourceDayKey = String(createModal.dayKey || "").trim().toLowerCase();
+    if (!DAY_KEYS_SET.has(sourceDayKey) || originalRecurringEditRepeatDays.length <= 1) {
+      return;
+    }
+
+    setCreateForm((prev) => {
+      const currentDays = Array.isArray(prev.repeatDays)
+        ? Array.from(
+            new Set(
+              prev.repeatDays
+                .map((day) => String(day || "").trim().toLowerCase())
+                .filter((day) => DAY_KEYS_SET.has(day))
+            )
+          )
+        : [];
+      const stillMatchesOriginal = (
+        currentDays.length === originalRecurringEditRepeatDays.length
+        && currentDays.every((day, index) => day === originalRecurringEditRepeatDays[index])
+      );
+      if (!stillMatchesOriginal) {
+        return prev;
+      }
+      if (currentDays.length === 1 && currentDays[0] === sourceDayKey) {
+        return prev;
+      }
+      return {
+        ...prev,
+        repeatDays: [sourceDayKey]
+      };
+    });
+  }, [
+    createModal.dayKey,
+    createModal.open,
+    isEditRecurring,
+    normalizedEditScope,
+    originalRecurringEditRepeatDays
+  ]);
   useEffect(() => {
     if (!createModal.open || isEditRecurring) {
       activeRepeatUntilSnapshotRef.current = "";
@@ -3609,7 +3660,8 @@ function AppointmentScheduler({
       date: null,
       time: "",
       repeatType: "none",
-      repeatGroupKey: ""
+      repeatGroupKey: "",
+      originalRepeatDays: []
     });
     setCreateForm(createEmptyClientForm());
     setCreateErrors({});
@@ -3732,18 +3784,6 @@ function AppointmentScheduler({
       });
     }
 
-    setCreateModal({
-      open: true,
-      mode: existingItem ? "edit" : "create",
-      appointmentId: String(existingItem?.id || ""),
-      specialistId: isClientFocusedCreateContext ? preferredCreateSpecialistId : slotSpecialistId,
-      dayKey: day.key,
-      dayLabel: day.label,
-      date: day.date,
-      time: slot,
-      repeatType: String(existingItem?.repeatType || "none").trim().toLowerCase(),
-      repeatGroupKey: String(existingItem?.repeatGroupKey || "").trim()
-    });
     const isExistingRecurring = Boolean(
       String(existingItem?.repeatType || "").trim().toLowerCase() === "weekly"
       && String(existingItem?.repeatGroupKey || "").trim()
@@ -3757,6 +3797,19 @@ function AppointmentScheduler({
           )
         )
       : [];
+    setCreateModal({
+      open: true,
+      mode: existingItem ? "edit" : "create",
+      appointmentId: String(existingItem?.id || ""),
+      specialistId: isClientFocusedCreateContext ? preferredCreateSpecialistId : slotSpecialistId,
+      dayKey: day.key,
+      dayLabel: day.label,
+      date: day.date,
+      time: slot,
+      repeatType: String(existingItem?.repeatType || "none").trim().toLowerCase(),
+      repeatGroupKey: String(existingItem?.repeatGroupKey || "").trim(),
+      originalRepeatDays: existingRepeatDays
+    });
     if (existingItem) {
       setCreateForm({
         clientId: preselectedClientId,
