@@ -5435,9 +5435,10 @@ function AppointmentScheduler({
                           checked={isFutureRecurringEditScope}
                           disabled={createSubmitting || createDeleting}
                           onChange={(event) => {
+                            const checked = event.currentTarget.checked;
                             setCreateForm((prev) => ({
                               ...prev,
-                              editScope: event.currentTarget.checked ? "future" : "single"
+                              editScope: checked ? "future" : "single"
                             }));
                           }}
                         />
