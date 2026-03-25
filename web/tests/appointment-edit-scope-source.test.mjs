@@ -7,7 +7,7 @@ test("recurring appointment edit scope uses an inline Next checkbox instead of a
 
   assert.match(
     source,
-    /id="appointmentEditScopeFuture"[\s\S]*type="checkbox"[\s\S]*checked=\{isFutureRecurringEditScope\}[\s\S]*const checked = event\.currentTarget\.checked;[\s\S]*editScope: checked \? "future" : "single"/s,
+    /id="appointmentEditScopeFuture"[\s\S]*type="checkbox"[\s\S]*checked=\{isFutureRecurringEditScope\}[\s\S]*const checked = event\.currentTarget\.checked;[\s\S]*editScope: checked \? "future" : "single"[\s\S]*repeatDays:/s,
     "Recurring appointment edits should use the inline Next checkbox to switch between single and future scopes."
   );
 });

@@ -73,6 +73,18 @@ function normalizeEditScopeValue(value) {
   return String(value || "").trim().toLowerCase() === "future" ? "future" : "single";
 }
 
+function normalizeRepeatDayKeys(value) {
+  return Array.isArray(value)
+    ? Array.from(
+        new Set(
+          value
+            .map((day) => String(day || "").trim().toLowerCase())
+            .filter((day) => DAY_KEYS_SET.has(day))
+        )
+      )
+    : [];
+}
+
 function normalizeBreakTypeKey(value) {
   const normalizedType = String(value || "").trim().toLowerCase();
   if (normalizedType === "launch") {
@@ -2856,63 +2868,26 @@ function AppointmentScheduler({
   const showRecurringEditNextToggle = createModal.mode === "edit" && isEditRecurring;
   const canEditRecurringSeriesPattern = !isEditRecurring || normalizedEditScope !== "single";
   const shouldLockEditDate = isEditRecurring && normalizedEditScope !== "single";
-  const originalRecurringEditRepeatDays = Array.isArray(createModal.originalRepeatDays)
-    ? Array.from(
-        new Set(
-          createModal.originalRepeatDays
-            .map((day) => String(day || "").trim().toLowerCase())
-            .filter((day) => DAY_KEYS_SET.has(day))
-        )
-      )
-    : [];
+  const sourceRecurringEditDayKey = String(createModal.dayKey || "").trim().toLowerCase();
+  const originalRecurringEditRepeatDays = normalizeRepeatDayKeys(createModal.originalRepeatDays);
+  const displayedRepeatDayKeys = useMemo(() => {
+    const normalizedFormRepeatDays = normalizeRepeatDayKeys(createForm.repeatDays);
+    if (!isEditRecurring || normalizedEditScope !== "single") {
+      return normalizedFormRepeatDays;
+    }
+    if (normalizedFormRepeatDays.length > 0) {
+      return normalizedFormRepeatDays;
+    }
+    return DAY_KEYS_SET.has(sourceRecurringEditDayKey) ? [sourceRecurringEditDayKey] : normalizedFormRepeatDays;
+  }, [createForm.repeatDays, isEditRecurring, normalizedEditScope, sourceRecurringEditDayKey]);
   const lockedVipServiceName = String(selectedSpecialistServiceName || "").trim() || "Specialist";
   const isVipServiceLocked = Boolean(vipOnly);
   const isVipAutoRollingRepeat = Boolean(vipOnly || clientVipOnly);
+  const isVipAutoRollingRepeatToggleLocked = Boolean(vipOnly || (isEditMode && clientVipOnly));
   const unlockedServiceNameRef = useRef(String(createForm.service || "").trim());
   const unlockedRepeatUntilRef = useRef(String(createForm.repeatUntil || "").trim());
   const activeRepeatUntilSnapshotRef = useRef("");
   const wasVipServiceLockedRef = useRef(isVipServiceLocked);
-  useEffect(() => {
-    if (!createModal.open || !isEditRecurring || normalizedEditScope === "single") {
-      return;
-    }
-    const sourceDayKey = String(createModal.dayKey || "").trim().toLowerCase();
-    if (!DAY_KEYS_SET.has(sourceDayKey) || originalRecurringEditRepeatDays.length <= 1) {
-      return;
-    }
-
-    setCreateForm((prev) => {
-      const currentDays = Array.isArray(prev.repeatDays)
-        ? Array.from(
-            new Set(
-              prev.repeatDays
-                .map((day) => String(day || "").trim().toLowerCase())
-                .filter((day) => DAY_KEYS_SET.has(day))
-            )
-          )
-        : [];
-      const stillMatchesOriginal = (
-        currentDays.length === originalRecurringEditRepeatDays.length
-        && currentDays.every((day, index) => day === originalRecurringEditRepeatDays[index])
-      );
-      if (!stillMatchesOriginal) {
-        return prev;
-      }
-      if (currentDays.length === 1 && currentDays[0] === sourceDayKey) {
-        return prev;
-      }
-      return {
-        ...prev,
-        repeatDays: [sourceDayKey]
-      };
-    });
-  }, [
-    createModal.dayKey,
-    createModal.open,
-    isEditRecurring,
-    normalizedEditScope,
-    originalRecurringEditRepeatDays
-  ]);
   useEffect(() => {
     if (!createModal.open || isEditRecurring) {
       activeRepeatUntilSnapshotRef.current = "";
@@ -4084,6 +4059,14 @@ function AppointmentScheduler({
           )
         )
       : [];
+    const sourceEditDayKey = String(day.key || "").trim().toLowerCase();
+    const defaultRecurringEditDayKeys = (
+      isExistingRecurring
+      && DAY_KEYS_SET.has(sourceEditDayKey)
+      && existingRepeatDays.includes(sourceEditDayKey)
+    )
+      ? [sourceEditDayKey]
+      : (existingRepeatDays.length > 0 ? [existingRepeatDays[0]] : []);
     setCreateModal({
       open: true,
       mode: existingItem ? "edit" : "create",
@@ -4111,7 +4094,7 @@ function AppointmentScheduler({
         repeatUntil: isExistingRecurring
           ? String(existingItem?.repeatUntilDate || appointmentDate || "").trim()
           : appointmentDate,
-        repeatDays: isExistingRecurring ? existingRepeatDays : []
+        repeatDays: isExistingRecurring ? defaultRecurringEditDayKeys : []
       });
     } else {
       const defaultRepeatUntil = recurringOnly
@@ -4441,7 +4424,10 @@ function AppointmentScheduler({
       const errors = validateCreateForm(nextPayload, {
         isEditMode,
         allowRepeatValidationInEdit,
-        requireRepeat: (recurringOnly && !isEditMode) || (isEditRecurring && nextPayload.editScope !== "single")
+        requireRepeat: (
+          (!isEditMode && (recurringOnly || isVipAutoRollingRepeat))
+          || (isEditRecurring && nextPayload.editScope !== "single")
+        )
       });
       if (Object.keys(errors).length > 0) {
         setCreateErrors(errors);
@@ -4632,9 +4618,19 @@ function AppointmentScheduler({
         };
       }
 
-      const requestUrl = isEditMode
-        ? `/api/appointments/schedules/${encodeURIComponent(String(createModal.appointmentId || ""))}?scope=${encodeURIComponent(nextPayload.editScope)}`
-        : "/api/appointments/schedules";
+      let requestUrl = "/api/appointments/schedules";
+      if (isEditMode) {
+        const queryParams = new URLSearchParams({
+          scope: String(nextPayload.editScope || "single")
+        });
+        if (isEditRecurring && nextPayload.editScope === "single") {
+          const singleDayKeys = normalizeRepeatDayKeys([sourceRecurringEditDayKey]);
+          if (singleDayKeys.length > 0) {
+            queryParams.set("dayKeys", singleDayKeys.join(","));
+          }
+        }
+        requestUrl = `/api/appointments/schedules/${encodeURIComponent(String(createModal.appointmentId || ""))}?${queryParams.toString()}`;
+      }
       const requestMethod = isEditMode ? "PATCH" : "POST";
 
       const response = await apiFetch(requestUrl, {
@@ -4702,7 +4698,16 @@ function AppointmentScheduler({
       setCreateErrors({});
 
       const deleteScope = normalizeEditScopeValue(createForm.editScope);
-      const query = new URLSearchParams({ scope: deleteScope }).toString();
+      const queryParams = new URLSearchParams({ scope: deleteScope });
+      if (isEditRecurring && (deleteScope === "future" || deleteScope === "single")) {
+        const deleteDayKeys = deleteScope === "single"
+          ? normalizeRepeatDayKeys([sourceRecurringEditDayKey])
+          : normalizeRepeatDayKeys(createForm.repeatDays);
+        if (deleteDayKeys.length > 0) {
+          queryParams.set("dayKeys", deleteDayKeys.join(","));
+        }
+      }
+      const query = queryParams.toString();
       const response = await apiFetch(`/api/appointments/schedules/${encodeURIComponent(appointmentId)}?${query}`, {
         method: "DELETE"
       });
@@ -5350,7 +5355,7 @@ function AppointmentScheduler({
                           id="appointmentClientVipOnly"
                           type="checkbox"
                           checked={vipOnly || clientVipOnly}
-                          disabled={vipOnly || createSubmitting || createDeleting}
+                          disabled={isVipAutoRollingRepeatToggleLocked || createSubmitting || createDeleting}
                           onChange={(event) => {
                             const checked = event.currentTarget.checked;
                             if (checked) {
@@ -5368,7 +5373,19 @@ function AppointmentScheduler({
                                 if (!nextRepeatUntil) {
                                   return prev;
                                 }
-                                return { ...prev, repeatUntil: nextRepeatUntil };
+                                const normalizedRepeatDays = normalizeRepeatDayKeys(prev.repeatDays);
+                                const sourceRepeatDayKey = getDayKeyFromDateYmd(prev.appointmentDate);
+                                const nextRepeatDays = (
+                                  normalizedRepeatDays.length === 0
+                                  && visibleRepeatDayKeys.includes(sourceRepeatDayKey)
+                                )
+                                  ? [sourceRepeatDayKey]
+                                  : normalizedRepeatDays;
+                                return {
+                                  ...prev,
+                                  repeatUntil: nextRepeatUntil,
+                                  repeatDays: nextRepeatDays
+                                };
                               }
                               activeRepeatUntilSnapshotRef.current = "";
                               if (String(prev.repeatUntil || "").trim() === restoredRepeatUntil) {
@@ -5376,8 +5393,8 @@ function AppointmentScheduler({
                               }
                               return { ...prev, repeatUntil: restoredRepeatUntil };
                             });
-                            if (createErrors.repeatUntil) {
-                              setCreateErrors((prev) => ({ ...prev, repeatUntil: "" }));
+                            if (createErrors.repeatUntil || createErrors.repeatDays) {
+                              setCreateErrors((prev) => ({ ...prev, repeatUntil: "", repeatDays: "" }));
                             }
                           }}
                         />
@@ -5438,7 +5455,31 @@ function AppointmentScheduler({
                             const checked = event.currentTarget.checked;
                             setCreateForm((prev) => ({
                               ...prev,
-                              editScope: checked ? "future" : "single"
+                              editScope: checked ? "future" : "single",
+                              repeatDays: (() => {
+                                const currentDays = normalizeRepeatDayKeys(prev.repeatDays);
+                                if (!checked) {
+                                  const nextSingleDayKey = (
+                                    currentDays.find((day) => originalRecurringEditRepeatDays.includes(day))
+                                    || (DAY_KEYS_SET.has(sourceRecurringEditDayKey) ? sourceRecurringEditDayKey : "")
+                                    || currentDays[0]
+                                    || ""
+                                  );
+                                  return nextSingleDayKey ? [nextSingleDayKey] : [];
+                                }
+                                const stillMatchesOriginal = (
+                                  currentDays.length === originalRecurringEditRepeatDays.length
+                                  && currentDays.every((day, index) => day === originalRecurringEditRepeatDays[index])
+                                );
+                                if (
+                                  DAY_KEYS_SET.has(sourceRecurringEditDayKey)
+                                  && originalRecurringEditRepeatDays.length > 1
+                                  && (stillMatchesOriginal || currentDays.length === 0)
+                                ) {
+                                  return [sourceRecurringEditDayKey];
+                                }
+                                return currentDays;
+                              })()
                             }));
                           }}
                         />
@@ -5564,10 +5605,10 @@ function AppointmentScheduler({
                         />
                       </div>
                       <div className="field appointment-repeat-title-field">
-                        <label>Repeat weekly</label>
+                          <label>Repeat weekly</label>
                         <div className="appointment-repeat-days" role="group" aria-label="Repeat weekdays">
                           {visibleRepeatDayItems.map((day) => {
-                            const checked = Array.isArray(createForm.repeatDays) && createForm.repeatDays.includes(day.key);
+                            const checked = displayedRepeatDayKeys.includes(day.key);
                             return (
                               <label
                                 key={day.key}
