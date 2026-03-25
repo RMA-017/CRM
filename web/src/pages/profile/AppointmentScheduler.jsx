@@ -382,6 +382,28 @@ function getEndOfNextWeek(date) {
   return addDays(baseDate, daysToEndNextWeek);
 }
 
+function resolveAutoRollingRepeatUntilForSubmit(appointmentDate = "") {
+  const today = new Date();
+  if (Number.isNaN(today.getTime())) {
+    return String(appointmentDate || "").trim();
+  }
+  today.setHours(0, 0, 0, 0);
+
+  const normalizedAppointmentDate = String(appointmentDate || "").trim();
+  const appointmentBaseDate = isValidDateYmd(normalizedAppointmentDate)
+    ? new Date(`${normalizedAppointmentDate}T00:00:00`)
+    : null;
+  const baseDate = (
+    appointmentBaseDate instanceof Date
+    && !Number.isNaN(appointmentBaseDate.getTime())
+    && appointmentBaseDate > today
+  )
+    ? appointmentBaseDate
+    : today;
+
+  return formatDateYmd(addDays(baseDate, 29));
+}
+
 function formatHeaderDate(date) {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
@@ -4576,10 +4598,17 @@ function AppointmentScheduler({
           && (!isEditMode || !isEditRecurring || nextPayload.editScope !== "single")
         );
       if (shouldSendRepeat) {
+        const repeatUntilForRequest = (
+          isVipAutoRollingRepeat
+          && nextPayload.repeatDays.length > 0
+          && !String(nextPayload.repeatUntil || "").trim()
+        )
+          ? resolveAutoRollingRepeatUntilForSubmit(nextPayload.appointmentDate)
+          : nextPayload.repeatUntil;
         requestPayload.repeat = {
           enabled: true,
           type: "weekly",
-          untilDate: nextPayload.repeatUntil,
+          untilDate: repeatUntilForRequest,
           dayKeys: nextPayload.repeatDays,
           skipConflicts: true,
           autoRolling: isVipAutoRollingRepeat
