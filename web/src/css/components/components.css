@@ -6176,6 +6176,14 @@ label.field > span:first-child,
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.appointment-create-date-time-row-with-next-toggle {
+  grid-template-columns: 64px repeat(3, minmax(0, 1fr));
+}
+
+.appointment-create-date-time-row-with-next-toggle.appointment-create-date-time-row-with-next-toggle-vip {
+  grid-template-columns: 64px repeat(2, minmax(0, 1fr));
+}
+
 .appointment-create-date-time-row .field input,
 .appointment-create-date-time-row .field .custom-select {
   width: 100%;
@@ -6402,10 +6410,24 @@ label.field > span:first-child,
 .appointment-client-search-row .field,
 .appointment-client-select-row .field,
 .appointment-status-note-row .field,
-.appointment-edit-scope-field {
+.appointment-edit-scope-toggle-field {
   margin: 0;
   width: 100%;
   min-width: 0;
+}
+
+.appointment-edit-scope-toggle-field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 5px;
+  min-width: 64px;
+}
+
+.appointment-edit-scope-toggle-field > label:first-child {
+  margin: 0 0 0 5px;
+  line-height: 1.15;
 }
 
 .appointment-create-modal .custom-select,

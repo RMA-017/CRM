@@ -20,12 +20,6 @@ const STATUS_OPTIONS = [
   { value: "no-show", label: "No Show" }
 ];
 
-const EDIT_SCOPE_OPTIONS = [
-  { value: "single", label: "This only" },
-  { value: "future", label: "This and next" },
-  { value: "all", label: "All in series" }
-];
-
 const DAY_KEYS_SET = new Set(DAY_ITEMS.map((item) => item.key));
 const DAY_NUM_TO_KEY = Object.freeze(
   DAY_ITEMS.reduce((acc, item, index) => {
@@ -74,6 +68,10 @@ const VIP_SKEL_ROWS = [
   { c: [1, 0, 0, 1, 0, 1, 0] },
   { c: [0, 1, 1, 0, 0, 1, 0] },
 ];
+
+function normalizeEditScopeValue(value) {
+  return String(value || "").trim().toLowerCase() === "future" ? "future" : "single";
+}
 
 function normalizeBreakTypeKey(value) {
   const normalizedType = String(value || "").trim().toLowerCase();
@@ -2853,9 +2851,9 @@ function AppointmentScheduler({
   const isEditRecurring = isEditMode
     && createModal.repeatType === "weekly"
     && Boolean(String(createModal.repeatGroupKey || "").trim());
-  const normalizedEditScope = EDIT_SCOPE_OPTIONS.some((option) => option.value === createForm.editScope)
-    ? createForm.editScope
-    : "single";
+  const normalizedEditScope = normalizeEditScopeValue(createForm.editScope);
+  const isFutureRecurringEditScope = normalizedEditScope === "future";
+  const showRecurringEditNextToggle = createModal.mode === "edit" && isEditRecurring;
   const canEditRecurringSeriesPattern = !isEditRecurring || normalizedEditScope !== "single";
   const shouldLockEditDate = isEditRecurring && normalizedEditScope !== "single";
   const originalRecurringEditRepeatDays = Array.isArray(createModal.originalRepeatDays)
@@ -4426,9 +4424,7 @@ function AppointmentScheduler({
         service: String(createForm.service || "").trim(),
         status: String(createForm.status || "pending").trim().toLowerCase(),
         note: String(createForm.note || "").trim(),
-        editScope: EDIT_SCOPE_OPTIONS.some((option) => option.value === createForm.editScope)
-          ? createForm.editScope
-          : "single",
+        editScope: normalizeEditScopeValue(createForm.editScope),
         repeatUntil: String(createForm.repeatUntil || "").trim(),
         repeatDays: Array.isArray(createForm.repeatDays)
           ? Array.from(
@@ -4705,9 +4701,7 @@ function AppointmentScheduler({
       setCreateDeleting(true);
       setCreateErrors({});
 
-      const deleteScope = EDIT_SCOPE_OPTIONS.some((option) => option.value === createForm.editScope)
-        ? createForm.editScope
-        : "single";
+      const deleteScope = normalizeEditScopeValue(createForm.editScope);
       const query = new URLSearchParams({ scope: deleteScope }).toString();
       const response = await apiFetch(`/api/appointments/schedules/${encodeURIComponent(appointmentId)}?${query}`, {
         method: "DELETE"
@@ -5426,8 +5420,31 @@ function AppointmentScheduler({
               {/* ── Date / Time / Service ── */}
               <div className="appointment-modal-section">
                 <div
-                  className={`appointment-create-date-time-row${isVipRecurringModal ? " appointment-create-date-time-row-vip" : ""}`}
+                  className={`appointment-create-date-time-row${isVipRecurringModal ? " appointment-create-date-time-row-vip" : ""}${showRecurringEditNextToggle ? " appointment-create-date-time-row-with-next-toggle" : ""}${showRecurringEditNextToggle && isVipRecurringModal ? " appointment-create-date-time-row-with-next-toggle-vip" : ""}`}
                 >
+                  {showRecurringEditNextToggle ? (
+                    <div className="field appointment-edit-scope-toggle-field">
+                      <label htmlFor="appointmentEditScopeFuture">Next</label>
+                      <label
+                        className={`appointment-client-vip-toggle${isFutureRecurringEditScope ? " is-active" : ""}`}
+                        htmlFor="appointmentEditScopeFuture"
+                      >
+                        <input
+                          id="appointmentEditScopeFuture"
+                          type="checkbox"
+                          checked={isFutureRecurringEditScope}
+                          disabled={createSubmitting || createDeleting}
+                          onChange={(event) => {
+                            setCreateForm((prev) => ({
+                              ...prev,
+                              editScope: event.currentTarget.checked ? "future" : "single"
+                            }));
+                          }}
+                        />
+                      </label>
+                    </div>
+                  ) : null}
+
                   {!isVipRecurringModal ? (
                     <div className="field">
                       <label htmlFor="appointmentCreateDate">Date</label>
@@ -5521,30 +5538,6 @@ function AppointmentScheduler({
                   <small className="field-error">{createErrors.service || ""}</small>
                 </div>
               </div>
-
-              {/* ── Edit scope (recurring only) ── */}
-              {createModal.mode === "edit" && isEditRecurring ? (
-                <div className="appointment-modal-section">
-                  <div className="field appointment-edit-scope-field">
-                    <label htmlFor="appointmentEditScope">Apply to</label>
-                    <CustomSelect
-                      id="appointmentEditScope"
-                      placeholder="Select scope"
-                      value={normalizedEditScope}
-                      options={EDIT_SCOPE_OPTIONS}
-                      menuPortal
-                      forceOpenDown={!compactWeekRange}
-                      forceOpenUp={compactWeekRange}
-                      onChange={(nextValue) => {
-                        const nextScope = EDIT_SCOPE_OPTIONS.some((option) => option.value === nextValue)
-                          ? nextValue
-                          : "single";
-                        setCreateForm((prev) => ({ ...prev, editScope: nextScope }));
-                      }}
-                    />
-                  </div>
-                </div>
-              ) : null}
 
               {/* ── Repeat ── */}
               {!isVipRecurringModal ? (

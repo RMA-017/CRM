@@ -232,17 +232,22 @@ test("Appointment scheduler recurring edit restores and submits series repeat se
   );
   assert.match(
     source,
+    /const showRecurringEditNextToggle = createModal\.mode === "edit" && isEditRecurring;[\s\S]*appointment-create-date-time-row-with-next-toggle[\s\S]*id="appointmentEditScopeFuture"/s,
+    "Recurring edit modal should render the Next scope checkbox inline with the date and time row."
+  );
+  assert.match(
+    source,
     /!\s*isVipRecurringModal[\s\S]*appointmentCreateRepeatUntil[\s\S]*disabled=\{!canEditRecurringSeriesPattern \|\| createSubmitting \|\| createDeleting\}/s,
     "Recurring edit modal should keep repeat controls visible while single-scope edits stay read-only."
   );
   assert.match(
     source,
     /const allowRepeatValidationInEdit = isEditMode && \(!isEditRecurring \|\| nextPayload\.editScope !== "single"\);[\s\S]*requireRepeat:\s*\(recurringOnly && !isEditMode\) \|\| \(isEditRecurring && nextPayload\.editScope !== "single"\)/s,
-    "Series edit validation should require repeat fields for future and all-scope updates."
+    "Series edit validation should require repeat fields for future-scope updates."
   );
   assert.match(
     source,
     /const shouldSendRepeat = recurringOnly[\s\S]*nextPayload\.editScope !== "single"/s,
-    "Series edit submit should send repeat payload when future or all-in-series scope is selected."
+    "Series edit submit should send repeat payload when future scope is selected."
   );
 });

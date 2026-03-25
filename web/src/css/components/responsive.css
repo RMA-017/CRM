@@ -315,6 +315,14 @@
     gap: 8px;
   }
 
+  .appointment-create-modal .appointment-create-date-time-row.appointment-create-date-time-row-with-next-toggle {
+    grid-template-columns: 64px repeat(3, minmax(0, 1fr));
+  }
+
+  .appointment-create-modal .appointment-create-date-time-row.appointment-create-date-time-row-with-next-toggle.appointment-create-date-time-row-with-next-toggle-vip {
+    grid-template-columns: 64px repeat(2, minmax(0, 1fr));
+  }
+
   .appointment-create-modal .appointment-client-select-row {
     align-items: stretch;
   }
