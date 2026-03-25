@@ -40,8 +40,6 @@ const MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 12;
 const MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 72;
 const COMPACT_APPOINTMENT_CARD_MAX_HEIGHT_PX = 24;
 const DEFAULT_APPOINTMENT_SERVICE_NAME = "Consultation";
-const VIP_AUTO_ROLLING_REPEAT_WINDOW_DAYS = 30;
-
 const SKEL_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const SKEL_ROWS = [
   { t: true,  c: [0, 1, 0, 0, 0, 0, 0] },
@@ -382,28 +380,6 @@ function getEndOfNextWeek(date) {
   const dayNum = baseDate.getDay();
   const daysToEndNextWeek = ((7 - dayNum) % 7) + 7;
   return addDays(baseDate, daysToEndNextWeek);
-}
-
-function getVipAutoRollingRepeatUntil(appointmentDate = "") {
-  const today = new Date();
-  if (Number.isNaN(today.getTime())) {
-    return "";
-  }
-  today.setHours(0, 0, 0, 0);
-
-  const normalizedAppointmentDate = String(appointmentDate || "").trim();
-  const appointmentBaseDate = isValidDateYmd(normalizedAppointmentDate)
-    ? new Date(`${normalizedAppointmentDate}T00:00:00`)
-    : null;
-  const baseDate = (
-    appointmentBaseDate instanceof Date
-    && !Number.isNaN(appointmentBaseDate.getTime())
-    && appointmentBaseDate > today
-  )
-    ? appointmentBaseDate
-    : today;
-
-  return formatDateYmd(addDays(baseDate, Math.max(0, VIP_AUTO_ROLLING_REPEAT_WINDOW_DAYS - 1)));
 }
 
 function formatHeaderDate(date) {
@@ -2917,26 +2893,7 @@ function AppointmentScheduler({
   const isVipAutoRollingRepeat = Boolean(vipOnly || clientVipOnly);
   const isVipAutoRollingRepeatToggleLocked = Boolean(vipOnly || (isEditRecurring && clientVipOnly));
   const unlockedServiceNameRef = useRef(String(createForm.service || "").trim());
-  const unlockedRepeatUntilRef = useRef(String(createForm.repeatUntil || "").trim());
-  const activeRepeatUntilSnapshotRef = useRef("");
   const wasVipServiceLockedRef = useRef(isVipServiceLocked);
-  useEffect(() => {
-    if (!createModal.open || isEditRecurring) {
-      activeRepeatUntilSnapshotRef.current = "";
-      return;
-    }
-    unlockedRepeatUntilRef.current = String(createForm.repeatUntil || "").trim();
-  }, [createModal.open, isEditRecurring]);
-  useEffect(() => {
-    if (!createModal.open || isEditRecurring) {
-      activeRepeatUntilSnapshotRef.current = "";
-      return;
-    }
-    if (isVipAutoRollingRepeat) {
-      return;
-    }
-    unlockedRepeatUntilRef.current = String(createForm.repeatUntil || "").trim();
-  }, [createForm.repeatUntil, createModal.open, isEditRecurring, isVipAutoRollingRepeat]);
   useEffect(() => {
     const wasVipServiceLocked = wasVipServiceLockedRef.current;
     wasVipServiceLockedRef.current = isVipServiceLocked;
@@ -2992,27 +2949,6 @@ function AppointmentScheduler({
       setCreateErrors((prev) => ({ ...prev, service: "" }));
     }
   }, [createErrors.service, createModal.open, isVipServiceLocked, lockedVipServiceName]);
-  useEffect(() => {
-    if (!createModal.open || isEditRecurring || !isVipAutoRollingRepeat || String(createForm.repeatUntil || "").trim()) {
-      return;
-    }
-    const nextRepeatUntil = getVipAutoRollingRepeatUntil(createForm.appointmentDate);
-    if (!nextRepeatUntil || nextRepeatUntil === String(createForm.repeatUntil || "").trim()) {
-      return;
-    }
-
-    setCreateForm((prev) => ({ ...prev, repeatUntil: nextRepeatUntil }));
-    if (createErrors.repeatUntil) {
-      setCreateErrors((prev) => ({ ...prev, repeatUntil: "" }));
-    }
-  }, [
-    createErrors.repeatUntil,
-    createForm.appointmentDate,
-    createForm.repeatUntil,
-    createModal.open,
-    isEditRecurring,
-    isVipAutoRollingRepeat
-  ]);
   const selectedVipClassClients = useMemo(() => {
     if (!vipOnly) {
       return [];
@@ -4378,7 +4314,7 @@ function AppointmentScheduler({
       if (requireRepeat && !wantsRepeat) {
         errors.repeatDays = "Select at least one repeat day.";
       }
-      if (wantsRepeat || requireRepeat) {
+      if (wantsRepeat) {
         if (!isValidDateYmd(repeatUntil)) {
           errors.repeatUntil = "Invalid repeat end date.";
         } else if (isValidDateYmd(appointmentDate) && repeatUntil < appointmentDate) {
@@ -5397,43 +5333,9 @@ function AppointmentScheduler({
                           disabled={isVipAutoRollingRepeatToggleLocked || createSubmitting || createDeleting}
                           onChange={(event) => {
                             const checked = event.currentTarget.checked;
-                            if (checked) {
-                              const previousRepeatUntil = String(createForm.repeatUntil || "").trim();
-                              unlockedRepeatUntilRef.current = previousRepeatUntil;
-                              activeRepeatUntilSnapshotRef.current = previousRepeatUntil;
-                            }
-                            const restoredRepeatUntil = String(
-                              activeRepeatUntilSnapshotRef.current || unlockedRepeatUntilRef.current || ""
-                            ).trim();
                             setClientVipOnly(checked);
-                            setCreateForm((prev) => {
-                              if (checked) {
-                                const nextRepeatUntil = getVipAutoRollingRepeatUntil(prev.appointmentDate);
-                                if (!nextRepeatUntil) {
-                                  return prev;
-                                }
-                                const normalizedRepeatDays = normalizeRepeatDayKeys(prev.repeatDays);
-                                const sourceRepeatDayKey = getDayKeyFromDateYmd(prev.appointmentDate);
-                                const nextRepeatDays = (
-                                  normalizedRepeatDays.length === 0
-                                  && visibleRepeatDayKeys.includes(sourceRepeatDayKey)
-                                )
-                                  ? [sourceRepeatDayKey]
-                                  : normalizedRepeatDays;
-                                return {
-                                  ...prev,
-                                  repeatUntil: nextRepeatUntil,
-                                  repeatDays: nextRepeatDays
-                                };
-                              }
-                              activeRepeatUntilSnapshotRef.current = "";
-                              if (String(prev.repeatUntil || "").trim() === restoredRepeatUntil) {
-                                return prev;
-                              }
-                              return { ...prev, repeatUntil: restoredRepeatUntil };
-                            });
-                            if (createErrors.repeatUntil || createErrors.repeatDays) {
-                              setCreateErrors((prev) => ({ ...prev, repeatUntil: "", repeatDays: "" }));
+                            if (!checked && createErrors.repeatDays) {
+                              setCreateErrors((prev) => ({ ...prev, repeatDays: "" }));
                             }
                           }}
                         />
@@ -5525,23 +5427,21 @@ function AppointmentScheduler({
                   {!isVipRecurringModal ? (
                     <div className="field">
                       <label htmlFor="appointmentCreateDate">Date</label>
-                      <input
-                        id="appointmentCreateDate"
-                        type="date"
-                        className={createErrors.appointmentDate ? "input-error" : ""}
+                        <input
+                          id="appointmentCreateDate"
+                          type="date"
+                          className={createErrors.appointmentDate ? "input-error" : ""}
                         value={createForm.appointmentDate}
                         disabled={shouldLockEditDate}
-                        onInput={(event) => {
-                          const nextValue = event.currentTarget.value;
-                          setCreateForm((prev) => {
-                            const nextForm = { ...prev, appointmentDate: nextValue };
-                            const nextMinimumRepeatUntil = isVipAutoRollingRepeat
-                              ? getVipAutoRollingRepeatUntil(nextValue)
-                              : nextValue;
-                            if (!prev.repeatUntil || prev.repeatUntil < nextMinimumRepeatUntil) {
-                              nextForm.repeatUntil = nextMinimumRepeatUntil;
-                            }
-                            return nextForm;
+                          onInput={(event) => {
+                            const nextValue = event.currentTarget.value;
+                            setCreateForm((prev) => {
+                              const nextForm = { ...prev, appointmentDate: nextValue };
+                              const nextMinimumRepeatUntil = nextValue;
+                              if (!prev.repeatUntil || prev.repeatUntil < nextMinimumRepeatUntil) {
+                                nextForm.repeatUntil = nextMinimumRepeatUntil;
+                              }
+                              return nextForm;
                           });
                           if (createErrors.appointmentDate || createErrors.repeatUntil) {
                             setCreateErrors((prev) => ({ ...prev, appointmentDate: "", repeatUntil: "" }));
@@ -5638,8 +5538,9 @@ function AppointmentScheduler({
                             }
                           }}
                         />
+                        <small className="field-error">{createErrors.repeatUntil || ""}</small>
                       </div>
-                      <div className="field appointment-repeat-title-field">
+                      <div className={`field appointment-repeat-title-field${createErrors.repeatDays ? " has-error" : ""}`}>
                           <label>Repeat weekly</label>
                         <div className="appointment-repeat-days" role="group" aria-label="Repeat weekdays">
                           {visibleRepeatDayItems.map((day) => {
@@ -5677,7 +5578,7 @@ function AppointmentScheduler({
                       </div>
                     </div>
 
-                    <small className="field-error">{createErrors.repeatDays || createErrors.repeatUntil || ""}</small>
+                    <small className="field-error">{createErrors.repeatDays || ""}</small>
                   </div>
                 </div>
               ) : null}

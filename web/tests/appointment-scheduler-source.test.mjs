@@ -185,15 +185,15 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
     /<div className="field appointment-repeat-until-field">[\s\S]*appointmentCreateRepeatUntil/s,
     "Planner modal should keep the Repeat Until field visible even when Active auto-repeat is on."
   );
-  assert.match(
+  assert.doesNotMatch(
     source,
-    /if \(checked\) \{[\s\S]*const nextRepeatUntil = getVipAutoRollingRepeatUntil\(prev\.appointmentDate\);[\s\S]*const normalizedRepeatDays = normalizeRepeatDayKeys\(prev\.repeatDays\);[\s\S]*const sourceRepeatDayKey = getDayKeyFromDateYmd\(prev\.appointmentDate\);[\s\S]*repeatUntil: nextRepeatUntil,[\s\S]*repeatDays: nextRepeatDays/s,
-    "Planner modal should auto-fill Repeat Until and seed Repeat weekly from the selected appointment date when Active is turned on."
+    /getVipAutoRollingRepeatUntil|activeRepeatUntilSnapshotRef|unlockedRepeatUntilRef/s,
+    "Planner modal should not auto-fill Repeat Until or seed Repeat weekly when Active is toggled."
   );
   assert.match(
     source,
-    /const nextMinimumRepeatUntil = isVipAutoRollingRepeat\s*\?\s*getVipAutoRollingRepeatUntil\(nextValue\)\s*:\s*nextValue;/s,
-    "Planner modal should keep Repeat Until in sync with later appointment dates while Active is enabled."
+    /const shouldValidateRepeat = !isEditMode \|\| allowRepeatValidationInEdit;[\s\S]*if \(requireRepeat && !wantsRepeat\) \{[\s\S]*errors\.repeatDays = "Select at least one repeat day\.";[\s\S]*if \(wantsRepeat\) \{/s,
+    "Planner modal should treat Active as a Repeat weekly requirement and only validate Repeat Until after weekdays are selected."
   );
   assert.match(
     source,

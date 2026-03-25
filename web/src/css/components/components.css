@@ -6326,6 +6326,10 @@ label.field > span:first-child,
   line-height: normal;
 }
 
+.appointment-repeat-title-field.has-error>label {
+  color: var(--danger);
+}
+
 .appointment-repeat-days {
   display: flex;
   align-items: center;
