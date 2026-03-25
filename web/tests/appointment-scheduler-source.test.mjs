@@ -167,8 +167,8 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /const isVipAutoRollingRepeat = Boolean\(vipOnly \|\| clientVipOnly\);[\s\S]*const isVipAutoRollingRepeatToggleLocked = Boolean\(vipOnly \|\| \(isEditMode && clientVipOnly\)\);[\s\S]*id="appointmentClientVipOnly"[\s\S]*disabled=\{isVipAutoRollingRepeatToggleLocked \|\| createSubmitting \|\| createDeleting\}/s,
-    "Planner modal should keep Active checked but locked when reopening an auto-rolling series in edit mode."
+    /const isVipAutoRollingRepeat = Boolean\(vipOnly \|\| clientVipOnly\);[\s\S]*const isVipAutoRollingRepeatToggleLocked = Boolean\(vipOnly \|\| \(isEditRecurring && clientVipOnly\)\);[\s\S]*id="appointmentClientVipOnly"[\s\S]*disabled=\{isVipAutoRollingRepeatToggleLocked \|\| createSubmitting \|\| createDeleting\}/s,
+    "Planner modal should keep Active checked but locked only when reopening an auto-rolling recurring series."
   );
   assert.doesNotMatch(
     source,
@@ -227,8 +227,8 @@ test("Appointment scheduler recurring edit restores and submits series repeat se
   );
   assert.match(
     source,
-    /const existingRepeatDays = Array\.isArray\(existingItem\?\.repeatDays\)[\s\S]*const sourceEditDayKey = String\(day\.key \|\| ""\)\.trim\(\)\.toLowerCase\(\);[\s\S]*const defaultRecurringEditDayKeys =[\s\S]*repeatEnabled:\s*isExistingRecurring,[\s\S]*repeatUntil:\s*isExistingRecurring[\s\S]*existingItem\?\.repeatUntilDate[\s\S]*repeatDays:\s*isExistingRecurring \? defaultRecurringEditDayKeys : \[\]/s,
-    "Editing an existing recurring appointment should start from the clicked weekday while preserving the original series for scope changes."
+    /const existingRepeatDays = Array\.isArray\(existingItem\?\.repeatDays\)[\s\S]*const defaultRecurringEditDayKeys = isExistingRecurring \? existingRepeatDays : \[\];[\s\S]*repeatEnabled:\s*isExistingRecurring,[\s\S]*repeatUntil:\s*isExistingRecurring[\s\S]*existingItem\?\.repeatUntilDate[\s\S]*repeatDays:\s*isExistingRecurring \? defaultRecurringEditDayKeys : \[\]/s,
+    "Editing an existing recurring appointment should restore the full original repeat-day set in the modal."
   );
   assert.match(
     source,
@@ -237,8 +237,8 @@ test("Appointment scheduler recurring edit restores and submits series repeat se
   );
   assert.match(
     source,
-    /const displayedRepeatDayKeys = useMemo\(\(\) => \{[\s\S]*if \(!isEditRecurring \|\| normalizedEditScope !== "single"\) \{[\s\S]*return normalizedFormRepeatDays;[\s\S]*if \(normalizedFormRepeatDays\.length > 0\) \{[\s\S]*return normalizedFormRepeatDays;[\s\S]*return DAY_KEYS_SET\.has\(sourceRecurringEditDayKey\) \? \[sourceRecurringEditDayKey\] : normalizedFormRepeatDays;[\s\S]*const checked = displayedRepeatDayKeys\.includes\(day\.key\);/s,
-    "Recurring single-scope edits should keep the currently targeted weekday selected and fall back to the source weekday when needed."
+    /const displayedRepeatDayKeys = useMemo\(\(\) => \{[\s\S]*if \(!isEditRecurring \|\| normalizedEditScope !== "single"\) \{[\s\S]*return normalizedFormRepeatDays;[\s\S]*if \(normalizedFormRepeatDays\.length > 0\) \{[\s\S]*return normalizedFormRepeatDays;[\s\S]*return DAY_KEYS_SET\.has\(sourceRecurringEditDayKey\) \? \[sourceRecurringEditDayKey\] : normalizedFormRepeatDays;[\s\S]*const selectedSingleRecurringEditDayKey = useMemo/s,
+    "Recurring single-scope edits should show the full stored series pattern while still tracking a single target weekday."
   );
   assert.match(
     source,
@@ -247,13 +247,13 @@ test("Appointment scheduler recurring edit restores and submits series repeat se
   );
   assert.match(
     source,
-    /const sourceRecurringEditDayKey = String\(createModal\.dayKey \|\| ""\)\.trim\(\)\.toLowerCase\(\);[\s\S]*const originalRecurringEditRepeatDays = normalizeRepeatDayKeys\(createModal\.originalRepeatDays\);[\s\S]*stillMatchesOriginal[\s\S]*originalRecurringEditRepeatDays\.length > 1[\s\S]*return \[sourceRecurringEditDayKey\];/s,
-    "Recurring edits should seed the Next branch from the clicked weekday while keeping single-scope tied to that source day."
+    /const sourceRecurringEditDayKey = String\(createModal\.dayKey \|\| ""\)\.trim\(\)\.toLowerCase\(\);[\s\S]*const originalRecurringEditRepeatDays = normalizeRepeatDayKeys\(createModal\.originalRepeatDays\);[\s\S]*const allowedSingleRecurringEditDayKeys = isEditRecurring && normalizedEditScope === "single"[\s\S]*const selectedSingleRecurringEditDayKey = useMemo[\s\S]*stillMatchesOriginal[\s\S]*originalRecurringEditRepeatDays\.length > 1[\s\S]*return \[sourceRecurringEditDayKey\];/s,
+    "Recurring edits should keep original weekdays available in single scope while still seeding Next from the clicked weekday."
   );
   assert.match(
     source,
-    /appointmentCreateRepeatUntil[\s\S]*disabled=\{!canEditRecurringSeriesPattern \|\| createSubmitting \|\| createDeleting\}[\s\S]*disabled=\{!canEditRecurringSeriesPattern \|\| createSubmitting \|\| createDeleting\}/s,
-    "Recurring edit modal should keep Repeat Until and weekday chips locked in single scope."
+    /appointmentCreateRepeatUntil[\s\S]*disabled=\{!canEditRecurringSeriesPattern \|\| createSubmitting \|\| createDeleting\}[\s\S]*const isDisabledForSingleRecurringEdit = \([\s\S]*allowedSingleRecurringEditDayKeys\.includes\(day\.key\)[\s\S]*normalizedEditScope !== "single"/s,
+    "Recurring edit modal should keep Repeat Until locked in single scope while allowing target selection only from the original series weekdays."
   );
   assert.match(
     source,
@@ -267,17 +267,17 @@ test("Appointment scheduler recurring edit restores and submits series repeat se
   );
   assert.match(
     source,
-    /const deleteScope = normalizeEditScopeValue\(createForm\.editScope\);[\s\S]*if \(isEditRecurring && \(deleteScope === "future" \|\| deleteScope === "single"\)\) \{[\s\S]*const deleteDayKeys = deleteScope === "single"[\s\S]*normalizeRepeatDayKeys\(\[sourceRecurringEditDayKey\]\)[\s\S]*normalizeRepeatDayKeys\(createForm\.repeatDays\)[\s\S]*queryParams\.set\("dayKeys", deleteDayKeys\.join\(","\)\);/s,
+    /const deleteScope = normalizeEditScopeValue\(createForm\.editScope\);[\s\S]*if \(isEditRecurring && \(deleteScope === "future" \|\| deleteScope === "single"\)\) \{[\s\S]*const deleteDayKeys = deleteScope === "single"[\s\S]*normalizeRepeatDayKeys\(\[selectedSingleRecurringEditDayKey\]\)[\s\S]*normalizeRepeatDayKeys\(createForm\.repeatDays\)[\s\S]*queryParams\.set\("dayKeys", deleteDayKeys\.join\(","\)\);/s,
     "Recurring deletes should forward explicit weekday targets for Next scope."
   );
   assert.match(
     source,
-    /if \(isEditRecurring && \(deleteScope === "future" \|\| deleteScope === "single"\)\) \{[\s\S]*deleteScope === "single"[\s\S]*normalizeRepeatDayKeys\(\[sourceRecurringEditDayKey\]\)/s,
-    "Recurring single-scope deletes should target the clicked/source weekday without depending on weekday chip edits."
+    /if \(isEditRecurring && \(deleteScope === "future" \|\| deleteScope === "single"\)\) \{[\s\S]*deleteScope === "single"[\s\S]*normalizeRepeatDayKeys\(\[selectedSingleRecurringEditDayKey\]\)/s,
+    "Recurring single-scope deletes should target the selected weekday within the current series week."
   );
   assert.match(
     source,
-    /if \(isEditMode\) \{[\s\S]*const queryParams = new URLSearchParams\(\{[\s\S]*scope: String\(nextPayload\.editScope \|\| "single"\)[\s\S]*if \(isEditRecurring && nextPayload\.editScope === "single"\) \{[\s\S]*const singleDayKeys = normalizeRepeatDayKeys\(\[sourceRecurringEditDayKey\]\);[\s\S]*queryParams\.set\("dayKeys", singleDayKeys\.join\(","\)\);/s,
-    "Recurring single-scope saves should target the clicked/source weekday without depending on weekday chip edits."
+    /if \(isEditMode\) \{[\s\S]*const queryParams = new URLSearchParams\(\{[\s\S]*scope: String\(nextPayload\.editScope \|\| "single"\)[\s\S]*if \(isEditRecurring && nextPayload\.editScope === "single"\) \{[\s\S]*const singleDayKeys = normalizeRepeatDayKeys\(\[selectedSingleRecurringEditDayKey\]\);[\s\S]*queryParams\.set\("dayKeys", singleDayKeys\.join\(","\)\);/s,
+    "Recurring single-scope saves should target the selected weekday within the current series week."
   );
 });
