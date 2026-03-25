@@ -2298,10 +2298,18 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           const shouldSplitSelectedRecurringDay = (
             originalRepeatDayKeys.length > 1
             && Boolean(sourceSeriesDayKey)
-            && !haveSameNormalizedDayKeys(repeatDayKeys, originalRepeatDayKeys)
+            && repeatDayKeys.length === 1
           );
           if (shouldSplitSelectedRecurringDay) {
-            const splitSourceItems = seriesItems.filter((item) => getScheduleItemDayKey(item) === sourceSeriesDayKey);
+            const movedOriginalDayKeySet = new Set(
+              normalizeVisibleWeekDays([
+                sourceSeriesDayKey,
+                ...originalRepeatDayKeys.filter((dayKey) => repeatDayKeys.includes(dayKey))
+              ])
+            );
+            const splitSourceItems = seriesItems.filter(
+              (item) => movedOriginalDayKeySet.has(getScheduleItemDayKey(item))
+            );
             if (splitSourceItems.length > 0) {
               const scopedSourceItems = target.scope === "all"
                 ? splitSourceItems
@@ -2309,7 +2317,6 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                     (item) => String(item?.appointmentDate || "").trim() >= String(target.anchorAppointmentDate || "").trim()
                   );
               const splitRecurringDateSet = new Set(recurringDates);
-              const scopedSourceItemsByDate = buildScheduleItemsByDate(scopedSourceItems);
               const keptSplitItems = scopedSourceItems.filter(
                 (item) => splitRecurringDateSet.has(String(item?.appointmentDate || "").trim())
               );
@@ -2319,8 +2326,11 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               const deletedSplitItems = scopedSourceItems.filter(
                 (item) => !splitRecurringDateSet.has(String(item?.appointmentDate || "").trim())
               );
+              const scopedSourceItemsByDate = buildScheduleItemsByDate(keptSplitItems);
               const createdSplitDates = recurringDates.filter((dateValue) => !keptSplitDateSet.has(dateValue));
-              const remainingRepeatDayKeys = originalRepeatDayKeys.filter((dayKey) => dayKey !== sourceSeriesDayKey);
+              const remainingRepeatDayKeys = originalRepeatDayKeys.filter(
+                (dayKey) => !movedOriginalDayKeySet.has(dayKey)
+              );
               const remainingRepeatDayNums = remainingRepeatDayKeys
                 .map((dayKey) => toAppointmentDayNum(dayKey))
                 .filter((dayNum) => Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 7);
@@ -2331,11 +2341,11 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                 : [];
               const previousRepeatUntilDate = shiftDateYmd(target.anchorAppointmentDate, -1);
               const remainingContinuationItems = target.scope === "all"
-                ? seriesItems.filter((item) => getScheduleItemDayKey(item) !== sourceSeriesDayKey)
+                ? seriesItems.filter((item) => !movedOriginalDayKeySet.has(getScheduleItemDayKey(item)))
                 : seriesItems.filter(
                     (item) => (
                       String(item?.appointmentDate || "").trim() >= String(target.anchorAppointmentDate || "").trim()
-                      && getScheduleItemDayKey(item) !== sourceSeriesDayKey
+                      && !movedOriginalDayKeySet.has(getScheduleItemDayKey(item))
                     )
                   );
               const remainingContinuationGroupKey = remainingContinuationItems.length > 0

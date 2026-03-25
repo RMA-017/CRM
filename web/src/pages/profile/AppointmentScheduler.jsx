@@ -3194,6 +3194,36 @@ function AppointmentScheduler({
     plannerClientFilterOptions,
     selectedPlannerFilterClient
   ]);
+  const currentVisibleAppointmentsByDay = isClientFocusedMode
+    ? clientFocusedAppointmentsByDay
+    : rawAppointmentsByDay;
+  const inferCurrentSeriesRepeatDayKeys = useCallback((existingItem, fallbackDays = []) => {
+    const normalizedFallbackDays = normalizeRepeatDayKeys(fallbackDays);
+    const repeatGroupKey = String(existingItem?.repeatGroupKey || "").trim();
+    if (!repeatGroupKey) {
+      return normalizedFallbackDays;
+    }
+
+    const specialistId = String(existingItem?.specialistId || "").trim();
+    const clientId = String(existingItem?.clientId || "").trim();
+    const currentSeriesDayKeys = normalizeRepeatDayKeys(
+      weekDays
+        .filter((day) => {
+          const dayItems = Array.isArray(currentVisibleAppointmentsByDay?.[day.key])
+            ? currentVisibleAppointmentsByDay[day.key]
+            : [];
+          return dayItems.some((item) => (
+            String(item?.repeatGroupKey || "").trim() === repeatGroupKey
+            && String(item?.repeatType || "").trim().toLowerCase() === "weekly"
+            && String(item?.specialistId || "").trim() === specialistId
+            && String(item?.clientId || "").trim() === clientId
+          ));
+        })
+        .map((day) => day.key)
+    );
+
+    return currentSeriesDayKeys.length > 0 ? currentSeriesDayKeys : normalizedFallbackDays;
+  }, [currentVisibleAppointmentsByDay, weekDays]);
   const clientFocusedPlannerAriaLabel = useMemo(() => {
     const clientLabel = String(clientFocusedSelectedClientLabel || "").trim();
     return clientLabel ? `${clientLabel} weekly schedule table` : "Client weekly schedule table";
@@ -4040,16 +4070,10 @@ function AppointmentScheduler({
       String(existingItem?.repeatType || "").trim().toLowerCase() === "weekly"
       && String(existingItem?.repeatGroupKey || "").trim()
     );
-    const existingRepeatDays = Array.isArray(existingItem?.repeatDays)
-      ? Array.from(
-          new Set(
-            existingItem.repeatDays
-              .map((repeatDay) => String(repeatDay || "").trim().toLowerCase())
-              .filter((repeatDay) => DAY_KEYS_SET.has(repeatDay))
-          )
-        )
-      : [];
-    const sourceEditDayKey = String(day.key || "").trim().toLowerCase();
+    const existingRepeatDays = inferCurrentSeriesRepeatDayKeys(
+      existingItem,
+      Array.isArray(existingItem?.repeatDays) ? existingItem.repeatDays : []
+    );
     const defaultRecurringEditDayKeys = isExistingRecurring ? existingRepeatDays : [];
     setCreateModal({
       open: true,

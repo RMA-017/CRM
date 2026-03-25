@@ -227,8 +227,8 @@ test("Appointment scheduler recurring edit restores and submits series repeat se
   );
   assert.match(
     source,
-    /const existingRepeatDays = Array\.isArray\(existingItem\?\.repeatDays\)[\s\S]*const defaultRecurringEditDayKeys = isExistingRecurring \? existingRepeatDays : \[\];[\s\S]*repeatEnabled:\s*isExistingRecurring,[\s\S]*repeatUntil:\s*isExistingRecurring[\s\S]*existingItem\?\.repeatUntilDate[\s\S]*repeatDays:\s*isExistingRecurring \? defaultRecurringEditDayKeys : \[\]/s,
-    "Editing an existing recurring appointment should restore the full original repeat-day set in the modal."
+    /const inferCurrentSeriesRepeatDayKeys = useCallback\(\(existingItem, fallbackDays = \[\]\) => \{[\s\S]*const existingRepeatDays = inferCurrentSeriesRepeatDayKeys\([\s\S]*existingItem\?\.repeatDays[\s\S]*const defaultRecurringEditDayKeys = isExistingRecurring \? existingRepeatDays : \[\];[\s\S]*repeatEnabled:\s*isExistingRecurring,[\s\S]*repeatUntil:\s*isExistingRecurring[\s\S]*existingItem\?\.repeatUntilDate[\s\S]*repeatDays:\s*isExistingRecurring \? defaultRecurringEditDayKeys : \[\]/s,
+    "Editing an existing recurring appointment should restore the current series weekdays in the modal."
   );
   assert.match(
     source,

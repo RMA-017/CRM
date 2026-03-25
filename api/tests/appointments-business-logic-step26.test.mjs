@@ -2448,6 +2448,140 @@ test("schedule update future scope keeps non-selected weekdays unchanged even wh
   );
 });
 
+test("schedule update future scope with multiple selected weekdays reuses existing dates without creating duplicates", async () => {
+  const deletedIds = [];
+  const updateCalls = [];
+  const createCalls = [];
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      randomUUID: () => "77777777-7777-7777-7777-777777777777",
+      parseDateYmdToUtcDate: (value) => new Date(`${String(value || "").trim()}T00:00:00.000Z`),
+      toDayKeyFromUtcDate: (value) => ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][value.getUTCDay()] || "",
+      toAppointmentDayNum: (value) => ({
+        mon: 1,
+        tue: 2,
+        wed: 3,
+        thu: 4,
+        fri: 5,
+        sat: 6,
+        sun: 7
+      }[String(value || "").trim().toLowerCase()] || 0),
+      buildWeeklyRecurringDates: () => ["2026-03-16", "2026-03-18", "2026-03-23", "2026-03-25"],
+      getAppointmentScheduleTargetsByScope: async () => ({
+        anchorId: 92,
+        anchorAppointmentDate: "2026-03-16",
+        repeatGroupKey: "old-group",
+        repeatUntilDate: "2026-03-30",
+        repeatAnchorDate: "2026-03-09",
+        repeatDays: ["mon", "wed", "fri"],
+        isAutoRollingRepeat: false,
+        isRecurring: true,
+        scope: "future",
+        items: [
+          { id: 92, specialistId: 7, clientId: 44, appointmentDate: "2026-03-16", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false },
+          { id: 96, specialistId: 7, clientId: 44, appointmentDate: "2026-03-18", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false },
+          { id: 97, specialistId: 7, clientId: 44, appointmentDate: "2026-03-20", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false },
+          { id: 95, specialistId: 7, clientId: 44, appointmentDate: "2026-03-23", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false },
+          { id: 98, specialistId: 7, clientId: 44, appointmentDate: "2026-03-25", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false },
+          { id: 99, specialistId: 7, clientId: 44, appointmentDate: "2026-03-27", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false }
+        ],
+        seriesItems: [
+          { id: 91, specialistId: 7, clientId: 44, appointmentDate: "2026-03-09", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false },
+          { id: 93, specialistId: 7, clientId: 44, appointmentDate: "2026-03-11", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false },
+          { id: 94, specialistId: 7, clientId: 44, appointmentDate: "2026-03-13", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false },
+          { id: 92, specialistId: 7, clientId: 44, appointmentDate: "2026-03-16", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false },
+          { id: 96, specialistId: 7, clientId: 44, appointmentDate: "2026-03-18", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false },
+          { id: 97, specialistId: 7, clientId: 44, appointmentDate: "2026-03-20", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false },
+          { id: 95, specialistId: 7, clientId: 44, appointmentDate: "2026-03-23", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false },
+          { id: 98, specialistId: 7, clientId: 44, appointmentDate: "2026-03-25", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false },
+          { id: 99, specialistId: 7, clientId: 44, appointmentDate: "2026-03-27", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false }
+        ]
+      }),
+      updateAppointmentScheduleByIdWithRepeatMeta: async (payload) => {
+        updateCalls.push(payload);
+        return {
+          id: String(payload.id),
+          specialistId: String(payload.specialistId),
+          clientId: String(payload.clientId),
+          appointmentDate: payload.appointmentDate,
+          startTime: payload.startTime,
+          endTime: payload.endTime
+        };
+      },
+      createAppointmentSchedule: async (payload) => {
+        createCalls.push(payload);
+        return {
+          id: 1200 + createCalls.length,
+          specialistId: String(payload.specialistId),
+          clientId: String(payload.clientId),
+          appointmentDate: payload.appointmentDate,
+          startTime: payload.startTime,
+          endTime: payload.endTime
+        };
+      },
+      deleteAppointmentSchedulesByIds: async ({ ids }) => {
+        deletedIds.push(...ids);
+        return ids.length;
+      },
+      updateAppointmentSchedulesByIds: async () => {
+        throw new Error("Multi-day future edits must not fall back to the generic bulk update helper.");
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "PATCH", "/schedules/:id");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      params: { id: "92" },
+      query: { scope: "future" },
+      body: {
+        specialistId: "7",
+        clientId: "44",
+        appointmentDate: "2026-03-16",
+        startTime: "10:30",
+        endTime: "11:30",
+        durationMinutes: "60",
+        service: "Lesson",
+        status: "pending",
+        note: "",
+        repeat: {
+          enabled: true,
+          untilDate: "2026-03-30",
+          dayKeys: ["mon", "wed"]
+        }
+      }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 200);
+  assert.deepEqual(deletedIds, [97, 99]);
+  assert.equal(createCalls.length, 0);
+  assert.deepEqual(
+    updateCalls.map((item) => ({
+      id: item.id,
+      startTime: item.startTime,
+      endTime: item.endTime,
+      repeatGroupKey: item.repeatGroupKey
+    })),
+    [
+      { id: 91, startTime: "09:00", endTime: "10:00", repeatGroupKey: "old-group" },
+      { id: 93, startTime: "09:00", endTime: "10:00", repeatGroupKey: "old-group" },
+      { id: 94, startTime: "09:00", endTime: "10:00", repeatGroupKey: "old-group" },
+      { id: 92, startTime: "10:30", endTime: "11:30", repeatGroupKey: "77777777-7777-7777-7777-777777777777" },
+      { id: 96, startTime: "10:30", endTime: "11:30", repeatGroupKey: "77777777-7777-7777-7777-777777777777" },
+      { id: 95, startTime: "10:30", endTime: "11:30", repeatGroupKey: "77777777-7777-7777-7777-777777777777" },
+      { id: 98, startTime: "10:30", endTime: "11:30", repeatGroupKey: "77777777-7777-7777-7777-777777777777" }
+    ]
+  );
+});
+
 test("schedule delete future scope removes only the selected weekday branch from a multi-day recurring series", async () => {
   const deletedIds = [];
   const updateCalls = [];
