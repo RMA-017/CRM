@@ -4272,7 +4272,8 @@ function AppointmentScheduler({
   function validateCreateForm(value, {
     isEditMode = false,
     allowRepeatValidationInEdit = false,
-    requireRepeat = false
+    requireRepeat = false,
+    allowAutoRollingRepeatUntilFallback = false
   } = {}) {
     const errors = {};
     const visibleRepeatDayKeySet = new Set(visibleRepeatDayKeys);
@@ -4315,6 +4316,10 @@ function AppointmentScheduler({
         errors.repeatDays = "Select at least one repeat day.";
       }
       if (wantsRepeat) {
+        const shouldValidateRepeatUntil = !allowAutoRollingRepeatUntilFallback || String(repeatUntil || "").trim() !== "";
+        if (!shouldValidateRepeatUntil) {
+          return errors;
+        }
         if (!isValidDateYmd(repeatUntil)) {
           errors.repeatUntil = "Invalid repeat end date.";
         } else if (isValidDateYmd(appointmentDate) && repeatUntil < appointmentDate) {
@@ -4386,6 +4391,7 @@ function AppointmentScheduler({
       const errors = validateCreateForm(nextPayload, {
         isEditMode,
         allowRepeatValidationInEdit,
+        allowAutoRollingRepeatUntilFallback: isVipAutoRollingRepeat,
         requireRepeat: (
           (!isEditMode && (recurringOnly || isVipAutoRollingRepeat))
           || (isEditRecurring && nextPayload.editScope !== "single")

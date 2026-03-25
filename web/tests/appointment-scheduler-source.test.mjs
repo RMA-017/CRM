@@ -192,8 +192,8 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /const shouldValidateRepeat = !isEditMode \|\| allowRepeatValidationInEdit;[\s\S]*if \(requireRepeat && !wantsRepeat\) \{[\s\S]*errors\.repeatDays = "Select at least one repeat day\.";[\s\S]*if \(wantsRepeat\) \{/s,
-    "Planner modal should treat Active as a Repeat weekly requirement and only validate Repeat Until after weekdays are selected."
+    /const shouldValidateRepeat = !isEditMode \|\| allowRepeatValidationInEdit;[\s\S]*if \(requireRepeat && !wantsRepeat\) \{[\s\S]*errors\.repeatDays = "Select at least one repeat day\.";[\s\S]*const shouldValidateRepeatUntil = !allowAutoRollingRepeatUntilFallback \|\| String\(repeatUntil \|\| ""\)\.trim\(\) !== "";/s,
+    "Planner modal should treat Active as a Repeat weekly requirement without forcing Repeat Until when auto-rolling is enabled."
   );
   assert.match(
     source,

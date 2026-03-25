@@ -19,7 +19,7 @@ test("appointment create modal keeps repeat-until visible while Active only requ
 
   assert.match(
     source,
-    /const shouldValidateRepeat = !isEditMode \|\| allowRepeatValidationInEdit;[\s\S]*if \(requireRepeat && !wantsRepeat\) \{[\s\S]*errors\.repeatDays = "Select at least one repeat day\.";[\s\S]*if \(wantsRepeat\) \{/s,
-    "Active mode should make Repeat weekly required and only validate Repeat Until after weekdays are selected."
+    /const shouldValidateRepeat = !isEditMode \|\| allowRepeatValidationInEdit;[\s\S]*if \(requireRepeat && !wantsRepeat\) \{[\s\S]*errors\.repeatDays = "Select at least one repeat day\.";[\s\S]*const shouldValidateRepeatUntil = !allowAutoRollingRepeatUntilFallback \|\| String\(repeatUntil \|\| ""\)\.trim\(\) !== "";/s,
+    "Active mode should make Repeat weekly required without forcing Repeat Until when auto-rolling is enabled."
   );
 });
