@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+const CUSTOM_SELECT_OPTION_HEIGHT_PX = 30;
+const CUSTOM_SELECT_MENU_GAP_PX = 2;
+const CUSTOM_SELECT_MENU_PADDING_PX = 12;
+const CUSTOM_SELECT_SEARCH_BLOCK_HEIGHT_PX = 36;
+
 function CustomSelect({
   value,
   options,
@@ -89,10 +94,19 @@ function CustomSelect({
       const visibleOptionsCount = normalizedMaxVisibleOptions
         ? Math.max(1, Math.min(filteredOptions.length, normalizedMaxVisibleOptions))
         : null;
-      const searchBlockHeight = shouldShowSearch ? 40 : 0;
+      const searchBlockHeight = shouldShowSearch ? CUSTOM_SELECT_SEARCH_BLOCK_HEIGHT_PX : 0;
       const desiredMenuHeight = visibleOptionsCount
-        ? ((visibleOptionsCount * 40) + 8 + searchBlockHeight)
-        : 184;
+        ? (
+          (visibleOptionsCount * CUSTOM_SELECT_OPTION_HEIGHT_PX)
+          + (Math.max(0, visibleOptionsCount - 1) * CUSTOM_SELECT_MENU_GAP_PX)
+          + CUSTOM_SELECT_MENU_PADDING_PX
+          + searchBlockHeight
+        )
+        : (
+          CUSTOM_SELECT_OPTION_HEIGHT_PX
+          + CUSTOM_SELECT_MENU_PADDING_PX
+          + searchBlockHeight
+        );
       const scaledDesiredMenuHeight = Math.max(96 + searchBlockHeight, Math.round(desiredMenuHeight * normalizedMenuHeightScale));
       const shouldOpenUp = forceOpenDown
         ? false
