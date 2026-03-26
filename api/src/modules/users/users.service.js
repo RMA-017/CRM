@@ -2,7 +2,16 @@ import argon2 from "argon2";
 import pool from "../../config/db.js";
 import { executeTransaction } from "../../lib/db-utils.js";
 import { normalizeOrganizationCode } from "../../lib/organization-code.js";
-import { isTutorLikeRoleLabel } from "../../lib/role-labels.js";
+import {
+  isSpecialistLikeRoleLabel,
+  isTutorLikeRoleLabel,
+  joinNormalizedRoleLabelParts
+} from "../../lib/role-labels.js";
+import {
+  clearAppointmentPlannerReportFilterCaches,
+  clearAppointmentReferenceCaches,
+  deleteAppointmentSchedulesByIds
+} from "../appointments/appointment-settings.service.js";
 
 const VIP_CLASS_TEACHER_ASSIGNMENTS_TABLE_NAME = "public.vip_class_teacher_assignments";
 const VIP_CLASS_TEACHER_ASSIGNMENTS_TABLE_CACHE_TTL_MS = 60_000;
@@ -44,9 +53,25 @@ function buildUsersPagedResult(rows, {
 }
 
 async function getRoleLabelById(client, roleId) {
+  if (!Number.parseInt(String(roleId || "").trim(), 10)) {
+    return "";
+  }
+
   const { rows } = await client.query(
     "SELECT label FROM role_options WHERE id = $1 LIMIT 1",
     [roleId]
+  );
+  return String(rows[0]?.label || "").trim();
+}
+
+async function getPositionLabelById(client, positionId) {
+  if (!Number.parseInt(String(positionId || "").trim(), 10)) {
+    return "";
+  }
+
+  const { rows } = await client.query(
+    "SELECT label FROM position_options WHERE id = $1 LIMIT 1",
+    [positionId]
   );
   return String(rows[0]?.label || "").trim();
 }
@@ -87,6 +112,47 @@ async function isAssignedAsVipClassTeacher(client, { organizationId, userId }) {
     [organizationId, userId]
   );
   return Boolean(rows[0]?.assigned);
+}
+
+async function deleteFutureAppointmentSchedulesBySpecialist({
+  client,
+  organizationId,
+  specialistId,
+  actorUserId = null
+}) {
+  const { rows } = await client.query(
+    `SELECT s.id
+       FROM appointment_schedules s
+      WHERE s.organization_id = $1
+        AND s.specialist_id = $2
+        AND (
+          s.appointment_date > TIMEZONE('Asia/Tashkent', NOW())::date
+          OR (
+            s.appointment_date = TIMEZONE('Asia/Tashkent', NOW())::date
+            AND s.end_time > TIMEZONE('Asia/Tashkent', NOW())::time
+          )
+        )
+      ORDER BY
+        s.appointment_date ASC,
+        s.start_time ASC,
+        s.id ASC`,
+    [organizationId, specialistId]
+  );
+
+  const ids = (rows || [])
+    .map((row) => Number.parseInt(String(row?.id || "").trim(), 10))
+    .filter((id) => Number.isInteger(id) && id > 0);
+
+  if (ids.length === 0) {
+    return 0;
+  }
+
+  return deleteAppointmentSchedulesByIds({
+    organizationId,
+    ids,
+    actorUserId,
+    db: client
+  });
 }
 
 export async function findRequester(authContext = {}) {
@@ -264,7 +330,7 @@ export async function updateUserByAdmin({
     const scopedOrganizationId = Number(currentOrganizationId);
 
     const currentUserResult = await client.query(
-      `SELECT role_id, username
+      `SELECT role_id, position_id, username
          FROM users
         WHERE id = $1
           AND organization_id = $2
@@ -278,9 +344,23 @@ export async function updateUserByAdmin({
     }
 
     const currentRoleId = Number(currentUser.role_id);
+    const currentPositionId = Number.parseInt(String(currentUser.position_id || "").trim(), 10) || 0;
     const nextUsername = String(currentUser.username || "").trim();
+    const currentRoleLabel = await getRoleLabelById(client, currentRoleId);
+    const currentPositionLabel = await getPositionLabelById(client, currentPositionId);
     const nextRoleLabel = await getRoleLabelById(client, roleId);
+    const nextPositionId = Number.parseInt(String(positionId || "").trim(), 10) || 0;
+    const nextPositionLabel = nextPositionId === currentPositionId
+      ? currentPositionLabel
+      : await getPositionLabelById(client, nextPositionId);
     const isRoleChangingToTutor = Number(roleId) !== currentRoleId && isTutorLikeRoleLabel(nextRoleLabel);
+    const wasPlannerSpecialist = isSpecialistLikeRoleLabel(
+      joinNormalizedRoleLabelParts(currentRoleLabel, currentPositionLabel)
+    );
+    const remainsPlannerSpecialist = isSpecialistLikeRoleLabel(
+      joinNormalizedRoleLabelParts(nextRoleLabel, nextPositionLabel)
+    );
+    const shouldDeleteFuturePlannerLessons = wasPlannerSpecialist && !remainsPlannerSpecialist;
     if (isRoleChangingToTutor) {
       const isTeacherAssigned = await isAssignedAsVipClassTeacher(client, {
         organizationId: scopedOrganizationId,
@@ -350,6 +430,15 @@ export async function updateUserByAdmin({
       );
     }
 
+    if (shouldDeleteFuturePlannerLessons) {
+      await deleteFutureAppointmentSchedulesBySpecialist({
+        client,
+        organizationId: scopedOrganizationId,
+        specialistId: userId,
+        actorUserId: actorUserId || null
+      });
+    }
+
     const { rows } = await client.query(
       `SELECT
          u.id::text AS id,
@@ -375,13 +464,21 @@ export async function updateUserByAdmin({
       [userId, targetOrganizationId]
     );
 
+    clearAppointmentReferenceCaches();
+    clearAppointmentPlannerReportFilterCaches();
+
     return rows[0] || null;
   });
 }
 
 export async function deleteUserById(userId, organizationId) {
-  return pool.query(
+  const result = await pool.query(
     "DELETE FROM users WHERE id = $1 AND organization_id = $2",
     [userId, organizationId]
   );
+  if (result.rowCount > 0) {
+    clearAppointmentReferenceCaches();
+    clearAppointmentPlannerReportFilterCaches();
+  }
+  return result;
 }

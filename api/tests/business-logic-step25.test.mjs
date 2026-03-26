@@ -411,9 +411,9 @@ test("users update preserves legacy username when edit keeps the same value", as
     if (queryText === "BEGIN" || queryText === "COMMIT" || queryText === "ROLLBACK") {
       return { rows: [], rowCount: 0 };
     }
-    if (queryText.includes("SELECT role_id, username") && queryText.includes("FROM users")) {
+    if (queryText.includes("SELECT role_id, position_id, username") && queryText.includes("FROM users")) {
       return {
-        rows: [{ role_id: 22, username: "LegacyUser" }],
+        rows: [{ role_id: 22, position_id: null, username: "LegacyUser" }],
         rowCount: 1
       };
     }
@@ -477,6 +477,132 @@ test("users update preserves legacy username when edit keeps the same value", as
     assert.equal(user?.username, "LegacyUser");
   } finally {
     restoreConnect();
+  }
+});
+
+test("users update deletes future planner lessons when a specialist leaves planner scope", async () => {
+  let deletedIds = null;
+  let deletedCount = 0;
+  const restoreQuery = stubPoolQuery(async (sql, params = []) => {
+    const queryText = String(sql || "");
+
+    if (queryText.includes("FROM information_schema.tables")) {
+      return {
+        rows: [{ table_name: "appointment_status_history" }],
+        rowCount: 1
+      };
+    }
+    if (queryText.includes("FROM information_schema.columns")) {
+      return {
+        rows: [
+          { column_name: "organization_id" },
+          { column_name: "appointment_schedule_id" },
+          { column_name: "event_type" },
+          { column_name: "previous_status" },
+          { column_name: "next_status" },
+          { column_name: "changed_fields" },
+          { column_name: "details" },
+          { column_name: "changed_by" },
+          { column_name: "changed_at" }
+        ],
+        rowCount: 9
+      };
+    }
+
+    throw new Error(`Unexpected pool.query in test: ${queryText} :: ${JSON.stringify(params)}`);
+  });
+  const restoreConnect = stubPoolConnect(async (sql, params = []) => {
+    const queryText = String(sql || "");
+
+    if (queryText === "BEGIN" || queryText === "COMMIT" || queryText === "ROLLBACK") {
+      return { rows: [], rowCount: 0 };
+    }
+    if (queryText.includes("SELECT role_id, position_id, username") && queryText.includes("FROM users")) {
+      return {
+        rows: [{ role_id: 11, position_id: 5, username: "SpecUser" }],
+        rowCount: 1
+      };
+    }
+    if (queryText.includes("SELECT label FROM role_options")) {
+      return {
+        rows: [{ label: Number(params[0]) === 11 ? "Specialist" : "Manager" }],
+        rowCount: 1
+      };
+    }
+    if (queryText.includes("SELECT label FROM position_options")) {
+      return {
+        rows: [{ label: "Specialist" }],
+        rowCount: 1
+      };
+    }
+    if (queryText.includes("UPDATE users")) {
+      return {
+        rows: [],
+        rowCount: 1
+      };
+    }
+    if (queryText.includes("SELECT s.id") && queryText.includes("FROM appointment_schedules s")) {
+      assert.equal(params[0], 3);
+      assert.equal(params[1], 9);
+      return {
+        rows: [{ id: 33 }, { id: 44 }],
+        rowCount: 2
+      };
+    }
+    if (queryText.includes("WITH deleted AS") && queryText.includes("DELETE FROM appointment_schedules")) {
+      deletedCount += 1;
+      deletedIds = params[1];
+      return {
+        rows: [{ deleted_count: 2 }],
+        rowCount: 1
+      };
+    }
+    if (queryText.includes("SELECT") && queryText.includes("FROM users u") && queryText.includes("JOIN organizations o ON o.id = u.organization_id")) {
+      return {
+        rows: [{
+          id: "9",
+          organization_id: "3",
+          organization_code: "main",
+          organization_name: "Main",
+          username: "SpecUser",
+          email: null,
+          full_name: "Former Specialist",
+          birthday: "2000-01-01",
+          role_id: "22",
+          role: "Manager",
+          phone_number: null,
+          position_id: null,
+          position: null,
+          created_at: "2026-03-12T00:00:00.000Z"
+        }],
+        rowCount: 1
+      };
+    }
+
+    throw new Error(`Unexpected client.query in test: ${queryText} :: ${JSON.stringify(params)}`);
+  });
+
+  try {
+    const user = await updateUserByAdmin({
+      currentOrganizationId: 3,
+      nextOrganizationId: null,
+      actorUserId: 7,
+      userId: 9,
+      email: "",
+      fullName: "Former Specialist",
+      birthday: "2000-01-01",
+      phone: "",
+      positionId: null,
+      roleId: 22,
+      password: ""
+    });
+
+    assert.equal(user?.role, "Manager");
+    assert.equal(deletedCount, 1);
+    assert.deepEqual(deletedIds, [33, 44]);
+  } finally {
+    restoreConnect();
+    restoreQuery();
   }
 });
 
