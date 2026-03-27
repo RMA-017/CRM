@@ -4116,7 +4116,9 @@ function AppointmentScheduler({
       existingItem,
       Array.isArray(existingItem?.repeatDays) ? existingItem.repeatDays : []
     );
-    const defaultRecurringEditDayKeys = isExistingRecurring ? existingRepeatDays : [];
+    const defaultEditDayKeys = existingRepeatDays.length > 0
+      ? existingRepeatDays
+      : (DAY_KEYS_SET.has(day.key) ? [day.key] : []);
     setCreateModal({
       open: true,
       mode: existingItem ? "edit" : "create",
@@ -4144,13 +4146,13 @@ function AppointmentScheduler({
         repeatUntil: isExistingRecurring
           ? String(existingItem?.repeatUntilDate || appointmentDate || "").trim()
           : appointmentDate,
-        repeatDays: isExistingRecurring ? defaultRecurringEditDayKeys : []
+        repeatDays: defaultEditDayKeys
       });
     } else {
       const defaultRepeatUntil = recurringOnly
         ? formatDateYmd(getEndOfNextWeek(day.date))
         : "";
-      const defaultRepeatDays = recurringOnly ? [day.key] : [];
+      const defaultRepeatDays = DAY_KEYS_SET.has(day.key) ? [day.key] : [];
       const nextCreateForm = createEmptyClientForm({
         appointmentDate,
         startTime,
@@ -4340,9 +4342,18 @@ function AppointmentScheduler({
             .map((day) => String(day || "").trim().toLowerCase())
             .filter((day) => DAY_KEYS_SET.has(day))
         : [];
-      const nextDays = currentDays.length > 0
-        ? ensureAnchoredRepeatDayKeys(createForm.appointmentDate, currentDays, visibleRepeatDayKeys)
-        : visibleRepeatDayKeys.filter((day) => currentDays.includes(day));
+      const appointmentDayKey = getDayKeyFromDateYmd(prev.appointmentDate);
+      const nextDays = !prev.repeatEnabled
+        ? (
+          appointmentDayKey && visibleRepeatDayKeys.includes(appointmentDayKey)
+            ? [appointmentDayKey]
+            : []
+        )
+        : (
+          currentDays.length > 0
+            ? ensureAnchoredRepeatDayKeys(prev.appointmentDate, currentDays, visibleRepeatDayKeys)
+            : visibleRepeatDayKeys.filter((day) => currentDays.includes(day))
+        );
 
       const isSame = (
         nextDays.length === currentDays.length
@@ -4460,6 +4471,7 @@ function AppointmentScheduler({
         status: String(createForm.status || "pending").trim().toLowerCase(),
         note: String(createForm.note || "").trim(),
         editScope: normalizeEditScopeValue(createForm.editScope),
+        repeatEnabled: Boolean(createForm.repeatEnabled),
         repeatUntil: String(createForm.repeatUntil || "").trim(),
         repeatDays: Array.isArray(createForm.repeatDays)
           ? Array.from(
@@ -4472,6 +4484,7 @@ function AppointmentScheduler({
           : []
       };
       if (isVipAutoRollingRepeat) {
+        nextPayload.repeatEnabled = true;
         nextPayload.repeatUntil = String(nextPayload.repeatUntil || "").trim()
           || resolveAutoRollingRepeatUntilForSubmit(nextPayload.appointmentDate);
         nextPayload.repeatDays = resolveAutoRollingRepeatDayKeys(
@@ -4479,6 +4492,11 @@ function AppointmentScheduler({
           nextPayload.repeatDays,
           visibleRepeatDayKeys
         );
+      } else if (!nextPayload.repeatEnabled) {
+        if (!isEditMode) {
+          nextPayload.repeatUntil = "";
+        }
+        nextPayload.repeatDays = [];
       } else if (nextPayload.repeatDays.length > 0) {
         nextPayload.repeatDays = ensureAnchoredRepeatDayKeys(
           nextPayload.appointmentDate,
@@ -4838,6 +4856,7 @@ function AppointmentScheduler({
 
       return {
         ...prev,
+        repeatEnabled: isEditMode ? prev.repeatEnabled : daySet.size > 0,
         repeatDays: visibleRepeatDayKeys.filter((key) => daySet.has(key))
       };
     });
@@ -5009,6 +5028,7 @@ function AppointmentScheduler({
                 onChange={(nextValue) => {
                   const nextSpecialistId = String(nextValue || "").trim();
                   persistPlannerToolbarSelectionSync({ specialistId: nextSpecialistId });
+                  setWeekOffset(0);
                   setSelectedSpecialistId(nextSpecialistId);
                   if (nextSpecialistId) {
                     setSelectedPlannerClientFilterId("");
@@ -5063,6 +5083,7 @@ function AppointmentScheduler({
                       clientId: nextClientId,
                       clientSnapshot: nextClientSnapshot
                     });
+                    setWeekOffset(0);
                     setSelectedPlannerClientFilterId(nextClientId);
                     setStoredPlannerClientSnapshot(nextClientSnapshot);
                     if (nextClientId) {
@@ -5667,7 +5688,11 @@ function AppointmentScheduler({
                           disabled={!canEditRecurringSeriesPattern || createSubmitting || createDeleting}
                           onInput={(event) => {
                             const nextValue = event.currentTarget.value;
-                            setCreateForm((prev) => ({ ...prev, repeatUntil: nextValue }));
+                            setCreateForm((prev) => ({
+                              ...prev,
+                              repeatEnabled: isEditMode ? prev.repeatEnabled : (Boolean(nextValue) || prev.repeatEnabled),
+                              repeatUntil: nextValue
+                            }));
                             if (createErrors.repeatUntil) {
                               setCreateErrors((prev) => ({ ...prev, repeatUntil: "" }));
                             }

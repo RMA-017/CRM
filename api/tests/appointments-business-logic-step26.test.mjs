@@ -2865,6 +2865,143 @@ test("schedule delete future scope respects explicitly selected weekday branches
   assert.equal(reply.state.payload?.summary?.deletedCount, 2);
 });
 
+test("schedule delete future scope removes every remaining item from a split auto-rolling single-day series when deleting from the new root", async () => {
+  const deletedIds = [];
+  const updateCalls = [];
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      getAppointmentScheduleTargetsByScope: async () => ({
+        anchorId: 202,
+        anchorAppointmentDate: "2026-03-24",
+        repeatGroupKey: "split-group",
+        repeatUntilDate: "2026-04-21",
+        repeatAnchorDate: "2026-03-24",
+        repeatDays: ["tue"],
+        isAutoRollingRepeat: true,
+        isRecurring: true,
+        scope: "future",
+        items: [
+          { id: 202, specialistId: 7, clientId: 44, appointmentDate: "2026-03-24", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false },
+          { id: 203, specialistId: 7, clientId: 44, appointmentDate: "2026-03-31", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false },
+          { id: 204, specialistId: 7, clientId: 44, appointmentDate: "2026-04-07", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false }
+        ],
+        seriesItems: [
+          { id: 202, specialistId: 7, clientId: 44, appointmentDate: "2026-03-24", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false },
+          { id: 203, specialistId: 7, clientId: 44, appointmentDate: "2026-03-31", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false },
+          { id: 204, specialistId: 7, clientId: 44, appointmentDate: "2026-04-07", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false }
+        ]
+      }),
+      updateAppointmentScheduleByIdWithRepeatMeta: async (payload) => {
+        updateCalls.push(payload);
+        return { id: String(payload.id) };
+      },
+      deleteAppointmentSchedulesByIds: async ({ ids }) => {
+        deletedIds.push(...ids);
+        return ids.length;
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "DELETE", "/schedules/:id");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      params: { id: "202" },
+      query: { scope: "future", dayKeys: "tue" }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 200);
+  assert.deepEqual(deletedIds, [202, 203, 204]);
+  assert.equal(updateCalls.length, 0);
+  assert.equal(reply.state.payload?.summary?.scope, "future");
+  assert.equal(reply.state.payload?.summary?.deletedCount, 3);
+});
+
+test("schedule delete future scope truncates a split auto-rolling single-day series from a later occurrence", async () => {
+  const deletedIds = [];
+  const updateCalls = [];
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      parseDateYmdToUtcDate: (value) => new Date(`${String(value || "").trim()}T00:00:00.000Z`),
+      getAppointmentScheduleTargetsByScope: async () => ({
+        anchorId: 203,
+        anchorAppointmentDate: "2026-03-31",
+        repeatGroupKey: "split-group",
+        repeatUntilDate: "2026-04-21",
+        repeatAnchorDate: "2026-03-24",
+        repeatDays: ["tue"],
+        isAutoRollingRepeat: true,
+        isRecurring: true,
+        scope: "future",
+        items: [
+          { id: 203, specialistId: 7, clientId: 44, appointmentDate: "2026-03-31", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false },
+          { id: 204, specialistId: 7, clientId: 44, appointmentDate: "2026-04-07", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false }
+        ],
+        seriesItems: [
+          { id: 202, specialistId: 7, clientId: 44, appointmentDate: "2026-03-24", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false },
+          { id: 203, specialistId: 7, clientId: 44, appointmentDate: "2026-03-31", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false },
+          { id: 204, specialistId: 7, clientId: 44, appointmentDate: "2026-04-07", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "pending", note: "", isVip: false }
+        ]
+      }),
+      updateAppointmentScheduleByIdWithRepeatMeta: async (payload) => {
+        updateCalls.push(payload);
+        return { id: String(payload.id) };
+      },
+      deleteAppointmentSchedulesByIds: async ({ ids }) => {
+        deletedIds.push(...ids);
+        return ids.length;
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "DELETE", "/schedules/:id");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      params: { id: "203" },
+      query: { scope: "future", dayKeys: "tue" }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 200);
+  assert.deepEqual(deletedIds, [203, 204]);
+  assert.deepEqual(
+    updateCalls.map((item) => ({
+      id: item.id,
+      repeatGroupKey: item.repeatGroupKey,
+      repeatUntilDate: item.repeatUntilDate,
+      repeatAnchorDate: item.repeatAnchorDate,
+      isRepeatRoot: item.isRepeatRoot,
+      isAutoRollingRepeat: item.isAutoRollingRepeat
+    })),
+    [
+      {
+        id: 202,
+        repeatGroupKey: "split-group",
+        repeatUntilDate: "2026-03-30",
+        repeatAnchorDate: "2026-03-24",
+        isRepeatRoot: true,
+        isAutoRollingRepeat: false
+      }
+    ]
+  );
+  assert.equal(reply.state.payload?.summary?.scope, "future");
+  assert.equal(reply.state.payload?.summary?.deletedCount, 2);
+});
+
 test("schedule delete single scope respects the selected weekday target within the current week", async () => {
   const deletedIds = [];
   const recorder = createRouteRecorder();

@@ -77,13 +77,13 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /onChange=\{\(nextValue\) => \{[\s\S]*const nextSpecialistId = String\(nextValue \|\| ""\)\.trim\(\);[\s\S]*setSelectedSpecialistId\(nextSpecialistId\);[\s\S]*if \(nextSpecialistId\) \{[\s\S]*setSelectedPlannerClientFilterId\(""\);[\s\S]*\}/s,
-    "Selecting a specialist in the toolbar should clear the client filter."
+    /onChange=\{\(nextValue\) => \{[\s\S]*const nextSpecialistId = String\(nextValue \|\| ""\)\.trim\(\);[\s\S]*setWeekOffset\(0\);[\s\S]*setSelectedSpecialistId\(nextSpecialistId\);[\s\S]*if \(nextSpecialistId\) \{[\s\S]*setSelectedPlannerClientFilterId\(""\);[\s\S]*\}/s,
+    "Selecting a specialist in the toolbar should reset to the current week and clear the client filter."
   );
   assert.match(
     source,
-    /onChange=\{\(nextValue\) => \{[\s\S]*const nextClientId = String\(nextValue \|\| ""\)\.trim\(\);[\s\S]*setSelectedPlannerClientFilterId\(nextClientId\);[\s\S]*if \(nextClientId\) \{[\s\S]*setSelectedSpecialistId\(""\);[\s\S]*\}/s,
-    "Selecting a client in the toolbar should clear the specialist filter."
+    /onChange=\{\(nextValue\) => \{[\s\S]*const nextClientId = String\(nextValue \|\| ""\)\.trim\(\);[\s\S]*setWeekOffset\(0\);[\s\S]*setSelectedPlannerClientFilterId\(nextClientId\);[\s\S]*if \(nextClientId\) \{[\s\S]*setSelectedSpecialistId\(""\);[\s\S]*\}/s,
+    "Selecting a client in the toolbar should reset to the current week and clear the specialist filter."
   );
   assert.match(
     source,
@@ -177,6 +177,11 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
+    /const defaultRepeatDays = DAY_KEYS_SET\.has\(day\.key\) \? \[day\.key\] : \[\];[\s\S]*repeatEnabled:\s*recurringOnly,[\s\S]*repeatDays:\s*defaultRepeatDays/s,
+    "Planner create modal should preselect the clicked weekday in Repeat weekly without forcing repeat mode on."
+  );
+  assert.match(
+    source,
     /function ensureAnchoredRepeatDayKeys\(appointmentDate = "", repeatDays = \[\], visibleDayKeys = \[\]\) \{[\s\S]*if \(currentRepeatDays\.length === 0\) \{[\s\S]*return currentRepeatDays;[\s\S]*if \(currentRepeatDays\.includes\(appointmentDayKey\)\) \{[\s\S]*return currentRepeatDays;[\s\S]*return normalizeRepeatDayKeys\(\[\.\.\.currentRepeatDays, appointmentDayKey\]\);/s,
     "Planner modal should keep the clicked appointment day inside any selected repeat pattern."
   );
@@ -202,13 +207,18 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /if \(isVipAutoRollingRepeat\) \{[\s\S]*nextPayload\.repeatDays = resolveAutoRollingRepeatDayKeys\([\s\S]*\} else if \(nextPayload\.repeatDays\.length > 0\) \{[\s\S]*nextPayload\.repeatDays = ensureAnchoredRepeatDayKeys\([\s\S]*nextPayload\.appointmentDate,[\s\S]*nextPayload\.repeatDays,[\s\S]*visibleRepeatDayKeys/s,
-    "Planner submit should re-anchor non-active repeat payloads to the clicked appointment day."
+    /repeatEnabled: Boolean\(createForm\.repeatEnabled\),[\s\S]*if \(isVipAutoRollingRepeat\) \{[\s\S]*nextPayload\.repeatEnabled = true;[\s\S]*\} else if \(!nextPayload\.repeatEnabled\) \{[\s\S]*nextPayload\.repeatDays = \[\];[\s\S]*\} else if \(nextPayload\.repeatDays\.length > 0\) \{[\s\S]*nextPayload\.repeatDays = ensureAnchoredRepeatDayKeys\([\s\S]*nextPayload\.appointmentDate,[\s\S]*nextPayload\.repeatDays,[\s\S]*visibleRepeatDayKeys/s,
+    "Planner submit should treat the clicked weekday as a visual default until repeat mode is explicitly activated."
   );
   assert.match(
     source,
-    /function toggleRepeatDay\(dayKey\) \{[\s\S]*const appointmentDayKey = getDayKeyFromDateYmd\(createForm\.appointmentDate\);[\s\S]*if \(!isEditMode && normalizedDayKey === appointmentDayKey && currentDays\.length > 1\) \{[\s\S]*return prev;[\s\S]*\}[\s\S]*daySet\.delete\(normalizedDayKey\);[\s\S]*\} else \{[\s\S]*daySet\.add\(normalizedDayKey\);[\s\S]*if \(!isEditMode && appointmentDayKey && normalizedDayKey !== appointmentDayKey\) \{[\s\S]*daySet\.add\(appointmentDayKey\);/s,
-    "Planner repeat day picker should auto-keep the clicked appointment weekday whenever repeat stays enabled."
+    /appointmentCreateRepeatUntil[\s\S]*setCreateForm\(\(prev\) => \(\{[\s\S]*repeatEnabled: isEditMode \? prev\.repeatEnabled : \(Boolean\(nextValue\) \|\| prev\.repeatEnabled\),[\s\S]*repeatUntil: nextValue/s,
+    "Planner repeat-until input should activate repeat mode for new appointments."
+  );
+  assert.match(
+    source,
+    /function toggleRepeatDay\(dayKey\) \{[\s\S]*const appointmentDayKey = getDayKeyFromDateYmd\(createForm\.appointmentDate\);[\s\S]*if \(!isEditMode && normalizedDayKey === appointmentDayKey && currentDays\.length > 1\) \{[\s\S]*return prev;[\s\S]*\}[\s\S]*daySet\.delete\(normalizedDayKey\);[\s\S]*\} else \{[\s\S]*daySet\.add\(normalizedDayKey\);[\s\S]*if \(!isEditMode && appointmentDayKey && normalizedDayKey !== appointmentDayKey\) \{[\s\S]*daySet\.add\(appointmentDayKey\);[\s\S]*repeatEnabled: isEditMode \? prev\.repeatEnabled : daySet\.size > 0,/s,
+    "Planner repeat day picker should activate repeat mode only after the user changes the weekday selection."
   );
   assert.match(
     source,
@@ -242,8 +252,8 @@ test("Appointment scheduler recurring edit restores and submits series repeat se
   );
   assert.match(
     source,
-    /const inferCurrentSeriesRepeatDayKeys = useCallback\(\(existingItem, fallbackDays = \[\]\) => \{[\s\S]*const existingRepeatDays = inferCurrentSeriesRepeatDayKeys\([\s\S]*existingItem\?\.repeatDays[\s\S]*const defaultRecurringEditDayKeys = isExistingRecurring \? existingRepeatDays : \[\];[\s\S]*repeatEnabled:\s*isExistingRecurring,[\s\S]*repeatUntil:\s*isExistingRecurring[\s\S]*existingItem\?\.repeatUntilDate[\s\S]*repeatDays:\s*isExistingRecurring \? defaultRecurringEditDayKeys : \[\]/s,
-    "Editing an existing recurring appointment should restore the current series weekdays in the modal."
+    /const inferCurrentSeriesRepeatDayKeys = useCallback\(\(existingItem, fallbackDays = \[\]\) => \{[\s\S]*const existingRepeatDays = inferCurrentSeriesRepeatDayKeys\([\s\S]*existingItem\?\.repeatDays[\s\S]*const defaultEditDayKeys = existingRepeatDays\.length > 0[\s\S]*DAY_KEYS_SET\.has\(day\.key\) \? \[day\.key\] : \[\][\s\S]*repeatEnabled:\s*isExistingRecurring,[\s\S]*repeatUntil:\s*isExistingRecurring[\s\S]*existingItem\?\.repeatUntilDate[\s\S]*repeatDays:\s*defaultEditDayKeys/s,
+    "Editing appointments should restore recurring weekdays and still show the clicked weekday for non-recurring items."
   );
   assert.match(
     source,
