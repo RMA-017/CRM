@@ -170,6 +170,16 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
     /const isVipAutoRollingRepeat = Boolean\(vipOnly \|\| clientVipOnly\);[\s\S]*const isVipAutoRollingRepeatToggleLocked = Boolean\(vipOnly \|\| \(isEditRecurring && clientVipOnly\)\);[\s\S]*id="appointmentClientVipOnly"[\s\S]*disabled=\{isVipAutoRollingRepeatToggleLocked \|\| createSubmitting \|\| createDeleting\}/s,
     "Planner modal should keep Active checked but locked only when reopening an auto-rolling recurring series."
   );
+  assert.match(
+    source,
+    /if \(checked\) \{[\s\S]*repeatUntil: resolveAutoRollingRepeatUntilForSubmit\(prev\.appointmentDate\),[\s\S]*repeatDays: resolveAutoRollingRepeatDayKeys\([\s\S]*prev\.appointmentDate,[\s\S]*prev\.repeatDays,[\s\S]*visibleRepeatDayKeys/s,
+    "Planner modal should auto-fill Repeat Until and the matching weekday when Active is turned on."
+  );
+  assert.match(
+    source,
+    /function ensureAnchoredRepeatDayKeys\(appointmentDate = "", repeatDays = \[\], visibleDayKeys = \[\]\) \{[\s\S]*if \(currentRepeatDays\.length === 0\) \{[\s\S]*return currentRepeatDays;[\s\S]*if \(currentRepeatDays\.includes\(appointmentDayKey\)\) \{[\s\S]*return currentRepeatDays;[\s\S]*return normalizeRepeatDayKeys\(\[\.\.\.currentRepeatDays, appointmentDayKey\]\);/s,
+    "Planner modal should keep the clicked appointment day inside any selected repeat pattern."
+  );
   assert.doesNotMatch(
     source,
     /queryParams\.set\("isVip", "true"\)/,
@@ -185,15 +195,20 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
     /<div className="field appointment-repeat-until-field">[\s\S]*appointmentCreateRepeatUntil/s,
     "Planner modal should keep the Repeat Until field visible even when Active auto-repeat is on."
   );
-  assert.doesNotMatch(
+  assert.match(
     source,
-    /getVipAutoRollingRepeatUntil|activeRepeatUntilSnapshotRef|unlockedRepeatUntilRef/s,
-    "Planner modal should not auto-fill Repeat Until or seed Repeat weekly when Active is toggled."
+    /const shouldValidateRepeat = !isEditMode \|\| allowRepeatValidationInEdit;[\s\S]*if \(requireRepeat && !wantsRepeat\) \{[\s\S]*errors\.repeatDays = "Select at least one repeat day\.";[\s\S]*if \(!isValidDateYmd\(repeatUntil\)\) \{[\s\S]*errors\.repeatUntil = "Invalid repeat end date\.";/s,
+    "Planner modal should require Repeat Until before saving any repeated planner series."
   );
   assert.match(
     source,
-    /const shouldValidateRepeat = !isEditMode \|\| allowRepeatValidationInEdit;[\s\S]*if \(requireRepeat && !wantsRepeat\) \{[\s\S]*errors\.repeatDays = "Select at least one repeat day\.";[\s\S]*const shouldValidateRepeatUntil = !allowAutoRollingRepeatUntilFallback \|\| String\(repeatUntil \|\| ""\)\.trim\(\) !== "";/s,
-    "Planner modal should treat Active as a Repeat weekly requirement without forcing Repeat Until when auto-rolling is enabled."
+    /if \(isVipAutoRollingRepeat\) \{[\s\S]*nextPayload\.repeatDays = resolveAutoRollingRepeatDayKeys\([\s\S]*\} else if \(nextPayload\.repeatDays\.length > 0\) \{[\s\S]*nextPayload\.repeatDays = ensureAnchoredRepeatDayKeys\([\s\S]*nextPayload\.appointmentDate,[\s\S]*nextPayload\.repeatDays,[\s\S]*visibleRepeatDayKeys/s,
+    "Planner submit should re-anchor non-active repeat payloads to the clicked appointment day."
+  );
+  assert.match(
+    source,
+    /function toggleRepeatDay\(dayKey\) \{[\s\S]*const appointmentDayKey = getDayKeyFromDateYmd\(createForm\.appointmentDate\);[\s\S]*if \(!isEditMode && normalizedDayKey === appointmentDayKey && currentDays\.length > 1\) \{[\s\S]*return prev;[\s\S]*\}[\s\S]*daySet\.delete\(normalizedDayKey\);[\s\S]*\} else \{[\s\S]*daySet\.add\(normalizedDayKey\);[\s\S]*if \(!isEditMode && appointmentDayKey && normalizedDayKey !== appointmentDayKey\) \{[\s\S]*daySet\.add\(appointmentDayKey\);/s,
+    "Planner repeat day picker should auto-keep the clicked appointment weekday whenever repeat stays enabled."
   );
   assert.match(
     source,
@@ -257,8 +272,8 @@ test("Appointment scheduler recurring edit restores and submits series repeat se
   );
   assert.match(
     source,
-    /const allowRepeatValidationInEdit = isEditMode && \(!isEditRecurring \|\| nextPayload\.editScope !== "single"\);[\s\S]*requireRepeat:\s*\(\s*\(!isEditMode && \(recurringOnly \|\| isVipAutoRollingRepeat\)\)\s*\|\|\s*\(isEditRecurring && nextPayload\.editScope !== "single"\)\s*\)/s,
-    "Planner validation should require Repeat weekly for both future-scope recurring edits and Active auto-rolling creates."
+    /if \(isVipAutoRollingRepeat\) \{[\s\S]*nextPayload\.repeatUntil = String\(nextPayload\.repeatUntil \|\| ""\)\.trim\(\)[\s\S]*resolveAutoRollingRepeatUntilForSubmit\(nextPayload\.appointmentDate\)[\s\S]*nextPayload\.repeatDays = resolveAutoRollingRepeatDayKeys\([\s\S]*nextPayload\.appointmentDate,[\s\S]*nextPayload\.repeatDays,[\s\S]*visibleRepeatDayKeys[\s\S]*const allowRepeatValidationInEdit = isEditMode && \(!isEditRecurring \|\| nextPayload\.editScope !== "single"\);[\s\S]*requireRepeat:\s*\(\s*\(!isEditMode && \(recurringOnly \|\| isVipAutoRollingRepeat\)\)\s*\|\|\s*\(isEditRecurring && nextPayload\.editScope !== "single"\)\s*\)/s,
+    "Planner validation should auto-seed Active repeat fields while still requiring Repeat weekly for future-scope recurring edits and creates."
   );
   assert.match(
     source,

@@ -1006,6 +1006,83 @@ test("schedule create builds recurring appointments from normalized repeat weekd
   assert.equal(reply.state.payload?.summary?.createdCount, 3);
 });
 
+test("schedule create recurring keeps the clicked appointment day when submitted weekdays skip it", async () => {
+  const createdPayloads = [];
+  let recurringDayKeysArg = null;
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      parseDateYmdToUtcDate: (value) => new Date(`${String(value || "").trim()}T00:00:00.000Z`),
+      toDayKeyFromUtcDate: (value) => ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][value.getUTCDay()] || "",
+      toAppointmentDayNum: (value) => ({
+        mon: 1,
+        tue: 2,
+        wed: 3,
+        thu: 4,
+        fri: 5,
+        sat: 6,
+        sun: 7
+      }[String(value || "").trim().toLowerCase()] || 0),
+      validateRepeatDaysAgainstVisibleWeekDays: () => ({
+        error: null,
+        normalizedDayKeys: ["wed", "fri"]
+      }),
+      buildWeeklyRecurringDates: ({ dayKeys }) => {
+        recurringDayKeysArg = Array.isArray(dayKeys) ? [...dayKeys] : dayKeys;
+        return ["2026-03-12", "2026-03-13"];
+      },
+      createAppointmentSchedule: async (payload) => {
+        createdPayloads.push(payload);
+        return {
+          id: String(190 + createdPayloads.length),
+          specialistId: String(payload.specialistId),
+          clientId: String(payload.clientId),
+          appointmentDate: payload.appointmentDate,
+          startTime: payload.startTime,
+          endTime: payload.endTime
+        };
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "POST", "/schedules");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      body: {
+        specialistId: "9",
+        clientId: "44",
+        appointmentDate: "2026-03-09",
+        startTime: "09:00",
+        endTime: "10:00",
+        durationMinutes: "60",
+        service: "Lesson",
+        status: "pending",
+        note: "",
+        repeat: {
+          enabled: true,
+          untilDate: "2026-03-31",
+          dayKeys: ["Wed", "Fri"]
+        }
+      }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 201);
+  assert.deepEqual(recurringDayKeysArg, ["wed", "fri", "mon"]);
+  assert.deepEqual(createdPayloads.map((item) => item.appointmentDate), ["2026-03-09", "2026-03-12", "2026-03-13"]);
+  assert.deepEqual(
+    createdPayloads.map((item) => [...item.repeatDays].sort((left, right) => left - right)),
+    [[1, 3, 5], [1, 3, 5], [1, 3, 5]]
+  );
+  assert.equal(reply.state.payload?.summary?.createdCount, 3);
+});
+
 test("schedule update blocks specialist users from editing another specialist schedule", async () => {
   const recorder = createRouteRecorder();
   registerAppointmentScheduleRoutes(

@@ -404,6 +404,48 @@ function resolveAutoRollingRepeatUntilForSubmit(appointmentDate = "") {
   return formatDateYmd(addDays(baseDate, 29));
 }
 
+function resolveAutoRollingRepeatDayKeys(appointmentDate = "", repeatDays = [], visibleDayKeys = []) {
+  const visibleDayKeySet = new Set(
+    (Array.isArray(visibleDayKeys) && visibleDayKeys.length > 0 ? visibleDayKeys : DAY_ITEMS.map((item) => item.key))
+      .map((day) => String(day || "").trim().toLowerCase())
+      .filter((day) => DAY_KEYS_SET.has(day))
+  );
+  const currentRepeatDays = normalizeRepeatDayKeys(repeatDays)
+    .filter((day) => visibleDayKeySet.size === 0 || visibleDayKeySet.has(day));
+  const appointmentDayKey = getDayKeyFromDateYmd(appointmentDate);
+  if (!appointmentDayKey || (visibleDayKeySet.size > 0 && !visibleDayKeySet.has(appointmentDayKey))) {
+    return currentRepeatDays;
+  }
+  if (currentRepeatDays.includes(appointmentDayKey)) {
+    return currentRepeatDays;
+  }
+  if (currentRepeatDays.length <= 1) {
+    return [appointmentDayKey];
+  }
+  return normalizeRepeatDayKeys([...currentRepeatDays, appointmentDayKey]);
+}
+
+function ensureAnchoredRepeatDayKeys(appointmentDate = "", repeatDays = [], visibleDayKeys = []) {
+  const visibleDayKeySet = new Set(
+    (Array.isArray(visibleDayKeys) && visibleDayKeys.length > 0 ? visibleDayKeys : DAY_ITEMS.map((item) => item.key))
+      .map((day) => String(day || "").trim().toLowerCase())
+      .filter((day) => DAY_KEYS_SET.has(day))
+  );
+  const currentRepeatDays = normalizeRepeatDayKeys(repeatDays)
+    .filter((day) => visibleDayKeySet.size === 0 || visibleDayKeySet.has(day));
+  if (currentRepeatDays.length === 0) {
+    return currentRepeatDays;
+  }
+  const appointmentDayKey = getDayKeyFromDateYmd(appointmentDate);
+  if (!appointmentDayKey || (visibleDayKeySet.size > 0 && !visibleDayKeySet.has(appointmentDayKey))) {
+    return currentRepeatDays;
+  }
+  if (currentRepeatDays.includes(appointmentDayKey)) {
+    return currentRepeatDays;
+  }
+  return normalizeRepeatDayKeys([...currentRepeatDays, appointmentDayKey]);
+}
+
 function formatHeaderDate(date) {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
@@ -4298,7 +4340,9 @@ function AppointmentScheduler({
             .map((day) => String(day || "").trim().toLowerCase())
             .filter((day) => DAY_KEYS_SET.has(day))
         : [];
-      const nextDays = visibleRepeatDayKeys.filter((day) => currentDays.includes(day));
+      const nextDays = currentDays.length > 0
+        ? ensureAnchoredRepeatDayKeys(createForm.appointmentDate, currentDays, visibleRepeatDayKeys)
+        : visibleRepeatDayKeys.filter((day) => currentDays.includes(day));
 
       const isSame = (
         nextDays.length === currentDays.length
@@ -4318,8 +4362,7 @@ function AppointmentScheduler({
   function validateCreateForm(value, {
     isEditMode = false,
     allowRepeatValidationInEdit = false,
-    requireRepeat = false,
-    allowAutoRollingRepeatUntilFallback = false
+    requireRepeat = false
   } = {}) {
     const errors = {};
     const visibleRepeatDayKeySet = new Set(visibleRepeatDayKeys);
@@ -4362,10 +4405,6 @@ function AppointmentScheduler({
         errors.repeatDays = "Select at least one repeat day.";
       }
       if (wantsRepeat) {
-        const shouldValidateRepeatUntil = !allowAutoRollingRepeatUntilFallback || String(repeatUntil || "").trim() !== "";
-        if (!shouldValidateRepeatUntil) {
-          return errors;
-        }
         if (!isValidDateYmd(repeatUntil)) {
           errors.repeatUntil = "Invalid repeat end date.";
         } else if (isValidDateYmd(appointmentDate) && repeatUntil < appointmentDate) {
@@ -4432,12 +4471,26 @@ function AppointmentScheduler({
             )
           : []
       };
+      if (isVipAutoRollingRepeat) {
+        nextPayload.repeatUntil = String(nextPayload.repeatUntil || "").trim()
+          || resolveAutoRollingRepeatUntilForSubmit(nextPayload.appointmentDate);
+        nextPayload.repeatDays = resolveAutoRollingRepeatDayKeys(
+          nextPayload.appointmentDate,
+          nextPayload.repeatDays,
+          visibleRepeatDayKeys
+        );
+      } else if (nextPayload.repeatDays.length > 0) {
+        nextPayload.repeatDays = ensureAnchoredRepeatDayKeys(
+          nextPayload.appointmentDate,
+          nextPayload.repeatDays,
+          visibleRepeatDayKeys
+        );
+      }
 
       const allowRepeatValidationInEdit = isEditMode && (!isEditRecurring || nextPayload.editScope !== "single");
       const errors = validateCreateForm(nextPayload, {
         isEditMode,
         allowRepeatValidationInEdit,
-        allowAutoRollingRepeatUntilFallback: isVipAutoRollingRepeat,
         requireRepeat: (
           (!isEditMode && (recurringOnly || isVipAutoRollingRepeat))
           || (isEditRecurring && nextPayload.editScope !== "single")
@@ -4622,17 +4675,10 @@ function AppointmentScheduler({
           && (!isEditMode || !isEditRecurring || nextPayload.editScope !== "single")
         );
       if (shouldSendRepeat) {
-        const repeatUntilForRequest = (
-          isVipAutoRollingRepeat
-          && nextPayload.repeatDays.length > 0
-          && !String(nextPayload.repeatUntil || "").trim()
-        )
-          ? resolveAutoRollingRepeatUntilForSubmit(nextPayload.appointmentDate)
-          : nextPayload.repeatUntil;
         requestPayload.repeat = {
           enabled: true,
           type: "weekly",
-          untilDate: repeatUntilForRequest,
+          untilDate: nextPayload.repeatUntil,
           dayKeys: nextPayload.repeatDays,
           skipConflicts: true,
           autoRolling: isVipAutoRollingRepeat
@@ -4755,6 +4801,7 @@ function AppointmentScheduler({
     if (!visibleRepeatDayKeys.includes(normalizedDayKey)) {
       return;
     }
+    const appointmentDayKey = getDayKeyFromDateYmd(createForm.appointmentDate);
     if (isEditRecurring && normalizedEditScope === "single") {
       if (
         allowedSingleRecurringEditDayKeys.length > 0
@@ -4775,9 +4822,18 @@ function AppointmentScheduler({
         : [];
       const daySet = new Set(currentDays);
       if (daySet.has(normalizedDayKey)) {
+        if (isVipAutoRollingRepeat && normalizedDayKey === appointmentDayKey) {
+          return prev;
+        }
+        if (!isEditMode && normalizedDayKey === appointmentDayKey && currentDays.length > 1) {
+          return prev;
+        }
         daySet.delete(normalizedDayKey);
       } else {
         daySet.add(normalizedDayKey);
+        if (!isEditMode && appointmentDayKey && normalizedDayKey !== appointmentDayKey) {
+          daySet.add(appointmentDayKey);
+        }
       }
 
       return {
@@ -5393,8 +5449,19 @@ function AppointmentScheduler({
                           onChange={(event) => {
                             const checked = event.currentTarget.checked;
                             setClientVipOnly(checked);
-                            if (!checked && createErrors.repeatDays) {
-                              setCreateErrors((prev) => ({ ...prev, repeatDays: "" }));
+                            if (checked) {
+                              setCreateForm((prev) => ({
+                                ...prev,
+                                repeatUntil: resolveAutoRollingRepeatUntilForSubmit(prev.appointmentDate),
+                                repeatDays: resolveAutoRollingRepeatDayKeys(
+                                  prev.appointmentDate,
+                                  prev.repeatDays,
+                                  visibleRepeatDayKeys
+                                )
+                              }));
+                            }
+                            if (createErrors.repeatDays || createErrors.repeatUntil) {
+                              setCreateErrors((prev) => ({ ...prev, repeatDays: "", repeatUntil: "" }));
                             }
                           }}
                         />
@@ -5496,16 +5563,25 @@ function AppointmentScheduler({
                             const nextValue = event.currentTarget.value;
                             setCreateForm((prev) => {
                               const nextForm = { ...prev, appointmentDate: nextValue };
-                              const nextMinimumRepeatUntil = nextValue;
-                              if (!prev.repeatUntil || prev.repeatUntil < nextMinimumRepeatUntil) {
-                                nextForm.repeatUntil = nextMinimumRepeatUntil;
+                              if (isVipAutoRollingRepeat) {
+                                nextForm.repeatUntil = resolveAutoRollingRepeatUntilForSubmit(nextValue);
+                                nextForm.repeatDays = resolveAutoRollingRepeatDayKeys(
+                                  nextValue,
+                                  prev.repeatDays,
+                                  visibleRepeatDayKeys
+                                );
+                              } else {
+                                const nextMinimumRepeatUntil = nextValue;
+                                if (!prev.repeatUntil || prev.repeatUntil < nextMinimumRepeatUntil) {
+                                  nextForm.repeatUntil = nextMinimumRepeatUntil;
+                                }
                               }
                               return nextForm;
-                          });
-                          if (createErrors.appointmentDate || createErrors.repeatUntil) {
-                            setCreateErrors((prev) => ({ ...prev, appointmentDate: "", repeatUntil: "" }));
-                          }
-                        }}
+                            });
+                            if (createErrors.appointmentDate || createErrors.repeatUntil || (isVipAutoRollingRepeat && createErrors.repeatDays)) {
+                              setCreateErrors((prev) => ({ ...prev, appointmentDate: "", repeatUntil: "", repeatDays: "" }));
+                            }
+                          }}
                       />
                       <small className="field-error">{createErrors.appointmentDate || ""}</small>
                     </div>
