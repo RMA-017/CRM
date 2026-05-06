@@ -1138,6 +1138,59 @@ function normalizePlannerBlockedTimeItems(items) {
   }));
 }
 
+function buildPlannerBlockOverlayItemsByDay({ weekDays, breaks = [], blockedTimes = [], overlayLabel = "Specialist" }) {
+  const byDay = buildEmptyAppointmentsByDay(weekDays);
+
+  (Array.isArray(breaks) ? breaks : []).forEach((item) => {
+    if (item?.isActive === false) {
+      return;
+    }
+    const dayKey = getPlannerRangeDayKey(item);
+    if (!dayKey || !Array.isArray(byDay[dayKey])) {
+      return;
+    }
+    const startTime = String(item?.startTime || "").trim();
+    const endTime = String(item?.endTime || "").trim();
+    const reason = formatBreakReason(item);
+    byDay[dayKey].push({
+      id: `overlay-break-${String(item?.id || `${dayKey}-${startTime}-${endTime}`).trim()}`,
+      time: startTime,
+      startTime,
+      endTime,
+      status: "break",
+      specialist: overlayLabel,
+      service: String(reason?.full || "").trim() || "Break"
+    });
+  });
+
+  normalizePlannerBlockedTimeItems(blockedTimes).forEach((item) => {
+    if (item?.isActive === false) {
+      return;
+    }
+    const dayKey = getPlannerRangeDayKey(item);
+    if (!dayKey || !Array.isArray(byDay[dayKey])) {
+      return;
+    }
+    const startTime = String(item?.startTime || "").trim();
+    const endTime = String(item?.endTime || "").trim();
+    byDay[dayKey].push({
+      id: `overlay-work-${String(item?.id || `${dayKey}-${startTime}-${endTime}`).trim()}`,
+      time: startTime,
+      startTime,
+      endTime,
+      status: "blocked",
+      specialist: overlayLabel,
+      service: String(item?.reason || "").trim() || "Work schedule"
+    });
+  });
+
+  Object.keys(byDay).forEach((dayKey) => {
+    byDay[dayKey].sort((left, right) => String(left?.time || "").localeCompare(String(right?.time || "")));
+  });
+
+  return byDay;
+}
+
 function AppointmentPlannerGrid({
   sectionTitle = "",
   ariaLabel = "",
@@ -1895,6 +1948,7 @@ function AppointmentPlannerGrid({
     workingHoursMinutesByDay
   ]);
   const mouseDragStateRef = useRef(null);
+  const mouseDragDropTargetRef = useRef(null);
   const suppressNextCardClickRef = useRef(false);
   const [mouseDragPreview, setMouseDragPreview] = useState(null);
 
@@ -1918,6 +1972,12 @@ function AppointmentPlannerGrid({
       const dropCell = targetElement?.closest?.(dropSelector);
       const targetSlot = String(dropCell?.getAttribute("data-drop-slot") || "").trim();
       const dropCellRect = dropCell?.getBoundingClientRect?.() || null;
+      mouseDragDropTargetRef.current = dropCell ? {
+        date: String(dropCell.getAttribute("data-drop-date") || "").trim(),
+        dayKey: String(dropCell.getAttribute("data-drop-day-key") || "").trim(),
+        dayLabel: String(dropCell.getAttribute("data-drop-day-label") || "").trim(),
+        slot: targetSlot
+      } : null;
       setMouseDragPreview({
         status: dragState.status,
         statusCellClassName: dragState.statusCellClassName,
@@ -1932,7 +1992,9 @@ function AppointmentPlannerGrid({
 
     function handleDocumentMouseUp(event) {
       const dragState = mouseDragStateRef.current;
+      const fallbackDropTarget = mouseDragDropTargetRef.current;
       mouseDragStateRef.current = null;
+      mouseDragDropTargetRef.current = null;
       setMouseDragPreview(null);
       if (!dragState) {
         return;
@@ -1956,7 +2018,7 @@ function AppointmentPlannerGrid({
         ? "[data-break-drop-slot='true']"
         : "[data-appointment-drop-slot='true']";
       const dropCell = targetElement?.closest?.(dropSelector);
-      if (!dropCell) {
+      if (!dropCell && !fallbackDropTarget) {
         return;
       }
       if (dragState.type === "break" && typeof onMovePlannerBreak !== "function") {
@@ -1966,10 +2028,18 @@ function AppointmentPlannerGrid({
         return;
       }
 
-      const targetDate = String(dropCell.getAttribute("data-drop-date") || "").trim();
-      const targetDayKey = String(dropCell.getAttribute("data-drop-day-key") || "").trim();
-      const targetDayLabel = String(dropCell.getAttribute("data-drop-day-label") || "").trim();
-      const targetSlot = String(dropCell.getAttribute("data-drop-slot") || "").trim();
+      const targetDate = dropCell
+        ? String(dropCell.getAttribute("data-drop-date") || "").trim()
+        : String(fallbackDropTarget?.date || "").trim();
+      const targetDayKey = dropCell
+        ? String(dropCell.getAttribute("data-drop-day-key") || "").trim()
+        : String(fallbackDropTarget?.dayKey || "").trim();
+      const targetDayLabel = dropCell
+        ? String(dropCell.getAttribute("data-drop-day-label") || "").trim()
+        : String(fallbackDropTarget?.dayLabel || "").trim();
+      const targetSlot = dropCell
+        ? String(dropCell.getAttribute("data-drop-slot") || "").trim()
+        : String(fallbackDropTarget?.slot || "").trim();
       if (!targetDate || !targetDayKey || !targetSlot) {
         return;
       }
@@ -2175,6 +2245,7 @@ function AppointmentPlannerGrid({
                       && !absenceBlockedItem
                       && !workScheduleBlockedItem
                       && !breakBlockedItem
+                      && !overlayBusyItem
                       && !isHistoryLockedDayCell
                       && canCreateOnSpecialist
                       && typeof onOpenCreateModal === "function"
@@ -2186,6 +2257,7 @@ function AppointmentPlannerGrid({
                       && !absenceBlockedItem
                       && !workScheduleBlockedItem
                       && !breakBlockedItem
+                      && !overlayBusyItem
                       && !isHistoryLockedDayCell
                       && canUpdateAppointments
                       && canMutatePlannerSpecialist
@@ -2198,6 +2270,7 @@ function AppointmentPlannerGrid({
                       && !absenceBlockedItem
                       && !workScheduleBlockedItem
                       && !breakBlockedItem
+                      && !overlayBusyItem
                       && !isHistoryLockedDayCell
                       && canUpdateAppointmentBreaks
                       && canMutatePlannerSpecialist
@@ -2595,6 +2668,7 @@ function AppointmentScheduler({
   const absencesRequestIdRef = useRef(0);
   const clientFocusedRequestIdRef = useRef(0);
   const clientFocusedPreviewRequestIdRef = useRef(0);
+  const comparisonOverlaySpecialistRequestIdRef = useRef(0);
   const recurringPatternDraftRef = useRef({
     repeatUntil: "",
     repeatDays: []
@@ -2604,6 +2678,8 @@ function AppointmentScheduler({
   const [clientFocusedPreviewBreaks, setClientFocusedPreviewBreaks] = useState([]);
   const [clientFocusedPreviewAbsences, setClientFocusedPreviewAbsences] = useState([]);
   const [clientFocusedPreviewWeekKey, setClientFocusedPreviewWeekKey] = useState("");
+  const [comparisonOverlaySpecialistSettings, setComparisonOverlaySpecialistSettings] = useState(null);
+  const [comparisonOverlaySpecialistBreaks, setComparisonOverlaySpecialistBreaks] = useState([]);
   const normalizedCurrentUserId = String(currentUserId || "").trim();
   const normalizedSelectedPlannerClientFilterId = String(selectedPlannerClientFilterId || "").trim();
   const currentPlannerStorageHydrationKey = normalizedCurrentUserId
@@ -3238,6 +3314,13 @@ function AppointmentScheduler({
       ? `${clientFocusedModalPreviewSpecialistId}:${weekDataKey}`
       : ""
   ), [clientFocusedModalPreviewSpecialistId, weekDataKey]);
+  const comparisonOverlaySpecialistId = (
+    !vipOnly
+    && isClientFocusedMode
+    && hasPlannerComparisonOverlay
+  )
+    ? String(selectedSpecialistId || "").trim()
+    : "";
   const canUseClientFocusedAvailabilityPreview = (
     Boolean(clientFocusedModalPreviewSpecialistId)
     && clientFocusedPreviewWeekKey === clientFocusedPreviewDataKey
@@ -4006,10 +4089,36 @@ function AppointmentScheduler({
   const currentVisibleAppointmentsByDay = isClientFocusedMode
     ? clientFocusedAppointmentsByDay
     : rawAppointmentsByDay;
+  const comparisonOverlaySpecialistBlocksByDay = useMemo(() => (
+    comparisonOverlaySpecialistId
+      ? buildPlannerBlockOverlayItemsByDay({
+          weekDays,
+          breaks: comparisonOverlaySpecialistBreaks,
+          blockedTimes: comparisonOverlaySpecialistSettings?.blockedTimes,
+          overlayLabel: "Specialist"
+        })
+      : buildEmptyAppointmentsByDay(weekDays)
+  ), [
+    comparisonOverlaySpecialistBreaks,
+    comparisonOverlaySpecialistId,
+    comparisonOverlaySpecialistSettings?.blockedTimes,
+    weekDays
+  ]);
   const comparisonOverlayAppointmentsByDay = hasPlannerComparisonOverlay
     ? (
         isClientFocusedMode
-          ? rawAppointmentsByDay
+          ? weekDays.reduce((acc, day) => {
+              const appointments = Array.isArray(rawAppointmentsByDay?.[day.key])
+                ? rawAppointmentsByDay[day.key]
+                : [];
+              const blocks = Array.isArray(comparisonOverlaySpecialistBlocksByDay?.[day.key])
+                ? comparisonOverlaySpecialistBlocksByDay[day.key]
+                : [];
+              acc[day.key] = [...appointments, ...blocks].sort((left, right) => (
+                String(left?.time || left?.startTime || "").localeCompare(String(right?.time || right?.startTime || ""))
+              ));
+              return acc;
+            }, {})
           : clientFocusedAppointmentsByDay
       )
     : {};
@@ -4755,6 +4864,66 @@ function AppointmentScheduler({
     weekEndDate,
     weekStartDate
   ]);
+
+  useEffect(() => {
+    if (!comparisonOverlaySpecialistId) {
+      comparisonOverlaySpecialistRequestIdRef.current += 1;
+      setComparisonOverlaySpecialistSettings(null);
+      setComparisonOverlaySpecialistBreaks([]);
+      return;
+    }
+
+    const requestId = comparisonOverlaySpecialistRequestIdRef.current + 1;
+    comparisonOverlaySpecialistRequestIdRef.current = requestId;
+
+    async function loadComparisonOverlaySpecialistBlocks() {
+      try {
+        const [settingsResponse, breaksResponse] = await Promise.all([
+          apiFetch(`/api/appointments/settings?${new URLSearchParams({
+            specialistId: comparisonOverlaySpecialistId
+          }).toString()}`, {
+            method: "GET",
+            cache: "no-store"
+          }),
+          canReadPlannerBreaks
+            ? apiFetch(`/api/appointments/breaks?${new URLSearchParams({
+                specialistId: comparisonOverlaySpecialistId
+              }).toString()}`, {
+                method: "GET",
+                cache: "no-store"
+              })
+            : Promise.resolve(null)
+        ]);
+        const [settingsData, breaksData] = await Promise.all([
+          readApiResponseData(settingsResponse),
+          breaksResponse ? readApiResponseData(breaksResponse) : Promise.resolve(null)
+        ]);
+
+        if (requestId !== comparisonOverlaySpecialistRequestIdRef.current) {
+          return;
+        }
+
+        setComparisonOverlaySpecialistSettings(
+          settingsResponse.ok
+            ? mapSchedulerSettingsFromApiItem(settingsData?.item)
+            : null
+        );
+        setComparisonOverlaySpecialistBreaks(
+          breaksResponse?.ok
+            ? normalizePlannerBreakItems(Array.isArray(breaksData?.items) ? breaksData.items : [])
+            : []
+        );
+      } catch {
+        if (requestId !== comparisonOverlaySpecialistRequestIdRef.current) {
+          return;
+        }
+        setComparisonOverlaySpecialistSettings(null);
+        setComparisonOverlaySpecialistBreaks([]);
+      }
+    }
+
+    void loadComparisonOverlaySpecialistBlocks();
+  }, [canReadPlannerBreaks, comparisonOverlaySpecialistId]);
 
   function closeCreateModal() {
     recurringPatternDraftRef.current = {
