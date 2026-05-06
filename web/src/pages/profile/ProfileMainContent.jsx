@@ -5,6 +5,7 @@ const AllUsersPanel = lazy(() => import("./panels/AllUsersPanel.jsx"));
 const AppointmentPlannerPanel = lazy(() => import("./panels/AppointmentPlannerPanel.jsx"));
 const AppointmentSettingsShellPanel = lazy(() => import("./panels/AppointmentSettingsShellPanel.jsx"));
 const ClientsPanel = lazy(() => import("./panels/ClientsPanel.jsx"));
+const DashboardPanel = lazy(() => import("./panels/DashboardPanel.jsx"));
 const MonitoringPanel = lazy(() => import("./MonitoringPanel.jsx"));
 const OrganizationsSettingsPanel = lazy(() => import("./panels/OrganizationsSettingsPanel.jsx"));
 const PositionsSettingsPanel = lazy(() => import("./panels/PositionsSettingsPanel.jsx"));
@@ -62,6 +63,7 @@ function ProfileMainContent({
   startClientEdit,
   openClientsDeleteModal,
   closeAllClientsPanel,
+  closeDashboardPanel,
   canReadAppointments,
   canCreateAppointments,
   canUpdateAppointments,
@@ -137,7 +139,9 @@ function ProfileMainContent({
   roleOptions,
   profile,
   canOpenSiteContent,
-  isOrgFeatureDisabledView = false
+  canCreateSiteContent,
+  canUpdateSiteContent,
+  canDeleteSiteContent
 }) {
   const [userCreateModalOpen, setUserCreateModalOpen] = useState(false);
   const [clientCreateModalOpen, setClientCreateModalOpen] = useState(false);
@@ -301,16 +305,6 @@ function ProfileMainContent({
     setPositionCreateModalOpen(false);
   }
 
-  if (isOrgFeatureDisabledView) {
-    return (
-      <main className="home-main" aria-label="Main content">
-        <section className="all-users-panel">
-          <p className="all-users-state">This view is disabled for the current organization.</p>
-        </section>
-      </main>
-    );
-  }
-
   return (
     <>
       <main className="home-main" aria-label="Main content">
@@ -352,6 +346,16 @@ function ProfileMainContent({
               clients={clients}
               clientsPage={clientsPage}
               clientsTotalPages={clientsTotalPages}
+            />
+          </Suspense>
+        ) : null}
+
+        {mainView === "dashboard" ? (
+          <Suspense fallback={PANEL_LOADING_FALLBACK}>
+            <DashboardPanel
+              closeDashboardPanel={closeDashboardPanel}
+              showBootstrapSkeleton={!profile?.username}
+              canReadDashboard={canReadStatisticsPlannerReportPermission}
             />
           </Suspense>
         ) : null}
@@ -459,7 +463,13 @@ function ProfileMainContent({
 
         {mainView === "site-content" ? (
           <Suspense fallback={PANEL_LOADING_FALLBACK}>
-            <SiteContentPanel onClose={closeSiteContentPanel} canOpenSiteContent={canOpenSiteContent} />
+            <SiteContentPanel
+              onClose={closeSiteContentPanel}
+              canOpenSiteContent={canOpenSiteContent}
+              canCreateSiteContent={canCreateSiteContent}
+              canUpdateSiteContent={canUpdateSiteContent}
+              canDeleteSiteContent={canDeleteSiteContent}
+            />
           </Suspense>
         ) : null}
       </main>

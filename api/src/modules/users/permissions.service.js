@@ -1,11 +1,6 @@
 import pool from "../../config/db.js";
 import { toBooleanFlag } from "../../lib/boolean.js";
 import {
-  isPermissionAllowedByOrgFeatures,
-  normalizeAllowedFeatures
-} from "../../lib/org-features.js";
-import {
-  normalizePermissionCode,
   normalizePermissionCodes
 } from "../../lib/permission-codes.js";
 import { UNIQUE_PERMISSION_DEFINITIONS } from "../../../../shared/access-registry.js";
@@ -49,48 +44,6 @@ const ROLE_PERMISSION_COPY_MIGRATIONS = Object.freeze([
 ]);
 
 import { toBoundedInteger } from "../../lib/bounded-integer.js";
-
-async function pruneAdminRolePermissionsByOrgFeatures(client) {
-  const { rows } = await client.query(
-    `SELECT
-       r.id AS role_id,
-       o.allowed_features
-      FROM role_options r
-      JOIN organizations o ON o.id = r.organization_id
-     WHERE r.is_admin = TRUE
-       AND r.is_active = TRUE`
-  );
-
-  for (const row of rows) {
-    const roleId = Number(row?.role_id || 0);
-    if (!roleId) {
-      continue;
-    }
-
-    const allowedFeatures = normalizeAllowedFeatures(row?.allowed_features);
-    if (!Array.isArray(allowedFeatures)) {
-      continue;
-    }
-
-    const disallowedCodes = BASE_PERMISSION_DEFINITIONS
-      .map((permission) => normalizePermissionCode(permission.code))
-      .filter(Boolean)
-      .filter((code) => !isPermissionAllowedByOrgFeatures(code, allowedFeatures));
-
-    if (disallowedCodes.length === 0) {
-      continue;
-    }
-
-    await client.query(
-      `DELETE FROM role_permissions rp
-        USING permissions p
-       WHERE rp.role_id = $1
-         AND rp.permission_id = p.id
-         AND LOWER(p.code) = ANY($2::text[])`,
-      [roleId, disallowedCodes]
-    );
-  }
-}
 
 export async function ensureSystemPermissions(options = {}) {
   const useAdvisoryLock = toBooleanFlag(options?.useAdvisoryLock, true, { acceptOn: true });
@@ -218,8 +171,6 @@ export async function ensureSystemPermissions(options = {}) {
           AND r.is_active = TRUE
         ON CONFLICT (role_id, permission_id) DO NOTHING`
     );
-
-    await pruneAdminRolePermissionsByOrgFeatures(client);
 
     await client.query("COMMIT");
     return {

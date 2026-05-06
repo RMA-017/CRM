@@ -282,6 +282,52 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
     ]
   }),
   defineMenu({
+    key: "website",
+    label: "Website Management",
+    sortOrder: 75,
+    children: [
+      defineFeature({
+        key: "website.management",
+        label: "Website Management",
+        sortOrder: 10,
+        permissions: [
+          definePermission({
+            constantKey: "WEBSITE_MANAGEMENT_READ",
+            code: "website.management.read",
+            label: "Read Website Management",
+            uiLabel: "Read",
+            sortOrder: 69,
+            actionKey: "read"
+          }),
+          definePermission({
+            constantKey: "WEBSITE_MANAGEMENT_CREATE",
+            code: "website.management.create",
+            label: "Create Website Management",
+            uiLabel: "Create",
+            sortOrder: 70,
+            actionKey: "create"
+          }),
+          definePermission({
+            constantKey: "WEBSITE_MANAGEMENT_UPDATE",
+            code: "website.management.update",
+            label: "Update Website Management",
+            uiLabel: "Edit",
+            sortOrder: 71,
+            actionKey: "update"
+          }),
+          definePermission({
+            constantKey: "WEBSITE_MANAGEMENT_DELETE",
+            code: "website.management.delete",
+            label: "Delete Website Management",
+            uiLabel: "Delete",
+            sortOrder: 72,
+            actionKey: "delete"
+          })
+        ]
+      })
+    ]
+  }),
+  defineMenu({
     key: "settings",
     label: "Settings",
     sortOrder: 80,

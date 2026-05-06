@@ -29,6 +29,31 @@ test("getAppointmentPlannerReport derives summary from detail rows without extra
       };
     }
 
+    if (text.includes("FROM appointment_working_hours") && text.includes("user_id IS NULL")) {
+      return {
+        rows: [
+          { day_of_week: 1, is_active: true, start_time: "09:00", end_time: "18:00" },
+          { day_of_week: 2, is_active: true, start_time: "09:00", end_time: "18:00" }
+        ]
+      };
+    }
+
+    if (text.includes("FROM appointment_breaks")) {
+      return {
+        rows: [
+          { specialist_id: 7, day_of_week: 1, start_time: "12:00", end_time: "13:00" }
+        ]
+      };
+    }
+
+    if (text.includes("FROM appointment_working_hours") && text.includes("user_id = ANY")) {
+      return {
+        rows: [
+          { specialist_id: 7, rule_scope: "weekly", day_of_week: 2, work_date: null, is_active: true, start_time: "15:00", end_time: "16:00" }
+        ]
+      };
+    }
+
     assert.match(text, /FROM appointment_schedules s/i);
     assert.doesNotMatch(text, /GROUP BY LOWER\(TRIM\(s\.status\)\)/i);
     return {
@@ -89,7 +114,7 @@ test("getAppointmentPlannerReport derives summary from detail rows without extra
       to: "2026-03-09"
     });
 
-    assert.equal(callCount, 2);
+    assert.equal(callCount, 5);
     assert.equal(result.summary.total, 3);
     assert.equal(result.summary.confirmed, 1);
     assert.equal(result.summary.pending, 1);
@@ -99,6 +124,11 @@ test("getAppointmentPlannerReport derives summary from detail rows without extra
     assert.equal(result.details[0].appointmentId, "11");
     assert.equal(result.specialists.length, 1);
     assert.equal(result.specialists[0].name, "Alice Specialist");
+    assert.equal(result.workload.totals.workingMinutes, 1620);
+    assert.equal(result.workload.totals.breakMinutes, 120);
+    assert.equal(result.workload.totals.blockedMinutes, 60);
+    assert.equal(result.workload.totals.bookedMinutes, 60);
+    assert.equal(result.workload.totals.availableMinutes, 1440);
     assert.equal(queries.some((text) => text.includes("GROUP BY LOWER(TRIM(s.status))")), false);
   } finally {
     restoreQuery();

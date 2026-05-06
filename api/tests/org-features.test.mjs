@@ -23,7 +23,7 @@ test("hasOrgFeature respects empty arrays and parent features", () => {
   assert.equal(hasOrgFeature(["settings.roles"], "appointments.planner"), false);
 });
 
-test("filterPermissionCodesByOrgFeatures filters child permissions precisely", () => {
+test("filterPermissionCodesByOrgFeatures no longer gates child permissions", () => {
   const allowedFeatures = [
     "appointments.planner"
   ];
@@ -43,38 +43,23 @@ test("filterPermissionCodesByOrgFeatures filters child permissions precisely", (
       "appointments.schedule",
       "appointments.planner.update",
       "appointments.client-search",
+      "settings.appointments.read",
       "profile.read"
     ]
   );
 });
 
-test("filterPermissionCodesByOrgFeatures gates statistics planner report by feature", () => {
+test("filterPermissionCodesByOrgFeatures keeps statistics planner report permission", () => {
   assert.deepEqual(
     filterPermissionCodesByOrgFeatures(
       ["appointments.statistics.planner-report"],
       []
     ),
-    []
-  );
-
-  assert.deepEqual(
-    filterPermissionCodesByOrgFeatures(
-      ["appointments.statistics.planner-report"],
-      ["statistics"]
-    ),
-    ["appointments.statistics.planner-report"]
-  );
-
-  assert.deepEqual(
-    filterPermissionCodesByOrgFeatures(
-      ["appointments.statistics.planner-report"],
-      ["statistics.planner_report"]
-    ),
     ["appointments.statistics.planner-report"]
   );
 });
 
-test("filterPermissionCodesByOrgFeatures includes settings permissions only for enabled settings children", () => {
+test("filterPermissionCodesByOrgFeatures keeps all known settings permissions", () => {
   assert.deepEqual(
     filterPermissionCodesByOrgFeatures(
       [
@@ -88,13 +73,31 @@ test("filterPermissionCodesByOrgFeatures includes settings permissions only for 
       ["settings.roles"]
     ),
     [
+      "settings.appointments.read",
+      "settings.appointments.update",
       "settings.roles.read",
-      "settings.roles.create"
+      "settings.roles.create",
+      "settings.positions.read",
+      "settings.positions.create"
     ]
   );
 });
 
-test("admin role permission selection always expands to all active codes allowed by org features", () => {
+test("filterPermissionCodesByOrgFeatures keeps website management permissions", () => {
+  const websitePermissions = [
+    "website.management.read",
+    "website.management.create",
+    "website.management.update",
+    "website.management.delete"
+  ];
+
+  assert.deepEqual(
+    filterPermissionCodesByOrgFeatures(websitePermissions, ["website.management"]),
+    websitePermissions
+  );
+});
+
+test("admin role permission selection expands to all active codes", () => {
   const selectedCodes = __settingsServiceContracts.selectPermissionCodesForRoleWrite({
     requestedPermissionCodes: ["users.read"],
     activePermissionCodes: [
@@ -109,6 +112,7 @@ test("admin role permission selection always expands to all active codes allowed
   });
 
   assert.deepEqual([...selectedCodes].sort((left, right) => left.localeCompare(right)), [
+    "clients.read",
     "profile.read",
     "users.read",
     "users.create",

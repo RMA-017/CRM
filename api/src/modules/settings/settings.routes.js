@@ -7,7 +7,6 @@ import {
 import { normalizeOrganizationCode } from "../../lib/organization-code.js";
 import { normalizeInteger, parsePositiveInteger } from "../../lib/number.js";
 import { parseBooleanOr, parseOptionalOrganizationId } from "../../lib/request-parsers.js";
-import { requesterHasOrgFeature } from "../../lib/org-features.js";
 import {
   DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
   MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
@@ -44,7 +43,6 @@ import { settingsRouteSchemas } from "./settings.route-schemas.js";
 
 const SETTINGS_ROUTE_PERMISSION_CONFIG = Object.freeze({
   appointments: Object.freeze({
-    featureKey: "settings.appointments",
     legacyRequiresPlatformAdmin: false,
     permissions: Object.freeze({
       read: PERMISSIONS.SETTINGS_APPOINTMENTS_READ,
@@ -52,7 +50,6 @@ const SETTINGS_ROUTE_PERMISSION_CONFIG = Object.freeze({
     })
   }),
   roles: Object.freeze({
-    featureKey: "settings.roles",
     legacyRequiresPlatformAdmin: false,
     permissions: Object.freeze({
       read: PERMISSIONS.SETTINGS_ROLES_READ,
@@ -62,7 +59,6 @@ const SETTINGS_ROUTE_PERMISSION_CONFIG = Object.freeze({
     })
   }),
   positions: Object.freeze({
-    featureKey: "settings.positions",
     legacyRequiresPlatformAdmin: false,
     permissions: Object.freeze({
       read: PERMISSIONS.SETTINGS_POSITIONS_READ,
@@ -261,11 +257,6 @@ async function requireSettingsRouteAccess(request, reply, resourceKey, actionKey
     return null;
   }
 
-  if (resourceConfig.featureKey && !requesterHasOrgFeature(requester, resourceConfig.featureKey)) {
-    reply.status(403).send({ message: "Forbidden." });
-    return null;
-  }
-
   const permissionSnapshot = await getSettingsPermissionSnapshot(requester.role_id);
   const usesAdvancedSettingsPermissions = permissionSnapshot.usesAdvancedSettingsPermissions;
   const hasResourcePermission = permissionSnapshot?.[resourceKey]?.[actionKey] === true;
@@ -333,7 +324,6 @@ async function settingsRoutes(fastify) {
         const code = normalizeOrganizationCode(request.body?.code);
         const name = String(request.body?.name || "").trim();
         const isActive = parseIsActive(request.body?.isActive, true);
-        const allowedFeatures = null;
         const validationError = validateOrganizationPayload({ code, name });
         if (validationError) {
           return reply.status(400).send(validationError);
@@ -343,7 +333,6 @@ async function settingsRoutes(fastify) {
           code,
           name,
           isActive,
-          allowedFeatures,
           actorUserId: adminContext.authContext.userId
         });
         clearUserOptionsCache();
@@ -385,7 +374,6 @@ async function settingsRoutes(fastify) {
         const code = normalizeOrganizationCode(request.body?.code);
         const name = String(request.body?.name || "").trim();
         const isActive = parseIsActive(request.body?.isActive, true);
-        const allowedFeatures = null;
         const validationError = validateOrganizationPayload({ code, name });
         if (validationError) {
           return reply.status(400).send(validationError);
@@ -400,7 +388,6 @@ async function settingsRoutes(fastify) {
           code,
           name,
           isActive,
-          allowedFeatures,
           actorUserId: adminContext.authContext.userId
         });
         if (!item) {
@@ -664,13 +651,8 @@ async function settingsRoutes(fastify) {
         }
 
         const [items, permissions] = await Promise.all([
-          listRoleOptionsForSettings(
-            adminContext.authContext.organizationId,
-            adminContext.requester.organization_allowed_features ?? null
-          ),
-          listPermissionOptionsForSettings(
-            adminContext.requester.organization_allowed_features ?? null
-          )
+          listRoleOptionsForSettings(adminContext.authContext.organizationId),
+          listPermissionOptionsForSettings()
         ]);
         return reply.send({ items, permissions });
       } catch (error) {

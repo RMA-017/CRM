@@ -1,9 +1,5 @@
 import { useMemo } from "react";
 import { PERMISSIONS } from "../../constants/permissions.js";
-import {
-  hasAllowedFeature,
-  isPermissionAllowedByFeatures
-} from "../../../../shared/access-registry.js";
 
 export function useProfileAccess(profile, forcedView) {
   const isPlatformAdmin = Boolean(profile?.isPlatformAdmin);
@@ -18,58 +14,44 @@ export function useProfileAccess(profile, forcedView) {
     );
   }, [profile?.permissions]);
 
-  const orgFeatureSet = useMemo(() => {
-    if (isPlatformAdmin) {
-      return null;
-    }
-    if (!Array.isArray(profile?.orgFeatures)) {
-      return null;
-    }
-    return new Set(profile.orgFeatures);
-  }, [isPlatformAdmin, profile?.orgFeatures]);
+  const hasPermissionCode = (permissionCode) => isPlatformAdmin || permissionSet.has(permissionCode);
 
-  const normalizedOrgFeatures = orgFeatureSet === null ? null : Array.from(orgFeatureSet);
-  const hasOrgFeature = (feature) => hasAllowedFeature(normalizedOrgFeatures, feature);
-  const hasPermissionWithOrgFeature = (permissionCode) => (
-    isPlatformAdmin
-    || (
-      permissionSet.has(permissionCode)
-      && isPermissionAllowedByFeatures(permissionCode, normalizedOrgFeatures)
-    )
-  );
+  const canReadUsers = hasPermissionCode(PERMISSIONS.USERS_READ);
+  const canCreateUsers = hasPermissionCode(PERMISSIONS.USERS_CREATE);
+  const canUpdateUsers = hasPermissionCode(PERMISSIONS.USERS_UPDATE);
+  const canDeleteUsers = hasPermissionCode(PERMISSIONS.USERS_DELETE);
 
-  const canReadUsers = hasPermissionWithOrgFeature(PERMISSIONS.USERS_READ);
-  const canCreateUsers = hasPermissionWithOrgFeature(PERMISSIONS.USERS_CREATE);
-  const canUpdateUsers = hasPermissionWithOrgFeature(PERMISSIONS.USERS_UPDATE);
-  const canDeleteUsers = hasPermissionWithOrgFeature(PERMISSIONS.USERS_DELETE);
+  const canReadClients = hasPermissionCode(PERMISSIONS.CLIENTS_READ);
+  const canCreateClients = hasPermissionCode(PERMISSIONS.CLIENTS_CREATE);
+  const canUpdateClients = hasPermissionCode(PERMISSIONS.CLIENTS_UPDATE);
+  const canDeleteClients = hasPermissionCode(PERMISSIONS.CLIENTS_DELETE);
 
-  const canReadClients = hasPermissionWithOrgFeature(PERMISSIONS.CLIENTS_READ);
-  const canCreateClients = hasPermissionWithOrgFeature(PERMISSIONS.CLIENTS_CREATE);
-  const canUpdateClients = hasPermissionWithOrgFeature(PERMISSIONS.CLIENTS_UPDATE);
-  const canDeleteClients = hasPermissionWithOrgFeature(PERMISSIONS.CLIENTS_DELETE);
+  const canReadAppointments = hasPermissionCode(PERMISSIONS.APPOINTMENTS_PLANNER_READ);
+  const canCreateAppointments = hasPermissionCode(PERMISSIONS.APPOINTMENTS_PLANNER_CREATE);
+  const canUpdateAppointments = hasPermissionCode(PERMISSIONS.APPOINTMENTS_PLANNER_UPDATE);
+  const canDeleteAppointments = hasPermissionCode(PERMISSIONS.APPOINTMENTS_PLANNER_DELETE);
 
-  const canReadAppointments = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_PLANNER_READ);
-  const canCreateAppointments = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_PLANNER_CREATE);
-  const canUpdateAppointments = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_PLANNER_UPDATE);
-  const canDeleteAppointments = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_PLANNER_DELETE);
+  const canOpenPlannerPermission = hasPermissionCode(PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE);
 
-  const canOpenPlannerPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE);
-
-  const canReadStatisticsPlannerReportPermission = hasPermissionWithOrgFeature(
+  const canReadStatisticsPlannerReportPermission = hasPermissionCode(
     PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT
   );
-  const canSearchAppointmentClientsPermission = hasPermissionWithOrgFeature(PERMISSIONS.APPOINTMENTS_CLIENT_SEARCH);
+  const canSearchAppointmentClientsPermission = hasPermissionCode(PERMISSIONS.APPOINTMENTS_CLIENT_SEARCH);
+  const canReadSiteContentPermission = hasPermissionCode(PERMISSIONS.WEBSITE_MANAGEMENT_READ);
+  const canCreateSiteContentPermission = hasPermissionCode(PERMISSIONS.WEBSITE_MANAGEMENT_CREATE);
+  const canUpdateSiteContentPermission = hasPermissionCode(PERMISSIONS.WEBSITE_MANAGEMENT_UPDATE);
+  const canDeleteSiteContentPermission = hasPermissionCode(PERMISSIONS.WEBSITE_MANAGEMENT_DELETE);
 
-  const canReadSettingsAppointmentsPermission = hasPermissionWithOrgFeature(PERMISSIONS.SETTINGS_APPOINTMENTS_READ);
-  const canUpdateSettingsAppointmentsPermission = hasPermissionWithOrgFeature(PERMISSIONS.SETTINGS_APPOINTMENTS_UPDATE);
-  const canReadSettingsRolesPermission = hasPermissionWithOrgFeature(PERMISSIONS.SETTINGS_ROLES_READ);
-  const canCreateSettingsRolesPermission = hasPermissionWithOrgFeature(PERMISSIONS.SETTINGS_ROLES_CREATE);
-  const canUpdateSettingsRolesPermission = hasPermissionWithOrgFeature(PERMISSIONS.SETTINGS_ROLES_UPDATE);
-  const canDeleteSettingsRolesPermission = hasPermissionWithOrgFeature(PERMISSIONS.SETTINGS_ROLES_DELETE);
-  const canReadSettingsPositionsPermission = hasPermissionWithOrgFeature(PERMISSIONS.SETTINGS_POSITIONS_READ);
-  const canCreateSettingsPositionsPermission = hasPermissionWithOrgFeature(PERMISSIONS.SETTINGS_POSITIONS_CREATE);
-  const canUpdateSettingsPositionsPermission = hasPermissionWithOrgFeature(PERMISSIONS.SETTINGS_POSITIONS_UPDATE);
-  const canDeleteSettingsPositionsPermission = hasPermissionWithOrgFeature(PERMISSIONS.SETTINGS_POSITIONS_DELETE);
+  const canReadSettingsAppointmentsPermission = hasPermissionCode(PERMISSIONS.SETTINGS_APPOINTMENTS_READ);
+  const canUpdateSettingsAppointmentsPermission = hasPermissionCode(PERMISSIONS.SETTINGS_APPOINTMENTS_UPDATE);
+  const canReadSettingsRolesPermission = hasPermissionCode(PERMISSIONS.SETTINGS_ROLES_READ);
+  const canCreateSettingsRolesPermission = hasPermissionCode(PERMISSIONS.SETTINGS_ROLES_CREATE);
+  const canUpdateSettingsRolesPermission = hasPermissionCode(PERMISSIONS.SETTINGS_ROLES_UPDATE);
+  const canDeleteSettingsRolesPermission = hasPermissionCode(PERMISSIONS.SETTINGS_ROLES_DELETE);
+  const canReadSettingsPositionsPermission = hasPermissionCode(PERMISSIONS.SETTINGS_POSITIONS_READ);
+  const canCreateSettingsPositionsPermission = hasPermissionCode(PERMISSIONS.SETTINGS_POSITIONS_CREATE);
+  const canUpdateSettingsPositionsPermission = hasPermissionCode(PERMISSIONS.SETTINGS_POSITIONS_UPDATE);
+  const canDeleteSettingsPositionsPermission = hasPermissionCode(PERMISSIONS.SETTINGS_POSITIONS_DELETE);
 
   const usesAdvancedMenuPermissions = (
     canOpenPlannerPermission
@@ -131,42 +113,39 @@ export function useProfileAccess(profile, forcedView) {
 
   const hasClientsMenuAccess = canReadClients;
   const hasUsersMenuAccess = canReadUsers || canCreateUsers;
-  const hasAppointmentPlannerFeature = hasOrgFeature("appointments.planner");
 
-  const canOpenAppointmentSchedule = canReadAppointments && hasAppointmentPlannerFeature && (
+  const canOpenAppointmentSchedule = canReadAppointments && (
     usesAdvancedMenuPermissions ? (canOpenPlannerPermission || canReadAppointments) : true
   );
-  const canReadAppointmentBreaks = canReadAppointments && hasAppointmentPlannerFeature;
-  const canCreateAppointmentBreaks = canCreateAppointments && hasAppointmentPlannerFeature;
-  const canUpdateAppointmentBreaks = canUpdateAppointments && hasAppointmentPlannerFeature;
-  const canDeleteAppointmentBreaks = canDeleteAppointments && hasAppointmentPlannerFeature;
+  const canReadAppointmentBreaks = canReadAppointments;
+  const canCreateAppointmentBreaks = canCreateAppointments;
+  const canUpdateAppointmentBreaks = canUpdateAppointments;
+  const canDeleteAppointmentBreaks = canDeleteAppointments;
   const canOpenAppointmentBreaks = false;
 
-  const canReadAppointmentSpecialistAbsences = canReadAppointments && hasAppointmentPlannerFeature;
+  const canReadAppointmentSpecialistAbsences = canReadAppointments;
   const canCreateAppointmentSpecialistAbsences = false;
   const canDeleteAppointmentSpecialistAbsences = false;
-  const canViewAppointmentSpecialistAbsenceBlocks = canReadAppointments && hasAppointmentPlannerFeature;
+  const canViewAppointmentSpecialistAbsenceBlocks = canReadAppointments;
   const canOpenAppointmentSpecialistAbsences = false;
 
-  const canReadAppointmentWorkSchedule = canReadAppointments && hasAppointmentPlannerFeature;
-  const canCreateAppointmentWorkSchedule = canCreateAppointments && hasAppointmentPlannerFeature;
-  const canUpdateAppointmentWorkSchedule = canUpdateAppointments && hasAppointmentPlannerFeature;
-  const canDeleteAppointmentWorkSchedule = canDeleteAppointments && hasAppointmentPlannerFeature;
+  const canReadAppointmentWorkSchedule = canReadAppointments;
+  const canCreateAppointmentWorkSchedule = canCreateAppointments;
+  const canUpdateAppointmentWorkSchedule = canUpdateAppointments;
+  const canDeleteAppointmentWorkSchedule = canDeleteAppointments;
   const canOpenAppointmentWorkSchedule = false;
 
-  const canOpenAppointmentStatistics = (
-    canReadStatisticsPlannerReportPermission
-    && hasOrgFeature("statistics.planner_report")
-  );
+  const canOpenAppointmentStatistics = canReadStatisticsPlannerReportPermission;
+  const canOpenDashboard = canOpenAppointmentStatistics;
   const canOpenStatisticsPlannerReport = canOpenAppointmentStatistics;
 
   const canOpenSettingsOrganizations = isPlatformAdmin;
   const canCreateSettingsOrganizations = isPlatformAdmin;
   const canUpdateSettingsOrganizations = isPlatformAdmin;
   const canDeleteSettingsOrganizations = isPlatformAdmin;
-  const canOpenSettingsRoles = hasOrgFeature("settings.roles") && canReadSettingsRoles;
-  const canOpenSettingsPositions = hasOrgFeature("settings.positions") && canReadSettingsPositions;
-  const canOpenAppointmentSettings = hasOrgFeature("settings.appointments") && canReadSettingsAppointments;
+  const canOpenSettingsRoles = canReadSettingsRoles;
+  const canOpenSettingsPositions = canReadSettingsPositions;
+  const canOpenAppointmentSettings = canReadSettingsAppointments;
 
   const hasAppointmentsMenuAccess = (
     canOpenAppointmentSchedule
@@ -177,7 +156,25 @@ export function useProfileAccess(profile, forcedView) {
     || canOpenSettingsPositions
   );
   const hasAdminSettingsAccess = isPlatformAdmin;
-  const canOpenSiteContent = Boolean(profile?.username) && (legacyHasSettingsAccess || isPlatformAdmin);
+  const hasExplicitSiteContentPermissions = (
+    canReadSiteContentPermission
+    || canCreateSiteContentPermission
+    || canUpdateSiteContentPermission
+    || canDeleteSiteContentPermission
+  );
+  const canReadSiteContent = (
+    hasExplicitSiteContentPermissions ? canReadSiteContentPermission : legacyHasSettingsAccess
+  );
+  const canCreateSiteContent = (
+    hasExplicitSiteContentPermissions ? canCreateSiteContentPermission : legacyHasSettingsAccess
+  );
+  const canUpdateSiteContent = (
+    hasExplicitSiteContentPermissions ? canUpdateSiteContentPermission : legacyHasSettingsAccess
+  );
+  const canDeleteSiteContent = (
+    hasExplicitSiteContentPermissions ? canDeleteSiteContentPermission : legacyHasSettingsAccess
+  );
+  const canOpenSiteContent = Boolean(profile?.username) && canReadSiteContent;
   const canSearchAppointmentClients = canSearchAppointmentClientsPermission || canReadClients;
 
   const canAccessForcedView = useMemo(() => {
@@ -202,6 +199,9 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "appointment-settings") {
       return canOpenAppointmentSettings;
     }
+    if (forcedView === "dashboard") {
+      return canOpenDashboard;
+    }
     if (forcedView === "settings-organizations") {
       return canOpenSettingsOrganizations;
     }
@@ -225,10 +225,12 @@ export function useProfileAccess(profile, forcedView) {
     canCreateUsers,
     canOpenAppointmentSchedule,
     canOpenAppointmentSettings,
+    canOpenDashboard,
     canOpenSettingsOrganizations,
     canOpenSettingsPositions,
     canOpenSettingsRoles,
     canOpenStatisticsPlannerReport,
+    canReadSiteContent,
     canReadClients,
     canReadUsers,
     forcedView,
@@ -271,6 +273,7 @@ export function useProfileAccess(profile, forcedView) {
     canUpdateAppointmentBreaks,
     canDeleteAppointmentBreaks,
     canOpenAppointmentStatistics,
+    canOpenDashboard,
     canOpenStatisticsPlannerReport,
     canReadSettingsAppointments,
     canUpdateSettingsAppointments,
@@ -293,6 +296,10 @@ export function useProfileAccess(profile, forcedView) {
     hasSettingsMenuAccess,
     hasAdminSettingsAccess,
     canOpenSiteContent,
+    canReadSiteContent,
+    canCreateSiteContent,
+    canUpdateSiteContent,
+    canDeleteSiteContent,
     canAccessForcedView
   };
 }

@@ -8,6 +8,7 @@ export function useProfilePanels({
   setMyProfileModalOpen,
   canCreateUsers,
   canReadClients,
+  canOpenDashboard,
   canOpenAppointmentSchedule,
   canOpenAppointmentStatistics,
   canOpenAppointmentSettings,
@@ -52,6 +53,14 @@ export function useProfilePanels({
 
   const closeAllClientsPanel = useCallback(() => {
     closePanel("clients-all");
+  }, [closePanel]);
+
+  const openDashboardPanel = useCallback(() => {
+    openPanel("/dashboard", canOpenDashboard);
+  }, [canOpenDashboard, openPanel]);
+
+  const closeDashboardPanel = useCallback(() => {
+    closePanel("dashboard");
   }, [closePanel]);
 
   const openAppointmentPanel = useCallback(() => {
@@ -141,6 +150,8 @@ export function useProfilePanels({
     openCreateUserPanel,
     openAllClientsPanel,
     closeAllClientsPanel,
+    openDashboardPanel,
+    closeDashboardPanel,
     openAppointmentPanel,
     closeAppointmentPanel,
     openAppointmentSettingsPanel,

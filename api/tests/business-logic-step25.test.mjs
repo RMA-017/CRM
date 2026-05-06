@@ -80,7 +80,7 @@ function createRouteRecorder() {
   };
 }
 
-test("create-user route respects users org feature gate", async () => {
+test("create-user route requires users create permission without organization feature gate", async () => {
   const recorder = createRouteRecorder();
   await createUserRoutes(recorder.fastify);
 
@@ -92,17 +92,20 @@ test("create-user route respects users org feature gate", async () => {
     const queryText = String(sql || "");
     seenQueries.push({ queryText, params });
 
-    if (queryText.includes("FROM users u") && queryText.includes("o.allowed_features AS organization_allowed_features")) {
+    if (queryText.includes("FROM users u") && !queryText.includes("allowed_features")) {
       return {
         rows: [{
           id: 7,
           role_id: 11,
           is_admin: true,
           is_platform_admin: false,
-          organization_id: 3,
-          organization_allowed_features: []
+          organization_id: 3
         }]
       };
+    }
+
+    if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
+      return { rows: [] };
     }
 
     throw new Error(`Unexpected query in test: ${queryText} :: ${JSON.stringify(params)}`);
@@ -125,7 +128,7 @@ test("create-user route respects users org feature gate", async () => {
 
     assert.equal(reply.state.statusCode, 403);
     assert.equal(reply.state.payload?.message, "Forbidden.");
-    assert.equal(seenQueries.length, 1);
+    assert.equal(seenQueries.length, 2);
   } finally {
     restoreQuery();
   }

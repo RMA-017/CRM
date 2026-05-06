@@ -16,6 +16,8 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
   hasClientsMenuAccess,
   canReadClients,
   openAllClientsPanel,
+  canOpenDashboard,
+  openDashboardPanel,
   hasAppointmentsMenuAccess,
   canOpenAppointmentSchedule,
   canOpenAppointmentStatistics,
@@ -169,6 +171,16 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
               All Clients
             </button>
           </div>
+
+          <button
+            id="openDashboardBtn"
+            type="button"
+            className="side-menu-action"
+            hidden={!canOpenDashboard}
+            onClick={openDashboardPanel}
+          >
+            Dashboard
+          </button>
 
           <div id="appointmentsMenuGroup" className="side-menu-group" hidden={!hasAppointmentsMenuAccess}>
             <button

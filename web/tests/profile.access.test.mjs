@@ -85,3 +85,23 @@ test("planner statistics permission unlocks statistics menu without clients read
   assert.equal(plannerReportAccess.canOpenStatisticsPlannerReport, true);
   assert.equal(plannerReportAccess.canAccessForcedView, true);
 });
+
+test("website management permissions unlock site content without admin role", () => {
+  const access = readAccessSnapshot({
+    username: "editor",
+    isAdmin: false,
+    isPlatformAdmin: false,
+    permissions: [
+      "website.management.read",
+      "website.management.create",
+      "website.management.update"
+    ],
+    orgFeatures: ["website.management"]
+  }, "site-content");
+
+  assert.equal(access.canOpenSiteContent, true);
+  assert.equal(access.canCreateSiteContent, true);
+  assert.equal(access.canUpdateSiteContent, true);
+  assert.equal(access.canDeleteSiteContent, false);
+  assert.equal(access.canAccessForcedView, true);
+});

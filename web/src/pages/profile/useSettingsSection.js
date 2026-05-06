@@ -30,8 +30,7 @@ export function useSettingsSection({
   canUpdateSettingsPositions,
   canDeleteSettingsPositions,
   navigate,
-  loadUserOptions,
-  orgFeatures = null
+  loadUserOptions
 }) {
   const hasOrganizationSettingsAccess = canOpenSettingsOrganizations;
   const hasRoleSettingsAccess = canOpenSettingsRoles;
@@ -97,8 +96,8 @@ export function useSettingsSection({
   }, [allowedRolePermissionCodeSet]);
 
   const rolePermissionTree = useMemo(() => (
-    buildRolePermissionTree(rolePermissionOptions, orgFeatures)
-  ), [orgFeatures, rolePermissionOptions]);
+    buildRolePermissionTree(rolePermissionOptions)
+  ), [rolePermissionOptions]);
 
   const closeSettingsDeleteModal = useCallback(() => {
     setSettingsDelete(createEmptySettingsDeleteState());
@@ -273,8 +272,7 @@ export function useSettingsSection({
     const payload = {
       code: String(organizationCreateForm.code || "").trim().toLowerCase(),
       name: String(organizationCreateForm.name || "").trim(),
-      isActive: Boolean(organizationCreateForm.isActive),
-      allowedFeatures: null
+      isActive: Boolean(organizationCreateForm.isActive)
     };
     const validationError = validateOrganizationForm(payload);
     if (validationError) {
@@ -324,8 +322,7 @@ export function useSettingsSection({
     setOrganizationEditForm({
       code: String(item?.code || ""),
       name: String(item?.name || ""),
-      isActive: Boolean(item?.isActive),
-      allowedFeatures: null
+      isActive: Boolean(item?.isActive)
     });
     setOrganizationEditError("");
     setOrganizationEditOpen(true);
@@ -352,8 +349,7 @@ export function useSettingsSection({
     const payload = {
       code: String(organizationEditForm.code || "").trim().toLowerCase(),
       name: String(organizationEditForm.name || "").trim(),
-      isActive: Boolean(organizationEditForm.isActive),
-      allowedFeatures: null
+      isActive: Boolean(organizationEditForm.isActive)
     };
     const validationError = validateOrganizationForm(payload);
     if (validationError) {

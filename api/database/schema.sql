@@ -19,7 +19,6 @@ CREATE TABLE organizations (
   code VARCHAR(64) NOT NULL UNIQUE,
   name VARCHAR(128) NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  allowed_features TEXT[] DEFAULT NULL,
   created_by INTEGER,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_by INTEGER,

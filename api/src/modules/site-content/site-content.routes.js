@@ -1,6 +1,8 @@
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 import { findSettingsRequester } from "../settings/settings.service.js";
+import { hasPermission } from "../users/access.service.js";
+import { PERMISSIONS } from "../users/users.constants.js";
 import {
   SITE_CONTENT_SECTIONS,
   createSiteContentItem,
@@ -88,13 +90,22 @@ function validatePayload(payload) {
   return null;
 }
 
-async function requireSiteContentAdmin(request, reply) {
+const SITE_CONTENT_PERMISSION_BY_ACTION = Object.freeze({
+  read: PERMISSIONS.WEBSITE_MANAGEMENT_READ,
+  create: PERMISSIONS.WEBSITE_MANAGEMENT_CREATE,
+  update: PERMISSIONS.WEBSITE_MANAGEMENT_UPDATE,
+  delete: PERMISSIONS.WEBSITE_MANAGEMENT_DELETE
+});
+
+async function requireSiteContentAccess(request, reply, action = "read") {
   const requester = await findSettingsRequester(request.authContext);
   if (!requester) {
     reply.status(401).send({ message: "Unauthorized." });
     return null;
   }
-  if (!requester.is_admin) {
+  const permissionCode = SITE_CONTENT_PERMISSION_BY_ACTION[action] || SITE_CONTENT_PERMISSION_BY_ACTION.read;
+  const hasActionPermission = await hasPermission(requester.role_id, permissionCode);
+  if (!requester.is_admin && !hasActionPermission) {
     reply.status(403).send({ message: "Forbidden." });
     return null;
   }
@@ -129,7 +140,7 @@ export async function siteContentProtectedRoutes(fastify) {
     },
     async (request, reply) => {
       setNoCacheHeaders(reply);
-      const adminContext = await requireSiteContentAdmin(request, reply);
+      const adminContext = await requireSiteContentAccess(request, reply, "read");
       if (!adminContext) {
         return null;
       }
@@ -148,7 +159,7 @@ export async function siteContentProtectedRoutes(fastify) {
       config: { rateLimit: fastify.apiRateLimit }
     },
     async (request, reply) => {
-      const adminContext = await requireSiteContentAdmin(request, reply);
+      const adminContext = await requireSiteContentAccess(request, reply, "create");
       if (!adminContext) {
         return null;
       }
@@ -188,7 +199,7 @@ export async function siteContentProtectedRoutes(fastify) {
       config: { rateLimit: fastify.apiRateLimit }
     },
     async (request, reply) => {
-      const adminContext = await requireSiteContentAdmin(request, reply);
+      const adminContext = await requireSiteContentAccess(request, reply, "update");
       if (!adminContext) {
         return null;
       }
@@ -235,7 +246,7 @@ export async function siteContentProtectedRoutes(fastify) {
       config: { rateLimit: fastify.apiRateLimit }
     },
     async (request, reply) => {
-      const adminContext = await requireSiteContentAdmin(request, reply);
+      const adminContext = await requireSiteContentAccess(request, reply, "delete");
       if (!adminContext) {
         return null;
       }

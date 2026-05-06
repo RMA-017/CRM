@@ -59,7 +59,6 @@ async function getRequesterByAuthContext({ userId, organizationId }) {
        o.id AS organization_id,
        o.code AS organization_code,
        o.name AS organization_name,
-       o.allowed_features AS organization_allowed_features,
        COALESCE(NULLIF(TRIM(r.label), ''), '') AS role_label,
        COALESCE(NULLIF(TRIM(p.label), ''), '') AS position_label
       FROM users u

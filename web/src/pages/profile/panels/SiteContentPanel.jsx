@@ -106,7 +106,13 @@ async function prepareImageDataUrl(file) {
   return dataUrl;
 }
 
-function SiteContentPanel({ onClose }) {
+function SiteContentPanel({
+  onClose,
+  canOpenSiteContent = false,
+  canCreateSiteContent = false,
+  canUpdateSiteContent = false,
+  canDeleteSiteContent = false
+}) {
   const location = useLocation();
   const [activeSectionKey, setActiveSectionKey] = useState(() => getSectionFromSearch(location.search));
   const [itemsBySection, setItemsBySection] = useState(emptySiteContentGroups);
@@ -132,6 +138,11 @@ function SiteContentPanel({ onClose }) {
 
     async function loadItems() {
       try {
+        if (!canOpenSiteContent) {
+          setPanelMessage("You do not have permission to view Website Management.");
+          setIsLoading(false);
+          return;
+        }
         setIsLoading(true);
         setPanelMessage("");
         const items = await fetchManagedSiteContent();
@@ -153,7 +164,7 @@ function SiteContentPanel({ onClose }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [canOpenSiteContent]);
 
   const replaceSectionItems = useCallback((sectionKey, nextItems) => {
     setItemsBySection((current) => ({
@@ -227,6 +238,10 @@ function SiteContentPanel({ onClose }) {
 
   const handleSubmit = useCallback((event) => {
     event.preventDefault();
+    if (editingThisSection ? !canUpdateSiteContent : !canCreateSiteContent) {
+      setPanelMessage("You do not have permission to save website content.");
+      return;
+    }
     if (!validateForm()) {
       return;
     }
@@ -273,12 +288,17 @@ function SiteContentPanel({ onClose }) {
     activeSection,
     editing.id,
     editingThisSection,
+    canCreateSiteContent,
+    canUpdateSiteContent,
     replaceSectionItems,
     resetForm,
     validateForm
   ]);
 
   const startEdit = useCallback((item) => {
+    if (!canUpdateSiteContent) {
+      return;
+    }
     setForms((current) => ({
       ...current,
       [activeSection.key]: {
@@ -289,12 +309,15 @@ function SiteContentPanel({ onClose }) {
     setEditing({ sectionKey: activeSection.key, id: item.id });
     setErrors({});
     setContentModalOpen(true);
-  }, [activeSection.key]);
+  }, [activeSection.key, canUpdateSiteContent]);
 
   const openCreateModal = useCallback(() => {
+    if (!canCreateSiteContent) {
+      return;
+    }
     resetForm(activeSection.key);
     setContentModalOpen(true);
-  }, [activeSection.key, resetForm]);
+  }, [activeSection.key, canCreateSiteContent, resetForm]);
 
   const closeContentModal = useCallback(() => {
     setContentModalOpen(false);
@@ -302,6 +325,10 @@ function SiteContentPanel({ onClose }) {
   }, [activeSection.key, resetForm]);
 
   const deleteItem = useCallback((itemId) => {
+    if (!canDeleteSiteContent) {
+      setPanelMessage("You do not have permission to delete website content.");
+      return;
+    }
     async function remove() {
       try {
         setDeletingId(itemId);
@@ -322,7 +349,7 @@ function SiteContentPanel({ onClose }) {
     }
 
     void remove();
-  }, [activeItems, activeSection.key, editing.id, replaceSectionItems, resetForm]);
+  }, [activeItems, activeSection.key, canDeleteSiteContent, editing.id, replaceSectionItems, resetForm]);
 
   const contentForm = (
     <form className="site-content-form" onSubmit={handleSubmit} noValidate>
@@ -412,6 +439,7 @@ function SiteContentPanel({ onClose }) {
               className="header-btn appointment-breaks-add-icon-btn"
               aria-label={`Add ${activeSection.title}`}
               title={`Add ${activeSection.title}`}
+              hidden={!canCreateSiteContent}
               onClick={openCreateModal}
             >
               +
@@ -457,12 +485,18 @@ function SiteContentPanel({ onClose }) {
                     <h4>{item.authorUz || item.author || item.nameUz || item.name}</h4>
                   </div>
                   <div className="site-content-item-actions">
-                    <button type="button" className="table-action-btn" onClick={() => startEdit(item)}>
+                    <button
+                      type="button"
+                      className="table-action-btn"
+                      hidden={!canUpdateSiteContent}
+                      onClick={() => startEdit(item)}
+                    >
                       Edit
                     </button>
                     <button
                       type="button"
                       className="table-action-btn table-action-btn-danger"
+                      hidden={!canDeleteSiteContent}
                       disabled={deletingId === item.id}
                       onClick={() => deleteItem(item.id)}
                     >

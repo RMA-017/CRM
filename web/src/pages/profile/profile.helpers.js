@@ -1,7 +1,5 @@
 import {
-  ROLE_PERMISSION_TEMPLATE,
-  filterPermissionOptionsByFeatures,
-  hasAllowedFeature
+  ROLE_PERMISSION_TEMPLATE
 } from "../../../../shared/access-registry.js";
 
 export function normalizeSettingsSortOrderInput(value) {
@@ -25,7 +23,7 @@ const ROLE_PERMISSION_ACTION_ORDER = new Map([
 ]);
 
 export function filterPermissionsByOrgFeatures(permissions, orgFeatures) {
-  return filterPermissionOptionsByFeatures(permissions, orgFeatures);
+  return Array.isArray(permissions) ? permissions : [];
 }
 
 export function normalizePermissionCodesInput(value) {
@@ -112,19 +110,10 @@ function createPermissionGroupNode(key, label, children, order = 999, hiddenCode
   };
 }
 
-function buildKnownRolePermissionTree(optionLabelByCode, usedCodes, orgFeatures) {
+function buildKnownRolePermissionTree(optionLabelByCode, usedCodes) {
   return ROLE_PERMISSION_TEMPLATE.map((group, groupIndex) => {
     const childNodes = group.children
       .map((child, childIndex) => {
-        // Skip features not enabled for this org.
-        // For rootPermissions virtual children (featureKey present), use their explicit
-        // featureKey (null = always visible, string = check against org features).
-        // For regular feature children, fall back to child.key.
-        const featureKeyToCheck = "featureKey" in child ? child.featureKey : child.key;
-        if (featureKeyToCheck !== null && !hasAllowedFeature(orgFeatures, featureKeyToCheck)) {
-          return null;
-        }
-
         // Collect available permissions defined for this child feature.
         const availablePerms = child.permissions.filter((permission) => {
           const code = String(permission?.code || "").trim().toLowerCase();
@@ -388,7 +377,7 @@ export function buildRolePermissionTree(rolePermissionOptions, orgFeatures = nul
 
   const usedCodes = new Set();
   const tree = mergeRolePermissionTreeGroups(
-    buildKnownRolePermissionTree(optionLabelByCode, usedCodes, orgFeatures),
+    buildKnownRolePermissionTree(optionLabelByCode, usedCodes),
     buildFallbackPermissionTree(optionLabelByCode, usedCodes)
   );
   const sharedCodeCounts = countRolePermissionLeafCodes(tree);
@@ -438,23 +427,8 @@ export function compareTextInsensitive(left, right) {
   });
 }
 
-const FORCED_VIEW_REQUIRED_FEATURES = {
-  "appointment": ["appointments.planner"],
-  "appointment-settings": ["settings.appointments"],
-  "settings-roles": ["settings.roles"],
-  "settings-positions": ["settings.positions"],
-  "statistics-planner-report": ["statistics.planner_report"]
-};
-
 export function isViewBlockedByOrgFeatures(forcedView, rawOrgFeatures) {
-  if (!Array.isArray(rawOrgFeatures)) {
-    return false;
-  }
-  const requiredFeatures = FORCED_VIEW_REQUIRED_FEATURES[forcedView];
-  if (!requiredFeatures) {
-    return false;
-  }
-  return requiredFeatures.some((feature) => !hasAllowedFeature(rawOrgFeatures, feature));
+  return false;
 }
 
 export function handleProtectedStatus(response, navigate) {

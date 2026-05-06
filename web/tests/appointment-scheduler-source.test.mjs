@@ -302,8 +302,8 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.equal(
     (source.match(/await refreshPlannerServerState\(\);/g) || []).length,
-    9,
-    "Planner appointment, drag-move, day-bulk, break, and work-schedule save/delete flows should await a server refresh after mutation."
+    10,
+    "Planner appointment, drag-move, day-bulk, break move, break, and work-schedule save/delete flows should await a server refresh after mutation."
   );
   assert.match(
     source,
@@ -352,7 +352,7 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /mouseDragStateRef[\s\S]*document\.elementFromPoint\(event\.clientX, event\.clientY\)[\s\S]*closest\?\.\("\[data-appointment-drop-slot='true'\]"\)[\s\S]*onMoveAppointment\([\s\S]*dragState\.item,[\s\S]*dragState\.sourceDay,[\s\S]*targetSlot/s,
+    /function findDropCellFromPoint\(clientX, clientY, selector\)[\s\S]*document\.elementFromPoint\(clientX, clientY\)[\s\S]*document\.elementsFromPoint\(clientX, clientY\)[\s\S]*const dropSelector = dragState\.type === "break"[\s\S]*findDropCellFromPoint\(event\.clientX, event\.clientY, dropSelector\)[\s\S]*onMoveAppointment\([\s\S]*dragState\.item,[\s\S]*dragState\.sourceDay,[\s\S]*targetSlot/s,
     "Planner drag move should include a mouse fallback that resolves the drop slot under the cursor."
   );
   assert.doesNotMatch(

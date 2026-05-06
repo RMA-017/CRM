@@ -13,8 +13,7 @@ export const EMPTY_PROFILE_EDIT_FORM = {
 export const EMPTY_ORGANIZATION_FORM = {
   code: "",
   name: "",
-  isActive: true,
-  allowedFeatures: null
+  isActive: true
 };
 
 export const EMPTY_SETTINGS_OPTION_FORM = {

@@ -51,7 +51,8 @@ import {
   toAppointmentDayNum
 } from "./appointment-settings-helpers.js";
 import {
-  getDurationMinutesFromTimes as getDurationMinutesFromAppointmentTimes
+  getDurationMinutesFromTimes as getDurationMinutesFromAppointmentTimes,
+  toTimeMinutes
 } from "./time.js";
 
 const appointmentReferenceCache = createTtlCache({
@@ -492,6 +493,310 @@ function mapSpecialistBlockedTimes(rows = []) {
       };
     })
     .filter(Boolean);
+}
+
+function eachDateYmdInRange(from, to) {
+  const fromDate = new Date(`${from}T00:00:00Z`);
+  const toDate = new Date(`${to}T00:00:00Z`);
+  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime()) || fromDate > toDate) {
+    return [];
+  }
+
+  const dates = [];
+  for (let cursor = fromDate; cursor <= toDate; cursor = new Date(cursor.getTime() + 86400000)) {
+    dates.push(cursor.toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
+function getDurationFromTimes(startTime, endTime) {
+  const start = toTimeMinutes(startTime, { allowSeconds: true });
+  const end = toTimeMinutes(endTime, { allowSeconds: true });
+  return start === null || end === null || end <= start ? 0 : end - start;
+}
+
+function createEmptyWorkloadTotals() {
+  return {
+    workingMinutes: 0,
+    breakMinutes: 0,
+    blockedMinutes: 0,
+    availableMinutes: 0,
+    bookedMinutes: 0,
+    emptyMinutes: 0,
+    utilizationPercent: 0
+  };
+}
+
+function finalizeWorkloadTotals(value) {
+  const workingMinutes = Math.max(0, Number.parseInt(String(value?.workingMinutes || "0"), 10) || 0);
+  const breakMinutes = Math.max(0, Number.parseInt(String(value?.breakMinutes || "0"), 10) || 0);
+  const blockedMinutes = Math.max(0, Number.parseInt(String(value?.blockedMinutes || "0"), 10) || 0);
+  const availableMinutes = Math.max(0, workingMinutes - breakMinutes - blockedMinutes);
+  const bookedMinutes = Math.max(0, Number.parseInt(String(value?.bookedMinutes || "0"), 10) || 0);
+  const emptyMinutes = Math.max(0, availableMinutes - bookedMinutes);
+  return {
+    ...value,
+    workingMinutes,
+    breakMinutes,
+    blockedMinutes,
+    availableMinutes,
+    bookedMinutes,
+    emptyMinutes,
+    utilizationPercent: availableMinutes > 0 ? Math.round((Math.min(bookedMinutes, availableMinutes) / availableMinutes) * 100) : 0
+  };
+}
+
+function mergeMinuteRanges(ranges = []) {
+  const sorted = (Array.isArray(ranges) ? ranges : [])
+    .map((range) => ({
+      start: Number.parseInt(String(range?.start ?? ""), 10),
+      end: Number.parseInt(String(range?.end ?? ""), 10)
+    }))
+    .filter((range) => Number.isInteger(range.start) && Number.isInteger(range.end) && range.end > range.start)
+    .sort((left, right) => left.start - right.start || left.end - right.end);
+
+  return sorted.reduce((items, range) => {
+    const previous = items[items.length - 1];
+    if (previous && range.start <= previous.end) {
+      previous.end = Math.max(previous.end, range.end);
+      return items;
+    }
+    items.push({ ...range });
+    return items;
+  }, []);
+}
+
+function sumMinuteRanges(ranges = []) {
+  return mergeMinuteRanges(ranges).reduce((total, range) => total + Math.max(0, range.end - range.start), 0);
+}
+
+async function buildAppointmentPlannerWorkload({
+  organizationId,
+  from,
+  to,
+  specialistRows = [],
+  specialistId = null,
+  details = []
+}) {
+  const dates = eachDateYmdInRange(from, to);
+  if (dates.length === 0) {
+    return {
+      totals: createEmptyWorkloadTotals(),
+      specialists: [],
+      daily: []
+    };
+  }
+
+  const detailSpecialistIds = Array.from(
+    new Set(
+      (Array.isArray(details) ? details : [])
+        .map((row) => Number.parseInt(String(row?.specialistId || "").trim(), 10))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    )
+  );
+  const explicitSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
+  const specialistIds = explicitSpecialistId
+    ? [explicitSpecialistId]
+    : detailSpecialistIds;
+  if (specialistIds.length === 0) {
+    return {
+      totals: createEmptyWorkloadTotals(),
+      specialists: [],
+      daily: dates.map((date) => ({ date, ...createEmptyWorkloadTotals() }))
+    };
+  }
+
+  const specialistNameById = new Map(
+    (Array.isArray(specialistRows) ? specialistRows : []).map((item) => [
+      Number.parseInt(String(item?.id || "").trim(), 10) || 0,
+      String(item?.name || "").trim()
+    ])
+  );
+
+  const [defaultWorkingHoursResult, breaksResult, blockedResult] = await Promise.all([
+    pool.query(
+      `SELECT day_of_week, is_active, start_time, end_time
+         FROM appointment_working_hours
+        WHERE organization_id = $1
+          AND user_id IS NULL
+          AND rule_scope = 'weekly'
+        ORDER BY day_of_week ASC`,
+      [organizationId]
+    ),
+    pool.query(
+      `SELECT specialist_id, day_of_week, start_time, end_time
+         FROM appointment_breaks
+        WHERE organization_id = $1
+          AND specialist_id = ANY($2::int[])
+          AND is_active = TRUE
+        ORDER BY specialist_id ASC, day_of_week ASC, start_time ASC`,
+      [organizationId, specialistIds]
+    ),
+    pool.query(
+      `SELECT user_id AS specialist_id, rule_scope, day_of_week, work_date, is_active, start_time, end_time
+         FROM appointment_working_hours
+        WHERE organization_id = $1
+          AND user_id = ANY($2::int[])
+          AND is_active = TRUE
+          AND start_time IS NOT NULL
+          AND end_time IS NOT NULL
+          AND start_time < end_time
+          AND (
+            rule_scope = 'weekly'
+            OR (rule_scope = 'exception' AND work_date BETWEEN $3::date AND $4::date)
+          )
+        ORDER BY user_id ASC, rule_scope ASC, day_of_week ASC, work_date ASC, start_time ASC`,
+      [organizationId, specialistIds, from, to]
+    )
+  ]);
+
+  const defaultWorkingRows = defaultWorkingHoursResult.rows || [];
+  const defaultWorkingByDay = new Map();
+  if (defaultWorkingRows.length > 0) {
+    defaultWorkingRows.forEach((row) => {
+      const dayOfWeek = normalizeWorkScheduleDayOfWeek(row?.day_of_week);
+      const start = toTimeMinutes(row?.start_time, { allowSeconds: true });
+      const end = toTimeMinutes(row?.end_time, { allowSeconds: true });
+      if (dayOfWeek && row?.is_active === true && start !== null && end !== null && end > start) {
+        defaultWorkingByDay.set(dayOfWeek, { start, end });
+      }
+    });
+  } else {
+    const defaults = createDefaultSettings().workingHours || {};
+    Object.entries(defaults).forEach(([dayKey, hours]) => {
+      const dayOfWeek = toAppointmentDayNum(dayKey);
+      const start = toTimeMinutes(hours?.start);
+      const end = toTimeMinutes(hours?.end);
+      if (dayOfWeek && start !== null && end !== null && end > start) {
+        defaultWorkingByDay.set(dayOfWeek, { start, end });
+      }
+    });
+  }
+
+  const breaksBySpecialistDay = new Map();
+  (breaksResult.rows || []).forEach((row) => {
+    const currentSpecialistId = Number.parseInt(String(row?.specialist_id || "").trim(), 10) || 0;
+    const dayOfWeek = normalizeWorkScheduleDayOfWeek(row?.day_of_week);
+    const start = toTimeMinutes(row?.start_time, { allowSeconds: true });
+    const end = toTimeMinutes(row?.end_time, { allowSeconds: true });
+    if (!currentSpecialistId || !dayOfWeek || start === null || end === null || end <= start) {
+      return;
+    }
+    const key = `${currentSpecialistId}:${dayOfWeek}`;
+    const items = breaksBySpecialistDay.get(key) || [];
+    items.push({ start, end });
+    breaksBySpecialistDay.set(key, items);
+  });
+
+  const weeklyBlocksBySpecialistDay = new Map();
+  const exceptionBlocksBySpecialistDate = new Map();
+  (blockedResult.rows || []).forEach((row) => {
+    const currentSpecialistId = Number.parseInt(String(row?.specialist_id || "").trim(), 10) || 0;
+    const start = toTimeMinutes(row?.start_time, { allowSeconds: true });
+    const end = toTimeMinutes(row?.end_time, { allowSeconds: true });
+    if (!currentSpecialistId || start === null || end === null || end <= start) {
+      return;
+    }
+    const scope = String(row?.rule_scope || "").trim().toLowerCase();
+    if (scope === "exception") {
+      const date = normalizeDateYmd(row?.work_date);
+      if (!date) {
+        return;
+      }
+      const key = `${currentSpecialistId}:${date}`;
+      const items = exceptionBlocksBySpecialistDate.get(key) || [];
+      items.push({ start, end });
+      exceptionBlocksBySpecialistDate.set(key, items);
+      return;
+    }
+    const dayOfWeek = normalizeWorkScheduleDayOfWeek(row?.day_of_week);
+    if (!dayOfWeek) {
+      return;
+    }
+    const key = `${currentSpecialistId}:${dayOfWeek}`;
+    const items = weeklyBlocksBySpecialistDay.get(key) || [];
+    items.push({ start, end });
+    weeklyBlocksBySpecialistDay.set(key, items);
+  });
+
+  const bookedBySpecialistDate = new Map();
+  (Array.isArray(details) ? details : []).forEach((row) => {
+    const status = String(row?.status || "").trim().toLowerCase();
+    if (status !== "confirmed" && status !== "pending") {
+      return;
+    }
+    const currentSpecialistId = Number.parseInt(String(row?.specialistId || "").trim(), 10) || 0;
+    const date = normalizeDateYmd(row?.appointmentDate);
+    if (!currentSpecialistId || !date) {
+      return;
+    }
+    const duration = Number.parseInt(String(row?.durationMinutes || "0"), 10) || getDurationFromTimes(row?.startTime, row?.endTime);
+    const key = `${currentSpecialistId}:${date}`;
+    bookedBySpecialistDate.set(key, (bookedBySpecialistDate.get(key) || 0) + Math.max(0, duration));
+  });
+
+  const totals = createEmptyWorkloadTotals();
+  const specialistTotals = new Map();
+  const dailyTotals = new Map(dates.map((date) => [date, { date, ...createEmptyWorkloadTotals() }]));
+
+  specialistIds.forEach((currentSpecialistId) => {
+    const specialistTotal = {
+      specialistId: String(currentSpecialistId),
+      specialistName: specialistNameById.get(currentSpecialistId) || `Specialist #${currentSpecialistId}`,
+      ...createEmptyWorkloadTotals()
+    };
+
+    dates.forEach((date) => {
+      const dayOfWeek = getIsoDayOfWeekFromDateYmd(date);
+      const working = defaultWorkingByDay.get(dayOfWeek);
+      const bookedMinutes = bookedBySpecialistDate.get(`${currentSpecialistId}:${date}`) || 0;
+      const daily = dailyTotals.get(date);
+      specialistTotal.bookedMinutes += bookedMinutes;
+      daily.bookedMinutes += bookedMinutes;
+      totals.bookedMinutes += bookedMinutes;
+      if (!working) {
+        return;
+      }
+
+      const breakRanges = (breaksBySpecialistDay.get(`${currentSpecialistId}:${dayOfWeek}`) || [])
+        .map((range) => ({
+          start: Math.max(working.start, range.start),
+          end: Math.min(working.end, range.end)
+        }));
+      const blockRanges = [
+        ...(weeklyBlocksBySpecialistDay.get(`${currentSpecialistId}:${dayOfWeek}`) || []),
+        ...(exceptionBlocksBySpecialistDate.get(`${currentSpecialistId}:${date}`) || [])
+      ].map((range) => ({
+        start: Math.max(working.start, range.start),
+        end: Math.min(working.end, range.end)
+      }));
+      const breakMinutes = sumMinuteRanges(breakRanges);
+      const blockedMinutes = sumMinuteRanges(blockRanges);
+      const workingMinutes = Math.max(0, working.end - working.start);
+
+      specialistTotal.workingMinutes += workingMinutes;
+      specialistTotal.breakMinutes += breakMinutes;
+      specialistTotal.blockedMinutes += blockedMinutes;
+      daily.workingMinutes += workingMinutes;
+      daily.breakMinutes += breakMinutes;
+      daily.blockedMinutes += blockedMinutes;
+      totals.workingMinutes += workingMinutes;
+      totals.breakMinutes += breakMinutes;
+      totals.blockedMinutes += blockedMinutes;
+    });
+
+    specialistTotals.set(currentSpecialistId, finalizeWorkloadTotals(specialistTotal));
+  });
+
+  return {
+    totals: finalizeWorkloadTotals(totals),
+    specialists: [...specialistTotals.values()].sort((left, right) => (
+      right.utilizationPercent - left.utilizationPercent
+      || right.bookedMinutes - left.bookedMinutes
+      || left.specialistName.localeCompare(right.specialistName, undefined, { sensitivity: "base" })
+    )),
+    daily: [...dailyTotals.values()].map(finalizeWorkloadTotals)
+  };
 }
 
 async function getOrganizationDefaultWeeklyWorkScheduleRows({
@@ -1915,40 +2220,6 @@ export async function deleteAppointmentWorkScheduleEntryById({
       WHERE id = $1
         AND organization_id = $2`,
     [id, organizationId]
-  );
-}
-
-async function getAppointmentSpecialistAbsenceDateSet({
-  organizationId,
-  specialistId,
-  dateFrom = null,
-  dateTo = null,
-  db = pool
-}) {
-  const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
-  const normalizedDateFrom = normalizeWorkScheduleDate(dateFrom) || null;
-  const normalizedDateTo = normalizeWorkScheduleDate(dateTo) || null;
-  if (!normalizedSpecialistId) {
-    return new Set();
-  }
-
-  const { rows } = await db.query(
-    `SELECT awh.work_date
-       FROM appointment_working_hours awh
-      WHERE awh.organization_id = $1
-        AND awh.user_id = $2
-        AND awh.rule_scope = 'exception'
-        AND awh.is_active = FALSE
-        AND ($3::date IS NULL OR awh.work_date >= $3::date)
-        AND ($4::date IS NULL OR awh.work_date <= $4::date)
-      ORDER BY awh.work_date ASC`,
-    [organizationId, normalizedSpecialistId, normalizedDateFrom, normalizedDateTo]
-  );
-
-  return new Set(
-    (rows || [])
-      .map((row) => normalizeWorkScheduleDate(row?.work_date))
-      .filter(Boolean)
   );
 }
 
@@ -3477,144 +3748,6 @@ export async function hasVipRoutineConflictForClient({
   return Boolean(rows[0]);
 }
 
-async function hasBreakConflictForVipRoutine({
-  organizationId,
-  specialistId,
-  dayOfWeek,
-  startTime,
-  endTime,
-  db = pool
-}) {
-  const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
-  if (!normalizedSpecialistId) {
-    return false;
-  }
-
-  const { rows } = await (db || pool).query(
-    `SELECT 1
-       FROM appointment_breaks ab
-      WHERE ab.organization_id = $1
-        AND ab.is_active = TRUE
-        AND ab.day_of_week = $2
-        AND ($3::time < ab.end_time)
-        AND (ab.start_time < $4::time)
-        AND ab.specialist_id = $5
-      LIMIT 1`,
-    [organizationId, dayOfWeek, startTime, endTime, normalizedSpecialistId]
-  );
-  return Boolean(rows[0]);
-}
-
-async function hasWorkScheduleAbsenceForVipRoutine({
-  organizationId,
-  specialistId,
-  dayOfWeek,
-  db = pool
-}) {
-  const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
-  if (!normalizedSpecialistId) {
-    return false;
-  }
-
-  const { rows } = await (db || pool).query(
-    `SELECT 1
-       FROM appointment_working_hours awh
-      WHERE awh.organization_id = $1
-        AND awh.rule_scope = 'weekly'
-        AND awh.day_of_week = $2
-        AND awh.is_active = FALSE
-        AND awh.user_id = $3
-      LIMIT 1`,
-    [organizationId, dayOfWeek, normalizedSpecialistId]
-  );
-  return Boolean(rows[0]);
-}
-
-async function hasAppointmentConflictForVipRoutine({
-  organizationId,
-  classId,
-  specialistId,
-  dayOfWeek,
-  startTime,
-  endTime,
-  db = pool
-}) {
-  const normalizedClassId = Number.parseInt(String(classId || "").trim(), 10) || 0;
-  const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
-  if (!normalizedClassId && !normalizedSpecialistId) {
-    return null;
-  }
-
-  const params = [organizationId, dayOfWeek, startTime, endTime];
-  let specialistMatchSql = "FALSE";
-  let classClientMatchSql = "FALSE";
-  let specialistPrioritySql = "1";
-
-  if (normalizedSpecialistId) {
-    params.push(normalizedSpecialistId);
-    specialistMatchSql = `s.specialist_id = $${params.length}`;
-    specialistPrioritySql = `CASE WHEN s.specialist_id = $${params.length} THEN 0 ELSE 1 END`;
-  }
-  if (normalizedClassId) {
-    params.push(normalizedClassId);
-    classClientMatchSql = `EXISTS (
-      SELECT 1
-        FROM vip_client_tutor_assignments vta
-       WHERE vta.organization_id = s.organization_id
-         AND vta.class_assignment_id = $${params.length}
-         AND vta.client_id = s.client_id
-    )`;
-  }
-
-  const { rows } = await (db || pool).query(
-    `SELECT
-       s.id::text AS appointment_id,
-       s.appointment_date::text AS appointment_date,
-       TO_CHAR(s.start_time, 'HH24:MI') AS appointment_start_time,
-       TO_CHAR(s.end_time, 'HH24:MI') AS appointment_end_time,
-       CONCAT_WS(' ', NULLIF(TRIM(c.first_name), ''), NULLIF(TRIM(c.last_name), '')) AS client_name,
-       CASE
-         WHEN ${specialistMatchSql} THEN 'specialist'
-         ELSE 'client'
-       END AS conflict_scope
-       FROM appointment_schedules s
-       LEFT JOIN clients c
-         ON c.id = s.client_id
-        AND c.organization_id = s.organization_id
-      WHERE s.organization_id = $1
-        AND s.status IN ('pending', 'confirmed')
-        AND s.appointment_date >= CURRENT_DATE
-        AND EXTRACT(ISODOW FROM s.appointment_date)::smallint = $2
-        AND ($3::time < s.end_time)
-        AND (s.start_time < $4::time)
-        AND (
-          ${specialistMatchSql}
-          OR ${classClientMatchSql}
-        )
-      ORDER BY
-        ${specialistPrioritySql},
-        s.appointment_date ASC,
-        s.start_time ASC,
-        s.id ASC
-      LIMIT 1`,
-    params
-  );
-  if (!rows[0]) {
-    return null;
-  }
-
-  return {
-    appointmentId: String(rows[0]?.appointment_id || "").trim(),
-    appointmentDate: normalizeDateYmd(rows[0]?.appointment_date),
-    startTime: normalizeTimeHm(rows[0]?.appointment_start_time),
-    endTime: normalizeTimeHm(rows[0]?.appointment_end_time),
-    clientName: String(rows[0]?.client_name || "").trim(),
-    conflictScope: String(rows[0]?.conflict_scope || "").trim().toLowerCase() === "specialist"
-      ? "specialist"
-      : "client"
-  };
-}
-
 export async function createAppointmentSchedule({
   organizationId,
   actorUserId,
@@ -4893,17 +5026,27 @@ export async function getAppointmentPlannerReport({
         status
       };
     });
+  const specialists = (Array.isArray(specialistRows) ? specialistRows : [])
+    .map((item) => ({
+      id: String(item?.id || "").trim(),
+      name: String(item?.name || "").trim()
+    }))
+    .filter((item) => Boolean(item.id) && Boolean(item.name))
+    .sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: "base" }));
+  const workload = await buildAppointmentPlannerWorkload({
+    organizationId,
+    from,
+    to,
+    specialistRows,
+    specialistId,
+    details
+  });
 
   return {
     summary,
     details,
-    specialists: (Array.isArray(specialistRows) ? specialistRows : [])
-      .map((item) => ({
-        id: String(item?.id || "").trim(),
-        name: String(item?.name || "").trim()
-      }))
-      .filter((item) => Boolean(item.id) && Boolean(item.name))
-      .sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: "base" })),
+    specialists,
+    workload,
     period: { from, to }
   };
 }

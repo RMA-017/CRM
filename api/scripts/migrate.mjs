@@ -31,7 +31,6 @@ const ADOPT_REQUIRED_TABLES = Object.freeze([
   "appointment_status_history"
 ]);
 const ADOPT_REQUIRED_COLUMNS_BY_TABLE = Object.freeze({
-  organizations: ["allowed_features"],
   appointment_settings: [
     "slot_sub_divisions",
     "appointment_duration_minutes",

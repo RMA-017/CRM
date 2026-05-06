@@ -6,7 +6,7 @@ import {
   togglePermissionCodes
 } from "../src/pages/profile/profile.helpers.js";
 
-test("filterPermissionsByOrgFeatures respects child feature mapping", () => {
+test("filterPermissionsByOrgFeatures keeps permissions after organization feature removal", () => {
   const permissions = [
     { value: "appointments.schedule", label: "Appointments Planner Submenu" },
     { value: "appointments.planner.update", label: "Update Appointment Planner" },
@@ -21,6 +21,7 @@ test("filterPermissionsByOrgFeatures respects child feature mapping", () => {
     [
       "appointments.schedule",
       "appointments.planner.update",
+      "settings.roles.read",
       "profile.read"
     ]
   );
@@ -37,7 +38,7 @@ test("buildRolePermissionTree groups planner permissions without a generic appoi
 
   const tree = buildRolePermissionTree(permissions, ["appointments.planner"]);
 
-  // profile permissions must always appear (not an org feature, featureKey = null)
+  // profile permissions must always appear.
   const profileGroup = tree.find((group) => group.key === "profile");
   assert.ok(profileGroup, "profile group should appear");
 
@@ -53,7 +54,7 @@ test("buildRolePermissionTree groups planner permissions without a generic appoi
   );
 });
 
-test("buildRolePermissionTree includes settings children when org features allow them", () => {
+test("buildRolePermissionTree includes settings children", () => {
   const permissions = [
     { value: "settings.appointments.read", label: "Read Appointment Settings" },
     { value: "settings.appointments.update", label: "Update Appointment Settings" },
@@ -74,6 +75,34 @@ test("buildRolePermissionTree includes settings children when org features allow
     settingsGroup.children.map((child) => child.label),
     ["Appointments", "Roles", "Positions"]
   );
+});
+
+test("buildRolePermissionTree includes website management permissions", () => {
+  const permissions = [
+    { value: "website.management.read", label: "Read Website Management" },
+    { value: "website.management.create", label: "Create Website Management" },
+    { value: "website.management.update", label: "Update Website Management" },
+    { value: "website.management.delete", label: "Delete Website Management" }
+  ];
+
+  const tree = buildRolePermissionTree(permissions, ["website.management"]);
+  const websiteGroup = tree.find((group) => group.key === "website");
+  assert.ok(websiteGroup, "website group should appear");
+  assert.deepEqual(
+    websiteGroup.children.map((child) => child.label),
+    ["Website Management"]
+  );
+
+  const managementNode = websiteGroup.children[0];
+  assert.deepEqual(
+    managementNode.children.map((child) => child.code).sort(),
+    [
+      "website.management.create",
+      "website.management.delete",
+      "website.management.update"
+    ].sort()
+  );
+  assert.deepEqual(managementNode.hiddenCodes, ["website.management.read"]);
 });
 
 test("togglePermissionCodes toggles multiple permission codes at once", () => {

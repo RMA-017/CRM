@@ -7,11 +7,7 @@ import {
 } from "../../lib/permission-codes.js";
 import {
   filterKnownPermissionCodes,
-  filterPermissionCodesByOrgFeatures,
-  filterPermissionOptionsByOrgFeatures,
   isKnownPermissionCode,
-  isPermissionAllowedByOrgFeatures,
-  normalizeAllowedFeatures
 } from "../../lib/org-features.js";
 import { clearRolePermissionsCache } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
@@ -29,24 +25,12 @@ function mergeBaseRolePermissionCodes(permissionCodes = []) {
   ]);
 }
 
-function buildAllowedFeaturesCacheKey(allowedFeatures) {
-  const normalized = normalizeAllowedFeatures(allowedFeatures);
-  if (normalized === null) {
-    return "all";
-  }
-  if (!Array.isArray(normalized) || normalized.length === 0) {
-    return "none";
-  }
-  return normalized.join(",");
-}
-
 function cloneOrganizations(items) {
   return (Array.isArray(items) ? items : []).map((item) => ({
     id: String(item?.id || "").trim(),
     code: String(item?.code || "").trim(),
     name: String(item?.name || "").trim(),
     isActive: Boolean(item?.isActive),
-    allowedFeatures: normalizeAllowedFeatures(item?.allowedFeatures),
     createdAt: item?.createdAt ?? null
   }));
 }
@@ -96,7 +80,6 @@ function mapOrganization(row) {
     code: row.code,
     name: row.name,
     isActive: Boolean(row.is_active),
-    allowedFeatures: normalizeAllowedFeatures(row.allowed_features),
     createdAt: row.created_at
   };
 }
@@ -115,22 +98,17 @@ function mapOption(row) {
 function selectPermissionCodesForRoleWrite({
   requestedPermissionCodes = [],
   activePermissionCodes = [],
-  allowedFeatures = null,
   isAdmin = false
 }) {
-  const normalizedAllowedFeatures = normalizeAllowedFeatures(allowedFeatures);
   if (Boolean(isAdmin)) {
     return mergeBaseRolePermissionCodes(
       (Array.isArray(activePermissionCodes) ? activePermissionCodes : [])
         .map((code) => normalizePermissionCode(code))
         .filter(Boolean)
-        .filter((code) => isPermissionAllowedByOrgFeatures(code, normalizedAllowedFeatures))
     );
   }
 
-  return mergeBaseRolePermissionCodes(
-    filterPermissionCodesByOrgFeatures(requestedPermissionCodes, normalizedAllowedFeatures)
-  );
+  return mergeBaseRolePermissionCodes(filterKnownPermissionCodes(requestedPermissionCodes));
 }
 
 function mapPermissionOption(row) {
@@ -160,15 +138,6 @@ function mapRoleOption(row) {
     isActive: Boolean(row.is_active),
     createdAt: row.created_at,
     permissionCodes
-  };
-}
-
-function filterRoleOptionByOrgFeatures(item, allowedFeatures) {
-  return {
-    ...item,
-    permissionCodes: mergeBaseRolePermissionCodes(
-      filterPermissionCodesByOrgFeatures(item?.permissionCodes, allowedFeatures)
-    )
   };
 }
 
@@ -206,64 +175,6 @@ async function getRoleOptionByIdWithDb(db, id, organizationId = null, allowGloba
   );
 
   return rows[0] ? mapRoleOption(rows[0]) : null;
-}
-
-async function getOrganizationAllowedFeaturesWithDb(db, organizationId) {
-  const { rows } = await db.query(
-    `SELECT allowed_features
-       FROM organizations
-      WHERE id = $1
-      LIMIT 1`,
-    [organizationId]
-  );
-  return rows[0] ? normalizeAllowedFeatures(rows[0].allowed_features) : null;
-}
-
-async function pruneRolePermissionsByOrganizationFeaturesWithDb(db, organizationId) {
-  const allowedFeatures = await getOrganizationAllowedFeaturesWithDb(db, organizationId);
-  if (!Array.isArray(allowedFeatures)) {
-    return [];
-  }
-
-  const { rows: permissionRows } = await db.query(
-    `SELECT DISTINCT LOWER(p.code) AS code
-       FROM role_options r
-       JOIN role_permissions rp ON rp.role_id = r.id
-       JOIN permissions p ON p.id = rp.permission_id
-      WHERE r.organization_id = $1
-        AND p.is_active = TRUE`,
-    [organizationId]
-  );
-
-  const disallowedCodes = permissionRows
-    .map((row) => normalizePermissionCode(row?.code))
-    .filter(Boolean)
-    .filter((code) => !filterPermissionCodesByOrgFeatures([code], allowedFeatures).includes(code));
-
-  if (disallowedCodes.length === 0) {
-    return [];
-  }
-
-  const { rows: roleRows } = await db.query(
-    `SELECT id
-       FROM role_options
-      WHERE organization_id = $1`,
-    [organizationId]
-  );
-
-  await db.query(
-    `DELETE FROM role_permissions rp
-      USING role_options r, permissions p
-      WHERE rp.role_id = r.id
-        AND rp.permission_id = p.id
-        AND r.organization_id = $1
-        AND LOWER(p.code) = ANY($2::text[])`,
-    [organizationId, disallowedCodes]
-  );
-
-  return roleRows
-    .map((row) => Number(row?.id || 0))
-    .filter((id) => Number.isInteger(id) && id > 0);
 }
 
 async function resolvePermissionIdsByCodes(db, permissionCodes) {
@@ -350,13 +261,11 @@ async function resolvePermissionIdsForRoleWrite(db, {
   requestedPermissionCodes = [],
   isAdmin = false
 }) {
-  const allowedFeatures = await getOrganizationAllowedFeaturesWithDb(db, organizationId);
   if (Boolean(isAdmin)) {
     const activePermissionRows = await listActivePermissionRowsWithDb(db);
     const selectedCodes = new Set(
       selectPermissionCodesForRoleWrite({
         activePermissionCodes: activePermissionRows.map((row) => row.code),
-        allowedFeatures,
         isAdmin: true
       })
     );
@@ -369,7 +278,6 @@ async function resolvePermissionIdsForRoleWrite(db, {
     db,
     selectPermissionCodesForRoleWrite({
       requestedPermissionCodes,
-      allowedFeatures,
       isAdmin: false
     })
   );
@@ -413,8 +321,7 @@ export async function findSettingsRequester(authContext = {}) {
       role: roleLabel,
       is_admin: Boolean(cachedRequester.is_admin),
       is_platform_admin: Boolean(cachedRequester.is_platform_admin),
-      organization_id: cachedRequester.organization_id,
-      organization_allowed_features: normalizeAllowedFeatures(cachedRequester.organization_allowed_features)
+      organization_id: cachedRequester.organization_id
     };
   }
 
@@ -426,8 +333,7 @@ export async function findSettingsRequester(authContext = {}) {
        r.label AS role,
        (COALESCE(u.is_platform_admin, FALSE) OR COALESCE(r.is_admin, FALSE)) AS is_admin,
        COALESCE(u.is_platform_admin, FALSE) AS is_platform_admin,
-       u.organization_id,
-       o.allowed_features AS organization_allowed_features
+       u.organization_id
        FROM users u
        JOIN organizations o ON o.id = u.organization_id
        JOIN role_options r ON r.id = u.role_id
@@ -447,19 +353,19 @@ export async function listOrganizations() {
     return cloneOrganizations(cached);
   }
   const { rows } = await pool.query(
-    "SELECT id, code, name, is_active, allowed_features, created_at FROM organizations ORDER BY created_at DESC, id DESC"
+    "SELECT id, code, name, is_active, created_at FROM organizations ORDER BY created_at DESC, id DESC"
   );
   const items = rows.map(mapOrganization);
   settingsReadCache.set("organizations", cloneOrganizations(items));
   return items;
 }
 
-export async function createOrganization({ code, name, isActive, allowedFeatures = null, actorUserId = null }) {
+export async function createOrganization({ code, name, isActive, actorUserId = null }) {
   const { rows } = await pool.query(
-    `INSERT INTO organizations (code, name, is_active, allowed_features, created_by, updated_by)
-     VALUES ($1, $2, $3, $4, $5, $5)
-     RETURNING id, code, name, is_active, allowed_features, created_at`,
-    [code, name, isActive, allowedFeatures, actorUserId]
+    `INSERT INTO organizations (code, name, is_active, created_by, updated_by)
+     VALUES ($1, $2, $3, $4, $4)
+     RETURNING id, code, name, is_active, created_at`,
+    [code, name, isActive, actorUserId]
   );
   const item = rows[0] ? mapOrganization(rows[0]) : null;
   if (item) {
@@ -468,7 +374,7 @@ export async function createOrganization({ code, name, isActive, allowedFeatures
   return item;
 }
 
-export async function updateOrganization({ id, code, name, isActive, allowedFeatures = null, actorUserId = null }) {
+export async function updateOrganization({ id, code, name, isActive, actorUserId = null }) {
   const affectedRoleIds = new Set();
   const item = await executeTransaction(async (client) => {
     const { rows } = await client.query(
@@ -476,19 +382,16 @@ export async function updateOrganization({ id, code, name, isActive, allowedFeat
           SET code = $1,
               name = $2,
               is_active = $3,
-              allowed_features = $4,
-              updated_by = $5,
+              updated_by = $4,
               updated_at = CURRENT_TIMESTAMP
-        WHERE id = $6
-        RETURNING id, code, name, is_active, allowed_features, created_at`,
-      [code, name, isActive, allowedFeatures, actorUserId, id]
+        WHERE id = $5
+        RETURNING id, code, name, is_active, created_at`,
+      [code, name, isActive, actorUserId, id]
     );
     if (!rows[0]) {
       return null;
     }
 
-    const nextRoleIds = await pruneRolePermissionsByOrganizationFeaturesWithDb(client, id);
-    nextRoleIds.forEach((roleId) => affectedRoleIds.add(roleId));
     const syncedAdminRoleIds = await syncAdminRolePermissionsByOrganizationWithDb(client, id, actorUserId);
     syncedAdminRoleIds.forEach((roleId) => affectedRoleIds.add(roleId));
     return mapOrganization(rows[0]);
@@ -518,8 +421,8 @@ export async function deleteOrganizationById(id) {
   return result;
 }
 
-export async function listRoleOptionsForSettings(organizationId, allowedFeatures = null) {
-  const cacheKey = `roles|org:${organizationId}|features:${buildAllowedFeaturesCacheKey(allowedFeatures)}`;
+export async function listRoleOptionsForSettings(organizationId) {
+  const cacheKey = `roles|org:${organizationId}`;
   const cached = settingsReadCache.get(cacheKey);
   if (cached) {
     return cloneRoleOptions(cached);
@@ -546,9 +449,7 @@ export async function listRoleOptionsForSettings(organizationId, allowedFeatures
     ORDER BY r.sort_order ASC, r.id ASC`,
     [organizationId]
   );
-  const items = rows
-    .map(mapRoleOption)
-    .map((item) => filterRoleOptionByOrgFeatures(item, allowedFeatures));
+  const items = rows.map(mapRoleOption);
   settingsReadCache.set(cacheKey, cloneRoleOptions(items));
   return items;
 }
@@ -557,8 +458,8 @@ export async function getRoleOptionById(id, organizationId = null, allowGlobal =
   return getRoleOptionByIdWithDb(pool, id, organizationId, allowGlobal);
 }
 
-export async function listPermissionOptionsForSettings(allowedFeatures = null) {
-  const cacheKey = `permissions|features:${buildAllowedFeaturesCacheKey(allowedFeatures)}`;
+export async function listPermissionOptionsForSettings() {
+  const cacheKey = "permissions";
   const cached = settingsReadCache.get(cacheKey);
   if (cached) {
     return clonePermissionOptions(cached);
@@ -580,12 +481,9 @@ export async function listPermissionOptionsForSettings(allowedFeatures = null) {
       "appointments.schedule.scope.%"
     ]]
   );
-  const items = filterPermissionOptionsByOrgFeatures(
-    rows
-      .map(mapPermissionOption)
-      .filter((item) => isKnownPermissionCode(item?.code)),
-    allowedFeatures
-  );
+  const items = rows
+    .map(mapPermissionOption)
+    .filter((item) => isKnownPermissionCode(item?.code));
   settingsReadCache.set(cacheKey, clonePermissionOptions(items));
   return items;
 }

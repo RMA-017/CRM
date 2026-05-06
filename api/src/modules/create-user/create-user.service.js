@@ -1,6 +1,5 @@
 import argon2 from "argon2";
 import pool from "../../config/db.js";
-import { normalizeAllowedFeatures } from "../../lib/org-features.js";
 
 export async function getActorForCreate(authContext = {}) {
   const cachedRequester = authContext?.requester;
@@ -10,8 +9,7 @@ export async function getActorForCreate(authContext = {}) {
       role_id: cachedRequester.role_id,
       is_admin: Boolean(cachedRequester.is_admin),
       is_platform_admin: Boolean(cachedRequester.is_platform_admin),
-      organization_id: cachedRequester.organization_id,
-      organization_allowed_features: normalizeAllowedFeatures(cachedRequester.organization_allowed_features)
+      organization_id: cachedRequester.organization_id
     };
   }
 
@@ -22,8 +20,7 @@ export async function getActorForCreate(authContext = {}) {
        u.role_id,
        (COALESCE(u.is_platform_admin, FALSE) OR COALESCE(r.is_admin, FALSE)) AS is_admin,
        COALESCE(u.is_platform_admin, FALSE) AS is_platform_admin,
-       u.organization_id,
-       o.allowed_features AS organization_allowed_features
+       u.organization_id
        FROM users u
        JOIN organizations o ON o.id = u.organization_id
        JOIN role_options r ON r.id = u.role_id
@@ -37,10 +34,7 @@ export async function getActorForCreate(authContext = {}) {
     return null;
   }
 
-  return {
-    ...rows[0],
-    organization_allowed_features: normalizeAllowedFeatures(rows[0].organization_allowed_features)
-  };
+  return rows[0];
 }
 
 export async function createBasicUser({ organizationId, username, fullName, roleId, defaultPassword, actorUserId }) {

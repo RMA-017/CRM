@@ -4,7 +4,6 @@ import {
   normalizeDateYmd as normalizeLooseDateYmd,
   validateBirthdayYmd
 } from "../../lib/date.js";
-import { requesterHasOrgFeature } from "../../lib/org-features.js";
 import { hasPermission } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
 import {
@@ -169,10 +168,6 @@ async function requireClientsCrudAccess(request, reply, permissionCode) {
     reply.status(401).send({ message: "Unauthorized." });
     return null;
   }
-  if (!requesterHasOrgFeature(requester, "clients.all_clients")) {
-    reply.status(403).send({ message: "Forbidden." });
-    return null;
-  }
   if (!(await hasPermission(requester.role_id, permissionCode))) {
     reply.status(403).send({ message: "Forbidden." });
     return null;
@@ -213,8 +208,8 @@ async function clientsRoutes(fastify) {
           hasPermission(requester.role_id, PERMISSIONS.CLIENTS_READ),
           hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_CLIENT_SEARCH)
         ]);
-        const canUseClientsDirectory = canReadClients && requesterHasOrgFeature(requester, "clients.all_clients");
-        const canUseAppointmentSearch = canSearchAppointmentClients && requesterHasOrgFeature(requester, "appointments.planner");
+        const canUseClientsDirectory = canReadClients;
+        const canUseAppointmentSearch = canSearchAppointmentClients;
 
         if (!canUseClientsDirectory && !canUseAppointmentSearch) {
           return reply.status(403).send({ message: "Forbidden." });

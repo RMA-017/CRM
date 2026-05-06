@@ -13,7 +13,6 @@ import {
 } from "./profile/profile.constants.js";
 import {
   handleProtectedStatus,
-  isViewBlockedByOrgFeatures,
   mapValueLabelOptions
 } from "./profile/profile.helpers.js";
 import { useAllUsersSection } from "./profile/useAllUsersSection.js";
@@ -81,6 +80,7 @@ function ProfilePage({ forcedView = "none" }) {
     canUpdateAppointmentWorkSchedule,
     canDeleteAppointmentWorkSchedule,
     canOpenAppointmentStatistics,
+    canOpenDashboard,
     canOpenStatisticsPlannerReport,
     canReadStatisticsPlannerReportPermission,
     canOpenAppointmentSettings,
@@ -102,6 +102,9 @@ function ProfilePage({ forcedView = "none" }) {
     hasSettingsMenuAccess,
     hasAdminSettingsAccess,
     canOpenSiteContent,
+    canCreateSiteContent,
+    canUpdateSiteContent,
+    canDeleteSiteContent,
     canAccessForcedView
   } = useProfileAccess(profile, forcedView);
 
@@ -228,8 +231,7 @@ function ProfilePage({ forcedView = "none" }) {
     canUpdateSettingsPositions,
     canDeleteSettingsPositions,
     navigate,
-    loadUserOptions,
-    orgFeatures: Boolean(profile?.isPlatformAdmin) ? null : (profile?.orgFeatures ?? null)
+    loadUserOptions
   });
 
   const ensureOrganizationsLoaded = useCallback(() => {
@@ -513,10 +515,6 @@ function ProfilePage({ forcedView = "none" }) {
       return;
     }
 
-    if (profile?.isPlatformAdmin && isViewBlockedByOrgFeatures(forcedView, profile?.orgFeatures)) {
-      return;
-    }
-
     if (mainView === "all-users") {
       void loadAllUsers(1);
       return;
@@ -559,7 +557,6 @@ function ProfilePage({ forcedView = "none" }) {
     loadRolesSettings,
     mainView,
     profile?.isPlatformAdmin,
-    profile?.orgFeatures,
     profile?.username
   ]);
 
@@ -628,6 +625,8 @@ function ProfilePage({ forcedView = "none" }) {
     closeCreateUserPanel,
     openAllClientsPanel,
     closeAllClientsPanel,
+    openDashboardPanel,
+    closeDashboardPanel,
     openAppointmentPanel,
     closeAppointmentPanel,
     openAppointmentSettingsPanel,
@@ -653,6 +652,7 @@ function ProfilePage({ forcedView = "none" }) {
     setMyProfileModalOpen,
     canCreateUsers,
     canReadClients,
+    canOpenDashboard,
     canOpenAppointmentSchedule,
     canOpenAppointmentStatistics,
     canOpenAppointmentSettings,
@@ -1130,6 +1130,7 @@ function ProfilePage({ forcedView = "none" }) {
             startClientEdit={startClientEdit}
             openClientsDeleteModal={openClientsDeleteModal}
             closeAllClientsPanel={closeAllClientsPanel}
+            closeDashboardPanel={closeDashboardPanel}
             canReadAppointments={canReadAppointments}
             canCreateAppointments={canCreateAppointments}
             canUpdateAppointments={canUpdateAppointments}
@@ -1205,7 +1206,9 @@ function ProfilePage({ forcedView = "none" }) {
             roleOptions={roleOptions}
             profile={profile}
             canOpenSiteContent={canOpenSiteContent}
-            isOrgFeatureDisabledView={Boolean(profile?.isPlatformAdmin) && isViewBlockedByOrgFeatures(forcedView, profile?.orgFeatures)}
+            canCreateSiteContent={canCreateSiteContent}
+            canUpdateSiteContent={canUpdateSiteContent}
+            canDeleteSiteContent={canDeleteSiteContent}
           />
         </Suspense>
 
@@ -1309,6 +1312,8 @@ function ProfilePage({ forcedView = "none" }) {
         hasClientsMenuAccess={hasClientsMenuAccess}
         canReadClients={canReadClients}
         openAllClientsPanel={openAllClientsPanel}
+        canOpenDashboard={canOpenDashboard}
+        openDashboardPanel={openDashboardPanel}
         hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
         canOpenAppointmentSchedule={canOpenAppointmentSchedule}
         canOpenAppointmentStatistics={canOpenAppointmentStatistics}

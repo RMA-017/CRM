@@ -1,10 +1,7 @@
 import {
   filterKnownPermissionCodes,
-  filterPermissionCodesByFeatures,
-  filterPermissionOptionsByFeatures,
   hasAllowedFeature,
   isKnownPermissionCode,
-  isPermissionAllowedByFeatures,
   normalizeAllowedFeatures
 } from "../../../shared/access-registry.js";
 
@@ -18,30 +15,18 @@ export function hasOrgFeature(allowedFeatures, featureKey) {
   return hasAllowedFeature(allowedFeatures, featureKey);
 }
 
-function getRequesterAllowedFeatures(requester) {
-  const source = requester?.organization_allowed_features
-    ?? requester?.organizationAllowedFeatures
-    ?? requester?.orgFeatures
-    ?? requester?.allowedFeatures
-    ?? null;
-  return normalizeAllowedFeatures(source);
-}
-
 export function requesterHasOrgFeature(requester, featureKey) {
-  if (requester?.is_platform_admin) {
-    return true;
-  }
-  return hasOrgFeature(getRequesterAllowedFeatures(requester), featureKey);
+  return true;
 }
 
 export function isPermissionAllowedByOrgFeatures(permissionCode, allowedFeatures) {
-  return isPermissionAllowedByFeatures(permissionCode, allowedFeatures);
+  return true;
 }
 
 export function filterPermissionCodesByOrgFeatures(permissionCodes, allowedFeatures) {
-  return filterPermissionCodesByFeatures(permissionCodes, allowedFeatures);
+  return Array.isArray(permissionCodes) ? filterKnownPermissionCodes(permissionCodes) : [];
 }
 
 export function filterPermissionOptionsByOrgFeatures(permissionOptions, allowedFeatures) {
-  return filterPermissionOptionsByFeatures(permissionOptions, allowedFeatures);
+  return Array.isArray(permissionOptions) ? permissionOptions : [];
 }

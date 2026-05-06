@@ -394,15 +394,6 @@ function truncateWithEllipsis(value, maxLength = 20) {
   return `${raw.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
 }
 
-function formatServiceLine(serviceName, durationMinutes) {
-  const serviceLabel = truncateWithEllipsis(serviceName, 20);
-  const bookingDuration = formatBookingDurationLabel(durationMinutes);
-  if (!bookingDuration) {
-    return serviceLabel;
-  }
-  return serviceLabel ? `${serviceLabel} • ${bookingDuration}` : bookingDuration;
-}
-
 function isGenericVipPrimaryLabel(value) {
   const raw = String(value || "").trim();
   const normalized = raw.toLowerCase();
@@ -417,22 +408,6 @@ function isGenericVipPrimaryLabel(value) {
 function isGenericVipServiceLabel(value) {
   const raw = String(value || "").trim();
   return raw === "" || /^\d+$/.test(raw);
-}
-
-function formatVipServiceLine(specialistPosition, serviceName, durationMinutes, fallbackPosition = "") {
-  const positionText = truncateWithEllipsis(specialistPosition, 24);
-  const fallbackPositionText = truncateWithEllipsis(fallbackPosition, 24);
-  const serviceText = truncateWithEllipsis(serviceName, 20);
-  const primaryText = !isGenericVipPrimaryLabel(positionText)
-    ? positionText
-    : (!isGenericVipPrimaryLabel(fallbackPositionText)
-      ? fallbackPositionText
-      : (!isGenericVipServiceLabel(serviceText) ? serviceText : "Specialist"));
-  const bookingDuration = formatBookingDurationLabel(durationMinutes);
-  if (!bookingDuration) {
-    return primaryText;
-  }
-  return primaryText ? `${primaryText} • ${bookingDuration}` : bookingDuration;
 }
 
 function formatBreakReason(item) {
@@ -1104,10 +1079,6 @@ function shouldIncludeClientFocusedPlannerItem(item, selectedClientId = "") {
     return true;
   }
   return String(item?.clientId || "").trim() === String(selectedClientId || "").trim();
-}
-
-function alwaysFalse() {
-  return false;
 }
 
 function normalizePlannerBreakItems(items) {
@@ -1953,6 +1924,27 @@ function AppointmentPlannerGrid({
   const [mouseDragPreview, setMouseDragPreview] = useState(null);
 
   useEffect(() => {
+    function findDropCellFromPoint(clientX, clientY, selector) {
+      const directElement = document.elementFromPoint(clientX, clientY);
+      const directCell = directElement?.closest?.(selector);
+      if (directCell) {
+        return directCell;
+      }
+
+      if (typeof document.elementsFromPoint !== "function") {
+        return null;
+      }
+
+      const elements = document.elementsFromPoint(clientX, clientY);
+      for (const element of elements) {
+        const cell = element?.closest?.(selector);
+        if (cell) {
+          return cell;
+        }
+      }
+      return null;
+    }
+
     function handleDocumentMouseMove(event) {
       const dragState = mouseDragStateRef.current;
       if (!dragState) {
@@ -1965,11 +1957,10 @@ function AppointmentPlannerGrid({
       if (!movedEnough) {
         return;
       }
-      const targetElement = document.elementFromPoint(event.clientX, event.clientY);
       const dropSelector = dragState.type === "break"
         ? "[data-break-drop-slot='true']"
         : "[data-appointment-drop-slot='true']";
-      const dropCell = targetElement?.closest?.(dropSelector);
+      const dropCell = findDropCellFromPoint(event.clientX, event.clientY, dropSelector);
       const targetSlot = String(dropCell?.getAttribute("data-drop-slot") || "").trim();
       const dropCellRect = dropCell?.getBoundingClientRect?.() || null;
       mouseDragDropTargetRef.current = dropCell ? {
@@ -2013,11 +2004,10 @@ function AppointmentPlannerGrid({
         suppressNextCardClickRef.current = false;
       }, 0);
 
-      const targetElement = document.elementFromPoint(event.clientX, event.clientY);
       const dropSelector = dragState.type === "break"
         ? "[data-break-drop-slot='true']"
         : "[data-appointment-drop-slot='true']";
-      const dropCell = targetElement?.closest?.(dropSelector);
+      const dropCell = findDropCellFromPoint(event.clientX, event.clientY, dropSelector);
       if (!dropCell && !fallbackDropTarget) {
         return;
       }
@@ -3666,29 +3656,6 @@ function AppointmentScheduler({
     }
     setCreateForm((prev) => ({ ...prev, durationMinutes: durationSelectOptions[0]?.value || "30" }));
   }, [createForm.durationMinutes, createModal.open, durationSelectOptions]);
-  const selectedSpecialistServiceName = useMemo(() => {
-    const specialistId = String(createModal.specialistId || selectedSpecialistId || "").trim();
-    if (!specialistId) {
-      return "";
-    }
-
-    if (vipOnly) {
-      const selectedClass = specialists.find((item) => String(item?.id || "").trim() === specialistId);
-      const teacherId = String(selectedClass?.teacherId || "").trim();
-      return String(
-        specialistRoleById[teacherId]
-        || specialistRoleById[specialistId]
-        || ""
-      ).trim();
-    }
-
-    const selectedSpecialist = specialists.find((item) => String(item?.id || "").trim() === specialistId);
-    return String(
-      selectedSpecialist?.role
-      || specialistRoleById[specialistId]
-      || ""
-    ).trim();
-  }, [createModal.specialistId, selectedSpecialistId, specialistRoleById, specialists, vipOnly]);
   const isEditMode = createModal.mode === "edit";
   const isSpecialistLimitedEditMode = !vipOnly && specialistLimitedEdit && isEditMode;
   const normalizedPlannerBlockType = String(createModal.plannerBlockType || "").trim();

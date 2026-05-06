@@ -3,7 +3,6 @@ import { validateBirthdayYmd } from "../../lib/date.js";
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 import { normalizeOrganizationCode } from "../../lib/organization-code.js";
-import { requesterHasOrgFeature } from "../../lib/org-features.js";
 import { findActiveOrganizationByCode } from "../organizations/organizations.service.js";
 import { PERMISSIONS } from "./users.constants.js";
 import { hasPermission, isAdminRole, isAllowedPosition, isAllowedRole } from "./access.service.js";
@@ -60,9 +59,6 @@ async function usersRoutes(fastify) {
         const requester = await findRequester(authContext);
         if (!requester) {
           return reply.status(401).send({ message: "Unauthorized" });
-        }
-        if (!requesterHasOrgFeature(requester, "users.all_users")) {
-          return reply.status(403).send({ message: "Forbidden." });
         }
         if (!(await hasPermission(requester.role_id, PERMISSIONS.USERS_READ))) {
           return reply.status(403).send({ message: "Forbidden." });
@@ -168,10 +164,6 @@ async function usersRoutes(fastify) {
         if (!requester || !(await hasPermission(requester.role_id, PERMISSIONS.USERS_UPDATE))) {
           return reply.status(403).send({ message: "Forbidden." });
         }
-        if (!requesterHasOrgFeature(requester, "users.all_users")) {
-          return reply.status(403).send({ message: "Forbidden." });
-        }
-
         const targetUser = await getUserScopeById(userId);
         if (!targetUser) {
           return reply.status(404).send({ message: "User not found." });
@@ -320,10 +312,6 @@ async function usersRoutes(fastify) {
         if (!requester || !(await hasPermission(requester.role_id, PERMISSIONS.USERS_DELETE))) {
           return reply.status(403).send({ message: "Forbidden." });
         }
-        if (!requesterHasOrgFeature(requester, "users.all_users")) {
-          return reply.status(403).send({ message: "Forbidden." });
-        }
-
         if (Number(requester.id) === userId) {
           return reply.status(400).send({ message: "You cannot delete your own account." });
         }

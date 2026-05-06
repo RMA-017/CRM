@@ -10,6 +10,7 @@ const PROFILE_VIEW_ROUTES = Object.freeze([
   { path: "/users/allusers", forcedView: "all-users" },
   { path: "/users/create", forcedView: "create-user" },
   { path: "/clients/allclients", forcedView: "clients-all" },
+  { path: "/dashboard", forcedView: "dashboard" },
   { path: "/appointments/planner", forcedView: "appointment" },
   { path: "/settings/appointments", forcedView: "appointment-settings" },
   { path: "/statistics/planner-report", forcedView: "statistics-planner-report" },
@@ -28,6 +29,10 @@ const REDIRECT_ROUTE_GROUPS = Object.freeze([
   {
     to: "/appointments/planner",
     paths: ["/appointments", "/profile/appointments", "/profile/appointments/planner"]
+  },
+  {
+    to: "/dashboard",
+    paths: ["/profile/dashboard"]
   },
   {
     to: "/appointments/planner",

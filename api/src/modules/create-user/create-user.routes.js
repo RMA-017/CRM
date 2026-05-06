@@ -2,7 +2,6 @@ import { appConfig } from "../../config/app-config.js";
 import { ORGANIZATION_CODE_REGEX } from "../../constants/validation.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 import { normalizeOrganizationCode } from "../../lib/organization-code.js";
-import { requesterHasOrgFeature } from "../../lib/org-features.js";
 import { findActiveOrganizationByCode } from "../organizations/organizations.service.js";
 import { PERMISSIONS, USERNAME_REGEX } from "../users/users.constants.js";
 import { hasPermission, isAdminRole, isAllowedRole } from "../users/access.service.js";
@@ -48,9 +47,6 @@ async function createUserRoutes(fastify) {
         const actor = await getActorForCreate(authContext);
         if (!actor) {
           return reply.status(401).send({ message: "Unauthorized." });
-        }
-        if (!requesterHasOrgFeature(actor, "users.all_users")) {
-          return reply.status(403).send({ message: "Forbidden." });
         }
         if (!(await hasPermission(actor.role_id, PERMISSIONS.USERS_CREATE))) {
           return reply.status(403).send({ message: "Forbidden." });
