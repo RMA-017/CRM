@@ -744,7 +744,7 @@ test("users update maps cross-organization transfer conflicts to 409", async () 
   }
 });
 
-test("users delete maps linked-record conflicts to 409", async () => {
+test("users delete removes linked planner and VIP records before deleting the user", async () => {
   const recorder = createRouteRecorder();
   await usersRoutes(recorder.fastify);
 
@@ -769,13 +769,56 @@ test("users delete maps linked-record conflicts to 409", async () => {
         }]
       };
     }
-    if (queryText.startsWith("DELETE FROM users")) {
-      const error = new Error("fk violation");
-      error.code = "23503";
-      throw error;
-    }
 
     throw new Error(`Unexpected query in test: ${queryText}`);
+  });
+  const cleanupQueries = [];
+  const restoreConnect = stubPoolConnect(async (sql, params = []) => {
+    const queryText = String(sql || "");
+    if (queryText === "BEGIN" || queryText === "COMMIT" || queryText === "ROLLBACK") {
+      cleanupQueries.push(queryText);
+      return { rows: [], rowCount: 0 };
+    }
+    cleanupQueries.push(queryText);
+
+    if (queryText.includes("FROM vip_class_teacher_assignments") && queryText.includes("teacher_user_id = $2")) {
+      assert.deepEqual(params, [3, 9]);
+      return { rows: [{ id: "44" }] };
+    }
+    if (queryText.includes("FROM appointment_schedules s") && queryText.includes("s.specialist_id = $2")) {
+      assert.deepEqual(params, [3, 9]);
+      return { rows: [] };
+    }
+    if (queryText.startsWith("DELETE FROM appointment_breaks")) {
+      assert.deepEqual(params, [3, 9]);
+      return { rows: [], rowCount: 1 };
+    }
+    if (queryText.startsWith("DELETE FROM vip_client_tutor_assignment_history")) {
+      assert.deepEqual(params, [3, 9]);
+      return { rows: [], rowCount: 1 };
+    }
+    if (queryText.startsWith("DELETE FROM vip_client_tutor_assignments") && queryText.includes("tutor_user_id = $2")) {
+      assert.deepEqual(params, [3, 9]);
+      return { rows: [], rowCount: 1 };
+    }
+    if (queryText.startsWith("DELETE FROM vip_client_tutor_assignments") && queryText.includes("class_assignment_id = ANY")) {
+      assert.deepEqual(params, [3, [44]]);
+      return { rows: [], rowCount: 1 };
+    }
+    if (queryText.startsWith("UPDATE vip_client_tutor_assignment_history")) {
+      assert.deepEqual(params, [3, [44]]);
+      return { rows: [], rowCount: 1 };
+    }
+    if (queryText.startsWith("DELETE FROM vip_class_teacher_assignments")) {
+      assert.deepEqual(params, [3, 9]);
+      return { rows: [], rowCount: 1 };
+    }
+    if (queryText.startsWith("DELETE FROM users")) {
+      assert.deepEqual(params, [9, 3]);
+      return { rows: [], rowCount: 1 };
+    }
+
+    throw new Error(`Unexpected query in transaction test: ${queryText}`);
   });
 
   try {
@@ -797,10 +840,13 @@ test("users delete maps linked-record conflicts to 409", async () => {
       log: { error() {} }
     }, reply);
 
-    assert.equal(reply.state.statusCode, 409);
-    assert.equal(reply.state.payload?.message, "User has linked records and cannot be deleted.");
+    assert.equal(reply.state.statusCode, 200);
+    assert.equal(reply.state.payload?.message, "User deleted successfully.");
+    assert.equal(cleanupQueries.includes("COMMIT"), true);
+    assert.equal(cleanupQueries.some((query) => query.startsWith("DELETE FROM users")), true);
   } finally {
     clearRolePermissionsCache();
+    restoreConnect();
     restoreQuery();
   }
 });

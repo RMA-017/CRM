@@ -109,6 +109,40 @@ async function deleteFutureAppointmentSchedulesBySpecialist({
   });
 }
 
+async function deleteAppointmentSchedulesBySpecialist({
+  client,
+  organizationId,
+  specialistId,
+  actorUserId = null
+}) {
+  const { rows } = await client.query(
+    `SELECT s.id
+       FROM appointment_schedules s
+      WHERE s.organization_id = $1
+        AND s.specialist_id = $2
+      ORDER BY
+        s.appointment_date ASC,
+        s.start_time ASC,
+        s.id ASC`,
+    [organizationId, specialistId]
+  );
+
+  const ids = (rows || [])
+    .map((row) => Number.parseInt(String(row?.id || "").trim(), 10))
+    .filter((id) => Number.isInteger(id) && id > 0);
+
+  if (ids.length === 0) {
+    return 0;
+  }
+
+  return deleteAppointmentSchedulesByIds({
+    organizationId,
+    ids,
+    actorUserId,
+    db: client
+  });
+}
+
 export async function findRequester(authContext = {}) {
   const cachedRequester = authContext?.requester;
   if (cachedRequester) {
@@ -410,14 +444,82 @@ export async function updateUserByAdmin({
   });
 }
 
-export async function deleteUserById(userId, organizationId) {
-  const result = await pool.query(
-    "DELETE FROM users WHERE id = $1 AND organization_id = $2",
-    [userId, organizationId]
-  );
-  if (result.rowCount > 0) {
-    clearAppointmentReferenceCaches();
-    clearAppointmentPlannerReportFilterCaches();
-  }
-  return result;
+export async function deleteUserById(userId, organizationId, {
+  actorUserId = null
+} = {}) {
+  return executeTransaction(async (client) => {
+    const targetClassResult = await client.query(
+      `SELECT id
+         FROM vip_class_teacher_assignments
+        WHERE organization_id = $1
+          AND teacher_user_id = $2
+        ORDER BY id ASC`,
+      [organizationId, userId]
+    );
+    const targetClassIds = (targetClassResult.rows || [])
+      .map((row) => Number.parseInt(String(row?.id || "").trim(), 10))
+      .filter((id) => Number.isInteger(id) && id > 0);
+
+    await deleteAppointmentSchedulesBySpecialist({
+      client,
+      organizationId,
+      specialistId: userId,
+      actorUserId
+    });
+
+    await client.query(
+      `DELETE FROM appointment_breaks
+        WHERE organization_id = $1
+          AND specialist_id = $2`,
+      [organizationId, userId]
+    );
+
+    await client.query(
+      `DELETE FROM vip_client_tutor_assignment_history
+        WHERE organization_id = $1
+          AND tutor_user_id = $2`,
+      [organizationId, userId]
+    );
+
+    await client.query(
+      `DELETE FROM vip_client_tutor_assignments
+        WHERE organization_id = $1
+          AND tutor_user_id = $2`,
+      [organizationId, userId]
+    );
+
+    if (targetClassIds.length > 0) {
+      await client.query(
+        `DELETE FROM vip_client_tutor_assignments
+          WHERE organization_id = $1
+            AND class_assignment_id = ANY($2::bigint[])`,
+        [organizationId, targetClassIds]
+      );
+
+      await client.query(
+        `UPDATE vip_client_tutor_assignment_history
+            SET class_assignment_id = NULL
+          WHERE organization_id = $1
+            AND class_assignment_id = ANY($2::bigint[])`,
+        [organizationId, targetClassIds]
+      );
+    }
+
+    await client.query(
+      `DELETE FROM vip_class_teacher_assignments
+        WHERE organization_id = $1
+          AND teacher_user_id = $2`,
+      [organizationId, userId]
+    );
+
+    const result = await client.query(
+      "DELETE FROM users WHERE id = $1 AND organization_id = $2",
+      [userId, organizationId]
+    );
+    if (result.rowCount > 0) {
+      clearAppointmentReferenceCaches();
+      clearAppointmentPlannerReportFilterCaches();
+    }
+    return result;
+  });
 }

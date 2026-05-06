@@ -300,6 +300,19 @@ test("updateAppointmentWorkScheduleEntryById allows blocked-time changes when fu
       }]);
       return { rows: [] };
     }
+    if (queryText.includes("jsonb_array_elements($2::jsonb)") && queryText.includes("appointment_breaks ab")) {
+      assert.equal(params[0], 7);
+      assert.deepEqual(JSON.parse(params[1]), [{
+        specialistId: 9,
+        ruleScope: "weekly",
+        dayOfWeek: 1,
+        workDate: null,
+        isActive: true,
+        startTime: "08:30",
+        endTime: "14:00"
+      }]);
+      return { rows: [] };
+    }
     if (queryText.includes("WITH updated AS")) {
       updateAttempted = true;
       return {

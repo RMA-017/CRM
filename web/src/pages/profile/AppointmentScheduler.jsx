@@ -956,6 +956,22 @@ function buildTimeSlots({ visibleDays, workingHours, slotIntervalMinutes }) {
   return slots;
 }
 
+function buildPlannerEndTimeOptions(timeSlots, workingHours, visibleDayKeys = []) {
+  const values = new Set(Array.isArray(timeSlots) ? timeSlots : []);
+  const visibleKeys = normalizeVisibleDays(visibleDayKeys);
+
+  visibleKeys.forEach((dayKey) => {
+    const endTime = String(workingHours?.[dayKey]?.end || "").trim();
+    if (normalizeTimeToMinutes(endTime) !== null) {
+      values.add(endTime);
+    }
+  });
+
+  return Array.from(values)
+    .sort((left, right) => normalizeTimeToMinutes(left) - normalizeTimeToMinutes(right))
+    .map((value) => ({ value, label: value }));
+}
+
 function buildPlannerWeekDays(weekStartDate, visibleWeekDays = []) {
   const visibleDays = normalizeVisibleDays(visibleWeekDays);
   return DAY_ITEMS
@@ -1146,6 +1162,7 @@ function AppointmentPlannerGrid({
   canMutateAppointmentSpecialist = () => false,
   onOpenCreateModal = null,
   onMoveAppointment = null,
+  onMovePlannerBreak = null,
   onOpenDayBulkModal = null,
   onOpenPlannerBlockModal = null,
   cardDisplayMode = "specialist",
@@ -1472,6 +1489,8 @@ function AppointmentPlannerGrid({
         ranges.push({
           id: String(item?.id || "").trim(),
           specialistId: String(item?.specialistId || "").trim(),
+          dayKey,
+          dayOfWeek,
           start,
           end,
           startTime: String(item?.startTime || "").trim(),
@@ -1501,6 +1520,8 @@ function AppointmentPlannerGrid({
             blockedByTime[slot] = {
               id: hit.id,
               specialistId: hit.specialistId,
+              dayKey: hit.dayKey,
+              dayOfWeek: hit.dayOfWeek,
               startTime: hit.startTime,
               endTime: hit.endTime,
               breakType: hit.breakType,
@@ -1866,7 +1887,10 @@ function AppointmentPlannerGrid({
         return;
       }
       const targetElement = document.elementFromPoint(event.clientX, event.clientY);
-      const dropCell = targetElement?.closest?.("[data-appointment-drop-slot='true']");
+      const dropSelector = dragState.type === "break"
+        ? "[data-break-drop-slot='true']"
+        : "[data-appointment-drop-slot='true']";
+      const dropCell = targetElement?.closest?.(dropSelector);
       const targetSlot = String(dropCell?.getAttribute("data-drop-slot") || "").trim();
       const dropCellRect = dropCell?.getBoundingClientRect?.() || null;
       setMouseDragPreview({
@@ -1903,8 +1927,17 @@ function AppointmentPlannerGrid({
       }, 0);
 
       const targetElement = document.elementFromPoint(event.clientX, event.clientY);
-      const dropCell = targetElement?.closest?.("[data-appointment-drop-slot='true']");
-      if (!dropCell || typeof onMoveAppointment !== "function") {
+      const dropSelector = dragState.type === "break"
+        ? "[data-break-drop-slot='true']"
+        : "[data-appointment-drop-slot='true']";
+      const dropCell = targetElement?.closest?.(dropSelector);
+      if (!dropCell) {
+        return;
+      }
+      if (dragState.type === "break" && typeof onMovePlannerBreak !== "function") {
+        return;
+      }
+      if (dragState.type !== "break" && typeof onMoveAppointment !== "function") {
         return;
       }
 
@@ -1916,16 +1949,16 @@ function AppointmentPlannerGrid({
         return;
       }
 
-      onMoveAppointment(
-        dragState.item,
-        dragState.sourceDay,
-        {
-          key: targetDayKey,
-          label: targetDayLabel,
-          date: new Date(`${targetDate}T00:00:00`)
-        },
-        targetSlot
-      );
+      const targetDay = {
+        key: targetDayKey,
+        label: targetDayLabel,
+        date: new Date(`${targetDate}T00:00:00`)
+      };
+      if (dragState.type === "break") {
+        onMovePlannerBreak(dragState.item, dragState.sourceDay, targetDay, targetSlot);
+      } else {
+        onMoveAppointment(dragState.item, dragState.sourceDay, targetDay, targetSlot);
+      }
     }
 
     document.addEventListener("mousemove", handleDocumentMouseMove);
@@ -1934,7 +1967,7 @@ function AppointmentPlannerGrid({
       document.removeEventListener("mousemove", handleDocumentMouseMove);
       document.removeEventListener("mouseup", handleDocumentMouseUp);
     };
-  }, [onMoveAppointment]);
+  }, [onMoveAppointment, onMovePlannerBreak]);
 
   return (
     <div className="appointment-client-focused-section">
@@ -2133,12 +2166,28 @@ function AppointmentPlannerGrid({
                       && canMutatePlannerSpecialist
                       && typeof onMoveAppointment === "function"
                     );
+                    const canDropBreakToCell = (
+                      isInsideWorkingHours
+                      && !item
+                      && !blockedItem
+                      && !absenceBlockedItem
+                      && !workScheduleBlockedItem
+                      && !breakBlockedItem
+                      && !isHistoryLockedDayCell
+                      && canUpdateAppointmentBreaks
+                      && canMutatePlannerSpecialist
+                      && typeof onMovePlannerBreak === "function"
+                    );
                     const canOpenBreakBlockFromCell = Boolean(
                       isInsideWorkingHours
                       && breakBlockedItem
                       && canUpdateAppointmentBreaks
                       && canMutatePlannerSpecialist
                       && typeof onOpenPlannerBlockModal === "function"
+                    );
+                    const canDragBreakFromCell = Boolean(
+                      canOpenBreakBlockFromCell
+                      && typeof onMovePlannerBreak === "function"
                     );
                     const canOpenWorkScheduleBlockFromCell = Boolean(
                       isInsideWorkingHours
@@ -2158,6 +2207,7 @@ function AppointmentPlannerGrid({
                       "appointment-day-col-gap",
                       canOpenCreateFromCell ? "appointment-create-slot-td" : "",
                       canDropAppointmentToCell ? "appointment-drop-slot-td" : "",
+                      canDropBreakToCell ? "appointment-break-drop-slot-td" : "",
                       canOpenEditableBlockFromCell ? "appointment-editable-block-slot-td" : "",
                       timeHoverCellClassName,
                       tdRowSpan ? "appointment-td-multi-slot" : "",
@@ -2179,10 +2229,11 @@ function AppointmentPlannerGrid({
                         data-time-range={cardTimeRangeLabel || undefined}
                         data-duration-label={cardDurationLabel || undefined}
                         data-appointment-drop-slot={canDropAppointmentToCell ? "true" : undefined}
-                        data-drop-day-key={canDropAppointmentToCell ? day.key : undefined}
-                        data-drop-day-label={canDropAppointmentToCell ? day.label : undefined}
-                        data-drop-date={canDropAppointmentToCell ? formatDateYmd(day.date) : undefined}
-                        data-drop-slot={canDropAppointmentToCell ? slot : undefined}
+                        data-break-drop-slot={canDropBreakToCell ? "true" : undefined}
+                        data-drop-day-key={(canDropAppointmentToCell || canDropBreakToCell) ? day.key : undefined}
+                        data-drop-day-label={(canDropAppointmentToCell || canDropBreakToCell) ? day.label : undefined}
+                        data-drop-date={(canDropAppointmentToCell || canDropBreakToCell) ? formatDateYmd(day.date) : undefined}
+                        data-drop-slot={(canDropAppointmentToCell || canDropBreakToCell) ? slot : undefined}
                         onDragOver={canDropAppointmentToCell ? (event) => {
                           event.preventDefault();
                           event.dataTransfer.dropEffect = "move";
@@ -2206,10 +2257,26 @@ function AppointmentPlannerGrid({
                         } : undefined}
                         onClick={
                           canOpenCreateFromCell
-                            ? () => onOpenCreateModal(day, slot)
+                            ? (event) => {
+                                if (suppressNextCardClickRef.current) {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  suppressNextCardClickRef.current = false;
+                                  return;
+                                }
+                                onOpenCreateModal(day, slot);
+                              }
                             : (
                                 canOpenEditableBlockFromCell
-                                  ? () => onOpenPlannerBlockModal(day, slot, editableBlockType, editableBlockItem)
+                                  ? (event) => {
+                                      if (suppressNextCardClickRef.current) {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        suppressNextCardClickRef.current = false;
+                                        return;
+                                      }
+                                      onOpenPlannerBlockModal(day, slot, editableBlockType, editableBlockItem);
+                                    }
                                   : undefined
                               )
                         }
@@ -2294,9 +2361,38 @@ function AppointmentPlannerGrid({
                           </span>
                         ) : breakBlockedItem ? (
                           <span
-                            className="appointment-break-text-only"
+                            className={`appointment-break-text-only${canDragBreakFromCell ? " appointment-break-draggable" : ""}`}
                             aria-label={`Break slot on ${day.label} at ${slot}`}
                             title={String(breakBlockedItem.reasonFull || "").trim() || undefined}
+                            onMouseDown={canDragBreakFromCell ? (event) => {
+                              if (event.button !== 0) {
+                                return;
+                              }
+                              event.preventDefault();
+                              event.stopPropagation();
+                              const slotCell = event.currentTarget.closest("td");
+                              const cellRect = (slotCell || event.currentTarget).getBoundingClientRect();
+                              mouseDragStateRef.current = {
+                                type: "break",
+                                item: breakBlockedItem,
+                                sourceDay: {
+                                  key: day.key,
+                                  label: day.label,
+                                  date: formatDateYmd(day.date)
+                                },
+                                startX: event.clientX,
+                                startY: event.clientY,
+                                offsetX: event.clientX - cellRect.left,
+                                offsetY: event.clientY - cellRect.top,
+                                originLeft: cellRect.left,
+                                originTop: cellRect.top,
+                                width: cellRect.width,
+                                height: cellRect.height,
+                                status: "break",
+                                statusCellClassName: `appointment-break-type-${breakBlockedItem.breakType}-td`,
+                                isCompact: true
+                              };
+                            } : undefined}
                           >
                             <span className="appointment-break-slot-text">{breakBlockedItem.reasonShort}</span>
                           </span>
@@ -2458,7 +2554,6 @@ function AppointmentScheduler({
   const [clientSearchMessage, setClientSearchMessage] = useState("");
   const [clientOptions, setClientOptions] = useState([]);
   const [clientMap, setClientMap] = useState({});
-  const [clientNoShowSummary, setClientNoShowSummary] = useState(null);
   const [settings, setSettings] = useState({
     slotInterval: "30",
     slotSubDivisions: "1",
@@ -3438,6 +3533,9 @@ function AppointmentScheduler({
   const timeSelectOptions = useMemo(() => (
     timeSlots.map((slot) => ({ value: slot, label: slot }))
   ), [timeSlots]);
+  const endTimeSelectOptions = useMemo(() => (
+    buildPlannerEndTimeOptions(timeSlots, settings.workingHours, visibleRepeatDayKeys)
+  ), [settings.workingHours, timeSlots, visibleRepeatDayKeys]);
   const durationSelectOptions = useMemo(() => {
     const mapped = Array.isArray(settings.appointmentDurationOptions)
       ? settings.appointmentDurationOptions
@@ -4663,7 +4761,6 @@ function AppointmentScheduler({
     setClientSearch(createEmptyClientSearchForm());
     setClientSearchMessage("");
     setClientOptions([]);
-    setClientNoShowSummary(null);
   }
 
   function closeDayBulkModal() {
@@ -4789,7 +4886,7 @@ function AppointmentScheduler({
       existingItem?.endTime
       || getDefaultPlannerBlockEndTime(
         startTime,
-        timeSelectOptions,
+        endTimeSelectOptions,
         Number.parseInt(defaultDuration, 10) || Number.parseInt(String(settings.slotInterval || "").trim(), 10) || 30
       )
     ).trim();
@@ -4968,7 +5065,7 @@ function AppointmentScheduler({
     const startTime = String(blockItem?.startTime || slot || "").trim();
     const endTime = String(blockItem?.endTime || getDefaultPlannerBlockEndTime(
       startTime,
-      timeSelectOptions,
+      endTimeSelectOptions,
       Number.parseInt(String(settings.slotInterval || "").trim(), 10) || 30
     )).trim();
     const dayOfWeek = getDayOfWeekNumberFromDayKey(day.key);
@@ -5038,7 +5135,6 @@ function AppointmentScheduler({
     setClientSearch(createEmptyClientSearchForm());
     setClientSearchMessage("");
     setClientOptions([]);
-    setClientNoShowSummary(null);
   }
 
   async function moveAppointmentToSlot(item, sourceDay, targetDay, targetSlot) {
@@ -5223,6 +5319,152 @@ function AppointmentScheduler({
     }
   }
 
+  async function movePlannerBreakToSlot(item, sourceDay, targetDay, targetSlot) {
+    if (vipOnly || isClientFocusedMode) {
+      return;
+    }
+    const specialistId = String(item?.specialistId || selectedSpecialistId || "").trim();
+    const targetStartTime = String(targetSlot || "").trim();
+    const targetStartMinutes = normalizeTimeToMinutes(targetStartTime);
+    const sourceStartTime = String(item?.startTime || "").trim();
+    const sourceEndTime = String(item?.endTime || "").trim();
+    const durationMinutes = getDurationMinutesFromTimes(sourceStartTime, sourceEndTime);
+    const targetDayKey = String(targetDay?.key || "").trim().toLowerCase();
+    const targetDayOfWeek = getDayOfWeekNumberFromDayKey(targetDayKey);
+
+    if (!specialistId || targetStartMinutes === null || !Number.isInteger(durationMinutes) || durationMinutes <= 0 || !targetDayOfWeek) {
+      setMessage("Invalid break move target.");
+      return;
+    }
+    if (!canUpdateAppointmentBreaks || !canMutateSpecialistId(specialistId)) {
+      setMessage("You do not have permission to move this break.");
+      return;
+    }
+
+    const targetEndTime = minutesToTime(targetStartMinutes + durationMinutes);
+    const targetDateYmd = formatDateYmd(targetDay?.date);
+    const workingHoursConflictMessage = getPlannerWorkingHoursConflictMessage(
+      settings,
+      targetDateYmd,
+      targetStartTime,
+      targetEndTime
+    );
+    if (workingHoursConflictMessage) {
+      setMessage(workingHoursConflictMessage);
+      return;
+    }
+
+    const localConflict = findLocalScheduleConflict({
+      appointmentDate: targetDateYmd,
+      startTime: targetStartTime,
+      endTime: targetEndTime
+    });
+    if (localConflict) {
+      const conflictTime = localConflict.startTime && localConflict.endTime
+        ? `${localConflict.startTime}-${localConflict.endTime}`
+        : "selected time";
+      setMessage(`Selected time overlaps existing appointment (${conflictTime}).`);
+      return;
+    }
+
+    const blockedTimeConflictReason = findPlannerBlockedTimeConflict(
+      blockedTimesForSpecialist,
+      targetDateYmd,
+      targetStartTime,
+      targetEndTime
+    );
+    if (blockedTimeConflictReason) {
+      setMessage(`Selected time overlaps blocked time: ${blockedTimeConflictReason}.`);
+      return;
+    }
+
+    const absenceConflictReason = findPlannerAbsenceConflict(
+      absencesForSpecialist,
+      targetDateYmd,
+      targetStartTime,
+      targetEndTime
+    );
+    if (absenceConflictReason) {
+      setMessage(`Selected time overlaps specialist absence: ${absenceConflictReason}.`);
+      return;
+    }
+
+    const breakId = String(item?.id || "").trim();
+    const sourceDayKey = String(sourceDay?.key || item?.dayKey || "").trim().toLowerCase();
+    const sourceDayOfWeek = Number.parseInt(String(item?.dayOfWeek ?? getDayOfWeekNumberFromDayKey(sourceDayKey)).trim(), 10) || 0;
+    const sourceBreakType = normalizeBreakTypeKey(item?.breakType || "lunch");
+    const sourceNote = String(item?.note || "").trim();
+    const sourceTitle = String(item?.title || "").trim();
+    const currentBreaks = Array.isArray(breaksForSpecialist) ? breaksForSpecialist : [];
+
+    let didMove = false;
+    const nextItems = currentBreaks.map((breakItem) => {
+      const normalizedId = String(breakItem?.id || "").trim();
+      const isTarget = breakId
+        ? normalizedId === breakId
+        : (
+            Number.parseInt(String(breakItem?.dayOfWeek ?? "").trim(), 10) === sourceDayOfWeek
+            && String(breakItem?.startTime || "").trim() === sourceStartTime
+            && String(breakItem?.endTime || "").trim() === sourceEndTime
+            && normalizeBreakTypeKey(breakItem?.breakType || "") === sourceBreakType
+          );
+      if (!isTarget || didMove) {
+        return breakItem;
+      }
+      didMove = true;
+      return {
+        ...breakItem,
+        dayKey: targetDayKey,
+        dayOfWeek: targetDayOfWeek,
+        startTime: targetStartTime,
+        endTime: targetEndTime,
+        breakType: sourceBreakType,
+        title: sourceTitle,
+        note: sourceNote
+      };
+    });
+
+    if (!didMove) {
+      setMessage("Break was not found.");
+      return;
+    }
+
+    try {
+      const response = await apiFetch("/api/appointments/breaks", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          specialistId,
+          items: nextItems.map((breakItem) => {
+            const dayOfWeek = Number.parseInt(String(breakItem?.dayOfWeek ?? "").trim(), 10) || getDayOfWeekNumberFromDayKey(breakItem?.dayKey);
+            return {
+              dayKey: String(breakItem?.dayKey || getDayKeyFromDayOfWeekNumber(dayOfWeek)).trim(),
+              dayOfWeek,
+              breakType: normalizeBreakTypeKey(breakItem?.breakType || "lunch"),
+              title: String(breakItem?.title || "").trim(),
+              note: String(breakItem?.note || "").trim(),
+              startTime: String(breakItem?.startTime || "").trim(),
+              endTime: String(breakItem?.endTime || "").trim(),
+              isActive: breakItem?.isActive !== false
+            };
+          })
+        })
+      });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        setMessage(String(data?.message || "Failed to move break.").trim());
+        return;
+      }
+
+      await refreshPlannerServerState();
+      setMessage("");
+    } catch {
+      setMessage("Failed to move break.");
+    }
+  }
+
   useEffect(() => {
     if (!createModal.open) {
       return;
@@ -5374,64 +5616,6 @@ function AppointmentScheduler({
   ]);
 
   useEffect(() => {
-    if (!createModal.open) {
-      setClientNoShowSummary(null);
-      return;
-    }
-    if (!isPlannerAppointmentTab) {
-      setClientNoShowSummary(null);
-      return;
-    }
-
-    const clientId = String(createForm.clientId || "").trim();
-    if (!clientId) {
-      setClientNoShowSummary(null);
-      return;
-    }
-
-    let active = true;
-    const timerId = window.setTimeout(async () => {
-      try {
-        const query = new URLSearchParams({ clientId }).toString();
-        const response = await apiFetch(`/api/appointments/client-no-show-summary?${query}`, {
-          method: "GET",
-          cache: "no-store"
-        });
-        const data = await readApiResponseData(response);
-        if (!active) {
-          return;
-        }
-        if (!response.ok) {
-          setClientNoShowSummary(null);
-          return;
-        }
-        const item = data?.item;
-        if (!item || typeof item !== "object") {
-          setClientNoShowSummary(null);
-          return;
-        }
-
-        const noShowCount = Number.parseInt(String(item.noShowCount), 10);
-        const noShowThreshold = Number.parseInt(String(item.noShowThreshold), 10);
-        setClientNoShowSummary({
-          noShowCount: Number.isInteger(noShowCount) && noShowCount >= 0 ? noShowCount : 0,
-          noShowThreshold: Number.isInteger(noShowThreshold) && noShowThreshold > 0 ? noShowThreshold : 1,
-          isAtRisk: Boolean(item.isAtRisk)
-        });
-      } catch {
-        if (active) {
-          setClientNoShowSummary(null);
-        }
-      }
-    }, 150);
-
-    return () => {
-      active = false;
-      window.clearTimeout(timerId);
-    };
-  }, [createForm.clientId, createModal.open, isPlannerAppointmentTab]);
-
-  useEffect(() => {
     if (!createModal.open || createModal.mode === "edit") {
       return;
     }
@@ -5581,6 +5765,60 @@ function AppointmentScheduler({
       return;
     }
 
+    for (const dayKey of plannerBlockRepeatDayKeys) {
+      const day = weekDays.find((item) => item.key === dayKey);
+      const appointmentDate = day?.date ? formatDateYmd(day.date) : "";
+      if (!appointmentDate) {
+        continue;
+      }
+
+      const workingHoursConflictMessage = getPlannerWorkingHoursConflictMessage(
+        settings,
+        appointmentDate,
+        nextPayload.startTime,
+        nextPayload.endTime
+      );
+      if (workingHoursConflictMessage) {
+        setPlannerModalFormError(workingHoursConflictMessage);
+        return;
+      }
+
+      const localConflict = findLocalScheduleConflict({
+        appointmentDate,
+        startTime: nextPayload.startTime,
+        endTime: nextPayload.endTime
+      });
+      if (localConflict) {
+        const conflictTime = localConflict.startTime && localConflict.endTime
+          ? `${localConflict.startTime}-${localConflict.endTime}`
+          : nextPayload.startTime;
+        setPlannerModalFormError(`Selected time overlaps existing appointment (${conflictTime}).`);
+        return;
+      }
+
+      const blockedTimeConflictReason = findPlannerBlockedTimeConflict(
+        blockedTimesForSpecialist,
+        appointmentDate,
+        nextPayload.startTime,
+        nextPayload.endTime
+      );
+      if (blockedTimeConflictReason) {
+        setPlannerModalFormError(`Selected time overlaps blocked time: ${blockedTimeConflictReason}.`);
+        return;
+      }
+
+      const absenceConflictReason = findPlannerAbsenceConflict(
+        absencesForSpecialist,
+        appointmentDate,
+        nextPayload.startTime,
+        nextPayload.endTime
+      );
+      if (absenceConflictReason) {
+        setPlannerModalFormError(`Selected time overlaps specialist absence: ${absenceConflictReason}.`);
+        return;
+      }
+    }
+
     try {
       setCreateSubmitting(true);
       setCreateErrors({});
@@ -5701,6 +5939,60 @@ function AppointmentScheduler({
     if (Object.keys(errors).length > 0) {
       setCreateErrors(errors);
       return;
+    }
+
+    for (const dayKey of plannerBlockRepeatDayKeys) {
+      const day = weekDays.find((item) => item.key === dayKey);
+      const appointmentDate = day?.date ? formatDateYmd(day.date) : "";
+      if (!appointmentDate) {
+        continue;
+      }
+
+      const workingHoursConflictMessage = getPlannerWorkingHoursConflictMessage(
+        settings,
+        appointmentDate,
+        nextPayload.startTime,
+        nextPayload.endTime
+      );
+      if (workingHoursConflictMessage) {
+        setPlannerModalFormError(workingHoursConflictMessage);
+        return;
+      }
+
+      const localConflict = findLocalScheduleConflict({
+        appointmentDate,
+        startTime: nextPayload.startTime,
+        endTime: nextPayload.endTime
+      });
+      if (localConflict) {
+        const conflictTime = localConflict.startTime && localConflict.endTime
+          ? `${localConflict.startTime}-${localConflict.endTime}`
+          : nextPayload.startTime;
+        setPlannerModalFormError(`Selected time overlaps existing appointment (${conflictTime}).`);
+        return;
+      }
+
+      const breakConflictReason = findPlannerBreakConflict(
+        breaksForSpecialist,
+        appointmentDate,
+        nextPayload.startTime,
+        nextPayload.endTime
+      );
+      if (breakConflictReason) {
+        setPlannerModalFormError(`Selected time overlaps specialist break: ${breakConflictReason}.`);
+        return;
+      }
+
+      const absenceConflictReason = findPlannerAbsenceConflict(
+        absencesForSpecialist,
+        appointmentDate,
+        nextPayload.startTime,
+        nextPayload.endTime
+      );
+      if (absenceConflictReason) {
+        setPlannerModalFormError(`Selected time overlaps specialist absence: ${absenceConflictReason}.`);
+        return;
+      }
     }
 
     try {
@@ -6594,11 +6886,6 @@ function AppointmentScheduler({
     };
   }, [createDeleting, createModal.open, createSubmitting]);
 
-  const showNoShowWarning = Boolean(
-    createForm.clientId
-    && clientNoShowSummary
-    && clientNoShowSummary.noShowCount >= clientNoShowSummary.noShowThreshold
-  );
   const canMutateModalSpecialist = canMutateSpecialistId(createModal.specialistId);
 
   useEffect(() => {
@@ -7028,6 +7315,7 @@ function AppointmentScheduler({
             canMutateAppointmentSpecialist={canMutateAppointmentSpecialist}
             onOpenCreateModal={openCreateModal}
             onMoveAppointment={moveAppointmentToSlot}
+            onMovePlannerBreak={movePlannerBreakToSlot}
             onOpenDayBulkModal={openDayBulkModal}
             onOpenPlannerBlockModal={openPlannerBlockModal}
           />
@@ -7736,12 +8024,6 @@ function AppointmentScheduler({
                   </div>
                 </div>
 
-                {showNoShowWarning ? (
-                  <p className="appointment-create-warning" role="status" aria-live="polite">
-                    Warning: this client has {clientNoShowSummary.noShowCount} no-shows.
-                  </p>
-                ) : null}
-
                 {createErrors.form ? (
                   <small className="field-error appointment-form-error">{createErrors.form}</small>
                 ) : null}
@@ -7837,7 +8119,7 @@ function AppointmentScheduler({
                           id="appointmentBreakEndTime"
                           placeholder="Select end time"
                           value={plannerBreakForm.endTime}
-                          options={timeSelectOptions}
+                          options={endTimeSelectOptions}
                           menuPortal
                           forceOpenDown={!compactWeekRange}
                           forceOpenUp={compactWeekRange}
@@ -7990,7 +8272,7 @@ function AppointmentScheduler({
                           id="appointmentWorkScheduleEndTime"
                           placeholder="Select end time"
                           value={plannerWorkScheduleForm.endTime}
-                          options={timeSelectOptions}
+                          options={endTimeSelectOptions}
                           menuPortal
                           forceOpenDown={!compactWeekRange}
                           forceOpenUp={compactWeekRange}

@@ -134,6 +134,7 @@ const APPOINTMENT_STATUS_HISTORY_TABLE = "appointment_status_history";
 const APPOINTMENT_SETTINGS_TABLE = "appointment_settings";
 const VIP_CLASS_DAILY_ROUTINES_TABLE = "vip_class_daily_routines";
 const WORK_SCHEDULE_CONFLICT_CODE = "WORK_SCHEDULE_CONFLICT";
+const WORK_SCHEDULE_BREAK_CONFLICT_CODE = "WORK_SCHEDULE_BREAK_CONFLICT";
 const WORK_SCHEDULE_PARENT_CONFLICT_CODE = "WORK_SCHEDULE_PARENT_CONFLICT";
 const VIP_AUTO_ROLLING_REPEAT_WINDOW_DAYS = 30;
 const VIP_CLASS_DAILY_ROUTINE_REQUIRED_COLUMNS = [
@@ -929,6 +930,27 @@ function createWorkScheduleConflictError(conflict) {
   return error;
 }
 
+function createWorkScheduleBreakConflictError(conflict) {
+  const breakStartTime = normalizeWorkScheduleTime(conflict?.break_start_time);
+  const breakEndTime = normalizeWorkScheduleTime(conflict?.break_end_time);
+  const breakTimeText = breakStartTime && breakEndTime
+    ? ` ${breakStartTime}-${breakEndTime}`
+    : "";
+  const message = `Work schedule cannot be changed. Selected time conflicts with an existing break${breakTimeText}. Move or delete that break first.`;
+  const error = new Error(message);
+  error.statusCode = 409;
+  error.code = WORK_SCHEDULE_BREAK_CONFLICT_CODE;
+  error.payload = {
+    code: WORK_SCHEDULE_BREAK_CONFLICT_CODE,
+    message,
+    specialistId: String(conflict?.specialist_id || "").trim(),
+    dayOfWeek: Number.parseInt(String(conflict?.day_of_week ?? "").trim(), 10) || null,
+    startTime: breakStartTime,
+    endTime: breakEndTime
+  };
+  return error;
+}
+
 async function assertWorkScheduleTargetsHaveNoFutureAppointments({
   organizationId,
   targets = [],
@@ -941,6 +963,92 @@ async function assertWorkScheduleTargetsHaveNoFutureAppointments({
   });
   if (conflict) {
     throw createWorkScheduleConflictError(conflict);
+  }
+}
+
+async function assertWorkScheduleTargetsHaveNoBreaks({
+  organizationId,
+  targets = [],
+  db = pool
+}) {
+  const normalizedTargets = Array.from(
+    new Map(
+      (Array.isArray(targets) ? targets : [])
+        .map((item) => toWorkScheduleConflictTarget(item))
+        .filter((item) => item?.isActive === true && item.startTime && item.endTime)
+        .map((item) => {
+          const key = [
+            item.specialistId,
+            item.ruleScope,
+            item.dayOfWeek || "",
+            item.workDate || "",
+            item.startTime,
+            item.endTime
+          ].join("|");
+          return [key, item];
+        })
+    ).values()
+  );
+
+  if (normalizedTargets.length === 0) {
+    return;
+  }
+
+  const { rows } = await db.query(
+    `WITH incoming AS (
+       SELECT
+         (item->>'specialistId')::integer AS specialist_id,
+         NULLIF(TRIM(item->>'ruleScope'), '')::text AS rule_scope,
+         NULLIF(TRIM(item->>'dayOfWeek'), '')::smallint AS day_of_week,
+         NULLIF(TRIM(item->>'workDate'), '')::date AS work_date,
+         NULLIF(TRIM(item->>'startTime'), '')::time AS start_time,
+         NULLIF(TRIM(item->>'endTime'), '')::time AS end_time
+       FROM jsonb_array_elements($2::jsonb) AS item
+     ),
+     normalized AS (
+       SELECT DISTINCT
+         i.specialist_id,
+         i.rule_scope,
+         i.day_of_week,
+         i.work_date,
+         i.start_time,
+         i.end_time,
+         CASE
+           WHEN i.rule_scope = 'weekly' THEN i.day_of_week
+           WHEN i.rule_scope = 'exception' THEN EXTRACT(ISODOW FROM i.work_date)::smallint
+           ELSE NULL
+         END AS effective_day_of_week
+       FROM incoming i
+       WHERE i.specialist_id IS NOT NULL
+         AND i.start_time IS NOT NULL
+         AND i.end_time IS NOT NULL
+         AND i.start_time < i.end_time
+         AND (
+           (i.rule_scope = 'weekly' AND i.day_of_week BETWEEN 1 AND 7)
+           OR
+           (i.rule_scope = 'exception' AND i.work_date IS NOT NULL)
+         )
+     )
+     SELECT
+       ab.specialist_id,
+       ab.day_of_week,
+       TO_CHAR(ab.start_time, 'HH24:MI') AS break_start_time,
+       TO_CHAR(ab.end_time, 'HH24:MI') AS break_end_time
+      FROM normalized n
+      JOIN appointment_breaks ab
+        ON ab.organization_id = $1
+       AND ab.specialist_id = n.specialist_id
+       AND ab.is_active = TRUE
+       AND ab.day_of_week = n.effective_day_of_week
+       AND n.start_time < ab.end_time
+       AND ab.start_time < n.end_time
+      ORDER BY ab.day_of_week ASC, ab.start_time ASC, ab.id ASC
+      LIMIT 1`,
+    [organizationId, JSON.stringify(normalizedTargets)]
+  );
+
+  if (rows?.[0]) {
+    throw createWorkScheduleBreakConflictError(rows[0]);
   }
 }
 
@@ -1578,6 +1686,19 @@ export async function createAppointmentWorkScheduleEntry({
     }]
   });
 
+  await assertWorkScheduleTargetsHaveNoBreaks({
+    organizationId,
+    targets: [{
+      userId: normalizedUserId,
+      ruleScope: normalizedScope,
+      dayOfWeek: finalDayOfWeek,
+      workDate: finalWorkDate,
+      isActive: normalizedIsActive,
+      startTime: finalStartTime,
+      endTime: finalEndTime
+    }]
+  });
+
   await assertWorkScheduleTargetsHaveNoVipRoutines({
     organizationId,
     userId: normalizedUserId,
@@ -1699,6 +1820,19 @@ export async function updateAppointmentWorkScheduleEntryById({
       endTime: finalEndTime
     });
     await assertWorkScheduleTargetsHaveNoFutureAppointments({
+      organizationId,
+      targets: [{
+        userId: normalizedUserId,
+        ruleScope: normalizedScope,
+        dayOfWeek: finalDayOfWeek,
+        workDate: finalWorkDate,
+        isActive: normalizedIsActive,
+        startTime: finalStartTime,
+        endTime: finalEndTime
+      }]
+    });
+
+    await assertWorkScheduleTargetsHaveNoBreaks({
       organizationId,
       targets: [{
         userId: normalizedUserId,
@@ -3039,6 +3173,70 @@ export async function replaceAppointmentBreaksBySpecialist({
       const error = new Error(`This time slot already has an appointment (${breakStart}-${breakEnd}).`);
       error.statusCode = 409;
       error.code = "APPOINTMENT_BREAK_CONFLICT";
+      throw error;
+    }
+
+    const { rows: workScheduleConflictRows } = await trx.query(
+      `WITH incoming AS (
+         SELECT
+           (item->>'dayOfWeek')::smallint AS day_of_week,
+           NULLIF(TRIM(item->>'startTime'), '')::time AS start_time,
+           NULLIF(TRIM(item->>'endTime'), '')::time AS end_time,
+           COALESCE((item->>'isActive')::boolean, TRUE) AS is_active
+         FROM jsonb_array_elements($3::jsonb) AS item
+       ),
+       active_incoming AS (
+         SELECT i.day_of_week, i.start_time, i.end_time
+         FROM incoming i
+         WHERE i.is_active = TRUE
+           AND i.day_of_week BETWEEN 1 AND 7
+           AND i.start_time IS NOT NULL
+           AND i.end_time IS NOT NULL
+           AND i.start_time < i.end_time
+       )
+       SELECT
+         ai.day_of_week,
+         TO_CHAR(ai.start_time, 'HH24:MI') AS break_start_time,
+         TO_CHAR(ai.end_time, 'HH24:MI') AS break_end_time,
+         TO_CHAR(awh.start_time, 'HH24:MI') AS block_start_time,
+         TO_CHAR(awh.end_time, 'HH24:MI') AS block_end_time,
+         COALESCE(NULLIF(TRIM(awh.reason), ''), 'Blocked slot') AS block_reason
+        FROM active_incoming ai
+        JOIN appointment_working_hours awh
+          ON awh.organization_id = $1
+         AND awh.user_id = $2
+         AND awh.is_active = TRUE
+         AND (
+           (awh.rule_scope = 'weekly' AND awh.day_of_week = ai.day_of_week)
+           OR
+           (
+             awh.rule_scope = 'exception'
+             AND awh.work_date >= TIMEZONE('Asia/Tashkent', NOW())::date
+             AND EXTRACT(ISODOW FROM awh.work_date)::smallint = ai.day_of_week
+           )
+         )
+         AND (
+           awh.start_time IS NULL
+           OR awh.end_time IS NULL
+           OR (ai.start_time < awh.end_time AND awh.start_time < ai.end_time)
+         )
+       ORDER BY ai.day_of_week ASC, ai.start_time ASC, awh.id ASC
+       LIMIT 1`,
+      [
+        organizationId,
+        specialistId,
+        breaksPayloadJson
+      ]
+    );
+
+    const workScheduleConflict = workScheduleConflictRows?.[0] || null;
+    if (workScheduleConflict) {
+      const breakStart = String(workScheduleConflict.break_start_time || "").trim();
+      const breakEnd = String(workScheduleConflict.break_end_time || "").trim();
+      const blockReason = String(workScheduleConflict.block_reason || "Blocked slot").trim();
+      const error = new Error(`This break time (${breakStart}-${breakEnd}) conflicts with work schedule block: ${blockReason}.`);
+      error.statusCode = 409;
+      error.code = "APPOINTMENT_BREAK_WORK_SCHEDULE_CONFLICT";
       throw error;
     }
 

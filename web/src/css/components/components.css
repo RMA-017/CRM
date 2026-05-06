@@ -2619,7 +2619,8 @@ label.field > span:first-child,
 }
 
 .appointment-grid tbody td.appointment-day-col-gap.appointment-create-slot-td,
-.appointment-grid tbody td.appointment-day-col-gap.appointment-drop-slot-td {
+.appointment-grid tbody td.appointment-day-col-gap.appointment-drop-slot-td,
+.appointment-grid tbody td.appointment-day-col-gap.appointment-break-drop-slot-td {
   position: relative;
   cursor: pointer;
   text-align: center;
@@ -2633,7 +2634,8 @@ label.field > span:first-child,
 }
 
 .appointment-grid tbody td.appointment-create-slot-td:hover,
-.appointment-grid tbody td.appointment-drop-slot-td:hover {
+.appointment-grid tbody td.appointment-drop-slot-td:hover,
+.appointment-grid tbody td.appointment-break-drop-slot-td:hover {
   background: #e3f0ff;
 }
 
@@ -2643,7 +2645,8 @@ label.field > span:first-child,
 }
 
 .appointment-grid tbody td.appointment-day-col-gap.appointment-create-slot-td:hover::after,
-.appointment-grid tbody td.appointment-day-col-gap.appointment-drop-slot-td:hover::after {
+.appointment-grid tbody td.appointment-day-col-gap.appointment-drop-slot-td:hover::after,
+.appointment-grid tbody td.appointment-day-col-gap.appointment-break-drop-slot-td:hover::after {
   content: attr(data-slot-label);
   position: absolute;
   inset: 0;
@@ -2660,7 +2663,8 @@ label.field > span:first-child,
 }
 
 .appointment-grid-dragging .appointment-grid tbody td.appointment-day-col-gap.appointment-create-slot-td:hover::after,
-.appointment-grid-dragging .appointment-grid tbody td.appointment-day-col-gap.appointment-drop-slot-td:hover::after {
+.appointment-grid-dragging .appointment-grid tbody td.appointment-day-col-gap.appointment-drop-slot-td:hover::after,
+.appointment-grid-dragging .appointment-grid tbody td.appointment-day-col-gap.appointment-break-drop-slot-td:hover::after {
   content: none;
 }
 
@@ -3477,6 +3481,16 @@ label.field > span:first-child,
   line-height: 1;
   overflow: hidden;
   pointer-events: none;
+}
+
+.appointment-break-text-only.appointment-break-draggable {
+  cursor: grab;
+  pointer-events: auto;
+}
+
+.appointment-break-text-only.appointment-break-draggable:active,
+.appointment-grid-dragging .appointment-break-text-only.appointment-break-draggable {
+  cursor: grabbing;
 }
 
 .appointment-work-schedule-blocked-text {

@@ -26,7 +26,7 @@ function createDefaultForm() {
     appointmentDurationOptions: "",
     visibleWeekDays: [],
     workingHours: null,
-    noShowThreshold: "",
+    noShowThreshold: "1",
     reminderHours: "",
     reminderChannels: []
   };
@@ -75,7 +75,7 @@ function mapSettingsItemToForm(source) {
     workingHours: normalizedSource.workingHours && typeof normalizedSource.workingHours === "object"
       ? normalizedSource.workingHours
       : null,
-    noShowThreshold: String(normalizedSource.noShowThreshold ?? ""),
+    noShowThreshold: String(normalizedSource.noShowThreshold ?? "1"),
     reminderHours: String(normalizedSource.reminderHours ?? ""),
     reminderChannels: normalizeReminderChannels(normalizedSource.reminderChannels)
   };
@@ -325,15 +325,6 @@ function AppointmentSettingsPanel({
         return;
       }
 
-      const noShowThresholdResult = parsePositiveIntegerField(form.noShowThreshold, {
-        fieldLabel: "No-show threshold",
-        min: 1
-      });
-      if (!noShowThresholdResult.ok) {
-        setMessage(noShowThresholdResult.message);
-        return;
-      }
-
       const reminderHoursResult = parsePositiveIntegerField(form.reminderHours, {
         fieldLabel: "Reminder hours",
         min: 1
@@ -351,7 +342,7 @@ function AppointmentSettingsPanel({
         historyLockDays: historyLockDaysResult.value,
         appointmentDurationOptions: durationOptions,
         visibleWeekDays: form.visibleWeekDays,
-        noShowThreshold: noShowThresholdResult.value,
+        noShowThreshold: Number.parseInt(String(form.noShowThreshold || "1").trim(), 10) || 1,
         reminderHours: reminderHoursResult.value,
         reminderChannels: Array.isArray(form.reminderChannels) ? form.reminderChannels : [],
         defaultWeeklyItems: (Array.isArray(defaultWeeklyRows) ? defaultWeeklyRows : []).map((row) => {
@@ -490,21 +481,7 @@ function AppointmentSettingsPanel({
       </div>
 
       <div className="appointment-setting-row">
-        <label>7. No-show Rules</label>
-        <div className="appointment-setting-inline">
-          <input
-            type="number"
-            min="1"
-            value={form.noShowThreshold}
-            disabled={!canUpdateSettingsAppointments}
-            onChange={(event) => handleFormField("noShowThreshold", event.currentTarget.value)}
-          />
-          <span>count threshold</span>
-        </div>
-      </div>
-
-      <div className="appointment-setting-row">
-        <label>8. Reminder Settings</label>
+        <label>7. Reminder Settings</label>
         <div className="appointment-setting-inline appointment-reminder-settings-inline">
           <input
             id="appointmentReminderHoursInput"

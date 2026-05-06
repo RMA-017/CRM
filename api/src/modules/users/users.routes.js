@@ -340,7 +340,9 @@ async function usersRoutes(fastify) {
           return reply.status(404).send({ message: "User not found." });
         }
 
-        const deleteResult = await deleteUserById(userId, scopedOrganizationId);
+        const deleteResult = await deleteUserById(userId, scopedOrganizationId, {
+          actorUserId: authContext.userId
+        });
         if (deleteResult.rowCount === 0) {
           return reply.status(404).send({ message: "User not found." });
         }
