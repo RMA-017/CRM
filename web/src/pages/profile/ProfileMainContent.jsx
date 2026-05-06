@@ -70,6 +70,7 @@ function ProfileMainContent({
   canDeleteAppointments,
   canReadAppointmentBreaks,
   canViewAppointmentSpecialistAbsenceBlocks,
+  canReadDashboardPermission,
   canReadStatisticsPlannerReportPermission,
   canUpdateAppointmentBreaks,
   canUpdateSettingsAppointments,
@@ -355,7 +356,7 @@ function ProfileMainContent({
             <DashboardPanel
               closeDashboardPanel={closeDashboardPanel}
               showBootstrapSkeleton={!profile?.username}
-              canReadDashboard={canReadStatisticsPlannerReportPermission}
+              canReadDashboard={canReadDashboardPermission}
             />
           </Suspense>
         ) : null}

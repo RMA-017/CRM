@@ -86,6 +86,19 @@ test("planner statistics permission unlocks statistics menu without clients read
   assert.equal(plannerReportAccess.canAccessForcedView, true);
 });
 
+test("dashboard permission unlocks dashboard without statistics report permission", () => {
+  const access = readAccessSnapshot({
+    username: "specialist",
+    isAdmin: false,
+    isPlatformAdmin: false,
+    permissions: ["dashboard.read"]
+  }, "dashboard");
+
+  assert.equal(access.canOpenDashboard, true);
+  assert.equal(access.canOpenStatisticsPlannerReport, false);
+  assert.equal(access.canAccessForcedView, true);
+});
+
 test("website management permissions unlock site content without admin role", () => {
   const access = readAccessSnapshot({
     username: "editor",

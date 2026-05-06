@@ -273,6 +273,23 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           : false;
       };
 
+  async function requirePlannerReportAccess(request, reply) {
+    const authContext = request.authContext;
+    const requester = authContext?.requester;
+    if (!requester) {
+      reply.status(401).send({ message: "Unauthorized." });
+      return null;
+    }
+
+    const canReadReport = await requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT);
+    const canReadDashboard = await requesterHasPermission(requester, PERMISSIONS.DASHBOARD_READ);
+    if (!canReadReport && !canReadDashboard) {
+      reply.status(403).send({ message: "Forbidden." });
+      return null;
+    }
+    return { authContext, requester };
+  }
+
   function sortScheduleItems(items) {
     return [...(Array.isArray(items) ? items : [])].sort((left, right) => {
       const leftDate = String(left?.appointmentDate || "").trim();
@@ -610,12 +627,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     async (request, reply) => {
       setNoCacheHeaders(reply);
 
-      const access = await requireAppointmentsAccess(
-        request,
-        reply,
-        PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT,
-        "statistics.planner_report"
-      );
+      const access = await requirePlannerReportAccess(request, reply);
       if (!access) {
         return;
       }
@@ -665,12 +677,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     async (request, reply) => {
       setNoCacheHeaders(reply);
 
-      const access = await requireAppointmentsAccess(
-        request,
-        reply,
-        PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT,
-        "statistics.planner_report"
-      );
+      const access = await requirePlannerReportAccess(request, reply);
       if (!access) {
         return;
       }

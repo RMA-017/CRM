@@ -198,6 +198,7 @@ function createScheduleContext(overrides = {}) {
       APPOINTMENTS_PLANNER_DELETE: "appointments.planner.delete",
       APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip-clients.my-children",
       APPOINTMENTS_VIP_CLIENTS_MY_CLASS: "appointments.vip-clients.my-class",
+      DASHBOARD_READ: "dashboard.read",
       APPOINTMENTS_STATISTICS_PLANNER_REPORT: "appointments.statistics.planner-report"
     },
     parsePositiveIntegerOr,
