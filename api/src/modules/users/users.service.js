@@ -8,8 +8,7 @@ import {
 } from "../../lib/role-labels.js";
 import {
   clearAppointmentPlannerReportFilterCaches,
-  clearAppointmentReferenceCaches,
-  deleteAppointmentSchedulesByIds
+  clearAppointmentReferenceCaches
 } from "../appointments/appointment-settings.service.js";
 
 function buildUsersPagedResult(rows, {
@@ -71,76 +70,48 @@ async function getPositionLabelById(client, positionId) {
 async function deleteFutureAppointmentSchedulesBySpecialist({
   client,
   organizationId,
-  specialistId,
-  actorUserId = null
+  specialistId
 }) {
   const { rows } = await client.query(
-    `SELECT s.id
-       FROM appointment_schedules s
-      WHERE s.organization_id = $1
-        AND s.specialist_id = $2
-        AND (
-          s.appointment_date > TIMEZONE('Asia/Tashkent', NOW())::date
-          OR (
-            s.appointment_date = TIMEZONE('Asia/Tashkent', NOW())::date
-            AND s.end_time > TIMEZONE('Asia/Tashkent', NOW())::time
+    `WITH deleted AS (
+       DELETE FROM appointment_schedules s
+        WHERE s.organization_id = $1
+          AND s.specialist_id = $2
+          AND (
+            s.appointment_date > TIMEZONE('Asia/Tashkent', NOW())::date
+            OR (
+              s.appointment_date = TIMEZONE('Asia/Tashkent', NOW())::date
+              AND s.end_time > TIMEZONE('Asia/Tashkent', NOW())::time
+            )
           )
-        )
-      ORDER BY
-        s.appointment_date ASC,
-        s.start_time ASC,
-        s.id ASC`,
+       RETURNING s.id
+     )
+     SELECT COUNT(*)::integer AS deleted_count
+       FROM deleted`,
     [organizationId, specialistId]
   );
 
-  const ids = (rows || [])
-    .map((row) => Number.parseInt(String(row?.id || "").trim(), 10))
-    .filter((id) => Number.isInteger(id) && id > 0);
-
-  if (ids.length === 0) {
-    return 0;
-  }
-
-  return deleteAppointmentSchedulesByIds({
-    organizationId,
-    ids,
-    actorUserId,
-    db: client
-  });
+  return Number.parseInt(String(rows?.[0]?.deleted_count ?? "0"), 10) || 0;
 }
 
 async function deleteAppointmentSchedulesBySpecialist({
   client,
   organizationId,
-  specialistId,
-  actorUserId = null
+  specialistId
 }) {
   const { rows } = await client.query(
-    `SELECT s.id
-       FROM appointment_schedules s
-      WHERE s.organization_id = $1
-        AND s.specialist_id = $2
-      ORDER BY
-        s.appointment_date ASC,
-        s.start_time ASC,
-        s.id ASC`,
+    `WITH deleted AS (
+       DELETE FROM appointment_schedules s
+        WHERE s.organization_id = $1
+          AND s.specialist_id = $2
+       RETURNING s.id
+     )
+     SELECT COUNT(*)::integer AS deleted_count
+       FROM deleted`,
     [organizationId, specialistId]
   );
 
-  const ids = (rows || [])
-    .map((row) => Number.parseInt(String(row?.id || "").trim(), 10))
-    .filter((id) => Number.isInteger(id) && id > 0);
-
-  if (ids.length === 0) {
-    return 0;
-  }
-
-  return deleteAppointmentSchedulesByIds({
-    organizationId,
-    ids,
-    actorUserId,
-    db: client
-  });
+  return Number.parseInt(String(rows?.[0]?.deleted_count ?? "0"), 10) || 0;
 }
 
 export async function findRequester(authContext = {}) {
