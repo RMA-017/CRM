@@ -1387,18 +1387,12 @@ function AppointmentPlannerGrid({
     weekDays.reduce((acc, day) => {
       const dayItems = Array.isArray(overlayAppointmentsByDay?.[day.key]) ? overlayAppointmentsByDay[day.key] : [];
       const busyByTime = {};
-      const startSlots = new Set(
-        dayItems
-          .map((event) => String(event?.time || event?.startTime || "").trim())
-          .filter(Boolean)
-      );
-
-      dayItems.forEach((event) => {
+      const ranges = dayItems.reduce((items, event) => {
         const startSlot = String(event?.time || event?.startTime || "").trim();
         const startMinutes = normalizeTimeToMinutes(event?.time || event?.startTime);
         const endMinutes = normalizeTimeToMinutes(event?.endTime);
         if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
-          return;
+          return items;
         }
 
         const clientText = String(event?.client || "").trim();
@@ -1411,48 +1405,79 @@ function AppointmentPlannerGrid({
           clientText,
           serviceText
         ].filter(Boolean).join(" - ");
-        const payload = {
-          isStart: false,
-          status: String(event?.status || "pending").trim().toLowerCase().replace(/_/g, "-"),
-          label: overlayLabel || "Busy",
-          title
-        };
-        if (startSlot) {
-          busyByTime[startSlot] = { ...payload, isStart: true };
-        }
-
-        const startIndex = slotIndexByValue[startSlot];
-        if (Number.isInteger(startIndex) && startIndex >= 0) {
-          for (let index = startIndex + 1; index < timeSlots.length; index += 1) {
-            const slot = timeSlots[index];
-            const slotMinutes = slotMinutesByValue[slot];
-            if (slotMinutes === null || slotMinutes >= endMinutes) {
-              break;
-            }
-            if (startSlots.has(slot) || busyByTime[slot]) {
-              continue;
-            }
-            busyByTime[slot] = payload;
+        items.push({
+          startMinutes,
+          endMinutes,
+          payload: {
+            isStart: false,
+            isEnd: false,
+            rangePosition: "middle",
+            startMinutes,
+            endMinutes,
+            title,
+            status: String(event?.status || "pending").trim().toLowerCase().replace(/_/g, "-"),
+            label: overlayLabel || "Busy"
           }
+        });
+        return items;
+      }, []).sort((a, b) => a.startMinutes - b.startMinutes || a.endMinutes - b.endMinutes);
+
+      const mergedRanges = ranges.reduce((items, range) => {
+        const previous = items[items.length - 1];
+        if (previous && range.startMinutes <= previous.endMinutes) {
+          previous.endMinutes = Math.max(previous.endMinutes, range.endMinutes);
+          previous.payload.endMinutes = previous.endMinutes;
+          previous.payload.title = [previous.payload.title, range.payload.title]
+            .filter(Boolean)
+            .filter((value, index, array) => array.indexOf(value) === index)
+            .join(" / ");
+          return items;
+        }
+        items.push({
+          startMinutes: range.startMinutes,
+          endMinutes: range.endMinutes,
+          payload: {
+            ...range.payload
+          }
+        });
+        return items;
+      }, []);
+
+      mergedRanges.forEach((range) => {
+        const occupiedSlots = timeSlots.filter((slot) => {
+          const slotMinutes = slotMinutesByValue[slot];
+          return Number.isInteger(slotMinutes)
+            && slotMinutes >= range.startMinutes
+            && slotMinutes < range.endMinutes;
+        });
+        if (!occupiedSlots.length) {
           return;
         }
 
-        timeSlots.forEach((slot) => {
-          const slotMinutes = slotMinutesByValue[slot];
-          if (slotMinutes === null || slotMinutes <= startMinutes || slotMinutes >= endMinutes) {
-            return;
-          }
-          if (startSlots.has(slot) || busyByTime[slot]) {
-            return;
-          }
-          busyByTime[slot] = payload;
+        occupiedSlots.forEach((slot, index) => {
+          const isStart = index === 0;
+          const isEnd = index === occupiedSlots.length - 1;
+          const rangePosition = isStart && isEnd
+            ? "single"
+            : (isStart ? "start" : (isEnd ? "end" : "middle"));
+          busyByTime[slot] = {
+            ...range.payload,
+            isStart,
+            isEnd,
+            rangePosition,
+            startMinutes: range.startMinutes,
+            endMinutes: range.endMinutes,
+            title: range.payload.title,
+            status: String(range.payload.status || "pending").trim().toLowerCase().replace(/_/g, "-"),
+            label: range.payload.label || "Busy"
+          };
         });
       });
 
       acc[day.key] = busyByTime;
       return acc;
     }, {})
-  ), [overlayAppointmentsByDay, overlayLabel, slotIndexByValue, slotMinutesByValue, timeSlots, weekDays]);
+  ), [overlayAppointmentsByDay, overlayLabel, slotMinutesByValue, timeSlots, weekDays]);
   const appointmentBreakSlotsByDay = useMemo(() => (
     weekDays.reduce((acc, day) => {
       const blockedByTime = {};
@@ -2218,6 +2243,7 @@ function AppointmentPlannerGrid({
                       breakBlockedItem ? `appointment-break-type-${breakBlockedItem.breakType}-td` : "",
                       overlayBusyItem ? "appointment-shadow-overlay-td" : "",
                       overlayBusyItem?.isStart ? "appointment-shadow-overlay-start-td" : "",
+                      overlayBusyItem?.rangePosition ? `appointment-shadow-overlay-${overlayBusyItem.rangePosition}-td` : "",
                     ].filter(Boolean).join(" ") || undefined;
 
                     return (
@@ -2399,7 +2425,7 @@ function AppointmentPlannerGrid({
                         ) : null}
                         {overlayBusyItem ? (
                           <span
-                            className={`appointment-shadow-overlay${overlayBusyItem.isStart ? " is-start" : ""} appointment-shadow-overlay-${overlayBusyItem.status || "pending"}`}
+                            className={`appointment-shadow-overlay is-${overlayBusyItem.rangePosition || "middle"} appointment-shadow-overlay-${overlayBusyItem.status || "pending"}`}
                             title={String(overlayBusyItem.title || "").trim() || undefined}
                             aria-label={`${overlayBusyItem.label || "Overlay"} busy on ${day.label} at ${slot}`}
                           />
