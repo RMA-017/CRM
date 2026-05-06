@@ -744,15 +744,31 @@ test("users delete removes linked planner and VIP records before deleting the us
     }
     cleanupQueries.push(queryText);
 
+    if (queryText.startsWith("UPDATE users")) {
+      assert.deepEqual(params, [3, 9]);
+      return { rows: [], rowCount: 1 };
+    }
     if (queryText.includes("FROM vip_class_teacher_assignments") && queryText.includes("teacher_user_id = $2")) {
       assert.deepEqual(params, [3, 9]);
       return { rows: [{ id: "44" }] };
     }
-    if (queryText.includes("FROM appointment_schedules s") && queryText.includes("s.specialist_id = $2")) {
+    if (queryText.includes("WITH deleted AS") && queryText.includes("DELETE FROM appointment_schedules")) {
       assert.deepEqual(params, [3, 9]);
-      return { rows: [] };
+      return { rows: [{ deleted_count: 2 }], rowCount: 1 };
     }
     if (queryText.startsWith("DELETE FROM appointment_breaks")) {
+      assert.deepEqual(params, [3, 9]);
+      return { rows: [], rowCount: 1 };
+    }
+    if (queryText.startsWith("DELETE FROM appointment_working_hours")) {
+      assert.deepEqual(params, [3, 9]);
+      return { rows: [], rowCount: 1 };
+    }
+    if (queryText.startsWith("DELETE FROM user_notifications")) {
+      assert.deepEqual(params, [3, 9]);
+      return { rows: [], rowCount: 1 };
+    }
+    if (queryText.startsWith("UPDATE user_notifications")) {
       assert.deepEqual(params, [3, 9]);
       return { rows: [], rowCount: 1 };
     }

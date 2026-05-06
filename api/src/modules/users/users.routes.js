@@ -349,6 +349,15 @@ async function usersRoutes(fastify) {
 
         return reply.send({ message: "User deleted successfully." });
       } catch (error) {
+        if (error?.statusCode === 409) {
+          request.log.warn?.({ err: error, step: error?.step }, "User delete cleanup conflict");
+          return reply.status(409).send({
+            message: error?.step
+              ? `User could not be deleted. Cleanup failed at ${error.step}.`
+              : (error?.message || "User could not be deleted."),
+            step: error?.step || undefined
+          });
+        }
         if (error?.code === "23503") {
           return reply.status(409).send({
             message: "User has linked records and cannot be deleted."

@@ -114,6 +114,21 @@ async function deleteAppointmentSchedulesBySpecialist({
   return Number.parseInt(String(rows?.[0]?.deleted_count ?? "0"), 10) || 0;
 }
 
+async function runUserDeleteCleanupStep(step, callback) {
+  try {
+    return await callback();
+  } catch (error) {
+    const wrappedError = new Error(`User delete cleanup failed at ${step}.`);
+    wrappedError.code = "USER_DELETE_CLEANUP_FAILED";
+    wrappedError.statusCode = 409;
+    wrappedError.step = step;
+    wrappedError.cause = error;
+    wrappedError.originalCode = error?.code || "";
+    wrappedError.originalMessage = error?.message || "";
+    throw wrappedError;
+  }
+}
+
 export async function findRequester(authContext = {}) {
   const cachedRequester = authContext?.requester;
   if (cachedRequester) {
@@ -419,74 +434,104 @@ export async function deleteUserById(userId, organizationId, {
   actorUserId = null
 } = {}) {
   return executeTransaction(async (client) => {
-    const targetClassResult = await client.query(
+    await runUserDeleteCleanupStep("user audit references", () => client.query(
+      `UPDATE users
+          SET created_by = CASE WHEN created_by = $2 THEN NULL ELSE created_by END,
+              updated_by = CASE WHEN updated_by = $2 THEN NULL ELSE updated_by END
+        WHERE organization_id = $1
+          AND (created_by = $2 OR updated_by = $2)`,
+      [organizationId, userId]
+    ));
+
+    const targetClassResult = await runUserDeleteCleanupStep("VIP class lookup", () => client.query(
       `SELECT id
          FROM vip_class_teacher_assignments
         WHERE organization_id = $1
           AND teacher_user_id = $2
         ORDER BY id ASC`,
       [organizationId, userId]
-    );
+    ));
     const targetClassIds = (targetClassResult.rows || [])
       .map((row) => Number.parseInt(String(row?.id || "").trim(), 10))
       .filter((id) => Number.isInteger(id) && id > 0);
 
-    await deleteAppointmentSchedulesBySpecialist({
+    await runUserDeleteCleanupStep("appointment schedules", () => deleteAppointmentSchedulesBySpecialist({
       client,
       organizationId,
-      specialistId: userId,
-      actorUserId
-    });
+      specialistId: userId
+    }));
 
-    await client.query(
+    await runUserDeleteCleanupStep("appointment breaks", () => client.query(
       `DELETE FROM appointment_breaks
         WHERE organization_id = $1
           AND specialist_id = $2`,
       [organizationId, userId]
-    );
+    ));
 
-    await client.query(
+    await runUserDeleteCleanupStep("appointment working hours", () => client.query(
+      `DELETE FROM appointment_working_hours
+        WHERE organization_id = $1
+          AND user_id = $2`,
+      [organizationId, userId]
+    ));
+
+    await runUserDeleteCleanupStep("user notifications", () => client.query(
+      `DELETE FROM user_notifications
+        WHERE organization_id = $1
+          AND user_id = $2`,
+      [organizationId, userId]
+    ));
+
+    await runUserDeleteCleanupStep("notification source user references", () => client.query(
+      `UPDATE user_notifications
+          SET source_user_id = NULL
+        WHERE organization_id = $1
+          AND source_user_id = $2`,
+      [organizationId, userId]
+    ));
+
+    await runUserDeleteCleanupStep("VIP tutor assignment history", () => client.query(
       `DELETE FROM vip_client_tutor_assignment_history
         WHERE organization_id = $1
           AND tutor_user_id = $2`,
       [organizationId, userId]
-    );
+    ));
 
-    await client.query(
+    await runUserDeleteCleanupStep("VIP tutor assignments", () => client.query(
       `DELETE FROM vip_client_tutor_assignments
         WHERE organization_id = $1
           AND tutor_user_id = $2`,
       [organizationId, userId]
-    );
+    ));
 
     if (targetClassIds.length > 0) {
-      await client.query(
+      await runUserDeleteCleanupStep("VIP class tutor assignments", () => client.query(
         `DELETE FROM vip_client_tutor_assignments
           WHERE organization_id = $1
             AND class_assignment_id = ANY($2::bigint[])`,
         [organizationId, targetClassIds]
-      );
+      ));
 
-      await client.query(
+      await runUserDeleteCleanupStep("VIP class tutor assignment history", () => client.query(
         `UPDATE vip_client_tutor_assignment_history
             SET class_assignment_id = NULL
           WHERE organization_id = $1
             AND class_assignment_id = ANY($2::bigint[])`,
         [organizationId, targetClassIds]
-      );
+      ));
     }
 
-    await client.query(
+    await runUserDeleteCleanupStep("VIP class teacher assignments", () => client.query(
       `DELETE FROM vip_class_teacher_assignments
         WHERE organization_id = $1
           AND teacher_user_id = $2`,
       [organizationId, userId]
-    );
+    ));
 
-    const result = await client.query(
+    const result = await runUserDeleteCleanupStep("user row", () => client.query(
       "DELETE FROM users WHERE id = $1 AND organization_id = $2",
       [userId, organizationId]
-    );
+    ));
     if (result.rowCount > 0) {
       clearAppointmentReferenceCaches();
       clearAppointmentPlannerReportFilterCaches();
