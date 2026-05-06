@@ -11,79 +11,66 @@ test("normalizeAllowedFeatures preserves explicit empty array", () => {
   assert.equal(normalizeAllowedFeatures(null), null);
   assert.deepEqual(normalizeAllowedFeatures([]), []);
   assert.deepEqual(
-    normalizeAllowedFeatures(["appointments.breaks", "APPOINTMENTS.BREAKS", "invalid"]),
-    ["appointments.breaks"]
+    normalizeAllowedFeatures(["appointments.planner", "APPOINTMENTS.PLANNER", "invalid"]),
+    ["appointments.planner"]
   );
 });
 
 test("hasOrgFeature respects empty arrays and parent features", () => {
-  assert.equal(hasOrgFeature([], "appointments.breaks"), false);
-  assert.equal(hasOrgFeature(["appointments"], "appointments.breaks"), true);
-  assert.equal(hasOrgFeature(["vip_clients.my_children"], "vip_clients.my_children"), true);
-  assert.equal(hasOrgFeature(["vip_clients.my_children"], "vip_clients.attendance"), false);
+  assert.equal(hasOrgFeature([], "appointments.planner"), false);
+  assert.equal(hasOrgFeature(["appointments"], "appointments.planner"), true);
+  assert.equal(hasOrgFeature(["appointments.planner"], "appointments.planner"), true);
+  assert.equal(hasOrgFeature(["settings.roles"], "appointments.planner"), false);
 });
 
 test("filterPermissionCodesByOrgFeatures filters child permissions precisely", () => {
   const allowedFeatures = [
-    "appointments",
-    "appointments.breaks",
-    "vip_clients",
-    "vip_clients.my_children",
-    "assignments",
-    "assignments.class"
+    "appointments.planner"
   ];
 
   assert.deepEqual(
     filterPermissionCodesByOrgFeatures(
       [
-        "appointments.breaks.read",
-        "appointments.breaks",
         "appointments.schedule",
+        "appointments.planner.update",
         "appointments.client-search",
-        "appointments.vip-clients.read",
-        "appointments.vip-clients.my-children",
-        "appointments.assignments.class.read",
-        "appointments.assignments.tutor.read",
+        "settings.appointments.read",
         "profile.read"
       ],
       allowedFeatures
     ),
     [
-      "appointments.breaks.read",
-      "appointments.breaks",
-      "appointments.vip-clients.my-children",
-      "appointments.assignments.class.read",
+      "appointments.schedule",
+      "appointments.planner.update",
+      "appointments.client-search",
       "profile.read"
     ]
   );
 });
 
-test("filterPermissionCodesByOrgFeatures keeps separate statistics codes per feature", () => {
-  // only planner_report enabled — class-attendance filtered out
+test("filterPermissionCodesByOrgFeatures gates statistics planner report by feature", () => {
   assert.deepEqual(
     filterPermissionCodesByOrgFeatures(
-      [
-        "appointments.statistics.class-attendance",
-        "appointments.statistics.planner-report"
-      ],
-      ["statistics", "statistics.planner_report"]
+      ["appointments.statistics.planner-report"],
+      []
+    ),
+    []
+  );
+
+  assert.deepEqual(
+    filterPermissionCodesByOrgFeatures(
+      ["appointments.statistics.planner-report"],
+      ["statistics"]
     ),
     ["appointments.statistics.planner-report"]
   );
 
-  // both features enabled — both codes pass
   assert.deepEqual(
     filterPermissionCodesByOrgFeatures(
-      [
-        "appointments.statistics.class-attendance",
-        "appointments.statistics.planner-report"
-      ],
-      ["statistics.class_attendance", "statistics.planner_report"]
+      ["appointments.statistics.planner-report"],
+      ["statistics.planner_report"]
     ),
-    [
-      "appointments.statistics.class-attendance",
-      "appointments.statistics.planner-report"
-    ]
+    ["appointments.statistics.planner-report"]
   );
 });
 
@@ -93,21 +80,16 @@ test("filterPermissionCodesByOrgFeatures includes settings permissions only for 
       [
         "settings.appointments.read",
         "settings.appointments.update",
-        "settings.appointment-norms.read",
-        "settings.appointment-norms.create",
-        "settings.appointment-norms.update",
-        "settings.appointment-norms.delete",
         "settings.roles.read",
-        "settings.positions.read"
+        "settings.roles.create",
+        "settings.positions.read",
+        "settings.positions.create"
       ],
-      ["settings.roles", "settings.appointment_norms"]
+      ["settings.roles"]
     ),
     [
-      "settings.appointment-norms.read",
-      "settings.appointment-norms.create",
-      "settings.appointment-norms.update",
-      "settings.appointment-norms.delete",
-      "settings.roles.read"
+      "settings.roles.read",
+      "settings.roles.create"
     ]
   );
 });

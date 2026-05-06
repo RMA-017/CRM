@@ -1,10 +1,7 @@
 import {
-  ALL_ORG_FEATURE_KEYS,
   filterKnownPermissionCodes,
   filterPermissionCodesByFeatures,
   filterPermissionOptionsByFeatures,
-  getPrimaryFeatureKeyForPermissionCode,
-  getFeatureKeysForPermissionCode,
   hasAllowedFeature,
   isKnownPermissionCode,
   isPermissionAllowedByFeatures,
@@ -12,9 +9,7 @@ import {
 } from "../../../shared/access-registry.js";
 
 export {
-  ALL_ORG_FEATURE_KEYS,
   normalizeAllowedFeatures,
-  getFeatureKeysForPermissionCode,
   isKnownPermissionCode,
   filterKnownPermissionCodes
 };
@@ -23,7 +18,7 @@ export function hasOrgFeature(allowedFeatures, featureKey) {
   return hasAllowedFeature(allowedFeatures, featureKey);
 }
 
-export function getRequesterAllowedFeatures(requester) {
+function getRequesterAllowedFeatures(requester) {
   const source = requester?.organization_allowed_features
     ?? requester?.organizationAllowedFeatures
     ?? requester?.orgFeatures
@@ -37,10 +32,6 @@ export function requesterHasOrgFeature(requester, featureKey) {
     return true;
   }
   return hasOrgFeature(getRequesterAllowedFeatures(requester), featureKey);
-}
-
-export function getFeatureForPermissionCode(permissionCode) {
-  return getPrimaryFeatureKeyForPermissionCode(permissionCode);
 }
 
 export function isPermissionAllowedByOrgFeatures(permissionCode, allowedFeatures) {

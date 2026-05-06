@@ -8,113 +8,21 @@ import {
 
 test("filterPermissionsByOrgFeatures respects child feature mapping", () => {
   const permissions = [
-    { value: "appointments.breaks.read", label: "Read Appointment Breaks" },
-    { value: "appointments.breaks", label: "Appointments Breaks Submenu" },
     { value: "appointments.schedule", label: "Appointments Planner Submenu" },
-    { value: "appointments.vip-clients.read", label: "VIP Clients Read" },
-    { value: "appointments.vip-clients.my-children", label: "My VIP Children Access" },
+    { value: "appointments.planner.update", label: "Update Appointment Planner" },
+    { value: "settings.roles.read", label: "Read Role Settings" },
     { value: "profile.read", label: "Read Profile" }
   ];
 
   assert.deepEqual(
     filterPermissionsByOrgFeatures(permissions, [
-      "appointments",
-      "appointments.breaks",
-      "vip_clients",
-      "vip_clients.my_children"
+      "appointments.planner"
     ]).map((item) => item.value),
     [
-      "appointments.breaks.read",
-      "appointments.breaks",
-      "appointments.vip-clients.my-children",
+      "appointments.schedule",
+      "appointments.planner.update",
       "profile.read"
     ]
-  );
-});
-
-test("filterPermissionsByOrgFeatures keeps separate statistics codes per feature", () => {
-  const permissions = [
-    { value: "appointments.statistics.class-attendance", label: "Statistics Class Attendance Read" },
-    { value: "appointments.statistics.planner-report", label: "Statistics Planner Report Read" }
-  ];
-
-  // only planner_report enabled — class-attendance filtered out
-  assert.deepEqual(
-    filterPermissionsByOrgFeatures(permissions, [
-      "statistics",
-      "statistics.planner_report"
-    ]).map((item) => item.value),
-    ["appointments.statistics.planner-report"]
-  );
-
-  // both features enabled — both codes pass
-  assert.deepEqual(
-    filterPermissionsByOrgFeatures(permissions, [
-      "statistics.class_attendance",
-      "statistics.planner_report"
-    ]).map((item) => item.value),
-    [
-      "appointments.statistics.class-attendance",
-      "appointments.statistics.planner-report"
-    ]
-  );
-});
-
-test("buildRolePermissionTree groups permissions into accordion tree and marks shared leaves", () => {
-  const permissions = [
-    { value: "appointments.vip-clients.read", label: "VIP Clients Read" },
-    { value: "appointments.vip-clients.create", label: "VIP Clients Create" },
-    { value: "appointments.vip-clients.update", label: "VIP Clients Update" },
-    { value: "appointments.vip-clients.delete", label: "VIP Clients Delete" },
-    { value: "appointments.vip-clients.my-class", label: "VIP Clients My Class" },
-    { value: "appointments.vip-clients.daily-routines", label: "VIP Clients Daily Routines" },
-    { value: "appointments.assignments.class.read", label: "Class Assignments Read" },
-    { value: "appointments.assignments.class.create", label: "Class Assignments Create" },
-    { value: "appointments.assignments.tutor.read", label: "Tutor Assignments Read" },
-    { value: "appointments.assignments.tutor.create", label: "Tutor Assignments Create" }
-  ];
-
-  const tree = buildRolePermissionTree(permissions);
-  const vipClientsGroup = tree.find((group) => group.key === "vip_clients");
-  const assignmentsGroup = tree.find((group) => group.key === "assignments");
-
-  assert.ok(vipClientsGroup);
-  assert.ok(assignmentsGroup);
-  assert.deepEqual(
-    vipClientsGroup.children.map((child) => child.label),
-    ["My Class", "Attendance", "Daily Routines"]
-  );
-  assert.equal(
-    vipClientsGroup.children
-      .find((child) => child.label === "Attendance")
-      .children.find((leaf) => leaf.code === "appointments.vip-clients.create")
-      .isShared,
-    true
-  );
-  assert.equal(
-    vipClientsGroup.children
-      .find((child) => child.label === "Daily Routines")
-      .children.find((leaf) => leaf.code === "appointments.vip-clients.create")
-      .isShared,
-    true
-  );
-  assert.deepEqual(
-    assignmentsGroup.children.map((child) => child.label),
-    ["Class", "Tutor"]
-  );
-  assert.equal(
-    assignmentsGroup.children
-      .find((child) => child.label === "Class")
-      .children.find((leaf) => leaf.code === "appointments.assignments.class.create")
-      .isShared,
-    false
-  );
-  assert.equal(
-    assignmentsGroup.children
-      .find((child) => child.label === "Tutor")
-      .children.find((leaf) => leaf.code === "appointments.assignments.tutor.create")
-      .isShared,
-    false
   );
 });
 
@@ -149,10 +57,6 @@ test("buildRolePermissionTree includes settings children when org features allow
   const permissions = [
     { value: "settings.appointments.read", label: "Read Appointment Settings" },
     { value: "settings.appointments.update", label: "Update Appointment Settings" },
-    { value: "settings.appointment-norms.read", label: "Read Appointment Norm Settings" },
-    { value: "settings.appointment-norms.create", label: "Create Appointment Norm Settings" },
-    { value: "settings.appointment-norms.update", label: "Update Appointment Norm Settings" },
-    { value: "settings.appointment-norms.delete", label: "Delete Appointment Norm Settings" },
     { value: "settings.roles.read", label: "Read Role Settings" },
     { value: "settings.roles.create", label: "Create Role Settings" },
     { value: "settings.positions.read", label: "Read Position Settings" }
@@ -161,7 +65,6 @@ test("buildRolePermissionTree includes settings children when org features allow
   const tree = buildRolePermissionTree(permissions, [
     "settings",
     "settings.appointments",
-    "settings.appointment_norms",
     "settings.roles",
     "settings.positions"
   ]);
@@ -169,7 +72,7 @@ test("buildRolePermissionTree includes settings children when org features allow
   assert.ok(settingsGroup, "settings group should appear");
   assert.deepEqual(
     settingsGroup.children.map((child) => child.label),
-    ["Appointments", "Appointment Norms", "Roles", "Positions"]
+    ["Appointments", "Roles", "Positions"]
   );
 });
 

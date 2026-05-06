@@ -6,28 +6,15 @@ export function useProfilePanels({
   closeMenu,
   closeUserDropdown,
   setMyProfileModalOpen,
-  isPlatformAdmin,
   canCreateUsers,
   canReadClients,
-  canReadClientMedicalHistory,
   canOpenAppointmentSchedule,
-  canOpenAppointmentSpecialistAbsences,
-  canOpenAppointmentVipMyClass,
-  canOpenAppointmentBreaks,
-  canOpenAppointmentWorkSchedule,
-  canOpenAppointmentVipClients,
-  canOpenAppointmentVipNormMonitoring,
-  canOpenMyChildren,
-  canOpenAppointmentVipDailyRoutines,
-  canOpenAppointmentVipAssignments,
   canOpenAppointmentStatistics,
   canOpenAppointmentSettings,
   canOpenSettingsOrganizations,
   canOpenSettingsRoles,
   canOpenSettingsPositions,
-  canOpenSettingsNorms,
-  canSendNotifications,
-  hasSettingsMenuAccess,
+  canOpenSiteContent,
   hasAdminSettingsAccess
 }) {
   const openPanel = useCallback((path, hasAccess = true) => {
@@ -64,19 +51,7 @@ export function useProfilePanels({
   }, [canReadClients, openPanel]);
 
   const closeAllClientsPanel = useCallback(() => {
-    if (mainView === "clients-all" || mainView === "clients-medical-history") {
-      navigate("/profile");
-      return;
-    }
     closePanel("clients-all");
-  }, [closePanel, mainView, navigate]);
-
-  const openClientMedicalHistoryPanel = useCallback(() => {
-    openPanel("/clients/medical-history", canReadClients && (canReadClientMedicalHistory || isPlatformAdmin));
-  }, [canReadClientMedicalHistory, canReadClients, isPlatformAdmin, openPanel]);
-
-  const closeClientMedicalHistoryPanel = useCallback(() => {
-    closePanel("clients-medical-history");
   }, [closePanel]);
 
   const openAppointmentPanel = useCallback(() => {
@@ -87,22 +62,6 @@ export function useProfilePanels({
     closePanel("appointment");
   }, [closePanel]);
 
-  const openAppointmentBreaksPanel = useCallback(() => {
-    openPanel("/appointments/breaks", canOpenAppointmentBreaks);
-  }, [canOpenAppointmentBreaks, openPanel]);
-
-  const closeAppointmentBreaksPanel = useCallback(() => {
-    closePanel("appointment-breaks");
-  }, [closePanel]);
-
-  const openAppointmentSpecialistAbsencesPanel = useCallback(() => {
-    openPanel("/appointments/specialist-absences", canOpenAppointmentSpecialistAbsences);
-  }, [canOpenAppointmentSpecialistAbsences, openPanel]);
-
-  const closeAppointmentSpecialistAbsencesPanel = useCallback(() => {
-    closePanel("appointment-specialist-absences");
-  }, [closePanel]);
-
   const openAppointmentSettingsPanel = useCallback(() => {
     openPanel("/settings/appointments", canOpenAppointmentSettings);
   }, [canOpenAppointmentSettings, openPanel]);
@@ -111,93 +70,17 @@ export function useProfilePanels({
     closePanel("appointment-settings");
   }, [closePanel]);
 
-  const openAppointmentWorkSchedulePanel = useCallback(() => {
-    openPanel("/appointments/work-schedule", canOpenAppointmentWorkSchedule);
-  }, [canOpenAppointmentWorkSchedule, openPanel]);
-
-  const closeAppointmentWorkSchedulePanel = useCallback(() => {
-    closePanel("appointment-work-schedule");
-  }, [closePanel]);
-
-  const openStatisticsClassPanel = useCallback(() => {
-    openPanel("/statistics/vip-class-attendance-report", canOpenAppointmentStatistics);
-  }, [canOpenAppointmentStatistics, openPanel]);
-
   const openStatisticsPlannerReportPanel = useCallback(() => {
     openPanel("/statistics/planner-report", canOpenAppointmentStatistics);
   }, [canOpenAppointmentStatistics, openPanel]);
 
   const closeStatisticsPanel = useCallback(() => {
-    if (
-      mainView === "statistics"
-      || mainView === "statistics-class"
-      || mainView === "statistics-planner-report"
-    ) {
+    if (mainView === "statistics" || mainView === "statistics-planner-report") {
       navigate("/profile");
       return;
     }
-    closePanel("statistics-class");
+    closePanel("statistics-planner-report");
   }, [closePanel, mainView, navigate]);
-
-  const openAppointmentVipAttendancePanel = useCallback(() => {
-    openPanel("/vip-clients/attendance", canOpenAppointmentVipClients);
-  }, [canOpenAppointmentVipClients, openPanel]);
-
-  const closeAppointmentVipAttendancePanel = useCallback(() => {
-    if (mainView === "appointment-vip-attendance" || mainView === "appointment-vip-my-children") {
-      navigate("/profile");
-      return;
-    }
-    closePanel("appointment-vip-attendance");
-  }, [closePanel, mainView, navigate]);
-
-  const openAppointmentVipNormMonitoringPanel = useCallback(() => {
-    openPanel("/vip-clients/norm-monitoring", canOpenAppointmentVipNormMonitoring);
-  }, [canOpenAppointmentVipNormMonitoring, openPanel]);
-
-  const closeAppointmentVipNormMonitoringPanel = useCallback(() => {
-    closePanel("appointment-vip-norm-monitoring");
-  }, [closePanel]);
-
-  const openAppointmentVipMyChildrenPanel = useCallback(() => {
-    openPanel("/vip-clients/my-children", canOpenMyChildren);
-  }, [canOpenMyChildren, openPanel]);
-
-  const closeAppointmentVipMyChildrenPanel = useCallback(() => {
-    closeAppointmentVipAttendancePanel();
-  }, [closeAppointmentVipAttendancePanel]);
-
-  const openAppointmentVipDailyRoutinesPanel = useCallback(() => {
-    openPanel("/vip-clients/daily-routines", canOpenAppointmentVipDailyRoutines);
-  }, [canOpenAppointmentVipDailyRoutines, openPanel]);
-
-  const closeAppointmentVipDailyRoutinesPanel = useCallback(() => {
-    closePanel("appointment-vip-daily-routines");
-  }, [closePanel]);
-
-  const openAppointmentVipAssignmentsPanel = useCallback(() => {
-    openPanel("/assignments/class", canOpenAppointmentVipAssignments);
-  }, [canOpenAppointmentVipAssignments, openPanel]);
-
-  const closeAppointmentVipAssignmentsPanel = useCallback(() => {
-    closePanel("appointment-vip-assignments");
-  }, [closePanel]);
-
-  const openAppointmentVipTutorAssignmentsPanel = useCallback(() => {
-    openPanel("/assignments/tutor", canOpenAppointmentVipAssignments);
-  }, [canOpenAppointmentVipAssignments, openPanel]);
-
-  const closeAppointmentVipTutorAssignmentsPanel = useCallback(() => {
-    closePanel("appointment-vip-tutor-assignments");
-  }, [closePanel]);
-
-  const openAppointmentVipSchedulePanel = useCallback(() => {
-    openPanel("/vip-clients/my-class", canOpenAppointmentVipMyClass);
-  }, [canOpenAppointmentVipMyClass, openPanel]);
-
-  const closeAppointmentVipSchedulePanel = useCallback(() => {
-    closePanel("appointment-vip-schedule");
-  }, [closePanel]);
 
   const openOrganizationsPanel = useCallback(() => {
     openPanel("/admin-settings/organizations", canOpenSettingsOrganizations);
@@ -223,28 +106,21 @@ export function useProfilePanels({
     closePanel("settings-positions");
   }, [closePanel]);
 
-  const openNormsPanel = useCallback(() => {
-    openPanel("/settings/appointment-norms", canOpenSettingsNorms);
-  }, [canOpenSettingsNorms, openPanel]);
-
-  const closeNormsPanel = useCallback(() => {
-    closePanel("settings-appointment-norms");
-  }, [closePanel]);
-
-  const openNotificationsSendPanel = useCallback(() => {
-    openPanel("/notifications", canSendNotifications);
-  }, [canSendNotifications, openPanel]);
-
-  const closeNotificationsSendPanel = useCallback(() => {
-    closePanel("notifications-send");
-  }, [closePanel]);
-
   const openMonitoringPanel = useCallback(() => {
     openPanel("/admin-settings/monitoring", hasAdminSettingsAccess);
   }, [hasAdminSettingsAccess, openPanel]);
 
   const closeMonitoringPanel = useCallback(() => {
     closePanel("settings-monitoring");
+  }, [closePanel]);
+
+  const openSiteContentPanel = useCallback((sectionKey = "kids") => {
+    const section = ["kids", "team", "partners"].includes(sectionKey) ? sectionKey : "kids";
+    openPanel(`/site/content?section=${section}`, canOpenSiteContent);
+  }, [canOpenSiteContent, openPanel]);
+
+  const closeSiteContentPanel = useCallback(() => {
+    closePanel("site-content");
   }, [closePanel]);
 
   const closeCreateUserPanel = useCallback(() => {
@@ -265,47 +141,22 @@ export function useProfilePanels({
     openCreateUserPanel,
     openAllClientsPanel,
     closeAllClientsPanel,
-    openClientMedicalHistoryPanel,
-    closeClientMedicalHistoryPanel,
     openAppointmentPanel,
     closeAppointmentPanel,
-    openAppointmentBreaksPanel,
-    closeAppointmentBreaksPanel,
-    openAppointmentSpecialistAbsencesPanel,
-    closeAppointmentSpecialistAbsencesPanel,
     openAppointmentSettingsPanel,
     closeAppointmentSettingsPanel,
-    openAppointmentWorkSchedulePanel,
-    closeAppointmentWorkSchedulePanel,
-    openStatisticsClassPanel,
     openStatisticsPlannerReportPanel,
     closeStatisticsPanel,
-    openAppointmentVipAttendancePanel,
-    closeAppointmentVipAttendancePanel,
-    openAppointmentVipNormMonitoringPanel,
-    closeAppointmentVipNormMonitoringPanel,
-    openAppointmentVipMyChildrenPanel,
-    closeAppointmentVipMyChildrenPanel,
-    openAppointmentVipDailyRoutinesPanel,
-    closeAppointmentVipDailyRoutinesPanel,
-    openAppointmentVipAssignmentsPanel,
-    closeAppointmentVipAssignmentsPanel,
-    openAppointmentVipTutorAssignmentsPanel,
-    closeAppointmentVipTutorAssignmentsPanel,
-    openAppointmentVipSchedulePanel,
-    closeAppointmentVipSchedulePanel,
     openOrganizationsPanel,
     closeOrganizationsPanel,
     openRolesPanel,
     closeRolesPanel,
     openPositionsPanel,
     closePositionsPanel,
-    openNotificationsSendPanel,
-    closeNotificationsSendPanel,
     openMonitoringPanel,
     closeMonitoringPanel,
-    openNormsPanel,
-    closeNormsPanel,
+    openSiteContentPanel,
+    closeSiteContentPanel,
     closeCreateUserPanel,
     closeAllUsersPanel
   };

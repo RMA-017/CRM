@@ -508,9 +508,6 @@ export async function deleteOrganizationById(id) {
     // Remove rows protected by RESTRICT constraints before deleting the org.
     await client.query("DELETE FROM appointment_schedules WHERE organization_id = $1", [id]);
     await client.query("DELETE FROM appointment_breaks WHERE organization_id = $1", [id]);
-    await client.query("DELETE FROM vip_client_tutor_assignment_history WHERE organization_id = $1", [id]);
-    await client.query("DELETE FROM vip_client_tutor_assignments WHERE organization_id = $1", [id]);
-    await client.query("DELETE FROM vip_class_teacher_assignments WHERE organization_id = $1", [id]);
     await client.query("DELETE FROM clients WHERE organization_id = $1", [id]);
     await client.query("DELETE FROM users WHERE organization_id = $1", [id]);
     return client.query("DELETE FROM organizations WHERE id = $1", [id]);
@@ -576,18 +573,10 @@ export async function listPermissionOptionsForSettings(allowedFeatures = null) {
     [[
       "clients.menu",
       "appointments.menu",
-      "appointments.vip-clients",
-      "appointments.assignments",
       "appointments.statistics",
-      "appointments.notify.to-manager",
-      "appointments.notify.to-specialist",
-      "notifications.schedule.to-manager",
-      "notifications.schedule.to-specialist",
       "appointments.schedule.scope.all",
       "appointments.schedule.scope.assigned"
     ], [
-      "appointments.notify.%",
-      "notifications.schedule.%",
       "appointments.schedule.scope.%"
     ]]
   );
@@ -796,137 +785,3 @@ export async function deletePositionOptionById(id, organizationId) {
 export const __settingsServiceContracts = Object.freeze({
   selectPermissionCodesForRoleWrite
 });
-
-// ── Appointment Norms ────────────────────────────────────────────────────────
-
-function mapNorm(row) {
-  return {
-    id: String(row.id),
-    organizationId: String(row.organization_id),
-    positionId: String(row.position_id),
-    positionLabel: String(row.position_label || "").trim() || null,
-    maxPerWeek: Number(row.max_per_week),
-    isActive: Boolean(row.is_active),
-    createdAt: row.created_at ?? null
-  };
-}
-
-export async function listAppointmentNorms(organizationId) {
-  const { rows } = await pool.query(
-    `SELECT an.id, an.organization_id, an.position_id, an.max_per_week, an.is_active,
-            po.label AS position_label, an.created_at
-       FROM appointment_norms an
-       LEFT JOIN position_options po
-         ON po.id = an.position_id AND po.organization_id = an.organization_id
-      WHERE an.organization_id = $1
-      ORDER BY po.label ASC, an.id ASC`,
-    [organizationId]
-  );
-  return rows.map(mapNorm);
-}
-
-export async function createAppointmentNorm({
-  organizationId,
-  positionId,
-  maxPerWeek,
-  isActive,
-  actorUserId
-}) {
-  const { rows } = await pool.query(
-    `INSERT INTO appointment_norms
-       (organization_id, position_id, max_per_week, is_active, created_by, updated_by)
-     VALUES ($1, $2, $3, $4, $5, $5)
-     RETURNING id, organization_id, position_id, max_per_week, is_active, created_at,
-               NULL::text AS position_label`,
-    [organizationId, positionId, maxPerWeek, isActive, actorUserId]
-  );
-  return rows[0] ? mapNorm(rows[0]) : null;
-}
-
-export async function updateAppointmentNorm({
-  id,
-  organizationId,
-  maxPerWeek,
-  isActive,
-  actorUserId
-}) {
-  const { rows } = await pool.query(
-    `UPDATE appointment_norms
-        SET max_per_week = $3, is_active = $4, updated_by = $5, updated_at = NOW()
-      WHERE id = $1 AND organization_id = $2
-      RETURNING id, organization_id, position_id, max_per_week, is_active, created_at,
-                NULL::text AS position_label`,
-    [id, organizationId, maxPerWeek, isActive, actorUserId]
-  );
-  return rows[0] ? mapNorm(rows[0]) : null;
-}
-
-export async function deleteAppointmentNormById(id, organizationId) {
-  const result = await pool.query(
-    "DELETE FROM appointment_norms WHERE id = $1 AND organization_id = $2",
-    [id, organizationId]
-  );
-  return (result?.rowCount || 0) > 0;
-}
-
-/**
- * Check if creating an appointment would violate weekly session norms.
- * Returns array of violation objects (empty = no violation).
- */
-export async function checkAppointmentNormViolations({
-  organizationId,
-  specialistId,
-  clientId,
-  appointmentDate
-}) {
-  const { rows } = await pool.query(
-    `SELECT
-       u.position_id,
-       an.max_per_week,
-       po.label AS position_label,
-       COUNT(s.id)::int AS current_count
-      FROM users u
-      JOIN appointment_norms an
-        ON an.organization_id = u.organization_id
-       AND an.position_id = u.position_id
-       AND an.is_active = TRUE
-      LEFT JOIN position_options po
-        ON po.id = an.position_id
-       AND po.organization_id = an.organization_id
-      LEFT JOIN users pu
-        ON pu.organization_id = u.organization_id
-       AND pu.position_id = u.position_id
-      LEFT JOIN appointment_schedules s
-        ON s.organization_id = u.organization_id
-       AND s.specialist_id = pu.id
-       AND s.client_id = $2
-       AND s.appointment_date >= date_trunc('week', $4::date)
-       AND s.appointment_date < date_trunc('week', $4::date) + INTERVAL '7 days'
-       AND s.status IN ('pending', 'confirmed')
-     WHERE u.id = $3
-       AND u.organization_id = $1
-     GROUP BY u.position_id, an.max_per_week, po.label
-     LIMIT 1`,
-    [organizationId, clientId, specialistId, appointmentDate]
-  );
-
-  const violationRow = rows[0] || null;
-  const specialistPositionId = Number.parseInt(String(violationRow?.position_id || "").trim(), 10) || 0;
-  if (!specialistPositionId) {
-    return [];
-  }
-
-  const maxPerWeek = Number.parseInt(String(violationRow?.max_per_week || "").trim(), 10) || 0;
-  const currentCount = Number.parseInt(String(violationRow?.current_count || "").trim(), 10) || 0;
-
-  if (currentCount >= maxPerWeek && maxPerWeek > 0) {
-    const posLabel = String(violationRow?.position_label || "").trim() || `Position #${specialistPositionId}`;
-    return [{
-      positionId: String(specialistPositionId),
-      positionLabel: posLabel,
-      maxPerWeek,
-      currentCount
-    }];
-  }
-  return [];
-}

@@ -1,60 +1,13 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import CustomSelect from "../../components/CustomSelect.jsx";
 import { formatDateYMD } from "../../lib/formatters.js";
-import { ORG_FEATURE_TREE, ALL_ORG_FEATURE_KEYS, DEFAULT_DISABLED_FEATURE_KEYS } from "./profile.constants.js";
 import RolePermissionsAccordion from "./RolePermissionsAccordion.jsx";
-
-function formatNotificationDateTime(value) {
-  const date = new Date(String(value || ""));
-  if (Number.isNaN(date.getTime())) {
-    return "-";
-  }
-
-  const dateText = new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric"
-  }).format(date);
-  const timeText = new Intl.DateTimeFormat("en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false
-  }).format(date);
-  return `${dateText} • ${timeText}`;
-}
-
-function resolveNotificationDisplay(item) {
-  const message = String(item?.message || "").trim();
-  const eventType = String(item?.eventType || item?.event_type || "").trim().toLowerCase();
-  const payload = item?.payload && typeof item.payload === "object" ? item.payload : {};
-  const payloadData = payload?.data && typeof payload.data === "object" ? payload.data : payload;
-
-  const actionLabel = String(payloadData?.actionLabel || "").trim().toLowerCase();
-  const actorFirstName = String(payloadData?.actorFirstName || "").trim();
-  const clientName = String(payloadData?.clientName || "").trim();
-  const isScheduleNotification = (
-    eventType === "schedule-created"
-    || eventType === "schedule-updated"
-    || eventType === "schedule-deleted"
-  );
-
-  const title = isScheduleNotification && actionLabel && actorFirstName
-    ? `Client ${actionLabel} by ${actorFirstName}`
-    : (message || "-");
-
-  return {
-    title,
-    clientName: clientName || ""
-  };
-}
 
 function ProfileModals(props) {
   const maxBirthdayYmd = new Date().toISOString().slice(0, 10);
   const [showPhotoMenu, setShowPhotoMenu] = useState(false);
   const photoWrapRef = useRef(null);
-  const [orgEditTab, setOrgEditTab] = useState("edit");
-  const [expandedFeatures, setExpandedFeatures] = useState(new Set());
 
   useEffect(() => {
     if (!showPhotoMenu) return;
@@ -70,10 +23,6 @@ function ProfileModals(props) {
   const {
     myProfileModalOpen,
     closeMyProfilePanel,
-    notificationsModalOpen,
-    closeNotificationsPanel,
-    notifications,
-    clearNotifications,
     openAvatarPicker,
     avatarDataUrl,
     avatarFallback,
@@ -108,32 +57,6 @@ function ProfileModals(props) {
     clientsDelete,
     handleClientsDeleteConfirm,
     closeClientsDeleteModal,
-    clientMedicalHistoryOpen,
-    clientMedicalHistoryClient,
-    clientMedicalHistoryClientSearch,
-    clientMedicalHistoryClientOptions,
-    clientMedicalHistoryClientOptionsLoading,
-    clientMedicalHistoryMode,
-    clientMedicalHistoryItems,
-    clientMedicalHistorySkeletonCount,
-    clientMedicalHistoryLoading,
-    clientMedicalHistoryMessage,
-    clientMedicalHistoryForm,
-    clientMedicalHistoryErrors,
-    clientMedicalHistorySubmitting,
-    clientMedicalHistoryDeletingId,
-    canReadClientMedicalHistory,
-    canCreateClientMedicalHistory,
-    canUpdateClientMedicalHistory,
-    setClientMedicalHistoryClientSearch,
-    setClientMedicalHistoryForm,
-    setClientMedicalHistoryErrors,
-    selectClientMedicalHistoryClient,
-    closeClientMedicalHistoryModal,
-    resetClientMedicalHistoryForm,
-    startClientMedicalHistoryEdit,
-    openClientMedicalHistoryDeleteModal,
-    handleClientMedicalHistorySubmit,
     settingsDelete,
     handleSettingsDeleteConfirm,
     closeSettingsDeleteModal,
@@ -161,83 +84,8 @@ function ProfileModals(props) {
     positionEditError,
     setPositionEditError,
     positionEditSubmitting,
-    cancelPositionEdit,
-    normEditOpen,
-    handleNormEditSave,
-    normEditForm,
-    setNormEditForm,
-    normEditError,
-    setNormEditError,
-    normEditSubmitting,
-    cancelNormEdit
+    cancelPositionEdit
   } = props;
-
-  const currentUserId = String(profile?.id || "").trim();
-  const isAdminUser = Boolean(profile?.isAdmin || profile?.isPlatformAdmin);
-  const isEditingClientMedicalHistory = Boolean(String(clientMedicalHistoryForm?.id || "").trim());
-  const isViewingClientMedicalHistory = String(clientMedicalHistoryMode || "").trim() === "view";
-  const clientMedicalHistoryModalTitle = isViewingClientMedicalHistory ? "View History" : "Add History";
-  const hasSelectedClientMedicalHistoryClient = Boolean(String(clientMedicalHistoryClient?.id || "").trim());
-  const canShowClientMedicalHistoryForm = (
-    (!isViewingClientMedicalHistory && canCreateClientMedicalHistory)
-    || (canUpdateClientMedicalHistory && isEditingClientMedicalHistory)
-  );
-  const canSelectClientMedicalHistoryClient = !isViewingClientMedicalHistory && (
-    canReadClientMedicalHistory
-    || canCreateClientMedicalHistory
-    || canUpdateClientMedicalHistory
-  );
-  const clientMedicalHistoryClientLabel = String(clientMedicalHistoryClient?.fullName || "").trim()
-    || `Client #${String(clientMedicalHistoryClient?.id || "").trim() || "-"}`;
-  const clientMedicalHistorySearchId = String(clientMedicalHistoryClientSearch?.id || "").trim();
-  const clientMedicalHistorySearchFirstName = String(clientMedicalHistoryClientSearch?.firstName || "").trim();
-  const clientMedicalHistorySearchLastName = String(clientMedicalHistoryClientSearch?.lastName || "").trim();
-  const clientMedicalHistorySearchMiddleName = String(clientMedicalHistoryClientSearch?.middleName || "").trim();
-  const hasClientMedicalHistoryClientSearch = Boolean(
-    clientMedicalHistorySearchId
-    || clientMedicalHistorySearchFirstName
-    || clientMedicalHistorySearchLastName
-    || clientMedicalHistorySearchMiddleName
-  );
-  const clientMedicalHistorySearchNameLength = (
-    `${clientMedicalHistorySearchFirstName}${clientMedicalHistorySearchLastName}${clientMedicalHistorySearchMiddleName}`.length
-  );
-  const clientMedicalHistorySelectedClientOption = hasSelectedClientMedicalHistoryClient
-    ? {
-      value: String(clientMedicalHistoryClient?.id || "").trim(),
-      label: clientMedicalHistoryClientLabel
-    }
-    : null;
-  const clientMedicalHistorySelectOptions = useMemo(() => {
-    const optionMap = new Map();
-    if (clientMedicalHistorySelectedClientOption?.value) {
-      optionMap.set(clientMedicalHistorySelectedClientOption.value, clientMedicalHistorySelectedClientOption);
-    }
-
-    (Array.isArray(clientMedicalHistoryClientOptions) ? clientMedicalHistoryClientOptions : []).forEach((item) => {
-      const value = String(item?.id || "").trim();
-      if (!value) {
-        return;
-      }
-      optionMap.set(value, {
-        value,
-        label: String(item?.fullName || "").trim() || `Client #${value}`
-      });
-    });
-
-    return Array.from(optionMap.values());
-  }, [clientMedicalHistoryClientOptions, clientMedicalHistorySelectedClientOption]);
-
-  function canEditClientMedicalHistoryEntry(item) {
-    const authorId = String(item?.specialistId || item?.authorUserId || "").trim();
-    return canUpdateClientMedicalHistory && (isAdminUser || (authorId && authorId === currentUserId));
-  }
-
-  useEffect(() => {
-    if (organizationEditOpen) {
-      setOrgEditTab("edit");
-    }
-  }, [organizationEditOpen]);
 
   useEffect(() => {
     const message = String(organizationEditError || "").trim();
@@ -271,17 +119,6 @@ function ProfileModals(props) {
     }
     setPositionEditError("");
   }, [positionEditError, setPositionEditError]);
-
-  useEffect(() => {
-    const message = String(normEditError || "").trim();
-    if (!message) {
-      return;
-    }
-    if (typeof window !== "undefined" && typeof window.alert === "function") {
-      window.alert(message);
-    }
-    setNormEditError("");
-  }, [normEditError, setNormEditError]);
 
   const modalContent = (
     <>
@@ -384,57 +221,6 @@ function ProfileModals(props) {
         </div>
       </section>
       <div id="myProfileOverlay" className="login-overlay" hidden={!myProfileModalOpen} onClick={closeMyProfilePanel} />
-
-      <section id="notificationsModal" className="logout-confirm-modal profile-notification-modal" hidden={!notificationsModalOpen}>
-        <div className="all-users-head">
-          <h3>Notifications</h3>
-          <button
-            id="closeNotificationsBtn"
-            type="button"
-            className="header-btn panel-close-btn"
-            aria-label="Close notifications panel"
-            onClick={closeNotificationsPanel}
-          >
-            ×
-          </button>
-        </div>
-
-        <div className="profile-notification-list">
-          {Array.isArray(notifications) && notifications.length > 0 ? (
-            notifications.map((item) => {
-              const message = String(item?.message || "").trim();
-              const { title, clientName } = resolveNotificationDisplay(item);
-              const createdAt = formatNotificationDateTime(item?.createdAt);
-              return (
-                <article key={String(item?.id || `${message}-${createdAt}`)} className="profile-notification-item">
-                  <p className="profile-notification-title">{title}</p>
-                  <div className="profile-notification-meta">
-                    <span className="profile-notification-client">{clientName || "\u00A0"}</span>
-                    <time>{createdAt}</time>
-                  </div>
-                </article>
-              );
-            })
-          ) : (
-            <p className="all-users-state profile-notification-empty">No notifications yet.</p>
-          )}
-        </div>
-
-        <div className="profile-modal-actions">
-          <button id="clearNotificationsBtn" className="btn" type="button" onClick={clearNotifications}>
-            Clear
-          </button>
-          <button id="closeNotificationsFooterBtn" className="header-btn" type="button" onClick={closeNotificationsPanel}>
-            Close
-          </button>
-        </div>
-      </section>
-      <div
-        id="notificationsOverlay"
-        className="login-overlay"
-        hidden={!notificationsModalOpen}
-        onClick={closeNotificationsPanel}
-      />
 
       <section id="logoutConfirmModal" className="logout-confirm-modal" hidden={!logoutConfirmOpen}>
         <h3>Are you sure you want to log out?</h3>
@@ -887,48 +673,24 @@ function ProfileModals(props) {
               <small className="field-error">{clientEditErrors.middleName || ""}</small>
             </div>
 
-            <div className="client-birthday-vip-row">
-              <div className="field">
-                <label htmlFor="clientsEditBirthday">Birthday</label>
-                <input
-                  id="clientsEditBirthday"
-                  type="date"
-                  min="1950-01-01"
-                  max={maxBirthdayYmd}
-                  className={clientEditErrors.birthday ? "input-error" : ""}
-                  value={clientEditForm.birthday}
-                  onInput={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setClientEditForm((prev) => ({ ...prev, birthday: nextValue }));
-                    if (clientEditErrors.birthday) {
-                      setClientEditErrors((prev) => ({ ...prev, birthday: "" }));
-                    }
-                  }}
-                />
-                <small className="field-error">{clientEditErrors.birthday || ""}</small>
-              </div>
-
-              <div className="field clients-edit-vip-field">
-                <label htmlFor="clientsEditIsVip">VIP</label>
-                <label
-                  className={`clients-create-vip-toggle${clientEditForm.isVip ? " is-active" : ""}`}
-                  htmlFor="clientsEditIsVip"
-                >
-                  <input
-                    id="clientsEditIsVip"
-                    type="checkbox"
-                    checked={Boolean(clientEditForm.isVip)}
-                    onChange={(event) => {
-                      const checked = event.currentTarget.checked;
-                      setClientEditForm((prev) => ({ ...prev, isVip: checked }));
-                      if (clientEditErrors.isVip) {
-                        setClientEditErrors((prev) => ({ ...prev, isVip: "" }));
-                      }
-                    }}
-                  />
-                </label>
-                <small className="field-error">{clientEditErrors.isVip || ""}</small>
-              </div>
+            <div className="field">
+              <label htmlFor="clientsEditBirthday">Birthday</label>
+              <input
+                id="clientsEditBirthday"
+                type="date"
+                min="1950-01-01"
+                max={maxBirthdayYmd}
+                className={clientEditErrors.birthday ? "input-error" : ""}
+                value={clientEditForm.birthday}
+                onInput={(event) => {
+                  const nextValue = event.currentTarget.value;
+                  setClientEditForm((prev) => ({ ...prev, birthday: nextValue }));
+                  if (clientEditErrors.birthday) {
+                    setClientEditErrors((prev) => ({ ...prev, birthday: "" }));
+                  }
+                }}
+              />
+              <small className="field-error">{clientEditErrors.birthday || ""}</small>
             </div>
 
             <div className="field">
@@ -999,281 +761,6 @@ function ProfileModals(props) {
         </form>
           </section>
           <div id="clientsEditOverlay" className="login-overlay" hidden={!clientsEditOpen} onClick={closeClientsEditModal} />
-        </>
-      ) : null}
-
-      {clientMedicalHistoryOpen ? (
-        <>
-          <section
-            id="clientMedicalHistoryModal"
-            className={`logout-confirm-modal all-users-edit-modal client-medical-history-modal${isViewingClientMedicalHistory ? " client-medical-history-view-modal" : ""}`}
-            hidden={!clientMedicalHistoryOpen}
-          >
-        <div className="all-users-head">
-          <h3>{clientMedicalHistoryModalTitle}</h3>
-          <button
-            id="closeClientMedicalHistoryTopBtn"
-            type="button"
-            className="header-btn panel-close-btn"
-            aria-label={`Close ${clientMedicalHistoryModalTitle.toLowerCase()} modal`}
-            onClick={closeClientMedicalHistoryModal}
-          >
-            ×
-          </button>
-        </div>
-        <form className="auth-form" onSubmit={handleClientMedicalHistorySubmit}>
-          <div className="all-users-edit-fields client-medical-history-fields">
-            {canSelectClientMedicalHistoryClient ? (
-              <div className="client-medical-history-client-picker">
-                <div className="client-medical-history-client-search-row">
-                  <div className="field client-medical-history-client-search-id-field">
-                    <label htmlFor="clientMedicalHistorySearchId">ID</label>
-                    <input
-                      id="clientMedicalHistorySearchId"
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="ID"
-                      value={clientMedicalHistorySearchId}
-                      disabled={clientMedicalHistorySubmitting || isEditingClientMedicalHistory}
-                      onInput={(event) => {
-                        const nextValue = event.currentTarget.value.replace(/[^\d]/g, "");
-                        setClientMedicalHistoryClientSearch((prev) => ({ ...prev, id: nextValue }));
-                      }}
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="clientMedicalHistorySearchFirstName">First Name</label>
-                    <input
-                      id="clientMedicalHistorySearchFirstName"
-                      type="text"
-                      placeholder="First Name"
-                      value={clientMedicalHistorySearchFirstName}
-                      disabled={clientMedicalHistorySubmitting || isEditingClientMedicalHistory}
-                      onInput={(event) => {
-                        const nextValue = event.currentTarget.value;
-                        setClientMedicalHistoryClientSearch((prev) => ({ ...prev, firstName: nextValue }));
-                      }}
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="clientMedicalHistorySearchLastName">Last Name</label>
-                    <input
-                      id="clientMedicalHistorySearchLastName"
-                      type="text"
-                      placeholder="Last Name"
-                      value={clientMedicalHistorySearchLastName}
-                      disabled={clientMedicalHistorySubmitting || isEditingClientMedicalHistory}
-                      onInput={(event) => {
-                        const nextValue = event.currentTarget.value;
-                        setClientMedicalHistoryClientSearch((prev) => ({ ...prev, lastName: nextValue }));
-                      }}
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="clientMedicalHistorySearchMiddleName">Middle Name</label>
-                    <input
-                      id="clientMedicalHistorySearchMiddleName"
-                      type="text"
-                      placeholder="Middle Name"
-                      value={clientMedicalHistorySearchMiddleName}
-                      disabled={clientMedicalHistorySubmitting || isEditingClientMedicalHistory}
-                      onInput={(event) => {
-                        const nextValue = event.currentTarget.value;
-                        setClientMedicalHistoryClientSearch((prev) => ({ ...prev, middleName: nextValue }));
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="field client-medical-history-client-search-field">
-                  <label htmlFor="clientMedicalHistoryClientSelect">Search Client</label>
-                  <CustomSelect
-                    id="clientMedicalHistoryClientSelect"
-                    value={String(clientMedicalHistoryClient?.id || "").trim()}
-                    placeholder={clientMedicalHistoryClientOptionsLoading
-                      ? "Loading clients..."
-                      : (hasClientMedicalHistoryClientSearch
-                        ? (clientMedicalHistorySearchId || clientMedicalHistorySearchNameLength >= 3
-                          ? "Select client"
-                          : "Type at least 3 letters")
-                        : "Search by ID or name")}
-                    options={clientMedicalHistorySelectOptions}
-                    onChange={selectClientMedicalHistoryClient}
-                    disabled={clientMedicalHistoryClientOptionsLoading || clientMedicalHistorySubmitting || isEditingClientMedicalHistory}
-                    menuPortal
-                    maxVisibleOptions={8}
-                  />
-                </div>
-              </div>
-            ) : null}
-
-            {hasSelectedClientMedicalHistoryClient ? (
-              <div className="client-medical-history-head">
-                <div>
-                  <strong>{clientMedicalHistoryClientLabel}</strong>
-                  <span>{clientMedicalHistoryClient?.birthday ? `Birthday: ${formatDateYMD(clientMedicalHistoryClient.birthday)}` : ""}</span>
-                </div>
-                <span className={`client-medical-history-badge${clientMedicalHistoryClient?.isVip ? " is-vip" : ""}`}>
-                  {clientMedicalHistoryClient?.isVip ? "VIP" : "Client"}
-                </span>
-              </div>
-            ) : null}
-
-            <p className="all-users-state" hidden={!clientMedicalHistoryMessage}>
-              {clientMedicalHistoryMessage}
-            </p>
-
-            {canShowClientMedicalHistoryForm ? (
-              <div className="client-medical-history-form-section">
-                <div className="client-medical-history-form-grid">
-                  <div className="field client-medical-history-wide-field">
-                    <label htmlFor="clientMedicalHistoryCondition">Condition</label>
-                    <textarea
-                      id="clientMedicalHistoryCondition"
-                      rows="2"
-                      maxLength={160}
-                      className={`notify-textarea${clientMedicalHistoryErrors.conditionName ? " input-error" : ""}`}
-                      value={clientMedicalHistoryForm.conditionName}
-                      onInput={(event) => {
-                        const nextValue = event.currentTarget.value;
-                        setClientMedicalHistoryForm((prev) => ({ ...prev, conditionName: nextValue }));
-                        if (clientMedicalHistoryErrors.conditionName) {
-                          setClientMedicalHistoryErrors((prev) => ({ ...prev, conditionName: "" }));
-                        }
-                      }}
-                    />
-                    <small className="field-error">{clientMedicalHistoryErrors.conditionName || ""}</small>
-                  </div>
-
-                  <div className="field client-medical-history-wide-field">
-                    <label htmlFor="clientMedicalHistoryNote">History</label>
-                    <textarea
-                      id="clientMedicalHistoryNote"
-                      rows="4"
-                      maxLength={4000}
-                      className={`notify-textarea${clientMedicalHistoryErrors.note ? " input-error" : ""}`}
-                      value={clientMedicalHistoryForm.note}
-                      onInput={(event) => {
-                        const nextValue = event.currentTarget.value;
-                        setClientMedicalHistoryForm((prev) => ({ ...prev, note: nextValue }));
-                        if (clientMedicalHistoryErrors.note) {
-                          setClientMedicalHistoryErrors((prev) => ({ ...prev, note: "" }));
-                        }
-                      }}
-                    />
-                    <small className="field-error">{clientMedicalHistoryErrors.note || ""}</small>
-                  </div>
-
-                  <div className="field client-medical-history-wide-field">
-                    <label htmlFor="clientMedicalHistoryTreatmentPlan">Treatment Plan</label>
-                    <textarea
-                      id="clientMedicalHistoryTreatmentPlan"
-                      rows="3"
-                      maxLength={4000}
-                      className={`notify-textarea${clientMedicalHistoryErrors.treatmentPlan ? " input-error" : ""}`}
-                      value={clientMedicalHistoryForm.treatmentPlan}
-                      onInput={(event) => {
-                        const nextValue = event.currentTarget.value;
-                        setClientMedicalHistoryForm((prev) => ({ ...prev, treatmentPlan: nextValue }));
-                        if (clientMedicalHistoryErrors.treatmentPlan) {
-                          setClientMedicalHistoryErrors((prev) => ({ ...prev, treatmentPlan: "" }));
-                        }
-                      }}
-                    />
-                    <small className="field-error">{clientMedicalHistoryErrors.treatmentPlan || ""}</small>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            {isViewingClientMedicalHistory && hasSelectedClientMedicalHistoryClient && !isEditingClientMedicalHistory ? (
-              <div className="client-medical-history-list">
-                {clientMedicalHistoryLoading ? (
-                  Array.from({ length: Math.max(1, Number.parseInt(clientMedicalHistorySkeletonCount, 10) || 3) }, (_, index) => (
-                    <div key={`clientMedicalHistorySkeleton_${index}`} className="client-medical-history-card skel" aria-hidden="true" />
-                  ))
-                ) : (Array.isArray(clientMedicalHistoryItems) ? clientMedicalHistoryItems : []).map((item) => {
-                  const canEditEntry = canEditClientMedicalHistoryEntry(item);
-                  const isDeletingEntry = String(clientMedicalHistoryDeletingId || "").trim() === String(item.id || "").trim();
-
-                  return (
-                    <article key={item.id} className="client-medical-history-card">
-                      <div className="client-medical-history-card-head">
-                        <div>
-                          <strong>{item.conditionName || "-"}</strong>
-                          <span>{formatNotificationDateTime(item.updatedAt || item.createdAt)}</span>
-                        </div>
-                        <div className="client-medical-history-card-meta">
-                          <span>{item.specialistPosition || "-"}</span>
-                          <span>{item.specialistName || "-"}</span>
-                        </div>
-                      </div>
-                      {item.treatmentPlan ? (
-                        <p><strong>Treatment:</strong> {item.treatmentPlan}</p>
-                      ) : null}
-                      {item.note ? (
-                        <p><strong>Note:</strong> {item.note}</p>
-                      ) : null}
-                      <div className="client-medical-history-card-actions">
-                        <button
-                          type="button"
-                          className="table-action-btn"
-                          disabled={!canEditEntry}
-                          onClick={() => startClientMedicalHistoryEdit(item)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          className="table-action-btn table-action-btn-danger"
-                          disabled={isDeletingEntry}
-                          onClick={() => {
-                            void openClientMedicalHistoryDeleteModal(item);
-                          }}
-                        >
-                          {isDeletingEntry ? "Deleting..." : "Delete"}
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            ) : null}
-
-          </div>
-
-          <div className="edit-actions">
-            {canShowClientMedicalHistoryForm ? (
-              <button
-                id="saveClientMedicalHistoryBtn"
-                className="btn"
-                type="submit"
-                disabled={clientMedicalHistorySubmitting || !hasSelectedClientMedicalHistoryClient}
-              >
-                {clientMedicalHistorySubmitting
-                  ? "Saving..."
-                  : (isEditingClientMedicalHistory ? "Update" : "Save")}
-              </button>
-            ) : null}
-            {isEditingClientMedicalHistory ? (
-              <button
-                id="cancelClientMedicalHistoryEditBtn"
-                className="header-btn"
-                type="button"
-                onClick={resetClientMedicalHistoryForm}
-              >
-                Cancel
-              </button>
-            ) : null}
-          </div>
-        </form>
-          </section>
-          <div
-            id="clientMedicalHistoryOverlay"
-            className="login-overlay"
-            hidden={!clientMedicalHistoryOpen}
-            onClick={closeClientMedicalHistoryModal}
-          />
         </>
       ) : null}
 
@@ -1377,22 +864,6 @@ function ProfileModals(props) {
             ×
           </button>
         </div>
-        <div className="att-admin-tabs">
-          <button
-            type="button"
-            className={`att-admin-tab-btn${orgEditTab === "edit" ? " active" : ""}`}
-            onClick={() => setOrgEditTab("edit")}
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            className={`att-admin-tab-btn${orgEditTab === "features" ? " active" : ""}`}
-            onClick={() => setOrgEditTab("features")}
-          >
-            Features
-          </button>
-        </div>
         <form
           className="auth-form settings-edit-form"
           noValidate
@@ -1401,7 +872,7 @@ function ProfileModals(props) {
             handleOrganizationEditSave();
           }}
         >
-          <div hidden={orgEditTab !== "edit"}>
+          <div>
             <div className="field">
               <label htmlFor="organizationEditCodeInput">Code</label>
               <input
@@ -1445,85 +916,6 @@ function ProfileModals(props) {
                   }}
                 />
               </label>
-            </div>
-          </div>
-          <div className="org-edit-features-tab" hidden={orgEditTab !== "features"}>
-            <div className="settings-permissions-section">
-              <div className="settings-permission-groups">
-                {ORG_FEATURE_TREE.map(({ key: parentKey, label: parentLabel, children }) => {
-                  const childKeys = children.map((c) => c.key);
-                  const current = organizationEditForm.allowedFeatures === null ? ALL_ORG_FEATURE_KEYS.filter((k) => !DEFAULT_DISABLED_FEATURE_KEYS.has(k)) : organizationEditForm.allowedFeatures;
-                  const parentChecked = current.includes(parentKey);
-                  const isExpanded = expandedFeatures.has(parentKey);
-                  const toggleExpand = () =>
-                    setExpandedFeatures((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(parentKey)) next.delete(parentKey);
-                      else next.add(parentKey);
-                      return next;
-                    });
-                  return (
-                    <div key={parentKey} className="settings-permission-group">
-                      <div className="org-feature-accordion-header">
-                        <label className="settings-permission-item" htmlFor={`orgEditFeatureP_${parentKey}`}>
-                          <input
-                            id={`orgEditFeatureP_${parentKey}`}
-                            type="checkbox"
-                            checked={parentChecked}
-                            onChange={(event) => {
-                              const checked = event.currentTarget.checked;
-                              setOrganizationEditForm((prev) => {
-                                const cur = prev.allowedFeatures === null ? ALL_ORG_FEATURE_KEYS.filter((k) => !DEFAULT_DISABLED_FEATURE_KEYS.has(k)) : [...prev.allowedFeatures];
-                                const next = checked
-                                  ? [...new Set([...cur, parentKey, ...childKeys])]
-                                  : cur.filter((k) => k !== parentKey && !childKeys.includes(k));
-                                const defaultEnabledCount = ALL_ORG_FEATURE_KEYS.length - DEFAULT_DISABLED_FEATURE_KEYS.size;
-                                const collapseToNull = next.length === defaultEnabledCount && !next.some((k) => DEFAULT_DISABLED_FEATURE_KEYS.has(k));
-                                return { ...prev, allowedFeatures: collapseToNull ? null : next };
-                              });
-                            }}
-                          />
-                          <strong>{parentLabel}</strong>
-                        </label>
-                        <button type="button" className="org-feature-accordion-toggle" onClick={toggleExpand}>
-                          {isExpanded ? "▲" : "▼"}
-                        </button>
-                      </div>
-                      {isExpanded && (
-                        <div className="settings-permissions-grid settings-permissions-grid-group org-feature-accordion-children">
-                          {children.map(({ key: childKey, label: childLabel }) => (
-                            <label key={childKey} className="settings-permission-item" htmlFor={`orgEditFeatureC_${childKey}`}>
-                              <input
-                                id={`orgEditFeatureC_${childKey}`}
-                                type="checkbox"
-                                checked={current.includes(childKey)}
-                                onChange={(event) => {
-                                  const checked = event.currentTarget.checked;
-                                  setOrganizationEditForm((prev) => {
-                                    const cur = prev.allowedFeatures === null ? ALL_ORG_FEATURE_KEYS.filter((k) => !DEFAULT_DISABLED_FEATURE_KEYS.has(k)) : [...prev.allowedFeatures];
-                                    let next;
-                                    if (checked) {
-                                      next = [...new Set([...cur, childKey, parentKey])];
-                                    } else {
-                                      next = cur.filter((k) => k !== childKey);
-                                      const anyChildLeft = childKeys.some((k) => next.includes(k));
-                                      if (!anyChildLeft) next = next.filter((k) => k !== parentKey);
-                                    }
-                                    const defaultEnabledCount = ALL_ORG_FEATURE_KEYS.length - DEFAULT_DISABLED_FEATURE_KEYS.size;
-                                    const collapseToNull = next.length === defaultEnabledCount && !next.some((k) => DEFAULT_DISABLED_FEATURE_KEYS.has(k));
-                                    return { ...prev, allowedFeatures: collapseToNull ? null : next };
-                                  });
-                                }}
-                              />
-                              <span>{childLabel}</span>
-                            </label>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
             </div>
           </div>
           <div className="edit-actions">
@@ -1651,55 +1043,6 @@ function ProfileModals(props) {
       </section>
       <div className="login-overlay" hidden={!positionEditOpen} onClick={cancelPositionEdit} />
 
-      <section id="normEditModal" className="logout-confirm-modal settings-edit-modal" hidden={!normEditOpen}>
-        <h3>Edit Appointment Norm</h3>
-        <form
-          className="auth-form settings-edit-form"
-          noValidate
-          onSubmit={(event) => {
-            event.preventDefault();
-            handleNormEditSave();
-          }}
-        >
-          <div className="field">
-            <label htmlFor="normEditModalMaxPerWeekInput">Max sessions / week</label>
-            <input
-              id="normEditModalMaxPerWeekInput"
-              name="maxPerWeek"
-              type="number"
-              min="1"
-              max="100"
-              value={normEditForm.maxPerWeek}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setNormEditForm((prev) => ({ ...prev, maxPerWeek: nextValue }));
-                if (normEditError) {
-                  setNormEditError("");
-                }
-              }}
-            />
-          </div>
-          <div className="field settings-inline-control">
-            <label htmlFor="normEditModalIsActiveInput">Active</label>
-            <label className="settings-checkbox settings-checkbox-inline" htmlFor="normEditModalIsActiveInput">
-              <input
-                id="normEditModalIsActiveInput"
-                type="checkbox"
-                checked={Boolean(normEditForm.isActive)}
-                onChange={(event) => {
-                  const checked = event.currentTarget.checked;
-                  setNormEditForm((prev) => ({ ...prev, isActive: checked }));
-                }}
-              />
-            </label>
-          </div>
-          <div className="edit-actions">
-            <button className="btn" type="submit" disabled={normEditSubmitting}>Save</button>
-            <button className="header-btn" type="button" onClick={cancelNormEdit}>Cancel</button>
-          </div>
-        </form>
-      </section>
-      <div className="login-overlay" hidden={!normEditOpen} onClick={cancelNormEdit} />
     </>
   );
 

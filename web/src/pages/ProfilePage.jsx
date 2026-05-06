@@ -14,13 +14,12 @@ import {
 import {
   handleProtectedStatus,
   isViewBlockedByOrgFeatures,
-  mapValueLabelOptions,
+  mapValueLabelOptions
 } from "./profile/profile.helpers.js";
 import { useAllUsersSection } from "./profile/useAllUsersSection.js";
 import { useClientsSection } from "./profile/useClientsSection.js";
 import { useProfileAccess } from "./profile/useProfileAccess.js";
 import { useProfileAvatar } from "./profile/useProfileAvatar.js";
-import { useProfileNotifications } from "./profile/useProfileNotifications.js";
 import { useProfilePanels } from "./profile/useProfilePanels.js";
 import { useSettingsSection } from "./profile/useSettingsSection.js";
 import ProfileSideMenu from "./profile/ProfileSideMenu.jsx";
@@ -31,6 +30,7 @@ function loadProfileModals() {
   profileModalsPromise ??= import("./profile/ProfileModals.jsx");
   return profileModalsPromise;
 }
+
 const ProfileModals = lazy(loadProfileModals);
 const ProfileMainContent = lazy(() => import("./profile/ProfileMainContent.jsx"));
 
@@ -44,10 +44,8 @@ function ProfilePage({ forcedView = "none" }) {
   const [profile, setProfile] = useState(null);
   const [organizationContextSwitching, setOrganizationContextSwitching] = useState(false);
   const [myProfileModalOpen, setMyProfileModalOpen] = useState(false);
-
   const [mainView, setMainViewState] = useState("none");
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
-
   const [profileEdit, setProfileEdit] = useState(createEmptyProfileEditState);
 
   const [createForm, setCreateForm] = useState({
@@ -60,7 +58,6 @@ function ProfilePage({ forcedView = "none" }) {
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [roleOptions, setRoleOptions] = useState([]);
   const [positionOptions, setPositionOptions] = useState([]);
-  const [clientMedicalHistorySpecialistOptions, setClientMedicalHistorySpecialistOptions] = useState([]);
 
   const {
     canReadUsers,
@@ -71,60 +68,23 @@ function ProfilePage({ forcedView = "none" }) {
     canCreateClients,
     canUpdateClients,
     canDeleteClients,
-    canReadClientMedicalHistory,
-    canCreateClientMedicalHistory,
-    canUpdateClientMedicalHistory,
-    canDeleteClientMedicalHistory,
     hasClientsMenuAccess,
     canReadAppointments,
     canCreateAppointments,
     canUpdateAppointments,
     canDeleteAppointments,
-    canSendNotifications,
     canOpenAppointmentSchedule,
-    canOpenAppointmentVipMyClass,
-    canOpenAppointmentBreaks,
-    canOpenAppointmentSpecialistAbsences,
-    canReadAppointmentSpecialistAbsences,
-    canCreateAppointmentSpecialistAbsences,
-    canDeleteAppointmentSpecialistAbsences,
     canViewAppointmentSpecialistAbsenceBlocks,
     canReadAppointmentBreaks,
-    canCreateAppointmentBreaks,
     canUpdateAppointmentBreaks,
-    canDeleteAppointmentBreaks,
-    canOpenAppointmentWorkSchedule,
     canCreateAppointmentWorkSchedule,
     canUpdateAppointmentWorkSchedule,
     canDeleteAppointmentWorkSchedule,
-    canOpenAppointmentVipClients,
-    canOpenAppointmentVipNormMonitoring,
-    canOpenMyChildren,
-    canOpenAppointmentVipDailyRoutines,
-    canReadAppointmentVipClients,
-    canCreateAppointmentVipClients,
-    canUpdateAppointmentVipClients,
-    canDeleteAppointmentVipClients,
-    canOpenAppointmentVipClassAssignments,
-    canOpenAppointmentVipTutorAssignments,
-    canOpenAppointmentVipAssignments,
-    canReadAppointmentVipClassAssignments,
-    canCreateAppointmentVipClassAssignments,
-    canUpdateAppointmentVipClassAssignments,
-    canDeleteAppointmentVipClassAssignments,
-    canReadAppointmentVipTutorAssignments,
-    canCreateAppointmentVipTutorAssignments,
-    canUpdateAppointmentVipTutorAssignments,
     canOpenAppointmentStatistics,
-    canOpenStatisticsClassAttendance,
     canOpenStatisticsPlannerReport,
     canReadStatisticsPlannerReportPermission,
     canOpenAppointmentSettings,
     canUpdateSettingsAppointments,
-    canCreateSettingsAppointmentNorms,
-    canUpdateSettingsAppointmentNorms,
-    canDeleteSettingsAppointmentNorms,
-    canOpenSettingsNorms,
     canOpenSettingsOrganizations,
     canCreateSettingsOrganizations,
     canUpdateSettingsOrganizations,
@@ -141,6 +101,7 @@ function ProfilePage({ forcedView = "none" }) {
     hasUsersMenuAccess,
     hasSettingsMenuAccess,
     hasAdminSettingsAccess,
+    canOpenSiteContent,
     canAccessForcedView
   } = useProfileAccess(profile, forcedView);
 
@@ -151,11 +112,12 @@ function ProfilePage({ forcedView = "none" }) {
       if (normalizedOrganizationCode) {
         query.set("organizationCode", normalizedOrganizationCode);
       }
+
       const response = await apiFetch(
         query.toString() ? `/api/meta/user-options?${query.toString()}` : "/api/meta/user-options",
         {
-        method: "GET",
-        cache: "no-store"
+          method: "GET",
+          cache: "no-store"
         }
       );
       const data = await readApiResponseData(response);
@@ -167,29 +129,23 @@ function ProfilePage({ forcedView = "none" }) {
         return;
       }
 
-      const nextRoles = mapValueLabelOptions(
-        data?.roles,
-        (option) => option?.value,
-        (option) => option?.label
+      setRoleOptions(
+        mapValueLabelOptions(
+          data?.roles,
+          (option) => option?.value,
+          (option) => option?.label
+        )
       );
-      const nextPositions = mapValueLabelOptions(
-        data?.positions,
-        (option) => option?.value,
-        (option) => option?.label
+      setPositionOptions(
+        mapValueLabelOptions(
+          data?.positions,
+          (option) => option?.value,
+          (option) => option?.label
+        )
       );
-      const nextSpecialists = mapValueLabelOptions(
-        data?.specialists,
-        (option) => option?.value,
-        (option) => option?.label
-      );
-
-      setRoleOptions(nextRoles);
-      setPositionOptions(nextPositions);
-      setClientMedicalHistorySpecialistOptions(nextSpecialists);
     } catch {
       setRoleOptions([]);
       setPositionOptions([]);
-      setClientMedicalHistorySpecialistOptions([]);
     }
   }, [navigate]);
 
@@ -256,26 +212,6 @@ function ProfilePage({ forcedView = "none" }) {
     cancelPositionEdit,
     handlePositionEditSave,
     handlePositionDelete,
-    normsSettings,
-    normsSettingsMessage,
-    normCreateForm,
-    normCreateError,
-    normCreateSubmitting,
-    normEditOpen,
-    normEditForm,
-    normEditError,
-    normEditSubmitting,
-    normDeletingId,
-    setNormCreateForm,
-    setNormCreateError,
-    setNormEditForm,
-    setNormEditError,
-    loadNormsSettings,
-    handleNormCreateSubmit,
-    startNormEdit,
-    cancelNormEdit,
-    handleNormEditSave,
-    handleNormDelete,
     closeSettingsDeleteModal,
     handleSettingsDeleteConfirm
   } = useSettingsSection({
@@ -291,10 +227,6 @@ function ProfilePage({ forcedView = "none" }) {
     canCreateSettingsPositions,
     canUpdateSettingsPositions,
     canDeleteSettingsPositions,
-    canOpenSettingsNorms,
-    canCreateSettingsAppointmentNorms,
-    canUpdateSettingsAppointmentNorms,
-    canDeleteSettingsAppointmentNorms,
     navigate,
     loadUserOptions,
     orgFeatures: Boolean(profile?.isPlatformAdmin) ? null : (profile?.orgFeatures ?? null)
@@ -302,9 +234,9 @@ function ProfilePage({ forcedView = "none" }) {
 
   const ensureOrganizationsLoaded = useCallback(() => {
     if (hasAdminSettingsAccess && organizations.length === 0) {
-      loadOrganizations();
+      void loadOrganizations();
     }
-  }, [hasAdminSettingsAccess, organizations.length, loadOrganizations]);
+  }, [hasAdminSettingsAccess, loadOrganizations, organizations.length]);
 
   const {
     allUsers,
@@ -342,8 +274,6 @@ function ProfilePage({ forcedView = "none" }) {
     clientsTotalPages,
     clientsSearch,
     setClientsSearch,
-    clientsIsVip,
-    setClientsIsVip,
     clientCreateForm,
     clientCreateErrors,
     clientCreateSubmitting,
@@ -353,67 +283,26 @@ function ProfilePage({ forcedView = "none" }) {
     clientEditSubmitting,
     clientsEditOpen,
     clientsDelete,
-    clientMedicalHistoryOpen,
-    clientMedicalHistoryClient,
-    clientMedicalHistoryClientSearch,
-    clientMedicalHistoryClientOptions,
-    clientMedicalHistoryClientOptionsLoading,
-    clientMedicalHistoryMode,
-    clientMedicalHistoryItems,
-    clientMedicalHistorySkeletonCount,
-    clientMedicalHistoryLoading,
-    clientMedicalHistoryMessage,
-    clientMedicalHistoryForm,
-    clientMedicalHistoryErrors,
-    clientMedicalHistorySubmitting,
-    clientMedicalHistoryDeletingId,
-    clientMedicalHistoryDelete,
     setClientCreateForm,
     setClientCreateErrors,
     setClientEditForm,
     setClientEditErrors,
-    setClientMedicalHistoryClientSearch,
-    setClientMedicalHistoryForm,
-    setClientMedicalHistoryErrors,
     loadClients,
-    loadClientMedicalHistoryClients,
     handleClientCreateSubmit,
     startClientEdit,
     handleClientEditSubmit,
     openClientsDeleteModal,
     handleClientsDeleteConfirm,
-    openClientMedicalHistoryModal,
-    openClientMedicalHistoryCreateModal,
-    selectClientMedicalHistoryClient,
-    closeClientMedicalHistoryModal,
-    closeClientMedicalHistoryDeleteModal,
-    resetClientMedicalHistoryForm,
-    startClientMedicalHistoryEdit,
-    openClientMedicalHistoryDeleteModal,
-    handleClientMedicalHistorySubmit,
-    deleteClientMedicalHistoryItem,
-    handleClientMedicalHistoryDeleteConfirm,
     closeClientsEditModal,
     closeClientsDeleteModal
   } = useClientsSection({
-    currentView: mainView,
-    isAdmin: Boolean(profile?.isAdmin),
-    isPlatformAdmin: Boolean(profile?.isPlatformAdmin),
     canReadClients,
     canCreateClients,
     canUpdateClients,
     canDeleteClients,
-    canReadClientMedicalHistory,
-    canCreateClientMedicalHistory,
-    canUpdateClientMedicalHistory,
-    canDeleteClientMedicalHistory,
     navigate,
     getBirthdayValidationMessage
   });
-  const hasReadClientMedicalHistoryAccess = Boolean(canReadClientMedicalHistory || profile?.isAdmin || profile?.isPlatformAdmin);
-  const hasCreateClientMedicalHistoryAccess = Boolean(canCreateClientMedicalHistory || profile?.isAdmin || profile?.isPlatformAdmin);
-  const hasUpdateClientMedicalHistoryAccess = Boolean(canUpdateClientMedicalHistory || profile?.isAdmin || profile?.isPlatformAdmin);
-  const hasDeleteClientMedicalHistoryAccess = Boolean(canDeleteClientMedicalHistory || profile?.isAdmin || profile?.isPlatformAdmin);
 
   const allowedRoleValues = useMemo(() => (
     new Set(
@@ -427,9 +316,7 @@ function ProfilePage({ forcedView = "none" }) {
     const currentCode = String(profile?.organizationCode || "").trim().toLowerCase();
 
     if (!hasAdminSettingsAccess) {
-      return currentCode
-        ? [{ value: currentCode, label: currentCode }]
-        : [];
+      return currentCode ? [{ value: currentCode, label: currentCode }] : [];
     }
 
     const activeItems = Array.isArray(organizations)
@@ -509,30 +396,6 @@ function ProfilePage({ forcedView = "none" }) {
     setMainViewState(view);
   }, []);
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return undefined;
-    }
-
-    const warmProfileUi = () => {
-      void loadProfileModals();
-    };
-
-    if (typeof window.requestIdleCallback === "function") {
-      const idleId = window.requestIdleCallback(warmProfileUi, { timeout: 320 });
-      return () => {
-        if (typeof window.cancelIdleCallback === "function") {
-          window.cancelIdleCallback(idleId);
-        }
-      };
-    }
-
-    const timeoutId = window.setTimeout(warmProfileUi, 120);
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, []);
-
   const bindSideMenuRef = useCallback((instance) => {
     sideMenuRef.current = instance;
   }, []);
@@ -559,45 +422,18 @@ function ProfilePage({ forcedView = "none" }) {
 
   const closeUserDropdown = useCallback(() => {}, []);
 
-  const {
-    notificationsModalOpen,
-    notifications,
-    notificationSendForm,
-    notificationSendSubmitting,
-    notificationSendError,
-    notificationSendSuccess,
-    unreadNotificationsCount,
-    setNotificationSendForm,
-    setNotificationSendError,
-    openNotificationsPanel,
-    closeNotificationsPanel,
-    clearNotifications,
-    sendManualNotification,
-    handleAppointmentNotification
-  } = useProfileNotifications({
-    canReadAppointments,
-    canSendNotifications,
-    profileUsername: profile?.username,
-    navigate,
-    closeMenu,
-    closeUserDropdown
-  });
-
   const hasAnyModalOpen = (
     myProfileModalOpen
-    || notificationsModalOpen
     || logoutConfirmOpen
     || profileEdit.open
     || allUsersEdit.open
     || allUsersDelete.open
     || clientsEditOpen
     || clientsDelete.open
-    || clientMedicalHistoryOpen
     || settingsDelete.open
     || organizationEditOpen
     || roleEditOpen
     || positionEditOpen
-    || normEditOpen
   );
 
   useEffect(() => {
@@ -639,7 +475,7 @@ function ProfilePage({ forcedView = "none" }) {
       }
     }
 
-    loadProfile();
+    void loadProfile();
     return () => {
       active = false;
     };
@@ -649,14 +485,14 @@ function ProfilePage({ forcedView = "none" }) {
     if (!profile?.username) {
       return;
     }
-    loadUserOptions(activeUserOptionsOrganizationCode);
+    void loadUserOptions(activeUserOptionsOrganizationCode);
   }, [activeUserOptionsOrganizationCode, loadUserOptions, profile?.username]);
 
   useEffect(() => {
     if (!profile?.username || !hasAdminSettingsAccess || organizations.length > 0) {
       return;
     }
-    loadOrganizations();
+    void loadOrganizations();
   }, [hasAdminSettingsAccess, loadOrganizations, organizations.length, profile?.username]);
 
   useEffect(() => {
@@ -670,7 +506,7 @@ function ProfilePage({ forcedView = "none" }) {
     if (!canAccessForcedView && !profile?.isPlatformAdmin) {
       navigate("/404", { replace: true });
     }
-  }, [canAccessForcedView, navigate, profile?.username, profile?.isPlatformAdmin]);
+  }, [canAccessForcedView, navigate, profile?.isPlatformAdmin, profile?.username]);
 
   useEffect(() => {
     if (!profile?.username) {
@@ -682,66 +518,49 @@ function ProfilePage({ forcedView = "none" }) {
     }
 
     if (mainView === "all-users") {
-      loadAllUsers(1);
+      void loadAllUsers(1);
       return;
     }
     if (mainView === "clients-all") {
-      loadClients(1);
-      return;
-    }
-    if (mainView === "clients-medical-history") {
-      loadClientMedicalHistoryClients(1);
+      void loadClients(1);
       return;
     }
     if (mainView === "create-user") {
       if (canReadUsers && !allUsersLoadedOnce) {
-        loadAllUsers(1);
+        void loadAllUsers(1);
       }
       if (hasAdminSettingsAccess) {
-        loadOrganizations();
-      }
-      return;
-    }
-    if (mainView === "appointment-settings" || mainView === "appointment-breaks") {
-      if (hasAdminSettingsAccess) {
-        loadOrganizations();
+        void loadOrganizations();
       }
       return;
     }
     if (mainView === "settings-organizations") {
       if (hasAdminSettingsAccess) {
-        loadOrganizations();
+        void loadOrganizations();
       }
       return;
     }
     if (mainView === "settings-roles") {
-      loadRolesSettings();
+      void loadRolesSettings();
       return;
     }
     if (mainView === "settings-positions") {
-      loadPositionsSettings();
-      return;
-    }
-    if (mainView === "settings-appointment-norms") {
-      loadNormsSettings();
-      loadPositionsSettings();
-      return;
+      void loadPositionsSettings();
     }
   }, [
-    canReadUsers,
     allUsersLoadedOnce,
-    hasAdminSettingsAccess,
-    loadClients,
-    loadClientMedicalHistoryClients,
-    loadAllUsers,
-    loadOrganizations,
-    loadNormsSettings,
-    loadPositionsSettings,
-    mainView,
+    canReadUsers,
     forcedView,
-    profile?.username,
+    hasAdminSettingsAccess,
+    loadAllUsers,
+    loadClients,
+    loadOrganizations,
+    loadPositionsSettings,
+    loadRolesSettings,
+    mainView,
     profile?.isPlatformAdmin,
-    profile?.orgFeatures
+    profile?.orgFeatures,
+    profile?.username
   ]);
 
   useEffect(() => {
@@ -769,21 +588,19 @@ function ProfilePage({ forcedView = "none" }) {
       if (event.key !== "Escape") {
         return;
       }
+
       closeMenu();
       closeUserDropdown();
       setMyProfileModalOpen(false);
-      closeNotificationsPanel();
       setLogoutConfirmOpen(false);
       cancelOrganizationEdit();
       cancelRoleEdit();
       cancelPositionEdit();
-      cancelNormEdit();
       closeProfileEditModal();
       closeAllUsersEditModal();
       closeAllUsersDeleteModal();
       closeClientsEditModal();
       closeClientsDeleteModal();
-      closeClientMedicalHistoryModal();
       closeSettingsDeleteModal();
     }
 
@@ -792,53 +609,29 @@ function ProfilePage({ forcedView = "none" }) {
       window.removeEventListener("keydown", handleEscape);
     };
   }, [
+    cancelOrganizationEdit,
+    cancelPositionEdit,
+    cancelRoleEdit,
     closeAllUsersDeleteModal,
     closeAllUsersEditModal,
-    closeClientsEditModal,
     closeClientsDeleteModal,
-    closeClientMedicalHistoryModal,
+    closeClientsEditModal,
     closeMenu,
     closeProfileEditModal,
     closeSettingsDeleteModal,
-    closeUserDropdown,
-    closeNotificationsPanel,
-    cancelOrganizationEdit,
-    cancelRoleEdit,
-    cancelPositionEdit,
-    cancelNormEdit
+    closeUserDropdown
   ]);
 
   const {
     openMyProfilePanel,
     closeMyProfilePanel,
-    openCreateUserPanel,
+    closeCreateUserPanel,
     openAllClientsPanel,
     closeAllClientsPanel,
-    openClientMedicalHistoryPanel,
     openAppointmentPanel,
     closeAppointmentPanel,
-    openAppointmentBreaksPanel,
-    closeAppointmentBreaksPanel,
-    openAppointmentSpecialistAbsencesPanel,
-    closeAppointmentSpecialistAbsencesPanel,
-    openAppointmentVipSchedulePanel,
-    closeAppointmentVipSchedulePanel,
-    openAppointmentVipAttendancePanel,
-    closeAppointmentVipAttendancePanel,
-    openAppointmentVipNormMonitoringPanel,
-    closeAppointmentVipNormMonitoringPanel,
-    openAppointmentVipMyChildrenPanel,
-    openAppointmentVipDailyRoutinesPanel,
-    closeAppointmentVipDailyRoutinesPanel,
-    openAppointmentVipAssignmentsPanel,
-    closeAppointmentVipAssignmentsPanel,
-    openAppointmentVipTutorAssignmentsPanel,
-    closeAppointmentVipTutorAssignmentsPanel,
     openAppointmentSettingsPanel,
     closeAppointmentSettingsPanel,
-    openAppointmentWorkSchedulePanel,
-    closeAppointmentWorkSchedulePanel,
-    openStatisticsClassPanel,
     openStatisticsPlannerReportPanel,
     closeStatisticsPanel,
     openOrganizationsPanel,
@@ -847,13 +640,10 @@ function ProfilePage({ forcedView = "none" }) {
     closeRolesPanel,
     openPositionsPanel,
     closePositionsPanel,
-    openNotificationsSendPanel,
-    closeNotificationsSendPanel,
     openMonitoringPanel,
     closeMonitoringPanel,
-    openNormsPanel,
-    closeNormsPanel,
-    closeCreateUserPanel,
+    openSiteContentPanel,
+    closeSiteContentPanel,
     closeAllUsersPanel
   } = useProfilePanels({
     navigate,
@@ -861,28 +651,15 @@ function ProfilePage({ forcedView = "none" }) {
     closeMenu,
     closeUserDropdown,
     setMyProfileModalOpen,
-    isPlatformAdmin: Boolean(profile?.isPlatformAdmin),
     canCreateUsers,
     canReadClients,
-    canReadClientMedicalHistory,
     canOpenAppointmentSchedule,
-    canOpenAppointmentSpecialistAbsences,
-    canOpenAppointmentVipMyClass,
-    canOpenAppointmentBreaks,
-    canOpenAppointmentWorkSchedule,
-    canOpenAppointmentVipClients,
-    canOpenAppointmentVipNormMonitoring,
-    canOpenMyChildren,
-    canOpenAppointmentVipDailyRoutines,
-    canOpenAppointmentVipAssignments,
     canOpenAppointmentStatistics,
     canOpenAppointmentSettings,
     canOpenSettingsOrganizations,
     canOpenSettingsRoles,
     canOpenSettingsPositions,
-    canOpenSettingsNorms,
-    canSendNotifications,
-    hasSettingsMenuAccess,
+    canOpenSiteContent,
     hasAdminSettingsAccess
   });
 
@@ -909,7 +686,7 @@ function ProfilePage({ forcedView = "none" }) {
         if (handleProtectedStatus(response, navigate)) {
           return;
         }
-        window.alert(getApiErrorMessage(data, "Failed to switch organization."));
+        window.alert(getApiErrorMessage(response, data, "Failed to switch organization."));
         return;
       }
 
@@ -921,7 +698,7 @@ function ProfilePage({ forcedView = "none" }) {
     }
   }, [hasAdminSettingsAccess, navigate, profile?.organizationCode]);
 
-  function validateCreatePayload(payload) {
+  const validateCreatePayload = useCallback((payload) => {
     const errors = {};
     if (!ORGANIZATION_CODE_REGEX.test(payload.organizationCode)) {
       errors.organizationCode = "Invalid organisation.";
@@ -940,9 +717,9 @@ function ProfilePage({ forcedView = "none" }) {
       errors.role = "Invalid role.";
     }
     return errors;
-  }
+  }, [allowedCreateOrganizationCodes, allowedRoleValues]);
 
-  async function handleCreateUserSubmit(event) {
+  const handleCreateUserSubmit = useCallback(async (event) => {
     event.preventDefault();
 
     if (!canCreateUsers) {
@@ -998,9 +775,17 @@ function ProfilePage({ forcedView = "none" }) {
     } finally {
       setCreateSubmitting(false);
     }
-  }
+  }, [
+    canCreateUsers,
+    createForm.fullName,
+    createForm.organizationCode,
+    createForm.role,
+    createForm.username,
+    profile?.organizationCode,
+    validateCreatePayload
+  ]);
 
-  function openProfileEditModal() {
+  const openProfileEditModal = useCallback(() => {
     setProfileEdit({
       open: true,
       mode: "profile",
@@ -1017,9 +802,9 @@ function ProfilePage({ forcedView = "none" }) {
       errorField: "",
       submitting: false
     });
-  }
+  }, [profile?.birthday, profile?.email, profile?.fullName, profile?.phone, profile?.positionId]);
 
-  function openPasswordEditModal() {
+  const openPasswordEditModal = useCallback(() => {
     setProfileEdit({
       open: true,
       mode: "password",
@@ -1030,9 +815,9 @@ function ProfilePage({ forcedView = "none" }) {
       errorField: "",
       submitting: false
     });
-  }
+  }, []);
 
-  async function handleProfileEditSubmit(event) {
+  const handleProfileEditSubmit = useCallback(async (event) => {
     event.preventDefault();
 
     if (!profileEdit.open) {
@@ -1061,15 +846,16 @@ function ProfilePage({ forcedView = "none" }) {
           return;
         }
 
-        if (newPassword.length < 6) {
+        if (newPassword.length < 4) {
           setProfileEdit((prev) => ({
             ...prev,
             submitting: false,
-            error: "Password must be at least 6 characters.",
+            error: "Password must be at least 4 characters.",
             errorField: "newPassword"
           }));
           return;
         }
+
         if (currentPassword === newPassword) {
           setProfileEdit((prev) => ({
             ...prev,
@@ -1199,9 +985,9 @@ function ProfilePage({ forcedView = "none" }) {
         errorField: ""
       }));
     }
-  }
+  }, [closeProfileEditModal, profile?.birthday, profile?.email, profile?.fullName, profile?.phone, profile?.positionId, profileEdit]);
 
-  async function handleLogout() {
+  const handleLogout = useCallback(async () => {
     try {
       await apiFetch("/api/login/logout", {
         method: "POST"
@@ -1210,337 +996,247 @@ function ProfilePage({ forcedView = "none" }) {
       sessionStorage.setItem(LOGOUT_FLAG_KEY, "1");
       navigate("/", { replace: true });
     }
-  }
+  }, [navigate]);
 
   return (
     <>
       <div className="home-layout">
         <header className="home-header">
-          <div className="brand-wrap">
-            <button
-              id="menuToggle"
-              ref={menuToggleRef}
-              className="menu-toggle"
-              type="button"
-              aria-label="Open main menu"
-              aria-expanded="false"
-              aria-controls="mainMenu"
-              onClick={() => {
-                if (menuOpenRef.current) {
-                  closeMenu();
-                  return;
-                }
-                openMenu();
-              }}
-            >
-              <span />
-              <span />
-              <span />
-            </button>
-
-            <Link className="brand" to="/" aria-label="AARON CRM home">
-              <img src="/crm.svg" alt="AARON CRM logo" className="brand-logo" />
-              <span className="brand-text">AARON</span>
-            </Link>
-          </div>
-
-          <nav className="header-actions" aria-label="Header actions">
-            {hasAdminSettingsAccess ? (
-              <div className="header-org-switch">
-                <CustomSelect
-                  id="headerOrganizationContextSelect"
-                  value={String(profile?.organizationCode || "").trim().toLowerCase()}
-                  placeholder="Select organization"
-                  options={createOrganizationOptions}
-                  disabled={organizationContextSwitching || createOrganizationOptions.length === 0}
-                  menuPortal
-                  menuAlign="center"
-                  forceOpenDown
-                  searchable
-                  searchThreshold={8}
-                  searchPlaceholder="Search organization"
-                  onChange={handleOrganizationContextSwitch}
-                />
-              </div>
-            ) : null}
-            <button
-              id="headerNotificationsBtn"
-              type="button"
-              className={`header-btn header-notification-btn${unreadNotificationsCount > 0 ? " has-unread" : ""}`}
-              aria-label="Open notifications"
-              title="Notifications"
-              onClick={openNotificationsPanel}
-            >
-              <span className="header-notification-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" focusable="false">
-                  <path
-                    d="M15 17H9M18 17V11C18 8.23858 15.7614 6 13 6H11C8.23858 6 6 8.23858 6 11V17M18 17H6M18 17H20M6 17H4M14 20C14 21.1046 13.1046 22 12 22C10.8954 22 10 21.1046 10 20"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </span>
-              {unreadNotificationsCount > 0 ? (
-                <span className="header-notification-badge" aria-hidden="true">
-                  {unreadNotificationsCount > 99 ? "99+" : String(unreadNotificationsCount)}
-                </span>
-              ) : null}
-            </button>
-            <div className="user-menu-wrap">
+          <div className="home-header-inner">
+            <div className="brand-wrap">
               <button
-                id="headerUserNameBtn"
+                id="menuToggle"
+                ref={menuToggleRef}
+                className="menu-toggle"
                 type="button"
-                className="header-btn user-name-btn"
-                onClick={openMyProfilePanel}
+                aria-label="Open main menu"
+                aria-expanded="false"
+                aria-controls="mainMenu"
+                onClick={() => {
+                  if (menuOpenRef.current) {
+                    closeMenu();
+                    return;
+                  }
+                  openMenu();
+                }}
               >
-                <span className="header-avatar-inline">
-                  <img
-                    id="headerAvatarImage"
-                    className="header-avatar-image"
-                    alt="Profile photo"
-                    hidden={!avatarDataUrl}
-                    src={avatarDataUrl || undefined}
-                  />
-                  <span id="headerAvatarFallback" className="header-avatar-fallback" hidden={Boolean(avatarDataUrl)}>
-                    {avatarFallback}
-                  </span>
-                </span>
-                <span id="headerUserNameText">{firstName}</span>
+                <span />
+                <span />
+                <span />
               </button>
 
-              <input
-                id="headerAvatarInput"
-                ref={avatarInputRef}
-                type="file"
-                accept="image/*"
-                hidden
-                onChange={(event) => {
-                  const file = event.currentTarget.files?.[0];
-                  saveAvatarFromFile(file);
-                  event.currentTarget.value = "";
-                }}
-              />
+              <Link className="brand" to="/" aria-label="AARON CRM home">
+                <img src="/crm.svg" alt="AARON CRM logo" className="brand-logo" />
+                <span className="brand-text">AARON</span>
+              </Link>
             </div>
 
-            <button id="headerLogoutBtn" type="button" className="header-btn" onClick={() => setLogoutConfirmOpen(true)}>
-              Logout
-            </button>
-          </nav>
+            <nav className="header-actions" aria-label="Header actions">
+              {hasAdminSettingsAccess ? (
+                <div className="header-org-switch">
+                  <CustomSelect
+                    id="headerOrganizationContextSelect"
+                    value={String(profile?.organizationCode || "").trim().toLowerCase()}
+                    placeholder="Select organization"
+                    options={createOrganizationOptions}
+                    disabled={organizationContextSwitching || createOrganizationOptions.length === 0}
+                    menuPortal
+                    menuAlign="center"
+                    forceOpenDown
+                    searchable
+                    searchThreshold={8}
+                    searchPlaceholder="Search organization"
+                    onChange={handleOrganizationContextSwitch}
+                  />
+                </div>
+              ) : null}
+
+              <div className="user-menu-wrap">
+                <button
+                  id="headerUserNameBtn"
+                  type="button"
+                  className="header-btn user-name-btn"
+                  onClick={openMyProfilePanel}
+                >
+                  <span className="header-avatar-inline">
+                    <img
+                      id="headerAvatarImage"
+                      className="header-avatar-image"
+                      alt="Profile photo"
+                      hidden={!avatarDataUrl}
+                      src={avatarDataUrl || undefined}
+                    />
+                    <span id="headerAvatarFallback" className="header-avatar-fallback" hidden={Boolean(avatarDataUrl)}>
+                      {avatarFallback}
+                    </span>
+                  </span>
+                  <span id="headerUserNameText">{firstName}</span>
+                </button>
+
+                <input
+                  id="headerAvatarInput"
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    saveAvatarFromFile(file);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </div>
+
+              <button id="headerLogoutBtn" type="button" className="header-btn" onClick={() => setLogoutConfirmOpen(true)}>
+                Logout
+              </button>
+            </nav>
+          </div>
         </header>
 
         <Suspense fallback={<main className="home-main" aria-label="Main content" />}>
           <ProfileMainContent
-          mainView={mainView}
-          allUsersMessage={allUsersMessage}
-          allUsersLoading={allUsersLoading}
-          allUsers={allUsers}
-          canUpdateUsers={canUpdateUsers}
-          canDeleteUsers={canDeleteUsers}
-          openAllUsersEditModal={openAllUsersEditModal}
-          openAllUsersDeleteModal={openAllUsersDeleteModal}
-          allUsersPage={allUsersPage}
-          allUsersTotalPages={allUsersTotalPages}
-          allUsersSearch={allUsersSearch}
-          setAllUsersSearch={setAllUsersSearch}
-          loadAllUsers={loadAllUsers}
-          closeAllUsersPanel={closeAllUsersPanel}
-          closeAllClientsPanel={closeAllClientsPanel}
-          clients={clients}
-          clientsLoading={clientsLoading}
-          clientsMessage={clientsMessage}
-          clientsPage={clientsPage}
-          clientsTotalPages={clientsTotalPages}
-          clientsSearch={clientsSearch}
-          setClientsSearch={setClientsSearch}
-          clientsIsVip={clientsIsVip}
-          setClientsIsVip={setClientsIsVip}
-          loadClients={loadClients}
-          loadClientMedicalHistoryClients={loadClientMedicalHistoryClients}
-          navigate={navigate}
-          canOpenMyChildren={canOpenMyChildren}
-          canOpenAppointmentStatistics={canOpenAppointmentStatistics}
-          canOpenAppointmentVipNormMonitoring={canOpenAppointmentVipNormMonitoring}
-          canReadAppointmentVipClients={canReadAppointmentVipClients}
-          canCreateAppointmentVipClients={canCreateAppointmentVipClients}
-          canUpdateAppointmentVipClients={canUpdateAppointmentVipClients}
-          canDeleteAppointmentVipClients={canDeleteAppointmentVipClients}
-          canReadAppointmentVipClassAssignments={canReadAppointmentVipClassAssignments}
-          canCreateAppointmentVipClassAssignments={canCreateAppointmentVipClassAssignments}
-          canUpdateAppointmentVipClassAssignments={canUpdateAppointmentVipClassAssignments}
-          canDeleteAppointmentVipClassAssignments={canDeleteAppointmentVipClassAssignments}
-          canReadAppointmentVipTutorAssignments={canReadAppointmentVipTutorAssignments}
-          canCreateAppointmentVipTutorAssignments={canCreateAppointmentVipTutorAssignments}
-          canUpdateAppointmentVipTutorAssignments={canUpdateAppointmentVipTutorAssignments}
-          canCreateClients={canCreateClients}
-          canUpdateClients={canUpdateClients}
-          canDeleteClients={canDeleteClients}
-          canCreateClientMedicalHistory={hasCreateClientMedicalHistoryAccess}
-          canBulkDeleteClientMedicalHistory={hasDeleteClientMedicalHistoryAccess}
-          clientMedicalHistoryDelete={clientMedicalHistoryDelete}
-          handleClientMedicalHistoryDeleteConfirm={handleClientMedicalHistoryDeleteConfirm}
-          closeClientMedicalHistoryDeleteModal={closeClientMedicalHistoryDeleteModal}
-          clientCreateForm={clientCreateForm}
-          clientCreateErrors={clientCreateErrors}
-          clientCreateSubmitting={clientCreateSubmitting}
-          setClientCreateForm={setClientCreateForm}
-          setClientCreateErrors={setClientCreateErrors}
-          handleClientCreateSubmit={handleClientCreateSubmit}
-          startClientEdit={startClientEdit}
-          openClientsDeleteModal={openClientsDeleteModal}
-          openClientMedicalHistoryModal={openClientMedicalHistoryModal}
-          openClientMedicalHistoryCreateModal={openClientMedicalHistoryCreateModal}
-          openClientMedicalHistoryDeleteModal={openClientMedicalHistoryDeleteModal}
-          canReadAppointments={canReadAppointments}
-          canCreateAppointments={canCreateAppointments}
-          canUpdateAppointments={canUpdateAppointments}
-          canReadAppointmentBreaks={canReadAppointmentBreaks}
-          canReadAppointmentSpecialistAbsences={canReadAppointmentSpecialistAbsences}
-          canCreateAppointmentSpecialistAbsences={canCreateAppointmentSpecialistAbsences}
-          canDeleteAppointmentSpecialistAbsences={canDeleteAppointmentSpecialistAbsences}
-          profileDisplayName={String(profile?.fullName || profile?.username || "").trim()}
-          canViewAppointmentSpecialistAbsenceBlocks={canViewAppointmentSpecialistAbsenceBlocks}
-          canReadStatisticsPlannerReportPermission={canReadStatisticsPlannerReportPermission}
-          canCreateAppointmentBreaks={canCreateAppointmentBreaks}
-          canUpdateAppointmentBreaks={canUpdateAppointmentBreaks}
-          canDeleteAppointmentBreaks={canDeleteAppointmentBreaks}
-          canUpdateSettingsAppointments={canUpdateSettingsAppointments}
-          canCreateAppointmentWorkSchedule={canCreateAppointmentWorkSchedule}
-          canUpdateAppointmentWorkSchedule={canUpdateAppointmentWorkSchedule}
-          canDeleteAppointmentWorkSchedule={canDeleteAppointmentWorkSchedule}
-          canCreateSettingsAppointmentNorms={canCreateSettingsAppointmentNorms}
-          canUpdateSettingsAppointmentNorms={canUpdateSettingsAppointmentNorms}
-          canDeleteSettingsAppointmentNorms={canDeleteSettingsAppointmentNorms}
-          canDeleteAppointments={canDeleteAppointments}
-          closeAppointmentPanel={closeAppointmentPanel}
-          closeAppointmentBreaksPanel={closeAppointmentBreaksPanel}
-          closeAppointmentSpecialistAbsencesPanel={closeAppointmentSpecialistAbsencesPanel}
-          closeAppointmentVipSchedulePanel={closeAppointmentVipSchedulePanel}
-          closeAppointmentVipAttendancePanel={closeAppointmentVipAttendancePanel}
-          closeAppointmentVipNormMonitoringPanel={closeAppointmentVipNormMonitoringPanel}
-          closeAppointmentVipDailyRoutinesPanel={closeAppointmentVipDailyRoutinesPanel}
-          closeAppointmentVipAssignmentsPanel={closeAppointmentVipAssignmentsPanel}
-          closeAppointmentVipTutorAssignmentsPanel={closeAppointmentVipTutorAssignmentsPanel}
-          closeAppointmentSettingsPanel={closeAppointmentSettingsPanel}
-          closeAppointmentWorkSchedulePanel={closeAppointmentWorkSchedulePanel}
-          closeOrganizationsPanel={closeOrganizationsPanel}
-          closeRolesPanel={closeRolesPanel}
-          closePositionsPanel={closePositionsPanel}
-          closeNotificationsSendPanel={closeNotificationsSendPanel}
-          closeMonitoringPanel={closeMonitoringPanel}
-          closeStatisticsPanel={closeStatisticsPanel}
-          canSendNotifications={canSendNotifications}
-          notificationSendForm={notificationSendForm}
-          notificationSendSubmitting={notificationSendSubmitting}
-          notificationSendError={notificationSendError}
-          notificationSendSuccess={notificationSendSuccess}
-          setNotificationSendForm={setNotificationSendForm}
-          setNotificationSendError={setNotificationSendError}
-          sendManualNotification={sendManualNotification}
-          organizations={organizations}
-          organizationsMessage={organizationsMessage}
-          organizationCreateForm={organizationCreateForm}
-          organizationCreateError={organizationCreateError}
-          organizationCreateSubmitting={organizationCreateSubmitting}
-          setOrganizationCreateForm={setOrganizationCreateForm}
-          setOrganizationCreateError={setOrganizationCreateError}
-          handleOrganizationCreateSubmit={handleOrganizationCreateSubmit}
-          startOrganizationEdit={startOrganizationEdit}
-          organizationDeletingId={organizationDeletingId}
-          handleOrganizationDelete={handleOrganizationDelete}
-          hasAdminSettingsAccess={hasAdminSettingsAccess}
-          canCreateSettingsOrganizations={canCreateSettingsOrganizations}
-          canUpdateSettingsOrganizations={canUpdateSettingsOrganizations}
-          canDeleteSettingsOrganizations={canDeleteSettingsOrganizations}
-          rolesSettings={rolesSettings}
-          rolesSettingsMessage={rolesSettingsMessage}
-          rolePermissionTree={rolePermissionTree}
-          roleCreateForm={roleCreateForm}
-          roleCreateError={roleCreateError}
-          roleCreateSubmitting={roleCreateSubmitting}
-          setRoleCreateForm={setRoleCreateForm}
-          setRoleCreateError={setRoleCreateError}
-          handleRoleCreateSubmit={handleRoleCreateSubmit}
-          startRoleEdit={startRoleEdit}
-          roleDeletingId={roleDeletingId}
-          handleRoleDelete={handleRoleDelete}
-          canCreateSettingsRoles={canCreateSettingsRoles}
-          canUpdateSettingsRoles={canUpdateSettingsRoles}
-          canDeleteSettingsRoles={canDeleteSettingsRoles}
-          positionsSettings={positionsSettings}
-          positionsSettingsMessage={positionsSettingsMessage}
-          positionCreateForm={positionCreateForm}
-          positionCreateError={positionCreateError}
-          positionCreateSubmitting={positionCreateSubmitting}
-          setPositionCreateForm={setPositionCreateForm}
-          setPositionCreateError={setPositionCreateError}
-          handlePositionCreateSubmit={handlePositionCreateSubmit}
-          startPositionEdit={startPositionEdit}
-          positionDeletingId={positionDeletingId}
-          handlePositionDelete={handlePositionDelete}
-          canCreateSettingsPositions={canCreateSettingsPositions}
-          canUpdateSettingsPositions={canUpdateSettingsPositions}
-          canDeleteSettingsPositions={canDeleteSettingsPositions}
-          normsSettings={normsSettings}
-          normsSettingsMessage={normsSettingsMessage}
-          normCreateForm={normCreateForm}
-          normCreateError={normCreateError}
-          normCreateSubmitting={normCreateSubmitting}
-          setNormCreateForm={setNormCreateForm}
-          setNormCreateError={setNormCreateError}
-          handleNormCreateSubmit={handleNormCreateSubmit}
-          startNormEdit={startNormEdit}
-          normDeletingId={normDeletingId}
-          handleNormDelete={handleNormDelete}
-          closeNormsPanel={closeNormsPanel}
-          canCreateUsers={canCreateUsers}
-          handleCreateUserSubmit={handleCreateUserSubmit}
-          createForm={createForm}
-          createErrors={createErrors}
-          createSubmitting={createSubmitting}
-          createOrganizationOptions={createOrganizationOptions}
-          setCreateForm={setCreateForm}
-          setCreateErrors={setCreateErrors}
-          roleOptions={roleOptions}
-          openCreateUserPanel={openCreateUserPanel}
-          closeCreateUserPanel={closeCreateUserPanel}
-          profile={profile}
-          isOrgFeatureDisabledView={Boolean(profile?.isPlatformAdmin) && isViewBlockedByOrgFeatures(forcedView, profile?.orgFeatures)}
-          onAppointmentNotification={handleAppointmentNotification}
+            mainView={mainView}
+            allUsersLoading={allUsersLoading}
+            allUsers={allUsers}
+            canUpdateUsers={canUpdateUsers}
+            canDeleteUsers={canDeleteUsers}
+            openAllUsersEditModal={openAllUsersEditModal}
+            openAllUsersDeleteModal={openAllUsersDeleteModal}
+            allUsersPage={allUsersPage}
+            allUsersTotalPages={allUsersTotalPages}
+            allUsersSearch={allUsersSearch}
+            setAllUsersSearch={setAllUsersSearch}
+            loadAllUsers={loadAllUsers}
+            closeAllUsersPanel={closeAllUsersPanel}
+            closeCreateUserPanel={closeCreateUserPanel}
+            clients={clients}
+            clientsLoading={clientsLoading}
+            clientsMessage={clientsMessage}
+            clientsPage={clientsPage}
+            clientsTotalPages={clientsTotalPages}
+            clientsSearch={clientsSearch}
+            setClientsSearch={setClientsSearch}
+            loadClients={loadClients}
+            canCreateClients={canCreateClients}
+            canUpdateClients={canUpdateClients}
+            canDeleteClients={canDeleteClients}
+            clientCreateForm={clientCreateForm}
+            clientCreateErrors={clientCreateErrors}
+            clientCreateSubmitting={clientCreateSubmitting}
+            setClientCreateForm={setClientCreateForm}
+            setClientCreateErrors={setClientCreateErrors}
+            handleClientCreateSubmit={handleClientCreateSubmit}
+            startClientEdit={startClientEdit}
+            openClientsDeleteModal={openClientsDeleteModal}
+            closeAllClientsPanel={closeAllClientsPanel}
+            canReadAppointments={canReadAppointments}
+            canCreateAppointments={canCreateAppointments}
+            canUpdateAppointments={canUpdateAppointments}
+            canDeleteAppointments={canDeleteAppointments}
+            canReadAppointmentBreaks={canReadAppointmentBreaks}
+            canViewAppointmentSpecialistAbsenceBlocks={canViewAppointmentSpecialistAbsenceBlocks}
+            canReadStatisticsPlannerReportPermission={canReadStatisticsPlannerReportPermission}
+            canUpdateAppointmentBreaks={canUpdateAppointmentBreaks}
+            canUpdateSettingsAppointments={canUpdateSettingsAppointments}
+            canCreateAppointmentWorkSchedule={canCreateAppointmentWorkSchedule}
+            canUpdateAppointmentWorkSchedule={canUpdateAppointmentWorkSchedule}
+            canDeleteAppointmentWorkSchedule={canDeleteAppointmentWorkSchedule}
+            closeAppointmentPanel={closeAppointmentPanel}
+            closeAppointmentSettingsPanel={closeAppointmentSettingsPanel}
+            closeOrganizationsPanel={closeOrganizationsPanel}
+            closeRolesPanel={closeRolesPanel}
+            closePositionsPanel={closePositionsPanel}
+            closeMonitoringPanel={closeMonitoringPanel}
+            closeSiteContentPanel={closeSiteContentPanel}
+            closeStatisticsPanel={closeStatisticsPanel}
+            organizations={organizations}
+            organizationsMessage={organizationsMessage}
+            organizationCreateForm={organizationCreateForm}
+            organizationCreateError={organizationCreateError}
+            organizationCreateSubmitting={organizationCreateSubmitting}
+            setOrganizationCreateForm={setOrganizationCreateForm}
+            setOrganizationCreateError={setOrganizationCreateError}
+            handleOrganizationCreateSubmit={handleOrganizationCreateSubmit}
+            startOrganizationEdit={startOrganizationEdit}
+            organizationDeletingId={organizationDeletingId}
+            handleOrganizationDelete={handleOrganizationDelete}
+            hasAdminSettingsAccess={hasAdminSettingsAccess}
+            canCreateSettingsOrganizations={canCreateSettingsOrganizations}
+            canUpdateSettingsOrganizations={canUpdateSettingsOrganizations}
+            canDeleteSettingsOrganizations={canDeleteSettingsOrganizations}
+            rolesSettings={rolesSettings}
+            rolesSettingsMessage={rolesSettingsMessage}
+            rolePermissionTree={rolePermissionTree}
+            roleCreateForm={roleCreateForm}
+            roleCreateError={roleCreateError}
+            roleCreateSubmitting={roleCreateSubmitting}
+            setRoleCreateForm={setRoleCreateForm}
+            setRoleCreateError={setRoleCreateError}
+            handleRoleCreateSubmit={handleRoleCreateSubmit}
+            startRoleEdit={startRoleEdit}
+            roleDeletingId={roleDeletingId}
+            handleRoleDelete={handleRoleDelete}
+            canCreateSettingsRoles={canCreateSettingsRoles}
+            canUpdateSettingsRoles={canUpdateSettingsRoles}
+            canDeleteSettingsRoles={canDeleteSettingsRoles}
+            positionsSettings={positionsSettings}
+            positionsSettingsMessage={positionsSettingsMessage}
+            positionCreateForm={positionCreateForm}
+            positionCreateError={positionCreateError}
+            positionCreateSubmitting={positionCreateSubmitting}
+            setPositionCreateForm={setPositionCreateForm}
+            setPositionCreateError={setPositionCreateError}
+            handlePositionCreateSubmit={handlePositionCreateSubmit}
+            startPositionEdit={startPositionEdit}
+            positionDeletingId={positionDeletingId}
+            handlePositionDelete={handlePositionDelete}
+            canCreateSettingsPositions={canCreateSettingsPositions}
+            canUpdateSettingsPositions={canUpdateSettingsPositions}
+            canDeleteSettingsPositions={canDeleteSettingsPositions}
+            canCreateUsers={canCreateUsers}
+            handleCreateUserSubmit={handleCreateUserSubmit}
+            createForm={createForm}
+            createErrors={createErrors}
+            createSubmitting={createSubmitting}
+            createOrganizationOptions={createOrganizationOptions}
+            setCreateForm={setCreateForm}
+            setCreateErrors={setCreateErrors}
+            roleOptions={roleOptions}
+            profile={profile}
+            canOpenSiteContent={canOpenSiteContent}
+            isOrgFeatureDisabledView={Boolean(profile?.isPlatformAdmin) && isViewBlockedByOrgFeatures(forcedView, profile?.orgFeatures)}
           />
         </Suspense>
 
         <footer className="home-footer">
-          <a
-            className="footer-link"
-            href="https://www.instagram.com/aaron_uzb?igsh=MWxod2Q1eDV6NGowZw=="
-            target="_blank"
-            rel="noreferrer"
-          >
-            <img src="/icon/instagram.svg" alt="" aria-hidden="true" className="footer-link-icon" />
-            <span>Instagram</span>
-          </a>
-          <a className="footer-link" href="https://t.me/aaron_uz" target="_blank" rel="noreferrer">
-            <img src="/icon/telegram.svg" alt="" aria-hidden="true" className="footer-link-icon" />
-            <span>Telegram</span>
-          </a>
-          <a className="footer-link" href="tel:+998954550033">
-            <img src="/icon/call-center.svg" alt="" aria-hidden="true" className="footer-link-icon" />
-            <span>Call Center</span>
-          </a>
+          <div className="home-footer-inner">
+            <a
+              className="footer-link"
+              href="https://www.instagram.com/aaron_uzb?igsh=MWxod2Q1eDV6NGowZw=="
+              target="_blank"
+              rel="noreferrer"
+            >
+              <img src="/icon/instagram.svg" alt="" aria-hidden="true" className="footer-link-icon" />
+              <span>Instagram</span>
+            </a>
+            <a className="footer-link" href="https://t.me/aaron_uz" target="_blank" rel="noreferrer">
+              <img src="/icon/telegram.svg" alt="" aria-hidden="true" className="footer-link-icon" />
+              <span>Telegram</span>
+            </a>
+            <a className="footer-link" href="tel:+998954550033">
+              <img src="/icon/call-center.svg" alt="" aria-hidden="true" className="footer-link-icon" />
+              <span>Call Center</span>
+            </a>
+          </div>
         </footer>
       </div>
 
-      {hasAnyModalOpen && (
+      {hasAnyModalOpen ? (
         <Suspense fallback={null}>
           <ProfileModals
             myProfileModalOpen={myProfileModalOpen}
             closeMyProfilePanel={closeMyProfilePanel}
-            notificationsModalOpen={notificationsModalOpen}
-            closeNotificationsPanel={closeNotificationsPanel}
-            notifications={notifications}
-            clearNotifications={clearNotifications}
             openAvatarPicker={openAvatarPicker}
             avatarDataUrl={avatarDataUrl}
             avatarFallback={avatarFallback}
@@ -1575,36 +1271,6 @@ function ProfilePage({ forcedView = "none" }) {
             clientsDelete={clientsDelete}
             handleClientsDeleteConfirm={handleClientsDeleteConfirm}
             closeClientsDeleteModal={closeClientsDeleteModal}
-            clientMedicalHistoryOpen={clientMedicalHistoryOpen}
-            clientMedicalHistoryClient={clientMedicalHistoryClient}
-            clientMedicalHistoryClientSearch={clientMedicalHistoryClientSearch}
-            clientMedicalHistoryClientOptions={clientMedicalHistoryClientOptions}
-            clientMedicalHistoryClientOptionsLoading={clientMedicalHistoryClientOptionsLoading}
-            clientMedicalHistoryMode={clientMedicalHistoryMode}
-            clientMedicalHistoryItems={clientMedicalHistoryItems}
-            clientMedicalHistorySkeletonCount={clientMedicalHistorySkeletonCount}
-            clientMedicalHistoryLoading={clientMedicalHistoryLoading}
-            clientMedicalHistoryMessage={clientMedicalHistoryMessage}
-            clientMedicalHistoryForm={clientMedicalHistoryForm}
-            clientMedicalHistoryErrors={clientMedicalHistoryErrors}
-            clientMedicalHistorySubmitting={clientMedicalHistorySubmitting}
-            clientMedicalHistoryDeletingId={clientMedicalHistoryDeletingId}
-            clientMedicalHistoryDelete={clientMedicalHistoryDelete}
-            canReadClientMedicalHistory={hasReadClientMedicalHistoryAccess}
-            canCreateClientMedicalHistory={hasCreateClientMedicalHistoryAccess}
-            canUpdateClientMedicalHistory={hasUpdateClientMedicalHistoryAccess}
-            canDeleteClientMedicalHistory={hasDeleteClientMedicalHistoryAccess}
-            setClientMedicalHistoryClientSearch={setClientMedicalHistoryClientSearch}
-            setClientMedicalHistoryForm={setClientMedicalHistoryForm}
-            setClientMedicalHistoryErrors={setClientMedicalHistoryErrors}
-            selectClientMedicalHistoryClient={selectClientMedicalHistoryClient}
-            closeClientMedicalHistoryModal={closeClientMedicalHistoryModal}
-            closeClientMedicalHistoryDeleteModal={closeClientMedicalHistoryDeleteModal}
-            resetClientMedicalHistoryForm={resetClientMedicalHistoryForm}
-            startClientMedicalHistoryEdit={startClientMedicalHistoryEdit}
-            handleClientMedicalHistorySubmit={handleClientMedicalHistorySubmit}
-            openClientMedicalHistoryDeleteModal={openClientMedicalHistoryDeleteModal}
-            handleClientMedicalHistoryDeleteConfirm={handleClientMedicalHistoryDeleteConfirm}
             settingsDelete={settingsDelete}
             handleSettingsDeleteConfirm={handleSettingsDeleteConfirm}
             closeSettingsDeleteModal={closeSettingsDeleteModal}
@@ -1633,61 +1299,23 @@ function ProfilePage({ forcedView = "none" }) {
             setPositionEditError={setPositionEditError}
             positionEditSubmitting={positionEditSubmitting}
             cancelPositionEdit={cancelPositionEdit}
-            normEditOpen={normEditOpen}
-            handleNormEditSave={handleNormEditSave}
-            normEditForm={normEditForm}
-            setNormEditForm={setNormEditForm}
-            normEditError={normEditError}
-            setNormEditError={setNormEditError}
-            normEditSubmitting={normEditSubmitting}
-            cancelNormEdit={cancelNormEdit}
           />
         </Suspense>
-      )}
+      ) : null}
 
       <ProfileSideMenu
         ref={bindSideMenuRef}
         menuRef={menuRef}
-        isPlatformAdmin={Boolean(profile?.isPlatformAdmin)}
         hasClientsMenuAccess={hasClientsMenuAccess}
         canReadClients={canReadClients}
-        canReadClientMedicalHistory={canReadClientMedicalHistory}
         openAllClientsPanel={openAllClientsPanel}
-        openClientMedicalHistoryPanel={openClientMedicalHistoryPanel}
         hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
         canOpenAppointmentSchedule={canOpenAppointmentSchedule}
-        canOpenAppointmentVipMyClass={canOpenAppointmentVipMyClass}
-        canOpenAppointmentBreaks={canOpenAppointmentBreaks}
-        canOpenAppointmentSpecialistAbsences={canOpenAppointmentSpecialistAbsences}
-        canOpenAppointmentWorkSchedule={canOpenAppointmentWorkSchedule}
-        canOpenAppointmentVipClients={canOpenAppointmentVipClients}
-        canOpenAppointmentVipNormMonitoring={canOpenAppointmentVipNormMonitoring}
-        canOpenMyChildren={canOpenMyChildren}
-        canOpenAppointmentVipDailyRoutines={canOpenAppointmentVipDailyRoutines}
-        canOpenAppointmentVipClassAssignments={canOpenAppointmentVipClassAssignments}
-        canOpenAppointmentVipTutorAssignments={canOpenAppointmentVipTutorAssignments}
-        canOpenAppointmentVipAssignments={canOpenAppointmentVipAssignments}
         canOpenAppointmentStatistics={canOpenAppointmentStatistics}
-        canOpenStatisticsClassAttendance={canOpenStatisticsClassAttendance}
         canOpenStatisticsPlannerReport={canOpenStatisticsPlannerReport}
         canOpenAppointmentSettings={canOpenAppointmentSettings}
-        canOpenSettingsOrganizations={canOpenSettingsOrganizations}
-        canOpenSettingsRoles={canOpenSettingsRoles}
-        canOpenSettingsPositions={canOpenSettingsPositions}
-        canOpenSettingsNorms={canOpenSettingsNorms}
         openAppointmentPanel={openAppointmentPanel}
-        openAppointmentBreaksPanel={openAppointmentBreaksPanel}
-        openAppointmentSpecialistAbsencesPanel={openAppointmentSpecialistAbsencesPanel}
-        openAppointmentVipSchedulePanel={openAppointmentVipSchedulePanel}
-        openAppointmentVipAttendancePanel={openAppointmentVipAttendancePanel}
-        openAppointmentVipNormMonitoringPanel={openAppointmentVipNormMonitoringPanel}
-        openAppointmentVipMyChildrenPanel={openAppointmentVipMyChildrenPanel}
-        openAppointmentVipDailyRoutinesPanel={openAppointmentVipDailyRoutinesPanel}
-        openAppointmentVipAssignmentsPanel={openAppointmentVipAssignmentsPanel}
-        openAppointmentVipTutorAssignmentsPanel={openAppointmentVipTutorAssignmentsPanel}
         openAppointmentSettingsPanel={openAppointmentSettingsPanel}
-        openAppointmentWorkSchedulePanel={openAppointmentWorkSchedulePanel}
-        openStatisticsClassPanel={openStatisticsClassPanel}
         openStatisticsPlannerReportPanel={openStatisticsPlannerReportPanel}
         hasUsersMenuAccess={hasUsersMenuAccess}
         canReadUsers={canReadUsers}
@@ -1695,13 +1323,15 @@ function ProfilePage({ forcedView = "none" }) {
         navigate={navigate}
         hasSettingsMenuAccess={hasSettingsMenuAccess}
         hasAdminSettingsAccess={hasAdminSettingsAccess}
-        canSendNotifications={canSendNotifications}
+        canOpenSettingsOrganizations={canOpenSettingsOrganizations}
+        canOpenSettingsRoles={canOpenSettingsRoles}
+        canOpenSettingsPositions={canOpenSettingsPositions}
         openOrganizationsPanel={openOrganizationsPanel}
         openRolesPanel={openRolesPanel}
         openPositionsPanel={openPositionsPanel}
-        openNormsPanel={openNormsPanel}
-        openNotificationsSendPanel={openNotificationsSendPanel}
         openMonitoringPanel={openMonitoringPanel}
+        canOpenSiteContent={canOpenSiteContent}
+        openSiteContentPanel={openSiteContentPanel}
       />
     </>
   );

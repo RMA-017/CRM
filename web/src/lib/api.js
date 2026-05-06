@@ -29,7 +29,7 @@ function getDefaultApiBaseUrl() {
 }
 
 const runtimeBaseUrl = getDefaultApiBaseUrl();
-export const API_BASE_URL = (typeof window !== "undefined" && window.CRM_API_BASE_URL) || runtimeBaseUrl;
+const API_BASE_URL = (typeof window !== "undefined" && window.CRM_API_BASE_URL) || runtimeBaseUrl;
 const STARTUP_RETRY_STATUS_CODES = new Set([502, 503, 504]);
 const MAX_STARTUP_RETRIES = 5;
 const STARTUP_RETRY_DELAY_MS = 350;

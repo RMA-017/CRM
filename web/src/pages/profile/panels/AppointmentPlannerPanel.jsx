@@ -8,8 +8,13 @@ function AppointmentPlannerPanel({
   canCreateAppointments,
   canUpdateAppointments,
   canDeleteAppointments,
+  canUpdateAppointmentBreaks,
+  canCreateAppointmentWorkSchedule,
+  canUpdateAppointmentWorkSchedule,
+  canDeleteAppointmentWorkSchedule,
   currentUserId,
   restrictCreateToOwnSpecialist,
+  specialistLimitedEdit,
   onNotification,
   onClose
 }) {
@@ -35,8 +40,13 @@ function AppointmentPlannerPanel({
         canCreateAppointments={canCreateAppointments}
         canUpdateAppointments={canUpdateAppointments}
         canDeleteAppointments={canDeleteAppointments}
+        canUpdateAppointmentBreaks={canUpdateAppointmentBreaks}
+        canCreateAppointmentWorkSchedule={canCreateAppointmentWorkSchedule}
+        canUpdateAppointmentWorkSchedule={canUpdateAppointmentWorkSchedule}
+        canDeleteAppointmentWorkSchedule={canDeleteAppointmentWorkSchedule}
         currentUserId={currentUserId}
         restrictCreateToOwnSpecialist={restrictCreateToOwnSpecialist}
+        specialistLimitedEdit={specialistLimitedEdit}
         onNotification={onNotification}
       />
     </section>

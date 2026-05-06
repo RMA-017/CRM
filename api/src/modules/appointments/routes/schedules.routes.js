@@ -3,7 +3,6 @@ import { createTtlCache } from "../../../lib/ttl-cache.js";
 import { sendMigrationRequired } from "../../../lib/http.js";
 import { requesterHasOrgFeature } from "../../../lib/org-features.js";
 import { appointmentRouteSchemas } from "./appointment.route-schemas.js";
-import { checkAppointmentNormViolations } from "../../settings/settings.service.js";
 
 const schedulesReadCache = createTtlCache({
   maxEntries: toBoundedInteger(process.env.APPOINTMENT_SCHEDULES_CACHE_MAX, 5000, 100, 50_000),
@@ -44,12 +43,53 @@ function buildClientScheduleConflictMessage(appointmentDate = "") {
     : "This client already has another appointment at this time.";
 }
 
+function getTodayYmdInTashkent() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Tashkent",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date());
+  const year = parts.find((part) => part.type === "year")?.value || "";
+  const month = parts.find((part) => part.type === "month")?.value || "";
+  const day = parts.find((part) => part.type === "day")?.value || "";
+  return year && month && day ? `${year}-${month}-${day}` : "";
+}
+
+function getConfirmedFutureDateError(status, appointmentDates) {
+  if (String(status || "").trim().toLowerCase() !== "confirmed") {
+    return null;
+  }
+  const today = getTodayYmdInTashkent();
+  const futureDate = (Array.isArray(appointmentDates) ? appointmentDates : [appointmentDates])
+    .map((date) => String(date || "").trim())
+    .find((date) => date && today && date > today);
+  return futureDate
+    ? {
+        field: "status",
+        message: `Future appointments cannot be confirmed. Requested date: ${futureDate}.`
+      }
+    : null;
+}
+
 function buildDeleteScopeLabel(scope = "single") {
   return scope === "single" ? "appointment" : "appointment series";
 }
 
 function buildOwnPlannerDeleteForbiddenMessage(scope = "single") {
   return `You can only delete ${buildDeleteScopeLabel(scope)} in your own planner.`;
+}
+
+function buildOwnPlannerSingleOnlyEditForbiddenMessage() {
+  return "Specialists can only edit a single appointment in their own planner.";
+}
+
+function buildOwnPlannerLimitedEditForbiddenMessage() {
+  return "Specialists can only edit time, service, status and note on their own appointments.";
+}
+
+function buildOwnPlannerSingleOnlyDeleteForbiddenMessage() {
+  return "Specialists can only delete a single appointment in their own planner.";
 }
 
 function buildVipAssignedDeleteForbiddenMessage(scope = "single") {
@@ -168,6 +208,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     setNoCacheHeaders,
     requireAppointmentsAccess,
     hasPermission,
+    requesterHasPermission: contextRequesterHasPermission,
     PERMISSIONS,
     parsePositiveIntegerOr,
     parseNullableBoolean,
@@ -221,6 +262,16 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     broadcastAppointmentChange,
     DATE_REGEX
   } = context;
+  const requesterHasPermission = typeof contextRequesterHasPermission === "function"
+    ? contextRequesterHasPermission
+    : async (requester, permissionCode) => {
+        if (requester?.is_admin || requester?.is_platform_admin) {
+          return true;
+        }
+        return typeof hasPermission === "function"
+          ? hasPermission(requester?.role_id, permissionCode)
+          : false;
+      };
 
   function sortScheduleItems(items) {
     return [...(Array.isArray(items) ? items : [])].sort((left, right) => {
@@ -725,12 +776,12 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const isMyChildrenScheduleRequest = vipOnly && !requestedSpecialistId && !classId;
 
         const [rawCanReadAppointments, rawCanAccessMyChildren, rawCanAccessMyClass] = await Promise.all([
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_PLANNER_READ),
+          requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_PLANNER_READ),
           isMyChildrenScheduleRequest
-            ? hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN)
+            ? requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN)
             : Promise.resolve(false),
           vipOnly && classId > 0
-            ? hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS)
+            ? requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS)
             : Promise.resolve(false)
         ]);
         const canReadAppointments = requesterHasOrgFeature(requester, "appointments.planner")
@@ -869,45 +920,6 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     }
   );
 
-  fastify.get(
-    "/schedules/norm-check",
-    { config: { rateLimit: fastify.apiRateLimit } },
-    async (request, reply) => {
-      setNoCacheHeaders(reply);
-
-      const access = await requireAppointmentsAccess(
-        request,
-        reply,
-        PERMISSIONS.APPOINTMENTS_PLANNER_CREATE,
-        "appointments.planner"
-      );
-      if (!access) {
-        return;
-      }
-
-      const specialistId = parsePositiveIntegerOr(request.query?.specialistId, 0);
-      const clientId = parsePositiveIntegerOr(request.query?.clientId, 0);
-      const date = String(request.query?.date || "").trim();
-
-      if (!specialistId || !clientId || !DATE_REGEX.test(date)) {
-        return reply.status(400).send({ message: "specialistId, clientId and date are required." });
-      }
-
-      try {
-        const violations = await checkAppointmentNormViolations({
-          organizationId: access.authContext.organizationId,
-          specialistId,
-          clientId,
-          appointmentDate: date
-        });
-        return reply.send({ violations });
-      } catch (error) {
-        request.log.error({ err: error }, "Error checking appointment norm violations");
-        return reply.status(500).send({ message: "Internal server error." });
-      }
-    }
-  );
-
   fastify.post(
     "/schedules",
     {
@@ -967,6 +979,10 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         });
         if (Object.keys(errors).length > 0) {
           return reply.status(400).send({ errors });
+        }
+        const confirmedDateError = getConfirmedFutureDateError(status, [appointmentDate]);
+        if (confirmedDateError) {
+          return reply.status(400).send(confirmedDateError);
         }
 
         const clientScopeInfo = await getAppointmentClientScopeInfo({
@@ -1044,6 +1060,10 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           const historyLockError = getHistoryLockErrorForRequester(access.requester, recurringDates, historyLockDays);
           if (historyLockError) {
             return reply.status(403).send(historyLockError);
+          }
+          const repeatConfirmedDateError = getConfirmedFutureDateError(status, recurringDates);
+          if (repeatConfirmedDateError) {
+            return reply.status(400).send(repeatConfirmedDateError);
           }
 
           const repeatDayNums = repeatDayKeys
@@ -1442,25 +1462,8 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         });
         schedulesReadCache.clear();
 
-        let normWarning = null;
-        try {
-          const violations = await checkAppointmentNormViolations({
-            organizationId: access.authContext.organizationId,
-            specialistId,
-            clientId,
-            appointmentDate
-          });
-          if (violations.length > 0) {
-            const v = violations[0];
-            normWarning = `${v.positionLabel}: this client has ${v.currentCount} sessions this week (max: ${v.maxPerWeek}).`;
-          }
-        } catch {
-          // norm check failure must not prevent appointment creation
-        }
-
         return reply.status(201).send({
-          message: normWarning ? `Appointment created. Warning: ${normWarning}` : "Appointment created.",
-          normWarning,
+          message: "Appointment created.",
           item
         });
       } catch (error) {
@@ -1507,8 +1510,8 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         }
 
         const [rawCanUpdateAppointments, rawCanAccessMyChildren] = await Promise.all([
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_PLANNER_UPDATE),
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN)
+          requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_PLANNER_UPDATE),
+          requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN)
         ]);
         const canUpdateAppointments = requesterHasOrgFeature(requester, "appointments.planner")
           && rawCanUpdateAppointments;
@@ -1539,6 +1542,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const ownSpecialistUserId = !isMyChildrenConfirmOnly
           ? resolveOwnAppointmentSpecialistUserId(access)
           : null;
+        if (ownSpecialistUserId && scope !== "single") {
+          return reply.status(403).send({ message: buildOwnPlannerSingleOnlyEditForbiddenMessage() });
+        }
         if (ownSpecialistUserId && specialistId !== ownSpecialistUserId) {
           return reply.status(403).send({ message: "Forbidden." });
         }
@@ -1599,6 +1605,24 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           && target.items.some((item) => Number.parseInt(String(item?.specialistId || ""), 10) !== ownSpecialistUserId)
         ) {
           return reply.status(403).send({ message: "Forbidden." });
+        }
+        if (ownSpecialistUserId) {
+          if (target.scope !== "single" || target.items.length !== 1) {
+            return reply.status(403).send({ message: buildOwnPlannerSingleOnlyEditForbiddenMessage() });
+          }
+          const targetItem = target.items[0];
+          const targetDurationMinutes = parsePositiveIntegerOr(targetItem?.durationMinutes, 0)
+            || getDurationMinutesFromTimes(targetItem?.startTime, targetItem?.endTime);
+          const keepsLimitedEditScope = (
+            Number.parseInt(String(targetItem?.specialistId || ""), 10) === specialistId
+            && Number.parseInt(String(targetItem?.clientId || ""), 10) === clientId
+            && String(targetItem?.appointmentDate || "").trim() === appointmentDate
+            && targetDurationMinutes === durationMinutes
+            && !repeat.enabled
+          );
+          if (!keepsLimitedEditScope) {
+            return reply.status(403).send({ message: buildOwnPlannerLimitedEditForbiddenMessage() });
+          }
         }
         const requiresVipScopeGuard = (target.items.some((item) => item?.isVip === true)
           || updatedClientScopeInfo?.isVip === true)
@@ -1688,6 +1712,13 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             return reply.status(403).send(requestDateHistoryLockError);
           }
         }
+        const targetDatesForConfirmedStatus = target.scope === "single"
+          ? [appointmentDate]
+          : target.items.map((item) => item.appointmentDate);
+        const confirmedDateError = getConfirmedFutureDateError(status, targetDatesForConfirmedStatus);
+        if (confirmedDateError) {
+          return reply.status(400).send(confirmedDateError);
+        }
 
         const shouldConvertSingleToRepeat = repeat.enabled && target.scope === "single" && !target.isRecurring;
         if (shouldConvertSingleToRepeat) {
@@ -1741,6 +1772,10 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           );
           if (repeatHistoryLockError) {
             return reply.status(403).send(repeatHistoryLockError);
+          }
+          const repeatConfirmedDateError = getConfirmedFutureDateError(status, recurringDates);
+          if (repeatConfirmedDateError) {
+            return reply.status(400).send(repeatConfirmedDateError);
           }
 
           const shouldEnforceAvailability = status === "pending" || status === "confirmed";
@@ -2991,6 +3026,10 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const requestedDeleteDayKeys = parseScheduleDayKeysQuery(
           request.query?.dayKeys ?? request.query?.day_keys
         );
+        const ownSpecialistUserId = resolveOwnAppointmentSpecialistUserId(access);
+        if (ownSpecialistUserId && scope !== "single") {
+          return reply.status(403).send({ message: buildOwnPlannerSingleOnlyDeleteForbiddenMessage() });
+        }
 
         const rawTarget = await getAppointmentScheduleTargetsByScope({
           organizationId: access.authContext.organizationId,
@@ -3001,7 +3040,6 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         if (!Array.isArray(target.items) || target.items.length === 0) {
           return reply.status(404).send({ message: "Appointment not found." });
         }
-        const ownSpecialistUserId = resolveOwnAppointmentSpecialistUserId(access);
         if (
           ownSpecialistUserId
           && target.items.some((item) => Number.parseInt(String(item?.specialistId || ""), 10) !== ownSpecialistUserId)

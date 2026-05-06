@@ -15,8 +15,8 @@ import {
 let vipAttendanceSchemaInitPromise = null;
 let vipAssignmentsSchemaInitPromise = null;
 let vipClassDailyRoutinesSchemaInitPromise = null;
-let clientMedicalHistorySchemaInitPromise = null;
 let appointmentCalendarTablesReadyPromise = null;
+const CLIENT_NAME_CONFLICT_CONSTRAINT = "uq_clients_org_person_name_ci";
 const clientsReferenceCache = createTtlCache({
   maxEntries: 128,
   defaultTtlMs: 30_000
@@ -65,9 +65,15 @@ export function resetClientsServiceSchemaCacheForTests() {
   vipAttendanceSchemaInitPromise = null;
   vipAssignmentsSchemaInitPromise = null;
   vipClassDailyRoutinesSchemaInitPromise = null;
-  clientMedicalHistorySchemaInitPromise = null;
   appointmentCalendarTablesReadyPromise = null;
   clearClientsReferenceCaches();
+}
+
+export function isClientNameConflictError(error) {
+  return (
+    error?.code === "23505"
+    && String(error?.constraint || "").trim().toLowerCase() === CLIENT_NAME_CONFLICT_CONSTRAINT
+  );
 }
 
 function buildPagedRowsResult(rows, {
@@ -190,38 +196,6 @@ async function ensureVipClassDailyRoutinesSchema() {
   }
 
   return vipClassDailyRoutinesSchemaInitPromise;
-}
-
-async function ensureClientMedicalHistorySchema() {
-  if (!clientMedicalHistorySchemaInitPromise) {
-    clientMedicalHistorySchemaInitPromise = (async () => {
-      const existingTables = await getExistingTableNames({
-        tableNames: ["client_medical_history_entries"]
-      });
-      const missingTables = ["client_medical_history_entries"]
-        .filter((tableName) => !existingTables.has(tableName));
-      if (missingTables.length > 0) {
-        throw buildMissingTablesError("Client medical history migration is required.", missingTables);
-      }
-    })().catch((error) => {
-      clientMedicalHistorySchemaInitPromise = null;
-      throw error;
-    });
-  }
-
-  return clientMedicalHistorySchemaInitPromise;
-}
-
-async function hasClientMedicalHistorySchema() {
-  try {
-    await ensureClientMedicalHistorySchema();
-    return true;
-  } catch (error) {
-    if (error?.code === "MIGRATION_REQUIRED") {
-      return false;
-    }
-    throw error;
-  }
 }
 
 export async function findClientsRequester(authContext = {}) {
@@ -395,11 +369,11 @@ export async function getVipAttendanceTeachersByOrganization(organizationId) {
   ]);
 }
 
-export async function getVipAttendanceEducatorsByOrganization(organizationId) {
+async function getVipAttendanceEducatorsByOrganization(organizationId) {
   return getOrganizationUsersByExactPositionLabels(organizationId, ["educator"]);
 }
 
-export async function getVipAttendanceTutorsByOrganization(organizationId) {
+async function getVipAttendanceTutorsByOrganization(organizationId) {
   return getOrganizationUsersByExactPositionLabels(organizationId, ["tutor"]);
 }
 
@@ -437,40 +411,6 @@ export async function getVipClientOptionsByOrganization({
   return items;
 }
 
-export async function getClientMedicalHistoryClientOptions({
-  organizationId,
-  limit = 1000
-}) {
-  await ensureClientMedicalHistorySchema();
-
-  const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 2000) : 1000;
-  const { rows } = await pool.query(
-    `SELECT
-       c.id::text AS id,
-       c.organization_id::text AS organization_id,
-       c.first_name,
-       c.last_name,
-       c.middle_name,
-       c.birthday,
-       c.is_vip,
-       c.created_at,
-       c.updated_at
-      FROM clients c
-      JOIN organizations o ON o.id = c.organization_id
-      WHERE c.organization_id = $1
-        AND o.is_active = TRUE
-      ORDER BY
-        LOWER(COALESCE(c.last_name, '')) ASC,
-        LOWER(COALESCE(c.first_name, '')) ASC,
-        LOWER(COALESCE(c.middle_name, '')) ASC,
-        c.id ASC
-      LIMIT $2`,
-    [organizationId, safeLimit]
-  );
-
-  return rows || [];
-}
-
 export async function getVipAssignmentOptionsByOrganization(organizationId) {
   const [teachers, tutors] = await Promise.all([
     getOrganizationUsersByOrganization(organizationId),
@@ -485,7 +425,7 @@ export async function getVipAssignmentOptionsByOrganization(organizationId) {
   };
 }
 
-export async function getVipClassAssignments({
+async function getVipClassAssignments({
   organizationId,
   assignedUserId = null,
   limit = 200
@@ -539,7 +479,7 @@ export async function getVipClassAssignments({
   return rows || [];
 }
 
-export async function getVipClassAssignmentOptions({
+async function getVipClassAssignmentOptions({
   organizationId,
   assignedUserId = null,
   limit = 500
@@ -583,7 +523,7 @@ export async function getVipClassAssignmentOptions({
   return rows || [];
 }
 
-export async function getVipClassAssignmentHistory({
+async function getVipClassAssignmentHistory({
   organizationId,
   classId = null,
   assignedUserId = null,
@@ -651,7 +591,7 @@ export async function getVipClassAssignmentHistory({
   return rows || [];
 }
 
-export async function upsertVipClassAssignment({
+async function upsertVipClassAssignment({
   organizationId,
   classId = null,
   className,
@@ -863,7 +803,7 @@ export async function upsertVipClassAssignment({
   return rows[0] || null;
 }
 
-export async function deleteVipClassAssignment({
+async function deleteVipClassAssignment({
   organizationId,
   classId
 }) {
@@ -894,7 +834,7 @@ export async function deleteVipClassAssignment({
   }
 }
 
-export async function getVipTutorAssignments({
+async function getVipTutorAssignments({
   organizationId,
   assignedUserId = null,
   limit = 200
@@ -958,7 +898,7 @@ export async function getVipTutorAssignments({
   return rows || [];
 }
 
-export async function getVipNormMonitoringRows({
+async function getVipNormMonitoringRows({
   organizationId,
   assignedUserId = null,
   limit = 2000
@@ -1339,7 +1279,7 @@ export async function getVipNormMonitoringRows({
   return result;
 }
 
-export async function findVipTutorAssignmentByClientId({
+async function findVipTutorAssignmentByClientId({
   organizationId,
   clientId
 }) {
@@ -1365,7 +1305,7 @@ export async function findVipTutorAssignmentByClientId({
   return rows[0] || null;
 }
 
-export async function isVipClassAssignedToUser({
+async function isVipClassAssignedToUser({
   organizationId,
   classId,
   userId
@@ -1400,7 +1340,7 @@ export async function isVipClassAssignedToUser({
   return rows.length > 0;
 }
 
-export async function getVipTutorAssignmentHistory({
+async function getVipTutorAssignmentHistory({
   organizationId,
   clientId = null,
   assignedUserId = null,
@@ -1490,7 +1430,7 @@ export async function getVipTutorAssignmentHistory({
   return rows || [];
 }
 
-export async function getVipClassDailyRoutines({
+async function getVipClassDailyRoutines({
   organizationId,
   classId = null,
   dayOfWeek = null,
@@ -1606,7 +1546,7 @@ export async function getVipClassDailyRoutines({
   return rows || [];
 }
 
-export async function getVipClassDailyRoutineSpecialists({
+async function getVipClassDailyRoutineSpecialists({
   organizationId,
   classId = null,
   assignedUserId = null,
@@ -1708,7 +1648,7 @@ export async function getVipClassDailyRoutineSpecialists({
   }));
 }
 
-export async function findVipClassDailyRoutineConflictForSpecialist({
+async function findVipClassDailyRoutineConflictForSpecialist({
   organizationId,
   routineId = null,
   specialistId,
@@ -1784,7 +1724,7 @@ export async function findVipClassDailyRoutineConflictForSpecialist({
   };
 }
 
-export async function findVipClassDailyRoutineConflictForClass({
+async function findVipClassDailyRoutineConflictForClass({
   organizationId,
   routineId = null,
   classId,
@@ -1860,7 +1800,7 @@ export async function findVipClassDailyRoutineConflictForClass({
   };
 }
 
-export async function upsertVipClassDailyRoutine({
+async function upsertVipClassDailyRoutine({
   organizationId,
   routineId = null,
   classId,
@@ -2093,7 +2033,7 @@ export async function upsertVipClassDailyRoutine({
   return rows[0] || null;
 }
 
-export async function deleteVipClassDailyRoutine({
+async function deleteVipClassDailyRoutine({
   organizationId,
   routineId
 }) {
@@ -2106,7 +2046,7 @@ export async function deleteVipClassDailyRoutine({
   );
 }
 
-export async function getVipAttendanceHistory({
+async function getVipAttendanceHistory({
   organizationId,
   fromDate = null,
   toDate = null,
@@ -2221,7 +2161,7 @@ export async function getVipAttendanceHistory({
   return rows || [];
 }
 
-export async function findVipClientAttendanceByDate({
+async function findVipClientAttendanceByDate({
   organizationId,
   clientId,
   attendanceDate
@@ -2250,7 +2190,7 @@ export async function findVipClientAttendanceByDate({
   return rows[0] || null;
 }
 
-export async function findVipClassDailyRoutineById({
+async function findVipClassDailyRoutineById({
   organizationId,
   routineId
 }) {
@@ -2506,34 +2446,11 @@ export async function getClientsPage({
   page,
   limit,
   search = "",
-  historyNameSearch = "",
   firstName = "",
   lastName = "",
   middleName = "",
-  clientId = null,
-  isVip = null,
-  historyDateFrom = "",
-  historyDateTo = "",
-  historyPositionId = null,
-  historySpecialistId = null
+  clientId = null
 }) {
-  const normalizedHistoryDateFrom = String(historyDateFrom || "").trim();
-  const normalizedHistoryDateTo = String(historyDateTo || "").trim();
-  const hasHistoryPositionFilter = Number.isInteger(historyPositionId) && historyPositionId > 0;
-  const hasHistorySpecialistFilter = Number.isInteger(historySpecialistId) && historySpecialistId > 0;
-  const requiresMedicalHistorySchema = Boolean(
-    normalizedHistoryDateFrom
-    || normalizedHistoryDateTo
-    || hasHistoryPositionFilter
-    || hasHistorySpecialistFilter
-  );
-  const medicalHistorySchemaReady = await hasClientMedicalHistorySchema();
-  if (!medicalHistorySchemaReady && requiresMedicalHistorySchema) {
-    throw buildMissingTablesError("Client medical history migration is required.", [
-      "client_medical_history_entries"
-    ]);
-  }
-
   const whereParts = ["c.organization_id = $1", "o.is_active = TRUE"];
   const params = [organizationId];
 
@@ -2555,47 +2472,9 @@ export async function getClientsPage({
     whereParts.push(`LOWER(COALESCE(c.middle_name, '')) LIKE $${params.length}`);
   }
 
-  const normalizedHistoryNameTokens = normalizeSearchToken(historyNameSearch)
-    .split(/\s+/)
-    .filter(Boolean);
-  normalizedHistoryNameTokens.forEach((token) => {
-    params.push(`%${token}%`);
-    const tokenParamIndex = params.length;
-    whereParts.push(`(
-      LOWER(COALESCE(c.first_name, '')) LIKE $${tokenParamIndex}
-      OR LOWER(COALESCE(c.last_name, '')) LIKE $${tokenParamIndex}
-      OR LOWER(COALESCE(c.middle_name, '')) LIKE $${tokenParamIndex}
-    )`);
-  });
-
   if (Number.isInteger(clientId) && clientId > 0) {
     params.push(clientId);
     whereParts.push(`c.id = $${params.length}`);
-  }
-
-  if (typeof isVip === "boolean") {
-    params.push(isVip);
-    whereParts.push(`c.is_vip = $${params.length}`);
-  }
-
-  if (medicalHistorySchemaReady && normalizedHistoryDateFrom) {
-    params.push(normalizedHistoryDateFrom);
-    whereParts.push(`latest_history.entry_date >= $${params.length}::date`);
-  }
-
-  if (medicalHistorySchemaReady && normalizedHistoryDateTo) {
-    params.push(normalizedHistoryDateTo);
-    whereParts.push(`latest_history.entry_date <= $${params.length}::date`);
-  }
-
-  if (medicalHistorySchemaReady && hasHistoryPositionFilter) {
-    params.push(historyPositionId);
-    whereParts.push(`latest_author.position_id = $${params.length}`);
-  }
-
-  if (medicalHistorySchemaReady && hasHistorySpecialistFilter) {
-    params.push(historySpecialistId);
-    whereParts.push(`latest_history.author_user_id = $${params.length}`);
   }
 
   const normalizedSearch = normalizeSearchToken(search);
@@ -2637,69 +2516,6 @@ export async function getClientsPage({
   const requestedPage = Number.isInteger(page) && page > 0 ? page : 1;
   const limitParamRef = `$${params.length + 1}`;
   const pageParamRef = `$${params.length + 2}`;
-  const totalMedicalHistoryJoinSql = medicalHistorySchemaReady
-    ? `LEFT JOIN LATERAL (
-         SELECT h.author_user_id, h.entry_date
-           FROM client_medical_history_entries h
-          WHERE h.organization_id = c.organization_id
-            AND h.client_id = c.id
-          ORDER BY h.entry_date DESC, h.created_at DESC, h.id DESC
-          LIMIT 1
-       ) latest_history ON TRUE
-       LEFT JOIN users latest_author
-         ON latest_author.id = latest_history.author_user_id
-        AND latest_author.organization_id = c.organization_id`
-    : "";
-  const rowMedicalHistoryJoinSql = medicalHistorySchemaReady
-    ? `LEFT JOIN LATERAL (
-        SELECT
-          h.author_user_id,
-          h.entry_date,
-          h.condition_name,
-          COALESCE(h.symptoms, '') AS symptoms,
-          COALESCE(h.diagnosis, '') AS diagnosis,
-          COALESCE(h.treatment_plan, '') AS treatment_plan,
-          COALESCE(h.note, '') AS note
-          FROM client_medical_history_entries h
-         WHERE h.organization_id = c.organization_id
-           AND h.client_id = c.id
-         ORDER BY h.entry_date DESC, h.created_at DESC, h.id DESC
-         LIMIT 1
-      ) latest_history ON TRUE
-      LEFT JOIN users latest_author
-        ON latest_author.id = latest_history.author_user_id
-       AND latest_author.organization_id = c.organization_id
-      LEFT JOIN position_options latest_position
-        ON latest_position.id = latest_author.position_id
-       AND (
-         latest_position.organization_id = c.organization_id
-         OR latest_position.organization_id IS NULL
-       )`
-    : "";
-  const rowMedicalHistorySelectSql = medicalHistorySchemaReady
-    ? `latest_history.entry_date AS history_entry_date,
-       COALESCE(latest_history.condition_name, '') AS history_condition_name,
-       COALESCE(latest_history.symptoms, '') AS history_symptoms,
-       COALESCE(latest_history.diagnosis, '') AS history_diagnosis,
-       COALESCE(latest_history.treatment_plan, '') AS history_treatment_plan,
-       COALESCE(latest_history.note, '') AS history_note,
-       COALESCE(
-         NULLIF(TRIM(latest_author.full_name), ''),
-         NULLIF(TRIM(latest_author.username), ''),
-         CASE
-           WHEN latest_history.author_user_id IS NOT NULL THEN CONCAT('User #', latest_history.author_user_id::text)
-           ELSE ''
-         END
-       ) AS history_specialist_name,
-       COALESCE(latest_position.label, '') AS history_specialist_position`
-    : `NULL::date AS history_entry_date,
-       ''::text AS history_condition_name,
-       ''::text AS history_symptoms,
-       ''::text AS history_diagnosis,
-       ''::text AS history_treatment_plan,
-       ''::text AS history_note,
-       ''::text AS history_specialist_name,
-       ''::text AS history_specialist_position`;
   const rowsResult = await pool.query(
     `WITH filtered_clients AS (
        SELECT
@@ -2712,7 +2528,6 @@ export async function getClientsPage({
          c.birthday,
          c.phone_number,
          c.tg_mail,
-         c.is_vip,
          c.created_by::text AS created_by,
          c.updated_by::text AS updated_by,
          COALESCE(
@@ -2727,15 +2542,13 @@ export async function getClientsPage({
          ) AS updated_by_name,
          c.created_at,
          c.updated_at,
-         c.note,
-         ${rowMedicalHistorySelectSql}
+         c.note
         FROM clients c
         JOIN organizations o ON o.id = c.organization_id
         LEFT JOIN users u ON u.id = c.created_by
          AND u.organization_id = c.organization_id
         LEFT JOIN users uu ON uu.id = c.updated_by
          AND uu.organization_id = c.organization_id
-        ${rowMedicalHistoryJoinSql}
         ${whereSql}
      ),
      meta AS (
@@ -2771,180 +2584,7 @@ export async function getClientsPage({
   });
 }
 
-export async function getClientMedicalHistoryClientsPage({
-  organizationId,
-  page,
-  limit,
-  search = "",
-  isVip = null
-}) {
-  await ensureClientMedicalHistorySchema();
-
-  const whereParts = ["c.organization_id = $1", "o.is_active = TRUE"];
-  const params = [organizationId];
-
-  if (typeof isVip === "boolean") {
-    params.push(isVip);
-    whereParts.push(`c.is_vip = $${params.length}`);
-  }
-
-  const normalizedSearch = normalizeSearchToken(search);
-  if (normalizedSearch) {
-    const isNumericSearch = /^\d+$/.test(normalizedSearch);
-    const usePrefixOnly = normalizedSearch.length < 4;
-    params.push(`${normalizedSearch}%`);
-    const prefixParamIndex = params.length;
-    let numericSearchParamIndex = 0;
-    if (isNumericSearch) {
-      params.push(Number.parseInt(normalizedSearch, 10));
-      numericSearchParamIndex = params.length;
-    }
-
-    if (usePrefixOnly) {
-      whereParts.push(`(
-        LOWER(COALESCE(c.first_name, '')) LIKE $${prefixParamIndex}
-        OR LOWER(COALESCE(c.last_name, '')) LIKE $${prefixParamIndex}
-        OR LOWER(COALESCE(c.middle_name, '')) LIKE $${prefixParamIndex}
-        OR COALESCE(c.phone_number, '') LIKE $${prefixParamIndex}
-        ${numericSearchParamIndex ? `OR c.id = $${numericSearchParamIndex}` : ""}
-      )`);
-    } else {
-      params.push(`%${normalizedSearch}%`);
-      const containsParamIndex = params.length;
-      whereParts.push(`(
-        LOWER(COALESCE(c.first_name, '')) LIKE $${prefixParamIndex}
-        OR LOWER(COALESCE(c.last_name, '')) LIKE $${prefixParamIndex}
-        OR LOWER(COALESCE(c.middle_name, '')) LIKE $${prefixParamIndex}
-        OR COALESCE(c.phone_number, '') LIKE $${prefixParamIndex}
-        OR LOWER(COALESCE(c.tg_mail, '')) LIKE $${containsParamIndex}
-        OR LOWER(COALESCE(c.note, '')) LIKE $${containsParamIndex}
-        ${numericSearchParamIndex ? `OR c.id = $${numericSearchParamIndex}` : ""}
-      )`);
-    }
-  }
-
-  const whereSql = `WHERE ${whereParts.join(" AND ")}`;
-  const requestedPage = Number.isInteger(page) && page > 0 ? page : 1;
-  const limitParamRef = `$${params.length + 1}`;
-  const pageParamRef = `$${params.length + 2}`;
-  const latestHistoryCte = `WITH latest_history AS (
-    SELECT DISTINCT ON (h.client_id)
-      h.id,
-      h.client_id,
-      h.author_user_id,
-      COUNT(*) OVER (PARTITION BY h.client_id)::int AS history_count,
-      h.entry_date,
-      h.condition_name,
-      COALESCE(h.symptoms, '') AS symptoms,
-      COALESCE(h.diagnosis, '') AS diagnosis,
-      COALESCE(h.treatment_plan, '') AS treatment_plan,
-      COALESCE(h.note, '') AS note,
-      h.created_at
-    FROM client_medical_history_entries h
-    WHERE h.organization_id = $1
-    ORDER BY h.client_id, h.entry_date DESC, h.created_at DESC, h.id DESC
-  )`;
-  const rowsResult = await pool.query(
-    `${latestHistoryCte}
-     , filtered_clients AS (
-       SELECT
-         c.id::text AS id,
-         c.id AS _sort_client_id,
-         latest_history.created_at AS _sort_history_created_at,
-         c.organization_id::text AS organization_id,
-         c.first_name,
-         c.last_name,
-         c.middle_name,
-         c.birthday,
-         c.phone_number,
-         c.tg_mail,
-         c.is_vip,
-         c.created_by::text AS created_by,
-         c.updated_by::text AS updated_by,
-         COALESCE(
-           NULLIF(TRIM(u.full_name), ''),
-           NULLIF(TRIM(u.username), ''),
-           c.created_by::text
-         ) AS created_by_name,
-         COALESCE(
-           NULLIF(TRIM(uu.full_name), ''),
-           NULLIF(TRIM(uu.username), ''),
-           c.updated_by::text
-         ) AS updated_by_name,
-         c.created_at,
-         c.updated_at,
-         c.note,
-         latest_history.id::text AS history_entry_id,
-         latest_history.history_count,
-         latest_history.entry_date AS history_entry_date,
-         COALESCE(latest_history.condition_name, '') AS history_condition_name,
-         COALESCE(latest_history.symptoms, '') AS history_symptoms,
-         COALESCE(latest_history.diagnosis, '') AS history_diagnosis,
-         COALESCE(latest_history.treatment_plan, '') AS history_treatment_plan,
-         COALESCE(latest_history.note, '') AS history_note,
-         COALESCE(
-           NULLIF(TRIM(latest_author.full_name), ''),
-           NULLIF(TRIM(latest_author.username), ''),
-           CASE
-             WHEN latest_history.author_user_id IS NOT NULL THEN CONCAT('User #', latest_history.author_user_id::text)
-             ELSE ''
-           END
-         ) AS history_specialist_name,
-         COALESCE(latest_position.label, '') AS history_specialist_position
-        FROM latest_history
-        JOIN clients c
-          ON c.id = latest_history.client_id
-         AND c.organization_id = $1
-        JOIN organizations o ON o.id = c.organization_id
-        LEFT JOIN users u ON u.id = c.created_by
-         AND u.organization_id = c.organization_id
-        LEFT JOIN users uu ON uu.id = c.updated_by
-         AND uu.organization_id = c.organization_id
-        LEFT JOIN users latest_author
-          ON latest_author.id = latest_history.author_user_id
-         AND latest_author.organization_id = c.organization_id
-        LEFT JOIN position_options latest_position
-          ON latest_position.id = latest_author.position_id
-         AND (
-           latest_position.organization_id = c.organization_id
-           OR latest_position.organization_id IS NULL
-         )
-        ${whereSql}
-     ),
-     meta AS (
-       SELECT
-         COUNT(*)::int AS total,
-         GREATEST(1, CEIL(COUNT(*)::numeric / ${limitParamRef})::int) AS total_pages
-        FROM filtered_clients
-     )
-     SELECT
-       meta.total,
-       meta.total_pages,
-       paged.*
-      FROM meta
-      LEFT JOIN LATERAL (
-        SELECT *
-          FROM filtered_clients
-         ORDER BY history_entry_date DESC, _sort_history_created_at DESC, _sort_client_id DESC
-         LIMIT ${limitParamRef}
-        OFFSET CASE
-          WHEN meta.total = 0 THEN 0
-          WHEN ${pageParamRef} < 1 THEN 0
-          WHEN ${pageParamRef} > meta.total_pages THEN (meta.total_pages - 1) * ${limitParamRef}
-          ELSE (${pageParamRef} - 1) * ${limitParamRef}
-        END
-      ) paged ON TRUE`,
-    [...params, limit, requestedPage]
-  );
-
-  return buildPagedRowsResult(rowsResult.rows, {
-    limit,
-    requestedPage,
-    omitKeys: ["_sort_client_id", "_sort_history_created_at"]
-  });
-}
-
-export async function getClientSummaryById({
+async function getClientSummaryById({
   organizationId,
   clientId
 }) {
@@ -2971,493 +2611,67 @@ export async function getClientSummaryById({
   return rows[0] || null;
 }
 
-export async function getClientMedicalHistoryEntries({
-  organizationId,
-  clientId,
-  limit = 200
-}) {
-  await ensureClientMedicalHistorySchema();
-
-  const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 500) : 200;
-  const { rows } = await pool.query(
-    `SELECT
-       h.id::text AS id,
-       h.organization_id::text AS organization_id,
-       h.client_id::text AS client_id,
-       h.entry_date,
-       h.condition_name,
-       COALESCE(h.symptoms, '') AS symptoms,
-       COALESCE(h.diagnosis, '') AS diagnosis,
-       COALESCE(h.treatment_plan, '') AS treatment_plan,
-       COALESCE(h.note, '') AS note,
-       h.author_user_id::text AS author_user_id,
-       COALESCE(
-         NULLIF(TRIM(au.full_name), ''),
-         NULLIF(TRIM(au.username), ''),
-         CASE
-           WHEN h.author_user_id IS NOT NULL THEN CONCAT('User #', h.author_user_id::text)
-           ELSE ''
-         END
-       ) AS author_name,
-       COALESCE(NULLIF(TRIM(ap.label), ''), '') AS author_position_label,
-       h.created_by::text AS created_by,
-       h.updated_by::text AS updated_by,
-       COALESCE(
-         NULLIF(TRIM(cu.full_name), ''),
-         NULLIF(TRIM(cu.username), ''),
-         CASE
-           WHEN h.created_by IS NOT NULL THEN CONCAT('User #', h.created_by::text)
-           ELSE ''
-         END
-       ) AS created_by_name,
-       COALESCE(
-         NULLIF(TRIM(uu.full_name), ''),
-         NULLIF(TRIM(uu.username), ''),
-         CASE
-           WHEN h.updated_by IS NOT NULL THEN CONCAT('User #', h.updated_by::text)
-           ELSE ''
-         END
-       ) AS updated_by_name,
-       h.created_at,
-       h.updated_at
-      FROM client_medical_history_entries h
-      JOIN organizations o ON o.id = h.organization_id
-      LEFT JOIN users au
-        ON au.id = h.author_user_id
-       AND au.organization_id = h.organization_id
-      LEFT JOIN position_options ap
-        ON ap.id = au.position_id
-       AND (
-         ap.organization_id = h.organization_id
-         OR ap.organization_id IS NULL
-       )
-      LEFT JOIN users cu
-        ON cu.id = h.created_by
-       AND cu.organization_id = h.organization_id
-      LEFT JOIN users uu
-        ON uu.id = h.updated_by
-       AND uu.organization_id = h.organization_id
-     WHERE h.organization_id = $1
-       AND h.client_id = $2
-       AND o.is_active = TRUE
-     ORDER BY h.entry_date DESC, h.created_at DESC, h.id DESC
-     LIMIT $3`,
-    [organizationId, clientId, safeLimit]
-  );
-
-  return rows || [];
-}
-
-export async function createClientMedicalHistoryEntry({
-  organizationId,
-  clientId,
-  entryDate,
-  conditionName,
-  symptoms = "",
-  diagnosis = "",
-  treatmentPlan = "",
-  note = "",
-  authorUserId
-}) {
-  await ensureClientMedicalHistorySchema();
-
-  const { rows } = await pool.query(
-    `WITH target_client AS (
-       SELECT c.id
-         FROM clients c
-         JOIN organizations o ON o.id = c.organization_id
-        WHERE c.organization_id = $1
-          AND c.id = $2
-          AND o.is_active = TRUE
-        LIMIT 1
-     ),
-     inserted AS (
-       INSERT INTO client_medical_history_entries (
-         organization_id,
-         client_id,
-         entry_date,
-         condition_name,
-         symptoms,
-         diagnosis,
-         treatment_plan,
-         note,
-         author_user_id,
-         created_by,
-         updated_by
-       )
-       SELECT
-         $1,
-         tc.id,
-         $3::date,
-         $4::text,
-         NULLIF($5::text, ''),
-         NULLIF($6::text, ''),
-         NULLIF($7::text, ''),
-         NULLIF($8::text, ''),
-         $9::integer,
-         $9::integer,
-         $9::integer
-       FROM target_client tc
-       RETURNING *
-     )
-     SELECT
-       i.id::text AS id,
-       i.organization_id::text AS organization_id,
-       i.client_id::text AS client_id,
-       i.entry_date,
-       i.condition_name,
-       COALESCE(i.symptoms, '') AS symptoms,
-       COALESCE(i.diagnosis, '') AS diagnosis,
-       COALESCE(i.treatment_plan, '') AS treatment_plan,
-       COALESCE(i.note, '') AS note,
-       i.author_user_id::text AS author_user_id,
-       COALESCE(
-         NULLIF(TRIM(au.full_name), ''),
-         NULLIF(TRIM(au.username), ''),
-         CASE
-           WHEN i.author_user_id IS NOT NULL THEN CONCAT('User #', i.author_user_id::text)
-           ELSE ''
-         END
-       ) AS author_name,
-       COALESCE(NULLIF(TRIM(ap.label), ''), '') AS author_position_label,
-       i.created_by::text AS created_by,
-       i.updated_by::text AS updated_by,
-       COALESCE(
-         NULLIF(TRIM(cu.full_name), ''),
-         NULLIF(TRIM(cu.username), ''),
-         CASE
-           WHEN i.created_by IS NOT NULL THEN CONCAT('User #', i.created_by::text)
-           ELSE ''
-         END
-       ) AS created_by_name,
-       COALESCE(
-         NULLIF(TRIM(uu.full_name), ''),
-         NULLIF(TRIM(uu.username), ''),
-         CASE
-           WHEN i.updated_by IS NOT NULL THEN CONCAT('User #', i.updated_by::text)
-           ELSE ''
-         END
-       ) AS updated_by_name,
-       i.created_at,
-       i.updated_at
-      FROM inserted i
-      LEFT JOIN users au
-        ON au.id = i.author_user_id
-       AND au.organization_id = i.organization_id
-      LEFT JOIN position_options ap
-        ON ap.id = au.position_id
-       AND (
-         ap.organization_id = i.organization_id
-         OR ap.organization_id IS NULL
-       )
-      LEFT JOIN users cu
-        ON cu.id = i.created_by
-       AND cu.organization_id = i.organization_id
-      LEFT JOIN users uu
-        ON uu.id = i.updated_by
-       AND uu.organization_id = i.organization_id`,
-    [
-      organizationId,
-      clientId,
-      entryDate,
-      conditionName,
-      symptoms,
-      diagnosis,
-      treatmentPlan,
-      note,
-      authorUserId || null
-    ]
-  );
-
-  return rows[0] || null;
-}
-
-export async function updateClientMedicalHistoryEntry({
-  organizationId,
-  clientId,
-  entryId,
-  entryDate,
-  conditionName,
-  symptoms = "",
-  diagnosis = "",
-  treatmentPlan = "",
-  note = "",
-  updatedBy,
-  isAdmin = false
-}) {
-  await ensureClientMedicalHistorySchema();
-
-  const { rows } = await pool.query(
-    `WITH target_entry AS (
-       SELECT h.id
-         FROM client_medical_history_entries h
-         JOIN clients c
-           ON c.organization_id = h.organization_id
-          AND c.id = h.client_id
-         JOIN organizations o ON o.id = h.organization_id
-        WHERE h.organization_id = $1
-          AND h.client_id = $2
-          AND h.id = $3
-          AND o.is_active = TRUE
-          AND ($10::boolean = TRUE OR h.author_user_id = $9::integer)
-        LIMIT 1
-        FOR UPDATE
-     ),
-     updated AS (
-       UPDATE client_medical_history_entries h
-          SET entry_date = $4::date,
-              condition_name = $5::text,
-              symptoms = NULLIF($6::text, ''),
-              diagnosis = NULLIF($7::text, ''),
-              treatment_plan = NULLIF($8::text, ''),
-              note = NULLIF($11::text, ''),
-              updated_by = $9::integer,
-              updated_at = CURRENT_TIMESTAMP
-         FROM target_entry te
-        WHERE h.id = te.id
-       RETURNING h.*
-     )
-     SELECT
-       u.id::text AS id,
-       u.organization_id::text AS organization_id,
-       u.client_id::text AS client_id,
-       u.entry_date,
-       u.condition_name,
-       COALESCE(u.symptoms, '') AS symptoms,
-       COALESCE(u.diagnosis, '') AS diagnosis,
-       COALESCE(u.treatment_plan, '') AS treatment_plan,
-       COALESCE(u.note, '') AS note,
-       u.author_user_id::text AS author_user_id,
-       COALESCE(
-         NULLIF(TRIM(au.full_name), ''),
-         NULLIF(TRIM(au.username), ''),
-         CASE
-           WHEN u.author_user_id IS NOT NULL THEN CONCAT('User #', u.author_user_id::text)
-           ELSE ''
-         END
-       ) AS author_name,
-       COALESCE(NULLIF(TRIM(ap.label), ''), '') AS author_position_label,
-       u.created_by::text AS created_by,
-       u.updated_by::text AS updated_by,
-       COALESCE(
-         NULLIF(TRIM(cu.full_name), ''),
-         NULLIF(TRIM(cu.username), ''),
-         CASE
-           WHEN u.created_by IS NOT NULL THEN CONCAT('User #', u.created_by::text)
-           ELSE ''
-         END
-       ) AS created_by_name,
-       COALESCE(
-         NULLIF(TRIM(uu.full_name), ''),
-         NULLIF(TRIM(uu.username), ''),
-         CASE
-           WHEN u.updated_by IS NOT NULL THEN CONCAT('User #', u.updated_by::text)
-           ELSE ''
-         END
-       ) AS updated_by_name,
-       u.created_at,
-       u.updated_at
-      FROM updated u
-      LEFT JOIN users au
-        ON au.id = u.author_user_id
-       AND au.organization_id = u.organization_id
-      LEFT JOIN position_options ap
-        ON ap.id = au.position_id
-       AND (
-         ap.organization_id = u.organization_id
-         OR ap.organization_id IS NULL
-       )
-      LEFT JOIN users cu
-        ON cu.id = u.created_by
-       AND cu.organization_id = u.organization_id
-      LEFT JOIN users uu
-        ON uu.id = u.updated_by
-       AND uu.organization_id = u.organization_id`,
-    [
-      organizationId,
-      clientId,
-      entryId,
-      entryDate,
-      conditionName,
-      symptoms,
-      diagnosis,
-      treatmentPlan,
-      updatedBy || null,
-      Boolean(isAdmin),
-      note
-    ]
-  );
-
-  return rows[0] || null;
-}
-
-export async function deleteClientMedicalHistoryEntry({
-  organizationId,
-  clientId,
-  entryId,
-  deletedBy,
-  isAdmin = false
-}) {
-  await ensureClientMedicalHistorySchema();
-
-  const { rows } = await pool.query(
-    `DELETE FROM client_medical_history_entries h
-      WHERE h.organization_id = $1
-        AND h.client_id = $2
-        AND h.id = $3
-      RETURNING
-        h.id::text AS id,
-        h.client_id::text AS client_id`,
-    [organizationId, clientId, entryId]
-  );
-
-  return rows[0] || null;
-}
-
-export async function deleteAllClientMedicalHistoryEntries({
-  organizationId,
-  clientId
-}) {
-  await ensureClientMedicalHistorySchema();
-
-  const { rows } = await pool.query(
-    `DELETE FROM client_medical_history_entries h
-      WHERE h.organization_id = $1
-        AND h.client_id = $2
-      RETURNING
-        h.id::text AS id,
-        h.client_id::text AS client_id`,
-    [organizationId, clientId]
-  );
-
-  return rows || [];
-}
-
 export async function searchClientsForSchedule({
   organizationId,
   clientId = null,
   firstName = "",
   lastName = "",
   middleName = "",
-  isVip = null,
-  attendanceDate = null,
-  assignedUserId = null,
+  query = "",
   limit = 50
 }) {
-  await ensureVipAttendanceSchema();
-  await ensureVipAssignmentsSchema();
-
+  const whereParts = [
+    "c.organization_id = $1",
+    "o.is_active = TRUE"
+  ];
+  const params = [organizationId];
   const normalizedFirstName = normalizeSearchToken(firstName);
+  if (normalizedFirstName) {
+    params.push(`${normalizedFirstName}%`);
+    whereParts.push(`LOWER(COALESCE(c.first_name, '')) LIKE $${params.length}`);
+  }
+
   const normalizedLastName = normalizeSearchToken(lastName);
+  if (normalizedLastName) {
+    params.push(`${normalizedLastName}%`);
+    whereParts.push(`LOWER(COALESCE(c.last_name, '')) LIKE $${params.length}`);
+  }
+
   const normalizedMiddleName = normalizeSearchToken(middleName);
+  if (normalizedMiddleName) {
+    params.push(`${normalizedMiddleName}%`);
+    whereParts.push(`LOWER(COALESCE(c.middle_name, '')) LIKE $${params.length}`);
+  }
+
   const normalizedClientId = Number.parseInt(String(clientId || "").trim(), 10);
-  const normalizedAttendanceDate = String(attendanceDate || "").trim() || null;
-  const parsedAssignedUserId = Number.parseInt(String(assignedUserId || "").trim(), 10);
-  const normalizedAssignedUserId = Number.isInteger(parsedAssignedUserId) && parsedAssignedUserId > 0
-    ? parsedAssignedUserId
-    : null;
-  const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 500) : 50;
-  const isVipOnlySearch = isVip === true;
-  const canUseMyChildrenFastPath = (
-    isVipOnlySearch
-    && Number.isInteger(normalizedAssignedUserId)
-    && normalizedAssignedUserId > 0
-    && !normalizedFirstName
-    && !normalizedLastName
-    && !normalizedMiddleName
-    && !normalizedAttendanceDate
-  );
-
-  if (canUseMyChildrenFastPath) {
-    const { rows } = await pool.query(
-      `SELECT
-         c.id::text AS id,
-         c.organization_id::text AS organization_id,
-         c.first_name,
-         c.last_name,
-         c.middle_name,
-         c.birthday,
-         c.phone_number,
-         c.tg_mail,
-         c.is_vip,
-         c.created_by::text AS created_by,
-         c.note,
-         COALESCE(
-           NULLIF(TRIM(cu.full_name), ''),
-           NULLIF(TRIM(cu.username), ''),
-           c.created_by::text
-         ) AS created_by_name,
-         COALESCE(NULLIF(TRIM(cr.label), ''), '') AS creator_role_label,
-         COALESCE(NULLIF(TRIM(cp.label), ''), '') AS creator_position_label,
-         vcta.id::text AS class_id,
-         vcta.class_name AS vip_class_name,
-         vcta.teacher_user_id::text AS teacher_id,
-         COALESCE(NULLIF(TRIM(vat.full_name), ''), NULLIF(TRIM(vat.username), ''), '') AS teacher_name,
-         vta.tutor_user_id::text AS tutor_id,
-         COALESCE(NULLIF(TRIM(vatu.full_name), ''), NULLIF(TRIM(vatu.username), ''), '') AS tutor_name,
-         NULL::date AS attendance_date,
-         NULL::text AS attendance_status,
-         NULL::timestamp AS arrived_at,
-         NULL::timestamp AS left_at,
-         NULL::text AS attendance_note
-        FROM vip_client_tutor_assignments vta
-        JOIN vip_class_teacher_assignments vcta
-          ON vcta.organization_id = vta.organization_id
-         AND vcta.id = vta.class_assignment_id
-        JOIN clients c
-          ON c.organization_id = vta.organization_id
-         AND c.id = vta.client_id
-        JOIN organizations o ON o.id = c.organization_id
-        LEFT JOIN users cu
-          ON cu.id = c.created_by
-         AND cu.organization_id = c.organization_id
-        LEFT JOIN role_options cr ON cr.id = cu.role_id
-        LEFT JOIN position_options cp ON cp.id = cu.position_id
-        LEFT JOIN users vat
-          ON vat.id = vcta.teacher_user_id
-         AND vat.organization_id = c.organization_id
-        LEFT JOIN users vatu
-          ON vatu.id = vta.tutor_user_id
-         AND vatu.organization_id = c.organization_id
-       WHERE vta.organization_id = $1
-         AND o.is_active = TRUE
-         AND c.is_vip = TRUE
-         AND (
-           vcta.teacher_user_id = $2
-           OR vta.tutor_user_id = $2
-         )
-       ORDER BY
-         LOWER(c.last_name) ASC,
-         LOWER(c.first_name) ASC,
-         LOWER(COALESCE(c.middle_name, '')) ASC,
-         c.id ASC
-       LIMIT $3`,
-      [
-        organizationId,
-        normalizedAssignedUserId,
-        safeLimit
-      ]
-    );
-
-    return rows || [];
+  if (Number.isInteger(normalizedClientId) && normalizedClientId > 0) {
+    params.push(normalizedClientId);
+    whereParts.push(`c.id = $${params.length}`);
   }
 
-  if (isVipOnlySearch && isDateYmd(normalizedAttendanceDate) && normalizedAttendanceDate < getTodayYmd()) {
-    const shouldBackfill = await shouldBackfillVipAttendanceAbsentForDate({
-      organizationId,
-      attendanceDate: normalizedAttendanceDate
+  const normalizedQuery = normalizeSearchToken(query);
+  if (normalizedQuery) {
+    const queryTokens = normalizedQuery.split(/\s+/).filter(Boolean);
+    queryTokens.forEach((token) => {
+      params.push(`${token}%`);
+      const prefixParamRef = `$${params.length}`;
+      const tokenConditions = [
+        `LOWER(COALESCE(c.first_name, '')) LIKE ${prefixParamRef}`,
+        `LOWER(COALESCE(c.last_name, '')) LIKE ${prefixParamRef}`,
+        `LOWER(COALESCE(c.middle_name, '')) LIKE ${prefixParamRef}`
+      ];
+
+      if (/^\d+$/.test(token)) {
+        params.push(`${token}%`);
+        tokenConditions.push(`c.id::text LIKE $${params.length}`);
+      }
+
+      whereParts.push(`(${tokenConditions.join(" OR ")})`);
     });
-    if (shouldBackfill) {
-      await backfillVipAttendanceAbsentForDate({
-        organizationId,
-        attendanceDate: normalizedAttendanceDate
-      });
-      await backfillVipAttendanceLeftByWorkingHoursForDate({
-        organizationId,
-        attendanceDate: normalizedAttendanceDate
-      });
-    }
   }
+
+  const safeLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 500) : 50;
+  params.push(safeLimit);
 
   const { rows } = await pool.query(
     `SELECT
@@ -3469,84 +2683,44 @@ export async function searchClientsForSchedule({
        c.birthday,
        c.phone_number,
        c.tg_mail,
-       c.is_vip,
        c.created_by::text AS created_by,
-       c.note,
+       c.updated_by::text AS updated_by,
        COALESCE(
          NULLIF(TRIM(cu.full_name), ''),
          NULLIF(TRIM(cu.username), ''),
          c.created_by::text
        ) AS created_by_name,
-       COALESCE(NULLIF(TRIM(cr.label), ''), '') AS creator_role_label,
-       COALESCE(NULLIF(TRIM(cp.label), ''), '') AS creator_position_label,
-       vcta.id::text AS class_id,
-       vcta.class_name AS vip_class_name,
-       vcta.teacher_user_id::text AS teacher_id,
-       COALESCE(NULLIF(TRIM(vat.full_name), ''), NULLIF(TRIM(vat.username), ''), '') AS teacher_name,
-       vta.tutor_user_id::text AS tutor_id,
-       COALESCE(NULLIF(TRIM(vatu.full_name), ''), NULLIF(TRIM(vatu.username), ''), '') AS tutor_name,
-       vca.attendance_date,
-       vca.status AS attendance_status,
-       vca.arrived_at,
-       vca.left_at,
-       vca.note AS attendance_note
+       COALESCE(
+         NULLIF(TRIM(uu.full_name), ''),
+         NULLIF(TRIM(uu.username), ''),
+         c.updated_by::text
+       ) AS updated_by_name,
+       c.note,
+       NULL::date AS attendance_date,
+       NULL::text AS attendance_status,
+       NULL::timestamp AS arrived_at,
+       NULL::timestamp AS left_at,
+       NULL::text AS attendance_note
       FROM clients c
       JOIN organizations o ON o.id = c.organization_id
       LEFT JOIN users cu ON cu.id = c.created_by
        AND cu.organization_id = c.organization_id
-      LEFT JOIN role_options cr ON cr.id = cu.role_id
-      LEFT JOIN position_options cp ON cp.id = cu.position_id
-      LEFT JOIN vip_client_tutor_assignments vta
-        ON vta.organization_id = c.organization_id
-       AND vta.client_id = c.id
-      LEFT JOIN vip_class_teacher_assignments vcta
-        ON vcta.organization_id = vta.organization_id
-       AND vcta.id = vta.class_assignment_id
-      LEFT JOIN users vat
-        ON vat.id = vcta.teacher_user_id
-       AND vat.organization_id = c.organization_id
-      LEFT JOIN users vatu
-        ON vatu.id = vta.tutor_user_id
-       AND vatu.organization_id = c.organization_id
-      LEFT JOIN vip_client_attendance vca
-        ON vca.organization_id = c.organization_id
-       AND vca.client_id = c.id
-       AND vca.attendance_date = COALESCE($6::date, CURRENT_DATE)
-     WHERE c.organization_id = $1
-       AND o.is_active = TRUE
-       AND ($2 = '' OR LOWER(c.first_name) LIKE $2 || '%')
-       AND ($3 = '' OR LOWER(c.last_name) LIKE $3 || '%')
-       AND ($4 = '' OR (c.middle_name IS NOT NULL AND LOWER(c.middle_name) LIKE $4 || '%'))
-       AND ($5::boolean IS NULL OR c.is_vip = $5::boolean)
-       AND ($9::integer IS NULL OR c.id = $9::integer)
-       AND (
-         $8::integer IS NULL
-         OR vcta.teacher_user_id = $8::integer
-         OR vta.tutor_user_id = $8::integer
-       )
+      LEFT JOIN users uu ON uu.id = c.updated_by
+       AND uu.organization_id = c.organization_id
+     WHERE ${whereParts.join("\n       AND ")}
      ORDER BY
        LOWER(c.last_name) ASC,
        LOWER(c.first_name) ASC,
        LOWER(COALESCE(c.middle_name, '')) ASC,
        c.id ASC
-     LIMIT $7`,
-    [
-      organizationId,
-      normalizedFirstName,
-      normalizedLastName,
-      normalizedMiddleName,
-      typeof isVip === "boolean" ? isVip : null,
-      normalizedAttendanceDate,
-      safeLimit,
-      normalizedAssignedUserId,
-      Number.isInteger(normalizedClientId) && normalizedClientId > 0 ? normalizedClientId : null
-    ]
+     LIMIT $${params.length}`,
+    params
   );
 
   return rows || [];
 }
 
-export async function upsertVipClientAttendance({
+async function upsertVipClientAttendance({
   organizationId,
   clientId,
   attendanceDate,
@@ -3720,7 +2894,7 @@ export async function upsertVipClientAttendance({
   return rows[0] || null;
 }
 
-export async function upsertVipTutorAssignment({
+async function upsertVipTutorAssignment({
   organizationId,
   clientId,
   classAssignmentId,
@@ -3870,7 +3044,7 @@ export async function upsertVipTutorAssignment({
   return rows[0] || null;
 }
 
-export async function resetVipClientAttendanceByDate({
+async function resetVipClientAttendanceByDate({
   organizationId,
   clientId,
   attendanceDate
@@ -3915,7 +3089,6 @@ export async function createClient({
   birthday,
   phone,
   tgMail,
-  isVip,
   note,
   createdBy
 }) {
@@ -3927,12 +3100,11 @@ export async function createClient({
     birthday,
     phone_number,
     tg_mail,
-    is_vip,
     created_by,
     updated_by,
     note
   )
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
   RETURNING
     id::text AS id,
     organization_id::text AS organization_id,
@@ -3942,7 +3114,6 @@ export async function createClient({
     birthday,
     phone_number,
     tg_mail,
-    is_vip,
     created_by::text AS created_by,
     updated_by::text AS updated_by,
     created_at,
@@ -3957,7 +3128,6 @@ export async function createClient({
     birthday,
     phone || null,
     tgMail || null,
-    Boolean(isVip),
     createdBy || null,
     createdBy || null,
     note || null
@@ -3991,6 +3161,53 @@ export async function createClient({
   }
 }
 
+export async function findDuplicateClientByName({
+  organizationId,
+  firstName,
+  lastName,
+  middleName,
+  excludeClientId = null
+}) {
+  const normalizedFirstName = normalizeSearchToken(firstName);
+  const normalizedLastName = normalizeSearchToken(lastName);
+  const normalizedMiddleName = normalizeSearchToken(middleName);
+
+  if (!normalizedFirstName || !normalizedLastName) {
+    return null;
+  }
+
+  const params = [
+    organizationId,
+    normalizedFirstName,
+    normalizedLastName,
+    normalizedMiddleName
+  ];
+  let excludeClause = "";
+  const normalizedExcludeClientId = Number.parseInt(String(excludeClientId || ""), 10);
+  if (Number.isInteger(normalizedExcludeClientId) && normalizedExcludeClientId > 0) {
+    params.push(normalizedExcludeClientId);
+    excludeClause = `AND c.id <> $${params.length}`;
+  }
+
+  const { rows } = await pool.query(
+    `SELECT
+       c.id::text AS id,
+       c.first_name,
+       c.last_name,
+       c.middle_name
+      FROM clients c
+      WHERE c.organization_id = $1
+        AND LOWER(TRIM(c.first_name)) = $2
+        AND LOWER(TRIM(c.last_name)) = $3
+        AND LOWER(TRIM(COALESCE(c.middle_name, ''))) = $4
+        ${excludeClause}
+      LIMIT 1`,
+    params
+  );
+
+  return rows[0] || null;
+}
+
 export async function updateClientById({
   id,
   organizationId,
@@ -4000,188 +3217,53 @@ export async function updateClientById({
   birthday,
   phone,
   tgMail,
-  isVip,
   note,
   updatedBy
 }) {
-  const db = await pool.connect();
-  try {
-    await db.query("BEGIN");
+  const params = [
+    firstName,
+    lastName,
+    middleName || null,
+    birthday,
+    phone || null,
+    tgMail || null,
+    note || null,
+    updatedBy || null,
+    id,
+    organizationId
+  ];
 
-    const { rows } = await db.query(
-      `WITH existing AS (
-         SELECT c.id, c.is_vip
-           FROM clients c
-          WHERE c.id = $10
-            AND c.organization_id = $11
-          FOR UPDATE
-       ),
-       updated AS (
-         UPDATE clients c
-            SET first_name = $1,
-                last_name = $2,
-                middle_name = $3,
-                birthday = $4,
-                phone_number = $5,
-                tg_mail = $6,
-                note = $7,
-                is_vip = COALESCE($8, c.is_vip),
-                updated_by = $9,
-                updated_at = CURRENT_TIMESTAMP
-           FROM existing e
-          WHERE c.id = e.id
-            AND c.organization_id = $11
-         RETURNING
-           c.id::text AS id,
-           c.organization_id::text AS organization_id,
-           c.first_name,
-           c.last_name,
-           c.middle_name,
-           c.birthday,
-           c.phone_number,
-           c.tg_mail,
-           c.is_vip,
-           c.created_by::text AS created_by,
-           c.updated_by::text AS updated_by,
-           c.created_at,
-           c.updated_at,
-           c.note,
-           e.is_vip AS previous_is_vip
-       )
-       SELECT * FROM updated`,
-      [
-        firstName,
-        lastName,
-        middleName || null,
+  const { rows } = await pool.query(
+    `UPDATE clients
+        SET first_name = $1,
+            last_name = $2,
+            middle_name = $3,
+            birthday = $4,
+            phone_number = $5,
+            tg_mail = $6,
+            note = $7,
+            updated_by = $8,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id = $9
+        AND organization_id = $10
+      RETURNING
+        id::text AS id,
+        organization_id::text AS organization_id,
+        first_name,
+        last_name,
+        middle_name,
         birthday,
-        phone || null,
-        tgMail || null,
-        note || null,
-        isVip ?? null,
-        updatedBy || null,
-        id,
-        organizationId
-      ]
-    );
+        phone_number,
+        tg_mail,
+        created_by::text AS created_by,
+        updated_by::text AS updated_by,
+        created_at,
+        updated_at,
+        note`,
+    params
+  );
 
-    const item = rows[0] || null;
-    if (!item) {
-      await db.query("ROLLBACK");
-      return null;
-    }
-
-    const wasVip = item.previous_is_vip === true;
-    const nowVip = item.is_vip === true;
-    if (wasVip && !nowVip) {
-      const tableCheckResult = await db.query(
-        `SELECT
-           to_regclass('public.appointment_schedules') IS NOT NULL AS has_schedules_table,
-           to_regclass('public.appointment_status_history') IS NOT NULL AS has_status_history_table`
-      );
-      const hasSchedulesTable = tableCheckResult?.rows?.[0]?.has_schedules_table === true;
-      const hasStatusHistoryTable = tableCheckResult?.rows?.[0]?.has_status_history_table === true;
-
-      if (hasSchedulesTable && hasStatusHistoryTable) {
-        await db.query(
-          `WITH target_rows AS (
-             SELECT
-               s.organization_id,
-               s.id,
-               s.status AS previous_status,
-               s.appointment_date,
-               s.start_time,
-               s.end_time
-              FROM appointment_schedules s
-             WHERE s.organization_id = $1
-               AND s.client_id = $2
-               AND s.status IN ('pending', 'confirmed')
-               AND (
-                 s.appointment_date > TIMEZONE('Asia/Tashkent', NOW())::date
-                 OR (
-                   s.appointment_date = TIMEZONE('Asia/Tashkent', NOW())::date
-                   AND s.end_time > TIMEZONE('Asia/Tashkent', NOW())::time
-                 )
-               )
-           ),
-           updated_rows AS (
-             UPDATE appointment_schedules s
-                SET status = 'cancelled',
-                    updated_by = $3::integer,
-                    updated_at = CURRENT_TIMESTAMP
-               FROM target_rows t
-              WHERE s.organization_id = t.organization_id
-                AND s.id = t.id
-             RETURNING
-               s.organization_id,
-               s.id,
-               t.previous_status,
-               s.status AS next_status,
-               s.appointment_date,
-               s.start_time,
-               s.end_time
-           ),
-           history_inserted AS (
-             INSERT INTO appointment_status_history (
-               organization_id,
-               appointment_schedule_id,
-               event_type,
-               previous_status,
-               next_status,
-               changed_fields,
-               details,
-               changed_by
-             )
-             SELECT
-               u.organization_id,
-               u.id,
-               'status-changed',
-               u.previous_status,
-               u.next_status,
-               ARRAY['status']::text[],
-               jsonb_build_object(
-                 'source', 'client-vip-toggle',
-                 'reason', 'vip-disabled-auto-cancel',
-                 'appointmentDate', u.appointment_date,
-                 'startTime', u.start_time,
-                 'endTime', u.end_time
-               ),
-               $3::integer
-             FROM updated_rows u
-           )
-           SELECT COUNT(*)::integer AS cancelled_count
-             FROM updated_rows`,
-          [organizationId, id, updatedBy || null]
-        );
-      } else if (hasSchedulesTable) {
-        await db.query(
-          `UPDATE appointment_schedules s
-              SET status = 'cancelled',
-                  updated_by = $3::integer,
-                  updated_at = CURRENT_TIMESTAMP
-            WHERE s.organization_id = $1
-              AND s.client_id = $2
-              AND s.status IN ('pending', 'confirmed')
-              AND (
-                s.appointment_date > TIMEZONE('Asia/Tashkent', NOW())::date
-                OR (
-                  s.appointment_date = TIMEZONE('Asia/Tashkent', NOW())::date
-                  AND s.end_time > TIMEZONE('Asia/Tashkent', NOW())::time
-                )
-              )`,
-          [organizationId, id, updatedBy || null]
-        );
-      }
-    }
-
-    await db.query("COMMIT");
-    delete item.previous_is_vip;
-    return item;
-  } catch (error) {
-    await db.query("ROLLBACK");
-    throw error;
-  } finally {
-    db.release();
-  }
+  return rows[0] || null;
 }
 
 export async function deleteClientById({ id, organizationId }) {

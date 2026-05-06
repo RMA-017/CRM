@@ -6,6 +6,7 @@ export function registerAppointmentReferenceRoutes(fastify, context) {
     requireAppointmentsAccess,
     requesterHasOrgFeature,
     hasPermission,
+    requesterHasPermission: contextRequesterHasPermission,
     PERMISSIONS,
     parsePositiveIntegerOr,
     resolveOwnAppointmentSpecialistUserId,
@@ -15,6 +16,16 @@ export function registerAppointmentReferenceRoutes(fastify, context) {
     getAppointmentClientNoShowSummary,
     isVipClientAssignedToUser
   } = context;
+  const requesterHasPermission = typeof contextRequesterHasPermission === "function"
+    ? contextRequesterHasPermission
+    : async (requester, permissionCode) => {
+        if (requester?.is_admin || requester?.is_platform_admin) {
+          return true;
+        }
+        return typeof hasPermission === "function"
+          ? hasPermission(requester?.role_id, permissionCode)
+          : false;
+      };
 
   fastify.get(
     "/specialists",
@@ -31,32 +42,16 @@ export function registerAppointmentReferenceRoutes(fastify, context) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
 
-        const [
-          canReadPlanner,
-          canReadSpecialistAbsences,
-          canCreateSpecialistAbsences
-        ] = await Promise.all([
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_PLANNER_READ),
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_SPECIALIST_ABSENCES_READ),
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_SPECIALIST_ABSENCES_CREATE)
-        ]);
-        const canUseSpecialistAbsenceAccess = (
-          requesterHasOrgFeature(requester, "appointments.specialist_absences")
-          && (canReadSpecialistAbsences || canCreateSpecialistAbsences)
-        );
-        if (!canReadPlanner && !canUseSpecialistAbsenceAccess) {
+        const canReadPlanner = await requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_PLANNER_READ);
+        if (!canReadPlanner || !requesterHasOrgFeature(requester, "appointments.planner")) {
           return reply.status(403).send({ message: "Forbidden." });
         }
-        const access = canReadPlanner
-          ? await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_PLANNER_READ)
-          : { authContext, requester };
+        const access = await requireAppointmentsAccess(request, reply, PERMISSIONS.APPOINTMENTS_PLANNER_READ);
         if (!access) {
           return;
         }
 
-        const ownSpecialistUserId = canReadPlanner
-          ? null
-          : resolveOwnAppointmentSpecialistUserId(access);
+        const ownSpecialistUserId = null;
         const items = await getAppointmentSpecialistsByOrganization(access.authContext.organizationId);
         const filteredItems = ownSpecialistUserId
           ? items.filter((item) => String(item?.id || "").trim() === String(ownSpecialistUserId))

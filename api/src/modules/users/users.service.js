@@ -4,7 +4,6 @@ import { executeTransaction } from "../../lib/db-utils.js";
 import { normalizeOrganizationCode } from "../../lib/organization-code.js";
 import {
   isSpecialistLikeRoleLabel,
-  isTutorLikeRoleLabel,
   joinNormalizedRoleLabelParts
 } from "../../lib/role-labels.js";
 import {
@@ -12,13 +11,6 @@ import {
   clearAppointmentReferenceCaches,
   deleteAppointmentSchedulesByIds
 } from "../appointments/appointment-settings.service.js";
-
-const VIP_CLASS_TEACHER_ASSIGNMENTS_TABLE_NAME = "public.vip_class_teacher_assignments";
-const VIP_CLASS_TEACHER_ASSIGNMENTS_TABLE_CACHE_TTL_MS = 60_000;
-let vipClassTeacherAssignmentsTableCache = {
-  value: null,
-  checkedAt: 0
-};
 
 function buildUsersPagedResult(rows, {
   limit,
@@ -74,44 +66,6 @@ async function getPositionLabelById(client, positionId) {
     [positionId]
   );
   return String(rows[0]?.label || "").trim();
-}
-
-async function vipClassTeacherAssignmentsTableExists(client) {
-  const now = Date.now();
-  if (
-    typeof vipClassTeacherAssignmentsTableCache.value === "boolean"
-    && now - vipClassTeacherAssignmentsTableCache.checkedAt < VIP_CLASS_TEACHER_ASSIGNMENTS_TABLE_CACHE_TTL_MS
-  ) {
-    return vipClassTeacherAssignmentsTableCache.value;
-  }
-
-  const { rows } = await client.query(
-    "SELECT to_regclass($1) IS NOT NULL AS exists",
-    [VIP_CLASS_TEACHER_ASSIGNMENTS_TABLE_NAME]
-  );
-  const exists = Boolean(rows[0]?.exists);
-  vipClassTeacherAssignmentsTableCache = {
-    value: exists,
-    checkedAt: now
-  };
-  return exists;
-}
-
-async function isAssignedAsVipClassTeacher(client, { organizationId, userId }) {
-  if (!(await vipClassTeacherAssignmentsTableExists(client))) {
-    return false;
-  }
-
-  const { rows } = await client.query(
-    `SELECT EXISTS (
-       SELECT 1
-         FROM vip_class_teacher_assignments
-        WHERE organization_id = $1
-          AND teacher_user_id = $2
-     ) AS assigned`,
-    [organizationId, userId]
-  );
-  return Boolean(rows[0]?.assigned);
 }
 
 async function deleteFutureAppointmentSchedulesBySpecialist({
@@ -353,7 +307,6 @@ export async function updateUserByAdmin({
     const nextPositionLabel = nextPositionId === currentPositionId
       ? currentPositionLabel
       : await getPositionLabelById(client, nextPositionId);
-    const isRoleChangingToTutor = Number(roleId) !== currentRoleId && isTutorLikeRoleLabel(nextRoleLabel);
     const wasPlannerSpecialist = isSpecialistLikeRoleLabel(
       joinNormalizedRoleLabelParts(currentRoleLabel, currentPositionLabel)
     );
@@ -361,20 +314,6 @@ export async function updateUserByAdmin({
       joinNormalizedRoleLabelParts(nextRoleLabel, nextPositionLabel)
     );
     const shouldDeleteFuturePlannerLessons = wasPlannerSpecialist && !remainsPlannerSpecialist;
-    if (isRoleChangingToTutor) {
-      const isTeacherAssigned = await isAssignedAsVipClassTeacher(client, {
-        organizationId: scopedOrganizationId,
-        userId
-      });
-      if (isTeacherAssigned) {
-        const conflictError = new Error(
-          "Cannot change role to Tutor while this user is assigned as a class teacher."
-        );
-        conflictError.code = "ROLE_CHANGE_BLOCKED_TEACHER_ASSIGNED";
-        conflictError.field = "role";
-        throw conflictError;
-      }
-    }
 
     let updateResult;
     try {

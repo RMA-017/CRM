@@ -128,7 +128,6 @@ function StatisticsPlannerReportPanel({
   const initialBounds = getCurrentMonthBounds();
   const [from, setFrom] = useState(initialBounds.from);
   const [to, setTo] = useState(initialBounds.to);
-  const [vipOnly, setVipOnly] = useState(false);
   const [specialistId, setSpecialistId] = useState("");
   const [clientId, setClientId] = useState("");
   const [reportData, setReportData] = useState(null);
@@ -165,7 +164,6 @@ function StatisticsPlannerReportPanel({
     { value: "", label: "All clients" },
     ...mergePlannerReportSelectOptions(
       (Array.isArray(reportFilterOptions?.clients) ? reportFilterOptions.clients : [])
-        .filter((item) => (vipOnly ? Boolean(item?.isVip) : true))
         .map((item) => ({
           value: String(item?.id || "").trim(),
           label: formatPlannerReportClientLabel(item)
@@ -178,7 +176,7 @@ function StatisticsPlannerReportPanel({
       }))
       .filter((item) => Boolean(item.value) && Boolean(item.label))
     )
-  ], [reportData?.details, reportFilterOptions?.clients, vipOnly]);
+  ], [reportData?.details, reportFilterOptions?.clients]);
 
   const loadFilterOptions = useCallback(async () => {
     try {
@@ -203,7 +201,6 @@ function StatisticsPlannerReportPanel({
   const loadReport = useCallback(async ({
     fromDate = "",
     toDate = "",
-    nextVipOnly = false,
     nextSpecialistId = "",
     nextClientId = ""
   } = {}) => {
@@ -221,9 +218,6 @@ function StatisticsPlannerReportPanel({
         from: normalizedFrom,
         to: normalizedTo
       });
-      if (nextVipOnly) {
-        query.set("isVip", "true");
-      }
       if (normalizedSpecialistId) {
         query.set("specialistId", normalizedSpecialistId);
       }
@@ -265,11 +259,10 @@ function StatisticsPlannerReportPanel({
     void loadReport({
       fromDate: from,
       toDate: to,
-      nextVipOnly: vipOnly,
       nextSpecialistId: specialistId,
       nextClientId: clientId
     });
-  }, [canReadReport, clientId, from, loadReport, showBootstrapSkeleton, specialistId, to, vipOnly]);
+  }, [canReadReport, clientId, from, loadReport, showBootstrapSkeleton, specialistId, to]);
 
   useEffect(() => {
     if (showBootstrapSkeleton || hasLoadedFilterOptions || !canReadReport) {
@@ -350,7 +343,6 @@ function StatisticsPlannerReportPanel({
           void loadReport({
             fromDate: from,
             toDate: to,
-            nextVipOnly: vipOnly,
             nextSpecialistId: specialistId,
             nextClientId: clientId
           });
@@ -403,18 +395,6 @@ function StatisticsPlannerReportPanel({
             searchThreshold={8}
             onChange={(nextValue) => setClientId(String(nextValue || "").trim())}
           />
-        </label>
-        <label className="field planner-report-field planner-report-field-vip" htmlFor="plannerReportVipOnlyInput">
-          <span>VIP</span>
-          <span className="planner-report-vip-toggle">
-            <input
-              id="plannerReportVipOnlyInput"
-              type="checkbox"
-              checked={vipOnly}
-              disabled={reportLoading}
-              onChange={(event) => setVipOnly(Boolean(event.currentTarget.checked))}
-            />
-          </span>
         </label>
         <button
           type="submit"

@@ -1,47 +1,21 @@
 /* Responsive */
 @media (max-width: 1200px) {
   /* Clients tables */
-  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table-wrap {
+  #clientsPanel .all-users-table-wrap {
     overflow-x: auto;
     overflow-y: auto;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
   }
 
-  :is(#appointmentWorkSchedulePanel, #vipNormMonitoringPanel) .all-users-table-wrap {
-    overflow-x: auto;
-    overflow-y: auto;
-    overscroll-behavior-x: contain;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table {
+  #clientsPanel .all-users-table {
     width: max-content;
     min-width: 1280px;
     table-layout: auto;
   }
 
-  #appointmentWorkSchedulePanel .all-users-table {
-    width: max-content;
-    min-width: 640px;
-    table-layout: auto;
-  }
-
-  #vipNormMonitoringPanel .all-users-table {
-    width: max-content;
-    min-width: 760px;
-    table-layout: auto;
-  }
-
-  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table th,
-  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table td {
-    overflow: visible;
-    text-overflow: clip;
-    white-space: nowrap;
-  }
-
-  :is(#appointmentWorkSchedulePanel, #vipNormMonitoringPanel) .all-users-table th,
-  :is(#appointmentWorkSchedulePanel, #vipNormMonitoringPanel) .all-users-table td {
+  #clientsPanel .all-users-table th,
+  #clientsPanel .all-users-table td {
     overflow: visible;
     text-overflow: clip;
     white-space: nowrap;
@@ -65,8 +39,8 @@
     width: min(100%, 640px);
   }
 
-  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table th:nth-child(11),
-  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table td:nth-child(11),
+  #clientsPanel .all-users-table th:nth-child(11),
+  #clientsPanel .all-users-table td:nth-child(11),
   #clientsPanel .all-users-table th:nth-child(12),
   #clientsPanel .all-users-table td:nth-child(12) {
     width: 90px;
@@ -90,7 +64,11 @@
     height: auto;
     min-height: var(--bar-height);
     grid-template-columns: auto auto;
-    justify-content: space-between;
+    gap: 8px;
+    padding: 0;
+  }
+
+  .home-header-inner {
     gap: 8px;
     padding: 10px;
   }
@@ -177,12 +155,6 @@
     --appointment-repeat-chip-font-size: 11px;
   }
 
-  #vipDailyRoutineEditModal {
-    --appointment-repeat-chip-height: 30px;
-    --appointment-repeat-chip-padding-x: 4px;
-    --appointment-repeat-chip-font-size: 11px;
-  }
-
   #organizationEditModal {
     width: calc(100vw - 30px);
     max-height: calc(100dvh - 24px);
@@ -212,47 +184,21 @@
   }
 
   /* Data tables */
-  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table-wrap {
+  #clientsPanel .all-users-table-wrap {
     overflow-x: auto;
     overflow-y: auto;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
   }
 
-  :is(#appointmentWorkSchedulePanel, #vipNormMonitoringPanel) .all-users-table-wrap {
-    overflow-x: auto;
-    overflow-y: auto;
-    overscroll-behavior-x: contain;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table {
+  #clientsPanel .all-users-table {
     width: max-content;
     min-width: 1280px;
     table-layout: auto;
   }
 
-  #appointmentWorkSchedulePanel .all-users-table {
-    width: max-content;
-    min-width: 640px;
-    table-layout: auto;
-  }
-
-  #vipNormMonitoringPanel .all-users-table {
-    width: max-content;
-    min-width: 760px;
-    table-layout: auto;
-  }
-
-  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table th,
-  :is(#clientsPanel, #appointmentVipAttendancePanel) .all-users-table td {
-    overflow: visible;
-    text-overflow: clip;
-    white-space: nowrap;
-  }
-
-  :is(#appointmentWorkSchedulePanel, #vipNormMonitoringPanel) .all-users-table th,
-  :is(#appointmentWorkSchedulePanel, #vipNormMonitoringPanel) .all-users-table td {
+  #clientsPanel .all-users-table th,
+  #clientsPanel .all-users-table td {
     overflow: visible;
     text-overflow: clip;
     white-space: nowrap;
@@ -294,7 +240,7 @@
 
   .appointment-create-modal .appointment-modal-section {
     padding: 3px 0;
-    gap: 5px;
+    gap: 7px;
   }
 
   .appointment-create-modal .auth-form {
@@ -327,16 +273,14 @@
     align-items: stretch;
   }
 
-  .appointment-create-modal .appointment-repeat-days,
-  #vipDailyRoutineEditModal .appointment-repeat-days {
+  .appointment-create-modal .appointment-repeat-days {
     flex-wrap: nowrap;
     justify-content: space-between;
     gap: 0;
     overflow-x: hidden;
   }
 
-  .appointment-create-modal .appointment-repeat-day-chip,
-  #vipDailyRoutineEditModal .appointment-repeat-day-chip {
+  .appointment-create-modal .appointment-repeat-day-chip {
     width: auto;
     min-width: 0;
     flex: 1 1 0;
@@ -347,16 +291,14 @@
     font-size: 0;
   }
 
-  .appointment-create-modal .appointment-repeat-day-chip input[type="checkbox"],
-  #vipDailyRoutineEditModal .appointment-repeat-day-chip input[type="checkbox"] {
+  .appointment-create-modal .appointment-repeat-day-chip input[type="checkbox"] {
     width: 12px;
     min-width: 12px;
     height: 12px;
     min-height: 12px;
   }
 
-  .appointment-create-modal .appointment-repeat-day-chip span,
-  #vipDailyRoutineEditModal .appointment-repeat-day-chip span {
+  .appointment-create-modal .appointment-repeat-day-chip span {
     font-size: var(--appointment-repeat-chip-font-size);
   }
 
@@ -424,51 +366,6 @@
     height: var(--appointment-reminder-day-checkbox-size);
   }
 
-  .appointment-setting-row-breaks {
-    gap: 8px;
-  }
-
-  .appointment-setting-row-breaks .appointment-breaks-toolbar {
-    grid-template-columns: 1fr;
-    gap: 8px;
-    margin-bottom: 12px;
-  }
-
-  .appointment-setting-row-breaks .appointment-break-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
-    align-items: stretch;
-  }
-
-  .appointment-setting-row-breaks .appointment-break-row > * {
-    min-width: 0;
-  }
-
-  .appointment-setting-row-breaks .appointment-break-row .appointment-break-time-field {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    min-width: 0;
-    overflow: hidden;
-    align-self: stretch;
-  }
-
-  .appointment-setting-row-breaks .appointment-break-row input[type="time"] {
-    width: 100%;
-    min-width: 0;
-    min-inline-size: 0;
-    flex: 1;
-  }
-
-  .appointment-break-time-label {
-    display: block;
-  }
-
-  .appointment-setting-row-breaks .appointment-break-row > .appointment-breaks-delete-btn {
-    grid-column: 1 / -1;
-    width: 100%;
-  }
-
   .appointment-specialist-control {
     flex-direction: column;
     align-items: flex-start;
@@ -505,8 +402,13 @@
   .home-header {
     height: auto;
     min-height: var(--bar-height);
-    padding: 10px;
     gap: 4px;
+    padding: 0;
+  }
+
+  .home-header-inner {
+    gap: 4px;
+    padding: 10px;
   }
 
   .header-actions {
@@ -602,12 +504,6 @@
     --appointment-repeat-chip-font-size: 10px;
   }
 
-  #vipDailyRoutineEditModal {
-    --appointment-repeat-chip-height: 30px;
-    --appointment-repeat-chip-padding-x: 3px;
-    --appointment-repeat-chip-font-size: 10px;
-  }
-
   #roleEditModal {
     width: calc(100vw - 24px);
     height: min(440px, calc(100dvh - 20px));
@@ -644,14 +540,6 @@
 
   .appointment-vip-weekly-grid {
     min-width: 900px;
-  }
-
-  #appointmentVipSchedulePanel .appointment-vip-weekly-grid-wrap,
-  #appointmentVipMyChildrenPanel .appointment-vip-weekly-grid-wrap {
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-x: contain;
   }
 
   .settings-permissions-grid-group {
@@ -714,17 +602,7 @@
   }
 
   /* Appointment settings / breaks */
-  .appointment-breaks-toolbar {
-    grid-template-columns: 1fr;
-  }
-
-  /* Delete button spans both columns in 2-col break row */
-  .appointment-break-row > .appointment-breaks-delete-btn {
-    grid-column: 1 / -1;
-  }
-
-  .appointment-setting-row,
-  .appointment-setting-row-breaks {
+  .appointment-setting-row {
     padding: 8px;
   }
 
@@ -740,106 +618,9 @@
 
 }
 
-@media (max-width: 860px) {
-  .vip-attendance-toolbar:not(.vip-norm-monitoring-toolbar) {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .vip-attendance-class-field {
-    width: 100%;
-  }
-
-  .vip-attendance-summary {
-    justify-content: flex-start;
-    margin-left: 0;
-  }
-}
-
-@media (max-width: 560px) {
-  .vip-attendance-edit-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-  }
-
-  .vip-attendance-edit-grid input[type="datetime-local"] {
-    display: block;
-    width: min(100%, 148px);
-    max-width: 148px;
-    min-width: 0;
-    min-inline-size: 0;
-    margin-left: auto;
-    margin-right: auto;
-    padding-left: 6px;
-    padding-right: 6px;
-    font-size: 12px;
-  }
-
-  .vip-attendance-edit-actions {
-    justify-content: center;
-    flex-wrap: nowrap;
-  }
-
-  #deleteVipAttendanceEditBtn {
-    width: 72px;
-    min-width: 72px;
-    max-width: 72px;
-    height: 25px;
-    min-height: 25px;
-  }
-
-  .vip-attendance-summary .vip-attendance-filter-btn {
-    width: 100%;
-  }
-
-  .vip-attendance-period-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  #appointmentVipAttendancePanel .vip-attendance-actions {
-    flex-wrap: wrap;
-  }
-
-  #appointmentVipAttendancePanel .vip-attendance-actions .table-action-btn {
-    width: 100%;
-    min-width: 0;
-  }
-
-  #appointmentBreaksAddModal .appointment-breaks-add-row-line-bottom-item,
-  #appointmentBreaksEditModal .appointment-breaks-add-row-line-bottom-item {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  #appointmentBreaksAddModal .appointment-breaks-add-row-line-bottom-item .appointment-breaks-add-inline-actions {
-    grid-column: 1 / -1;
-  }
-
-  #workScheduleUserOverridesModal .appointment-breaks-add-row-line-bottom-item {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  #workScheduleUserOverridesModal .appointment-breaks-add-row-line-bottom-item .appointment-breaks-add-inline-actions {
-    justify-content: center;
-  }
-
-  #appointmentBreaksAddModal .appointment-breaks-add-field input[type="time"],
-  #workScheduleUserOverridesModal .appointment-breaks-add-field input[type="time"],
-  #appointmentBreaksEditModal .appointment-breaks-add-field input[type="time"] {
-    -webkit-appearance: none;
-    appearance: none;
-    max-width: 100%;
-  }
-
-  #appointmentBreaksAddModal .appointment-breaks-inline-add-btn,
-  #workScheduleUserOverridesModal .appointment-breaks-inline-add-btn {
-    display: flex;
-  }
-}
-
 /* Statistics panels — desktop layout preserved at all screen sizes.
    ID selectors override any class-only responsive rules from components.css. */
 
-main.home-main:has(#statisticsClassPanel),
 main.home-main:has(#statisticsPlannerReportPanel) {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -864,95 +645,6 @@ main.home-main:has(#organizationsPanel) {
   overflow-y: visible;
 }
 
-/* Statistics / VIP Class Attendance Report */
-
-/* Desktop: let the panel fill the available width. */
-#statisticsClassPanel {
-  overflow-x: visible;
-  min-width: 0;
-}
-
-#statisticsClassPanel .all-users-head {
-  width: 100%;
-  min-width: 0;
-  flex-wrap: nowrap;
-}
-
-#statisticsClassPanel .all-users-head h3 {
-  white-space: nowrap;
-}
-
-#statisticsClassPanel .panel-close-btn {
-  flex: 0 0 auto;
-}
-
-#statisticsClassPanel .all-users-table-wrap {
-  max-height: none;
-  overflow: visible;
-}
-
-/* Toolbar: keep desktop layout without forcing max-content width on wide screens. */
-#statisticsClassPanel .vip-attendance-toolbar {
-  width: 100%;
-  min-width: 0;
-  flex-direction: row;
-  align-items: flex-end;
-  flex-wrap: nowrap;
-}
-
-#statisticsClassPanel .all-users-table {
-  width: 100%;
-  min-width: 0;
-}
-
-#statisticsClassPanel .statistics-history-toolbar .field {
-  flex: 1 1 180px;
-  min-width: 180px;
-  max-width: none;
-}
-
-#statisticsClassPanel .statistics-history-toolbar label[for="statisticsClassFilterSelect"] {
-  flex: 0.5 1 90px;
-  min-width: 90px;
-}
-
-#statisticsClassPanel .statistics-history-toolbar label[for="statisticsTeacherFilterSelect"],
-#statisticsClassPanel .statistics-history-toolbar label[for="statisticsTutorFilterSelect"],
-#statisticsClassPanel .statistics-history-toolbar label[for="statisticsClientFilterSelect"] {
-  flex: 1.15 1 210px;
-  min-width: 210px;
-}
-
-#statisticsClassPanel .statistics-history-toolbar .statistics-period-field {
-  flex: 0 0 120px;
-  min-width: 120px;
-  max-width: 120px;
-}
-
-#statisticsClassPanel .statistics-history-toolbar .statistics-history-reload-btn {
-  flex: 0 0 auto;
-  width: 100px;
-  min-width: 100px;
-}
-
-/* Narrow screens: keep the desktop footprint intact and let the parent scroll horizontally. */
-@media (max-width: 1200px) {
-  #statisticsClassPanel .all-users-head {
-    width: max-content;
-    min-width: 1120px;
-  }
-
-  #statisticsClassPanel .vip-attendance-toolbar {
-    width: max-content;
-    min-width: 1120px;
-  }
-
-  #statisticsClassPanel .all-users-table {
-    width: 1120px;
-    min-width: 1120px;
-  }
-}
-
 /* Statistics / Lesson Status Report */
 #statisticsPlannerReportPanel {
   overflow-x: visible;
@@ -975,18 +667,6 @@ main.home-main:has(#organizationsPanel) {
 #statisticsPlannerReportPanel .planner-report-field-client {
   flex: 2 1 auto;
   min-width: 140px;
-  width: auto;
-  max-width: none;
-}
-
-#statisticsPlannerReportPanel .planner-report-field-vip {
-  flex: 0 0 auto;
-  min-width: 90px;
-  width: auto;
-  max-width: none;
-}
-
-#statisticsPlannerReportPanel .planner-report-vip-toggle {
   width: auto;
   max-width: none;
 }
@@ -1061,63 +741,6 @@ main.home-main:has(#positionsPanel) {
 #positionsPanel .settings-table-wrap {
   overflow-x: visible;
   overflow-y: visible;
-}
-
-/* Appointment Norms panel — scrollbar at viewport bottom */
-main.home-main:has(#appointmentNormsPanel) {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-x: contain;
-}
-
-#appointmentNormsPanel {
-  overflow-x: visible;
-  min-width: 760px;
-}
-
-#appointmentNormsPanel .settings-table-wrap {
-  overflow-x: visible;
-  overflow-y: visible;
-}
-
-#vipNormMonitoringPanel {
-  overflow-x: visible;
-  min-width: 0;
-}
-
-#vipNormMonitoringPanel .all-users-table-wrap {
-  overflow-x: hidden;
-  overflow-y: auto;
-}
-
-#vipNormMonitoringPanel .all-users-table {
-  width: 100%;
-  min-width: 0;
-  table-layout: fixed;
-}
-
-#vipNormMonitoringPanel .all-users-table th,
-#vipNormMonitoringPanel .all-users-table td {
-  overflow: visible;
-  text-overflow: clip;
-}
-
-#vipNormMonitoringPanel .all-users-table th:nth-child(1),
-#vipNormMonitoringPanel .all-users-table td:nth-child(1),
-#vipNormMonitoringPanel .all-users-table th:nth-child(2),
-#vipNormMonitoringPanel .all-users-table td:nth-child(2) {
-  white-space: normal;
-}
-
-#vipNormMonitoringPanel .all-users-table th:nth-child(3),
-#vipNormMonitoringPanel .all-users-table td:nth-child(3),
-#vipNormMonitoringPanel .all-users-table th:nth-child(4),
-#vipNormMonitoringPanel .all-users-table td:nth-child(4),
-#vipNormMonitoringPanel .all-users-table th:nth-child(5),
-#vipNormMonitoringPanel .all-users-table td:nth-child(5),
-#vipNormMonitoringPanel .all-users-table th:nth-child(6),
-#vipNormMonitoringPanel .all-users-table td:nth-child(6) {
-  white-space: nowrap;
 }
 
 /* table-outer-scroll-wrap — horizontal scroll on parent (mobile) */

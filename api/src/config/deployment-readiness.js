@@ -26,7 +26,7 @@ export async function listMigrationFileMetadata({
   return result;
 }
 
-export async function readAppliedMigrations({ db }) {
+async function readAppliedMigrations({ db }) {
   const tableCheck = await db.query(
     `SELECT EXISTS (
        SELECT 1

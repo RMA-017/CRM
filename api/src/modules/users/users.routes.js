@@ -151,8 +151,8 @@ async function usersRoutes(fastify) {
       if (phone && !PHONE_REGEX.test(phone)) {
         errors.phone = "Invalid phone number.";
       }
-      if (password && password.length < 6) {
-        errors.password = "Password must be at least 6 characters.";
+      if (password && password.length < 4) {
+        errors.password = "Password must be at least 4 characters.";
       }
 
       if (String(request.body?.position || "").trim() && !positionId) {

@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import pool from "../src/config/db.js";
 import {
-  getClientMedicalHistoryClientsPage,
   getClientsPage,
   resetClientsServiceSchemaCacheForTests
 } from "../src/modules/clients/clients.service.js";
@@ -15,18 +14,12 @@ function stubPoolQuery(implementation) {
   };
 }
 
-test("getClientsPage uses one paged query after schema readiness check", async () => {
+test("getClientsPage uses one paged query", async () => {
   resetClientsServiceSchemaCacheForTests();
   let callCount = 0;
   const restoreQuery = stubPoolQuery(async (sql, params = []) => {
     callCount += 1;
     const text = String(sql || "");
-
-    if (text.includes("FROM information_schema.tables")) {
-      return {
-        rows: [{ table_name: "client_medical_history_entries" }]
-      };
-    }
 
     assert.match(text, /WITH filtered_clients AS/i);
     assert.doesNotMatch(text, /SELECT COUNT\(\*\)::int AS total[\s\S]*FROM clients c/i);
@@ -72,60 +65,13 @@ test("getClientsPage uses one paged query after schema readiness check", async (
       search: ""
     });
 
-    assert.equal(callCount, 2);
+    assert.equal(callCount, 1);
     assert.equal(result.total, 13);
     assert.equal(result.totalPages, 2);
     assert.equal(result.page, 2);
     assert.equal(result.rows.length, 1);
     assert.equal(result.rows[0].id, "77");
     assert.equal(Object.hasOwn(result.rows[0], "_sort_client_id"), false);
-  } finally {
-    restoreQuery();
-    resetClientsServiceSchemaCacheForTests();
-  }
-});
-
-test("getClientMedicalHistoryClientsPage uses one paged query after schema readiness check", async () => {
-  resetClientsServiceSchemaCacheForTests();
-  let callCount = 0;
-  const restoreQuery = stubPoolQuery(async (sql, params = []) => {
-    callCount += 1;
-    const text = String(sql || "");
-
-    if (text.includes("FROM information_schema.tables")) {
-      return {
-        rows: [{ table_name: "client_medical_history_entries" }]
-      };
-    }
-
-    assert.match(text, /WITH latest_history AS/i);
-    assert.match(text, /filtered_clients AS/i);
-    assert.deepEqual(params.slice(-2), [20, 3]);
-    return {
-      rows: [{
-        total: 0,
-        total_pages: 1,
-        id: null,
-        history_entry_id: null,
-        _sort_client_id: null,
-        _sort_history_created_at: null
-      }]
-    };
-  });
-
-  try {
-    const result = await getClientMedicalHistoryClientsPage({
-      organizationId: 9,
-      page: 3,
-      limit: 20,
-      search: ""
-    });
-
-    assert.equal(callCount, 2);
-    assert.equal(result.total, 0);
-    assert.equal(result.totalPages, 1);
-    assert.equal(result.page, 1);
-    assert.deepEqual(result.rows, []);
   } finally {
     restoreQuery();
     resetClientsServiceSchemaCacheForTests();

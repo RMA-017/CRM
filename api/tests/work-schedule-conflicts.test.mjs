@@ -490,11 +490,11 @@ test("work-schedule create route returns 409 when specialist still has future le
   assert.match(String(reply.state.payload?.message || ""), /Move those lessons first/i);
 });
 
-test("work-schedule routes require dedicated permissions when explicit work schedule permissions exist", async () => {
+test("work-schedule routes use planner permissions", async () => {
   const recorder = createRouteRecorder();
   const permissionSet = new Set([
-    "appointments.work-schedule.read",
-    "appointments.work-schedule.create"
+    "appointments.planner.read",
+    "appointments.planner.create"
   ]);
 
   registerAppointmentSettingsConfigRoutes(recorder.fastify, {
@@ -509,10 +509,10 @@ test("work-schedule routes require dedicated permissions when explicit work sche
       APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip.my-children",
       SETTINGS_APPOINTMENTS_READ: "settings.appointments.read",
       SETTINGS_APPOINTMENTS_UPDATE: "settings.appointments.update",
-      APPOINTMENTS_WORK_SCHEDULE_READ: "appointments.work-schedule.read",
-      APPOINTMENTS_WORK_SCHEDULE_CREATE: "appointments.work-schedule.create",
-      APPOINTMENTS_WORK_SCHEDULE_UPDATE: "appointments.work-schedule.update",
-      APPOINTMENTS_WORK_SCHEDULE_DELETE: "appointments.work-schedule.delete"
+      APPOINTMENTS_PLANNER_READ: "appointments.planner.read",
+      APPOINTMENTS_PLANNER_CREATE: "appointments.planner.create",
+      APPOINTMENTS_PLANNER_UPDATE: "appointments.planner.update",
+      APPOINTMENTS_PLANNER_DELETE: "appointments.planner.delete"
     },
     DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS: 10,
     DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX: 18,
@@ -570,7 +570,7 @@ test("work-schedule routes require dedicated permissions when explicit work sche
   const createRoute = recorder.routes.find((item) => item.method === "POST" && item.path === "/work-schedule");
 
   const deniedReadReply = createReplyRecorder();
-  permissionSet.delete("appointments.work-schedule.read");
+  permissionSet.delete("appointments.planner.read");
   await readRoute.handler(
     {
       query: { organizationId: 7 },
@@ -579,7 +579,7 @@ test("work-schedule routes require dedicated permissions when explicit work sche
         organizationId: 7,
         requester: {
           role_id: 4,
-          orgFeatures: ["appointments.work_schedule"]
+          orgFeatures: ["appointments.planner"]
         }
       },
       log: { error() {} }
@@ -588,7 +588,7 @@ test("work-schedule routes require dedicated permissions when explicit work sche
   );
   assert.equal(deniedReadReply.state.statusCode, 403);
 
-  permissionSet.add("appointments.work-schedule.read");
+  permissionSet.add("appointments.planner.read");
   const allowedCreateReply = createReplyRecorder();
   await createRoute.handler(
     {
@@ -607,7 +607,7 @@ test("work-schedule routes require dedicated permissions when explicit work sche
         organizationId: 7,
         requester: {
           role_id: 4,
-          orgFeatures: ["appointments.work_schedule"]
+          orgFeatures: ["appointments.planner"]
         }
       },
       log: { error() {} }
@@ -617,11 +617,11 @@ test("work-schedule routes require dedicated permissions when explicit work sche
   assert.equal(allowedCreateReply.state.statusCode, 201);
 });
 
-test("default weekly work-schedule route uses update permission", async () => {
+test("default weekly work-schedule route uses planner update permission", async () => {
   const recorder = createRouteRecorder();
   const permissionSet = new Set([
-    "appointments.work-schedule.read",
-    "appointments.work-schedule.update"
+    "appointments.planner.read",
+    "appointments.planner.update"
   ]);
 
   registerAppointmentSettingsConfigRoutes(recorder.fastify, {
@@ -636,10 +636,10 @@ test("default weekly work-schedule route uses update permission", async () => {
       APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip.my-children",
       SETTINGS_APPOINTMENTS_READ: "settings.appointments.read",
       SETTINGS_APPOINTMENTS_UPDATE: "settings.appointments.update",
-      APPOINTMENTS_WORK_SCHEDULE_READ: "appointments.work-schedule.read",
-      APPOINTMENTS_WORK_SCHEDULE_CREATE: "appointments.work-schedule.create",
-      APPOINTMENTS_WORK_SCHEDULE_UPDATE: "appointments.work-schedule.update",
-      APPOINTMENTS_WORK_SCHEDULE_DELETE: "appointments.work-schedule.delete"
+      APPOINTMENTS_PLANNER_READ: "appointments.planner.read",
+      APPOINTMENTS_PLANNER_CREATE: "appointments.planner.create",
+      APPOINTMENTS_PLANNER_UPDATE: "appointments.planner.update",
+      APPOINTMENTS_PLANNER_DELETE: "appointments.planner.delete"
     },
     DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS: 10,
     DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX: 18,
@@ -715,7 +715,7 @@ test("default weekly work-schedule route uses update permission", async () => {
         organizationId: 7,
         requester: {
           role_id: 4,
-          orgFeatures: ["appointments.work_schedule"]
+          orgFeatures: ["appointments.planner"]
         }
       },
       log: { error() {} }
@@ -746,10 +746,10 @@ test("work-schedule routes do not inherit appointment settings permissions for n
       APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip.my-children",
       SETTINGS_APPOINTMENTS_READ: "settings.appointments.read",
       SETTINGS_APPOINTMENTS_UPDATE: "settings.appointments.update",
-      APPOINTMENTS_WORK_SCHEDULE_READ: "appointments.work-schedule.read",
-      APPOINTMENTS_WORK_SCHEDULE_CREATE: "appointments.work-schedule.create",
-      APPOINTMENTS_WORK_SCHEDULE_UPDATE: "appointments.work-schedule.update",
-      APPOINTMENTS_WORK_SCHEDULE_DELETE: "appointments.work-schedule.delete"
+      APPOINTMENTS_PLANNER_READ: "appointments.planner.read",
+      APPOINTMENTS_PLANNER_CREATE: "appointments.planner.create",
+      APPOINTMENTS_PLANNER_UPDATE: "appointments.planner.update",
+      APPOINTMENTS_PLANNER_DELETE: "appointments.planner.delete"
     },
     DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS: 10,
     DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX: 18,
@@ -814,7 +814,7 @@ test("work-schedule routes do not inherit appointment settings permissions for n
         role_id: 4,
         is_admin: false,
         is_platform_admin: false,
-        orgFeatures: ["settings.appointments", "appointments.work_schedule"]
+        orgFeatures: ["settings.appointments", "appointments.planner"]
       }
     },
     log: { error() {} }
@@ -850,120 +850,6 @@ test("work-schedule routes do not inherit appointment settings permissions for n
   assert.equal(deniedCreateReply.state.statusCode, 403);
 });
 
-test("appointment settings read allows my-children users without work-schedule permissions", async () => {
-  const recorder = createRouteRecorder();
-  const permissionSet = new Set([
-    "appointments.vip.my-children"
-  ]);
-  const restoreQuery = stubPoolQuery(async (sql) => {
-    const queryText = String(sql || "");
-    if (queryText.includes("FROM information_schema.columns")) {
-      return { rows: [] };
-    }
-    throw new Error(`Unexpected SQL: ${queryText}`);
-  });
-
-  registerAppointmentSettingsConfigRoutes(recorder.fastify, {
-    setNoCacheHeaders() {},
-    requesterHasOrgFeature(requester, featureKey) {
-      const enabledFeatures = new Set(requester?.orgFeatures || []);
-      return enabledFeatures.has(featureKey);
-    },
-    hasPermission: async (_roleId, permissionCode) => permissionSet.has(permissionCode),
-    PERMISSIONS: {
-      APPOINTMENTS_PLANNER_READ: "appointments.planner.read",
-      APPOINTMENTS_VIP_CLIENTS_MY_CLASS: "appointments.vip.my-class",
-      APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip.my-children",
-      SETTINGS_APPOINTMENTS_READ: "settings.appointments.read",
-      SETTINGS_APPOINTMENTS_UPDATE: "settings.appointments.update",
-      APPOINTMENTS_WORK_SCHEDULE_READ: "appointments.work-schedule.read",
-      APPOINTMENTS_WORK_SCHEDULE_CREATE: "appointments.work-schedule.create",
-      APPOINTMENTS_WORK_SCHEDULE_UPDATE: "appointments.work-schedule.update",
-      APPOINTMENTS_WORK_SCHEDULE_DELETE: "appointments.work-schedule.delete"
-    },
-    DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS: 10,
-    DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX: 18,
-    parseOptionalOrganizationId(value) {
-      const parsed = Number.parseInt(String(value || "").trim(), 10);
-      return {
-        value: Number.isInteger(parsed) && parsed > 0 ? parsed : null,
-        error: null
-      };
-    },
-    resolveTargetOrganizationId(access, requestedOrganizationId) {
-      return requestedOrganizationId || access?.authContext?.organizationId || null;
-    },
-    parsePositiveIntegerOr(value, fallback = 0) {
-      const parsed = Number.parseInt(String(value || "").trim(), 10);
-      return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-    },
-    resolveOwnAppointmentSpecialistUserId() {
-      return null;
-    },
-    toAppointmentDayNum(value) {
-      return {
-        mon: 1,
-        tue: 2,
-        wed: 3,
-        thu: 4,
-        fri: 5,
-        sat: 6,
-        sun: 7
-      }[String(value || "").trim().toLowerCase()] || 0;
-    },
-    normalizeDurationOptions() {
-      return [];
-    },
-    normalizeReminderChannels() {
-      return [];
-    },
-    normalizeVisibleWeekDays() {
-      return [];
-    },
-    validateSettingsPayload() {
-      return null;
-    },
-    getAppointmentSettingsByOrganization: async () => ({ visibleWeekDays: [1, 2, 3, 4, 5] }),
-    saveAppointmentSettings: async () => ({}),
-    withAppointmentTransaction: async (callback) => callback({
-      query: async () => ({ rows: [], rowCount: 0 })
-    }),
-    listAppointmentWorkSchedule: async () => [],
-    listAppointmentWorkScheduleStaffByOrganization: async () => [],
-    createAppointmentWorkScheduleEntry: async () => ({ id: 99 }),
-    updateAppointmentWorkScheduleEntryById: async () => null,
-    deleteAppointmentWorkScheduleEntryById: async () => ({ rowCount: 0 }),
-    replaceAppointmentDefaultWeeklyWorkSchedule: async () => []
-  });
-
-  try {
-    const readRoute = recorder.routes.find((item) => item.method === "GET" && item.path === "/settings");
-    const reply = createReplyRecorder();
-    await readRoute.handler(
-      {
-        authContext: {
-          userId: 1,
-          organizationId: 7,
-          requester: {
-            role_id: 4,
-            is_admin: false,
-            is_platform_admin: false,
-            orgFeatures: ["vip_clients.my_children"]
-          }
-        },
-        query: {},
-        log: { error() {} }
-      },
-      reply
-    );
-
-    assert.equal(reply.state.statusCode, 200);
-    assert.deepEqual(reply.state.payload?.item?.visibleWeekDays, [1, 2, 3, 4, 5]);
-  } finally {
-    restoreQuery();
-  }
-});
-
 test("appointment settings read lets planner readers request another specialist settings", async () => {
   const recorder = createRouteRecorder();
   let capturedSpecialistId = null;
@@ -982,10 +868,9 @@ test("appointment settings read lets planner readers request another specialist 
       APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip.my-children",
       SETTINGS_APPOINTMENTS_READ: "settings.appointments.read",
       SETTINGS_APPOINTMENTS_UPDATE: "settings.appointments.update",
-      APPOINTMENTS_WORK_SCHEDULE_READ: "appointments.work-schedule.read",
-      APPOINTMENTS_WORK_SCHEDULE_CREATE: "appointments.work-schedule.create",
-      APPOINTMENTS_WORK_SCHEDULE_UPDATE: "appointments.work-schedule.update",
-      APPOINTMENTS_WORK_SCHEDULE_DELETE: "appointments.work-schedule.delete"
+      APPOINTMENTS_PLANNER_CREATE: "appointments.planner.create",
+      APPOINTMENTS_PLANNER_UPDATE: "appointments.planner.update",
+      APPOINTMENTS_PLANNER_DELETE: "appointments.planner.delete"
     },
     DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS: 10,
     DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX: 18,
@@ -1093,10 +978,9 @@ test("appointment settings patch does not require work-schedule permissions for 
       APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip.my-children",
       SETTINGS_APPOINTMENTS_READ: "settings.appointments.read",
       SETTINGS_APPOINTMENTS_UPDATE: "settings.appointments.update",
-      APPOINTMENTS_WORK_SCHEDULE_READ: "appointments.work-schedule.read",
-      APPOINTMENTS_WORK_SCHEDULE_CREATE: "appointments.work-schedule.create",
-      APPOINTMENTS_WORK_SCHEDULE_UPDATE: "appointments.work-schedule.update",
-      APPOINTMENTS_WORK_SCHEDULE_DELETE: "appointments.work-schedule.delete"
+      APPOINTMENTS_PLANNER_CREATE: "appointments.planner.create",
+      APPOINTMENTS_PLANNER_UPDATE: "appointments.planner.update",
+      APPOINTMENTS_PLANNER_DELETE: "appointments.planner.delete"
     },
     DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS: 10,
     DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX: 18,

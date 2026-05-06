@@ -31,28 +31,27 @@
 .side-menu {
   position: fixed;
   top: 0;
+  bottom: 0;
   left: 0;
   width: min(260px, 86vw);
-  height: 100dvh;
   background: var(--sidebar-bg);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
-  transform: translate3d(-100%, 0, 0);
+  box-shadow: none;
+  transform: translate3d(calc(-100% - 6px), 0, 0);
   z-index: var(--z-side-menu);
   display: flex;
   flex-direction: column;
   padding: 0;
   overflow: hidden;
-  visibility: hidden;
   pointer-events: none;
   backface-visibility: hidden;
-  contain: layout paint;
-  will-change: auto;
+  isolation: isolate;
+  contain: strict;
+  will-change: transform;
   transition: none;
 }
 
 .side-menu.open {
   transform: translate3d(0, 0, 0);
-  visibility: visible;
   pointer-events: auto;
 }
 
@@ -86,6 +85,9 @@
   gap: 4px;
   padding: 14px 10px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  overflow-anchor: none;
+  contain: content;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
 }
@@ -191,11 +193,27 @@
 .menu-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: transparent;
   z-index: var(--z-menu-overlay);
-  opacity: 1;
-  will-change: auto;
+  opacity: 0;
+  pointer-events: none;
+  contain: paint;
+  will-change: opacity;
   transition: none;
+}
+
+.menu-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .side-menu,
+  .side-menu.open,
+  .menu-overlay,
+  .menu-overlay.open {
+    transition: none;
+  }
 }
 
 /* ---- Auth Form (profile sidebar) ---- */

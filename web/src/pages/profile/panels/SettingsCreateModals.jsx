@@ -1,23 +1,16 @@
-import { useEffect } from "react";
 import { createPortal } from "react-dom";
-import CustomSelect from "../../../components/CustomSelect.jsx";
 import RolePermissionsAccordion from "../RolePermissionsAccordion.jsx";
-import { ALL_ORG_FEATURE_KEYS, ORG_FEATURE_TREE } from "../profile.constants.js";
 
 function SettingsCreateModals({
   organizationCreateModalOpen,
   setOrganizationCreateModalOpen,
   closeOrganizationCreateModal,
-  orgCreateTab,
-  setOrgCreateTab,
   organizationCreateForm,
   organizationCreateError,
   organizationCreateSubmitting,
   setOrganizationCreateForm,
   setOrganizationCreateError,
   handleOrganizationCreateSubmit,
-  expandedCreateFeatures,
-  setExpandedCreateFeatures,
   roleCreateModalOpen,
   setRoleCreateModalOpen,
   closeRoleCreateModal,
@@ -36,28 +29,8 @@ function SettingsCreateModals({
   positionCreateSubmitting,
   setPositionCreateForm,
   setPositionCreateError,
-  handlePositionCreateSubmit,
-  normCreateModalOpen,
-  closeNormCreateModal,
-  normCreateForm,
-  normCreateError,
-  normCreateSubmitting,
-  setNormCreateForm,
-  setNormCreateError,
-  handleNormCreateSubmit,
-  positionsSettings
+  handlePositionCreateSubmit
 }) {
-  useEffect(() => {
-    const message = String(normCreateError || "").trim();
-    if (!message) {
-      return;
-    }
-    if (typeof window !== "undefined" && typeof window.alert === "function") {
-      window.alert(message);
-    }
-    setNormCreateError("");
-  }, [normCreateError, setNormCreateError]);
-
   if (typeof document === "undefined") {
     return null;
   }
@@ -81,22 +54,6 @@ function SettingsCreateModals({
             ×
           </button>
         </div>
-        <div className="att-admin-tabs">
-          <button
-            type="button"
-            className={`att-admin-tab-btn${orgCreateTab === "edit" ? " active" : ""}`}
-            onClick={() => setOrgCreateTab("edit")}
-          >
-            Add
-          </button>
-          <button
-            type="button"
-            className={`att-admin-tab-btn${orgCreateTab === "features" ? " active" : ""}`}
-            onClick={() => setOrgCreateTab("features")}
-          >
-            Features
-          </button>
-        </div>
         <form
           className="auth-form settings-edit-form"
           noValidate
@@ -107,7 +64,7 @@ function SettingsCreateModals({
             }
           }}
         >
-          <div hidden={orgCreateTab !== "edit"}>
+          <div>
             <div className="field">
               <label htmlFor="organizationCreateModalCodeInput">Code</label>
               <input
@@ -157,98 +114,6 @@ function SettingsCreateModals({
               </label>
             </div>
           </div>
-          <div className="org-edit-features-tab" hidden={orgCreateTab !== "features"}>
-            <div className="settings-permissions-section">
-              <div className="settings-permission-groups">
-                {ORG_FEATURE_TREE.map(({ key: parentKey, label: parentLabel, children }) => {
-                  const childKeys = children.map((child) => child.key);
-                  const current = organizationCreateForm.allowedFeatures === null
-                    ? [...ALL_ORG_FEATURE_KEYS]
-                    : organizationCreateForm.allowedFeatures;
-                  const parentChecked = current.includes(parentKey);
-                  const isExpanded = expandedCreateFeatures.has(parentKey);
-                  const toggleExpand = () =>
-                    setExpandedCreateFeatures((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(parentKey)) {
-                        next.delete(parentKey);
-                      } else {
-                        next.add(parentKey);
-                      }
-                      return next;
-                    });
-                  return (
-                    <div key={parentKey} className="settings-permission-group">
-                      <div className="org-feature-accordion-header">
-                        <label className="settings-permission-item" htmlFor={`orgCreateFeatureP_${parentKey}`}>
-                          <input
-                            id={`orgCreateFeatureP_${parentKey}`}
-                            type="checkbox"
-                            checked={parentChecked}
-                            onChange={(event) => {
-                              const checked = event.currentTarget.checked;
-                              setOrganizationCreateForm((prev) => {
-                                const currentFeatures = prev.allowedFeatures === null
-                                  ? [...ALL_ORG_FEATURE_KEYS]
-                                  : [...prev.allowedFeatures];
-                                const next = checked
-                                  ? [...new Set([...currentFeatures, parentKey, ...childKeys])]
-                                  : currentFeatures.filter((key) => key !== parentKey && !childKeys.includes(key));
-                                return {
-                                  ...prev,
-                                  allowedFeatures: next.length === ALL_ORG_FEATURE_KEYS.length ? null : next
-                                };
-                              });
-                            }}
-                          />
-                          <strong>{parentLabel}</strong>
-                        </label>
-                        <button type="button" className="org-feature-accordion-toggle" onClick={toggleExpand}>
-                          {isExpanded ? "▲" : "▼"}
-                        </button>
-                      </div>
-                      {isExpanded && (
-                        <div className="settings-permissions-grid settings-permissions-grid-group org-feature-accordion-children">
-                          {children.map(({ key: childKey, label: childLabel }) => (
-                            <label key={childKey} className="settings-permission-item" htmlFor={`orgCreateFeatureC_${childKey}`}>
-                              <input
-                                id={`orgCreateFeatureC_${childKey}`}
-                                type="checkbox"
-                                checked={current.includes(childKey)}
-                                onChange={(event) => {
-                                  const checked = event.currentTarget.checked;
-                                  setOrganizationCreateForm((prev) => {
-                                    const currentFeatures = prev.allowedFeatures === null
-                                      ? [...ALL_ORG_FEATURE_KEYS]
-                                      : [...prev.allowedFeatures];
-                                    let next;
-                                    if (checked) {
-                                      next = [...new Set([...currentFeatures, childKey, parentKey])];
-                                    } else {
-                                      next = currentFeatures.filter((key) => key !== childKey);
-                                      const hasAnyChild = childKeys.some((key) => next.includes(key));
-                                      if (!hasAnyChild) {
-                                        next = next.filter((key) => key !== parentKey);
-                                      }
-                                    }
-                                    return {
-                                      ...prev,
-                                      allowedFeatures: next.length === ALL_ORG_FEATURE_KEYS.length ? null : next
-                                    };
-                                  });
-                                }}
-                              />
-                              <span>{childLabel}</span>
-                            </label>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
           <div className="edit-actions">
             <button className="btn" type="submit" disabled={organizationCreateSubmitting}>
               {organizationCreateSubmitting ? "Saving..." : "Save"}
@@ -256,11 +121,7 @@ function SettingsCreateModals({
           </div>
         </form>
       </section>
-      <div
-        className="login-overlay"
-        hidden={!organizationCreateModalOpen}
-        onClick={closeOrganizationCreateModal}
-      />
+      <div className="login-overlay" hidden={!organizationCreateModalOpen} onClick={closeOrganizationCreateModal} />
     </>
   );
 
@@ -348,11 +209,7 @@ function SettingsCreateModals({
           </div>
         </form>
       </section>
-      <div
-        className="login-overlay"
-        hidden={!roleCreateModalOpen}
-        onClick={closeRoleCreateModal}
-      />
+      <div className="login-overlay" hidden={!roleCreateModalOpen} onClick={closeRoleCreateModal} />
     </>
   );
 
@@ -423,107 +280,7 @@ function SettingsCreateModals({
           </div>
         </form>
       </section>
-      <div
-        className="login-overlay"
-        hidden={!positionCreateModalOpen}
-        onClick={closePositionCreateModal}
-      />
-    </>
-  );
-
-  const normCreateModalLayer = (
-    <>
-      <section
-        id="normCreateModal"
-        className="logout-confirm-modal settings-edit-modal"
-        hidden={!normCreateModalOpen}
-      >
-        <div className="all-users-head">
-          <h3>Add Appointment Norm</h3>
-          <button
-            id="closeNormCreateModalBtn"
-            type="button"
-            className="header-btn panel-close-btn"
-            aria-label="Close create norm modal"
-            onClick={closeNormCreateModal}
-          >
-            ×
-          </button>
-        </div>
-        <form
-          className="auth-form settings-edit-form"
-          noValidate
-          onSubmit={async (event) => {
-            const isCreated = await handleNormCreateSubmit(event);
-            if (isCreated) {
-              closeNormCreateModal();
-            }
-          }}
-        >
-          <div className="field">
-            <label htmlFor="normCreateModalPositionInput">Position</label>
-            <CustomSelect
-              id="normCreateModalPositionInput"
-              placeholder="Select position"
-              value={normCreateForm.positionId}
-              menuPortal
-              options={(Array.isArray(positionsSettings) ? positionsSettings : []).map((pos) => ({
-                value: String(pos?.id || "").trim(),
-                label: String(pos?.label || pos?.id || "").trim()
-              })).filter((option) => option.value)}
-              onChange={(nextValue) => {
-                setNormCreateForm((prev) => ({ ...prev, positionId: nextValue }));
-                if (normCreateError) {
-                  setNormCreateError("");
-                }
-              }}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="normCreateModalMaxPerWeekInput">Max sessions / week</label>
-            <input
-              id="normCreateModalMaxPerWeekInput"
-              name="maxPerWeek"
-              type="number"
-              min="1"
-              max="100"
-              placeholder="2"
-              value={normCreateForm.maxPerWeek}
-              onInput={(event) => {
-                const nextValue = event.currentTarget.value;
-                setNormCreateForm((prev) => ({ ...prev, maxPerWeek: nextValue }));
-                if (normCreateError) {
-                  setNormCreateError("");
-                }
-              }}
-            />
-          </div>
-          <div className="field settings-inline-control">
-            <label htmlFor="normCreateModalIsActiveInput">Active</label>
-            <label className="settings-checkbox settings-checkbox-inline" htmlFor="normCreateModalIsActiveInput">
-              <input
-                id="normCreateModalIsActiveInput"
-                type="checkbox"
-                checked={Boolean(normCreateForm.isActive)}
-                onChange={(event) => {
-                  const checked = event.currentTarget.checked;
-                  setNormCreateForm((prev) => ({ ...prev, isActive: checked }));
-                }}
-              />
-            </label>
-          </div>
-          <div className="edit-actions">
-            <button className="btn" type="submit" disabled={normCreateSubmitting}>
-              {normCreateSubmitting ? "Saving..." : "Save"}
-            </button>
-          </div>
-        </form>
-      </section>
-      <div
-        className="login-overlay"
-        hidden={!normCreateModalOpen}
-        onClick={closeNormCreateModal}
-      />
+      <div className="login-overlay" hidden={!positionCreateModalOpen} onClick={closePositionCreateModal} />
     </>
   );
 
@@ -532,7 +289,6 @@ function SettingsCreateModals({
       {createPortal(organizationCreateModalLayer, document.body)}
       {createPortal(roleCreateModalLayer, document.body)}
       {createPortal(positionCreateModalLayer, document.body)}
-      {createPortal(normCreateModalLayer, document.body)}
     </>
   );
 }

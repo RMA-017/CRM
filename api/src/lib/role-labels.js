@@ -6,20 +6,20 @@ export const MANAGER_ROLE_MATCHERS = Object.freeze([
   "менедж"
 ]);
 
-export const DIRECTOR_ROLE_MATCHERS = Object.freeze([
+const DIRECTOR_ROLE_MATCHERS = Object.freeze([
   "director",
   "direktor",
   "директор"
 ]);
 
-export const SPECIALIST_ROLE_MATCHERS = Object.freeze([
+const SPECIALIST_ROLE_MATCHERS = Object.freeze([
   "specialist",
   "spetsialist",
   "mutaxassis",
   "специалист"
 ]);
 
-export const TUTOR_ROLE_MATCHERS = Object.freeze([
+const TUTOR_ROLE_MATCHERS = Object.freeze([
   "tutor"
 ]);
 

@@ -94,8 +94,18 @@ function getHistoryLockCutoffDateYmd(historyLockDays = DEFAULT_APPOINTMENT_HISTO
   const normalizedHistoryLockDays = Number.isInteger(parsedHistoryLockDays) && parsedHistoryLockDays >= 0
     ? parsedHistoryLockDays
     : DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS;
-  const now = new Date();
-  const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const todayParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Tashkent",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date());
+  const year = Number.parseInt(todayParts.find((part) => part.type === "year")?.value || "", 10);
+  const month = Number.parseInt(todayParts.find((part) => part.type === "month")?.value || "", 10);
+  const day = Number.parseInt(todayParts.find((part) => part.type === "day")?.value || "", 10);
+  const todayUtc = Number.isInteger(year) && Number.isInteger(month) && Number.isInteger(day)
+    ? new Date(Date.UTC(year, month - 1, day))
+    : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()));
   todayUtc.setUTCDate(todayUtc.getUTCDate() - normalizedHistoryLockDays);
   return formatUtcDateYmd(todayUtc);
 }
@@ -108,7 +118,7 @@ function findLockedHistoryDate(value, historyLockDays) {
     if (!DATE_REGEX.test(normalized)) {
       continue;
     }
-    if (normalized <= cutoffDate) {
+    if (normalized < cutoffDate) {
       return {
         date: normalized,
         cutoffDate
@@ -119,16 +129,13 @@ function findLockedHistoryDate(value, historyLockDays) {
 }
 
 export function getHistoryLockErrorForRequester(requester, appointmentDates, historyLockDays) {
-  if (Boolean(requester?.is_admin)) {
-    return null;
-  }
   const locked = findLockedHistoryDate(appointmentDates, historyLockDays);
   if (!locked) {
     return null;
   }
   return {
     field: "appointmentDate",
-    message: `History is locked for non-admin users on or before ${locked.cutoffDate}. Requested date: ${locked.date}.`
+    message: `History is locked before ${locked.cutoffDate}. Requested date: ${locked.date}.`
   };
 }
 

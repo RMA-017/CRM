@@ -6,6 +6,7 @@ export function registerAppointmentBreakRoutes(fastify, context) {
     requireAppointmentsAccess,
     requesterHasOrgFeature,
     hasPermission,
+    requesterHasPermission: contextRequesterHasPermission,
     PERMISSIONS,
     parsePositiveIntegerOr,
     resolveOwnAppointmentSpecialistUserId,
@@ -15,6 +16,16 @@ export function registerAppointmentBreakRoutes(fastify, context) {
     replaceAppointmentBreaksBySpecialist,
     isUniqueOrExclusionConflict
   } = context;
+  const requesterHasPermission = typeof contextRequesterHasPermission === "function"
+    ? contextRequesterHasPermission
+    : async (requester, permissionCode) => {
+        if (requester?.is_admin || requester?.is_platform_admin) {
+          return true;
+        }
+        return typeof hasPermission === "function"
+          ? hasPermission(requester?.role_id, permissionCode)
+          : false;
+      };
 
   fastify.get(
     "/breaks",
@@ -34,16 +45,10 @@ export function registerAppointmentBreakRoutes(fastify, context) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
 
-        const [
-          canReadBreaksPermission,
-          canReadPlannerPermission
-        ] = await Promise.all([
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_BREAKS_READ),
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_PLANNER_READ)
-        ]);
-        const canReadBreaks = canReadBreaksPermission && requesterHasOrgFeature(requester, "appointments.breaks");
-        const canReadPlanner = canReadPlannerPermission && requesterHasOrgFeature(requester, "appointments.planner");
-        if (!canReadBreaks && !canReadPlanner) {
+        const canReadPlanner = (
+          await requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_PLANNER_READ)
+        ) && requesterHasOrgFeature(requester, "appointments.planner");
+        if (!canReadPlanner) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
@@ -85,8 +90,8 @@ export function registerAppointmentBreakRoutes(fastify, context) {
         const access = await requireAppointmentsAccess(
           request,
           reply,
-          PERMISSIONS.APPOINTMENTS_BREAKS_UPDATE,
-          "appointments.breaks"
+          PERMISSIONS.APPOINTMENTS_PLANNER_UPDATE,
+          "appointments.planner"
         );
         if (!access) {
           return;

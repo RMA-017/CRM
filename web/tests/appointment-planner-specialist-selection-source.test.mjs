@@ -100,7 +100,7 @@ test("appointment planner keeps toolbar selection user-scoped and restores the l
 
   assert.match(
     schedulerSource,
-    /const selectedClientOption = normalizedSelectedPlannerClientFilterId[\s\S]*selectedPlannerFilterClient[\s\S]*getClientDisplayName\(selectedPlannerFilterClient\)[\s\S]*return \[selectedClientOption,\s*\.\.\.base\];/s,
+    /const selectedClientOption = normalizedSelectedPlannerClientFilterId[\s\S]*selectedPlannerFilterClient[\s\S]*formatClientOptionLabel\(\{[\s\S]*\.\.\.selectedPlannerFilterClient,[\s\S]*id:\s*normalizedSelectedPlannerClientFilterId[\s\S]*return \[selectedClientOption,\s*\.\.\.base\];/s,
     "Planner client select should re-inject the restored client option so the label stays visible after reload."
   );
 

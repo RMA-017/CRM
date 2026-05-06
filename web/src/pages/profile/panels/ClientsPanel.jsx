@@ -1,17 +1,10 @@
-import CustomSelect from "../../../components/CustomSelect.jsx";
-
 function ClientsPanel({
-  isClientMedicalHistoryView,
   canCreateClients,
-  canCreateClientMedicalHistory,
   openClientCreateModal,
-  openClientMedicalHistoryCreateModal,
   closeAllClientsPanel,
   clientsSearch,
   setClientsSearch,
-  clientsIsVip,
-  setClientsIsVip,
-  loadCurrentClientsView,
+  loadClients,
   clientsLoading,
   clientsMessage,
   clientsTable,
@@ -22,7 +15,7 @@ function ClientsPanel({
   return (
     <section id="clientsPanel" className="all-users-panel">
       <div className="all-users-head">
-        <h3>{isClientMedicalHistoryView ? "Client Medical History" : "All Clients"}</h3>
+        <h3>All Clients</h3>
         <div className="all-users-head-actions">
           <button
             id="openClientsCreateModalBtn"
@@ -30,19 +23,8 @@ function ClientsPanel({
             className="header-btn appointment-breaks-add-icon-btn"
             aria-label="Add client"
             title="Add client"
-            hidden={!canCreateClients || isClientMedicalHistoryView}
+            hidden={!canCreateClients}
             onClick={openClientCreateModal}
-          >
-            +
-          </button>
-          <button
-            id="openClientMedicalHistoryCreateModalBtn"
-            type="button"
-            className="header-btn appointment-breaks-add-icon-btn"
-            aria-label="Add medical history"
-            title="Add medical history"
-            hidden={!canCreateClientMedicalHistory || !isClientMedicalHistoryView}
-            onClick={openClientMedicalHistoryCreateModal}
           >
             +
           </button>
@@ -62,10 +44,7 @@ function ClientsPanel({
         className="panel-search-bar"
         onSubmit={(event) => {
           event.preventDefault();
-          void loadCurrentClientsView(1, {
-            search: clientsSearch,
-            isVip: clientsIsVip
-          });
+          void loadClients(1, { search: clientsSearch, force: true });
         }}
       >
         <input
@@ -75,21 +54,6 @@ function ClientsPanel({
           value={clientsSearch}
           onChange={(event) => setClientsSearch(event.currentTarget.value)}
         />
-        <div className="panel-search-select">
-          <CustomSelect
-            id="clientsVipFilterSelect"
-            value={clientsIsVip}
-            placeholder="All"
-            options={[
-              { value: "", label: "All" },
-              { value: "true", label: "VIP" },
-              { value: "false", label: "Non-VIP" }
-            ]}
-            onChange={setClientsIsVip}
-            menuPortal
-            maxVisibleOptions={3}
-          />
-        </div>
         <button type="submit" className="btn panel-search-btn" disabled={clientsLoading}>
           Search
         </button>
@@ -108,7 +72,7 @@ function ClientsPanel({
           type="button"
           className="header-btn"
           disabled={clientsPage <= 1}
-          onClick={() => loadCurrentClientsView(clientsPage - 1)}
+          onClick={() => loadClients(clientsPage - 1)}
         >
           Previous
         </button>
@@ -119,7 +83,7 @@ function ClientsPanel({
           type="button"
           className="header-btn"
           disabled={clientsPage >= clientsTotalPages}
-          onClick={() => loadCurrentClientsView(clientsPage + 1)}
+          onClick={() => loadClients(clientsPage + 1)}
         >
           Next
         </button>

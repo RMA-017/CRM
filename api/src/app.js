@@ -14,10 +14,9 @@ import createUserRoutes from "./modules/create-user/create-user.routes.js";
 import metaRoutes from "./modules/meta/meta.routes.js";
 import monitoringRoutes from "./modules/monitoring/monitoring.routes.js";
 import { recordRequest } from "./modules/monitoring/monitoring.store.js";
-import notificationsRoutes from "./modules/notifications/notifications.routes.js";
-import { createOutboxWorker } from "./modules/notifications/outbox.worker.js";
 import profileRoutes from "./modules/profile/profile.routes.js";
 import settingsRoutes from "./modules/settings/settings.routes.js";
+import siteContentPublicRoutes, { siteContentProtectedRoutes } from "./modules/site-content/site-content.routes.js";
 import usersRoutes from "./modules/users/users.routes.js";
 import { ensureSystemPermissions } from "./modules/users/permissions.service.js";
 
@@ -120,10 +119,6 @@ export async function buildApp() {
     }),
     trustProxy: appConfig.trustProxy
   });
-  const outboxWorker = createOutboxWorker({
-    ...appConfig.outboxWorker,
-    logger: app.log
-  });
   const migrationFilesPromise = listMigrationFileMetadata({
     migrationsDir: migrationsDirPath
   });
@@ -152,14 +147,8 @@ export async function buildApp() {
       db: pool,
       migrationFilesPromise
     });
-    const outboxEnabled = Boolean(appConfig.outboxWorker?.enabled);
-    const outboxStatus = outboxEnabled
-      ? (outboxWorker.isRunning() ? "up" : "down")
-      : "disabled";
-
     const status = dbCheck.status === "up"
       && migrationCheck.status === "up"
-      && (outboxStatus === "up" || outboxStatus === "disabled")
       ? "ready"
       : "not-ready";
     if (status !== "ready") {
@@ -170,8 +159,7 @@ export async function buildApp() {
       status,
       checks: {
         database: dbCheck.status,
-        migrations: migrationCheck.status,
-        outboxWorker: outboxStatus
+        migrations: migrationCheck.status
       },
       details: dbCheck.details || undefined,
       migrationDetails: migrationCheck.details || undefined,
@@ -180,6 +168,7 @@ export async function buildApp() {
   });
 
   await app.register(authRoutes, { prefix: "/api/login" });
+  await app.register(siteContentPublicRoutes, { prefix: "/api/site-content" });
 
   // Protected routes — all require valid auth token
   await app.register(async function protectedRoutes(fastify) {
@@ -191,9 +180,9 @@ export async function buildApp() {
     await fastify.register(usersRoutes, { prefix: "/api/users" });
     await fastify.register(clientsRoutes, { prefix: "/api/clients" });
     await fastify.register(appointmentSettingsRoutes, { prefix: "/api/appointments" });
-    await fastify.register(notificationsRoutes, { prefix: "/api/notifications" });
     await fastify.register(settingsRoutes, { prefix: "/api/settings" });
     await fastify.register(monitoringRoutes, { prefix: "/api/monitoring" });
+    await fastify.register(siteContentProtectedRoutes, { prefix: "/api/site-content" });
   });
 
   app.setErrorHandler((error, request, reply) => {
@@ -235,17 +224,6 @@ export async function buildApp() {
       });
     }
     done();
-  });
-
-  app.addHook("onReady", async () => {
-    const started = outboxWorker.start();
-    if (started) {
-      app.log.info("Outbox worker started");
-    }
-  });
-
-  app.addHook("onClose", async () => {
-    await outboxWorker.stop();
   });
 
   return app;

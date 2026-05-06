@@ -5,6 +5,7 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
     setNoCacheHeaders,
     requesterHasOrgFeature,
     hasPermission,
+    requesterHasPermission: contextRequesterHasPermission,
     PERMISSIONS,
     parsePositiveIntegerOr,
     resolveOwnAppointmentSpecialistUserId,
@@ -15,6 +16,16 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
     broadcastAppointmentChange,
     DATE_REGEX
   } = context;
+  const requesterHasPermission = typeof contextRequesterHasPermission === "function"
+    ? contextRequesterHasPermission
+    : async (requester, permissionCode) => {
+        if (requester?.is_admin || requester?.is_platform_admin) {
+          return true;
+        }
+        return typeof hasPermission === "function"
+          ? hasPermission(requester?.role_id, permissionCode)
+          : false;
+      };
 
   function buildDateRange(dateFrom, dateTo) {
     const dates = [];
@@ -73,42 +84,18 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
 
-        const [
-          canReadPlannerPermission,
-          canReadSpecialistAbsencesPermission
-        ] = await Promise.all([
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_PLANNER_READ),
-          hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_SPECIALIST_ABSENCES_READ)
-        ]);
-        const specialistAbsencesFeatureEnabled = requesterHasOrgFeature(requester, "appointments.specialist_absences");
-        const canReadSpecialistAbsences = (
-          specialistAbsencesFeatureEnabled
-          && canReadSpecialistAbsencesPermission
-        );
         const canReadPlannerAbsences = (
-          specialistAbsencesFeatureEnabled
-          && requesterHasOrgFeature(requester, "appointments.planner")
-          && canReadPlannerPermission
+          requesterHasOrgFeature(requester, "appointments.planner")
+          && await requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_PLANNER_READ)
         );
-        if (!canReadSpecialistAbsences && !canReadPlannerAbsences) {
+        if (!canReadPlannerAbsences) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
         const requestedSpecialistId = parsePositiveIntegerOr(request.query?.specialistId, 0);
-        const ownSpecialistUserId = canReadPlannerAbsences
-          ? 0
-          : resolveSelfScopedSpecialistUserId({
-              authContext,
-              requester,
-              fallbackToOwnUser: canReadSpecialistAbsences,
-              requestedSpecialistId,
-              fallbackOnlyWhenSpecialistIsUnspecified: true
-            });
+        const ownSpecialistUserId = 0;
         const specialistId = ownSpecialistUserId || requestedSpecialistId;
-        if (ownSpecialistUserId && requestedSpecialistId && requestedSpecialistId !== ownSpecialistUserId) {
-          return reply.status(403).send({ message: "Forbidden." });
-        }
-        if (!specialistId && !canReadSpecialistAbsences) {
+        if (!specialistId) {
           return reply.status(400).send({ field: "specialistId", message: "Specialist is required." });
         }
 
@@ -153,8 +140,8 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
         }
 
         const canCreateSpecialistAbsences = (
-          requesterHasOrgFeature(requester, "appointments.specialist_absences")
-          && await hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_SPECIALIST_ABSENCES_CREATE)
+          requesterHasOrgFeature(requester, "appointments.planner")
+          && await requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_PLANNER_UPDATE)
         );
         const ownSpecialistUserId = resolveSelfScopedSpecialistUserId({
           authContext,
@@ -301,8 +288,8 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
         }
 
         const canDeleteSpecialistAbsences = (
-          requesterHasOrgFeature(requester, "appointments.specialist_absences")
-          && await hasPermission(requester.role_id, PERMISSIONS.APPOINTMENTS_SPECIALIST_ABSENCES_DELETE)
+          requesterHasOrgFeature(requester, "appointments.planner")
+          && await requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_PLANNER_DELETE)
         );
         const access = { authContext, requester };
         const ownSpecialistUserId = resolveSelfScopedSpecialistUserId({

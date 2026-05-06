@@ -111,10 +111,10 @@ export function getProductionPreflightReport(env = {}, options = {}) {
 
   if (
     !defaultCreatedUserPassword
-    || defaultCreatedUserPassword.length < 12
+    || defaultCreatedUserPassword.length < 4
     || isPlaceholderValue(defaultCreatedUserPassword, PLACEHOLDER_PASSWORDS)
   ) {
-    errors.push("DEFAULT_CREATED_USER_PASSWORD must be replaced with a non-default production value (min 12 chars).");
+    errors.push("DEFAULT_CREATED_USER_PASSWORD must be replaced with a non-default production value (min 4 chars).");
   }
 
   if (allowedOrigins.some((origin) => String(origin).includes("www.")) && !allowedOrigins.some((origin) => String(origin).includes("https://aaron.uz"))) {

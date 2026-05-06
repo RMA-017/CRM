@@ -5,26 +5,11 @@ export const positiveIntegerLikeSchema = Object.freeze({
   ]
 });
 
-export const integerLikeSchema = Object.freeze({
-  anyOf: [
-    { type: "integer" },
-    { type: "string", pattern: "^-?\\d+$" }
-  ]
-});
-
 export const stringLikeSchema = Object.freeze({
   anyOf: [
     { type: "string" },
     { type: "integer" },
     { type: "number" }
-  ]
-});
-
-export const booleanLikeSchema = Object.freeze({
-  anyOf: [
-    { type: "boolean" },
-    { type: "integer", enum: [0, 1] },
-    { type: "string" }
   ]
 });
 

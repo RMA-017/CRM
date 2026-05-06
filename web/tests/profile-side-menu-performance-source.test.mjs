@@ -35,7 +35,7 @@ test("profile side menu keeps submenu state batched and is pre-mounted for smoot
 
   assert.match(
     menuSource,
-    /const \[menuOpen, setMenuOpen\] = useState\(false\);[\s\S]*const closeSideMenu = useCallback\(\(\) => \{[\s\S]*setMenuOpen\(false\);[\s\S]*resetSubmenus\(\);/s,
+    /const menuOpenRef = useRef\(false\);[\s\S]*const closeSideMenu = useCallback\(\(\) => \{[\s\S]*menuOpenRef\.current = false;[\s\S]*setOpenSubmenus\(CLOSED_SUBMENUS\);/s,
     "Profile side menu should close instantly and reset submenu state without timeout-based delay."
   );
 
@@ -43,12 +43,6 @@ test("profile side menu keeps submenu state batched and is pre-mounted for smoot
     pageSource,
     /loadProfileSideMenu|pendingSideMenuOpenRef|onMouseEnter=\{preloadSideMenu\}|onFocus=\{preloadSideMenu\}|<Suspense fallback=\{null\}>\s*<ProfileSideMenu/s,
     "Profile page should avoid extra lazy-loading and hover-preload plumbing for the side menu."
-  );
-
-  assert.match(
-    pageSource,
-    /setTimeout\(warmProfileUi, 120\)/,
-    "Profile page should fall back to an early preload even without requestIdleCallback."
   );
 
   assert.match(

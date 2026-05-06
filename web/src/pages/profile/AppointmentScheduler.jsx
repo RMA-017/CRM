@@ -20,6 +20,19 @@ const STATUS_OPTIONS = [
   { value: "no-show", label: "No Show" }
 ];
 
+const BREAK_TYPE_OPTIONS = [
+  { value: "lunch", label: "Lunch" },
+  { value: "meeting", label: "Meeting" },
+  { value: "training", label: "Training" },
+  { value: "other", label: "Other" }
+];
+
+const PLANNER_MODAL_TABS = Object.freeze({
+  appointment: "appointment",
+  break: "break",
+  workSchedule: "work-schedule"
+});
+
 const DAY_KEYS_SET = new Set(DAY_ITEMS.map((item) => item.key));
 const DAY_NUM_TO_KEY = Object.freeze(
   DAY_ITEMS.reduce((acc, item, index) => {
@@ -130,6 +143,18 @@ function readScopedOrLegacyStorageValue(baseKey, currentUserId = "") {
   return String(window.localStorage.getItem(baseKey) || "").trim();
 }
 
+function removeScopedAndLegacyStorageValue(baseKey, currentUserId = "") {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const scopedKey = getUserScopedSchedulerStorageKey(baseKey, currentUserId);
+  window.localStorage.removeItem(scopedKey);
+  if (scopedKey !== baseKey) {
+    window.localStorage.removeItem(baseKey);
+  }
+}
+
 function readStoredSchedulerSelectionId(vipOnly = false, currentUserId = "") {
   const baseKey = vipOnly
     ? APPOINTMENT_VIP_CLIENT_STORAGE_KEY
@@ -153,8 +178,7 @@ function normalizePlannerStoredClientSnapshot(value) {
     firstName: String(source.firstName || "").trim(),
     lastName: String(source.lastName || "").trim(),
     middleName: String(source.middleName || "").trim(),
-    displayName: String(source.displayName || source.name || "").trim(),
-    isVip: Boolean(source.isVip)
+    displayName: String(source.displayName || source.name || "").trim()
   };
 }
 
@@ -173,7 +197,6 @@ function arePlannerClientSnapshotsEqual(left, right) {
     && normalizedLeft.lastName === normalizedRight.lastName
     && normalizedLeft.middleName === normalizedRight.middleName
     && normalizedLeft.displayName === normalizedRight.displayName
-    && normalizedLeft.isVip === normalizedRight.isVip
   );
 }
 
@@ -243,8 +266,85 @@ function createEmptyClientForm({
 function createEmptyClientSearchForm() {
   return {
     firstName: "",
-    lastName: ""
+    lastName: "",
+    middleName: "",
+    clientId: ""
   };
+}
+
+function createEmptyPlannerBreakForm({
+  startTime = "",
+  endTime = "",
+  breakType = "lunch",
+  note = ""
+} = {}) {
+  return {
+    startTime: String(startTime || "").trim(),
+    endTime: String(endTime || "").trim(),
+    breakType: BREAK_TYPE_OPTIONS.some((option) => option.value === String(breakType || "").trim().toLowerCase())
+      ? String(breakType || "").trim().toLowerCase()
+      : "lunch",
+    note: String(note || "").trim()
+  };
+}
+
+function createEmptyPlannerWorkScheduleForm({
+  startTime = "",
+  endTime = "",
+  reason = ""
+} = {}) {
+  return {
+    startTime: String(startTime || "").trim(),
+    endTime: String(endTime || "").trim(),
+    reason: String(reason || "").trim()
+  };
+}
+
+function isPlannerClientSearchNumeric(value) {
+  return /^\d+$/.test(String(value || "").trim());
+}
+
+function shouldRunPlannerClientSearch(value) {
+  const query = String(value || "").trim();
+  return Boolean(query) && (isPlannerClientSearchNumeric(query) || query.length >= 3);
+}
+
+function getDayOfWeekNumberFromDayKey(dayKey) {
+  const normalizedDayKey = String(dayKey || "").trim().toLowerCase();
+  const index = DAY_ITEMS.findIndex((item) => item.key === normalizedDayKey);
+  return index >= 0 ? index + 1 : 0;
+}
+
+function getDayKeyFromDayOfWeekNumber(dayOfWeek) {
+  const normalizedDayOfWeek = Number.parseInt(String(dayOfWeek ?? "").trim(), 10);
+  return DAY_NUM_TO_KEY[normalizedDayOfWeek] || "";
+}
+
+function getDefaultPlannerBlockEndTime(startTime, timeOptions, fallbackMinutes = 30) {
+  const normalizedStartTime = String(startTime || "").trim();
+  if (!normalizedStartTime) {
+    return "";
+  }
+
+  const optionIndex = Array.isArray(timeOptions)
+    ? timeOptions.findIndex((option) => String(option?.value || "").trim() === normalizedStartTime)
+    : -1;
+  if (optionIndex >= 0 && optionIndex + 1 < timeOptions.length) {
+    return String(timeOptions[optionIndex + 1]?.value || "").trim();
+  }
+
+  const startMinutes = normalizeTimeToMinutes(normalizedStartTime);
+  const parsedFallbackMinutes = Number.parseInt(String(fallbackMinutes || "").trim(), 10);
+  const safeFallbackMinutes = Number.isInteger(parsedFallbackMinutes) && parsedFallbackMinutes > 0
+    ? parsedFallbackMinutes
+    : 30;
+  return startMinutes === null ? "" : minutesToTime(startMinutes + safeFallbackMinutes);
+}
+
+function getPlannerClientSearchEmptyText(value) {
+  return shouldRunPlannerClientSearch(value)
+    ? "No clients found."
+    : "Type at least 3 letters or enter ID";
 }
 
 function getClientDisplayName(client) {
@@ -258,8 +358,13 @@ function getClientDisplayName(client) {
 
 function formatClientOptionLabel(client) {
   const displayName = getClientDisplayName(client);
+  const clientId = String(client?.id || "").trim();
   const phone = String(client?.phone || "").trim();
-  return phone ? `${displayName} (${phone})` : displayName;
+  const suffixParts = [
+    clientId ? `ID ${clientId}` : "",
+    phone
+  ].filter(Boolean);
+  return suffixParts.length > 0 ? `${displayName} (${suffixParts.join(" • ")})` : displayName;
 }
 
 function getClientCardName(client) {
@@ -372,57 +477,16 @@ function addDays(date, days) {
   return next;
 }
 
-function getEndOfNextWeek(date) {
-  const baseDate = date instanceof Date && !Number.isNaN(date.getTime())
-    ? new Date(date)
-    : new Date();
-  baseDate.setHours(0, 0, 0, 0);
-  const dayNum = baseDate.getDay();
-  const daysToEndNextWeek = ((7 - dayNum) % 7) + 7;
-  return addDays(baseDate, daysToEndNextWeek);
-}
-
-function resolveAutoRollingRepeatUntilForSubmit(appointmentDate = "") {
-  const today = new Date();
-  if (Number.isNaN(today.getTime())) {
-    return String(appointmentDate || "").trim();
-  }
-  today.setHours(0, 0, 0, 0);
-
+function getDefaultRepeatUntilDate(appointmentDate = "") {
   const normalizedAppointmentDate = String(appointmentDate || "").trim();
-  const appointmentBaseDate = isValidDateYmd(normalizedAppointmentDate)
+  const baseDate = isValidDateYmd(normalizedAppointmentDate)
     ? new Date(`${normalizedAppointmentDate}T00:00:00`)
-    : null;
-  const baseDate = (
-    appointmentBaseDate instanceof Date
-    && !Number.isNaN(appointmentBaseDate.getTime())
-    && appointmentBaseDate > today
-  )
-    ? appointmentBaseDate
-    : today;
-
-  return formatDateYmd(addDays(baseDate, 29));
-}
-
-function resolveAutoRollingRepeatDayKeys(appointmentDate = "", repeatDays = [], visibleDayKeys = []) {
-  const visibleDayKeySet = new Set(
-    (Array.isArray(visibleDayKeys) && visibleDayKeys.length > 0 ? visibleDayKeys : DAY_ITEMS.map((item) => item.key))
-      .map((day) => String(day || "").trim().toLowerCase())
-      .filter((day) => DAY_KEYS_SET.has(day))
-  );
-  const currentRepeatDays = normalizeRepeatDayKeys(repeatDays)
-    .filter((day) => visibleDayKeySet.size === 0 || visibleDayKeySet.has(day));
-  const appointmentDayKey = getDayKeyFromDateYmd(appointmentDate);
-  if (!appointmentDayKey || (visibleDayKeySet.size > 0 && !visibleDayKeySet.has(appointmentDayKey))) {
-    return currentRepeatDays;
+    : new Date();
+  if (Number.isNaN(baseDate.getTime())) {
+    return normalizedAppointmentDate;
   }
-  if (currentRepeatDays.includes(appointmentDayKey)) {
-    return currentRepeatDays;
-  }
-  if (currentRepeatDays.length <= 1) {
-    return [appointmentDayKey];
-  }
-  return normalizeRepeatDayKeys([...currentRepeatDays, appointmentDayKey]);
+  baseDate.setHours(0, 0, 0, 0);
+  return formatDateYmd(addDays(baseDate, MAX_REPEAT_RANGE_DAYS - 1));
 }
 
 function ensureAnchoredRepeatDayKeys(appointmentDate = "", repeatDays = [], visibleDayKeys = []) {
@@ -485,6 +549,39 @@ function isValidDateYmd(value) {
     && date.getMonth() === month - 1
     && date.getDate() === day
   );
+}
+
+function getHistoryLockCutoffDateYmd(historyLockDays) {
+  const parsedHistoryLockDays = Number.parseInt(String(historyLockDays ?? ""), 10);
+  if (!Number.isInteger(parsedHistoryLockDays) || parsedHistoryLockDays < 0) {
+    return "";
+  }
+  const cutoffDate = new Date();
+  cutoffDate.setHours(0, 0, 0, 0);
+  cutoffDate.setDate(cutoffDate.getDate() - parsedHistoryLockDays);
+  return formatDateYmd(cutoffDate);
+}
+
+function isHistoryLockedDateYmd(value, historyLockDays) {
+  if (!isValidDateYmd(value)) {
+    return false;
+  }
+  const cutoffDate = getHistoryLockCutoffDateYmd(historyLockDays);
+  return Boolean(cutoffDate) && String(value || "").trim() < cutoffDate;
+}
+
+function isFutureDateYmd(value) {
+  if (!isValidDateYmd(value)) {
+    return false;
+  }
+  const targetDate = new Date(`${String(value || "").trim()}T00:00:00`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return targetDate > today;
+}
+
+function isPendingAppointmentStatus(value) {
+  return String(value || "").trim().toLowerCase().replace(/_/g, "-") === "pending";
 }
 
 function getDayKeyFromDateYmd(value) {
@@ -817,6 +914,7 @@ function mapSchedulerSettingsFromApiItem(item) {
     visibleWeekDays,
     workingHours: nextWorkingHours,
     slotCellHeightPx: String(normalizedItem.slotCellHeightPx || DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX),
+    historyLockDays: String(normalizedItem.historyLockDays ?? ""),
     blockedTimes: normalizePlannerBlockedTimeItems(normalizedItem.blockedTimes)
   };
 }
@@ -917,7 +1015,6 @@ function mapScheduleItemToPlannerCard(item) {
     clientFirstName: String(item?.clientFirstName || "").trim(),
     clientLastName: String(item?.clientLastName || "").trim(),
     clientMiddleName: String(item?.clientMiddleName || "").trim(),
-    isVip: Boolean(item?.isVip),
     service: isRoutineItem
       ? (
         String(item?.serviceName || "").trim()
@@ -999,6 +1096,8 @@ function alwaysFalse() {
 
 function normalizePlannerBreakItems(items) {
   return (Array.isArray(items) ? items : []).map((item) => ({
+    id: String(item?.id || "").trim(),
+    specialistId: String(item?.specialistId || "").trim(),
     dayKey: String(item?.dayKey || "").trim().toLowerCase(),
     dayOfWeek: Number.parseInt(String(item?.dayOfWeek ?? "").trim(), 10) || 0,
     breakType: normalizeBreakTypeKey(item?.breakType || ""),
@@ -1012,6 +1111,8 @@ function normalizePlannerBreakItems(items) {
 
 function normalizePlannerBlockedTimeItems(items) {
   return (Array.isArray(items) ? items : []).map((item) => ({
+    id: String(item?.id || "").trim(),
+    userId: String(item?.userId || item?.user_id || "").trim(),
     dayKey: String(item?.dayKey || "").trim().toLowerCase(),
     dayOfWeek: Number.parseInt(String(item?.dayOfWeek ?? "").trim(), 10) || 0,
     startTime: String(item?.startTime || "").trim(),
@@ -1027,6 +1128,8 @@ function AppointmentPlannerGrid({
   weekStartDate,
   settings,
   rawAppointmentsByDay = {},
+  overlayAppointmentsByDay = {},
+  overlayLabel = "",
   selectedClientId = "",
   breaksForSpecialist = [],
   blockedTimesForSpecialist = [],
@@ -1036,8 +1139,15 @@ function AppointmentPlannerGrid({
   canCreateOnSpecialist = false,
   canUpdateAppointments = true,
   canDeleteAppointments = true,
+  canUpdateAppointmentBreaks = false,
+  canUpdateAppointmentWorkSchedule = false,
+  canDeleteAppointmentWorkSchedule = false,
+  canMutatePlannerSpecialist = false,
   canMutateAppointmentSpecialist = () => false,
   onOpenCreateModal = null,
+  onMoveAppointment = null,
+  onOpenDayBulkModal = null,
+  onOpenPlannerBlockModal = null,
   cardDisplayMode = "specialist",
   wrapperClassName = ""
 }) {
@@ -1256,6 +1366,76 @@ function AppointmentPlannerGrid({
       return acc;
     }, {})
   ), [rawAppointmentsByDay, selectedClientId, slotIndexByValue, slotMinutesByValue, timeSlots, weekDays]);
+  const overlayBusySlotsByDay = useMemo(() => (
+    weekDays.reduce((acc, day) => {
+      const dayItems = Array.isArray(overlayAppointmentsByDay?.[day.key]) ? overlayAppointmentsByDay[day.key] : [];
+      const busyByTime = {};
+      const startSlots = new Set(
+        dayItems
+          .map((event) => String(event?.time || event?.startTime || "").trim())
+          .filter(Boolean)
+      );
+
+      dayItems.forEach((event) => {
+        const startSlot = String(event?.time || event?.startTime || "").trim();
+        const startMinutes = normalizeTimeToMinutes(event?.time || event?.startTime);
+        const endMinutes = normalizeTimeToMinutes(event?.endTime);
+        if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+          return;
+        }
+
+        const clientText = String(event?.client || "").trim();
+        const specialistText = String(event?.specialist || "").trim();
+        const serviceText = String(event?.service || "").trim();
+        const title = [
+          overlayLabel || "Overlay",
+          formatAppointmentTimeRangeLabel(startSlot, event?.endTime, event?.durationMinutes),
+          specialistText,
+          clientText,
+          serviceText
+        ].filter(Boolean).join(" - ");
+        const payload = {
+          isStart: false,
+          status: String(event?.status || "pending").trim().toLowerCase().replace(/_/g, "-"),
+          label: overlayLabel || "Busy",
+          title
+        };
+        if (startSlot) {
+          busyByTime[startSlot] = { ...payload, isStart: true };
+        }
+
+        const startIndex = slotIndexByValue[startSlot];
+        if (Number.isInteger(startIndex) && startIndex >= 0) {
+          for (let index = startIndex + 1; index < timeSlots.length; index += 1) {
+            const slot = timeSlots[index];
+            const slotMinutes = slotMinutesByValue[slot];
+            if (slotMinutes === null || slotMinutes >= endMinutes) {
+              break;
+            }
+            if (startSlots.has(slot) || busyByTime[slot]) {
+              continue;
+            }
+            busyByTime[slot] = payload;
+          }
+          return;
+        }
+
+        timeSlots.forEach((slot) => {
+          const slotMinutes = slotMinutesByValue[slot];
+          if (slotMinutes === null || slotMinutes <= startMinutes || slotMinutes >= endMinutes) {
+            return;
+          }
+          if (startSlots.has(slot) || busyByTime[slot]) {
+            return;
+          }
+          busyByTime[slot] = payload;
+        });
+      });
+
+      acc[day.key] = busyByTime;
+      return acc;
+    }, {})
+  ), [overlayAppointmentsByDay, overlayLabel, slotIndexByValue, slotMinutesByValue, timeSlots, weekDays]);
   const appointmentBreakSlotsByDay = useMemo(() => (
     weekDays.reduce((acc, day) => {
       const blockedByTime = {};
@@ -1290,9 +1470,15 @@ function AppointmentPlannerGrid({
           return;
         }
         ranges.push({
+          id: String(item?.id || "").trim(),
+          specialistId: String(item?.specialistId || "").trim(),
           start,
           end,
+          startTime: String(item?.startTime || "").trim(),
+          endTime: String(item?.endTime || "").trim(),
           breakType: normalizeBreakTypeKey(item?.breakType || "break"),
+          title: String(item?.title || "").trim(),
+          note: String(item?.note || "").trim(),
           reason: formatBreakReason(item)
         });
       });
@@ -1313,7 +1499,13 @@ function AppointmentPlannerGrid({
           const hit = ranges.find((range) => slotMinutes < range.end && slotEndMinutes > range.start);
           if (hit) {
             blockedByTime[slot] = {
+              id: hit.id,
+              specialistId: hit.specialistId,
+              startTime: hit.startTime,
+              endTime: hit.endTime,
               breakType: hit.breakType,
+              title: hit.title,
+              note: hit.note,
               reasonShort: String(hit.reason?.short || "").trim() || "Break",
               reasonFull: String(hit.reason?.full || "").trim() || "Break"
             };
@@ -1360,8 +1552,12 @@ function AppointmentPlannerGrid({
         }
         const reasonFull = String(item?.reason || "").trim() || "Blocked";
         ranges.push({
+          id: String(item?.id || "").trim(),
+          userId: String(item?.userId || "").trim(),
           start,
           end,
+          startTime: String(item?.startTime || "").trim(),
+          endTime: String(item?.endTime || "").trim(),
           reasonFull,
           reasonShort: truncateWithEllipsis(reasonFull, 16) || "Blocked"
         });
@@ -1383,6 +1579,10 @@ function AppointmentPlannerGrid({
           const hit = ranges.find((range) => slotMinutes < range.end && slotEndMinutes > range.start);
           if (hit) {
             blockedByTime[slot] = {
+              id: hit.id,
+              userId: hit.userId,
+              startTime: hit.startTime,
+              endTime: hit.endTime,
               reasonShort: hit.reasonShort,
               reasonFull: hit.reasonFull
             };
@@ -1405,6 +1605,7 @@ function AppointmentPlannerGrid({
       const dayBreakSlots = appointmentBreakSlotsByDay[day.key] || {};
       const dayAbsenceSlots = appointmentSpecialistAbsenceSlotsByDay[day.key] || {};
       const dayWorkScheduleBlockedSlots = appointmentWorkScheduleBlockedSlotsByDay[day.key] || {};
+      const dayOverlaySlots = overlayBusySlotsByDay[day.key] || {};
       const dayMinutes = workingHoursMinutesByDay[day.key] || { start: null, end: null };
 
       if (subDivisions > 1) {
@@ -1443,6 +1644,55 @@ function AppointmentPlannerGrid({
               spanMap[groupSlot] = 0;
             });
           }
+        }
+      }
+
+      for (let startIndex = 0; startIndex < timeSlots.length; startIndex += 1) {
+        const firstSlot = timeSlots[startIndex];
+        const firstOverlay = dayOverlaySlots[firstSlot];
+        if (!firstSlot || spanMap[firstSlot] === 0 || !firstOverlay?.isStart) {
+          continue;
+        }
+        if (
+          appointmentSpanMap[firstSlot] === 0
+          || dayAppointments[firstSlot]
+          || dayBlockedSlots[firstSlot]
+          || dayBreakSlots[firstSlot]
+          || dayAbsenceSlots[firstSlot]
+          || dayWorkScheduleBlockedSlots[firstSlot]
+        ) {
+          continue;
+        }
+
+        let span = 1;
+        for (let nextIndex = startIndex + 1; nextIndex < timeSlots.length; nextIndex += 1) {
+          const nextSlot = timeSlots[nextIndex];
+          const nextOverlay = dayOverlaySlots[nextSlot];
+          if (
+            !nextSlot
+            || !nextOverlay
+            || nextOverlay.isStart
+            || appointmentSpanMap[nextSlot] === 0
+            || dayAppointments[nextSlot]
+            || dayBlockedSlots[nextSlot]
+            || dayBreakSlots[nextSlot]
+            || dayAbsenceSlots[nextSlot]
+            || dayWorkScheduleBlockedSlots[nextSlot]
+          ) {
+            break;
+          }
+          span += 1;
+        }
+
+        if (span > 1) {
+          spanMap[firstSlot] = span;
+          for (let offset = 1; offset < span; offset += 1) {
+            const coveredSlot = timeSlots[startIndex + offset];
+            if (coveredSlot) {
+              spanMap[coveredSlot] = 0;
+            }
+          }
+          startIndex += span - 1;
         }
       }
 
@@ -1591,12 +1841,100 @@ function AppointmentPlannerGrid({
     appointmentWorkScheduleBlockedSlotsByDay,
     appointmentLookupByDay,
     appointmentRowSpanByDay,
+    overlayBusySlotsByDay,
     settings?.slotSubDivisions,
     slotMinutesByValue,
     timeSlots,
     weekDays,
     workingHoursMinutesByDay
   ]);
+  const mouseDragStateRef = useRef(null);
+  const suppressNextCardClickRef = useRef(false);
+  const [mouseDragPreview, setMouseDragPreview] = useState(null);
+
+  useEffect(() => {
+    function handleDocumentMouseMove(event) {
+      const dragState = mouseDragStateRef.current;
+      if (!dragState) {
+        return;
+      }
+      const movedEnough = (
+        Math.abs(event.clientX - dragState.startX) > 4
+        || Math.abs(event.clientY - dragState.startY) > 4
+      );
+      if (!movedEnough) {
+        return;
+      }
+      const targetElement = document.elementFromPoint(event.clientX, event.clientY);
+      const dropCell = targetElement?.closest?.("[data-appointment-drop-slot='true']");
+      const targetSlot = String(dropCell?.getAttribute("data-drop-slot") || "").trim();
+      const dropCellRect = dropCell?.getBoundingClientRect?.() || null;
+      setMouseDragPreview({
+        status: dragState.status,
+        statusCellClassName: dragState.statusCellClassName,
+        canDrop: Boolean(dropCell),
+        targetSlot,
+        targetX: dropCellRect ? dropCellRect.left : 0,
+        targetY: dropCellRect ? dropCellRect.top : 0,
+        targetWidth: dropCellRect ? dropCellRect.width : 0,
+        targetHeight: dropCellRect ? Math.max(dropCellRect.height, dragState.height) : 0
+      });
+    }
+
+    function handleDocumentMouseUp(event) {
+      const dragState = mouseDragStateRef.current;
+      mouseDragStateRef.current = null;
+      setMouseDragPreview(null);
+      if (!dragState) {
+        return;
+      }
+
+      const movedEnough = (
+        Math.abs(event.clientX - dragState.startX) > 4
+        || Math.abs(event.clientY - dragState.startY) > 4
+      );
+      if (!movedEnough) {
+        return;
+      }
+
+      suppressNextCardClickRef.current = true;
+      window.setTimeout(() => {
+        suppressNextCardClickRef.current = false;
+      }, 0);
+
+      const targetElement = document.elementFromPoint(event.clientX, event.clientY);
+      const dropCell = targetElement?.closest?.("[data-appointment-drop-slot='true']");
+      if (!dropCell || typeof onMoveAppointment !== "function") {
+        return;
+      }
+
+      const targetDate = String(dropCell.getAttribute("data-drop-date") || "").trim();
+      const targetDayKey = String(dropCell.getAttribute("data-drop-day-key") || "").trim();
+      const targetDayLabel = String(dropCell.getAttribute("data-drop-day-label") || "").trim();
+      const targetSlot = String(dropCell.getAttribute("data-drop-slot") || "").trim();
+      if (!targetDate || !targetDayKey || !targetSlot) {
+        return;
+      }
+
+      onMoveAppointment(
+        dragState.item,
+        dragState.sourceDay,
+        {
+          key: targetDayKey,
+          label: targetDayLabel,
+          date: new Date(`${targetDate}T00:00:00`)
+        },
+        targetSlot
+      );
+    }
+
+    document.addEventListener("mousemove", handleDocumentMouseMove);
+    document.addEventListener("mouseup", handleDocumentMouseUp);
+    return () => {
+      document.removeEventListener("mousemove", handleDocumentMouseMove);
+      document.removeEventListener("mouseup", handleDocumentMouseUp);
+    };
+  }, [onMoveAppointment]);
 
   return (
     <div className="appointment-client-focused-section">
@@ -1605,23 +1943,52 @@ function AppointmentPlannerGrid({
           <p className="appointment-client-focused-section-title">{sectionTitle}</p>
         </div>
       ) : null}
-      <div className={["appointment-grid-wrap", wrapperClassName].filter(Boolean).join(" ") || undefined}>
+      <div className={["appointment-grid-wrap", mouseDragPreview ? "appointment-grid-dragging" : "", wrapperClassName].filter(Boolean).join(" ") || undefined}>
         <table className="appointment-grid" aria-label={ariaLabel || sectionTitle || "Appointment week table"}>
           <thead>
             <tr>
               <th className="appointment-time-col">Time</th>
               {weekDays.map((day) => {
+                const rawDayAppointments = (Array.isArray(rawAppointmentsByDay?.[day.key]) ? rawAppointmentsByDay[day.key] : [])
+                  .filter((item) => String(item?.itemType || "").trim().toLowerCase() !== "daily-routine")
+                  .filter((item) => canMutatePlannerSpecialist || canMutateAppointmentSpecialist(item));
+                const visibleDayAppointments = (Array.isArray(appointmentsByDay?.[day.key]) ? appointmentsByDay[day.key] : [])
+                  .filter((item) => String(item?.itemType || "").trim().toLowerCase() !== "daily-routine")
+                  .filter((item) => canMutatePlannerSpecialist || canMutateAppointmentSpecialist(item));
+                const canOpenDayBulkActions = Boolean(
+                  rawDayAppointments.length > 0
+                  && (canUpdateAppointments || canDeleteAppointments)
+                  && typeof onOpenDayBulkModal === "function"
+                );
                 const dayHeaderClassName = [
                   "appointment-day-head-col-gap",
+                  canOpenDayBulkActions ? "appointment-day-head-bulk-enabled" : "",
                   isSameDate(day.date, now) ? "appointment-day-is-today" : ""
                 ].filter(Boolean).join(" ") || undefined;
 
                 return (
                   <th key={day.key} className={dayHeaderClassName}>
-                    <div className="appointment-day-head">
-                      <span>{day.label}</span>
-                      <small>{formatHeaderDate(day.date)}</small>
-                    </div>
+                    {canOpenDayBulkActions ? (
+                      <button
+                        type="button"
+                        className="appointment-day-bulk-btn"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          onOpenDayBulkModal(day, rawDayAppointments.length > 0 ? rawDayAppointments : visibleDayAppointments);
+                        }}
+                        aria-label={`Manage appointments for ${day.label}`}
+                      >
+                        <span>{day.label}</span>
+                        <small>{formatHeaderDate(day.date)}</small>
+                        <strong>Day Planner</strong>
+                      </button>
+                    ) : (
+                      <div className="appointment-day-head">
+                        <span>{day.label}</span>
+                        <small>{formatHeaderDate(day.date)}</small>
+                      </div>
+                    )}
                   </th>
                 );
               })}
@@ -1663,6 +2030,7 @@ function AppointmentPlannerGrid({
                     );
                     const item = appointmentLookupByDay[day.key]?.[slot] || null;
                     const blockedItem = appointmentBlockedSlotsByDay[day.key]?.[slot] || null;
+                    const overlayBusyItem = overlayBusySlotsByDay[day.key]?.[slot] || null;
                     const breakBlockedItem = appointmentBreakSlotsByDay[day.key]?.[slot] || null;
                     const absenceBlockedItem = appointmentSpecialistAbsenceSlotsByDay[day.key]?.[slot] || null;
                     const workScheduleBlockedItem = appointmentWorkScheduleBlockedSlotsByDay[day.key]?.[slot] || null;
@@ -1688,6 +2056,9 @@ function AppointmentPlannerGrid({
                     );
                     const isClientCardMode = cardDisplayMode === "client";
                     const isRoutineCard = String(item?.itemType || "").trim().toLowerCase() === "daily-routine";
+                    const isPendingAppointment = isPendingAppointmentStatus(item?.status);
+                    const dayDateYmd = formatDateYmd(day.date);
+                    const isHistoryLockedDayCell = isHistoryLockedDateYmd(dayDateYmd, settings?.historyLockDays);
                     const cardTimeRangeLabel = item
                       ? formatAppointmentTimeRangeLabel(item?.time || slot, item?.endTime, item?.durationMinutes)
                       : "";
@@ -1746,12 +2117,48 @@ function AppointmentPlannerGrid({
                       && !absenceBlockedItem
                       && !workScheduleBlockedItem
                       && !breakBlockedItem
+                      && !isHistoryLockedDayCell
                       && canCreateOnSpecialist
                       && typeof onOpenCreateModal === "function"
                     );
+                    const canDropAppointmentToCell = (
+                      isInsideWorkingHours
+                      && !item
+                      && !blockedItem
+                      && !absenceBlockedItem
+                      && !workScheduleBlockedItem
+                      && !breakBlockedItem
+                      && !isHistoryLockedDayCell
+                      && canUpdateAppointments
+                      && canMutatePlannerSpecialist
+                      && typeof onMoveAppointment === "function"
+                    );
+                    const canOpenBreakBlockFromCell = Boolean(
+                      isInsideWorkingHours
+                      && breakBlockedItem
+                      && canUpdateAppointmentBreaks
+                      && canMutatePlannerSpecialist
+                      && typeof onOpenPlannerBlockModal === "function"
+                    );
+                    const canOpenWorkScheduleBlockFromCell = Boolean(
+                      isInsideWorkingHours
+                      && workScheduleBlockedItem
+                      && canMutatePlannerSpecialist
+                      && (canUpdateAppointmentWorkSchedule || canDeleteAppointmentWorkSchedule)
+                      && typeof onOpenPlannerBlockModal === "function"
+                    );
+                    const editableBlockType = canOpenBreakBlockFromCell
+                      ? PLANNER_MODAL_TABS.break
+                      : (canOpenWorkScheduleBlockFromCell ? PLANNER_MODAL_TABS.workSchedule : "");
+                    const editableBlockItem = canOpenBreakBlockFromCell
+                      ? breakBlockedItem
+                      : (canOpenWorkScheduleBlockFromCell ? workScheduleBlockedItem : null);
+                    const canOpenEditableBlockFromCell = Boolean(editableBlockType && editableBlockItem);
                     const tdClassName = [
                       "appointment-day-col-gap",
                       canOpenCreateFromCell ? "appointment-create-slot-td" : "",
+                      canDropAppointmentToCell ? "appointment-drop-slot-td" : "",
+                      canOpenEditableBlockFromCell ? "appointment-editable-block-slot-td" : "",
                       timeHoverCellClassName,
                       tdRowSpan ? "appointment-td-multi-slot" : "",
                       reachesBottom ? "appointment-td-reaches-bottom" : "",
@@ -1759,6 +2166,8 @@ function AppointmentPlannerGrid({
                       statusCellClassName,
                       (absenceBlockedItem || workScheduleBlockedItem) ? "appointment-work-schedule-blocked-td" : "",
                       breakBlockedItem ? `appointment-break-type-${breakBlockedItem.breakType}-td` : "",
+                      overlayBusyItem ? "appointment-shadow-overlay-td" : "",
+                      overlayBusyItem?.isStart ? "appointment-shadow-overlay-start-td" : "",
                     ].filter(Boolean).join(" ") || undefined;
 
                     return (
@@ -1766,10 +2175,44 @@ function AppointmentPlannerGrid({
                         key={`${day.key}-${slot}`}
                         rowSpan={tdRowSpan}
                         className={tdClassName}
-                        data-slot-label={canOpenCreateFromCell ? slot : undefined}
+                        data-slot-label={(canOpenCreateFromCell || canDropAppointmentToCell) ? slot : undefined}
                         data-time-range={cardTimeRangeLabel || undefined}
                         data-duration-label={cardDurationLabel || undefined}
-                        onClick={canOpenCreateFromCell ? () => onOpenCreateModal(day, slot) : undefined}
+                        data-appointment-drop-slot={canDropAppointmentToCell ? "true" : undefined}
+                        data-drop-day-key={canDropAppointmentToCell ? day.key : undefined}
+                        data-drop-day-label={canDropAppointmentToCell ? day.label : undefined}
+                        data-drop-date={canDropAppointmentToCell ? formatDateYmd(day.date) : undefined}
+                        data-drop-slot={canDropAppointmentToCell ? slot : undefined}
+                        onDragOver={canDropAppointmentToCell ? (event) => {
+                          event.preventDefault();
+                          event.dataTransfer.dropEffect = "move";
+                        } : undefined}
+                        onDrop={canDropAppointmentToCell ? (event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          const rawPayload = (
+                            event.dataTransfer.getData("application/json")
+                            || event.dataTransfer.getData("text/plain")
+                          );
+                          if (!rawPayload) {
+                            return;
+                          }
+                          try {
+                            const payload = JSON.parse(rawPayload);
+                            onMoveAppointment(payload.item, payload.sourceDay, day, slot);
+                          } catch {
+                            // Ignore malformed drag payloads from outside the planner.
+                          }
+                        } : undefined}
+                        onClick={
+                          canOpenCreateFromCell
+                            ? () => onOpenCreateModal(day, slot)
+                            : (
+                                canOpenEditableBlockFromCell
+                                  ? () => onOpenPlannerBlockModal(day, slot, editableBlockType, editableBlockItem)
+                                  : undefined
+                              )
+                        }
                       >
                         {!isInsideWorkingHours ? (
                           null
@@ -1777,8 +2220,43 @@ function AppointmentPlannerGrid({
                           (!isRoutineCard && canMutateAppointmentSpecialist(item) && (canUpdateAppointments || canDeleteAppointments)) ? (
                             <button
                               type="button"
-                              className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""}${isCompactAppointmentCard ? " appointment-card-compact" : ""} appointment-card-btn appointment-status-${item.status}`}
-                              onClick={() => onOpenCreateModal(day, slot, item)}
+                              className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""}${isCompactAppointmentCard ? " appointment-card-compact" : ""}${isPendingAppointment && !isHistoryLockedDayCell ? " appointment-card-btn" : ""} appointment-status-${item.status}`}
+                              onMouseDown={(event) => {
+                                if (event.button !== 0 || !isPendingAppointment || isHistoryLockedDayCell || typeof onMoveAppointment !== "function") {
+                                  return;
+                                }
+                                event.preventDefault();
+                                const slotCell = event.currentTarget.closest("td");
+                                const cardRect = (slotCell || event.currentTarget).getBoundingClientRect();
+                                mouseDragStateRef.current = {
+                                  item,
+                                  sourceDay: {
+                                    key: day.key,
+                                    label: day.label,
+                                    date: formatDateYmd(day.date)
+                                  },
+                                  startX: event.clientX,
+                                  startY: event.clientY,
+                                  offsetX: event.clientX - cardRect.left,
+                                  offsetY: event.clientY - cardRect.top,
+                                  originLeft: cardRect.left,
+                                  originTop: cardRect.top,
+                                  width: cardRect.width,
+                                  height: cardRect.height,
+                                  status: item.status,
+                                  statusCellClassName,
+                                  isCompact: isCompactAppointmentCard
+                                };
+                              }}
+                              onClick={(event) => {
+                                if (suppressNextCardClickRef.current) {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  suppressNextCardClickRef.current = false;
+                                  return;
+                                }
+                                onOpenCreateModal(day, slot, item);
+                              }}
                               aria-label={`Edit appointment on ${day.label} at ${slot}`}
                             >
                               <p className="appointment-client">{cardPrimaryText}</p>
@@ -1823,6 +2301,13 @@ function AppointmentPlannerGrid({
                             <span className="appointment-break-slot-text">{breakBlockedItem.reasonShort}</span>
                           </span>
                         ) : null}
+                        {overlayBusyItem ? (
+                          <span
+                            className={`appointment-shadow-overlay${overlayBusyItem.isStart ? " is-start" : ""} appointment-shadow-overlay-${overlayBusyItem.status || "pending"}`}
+                            title={String(overlayBusyItem.title || "").trim() || undefined}
+                            aria-label={`${overlayBusyItem.label || "Overlay"} busy on ${day.label} at ${slot}`}
+                          />
+                        ) : null}
                       </td>
                     );
                   })}
@@ -1832,6 +2317,25 @@ function AppointmentPlannerGrid({
           </tbody>
         </table>
       </div>
+      {mouseDragPreview?.canDrop && mouseDragPreview.targetWidth > 0 && mouseDragPreview.targetHeight > 0 ? (
+        typeof document !== "undefined"
+          ? createPortal(
+              <div
+                className={`appointment-drop-orienter ${mouseDragPreview.statusCellClassName || ""} appointment-status-${mouseDragPreview.status}`}
+                style={{
+                  left: `${mouseDragPreview.targetX}px`,
+                  top: `${mouseDragPreview.targetY}px`,
+                  width: `${mouseDragPreview.targetWidth}px`,
+                  height: `${mouseDragPreview.targetHeight}px`
+                }}
+                aria-hidden="true"
+              >
+                <span className="appointment-drop-orienter-time">{mouseDragPreview.targetSlot}</span>
+              </div>,
+              document.body
+            )
+          : null
+      ) : null}
     </div>
   );
 }
@@ -1844,16 +2348,19 @@ function AppointmentScheduler({
   canCreateAppointments = true,
   canUpdateAppointments = true,
   canDeleteAppointments = true,
+  canUpdateAppointmentBreaks = false,
+  canCreateAppointmentWorkSchedule = false,
+  canUpdateAppointmentWorkSchedule = false,
+  canDeleteAppointmentWorkSchedule = false,
   currentUserId = "",
   restrictCreateToOwnSpecialist = false,
+  specialistLimitedEdit = false,
   vipOnly = false,
   recurringOnly = false,
   showWeekSwitcher = true,
-  modalTitle = "To Planner",
   vipClassDailyRoutines = [],
   onNotification = null
 }) {
-  const isVipRecurringModal = vipOnly && recurringOnly;
   const specialistLabel = vipOnly ? "Class" : "Specialist";
   const specialistSelectPlaceholder = vipOnly ? "Select class" : "Select specialist";
   const specialistSearchPlaceholder = vipOnly ? "Search class" : "Search specialist";
@@ -1874,13 +2381,20 @@ function AppointmentScheduler({
   const [vipSchedulesByClass, setVipSchedulesByClass] = useState(() => ({}));
   const [vipSchedulesWeekKeyByClass, setVipSchedulesWeekKeyByClass] = useState(() => ({}));
   const [vipConfirmingByAppointmentId, setVipConfirmingByAppointmentId] = useState(() => ({}));
+  const [plannerPrimaryFilterMode, setPlannerPrimaryFilterMode] = useState(() => {
+    if (vipOnly) {
+      return "specialist";
+    }
+    const storedMode = readStoredPlannerFilterMode(currentUserId);
+    return storedMode === "client" ? "client" : "specialist";
+  });
   const [selectedPlannerClientFilterId, setSelectedPlannerClientFilterId] = useState(() => (
     !vipOnly && readStoredPlannerFilterMode(currentUserId) === "client"
       ? readStoredPlannerClientSelectionId(currentUserId)
       : ""
   ));
   const [storedPlannerClientSnapshot, setStoredPlannerClientSnapshot] = useState(() => (
-    !vipOnly && readStoredPlannerFilterMode(currentUserId) === "client"
+    !vipOnly
       ? readStoredPlannerClientSelectionSnapshot(currentUserId)
       : null
   ));
@@ -1893,11 +2407,7 @@ function AppointmentScheduler({
   const [clientFocusedPlannerWeekKey, setClientFocusedPlannerWeekKey] = useState("");
   const [selectedVipClientFilterId, setSelectedVipClientFilterId] = useState("");
   const [selectedSpecialistId, setSelectedSpecialistId] = useState(
-    () => (
-      !vipOnly && readStoredPlannerFilterMode(currentUserId) === "client"
-        ? ""
-        : readStoredSchedulerSelectionId(vipOnly, currentUserId)
-    )
+    () => readStoredSchedulerSelectionId(vipOnly, currentUserId)
   );
   const hydratedPlannerStorageUserKeyRef = useRef("");
   const [hydratedPlannerStorageKey, setHydratedPlannerStorageKey] = useState("");
@@ -1918,13 +2428,32 @@ function AppointmentScheduler({
     time: "",
     repeatType: "none",
     repeatGroupKey: "",
-    originalRepeatDays: []
+    originalRepeatDays: [],
+    originalStatus: "",
+    plannerBlockType: "",
+    plannerBlockOriginal: null
   });
   const [createForm, setCreateForm] = useState(createEmptyClientForm);
+  const [activePlannerModalTab, setActivePlannerModalTab] = useState(PLANNER_MODAL_TABS.appointment);
+  const [plannerBreakForm, setPlannerBreakForm] = useState(() => createEmptyPlannerBreakForm());
+  const [plannerWorkScheduleForm, setPlannerWorkScheduleForm] = useState(() => createEmptyPlannerWorkScheduleForm());
   const [createErrors, setCreateErrors] = useState({});
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [createDeleting, setCreateDeleting] = useState(false);
-  const [clientVipOnly, setClientVipOnly] = useState(Boolean(vipOnly));
+  const [dayBulkModal, setDayBulkModal] = useState({
+    open: false,
+    dayKey: "",
+    dayLabel: "",
+    appointmentDate: "",
+    displayMode: "client",
+    items: [],
+    selectedIds: [],
+    status: "cancelled",
+    note: "",
+    submitting: false,
+    deleting: false,
+    error: ""
+  });
   const [clientSearch, setClientSearch] = useState(createEmptyClientSearchForm);
   const [clientSearchMessage, setClientSearchMessage] = useState("");
   const [clientOptions, setClientOptions] = useState([]);
@@ -1937,6 +2466,7 @@ function AppointmentScheduler({
     visibleWeekDays: ["mon", "tue", "wed", "thu", "fri", "sat"],
     workingHours: createDefaultWorkingHours(),
     slotCellHeightPx: String(DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX),
+    historyLockDays: "",
     blockedTimes: []
   });
   const schedulesRequestIdRef = useRef(0);
@@ -1944,6 +2474,10 @@ function AppointmentScheduler({
   const absencesRequestIdRef = useRef(0);
   const clientFocusedRequestIdRef = useRef(0);
   const clientFocusedPreviewRequestIdRef = useRef(0);
+  const recurringPatternDraftRef = useRef({
+    repeatUntil: "",
+    repeatDays: []
+  });
   const [clientFocusedPreviewAppointmentsByDay, setClientFocusedPreviewAppointmentsByDay] = useState(() => ({}));
   const [clientFocusedPreviewSettings, setClientFocusedPreviewSettings] = useState(null);
   const [clientFocusedPreviewBreaks, setClientFocusedPreviewBreaks] = useState([]);
@@ -1980,6 +2514,7 @@ function AppointmentScheduler({
     const persistedSpecialistId = readStoredSchedulerSelectionId(false, normalizedCurrentUserId);
 
     if (persistedPlannerFilterMode === "client" && persistedPlannerClientId) {
+      setPlannerPrimaryFilterMode("client");
       setSelectedPlannerClientFilterId(persistedPlannerClientId);
       setStoredPlannerClientSnapshot(
         String(persistedPlannerClientSnapshot?.id || "").trim() === persistedPlannerClientId
@@ -1991,10 +2526,11 @@ function AppointmentScheduler({
       return;
     }
 
+    setPlannerPrimaryFilterMode("specialist");
+    setSelectedPlannerClientFilterId("");
+    setStoredPlannerClientSnapshot(null);
     if (persistedSpecialistId) {
       setSelectedSpecialistId(persistedSpecialistId);
-      setSelectedPlannerClientFilterId("");
-      setStoredPlannerClientSnapshot(null);
     }
     setHydratedPlannerStorageKey(hydrationKey);
   }, [currentPlannerStorageHydrationKey, normalizedCurrentUserId, vipOnly]);
@@ -2034,14 +2570,12 @@ function AppointmentScheduler({
     const specialistStorageKey = getSchedulerSelectionStorageKey(false, currentUserId);
     const clientStorageKey = getPlannerClientSelectionStorageKey(currentUserId);
     const clientSnapshotStorageKey = getPlannerClientSnapshotStorageKey(currentUserId);
-    const modeStorageKey = getPlannerFilterModeStorageKey(currentUserId);
     const normalizedSpecialistId = String(specialistId || "").trim();
     const normalizedClientId = String(clientId || "").trim();
     const normalizedClientSnapshot = normalizePlannerStoredClientSnapshot(clientSnapshot);
 
     if (normalizedSpecialistId) {
       window.localStorage.setItem(specialistStorageKey, normalizedSpecialistId);
-      window.localStorage.setItem(modeStorageKey, "specialist");
       return;
     }
 
@@ -2050,10 +2584,56 @@ function AppointmentScheduler({
       if (normalizedClientSnapshot) {
         window.localStorage.setItem(clientSnapshotStorageKey, JSON.stringify(normalizedClientSnapshot));
       }
-      window.localStorage.setItem(modeStorageKey, "client");
     }
   }, [currentUserId, normalizedCurrentUserId, vipOnly]);
-  const isClientFocusedMode = !vipOnly && Boolean(normalizedSelectedPlannerClientFilterId);
+  const clearPlannerSpecialistSelection = useCallback(() => {
+    if (typeof window !== "undefined" && normalizedCurrentUserId) {
+      removeScopedAndLegacyStorageValue(
+        vipOnly ? APPOINTMENT_VIP_CLIENT_STORAGE_KEY : APPOINTMENT_SPECIALIST_STORAGE_KEY,
+        currentUserId
+      );
+      if (!vipOnly && !String(selectedPlannerClientFilterId || "").trim()) {
+        removeScopedAndLegacyStorageValue(APPOINTMENT_PLANNER_CLIENT_STORAGE_KEY, currentUserId);
+        removeScopedAndLegacyStorageValue(APPOINTMENT_PLANNER_CLIENT_SNAPSHOT_STORAGE_KEY, currentUserId);
+        removeScopedAndLegacyStorageValue(APPOINTMENT_PLANNER_FILTER_MODE_STORAGE_KEY, currentUserId);
+      }
+    }
+    setSelectedSpecialistId("");
+    setSelectedVipClientFilterId("");
+    if (!vipOnly && String(selectedPlannerClientFilterId || "").trim()) {
+      setPlannerPrimaryFilterMode("client");
+    }
+    setSpecialistSelectError(false);
+    setWeekOffset(0);
+  }, [currentUserId, normalizedCurrentUserId, selectedPlannerClientFilterId, vipOnly]);
+  const clearPlannerClientSelection = useCallback(() => {
+    if (typeof window !== "undefined" && normalizedCurrentUserId) {
+      removeScopedAndLegacyStorageValue(APPOINTMENT_PLANNER_CLIENT_STORAGE_KEY, currentUserId);
+      removeScopedAndLegacyStorageValue(APPOINTMENT_PLANNER_CLIENT_SNAPSHOT_STORAGE_KEY, currentUserId);
+      if (!String(selectedSpecialistId || "").trim()) {
+        removeScopedAndLegacyStorageValue(APPOINTMENT_SPECIALIST_STORAGE_KEY, currentUserId);
+        removeScopedAndLegacyStorageValue(APPOINTMENT_PLANNER_FILTER_MODE_STORAGE_KEY, currentUserId);
+      }
+    }
+    setSelectedPlannerClientFilterId("");
+    setStoredPlannerClientSnapshot(null);
+    setPlannerClientSearch("");
+    if (String(selectedSpecialistId || "").trim()) {
+      setPlannerPrimaryFilterMode("specialist");
+    }
+    setWeekOffset(0);
+  }, [currentUserId, normalizedCurrentUserId, selectedSpecialistId]);
+  const isClientFocusedMode = (
+    !vipOnly
+    && Boolean(normalizedSelectedPlannerClientFilterId)
+    && (!String(selectedSpecialistId || "").trim() || plannerPrimaryFilterMode === "client")
+  );
+  const hasPlannerComparisonOverlay = (
+    !vipOnly
+    && Boolean(normalizedSelectedPlannerClientFilterId)
+    && Boolean(String(selectedSpecialistId || "").trim())
+  );
+  const hasSelectedPlannerClientFilter = !vipOnly && Boolean(normalizedSelectedPlannerClientFilterId);
   const weekStartDate = useMemo(() => addDays(getStartOfWeek(new Date()), weekOffset * 7), [weekOffset]);
   const weekEndDate = useMemo(() => addDays(weekStartDate, 6), [weekStartDate]);
   const clientFocusedPlannerDataKey = useMemo(() => (
@@ -2303,8 +2883,7 @@ function AppointmentScheduler({
               id: String(client?.id || "").trim(),
               firstName: String(client?.firstName || "").trim(),
               lastName: String(client?.lastName || "").trim(),
-              middleName: String(client?.middleName || "").trim(),
-              isVip: Boolean(client?.isVip)
+              middleName: String(client?.middleName || "").trim()
             }))
             .filter((client) => Boolean(client.id))
             .sort((left, right) => getClientDisplayName(left).localeCompare(getClientDisplayName(right)))
@@ -2316,6 +2895,9 @@ function AppointmentScheduler({
           if (preferredSpecialistId && nextSpecialists.some((itemValue) => itemValue.id === preferredSpecialistId)) {
             return preferredSpecialistId;
           }
+          if (vipOnly) {
+            return nextSpecialists[0]?.id || "";
+          }
           if (
             !vipOnly
             && restrictCreateToOwnSpecialist
@@ -2324,7 +2906,7 @@ function AppointmentScheduler({
           ) {
             return normalizedCurrentUserId;
           }
-          return nextSpecialists[0]?.id || "";
+          return "";
         })();
 
         const persistedPlannerFilterMode = !vipOnly ? readStoredPlannerFilterMode(currentUserId) : "";
@@ -2358,6 +2940,7 @@ function AppointmentScheduler({
           setVipSchedulesByClass({});
           setVipSchedulesWeekKeyByClass({});
         }
+        setPlannerPrimaryFilterMode(shouldRestoreClientFocus ? "client" : "specialist");
         if (shouldRestoreClientFocus) {
           setSelectedPlannerClientFilterId(preferredClientId);
           setStoredPlannerClientSnapshot(
@@ -2430,7 +3013,7 @@ function AppointmentScheduler({
       const storageKey = getSchedulerSelectionStorageKey(true, currentUserId);
       const specialistId = String(selectedSpecialistId || "").trim();
       if (!specialistId) {
-        window.localStorage.removeItem(storageKey);
+        removeScopedAndLegacyStorageValue(APPOINTMENT_VIP_CLIENT_STORAGE_KEY, currentUserId);
         return;
       }
 
@@ -2470,6 +3053,8 @@ function AppointmentScheduler({
 
     if (specialistId) {
       window.localStorage.setItem(specialistStorageKey, specialistId);
+    } else {
+      removeScopedAndLegacyStorageValue(APPOINTMENT_SPECIALIST_STORAGE_KEY, currentUserId);
     }
     if (clientId) {
       window.localStorage.setItem(clientStorageKey, clientId);
@@ -2477,15 +3062,16 @@ function AppointmentScheduler({
         window.localStorage.setItem(clientSnapshotStorageKey, JSON.stringify(selectedClientSnapshot));
       }
     } else {
-      window.localStorage.removeItem(clientSnapshotStorageKey);
+      removeScopedAndLegacyStorageValue(APPOINTMENT_PLANNER_CLIENT_STORAGE_KEY, currentUserId);
+      removeScopedAndLegacyStorageValue(APPOINTMENT_PLANNER_CLIENT_SNAPSHOT_STORAGE_KEY, currentUserId);
     }
 
-    if (clientId) {
+    if (clientId && (!specialistId || plannerPrimaryFilterMode === "client")) {
       window.localStorage.setItem(modeStorageKey, "client");
-    } else if (specialistId) {
+    } else if (clientId || specialistId) {
       window.localStorage.setItem(modeStorageKey, "specialist");
     } else {
-      window.localStorage.removeItem(modeStorageKey);
+      removeScopedAndLegacyStorageValue(APPOINTMENT_PLANNER_FILTER_MODE_STORAGE_KEY, currentUserId);
     }
     setStoredPlannerClientSnapshot((prev) => (
       arePlannerClientSnapshotsEqual(prev, selectedClientSnapshot)
@@ -2497,6 +3083,7 @@ function AppointmentScheduler({
     normalizedCurrentUserId,
     currentPlannerStorageHydrationKey,
     hydratedPlannerStorageKey,
+    plannerPrimaryFilterMode,
     selectedPlannerFilterClient,
     selectedPlannerClientFilterId,
     selectedSpecialistId,
@@ -2574,7 +3161,7 @@ function AppointmentScheduler({
     || vipSchedulesWeekKeyByClass[selectedSpecialistId] === weekDataKey
   );
   const clientFocusedPlannerReady = (
-    !isClientFocusedMode
+    !hasSelectedPlannerClientFilter
     || clientFocusedPlannerWeekKey === clientFocusedPlannerDataKey
   );
   const canRenderPlannerData = (
@@ -2582,7 +3169,11 @@ function AppointmentScheduler({
     && (
       vipOnly
         ? (!String(selectedSpecialistId || "").trim() || (vipSchedulesReady && vipWeekDataReady))
-        : (isClientFocusedMode ? clientFocusedPlannerReady : nonVipSchedulesReady)
+        : (
+            isClientFocusedMode
+              ? clientFocusedPlannerReady
+              : (nonVipSchedulesReady && clientFocusedPlannerReady)
+          )
     )
   );
   const plannerClientFilterOptions = useMemo(() => {
@@ -2615,13 +3206,16 @@ function AppointmentScheduler({
   }, [plannerFilterClients, rawAppointmentsByDay, vipOnly, weekDays]);
   const plannerClientActiveOptions = useMemo(() => {
     const query = String(plannerClientSearch || "").trim();
-    const base = query.length >= 3 ? plannerClientSearchOptions : [];
+    const base = shouldRunPlannerClientSearch(query) ? plannerClientSearchOptions : [];
     const selectedClientOption = normalizedSelectedPlannerClientFilterId
       ? (
           selectedPlannerFilterClient
             ? {
                 value: normalizedSelectedPlannerClientFilterId,
-                label: getClientDisplayName(selectedPlannerFilterClient)
+                label: formatClientOptionLabel({
+                  ...selectedPlannerFilterClient,
+                  id: normalizedSelectedPlannerClientFilterId
+                })
               }
             : (
                 plannerClientFilterOptions.find(
@@ -2684,24 +3278,18 @@ function AppointmentScheduler({
       return;
     }
     const query = String(plannerClientSearch || "").trim();
-    if (query.length < 3) {
+    if (!shouldRunPlannerClientSearch(query)) {
       setPlannerClientSearchOptions([]);
       return;
     }
-    const parts = query.split(/\s+/);
-    const firstName = parts[0] || "";
-    const lastName = parts.slice(1).join(" ") || "";
-    const params = new URLSearchParams({ limit: "50" });
-    if (firstName) {
-      params.set("firstName", firstName);
-    }
-    if (lastName) {
-      params.set("lastName", lastName);
-    }
+    const params = new URLSearchParams({
+      limit: "50",
+      q: query
+    });
     let active = true;
     const timerId = window.setTimeout(async () => {
       try {
-        const response = await apiFetch(`/api/clients/search?${params}`);
+        const response = await apiFetch(`/api/clients/search?${params.toString()}`);
         const data = await readApiResponseData(response);
         if (active && Array.isArray(data?.items)) {
           const nextMap = {};
@@ -2715,10 +3303,11 @@ function AppointmentScheduler({
               id: clientId,
               firstName: String(c?.firstName || "").trim(),
               lastName: String(c?.lastName || "").trim(),
-              middleName: String(c?.middleName || "").trim()
+              middleName: String(c?.middleName || "").trim(),
+              phone: String(c?.phone || "").trim()
             };
             nextMap[clientId] = client;
-            nextOptions.push({ value: clientId, label: getClientDisplayName(client) });
+            nextOptions.push({ value: clientId, label: formatClientOptionLabel(client) });
           });
           setPlannerClientSearchMap((prev) => ({ ...prev, ...nextMap }));
           setPlannerClientSearchOptions(nextOptions);
@@ -2894,20 +3483,118 @@ function AppointmentScheduler({
     ).trim();
   }, [createModal.specialistId, selectedSpecialistId, specialistRoleById, specialists, vipOnly]);
   const isEditMode = createModal.mode === "edit";
+  const isSpecialistLimitedEditMode = !vipOnly && specialistLimitedEdit && isEditMode;
+  const normalizedPlannerBlockType = String(createModal.plannerBlockType || "").trim();
+  const isPlannerBlockEditMode = (
+    createModal.open
+    && (
+      normalizedPlannerBlockType === PLANNER_MODAL_TABS.break
+      || normalizedPlannerBlockType === PLANNER_MODAL_TABS.workSchedule
+    )
+  );
+  const isPlannerAppointmentEditMode = createModal.open && isEditMode && !isPlannerBlockEditMode;
+  const canOpenPlannerBreakTab = !vipOnly && !isSpecialistLimitedEditMode && canUpdateAppointmentBreaks;
+  const canOpenPlannerWorkScheduleTab = (
+    !vipOnly
+    && !isSpecialistLimitedEditMode
+    && (canCreateAppointmentWorkSchedule || canUpdateAppointmentWorkSchedule || canDeleteAppointmentWorkSchedule)
+  );
+  const plannerModalTabOptions = useMemo(() => {
+    if (isPlannerBlockEditMode) {
+      return [
+        { value: PLANNER_MODAL_TABS.appointment, label: "To Planner", disabled: true },
+        {
+          value: PLANNER_MODAL_TABS.break,
+          label: "Breaks",
+          disabled: normalizedPlannerBlockType !== PLANNER_MODAL_TABS.break
+        },
+        {
+          value: PLANNER_MODAL_TABS.workSchedule,
+          label: "Work",
+          disabled: normalizedPlannerBlockType !== PLANNER_MODAL_TABS.workSchedule
+        }
+      ];
+    }
+    if (isPlannerAppointmentEditMode) {
+      return [
+        { value: PLANNER_MODAL_TABS.appointment, label: "To Planner", disabled: false },
+        { value: PLANNER_MODAL_TABS.break, label: "Breaks", disabled: true },
+        { value: PLANNER_MODAL_TABS.workSchedule, label: "Work", disabled: true }
+      ];
+    }
+
+    const tabs = [
+      { value: PLANNER_MODAL_TABS.appointment, label: "To Planner", disabled: false }
+    ];
+    if (canOpenPlannerBreakTab) {
+      tabs.push({ value: PLANNER_MODAL_TABS.break, label: "Breaks", disabled: false });
+    }
+    if (canOpenPlannerWorkScheduleTab) {
+      tabs.push({ value: PLANNER_MODAL_TABS.workSchedule, label: "Work", disabled: false });
+    }
+    return tabs;
+  }, [
+    canOpenPlannerBreakTab,
+    canOpenPlannerWorkScheduleTab,
+    isPlannerAppointmentEditMode,
+    isPlannerBlockEditMode,
+    normalizedPlannerBlockType
+  ]);
+  const isPlannerAppointmentTab = activePlannerModalTab === PLANNER_MODAL_TABS.appointment;
+  const isPlannerBreakTab = activePlannerModalTab === PLANNER_MODAL_TABS.break;
+  const isPlannerWorkScheduleTab = activePlannerModalTab === PLANNER_MODAL_TABS.workSchedule;
   const isClientFocusedCreateMode = (
     createModal.open
     && !vipOnly
     && !isEditMode
     && isClientFocusedMode
   );
+  const plannerModalSpecialistOptions = useMemo(() => (
+    specialistOptions.filter((option) => canMutateSpecialistId(option.value))
+  ), [canMutateSpecialistId, specialistOptions]);
+  const plannerModalSpecialistLabel = useMemo(() => {
+    const selectedValue = String(createModal.specialistId || "").trim();
+    if (!selectedValue) {
+      return "";
+    }
+    return String(
+      plannerModalSpecialistOptions.find((option) => String(option?.value || "").trim() === selectedValue)?.label
+      || specialistOptions.find((option) => String(option?.value || "").trim() === selectedValue)?.label
+      || selectedValue
+    ).trim();
+  }, [createModal.specialistId, plannerModalSpecialistOptions, specialistOptions]);
+  const plannerBlockRepeatDayKeys = useMemo(() => {
+    const normalizedDays = normalizeRepeatDayKeys(createForm.repeatDays)
+      .filter((dayKey) => visibleRepeatDayKeys.includes(dayKey));
+    if (normalizedDays.length > 0) {
+      return normalizedDays;
+    }
+    const fallbackDayKey = String(createModal.dayKey || "").trim().toLowerCase();
+    return fallbackDayKey && visibleRepeatDayKeys.includes(fallbackDayKey)
+      ? [fallbackDayKey]
+      : [];
+  }, [createForm.repeatDays, createModal.dayKey, visibleRepeatDayKeys]);
+  const plannerBlockRepeatDaySet = useMemo(
+    () => new Set(plannerBlockRepeatDayKeys),
+    [plannerBlockRepeatDayKeys]
+  );
+  const plannerBlockRepeatDayNumbers = useMemo(
+    () => plannerBlockRepeatDayKeys
+      .map((dayKey) => getDayOfWeekNumberFromDayKey(dayKey))
+      .filter((dayOfWeek) => Number.isInteger(dayOfWeek) && dayOfWeek >= 1 && dayOfWeek <= 7),
+    [plannerBlockRepeatDayKeys]
+  );
   const isEditRecurring = isEditMode
     && createModal.repeatType === "weekly"
     && Boolean(String(createModal.repeatGroupKey || "").trim());
   const normalizedEditScope = normalizeEditScopeValue(createForm.editScope);
-  const isFutureRecurringEditScope = normalizedEditScope === "future";
   const showRecurringEditNextToggle = createModal.mode === "edit" && isEditRecurring;
+  const shouldShowRecurringEditNextToggle = showRecurringEditNextToggle && !isSpecialistLimitedEditMode;
   const canEditRecurringSeriesPattern = !isEditRecurring || normalizedEditScope !== "single";
   const shouldLockEditDate = isEditRecurring && normalizedEditScope !== "single";
+  const isSingleEntryMode = !createForm.repeatEnabled;
+  const isSeriesOneMode = isEditRecurring ? normalizedEditScope === "single" : isSingleEntryMode;
+  const canToggleSingleEntryMode = !isEditRecurring || normalizedEditScope === "single";
   const sourceRecurringEditDayKey = String(createModal.dayKey || "").trim().toLowerCase();
   const originalRecurringEditRepeatDays = normalizeRepeatDayKeys(createModal.originalRepeatDays);
   const allowedSingleRecurringEditDayKeys = isEditRecurring && normalizedEditScope === "single"
@@ -2952,67 +3639,6 @@ function AppointmentScheduler({
     normalizedEditScope,
     sourceRecurringEditDayKey
   ]);
-  const lockedVipServiceName = String(selectedSpecialistServiceName || "").trim() || "Specialist";
-  const isVipServiceLocked = Boolean(vipOnly);
-  const isVipAutoRollingRepeat = Boolean(vipOnly || clientVipOnly);
-  const isVipAutoRollingRepeatToggleLocked = Boolean(vipOnly || (isEditRecurring && clientVipOnly));
-  const unlockedServiceNameRef = useRef(String(createForm.service || "").trim());
-  const wasVipServiceLockedRef = useRef(isVipServiceLocked);
-  useEffect(() => {
-    const wasVipServiceLocked = wasVipServiceLockedRef.current;
-    wasVipServiceLockedRef.current = isVipServiceLocked;
-
-    if (!createModal.open) {
-      unlockedServiceNameRef.current = String(createForm.service || "").trim();
-      return;
-    }
-
-    if (isVipServiceLocked) {
-      if (!wasVipServiceLocked) {
-        unlockedServiceNameRef.current = String(createForm.service || "").trim();
-      }
-      return;
-    }
-
-    if (!wasVipServiceLocked) {
-      unlockedServiceNameRef.current = String(createForm.service || "").trim();
-      return;
-    }
-
-    const restoredServiceName = String(unlockedServiceNameRef.current || "").trim();
-    if (restoredServiceName === String(createForm.service || "").trim()) {
-      return;
-    }
-
-    setCreateForm((prev) => ({ ...prev, service: restoredServiceName }));
-    if (createErrors.service) {
-      setCreateErrors((prev) => ({ ...prev, service: "" }));
-    }
-  }, [
-    createErrors.service,
-    createForm.service,
-    createModal.open,
-    isVipServiceLocked
-  ]);
-  useEffect(() => {
-    if (!createModal.open || !isVipServiceLocked) {
-      return;
-    }
-
-    setCreateForm((prev) => {
-      if (String(prev.service || "").trim() === lockedVipServiceName) {
-        return prev;
-      }
-      return {
-        ...prev,
-        service: lockedVipServiceName
-      };
-    });
-
-    if (createErrors.service) {
-      setCreateErrors((prev) => ({ ...prev, service: "" }));
-    }
-  }, [createErrors.service, createModal.open, isVipServiceLocked, lockedVipServiceName]);
   const selectedVipClassClients = useMemo(() => {
     if (!vipOnly) {
       return [];
@@ -3069,6 +3695,23 @@ function AppointmentScheduler({
       setSelectedVipClientFilterId("");
     }
   }, [selectedVipClassClients, selectedVipClientFilterId, vipOnly]);
+
+  useEffect(() => {
+    if (!createModal.open || !createForm.repeatEnabled) {
+      return;
+    }
+    recurringPatternDraftRef.current = {
+      repeatUntil: String(createForm.repeatUntil || "").trim(),
+      repeatDays: normalizeRepeatDayKeys(createForm.repeatDays)
+    };
+  }, [createForm.repeatDays, createForm.repeatEnabled, createForm.repeatUntil, createModal.open]);
+  const specialistLimitedClientLabel = useMemo(() => {
+    if (selectedClient) {
+      return formatClientOptionLabel(selectedClient);
+    }
+    const clientId = String(createForm.clientId || "").trim();
+    return clientId ? `Client #${clientId}` : "";
+  }, [createForm.clientId, selectedClient]);
 
   const vipWeeklyClientRows = useMemo(() => {
     if (!vipOnly) {
@@ -3189,7 +3832,7 @@ function AppointmentScheduler({
     weekDays
   ]);
   const clientFocusedAppointmentsByDay = useMemo(() => {
-    if (!isClientFocusedMode) {
+    if (!hasSelectedPlannerClientFilter) {
       return {};
     }
 
@@ -3222,7 +3865,7 @@ function AppointmentScheduler({
   }, [
     clientFocusedPlannerSpecialists,
     clientFocusedSchedulesBySpecialist,
-    isClientFocusedMode,
+    hasSelectedPlannerClientFilter,
     normalizedSelectedPlannerClientFilterId,
     selectedPlannerFilterClient,
     weekDays
@@ -3239,6 +3882,16 @@ function AppointmentScheduler({
   const currentVisibleAppointmentsByDay = isClientFocusedMode
     ? clientFocusedAppointmentsByDay
     : rawAppointmentsByDay;
+  const comparisonOverlayAppointmentsByDay = hasPlannerComparisonOverlay
+    ? (
+        isClientFocusedMode
+          ? rawAppointmentsByDay
+          : clientFocusedAppointmentsByDay
+      )
+    : {};
+  const comparisonOverlayLabel = hasPlannerComparisonOverlay
+    ? (isClientFocusedMode ? "Specialist" : "Client")
+    : "";
   const inferCurrentSeriesRepeatDayKeys = useCallback((existingItem, fallbackDays = []) => {
     const normalizedFallbackDays = normalizeRepeatDayKeys(fallbackDays);
     const repeatGroupKey = String(existingItem?.repeatGroupKey || "").trim();
@@ -3272,7 +3925,7 @@ function AppointmentScheduler({
   }, [clientFocusedSelectedClientLabel]);
 
   const loadClientFocusedPlannerView = useCallback(async () => {
-    if (!isSchedulerInitialized || !isClientFocusedMode) {
+    if (!isSchedulerInitialized || !hasSelectedPlannerClientFilter) {
       return;
     }
 
@@ -3370,7 +4023,7 @@ function AppointmentScheduler({
     }
   }, [
     clientFocusedPlannerDataKey,
-    isClientFocusedMode,
+    hasSelectedPlannerClientFilter,
     isSchedulerInitialized,
     normalizedSelectedPlannerClientFilterId,
     recurringOnly,
@@ -3681,17 +4334,7 @@ function AppointmentScheduler({
         return;
       }
 
-      const items = Array.isArray(data?.items) ? data.items : [];
-      const normalizedItems = items.map((item) => ({
-        dayKey: String(item?.dayKey || "").trim().toLowerCase(),
-        dayOfWeek: Number.parseInt(String(item?.dayOfWeek ?? "").trim(), 10) || 0,
-        breakType: normalizeBreakTypeKey(item?.breakType || ""),
-        title: String(item?.title || "").trim(),
-        note: String(item?.note || "").trim(),
-        startTime: String(item?.startTime || "").trim(),
-        endTime: String(item?.endTime || "").trim(),
-        isActive: item?.isActive !== false
-      }));
+      const normalizedItems = normalizePlannerBreakItems(Array.isArray(data?.items) ? data.items : []);
 
       setBreaksBySpecialist((prev) => ({
         ...prev,
@@ -3826,19 +4469,35 @@ function AppointmentScheduler({
     loadSchedulesForCurrentWeek
   ]);
 
+  const refreshPlannerServerState = useCallback(async () => {
+    await Promise.all([
+      loadAppointmentSettings({ silent: true }),
+      loadSchedulesForCurrentWeek(),
+      loadBreaksForSelectedSpecialist(),
+      loadAbsencesForSelectedSpecialist(),
+      loadClientFocusedPlannerView()
+    ]);
+  }, [
+    loadAbsencesForSelectedSpecialist,
+    loadAppointmentSettings,
+    loadBreaksForSelectedSpecialist,
+    loadClientFocusedPlannerView,
+    loadSchedulesForCurrentWeek
+  ]);
+
   useEffect(() => {
     loadSchedulesForCurrentWeek();
   }, [loadSchedulesForCurrentWeek]);
 
   useEffect(() => {
-    if (!isClientFocusedMode) {
+    if (!hasSelectedPlannerClientFilter) {
       setClientFocusedPlannerSpecialists([]);
       setClientFocusedSchedulesBySpecialist({});
       setClientFocusedPlannerWeekKey("");
       return;
     }
     void loadClientFocusedPlannerView();
-  }, [isClientFocusedMode, loadClientFocusedPlannerView]);
+  }, [hasSelectedPlannerClientFilter, loadClientFocusedPlannerView]);
 
   useEffect(() => {
     if (vipOnly && canRenderPlannerData && selectedSpecialistId && vipWeeklyClientRows.length === 0) {
@@ -3974,6 +4633,11 @@ function AppointmentScheduler({
   ]);
 
   function closeCreateModal() {
+    recurringPatternDraftRef.current = {
+      repeatUntil: "",
+      repeatDays: []
+    };
+    setActivePlannerModalTab(PLANNER_MODAL_TABS.appointment);
     setCreateModal({
       open: false,
       mode: "create",
@@ -3985,17 +4649,93 @@ function AppointmentScheduler({
       time: "",
       repeatType: "none",
       repeatGroupKey: "",
-      originalRepeatDays: []
+      originalRepeatDays: [],
+      originalStatus: "",
+      plannerBlockType: "",
+      plannerBlockOriginal: null
     });
     setCreateForm(createEmptyClientForm());
+    setPlannerBreakForm(createEmptyPlannerBreakForm());
+    setPlannerWorkScheduleForm(createEmptyPlannerWorkScheduleForm());
     setCreateErrors({});
     setCreateSubmitting(false);
     setCreateDeleting(false);
-    setClientVipOnly(Boolean(vipOnly));
     setClientSearch(createEmptyClientSearchForm());
     setClientSearchMessage("");
     setClientOptions([]);
     setClientNoShowSummary(null);
+  }
+
+  function closeDayBulkModal() {
+    if (dayBulkModal.submitting || dayBulkModal.deleting) {
+      return;
+    }
+    setDayBulkModal({
+      open: false,
+      dayKey: "",
+      dayLabel: "",
+      appointmentDate: "",
+      displayMode: "client",
+      items: [],
+      selectedIds: [],
+      status: "cancelled",
+      note: "",
+      submitting: false,
+      deleting: false,
+      error: ""
+    });
+  }
+
+  function openDayBulkModal(day, items = []) {
+    if (vipOnly) {
+      return;
+    }
+    const appointmentDate = formatDateYmd(day?.date);
+    if (!appointmentDate || isHistoryLockedDateYmd(appointmentDate, settings?.historyLockDays)) {
+      setMessage("History is locked for this date.");
+      return;
+    }
+    const normalizedItems = (Array.isArray(items) ? items : [])
+      .filter((item) => String(item?.itemType || "").trim().toLowerCase() !== "daily-routine")
+      .filter((item) => canMutateSpecialistId(String(item?.specialistId || selectedSpecialistId || "").trim()))
+      .map((item) => ({
+        ...item,
+        id: String(item?.id || item?.appointmentId || "").trim(),
+        specialistId: String(item?.specialistId || selectedSpecialistId || "").trim(),
+        clientId: String(item?.clientId || "").trim(),
+        specialist: String(item?.specialist || item?.specialistName || "").trim(),
+        client: String(item?.client || item?.clientName || "").trim(),
+        appointmentDate: String(item?.appointmentDate || appointmentDate).trim(),
+        startTime: String(item?.time || item?.startTime || "").trim(),
+        endTime: String(item?.endTime || "").trim(),
+        durationMinutes: String(
+          item?.durationMinutes
+          || getDurationMinutesFromTimes(item?.time || item?.startTime, item?.endTime)
+          || ""
+        ).trim(),
+        service: String(item?.service || item?.serviceName || DEFAULT_APPOINTMENT_SERVICE_NAME).trim(),
+        status: String(item?.status || "pending").trim().toLowerCase(),
+        note: String(item?.note || "").trim()
+      }))
+      .filter((item) => item.id && item.specialistId && item.clientId && item.appointmentDate && item.startTime);
+    if (normalizedItems.length === 0) {
+      setMessage("No appointments to manage for this day.");
+      return;
+    }
+    setDayBulkModal({
+      open: true,
+      dayKey: String(day?.key || "").trim().toLowerCase(),
+      dayLabel: String(day?.label || "").trim(),
+      appointmentDate,
+      displayMode: isClientFocusedMode ? "specialist" : "client",
+      items: normalizedItems,
+      selectedIds: normalizedItems.map((item) => item.id),
+      status: "cancelled",
+      note: "",
+      submitting: false,
+      deleting: false,
+      error: ""
+    });
   }
 
   function openCreateModal(day, slot, existingItem = null, specialistIdOverride = "") {
@@ -4045,6 +4785,14 @@ function AppointmentScheduler({
     const appointmentDate = formatDateYmd(day.date);
     const startTime = String(slot || "").trim();
     const defaultDuration = durationSelectOptions[0]?.value || "30";
+    const defaultBlockEndTime = String(
+      existingItem?.endTime
+      || getDefaultPlannerBlockEndTime(
+        startTime,
+        timeSelectOptions,
+        Number.parseInt(defaultDuration, 10) || Number.parseInt(String(settings.slotInterval || "").trim(), 10) || 30
+      )
+    ).trim();
     const existingDuration = String(existingItem?.durationMinutes || "").trim()
       || getDurationMinutesFromTimes(existingItem?.time, existingItem?.endTime);
     const nextDuration = isEditMode && existingDuration
@@ -4053,10 +4801,6 @@ function AppointmentScheduler({
     const preselectedClientId = isEditMode
       ? String(existingItem?.clientId || "").trim()
       : String(selectedPlannerClientFilterId || "").trim();
-    const existingClientIsVip = Boolean(existingItem?.isVip);
-    const existingAutoRollingRepeat = Boolean(existingItem?.isAutoRollingRepeat);
-
-    setClientVipOnly(Boolean(vipOnly || existingAutoRollingRepeat));
     if (isEditMode && preselectedClientId) {
       setClientMap((prev) => {
         const previousClient = prev?.[preselectedClientId] && typeof prev[preselectedClientId] === "object"
@@ -4074,7 +4818,6 @@ function AppointmentScheduler({
             phone: String(previousClient?.phone || "").trim(),
             tgMail: String(previousClient?.tgMail || "").trim(),
             birthday: String(previousClient?.birthday || "").trim(),
-            isVip: existingClientIsVip || Boolean(previousClient?.isVip),
             note: String(previousClient?.note || "").trim()
           }
         };
@@ -4101,7 +4844,6 @@ function AppointmentScheduler({
             phone: String(previousClient?.phone || "").trim(),
             tgMail: String(previousClient?.tgMail || "").trim(),
             birthday: String(previousClient?.birthday || "").trim(),
-            isVip: Boolean(selectedPlannerFilterClient?.isVip || previousClient?.isVip),
             note: String(previousClient?.note || "").trim()
           }
         };
@@ -4130,9 +4872,18 @@ function AppointmentScheduler({
       time: slot,
       repeatType: String(existingItem?.repeatType || "none").trim().toLowerCase(),
       repeatGroupKey: String(existingItem?.repeatGroupKey || "").trim(),
-      originalRepeatDays: existingRepeatDays
+      originalRepeatDays: existingRepeatDays,
+      originalStatus: String(existingItem?.status || "").trim(),
+      plannerBlockType: "",
+      plannerBlockOriginal: null
     });
     if (existingItem) {
+      recurringPatternDraftRef.current = {
+        repeatUntil: isExistingRecurring
+          ? String(existingItem?.repeatUntilDate || appointmentDate || "").trim()
+          : getDefaultRepeatUntilDate(appointmentDate),
+        repeatDays: defaultEditDayKeys
+      };
       setCreateForm({
         clientId: preselectedClientId,
         appointmentDate,
@@ -4141,7 +4892,7 @@ function AppointmentScheduler({
         service: String(existingItem?.service || DEFAULT_APPOINTMENT_SERVICE_NAME),
         status: String(existingItem?.status || "pending"),
         note: String(existingItem?.note || ""),
-        editScope: "single",
+        editScope: isExistingRecurring ? "future" : "single",
         repeatEnabled: isExistingRecurring,
         repeatUntil: isExistingRecurring
           ? String(existingItem?.repeatUntilDate || appointmentDate || "").trim()
@@ -4149,26 +4900,358 @@ function AppointmentScheduler({
         repeatDays: defaultEditDayKeys
       });
     } else {
-      const defaultRepeatUntil = recurringOnly
-        ? formatDateYmd(getEndOfNextWeek(day.date))
+      const shouldDefaultToRecurring = recurringOnly || !vipOnly;
+      const defaultRepeatUntil = shouldDefaultToRecurring
+        ? getDefaultRepeatUntilDate(appointmentDate)
         : "";
       const defaultRepeatDays = DAY_KEYS_SET.has(day.key) ? [day.key] : [];
+      recurringPatternDraftRef.current = {
+        repeatUntil: defaultRepeatUntil || getDefaultRepeatUntilDate(appointmentDate),
+        repeatDays: defaultRepeatDays
+      };
       const nextCreateForm = createEmptyClientForm({
         appointmentDate,
         startTime,
         durationMinutes: nextDuration,
-        repeatEnabled: recurringOnly,
+        repeatEnabled: shouldDefaultToRecurring,
         repeatUntil: defaultRepeatUntil,
         repeatDays: defaultRepeatDays
       });
       nextCreateForm.clientId = preselectedClientId;
       setCreateForm(nextCreateForm);
     }
+    setActivePlannerModalTab(PLANNER_MODAL_TABS.appointment);
+    setPlannerBreakForm(createEmptyPlannerBreakForm({
+      startTime,
+      endTime: defaultBlockEndTime
+    }));
+    setPlannerWorkScheduleForm(createEmptyPlannerWorkScheduleForm({
+      startTime,
+      endTime: defaultBlockEndTime
+    }));
     setCreateErrors({});
+  }
+
+  function openPlannerBlockModal(day, slot, blockType, blockItem = {}) {
+    if (vipOnly || isClientFocusedMode) {
+      return;
+    }
+    const normalizedBlockType = String(blockType || "").trim();
+    const specialistId = String(selectedSpecialistId || "").trim();
+    if (!specialistId) {
+      setSpecialistSelectError(true);
+      return;
+    }
+    if (!canMutateSpecialistId(specialistId)) {
+      setMessage("You can only manage blocks in your own planner.");
+      return;
+    }
+    if (normalizedBlockType === PLANNER_MODAL_TABS.break && !canUpdateAppointmentBreaks) {
+      setMessage("You do not have permission to update appointment breaks.");
+      return;
+    }
+    if (
+      normalizedBlockType === PLANNER_MODAL_TABS.workSchedule
+      && !canUpdateAppointmentWorkSchedule
+      && !canDeleteAppointmentWorkSchedule
+    ) {
+      setMessage("You do not have permission to manage work schedule blocks.");
+      return;
+    }
+    if (![PLANNER_MODAL_TABS.break, PLANNER_MODAL_TABS.workSchedule].includes(normalizedBlockType)) {
+      return;
+    }
+
+    setSpecialistSelectError(false);
+    setMessage("");
+    const appointmentDate = formatDateYmd(day.date);
+    const startTime = String(blockItem?.startTime || slot || "").trim();
+    const endTime = String(blockItem?.endTime || getDefaultPlannerBlockEndTime(
+      startTime,
+      timeSelectOptions,
+      Number.parseInt(String(settings.slotInterval || "").trim(), 10) || 30
+    )).trim();
+    const dayOfWeek = getDayOfWeekNumberFromDayKey(day.key);
+    const plannerBlockOriginal = normalizedBlockType === PLANNER_MODAL_TABS.break
+      ? {
+          type: PLANNER_MODAL_TABS.break,
+          id: String(blockItem?.id || "").trim(),
+          specialistId,
+          dayKey: day.key,
+          dayOfWeek,
+          startTime,
+          endTime,
+          breakType: normalizeBreakTypeKey(blockItem?.breakType || "lunch"),
+          note: String(blockItem?.note || "").trim(),
+          title: String(blockItem?.title || "").trim()
+        }
+      : {
+          type: PLANNER_MODAL_TABS.workSchedule,
+          id: String(blockItem?.id || "").trim(),
+          specialistId,
+          dayKey: day.key,
+          dayOfWeek,
+          startTime,
+          endTime,
+          reason: String(blockItem?.reasonFull || blockItem?.reason || "").trim()
+        };
+
+    setCreateModal({
+      open: true,
+      mode: "create",
+      appointmentId: "",
+      specialistId,
+      dayKey: day.key,
+      dayLabel: day.label,
+      date: day.date,
+      time: startTime,
+      repeatType: "none",
+      repeatGroupKey: "",
+      originalRepeatDays: [],
+      originalStatus: "",
+      plannerBlockType: normalizedBlockType,
+      plannerBlockOriginal
+    });
+    setCreateForm(createEmptyClientForm({
+      appointmentDate,
+      startTime,
+      durationMinutes: getDurationMinutesFromTimes(startTime, endTime) || durationSelectOptions[0]?.value || "30",
+      repeatEnabled: false,
+      repeatUntil: "",
+      repeatDays: DAY_KEYS_SET.has(day.key) ? [day.key] : []
+    }));
+    setActivePlannerModalTab(normalizedBlockType);
+    setPlannerBreakForm(createEmptyPlannerBreakForm({
+      startTime,
+      endTime,
+      breakType: blockItem?.breakType || "lunch",
+      note: blockItem?.note || ""
+    }));
+    setPlannerWorkScheduleForm(createEmptyPlannerWorkScheduleForm({
+      startTime,
+      endTime,
+      reason: blockItem?.reasonFull || blockItem?.reason || ""
+    }));
+    setCreateErrors({});
+    setCreateSubmitting(false);
+    setCreateDeleting(false);
+    setClientSearch(createEmptyClientSearchForm());
+    setClientSearchMessage("");
+    setClientOptions([]);
+    setClientNoShowSummary(null);
+  }
+
+  async function moveAppointmentToSlot(item, sourceDay, targetDay, targetSlot) {
+    if (vipOnly) {
+      return;
+    }
+    const appointmentId = String(item?.id || item?.appointmentId || "").trim();
+    const specialistId = String(item?.specialistId || selectedSpecialistId || "").trim();
+    const targetAppointmentDate = formatDateYmd(targetDay?.date);
+    const sourceAppointmentDate = String(sourceDay?.date || item?.appointmentDate || "").trim();
+    const targetStartTime = String(targetSlot || "").trim();
+    const durationMinutes = Number.parseInt(
+      String(item?.durationMinutes || getDurationMinutesFromTimes(item?.time, item?.endTime) || "30").trim(),
+      10
+    );
+    const targetStartMinutes = normalizeTimeToMinutes(targetStartTime);
+    if (!appointmentId || !specialistId || !targetAppointmentDate || targetStartMinutes === null) {
+      setMessage("Invalid appointment move target.");
+      return;
+    }
+    if (!isPendingAppointmentStatus(item?.status)) {
+      setMessage("Only pending appointments can be moved.");
+      return;
+    }
+    if (
+      isHistoryLockedDateYmd(sourceAppointmentDate, settings?.historyLockDays)
+      || isHistoryLockedDateYmd(targetAppointmentDate, settings?.historyLockDays)
+    ) {
+      setMessage("Appointments cannot be moved outside the history lock window.");
+      return;
+    }
+    const targetWeekStart = formatDateYmd(getStartOfWeek(new Date(`${targetAppointmentDate}T00:00:00`)));
+    const visibleWeekStart = formatDateYmd(weekStartDate);
+    if (targetWeekStart !== visibleWeekStart) {
+      setMessage("Appointments can only be moved within the visible week.");
+      return;
+    }
+    if (!canUpdateAppointments || !canMutateSpecialistId(specialistId)) {
+      setMessage("You do not have permission to move this appointment.");
+      return;
+    }
+    if (!Number.isInteger(durationMinutes) || durationMinutes <= 0) {
+      setMessage("Invalid appointment duration.");
+      return;
+    }
+    if (sourceAppointmentDate === targetAppointmentDate && String(item?.time || "").trim() === targetStartTime) {
+      return;
+    }
+
+    const targetEndTime = minutesToTime(targetStartMinutes + durationMinutes);
+    const normalizedStatus = String(item?.status || "pending").trim().toLowerCase();
+    const shouldShowImmediateAlert = typeof onNotification === "function";
+    if (ACTIVE_SCHEDULE_STATUSES.has(normalizedStatus)) {
+      const shouldCheckSpecialistLocalAvailability = !isClientFocusedMode;
+      if (shouldCheckSpecialistLocalAvailability) {
+        const workingHoursConflictMessage = getPlannerWorkingHoursConflictMessage(
+          settings,
+          targetAppointmentDate,
+          targetStartTime,
+          targetEndTime
+        );
+        if (workingHoursConflictMessage) {
+          setMessage(workingHoursConflictMessage);
+          if (shouldShowImmediateAlert) {
+            showImmediateAlert(workingHoursConflictMessage);
+          }
+          return;
+        }
+
+        const blockedTimeConflictReason = findPlannerBlockedTimeConflict(
+          blockedTimesForSpecialist,
+          targetAppointmentDate,
+          targetStartTime,
+          targetEndTime
+        );
+        if (blockedTimeConflictReason) {
+          const blockedTimeConflictMessage = `Selected time overlaps blocked time: ${blockedTimeConflictReason}.`;
+          setMessage(blockedTimeConflictMessage);
+          if (shouldShowImmediateAlert) {
+            showImmediateAlert(blockedTimeConflictMessage);
+          }
+          return;
+        }
+
+        const breakConflictReason = findPlannerBreakConflict(
+          breaksForSpecialist,
+          targetAppointmentDate,
+          targetStartTime,
+          targetEndTime
+        );
+        if (breakConflictReason) {
+          const breakConflictMessage = `Selected time overlaps specialist break: ${breakConflictReason}.`;
+          setMessage(breakConflictMessage);
+          if (shouldShowImmediateAlert) {
+            showImmediateAlert(breakConflictMessage);
+          }
+          return;
+        }
+
+        const absenceConflictReason = findPlannerAbsenceConflict(
+          absencesForSpecialist,
+          targetAppointmentDate,
+          targetStartTime,
+          targetEndTime
+        );
+        if (absenceConflictReason) {
+          const absenceConflictMessage = `Selected time overlaps specialist absence: ${absenceConflictReason}.`;
+          setMessage(absenceConflictMessage);
+          if (shouldShowImmediateAlert) {
+            showImmediateAlert(absenceConflictMessage);
+          }
+          return;
+        }
+      }
+
+      const localConflict = findLocalScheduleConflict({
+        appointmentDate: targetAppointmentDate,
+        startTime: targetStartTime,
+        endTime: targetEndTime,
+        excludeAppointmentId: appointmentId,
+        appointmentsByDay: isClientFocusedMode ? clientFocusedAppointmentsByDay : rawAppointmentsByDay
+      });
+      if (localConflict) {
+        const localConflictTime = [localConflict.startTime, localConflict.endTime].filter(Boolean).join(" - ");
+        const localConflictClient = localConflict.client ? ` (${localConflict.client})` : "";
+        const conflictMessage = localConflictTime
+          ? `This slot is already occupied at ${localConflictTime}${localConflictClient}.`
+          : "This slot is already occupied.";
+        setMessage(conflictMessage);
+        if (shouldShowImmediateAlert) {
+          showImmediateAlert(conflictMessage);
+        }
+        return;
+      }
+    }
+
+    const queryParams = new URLSearchParams({ scope: "single" });
+    const sourceDayKey = String(sourceDay?.key || "").trim().toLowerCase();
+    if (
+      String(item?.repeatType || "").trim().toLowerCase() === "weekly"
+      && String(item?.repeatGroupKey || "").trim()
+      && DAY_KEYS_SET.has(sourceDayKey)
+    ) {
+      queryParams.set("dayKeys", sourceDayKey);
+    }
+
+    try {
+      const response = await apiFetch(
+        `/api/appointments/schedules/${encodeURIComponent(appointmentId)}?${queryParams.toString()}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            specialistId,
+            clientId: String(item?.clientId || "").trim(),
+            appointmentDate: targetAppointmentDate,
+            startTime: targetStartTime,
+            endTime: targetEndTime,
+            durationMinutes: String(durationMinutes),
+            service: String(item?.service || DEFAULT_APPOINTMENT_SERVICE_NAME).trim() || DEFAULT_APPOINTMENT_SERVICE_NAME,
+            status: normalizedStatus || "pending",
+            note: String(item?.note || "").trim()
+          })
+        }
+      );
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        const serverMessage = String(data?.message || "Failed to move appointment.").trim();
+        setMessage(serverMessage);
+        if (response.status === 409 && shouldShowImmediateAlert) {
+          showImmediateAlert(serverMessage);
+        }
+        return;
+      }
+
+      await refreshPlannerServerState();
+      setMessage("");
+    } catch {
+      setMessage("Failed to move appointment.");
+    }
   }
 
   useEffect(() => {
     if (!createModal.open) {
+      return;
+    }
+    if (isPlannerBlockEditMode) {
+      if (activePlannerModalTab !== normalizedPlannerBlockType) {
+        setActivePlannerModalTab(normalizedPlannerBlockType);
+      }
+      return;
+    }
+    if (plannerModalTabOptions.some((tab) => tab.value === activePlannerModalTab)) {
+      return;
+    }
+    setActivePlannerModalTab(PLANNER_MODAL_TABS.appointment);
+  }, [
+    activePlannerModalTab,
+    createModal.open,
+    isPlannerBlockEditMode,
+    normalizedPlannerBlockType,
+    plannerModalTabOptions
+  ]);
+
+  useEffect(() => {
+    if (!createModal.open) {
+      return;
+    }
+    if (!isPlannerAppointmentTab) {
+      setClientSearchMessage("");
+      setClientOptions([]);
       return;
     }
     if (vipOnly) {
@@ -4183,14 +5266,16 @@ function AppointmentScheduler({
     }
     const trimmedFirstName = String(clientSearch.firstName || "").trim();
     const trimmedLastName = String(clientSearch.lastName || "").trim();
-    const combinedLength = `${trimmedFirstName}${trimmedLastName}`.length;
-    if (combinedLength === 0) {
+    const trimmedMiddleName = String(clientSearch.middleName || "").trim();
+    const trimmedClientId = String(clientSearch.clientId || "").trim();
+    const combinedLength = `${trimmedFirstName}${trimmedLastName}${trimmedMiddleName}`.length;
+    if (combinedLength === 0 && !trimmedClientId) {
       setClientSearchMessage("");
       setClientOptions([]);
       return;
     }
-    if (combinedLength < 3) {
-      setClientSearchMessage("Type at least 3 letters.");
+    if (!trimmedClientId && combinedLength < 3) {
+      setClientSearchMessage("Type at least 3 letters or enter client ID.");
       setClientOptions([]);
       return;
     }
@@ -4208,6 +5293,12 @@ function AppointmentScheduler({
         }
         if (trimmedLastName) {
           queryParams.set("lastName", trimmedLastName);
+        }
+        if (trimmedMiddleName) {
+          queryParams.set("middleName", trimmedMiddleName);
+        }
+        if (trimmedClientId) {
+          queryParams.set("clientId", trimmedClientId);
         }
 
         const response = await apiFetch(`/api/clients/search?${queryParams.toString()}`, {
@@ -4242,7 +5333,6 @@ function AppointmentScheduler({
               phone: String(item?.phone || "").trim(),
               tgMail: String(item?.tgMail || item?.telegramOrEmail || "").trim(),
               birthday: String(item?.birthday || "").trim(),
-              isVip: Boolean(item?.isVip),
               note: String(item?.note || "").trim()
             };
             nextMap[id] = normalized;
@@ -4272,10 +5362,23 @@ function AppointmentScheduler({
       active = false;
       window.clearTimeout(timerId);
     };
-  }, [clientSearch.firstName, clientSearch.lastName, createModal.open, isClientFocusedCreateMode, vipOnly]);
+  }, [
+    clientSearch.clientId,
+    clientSearch.firstName,
+    clientSearch.lastName,
+    clientSearch.middleName,
+    createModal.open,
+    isPlannerAppointmentTab,
+    isClientFocusedCreateMode,
+    vipOnly
+  ]);
 
   useEffect(() => {
     if (!createModal.open) {
+      setClientNoShowSummary(null);
+      return;
+    }
+    if (!isPlannerAppointmentTab) {
       setClientNoShowSummary(null);
       return;
     }
@@ -4326,7 +5429,7 @@ function AppointmentScheduler({
       active = false;
       window.clearTimeout(timerId);
     };
-  }, [createForm.clientId, createModal.open]);
+  }, [createForm.clientId, createModal.open, isPlannerAppointmentTab]);
 
   useEffect(() => {
     if (!createModal.open || createModal.mode === "edit") {
@@ -4370,6 +5473,451 @@ function AppointmentScheduler({
     });
   }, [createForm.appointmentDate, createForm.repeatEnabled, createModal.mode, createModal.open, visibleRepeatDayKeys]);
 
+  function updatePlannerModalSpecialist(nextValue) {
+    const normalizedValue = String(nextValue || "").trim();
+    setCreateModal((prev) => ({ ...prev, specialistId: normalizedValue }));
+    setCreateErrors({});
+  }
+
+  function handlePlannerModalTabChange(nextTab) {
+    const normalizedValue = String(nextTab || "").trim();
+    if (isPlannerBlockEditMode && normalizedValue !== normalizedPlannerBlockType) {
+      return;
+    }
+    const targetTab = plannerModalTabOptions.find((tab) => tab.value === normalizedValue);
+    if (!targetTab || targetTab.disabled) {
+      return;
+    }
+    setActivePlannerModalTab(normalizedValue);
+    setCreateErrors({});
+  }
+
+  function setPlannerModalFormError(message) {
+    const text = String(message || "").trim() || "Request failed.";
+    setCreateErrors({ form: text });
+    setMessage(text);
+  }
+
+  function validatePlannerBreakForm(value) {
+    const errors = {};
+    const startTime = String(value?.startTime || "").trim();
+    const endTime = String(value?.endTime || "").trim();
+    const breakType = normalizeBreakTypeKey(value?.breakType || "");
+    const note = String(value?.note || "").trim();
+    const startMinutes = normalizeTimeToMinutes(startTime);
+    const endMinutes = normalizeTimeToMinutes(endTime);
+
+    if (startMinutes === null) {
+      errors.startTime = "Invalid start time.";
+    }
+    if (endMinutes === null) {
+      errors.endTime = "Invalid end time.";
+    }
+    if (startMinutes !== null && endMinutes !== null && endMinutes <= startMinutes) {
+      errors.endTime = "End time must be after start time.";
+    }
+    if (!BREAK_TYPE_OPTIONS.some((option) => option.value === breakType)) {
+      errors.breakType = "Break type is required.";
+    }
+    if (note.length > 255) {
+      errors.note = "Note is too long.";
+    }
+
+    return errors;
+  }
+
+  function validatePlannerWorkScheduleForm(value) {
+    const errors = {};
+    const startTime = String(value?.startTime || "").trim();
+    const endTime = String(value?.endTime || "").trim();
+    const reason = String(value?.reason || "").trim();
+    const startMinutes = normalizeTimeToMinutes(startTime);
+    const endMinutes = normalizeTimeToMinutes(endTime);
+
+    if (startMinutes === null) {
+      errors.startTime = "Invalid start time.";
+    }
+    if (endMinutes === null) {
+      errors.endTime = "Invalid end time.";
+    }
+    if (startMinutes !== null && endMinutes !== null && endMinutes <= startMinutes) {
+      errors.endTime = "End time must be after start time.";
+    }
+    if (reason.length > 120) {
+      errors.reason = "Reason is too long.";
+    }
+
+    return errors;
+  }
+
+  async function handlePlannerBreakSubmit() {
+    const specialistId = String(createModal.specialistId || "").trim();
+    if (!specialistId) {
+      setCreateErrors({ specialistId: "Specialist is required." });
+      return;
+    }
+    if (!canUpdateAppointmentBreaks) {
+      setPlannerModalFormError("You do not have permission to update appointment breaks.");
+      return;
+    }
+    if (!canMutateSpecialistId(specialistId)) {
+      setCreateErrors({ specialistId: "You can only manage breaks in your own planner." });
+      return;
+    }
+    if (plannerBlockRepeatDayNumbers.length === 0) {
+      setCreateErrors({ repeatDays: "Select at least one repeat day." });
+      return;
+    }
+
+    const nextPayload = {
+      startTime: String(plannerBreakForm.startTime || "").trim(),
+      endTime: String(plannerBreakForm.endTime || "").trim(),
+      breakType: normalizeBreakTypeKey(plannerBreakForm.breakType || ""),
+      note: String(plannerBreakForm.note || "").trim()
+    };
+    const errors = validatePlannerBreakForm(nextPayload);
+    if (Object.keys(errors).length > 0) {
+      setCreateErrors(errors);
+      return;
+    }
+
+    try {
+      setCreateSubmitting(true);
+      setCreateErrors({});
+
+      const currentResponse = await apiFetch(`/api/appointments/breaks?${new URLSearchParams({
+        specialistId
+      }).toString()}`, {
+        method: "GET",
+        cache: "no-store"
+      });
+      const currentData = await readApiResponseData(currentResponse);
+      if (!currentResponse.ok) {
+        setPlannerModalFormError(currentData?.message || "Failed to load existing breaks.");
+        return;
+      }
+
+      const currentItems = (Array.isArray(currentData?.items) ? currentData.items : []).map((item) => ({
+        dayOfWeek: Number.parseInt(String(item?.dayOfWeek ?? "").trim(), 10) || 0,
+        dayKey: String(item?.dayKey || "").trim().toLowerCase(),
+        breakType: normalizeBreakTypeKey(item?.breakType || ""),
+        title: String(item?.title || "").trim(),
+        note: String(item?.note || "").trim(),
+        startTime: String(item?.startTime || "").trim(),
+        endTime: String(item?.endTime || "").trim(),
+        isActive: item?.isActive !== false
+      }));
+
+      const originalBreak = (
+        String(createModal.plannerBlockType || "").trim() === PLANNER_MODAL_TABS.break
+        && createModal.plannerBlockOriginal
+        && typeof createModal.plannerBlockOriginal === "object"
+      )
+        ? createModal.plannerBlockOriginal
+        : null;
+      const currentItemsExcludingOriginal = originalBreak
+        ? currentItems.filter((item) => !(
+            String(item?.dayKey || "").trim().toLowerCase() === String(originalBreak.dayKey || "").trim().toLowerCase()
+            && String(item?.startTime || "").trim() === String(originalBreak.startTime || "").trim()
+            && String(item?.endTime || "").trim() === String(originalBreak.endTime || "").trim()
+            && normalizeBreakTypeKey(item?.breakType || "") === normalizeBreakTypeKey(originalBreak.breakType || "")
+          ))
+        : currentItems;
+
+      const selectedDaySet = new Set(plannerBlockRepeatDayKeys);
+      const currentItemsExcludingTargets = currentItemsExcludingOriginal.filter((item) => {
+        const itemDayKey = String(item?.dayKey || getDayKeyFromDayOfWeekNumber(item?.dayOfWeek)).trim().toLowerCase();
+        return !(
+          selectedDaySet.has(itemDayKey)
+          && String(item?.startTime || "").trim() === nextPayload.startTime
+          && String(item?.endTime || "").trim() === nextPayload.endTime
+          && normalizeBreakTypeKey(item?.breakType || "") === nextPayload.breakType
+        );
+      });
+      const nextBreakItems = [
+        ...currentItemsExcludingTargets,
+        ...plannerBlockRepeatDayNumbers.map((dayOfWeek) => {
+          const dayKey = getDayKeyFromDayOfWeekNumber(dayOfWeek);
+          return {
+            dayOfWeek,
+            dayKey,
+            breakType: nextPayload.breakType,
+            note: nextPayload.note,
+            startTime: nextPayload.startTime,
+            endTime: nextPayload.endTime,
+            isActive: true
+          };
+        })
+      ];
+
+      const response = await apiFetch("/api/appointments/breaks", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          specialistId,
+          items: nextBreakItems
+        })
+      });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        setPlannerModalFormError(data?.message || "Failed to save break.");
+        return;
+      }
+
+      await refreshPlannerServerState();
+      closeCreateModal();
+    } finally {
+      setCreateSubmitting(false);
+    }
+  }
+
+  async function handlePlannerWorkScheduleSubmit() {
+    const specialistId = String(createModal.specialistId || "").trim();
+    if (!specialistId) {
+      setCreateErrors({ specialistId: "Specialist is required." });
+      return;
+    }
+    if (!canCreateAppointmentWorkSchedule && !canUpdateAppointmentWorkSchedule) {
+      setPlannerModalFormError("You do not have permission to update work schedule.");
+      return;
+    }
+    if (!canMutateSpecialistId(specialistId)) {
+      setCreateErrors({ specialistId: "You can only manage work schedule in your own planner." });
+      return;
+    }
+    if (plannerBlockRepeatDayNumbers.length === 0) {
+      setCreateErrors({ repeatDays: "Select at least one repeat day." });
+      return;
+    }
+
+    const nextPayload = {
+      startTime: String(plannerWorkScheduleForm.startTime || "").trim(),
+      endTime: String(plannerWorkScheduleForm.endTime || "").trim(),
+      reason: String(plannerWorkScheduleForm.reason || "").trim()
+    };
+    const errors = validatePlannerWorkScheduleForm(nextPayload);
+    if (Object.keys(errors).length > 0) {
+      setCreateErrors(errors);
+      return;
+    }
+
+    try {
+      setCreateSubmitting(true);
+      setCreateErrors({});
+
+      const currentResponse = await apiFetch(`/api/appointments/work-schedule?${new URLSearchParams({
+        userId: specialistId,
+        ruleScope: "weekly"
+      }).toString()}`, {
+        method: "GET",
+        cache: "no-store"
+      });
+      const currentData = await readApiResponseData(currentResponse);
+      if (!currentResponse.ok) {
+        setPlannerModalFormError(currentData?.message || "Failed to load current work schedule.");
+        return;
+      }
+
+      const currentItems = Array.isArray(currentData?.items) ? currentData.items : [];
+      for (const dayOfWeek of plannerBlockRepeatDayNumbers) {
+        const existingEntry = currentItems.find((item) => (
+          String(item?.ruleScope || "").trim().toLowerCase() === "weekly"
+          && String(item?.userId || "").trim() === specialistId
+          && Number.parseInt(String(item?.dayOfWeek ?? "").trim(), 10) === dayOfWeek
+        )) || null;
+
+        const requestBody = {
+          userId: specialistId,
+          ruleScope: "weekly",
+          dayOfWeek,
+          isActive: true,
+          startTime: nextPayload.startTime,
+          endTime: nextPayload.endTime,
+          reason: nextPayload.reason
+        };
+        const response = await apiFetch(
+          existingEntry
+            ? `/api/appointments/work-schedule/${encodeURIComponent(String(existingEntry?.id || "").trim())}`
+            : "/api/appointments/work-schedule",
+          {
+            method: existingEntry ? "PATCH" : "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify(requestBody)
+          }
+        );
+        const data = await readApiResponseData(response);
+        if (!response.ok) {
+          setPlannerModalFormError(data?.message || "Failed to save work schedule.");
+          return;
+        }
+      }
+
+      await refreshPlannerServerState();
+      closeCreateModal();
+    } finally {
+      setCreateSubmitting(false);
+    }
+  }
+
+  async function handlePlannerBreakDelete() {
+    const specialistId = String(createModal.specialistId || "").trim();
+    if (!specialistId) {
+      setCreateErrors({ specialistId: "Specialist is required." });
+      return;
+    }
+    if (!canUpdateAppointmentBreaks) {
+      setPlannerModalFormError("You do not have permission to update appointment breaks.");
+      return;
+    }
+    if (!canMutateSpecialistId(specialistId)) {
+      setCreateErrors({ specialistId: "You can only manage breaks in your own planner." });
+      return;
+    }
+
+    const originalBreak = (
+      String(createModal.plannerBlockType || "").trim() === PLANNER_MODAL_TABS.break
+      && createModal.plannerBlockOriginal
+      && typeof createModal.plannerBlockOriginal === "object"
+    )
+      ? createModal.plannerBlockOriginal
+      : null;
+    const targetDayKey = String(originalBreak?.dayKey || createModal.dayKey || "").trim().toLowerCase();
+    const targetStartTime = String(originalBreak?.startTime || plannerBreakForm.startTime || "").trim();
+    const targetEndTime = String(originalBreak?.endTime || plannerBreakForm.endTime || "").trim();
+    const targetBreakType = normalizeBreakTypeKey(originalBreak?.breakType || plannerBreakForm.breakType || "");
+    if (plannerBlockRepeatDaySet.size === 0) {
+      setCreateErrors({ repeatDays: "Select at least one repeat day." });
+      return;
+    }
+    if (!targetDayKey || !targetStartTime || !targetEndTime) {
+      setPlannerModalFormError("Select a valid break time range first.");
+      return;
+    }
+
+    try {
+      setCreateDeleting(true);
+      setCreateErrors({});
+
+      const currentResponse = await apiFetch(`/api/appointments/breaks?${new URLSearchParams({
+        specialistId
+      }).toString()}`, {
+        method: "GET",
+        cache: "no-store"
+      });
+      const currentData = await readApiResponseData(currentResponse);
+      if (!currentResponse.ok) {
+        setPlannerModalFormError(currentData?.message || "Failed to load existing breaks.");
+        return;
+      }
+
+      const currentItems = Array.isArray(currentData?.items) ? currentData.items : [];
+      const nextItems = currentItems.filter((item) => !(
+        plannerBlockRepeatDaySet.has(String(item?.dayKey || getDayKeyFromDayOfWeekNumber(item?.dayOfWeek)).trim().toLowerCase())
+        && String(item?.startTime || "").trim() === targetStartTime
+        && String(item?.endTime || "").trim() === targetEndTime
+        && (!targetBreakType || normalizeBreakTypeKey(item?.breakType || "") === targetBreakType)
+      ));
+
+      if (nextItems.length === currentItems.length) {
+        setPlannerModalFormError("No matching break found for the selected specialist and time.");
+        return;
+      }
+
+      const response = await apiFetch("/api/appointments/breaks", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          specialistId,
+          items: nextItems
+        })
+      });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        setPlannerModalFormError(data?.message || "Failed to delete break.");
+        return;
+      }
+
+      await refreshPlannerServerState();
+      closeCreateModal();
+    } finally {
+      setCreateDeleting(false);
+    }
+  }
+
+  async function handlePlannerWorkScheduleDelete() {
+    const specialistId = String(createModal.specialistId || "").trim();
+    if (!specialistId) {
+      setCreateErrors({ specialistId: "Specialist is required." });
+      return;
+    }
+    if (!canDeleteAppointmentWorkSchedule) {
+      setPlannerModalFormError("You do not have permission to delete work schedule.");
+      return;
+    }
+    if (!canMutateSpecialistId(specialistId)) {
+      setCreateErrors({ specialistId: "You can only manage work schedule in your own planner." });
+      return;
+    }
+    if (plannerBlockRepeatDayNumbers.length === 0) {
+      setCreateErrors({ repeatDays: "Select at least one repeat day." });
+      return;
+    }
+
+    try {
+      setCreateDeleting(true);
+      setCreateErrors({});
+
+      const currentResponse = await apiFetch(`/api/appointments/work-schedule?${new URLSearchParams({
+        userId: specialistId,
+        ruleScope: "weekly"
+      }).toString()}`, {
+        method: "GET",
+        cache: "no-store"
+      });
+      const currentData = await readApiResponseData(currentResponse);
+      if (!currentResponse.ok) {
+        setPlannerModalFormError(currentData?.message || "Failed to load current work schedule.");
+        return;
+      }
+
+      const existingEntries = (Array.isArray(currentData?.items) ? currentData.items : []).filter((item) => (
+        String(item?.ruleScope || "").trim().toLowerCase() === "weekly"
+        && String(item?.userId || "").trim() === specialistId
+        && plannerBlockRepeatDayNumbers.includes(Number.parseInt(String(item?.dayOfWeek ?? "").trim(), 10))
+      ));
+
+      if (existingEntries.length === 0) {
+        setPlannerModalFormError("No matching work schedule found for the selected specialist and day.");
+        return;
+      }
+
+      for (const existingEntry of existingEntries) {
+        const response = await apiFetch(
+          `/api/appointments/work-schedule/${encodeURIComponent(String(existingEntry?.id || "").trim())}`,
+          {
+            method: "DELETE"
+          }
+        );
+        const data = await readApiResponseData(response);
+        if (!response.ok) {
+          setPlannerModalFormError(data?.message || "Failed to delete work schedule.");
+          return;
+        }
+      }
+
+      await refreshPlannerServerState();
+      closeCreateModal();
+    } finally {
+      setCreateDeleting(false);
+    }
+  }
+
   function validateCreateForm(value, {
     isEditMode = false,
     allowRepeatValidationInEdit = false,
@@ -4382,6 +5930,7 @@ function AppointmentScheduler({
     const startTime = String(value.startTime || "").trim();
     const durationMinutes = Number.parseInt(String(value.durationMinutes || "").trim(), 10);
     const service = String(value.service || "").trim();
+    const status = String(value.status || "pending").trim().toLowerCase();
     const note = String(value.note || "").trim();
     const repeatUntil = String(value.repeatUntil || "").trim();
     const repeatDays = Array.isArray(value.repeatDays)
@@ -4405,6 +5954,9 @@ function AppointmentScheduler({
     }
     if (!Number.isInteger(durationMinutes) || durationMinutes <= 0) {
       errors.durationMinutes = "Invalid duration.";
+    }
+    if (status === "confirmed" && isFutureDateYmd(appointmentDate)) {
+      errors.status = "Future appointments cannot be confirmed.";
     }
     if (note.length > 255) {
       errors.note = "Note is too long.";
@@ -4436,6 +5988,15 @@ function AppointmentScheduler({
 
   async function handleCreateSubmit(event) {
     event.preventDefault();
+
+    if (isPlannerBreakTab) {
+      await handlePlannerBreakSubmit();
+      return;
+    }
+    if (isPlannerWorkScheduleTab) {
+      await handlePlannerWorkScheduleSubmit();
+      return;
+    }
 
     if (!createModal.open) {
       return;
@@ -4470,7 +6031,7 @@ function AppointmentScheduler({
         service: String(createForm.service || "").trim(),
         status: String(createForm.status || "pending").trim().toLowerCase(),
         note: String(createForm.note || "").trim(),
-        editScope: normalizeEditScopeValue(createForm.editScope),
+        editScope: isSpecialistLimitedEditMode ? "single" : normalizeEditScopeValue(createForm.editScope),
         repeatEnabled: Boolean(createForm.repeatEnabled),
         repeatUntil: String(createForm.repeatUntil || "").trim(),
         repeatDays: Array.isArray(createForm.repeatDays)
@@ -4483,16 +6044,7 @@ function AppointmentScheduler({
             )
           : []
       };
-      if (isVipAutoRollingRepeat) {
-        nextPayload.repeatEnabled = true;
-        nextPayload.repeatUntil = String(nextPayload.repeatUntil || "").trim()
-          || resolveAutoRollingRepeatUntilForSubmit(nextPayload.appointmentDate);
-        nextPayload.repeatDays = resolveAutoRollingRepeatDayKeys(
-          nextPayload.appointmentDate,
-          nextPayload.repeatDays,
-          visibleRepeatDayKeys
-        );
-      } else if (!nextPayload.repeatEnabled) {
+      if (!nextPayload.repeatEnabled) {
         if (!isEditMode) {
           nextPayload.repeatUntil = "";
         }
@@ -4510,8 +6062,8 @@ function AppointmentScheduler({
         isEditMode,
         allowRepeatValidationInEdit,
         requireRepeat: (
-          (!isEditMode && (recurringOnly || isVipAutoRollingRepeat))
-          || (isEditRecurring && nextPayload.editScope !== "single")
+          nextPayload.repeatEnabled
+          && (!isEditMode || !isEditRecurring || nextPayload.editScope !== "single")
         )
       });
       if (Object.keys(errors).length > 0) {
@@ -4648,33 +6200,6 @@ function AppointmentScheduler({
         }
       }
 
-      // Pre-save norm check: warn before creating if weekly limit is exceeded
-      if (!isEditMode) {
-        try {
-          const normCheckQuery = new URLSearchParams({
-            specialistId: String(specialistId),
-            clientId: String(nextPayload.clientId),
-            date: appointmentDate
-          }).toString();
-          const normCheckResponse = await apiFetch(
-            `/api/appointments/schedules/norm-check?${normCheckQuery}`
-          );
-          if (normCheckResponse.ok) {
-            const normCheckData = await readApiResponseData(normCheckResponse);
-            const violations = Array.isArray(normCheckData?.violations) ? normCheckData.violations : [];
-            if (violations.length > 0) {
-              const v = violations[0];
-              const warnMsg = `Warning: ${v.positionLabel}: this client already has ${v.currentCount} sessions this week (max: ${v.maxPerWeek}).\n\nProceed anyway?`;
-              if (!window.confirm(warnMsg)) {
-                return;
-              }
-            }
-          }
-        } catch {
-          // norm check failure must not prevent appointment creation
-        }
-      }
-
       const requestPayload = {
         specialistId,
         clientId: nextPayload.clientId,
@@ -4686,12 +6211,11 @@ function AppointmentScheduler({
         status: nextPayload.status,
         note: nextPayload.note
       };
-      const shouldSendRepeat = recurringOnly
-        ? (!isEditMode || !isEditRecurring || nextPayload.editScope !== "single")
-        : (
-          nextPayload.repeatDays.length > 0
-          && (!isEditMode || !isEditRecurring || nextPayload.editScope !== "single")
-        );
+      const shouldSendRepeat = (
+        nextPayload.repeatEnabled
+        && nextPayload.repeatDays.length > 0
+        && (!isEditMode || !isEditRecurring || nextPayload.editScope !== "single")
+      );
       if (shouldSendRepeat) {
         requestPayload.repeat = {
           enabled: true,
@@ -4699,7 +6223,7 @@ function AppointmentScheduler({
           untilDate: nextPayload.repeatUntil,
           dayKeys: nextPayload.repeatDays,
           skipConflicts: true,
-          autoRolling: isVipAutoRollingRepeat
+          autoRolling: true
         };
       }
 
@@ -4745,13 +6269,8 @@ function AppointmentScheduler({
         return;
       }
 
-      await loadSchedulesForCurrentWeek();
-      await loadClientFocusedPlannerView();
-      if (isEditMode) {
-        setMessage("");
-      } else {
-        setMessage(String(data?.message || "Client added to planner."));
-      }
+      await refreshPlannerServerState();
+      setMessage("");
       closeCreateModal();
     } finally {
       setCreateSubmitting(false);
@@ -4782,7 +6301,7 @@ function AppointmentScheduler({
       setCreateDeleting(true);
       setCreateErrors({});
 
-      const deleteScope = normalizeEditScopeValue(createForm.editScope);
+      const deleteScope = isSpecialistLimitedEditMode ? "single" : normalizeEditScopeValue(createForm.editScope);
       const queryParams = new URLSearchParams({ scope: deleteScope });
       if (isEditRecurring && (deleteScope === "future" || deleteScope === "single")) {
         const deleteDayKeys = deleteScope === "single"
@@ -4803,14 +6322,152 @@ function AppointmentScheduler({
         return;
       }
 
-      await loadSchedulesForCurrentWeek();
-      await loadClientFocusedPlannerView();
-      setMessage(String(data?.message || "Appointment deleted."));
+      await refreshPlannerServerState();
+      setMessage("");
       closeCreateModal();
     } catch {
       setCreateErrors({ form: "Failed to delete appointment." });
     } finally {
       setCreateDeleting(false);
+    }
+  }
+
+  function updateDayBulkSelectedIds(nextSelectedIds) {
+    setDayBulkModal((prev) => ({
+      ...prev,
+      selectedIds: Array.from(new Set((Array.isArray(nextSelectedIds) ? nextSelectedIds : []).map((id) => String(id || "").trim()).filter(Boolean))),
+      error: ""
+    }));
+  }
+
+  function toggleDayBulkItem(itemId) {
+    const normalizedId = String(itemId || "").trim();
+    if (!normalizedId) {
+      return;
+    }
+    setDayBulkModal((prev) => {
+      const selectedSet = new Set(prev.selectedIds);
+      if (selectedSet.has(normalizedId)) {
+        selectedSet.delete(normalizedId);
+      } else {
+        selectedSet.add(normalizedId);
+      }
+      return {
+        ...prev,
+        selectedIds: Array.from(selectedSet),
+        error: ""
+      };
+    });
+  }
+
+  function getDayBulkSelectedItems() {
+    const selectedSet = new Set(dayBulkModal.selectedIds);
+    return dayBulkModal.items.filter((item) => selectedSet.has(String(item?.id || "").trim()));
+  }
+
+  async function handleDayBulkEditSubmit(event) {
+    event.preventDefault();
+    const selectedItems = getDayBulkSelectedItems();
+    if (selectedItems.length === 0) {
+      setDayBulkModal((prev) => ({ ...prev, error: "Select at least one appointment." }));
+      return;
+    }
+    if (!canUpdateAppointments) {
+      setDayBulkModal((prev) => ({ ...prev, error: "You do not have permission to update appointments." }));
+      return;
+    }
+
+    const nextStatus = String(dayBulkModal.status || "cancelled").trim().toLowerCase();
+    const nextNote = String(dayBulkModal.note || "").trim();
+    if (nextNote.length > 255) {
+      setDayBulkModal((prev) => ({ ...prev, error: "Note is too long." }));
+      return;
+    }
+
+    try {
+      setDayBulkModal((prev) => ({ ...prev, submitting: true, error: "" }));
+      for (const item of selectedItems) {
+        const startTime = String(item?.startTime || item?.time || "").trim();
+        const durationMinutes = Number.parseInt(String(item?.durationMinutes || "").trim(), 10)
+          || getDurationMinutesFromTimes(startTime, item?.endTime)
+          || 30;
+        const startMinutes = normalizeTimeToMinutes(startTime);
+        const endTime = String(item?.endTime || (startMinutes === null ? "" : minutesToTime(startMinutes + durationMinutes))).trim();
+        const queryParams = new URLSearchParams({ scope: "single" });
+        const dayKey = getDayKeyFromDateYmd(item?.appointmentDate);
+        if (String(item?.repeatType || "").trim().toLowerCase() === "weekly" && dayKey) {
+          queryParams.set("dayKeys", dayKey);
+        }
+        const response = await apiFetch(
+          `/api/appointments/schedules/${encodeURIComponent(String(item.id || "").trim())}?${queryParams.toString()}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              specialistId: String(item.specialistId || "").trim(),
+              clientId: String(item.clientId || "").trim(),
+              appointmentDate: String(item.appointmentDate || dayBulkModal.appointmentDate || "").trim(),
+              startTime,
+              endTime,
+              durationMinutes: String(durationMinutes),
+              service: String(item.service || DEFAULT_APPOINTMENT_SERVICE_NAME).trim() || DEFAULT_APPOINTMENT_SERVICE_NAME,
+              status: nextStatus,
+              note: nextNote || String(item.note || "").trim()
+            })
+          }
+        );
+        const data = await readApiResponseData(response);
+        if (!response.ok) {
+          throw new Error(String(data?.message || "Failed to update selected appointments.").trim());
+        }
+      }
+      await refreshPlannerServerState();
+      closeDayBulkModal();
+    } catch (error) {
+      setDayBulkModal((prev) => ({
+        ...prev,
+        submitting: false,
+        error: String(error?.message || "Failed to update selected appointments.").trim()
+      }));
+    }
+  }
+
+  async function handleDayBulkDelete() {
+    const selectedItems = getDayBulkSelectedItems();
+    if (selectedItems.length === 0) {
+      setDayBulkModal((prev) => ({ ...prev, error: "Select at least one appointment." }));
+      return;
+    }
+    if (!canDeleteAppointments) {
+      setDayBulkModal((prev) => ({ ...prev, error: "You do not have permission to delete appointments." }));
+      return;
+    }
+
+    try {
+      setDayBulkModal((prev) => ({ ...prev, deleting: true, error: "" }));
+      for (const item of selectedItems) {
+        const queryParams = new URLSearchParams({ scope: "single" });
+        const dayKey = getDayKeyFromDateYmd(item?.appointmentDate);
+        if (String(item?.repeatType || "").trim().toLowerCase() === "weekly" && dayKey) {
+          queryParams.set("dayKeys", dayKey);
+        }
+        const response = await apiFetch(
+          `/api/appointments/schedules/${encodeURIComponent(String(item.id || "").trim())}?${queryParams.toString()}`,
+          { method: "DELETE" }
+        );
+        const data = await readApiResponseData(response);
+        if (!response.ok) {
+          throw new Error(String(data?.message || "Failed to delete selected appointments.").trim());
+        }
+      }
+      await refreshPlannerServerState();
+      closeDayBulkModal();
+    } catch (error) {
+      setDayBulkModal((prev) => ({
+        ...prev,
+        deleting: false,
+        error: String(error?.message || "Failed to delete selected appointments.").trim()
+      }));
     }
   }
 
@@ -4840,9 +6497,6 @@ function AppointmentScheduler({
         : [];
       const daySet = new Set(currentDays);
       if (daySet.has(normalizedDayKey)) {
-        if (isVipAutoRollingRepeat && normalizedDayKey === appointmentDayKey) {
-          return prev;
-        }
         if (!isEditMode && normalizedDayKey === appointmentDayKey && currentDays.length > 1) {
           return prev;
         }
@@ -4856,7 +6510,7 @@ function AppointmentScheduler({
 
       return {
         ...prev,
-        repeatEnabled: isEditMode ? prev.repeatEnabled : daySet.size > 0,
+        repeatEnabled: prev.repeatEnabled,
         repeatDays: visibleRepeatDayKeys.filter((key) => daySet.has(key))
       };
     });
@@ -4866,12 +6520,59 @@ function AppointmentScheduler({
     }
   }
 
+  function handleSingleEntryModeToggle(nextSingleEntryMode) {
+    if (!canToggleSingleEntryMode) {
+      return;
+    }
+
+    setCreateForm((prev) => {
+      const appointmentDate = String(prev.appointmentDate || "").trim();
+      if (nextSingleEntryMode) {
+        recurringPatternDraftRef.current = {
+          repeatUntil: String(prev.repeatUntil || "").trim(),
+          repeatDays: normalizeRepeatDayKeys(prev.repeatDays)
+        };
+        return {
+          ...prev,
+          repeatEnabled: false
+        };
+      }
+
+      const appointmentDayKey = getDayKeyFromDateYmd(appointmentDate);
+      const snapshotRepeatDays = normalizeRepeatDayKeys(recurringPatternDraftRef.current?.repeatDays);
+      const restoredRepeatDaysBase = snapshotRepeatDays.length > 0
+        ? snapshotRepeatDays
+        : (appointmentDayKey && visibleRepeatDayKeys.includes(appointmentDayKey) ? [appointmentDayKey] : []);
+      const restoredRepeatDays = restoredRepeatDaysBase.length > 0
+        ? ensureAnchoredRepeatDayKeys(appointmentDate, restoredRepeatDaysBase, visibleRepeatDayKeys)
+        : [];
+      let restoredRepeatUntil = String(recurringPatternDraftRef.current?.repeatUntil || "").trim();
+      if (
+        !isValidDateYmd(restoredRepeatUntil)
+        || (isValidDateYmd(appointmentDate) && restoredRepeatUntil < appointmentDate)
+      ) {
+        restoredRepeatUntil = getDefaultRepeatUntilDate(appointmentDate);
+      }
+
+      return {
+        ...prev,
+        repeatEnabled: true,
+        repeatUntil: restoredRepeatUntil,
+        repeatDays: restoredRepeatDays
+      };
+    });
+
+    if (createErrors.repeatDays || createErrors.repeatUntil) {
+      setCreateErrors((prev) => ({ ...prev, repeatDays: "", repeatUntil: "" }));
+    }
+  }
+
   useEffect(() => {
-    document.body.style.overflow = createModal.open ? "hidden" : "";
+    document.body.style.overflow = (createModal.open || dayBulkModal.open) ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [createModal.open]);
+  }, [createModal.open, dayBulkModal.open]);
 
   useEffect(() => {
     if (!createModal.open) {
@@ -4880,6 +6581,9 @@ function AppointmentScheduler({
 
     function handleEscape(event) {
       if (event.key === "Escape") {
+        if (createSubmitting || createDeleting) {
+          return;
+        }
         closeCreateModal();
       }
     }
@@ -4888,7 +6592,7 @@ function AppointmentScheduler({
     return () => {
       window.removeEventListener("keydown", handleEscape);
     };
-  }, [createModal.open]);
+  }, [createDeleting, createModal.open, createSubmitting]);
 
   const showNoShowWarning = Boolean(
     createForm.clientId
@@ -4909,7 +6613,6 @@ function AppointmentScheduler({
       return;
     }
 
-    window.alert(text);
     setMessage("");
   }, [message, onNotification]);
   const canCurrentUserConfirmVipPending = useCallback((row) => {
@@ -5029,15 +6732,27 @@ function AppointmentScheduler({
                   const nextSpecialistId = String(nextValue || "").trim();
                   persistPlannerToolbarSelectionSync({ specialistId: nextSpecialistId });
                   setWeekOffset(0);
-                  setSelectedSpecialistId(nextSpecialistId);
                   if (nextSpecialistId) {
-                    setSelectedPlannerClientFilterId("");
+                    setPlannerPrimaryFilterMode("specialist");
+                  } else if (!nextSpecialistId && String(selectedPlannerClientFilterId || "").trim()) {
+                    setPlannerPrimaryFilterMode("client");
                   }
+                  setSelectedSpecialistId(nextSpecialistId);
                   if (specialistSelectError) {
                     setSpecialistSelectError(false);
                   }
                 }}
               />
+              <button
+                type="button"
+                className="appointment-toolbar-clear-btn"
+                aria-label={`Clear ${specialistLabel}`}
+                title={`Clear ${specialistLabel}`}
+                disabled={!selectedSpecialistId}
+                onClick={clearPlannerSpecialistSelection}
+              >
+                ×
+              </button>
             </div>
           </div>
         </div>
@@ -5053,11 +6768,11 @@ function AppointmentScheduler({
                   value={selectedPlannerClientFilterId}
                   options={plannerClientActiveOptions}
                   searchable
-                  searchPlaceholder="Search client"
+                  searchPlaceholder="Search by name or ID"
                   searchThreshold={0}
                   maxVisibleOptions={10}
                   onSearchChange={setPlannerClientSearch}
-                  emptyText={String(plannerClientSearch || "").trim().length >= 3 ? "No clients found." : "Type to search"}
+                  emptyText={getPlannerClientSearchEmptyText(plannerClientSearch)}
                   onChange={(nextValue) => {
                     const nextClientId = String(nextValue || "").trim();
                     const matchedClientOption = plannerClientActiveOptions.find(
@@ -5084,13 +6799,25 @@ function AppointmentScheduler({
                       clientSnapshot: nextClientSnapshot
                     });
                     setWeekOffset(0);
+                    if (nextClientId) {
+                      setPlannerPrimaryFilterMode("client");
+                    } else if (!nextClientId && String(selectedSpecialistId || "").trim()) {
+                      setPlannerPrimaryFilterMode("specialist");
+                    }
                     setSelectedPlannerClientFilterId(nextClientId);
                     setStoredPlannerClientSnapshot(nextClientSnapshot);
-                    if (nextClientId) {
-                      setSelectedSpecialistId("");
-                    }
                   }}
                 />
+                <button
+                  type="button"
+                  className="appointment-toolbar-clear-btn"
+                  aria-label="Clear client"
+                  title="Clear client"
+                  disabled={!normalizedSelectedPlannerClientFilterId}
+                  onClick={clearPlannerClientSelection}
+                >
+                  ×
+                </button>
               </div>
             </div>
           </div>
@@ -5252,6 +6979,8 @@ function AppointmentScheduler({
               weekStartDate={weekStartDate}
               settings={settings}
               rawAppointmentsByDay={clientFocusedAppointmentsByDay}
+              overlayAppointmentsByDay={comparisonOverlayAppointmentsByDay}
+              overlayLabel={comparisonOverlayLabel}
               selectedClientId={normalizedSelectedPlannerClientFilterId}
               breaksForSpecialist={breaksForSpecialist}
               blockedTimesForSpecialist={blockedTimesForSpecialist}
@@ -5261,8 +6990,15 @@ function AppointmentScheduler({
               canCreateOnSpecialist={canOpenClientFocusedCreateModal}
               canUpdateAppointments={canUpdateAppointments}
               canDeleteAppointments={canDeleteAppointments}
+              canUpdateAppointmentBreaks={canUpdateAppointmentBreaks}
+              canUpdateAppointmentWorkSchedule={canUpdateAppointmentWorkSchedule}
+              canDeleteAppointmentWorkSchedule={canDeleteAppointmentWorkSchedule}
+              canMutatePlannerSpecialist={canUpdateAppointments || canDeleteAppointments}
               canMutateAppointmentSpecialist={canMutateAppointmentSpecialist}
               onOpenCreateModal={openCreateModal}
+              onMoveAppointment={moveAppointmentToSlot}
+              onOpenDayBulkModal={openDayBulkModal}
+              onOpenPlannerBlockModal={openPlannerBlockModal}
               cardDisplayMode="client"
               wrapperClassName="appointment-grid-wrap-client"
             />
@@ -5275,6 +7011,8 @@ function AppointmentScheduler({
             weekStartDate={weekStartDate}
             settings={settings}
             rawAppointmentsByDay={rawAppointmentsByDay}
+            overlayAppointmentsByDay={comparisonOverlayAppointmentsByDay}
+            overlayLabel={comparisonOverlayLabel}
             breaksForSpecialist={breaksForSpecialist}
             blockedTimesForSpecialist={blockedTimesForSpecialist}
             absencesForSpecialist={absencesForSpecialist}
@@ -5283,8 +7021,15 @@ function AppointmentScheduler({
             canCreateOnSpecialist={canCreateOnPlannerSpecialist(selectedSpecialistId)}
             canUpdateAppointments={canUpdateAppointments}
             canDeleteAppointments={canDeleteAppointments}
+            canUpdateAppointmentBreaks={canUpdateAppointmentBreaks}
+            canUpdateAppointmentWorkSchedule={canUpdateAppointmentWorkSchedule}
+            canDeleteAppointmentWorkSchedule={canDeleteAppointmentWorkSchedule}
+            canMutatePlannerSpecialist={canMutateSpecialistId(selectedSpecialistId)}
             canMutateAppointmentSpecialist={canMutateAppointmentSpecialist}
             onOpenCreateModal={openCreateModal}
+            onMoveAppointment={moveAppointmentToSlot}
+            onOpenDayBulkModal={openDayBulkModal}
+            onOpenPlannerBlockModal={openPlannerBlockModal}
           />
         )
         )
@@ -5371,12 +7116,165 @@ function AppointmentScheduler({
         )
       )}
 
+      {dayBulkModal.open && !vipOnly && (() => {
+        const selectedSet = new Set(dayBulkModal.selectedIds);
+        const allSelected = dayBulkModal.items.length > 0 && dayBulkModal.items.every((item) => selectedSet.has(String(item.id || "").trim()));
+        const modalContent = (
+          <>
+          <section className="logout-confirm-modal appointment-create-modal appointment-day-bulk-modal">
+            <div className="appointment-create-head appointment-day-bulk-head">
+              <h2>{dayBulkModal.dayLabel || "Day"} appointments</h2>
+              <button
+                type="button"
+                className="header-btn panel-close-btn appointment-create-close-btn"
+                aria-label="Close Day Planner"
+                onClick={closeDayBulkModal}
+                disabled={dayBulkModal.submitting || dayBulkModal.deleting}
+              >
+                ×
+              </button>
+            </div>
+            <form className="auth-form appointment-create-form" noValidate onSubmit={handleDayBulkEditSubmit}>
+              <div className="appointment-modal-section appointment-day-bulk-list-section">
+                <div className="appointment-day-bulk-toolbar">
+                  <label className="appointment-day-bulk-check-all">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      disabled={dayBulkModal.submitting || dayBulkModal.deleting}
+                      onChange={(event) => {
+                        updateDayBulkSelectedIds(
+                          event.currentTarget.checked
+                            ? dayBulkModal.items.map((item) => item.id)
+                            : []
+                        );
+                      }}
+                    />
+                    <span>All</span>
+                  </label>
+                  <span className="appointment-day-bulk-count">
+                    {dayBulkModal.selectedIds.length} / {dayBulkModal.items.length}
+                  </span>
+                </div>
+                <div className="appointment-day-bulk-list">
+                  {dayBulkModal.items.map((item) => {
+                    const itemId = String(item.id || "").trim();
+                    const checked = selectedSet.has(itemId);
+                    const timeText = formatAppointmentTimeRangeLabel(item.startTime || item.time, item.endTime, item.durationMinutes);
+                    const participantText = String(
+                      dayBulkModal.displayMode === "specialist"
+                        ? (item.specialist || item.specialistName || `Specialist #${item.specialistId || ""}`)
+                        : (item.client || item.clientName || `Client #${item.clientId || ""}`)
+                    ).trim();
+                    const serviceText = String(item.service || DEFAULT_APPOINTMENT_SERVICE_NAME).trim();
+                    return (
+                      <label key={itemId} className={`appointment-day-bulk-item${checked ? " is-selected" : ""}`}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={dayBulkModal.submitting || dayBulkModal.deleting}
+                          onChange={() => toggleDayBulkItem(itemId)}
+                        />
+                        <span className={`appointment-day-bulk-status appointment-status-cell-${String(item.status || "pending").replace(/_/g, "-")}`} />
+                        <span className="appointment-day-bulk-main">
+                          <strong>{timeText || item.startTime}</strong>
+                          <span>{participantText}</span>
+                        </span>
+                        <span className="appointment-day-bulk-meta">{serviceText}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="appointment-modal-section appointment-day-bulk-edit-section">
+                <div className="appointment-create-date-time-row">
+                  <div className="field">
+                    <label htmlFor="appointmentDayBulkStatus">Status</label>
+                    <CustomSelect
+                      id="appointmentDayBulkStatus"
+                      value={dayBulkModal.status}
+                      options={STATUS_OPTIONS}
+                      menuPortal
+                      forceOpenUp={compactWeekRange}
+                      disabled={dayBulkModal.submitting || dayBulkModal.deleting}
+                      onChange={(nextValue) => {
+                        setDayBulkModal((prev) => ({
+                          ...prev,
+                          status: String(nextValue || "cancelled").trim().toLowerCase(),
+                          error: ""
+                        }));
+                      }}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="appointmentDayBulkNote">Note</label>
+                    <input
+                      id="appointmentDayBulkNote"
+                      type="text"
+                      value={dayBulkModal.note}
+                      disabled={dayBulkModal.submitting || dayBulkModal.deleting}
+                      onInput={(event) => {
+                        const nextValue = event.currentTarget.value;
+                        setDayBulkModal((prev) => ({ ...prev, note: nextValue, error: "" }));
+                      }}
+                    />
+                  </div>
+                </div>
+                {dayBulkModal.error ? (
+                  <small className="field-error appointment-form-error">{dayBulkModal.error}</small>
+                ) : null}
+              </div>
+              <div className="edit-actions appointment-create-actions">
+                <button
+                  className="btn"
+                  type="submit"
+                  disabled={dayBulkModal.submitting || dayBulkModal.deleting || dayBulkModal.selectedIds.length === 0 || !canUpdateAppointments}
+                >
+                  {dayBulkModal.submitting ? "Saving..." : "Save"}
+                </button>
+                <button
+                  className="header-btn logout-confirm-yes"
+                  type="button"
+                  disabled={dayBulkModal.submitting || dayBulkModal.deleting || dayBulkModal.selectedIds.length === 0 || !canDeleteAppointments}
+                  onClick={handleDayBulkDelete}
+                >
+                  {dayBulkModal.deleting ? "Deleting..." : "Delete"}
+                </button>
+              </div>
+            </form>
+          </section>
+          <div
+            id="appointmentDayBulkOverlay"
+            className="login-overlay"
+            onClick={dayBulkModal.submitting || dayBulkModal.deleting ? undefined : closeDayBulkModal}
+          />
+          </>
+        );
+        return typeof document !== "undefined" ? createPortal(modalContent, document.body) : modalContent;
+      })()}
+
       {createModal.open && !vipOnly && (() => {
         const modalContent = (
           <>
           <section id="appointmentCreateClientModal" className="logout-confirm-modal appointment-create-modal">
             <div className="appointment-create-head">
-              <h3>{modalTitle}</h3>
+              <div className="appointment-create-head-main">
+                <div className="appointment-planner-modal-tabs" role="tablist" aria-label="Planner modal sections">
+                  {plannerModalTabOptions.map((tab) => (
+                    <button
+                      key={tab.value}
+                      type="button"
+                      role="tab"
+                      className={`appointment-planner-modal-tab${activePlannerModalTab === tab.value ? " is-active" : ""}`}
+                      aria-selected={activePlannerModalTab === tab.value}
+                      onClick={() => handlePlannerModalTabChange(tab.value)}
+                      disabled={createSubmitting || createDeleting || Boolean(tab.disabled)}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <button
                 id="appointmentCreateCloseBtn"
                 type="button"
@@ -5390,11 +7288,25 @@ function AppointmentScheduler({
             </div>
             <form className="auth-form appointment-create-form" noValidate onSubmit={handleCreateSubmit}>
               <div className="appointment-create-fields">
+              {isPlannerAppointmentTab ? (
+                <>
 
               {/* ── Client ── */}
               <div className="appointment-modal-section">
-                {!vipOnly && !isVipRecurringModal ? (
-                  isClientFocusedCreateMode ? (
+                {!vipOnly ? (
+                  isSpecialistLimitedEditMode ? (
+                    <div className="appointment-client-search-row appointment-client-search-row-single">
+                      <div className="field">
+                        <label htmlFor="appointmentEditClientReadonly">Client</label>
+                        <input
+                          id="appointmentEditClientReadonly"
+                          type="text"
+                          value={specialistLimitedClientLabel}
+                          readOnly
+                        />
+                      </div>
+                    </div>
+                  ) : isClientFocusedCreateMode ? (
                     <div className="appointment-client-search-row appointment-client-search-row-single">
                       <div className="field">
                         <label htmlFor="appointmentCreateSpecialistSelect">Specialist</label>
@@ -5424,9 +7336,9 @@ function AppointmentScheduler({
                   ) : (
                     <div className="appointment-client-search-row">
                       <div className="field">
-                        <label htmlFor="appointmentClientSearchFirst">First name</label>
                         <input
                           id="appointmentClientSearchFirst"
+                          aria-label="First name"
                           type="text"
                           placeholder="First name"
                           value={clientSearch.firstName}
@@ -5437,9 +7349,9 @@ function AppointmentScheduler({
                         />
                       </div>
                       <div className="field">
-                        <label htmlFor="appointmentClientSearchLast">Last name</label>
                         <input
                           id="appointmentClientSearchLast"
+                          aria-label="Last name"
                           type="text"
                           placeholder="Last name"
                           value={clientSearch.lastName}
@@ -5449,50 +7361,44 @@ function AppointmentScheduler({
                           }}
                         />
                       </div>
+                      <div className="field">
+                        <input
+                          id="appointmentClientSearchMiddle"
+                          aria-label="Middle name"
+                          type="text"
+                          placeholder="Middle name"
+                          value={clientSearch.middleName}
+                          onInput={(event) => {
+                            const nextValue = event.currentTarget.value;
+                            setClientSearch((prev) => ({ ...prev, middleName: nextValue }));
+                          }}
+                        />
+                      </div>
+                      <div className="field">
+                        <input
+                          id="appointmentClientSearchId"
+                          aria-label="Client ID"
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="Client ID"
+                          value={clientSearch.clientId}
+                          onInput={(event) => {
+                            const nextValue = event.currentTarget.value.replace(/\D+/g, "");
+                            setClientSearch((prev) => ({ ...prev, clientId: nextValue }));
+                          }}
+                        />
+                      </div>
                     </div>
                   )
                 ) : null}
 
-
-                {!vipOnly ? (
+                {!vipOnly && !isSpecialistLimitedEditMode ? (
                   <div className="appointment-client-select-row">
-                    <div className="field appointment-client-vip-field">
-                      <label htmlFor="appointmentClientVipOnly">Active</label>
-                      <label
-                        className={`appointment-client-vip-toggle${(vipOnly || clientVipOnly) ? " is-active" : ""}`}
-                        htmlFor="appointmentClientVipOnly"
-                      >
-                        <input
-                          id="appointmentClientVipOnly"
-                          type="checkbox"
-                          checked={vipOnly || clientVipOnly}
-                          disabled={isVipAutoRollingRepeatToggleLocked || createSubmitting || createDeleting}
-                          onChange={(event) => {
-                            const checked = event.currentTarget.checked;
-                            setClientVipOnly(checked);
-                            if (checked) {
-                              setCreateForm((prev) => ({
-                                ...prev,
-                                repeatUntil: resolveAutoRollingRepeatUntilForSubmit(prev.appointmentDate),
-                                repeatDays: resolveAutoRollingRepeatDayKeys(
-                                  prev.appointmentDate,
-                                  prev.repeatDays,
-                                  visibleRepeatDayKeys
-                                )
-                              }));
-                            }
-                            if (createErrors.repeatDays || createErrors.repeatUntil) {
-                              setCreateErrors((prev) => ({ ...prev, repeatDays: "", repeatUntil: "" }));
-                            }
-                          }}
-                        />
-                      </label>
-                    </div>
                     <div className="field">
-                      <label htmlFor={isClientFocusedCreateMode ? "appointmentCreateClientReadonly" : "appointmentCreateClientSelect"}>Client</label>
                       {isClientFocusedCreateMode ? (
                         <input
                           id="appointmentCreateClientReadonly"
+                          aria-label="Client"
                           type="text"
                           value={clientFocusedSelectedClientLabel}
                           readOnly
@@ -5501,13 +7407,14 @@ function AppointmentScheduler({
                       ) : (
                         <CustomSelect
                           id="appointmentCreateClientSelect"
+                          aria-label="Client"
                           placeholder="Select client"
                           value={createForm.clientId}
                           options={clientSelectOptions}
                           maxVisibleOptions={10}
                           menuPortal
                           error={clientSelectHasError}
-                          emptyText={!createForm.clientId && !clientSearchMessage ? "Search by name above" : "No options found."}
+                          emptyText={!createForm.clientId && !clientSearchMessage ? "Search by name or client ID above" : "No options found."}
                           onChange={(nextValue) => {
                             setCreateForm((prev) => ({ ...prev, clientId: nextValue }));
                             if (createErrors.clientId) {
@@ -5524,184 +7431,225 @@ function AppointmentScheduler({
 
               {/* ── Date / Time / Service ── */}
               <div className="appointment-modal-section">
-                <div
-                  className={`appointment-create-date-time-row${isVipRecurringModal ? " appointment-create-date-time-row-vip" : ""}${showRecurringEditNextToggle ? " appointment-create-date-time-row-with-next-toggle" : ""}${showRecurringEditNextToggle && isVipRecurringModal ? " appointment-create-date-time-row-with-next-toggle-vip" : ""}`}
-                >
-                  {showRecurringEditNextToggle ? (
-                    <div className="field appointment-edit-scope-toggle-field">
-                      <label htmlFor="appointmentEditScopeFuture">Next</label>
-                      <label
-                        className={`appointment-client-vip-toggle${isFutureRecurringEditScope ? " is-active" : ""}`}
-                        htmlFor="appointmentEditScopeFuture"
-                      >
-                        <input
-                          id="appointmentEditScopeFuture"
-                          type="checkbox"
-                          checked={isFutureRecurringEditScope}
-                          disabled={createSubmitting || createDeleting}
-                          onChange={(event) => {
-                            const checked = event.currentTarget.checked;
-                            setCreateForm((prev) => ({
-                              ...prev,
-                              editScope: checked ? "future" : "single",
-                              repeatDays: (() => {
-                                const currentDays = normalizeRepeatDayKeys(prev.repeatDays);
-                                if (!checked) {
-                                  return originalRecurringEditRepeatDays.length > 0
-                                    ? originalRecurringEditRepeatDays
-                                    : currentDays;
-                                }
-                                const stillMatchesOriginal = (
-                                  currentDays.length === originalRecurringEditRepeatDays.length
-                                  && currentDays.every((day, index) => day === originalRecurringEditRepeatDays[index])
-                                );
-                                if (
-                                  DAY_KEYS_SET.has(sourceRecurringEditDayKey)
-                                  && originalRecurringEditRepeatDays.length > 1
-                                  && (stillMatchesOriginal || currentDays.length === 0)
-                                ) {
-                                  return [sourceRecurringEditDayKey];
-                                }
-                                return currentDays;
-                              })()
-                            }));
-                          }}
-                        />
-                      </label>
-                    </div>
-                  ) : null}
-
-                  {!isVipRecurringModal ? (
+                {isSpecialistLimitedEditMode ? (
+                  <div className="appointment-create-date-time-row appointment-create-date-time-row-specialist-lite">
                     <div className="field">
-                      <label htmlFor="appointmentCreateDate">Date</label>
-                        <input
-                          id="appointmentCreateDate"
-                          type="date"
-                          className={createErrors.appointmentDate ? "input-error" : ""}
-                        value={createForm.appointmentDate}
-                        disabled={shouldLockEditDate}
-                          onInput={(event) => {
-                            const nextValue = event.currentTarget.value;
-                            setCreateForm((prev) => {
-                              const nextForm = { ...prev, appointmentDate: nextValue };
-                              if (isVipAutoRollingRepeat) {
-                                nextForm.repeatUntil = resolveAutoRollingRepeatUntilForSubmit(nextValue);
-                                nextForm.repeatDays = resolveAutoRollingRepeatDayKeys(
-                                  nextValue,
-                                  prev.repeatDays,
-                                  visibleRepeatDayKeys
-                                );
-                              } else {
-                                const nextMinimumRepeatUntil = nextValue;
-                                if (!prev.repeatUntil || prev.repeatUntil < nextMinimumRepeatUntil) {
-                                  nextForm.repeatUntil = nextMinimumRepeatUntil;
+                      <label htmlFor="appointmentCreateTime">Start Time</label>
+                      <CustomSelect
+                        id="appointmentCreateTime"
+                        placeholder="Select start time"
+                        value={createForm.startTime}
+                        options={timeSelectOptions}
+                        menuPortal
+                        forceOpenDown={!compactWeekRange}
+                        forceOpenUp={compactWeekRange}
+                        menuHeightScale={0.85}
+                        error={Boolean(createErrors.startTime)}
+                        onChange={(nextValue) => {
+                          setCreateForm((prev) => ({ ...prev, startTime: nextValue }));
+                          if (createErrors.startTime) {
+                            setCreateErrors((prev) => ({ ...prev, startTime: "" }));
+                          }
+                        }}
+                      />
+                      <small className="field-error">{createErrors.startTime || ""}</small>
+                    </div>
+
+                    <div className="field">
+                      <label htmlFor="appointmentCreateService">Service</label>
+                      <input
+                        id="appointmentCreateService"
+                        type="text"
+                        className={createErrors.service ? "input-error" : ""}
+                        value={createForm.service}
+                        disabled={createSubmitting || createDeleting}
+                        onInput={(event) => {
+                          const nextValue = event.currentTarget.value;
+                          setCreateForm((prev) => ({ ...prev, service: nextValue }));
+                          if (createErrors.service) {
+                            setCreateErrors((prev) => ({ ...prev, service: "" }));
+                          }
+                        }}
+                      />
+                      <small className="field-error">{createErrors.service || ""}</small>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      className="appointment-create-date-time-row"
+                    >
+                      <div className="field">
+                        <label htmlFor="appointmentCreateDate">Date</label>
+                          <input
+                            id="appointmentCreateDate"
+                            type="date"
+                            className={createErrors.appointmentDate ? "input-error" : ""}
+                          value={createForm.appointmentDate}
+                          disabled={shouldLockEditDate}
+                            onInput={(event) => {
+                              const nextValue = event.currentTarget.value;
+                              setCreateForm((prev) => {
+                                const nextForm = { ...prev, appointmentDate: nextValue };
+                                if (prev.repeatEnabled) {
+                                  nextForm.repeatUntil = getDefaultRepeatUntilDate(nextValue);
+                                } else {
+                                  const nextMinimumRepeatUntil = nextValue;
+                                  if (!prev.repeatUntil || prev.repeatUntil < nextMinimumRepeatUntil) {
+                                    nextForm.repeatUntil = nextMinimumRepeatUntil;
+                                  }
                                 }
+                                return nextForm;
+                              });
+                              if (createErrors.appointmentDate || createErrors.repeatUntil) {
+                                setCreateErrors((prev) => ({ ...prev, appointmentDate: "", repeatUntil: "" }));
                               }
-                              return nextForm;
-                            });
-                            if (createErrors.appointmentDate || createErrors.repeatUntil || (isVipAutoRollingRepeat && createErrors.repeatDays)) {
-                              setCreateErrors((prev) => ({ ...prev, appointmentDate: "", repeatUntil: "", repeatDays: "" }));
+                            }}
+                        />
+                        <small className="field-error">{createErrors.appointmentDate || ""}</small>
+                      </div>
+
+                      <div className="field">
+                        <label htmlFor="appointmentCreateTime">Start Time</label>
+                        <CustomSelect
+                          id="appointmentCreateTime"
+                          placeholder="Select start time"
+                          value={createForm.startTime}
+                          options={timeSelectOptions}
+                          menuPortal
+                          forceOpenDown={!compactWeekRange}
+                          forceOpenUp={compactWeekRange}
+                          menuHeightScale={0.85}
+                          error={Boolean(createErrors.startTime)}
+                          onChange={(nextValue) => {
+                            setCreateForm((prev) => ({ ...prev, startTime: nextValue }));
+                            if (createErrors.startTime) {
+                              setCreateErrors((prev) => ({ ...prev, startTime: "" }));
                             }
                           }}
-                      />
-                      <small className="field-error">{createErrors.appointmentDate || ""}</small>
+                        />
+                        <small className="field-error">{createErrors.startTime || ""}</small>
+                      </div>
+
+                      <div className="field">
+                        <label htmlFor="appointmentCreateDuration">Duration</label>
+                        <CustomSelect
+                          id="appointmentCreateDuration"
+                          placeholder="Select duration"
+                          value={createForm.durationMinutes}
+                          options={durationSelectOptions}
+                          menuPortal
+                          forceOpenDown={!compactWeekRange}
+                          forceOpenUp={compactWeekRange}
+                          error={Boolean(createErrors.durationMinutes)}
+                          onChange={(nextValue) => {
+                            setCreateForm((prev) => ({ ...prev, durationMinutes: nextValue }));
+                            if (createErrors.durationMinutes) {
+                              setCreateErrors((prev) => ({ ...prev, durationMinutes: "" }));
+                            }
+                          }}
+                        />
+                        <small className="field-error">{createErrors.durationMinutes || ""}</small>
+                      </div>
                     </div>
-                  ) : null}
 
-                  <div className="field">
-                    <label htmlFor="appointmentCreateTime">Start Time</label>
-                    <CustomSelect
-                      id="appointmentCreateTime"
-                      placeholder="Select start time"
-                      value={createForm.startTime}
-                      options={timeSelectOptions}
-                      menuPortal
-                      forceOpenDown={!compactWeekRange}
-                      forceOpenUp={compactWeekRange}
-                      menuHeightScale={0.85}
-                      error={Boolean(createErrors.startTime)}
-                      onChange={(nextValue) => {
-                        setCreateForm((prev) => ({ ...prev, startTime: nextValue }));
-                        if (createErrors.startTime) {
-                          setCreateErrors((prev) => ({ ...prev, startTime: "" }));
-                        }
-                      }}
-                    />
-                    <small className="field-error">{createErrors.startTime || ""}</small>
-                  </div>
-
-                  <div className="field">
-                    <label htmlFor="appointmentCreateDuration">Duration</label>
-                    <CustomSelect
-                      id="appointmentCreateDuration"
-                      placeholder="Select duration"
-                      value={createForm.durationMinutes}
-                      options={durationSelectOptions}
-                      menuPortal
-                      forceOpenDown={!compactWeekRange}
-                      forceOpenUp={compactWeekRange}
-                      error={Boolean(createErrors.durationMinutes)}
-                      onChange={(nextValue) => {
-                        setCreateForm((prev) => ({ ...prev, durationMinutes: nextValue }));
-                        if (createErrors.durationMinutes) {
-                          setCreateErrors((prev) => ({ ...prev, durationMinutes: "" }));
-                        }
-                      }}
-                    />
-                    <small className="field-error">{createErrors.durationMinutes || ""}</small>
-                  </div>
-                </div>
-
-                <div className="field">
-                  <label htmlFor="appointmentCreateService">Service</label>
-                  <input
-                    id="appointmentCreateService"
-                    type="text"
-                    className={createErrors.service ? "input-error" : ""}
-                    value={createForm.service}
-                    disabled={isVipServiceLocked || createSubmitting || createDeleting}
-                    onInput={(event) => {
-                      const nextValue = event.currentTarget.value;
-                      setCreateForm((prev) => ({ ...prev, service: nextValue }));
-                      if (createErrors.service) {
-                        setCreateErrors((prev) => ({ ...prev, service: "" }));
-                      }
-                    }}
-                  />
-                  <small className="field-error">{createErrors.service || ""}</small>
-                </div>
+                    <div className="field">
+                      <label htmlFor="appointmentCreateService">Service</label>
+                      <input
+                        id="appointmentCreateService"
+                        type="text"
+                        className={createErrors.service ? "input-error" : ""}
+                        value={createForm.service}
+                        disabled={createSubmitting || createDeleting}
+                        onInput={(event) => {
+                          const nextValue = event.currentTarget.value;
+                          setCreateForm((prev) => ({ ...prev, service: nextValue }));
+                          if (createErrors.service) {
+                            setCreateErrors((prev) => ({ ...prev, service: "" }));
+                          }
+                        }}
+                      />
+                      <small className="field-error">{createErrors.service || ""}</small>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* ── Repeat ── */}
-              {!isVipRecurringModal ? (
+              {!isSpecialistLimitedEditMode ? (
                 <div className="appointment-modal-section">
                   <div className="appointment-repeat-block">
                     <div className="appointment-create-date-time-row appointment-repeat-head-row">
-                      <div className="field appointment-repeat-until-field">
-                        <label htmlFor="appointmentCreateRepeatUntil">Repeat Until</label>
-                        <input
-                          id="appointmentCreateRepeatUntil"
-                          type="date"
-                          className={createErrors.repeatUntil ? "input-error" : ""}
-                          value={createForm.repeatUntil}
-                          min={createForm.appointmentDate || undefined}
-                          disabled={!canEditRecurringSeriesPattern || createSubmitting || createDeleting}
-                          onInput={(event) => {
-                            const nextValue = event.currentTarget.value;
-                            setCreateForm((prev) => ({
-                              ...prev,
-                              repeatEnabled: isEditMode ? prev.repeatEnabled : (Boolean(nextValue) || prev.repeatEnabled),
-                              repeatUntil: nextValue
-                            }));
-                            if (createErrors.repeatUntil) {
-                              setCreateErrors((prev) => ({ ...prev, repeatUntil: "" }));
-                            }
-                          }}
-                        />
-                        <small className="field-error">{createErrors.repeatUntil || ""}</small>
-                      </div>
-                      <div className={`field appointment-repeat-title-field${createErrors.repeatDays ? " has-error" : ""}`}>
-                          <label>Repeat weekly</label>
+                      {shouldShowRecurringEditNextToggle ? (
+                        <div className="field appointment-repeat-mode-field appointment-edit-scope-toggle-field">
+                          <label htmlFor="appointmentEditScopeOne">Series</label>
+                          <label
+                            className={`appointment-client-vip-toggle appointment-repeat-mode-toggle${isSeriesOneMode ? " is-active" : ""}`}
+                            htmlFor="appointmentEditScopeOne"
+                          >
+                            <input
+                              id="appointmentEditScopeOne"
+                              type="checkbox"
+                              checked={isSeriesOneMode}
+                              disabled={createSubmitting || createDeleting}
+                              onChange={(event) => {
+                                const oneChecked = event.currentTarget.checked;
+                                setCreateForm((prev) => ({
+                                  ...prev,
+                                  editScope: oneChecked ? "single" : "future",
+                                  repeatDays: (() => {
+                                    const currentDays = normalizeRepeatDayKeys(prev.repeatDays);
+                                    const stillMatchesOriginal = (
+                                      currentDays.length === originalRecurringEditRepeatDays.length
+                                      && currentDays.every((day, index) => day === originalRecurringEditRepeatDays[index])
+                                    );
+                                    if (oneChecked) {
+                                      if (
+                                        DAY_KEYS_SET.has(sourceRecurringEditDayKey)
+                                        && (stillMatchesOriginal || currentDays.length === 0)
+                                      ) {
+                                        return [sourceRecurringEditDayKey];
+                                      }
+                                      return currentDays.length > 0
+                                        ? currentDays
+                                        : (sourceRecurringEditDayKey ? [sourceRecurringEditDayKey] : []);
+                                    }
+                                    if (
+                                      originalRecurringEditRepeatDays.length > 0
+                                      && (currentDays.length <= 1 || stillMatchesOriginal)
+                                    ) {
+                                      return originalRecurringEditRepeatDays;
+                                    }
+                                    return currentDays;
+                                  })()
+                                }));
+                              }}
+                            />
+                            <span>One</span>
+                          </label>
+                        </div>
+                      ) : (
+                        <div className="field appointment-repeat-mode-field">
+                          <label htmlFor="appointmentCreateSeriesOneMode">Series</label>
+                          <label
+                            className={`appointment-client-vip-toggle appointment-repeat-mode-toggle${isSeriesOneMode ? " is-active" : ""}`}
+                            htmlFor="appointmentCreateSeriesOneMode"
+                          >
+                            <input
+                              id="appointmentCreateSeriesOneMode"
+                              type="checkbox"
+                              checked={isSeriesOneMode}
+                              disabled={!canToggleSingleEntryMode || createSubmitting || createDeleting}
+                              onChange={(event) => {
+                                handleSingleEntryModeToggle(event.currentTarget.checked);
+                              }}
+                            />
+                            <span>One</span>
+                          </label>
+                        </div>
+                      )}
+                      <div className={`field appointment-repeat-title-field${createErrors.repeatDays ? " has-error" : ""}${isSingleEntryMode ? " is-disabled" : ""}`}>
+                        <label>Repeat weekly</label>
                         <div className="appointment-repeat-days" role="group" aria-label="Repeat weekdays">
                           {visibleRepeatDayItems.map((day) => {
                             const checked = displayedRepeatDayKeys.includes(day.key);
@@ -5720,7 +7668,8 @@ function AppointmentScheduler({
                                   type="checkbox"
                                   checked={checked}
                                   disabled={(
-                                    createSubmitting
+                                    isSingleEntryMode
+                                    || createSubmitting
                                     || createDeleting
                                     || (
                                       normalizedEditScope !== "single"
@@ -5759,9 +7708,13 @@ function AppointmentScheduler({
                         forceOpenUp={compactWeekRange}
                         onChange={(nextValue) => {
                           setCreateForm((prev) => ({ ...prev, status: nextValue }));
+                          if (createErrors.status) {
+                            setCreateErrors((prev) => ({ ...prev, status: "" }));
+                          }
                         }}
                       />
                     </div>
+                    <small className="field-error">{createErrors.status || ""}</small>
                   </div>
 
                   <div className="field">
@@ -5793,6 +7746,297 @@ function AppointmentScheduler({
                   <small className="field-error appointment-form-error">{createErrors.form}</small>
                 ) : null}
               </div>
+                </>
+              ) : null}
+
+              {isPlannerBreakTab ? (
+                <>
+                  <div className="appointment-modal-section">
+                    {isClientFocusedCreateMode ? (
+                      <div className="appointment-client-search-row appointment-client-search-row-single">
+                        <div className="field">
+                          <label htmlFor="appointmentBreakSpecialistSelect">Specialist</label>
+                          <CustomSelect
+                            id="appointmentBreakSpecialistSelect"
+                            placeholder="Select specialist"
+                            value={createModal.specialistId}
+                            options={plannerModalSpecialistOptions}
+                            searchable
+                            searchPlaceholder="Search specialist"
+                            searchThreshold={20}
+                            maxVisibleOptions={6}
+                            menuPortal
+                            menuHeightScale={0.72}
+                            error={Boolean(createErrors.specialistId)}
+                            disabled={createSubmitting || createDeleting}
+                            onChange={updatePlannerModalSpecialist}
+                          />
+                          <small className="field-error">{createErrors.specialistId || ""}</small>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="appointment-client-search-row appointment-client-search-row-single">
+                        <div className="field">
+                          <label htmlFor="appointmentBreakSpecialistReadonly">Specialist</label>
+                          <input
+                            id="appointmentBreakSpecialistReadonly"
+                            type="text"
+                            value={plannerModalSpecialistLabel}
+                            readOnly
+                            disabled
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="appointment-create-date-time-row">
+                      <div className="field">
+                        <label htmlFor="appointmentBreakType">Break Type</label>
+                        <CustomSelect
+                          id="appointmentBreakType"
+                          placeholder="Select break type"
+                          value={plannerBreakForm.breakType}
+                          options={BREAK_TYPE_OPTIONS}
+                          menuPortal
+                          forceOpenDown={!compactWeekRange}
+                          forceOpenUp={compactWeekRange}
+                          error={Boolean(createErrors.breakType)}
+                          onChange={(nextValue) => {
+                            setPlannerBreakForm((prev) => ({ ...prev, breakType: String(nextValue || "") }));
+                            if (createErrors.breakType) {
+                              setCreateErrors((prev) => ({ ...prev, breakType: "" }));
+                            }
+                          }}
+                        />
+                        <small className="field-error">{createErrors.breakType || ""}</small>
+                      </div>
+                      <div className="field">
+                        <label htmlFor="appointmentBreakStartTime">Start Time</label>
+                        <CustomSelect
+                          id="appointmentBreakStartTime"
+                          placeholder="Select start time"
+                          value={plannerBreakForm.startTime}
+                          options={timeSelectOptions}
+                          menuPortal
+                          forceOpenDown={!compactWeekRange}
+                          forceOpenUp={compactWeekRange}
+                          menuHeightScale={0.85}
+                          error={Boolean(createErrors.startTime)}
+                          onChange={(nextValue) => {
+                            setPlannerBreakForm((prev) => ({ ...prev, startTime: String(nextValue || "") }));
+                            if (createErrors.startTime) {
+                              setCreateErrors((prev) => ({ ...prev, startTime: "" }));
+                            }
+                          }}
+                        />
+                        <small className="field-error">{createErrors.startTime || ""}</small>
+                      </div>
+                      <div className="field">
+                        <label htmlFor="appointmentBreakEndTime">End Time</label>
+                        <CustomSelect
+                          id="appointmentBreakEndTime"
+                          placeholder="Select end time"
+                          value={plannerBreakForm.endTime}
+                          options={timeSelectOptions}
+                          menuPortal
+                          forceOpenDown={!compactWeekRange}
+                          forceOpenUp={compactWeekRange}
+                          menuHeightScale={0.85}
+                          error={Boolean(createErrors.endTime)}
+                          onChange={(nextValue) => {
+                            setPlannerBreakForm((prev) => ({ ...prev, endTime: String(nextValue || "") }));
+                            if (createErrors.endTime) {
+                              setCreateErrors((prev) => ({ ...prev, endTime: "" }));
+                            }
+                          }}
+                        />
+                        <small className="field-error">{createErrors.endTime || ""}</small>
+                      </div>
+                    </div>
+
+                    <div className={`field appointment-repeat-title-field${createErrors.repeatDays ? " has-error" : ""}`}>
+                      <label>Repeat weekly</label>
+                      <div className="appointment-repeat-days" role="group" aria-label="Break repeat weekdays">
+                        {visibleRepeatDayItems.map((day) => {
+                          const checked = plannerBlockRepeatDaySet.has(day.key);
+                          return (
+                            <label
+                              key={day.key}
+                              className={`appointment-repeat-day-chip${checked ? " is-active" : ""}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={createSubmitting || createDeleting}
+                                onChange={() => toggleRepeatDay(day.key)}
+                              />
+                              <span>{day.label.slice(0, 3)}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      <small className="field-error">{createErrors.repeatDays || ""}</small>
+                    </div>
+
+                    <div className="field">
+                      <label htmlFor="appointmentBreakNote">Note</label>
+                      <input
+                        id="appointmentBreakNote"
+                        type="text"
+                        className={createErrors.note ? "input-error" : ""}
+                        value={plannerBreakForm.note}
+                        disabled={createSubmitting || createDeleting}
+                        onInput={(event) => {
+                          const nextValue = event.currentTarget.value;
+                          setPlannerBreakForm((prev) => ({ ...prev, note: nextValue }));
+                          if (createErrors.note) {
+                            setCreateErrors((prev) => ({ ...prev, note: "" }));
+                          }
+                        }}
+                      />
+                      <small className="field-error">{createErrors.note || ""}</small>
+                    </div>
+
+                    {createErrors.form ? (
+                      <small className="field-error appointment-form-error">{createErrors.form}</small>
+                    ) : null}
+                  </div>
+                </>
+              ) : null}
+
+              {isPlannerWorkScheduleTab ? (
+                <>
+                  <div className="appointment-modal-section">
+                    {isClientFocusedCreateMode ? (
+                      <div className="appointment-client-search-row appointment-client-search-row-single">
+                        <div className="field">
+                          <label htmlFor="appointmentWorkScheduleSpecialistSelect">Specialist</label>
+                          <CustomSelect
+                            id="appointmentWorkScheduleSpecialistSelect"
+                            placeholder="Select specialist"
+                            value={createModal.specialistId}
+                            options={plannerModalSpecialistOptions}
+                            searchable
+                            searchPlaceholder="Search specialist"
+                            searchThreshold={20}
+                            maxVisibleOptions={6}
+                            menuPortal
+                            menuHeightScale={0.72}
+                            error={Boolean(createErrors.specialistId)}
+                            disabled={createSubmitting || createDeleting}
+                            onChange={updatePlannerModalSpecialist}
+                          />
+                          <small className="field-error">{createErrors.specialistId || ""}</small>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="appointment-client-search-row appointment-client-search-row-single">
+                        <div className="field">
+                          <label htmlFor="appointmentWorkScheduleSpecialistReadonly">Specialist</label>
+                          <input
+                            id="appointmentWorkScheduleSpecialistReadonly"
+                            type="text"
+                            value={plannerModalSpecialistLabel}
+                            readOnly
+                            disabled
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="appointment-create-date-time-row">
+                      <div className="field">
+                        <label htmlFor="appointmentWorkScheduleReason">Reason</label>
+                        <input
+                          id="appointmentWorkScheduleReason"
+                          type="text"
+                          className={createErrors.reason ? "input-error" : ""}
+                          value={plannerWorkScheduleForm.reason}
+                          disabled={createSubmitting || createDeleting}
+                          onInput={(event) => {
+                            const nextValue = event.currentTarget.value;
+                            setPlannerWorkScheduleForm((prev) => ({ ...prev, reason: nextValue }));
+                            if (createErrors.reason) {
+                              setCreateErrors((prev) => ({ ...prev, reason: "" }));
+                            }
+                          }}
+                        />
+                        <small className="field-error">{createErrors.reason || ""}</small>
+                      </div>
+                      <div className="field">
+                        <label htmlFor="appointmentWorkScheduleStartTime">Start Time</label>
+                        <CustomSelect
+                          id="appointmentWorkScheduleStartTime"
+                          placeholder="Select start time"
+                          value={plannerWorkScheduleForm.startTime}
+                          options={timeSelectOptions}
+                          menuPortal
+                          forceOpenDown={!compactWeekRange}
+                          forceOpenUp={compactWeekRange}
+                          menuHeightScale={0.85}
+                          error={Boolean(createErrors.startTime)}
+                          onChange={(nextValue) => {
+                            setPlannerWorkScheduleForm((prev) => ({ ...prev, startTime: String(nextValue || "") }));
+                            if (createErrors.startTime) {
+                              setCreateErrors((prev) => ({ ...prev, startTime: "" }));
+                            }
+                          }}
+                        />
+                        <small className="field-error">{createErrors.startTime || ""}</small>
+                      </div>
+                      <div className="field">
+                        <label htmlFor="appointmentWorkScheduleEndTime">End Time</label>
+                        <CustomSelect
+                          id="appointmentWorkScheduleEndTime"
+                          placeholder="Select end time"
+                          value={plannerWorkScheduleForm.endTime}
+                          options={timeSelectOptions}
+                          menuPortal
+                          forceOpenDown={!compactWeekRange}
+                          forceOpenUp={compactWeekRange}
+                          menuHeightScale={0.85}
+                          error={Boolean(createErrors.endTime)}
+                          onChange={(nextValue) => {
+                            setPlannerWorkScheduleForm((prev) => ({ ...prev, endTime: String(nextValue || "") }));
+                            if (createErrors.endTime) {
+                              setCreateErrors((prev) => ({ ...prev, endTime: "" }));
+                            }
+                          }}
+                        />
+                        <small className="field-error">{createErrors.endTime || ""}</small>
+                      </div>
+                    </div>
+
+                    <div className={`field appointment-repeat-title-field${createErrors.repeatDays ? " has-error" : ""}`}>
+                      <label>Repeat weekly</label>
+                      <div className="appointment-repeat-days" role="group" aria-label="Work schedule repeat weekdays">
+                        {visibleRepeatDayItems.map((day) => {
+                          const checked = plannerBlockRepeatDaySet.has(day.key);
+                          return (
+                            <label
+                              key={day.key}
+                              className={`appointment-repeat-day-chip${checked ? " is-active" : ""}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={createSubmitting || createDeleting}
+                                onChange={() => toggleRepeatDay(day.key)}
+                              />
+                              <span>{day.label.slice(0, 3)}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      <small className="field-error">{createErrors.repeatDays || ""}</small>
+                    </div>
+
+                    {createErrors.form ? (
+                      <small className="field-error appointment-form-error">{createErrors.form}</small>
+                    ) : null}
+                  </div>
+                </>
+              ) : null}
               </div>
 
               {/* ── Actions ── */}
@@ -5804,22 +8048,48 @@ function AppointmentScheduler({
                     createSubmitting
                     || createDeleting
                     || (
+                      isPlannerBreakTab
+                        ? (!canUpdateAppointmentBreaks || !canMutateModalSpecialist)
+                        : isPlannerWorkScheduleTab
+                          ? ((!canCreateAppointmentWorkSchedule && !canUpdateAppointmentWorkSchedule) || !canMutateModalSpecialist)
+                          : (
                       createModal.mode === "edit"
                         ? (!canUpdateAppointments || !canMutateModalSpecialist)
                         : !canCreateOnPlannerSpecialist(createModal.specialistId)
+                    )
                     )
                   }
                 >
                   {createSubmitting ? "Saving..." : "Save"}
                 </button>
-                <button
-                  className="header-btn logout-confirm-yes"
-                  type="button"
-                  disabled={createModal.mode !== "edit" || createSubmitting || createDeleting || !canDeleteAppointments || !canMutateModalSpecialist}
-                  onClick={handleDeleteAppointment}
-                >
-                  {createDeleting ? "Deleting..." : "Delete"}
-                </button>
+                {isPlannerAppointmentTab ? (
+                  <button
+                    className="header-btn logout-confirm-yes"
+                    type="button"
+                    disabled={createModal.mode !== "edit" || createSubmitting || createDeleting || !canDeleteAppointments || !canMutateModalSpecialist}
+                    onClick={handleDeleteAppointment}
+                  >
+                    {createDeleting ? "Deleting..." : "Delete"}
+                  </button>
+                ) : isPlannerBreakTab ? (
+                  <button
+                    className="header-btn logout-confirm-yes"
+                    type="button"
+                    disabled={createSubmitting || createDeleting || !canUpdateAppointmentBreaks || !canMutateModalSpecialist}
+                    onClick={handlePlannerBreakDelete}
+                  >
+                    {createDeleting ? "Deleting..." : "Delete"}
+                  </button>
+                ) : isPlannerWorkScheduleTab ? (
+                  <button
+                    className="header-btn logout-confirm-yes"
+                    type="button"
+                    disabled={createSubmitting || createDeleting || !canDeleteAppointmentWorkSchedule || !canMutateModalSpecialist}
+                    onClick={handlePlannerWorkScheduleDelete}
+                  >
+                    {createDeleting ? "Deleting..." : "Delete"}
+                  </button>
+                ) : null}
               </div>
 
             </form>

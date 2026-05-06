@@ -10,27 +10,14 @@ const PROFILE_VIEW_ROUTES = Object.freeze([
   { path: "/users/allusers", forcedView: "all-users" },
   { path: "/users/create", forcedView: "create-user" },
   { path: "/clients/allclients", forcedView: "clients-all" },
-  { path: "/clients/medical-history", forcedView: "clients-medical-history" },
   { path: "/appointments/planner", forcedView: "appointment" },
-  { path: "/appointments/breaks", forcedView: "appointment-breaks" },
-  { path: "/appointments/specialist-absences", forcedView: "appointment-specialist-absences" },
-  { path: "/appointments/work-schedule", forcedView: "appointment-work-schedule" },
-  { path: "/vip-clients/my-class", forcedView: "appointment-vip-schedule" },
-  { path: "/vip-clients/attendance", forcedView: "appointment-vip-attendance" },
-  { path: "/vip-clients/norm-monitoring", forcedView: "appointment-vip-norm-monitoring" },
-  { path: "/vip-clients/my-children", forcedView: "appointment-vip-my-children" },
-  { path: "/vip-clients/daily-routines", forcedView: "appointment-vip-daily-routines" },
-  { path: "/assignments/class", forcedView: "appointment-vip-assignments" },
-  { path: "/assignments/tutor", forcedView: "appointment-vip-tutor-assignments" },
   { path: "/settings/appointments", forcedView: "appointment-settings" },
-  { path: "/statistics/vip-class-attendance-report", forcedView: "statistics-class" },
   { path: "/statistics/planner-report", forcedView: "statistics-planner-report" },
   { path: "/admin-settings/organizations", forcedView: "settings-organizations" },
   { path: "/settings/roles", forcedView: "settings-roles" },
   { path: "/settings/positions", forcedView: "settings-positions" },
-  { path: "/settings/appointment-norms", forcedView: "settings-appointment-norms" },
-  { path: "/notifications", forcedView: "notifications-send" },
-  { path: "/admin-settings/monitoring", forcedView: "settings-monitoring" }
+  { path: "/admin-settings/monitoring", forcedView: "settings-monitoring" },
+  { path: "/site/content", forcedView: "site-content" }
 ]);
 
 const REDIRECT_ROUTE_GROUPS = Object.freeze([
@@ -43,52 +30,12 @@ const REDIRECT_ROUTE_GROUPS = Object.freeze([
     paths: ["/appointments", "/profile/appointments", "/profile/appointments/planner"]
   },
   {
-    to: "/vip-clients/my-class",
-    paths: ["/appointments/vip-schedule", "/profile/vip-clients", "/profile/vip-clients/my-class", "/profile/appointments/vip-schedule"]
-  },
-  {
-    to: "/vip-clients/attendance",
-    paths: ["/appointments/vip-attendance", "/profile/vip-clients/attendance", "/profile/appointments/vip-attendance"]
-  },
-  {
-    to: "/vip-clients/norm-monitoring",
-    paths: ["/appointments/vip-norm-monitoring", "/profile/vip-clients/norm-monitoring", "/profile/appointments/vip-norm-monitoring"]
-  },
-  {
-    to: "/vip-clients/my-children",
-    paths: ["/appointments/vip-my-children", "/profile/vip-clients/my-children", "/profile/appointments/vip-my-children"]
-  },
-  {
-    to: "/vip-clients/daily-routines",
-    paths: ["/appointments/vip-daily-routines", "/profile/vip-clients/daily-routines", "/profile/appointments/vip-daily-routines"]
-  },
-  {
-    to: "/assignments/class",
-    paths: ["/assignments", "/appointments/vip-assignments", "/profile/assignments", "/profile/assignments/class", "/profile/appointments/vip-assignments"]
-  },
-  {
-    to: "/assignments/tutor",
-    paths: ["/appointments/vip-tutor-assignments", "/profile/assignments/tutor", "/profile/appointments/vip-tutor-assignments"]
-  },
-  {
-    to: "/appointments/work-schedule",
+    to: "/appointments/planner",
     paths: ["/settings/work-schedule", "/profile/settings/work-schedule", "/profile/appointments/work-schedule"]
   },
   {
-    to: "/statistics/vip-class-attendance-report",
-    paths: ["/statistics", "/statistics/class", "/profile/statistics", "/profile/statistics/vip-class-attendance-report", "/profile/statistics/class"]
-  },
-  {
-    to: "/notifications",
-    paths: [
-      "/settings/notification",
-      "/settings/notification-settings",
-      "/settings/notifications",
-      "/profile/settings/notification",
-      "/profile/settings/notification-settings",
-      "/profile/settings/notifications",
-      "/profile/notifications"
-    ]
+    to: "/statistics/planner-report",
+    paths: ["/statistics", "/profile/statistics"]
   },
   {
     to: "/admin-settings/organizations",
@@ -104,13 +51,14 @@ const REDIRECT_ROUTE_GROUPS = Object.freeze([
   },
   { to: "/users/allusers", paths: ["/profile/users/allusers"] },
   { to: "/users/create", paths: ["/profile/users/create"] },
-  { to: "/clients/medical-history", paths: ["/profile/clients/medical-history"] },
-  { to: "/appointments/breaks", paths: ["/profile/appointments/breaks"] },
-  { to: "/appointments/specialist-absences", paths: ["/profile/appointments/specialist-absences"] },
+  { to: "/appointments/planner", paths: ["/appointments/breaks", "/profile/appointments/breaks"] },
+  { to: "/appointments/planner", paths: ["/appointments/specialist-absences", "/profile/appointments/specialist-absences"] },
+  { to: "/appointments/planner", paths: ["/appointments/work-schedule"] },
   { to: "/settings/appointments", paths: ["/appointments/settings", "/profile/appointments/settings", "/profile/settings/appointments"] },
   { to: "/statistics/planner-report", paths: ["/profile/statistics/planner-report"] },
   { to: "/settings/roles", paths: ["/profile/settings/roles"] },
   { to: "/settings/positions", paths: ["/profile/settings/positions"] },
+  { to: "/site/content", paths: ["/profile/site/content", "/site"] },
   { to: "/", paths: ["/home"] }
 ]);
 

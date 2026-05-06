@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import pool from "../src/config/db.js";
 import { toBooleanFlag } from "../src/lib/boolean.js";
 import { toBoundedInteger } from "../src/lib/bounded-integer.js";
 import {
@@ -11,11 +10,6 @@ import {
   validateBirthdayYmd
 } from "../src/lib/date.js";
 import { sendMigrationRequired } from "../src/lib/http.js";
-import {
-  getNotificationRetentionDaysMessage,
-  parseNotificationRetentionDays
-} from "../src/lib/notification-retention.js";
-import { normalizeNotificationListLimit } from "../src/lib/notification-limits.js";
 import { normalizeInteger, normalizePositiveInteger, parsePositiveInteger } from "../src/lib/number.js";
 import { parseBooleanOr, parseNullableBoolean, parseOptionalOrganizationId } from "../src/lib/request-parsers.js";
 import {
@@ -35,10 +29,8 @@ import {
   toTimeMinutes
 } from "../src/modules/appointments/time.js";
 import {
-  getVipDailyRoutineDayKey,
-  normalizeVipClassDailyRoutineActivityType,
-  normalizeVipDailyRoutineDayOfWeek
-} from "../src/modules/clients/vip-daily-routines.js";
+  getHistoryLockErrorForRequester
+} from "../src/modules/appointments/appointment-route-helpers.js";
 import {
   normalizeManagerNotificationTargetRoles,
   normalizeNotificationRouteTargetRoles,
@@ -61,15 +53,24 @@ import {
   normalizePermissionCodes
 } from "../src/lib/permission-codes.js";
 import { normalizeOrganizationCode } from "../src/lib/organization-code.js";
-import {
-  getNotificationRetentionSettingsByOrganization,
-  saveNotificationRetentionSettingsByOrganization
-} from "../src/modules/notifications/notifications.service.js";
 
 function toYmd(date) {
   const year = String(date.getFullYear());
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addUtcDays(date, days) {
+  const next = new Date(date.getTime());
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function toUtcYmd(date) {
+  const year = String(date.getUTCFullYear());
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
@@ -121,30 +122,6 @@ test("work schedule helpers normalize scope, day, time and reason", () => {
   assert.equal(normalizeWorkScheduleReason("x".repeat(150)).length, 120);
 });
 
-test("vip daily routine helpers normalize aliases and strict values", () => {
-  assert.equal(normalizeVipDailyRoutineDayOfWeek("3"), 3);
-  assert.equal(normalizeVipDailyRoutineDayOfWeek("dushanba"), 0);
-  assert.equal(normalizeVipDailyRoutineDayOfWeek("dushanba", { allowAliases: true }), 1);
-  assert.equal(getVipDailyRoutineDayKey(5), "fri");
-
-  assert.equal(normalizeVipClassDailyRoutineActivityType("breakfast"), "breakfast");
-  assert.equal(normalizeVipClassDailyRoutineActivityType("lunch"), "lunch");
-  assert.equal(normalizeVipClassDailyRoutineActivityType("afternoon-snack"), "afternoon-snack");
-  assert.equal(normalizeVipClassDailyRoutineActivityType("ovqat"), "");
-  assert.equal(
-    normalizeVipClassDailyRoutineActivityType("ovqat", { allowAliases: true }),
-    ""
-  );
-  assert.equal(
-    normalizeVipClassDailyRoutineActivityType("nonushta", { allowAliases: true }),
-    "breakfast"
-  );
-  assert.equal(
-    normalizeVipClassDailyRoutineActivityType("poldnik", { allowAliases: true }),
-    "afternoon-snack"
-  );
-});
-
 test("parseOptionalOrganizationId accepts empty values and rejects invalid ids", () => {
   assert.deepEqual(parseOptionalOrganizationId(""), { value: null });
   assert.deepEqual(parseOptionalOrganizationId("7"), { value: 7 });
@@ -158,18 +135,6 @@ test("parseBooleanOr falls back when boolean input is invalid", () => {
   assert.equal(parseBooleanOr(undefined, false), false);
 });
 
-test("normalizeNotificationListLimit clamps invalid or large values", () => {
-  assert.equal(normalizeNotificationListLimit(undefined), 50);
-  assert.equal(normalizeNotificationListLimit("10"), 10);
-  assert.equal(normalizeNotificationListLimit("1000"), 200);
-});
-
-test("notification retention helpers share stable range validation", () => {
-  assert.equal(getNotificationRetentionDaysMessage(), "Retention days must be an integer between 0 and 3650.");
-  assert.deepEqual(parseNotificationRetentionDays("30", "retentionDays"), { value: 30 });
-  assert.equal(parseNotificationRetentionDays("-1", "retentionDays").error?.field, "retentionDays");
-});
-
 test("appointment schedule helpers normalize durations, reminder channels and scope", () => {
   assert.deepEqual(normalizeDurationOptions("30,30,60,0,2000", { allowCsv: true }), [30, 60]);
   assert.deepEqual(normalizeDurationOptions([15, "30", 15]), [15, 30]);
@@ -177,6 +142,36 @@ test("appointment schedule helpers normalize durations, reminder channels and sc
   assert.equal(normalizeScheduleScope("future"), "future");
   assert.equal(normalizeScheduleScope("bad"), "");
   assert.equal(normalizeScheduleScope("bad", "single"), "single");
+});
+
+test("appointment history lock allows the cutoff day and locks older dates", () => {
+  const todayParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Tashkent",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date());
+  const year = Number.parseInt(todayParts.find((part) => part.type === "year")?.value || "", 10);
+  const month = Number.parseInt(todayParts.find((part) => part.type === "month")?.value || "", 10);
+  const day = Number.parseInt(todayParts.find((part) => part.type === "day")?.value || "", 10);
+  const todayUtc = new Date(Date.UTC(year, month - 1, day));
+  const cutoffDate = toUtcYmd(addUtcDays(todayUtc, -10));
+  const olderDate = toUtcYmd(addUtcDays(todayUtc, -11));
+  const requester = { is_admin: false };
+
+  assert.equal(getHistoryLockErrorForRequester(requester, [cutoffDate], 10), null);
+  assert.equal(
+    getHistoryLockErrorForRequester(requester, [olderDate], 10)?.message,
+    `History is locked before ${cutoffDate}. Requested date: ${olderDate}.`
+  );
+  assert.equal(
+    getHistoryLockErrorForRequester({ is_platform_admin: true }, [olderDate], 10)?.message,
+    `History is locked before ${cutoffDate}. Requested date: ${olderDate}.`
+  );
+  assert.equal(
+    getHistoryLockErrorForRequester({ is_admin: true }, [olderDate], 10)?.message,
+    `History is locked before ${cutoffDate}. Requested date: ${olderDate}.`
+  );
 });
 
 test("appointment time helpers support strict and seconds-trimmed parsing", () => {
@@ -321,68 +316,6 @@ test("sendMigrationRequired maps migration errors to a stable 409 response", () 
   assert.deepEqual(replyState.payload?.details, {
     missingTables: ["vip_client_attendance"]
   });
-});
-
-test("notification retention read falls back to defaults when retention columns are missing", async () => {
-  const originalQuery = pool.query.bind(pool);
-  pool.query = async (sql) => {
-    const queryText = String(sql || "");
-    if (queryText.includes("FROM information_schema.columns")) {
-      return { rows: [] };
-    }
-    throw new Error(`Unexpected SQL: ${queryText}`);
-  };
-
-  try {
-    const item = await getNotificationRetentionSettingsByOrganization({
-      organizationId: 7,
-      defaultOutboxRetentionDays: 45,
-      defaultUserNotificationsRetentionDays: 3
-    });
-
-    assert.deepEqual(item, {
-      organizationId: "7",
-      outboxRetentionDays: "45",
-      userNotificationsRetentionDays: "3"
-    });
-  } finally {
-    pool.query = originalQuery;
-  }
-});
-
-test("notification retention save throws migration required when retention columns are missing", async () => {
-  const originalQuery = pool.query.bind(pool);
-  pool.query = async (sql) => {
-    const queryText = String(sql || "");
-    if (queryText.includes("FROM information_schema.columns")) {
-      return { rows: [] };
-    }
-    throw new Error(`Unexpected SQL: ${queryText}`);
-  };
-
-  try {
-    await assert.rejects(
-      () => saveNotificationRetentionSettingsByOrganization({
-        organizationId: 7,
-        outboxRetentionDays: 30,
-        userNotificationsRetentionDays: 0
-      }),
-      (error) => {
-        assert.equal(error?.code, "MIGRATION_REQUIRED");
-        assert.deepEqual(error?.details, {
-          missingColumns: {
-            appointment_settings: [
-              "outbox_retention_days",
-              "user_notifications_retention_days"
-            ]
-          }
-        });
-        return true;
-      }
-    );
-  } finally {
-    pool.query = originalQuery;
-  }
 });
 
 test("toBoundedInteger clamps parsed values into the provided range", () => {

@@ -32,92 +32,12 @@ const LEGACY_PERMISSION_CODE_MIGRATIONS = Object.freeze([
     to: PERMISSIONS.APPOINTMENTS_PLANNER_READ
   },
   {
-    from: "appointments.menu",
-    to: PERMISSIONS.APPOINTMENTS_BREAKS_READ
-  },
-  {
-    from: "appointments.vip-clients",
-    to: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_READ
-  },
-  {
-    from: "appointments.assignments",
-    to: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_READ
-  },
-  {
-    from: "appointments.assignments",
-    to: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_TUTOR_READ
-  },
-  {
-    from: "appointments.assignments.read",
-    to: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_READ
-  },
-  {
-    from: "appointments.assignments.read",
-    to: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_TUTOR_READ
-  },
-  {
-    from: "appointments.assignments.create",
-    to: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_CREATE
-  },
-  {
-    from: "appointments.assignments.create",
-    to: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_TUTOR_CREATE
-  },
-  {
-    from: "appointments.assignments.update",
-    to: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_UPDATE
-  },
-  {
-    from: "appointments.assignments.update",
-    to: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_TUTOR_UPDATE
-  },
-  {
-    from: "appointments.assignments.delete",
-    to: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_CLASS_DELETE
-  },
-  {
-    from: "appointments.assignments.delete",
-    to: PERMISSIONS.APPOINTMENTS_ASSIGNMENTS_TUTOR_DELETE
-  },
-  {
-    from: "appointments.statistics",
-    to: PERMISSIONS.APPOINTMENTS_STATISTICS_CLASS_ATTENDANCE
-  },
-  {
     from: "appointments.statistics",
     to: PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT
   },
   {
     from: "appointments.statistics.read",
-    to: PERMISSIONS.APPOINTMENTS_STATISTICS_CLASS_ATTENDANCE
-  },
-  {
-    from: "appointments.statistics.read",
     to: PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT
-  },
-  {
-    from: "appointments.notify.to-manager",
-    to: PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_MANAGER
-  },
-  {
-    from: "appointments.notify.to-specialist",
-    to: PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_SPECIALIST
-  },
-  {
-    from: "notifications.schedule.to-manager",
-    to: PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_MANAGER
-  },
-  {
-    from: "notifications.schedule.to-specialist",
-    to: PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_SPECIALIST
-  },
-  {
-    from: "appointments.schedule.scope.all",
-    to: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_SCOPE_ALL
-  },
-  {
-    from: "appointments.schedule.scope.assigned",
-    to: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_SCOPE_ASSIGNED
   }
 ]);
 
@@ -125,14 +45,6 @@ const ROLE_PERMISSION_COPY_MIGRATIONS = Object.freeze([
   {
     from: PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE,
     to: PERMISSIONS.APPOINTMENTS_PLANNER_READ
-  },
-  {
-    from: PERMISSIONS.APPOINTMENTS_SUBMENU_BREAKS,
-    to: PERMISSIONS.APPOINTMENTS_BREAKS_READ
-  },
-  {
-    from: "appointments.vip-clients",
-    to: PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_DAILY_ROUTINES
   }
 ]);
 

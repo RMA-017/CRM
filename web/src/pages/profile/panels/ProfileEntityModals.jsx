@@ -12,9 +12,6 @@ function ProfileEntityModals({
   setClientCreateForm,
   setClientCreateErrors,
   handleClientCreateSubmit,
-  clientMedicalHistoryDelete,
-  handleClientMedicalHistoryDeleteConfirm,
-  closeClientMedicalHistoryDeleteModal,
   userCreateModalOpen,
   closeUserCreateModal,
   canCreateUsers,
@@ -125,47 +122,26 @@ function ProfileEntityModals({
                 <small className="field-error">{clientCreateErrors.middleName || ""}</small>
               </div>
 
-              <div className="client-birthday-vip-row">
-                <div className="field">
-                  <label htmlFor="clientCreateModalBirthday">Birthday</label>
-                  <input
-                    id="clientCreateModalBirthday"
-                    name="birthday"
-                    type="date"
-                    required
-                    min="1950-01-01"
-                    max={maxBirthdayYmd}
-                    className={clientCreateErrors.birthday ? "input-error" : ""}
-                    value={clientCreateForm.birthday}
-                    onInput={(event) => {
-                      const nextValue = event.currentTarget.value;
-                      setClientCreateForm((prev) => ({ ...prev, birthday: nextValue }));
-                      if (clientCreateErrors.birthday) {
-                        setClientCreateErrors((prev) => ({ ...prev, birthday: "" }));
-                      }
-                    }}
-                  />
-                  <small className="field-error">{clientCreateErrors.birthday || ""}</small>
-                </div>
-
-                <div className="field clients-create-vip-field">
-                  <label htmlFor="clientCreateModalIsVip">VIP</label>
-                  <label
-                    className={`clients-create-vip-toggle${clientCreateForm.isVip ? " is-active" : ""}`}
-                    htmlFor="clientCreateModalIsVip"
-                  >
-                    <input
-                      id="clientCreateModalIsVip"
-                      type="checkbox"
-                      checked={Boolean(clientCreateForm.isVip)}
-                      onChange={(event) => {
-                        const checked = event.currentTarget.checked;
-                        setClientCreateForm((prev) => ({ ...prev, isVip: checked }));
-                      }}
-                    />
-                  </label>
-                  <small className="field-error">{clientCreateErrors.isVip || ""}</small>
-                </div>
+              <div className="field">
+                <label htmlFor="clientCreateModalBirthday">Birthday</label>
+                <input
+                  id="clientCreateModalBirthday"
+                  name="birthday"
+                  type="date"
+                  required
+                  min="1950-01-01"
+                  max={maxBirthdayYmd}
+                  className={clientCreateErrors.birthday ? "input-error" : ""}
+                  value={clientCreateForm.birthday}
+                  onInput={(event) => {
+                    const nextValue = event.currentTarget.value;
+                    setClientCreateForm((prev) => ({ ...prev, birthday: nextValue }));
+                    if (clientCreateErrors.birthday) {
+                      setClientCreateErrors((prev) => ({ ...prev, birthday: "" }));
+                    }
+                  }}
+                />
+                <small className="field-error">{clientCreateErrors.birthday || ""}</small>
               </div>
 
               <div className="field">
@@ -189,12 +165,12 @@ function ProfileEntityModals({
               </div>
 
               <div className="field">
-                <label htmlFor="clientCreateModalTelegramOrEmail">Email</label>
+                <label htmlFor="clientCreateModalTelegramOrEmail">Email / Telegram</label>
                 <input
                   id="clientCreateModalTelegramOrEmail"
                   name="telegramOrEmail"
                   type="text"
-                  placeholder="user@gmail.com"
+                  placeholder="user@gmail.com or @telegram"
                   className={clientCreateErrors.telegramOrEmail ? "input-error" : ""}
                   value={clientCreateForm.telegramOrEmail}
                   onInput={(event) => {
@@ -218,44 +194,6 @@ function ProfileEntityModals({
         )}
       </section>
       <div id="clientsCreateOverlay" className="login-overlay" hidden={!clientCreateModalOpen} onClick={closeClientCreateModal} />
-    </>
-  );
-
-  const clientMedicalHistoryDeleteModalLayer = (
-    <>
-      <section id="clientMedicalHistoryDeleteModal" className="logout-confirm-modal" hidden={!clientMedicalHistoryDelete?.open}>
-        <h3>{clientMedicalHistoryDelete?.deleteAll ? "Delete all medical history for this client?" : "Delete this medical history entry?"}</h3>
-        <p className="all-users-state" hidden={!clientMedicalHistoryDelete?.label}>
-          {clientMedicalHistoryDelete?.label || ""}
-        </p>
-        <p id="clientMedicalHistoryDeleteError" className="field-error">{clientMedicalHistoryDelete?.error || ""}</p>
-        <div className="logout-confirm-actions">
-          <button
-            id="clientMedicalHistoryDeleteYesBtn"
-            type="button"
-            className="header-btn logout-confirm-yes"
-            disabled={Boolean(clientMedicalHistoryDelete?.submitting)}
-            onClick={handleClientMedicalHistoryDeleteConfirm}
-          >
-            Yes
-          </button>
-          <button
-            id="clientMedicalHistoryDeleteNoBtn"
-            type="button"
-            className="header-btn"
-            disabled={Boolean(clientMedicalHistoryDelete?.submitting)}
-            onClick={closeClientMedicalHistoryDeleteModal}
-          >
-            No
-          </button>
-        </div>
-      </section>
-      <div
-        id="clientMedicalHistoryDeleteOverlay"
-        className="login-overlay"
-        hidden={!clientMedicalHistoryDelete?.open}
-        onClick={closeClientMedicalHistoryDeleteModal}
-      />
     </>
   );
 
@@ -389,7 +327,6 @@ function ProfileEntityModals({
     <>
       {createPortal(userCreateModalLayer, document.body)}
       {createPortal(clientCreateModalLayer, document.body)}
-      {createPortal(clientMedicalHistoryDeleteModalLayer, document.body)}
     </>
   );
 }

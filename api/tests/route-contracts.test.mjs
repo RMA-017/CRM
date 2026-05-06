@@ -10,10 +10,6 @@ const {
 const { default: authRoutes } = await import("../src/modules/auth/auth.routes.js");
 const { default: createUserRoutes } = await import("../src/modules/create-user/create-user.routes.js");
 const { default: metaRoutes } = await import("../src/modules/meta/meta.routes.js");
-const {
-  default: notificationsRoutes,
-  __notificationsRouteContracts
-} = await import("../src/modules/notifications/notifications.routes.js");
 const { default: profileRoutes } = await import("../src/modules/profile/profile.routes.js");
 const { usersRouteSchemas } = await import("../src/modules/users/users.route-schemas.js");
 const {
@@ -86,7 +82,6 @@ test("appointments routes expose stable contract", async () => {
     "GET /report",
     "GET /report/filters",
     "GET /schedules",
-    "GET /schedules/norm-check",
     "GET /settings",
     "GET /specialists",
     "GET /work-schedule",
@@ -115,9 +110,6 @@ test("appointments routes expose stable contract", async () => {
 
   const schedulesPost = findRoute(recorder.routes, "POST", "/schedules");
   assert.equal(typeof schedulesPost?.options?.schema?.body, "object");
-
-  const schedulesNormCheckGet = findRoute(recorder.routes, "GET", "/schedules/norm-check");
-  assert.equal(typeof schedulesNormCheckGet?.handler, "function");
 
   const schedulesPatch = findRoute(recorder.routes, "PATCH", "/schedules/:id");
   assert.equal(typeof schedulesPatch?.options?.schema?.params, "object");
@@ -161,21 +153,17 @@ test("settings routes expose stable contract", async () => {
   assertRateLimitConfigured(recorder.routes);
 
   assert.deepEqual(toRouteSignatures(recorder.routes), [
-    "DELETE /appointment-norms/:id",
     "DELETE /organizations/:id",
     "DELETE /positions/:id",
     "DELETE /roles/:id",
     "GET /admin-options",
-    "GET /appointment-norms",
     "GET /organizations",
     "GET /positions",
     "GET /roles",
     "PATCH /admin-options",
-    "PATCH /appointment-norms/:id",
     "PATCH /organizations/:id",
     "PATCH /positions/:id",
     "PATCH /roles/:id",
-    "POST /appointment-norms",
     "POST /organizations",
     "POST /positions",
     "POST /roles"
@@ -199,35 +187,6 @@ test("settings routes expose stable contract", async () => {
   assert.equal(typeof positionsPatch?.options?.schema?.params, "object");
   assert.equal(typeof positionsPatch?.options?.schema?.body, "object");
 
-  const appointmentNormsPost = findRoute(recorder.routes, "POST", "/appointment-norms");
-  assert.equal(typeof appointmentNormsPost?.options?.schema?.body, "object");
-
-  const appointmentNormsPatch = findRoute(recorder.routes, "PATCH", "/appointment-norms/:id");
-  assert.equal(typeof appointmentNormsPatch?.options?.schema?.params, "object");
-  assert.equal(typeof appointmentNormsPatch?.options?.schema?.body, "object");
-
-  const appointmentNormsDelete = findRoute(recorder.routes, "DELETE", "/appointment-norms/:id");
-  assert.equal(typeof appointmentNormsDelete?.options?.schema?.params, "object");
-});
-
-test("notifications routes expose stable contract", async () => {
-  const recorder = createRouteRecorder();
-  await notificationsRoutes(recorder.fastify);
-
-  assertRateLimitConfigured(recorder.routes);
-
-  assert.deepEqual(toRouteSignatures(recorder.routes), [
-    "DELETE /",
-    "GET /",
-    "PATCH /read-all",
-    "POST /send"
-  ]);
-
-  const notificationsGet = findRoute(recorder.routes, "GET", "/");
-  assert.equal(typeof notificationsGet?.options?.schema?.querystring, "object");
-
-  const notificationsSendPost = findRoute(recorder.routes, "POST", "/send");
-  assert.equal(typeof notificationsSendPost?.options?.schema?.body, "object");
 });
 
 test("auth routes expose stable contract", async () => {
@@ -326,24 +285,6 @@ test("users update schema accepts blank optional edit fields", () => {
   assert.equal(updateBody.properties.phone.anyOf[1].maxLength, 0);
   assert.equal(updateBody.properties.position.anyOf[1].maxLength, 0);
   assert.equal(updateBody.properties.organizationCode.anyOf[1].maxLength, 0);
-});
-
-test("notifications contract helpers normalize paging and targets", () => {
-  const c = __notificationsRouteContracts;
-
-  assert.equal(c.parseUnreadOnly(true), true);
-  assert.equal(c.parseUnreadOnly("yes"), true);
-  assert.equal(c.parseUnreadOnly("0"), false);
-
-  assert.equal(c.parseLimit(undefined), 50);
-  assert.equal(c.parseLimit("10"), 10);
-  assert.equal(c.parseLimit("1000"), 200);
-
-  assert.deepEqual(c.normalizeTargetUserIds([1, "2", "2", 0, "x"]), [1, 2]);
-  assert.deepEqual(c.normalizeTargetRoles([" Manager ", "manager", "", "Specialist"]), [
-    "manager",
-    "specialist"
-  ]);
 });
 
 test("settings contract helpers validate admin-option payload fragments", () => {

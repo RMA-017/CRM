@@ -41,6 +41,29 @@ test("appointment schedule service normalizes malformed repeat group keys before
   );
 });
 
+test("appointment schedule routes block confirmed status for future appointments", async () => {
+  const source = await readFile(
+    new URL("../src/modules/appointments/routes/schedules.routes.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    source,
+    /function getTodayYmdInTashkent\(\)[\s\S]*timeZone: "Asia\/Tashkent"[\s\S]*function getConfirmedFutureDateError\(status, appointmentDates\)[\s\S]*String\(status \|\| ""\)\.trim\(\)\.toLowerCase\(\) !== "confirmed"[\s\S]*date > today[\s\S]*Future appointments cannot be confirmed/s,
+    "Schedule routes should compare confirmed appointment dates against today's Asia/Tashkent date."
+  );
+  assert.match(
+    source,
+    /const confirmedDateError = getConfirmedFutureDateError\(status, \[appointmentDate\]\);[\s\S]*return reply\.status\(400\)\.send\(confirmedDateError\);[\s\S]*const repeatConfirmedDateError = getConfirmedFutureDateError\(status, recurringDates\);[\s\S]*return reply\.status\(400\)\.send\(repeatConfirmedDateError\);/s,
+    "Schedule create should reject single and recurring future confirmed appointments."
+  );
+  assert.match(
+    source,
+    /const targetDatesForConfirmedStatus = target\.scope === "single"[\s\S]*const confirmedDateError = getConfirmedFutureDateError\(status, targetDatesForConfirmedStatus\);[\s\S]*return reply\.status\(400\)\.send\(confirmedDateError\);/s,
+    "Schedule update should reject future confirmed appointments before saving."
+  );
+});
+
 function createReplyRecorder() {
   const state = {
     statusCode: 200,
@@ -252,9 +275,7 @@ function createReferenceContext(overrides = {}) {
       && requester.organization_allowed_features.includes(feature)
     ),
     PERMISSIONS: {
-      APPOINTMENTS_PLANNER_READ: "appointments.planner.read",
-      APPOINTMENTS_SPECIALIST_ABSENCES_READ: "appointments.specialist-absences.read",
-      APPOINTMENTS_SPECIALIST_ABSENCES_CREATE: "appointments.specialist-absences.create"
+      APPOINTMENTS_PLANNER_READ: "appointments.planner.read"
     },
     parsePositiveIntegerOr,
     resolveOwnAppointmentSpecialistUserId: () => null,
@@ -280,9 +301,8 @@ function createBreaksContext(overrides = {}) {
     ),
     hasPermission: async () => true,
     PERMISSIONS: {
-      APPOINTMENTS_BREAKS_READ: "appointments.breaks.read",
       APPOINTMENTS_PLANNER_READ: "appointments.planner.read",
-      APPOINTMENTS_BREAKS_UPDATE: "appointments.breaks.update"
+      APPOINTMENTS_PLANNER_UPDATE: "appointments.planner.update"
     },
     parsePositiveIntegerOr,
     resolveOwnAppointmentSpecialistUserId: () => null,
@@ -318,84 +338,6 @@ test("specialists reference endpoint keeps all specialists visible for planner r
   assert.deepEqual(reply.state.payload?.items, [
     { id: "7", name: "Teacher One" },
     { id: "8", name: "Teacher Two" }
-  ]);
-});
-
-test("vip schedules read allows my class permission without general appointments read", async () => {
-  const recorder = createRouteRecorder();
-  registerAppointmentScheduleRoutes(
-    recorder.fastify,
-    createScheduleContext({
-      hasPermission: async (_roleId, permission) => permission === "appointments.vip-clients.my-class",
-      getAppointmentSchedulesByRange: async () => [
-        {
-          id: "91",
-          specialistId: "7",
-          clientId: "44",
-          appointmentDate: "2026-03-09",
-          startTime: "10:00",
-          endTime: "11:00",
-          durationMinutes: "60",
-          status: "pending"
-        }
-      ]
-    })
-  );
-
-  const route = findRoute(recorder.routes, "GET", "/schedules");
-  assert.equal(typeof route?.handler, "function");
-
-  const reply = createReplyRecorder();
-  await route.handler({
-    ...createAccessRequest({ features: ["vip_clients.my_class"] }),
-    query: {
-      dateFrom: "2026-03-09",
-      dateTo: "2026-03-09",
-      classId: "10",
-      vipOnly: "true"
-    }
-  }, reply);
-
-  assert.equal(reply.state.statusCode, 200);
-  assert.equal(reply.state.payload?.items?.[0]?.id, "91");
-});
-
-test("vip schedules read returns migration-required when VIP routine schema is missing", async () => {
-  const recorder = createRouteRecorder();
-  registerAppointmentScheduleRoutes(
-    recorder.fastify,
-    createScheduleContext({
-      getAppointmentSchedulesByRange: async () => {
-        const error = new Error("VIP class daily routine migration is required.");
-        error.code = "MIGRATION_REQUIRED";
-        error.details = {
-          missingColumns: {
-            vip_class_daily_routines: ["specialist_user_id", "mandatory_exercises"]
-          }
-        };
-        throw error;
-      }
-    })
-  );
-
-  const route = findRoute(recorder.routes, "GET", "/schedules");
-  assert.equal(typeof route?.handler, "function");
-
-  const reply = createReplyRecorder();
-  await route.handler({
-    ...createAccessRequest({ features: ["appointments.planner"] }),
-    query: {
-      dateFrom: "2026-03-16",
-      dateTo: "2026-03-21",
-      specialistId: "74"
-    }
-  }, reply);
-
-  assert.equal(reply.state.statusCode, 409);
-  assert.equal(reply.state.payload?.code, "MIGRATION_REQUIRED");
-  assert.deepEqual(reply.state.payload?.details?.missingColumns?.vip_class_daily_routines, [
-    "specialist_user_id",
-    "mandatory_exercises"
   ]);
 });
 
@@ -3233,14 +3175,13 @@ test("schedule delete blocks assigned-scope writes for unassigned VIP schedules"
   assert.equal(reply.state.payload?.message, "You can only delete VIP appointment assigned to you.");
 });
 
-test("breaks routes block specialist users from accessing another specialist", async () => {
+test("breaks routes require planner feature access", async () => {
   const recorder = createRouteRecorder();
   registerAppointmentBreakRoutes(
     recorder.fastify,
     createBreaksContext({
-      resolveOwnAppointmentSpecialistUserId: () => 7,
       getAppointmentBreaksBySpecialist: async () => {
-        throw new Error("Breaks should not load for another specialist.");
+        throw new Error("Breaks should not load without planner feature access.");
       }
     })
   );
@@ -3251,8 +3192,8 @@ test("breaks routes block specialist users from accessing another specialist", a
   const reply = createReplyRecorder();
   await route.handler(
     {
-      ...createAccessRequest({ features: ["appointments.breaks"] }),
-      query: { specialistId: "9" }
+      ...createAccessRequest({ features: [] }),
+      query: { specialistId: "7" }
     },
     reply
   );

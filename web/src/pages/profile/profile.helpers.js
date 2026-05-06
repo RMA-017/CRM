@@ -438,59 +438,11 @@ export function compareTextInsensitive(left, right) {
   });
 }
 
-export function mapVipClassAssignmentOption(item) {
-  const id = String(item?.id || item?.classId || item?.class_id || "").trim();
-  if (!id) {
-    return null;
-  }
-  return {
-    id,
-    className: String(item?.className || item?.class_name || "").trim(),
-    teacherId: String(item?.teacherId || item?.teacher_id || "").trim(),
-    teacherName: String(item?.teacherName || item?.teacher_name || "").trim()
-  };
-}
-
-export function sortVipClassDailyRoutineRows(items) {
-  const rows = Array.isArray(items) ? [...items] : [];
-  return rows.sort((a, b) => {
-    const classCompare = compareTextInsensitive(a?.className, b?.className);
-    if (classCompare !== 0) {
-      return classCompare;
-    }
-
-    const dayCompare = Number(a?.dayOfWeek || 0) - Number(b?.dayOfWeek || 0);
-    if (dayCompare !== 0) {
-      return dayCompare;
-    }
-
-    const startCompare = String(a?.startTime || "").localeCompare(String(b?.startTime || ""));
-    if (startCompare !== 0) {
-      return startCompare;
-    }
-
-    return String(a?.id || "").localeCompare(String(b?.id || ""));
-  });
-}
-
 const FORCED_VIEW_REQUIRED_FEATURES = {
-  "clients-medical-history": ["clients.medical_history"],
   "appointment": ["appointments.planner"],
-  "appointment-breaks": ["appointments.breaks"],
-  "appointment-specialist-absences": ["appointments.specialist_absences"],
-  "appointment-vip-attendance": ["vip_clients.attendance"],
-  "appointment-vip-norm-monitoring": ["vip_clients.norm_monitoring"],
-  "appointment-vip-my-children": ["vip_clients.my_children"],
-  "appointment-vip-daily-routines": ["vip_clients.daily_routines"],
-  "appointment-vip-assignments": ["assignments.class"],
-  "appointment-vip-tutor-assignments": ["assignments.tutor"],
-  "appointment-vip-schedule": ["vip_clients.my_class"],
   "appointment-settings": ["settings.appointments"],
-  "appointment-work-schedule": ["appointments.work_schedule"],
   "settings-roles": ["settings.roles"],
   "settings-positions": ["settings.positions"],
-  "statistics": ["statistics.class_attendance"],
-  "statistics-class": ["statistics.class_attendance"],
   "statistics-planner-report": ["statistics.planner_report"]
 };
 

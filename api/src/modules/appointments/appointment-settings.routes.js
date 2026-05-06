@@ -102,6 +102,13 @@ import { getDurationMinutesFromTimes } from "./time.js";
 const parsePositiveIntegerOr = normalizePositiveInteger;
 const normalizeDurationOptions = (value) => normalizeDurationOptionsBase(value, { allowCsv: true });
 
+async function requesterHasPermission(requester, permissionCode) {
+  if (requester?.is_platform_admin) {
+    return true;
+  }
+  return hasPermission(requester?.role_id, permissionCode);
+}
+
 async function requireAppointmentsAccess(
   request,
   reply,
@@ -116,7 +123,7 @@ async function requireAppointmentsAccess(
     return null;
   }
 
-  if (!(await hasPermission(requester.role_id, requiredPermission))) {
+  if (!(await requesterHasPermission(requester, requiredPermission))) {
     reply.status(403).send({ message: "Forbidden." });
     return null;
   }
@@ -135,6 +142,7 @@ async function appointmentSettingsRoutes(fastify) {
     requireAppointmentsAccess,
     requesterHasOrgFeature,
     hasPermission,
+    requesterHasPermission,
     PERMISSIONS,
     DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS,
     DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,

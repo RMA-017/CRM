@@ -2,7 +2,6 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { apiFetch, readApiResponseData } from "../../lib/api.js";
 import {
   createEmptySettingsDeleteState,
-  EMPTY_NORM_FORM,
   EMPTY_ORGANIZATION_FORM,
   EMPTY_ROLE_CREATE_FORM,
   EMPTY_ROLE_EDIT_FORM,
@@ -30,10 +29,6 @@ export function useSettingsSection({
   canCreateSettingsPositions,
   canUpdateSettingsPositions,
   canDeleteSettingsPositions,
-  canOpenSettingsNorms,
-  canCreateSettingsAppointmentNorms,
-  canUpdateSettingsAppointmentNorms,
-  canDeleteSettingsAppointmentNorms,
   navigate,
   loadUserOptions,
   orgFeatures = null
@@ -41,7 +36,7 @@ export function useSettingsSection({
   const hasOrganizationSettingsAccess = canOpenSettingsOrganizations;
   const hasRoleSettingsAccess = canOpenSettingsRoles;
   const hasPositionSettingsAccess = canOpenSettingsPositions;
-  const hasNormsSettingsAccess = Boolean(canOpenSettingsNorms);
+
   const [settingsDelete, setSettingsDelete] = useState(createEmptySettingsDeleteState);
 
   const [organizations, setOrganizations] = useState([]);
@@ -80,30 +75,18 @@ export function useSettingsSection({
   const [positionEditError, setPositionEditError] = useState("");
   const [positionEditSubmitting, setPositionEditSubmitting] = useState(false);
   const [positionDeletingId, setPositionDeletingId] = useState("");
-  const [normsSettings, setNormsSettings] = useState([]);
-  const [normsSettingsMessage, setNormsSettingsMessage] = useState("");
-  const [normCreateForm, setNormCreateForm] = useState({ ...EMPTY_NORM_FORM });
-  const [normCreateError, setNormCreateError] = useState("");
-  const [normCreateSubmitting, setNormCreateSubmitting] = useState(false);
-  const [normEditId, setNormEditId] = useState("");
-  const [normEditOpen, setNormEditOpen] = useState(false);
-  const [normEditForm, setNormEditForm] = useState({ maxPerWeek: "2", isActive: true });
-  const [normEditError, setNormEditError] = useState("");
-  const [normEditSubmitting, setNormEditSubmitting] = useState(false);
-  const [normDeletingId, setNormDeletingId] = useState("");
+
   const organizationsLoadedRef = useRef(false);
   const rolesLoadedRef = useRef(false);
   const positionsLoadedRef = useRef(false);
-  const normsLoadedRef = useRef(false);
 
-  const allowedRolePermissionCodeSet = useMemo(
-    () => new Set(
+  const allowedRolePermissionCodeSet = useMemo(() => (
+    new Set(
       normalizePermissionCodesInput(
         rolePermissionOptions.map((permission) => permission?.code || permission?.value)
       )
-    ),
-    [rolePermissionOptions]
-  );
+    )
+  ), [rolePermissionOptions]);
 
   const filterRolePermissionCodesForCurrentOptions = useCallback((permissionCodes) => {
     const normalizedCodes = normalizePermissionCodesInput(permissionCodes);
@@ -113,13 +96,33 @@ export function useSettingsSection({
     return normalizedCodes.filter((code) => allowedRolePermissionCodeSet.has(code));
   }, [allowedRolePermissionCodeSet]);
 
-  const rolePermissionTree = useMemo(
-    () => buildRolePermissionTree(rolePermissionOptions, orgFeatures),
-    [rolePermissionOptions, orgFeatures]
-  );
+  const rolePermissionTree = useMemo(() => (
+    buildRolePermissionTree(rolePermissionOptions, orgFeatures)
+  ), [orgFeatures, rolePermissionOptions]);
 
   const closeSettingsDeleteModal = useCallback(() => {
     setSettingsDelete(createEmptySettingsDeleteState());
+  }, []);
+
+  const validateOrganizationForm = useCallback((form) => {
+    const code = String(form?.code || "").trim().toLowerCase();
+    const name = String(form?.name || "").trim();
+
+    if (!ORGANIZATION_CODE_REGEX.test(code)) {
+      return "Code must be 2-64 chars and contain lowercase letters, numbers, ., _, -";
+    }
+    if (!name) {
+      return "Name is required.";
+    }
+    return "";
+  }, []);
+
+  const validateLabelSettingsForm = useCallback((form) => {
+    const label = String(form?.label || "").trim();
+    if (!label) {
+      return "Label is required.";
+    }
+    return "";
   }, []);
 
   const loadOrganizations = useCallback(async (options = {}) => {
@@ -127,6 +130,7 @@ export function useSettingsSection({
       navigate("/404", { replace: true });
       return;
     }
+
     const force = options?.force === true;
     if (!force && organizationsLoadedRef.current) {
       return;
@@ -167,6 +171,7 @@ export function useSettingsSection({
       navigate("/404", { replace: true });
       return;
     }
+
     const force = options?.force === true;
     if (!force && rolesLoadedRef.current) {
       return;
@@ -204,8 +209,8 @@ export function useSettingsSection({
         (permission) => permission?.label
       );
 
-      setRolePermissionOptions(permissions);
       rolesLoadedRef.current = true;
+      setRolePermissionOptions(permissions);
       setRolesSettings(items);
       setRolesSettingsMessage(items.length === 0 ? "No roles found." : "");
     } catch {
@@ -221,6 +226,7 @@ export function useSettingsSection({
       navigate("/404", { replace: true });
       return;
     }
+
     const force = options?.force === true;
     if (!force && positionsLoadedRef.current) {
       return;
@@ -256,67 +262,6 @@ export function useSettingsSection({
     }
   }, [hasPositionSettingsAccess, navigate]);
 
-  const loadNormsSettings = useCallback(async (options = {}) => {
-    if (!hasNormsSettingsAccess) {
-      navigate("/404", { replace: true });
-      return;
-    }
-    const force = options?.force === true;
-    if (!force && normsLoadedRef.current) {
-      return;
-    }
-
-    setNormsSettingsMessage("");
-
-    try {
-      const response = await apiFetch("/api/settings/appointment-norms", {
-        method: "GET",
-        cache: "no-store"
-      });
-      const data = await readApiResponseData(response);
-
-      if (!response.ok) {
-        if (handleProtectedStatus(response, navigate)) {
-          return;
-        }
-        normsLoadedRef.current = false;
-        setNormsSettings([]);
-        setNormsSettingsMessage(data?.message || "Failed to load appointment norms.");
-        return;
-      }
-
-      const items = Array.isArray(data?.items) ? data.items : [];
-      normsLoadedRef.current = true;
-      setNormsSettings(items);
-      setNormsSettingsMessage(items.length === 0 ? "No norms found." : "");
-    } catch {
-      normsLoadedRef.current = false;
-      setNormsSettings([]);
-      setNormsSettingsMessage("Unexpected error. Please try again.");
-    }
-  }, [hasNormsSettingsAccess, navigate]);
-
-  const validateOrganizationForm = useCallback((form) => {
-    const code = String(form?.code || "").trim().toLowerCase();
-    const name = String(form?.name || "").trim();
-
-    if (!ORGANIZATION_CODE_REGEX.test(code)) {
-      return "Code must be 2-64 chars and contain lowercase letters, numbers, ., _, -";
-    }
-    if (!name) {
-      return "Name is required.";
-    }
-    return "";
-  }, []);
-
-  const validateLabelSettingsForm = useCallback((form) => {
-    const label = String(form?.label || "").trim();
-    if (!label) {
-      return "Label is required.";
-    }
-    return "";
-  }, []);
-
   const handleOrganizationCreateSubmit = useCallback(async (event) => {
     event.preventDefault();
 
@@ -329,7 +274,7 @@ export function useSettingsSection({
       code: String(organizationCreateForm.code || "").trim().toLowerCase(),
       name: String(organizationCreateForm.name || "").trim(),
       isActive: Boolean(organizationCreateForm.isActive),
-      allowedFeatures: Array.isArray(organizationCreateForm.allowedFeatures) ? organizationCreateForm.allowedFeatures : null
+      allowedFeatures: null
     };
     const validationError = validateOrganizationForm(payload);
     if (validationError) {
@@ -368,7 +313,6 @@ export function useSettingsSection({
     canCreateSettingsOrganizations,
     loadOrganizations,
     navigate,
-    organizationCreateForm.allowedFeatures,
     organizationCreateForm.code,
     organizationCreateForm.isActive,
     organizationCreateForm.name,
@@ -381,7 +325,7 @@ export function useSettingsSection({
       code: String(item?.code || ""),
       name: String(item?.name || ""),
       isActive: Boolean(item?.isActive),
-      allowedFeatures: Array.isArray(item?.allowedFeatures) ? item.allowedFeatures : null
+      allowedFeatures: null
     });
     setOrganizationEditError("");
     setOrganizationEditOpen(true);
@@ -409,7 +353,7 @@ export function useSettingsSection({
       code: String(organizationEditForm.code || "").trim().toLowerCase(),
       name: String(organizationEditForm.name || "").trim(),
       isActive: Boolean(organizationEditForm.isActive),
-      allowedFeatures: Array.isArray(organizationEditForm.allowedFeatures) ? organizationEditForm.allowedFeatures : null
+      allowedFeatures: null
     };
     const validationError = validateOrganizationForm(payload);
     if (validationError) {
@@ -447,7 +391,6 @@ export function useSettingsSection({
     canUpdateSettingsOrganizations,
     loadOrganizations,
     navigate,
-    organizationEditForm.allowedFeatures,
     organizationEditForm.code,
     organizationEditForm.isActive,
     organizationEditForm.name,
@@ -460,6 +403,7 @@ export function useSettingsSection({
     if (!rowId) {
       return;
     }
+
     setSettingsDelete({
       open: true,
       type,
@@ -523,6 +467,7 @@ export function useSettingsSection({
     }
   }, [
     canCreateSettingsRoles,
+    filterRolePermissionCodesForCurrentOptions,
     loadRolesSettings,
     loadUserOptions,
     navigate,
@@ -530,7 +475,6 @@ export function useSettingsSection({
     roleCreateForm.label,
     roleCreateForm.permissionCodes,
     roleCreateForm.sortOrder,
-    filterRolePermissionCodesForCurrentOptions,
     validateLabelSettingsForm
   ]);
 
@@ -606,10 +550,10 @@ export function useSettingsSection({
   }, [
     cancelRoleEdit,
     canUpdateSettingsRoles,
+    filterRolePermissionCodesForCurrentOptions,
     loadRolesSettings,
     loadUserOptions,
     navigate,
-    filterRolePermissionCodesForCurrentOptions,
     roleEditForm.isActive,
     roleEditForm.isAdmin,
     roleEditForm.label,
@@ -761,190 +705,6 @@ export function useSettingsSection({
   const handlePositionDelete = useCallback((id, label = "") => {
     openSettingsDelete("position", id, label);
   }, [openSettingsDelete]);
-
-  const validateNormCreateForm = useCallback((form) => {
-    const positionId = String(form?.positionId || "").trim();
-    if (!positionId) {
-      return "Position is required.";
-    }
-    const maxPerWeek = parseInt(String(form?.maxPerWeek || ""), 10);
-    if (isNaN(maxPerWeek) || maxPerWeek < 1 || maxPerWeek > 100) {
-      return "Max per week must be between 1 and 100.";
-    }
-    return "";
-  }, []);
-
-  const validateNormEditForm = useCallback((form) => {
-    const maxPerWeek = parseInt(String(form?.maxPerWeek || ""), 10);
-    if (isNaN(maxPerWeek) || maxPerWeek < 1 || maxPerWeek > 100) {
-      return "Max per week must be between 1 and 100.";
-    }
-    return "";
-  }, []);
-
-  const handleNormCreateSubmit = useCallback(async (event) => {
-    event.preventDefault();
-
-    if (!canCreateSettingsAppointmentNorms) {
-      setNormCreateError("You do not have permission to create norms.");
-      return false;
-    }
-
-    const payload = {
-      positionId: parseInt(String(normCreateForm.positionId || ""), 10),
-      maxPerWeek: parseInt(String(normCreateForm.maxPerWeek || ""), 10),
-      isActive: Boolean(normCreateForm.isActive)
-    };
-    const validationError = validateNormCreateForm(normCreateForm);
-    if (validationError) {
-      setNormCreateError(validationError);
-      return false;
-    }
-
-    try {
-      setNormCreateSubmitting(true);
-      setNormCreateError("");
-      const response = await apiFetch("/api/settings/appointment-norms", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const data = await readApiResponseData(response);
-
-      if (!response.ok) {
-        if (handleProtectedStatus(response, navigate)) {
-          return false;
-        }
-        setNormCreateError(data?.message || "Failed to create norm.");
-        return false;
-      }
-
-      setNormCreateForm({ ...EMPTY_NORM_FORM });
-      await loadNormsSettings({ force: true });
-      return true;
-    } catch {
-      setNormCreateError("Unexpected error. Please try again.");
-      return false;
-    } finally {
-      setNormCreateSubmitting(false);
-    }
-  }, [
-    canCreateSettingsAppointmentNorms,
-    loadNormsSettings,
-    navigate,
-    normCreateForm.isActive,
-    normCreateForm.maxPerWeek,
-    normCreateForm.positionId,
-    validateNormCreateForm
-  ]);
-
-  const startNormEdit = useCallback((item) => {
-    setNormEditId(String(item?.id || ""));
-    setNormEditForm({
-      maxPerWeek: String(item?.maxPerWeek ?? "2"),
-      isActive: Boolean(item?.isActive)
-    });
-    setNormEditError("");
-    setNormEditOpen(true);
-  }, []);
-
-  const cancelNormEdit = useCallback(() => {
-    setNormEditOpen(false);
-    setNormEditId("");
-    setNormEditForm({ maxPerWeek: "2", isActive: true });
-    setNormEditError("");
-    setNormEditSubmitting(false);
-  }, []);
-
-  const handleNormEditSave = useCallback(async () => {
-    const id = String(normEditId || "").trim();
-    if (!id) {
-      return;
-    }
-    if (!canUpdateSettingsAppointmentNorms) {
-      setNormEditError("You do not have permission to manage norms.");
-      return;
-    }
-
-    const validationError = validateNormEditForm(normEditForm);
-    if (validationError) {
-      setNormEditError(validationError);
-      return;
-    }
-
-    const payload = {
-      maxPerWeek: parseInt(String(normEditForm.maxPerWeek || ""), 10),
-      isActive: Boolean(normEditForm.isActive)
-    };
-
-    try {
-      setNormEditSubmitting(true);
-      setNormEditError("");
-      const response = await apiFetch(`/api/settings/appointment-norms/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const data = await readApiResponseData(response);
-
-      if (!response.ok) {
-        if (handleProtectedStatus(response, navigate)) {
-          return;
-        }
-        setNormEditError(data?.message || "Failed to update norm.");
-        return;
-      }
-
-      cancelNormEdit();
-      await loadNormsSettings({ force: true });
-    } catch {
-      setNormEditError("Unexpected error. Please try again.");
-    } finally {
-      setNormEditSubmitting(false);
-    }
-  }, [
-    cancelNormEdit,
-    canUpdateSettingsAppointmentNorms,
-    loadNormsSettings,
-    navigate,
-    normEditForm.isActive,
-    normEditForm.maxPerWeek,
-    normEditId,
-    validateNormEditForm
-  ]);
-
-  const handleNormDelete = useCallback(async (id, label = "") => {
-    const rowId = String(id || "").trim();
-    if (!rowId) {
-      return;
-    }
-    if (!canDeleteSettingsAppointmentNorms) {
-      setNormsSettingsMessage("You do not have permission to delete norms.");
-      return;
-    }
-
-    try {
-      setNormDeletingId(rowId);
-      const response = await apiFetch(`/api/settings/appointment-norms/${rowId}`, {
-        method: "DELETE"
-      });
-      const data = await readApiResponseData(response);
-
-      if (!response.ok) {
-        if (handleProtectedStatus(response, navigate)) {
-          return;
-        }
-        setNormsSettingsMessage(data?.message || `Failed to delete norm "${label}".`);
-        return;
-      }
-
-      await loadNormsSettings({ force: true });
-    } catch {
-      setNormsSettingsMessage("Unexpected error. Please try again.");
-    } finally {
-      setNormDeletingId("");
-    }
-  }, [canDeleteSettingsAppointmentNorms, loadNormsSettings, navigate]);
 
   const handleSettingsDeleteConfirm = useCallback(async () => {
     const rowId = String(settingsDelete.id || "").trim();
@@ -1131,26 +891,6 @@ export function useSettingsSection({
     cancelPositionEdit,
     handlePositionEditSave,
     handlePositionDelete,
-    normsSettings,
-    normsSettingsMessage,
-    normCreateForm,
-    normCreateError,
-    normCreateSubmitting,
-    normEditOpen,
-    normEditForm,
-    normEditError,
-    normEditSubmitting,
-    normDeletingId,
-    setNormCreateForm,
-    setNormCreateError,
-    setNormEditForm,
-    setNormEditError,
-    loadNormsSettings,
-    handleNormCreateSubmit,
-    startNormEdit,
-    cancelNormEdit,
-    handleNormEditSave,
-    handleNormDelete,
     closeSettingsDeleteModal,
     handleSettingsDeleteConfirm
   };

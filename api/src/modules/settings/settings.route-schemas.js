@@ -88,12 +88,7 @@ export const settingsRouteSchemas = Object.freeze({
       appointment_history_lock_days: integerLikeSchema,
       appointmentSlotCellHeightPx: integerLikeSchema,
       slotCellHeightPx: integerLikeSchema,
-      appointment_slot_cell_height_px: integerLikeSchema,
-      outboxWorkerRetentionDays: integerLikeSchema,
-      outboxRetentionDays: integerLikeSchema,
-      outbox_worker_retention_days: integerLikeSchema,
-      userNotificationsRetentionDays: integerLikeSchema,
-      user_notifications_retention_days: integerLikeSchema
+      appointment_slot_cell_height_px: integerLikeSchema
     },
     anyOf: [
       { required: ["appointmentHistoryLockDays"] },
@@ -101,44 +96,11 @@ export const settingsRouteSchemas = Object.freeze({
       { required: ["appointment_history_lock_days"] },
       { required: ["appointmentSlotCellHeightPx"] },
       { required: ["slotCellHeightPx"] },
-      { required: ["appointment_slot_cell_height_px"] },
-      { required: ["outboxWorkerRetentionDays"] },
-      { required: ["outboxRetentionDays"] },
-      { required: ["outbox_worker_retention_days"] },
-      { required: ["userNotificationsRetentionDays"] },
-      { required: ["user_notifications_retention_days"] }
+      { required: ["appointment_slot_cell_height_px"] }
     ]
   },
   roleCreateBody: roleBodySchema,
   roleUpdateBody: roleBodySchema,
   positionCreateBody: positionBodySchema,
-  positionUpdateBody: positionBodySchema,
-  appointmentNormCreateBody: {
-    type: "object",
-    additionalProperties: true,
-    required: ["positionId", "maxPerWeek"],
-    properties: {
-      positionId: positiveIntegerLikeSchema,
-      maxPerWeek: {
-        anyOf: [
-          { type: "integer", minimum: 1, maximum: 100 },
-          { type: "string", pattern: "^([1-9]|[1-9]\\d|100)$" }
-        ]
-      },
-      isActive: booleanLikeSchema
-    }
-  },
-  appointmentNormUpdateBody: {
-    type: "object",
-    additionalProperties: true,
-    properties: {
-      maxPerWeek: {
-        anyOf: [
-          { type: "integer", minimum: 1, maximum: 100 },
-          { type: "string", pattern: "^([1-9]|[1-9]\\d|100)$" }
-        ]
-      },
-      isActive: booleanLikeSchema
-    }
-  }
+  positionUpdateBody: positionBodySchema
 });

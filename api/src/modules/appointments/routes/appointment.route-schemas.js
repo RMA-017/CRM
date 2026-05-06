@@ -286,36 +286,6 @@ export const appointmentRouteSchemas = Object.freeze({
           enum: ["sms", "email", "telegram"]
         }
       },
-      outboxWorkerRetentionDays: {
-        anyOf: [
-          { type: "integer", minimum: 0 },
-          { type: "string", pattern: "^\\d+$" }
-        ]
-      },
-      outboxRetentionDays: {
-        anyOf: [
-          { type: "integer", minimum: 0 },
-          { type: "string", pattern: "^\\d+$" }
-        ]
-      },
-      outbox_worker_retention_days: {
-        anyOf: [
-          { type: "integer", minimum: 0 },
-          { type: "string", pattern: "^\\d+$" }
-        ]
-      },
-      userNotificationsRetentionDays: {
-        anyOf: [
-          { type: "integer", minimum: 0 },
-          { type: "string", pattern: "^\\d+$" }
-        ]
-      },
-      user_notifications_retention_days: {
-        anyOf: [
-          { type: "integer", minimum: 0 },
-          { type: "string", pattern: "^\\d+$" }
-        ]
-      },
       visibleWeekDays: {
         type: "array",
         items: dayKeySchema

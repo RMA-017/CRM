@@ -1,0 +1,5 @@
+
+> @ start C:\Users\user\Desktop\MyFolder\CRM\api
+> node --env-file=.env src/index.js
+
+ ELIFECYCLE  Command failed with exit code 1.

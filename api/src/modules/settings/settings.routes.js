@@ -1,18 +1,13 @@
 import { ORGANIZATION_CODE_REGEX, PERMISSION_CODE_REGEX } from "../../constants/validation.js";
-import { appConfig } from "../../config/app-config.js";
 import { setNoCacheHeaders } from "../../lib/http.js";
 import {
   normalizePermissionCode,
   normalizePermissionCodes
 } from "../../lib/permission-codes.js";
 import { normalizeOrganizationCode } from "../../lib/organization-code.js";
-import {
-  getNotificationRetentionDaysMessage,
-  parseNotificationRetentionDays
-} from "../../lib/notification-retention.js";
 import { normalizeInteger, parsePositiveInteger } from "../../lib/number.js";
 import { parseBooleanOr, parseOptionalOrganizationId } from "../../lib/request-parsers.js";
-import { normalizeAllowedFeatures, requesterHasOrgFeature } from "../../lib/org-features.js";
+import { requesterHasOrgFeature } from "../../lib/org-features.js";
 import {
   DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
   MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
@@ -25,31 +20,23 @@ import {
   saveAppointmentSlotCellHeightPxByOrganization
 } from "../appointments/services/appointment-settings-config.service.js";
 import {
-  createAppointmentNorm,
   createOrganization,
   createPositionOption,
   createRoleOption,
-  deleteAppointmentNormById,
   deleteOrganizationById,
   deletePositionOptionById,
   deleteRoleOptionById,
   findSettingsRequester,
   getPositionOptionById,
   getRoleOptionById,
-  listAppointmentNorms,
   listOrganizations,
   listPermissionOptionsForSettings,
   listPositionOptionsForSettings,
   listRoleOptionsForSettings,
-  updateAppointmentNorm,
   updateOrganization,
   updatePositionOption,
   updateRoleOption
 } from "./settings.service.js";
-import {
-  getNotificationRetentionSettingsByOrganization,
-  saveNotificationRetentionSettingsByOrganization
-} from "../notifications/notifications.service.js";
 import { hasPermission } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
 import { clearUserOptionsCache } from "../meta/meta.service.js";
@@ -62,16 +49,6 @@ const SETTINGS_ROUTE_PERMISSION_CONFIG = Object.freeze({
     permissions: Object.freeze({
       read: PERMISSIONS.SETTINGS_APPOINTMENTS_READ,
       update: PERMISSIONS.SETTINGS_APPOINTMENTS_UPDATE
-    })
-  }),
-  appointment_norms: Object.freeze({
-    featureKey: "settings.appointment_norms",
-    legacyRequiresPlatformAdmin: false,
-    permissions: Object.freeze({
-      read: PERMISSIONS.SETTINGS_APPOINTMENT_NORMS_READ,
-      create: PERMISSIONS.SETTINGS_APPOINTMENT_NORMS_CREATE,
-      update: PERMISSIONS.SETTINGS_APPOINTMENT_NORMS_UPDATE,
-      delete: PERMISSIONS.SETTINGS_APPOINTMENT_NORMS_DELETE
     })
   }),
   roles: Object.freeze({
@@ -266,7 +243,6 @@ async function getSettingsPermissionSnapshot(roleId) {
   return {
     usesAdvancedSettingsPermissions: Array.from(permissionState.values()).some(Boolean),
     appointments: resourceState.appointments,
-    appointment_norms: resourceState.appointment_norms,
     roles: resourceState.roles,
     positions: resourceState.positions
   };
@@ -357,7 +333,7 @@ async function settingsRoutes(fastify) {
         const code = normalizeOrganizationCode(request.body?.code);
         const name = String(request.body?.name || "").trim();
         const isActive = parseIsActive(request.body?.isActive, true);
-        const allowedFeatures = normalizeAllowedFeatures(request.body?.allowedFeatures);
+        const allowedFeatures = null;
         const validationError = validateOrganizationPayload({ code, name });
         if (validationError) {
           return reply.status(400).send(validationError);
@@ -409,7 +385,7 @@ async function settingsRoutes(fastify) {
         const code = normalizeOrganizationCode(request.body?.code);
         const name = String(request.body?.name || "").trim();
         const isActive = parseIsActive(request.body?.isActive, true);
-        const allowedFeatures = normalizeAllowedFeatures(request.body?.allowedFeatures);
+        const allowedFeatures = null;
         const validationError = validateOrganizationPayload({ code, name });
         if (validationError) {
           return reply.status(400).send(validationError);
@@ -522,42 +498,20 @@ async function settingsRoutes(fastify) {
         const targetOrganizationId = adminContext.requester.is_platform_admin
           ? (requestedOrganizationId || adminContext.authContext.organizationId)
           : adminContext.authContext.organizationId;
-        const defaultOutboxRetentionDays = Number.parseInt(
-          String(appConfig?.outboxWorker?.retentionDays ?? 30),
-          10
-        );
-        const defaultUserNotificationsRetentionDays = Number.parseInt(
-          String(appConfig?.outboxWorker?.userNotificationsRetentionDays ?? 0),
-          10
-        );
-
-        const [appointmentHistoryLockDays, appointmentSlotCellHeightPx, notificationRetention] = await Promise.all([
+        const [appointmentHistoryLockDays, appointmentSlotCellHeightPx] = await Promise.all([
           getAppointmentHistoryLockDaysByOrganization(targetOrganizationId),
-          getAppointmentSlotCellHeightPxByOrganization(targetOrganizationId),
-          getNotificationRetentionSettingsByOrganization({
-            organizationId: targetOrganizationId,
-            defaultOutboxRetentionDays,
-            defaultUserNotificationsRetentionDays
-          })
+          getAppointmentSlotCellHeightPxByOrganization(targetOrganizationId)
         ]);
 
         return reply.send({
           item: {
             organizationId: String(targetOrganizationId),
             appointmentHistoryLockDays: String(appointmentHistoryLockDays),
-            appointmentSlotCellHeightPx: String(appointmentSlotCellHeightPx),
-            outboxWorkerRetentionDays: String(notificationRetention?.outboxRetentionDays ?? defaultOutboxRetentionDays),
-            userNotificationsRetentionDays: String(
-              notificationRetention?.userNotificationsRetentionDays ?? defaultUserNotificationsRetentionDays
-            )
+            appointmentSlotCellHeightPx: String(appointmentSlotCellHeightPx)
           },
           bounds: {
             min: MIN_APPOINTMENT_HISTORY_LOCK_DAYS,
             max: MAX_APPOINTMENT_HISTORY_LOCK_DAYS,
-            retentionDays: {
-              min: MIN_NOTIFICATION_RETENTION_DAYS,
-              max: MAX_NOTIFICATION_RETENTION_DAYS
-            },
             slotCellHeightPx: {
               min: MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
               max: MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
@@ -604,15 +558,6 @@ async function settingsRoutes(fastify) {
           || request.body?.slotCellHeightPx !== undefined
           || request.body?.appointment_slot_cell_height_px !== undefined
         );
-        const hasOutboxWorkerRetentionDays = (
-          request.body?.outboxWorkerRetentionDays !== undefined
-          || request.body?.outboxRetentionDays !== undefined
-          || request.body?.outbox_worker_retention_days !== undefined
-        );
-        const hasUserNotificationsRetentionDays = (
-          request.body?.userNotificationsRetentionDays !== undefined
-          || request.body?.user_notifications_retention_days !== undefined
-        );
 
         let parsedHistoryLockDays = { value: null };
         if (hasHistoryLockDays) {
@@ -638,31 +583,6 @@ async function settingsRoutes(fastify) {
           }
         }
 
-        let parsedOutboxWorkerRetentionDays = { value: null };
-        if (hasOutboxWorkerRetentionDays) {
-          parsedOutboxWorkerRetentionDays = parseNotificationRetentionDays(
-            request.body?.outboxWorkerRetentionDays
-            ?? request.body?.outboxRetentionDays
-            ?? request.body?.outbox_worker_retention_days,
-            "outboxWorkerRetentionDays"
-          );
-          if (parsedOutboxWorkerRetentionDays.error) {
-            return reply.status(400).send(parsedOutboxWorkerRetentionDays.error);
-          }
-        }
-
-        let parsedUserNotificationsRetentionDays = { value: null };
-        if (hasUserNotificationsRetentionDays) {
-          parsedUserNotificationsRetentionDays = parseNotificationRetentionDays(
-            request.body?.userNotificationsRetentionDays
-            ?? request.body?.user_notifications_retention_days,
-            "userNotificationsRetentionDays"
-          );
-          if (parsedUserNotificationsRetentionDays.error) {
-            return reply.status(400).send(parsedUserNotificationsRetentionDays.error);
-          }
-        }
-
         if (
           requestedOrganizationId
           && !adminContext.requester.is_platform_admin
@@ -674,27 +594,7 @@ async function settingsRoutes(fastify) {
         const targetOrganizationId = adminContext.requester.is_platform_admin
           ? (requestedOrganizationId || adminContext.authContext.organizationId)
           : adminContext.authContext.organizationId;
-        const defaultOutboxRetentionDays = Number.parseInt(
-          String(appConfig?.outboxWorker?.retentionDays ?? 30),
-          10
-        );
-        const defaultUserNotificationsRetentionDays = Number.parseInt(
-          String(appConfig?.outboxWorker?.userNotificationsRetentionDays ?? 0),
-          10
-        );
-        const shouldReadCurrentNotificationRetention = (
-          hasOutboxWorkerRetentionDays
-          || hasUserNotificationsRetentionDays
-        ) && !(hasOutboxWorkerRetentionDays && hasUserNotificationsRetentionDays);
-        const currentNotificationRetention = shouldReadCurrentNotificationRetention
-          ? await getNotificationRetentionSettingsByOrganization({
-              organizationId: targetOrganizationId,
-              defaultOutboxRetentionDays,
-              defaultUserNotificationsRetentionDays
-            })
-          : null;
-
-        const [appointmentHistoryLockDays, appointmentSlotCellHeightPx, notificationRetention] = await Promise.all([
+        const [appointmentHistoryLockDays, appointmentSlotCellHeightPx] = await Promise.all([
           hasHistoryLockDays
             ? saveAppointmentHistoryLockDaysByOrganization({
                 organizationId: targetOrganizationId,
@@ -708,26 +608,7 @@ async function settingsRoutes(fastify) {
                 actorUserId: adminContext.authContext.userId,
                 slotCellHeightPx: parsedSlotCellHeightPx.value
               })
-            : getAppointmentSlotCellHeightPxByOrganization(targetOrganizationId),
-          (hasOutboxWorkerRetentionDays || hasUserNotificationsRetentionDays)
-            ? saveNotificationRetentionSettingsByOrganization({
-                organizationId: targetOrganizationId,
-                actorUserId: adminContext.authContext.userId,
-                outboxRetentionDays: hasOutboxWorkerRetentionDays
-                  ? parsedOutboxWorkerRetentionDays.value
-                  : Number.parseInt(String(currentNotificationRetention?.outboxRetentionDays ?? defaultOutboxRetentionDays), 10),
-                userNotificationsRetentionDays: hasUserNotificationsRetentionDays
-                  ? parsedUserNotificationsRetentionDays.value
-                  : Number.parseInt(
-                      String(currentNotificationRetention?.userNotificationsRetentionDays ?? defaultUserNotificationsRetentionDays),
-                      10
-                    )
-              })
-            : getNotificationRetentionSettingsByOrganization({
-              organizationId: targetOrganizationId,
-              defaultOutboxRetentionDays,
-              defaultUserNotificationsRetentionDays
-            })
+            : getAppointmentSlotCellHeightPxByOrganization(targetOrganizationId)
         ]);
 
         return reply.send({
@@ -735,11 +616,7 @@ async function settingsRoutes(fastify) {
           item: {
             organizationId: String(targetOrganizationId),
             appointmentHistoryLockDays: String(appointmentHistoryLockDays),
-            appointmentSlotCellHeightPx: String(appointmentSlotCellHeightPx),
-            outboxWorkerRetentionDays: String(notificationRetention?.outboxRetentionDays ?? defaultOutboxRetentionDays),
-            userNotificationsRetentionDays: String(
-              notificationRetention?.userNotificationsRetentionDays ?? defaultUserNotificationsRetentionDays
-            )
+            appointmentSlotCellHeightPx: String(appointmentSlotCellHeightPx)
           }
         });
       } catch (error) {
@@ -764,18 +641,6 @@ async function settingsRoutes(fastify) {
         if (error?.code === "MIGRATION_REQUIRED") {
           return reply.status(500).send({
             message: "DB migration required: appointment settings table is missing required columns."
-          });
-        }
-        if (error?.code === "INVALID_OUTBOX_RETENTION_DAYS") {
-          return reply.status(400).send({
-            field: "outboxWorkerRetentionDays",
-            message: getNotificationRetentionDaysMessage()
-          });
-        }
-        if (error?.code === "INVALID_USER_NOTIFICATIONS_RETENTION_DAYS") {
-          return reply.status(400).send({
-            field: "userNotificationsRetentionDays",
-            message: getNotificationRetentionDaysMessage()
           });
         }
         request.log.error({ err: error }, "Error updating admin options:");
@@ -1201,150 +1066,12 @@ async function settingsRoutes(fastify) {
     }
   );
 
-  // ── Appointment Norms ────────────────────────────────────────────────────
-
-  fastify.get(
-    "/appointment-norms",
-    { config: { rateLimit: fastify.apiRateLimit } },
-    async (request, reply) => {
-      try {
-        const adminContext = await requireSettingsRouteAccess(request, reply, "appointment_norms", "read");
-        if (!adminContext) {
-          return;
-        }
-        setNoCacheHeaders(reply);
-        const items = await listAppointmentNorms(adminContext.authContext.organizationId);
-        return reply.send({ items });
-      } catch (error) {
-        request.log.error({ err: error }, "Error fetching appointment norms");
-        return reply.status(500).send({ message: "Internal server error." });
-      }
-    }
-  );
-
-  fastify.post(
-    "/appointment-norms",
-    {
-      config: { rateLimit: fastify.apiRateLimit },
-      schema: { body: settingsRouteSchemas.appointmentNormCreateBody }
-    },
-    async (request, reply) => {
-      try {
-        const adminContext = await requireSettingsRouteAccess(request, reply, "appointment_norms", "create");
-        if (!adminContext) {
-          return;
-        }
-
-        const positionId = parsePositiveInteger(request.body?.positionId);
-        if (!positionId) {
-          return reply.status(400).send({ field: "positionId", message: "Valid position is required." });
-        }
-        const maxPerWeek = Number.parseInt(String(request.body?.maxPerWeek ?? "").trim(), 10);
-        if (!Number.isInteger(maxPerWeek) || maxPerWeek < 1 || maxPerWeek > 100) {
-          return reply.status(400).send({ field: "maxPerWeek", message: "Max per week must be between 1 and 100." });
-        }
-        const isActive = parseIsActive(request.body?.isActive, true);
-
-        const item = await createAppointmentNorm({
-          organizationId: adminContext.authContext.organizationId,
-          positionId,
-          maxPerWeek,
-          isActive,
-          actorUserId: adminContext.authContext.userId
-        });
-        return reply.status(201).send({ message: "Norm created.", item });
-      } catch (error) {
-        if (error?.code === "23505") {
-          return reply.status(409).send({ field: "positionId", message: "A norm for this position already exists." });
-        }
-        if (error?.code === "23503") {
-          return reply.status(400).send({ field: "positionId", message: "Position not found." });
-        }
-        request.log.error({ err: error }, "Error creating appointment norm");
-        return reply.status(500).send({ message: "Internal server error." });
-      }
-    }
-  );
-
-  fastify.patch(
-    "/appointment-norms/:id",
-    {
-      config: { rateLimit: fastify.apiRateLimit },
-      schema: {
-        params: settingsRouteSchemas.idParams,
-        body: settingsRouteSchemas.appointmentNormUpdateBody
-      }
-    },
-    async (request, reply) => {
-      try {
-        const adminContext = await requireSettingsRouteAccess(request, reply, "appointment_norms", "update");
-        if (!adminContext) {
-          return;
-        }
-
-        const id = parsePositiveInteger(request.params?.id);
-        if (!id) {
-          return reply.status(400).send({ message: "Invalid id." });
-        }
-        const maxPerWeek = Number.parseInt(String(request.body?.maxPerWeek ?? "").trim(), 10);
-        if (!Number.isInteger(maxPerWeek) || maxPerWeek < 1 || maxPerWeek > 100) {
-          return reply.status(400).send({ field: "maxPerWeek", message: "Max per week must be between 1 and 100." });
-        }
-        const isActive = parseIsActive(request.body?.isActive, true);
-
-        const item = await updateAppointmentNorm({
-          id,
-          organizationId: adminContext.authContext.organizationId,
-          maxPerWeek,
-          isActive,
-          actorUserId: adminContext.authContext.userId
-        });
-        if (!item) {
-          return reply.status(404).send({ message: "Norm not found." });
-        }
-        return reply.send({ message: "Norm updated.", item });
-      } catch (error) {
-        request.log.error({ err: error }, "Error updating appointment norm");
-        return reply.status(500).send({ message: "Internal server error." });
-      }
-    }
-  );
-
-  fastify.delete(
-    "/appointment-norms/:id",
-    {
-      config: { rateLimit: fastify.apiRateLimit },
-      schema: { params: settingsRouteSchemas.idParams }
-    },
-    async (request, reply) => {
-      try {
-        const adminContext = await requireSettingsRouteAccess(request, reply, "appointment_norms", "delete");
-        if (!adminContext) {
-          return;
-        }
-
-        const id = parsePositiveInteger(request.params?.id);
-        if (!id) {
-          return reply.status(400).send({ message: "Invalid id." });
-        }
-        const deleted = await deleteAppointmentNormById(id, adminContext.authContext.organizationId);
-        if (!deleted) {
-          return reply.status(404).send({ message: "Norm not found." });
-        }
-        return reply.send({ message: "Norm deleted." });
-      } catch (error) {
-        request.log.error({ err: error }, "Error deleting appointment norm");
-        return reply.status(500).send({ message: "Internal server error." });
-      }
-    }
-  );
 }
 
 export const __settingsRouteContracts = Object.freeze({
   parseSortOrder,
   parseIsActive,
   parseHistoryLockDays,
-  parseNotificationRetentionDays,
   parseOptionalOrganizationId,
   parsePermissionCodes,
   validateOrganizationPayload,

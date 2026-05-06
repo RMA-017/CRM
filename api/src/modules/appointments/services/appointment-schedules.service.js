@@ -1,9 +1,6 @@
 export {
   hasVipRoutineConflictForSpecialist,
   hasVipRoutineConflictForClient,
-  hasBreakConflictForVipRoutine,
-  hasWorkScheduleAbsenceForVipRoutine,
-  hasAppointmentConflictForVipRoutine,
   createAppointmentSchedule,
   deleteAppointmentSchedulesByIds,
   ensureAutoRollingRecurringSchedulesCoverRange,

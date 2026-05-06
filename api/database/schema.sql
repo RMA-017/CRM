@@ -137,6 +137,13 @@ SELECT setval(
 
 CREATE INDEX idx_clients_organization_created_at ON clients (organization_id, created_at DESC);
 CREATE INDEX idx_clients_organization_name ON clients (organization_id, last_name, first_name);
+CREATE UNIQUE INDEX uq_clients_org_person_name_ci
+  ON clients (
+    organization_id,
+    LOWER(TRIM(first_name)),
+    LOWER(TRIM(last_name)),
+    LOWER(TRIM(COALESCE(middle_name, '')))
+  );
 CREATE INDEX idx_clients_org_first_name_prefix
   ON clients (organization_id, LOWER(first_name) text_pattern_ops);
 CREATE INDEX idx_clients_org_last_name_prefix
@@ -171,6 +178,43 @@ CREATE INDEX idx_client_medical_history_entries_org_client_entry
 
 CREATE INDEX idx_client_medical_history_entries_org_author_entry
   ON client_medical_history_entries (organization_id, author_user_id, entry_date DESC, id DESC);
+
+CREATE TABLE site_content_items (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  section_key VARCHAR(32) NOT NULL
+    CHECK (section_key IN ('kids', 'team', 'partners')),
+  image_data TEXT NOT NULL,
+  author VARCHAR(128),
+  author_uz VARCHAR(128),
+  author_ru VARCHAR(128),
+  name VARCHAR(128),
+  name_uz VARCHAR(128),
+  name_ru VARCHAR(128),
+  role VARCHAR(128),
+  role_uz VARCHAR(128),
+  role_ru VARCHAR(128),
+  description VARCHAR(512) NOT NULL,
+  description_uz VARCHAR(512),
+  description_ru VARCHAR(512),
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (
+    (section_key = 'kids' AND author IS NOT NULL AND name IS NULL)
+    OR
+    (section_key IN ('team', 'partners') AND name IS NOT NULL)
+  )
+);
+
+CREATE INDEX idx_site_content_items_public
+  ON site_content_items (section_key, is_active, sort_order ASC, created_at DESC, id DESC);
+
+CREATE INDEX idx_site_content_items_org_section
+  ON site_content_items (organization_id, section_key, sort_order ASC, created_at DESC, id DESC);
 
 CREATE TABLE vip_client_attendance (
   id BIGSERIAL PRIMARY KEY,

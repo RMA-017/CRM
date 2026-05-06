@@ -22,8 +22,8 @@ function validateOwnProfileUpdate(field, value, currentPassword) {
   if (field === "password" && !currentPassword) {
     return { field: "currentPassword", message: "Current password is required." };
   }
-  if (field === "password" && value.length < 6) {
-    return { field: "password", message: "Password must be at least 6 characters." };
+  if (field === "password" && value.length < 4) {
+    return { field: "password", message: "Password must be at least 4 characters." };
   }
   if (field === "email" && value && !EMAIL_REGEX.test(value)) {
     return { field: "email", message: "Invalid email format." };

@@ -323,6 +323,18 @@ async function ensureVipClassDailyRoutineSchema() {
   return vipClassDailyRoutineSchemaInitPromise;
 }
 
+async function hasVipClassDailyRoutineSchema() {
+  try {
+    await ensureVipClassDailyRoutineSchema();
+    return true;
+  } catch (error) {
+    if (error?.code === "MIGRATION_REQUIRED") {
+      return false;
+    }
+    throw error;
+  }
+}
+
 function getAppointmentSchedulesTableName() {
   return APPOINTMENT_SCHEDULES_TABLE;
 }
@@ -959,7 +971,9 @@ async function assertWorkScheduleTargetsHaveNoVipRoutines({
     return;
   }
 
-  await ensureVipClassDailyRoutineSchema();
+  if (!(await hasVipClassDailyRoutineSchema())) {
+    return;
+  }
 
   const { rows } = await pool.query(
     `SELECT vdr.day_of_week,
@@ -1112,7 +1126,9 @@ async function listVipDailyRoutineScheduleItems({
     return [];
   }
 
-  await ensureVipClassDailyRoutineSchema();
+  if (!(await hasVipClassDailyRoutineSchema())) {
+    return [];
+  }
 
   const params = [organizationId, dateFrom, dateTo];
   const whereParts = ["vdr.organization_id = $1"];
@@ -3026,54 +3042,54 @@ export async function replaceAppointmentBreaksBySpecialist({
       throw error;
     }
 
-    await ensureVipClassDailyRoutineSchema();
-
-    const { rows: vipConflictRows } = await trx.query(
-      `WITH incoming AS (
+    if (await hasVipClassDailyRoutineSchema()) {
+      const { rows: vipConflictRows } = await trx.query(
+        `WITH incoming AS (
+           SELECT
+             (item->>'dayOfWeek')::smallint AS day_of_week,
+             NULLIF(TRIM(item->>'startTime'), '')::time AS start_time,
+             NULLIF(TRIM(item->>'endTime'), '')::time AS end_time,
+             COALESCE((item->>'isActive')::boolean, TRUE) AS is_active
+           FROM jsonb_array_elements($3::jsonb) AS item
+         ),
+         active_incoming AS (
+           SELECT i.day_of_week, i.start_time, i.end_time
+           FROM incoming i
+           WHERE i.is_active = TRUE
+             AND i.day_of_week BETWEEN 1 AND 7
+             AND i.start_time IS NOT NULL
+             AND i.end_time IS NOT NULL
+             AND i.start_time < i.end_time
+         )
          SELECT
-           (item->>'dayOfWeek')::smallint AS day_of_week,
-           NULLIF(TRIM(item->>'startTime'), '')::time AS start_time,
-           NULLIF(TRIM(item->>'endTime'), '')::time AS end_time,
-           COALESCE((item->>'isActive')::boolean, TRUE) AS is_active
-         FROM jsonb_array_elements($3::jsonb) AS item
-       ),
-       active_incoming AS (
-         SELECT i.day_of_week, i.start_time, i.end_time
-         FROM incoming i
-         WHERE i.is_active = TRUE
-           AND i.day_of_week BETWEEN 1 AND 7
-           AND i.start_time IS NOT NULL
-           AND i.end_time IS NOT NULL
-           AND i.start_time < i.end_time
-       )
-       SELECT
-         ai.day_of_week,
-         TO_CHAR(ai.start_time, 'HH24:MI') AS break_start_time,
-         TO_CHAR(ai.end_time, 'HH24:MI') AS break_end_time
-       FROM active_incoming ai
-        WHERE EXISTS (
-          SELECT 1
-          FROM vip_class_daily_routines vdr
-          WHERE vdr.organization_id = $1
-            AND vdr.day_of_week = ai.day_of_week
-            AND ($4::date + ai.start_time) < ($4::date + vdr.end_time)
-            AND ($4::date + vdr.start_time) < ($4::date + ai.end_time)
-            AND ${buildVipDailyRoutineSpecialistMatchSql({
-              specialistParamRef: "$2"
-            })}
-        )
-        LIMIT 1`,
-      [organizationId, specialistId, breaksPayloadJson, "2000-01-01"]
-    );
+           ai.day_of_week,
+           TO_CHAR(ai.start_time, 'HH24:MI') AS break_start_time,
+           TO_CHAR(ai.end_time, 'HH24:MI') AS break_end_time
+         FROM active_incoming ai
+          WHERE EXISTS (
+            SELECT 1
+            FROM vip_class_daily_routines vdr
+            WHERE vdr.organization_id = $1
+              AND vdr.day_of_week = ai.day_of_week
+              AND ($4::date + ai.start_time) < ($4::date + vdr.end_time)
+              AND ($4::date + vdr.start_time) < ($4::date + ai.end_time)
+              AND ${buildVipDailyRoutineSpecialistMatchSql({
+                specialistParamRef: "$2"
+              })}
+          )
+          LIMIT 1`,
+        [organizationId, specialistId, breaksPayloadJson, "2000-01-01"]
+      );
 
-    const vipConflict = vipConflictRows?.[0] || null;
-    if (vipConflict) {
-      const breakStart = String(vipConflict.break_start_time || "").trim();
-      const breakEnd = String(vipConflict.break_end_time || "").trim();
-      const error = new Error(`This break time (${breakStart}-${breakEnd}) conflicts with a VIP Daily Routine.`);
-      error.statusCode = 409;
-      error.code = "VIP_ROUTINE_BREAK_CONFLICT";
-      throw error;
+      const vipConflict = vipConflictRows?.[0] || null;
+      if (vipConflict) {
+        const breakStart = String(vipConflict.break_start_time || "").trim();
+        const breakEnd = String(vipConflict.break_end_time || "").trim();
+        const error = new Error(`This break time (${breakStart}-${breakEnd}) conflicts with a VIP Daily Routine.`);
+        error.statusCode = 409;
+        error.code = "VIP_ROUTINE_BREAK_CONFLICT";
+        throw error;
+      }
     }
 
     await trx.query(
@@ -3214,7 +3230,9 @@ export async function hasVipRoutineConflictForSpecialist({
   endTime,
   db = pool
 }) {
-  await ensureVipClassDailyRoutineSchema();
+  if (!(await hasVipClassDailyRoutineSchema())) {
+    return false;
+  }
 
   const { rows } = await (db || pool).query(
     `SELECT 1
@@ -3240,6 +3258,10 @@ export async function hasVipRoutineConflictForClient({
   endTime,
   db = pool
 }) {
+  if (!(await hasVipClassDailyRoutineSchema())) {
+    return false;
+  }
+
   const { rows } = await (db || pool).query(
     `SELECT 1
        FROM vip_class_daily_routines vdr
@@ -3257,7 +3279,7 @@ export async function hasVipRoutineConflictForClient({
   return Boolean(rows[0]);
 }
 
-export async function hasBreakConflictForVipRoutine({
+async function hasBreakConflictForVipRoutine({
   organizationId,
   specialistId,
   dayOfWeek,
@@ -3285,7 +3307,7 @@ export async function hasBreakConflictForVipRoutine({
   return Boolean(rows[0]);
 }
 
-export async function hasWorkScheduleAbsenceForVipRoutine({
+async function hasWorkScheduleAbsenceForVipRoutine({
   organizationId,
   specialistId,
   dayOfWeek,
@@ -3310,7 +3332,7 @@ export async function hasWorkScheduleAbsenceForVipRoutine({
   return Boolean(rows[0]);
 }
 
-export async function hasAppointmentConflictForVipRoutine({
+async function hasAppointmentConflictForVipRoutine({
   organizationId,
   classId,
   specialistId,
