@@ -5,7 +5,6 @@ const CLOSED_SUBMENUS = Object.freeze({
   clients: false,
   appointments: false,
   users: false,
-  statistics: false,
   site: false,
   settings: false,
   adminSettings: false
@@ -18,12 +17,9 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
   openAllClientsPanel,
   hasAppointmentsMenuAccess,
   canOpenAppointmentSchedule,
-  canOpenAppointmentStatistics,
-  canOpenStatisticsPlannerReport,
   canOpenAppointmentSettings,
   openAppointmentPanel,
   openAppointmentSettingsPanel,
-  openStatisticsPlannerReportPanel,
   hasUsersMenuAccess,
   canReadUsers,
   closeMenu,
@@ -219,31 +215,6 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 }}
               >
                 All Users
-              </button>
-            </div>
-          </div>
-
-          <div id="statisticsMenuGroup" className="side-menu-group" hidden={!canOpenAppointmentStatistics}>
-            <button
-              id="toggleStatisticsMenuBtn"
-              type="button"
-              className="side-menu-action side-menu-parent"
-              aria-expanded={openSubmenus.statistics ? "true" : "false"}
-              onClick={() => {
-                toggleSubmenu("statistics");
-              }}
-            >
-              Statistics
-            </button>
-            <div id="statisticsSubMenu" className="side-submenu" hidden={!openSubmenus.statistics}>
-              <button
-                id="openStatisticsPlannerReportBtn"
-                type="button"
-                className="side-submenu-link side-submenu-action"
-                hidden={!canOpenStatisticsPlannerReport}
-                onClick={openStatisticsPlannerReportPanel}
-              >
-                Lesson Status Report
               </button>
             </div>
           </div>

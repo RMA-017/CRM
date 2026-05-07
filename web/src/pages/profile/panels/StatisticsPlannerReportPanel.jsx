@@ -14,13 +14,6 @@ function getCurrentMonthBounds() {
   };
 }
 
-function formatPlannerReportClientLabel(item) {
-  const lastName = String(item?.lastName || "").trim();
-  const firstName = String(item?.firstName || "").trim();
-  const middleName = String(item?.middleName || "").trim();
-  return [lastName, firstName, middleName].filter(Boolean).join(" ").trim() || `Client #${String(item?.id || "").trim()}`;
-}
-
 function mergePlannerReportSelectOptions(primaryOptions = [], fallbackOptions = []) {
   const optionMap = new Map();
   [...(Array.isArray(primaryOptions) ? primaryOptions : []), ...(Array.isArray(fallbackOptions) ? fallbackOptions : [])]
@@ -37,40 +30,19 @@ function mergePlannerReportSelectOptions(primaryOptions = [], fallbackOptions = 
     .sort((left, right) => left.label.localeCompare(right.label, undefined, { sensitivity: "base" }));
 }
 
-function formatPlannerReportDuration(durationMinutesValue, startTimeValue, endTimeValue) {
-  const normalizedDurationMinutes = Number.parseInt(String(durationMinutesValue || "0"), 10) || 0;
-  if (normalizedDurationMinutes > 0) {
-    const hours = Math.floor(normalizedDurationMinutes / 60);
-    const minutes = normalizedDurationMinutes % 60;
-    if (hours > 0 && minutes > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    if (hours > 0) {
-      return `${hours}h`;
-    }
-    return `${minutes}m`;
+function formatPlannerReportDate(value) {
+  const raw = String(value || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw || "-";
   }
-  const startTime = String(startTimeValue || "").trim();
-  const endTime = String(endTimeValue || "").trim();
-  if (!startTime || !endTime) {
-    return "-";
-  }
-  const [startHour, startMinute] = startTime.split(":").map((part) => Number.parseInt(part, 10));
-  const [endHour, endMinute] = endTime.split(":").map((part) => Number.parseInt(part, 10));
-  if (
-    Number.isNaN(startHour) ||
-    Number.isNaN(startMinute) ||
-    Number.isNaN(endHour) ||
-    Number.isNaN(endMinute)
-  ) {
-    return "-";
-  }
-  const durationMinutes = ((endHour * 60) + endMinute) - ((startHour * 60) + startMinute);
-  if (durationMinutes <= 0) {
-    return "-";
-  }
-  const hours = Math.floor(durationMinutes / 60);
-  const minutes = durationMinutes % 60;
+  const [year, month, day] = raw.split("-");
+  return `${day}.${month}.${year}`;
+}
+
+function formatPlannerReportMinutes(value) {
+  const totalMinutes = Math.max(0, Number.parseInt(String(value || "0"), 10) || 0);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
   if (hours > 0 && minutes > 0) {
     return `${hours}h ${minutes}m`;
   }
@@ -78,6 +50,25 @@ function formatPlannerReportDuration(durationMinutesValue, startTimeValue, endTi
     return `${hours}h`;
   }
   return `${minutes}m`;
+}
+
+function normalizePlannerReportPercent(value) {
+  const parsed = Number.parseInt(String(value || "0"), 10) || 0;
+  return Math.max(0, Math.min(100, parsed));
+}
+
+function getPlannerReportOccupancyClass(percentValue) {
+  const percent = normalizePlannerReportPercent(percentValue);
+  if (percent >= 90) {
+    return "is-high";
+  }
+  if (percent >= 60) {
+    return "is-good";
+  }
+  if (percent >= 30) {
+    return "is-medium";
+  }
+  return "is-low";
 }
 
 function getPlannerReportStatusPresentation(statusValue) {
@@ -128,11 +119,9 @@ function StatisticsPlannerReportPanel({
   const [from, setFrom] = useState(initialBounds.from);
   const [to, setTo] = useState(initialBounds.to);
   const [specialistId, setSpecialistId] = useState("");
-  const [clientId, setClientId] = useState("");
   const [reportData, setReportData] = useState(null);
   const [reportFilterOptions, setReportFilterOptions] = useState({
     specialists: [],
-    clients: [],
     scope: {}
   });
   const [reportLoading, setReportLoading] = useState(false);
@@ -170,27 +159,9 @@ function StatisticsPlannerReportPanel({
     ];
   }, [isSpecialistLocked, lockedSpecialistId, reportData?.details, reportFilterOptions?.specialists]);
 
-  const clientOptions = useMemo(() => [
-    { value: "", label: "All clients" },
-    ...mergePlannerReportSelectOptions(
-      (Array.isArray(reportFilterOptions?.clients) ? reportFilterOptions.clients : [])
-        .map((item) => ({
-          value: String(item?.id || "").trim(),
-          label: formatPlannerReportClientLabel(item)
-        }))
-        .filter((item) => Boolean(item.value) && Boolean(item.label)),
-      (Array.isArray(reportData?.details) ? reportData.details : [])
-      .map((item) => ({
-        value: String(item?.clientId || "").trim(),
-        label: String(item?.clientName || "").trim()
-      }))
-      .filter((item) => Boolean(item.value) && Boolean(item.label))
-    )
-  ], [reportData?.details, reportFilterOptions?.clients]);
-
   const loadFilterOptions = useCallback(async () => {
     try {
-      const response = await apiFetch("/api/appointments/report/filters?includeAllClients=true", {
+      const response = await apiFetch("/api/appointments/report/filters", {
         method: "GET",
         cache: "no-store"
       });
@@ -201,7 +172,6 @@ function StatisticsPlannerReportPanel({
 
       setReportFilterOptions({
         specialists: Array.isArray(data?.specialists) ? data.specialists : [],
-        clients: Array.isArray(data?.clients) ? data.clients : [],
         scope: data?.scope && typeof data.scope === "object" ? data.scope : {}
       });
       if (data?.scope?.specialistLocked && data?.scope?.specialistId) {
@@ -215,13 +185,11 @@ function StatisticsPlannerReportPanel({
   const loadReport = useCallback(async ({
     fromDate = "",
     toDate = "",
-    nextSpecialistId = "",
-    nextClientId = ""
+    nextSpecialistId = ""
   } = {}) => {
     const normalizedFrom = String(fromDate || "").trim() || initialBounds.from;
     const normalizedTo = String(toDate || "").trim() || initialBounds.to;
     const normalizedSpecialistId = String(nextSpecialistId || "").trim();
-    const normalizedClientId = String(nextClientId || "").trim();
     const requestId = reportRequestIdRef.current + 1;
     reportRequestIdRef.current = requestId;
 
@@ -234,9 +202,6 @@ function StatisticsPlannerReportPanel({
       });
       if (normalizedSpecialistId) {
         query.set("specialistId", normalizedSpecialistId);
-      }
-      if (normalizedClientId) {
-        query.set("clientId", normalizedClientId);
       }
       const response = await apiFetch(`/api/appointments/report?${query.toString()}`, {
         method: "GET",
@@ -276,10 +241,9 @@ function StatisticsPlannerReportPanel({
     void loadReport({
       fromDate: from,
       toDate: to,
-      nextSpecialistId: specialistId,
-      nextClientId: clientId
+      nextSpecialistId: specialistId
     });
-  }, [clientId, from, loadReport, showBootstrapSkeleton, specialistId, to]);
+  }, [from, loadReport, showBootstrapSkeleton, specialistId, to]);
 
   useEffect(() => {
     if (showBootstrapSkeleton || hasLoadedFilterOptions) {
@@ -288,15 +252,6 @@ function StatisticsPlannerReportPanel({
     void loadFilterOptions();
     setHasLoadedFilterOptions(true);
   }, [hasLoadedFilterOptions, loadFilterOptions, showBootstrapSkeleton]);
-
-  useEffect(() => {
-    if (!clientId) {
-      return;
-    }
-    if (!clientOptions.some((item) => item.value === clientId)) {
-      setClientId("");
-    }
-  }, [clientId, clientOptions]);
 
   useEffect(() => {
     if (isSpecialistLocked) {
@@ -325,6 +280,16 @@ function StatisticsPlannerReportPanel({
     cancelled: 0,
     noShow: 0
   };
+  const workloadTotals = reportData?.workload?.totals || {
+    availableMinutes: 0,
+    bookedMinutes: 0,
+    utilizationPercent: 0
+  };
+  const workloadSpecialists = Array.isArray(reportData?.workload?.specialists)
+    ? reportData.workload.specialists
+    : [];
+  const occupancyPercent = normalizePlannerReportPercent(workloadTotals?.utilizationPercent);
+  const occupancyClass = getPlannerReportOccupancyClass(occupancyPercent);
   const detailRows = Array.isArray(reportData?.details) ? reportData.details : [];
   const summaryItems = [
     { key: "all", label: "Total Lessons", value: summary.total, className: "is-total" },
@@ -347,7 +312,7 @@ function StatisticsPlannerReportPanel({
   return (
     <section id="statisticsPlannerReportPanel" className="all-users-panel">
       <div className="all-users-head">
-        <h3>Statistics / Lesson Status Report</h3>
+        <h3>Dashboard</h3>
         <button
           id="closeStatisticsPlannerReportBtn"
           type="button"
@@ -366,8 +331,7 @@ function StatisticsPlannerReportPanel({
           void loadReport({
             fromDate: from,
             toDate: to,
-            nextSpecialistId: specialistId,
-            nextClientId: clientId
+            nextSpecialistId: specialistId
           });
         }}
       >
@@ -404,20 +368,6 @@ function StatisticsPlannerReportPanel({
             searchThreshold={8}
             disabled={isLoading || isSpecialistLocked || specialistOptions.length <= 1}
             onChange={(nextValue) => setSpecialistId(String(nextValue || "").trim())}
-          />
-        </label>
-        <label className="field planner-report-field planner-report-field-client" htmlFor="plannerReportClientSelect">
-          <span>Client</span>
-          <CustomSelect
-            id="plannerReportClientSelect"
-            value={clientId}
-            options={clientOptions}
-            placeholder="All clients"
-            menuPortal
-            searchable
-            searchPlaceholder="Search client"
-            searchThreshold={8}
-            onChange={(nextValue) => setClientId(String(nextValue || "").trim())}
           />
         </label>
         <button
@@ -486,16 +436,54 @@ function StatisticsPlannerReportPanel({
             })}
           </div>
 
+          <section className="planner-report-workload-panel" aria-label="Dashboard occupancy">
+            <article className={`planner-report-occupancy-card ${occupancyClass}`}>
+              <div>
+                <span className="planner-report-summary-label">Occupancy</span>
+                <strong className="planner-report-occupancy-value">{occupancyPercent}%</strong>
+              </div>
+              <div className="planner-report-occupancy-meta">
+                <span>{formatPlannerReportMinutes(workloadTotals.bookedMinutes)} booked</span>
+                <span>{formatPlannerReportMinutes(workloadTotals.availableMinutes)} available</span>
+              </div>
+              <div className="planner-report-occupancy-track" aria-hidden="true">
+                <span style={{ width: `${occupancyPercent}%` }} />
+              </div>
+            </article>
+
+            <div className="planner-report-specialist-loads">
+              {workloadSpecialists.length > 0 ? workloadSpecialists.slice(0, 8).map((item) => {
+                const specialistPercent = normalizePlannerReportPercent(item?.utilizationPercent);
+                return (
+                  <div key={`plannerReportWorkload_${item?.specialistId || item?.specialistName}`} className="planner-report-specialist-load">
+                    <div className="planner-report-specialist-load-head">
+                      <span title={item?.specialistName || "-"}>{item?.specialistName || "-"}</span>
+                      <strong>{specialistPercent}%</strong>
+                    </div>
+                    <div className="planner-report-specialist-load-track" aria-hidden="true">
+                      <span style={{ width: `${specialistPercent}%` }} />
+                    </div>
+                    <div className="planner-report-specialist-load-meta">
+                      <span>{formatPlannerReportMinutes(item?.bookedMinutes)} booked</span>
+                      <span>{formatPlannerReportMinutes(item?.availableMinutes)} available</span>
+                    </div>
+                  </div>
+                );
+              }) : (
+                <p className="planner-report-workload-empty">No occupancy data.</p>
+              )}
+            </div>
+          </section>
+
           <div className="all-users-table-wrap">
             <table className="all-users-table planner-report-table is-detail-report" aria-label="Lesson status report details">
               <thead>
                 <tr>
+                  <th>Client Name</th>
+                  <th>Client ID</th>
                   <th>Date</th>
-                  <th>Start Time</th>
-                  <th>Duration</th>
-                  <th>Specialist</th>
-                  <th>Client</th>
-                  <th>Service</th>
+                  <th>Service Name</th>
+                  <th>Specialist Name</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -506,22 +494,21 @@ function StatisticsPlannerReportPanel({
                     <tr
                       key={`plannerReportDetail_${row.appointmentId || `${row.appointmentDate}_${row.startTime}_${row.specialistId}_${row.clientId}_${row.serviceName}_${row.status}`}`}
                     >
-                      <td>{row.appointmentDate || "-"}</td>
-                      <td>{row.startTime || "-"}</td>
-                      <td>{formatPlannerReportDuration(row.durationMinutes, row.startTime, row.endTime)}</td>
-                      <td>{row.specialistName || "-"}</td>
                       <td className="planner-report-client-cell">
                         <span className="planner-report-client-text" title={row.clientName || "-"}>
                           {row.clientName || "-"}
                         </span>
                       </td>
+                      <td>{row.clientId || "-"}</td>
+                      <td>{formatPlannerReportDate(row.appointmentDate)}</td>
                       <td>{row.serviceName || "-"}</td>
+                      <td>{row.specialistName || "-"}</td>
                       <td className={statusPresentation.className}>{statusPresentation.label}</td>
                     </tr>
                   );
                 }) : (
                   <tr>
-                    <td colSpan="7" className="all-users-state">No lesson records found.</td>
+                    <td colSpan="6" className="all-users-state">No lesson records found.</td>
                   </tr>
                 )}
               </tbody>

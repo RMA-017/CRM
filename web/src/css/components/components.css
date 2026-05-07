@@ -1550,11 +1550,6 @@ label.field > span:first-child,
   flex: 1 1 220px;
 }
 
-.planner-report-field-client {
-  min-width: min(280px, 100%);
-  flex: 1 1 240px;
-}
-
 .planner-report-field .custom-select,
 .planner-report-field .custom-select-trigger,
 .planner-report-field input {
@@ -1645,6 +1640,124 @@ label.field > span:first-child,
   background: linear-gradient(180deg, rgba(254, 202, 202, 0.85) 0%, rgba(254, 242, 242, 0.95) 100%);
 }
 
+.planner-report-workload-panel {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.6fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.planner-report-occupancy-card,
+.planner-report-specialist-loads {
+  border: 1px solid #d8e4f2;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+}
+
+.planner-report-occupancy-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+}
+
+.planner-report-occupancy-value {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-main);
+  font-size: 2.1rem;
+  line-height: 1;
+}
+
+.planner-report-occupancy-meta,
+.planner-report-specialist-load-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.planner-report-occupancy-track,
+.planner-report-specialist-load-track {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8eef6;
+}
+
+.planner-report-occupancy-track span,
+.planner-report-specialist-load-track span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: #2563eb;
+}
+
+.planner-report-occupancy-card.is-low .planner-report-occupancy-track span {
+  background: #94a3b8;
+}
+
+.planner-report-occupancy-card.is-medium .planner-report-occupancy-track span {
+  background: #d97706;
+}
+
+.planner-report-occupancy-card.is-good .planner-report-occupancy-track span {
+  background: #059669;
+}
+
+.planner-report-occupancy-card.is-high .planner-report-occupancy-track span {
+  background: #dc2626;
+}
+
+.planner-report-specialist-loads {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+}
+
+.planner-report-specialist-load {
+  min-width: 0;
+}
+
+.planner-report-specialist-load-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+  color: var(--text-main);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.planner-report-specialist-load-head span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.planner-report-specialist-load-track {
+  height: 6px;
+}
+
+.planner-report-specialist-load-meta {
+  margin-top: 6px;
+  font-size: 0.72rem;
+}
+
+.planner-report-workload-empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+}
+
 .planner-report-summary-label {
   font-size: 0.78rem;
   color: var(--text-muted);
@@ -1670,28 +1783,29 @@ label.field > span:first-child,
 
 .planner-report-table.is-detail-report th:nth-child(1),
 .planner-report-table.is-detail-report td:nth-child(1) {
-  width: 10%;
+  width: 30%;
   padding-left: 10px;
 }
 
 .planner-report-table.is-detail-report th:nth-child(2),
 .planner-report-table.is-detail-report td:nth-child(2) {
   width: 10%;
+  text-align: center;
 }
 
 .planner-report-table.is-detail-report th:nth-child(3),
 .planner-report-table.is-detail-report td:nth-child(3) {
-  width: 10%;
+  width: 13%;
 }
 
 .planner-report-table.is-detail-report th:nth-child(4),
 .planner-report-table.is-detail-report td:nth-child(4) {
-  width: 20%;
+  width: 19%;
 }
 
 .planner-report-table.is-detail-report th:nth-child(5),
 .planner-report-table.is-detail-report td:nth-child(5) {
-  width: 30%;
+  width: 20%;
 }
 
 .planner-report-client-cell {
@@ -1711,12 +1825,7 @@ label.field > span:first-child,
 
 .planner-report-table.is-detail-report th:nth-child(6),
 .planner-report-table.is-detail-report td:nth-child(6) {
-  width: 10%;
-}
-
-.planner-report-table.is-detail-report th:nth-child(7),
-.planner-report-table.is-detail-report td:nth-child(7) {
-  width: auto;
+  width: 8%;
   padding-right: 0;
   text-align: center;
 }
@@ -1766,6 +1875,10 @@ label.field > span:first-child,
   .planner-report-summary-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .planner-report-workload-panel {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 700px) {
@@ -1778,11 +1891,20 @@ label.field > span:first-child,
   }
 
   .planner-report-field,
-  .planner-report-field-client,
   .planner-report-field-specialist,
   .planner-report-load-btn {
     width: 100%;
     max-width: 100%;
+  }
+
+  .planner-report-specialist-loads {
+    grid-template-columns: 1fr;
+  }
+
+  .planner-report-occupancy-meta,
+  .planner-report-specialist-load-meta {
+    flex-direction: column;
+    gap: 4px;
   }
 
 }

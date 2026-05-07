@@ -663,8 +663,7 @@ main.home-main:has(#organizationsPanel) {
   max-width: none;
 }
 
-#statisticsPlannerReportPanel .planner-report-field-specialist,
-#statisticsPlannerReportPanel .planner-report-field-client {
+#statisticsPlannerReportPanel .planner-report-field-specialist {
   flex: 2 1 auto;
   min-width: 140px;
   width: auto;

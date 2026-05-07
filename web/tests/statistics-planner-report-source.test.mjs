@@ -10,8 +10,8 @@ test("statistics planner report detail table uses 20-row pagination and summary 
 
   assert.match(
     source,
-    /\/api\/appointments\/report\/filters\?includeAllClients=true/,
-    "Planner report toolbar should load the full scoped client list so the Client filter is always usable."
+    /\/api\/appointments\/report\/filters/,
+    "Planner report toolbar should load scoped specialist options for the dashboard filter."
   );
 
   assert.match(
@@ -22,8 +22,8 @@ test("statistics planner report detail table uses 20-row pagination and summary 
 
   assert.match(
     source,
-    /useEffect\(\(\) => \{\s*if \(showBootstrapSkeleton\) \{\s*return;\s*\}[\s\S]*void loadReport\(\{[\s\S]*nextSpecialistId: specialistId,[\s\S]*nextClientId: clientId[\s\S]*\}\);/s,
-    "Planner report should reload when toolbar filters change so specialist and client selects affect the report immediately."
+    /useEffect\(\(\) => \{\s*if \(showBootstrapSkeleton\) \{\s*return;\s*\}[\s\S]*void loadReport\(\{[\s\S]*nextSpecialistId: specialistId[\s\S]*\}\);/s,
+    "Planner report should reload when toolbar filters change so the specialist select affects the report immediately."
   );
 
   assert.match(
