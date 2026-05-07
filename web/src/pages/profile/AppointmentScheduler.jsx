@@ -1967,7 +1967,7 @@ function AppointmentPlannerGrid({
         return;
       }
       const dropSelector = dragState.type === "break"
-        ? "[data-break-drop-slot='true']"
+        ? "[data-planner-break-target-slot='true']"
         : "[data-appointment-drop-slot='true']";
       const dropCell = findDropCellFromPoint(event.clientX, event.clientY, dropSelector);
       const targetSlot = String(dropCell?.getAttribute("data-drop-slot") || "").trim();
@@ -2014,7 +2014,7 @@ function AppointmentPlannerGrid({
       }, 0);
 
       const dropSelector = dragState.type === "break"
-        ? "[data-break-drop-slot='true']"
+        ? "[data-planner-break-target-slot='true']"
         : "[data-appointment-drop-slot='true']";
       const dropCell = findDropCellFromPoint(event.clientX, event.clientY, dropSelector);
       if (!dropCell && !fallbackDropTarget) {
@@ -2276,6 +2276,13 @@ function AppointmentPlannerGrid({
                       && typeof onMovePlannerBreak === "function"
                     );
                     const canDropAnyToCell = canDropAppointmentToCell || canDropBreakToCell;
+                    const canResolveBreakMoveTargetFromCell = (
+                      isInsideWorkingHours
+                      && !isHistoryLockedDayCell
+                      && canUpdateAppointmentBreaks
+                      && canMutatePlannerSpecialist
+                      && typeof onMovePlannerBreak === "function"
+                    );
                     const canOpenBreakBlockFromCell = Boolean(
                       isInsideWorkingHours
                       && breakBlockedItem
@@ -2329,10 +2336,11 @@ function AppointmentPlannerGrid({
                         data-duration-label={cardDurationLabel || undefined}
                         data-appointment-drop-slot={canDropAppointmentToCell ? "true" : undefined}
                         data-break-drop-slot={canDropBreakToCell ? "true" : undefined}
-                        data-drop-day-key={canDropAnyToCell ? day.key : undefined}
-                        data-drop-day-label={canDropAnyToCell ? day.label : undefined}
-                        data-drop-date={canDropAnyToCell ? formatDateYmd(day.date) : undefined}
-                        data-drop-slot={canDropAnyToCell ? slot : undefined}
+                        data-planner-break-target-slot={canResolveBreakMoveTargetFromCell ? "true" : undefined}
+                        data-drop-day-key={(canDropAnyToCell || canResolveBreakMoveTargetFromCell) ? day.key : undefined}
+                        data-drop-day-label={(canDropAnyToCell || canResolveBreakMoveTargetFromCell) ? day.label : undefined}
+                        data-drop-date={(canDropAnyToCell || canResolveBreakMoveTargetFromCell) ? formatDateYmd(day.date) : undefined}
+                        data-drop-slot={(canDropAnyToCell || canResolveBreakMoveTargetFromCell) ? slot : undefined}
                         onDragOver={canDropAnyToCell ? (event) => {
                           event.preventDefault();
                           event.dataTransfer.dropEffect = "move";
@@ -5641,6 +5649,10 @@ function AppointmentScheduler({
         return;
       }
 
+      setBreaksBySpecialist((prev) => ({
+        ...prev,
+        [specialistId]: normalizePlannerBreakItems(Array.isArray(data?.items) ? data.items : [])
+      }));
       await refreshPlannerServerState();
       setMessage("");
     } catch {
