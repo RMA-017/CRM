@@ -33,8 +33,19 @@ export function useProfileAccess(profile, forcedView) {
 
   const canOpenPlannerPermission = hasPermissionCode(PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE);
 
-  const canReadStatisticsPlannerReportPermission = hasPermissionCode(
+  const canReadStatisticsPlannerReportBasePermission = hasPermissionCode(
     PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT
+  );
+  const canReadStatisticsPlannerReportOnlyPermission = hasPermissionCode(
+    PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT_ONLY
+  );
+  const canReadStatisticsPlannerReportAllPermission = hasPermissionCode(
+    PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT_ALL
+  );
+  const canReadStatisticsPlannerReportPermission = (
+    canReadStatisticsPlannerReportBasePermission
+    || canReadStatisticsPlannerReportOnlyPermission
+    || canReadStatisticsPlannerReportAllPermission
   );
   const canSearchAppointmentClientsPermission = hasPermissionCode(PERMISSIONS.APPOINTMENTS_CLIENT_SEARCH);
   const canReadSiteContentPermission = hasPermissionCode(PERMISSIONS.WEBSITE_MANAGEMENT_READ);
@@ -136,8 +147,6 @@ export function useProfileAccess(profile, forcedView) {
   const canOpenAppointmentWorkSchedule = false;
 
   const canOpenAppointmentStatistics = canReadStatisticsPlannerReportPermission;
-  const canReadDashboard = Boolean(profile?.username);
-  const canOpenDashboard = canReadDashboard;
   const canOpenStatisticsPlannerReport = canOpenAppointmentStatistics;
 
   const canOpenSettingsOrganizations = isPlatformAdmin;
@@ -200,9 +209,6 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "appointment-settings") {
       return canOpenAppointmentSettings;
     }
-    if (forcedView === "dashboard") {
-      return canOpenDashboard;
-    }
     if (forcedView === "settings-organizations") {
       return canOpenSettingsOrganizations;
     }
@@ -226,7 +232,6 @@ export function useProfileAccess(profile, forcedView) {
     canCreateUsers,
     canOpenAppointmentSchedule,
     canOpenAppointmentSettings,
-    canOpenDashboard,
     canOpenSettingsOrganizations,
     canOpenSettingsPositions,
     canOpenSettingsRoles,
@@ -274,8 +279,6 @@ export function useProfileAccess(profile, forcedView) {
     canUpdateAppointmentBreaks,
     canDeleteAppointmentBreaks,
     canOpenAppointmentStatistics,
-    canOpenDashboard,
-    canReadDashboard,
     canOpenStatisticsPlannerReport,
     canReadSettingsAppointments,
     canUpdateSettingsAppointments,

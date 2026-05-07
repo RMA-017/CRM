@@ -80,7 +80,6 @@ function ProfilePage({ forcedView = "none" }) {
     canUpdateAppointmentWorkSchedule,
     canDeleteAppointmentWorkSchedule,
     canOpenAppointmentStatistics,
-    canReadDashboard,
     canOpenStatisticsPlannerReport,
     canReadStatisticsPlannerReportPermission,
     canOpenAppointmentSettings,
@@ -498,7 +497,7 @@ function ProfilePage({ forcedView = "none" }) {
   }, [hasAdminSettingsAccess, loadOrganizations, organizations.length, profile?.username]);
 
   useEffect(() => {
-    setMainView(forcedView === "none" ? "dashboard" : forcedView);
+    setMainView(forcedView === "none" ? "statistics-planner-report" : forcedView);
   }, [forcedView, setMainView]);
 
   useEffect(() => {
@@ -1133,7 +1132,6 @@ function ProfilePage({ forcedView = "none" }) {
             canDeleteAppointments={canDeleteAppointments}
             canReadAppointmentBreaks={canReadAppointmentBreaks}
             canViewAppointmentSpecialistAbsenceBlocks={canViewAppointmentSpecialistAbsenceBlocks}
-            canReadDashboard={canReadDashboard}
             canReadStatisticsPlannerReportPermission={canReadStatisticsPlannerReportPermission}
             canUpdateAppointmentBreaks={canUpdateAppointmentBreaks}
             canUpdateSettingsAppointments={canUpdateSettingsAppointments}

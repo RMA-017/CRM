@@ -5,7 +5,6 @@ const AllUsersPanel = lazy(() => import("./panels/AllUsersPanel.jsx"));
 const AppointmentPlannerPanel = lazy(() => import("./panels/AppointmentPlannerPanel.jsx"));
 const AppointmentSettingsShellPanel = lazy(() => import("./panels/AppointmentSettingsShellPanel.jsx"));
 const ClientsPanel = lazy(() => import("./panels/ClientsPanel.jsx"));
-const DashboardPanel = lazy(() => import("./panels/DashboardPanel.jsx"));
 const MonitoringPanel = lazy(() => import("./MonitoringPanel.jsx"));
 const OrganizationsSettingsPanel = lazy(() => import("./panels/OrganizationsSettingsPanel.jsx"));
 const PositionsSettingsPanel = lazy(() => import("./panels/PositionsSettingsPanel.jsx"));
@@ -69,7 +68,6 @@ function ProfileMainContent({
   canDeleteAppointments,
   canReadAppointmentBreaks,
   canViewAppointmentSpecialistAbsenceBlocks,
-  canReadDashboard,
   canReadStatisticsPlannerReportPermission,
   canUpdateAppointmentBreaks,
   canUpdateSettingsAppointments,
@@ -346,15 +344,6 @@ function ProfileMainContent({
               clients={clients}
               clientsPage={clientsPage}
               clientsTotalPages={clientsTotalPages}
-            />
-          </Suspense>
-        ) : null}
-
-        {mainView === "dashboard" ? (
-          <Suspense fallback={PANEL_LOADING_FALLBACK}>
-            <DashboardPanel
-              showBootstrapSkeleton={!profile?.username}
-              canReadDashboard={canReadDashboard}
             />
           </Suspense>
         ) : null}

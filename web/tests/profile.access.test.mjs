@@ -74,42 +74,24 @@ test("old appointment subviews are no longer force-openable", () => {
 });
 
 test("planner statistics permission unlocks statistics menu without clients read", () => {
-  const plannerReportAccess = readAccessSnapshot({
-    isAdmin: false,
-    isPlatformAdmin: false,
-    permissions: ["appointments.statistics.planner-report"],
-    orgFeatures: ["statistics.planner_report"]
-  }, "statistics-planner-report");
+  const permissionCodes = [
+    "appointments.statistics.planner-report",
+    "appointments.statistics.planner-report.only",
+    "appointments.statistics.planner-report.all"
+  ];
 
-  assert.equal(plannerReportAccess.canOpenAppointmentStatistics, true);
-  assert.equal(plannerReportAccess.canOpenStatisticsPlannerReport, true);
-  assert.equal(plannerReportAccess.canAccessForcedView, true);
-});
+  for (const permissionCode of permissionCodes) {
+    const plannerReportAccess = readAccessSnapshot({
+      isAdmin: false,
+      isPlatformAdmin: false,
+      permissions: [permissionCode],
+      orgFeatures: ["statistics.planner_report"]
+    }, "statistics-planner-report");
 
-test("authenticated profile opens dashboard without dashboard permission", () => {
-  const access = readAccessSnapshot({
-    username: "specialist",
-    isAdmin: false,
-    isPlatformAdmin: false,
-    permissions: []
-  }, "dashboard");
-
-  assert.equal(access.canOpenDashboard, true);
-  assert.equal(access.canReadDashboard, true);
-  assert.equal(access.canOpenStatisticsPlannerReport, false);
-  assert.equal(access.canAccessForcedView, true);
-});
-
-test("anonymous profile cannot open dashboard forced view", () => {
-  const access = readAccessSnapshot({
-    isAdmin: false,
-    isPlatformAdmin: false,
-    permissions: []
-  }, "dashboard");
-
-  assert.equal(access.canOpenDashboard, false);
-  assert.equal(access.canReadDashboard, false);
-  assert.equal(access.canAccessForcedView, false);
+    assert.equal(plannerReportAccess.canOpenAppointmentStatistics, true);
+    assert.equal(plannerReportAccess.canOpenStatisticsPlannerReport, true);
+    assert.equal(plannerReportAccess.canAccessForcedView, true);
+  }
 });
 
 test("website management permissions unlock site content without admin role", () => {

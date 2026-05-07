@@ -105,6 +105,29 @@ test("buildRolePermissionTree includes website management permissions", () => {
   assert.deepEqual(managementNode.hiddenCodes, ["website.management.read"]);
 });
 
+test("buildRolePermissionTree shows lesson status report only and all scopes", () => {
+  const permissions = [
+    { value: "appointments.statistics.planner-report", label: "Statistics Planner Report Read" },
+    { value: "appointments.statistics.planner-report.only", label: "Statistics Planner Report Only" },
+    { value: "appointments.statistics.planner-report.all", label: "Statistics Planner Report All" }
+  ];
+
+  const tree = buildRolePermissionTree(permissions, ["statistics.planner_report"]);
+  const statisticsGroup = tree.find((group) => group.key === "statistics");
+  assert.ok(statisticsGroup, "statistics group should appear");
+
+  const reportNode = statisticsGroup.children.find((child) => child.key === "statistics.planner_report");
+  assert.ok(reportNode, "lesson status report child should appear");
+  assert.deepEqual(
+    reportNode.children.map((child) => child.code).sort(),
+    [
+      "appointments.statistics.planner-report.all",
+      "appointments.statistics.planner-report.only"
+    ].sort()
+  );
+  assert.deepEqual(reportNode.hiddenCodes, ["appointments.statistics.planner-report"]);
+});
+
 test("togglePermissionCodes toggles multiple permission codes at once", () => {
   assert.deepEqual(
     togglePermissionCodes(

@@ -281,7 +281,21 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
       return null;
     }
 
-    return { authContext, requester };
+    const [canReadBase, canReadOnly, canReadAll] = await Promise.all([
+      requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT),
+      requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT_ONLY),
+      requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT_ALL)
+    ]);
+    if (!canReadBase && !canReadOnly && !canReadAll) {
+      reply.status(403).send({ message: "Forbidden." });
+      return null;
+    }
+
+    return {
+      authContext,
+      requester,
+      reportScope: canReadAll ? "all" : "only"
+    };
   }
 
   function sortScheduleItems(items) {
@@ -630,16 +644,12 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const includeAllClients = parseNullableBoolean(
           request.query?.includeAllClients ?? request.query?.include_all_clients
         ) === true;
-        const ownSpecialistUserId = resolveOwnAppointmentSpecialistUserId(access);
-        const vipReadScope = await resolveAppointmentVipReadScope({
-          roleId: access.requester?.role_id,
-          requester: access.requester
-        });
         const requesterUserId = parsePositiveIntegerOr(access.authContext?.userId, 0);
-        const assignedUserId = vipReadScope === "all"
+        const ownSpecialistUserId = access.reportScope === "only" ? (requesterUserId || null) : null;
+        const assignedUserId = access.reportScope === "all"
           ? null
-          : (requesterUserId || null);
-        if (vipReadScope !== "all" && !assignedUserId) {
+          : ownSpecialistUserId;
+        if (access.reportScope !== "all" && !assignedUserId) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
@@ -694,20 +704,16 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
       const isVip = parseNullableBoolean(request.query?.isVip ?? request.query?.is_vip);
 
       try {
-        const ownSpecialistUserId = resolveOwnAppointmentSpecialistUserId(access);
+        const requesterUserId = parsePositiveIntegerOr(access.authContext?.userId, 0);
+        const ownSpecialistUserId = access.reportScope === "only" ? (requesterUserId || null) : null;
+        if (access.reportScope !== "all" && !ownSpecialistUserId) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
         if (ownSpecialistUserId && specialistId && specialistId !== ownSpecialistUserId) {
           return reply.status(403).send({ message: "Forbidden." });
         }
         const effectiveSpecialistId = ownSpecialistUserId || specialistId;
-        const vipReadScope = await resolveAppointmentVipReadScope({
-          roleId: access.requester?.role_id,
-          requester: access.requester
-        });
-        const requesterUserId = parsePositiveIntegerOr(access.authContext?.userId, 0);
-        const assignedUserId = vipReadScope === "all" ? null : (requesterUserId || null);
-        if (vipReadScope !== "all" && !assignedUserId) {
-          return reply.status(403).send({ message: "Forbidden." });
-        }
+        const assignedUserId = access.reportScope === "all" ? null : ownSpecialistUserId;
         const clientScopeInfo = clientId
           ? await getAppointmentClientScopeInfo({
               organizationId: access.authContext.organizationId,

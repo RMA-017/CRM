@@ -276,6 +276,22 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
             uiLabel: "Read",
             sortOrder: 68,
             actionKey: "read"
+          }),
+          definePermission({
+            constantKey: "APPOINTMENTS_STATISTICS_PLANNER_REPORT_ONLY",
+            code: "appointments.statistics.planner-report.only",
+            label: "Statistics Planner Report Only",
+            uiLabel: "Only",
+            sortOrder: 69,
+            actionKey: "assigned only"
+          }),
+          definePermission({
+            constantKey: "APPOINTMENTS_STATISTICS_PLANNER_REPORT_ALL",
+            code: "appointments.statistics.planner-report.all",
+            label: "Statistics Planner Report All",
+            uiLabel: "All",
+            sortOrder: 70,
+            actionKey: "all clients"
           })
         ]
       })

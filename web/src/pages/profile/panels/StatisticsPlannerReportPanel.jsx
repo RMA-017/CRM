@@ -133,7 +133,8 @@ function StatisticsPlannerReportPanel({
   const [reportData, setReportData] = useState(null);
   const [reportFilterOptions, setReportFilterOptions] = useState({
     specialists: [],
-    clients: []
+    clients: [],
+    scope: {}
   });
   const [reportLoading, setReportLoading] = useState(false);
   const [reportMessage, setReportMessage] = useState("");
@@ -142,9 +143,12 @@ function StatisticsPlannerReportPanel({
   const [detailStatusFilter, setDetailStatusFilter] = useState("all");
   const reportRequestIdRef = useRef(0);
 
-  const specialistOptions = useMemo(() => [
-    { value: "", label: "All specialists" },
-    ...mergePlannerReportSelectOptions(
+  const reportScope = reportData?.scope || reportFilterOptions?.scope || {};
+  const isSpecialistLocked = Boolean(reportScope?.specialistLocked);
+  const lockedSpecialistId = String(reportScope?.specialistId || "").trim();
+
+  const specialistOptions = useMemo(() => {
+    const options = mergePlannerReportSelectOptions(
       (Array.isArray(reportFilterOptions?.specialists) ? reportFilterOptions.specialists : [])
         .map((item) => ({
           value: String(item?.id || "").trim(),
@@ -157,8 +161,15 @@ function StatisticsPlannerReportPanel({
           label: String(row?.specialistName || "").trim()
         }))
         .filter((item) => Boolean(item.value) && Boolean(item.label))
-    )
-  ], [reportData?.details, reportFilterOptions?.specialists]);
+    );
+    if (isSpecialistLocked) {
+      return options.filter((option) => option.value === lockedSpecialistId);
+    }
+    return [
+      { value: "", label: "All specialists" },
+      ...options
+    ];
+  }, [isSpecialistLocked, lockedSpecialistId, reportData?.details, reportFilterOptions?.specialists]);
 
   const clientOptions = useMemo(() => [
     { value: "", label: "All clients" },
@@ -191,8 +202,12 @@ function StatisticsPlannerReportPanel({
 
       setReportFilterOptions({
         specialists: Array.isArray(data?.specialists) ? data.specialists : [],
-        clients: Array.isArray(data?.clients) ? data.clients : []
+        clients: Array.isArray(data?.clients) ? data.clients : [],
+        scope: data?.scope && typeof data.scope === "object" ? data.scope : {}
       });
+      if (data?.scope?.specialistLocked && data?.scope?.specialistId) {
+        setSpecialistId(String(data.scope.specialistId || "").trim());
+      }
     } catch {
       // Keep the report usable even if filter metadata fails to load.
     }
@@ -239,6 +254,9 @@ function StatisticsPlannerReportPanel({
       }
 
       setReportData(data);
+      if (data?.scope?.specialistLocked && data?.scope?.specialistId) {
+        setSpecialistId(String(data.scope.specialistId || "").trim());
+      }
     } catch {
       if (requestId !== reportRequestIdRef.current) {
         return;
@@ -282,13 +300,19 @@ function StatisticsPlannerReportPanel({
   }, [clientId, clientOptions]);
 
   useEffect(() => {
+    if (isSpecialistLocked) {
+      if (lockedSpecialistId && specialistId !== lockedSpecialistId) {
+        setSpecialistId(lockedSpecialistId);
+      }
+      return;
+    }
     if (!specialistId) {
       return;
     }
     if (!specialistOptions.some((item) => item.value === specialistId)) {
       setSpecialistId("");
     }
-  }, [specialistId, specialistOptions]);
+  }, [isSpecialistLocked, lockedSpecialistId, specialistId, specialistOptions]);
 
   useEffect(() => {
     setPage(1);
@@ -320,6 +344,17 @@ function StatisticsPlannerReportPanel({
     (safePage - 1) * ALL_USERS_LIMIT,
     safePage * ALL_USERS_LIMIT
   );
+
+  if (!canReadReport && !showBootstrapSkeleton) {
+    return (
+      <section id="statisticsPlannerReportPanel" className="all-users-panel">
+        <div className="all-users-head">
+          <h3>Statistics / Lesson Status Report</h3>
+        </div>
+        <p className="all-users-state">You do not have permission to view Lesson Status Report.</p>
+      </section>
+    );
+  }
 
   return (
     <section id="statisticsPlannerReportPanel" className="all-users-panel">
@@ -379,6 +414,7 @@ function StatisticsPlannerReportPanel({
             searchable
             searchPlaceholder="Search specialist"
             searchThreshold={8}
+            disabled={isLoading || isSpecialistLocked || specialistOptions.length <= 1}
             onChange={(nextValue) => setSpecialistId(String(nextValue || "").trim())}
           />
         </label>

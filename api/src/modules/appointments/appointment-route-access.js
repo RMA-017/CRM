@@ -19,7 +19,7 @@ function isDirectorLikeRequester(requester) {
     requester?.role_label || requester?.role,
     requester?.position_label || requester?.position
   );
-  return isDirectorLikeRoleLabel(roleText) || isManagerLikeRoleLabel(roleText);
+  return isDirectorLikeRoleLabel(roleText);
 }
 
 function isSpecialistRole(requester) {
