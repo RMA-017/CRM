@@ -327,8 +327,13 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /const canDropAppointmentToCell = \([\s\S]*isInsideWorkingHours[\s\S]*!item[\s\S]*canUpdateAppointments[\s\S]*canMutatePlannerSpecialist[\s\S]*typeof onMoveAppointment === "function"[\s\S]*onDrop=\{canDropAppointmentToCell \? \(event\) => \{[\s\S]*getData\("application\/json"\)[\s\S]*getData\("text\/plain"\)[\s\S]*JSON\.parse\(rawPayload\)[\s\S]*onMoveAppointment\(payload\.item, payload\.sourceDay, day, slot\)/s,
+    /const canDropAppointmentToCell = \([\s\S]*isInsideWorkingHours[\s\S]*!item[\s\S]*canUpdateAppointments[\s\S]*canMutatePlannerSpecialist[\s\S]*typeof onMoveAppointment === "function"[\s\S]*onDrop=\{canDropAnyToCell \? \(event\) => \{[\s\S]*getData\("application\/json"\)[\s\S]*getData\("text\/plain"\)[\s\S]*JSON\.parse\(rawPayload\)[\s\S]*onMoveAppointment\(payload\.item, payload\.sourceDay, day, slot\)/s,
     "Empty planner slots should accept dropped appointments and pass the target day/time to the move handler."
+  );
+  assert.match(
+    source,
+    /const canDropBreakToCell = \([\s\S]*typeof onMovePlannerBreak === "function"[\s\S]*const canDropAnyToCell = canDropAppointmentToCell \|\| canDropBreakToCell[\s\S]*payload\?\.type === "break"[\s\S]*onMovePlannerBreak\(payload\.item, payload\.sourceDay, day, slot\)[\s\S]*draggable=\{canDragBreakFromCell \? true : undefined\}[\s\S]*event\.dataTransfer\.setData\("application\/json", payload\)/s,
+    "Empty planner slots should accept dragged breaks and pass the target day/time to the break move handler."
   );
   assert.match(
     source,

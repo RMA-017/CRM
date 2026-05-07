@@ -2261,6 +2261,7 @@ function AppointmentPlannerGrid({
                       && canMutatePlannerSpecialist
                       && typeof onMovePlannerBreak === "function"
                     );
+                    const canDropAnyToCell = canDropAppointmentToCell || canDropBreakToCell;
                     const canOpenBreakBlockFromCell = Boolean(
                       isInsideWorkingHours
                       && breakBlockedItem
@@ -2309,20 +2310,20 @@ function AppointmentPlannerGrid({
                         key={`${day.key}-${slot}`}
                         rowSpan={tdRowSpan}
                         className={tdClassName}
-                        data-slot-label={(canOpenCreateFromCell || canDropAppointmentToCell) ? slot : undefined}
+                        data-slot-label={(canOpenCreateFromCell || canDropAnyToCell) ? slot : undefined}
                         data-time-range={cardTimeRangeLabel || undefined}
                         data-duration-label={cardDurationLabel || undefined}
                         data-appointment-drop-slot={canDropAppointmentToCell ? "true" : undefined}
                         data-break-drop-slot={canDropBreakToCell ? "true" : undefined}
-                        data-drop-day-key={(canDropAppointmentToCell || canDropBreakToCell) ? day.key : undefined}
-                        data-drop-day-label={(canDropAppointmentToCell || canDropBreakToCell) ? day.label : undefined}
-                        data-drop-date={(canDropAppointmentToCell || canDropBreakToCell) ? formatDateYmd(day.date) : undefined}
-                        data-drop-slot={(canDropAppointmentToCell || canDropBreakToCell) ? slot : undefined}
-                        onDragOver={canDropAppointmentToCell ? (event) => {
+                        data-drop-day-key={canDropAnyToCell ? day.key : undefined}
+                        data-drop-day-label={canDropAnyToCell ? day.label : undefined}
+                        data-drop-date={canDropAnyToCell ? formatDateYmd(day.date) : undefined}
+                        data-drop-slot={canDropAnyToCell ? slot : undefined}
+                        onDragOver={canDropAnyToCell ? (event) => {
                           event.preventDefault();
                           event.dataTransfer.dropEffect = "move";
                         } : undefined}
-                        onDrop={canDropAppointmentToCell ? (event) => {
+                        onDrop={canDropAnyToCell ? (event) => {
                           event.preventDefault();
                           event.stopPropagation();
                           const rawPayload = (
@@ -2334,7 +2335,18 @@ function AppointmentPlannerGrid({
                           }
                           try {
                             const payload = JSON.parse(rawPayload);
-                            onMoveAppointment(payload.item, payload.sourceDay, day, slot);
+                            if (payload?.type === "break") {
+                              if (canDropBreakToCell && typeof onMovePlannerBreak === "function") {
+                                mouseDragStateRef.current = null;
+                                mouseDragDropTargetRef.current = null;
+                                setMouseDragPreview(null);
+                                onMovePlannerBreak(payload.item, payload.sourceDay, day, slot);
+                              }
+                              return;
+                            }
+                            if (canDropAppointmentToCell && typeof onMoveAppointment === "function") {
+                              onMoveAppointment(payload.item, payload.sourceDay, day, slot);
+                            }
                           } catch {
                             // Ignore malformed drag payloads from outside the planner.
                           }
@@ -2446,8 +2458,32 @@ function AppointmentPlannerGrid({
                         ) : breakBlockedItem ? (
                           <span
                             className={`appointment-break-text-only${canDragBreakFromCell ? " appointment-break-draggable" : ""}`}
+                            draggable={canDragBreakFromCell ? true : undefined}
                             aria-label={`Break slot on ${day.label} at ${slot}`}
                             title={String(breakBlockedItem.reasonFull || "").trim() || undefined}
+                            onDragStart={canDragBreakFromCell ? (event) => {
+                              const sourceDay = {
+                                key: day.key,
+                                label: day.label,
+                                date: formatDateYmd(day.date)
+                              };
+                              const payload = JSON.stringify({
+                                type: "break",
+                                item: breakBlockedItem,
+                                sourceDay
+                              });
+                              mouseDragStateRef.current = null;
+                              mouseDragDropTargetRef.current = null;
+                              setMouseDragPreview(null);
+                              event.dataTransfer.effectAllowed = "move";
+                              event.dataTransfer.setData("application/json", payload);
+                              event.dataTransfer.setData("text/plain", payload);
+                            } : undefined}
+                            onDragEnd={canDragBreakFromCell ? () => {
+                              mouseDragStateRef.current = null;
+                              mouseDragDropTargetRef.current = null;
+                              setMouseDragPreview(null);
+                            } : undefined}
                             onMouseDown={canDragBreakFromCell ? (event) => {
                               if (event.button !== 0) {
                                 return;
