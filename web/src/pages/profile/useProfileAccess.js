@@ -137,7 +137,7 @@ export function useProfileAccess(profile, forcedView) {
   const canOpenAppointmentWorkSchedule = false;
 
   const canOpenAppointmentStatistics = canReadStatisticsPlannerReportPermission;
-  const canOpenDashboard = canReadDashboardPermission;
+  const canOpenDashboard = canReadDashboardPermission || legacyHasSettingsAccess;
   const canOpenStatisticsPlannerReport = canOpenAppointmentStatistics;
 
   const canOpenSettingsOrganizations = isPlatformAdmin;
