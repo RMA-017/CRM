@@ -22,7 +22,7 @@ test("statistics planner report detail table uses 20-row pagination and summary 
 
   assert.match(
     source,
-    /useEffect\(\(\) => \{\s*if \(showBootstrapSkeleton \|\| !canReadReport\) \{\s*return;\s*\}[\s\S]*void loadReport\(\{[\s\S]*nextSpecialistId: specialistId,[\s\S]*nextClientId: clientId[\s\S]*\}\);/s,
+    /useEffect\(\(\) => \{\s*if \(showBootstrapSkeleton\) \{\s*return;\s*\}[\s\S]*void loadReport\(\{[\s\S]*nextSpecialistId: specialistId,[\s\S]*nextClientId: clientId[\s\S]*\}\);/s,
     "Planner report should reload when toolbar filters change so specialist and client selects affect the report immediately."
   );
 

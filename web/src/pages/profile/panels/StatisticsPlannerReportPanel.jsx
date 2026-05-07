@@ -122,8 +122,7 @@ function normalizePlannerReportStatusFilter(statusValue) {
 
 function StatisticsPlannerReportPanel({
   closeStatisticsPanel,
-  showBootstrapSkeleton = false,
-  canReadReport = false
+  showBootstrapSkeleton = false
 }) {
   const initialBounds = getCurrentMonthBounds();
   const [from, setFrom] = useState(initialBounds.from);
@@ -271,7 +270,7 @@ function StatisticsPlannerReportPanel({
   }, [initialBounds.from, initialBounds.to]);
 
   useEffect(() => {
-    if (showBootstrapSkeleton || !canReadReport) {
+    if (showBootstrapSkeleton) {
       return;
     }
     void loadReport({
@@ -280,15 +279,15 @@ function StatisticsPlannerReportPanel({
       nextSpecialistId: specialistId,
       nextClientId: clientId
     });
-  }, [canReadReport, clientId, from, loadReport, showBootstrapSkeleton, specialistId, to]);
+  }, [clientId, from, loadReport, showBootstrapSkeleton, specialistId, to]);
 
   useEffect(() => {
-    if (showBootstrapSkeleton || hasLoadedFilterOptions || !canReadReport) {
+    if (showBootstrapSkeleton || hasLoadedFilterOptions) {
       return;
     }
     void loadFilterOptions();
     setHasLoadedFilterOptions(true);
-  }, [canReadReport, hasLoadedFilterOptions, loadFilterOptions, showBootstrapSkeleton]);
+  }, [hasLoadedFilterOptions, loadFilterOptions, showBootstrapSkeleton]);
 
   useEffect(() => {
     if (!clientId) {
@@ -344,17 +343,6 @@ function StatisticsPlannerReportPanel({
     (safePage - 1) * ALL_USERS_LIMIT,
     safePage * ALL_USERS_LIMIT
   );
-
-  if (!canReadReport && !showBootstrapSkeleton) {
-    return (
-      <section id="statisticsPlannerReportPanel" className="all-users-panel">
-        <div className="all-users-head">
-          <h3>Statistics / Lesson Status Report</h3>
-        </div>
-        <p className="all-users-state">You do not have permission to view Lesson Status Report.</p>
-      </section>
-    );
-  }
 
   return (
     <section id="statisticsPlannerReportPanel" className="all-users-panel">
