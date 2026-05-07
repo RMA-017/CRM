@@ -137,7 +137,8 @@ export function useProfileAccess(profile, forcedView) {
   const canOpenAppointmentWorkSchedule = false;
 
   const canOpenAppointmentStatistics = canReadStatisticsPlannerReportPermission;
-  const canOpenDashboard = canReadDashboardPermission || legacyHasSettingsAccess;
+  const canReadDashboard = canReadDashboardPermission || legacyHasSettingsAccess;
+  const canOpenDashboard = Boolean(profile?.username);
   const canOpenStatisticsPlannerReport = canOpenAppointmentStatistics;
 
   const canOpenSettingsOrganizations = isPlatformAdmin;
@@ -275,6 +276,7 @@ export function useProfileAccess(profile, forcedView) {
     canDeleteAppointmentBreaks,
     canOpenAppointmentStatistics,
     canOpenDashboard,
+    canReadDashboard,
     canReadDashboardPermission,
     canOpenStatisticsPlannerReport,
     canReadSettingsAppointments,

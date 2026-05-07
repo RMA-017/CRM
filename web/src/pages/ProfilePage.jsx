@@ -81,6 +81,7 @@ function ProfilePage({ forcedView = "none" }) {
     canDeleteAppointmentWorkSchedule,
     canOpenAppointmentStatistics,
     canOpenDashboard,
+    canReadDashboard,
     canOpenStatisticsPlannerReport,
     canReadDashboardPermission,
     canReadStatisticsPlannerReportPermission,
@@ -1139,6 +1140,7 @@ function ProfilePage({ forcedView = "none" }) {
             canReadAppointmentBreaks={canReadAppointmentBreaks}
             canViewAppointmentSpecialistAbsenceBlocks={canViewAppointmentSpecialistAbsenceBlocks}
             canOpenDashboard={canOpenDashboard}
+            canReadDashboard={canReadDashboard}
             canReadDashboardPermission={canReadDashboardPermission}
             canReadStatisticsPlannerReportPermission={canReadStatisticsPlannerReportPermission}
             canUpdateAppointmentBreaks={canUpdateAppointmentBreaks}

@@ -95,7 +95,21 @@ test("dashboard permission unlocks dashboard without statistics report permissio
   }, "dashboard");
 
   assert.equal(access.canOpenDashboard, true);
+  assert.equal(access.canReadDashboard, true);
   assert.equal(access.canOpenStatisticsPlannerReport, false);
+  assert.equal(access.canAccessForcedView, true);
+});
+
+test("authenticated users see dashboard menu before dashboard data is permissioned", () => {
+  const access = readAccessSnapshot({
+    username: "staff",
+    isAdmin: false,
+    isPlatformAdmin: false,
+    permissions: []
+  }, "dashboard");
+
+  assert.equal(access.canOpenDashboard, true);
+  assert.equal(access.canReadDashboard, false);
   assert.equal(access.canAccessForcedView, true);
 });
 
