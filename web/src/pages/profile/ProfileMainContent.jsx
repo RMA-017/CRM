@@ -63,14 +63,12 @@ function ProfileMainContent({
   startClientEdit,
   openClientsDeleteModal,
   closeAllClientsPanel,
-  closeDashboardPanel,
   canReadAppointments,
   canCreateAppointments,
   canUpdateAppointments,
   canDeleteAppointments,
   canReadAppointmentBreaks,
   canViewAppointmentSpecialistAbsenceBlocks,
-  canOpenDashboard,
   canReadDashboard,
   canReadStatisticsPlannerReportPermission,
   canUpdateAppointmentBreaks,
@@ -355,7 +353,6 @@ function ProfileMainContent({
         {mainView === "dashboard" ? (
           <Suspense fallback={PANEL_LOADING_FALLBACK}>
             <DashboardPanel
-              closeDashboardPanel={closeDashboardPanel}
               showBootstrapSkeleton={!profile?.username}
               canReadDashboard={canReadDashboard}
             />

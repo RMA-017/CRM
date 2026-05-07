@@ -80,10 +80,8 @@ function ProfilePage({ forcedView = "none" }) {
     canUpdateAppointmentWorkSchedule,
     canDeleteAppointmentWorkSchedule,
     canOpenAppointmentStatistics,
-    canOpenDashboard,
     canReadDashboard,
     canOpenStatisticsPlannerReport,
-    canReadDashboardPermission,
     canReadStatisticsPlannerReportPermission,
     canOpenAppointmentSettings,
     canUpdateSettingsAppointments,
@@ -500,7 +498,7 @@ function ProfilePage({ forcedView = "none" }) {
   }, [hasAdminSettingsAccess, loadOrganizations, organizations.length, profile?.username]);
 
   useEffect(() => {
-    setMainView(forcedView);
+    setMainView(forcedView === "none" ? "dashboard" : forcedView);
   }, [forcedView, setMainView]);
 
   useEffect(() => {
@@ -627,8 +625,6 @@ function ProfilePage({ forcedView = "none" }) {
     closeCreateUserPanel,
     openAllClientsPanel,
     closeAllClientsPanel,
-    openDashboardPanel,
-    closeDashboardPanel,
     openAppointmentPanel,
     closeAppointmentPanel,
     openAppointmentSettingsPanel,
@@ -654,7 +650,6 @@ function ProfilePage({ forcedView = "none" }) {
     setMyProfileModalOpen,
     canCreateUsers,
     canReadClients,
-    canOpenDashboard,
     canOpenAppointmentSchedule,
     canOpenAppointmentStatistics,
     canOpenAppointmentSettings,
@@ -1132,16 +1127,13 @@ function ProfilePage({ forcedView = "none" }) {
             startClientEdit={startClientEdit}
             openClientsDeleteModal={openClientsDeleteModal}
             closeAllClientsPanel={closeAllClientsPanel}
-            closeDashboardPanel={closeDashboardPanel}
             canReadAppointments={canReadAppointments}
             canCreateAppointments={canCreateAppointments}
             canUpdateAppointments={canUpdateAppointments}
             canDeleteAppointments={canDeleteAppointments}
             canReadAppointmentBreaks={canReadAppointmentBreaks}
             canViewAppointmentSpecialistAbsenceBlocks={canViewAppointmentSpecialistAbsenceBlocks}
-            canOpenDashboard={canOpenDashboard}
             canReadDashboard={canReadDashboard}
-            canReadDashboardPermission={canReadDashboardPermission}
             canReadStatisticsPlannerReportPermission={canReadStatisticsPlannerReportPermission}
             canUpdateAppointmentBreaks={canUpdateAppointmentBreaks}
             canUpdateSettingsAppointments={canUpdateSettingsAppointments}
@@ -1317,8 +1309,6 @@ function ProfilePage({ forcedView = "none" }) {
         hasClientsMenuAccess={hasClientsMenuAccess}
         canReadClients={canReadClients}
         openAllClientsPanel={openAllClientsPanel}
-        canOpenDashboard={canOpenDashboard}
-        openDashboardPanel={openDashboardPanel}
         hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
         canOpenAppointmentSchedule={canOpenAppointmentSchedule}
         canOpenAppointmentStatistics={canOpenAppointmentStatistics}

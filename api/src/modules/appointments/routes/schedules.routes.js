@@ -281,12 +281,6 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
       return null;
     }
 
-    const canReadReport = await requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT);
-    const canReadDashboard = await requesterHasPermission(requester, PERMISSIONS.DASHBOARD_READ);
-    if (!canReadReport && !canReadDashboard) {
-      reply.status(403).send({ message: "Forbidden." });
-      return null;
-    }
     return { authContext, requester };
   }
 
@@ -655,6 +649,10 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           specialistId: ownSpecialistUserId,
           includeAllClients
         });
+        data.scope = {
+          specialistId: ownSpecialistUserId || null,
+          specialistLocked: Boolean(ownSpecialistUserId)
+        };
         if (ownSpecialistUserId) {
           data.specialists = (Array.isArray(data?.specialists) ? data.specialists : []).filter(
             (item) => String(item?.id || "").trim() === String(ownSpecialistUserId)
@@ -741,6 +739,10 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             (item) => String(item?.id || "").trim() === String(ownSpecialistUserId)
           );
         }
+        data.scope = {
+          specialistId: ownSpecialistUserId || null,
+          specialistLocked: Boolean(ownSpecialistUserId)
+        };
         return reply.send(data);
       } catch (error) {
         if (sendMigrationRequired(reply, error, "Appointment planner report migration is required.")) {

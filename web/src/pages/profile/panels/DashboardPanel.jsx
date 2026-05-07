@@ -111,7 +111,6 @@ function downloadCsv(filename, rows) {
 }
 
 function DashboardPanel({
-  closeDashboardPanel,
   showBootstrapSkeleton = false,
   canReadDashboard = false
 }) {
@@ -131,9 +130,12 @@ function DashboardPanel({
     Array.isArray(dashboardData?.details) ? dashboardData.details : []
   ), [dashboardData?.details]);
 
-  const specialistOptions = useMemo(() => [
-    { value: "", label: "All specialists" },
-    ...mergeOptions(
+  const dashboardScope = dashboardData?.scope || filterOptions?.scope || {};
+  const isSpecialistLocked = Boolean(dashboardScope?.specialistLocked);
+  const lockedSpecialistId = String(dashboardScope?.specialistId || "").trim();
+
+  const specialistOptions = useMemo(() => {
+    const options = mergeOptions(
       (Array.isArray(filterOptions?.specialists) ? filterOptions.specialists : [])
         .map((item) => ({
           value: String(item?.id || "").trim(),
@@ -143,8 +145,15 @@ function DashboardPanel({
         value: String(row?.specialistId || "").trim(),
         label: String(row?.specialistName || "").trim()
       }))
-    )
-  ], [detailRows, filterOptions?.specialists]);
+    );
+    if (isSpecialistLocked) {
+      return options.filter((option) => option.value === lockedSpecialistId);
+    }
+    return [
+      { value: "", label: "All specialists" },
+      ...options
+    ];
+  }, [detailRows, filterOptions?.specialists, isSpecialistLocked, lockedSpecialistId]);
 
   const loadFilters = useCallback(async () => {
     try {
@@ -158,8 +167,13 @@ function DashboardPanel({
       }
       setFilterOptions({
         specialists: Array.isArray(data?.specialists) ? data.specialists : [],
-        clients: Array.isArray(data?.clients) ? data.clients : []
+        clients: Array.isArray(data?.clients) ? data.clients : [],
+        scope: data?.scope || {}
       });
+      const nextScope = data?.scope || {};
+      if (nextScope?.specialistLocked) {
+        setSpecialistId(String(nextScope?.specialistId || "").trim());
+      }
     } catch {
       // Dashboard still works with report details if filter metadata is unavailable.
     }
@@ -200,6 +214,9 @@ function DashboardPanel({
         return;
       }
       setDashboardData(data);
+      if (data?.scope?.specialistLocked) {
+        setSpecialistId(String(data.scope.specialistId || "").trim());
+      }
     } catch {
       if (requestId !== requestIdRef.current) {
         return;
@@ -233,13 +250,19 @@ function DashboardPanel({
   }, [canReadDashboard, hasLoadedFilters, loadFilters, showBootstrapSkeleton]);
 
   useEffect(() => {
+    if (isSpecialistLocked) {
+      if (lockedSpecialistId && specialistId !== lockedSpecialistId) {
+        setSpecialistId(lockedSpecialistId);
+      }
+      return;
+    }
     if (!specialistId) {
       return;
     }
     if (!specialistOptions.some((option) => option.value === specialistId)) {
       setSpecialistId("");
     }
-  }, [specialistId, specialistOptions]);
+  }, [isSpecialistLocked, lockedSpecialistId, specialistId, specialistOptions]);
 
   const filteredRows = useMemo(() => (
     detailRows.filter((row) => statusFilter === "all" || normalizeStatus(row?.status) === statusFilter)
@@ -349,9 +372,6 @@ function DashboardPanel({
       <section id="dashboardPanel" className="all-users-panel dashboard-panel">
         <div className="all-users-head">
           <h3>Dashboard</h3>
-          <button type="button" className="header-btn panel-close-btn" aria-label="Close dashboard panel" onClick={closeDashboardPanel}>
-            ×
-          </button>
         </div>
         <p className="all-users-state">You do not have permission to view Dashboard.</p>
       </section>
@@ -362,9 +382,6 @@ function DashboardPanel({
     <section id="dashboardPanel" className="all-users-panel dashboard-panel">
       <div className="all-users-head">
         <h3>Dashboard</h3>
-        <button type="button" className="header-btn panel-close-btn" aria-label="Close dashboard panel" onClick={closeDashboardPanel}>
-          ×
-        </button>
       </div>
 
       <form
@@ -398,7 +415,7 @@ function DashboardPanel({
             searchPlaceholder="Search specialist"
             searchThreshold={8}
             maxVisibleOptions={10}
-            disabled={isLoading || specialistOptions.length <= 1}
+            disabled={isLoading || isSpecialistLocked || specialistOptions.length <= 1}
             onChange={(nextValue) => setSpecialistId(String(nextValue || "").trim())}
           />
         </label>

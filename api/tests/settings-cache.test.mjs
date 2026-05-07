@@ -137,47 +137,6 @@ test("settings read caches key role, permission and position lists correctly", a
   }
 });
 
-test("settings permission payload includes dashboard permission when active", async () => {
-  clearSettingsReadCaches();
-  const restoreQuery = stubPoolQuery(async (sql) => {
-    const text = String(sql || "");
-    if (text.includes("FROM permissions")) {
-      return {
-        rows: [
-          {
-            id: 3,
-            code: "profile.read",
-            label: "Profile read",
-            sort_order: 1,
-            is_active: true,
-            created_at: "2026-03-10T00:00:00.000Z"
-          },
-          {
-            id: 4,
-            code: "dashboard.read",
-            label: "Read Dashboard",
-            sort_order: 67,
-            is_active: true,
-            created_at: "2026-05-07T00:00:00.000Z"
-          }
-        ]
-      };
-    }
-    throw new Error(`Unexpected SQL: ${text}`);
-  });
-
-  try {
-    const permissions = await listPermissionOptionsForSettings();
-    assert.deepEqual(
-      permissions.map((item) => item.code),
-      ["profile.read", "dashboard.read"]
-    );
-  } finally {
-    restoreQuery();
-    clearSettingsReadCaches();
-  }
-});
-
 test("settings permission payload strips unknown active codes from lists and roles", async () => {
   clearSettingsReadCaches();
   const restoreQuery = stubPoolQuery(async (sql, params = []) => {

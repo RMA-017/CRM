@@ -162,7 +162,9 @@ function createRouteError(statusCode, payload) {
 
 function createAccessRequest({
   features = ["appointments.planner", "statistics.planner_report"],
-  userId = 7
+  userId = 7,
+  role = "teacher",
+  position = "staff"
 } = {}) {
   return {
     authContext: {
@@ -173,8 +175,10 @@ function createAccessRequest({
         role_id: 11,
         is_admin: false,
         is_platform_admin: false,
-        role_label: "teacher",
-        position_label: "staff",
+        role,
+        position,
+        role_label: role,
+        position_label: position,
         organization_allowed_features: features
       }
     },
@@ -198,7 +202,6 @@ function createScheduleContext(overrides = {}) {
       APPOINTMENTS_PLANNER_DELETE: "appointments.planner.delete",
       APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip-clients.my-children",
       APPOINTMENTS_VIP_CLIENTS_MY_CLASS: "appointments.vip-clients.my-class",
-      DASHBOARD_READ: "dashboard.read",
       APPOINTMENTS_STATISTICS_PLANNER_REPORT: "appointments.statistics.planner-report"
     },
     parsePositiveIntegerOr,
@@ -372,16 +375,14 @@ test("client no-show summary blocks assigned-scope access to unassigned VIP clie
   assert.equal(reply.state.payload?.message, "Forbidden.");
 });
 
-test("dashboard read permission unlocks planner report endpoints without statistics permission", async () => {
+test("authenticated profile users can load planner report endpoints for dashboard", async () => {
   const recorder = createRouteRecorder();
   const calls = [];
 
   registerAppointmentScheduleRoutes(
     recorder.fastify,
     createScheduleContext({
-      requesterHasPermission: async (_requester, permissionCode) => (
-        permissionCode === "dashboard.read"
-      ),
+      requesterHasPermission: async () => false,
       getAppointmentPlannerReportFilters: async (args) => {
         calls.push({ type: "filters", args });
         return { specialists: [], clients: [] };
@@ -424,7 +425,7 @@ test("dashboard read permission unlocks planner report endpoints without statist
   assert.deepEqual(calls.map((call) => call.type), ["filters", "report"]);
 });
 
-test("planner report endpoints reject users without dashboard or statistics permission", async () => {
+test("planner report endpoints reject unauthenticated users", async () => {
   const recorder = createRouteRecorder();
   registerAppointmentScheduleRoutes(
     recorder.fastify,
@@ -445,12 +446,12 @@ test("planner report endpoints reject users without dashboard or statistics perm
   assert.equal(typeof reportRoute?.handler, "function");
 
   const filtersReply = createReplyRecorder();
-  await filtersRoute.handler(createAccessRequest(), filtersReply);
+  await filtersRoute.handler({ authContext: null }, filtersReply);
 
   const reportReply = createReplyRecorder();
   await reportRoute.handler(
     {
-      ...createAccessRequest(),
+      authContext: null,
       query: {
         from: "2026-03-01",
         to: "2026-03-09"
@@ -459,8 +460,8 @@ test("planner report endpoints reject users without dashboard or statistics perm
     reportReply
   );
 
-  assert.equal(filtersReply.state.statusCode, 403);
-  assert.equal(reportReply.state.statusCode, 403);
+  assert.equal(filtersReply.state.statusCode, 401);
+  assert.equal(reportReply.state.statusCode, 401);
 });
 
 test("planner report filters scope specialist users to their own specialist id", async () => {
@@ -498,6 +499,59 @@ test("planner report filters scope specialist users to their own specialist id",
     includeAllClients: false
   });
   assert.deepEqual(reply.state.payload?.specialists, [{ id: "7", name: "Teacher One" }]);
+  assert.deepEqual(reply.state.payload?.scope, {
+    specialistId: 7,
+    specialistLocked: true
+  });
+});
+
+test("planner report filters keep manager dashboard scope unrestricted", async () => {
+  const recorder = createRouteRecorder();
+  let capturedArgs = null;
+
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      getAppointmentPlannerReportFilters: async (args) => {
+        capturedArgs = args;
+        return {
+          specialists: [
+            { id: "7", name: "Teacher One" },
+            { id: "8", name: "Teacher Two" }
+          ],
+          clients: []
+        };
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "GET", "/report/filters");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    createAccessRequest({
+      userId: 17,
+      role: "manager"
+    }),
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 200);
+  assert.deepEqual(capturedArgs, {
+    organizationId: 3,
+    assignedUserId: null,
+    specialistId: null,
+    includeAllClients: false
+  });
+  assert.deepEqual(reply.state.payload?.specialists, [
+    { id: "7", name: "Teacher One" },
+    { id: "8", name: "Teacher Two" }
+  ]);
+  assert.deepEqual(reply.state.payload?.scope, {
+    specialistId: null,
+    specialistLocked: false
+  });
 });
 
 test("planner report filters use assigned requester scope for VIP client options", async () => {

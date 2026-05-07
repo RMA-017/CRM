@@ -15,16 +15,20 @@ function isDirectorLikeRequester(requester) {
   if (Boolean(requester?.is_admin)) {
     return true;
   }
-  return isDirectorLikeRoleLabel(
+  const roleText = joinNormalizedRoleLabelParts(
+    requester?.role_label || requester?.role,
+    requester?.position_label || requester?.position
+  );
+  return isDirectorLikeRoleLabel(roleText) || isManagerLikeRoleLabel(roleText);
+}
+
+function isSpecialistRole(requester) {
+  return isSpecialistLikeRoleLabel(
     joinNormalizedRoleLabelParts(
       requester?.role_label || requester?.role,
       requester?.position_label || requester?.position
     )
   );
-}
-
-function isSpecialistRole(requester) {
-  return isSpecialistLikeRoleLabel(requester?.role);
 }
 
 async function resolveNotificationAudience(access, specialistIds) {

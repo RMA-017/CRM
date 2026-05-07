@@ -77,21 +77,6 @@ test("buildRolePermissionTree includes settings children", () => {
   );
 });
 
-test("buildRolePermissionTree includes dashboard permission", () => {
-  const permissions = [
-    { value: "dashboard.read", label: "Read Dashboard" }
-  ];
-
-  const tree = buildRolePermissionTree(permissions);
-  const dashboardGroup = tree.find((group) => group.key === "dashboard");
-  assert.ok(dashboardGroup, "dashboard group should appear");
-  assert.deepEqual(
-    dashboardGroup.children.map((child) => child.label),
-    ["Dashboard"]
-  );
-  assert.deepEqual(dashboardGroup.children[0].directCodes, ["dashboard.read"]);
-});
-
 test("buildRolePermissionTree includes website management permissions", () => {
   const permissions = [
     { value: "website.management.read", label: "Read Website Management" },

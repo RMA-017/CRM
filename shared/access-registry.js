@@ -260,28 +260,6 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
     ]
   }),
   defineMenu({
-    key: "dashboard",
-    label: "Dashboard",
-    sortOrder: 65,
-    children: [
-      defineFeature({
-        key: "dashboard.main",
-        label: "Dashboard",
-        sortOrder: 10,
-        permissions: [
-          definePermission({
-            constantKey: "DASHBOARD_READ",
-            code: "dashboard.read",
-            label: "Read Dashboard",
-            uiLabel: "Read",
-            sortOrder: 67,
-            actionKey: "read"
-          })
-        ]
-      })
-    ]
-  }),
-  defineMenu({
     key: "statistics",
     label: "Statistics",
     sortOrder: 70,

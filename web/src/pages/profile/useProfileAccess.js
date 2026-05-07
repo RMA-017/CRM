@@ -33,7 +33,6 @@ export function useProfileAccess(profile, forcedView) {
 
   const canOpenPlannerPermission = hasPermissionCode(PERMISSIONS.APPOINTMENTS_SUBMENU_SCHEDULE);
 
-  const canReadDashboardPermission = hasPermissionCode(PERMISSIONS.DASHBOARD_READ);
   const canReadStatisticsPlannerReportPermission = hasPermissionCode(
     PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT
   );
@@ -137,7 +136,7 @@ export function useProfileAccess(profile, forcedView) {
   const canOpenAppointmentWorkSchedule = false;
 
   const canOpenAppointmentStatistics = canReadStatisticsPlannerReportPermission;
-  const canReadDashboard = canReadDashboardPermission || legacyHasSettingsAccess;
+  const canReadDashboard = Boolean(profile?.username);
   const canOpenDashboard = canReadDashboard;
   const canOpenStatisticsPlannerReport = canOpenAppointmentStatistics;
 
@@ -277,7 +276,6 @@ export function useProfileAccess(profile, forcedView) {
     canOpenAppointmentStatistics,
     canOpenDashboard,
     canReadDashboard,
-    canReadDashboardPermission,
     canOpenStatisticsPlannerReport,
     canReadSettingsAppointments,
     canUpdateSettingsAppointments,

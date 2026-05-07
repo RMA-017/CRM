@@ -86,12 +86,12 @@ test("planner statistics permission unlocks statistics menu without clients read
   assert.equal(plannerReportAccess.canAccessForcedView, true);
 });
 
-test("dashboard permission unlocks dashboard without statistics report permission", () => {
+test("authenticated profile opens dashboard without dashboard permission", () => {
   const access = readAccessSnapshot({
     username: "specialist",
     isAdmin: false,
     isPlatformAdmin: false,
-    permissions: ["dashboard.read"]
+    permissions: []
   }, "dashboard");
 
   assert.equal(access.canOpenDashboard, true);
@@ -100,9 +100,8 @@ test("dashboard permission unlocks dashboard without statistics report permissio
   assert.equal(access.canAccessForcedView, true);
 });
 
-test("dashboard menu is hidden without dashboard permission or admin access", () => {
+test("anonymous profile cannot open dashboard forced view", () => {
   const access = readAccessSnapshot({
-    username: "staff",
     isAdmin: false,
     isPlatformAdmin: false,
     permissions: []
@@ -111,19 +110,6 @@ test("dashboard menu is hidden without dashboard permission or admin access", ()
   assert.equal(access.canOpenDashboard, false);
   assert.equal(access.canReadDashboard, false);
   assert.equal(access.canAccessForcedView, false);
-});
-
-test("legacy admin access unlocks dashboard menu", () => {
-  const access = readAccessSnapshot({
-    username: "admin",
-    isAdmin: true,
-    isPlatformAdmin: false,
-    permissions: []
-  }, "dashboard");
-
-  assert.equal(access.canOpenDashboard, true);
-  assert.equal(access.canReadDashboard, true);
-  assert.equal(access.canAccessForcedView, true);
 });
 
 test("website management permissions unlock site content without admin role", () => {
