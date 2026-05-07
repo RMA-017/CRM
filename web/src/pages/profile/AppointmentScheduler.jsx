@@ -2484,35 +2484,6 @@ function AppointmentPlannerGrid({
                               mouseDragDropTargetRef.current = null;
                               setMouseDragPreview(null);
                             } : undefined}
-                            onMouseDown={canDragBreakFromCell ? (event) => {
-                              if (event.button !== 0) {
-                                return;
-                              }
-                              event.preventDefault();
-                              event.stopPropagation();
-                              const slotCell = event.currentTarget.closest("td");
-                              const cellRect = (slotCell || event.currentTarget).getBoundingClientRect();
-                              mouseDragStateRef.current = {
-                                type: "break",
-                                item: breakBlockedItem,
-                                sourceDay: {
-                                  key: day.key,
-                                  label: day.label,
-                                  date: formatDateYmd(day.date)
-                                },
-                                startX: event.clientX,
-                                startY: event.clientY,
-                                offsetX: event.clientX - cellRect.left,
-                                offsetY: event.clientY - cellRect.top,
-                                originLeft: cellRect.left,
-                                originTop: cellRect.top,
-                                width: cellRect.width,
-                                height: cellRect.height,
-                                status: "break",
-                                statusCellClassName: `appointment-break-type-${breakBlockedItem.breakType}-td`,
-                                isCompact: true
-                              };
-                            } : undefined}
                           >
                             <span className="appointment-break-slot-text">{breakBlockedItem.reasonShort}</span>
                           </span>
