@@ -302,8 +302,8 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.equal(
     (source.match(/await refreshPlannerServerState\(\);/g) || []).length,
-    10,
-    "Planner appointment, drag-move, day-bulk, break move, break, and work-schedule save/delete flows should await a server refresh after mutation."
+    9,
+    "Planner appointment, drag-move, day-bulk, break, and work-schedule save/delete flows should await a server refresh after mutation."
   );
   assert.match(
     source,
@@ -327,7 +327,7 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /const canDropAppointmentToCell = \([\s\S]*isInsideWorkingHours[\s\S]*!item[\s\S]*canUpdateAppointments[\s\S]*canMutatePlannerSpecialist[\s\S]*typeof onMoveAppointment === "function"[\s\S]*onDrop=\{canDropAnyToCell \? \(event\) => \{[\s\S]*getData\("application\/json"\)[\s\S]*getData\("text\/plain"\)[\s\S]*JSON\.parse\(rawPayload\)[\s\S]*onMoveAppointment\(payload\.item, payload\.sourceDay, day, slot\)/s,
+    /const canDropAppointmentToCell = \([\s\S]*isInsideWorkingHours[\s\S]*!item[\s\S]*canUpdateAppointments[\s\S]*canMutatePlannerSpecialist[\s\S]*typeof onMoveAppointment === "function"[\s\S]*onDrop=\{canDropAppointmentToCell \? \(event\) => \{[\s\S]*getData\("application\/json"\)[\s\S]*getData\("text\/plain"\)[\s\S]*JSON\.parse\(rawPayload\)[\s\S]*onMoveAppointment\(payload\.item, payload\.sourceDay, day, slot\)/s,
     "Empty planner slots should accept dropped appointments and pass the target day/time to the move handler."
   );
   assert.match(
@@ -335,20 +335,10 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
     /function findDropCellFromPoint\(clientX, clientY, selector\)[\s\S]*document\.elementFromPoint\(clientX, clientY\)[\s\S]*document\.elementsFromPoint[\s\S]*document\.querySelectorAll\(selector\)[\s\S]*clientX >= rect\.left[\s\S]*clientY <= rect\.bottom/s,
     "Planner drag target lookup should fall back to drop-cell geometry when elementFromPoint misses."
   );
-  assert.match(
+  assert.doesNotMatch(
     source,
-    /const canResolveBreakMoveTargetFromCell = \([\s\S]*canUpdateAppointmentBreaks[\s\S]*data-planner-break-target-slot=\{canResolveBreakMoveTargetFromCell \? "true" : undefined\}/s,
-    "Planner working cells should be resolvable break move targets."
-  );
-  assert.match(
-    source,
-    /const dropSelector = dragState\.type === "break"\s*\?\s*"\[data-planner-break-target-slot='true'\]"/s,
-    "Break mouse drag should resolve targets from planner break target cells."
-  );
-  assert.match(
-    source,
-    /className=\{`appointment-break-text-only\$\{canDragBreakFromCell \? " appointment-break-draggable" : ""\}`\}[\s\S]*onMouseDown=\{canDragBreakFromCell \? \(event\) => \{[\s\S]*type: "break"[\s\S]*item: breakBlockedItem/s,
-    "Planner working cells should be resolvable break move targets while custom mouse dragging passes break data to the move handler."
+    /onMovePlannerBreak|movePlannerBreakToSlot|appointment-break-draggable|data-planner-break-target-slot|data-break-drop-slot/,
+    "Break and work-schedule blocks should remain editable but not draggable/movable from the planner grid."
   );
   assert.match(
     source,
@@ -372,7 +362,7 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /function findDropCellFromPoint\(clientX, clientY, selector\)[\s\S]*document\.elementFromPoint\(clientX, clientY\)[\s\S]*document\.elementsFromPoint\(clientX, clientY\)[\s\S]*const dropSelector = dragState\.type === "break"[\s\S]*findDropCellFromPoint\(event\.clientX, event\.clientY, dropSelector\)[\s\S]*onMoveAppointment\([\s\S]*dragState\.item,[\s\S]*dragState\.sourceDay,[\s\S]*targetSlot/s,
+    /function findDropCellFromPoint\(clientX, clientY, selector\)[\s\S]*document\.elementFromPoint\(clientX, clientY\)[\s\S]*document\.elementsFromPoint\(clientX, clientY\)[\s\S]*const dropSelector = "\[data-appointment-drop-slot='true'\]"[\s\S]*findDropCellFromPoint\(event\.clientX, event\.clientY, dropSelector\)[\s\S]*onMoveAppointment\([\s\S]*dragState\.item,[\s\S]*dragState\.sourceDay,[\s\S]*targetSlot/s,
     "Planner drag move should include a mouse fallback that resolves the drop slot under the cursor."
   );
   assert.doesNotMatch(

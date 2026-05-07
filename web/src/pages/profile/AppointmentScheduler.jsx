@@ -1181,7 +1181,6 @@ function AppointmentPlannerGrid({
   canMutateAppointmentSpecialist = () => false,
   onOpenCreateModal = null,
   onMoveAppointment = null,
-  onMovePlannerBreak = null,
   onOpenDayBulkModal = null,
   onOpenPlannerBlockModal = null,
   cardDisplayMode = "specialist",
@@ -1966,9 +1965,7 @@ function AppointmentPlannerGrid({
       if (!movedEnough) {
         return;
       }
-      const dropSelector = dragState.type === "break"
-        ? "[data-planner-break-target-slot='true']"
-        : "[data-appointment-drop-slot='true']";
+      const dropSelector = "[data-appointment-drop-slot='true']";
       const dropCell = findDropCellFromPoint(event.clientX, event.clientY, dropSelector);
       const targetSlot = String(dropCell?.getAttribute("data-drop-slot") || "").trim();
       const dropCellRect = dropCell?.getBoundingClientRect?.() || null;
@@ -2013,17 +2010,12 @@ function AppointmentPlannerGrid({
         suppressNextCardClickRef.current = false;
       }, 0);
 
-      const dropSelector = dragState.type === "break"
-        ? "[data-planner-break-target-slot='true']"
-        : "[data-appointment-drop-slot='true']";
+      const dropSelector = "[data-appointment-drop-slot='true']";
       const dropCell = findDropCellFromPoint(event.clientX, event.clientY, dropSelector);
       if (!dropCell && !fallbackDropTarget) {
         return;
       }
-      if (dragState.type === "break" && typeof onMovePlannerBreak !== "function") {
-        return;
-      }
-      if (dragState.type !== "break" && typeof onMoveAppointment !== "function") {
+      if (typeof onMoveAppointment !== "function") {
         return;
       }
 
@@ -2048,11 +2040,7 @@ function AppointmentPlannerGrid({
         label: targetDayLabel,
         date: new Date(`${targetDate}T00:00:00`)
       };
-      if (dragState.type === "break") {
-        onMovePlannerBreak(dragState.item, dragState.sourceDay, targetDay, targetSlot);
-      } else {
-        onMoveAppointment(dragState.item, dragState.sourceDay, targetDay, targetSlot);
-      }
+      onMoveAppointment(dragState.item, dragState.sourceDay, targetDay, targetSlot);
     }
 
     document.addEventListener("mousemove", handleDocumentMouseMove);
@@ -2061,7 +2049,7 @@ function AppointmentPlannerGrid({
       document.removeEventListener("mousemove", handleDocumentMouseMove);
       document.removeEventListener("mouseup", handleDocumentMouseUp);
     };
-  }, [onMoveAppointment, onMovePlannerBreak]);
+  }, [onMoveAppointment]);
 
   return (
     <div className="appointment-client-focused-section">
@@ -2262,37 +2250,12 @@ function AppointmentPlannerGrid({
                       && canMutatePlannerSpecialist
                       && typeof onMoveAppointment === "function"
                     );
-                    const canDropBreakToCell = (
-                      isInsideWorkingHours
-                      && !item
-                      && !blockedItem
-                      && !absenceBlockedItem
-                      && !workScheduleBlockedItem
-                      && !breakBlockedItem
-                      && !overlayBusyItem
-                      && !isHistoryLockedDayCell
-                      && canUpdateAppointmentBreaks
-                      && canMutatePlannerSpecialist
-                      && typeof onMovePlannerBreak === "function"
-                    );
-                    const canDropAnyToCell = canDropAppointmentToCell || canDropBreakToCell;
-                    const canResolveBreakMoveTargetFromCell = (
-                      isInsideWorkingHours
-                      && !isHistoryLockedDayCell
-                      && canUpdateAppointmentBreaks
-                      && canMutatePlannerSpecialist
-                      && typeof onMovePlannerBreak === "function"
-                    );
                     const canOpenBreakBlockFromCell = Boolean(
                       isInsideWorkingHours
                       && breakBlockedItem
                       && canUpdateAppointmentBreaks
                       && canMutatePlannerSpecialist
                       && typeof onOpenPlannerBlockModal === "function"
-                    );
-                    const canDragBreakFromCell = Boolean(
-                      canOpenBreakBlockFromCell
-                      && typeof onMovePlannerBreak === "function"
                     );
                     const canOpenWorkScheduleBlockFromCell = Boolean(
                       isInsideWorkingHours
@@ -2312,7 +2275,6 @@ function AppointmentPlannerGrid({
                       "appointment-day-col-gap",
                       canOpenCreateFromCell ? "appointment-create-slot-td" : "",
                       canDropAppointmentToCell ? "appointment-drop-slot-td" : "",
-                      canDropBreakToCell ? "appointment-break-drop-slot-td" : "",
                       canOpenEditableBlockFromCell ? "appointment-editable-block-slot-td" : "",
                       timeHoverCellClassName,
                       tdRowSpan ? "appointment-td-multi-slot" : "",
@@ -2331,21 +2293,19 @@ function AppointmentPlannerGrid({
                         key={`${day.key}-${slot}`}
                         rowSpan={tdRowSpan}
                         className={tdClassName}
-                        data-slot-label={(canOpenCreateFromCell || canDropAnyToCell) ? slot : undefined}
+                        data-slot-label={(canOpenCreateFromCell || canDropAppointmentToCell) ? slot : undefined}
                         data-time-range={cardTimeRangeLabel || undefined}
                         data-duration-label={cardDurationLabel || undefined}
                         data-appointment-drop-slot={canDropAppointmentToCell ? "true" : undefined}
-                        data-break-drop-slot={canDropBreakToCell ? "true" : undefined}
-                        data-planner-break-target-slot={canResolveBreakMoveTargetFromCell ? "true" : undefined}
-                        data-drop-day-key={(canDropAnyToCell || canResolveBreakMoveTargetFromCell) ? day.key : undefined}
-                        data-drop-day-label={(canDropAnyToCell || canResolveBreakMoveTargetFromCell) ? day.label : undefined}
-                        data-drop-date={(canDropAnyToCell || canResolveBreakMoveTargetFromCell) ? formatDateYmd(day.date) : undefined}
-                        data-drop-slot={(canDropAnyToCell || canResolveBreakMoveTargetFromCell) ? slot : undefined}
-                        onDragOver={canDropAnyToCell ? (event) => {
+                        data-drop-day-key={canDropAppointmentToCell ? day.key : undefined}
+                        data-drop-day-label={canDropAppointmentToCell ? day.label : undefined}
+                        data-drop-date={canDropAppointmentToCell ? formatDateYmd(day.date) : undefined}
+                        data-drop-slot={canDropAppointmentToCell ? slot : undefined}
+                        onDragOver={canDropAppointmentToCell ? (event) => {
                           event.preventDefault();
                           event.dataTransfer.dropEffect = "move";
                         } : undefined}
-                        onDrop={canDropAnyToCell ? (event) => {
+                        onDrop={canDropAppointmentToCell ? (event) => {
                           event.preventDefault();
                           event.stopPropagation();
                           const rawPayload = (
@@ -2357,18 +2317,7 @@ function AppointmentPlannerGrid({
                           }
                           try {
                             const payload = JSON.parse(rawPayload);
-                            if (payload?.type === "break") {
-                              if (canDropBreakToCell && typeof onMovePlannerBreak === "function") {
-                                mouseDragStateRef.current = null;
-                                mouseDragDropTargetRef.current = null;
-                                setMouseDragPreview(null);
-                                onMovePlannerBreak(payload.item, payload.sourceDay, day, slot);
-                              }
-                              return;
-                            }
-                            if (canDropAppointmentToCell && typeof onMoveAppointment === "function") {
-                              onMoveAppointment(payload.item, payload.sourceDay, day, slot);
-                            }
+                            onMoveAppointment(payload.item, payload.sourceDay, day, slot);
                           } catch {
                             // Ignore malformed drag payloads from outside the planner.
                           }
@@ -2479,38 +2428,9 @@ function AppointmentPlannerGrid({
                           </span>
                         ) : breakBlockedItem ? (
                           <span
-                            className={`appointment-break-text-only${canDragBreakFromCell ? " appointment-break-draggable" : ""}`}
+                            className="appointment-break-text-only"
                             aria-label={`Break slot on ${day.label} at ${slot}`}
                             title={String(breakBlockedItem.reasonFull || "").trim() || undefined}
-                            onMouseDown={canDragBreakFromCell ? (event) => {
-                              if (event.button !== 0) {
-                                return;
-                              }
-                              event.preventDefault();
-                              event.stopPropagation();
-                              const slotCell = event.currentTarget.closest("td");
-                              const cellRect = (slotCell || event.currentTarget).getBoundingClientRect();
-                              mouseDragStateRef.current = {
-                                type: "break",
-                                item: breakBlockedItem,
-                                sourceDay: {
-                                  key: day.key,
-                                  label: day.label,
-                                  date: formatDateYmd(day.date)
-                                },
-                                startX: event.clientX,
-                                startY: event.clientY,
-                                offsetX: event.clientX - cellRect.left,
-                                offsetY: event.clientY - cellRect.top,
-                                originLeft: cellRect.left,
-                                originTop: cellRect.top,
-                                width: cellRect.width,
-                                height: cellRect.height,
-                                status: "break",
-                                statusCellClassName: `appointment-break-type-${breakBlockedItem.breakType}-td`,
-                                isCompact: true
-                              };
-                            } : undefined}
                           >
                             <span className="appointment-break-slot-text">{breakBlockedItem.reasonShort}</span>
                           </span>
@@ -5510,156 +5430,6 @@ function AppointmentScheduler({
     }
   }
 
-  async function movePlannerBreakToSlot(item, sourceDay, targetDay, targetSlot) {
-    if (vipOnly || isClientFocusedMode) {
-      return;
-    }
-    const specialistId = String(item?.specialistId || selectedSpecialistId || "").trim();
-    const targetStartTime = String(targetSlot || "").trim();
-    const targetStartMinutes = normalizeTimeToMinutes(targetStartTime);
-    const sourceStartTime = String(item?.startTime || "").trim();
-    const sourceEndTime = String(item?.endTime || "").trim();
-    const durationMinutes = getDurationMinutesFromTimes(sourceStartTime, sourceEndTime);
-    const targetDayKey = String(targetDay?.key || "").trim().toLowerCase();
-    const targetDayOfWeek = getDayOfWeekNumberFromDayKey(targetDayKey);
-
-    if (!specialistId || targetStartMinutes === null || !Number.isInteger(durationMinutes) || durationMinutes <= 0 || !targetDayOfWeek) {
-      setMessage("Invalid break move target.");
-      return;
-    }
-    if (!canUpdateAppointmentBreaks || !canMutateSpecialistId(specialistId)) {
-      setMessage("You do not have permission to move this break.");
-      return;
-    }
-
-    const targetEndTime = minutesToTime(targetStartMinutes + durationMinutes);
-    const targetDateYmd = formatDateYmd(targetDay?.date);
-    const workingHoursConflictMessage = getPlannerWorkingHoursConflictMessage(
-      settings,
-      targetDateYmd,
-      targetStartTime,
-      targetEndTime
-    );
-    if (workingHoursConflictMessage) {
-      setMessage(workingHoursConflictMessage);
-      return;
-    }
-
-    const localConflict = findLocalScheduleConflict({
-      appointmentDate: targetDateYmd,
-      startTime: targetStartTime,
-      endTime: targetEndTime
-    });
-    if (localConflict) {
-      const conflictTime = localConflict.startTime && localConflict.endTime
-        ? `${localConflict.startTime}-${localConflict.endTime}`
-        : "selected time";
-      setMessage(`Selected time overlaps existing appointment (${conflictTime}).`);
-      return;
-    }
-
-    const blockedTimeConflictReason = findPlannerBlockedTimeConflict(
-      blockedTimesForSpecialist,
-      targetDateYmd,
-      targetStartTime,
-      targetEndTime
-    );
-    if (blockedTimeConflictReason) {
-      setMessage(`Selected time overlaps blocked time: ${blockedTimeConflictReason}.`);
-      return;
-    }
-
-    const absenceConflictReason = findPlannerAbsenceConflict(
-      absencesForSpecialist,
-      targetDateYmd,
-      targetStartTime,
-      targetEndTime
-    );
-    if (absenceConflictReason) {
-      setMessage(`Selected time overlaps specialist absence: ${absenceConflictReason}.`);
-      return;
-    }
-
-    const breakId = String(item?.id || "").trim();
-    const sourceDayKey = String(sourceDay?.key || item?.dayKey || "").trim().toLowerCase();
-    const sourceDayOfWeek = Number.parseInt(String(item?.dayOfWeek ?? getDayOfWeekNumberFromDayKey(sourceDayKey)).trim(), 10) || 0;
-    const sourceBreakType = normalizeBreakTypeKey(item?.breakType || "lunch");
-    const sourceNote = String(item?.note || "").trim();
-    const sourceTitle = String(item?.title || "").trim();
-    const currentBreaks = Array.isArray(breaksForSpecialist) ? breaksForSpecialist : [];
-
-    let didMove = false;
-    const nextItems = currentBreaks.map((breakItem) => {
-      const normalizedId = String(breakItem?.id || "").trim();
-      const isTarget = breakId
-        ? normalizedId === breakId
-        : (
-            Number.parseInt(String(breakItem?.dayOfWeek ?? "").trim(), 10) === sourceDayOfWeek
-            && String(breakItem?.startTime || "").trim() === sourceStartTime
-            && String(breakItem?.endTime || "").trim() === sourceEndTime
-            && normalizeBreakTypeKey(breakItem?.breakType || "") === sourceBreakType
-          );
-      if (!isTarget || didMove) {
-        return breakItem;
-      }
-      didMove = true;
-      return {
-        ...breakItem,
-        dayKey: targetDayKey,
-        dayOfWeek: targetDayOfWeek,
-        startTime: targetStartTime,
-        endTime: targetEndTime,
-        breakType: sourceBreakType,
-        title: sourceTitle,
-        note: sourceNote
-      };
-    });
-
-    if (!didMove) {
-      setMessage("Break was not found.");
-      return;
-    }
-
-    try {
-      const response = await apiFetch("/api/appointments/breaks", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          specialistId,
-          items: nextItems.map((breakItem) => {
-            const dayOfWeek = Number.parseInt(String(breakItem?.dayOfWeek ?? "").trim(), 10) || getDayOfWeekNumberFromDayKey(breakItem?.dayKey);
-            return {
-              dayKey: String(breakItem?.dayKey || getDayKeyFromDayOfWeekNumber(dayOfWeek)).trim(),
-              dayOfWeek,
-              breakType: normalizeBreakTypeKey(breakItem?.breakType || "lunch"),
-              title: String(breakItem?.title || "").trim(),
-              note: String(breakItem?.note || "").trim(),
-              startTime: String(breakItem?.startTime || "").trim(),
-              endTime: String(breakItem?.endTime || "").trim(),
-              isActive: breakItem?.isActive !== false
-            };
-          })
-        })
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        setMessage(String(data?.message || "Failed to move break.").trim());
-        return;
-      }
-
-      setBreaksBySpecialist((prev) => ({
-        ...prev,
-        [specialistId]: normalizePlannerBreakItems(Array.isArray(data?.items) ? data.items : [])
-      }));
-      await refreshPlannerServerState();
-      setMessage("");
-    } catch {
-      setMessage("Failed to move break.");
-    }
-  }
-
   useEffect(() => {
     if (!createModal.open) {
       return;
@@ -7510,7 +7280,6 @@ function AppointmentScheduler({
             canMutateAppointmentSpecialist={canMutateAppointmentSpecialist}
             onOpenCreateModal={openCreateModal}
             onMoveAppointment={moveAppointmentToSlot}
-            onMovePlannerBreak={movePlannerBreakToSlot}
             onOpenDayBulkModal={openDayBulkModal}
             onOpenPlannerBlockModal={openPlannerBlockModal}
           />

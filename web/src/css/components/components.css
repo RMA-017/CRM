@@ -3497,16 +3497,6 @@ label.field > span:first-child,
   pointer-events: none;
 }
 
-.appointment-break-text-only.appointment-break-draggable {
-  cursor: grab;
-  pointer-events: auto;
-}
-
-.appointment-break-text-only.appointment-break-draggable:active,
-.appointment-grid-dragging .appointment-break-text-only.appointment-break-draggable {
-  cursor: grabbing;
-}
-
 .appointment-work-schedule-blocked-text {
   color: #475569;
 }
