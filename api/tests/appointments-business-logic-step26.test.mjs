@@ -372,6 +372,97 @@ test("client no-show summary blocks assigned-scope access to unassigned VIP clie
   assert.equal(reply.state.payload?.message, "Forbidden.");
 });
 
+test("dashboard read permission unlocks planner report endpoints without statistics permission", async () => {
+  const recorder = createRouteRecorder();
+  const calls = [];
+
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      requesterHasPermission: async (_requester, permissionCode) => (
+        permissionCode === "dashboard.read"
+      ),
+      getAppointmentPlannerReportFilters: async (args) => {
+        calls.push({ type: "filters", args });
+        return { specialists: [], clients: [] };
+      },
+      getAppointmentPlannerReport: async (args) => {
+        calls.push({ type: "report", args });
+        return { summary: {}, details: [], specialists: [], period: {} };
+      }
+    })
+  );
+
+  const filtersRoute = findRoute(recorder.routes, "GET", "/report/filters");
+  const reportRoute = findRoute(recorder.routes, "GET", "/report");
+  assert.equal(typeof filtersRoute?.handler, "function");
+  assert.equal(typeof reportRoute?.handler, "function");
+
+  const filtersReply = createReplyRecorder();
+  await filtersRoute.handler(
+    {
+      ...createAccessRequest(),
+      query: { includeAllClients: "true" }
+    },
+    filtersReply
+  );
+
+  const reportReply = createReplyRecorder();
+  await reportRoute.handler(
+    {
+      ...createAccessRequest(),
+      query: {
+        from: "2026-03-01",
+        to: "2026-03-09"
+      }
+    },
+    reportReply
+  );
+
+  assert.equal(filtersReply.state.statusCode, 200);
+  assert.equal(reportReply.state.statusCode, 200);
+  assert.deepEqual(calls.map((call) => call.type), ["filters", "report"]);
+});
+
+test("planner report endpoints reject users without dashboard or statistics permission", async () => {
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      requesterHasPermission: async () => false,
+      getAppointmentPlannerReportFilters: async () => {
+        throw new Error("Filters should not load without report access.");
+      },
+      getAppointmentPlannerReport: async () => {
+        throw new Error("Report should not load without report access.");
+      }
+    })
+  );
+
+  const filtersRoute = findRoute(recorder.routes, "GET", "/report/filters");
+  const reportRoute = findRoute(recorder.routes, "GET", "/report");
+  assert.equal(typeof filtersRoute?.handler, "function");
+  assert.equal(typeof reportRoute?.handler, "function");
+
+  const filtersReply = createReplyRecorder();
+  await filtersRoute.handler(createAccessRequest(), filtersReply);
+
+  const reportReply = createReplyRecorder();
+  await reportRoute.handler(
+    {
+      ...createAccessRequest(),
+      query: {
+        from: "2026-03-01",
+        to: "2026-03-09"
+      }
+    },
+    reportReply
+  );
+
+  assert.equal(filtersReply.state.statusCode, 403);
+  assert.equal(reportReply.state.statusCode, 403);
+});
+
 test("planner report filters scope specialist users to their own specialist id", async () => {
   const recorder = createRouteRecorder();
   let capturedArgs = null;

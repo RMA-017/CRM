@@ -56,11 +56,6 @@ function formatMinutes(minutesValue) {
   return `${remainder}m`;
 }
 
-function formatPercent(value) {
-  const percent = Number.parseInt(String(value || "0"), 10) || 0;
-  return `${Math.max(0, Math.min(100, percent))}%`;
-}
-
 function formatDateLabel(value) {
   const date = String(value || "").trim();
   if (!date) {
@@ -89,26 +84,6 @@ function getDurationMinutes(row) {
     return 0;
   }
   return Math.max(0, ((endHour * 60) + endMinute) - ((startHour * 60) + startMinute));
-}
-
-function buildCountMap(rows, getKey, getLabel) {
-  const map = new Map();
-  rows.forEach((row) => {
-    const key = String(getKey(row) || "").trim();
-    if (!key) {
-      return;
-    }
-    const current = map.get(key) || {
-      key,
-      label: String(getLabel(row) || key).trim() || key,
-      count: 0,
-      minutes: 0
-    };
-    current.count += 1;
-    current.minutes += getDurationMinutes(row);
-    map.set(key, current);
-  });
-  return [...map.values()].sort((left, right) => right.count - left.count || right.minutes - left.minutes || left.label.localeCompare(right.label));
 }
 
 function escapeCsvValue(value) {
@@ -293,7 +268,6 @@ function DashboardPanel({
       "no-show": 0
     };
     const uniqueClients = new Set();
-    const uniqueSpecialists = new Set();
     let bookedMinutes = 0;
 
     detailRows.forEach((row) => {
@@ -302,12 +276,8 @@ function DashboardPanel({
         statusCounts[status] += 1;
       }
       const clientId = String(row?.clientId || "").trim();
-      const currentSpecialistId = String(row?.specialistId || "").trim();
       if (clientId) {
         uniqueClients.add(clientId);
-      }
-      if (currentSpecialistId) {
-        uniqueSpecialists.add(currentSpecialistId);
       }
       if (status === "confirmed" || status === "pending") {
         bookedMinutes += getDurationMinutes(row);
@@ -331,154 +301,44 @@ function DashboardPanel({
       byDateMap.set(date, current);
     });
 
-    const byHourMap = new Map();
-    detailRows.forEach((row) => {
-      const hour = String(row?.startTime || "").trim().slice(0, 2);
-      if (!hour) {
-        return;
-      }
-      const label = `${hour}:00`;
-      const current = byHourMap.get(label) || { key: label, label, count: 0, minutes: 0 };
-      current.count += 1;
-      current.minutes += getDurationMinutes(row);
-      byHourMap.set(label, current);
-    });
-
     const daily = [...byDateMap.values()].sort((left, right) => left.key.localeCompare(right.key));
-    const hourly = [...byHourMap.values()].sort((left, right) => left.key.localeCompare(right.key));
-    const topClients = buildCountMap(detailRows, (row) => row?.clientId, (row) => row?.clientName).slice(0, 5);
-    const allServices = buildCountMap(detailRows, (row) => row?.serviceName, (row) => row?.serviceName);
-    const topServices = allServices.slice(0, 5);
     const activeTotal = statusCounts.confirmed + statusCounts.pending;
     const completionRate = detailRows.length > 0 ? Math.round((statusCounts.confirmed / detailRows.length) * 100) : 0;
     const cancellationRate = detailRows.length > 0 ? Math.round((statusCounts.cancelled / detailRows.length) * 100) : 0;
-    const noShowRate = detailRows.length > 0 ? Math.round((statusCounts["no-show"] / detailRows.length) * 100) : 0;
-    const pendingRate = detailRows.length > 0 ? Math.round((statusCounts.pending / detailRows.length) * 100) : 0;
 
     return {
       statusCounts,
       uniqueClients: uniqueClients.size,
-      uniqueSpecialists: uniqueSpecialists.size,
       bookedMinutes: workloadTotals.bookedMinutes || bookedMinutes,
       activeTotal,
       completionRate,
       cancellationRate,
-      noShowRate,
-      pendingRate,
-      daily,
-      hourly,
-      topClients,
-      topServices,
-      allServices
+      daily
     };
   }, [detailRows, workloadTotals.bookedMinutes]);
 
-  const specialistPerformance = useMemo(() => {
-    const rowStats = new Map();
-    detailRows.forEach((row) => {
-      const id = String(row?.specialistId || "").trim();
-      if (!id) {
-        return;
-      }
-      const current = rowStats.get(id) || {
-        appointmentCount: 0,
-        confirmed: 0,
-        pending: 0,
-        cancelled: 0,
-        noShow: 0
-      };
-      current.appointmentCount += 1;
-      const status = normalizeStatus(row?.status);
-      if (status === "confirmed") {
-        current.confirmed += 1;
-      } else if (status === "pending") {
-        current.pending += 1;
-      } else if (status === "cancelled") {
-        current.cancelled += 1;
-      } else if (status === "no-show") {
-        current.noShow += 1;
-      }
-      rowStats.set(id, current);
-    });
-
-    return workloadSpecialists
-      .map((item) => {
-        const id = String(item?.specialistId || "").trim();
-        const stats = rowStats.get(id) || {};
-        return {
-          specialistId: id,
-          specialistName: String(item?.specialistName || "").trim() || `Specialist #${id}`,
-          appointmentCount: Number.parseInt(String(stats.appointmentCount || "0"), 10) || 0,
-          confirmed: Number.parseInt(String(stats.confirmed || "0"), 10) || 0,
-          pending: Number.parseInt(String(stats.pending || "0"), 10) || 0,
-          cancelled: Number.parseInt(String(stats.cancelled || "0"), 10) || 0,
-          noShow: Number.parseInt(String(stats.noShow || "0"), 10) || 0,
-          bookedMinutes: Number.parseInt(String(item?.bookedMinutes || "0"), 10) || 0,
-          availableMinutes: Number.parseInt(String(item?.availableMinutes || "0"), 10) || 0,
-          emptyMinutes: Number.parseInt(String(item?.emptyMinutes || "0"), 10) || 0,
-          utilizationPercent: Number.parseInt(String(item?.utilizationPercent || "0"), 10) || 0
-        };
-      })
-      .sort((left, right) => (
-        right.utilizationPercent - left.utilizationPercent
-        || right.bookedMinutes - left.bookedMinutes
-        || left.specialistName.localeCompare(right.specialistName)
-      ));
-  }, [detailRows, workloadSpecialists]);
-
-  const directorInsights = useMemo(() => {
-    const utilization = Number.parseInt(String(workloadTotals.utilizationPercent || "0"), 10) || 0;
-    const attendanceRisk = Math.min(100, analytics.cancellationRate + analytics.noShowRate);
-    const pendingPressure = analytics.pendingRate;
-    const healthScore = Math.max(0, Math.min(100, Math.round(
-      (utilization * 0.45)
-      + (analytics.completionRate * 0.35)
-      + ((100 - attendanceRisk) * 0.15)
-      + ((100 - pendingPressure) * 0.05)
-    )));
-    const emptyMinutes = Number.parseInt(String(workloadTotals.emptyMinutes || "0"), 10) || 0;
-    const bookedMinutes = Number.parseInt(String(workloadTotals.bookedMinutes || "0"), 10) || 0;
-    const averageDuration = analytics.activeTotal > 0 ? Math.max(1, Math.round(bookedMinutes / analytics.activeTotal)) : 0;
-    const appointmentOpportunity = averageDuration > 0 ? Math.floor(emptyMinutes / averageDuration) : 0;
-    const overloadedSpecialists = specialistPerformance.filter((item) => item.utilizationPercent >= 85).length;
-    const underloadedSpecialists = specialistPerformance.filter((item) => item.availableMinutes > 0 && item.utilizationPercent <= 35).length;
-
-    return {
-      healthScore,
-      attendanceRisk,
-      pendingPressure,
-      appointmentOpportunity,
-      overloadedSpecialists,
-      underloadedSpecialists
-    };
-  }, [analytics.activeTotal, analytics.cancellationRate, analytics.completionRate, analytics.noShowRate, analytics.pendingRate, specialistPerformance, workloadTotals.bookedMinutes, workloadTotals.emptyMinutes, workloadTotals.utilizationPercent]);
-
   const maxDailyCount = Math.max(1, ...analytics.daily.map((item) => item.count));
-  const maxHourlyCount = Math.max(1, ...analytics.hourly.map((item) => item.count));
   const maxDailyUtilization = Math.max(1, ...workloadDaily.map((item) => Number.parseInt(String(item?.utilizationPercent || "0"), 10) || 0));
   const statusItems = [
     { key: "confirmed", label: "Confirmed", value: analytics.statusCounts.confirmed },
     { key: "pending", label: "Pending", value: analytics.statusCounts.pending },
-    { key: "cancelled", label: "Cancelled", value: analytics.statusCounts.cancelled },
-    { key: "no-show", label: "No Show", value: analytics.statusCounts["no-show"] }
+    { key: "cancelled", label: "Cancelled", value: analytics.statusCounts.cancelled }
   ];
   const maxStatusCount = Math.max(1, ...statusItems.map((item) => item.value));
-  const maxServiceCount = Math.max(1, ...analytics.allServices.map((item) => item.count));
   const visibleRows = filteredRows.slice(0, ALL_USERS_LIMIT);
   const isLoading = showBootstrapSkeleton || loading;
   const exportDashboardCsv = useCallback(() => {
     const rows = [
-      ["Date", "Time", "Client", "Specialist", "Service", "Status", "Duration"]
+      ["Date", "Client", "Client ID", "Service", "Specialist", "Status"]
     ];
     filteredRows.forEach((row) => {
       rows.push([
         String(row?.appointmentDate || "").trim(),
-        [row?.startTime, row?.endTime].filter(Boolean).join(" - "),
         String(row?.clientName || "").trim(),
-        String(row?.specialistName || "").trim(),
+        String(row?.clientId || "").trim(),
         String(row?.serviceName || "").trim(),
-        formatStatus(row?.status),
-        formatMinutes(getDurationMinutes(row))
+        String(row?.specialistName || "").trim(),
+        formatStatus(row?.status)
       ]);
     });
     downloadCsv(`dashboard-${from || "from"}-${to || "to"}.csv`, rows);
@@ -553,7 +413,7 @@ function DashboardPanel({
         <article className="dashboard-kpi-card is-total">
           <span>Total Appointments</span>
           <strong>{detailRows.length}</strong>
-          <small>{analytics.uniqueSpecialists || 0} specialists</small>
+          <small>{analytics.uniqueClients || 0} unique clients</small>
         </article>
         <article className="dashboard-kpi-card is-confirmed">
           <span>Confirmed</span>
@@ -570,6 +430,11 @@ function DashboardPanel({
           <strong>{Number.parseInt(String(workloadTotals.utilizationPercent || "0"), 10) || 0}%</strong>
           <small>{formatMinutes(workloadTotals.bookedMinutes)} booked</small>
         </article>
+        <article className="dashboard-kpi-card is-booked">
+          <span>Booked Time</span>
+          <strong>{formatMinutes(workloadTotals.bookedMinutes)}</strong>
+          <small>{analytics.activeTotal} active appointments</small>
+        </article>
         <article className="dashboard-kpi-card is-available">
           <span>Available Time</span>
           <strong>{formatMinutes(workloadTotals.availableMinutes)}</strong>
@@ -585,35 +450,7 @@ function DashboardPanel({
           <strong>{analytics.statusCounts.cancelled}</strong>
           <small>{analytics.cancellationRate}% cancellation</small>
         </article>
-        <article className="dashboard-kpi-card is-no-show">
-          <span>No Show</span>
-          <strong>{analytics.statusCounts["no-show"]}</strong>
-          <small>Monthly review only</small>
-        </article>
       </div>
-
-      <section className="dashboard-insights" aria-label="Director insights">
-        <article className="dashboard-insight-card is-health">
-          <span>Health Score</span>
-          <strong>{directorInsights.healthScore}</strong>
-          <small>{formatPercent(workloadTotals.utilizationPercent)} utilization</small>
-        </article>
-        <article className="dashboard-insight-card is-capacity">
-          <span>Capacity Opportunity</span>
-          <strong>{directorInsights.appointmentOpportunity}</strong>
-          <small>{formatMinutes(workloadTotals.emptyMinutes)} empty time</small>
-        </article>
-        <article className="dashboard-insight-card is-risk">
-          <span>Attendance Risk</span>
-          <strong>{formatPercent(directorInsights.attendanceRisk)}</strong>
-          <small>{analytics.statusCounts.cancelled + analytics.statusCounts["no-show"]} cancelled / no show</small>
-        </article>
-        <article className="dashboard-insight-card is-balance">
-          <span>Load Balance</span>
-          <strong>{directorInsights.overloadedSpecialists}/{directorInsights.underloadedSpecialists}</strong>
-          <small>overloaded / underloaded</small>
-        </article>
-      </section>
 
       <div className="dashboard-grid">
         <section className="dashboard-chart-panel" aria-label="Daily workload">
@@ -690,22 +527,6 @@ function DashboardPanel({
           </div>
         </section>
 
-        <section className="dashboard-chart-panel" aria-label="Peak hours">
-          <div className="dashboard-section-head">
-            <h4>Peak Hours</h4>
-            <span>{analytics.hourly.length} slots</span>
-          </div>
-          <div className="dashboard-peak-grid">
-            {analytics.hourly.length > 0 ? analytics.hourly.map((item) => (
-              <div key={item.key} className="dashboard-peak-item">
-                <i style={{ height: `${Math.max(10, Math.round((item.count / maxHourlyCount) * 100))}%` }} />
-                <strong>{item.count}</strong>
-                <span>{item.label}</span>
-              </div>
-            )) : <p className="dashboard-empty">No peak hour data.</p>}
-          </div>
-        </section>
-
         <section className="dashboard-chart-panel" aria-label="Utilization by day">
           <div className="dashboard-section-head">
             <h4>Utilization By Day</h4>
@@ -745,80 +566,13 @@ function DashboardPanel({
           </div>
         </section>
 
-        <section className="dashboard-chart-panel dashboard-chart-panel-wide" aria-label="Specialist performance">
-          <div className="dashboard-section-head">
-            <h4>Specialist Performance</h4>
-            <span>{specialistPerformance.length} specialists</span>
-          </div>
-          <div className="dashboard-performance-list">
-            {specialistPerformance.length > 0 ? specialistPerformance.slice(0, 8).map((item) => (
-              <article key={item.specialistId} className="dashboard-performance-card">
-                <div>
-                  <strong>{item.specialistName}</strong>
-                  <span>{item.appointmentCount} appointments</span>
-                </div>
-                <div className="dashboard-performance-meter">
-                  <i style={{ width: `${Math.max(5, item.utilizationPercent)}%` }} />
-                </div>
-                <div className="dashboard-performance-meta">
-                  <span>{formatPercent(item.utilizationPercent)} used</span>
-                  <span>{formatMinutes(item.bookedMinutes)} booked</span>
-                  <span>{formatMinutes(item.emptyMinutes)} empty</span>
-                  <span>{item.cancelled + item.noShow} risk</span>
-                </div>
-              </article>
-            )) : <p className="dashboard-empty">No specialist performance data.</p>}
-          </div>
-        </section>
-
-        <section className="dashboard-chart-panel" aria-label="Top services and clients">
-          <div className="dashboard-section-head">
-            <h4>Top Lists</h4>
-            <span>Clients / Services</span>
-          </div>
-          <div className="dashboard-top-grid">
-            <div>
-              <h5>Top Clients</h5>
-              {analytics.topClients.length > 0 ? analytics.topClients.map((item) => (
-                <p key={item.key}><span>{item.label}</span><strong>{item.count}</strong></p>
-              )) : <small>No clients</small>}
-            </div>
-            <div>
-              <h5>Top Services</h5>
-              {analytics.topServices.length > 0 ? analytics.topServices.map((item) => (
-                <p key={item.key}><span>{item.label}</span><strong>{item.count}</strong></p>
-              )) : <small>No services</small>}
-            </div>
-          </div>
-        </section>
-
-        <section className="dashboard-chart-panel" aria-label="Service mix">
-          <div className="dashboard-section-head">
-            <h4>Service Mix</h4>
-            <span>{analytics.allServices.length} services</span>
-          </div>
-          <div className="dashboard-bars">
-            {analytics.allServices.length > 0 ? analytics.allServices.slice(0, 8).map((item) => (
-              <div key={item.key} className="dashboard-bar-row dashboard-bar-row-wide">
-                <span>{item.label}</span>
-                <div className="dashboard-bar-track dashboard-bar-track-service">
-                  <i style={{ width: `${Math.max(5, Math.round((item.count / maxServiceCount) * 100))}%` }} />
-                </div>
-                <strong>{item.count}</strong>
-              </div>
-            )) : <p className="dashboard-empty">No service mix data.</p>}
-          </div>
-        </section>
       </div>
 
       <div className="dashboard-table-head">
         <h4>Latest Appointments</h4>
         <div className="dashboard-table-actions">
           <button type="button" className="header-btn" onClick={exportDashboardCsv} disabled={filteredRows.length === 0}>
-            Export CSV
-          </button>
-          <button type="button" className="header-btn" onClick={() => setStatusFilter("all")} disabled={statusFilter === "all"}>
-            All statuses
+            Export Excel
           </button>
         </div>
       </div>
@@ -827,28 +581,26 @@ function DashboardPanel({
           <thead>
             <tr>
               <th>Date</th>
-              <th>Time</th>
               <th>Client</th>
-              <th>Specialist</th>
+              <th>Client ID</th>
               <th>Service</th>
+              <th>Specialist</th>
               <th>Status</th>
-              <th>Duration</th>
             </tr>
           </thead>
           <tbody>
             {visibleRows.length > 0 ? visibleRows.map((row) => (
               <tr key={row.appointmentId || `${row.appointmentDate}-${row.startTime}-${row.clientId}`}>
                 <td>{String(row?.appointmentDate || "").trim() || "-"}</td>
-                <td>{[row?.startTime, row?.endTime].filter(Boolean).join(" - ") || "-"}</td>
                 <td>{String(row?.clientName || "").trim() || "-"}</td>
-                <td>{String(row?.specialistName || "").trim() || "-"}</td>
+                <td>{String(row?.clientId || "").trim() || "-"}</td>
                 <td>{String(row?.serviceName || "").trim() || "-"}</td>
+                <td>{String(row?.specialistName || "").trim() || "-"}</td>
                 <td><span className={`dashboard-status-pill is-${normalizeStatus(row?.status)}`}>{formatStatus(row?.status)}</span></td>
-                <td>{formatMinutes(getDurationMinutes(row))}</td>
               </tr>
             )) : (
               <tr>
-                <td colSpan={7}>No appointments found.</td>
+                <td colSpan={6}>No appointments found.</td>
               </tr>
             )}
           </tbody>

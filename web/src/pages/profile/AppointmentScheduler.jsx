@@ -359,12 +359,7 @@ function getClientDisplayName(client) {
 function formatClientOptionLabel(client) {
   const displayName = getClientDisplayName(client);
   const clientId = String(client?.id || "").trim();
-  const phone = String(client?.phone || "").trim();
-  const suffixParts = [
-    clientId ? `ID ${clientId}` : "",
-    phone
-  ].filter(Boolean);
-  return suffixParts.length > 0 ? `${displayName} (${suffixParts.join(" • ")})` : displayName;
+  return clientId ? `${displayName} (ID ${clientId})` : displayName;
 }
 
 function getClientCardName(client) {

@@ -197,22 +197,6 @@
   padding: 10px;
 }
 
-body.side-menu-open .home-header,
-body.side-menu-open .home-main {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  box-shadow: none;
-}
-
-body.side-menu-open .home-header {
-  background: rgba(255, 255, 255, 0.96);
-}
-
-body.side-menu-open .home-main {
-  background: rgba(255, 255, 255, 0.96);
-}
-
-
 .home-hero {
   display: grid;
   grid-template-areas:

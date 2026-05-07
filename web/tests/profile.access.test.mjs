@@ -100,7 +100,7 @@ test("dashboard permission unlocks dashboard without statistics report permissio
   assert.equal(access.canAccessForcedView, true);
 });
 
-test("authenticated users see dashboard menu before dashboard data is permissioned", () => {
+test("dashboard menu is hidden without dashboard permission or admin access", () => {
   const access = readAccessSnapshot({
     username: "staff",
     isAdmin: false,
@@ -108,8 +108,21 @@ test("authenticated users see dashboard menu before dashboard data is permission
     permissions: []
   }, "dashboard");
 
-  assert.equal(access.canOpenDashboard, true);
+  assert.equal(access.canOpenDashboard, false);
   assert.equal(access.canReadDashboard, false);
+  assert.equal(access.canAccessForcedView, false);
+});
+
+test("legacy admin access unlocks dashboard menu", () => {
+  const access = readAccessSnapshot({
+    username: "admin",
+    isAdmin: true,
+    isPlatformAdmin: false,
+    permissions: []
+  }, "dashboard");
+
+  assert.equal(access.canOpenDashboard, true);
+  assert.equal(access.canReadDashboard, true);
   assert.equal(access.canAccessForcedView, true);
 });
 
