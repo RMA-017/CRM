@@ -39,38 +39,6 @@ function formatPlannerReportDate(value) {
   return `${day}.${month}.${year}`;
 }
 
-function formatPlannerReportMinutes(value) {
-  const totalMinutes = Math.max(0, Number.parseInt(String(value || "0"), 10) || 0);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours > 0 && minutes > 0) {
-    return `${hours}h ${minutes}m`;
-  }
-  if (hours > 0) {
-    return `${hours}h`;
-  }
-  return `${minutes}m`;
-}
-
-function normalizePlannerReportPercent(value) {
-  const parsed = Number.parseInt(String(value || "0"), 10) || 0;
-  return Math.max(0, Math.min(100, parsed));
-}
-
-function getPlannerReportOccupancyClass(percentValue) {
-  const percent = normalizePlannerReportPercent(percentValue);
-  if (percent >= 90) {
-    return "is-high";
-  }
-  if (percent >= 60) {
-    return "is-good";
-  }
-  if (percent >= 30) {
-    return "is-medium";
-  }
-  return "is-low";
-}
-
 function getPlannerReportStatusPresentation(statusValue) {
   const status = String(statusValue || "").trim().toLowerCase();
   if (status === "confirmed") {
@@ -280,16 +248,6 @@ function StatisticsPlannerReportPanel({
     cancelled: 0,
     noShow: 0
   };
-  const workloadTotals = reportData?.workload?.totals || {
-    availableMinutes: 0,
-    bookedMinutes: 0,
-    utilizationPercent: 0
-  };
-  const workloadSpecialists = Array.isArray(reportData?.workload?.specialists)
-    ? reportData.workload.specialists
-    : [];
-  const occupancyPercent = normalizePlannerReportPercent(workloadTotals?.utilizationPercent);
-  const occupancyClass = getPlannerReportOccupancyClass(occupancyPercent);
   const detailRows = Array.isArray(reportData?.details) ? reportData.details : [];
   const summaryItems = [
     { key: "all", label: "Total Lessons", value: summary.total, className: "is-total" },
@@ -435,45 +393,6 @@ function StatisticsPlannerReportPanel({
               );
             })}
           </div>
-
-          <section className="planner-report-workload-panel" aria-label="Dashboard occupancy">
-            <article className={`planner-report-occupancy-card ${occupancyClass}`}>
-              <div>
-                <span className="planner-report-summary-label">Occupancy</span>
-                <strong className="planner-report-occupancy-value">{occupancyPercent}%</strong>
-              </div>
-              <div className="planner-report-occupancy-meta">
-                <span>{formatPlannerReportMinutes(workloadTotals.bookedMinutes)} booked</span>
-                <span>{formatPlannerReportMinutes(workloadTotals.availableMinutes)} available</span>
-              </div>
-              <div className="planner-report-occupancy-track" aria-hidden="true">
-                <span style={{ width: `${occupancyPercent}%` }} />
-              </div>
-            </article>
-
-            <div className="planner-report-specialist-loads">
-              {workloadSpecialists.length > 0 ? workloadSpecialists.slice(0, 8).map((item) => {
-                const specialistPercent = normalizePlannerReportPercent(item?.utilizationPercent);
-                return (
-                  <div key={`plannerReportWorkload_${item?.specialistId || item?.specialistName}`} className="planner-report-specialist-load">
-                    <div className="planner-report-specialist-load-head">
-                      <span title={item?.specialistName || "-"}>{item?.specialistName || "-"}</span>
-                      <strong>{specialistPercent}%</strong>
-                    </div>
-                    <div className="planner-report-specialist-load-track" aria-hidden="true">
-                      <span style={{ width: `${specialistPercent}%` }} />
-                    </div>
-                    <div className="planner-report-specialist-load-meta">
-                      <span>{formatPlannerReportMinutes(item?.bookedMinutes)} booked</span>
-                      <span>{formatPlannerReportMinutes(item?.availableMinutes)} available</span>
-                    </div>
-                  </div>
-                );
-              }) : (
-                <p className="planner-report-workload-empty">No occupancy data.</p>
-              )}
-            </div>
-          </section>
 
           <div className="all-users-table-wrap">
             <table className="all-users-table planner-report-table is-detail-report" aria-label="Lesson status report details">
