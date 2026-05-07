@@ -332,8 +332,13 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /const canDropBreakToCell = \([\s\S]*typeof onMovePlannerBreak === "function"[\s\S]*const canDropAnyToCell = canDropAppointmentToCell \|\| canDropBreakToCell[\s\S]*payload\?\.type === "break"[\s\S]*onMovePlannerBreak\(payload\.item, payload\.sourceDay, day, slot\)[\s\S]*draggable=\{canDragBreakFromCell \? true : undefined\}[\s\S]*event\.dataTransfer\.setData\("application\/json", payload\)/s,
-    "Empty planner slots should accept dragged breaks and pass the target day/time to the break move handler."
+    /function findDropCellFromPoint\(clientX, clientY, selector\)[\s\S]*document\.elementFromPoint\(clientX, clientY\)[\s\S]*document\.elementsFromPoint[\s\S]*document\.querySelectorAll\(selector\)[\s\S]*clientX >= rect\.left[\s\S]*clientY <= rect\.bottom/s,
+    "Planner drag target lookup should fall back to drop-cell geometry when elementFromPoint misses."
+  );
+  assert.match(
+    source,
+    /const canDropBreakToCell = \([\s\S]*typeof onMovePlannerBreak === "function"[\s\S]*const canDropAnyToCell = canDropAppointmentToCell \|\| canDropBreakToCell[\s\S]*payload\?\.type === "break"[\s\S]*onMovePlannerBreak\(payload\.item, payload\.sourceDay, day, slot\)[\s\S]*className=\{`appointment-break-text-only\$\{canDragBreakFromCell \? " appointment-break-draggable" : ""\}`\}[\s\S]*onMouseDown=\{canDragBreakFromCell \? \(event\) => \{[\s\S]*type: "break"[\s\S]*item: breakBlockedItem/s,
+    "Empty planner slots should accept moved breaks and custom mouse dragging should pass break data to the move handler."
   );
   assert.match(
     source,

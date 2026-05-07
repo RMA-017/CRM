@@ -1937,6 +1937,20 @@ function AppointmentPlannerGrid({
           return cell;
         }
       }
+
+      const candidateCells = Array.from(document.querySelectorAll(selector));
+      for (const cell of candidateCells) {
+        const rect = cell?.getBoundingClientRect?.();
+        if (
+          rect
+          && clientX >= rect.left
+          && clientX <= rect.right
+          && clientY >= rect.top
+          && clientY <= rect.bottom
+        ) {
+          return cell;
+        }
+      }
       return null;
     }
 
@@ -2458,31 +2472,36 @@ function AppointmentPlannerGrid({
                         ) : breakBlockedItem ? (
                           <span
                             className={`appointment-break-text-only${canDragBreakFromCell ? " appointment-break-draggable" : ""}`}
-                            draggable={canDragBreakFromCell ? true : undefined}
                             aria-label={`Break slot on ${day.label} at ${slot}`}
                             title={String(breakBlockedItem.reasonFull || "").trim() || undefined}
-                            onDragStart={canDragBreakFromCell ? (event) => {
-                              const sourceDay = {
-                                key: day.key,
-                                label: day.label,
-                                date: formatDateYmd(day.date)
-                              };
-                              const payload = JSON.stringify({
+                            onMouseDown={canDragBreakFromCell ? (event) => {
+                              if (event.button !== 0) {
+                                return;
+                              }
+                              event.preventDefault();
+                              event.stopPropagation();
+                              const slotCell = event.currentTarget.closest("td");
+                              const cellRect = (slotCell || event.currentTarget).getBoundingClientRect();
+                              mouseDragStateRef.current = {
                                 type: "break",
                                 item: breakBlockedItem,
-                                sourceDay
-                              });
-                              mouseDragStateRef.current = null;
-                              mouseDragDropTargetRef.current = null;
-                              setMouseDragPreview(null);
-                              event.dataTransfer.effectAllowed = "move";
-                              event.dataTransfer.setData("application/json", payload);
-                              event.dataTransfer.setData("text/plain", payload);
-                            } : undefined}
-                            onDragEnd={canDragBreakFromCell ? () => {
-                              mouseDragStateRef.current = null;
-                              mouseDragDropTargetRef.current = null;
-                              setMouseDragPreview(null);
+                                sourceDay: {
+                                  key: day.key,
+                                  label: day.label,
+                                  date: formatDateYmd(day.date)
+                                },
+                                startX: event.clientX,
+                                startY: event.clientY,
+                                offsetX: event.clientX - cellRect.left,
+                                offsetY: event.clientY - cellRect.top,
+                                originLeft: cellRect.left,
+                                originTop: cellRect.top,
+                                width: cellRect.width,
+                                height: cellRect.height,
+                                status: "break",
+                                statusCellClassName: `appointment-break-type-${breakBlockedItem.breakType}-td`,
+                                isCompact: true
+                              };
                             } : undefined}
                           >
                             <span className="appointment-break-slot-text">{breakBlockedItem.reasonShort}</span>
