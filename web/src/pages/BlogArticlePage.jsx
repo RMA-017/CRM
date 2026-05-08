@@ -6,17 +6,17 @@ import { fetchPublicSiteContent } from "../lib/site-content.js";
 const BLOG_TEXT = {
   uz: {
     backHome: "Bosh sahifaga qaytish",
-    blog: "Blog",
+    blog: "Maqolalar",
     notFound: "Maqola topilmadi.",
-    defaultTitle: "Aaron Academy Kids blog",
-    defaultDescription: "Aaron Academy Kids blog maqolasi"
+    defaultTitle: "Aaron Academy Kids maqolalari",
+    defaultDescription: "Aaron Academy Kids foydali maqolasi"
   },
   ru: {
     backHome: "Вернуться на главную",
-    blog: "Блог",
+    blog: "Статьи",
     notFound: "Статья не найдена.",
-    defaultTitle: "Блог Aaron Academy Kids",
-    defaultDescription: "Статья блога Aaron Academy Kids"
+    defaultTitle: "Статьи Aaron Academy Kids",
+    defaultDescription: "Полезная статья Aaron Academy Kids"
   }
 };
 

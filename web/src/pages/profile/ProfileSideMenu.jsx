@@ -246,7 +246,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 className="side-submenu-link side-submenu-action"
                 onClick={() => openSiteContentPanel("blog")}
               >
-                Blog
+                Articles
               </button>
               <button
                 id="openSiteTeamContentBtn"

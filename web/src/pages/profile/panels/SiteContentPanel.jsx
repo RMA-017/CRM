@@ -23,7 +23,7 @@ const SECTIONS = Object.freeze([
   },
   {
     key: "blog",
-    title: "Blog",
+    title: "Articles",
     imageLabel: "Cover image",
     fields: [
       { key: "nameUz", label: "Title (Uzbek)", placeholder: "Masalan: Autizm bu nima?" },

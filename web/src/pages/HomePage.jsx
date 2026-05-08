@@ -24,7 +24,7 @@ const HOME_I18N = {
       { href: "#about", label: "Biz haqimizda" },
       { href: "#services", label: "Xizmatlar" },
       { href: "#kids", label: "Bolalar ijodi" },
-      { href: "#blog", label: "Blog" },
+      { href: "#blog", label: "Maqolalar" },
       { href: "#signup", label: "Onlayn yozilish" },
       { href: "#partners", label: "Hamkorlar" },
       { href: "#contact", label: "Aloqa" }
@@ -93,7 +93,7 @@ const HOME_I18N = {
       }
     },
     blog: {
-      kicker: "Blog",
+      kicker: "Maqolalar",
       title: "Foydali maqolalar",
       text: "Autizm, rivojlanish va ota-onalar uchun amaliy tavsiyalar",
       empty: "Hozircha maqolalar yo'q",
@@ -157,7 +157,7 @@ const HOME_I18N = {
       { href: "#about", label: "О нас" },
       { href: "#services", label: "Услуги" },
       { href: "#kids", label: "Творчество детей" },
-      { href: "#blog", label: "Блог" },
+      { href: "#blog", label: "Статьи" },
       { href: "#signup", label: "Онлайн запись" },
       { href: "#partners", label: "Партнеры" },
       { href: "#contact", label: "Контакты" }
@@ -226,7 +226,7 @@ const HOME_I18N = {
       }
     },
     blog: {
-      kicker: "Блог",
+      kicker: "Статьи",
       title: "Полезные статьи",
       text: "Об аутизме, развитии и практических рекомендациях для родителей",
       empty: "Пока статей нет",

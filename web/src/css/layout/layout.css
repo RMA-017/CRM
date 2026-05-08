@@ -2370,6 +2370,12 @@
   width: 100%;
 }
 
+.home-blog-section {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(241, 247, 239, 0.92)),
+    #f1f7ef;
+}
+
 .home-blog-grid {
   width: min(var(--app-shell-width), 100%);
 }
