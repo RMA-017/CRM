@@ -14,6 +14,7 @@ import createUserRoutes from "./modules/create-user/create-user.routes.js";
 import metaRoutes from "./modules/meta/meta.routes.js";
 import monitoringRoutes from "./modules/monitoring/monitoring.routes.js";
 import { recordRequest } from "./modules/monitoring/monitoring.store.js";
+import notificationsRoutes from "./modules/notifications/notifications.routes.js";
 import profileRoutes from "./modules/profile/profile.routes.js";
 import settingsRoutes from "./modules/settings/settings.routes.js";
 import siteContentPublicRoutes, { siteContentProtectedRoutes } from "./modules/site-content/site-content.routes.js";
@@ -182,6 +183,7 @@ export async function buildApp() {
     await fastify.register(appointmentSettingsRoutes, { prefix: "/api/appointments" });
     await fastify.register(settingsRoutes, { prefix: "/api/settings" });
     await fastify.register(monitoringRoutes, { prefix: "/api/monitoring" });
+    await fastify.register(notificationsRoutes, { prefix: "/api/notifications" });
     await fastify.register(siteContentProtectedRoutes, { prefix: "/api/site-content" });
   });
 

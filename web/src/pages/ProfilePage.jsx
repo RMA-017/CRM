@@ -22,6 +22,7 @@ import { useProfileAvatar } from "./profile/useProfileAvatar.js";
 import { useProfilePanels } from "./profile/useProfilePanels.js";
 import { useSettingsSection } from "./profile/useSettingsSection.js";
 import ProfileSideMenu from "./profile/ProfileSideMenu.jsx";
+import HeaderNotifications from "./profile/HeaderNotifications.jsx";
 import { getBirthdayValidationMessage } from "./profile/profile.validators.js";
 
 let profileModalsPromise;
@@ -1046,6 +1047,8 @@ function ProfilePage({ forcedView = "none" }) {
                   />
                 </div>
               ) : null}
+
+              <HeaderNotifications enabled={Boolean(profile?.username)} navigate={navigate} />
 
               <div className="user-menu-wrap">
                 <button

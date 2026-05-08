@@ -11,9 +11,28 @@ import { normalizePositiveInteger } from "../../lib/number.js";
 
 const MAX_OUTBOX_MAX_RETRIES = 100;
 const ALL_TARGET_ROLE = "all";
+const DEFAULT_NOTIFICATION_LIMIT = 10;
+const MAX_NOTIFICATION_LIMIT = 50;
 
 function normalizeOutboxMaxRetries(value, fallback = 5) {
   return toBoundedInteger(value, fallback, 0, MAX_OUTBOX_MAX_RETRIES);
+}
+
+function normalizeNotificationLimit(value, fallback = DEFAULT_NOTIFICATION_LIMIT) {
+  return toBoundedInteger(value, fallback, 1, MAX_NOTIFICATION_LIMIT);
+}
+
+function mapNotificationRow(row) {
+  return {
+    id: normalizePositiveInteger(row?.id),
+    eventType: String(row?.event_type || "").trim(),
+    message: String(row?.message || "").trim(),
+    payload: row?.payload && typeof row.payload === "object" ? row.payload : {},
+    isRead: Boolean(row?.is_read),
+    readAt: row?.read_at || null,
+    createdAt: row?.created_at || null,
+    sourceUserId: normalizePositiveInteger(row?.source_user_id) || null
+  };
 }
 
 export function isNotificationsSchemaMissing(error) {
@@ -314,4 +333,120 @@ export async function persistNotificationEvent({
       outboxEventId
     };
   });
+}
+
+export async function listUserNotifications({
+  organizationId,
+  userId,
+  limit = DEFAULT_NOTIFICATION_LIMIT,
+  unreadOnly = false
+}) {
+  const normalizedOrganizationId = normalizePositiveInteger(organizationId);
+  const normalizedUserId = normalizePositiveInteger(userId);
+  if (!normalizedOrganizationId || !normalizedUserId) {
+    return {
+      items: [],
+      unreadCount: 0
+    };
+  }
+
+  const normalizedLimit = normalizeNotificationLimit(limit);
+  const onlyUnread = Boolean(unreadOnly);
+  const { rows } = await pool.query(
+    `SELECT
+       id,
+       event_type,
+       message,
+       payload,
+       is_read,
+       read_at,
+       created_at,
+       source_user_id
+      FROM user_notifications
+     WHERE organization_id = $1
+       AND user_id = $2
+       AND ($4::boolean = FALSE OR is_read = FALSE)
+     ORDER BY created_at DESC, id DESC
+     LIMIT $3::integer`,
+    [
+      normalizedOrganizationId,
+      normalizedUserId,
+      normalizedLimit,
+      onlyUnread
+    ]
+  );
+  const unreadResult = await pool.query(
+    `SELECT COUNT(*)::integer AS unread_count
+       FROM user_notifications
+      WHERE organization_id = $1
+        AND user_id = $2
+        AND is_read = FALSE`,
+    [normalizedOrganizationId, normalizedUserId]
+  );
+
+  return {
+    items: (rows || []).map(mapNotificationRow).filter((item) => item.id > 0),
+    unreadCount: normalizePositiveInteger(unreadResult.rows?.[0]?.unread_count)
+  };
+}
+
+export async function markUserNotificationRead({
+  organizationId,
+  userId,
+  notificationId
+}) {
+  const normalizedOrganizationId = normalizePositiveInteger(organizationId);
+  const normalizedUserId = normalizePositiveInteger(userId);
+  const normalizedNotificationId = normalizePositiveInteger(notificationId);
+  if (!normalizedOrganizationId || !normalizedUserId || !normalizedNotificationId) {
+    return null;
+  }
+
+  const { rows } = await pool.query(
+    `UPDATE user_notifications
+        SET is_read = TRUE,
+            read_at = COALESCE(read_at, CURRENT_TIMESTAMP)
+      WHERE organization_id = $1
+        AND user_id = $2
+        AND id = $3
+      RETURNING
+        id,
+        event_type,
+        message,
+        payload,
+        is_read,
+        read_at,
+        created_at,
+        source_user_id`,
+    [
+      normalizedOrganizationId,
+      normalizedUserId,
+      normalizedNotificationId
+    ]
+  );
+
+  return rows?.[0] ? mapNotificationRow(rows[0]) : null;
+}
+
+export async function markAllUserNotificationsRead({
+  organizationId,
+  userId
+}) {
+  const normalizedOrganizationId = normalizePositiveInteger(organizationId);
+  const normalizedUserId = normalizePositiveInteger(userId);
+  if (!normalizedOrganizationId || !normalizedUserId) {
+    return 0;
+  }
+
+  const { rowCount } = await pool.query(
+    `UPDATE user_notifications
+        SET is_read = TRUE,
+            read_at = COALESCE(read_at, CURRENT_TIMESTAMP)
+      WHERE organization_id = $1
+        AND user_id = $2
+        AND is_read = FALSE`,
+    [normalizedOrganizationId, normalizedUserId]
+  );
+
+  return Number.isInteger(rowCount) ? rowCount : 0;
 }
