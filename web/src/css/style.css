@@ -2,3 +2,10 @@
 @import "./layout/layout.css";
 @import "./components/home-responsive.css";
 
+:where(button, a, label, th, td, .btn, .header-btn, .custom-select-trigger, .custom-select-option) {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  letter-spacing: 0;
+}
+

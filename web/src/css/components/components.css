@@ -2851,11 +2851,16 @@ label.field > span:first-child,
   color: #1e4f96;
   font-size: 11px;
   font-weight: 800;
-  line-height: 1;
+  line-height: 1.05;
   text-transform: uppercase;
   display: flex;
   align-items: center;
   justify-content: center;
+  max-width: 100%;
+  padding: 0 4px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
   opacity: 0;
   transition: opacity 0.12s ease;
 }
@@ -3583,6 +3588,7 @@ label.field > span:first-child,
   display: flex;
   width: 100%;
   height: 100%;
+  min-width: 0;
   max-width: 100%;
   padding: 0;
   align-items: center;
@@ -4022,11 +4028,13 @@ label.field > span:first-child,
 }
 
 .appointment-planner-modal-tab {
-  flex: 0 0 82px;
+  flex: 1 1 96px;
+  height: auto;
   min-height: 28px;
-  width: 82px;
-  min-width: 82px;
-  padding: 3px 9px;
+  width: auto;
+  min-width: min(96px, 100%);
+  max-width: 150px;
+  padding: 4px 8px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--surface-soft);
@@ -4034,7 +4042,8 @@ label.field > span:first-child,
   font-size: 12px;
   font-weight: 600;
   line-height: 1.15;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
   display: inline-flex;
   align-items: center;
   justify-content: center;

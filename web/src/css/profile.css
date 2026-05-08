@@ -1,3 +1,37 @@
 @import "./layout/profile-layout.css";
 @import "./components/components.css";
 @import "./components/responsive.css";
+
+:where(
+  .btn,
+  .header-btn,
+  .table-action-btn,
+  .custom-select-trigger,
+  .custom-select-option,
+  .side-menu-action,
+  .side-submenu-link,
+  .appointment-planner-modal-tab,
+  .appointment-day-bulk-btn,
+  .appointment-day-bulk-item,
+  .planner-report-load-btn,
+  .appointment-create-actions > button
+) {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  letter-spacing: 0;
+}
+
+:where(.header-btn:not(.header-notification-btn), .btn, .table-action-btn) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.custom-select-trigger > span,
+.side-menu-action > span,
+.side-submenu-link > span,
+.appointment-day-bulk-main,
+.appointment-day-bulk-meta {
+  min-width: 0;
+  max-width: 100%;
+}

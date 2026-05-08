@@ -97,9 +97,13 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Child", uz: "Bola", ru: "Ребенок" },
   { en: "Users", uz: "Xodimlar", ru: "Пользователи" },
   { en: "All Users", uz: "Barcha xodimlar", ru: "Все пользователи" },
+  { en: "General", uz: "Umumiy", ru: "Общие" },
+  { en: "Other", uz: "Boshqa", ru: "Другое" },
   { en: "Appointments", uz: "Darslar", ru: "Занятия" },
+  { en: "Appointment", uz: "Dars", ru: "Занятие" },
   { en: "Appointment planner", uz: "Dars jadvali", ru: "Расписание занятий" },
   { en: "Planner", uz: "Jadval", ru: "Расписание" },
+  { en: "Lesson", uz: "Dars", ru: "Занятие" },
   { en: "Settings", uz: "Sozlamalar", ru: "Настройки" },
   { en: "Admin Settings", uz: "Admin sozlamalar", ru: "Админ настройки" },
   { en: "Website Management", uz: "Sayt boshqaruvi", ru: "Управление сайтом" },
@@ -115,6 +119,8 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Save", uz: "Saqlash", ru: "Сохранить" },
   { en: "Saving...", uz: "Saqlanmoqda...", ru: "Сохранение..." },
   { en: "Search", uz: "Qidirish", ru: "Поиск" },
+  { en: "Refresh", uz: "Yangilash", ru: "Обновить" },
+  { en: "Reload", uz: "Qayta yuklash", ru: "Обновить" },
   { en: "Edit", uz: "Tahrirlash", ru: "Изменить" },
   { en: "Delete", uz: "O'chirish", ru: "Удалить" },
   { en: "Deleting...", uz: "O'chirilmoqda...", ru: "Удаление..." },
@@ -147,6 +153,8 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Specialist Name", uz: "Mutaxassis", ru: "Специалист" },
   { en: "Client Name", uz: "Bola ismi", ru: "Имя ребенка" },
   { en: "Client ID", uz: "Bola ID", ru: "ID ребенка" },
+  { en: "Image", uz: "Rasm", ru: "Изображение" },
+  { en: "Logo", uz: "Logotip", ru: "Логотип" },
 
   { en: "ID", uz: "ID", ru: "ID" },
   { en: "Organization", uz: "Tashkilot", ru: "Организация" },
@@ -172,8 +180,9 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "New Password", uz: "Yangi parol", ru: "Новый пароль" },
   { en: "New password", uz: "Yangi parol", ru: "Новый пароль" },
   { en: "New Password (optional)", uz: "Yangi parol (ixtiyoriy)", ru: "Новый пароль (необязательно)" },
-  { en: "Email / Telegram", uz: "Email / Telegram", ru: "Email / Telegram" },
+  { en: "Email / Telegram", uz: "Pochta / Telegram", ru: "Почта / Telegram" },
   { en: "Telegram or email", uz: "Telegram yoki email", ru: "Telegram или email" },
+  { en: "user@gmail.com or @telegram", uz: "user@gmail.com yoki @telegram", ru: "user@gmail.com или @telegram" },
 
   { en: "Select organization", uz: "Tashkilotni tanlang", ru: "Выберите организацию" },
   { en: "Search organization", uz: "Tashkilot qidirish", ru: "Поиск организации" },
@@ -231,6 +240,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Photo options", uz: "Rasm sozlamalari", ru: "Настройки фото" },
   { en: "My profile photo", uz: "Profil rasmim", ru: "Мое фото профиля" },
   { en: "Profile photo", uz: "Profil rasmi", ru: "Фото профиля" },
+  { en: "Upload Photo", uz: "Rasm yuklash", ru: "Загрузить фото" },
   { en: "Are you sure you want to log out?", uz: "Rostdan ham chiqmoqchimisiz?", ru: "Вы действительно хотите выйти?" },
   { en: "Are you sure you want to delete this user?", uz: "Bu xodimni o'chirishni tasdiqlaysizmi?", ru: "Удалить этого пользователя?" },
   { en: "Are you sure you want to delete this client?", uz: "Bu bolani o'chirishni tasdiqlaysizmi?", ru: "Удалить этого ребенка?" },
@@ -245,6 +255,8 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Reminder Settings", uz: "Eslatma sozlamalari", ru: "Настройки напоминаний" },
   { en: "Default Weekly Schedule", uz: "Standart haftalik jadval", ru: "Стандартное недельное расписание" },
   { en: "History Lock (days)", uz: "Tarixni yopish (kun)", ru: "Блокировка истории (дни)" },
+  { en: "History lock", uz: "Tarixni yopish", ru: "Блокировка истории" },
+  { en: "Reminder hours", uz: "Eslatma soatlari", ru: "Часы напоминаний" },
   { en: "minutes", uz: "daqiqa", ru: "минут" },
   { en: "per slot", uz: "har slotga", ru: "на слот" },
   { en: "hours before appointment", uz: "darsdan oldin soat", ru: "часов до занятия" },
@@ -264,6 +276,23 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Lesson status report details", uz: "Dars statusi hisoboti tafsilotlari", ru: "Детали отчета по статусам занятий" },
   { en: "No lesson records found.", uz: "Dars yozuvlari topilmadi.", ru: "Записи занятий не найдены." },
   { en: "Total Lessons", uz: "Jami darslar", ru: "Всего занятий" },
+  { en: "Database", uz: "Ma'lumotlar bazasi", ru: "База данных" },
+  { en: "Connected", uz: "Ulangan", ru: "Подключено" },
+  { en: "Disconnected", uz: "Ulanmagan", ru: "Отключено" },
+  { en: "Uptime", uz: "Ishlash vaqti", ru: "Время работы" },
+  { en: "Updated:", uz: "Yangilandi:", ru: "Обновлено:" },
+  { en: "Active Users", uz: "Faol xodimlar", ru: "Активные пользователи" },
+  { en: "(last 15 min)", uz: "(oxirgi 15 daqiqa)", ru: "(последние 15 мин)" },
+  { en: "Method", uz: "Metod", ru: "Метод" },
+  { en: "Route", uz: "Marshrut", ru: "Маршрут" },
+  { en: "Count", uz: "Soni", ru: "Кол-во" },
+  { en: "Speed", uz: "Tezlik", ru: "Скорость" },
+  { en: "Slow", uz: "Sekin", ru: "Медленно" },
+  { en: "Warn", uz: "Ogohlantirish", ru: "Предупреждение" },
+  { en: "Fast", uz: "Tez", ru: "Быстро" },
+  { en: "Level", uz: "Daraja", ru: "Уровень" },
+  { en: "Message", uz: "Xabar", ru: "Сообщение" },
+  { en: "Error", uz: "Xato", ru: "Ошибка" },
   { en: "All users table", uz: "Barcha xodimlar jadvali", ru: "Таблица пользователей" },
   { en: "Clients table", uz: "Bolalar jadvali", ru: "Таблица детей" },
   { en: "Organizations table", uz: "Tashkilotlar jadvali", ru: "Таблица организаций" },
@@ -280,19 +309,32 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "One", uz: "Bitta", ru: "Одно" },
   { en: "Repeat weekly", uz: "Haftalik takrorlash", ru: "Повторять еженедельно" },
   { en: "Repeat weekdays", uz: "Takrorlanadigan kunlar", ru: "Дни повтора" },
+  { en: "Day", uz: "Kun", ru: "День" },
   { en: "Break repeat weekdays", uz: "Tanaffus takror kunlari", ru: "Дни повтора перерыва" },
   { en: "Work schedule repeat weekdays", uz: "Ish jadvali takror kunlari", ru: "Дни повтора рабочего графика" },
   { en: "Break Type", uz: "Tanaffus turi", ru: "Тип перерыва" },
+  { en: "Break", uz: "Tanaffus", ru: "Перерыв" },
+  { en: "Breaks", uz: "Tanaffuslar", ru: "Перерывы" },
+  { en: "Work", uz: "Ish jadvali", ru: "Рабочий график" },
   { en: "Work schedule", uz: "Ish jadvali", ru: "Рабочий график" },
+  { en: "Working hours", uz: "Ish vaqti", ru: "Рабочие часы" },
+  { en: "Blocked time", uz: "Band vaqt", ru: "Заблокированное время" },
+  { en: "Blocked slot", uz: "Band slot", ru: "Заблокированный слот" },
+  { en: "Booked slot", uz: "Band slot", ru: "Занятый слот" },
   { en: "Daily routine", uz: "Kun tartibi", ru: "Режим дня" },
   { en: "Class routine", uz: "Sinf kun tartibi", ru: "Режим класса" },
   { en: "VIP Daily Routine", uz: "VIP kun tartibi", ru: "VIP режим дня" },
   { en: "Specialist absent", uz: "Mutaxassis yo'q", ru: "Специалист отсутствует" },
   { en: "Group lesson", uz: "Guruh darsi", ru: "Групповое занятие" },
+  { en: "Breakfast", uz: "Nonushta", ru: "Завтрак" },
+  { en: "Lunch", uz: "Tushlik", ru: "Обед" },
+  { en: "Meeting", uz: "Uchrashuv", ru: "Встреча" },
+  { en: "Training", uz: "Trening", ru: "Тренинг" },
   { en: "Sleep time", uz: "Uyqu vaqti", ru: "Время сна" },
   { en: "Afternoon snack", uz: "Tushlikdan keyingi tamaddi", ru: "Полдник" },
   { en: "No Show", uz: "Kelmagan", ru: "Не явился" },
   { en: "To Planner", uz: "Jadvalga o'tish", ru: "К расписанию" },
+  { en: "К расписание", uz: "Jadvalga o'tish", ru: "К расписанию" },
   { en: "Lesson confirmed.", uz: "Dars tasdiqlandi.", ru: "Занятие подтверждено." },
   { en: "Double-click to confirm attendance", uz: "Davomatni tasdiqlash uchun ikki marta bosing", ru: "Дважды нажмите для подтверждения посещения" },
   { en: "No appointments to manage for this day.", uz: "Bu kun uchun boshqariladigan dars yo'q.", ru: "На этот день нет занятий для управления." },
@@ -338,30 +380,71 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Failed to load users.", uz: "Xodimlarni yuklab bo'lmadi.", ru: "Не удалось загрузить пользователей." },
   { en: "Failed to load clients.", uz: "Bolalarni yuklab bo'lmadi.", ru: "Не удалось загрузить детей." },
   { en: "Failed to load appointments.", uz: "Darslarni yuklab bo'lmadi.", ru: "Не удалось загрузить занятия." },
+  { en: "Failed to load appointment planner.", uz: "Dars jadvalini yuklab bo'lmadi.", ru: "Не удалось загрузить расписание занятий." },
+  { en: "Failed to load specialists.", uz: "Mutaxassislarni yuklab bo'lmadi.", ru: "Не удалось загрузить специалистов." },
+  { en: "Failed to load VIP classes.", uz: "VIP sinflarni yuklab bo'lmadi.", ru: "Не удалось загрузить VIP классы." },
+  { en: "Failed to load client planner view.", uz: "Bola jadvali ko'rinishini yuklab bo'lmadi.", ru: "Не удалось загрузить расписание ребенка." },
+  { en: "Failed to load specialist absences.", uz: "Mutaxassis yo'qliklarini yuklab bo'lmadi.", ru: "Не удалось загрузить отсутствия специалиста." },
   { en: "Failed to save appointment.", uz: "Darsni saqlab bo'lmadi.", ru: "Не удалось сохранить занятие." },
+  { en: "Failed to confirm lesson.", uz: "Darsni tasdiqlab bo'lmadi.", ru: "Не удалось подтвердить занятие." },
+  { en: "Failed to move appointment.", uz: "Darsni ko'chirib bo'lmadi.", ru: "Не удалось перенести занятие." },
   { en: "Failed to delete appointment.", uz: "Darsni o'chirib bo'lmadi.", ru: "Не удалось удалить занятие." },
   { en: "Failed to load appointment settings.", uz: "Dars sozlamalarini yuklab bo'lmadi.", ru: "Не удалось загрузить настройки занятий." },
   { en: "Failed to save appointment settings.", uz: "Dars sozlamalarini saqlab bo'lmadi.", ru: "Не удалось сохранить настройки занятий." },
+  { en: "Failed to load existing breaks.", uz: "Mavjud tanaffuslarni yuklab bo'lmadi.", ru: "Не удалось загрузить существующие перерывы." },
+  { en: "Failed to load appointment breaks.", uz: "Dars tanaffuslarini yuklab bo'lmadi.", ru: "Не удалось загрузить перерывы занятий." },
+  { en: "Failed to save break.", uz: "Tanaffusni saqlab bo'lmadi.", ru: "Не удалось сохранить перерыв." },
+  { en: "Failed to delete break.", uz: "Tanaffusni o'chirib bo'lmadi.", ru: "Не удалось удалить перерыв." },
+  { en: "Failed to load current work schedule.", uz: "Joriy ish jadvalini yuklab bo'lmadi.", ru: "Не удалось загрузить текущий рабочий график." },
+  { en: "Failed to save work schedule.", uz: "Ish jadvalini saqlab bo'lmadi.", ru: "Не удалось сохранить рабочий график." },
+  { en: "Failed to delete work schedule.", uz: "Ish jadvalini o'chirib bo'lmadi.", ru: "Не удалось удалить рабочий график." },
+  { en: "Failed to update selected appointments.", uz: "Tanlangan darslarni yangilab bo'lmadi.", ru: "Не удалось обновить выбранные занятия." },
   { en: "Appointment settings updated.", uz: "Dars sozlamalari yangilandi.", ru: "Настройки занятий обновлены." },
   { en: "Future appointments cannot be confirmed.", uz: "Kelajakdagi darslarni tasdiqlab bo'lmaydi.", ru: "Будущие занятия нельзя подтверждать." },
+  { en: "History is locked for this date.", uz: "Bu sana uchun tarix yopilgan.", ru: "История для этой даты заблокирована." },
+  { en: "Appointment durations must include at least one value.", uz: "Dars davomiyliklarida kamida bitta qiymat bo'lishi kerak.", ru: "Длительности занятий должны содержать минимум одно значение." },
   { en: "Client is required.", uz: "Bola majburiy.", ru: "Ребенок обязателен." },
   { en: "Specialist is required.", uz: "Mutaxassis majburiy.", ru: "Специалист обязателен." },
   { en: "Break type is required.", uz: "Tanaffus turi majburiy.", ru: "Тип перерыва обязателен." },
   { en: "End time must be after start time.", uz: "Tugash vaqti boshlanishdan keyin bo'lishi kerak.", ru: "Время окончания должно быть позже начала." },
   { en: "Invalid appointment date.", uz: "Dars sanasi noto'g'ri.", ru: "Неверная дата занятия." },
+  { en: "Invalid appointment duration.", uz: "Dars davomiyligi noto'g'ri.", ru: "Неверная длительность занятия." },
+  { en: "Invalid appointment id.", uz: "Dars ID noto'g'ri.", ru: "Неверный ID занятия." },
+  { en: "Invalid appointment move target.", uz: "Darsni ko'chirish manzili noto'g'ri.", ru: "Неверная цель переноса занятия." },
   { en: "Invalid start time.", uz: "Boshlanish vaqti noto'g'ri.", ru: "Неверное время начала." },
   { en: "Invalid end time.", uz: "Tugash vaqti noto'g'ri.", ru: "Неверное время окончания." },
   { en: "Invalid duration.", uz: "Davomiylik noto'g'ri.", ru: "Неверная длительность." },
+  { en: "Invalid repeat end date.", uz: "Takror tugash sanasi noto'g'ri.", ru: "Неверная дата окончания повтора." },
+  { en: "Invalid slot. Please try again.", uz: "Slot noto'g'ri. Qayta urinib ko'ring.", ru: "Неверный слот. Попробуйте еще раз." },
+  { en: "Invalid value.", uz: "Qiymat noto'g'ri.", ru: "Неверное значение." },
   { en: "Note is too long.", uz: "Izoh juda uzun.", ru: "Примечание слишком длинное." },
   { en: "Reason is too long.", uz: "Sabab juda uzun.", ru: "Причина слишком длинная." },
   { en: "This slot is already occupied.", uz: "Bu vaqt band.", ru: "Это время уже занято." },
   { en: "Selected time is outside specialist working hours.", uz: "Tanlangan vaqt mutaxassis ish vaqtidan tashqarida.", ru: "Выбранное время вне рабочего графика специалиста." },
+  { en: "Specialist is unavailable on this day.", uz: "Mutaxassis bu kuni mavjud emas.", ru: "Специалист недоступен в этот день." },
+  { en: "Only pending appointments can be moved.", uz: "Faqat kutilayotgan darslarni ko'chirish mumkin.", ru: "Переносить можно только ожидающие занятия." },
+  { en: "Appointments cannot be moved outside the history lock window.", uz: "Darslarni tarix yopilgan oraliqdan tashqariga ko'chirib bo'lmaydi.", ru: "Занятия нельзя переносить за пределы окна блокировки истории." },
+  { en: "Appointments can only be moved within the visible week.", uz: "Darslarni faqat ko'rinayotgan hafta ichida ko'chirish mumkin.", ru: "Занятия можно переносить только в пределах видимой недели." },
+  { en: "Select at least one appointment.", uz: "Kamida bitta darsni tanlang.", ru: "Выберите минимум одно занятие." },
+  { en: "Select at least one repeat day.", uz: "Kamida bitta takror kunini tanlang.", ru: "Выберите минимум один день повтора." },
+  { en: "Select at least one visible week day.", uz: "Kamida bitta ko'rinadigan hafta kunini tanlang.", ru: "Выберите минимум один видимый день недели." },
+  { en: "Select a valid break time range first.", uz: "Avval to'g'ri tanaffus vaqt oralig'ini tanlang.", ru: "Сначала выберите корректный интервал перерыва." },
+  { en: "No matching break found for the selected specialist and time.", uz: "Tanlangan mutaxassis va vaqt uchun mos tanaffus topilmadi.", ru: "Для выбранного специалиста и времени подходящий перерыв не найден." },
+  { en: "No matching work schedule found for the selected specialist and day.", uz: "Tanlangan mutaxassis va kun uchun mos ish jadvali topilmadi.", ru: "Для выбранного специалиста и дня рабочий график не найден." },
+  { en: "No VIP clients found in selected class.", uz: "Tanlangan sinfda VIP bola topilmadi.", ru: "В выбранном классе VIP дети не найдены." },
   { en: "You do not have permission to create appointments.", uz: "Dars yaratishga ruxsatingiz yo'q.", ru: "У вас нет прав создавать занятия." },
+  { en: "You do not have permission to edit appointments.", uz: "Darslarni tahrirlashga ruxsatingiz yo'q.", ru: "У вас нет прав изменять занятия." },
   { en: "You do not have permission to update appointments.", uz: "Darslarni yangilashga ruxsatingiz yo'q.", ru: "У вас нет прав изменять занятия." },
   { en: "You do not have permission to delete appointments.", uz: "Darslarni o'chirishga ruxsatingiz yo'q.", ru: "У вас нет прав удалять занятия." },
+  { en: "You do not have permission to move this appointment.", uz: "Bu darsni ko'chirishga ruxsatingiz yo'q.", ru: "У вас нет прав переносить это занятие." },
+  { en: "You do not have permission to update appointment breaks.", uz: "Dars tanaffuslarini yangilashga ruxsatingiz yo'q.", ru: "У вас нет прав изменять перерывы занятий." },
+  { en: "You do not have permission to update work schedule.", uz: "Ish jadvalini yangilashga ruxsatingiz yo'q.", ru: "У вас нет прав изменять рабочий график." },
+  { en: "You do not have permission to delete work schedule.", uz: "Ish jadvalini o'chirishga ruxsatingiz yo'q.", ru: "У вас нет прав удалять рабочий график." },
+  { en: "You do not have permission to manage work schedule blocks.", uz: "Ish jadvali bloklarini boshqarishga ruxsatingiz yo'q.", ru: "У вас нет прав управлять блоками рабочего графика." },
   { en: "You can only create appointments in your own planner.", uz: "Darsni faqat o'z jadvalingizda yaratishingiz mumkin.", ru: "Вы можете создавать занятия только в своем расписании." },
   { en: "You can only edit appointments in your own planner.", uz: "Darslarni faqat o'z jadvalingizda tahrirlashingiz mumkin.", ru: "Вы можете изменять занятия только в своем расписании." },
   { en: "You can only manage breaks in your own planner.", uz: "Tanaffuslarni faqat o'z jadvalingizda boshqarishingiz mumkin.", ru: "Вы можете управлять перерывами только в своем расписании." },
+  { en: "You can only manage blocks in your own planner.", uz: "Bloklarni faqat o'z jadvalingizda boshqarishingiz mumkin.", ru: "Вы можете управлять блоками только в своем расписании." },
   { en: "You can only manage work schedule in your own planner.", uz: "Ish jadvalini faqat o'z jadvalingizda boshqarishingiz mumkin.", ru: "Вы можете управлять рабочим графиком только в своем расписании." },
   { en: "You do not have permission to create clients.", uz: "Bola yaratishga ruxsatingiz yo'q.", ru: "У вас нет прав создавать детей." },
   { en: "You do not have permission to update clients.", uz: "Bolalarni yangilashga ruxsatingiz yo'q.", ru: "У вас нет прав изменять детей." },
@@ -369,17 +452,54 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "You do not have permission to create users.", uz: "Xodim yaratishga ruxsatingiz yo'q.", ru: "У вас нет прав создавать пользователей." },
   { en: "You do not have permission to edit users.", uz: "Xodimlarni tahrirlashga ruxsatingiz yo'q.", ru: "У вас нет прав изменять пользователей." },
   { en: "You do not have permission to delete users.", uz: "Xodimlarni o'chirishga ruxsatingiz yo'q.", ru: "У вас нет прав удалять пользователей." },
+  { en: "Failed to update profile.", uz: "Profilni yangilab bo'lmadi.", ru: "Не удалось обновить профиль." },
+  { en: "Failed to update user.", uz: "Xodimni yangilab bo'lmadi.", ru: "Не удалось обновить пользователя." },
+  { en: "Failed to update client.", uz: "Bolani yangilab bo'lmadi.", ru: "Не удалось обновить ребенка." },
+  { en: "Failed to load organizations.", uz: "Tashkilotlarni yuklab bo'lmadi.", ru: "Не удалось загрузить организации." },
+  { en: "Failed to load roles.", uz: "Rollarni yuklab bo'lmadi.", ru: "Не удалось загрузить роли." },
+  { en: "Failed to load positions.", uz: "Lavozimlarni yuklab bo'lmadi.", ru: "Не удалось загрузить должности." },
+  { en: "Failed to update organization.", uz: "Tashkilotni yangilab bo'lmadi.", ru: "Не удалось обновить организацию." },
+  { en: "Failed to update role.", uz: "Rolni yangilab bo'lmadi.", ru: "Не удалось обновить роль." },
+  { en: "Failed to update position.", uz: "Lavozimni yangilab bo'lmadi.", ru: "Не удалось обновить должность." },
+  { en: "You do not have permission to manage organizations.", uz: "Tashkilotlarni boshqarishga ruxsatingiz yo'q.", ru: "У вас нет прав управлять организациями." },
+  { en: "You do not have permission to manage settings.", uz: "Sozlamalarni boshqarishga ruxsatingiz yo'q.", ru: "У вас нет прав управлять настройками." },
+  { en: "You do not have permission to view Website Management.", uz: "Sayt boshqaruvini ko'rishga ruxsatingiz yo'q.", ru: "У вас нет прав просматривать управление сайтом." },
+  { en: "You do not have permission to save website content.", uz: "Sayt kontentini saqlashga ruxsatingiz yo'q.", ru: "У вас нет прав сохранять контент сайта." },
+  { en: "You do not have permission to delete website content.", uz: "Sayt kontentini o'chirishga ruxsatingiz yo'q.", ru: "У вас нет прав удалять контент сайта." },
+  { en: "Failed to load content.", uz: "Kontentni yuklab bo'lmadi.", ru: "Не удалось загрузить контент." },
+  { en: "Failed to load site content.", uz: "Sayt kontentini yuklab bo'lmadi.", ru: "Не удалось загрузить контент сайта." },
+  { en: "Failed to save content.", uz: "Kontentni saqlab bo'lmadi.", ru: "Не удалось сохранить контент." },
+  { en: "Failed to update site content.", uz: "Sayt kontentini yangilab bo'lmadi.", ru: "Не удалось обновить контент сайта." },
+  { en: "Failed to load image.", uz: "Rasmni yuklab bo'lmadi.", ru: "Не удалось загрузить изображение." },
+  { en: "Image is too large. Please choose a smaller file.", uz: "Rasm juda katta. Kichikroq fayl tanlang.", ru: "Изображение слишком большое. Выберите файл меньшего размера." },
+  { en: "Failed to load monitoring data.", uz: "Monitoring ma'lumotlarini yuklab bo'lmadi.", ru: "Не удалось загрузить данные мониторинга." },
   { en: "Current password is required.", uz: "Joriy parol majburiy.", ru: "Текущий пароль обязателен." },
+  { en: "Password is required.", uz: "Parol majburiy.", ru: "Пароль обязателен." },
   { en: "Password must be at least 4 characters.", uz: "Parol kamida 4 ta belgidan iborat bo'lishi kerak.", ru: "Пароль должен содержать минимум 4 символа." },
   { en: "New password must be different from current password.", uz: "Yangi parol joriy paroldan farq qilishi kerak.", ru: "Новый пароль должен отличаться от текущего." },
   { en: "Full name is required.", uz: "F.I.Sh. majburiy.", ru: "Ф.И.О. обязательно." },
+  { en: "Full name is too long (max 96).", uz: "F.I.Sh. juda uzun (maks. 96).", ru: "Ф.И.О. слишком длинное (макс. 96)." },
   { en: "Username must be 3-30 chars and contain letters, numbers, ., _, -", uz: "Login 3-30 belgi bo'lishi va harf, raqam, ., _, - ni o'z ichiga olishi kerak", ru: "Логин должен быть 3-30 символов и содержать буквы, цифры, ., _, -" },
+  { en: "Username is incorrect.", uz: "Login noto'g'ri.", ru: "Логин неверный." },
+  { en: "Invalid username or password.", uz: "Login yoki parol noto'g'ri.", ru: "Неверный логин или пароль." },
   { en: "Role is required.", uz: "Rol majburiy.", ru: "Роль обязательна." },
   { en: "Invalid role.", uz: "Rol noto'g'ri.", ru: "Неверная роль." },
   { en: "Invalid organisation.", uz: "Tashkilot noto'g'ri.", ru: "Неверная организация." },
   { en: "Birthday is required.", uz: "Tug'ilgan sana majburiy.", ru: "Дата рождения обязательна." },
   { en: "Invalid birthday format.", uz: "Tug'ilgan sana formati noto'g'ri.", ru: "Неверный формат даты рождения." },
   { en: "Birthday is out of allowed range.", uz: "Tug'ilgan sana ruxsat etilgan oraliqda emas.", ru: "Дата рождения вне допустимого диапазона." },
+  { en: "First name is required.", uz: "Ism majburiy.", ru: "Имя обязательно." },
+  { en: "First name is too long (max 64).", uz: "Ism juda uzun (maks. 64).", ru: "Имя слишком длинное (макс. 64)." },
+  { en: "Last name is required.", uz: "Familiya majburiy.", ru: "Фамилия обязательна." },
+  { en: "Last name is too long (max 64).", uz: "Familiya juda uzun (maks. 64).", ru: "Фамилия слишком длинная (макс. 64)." },
+  { en: "Middle name is too long (max 64).", uz: "Otasining ismi juda uzun (maks. 64).", ru: "Отчество слишком длинное (макс. 64)." },
+  { en: "Invalid phone number.", uz: "Telefon raqam noto'g'ri.", ru: "Неверный номер телефона." },
+  { en: "Enter valid Telegram username or email.", uz: "To'g'ri Telegram username yoki email kiriting.", ru: "Введите корректный Telegram username или email." },
+  { en: "Telegram or email is too long (max 96).", uz: "Telegram yoki email juda uzun (maks. 96).", ru: "Telegram или email слишком длинный (макс. 96)." },
+  { en: "Note is too long (max 255).", uz: "Izoh juda uzun (maks. 255).", ru: "Примечание слишком длинное (макс. 255)." },
+  { en: "Name is required.", uz: "Nom majburiy.", ru: "Название обязательно." },
+  { en: "Label is required.", uz: "Nom majburiy.", ru: "Название обязательно." },
+  { en: "Code must be 2-64 chars and contain lowercase letters, numbers, ., _, -", uz: "Kod 2-64 belgi bo'lishi va kichik harf, raqam, ., _, - ni o'z ichiga olishi kerak", ru: "Код должен быть 2-64 символа и содержать строчные буквы, цифры, ., _, -" },
 
   { en: "Close all users panel", uz: "Barcha xodimlar panelini yopish", ru: "Закрыть панель пользователей" },
   { en: "Close all clients panel", uz: "Barcha bolalar panelini yopish", ru: "Закрыть панель детей" },
@@ -418,6 +538,8 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Last Action", uz: "Oxirgi amal", ru: "Последнее действие" },
 
   { en: "Welcome Back", uz: "Xush kelibsiz", ru: "С возвращением" },
+  { en: "Open login", uz: "Kirish oynasini ochish", ru: "Открыть вход" },
+  { en: "Open workspace", uz: "Ish maydonini ochish", ru: "Открыть рабочую область" },
   { en: "Free consultation", uz: "Bepul konsultatsiya", ru: "Бесплатная консультация" },
   { en: "Center statistics", uz: "Markaz statistikasi", ru: "Статистика центра" },
   { en: "Therapy services", uz: "Terapiya xizmatlari", ru: "Терапевтические услуги" },
@@ -425,7 +547,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Aaron Academy Kids xaritasi", uz: "Aaron Academy Kids xaritasi", ru: "Карта Aaron Academy Kids" },
   { en: "Organization Name", uz: "Tashkilot nomi", ru: "Название организации" },
   { en: "New Position Label", uz: "Yangi lavozim nomi", ru: "Название новой должности" },
-  { en: "Call Center", uz: "Call Center", ru: "Колл-центр" }
+  { en: "Call Center", uz: "Qo'ng'iroq markazi", ru: "Колл-центр" }
 ]);
 
 export const PATTERN_TRANSLATIONS = Object.freeze([
@@ -435,9 +557,149 @@ export const PATTERN_TRANSLATIONS = Object.freeze([
     ru: (_match, page, total) => `Страница ${page} из ${total}`
   },
   {
+    pattern: /^Updated:\s*(.+)$/i,
+    uz: (_match, value) => `Yangilandi: ${value}`,
+    ru: (_match, value) => `Обновлено: ${value}`
+  },
+  {
+    pattern: /^(\d+)\s+errors$/i,
+    uz: (_match, count) => `${count} ta xato`,
+    ru: (_match, count) => `${count} ошибок`
+  },
+  {
+    pattern: /^(\d+)s\s+ago$/i,
+    uz: (_match, seconds) => `${seconds} soniya oldin`,
+    ru: (_match, seconds) => `${seconds} сек. назад`
+  },
+  {
+    pattern: /^(\d+)m\s+ago$/i,
+    uz: (_match, minutes) => `${minutes} daqiqa oldin`,
+    ru: (_match, minutes) => `${minutes} мин. назад`
+  },
+  {
+    pattern: /^(\d+)h\s+ago$/i,
+    uz: (_match, hours) => `${hours} soat oldin`,
+    ru: (_match, hours) => `${hours} ч. назад`
+  },
+  {
     pattern: /^(\d+)\s+unread notifications$/i,
     uz: (_match, count) => `${count} ta o'qilmagan xabar`,
     ru: (_match, count) => `${count} непрочитанных сообщений`
+  },
+  {
+    pattern: /^(.+)\s+appointments$/i,
+    uz: (_match, day, translateToken) => `${translateToken(day)} darslari`,
+    ru: (_match, day, translateToken) => `Занятия: ${translateToken(day)}`
+  },
+  {
+    pattern: /^Manage appointments for (.+)$/i,
+    uz: (_match, day, translateToken) => `${translateToken(day)} uchun darslarni boshqarish`,
+    ru: (_match, day, translateToken) => `Управлять занятиями на ${translateToken(day)}`
+  },
+  {
+    pattern: /^Edit appointment on (.+) at (.+)$/i,
+    uz: (_match, day, time, translateToken) => `${translateToken(day)} ${time} dagi darsni tahrirlash`,
+    ru: (_match, day, time, translateToken) => `Изменить занятие: ${translateToken(day)} ${time}`
+  },
+  {
+    pattern: /^Appointment on (.+) at (.+)$/i,
+    uz: (_match, day, time, translateToken) => `${translateToken(day)} ${time} dagi dars`,
+    ru: (_match, day, time, translateToken) => `Занятие: ${translateToken(day)} ${time}`
+  },
+  {
+    pattern: /^Daily routine on (.+) at (.+)$/i,
+    uz: (_match, day, time, translateToken) => `${translateToken(day)} ${time} dagi kun tartibi`,
+    ru: (_match, day, time, translateToken) => `Режим дня: ${translateToken(day)} ${time}`
+  },
+  {
+    pattern: /^Booked slot on (.+) at (.+)$/i,
+    uz: (_match, day, time, translateToken) => `${translateToken(day)} ${time} dagi band slot`,
+    ru: (_match, day, time, translateToken) => `Занятый слот: ${translateToken(day)} ${time}`
+  },
+  {
+    pattern: /^Blocked slot on (.+) at (.+)$/i,
+    uz: (_match, day, time, translateToken) => `${translateToken(day)} ${time} dagi band slot`,
+    ru: (_match, day, time, translateToken) => `Заблокированный слот: ${translateToken(day)} ${time}`
+  },
+  {
+    pattern: /^Break slot on (.+) at (.+)$/i,
+    uz: (_match, day, time, translateToken) => `${translateToken(day)} ${time} dagi tanaffus sloti`,
+    ru: (_match, day, time, translateToken) => `Слот перерыва: ${translateToken(day)} ${time}`
+  },
+  {
+    pattern: /^Specialist absent on (.+) at (.+)$/i,
+    uz: (_match, day, time, translateToken) => `${translateToken(day)} ${time} da mutaxassis yo'q`,
+    ru: (_match, day, time, translateToken) => `Специалист отсутствует: ${translateToken(day)} ${time}`
+  },
+  {
+    pattern: /^Specialist #(.+)$/i,
+    uz: (_match, id) => `Mutaxassis #${id}`,
+    ru: (_match, id) => `Специалист #${id}`
+  },
+  {
+    pattern: /^Client #(.+)$/i,
+    uz: (_match, id) => `Bola #${id}`,
+    ru: (_match, id) => `Ребенок #${id}`
+  },
+  {
+    pattern: /^Future appointments cannot be confirmed\. Requested date:\s*(.+)\.$/i,
+    uz: (_match, date) => `Kelajakdagi darslarni tasdiqlab bo'lmaydi. So'ralgan sana: ${date}.`,
+    ru: (_match, date) => `Будущие занятия нельзя подтверждать. Запрошенная дата: ${date}.`
+  },
+  {
+    pattern: /^Selected time overlaps existing appointment \((.+)\)\.$/i,
+    uz: (_match, time) => `Tanlangan vaqt mavjud dars bilan kesishadi (${time}).`,
+    ru: (_match, time) => `Выбранное время пересекается с существующим занятием (${time}).`
+  },
+  {
+    pattern: /^Selected time overlaps blocked time:\s*(.+)\.$/i,
+    uz: (_match, reason, translateToken) => `Tanlangan vaqt band vaqt bilan kesishadi: ${translateToken(reason)}.`,
+    ru: (_match, reason, translateToken) => `Выбранное время пересекается с блокировкой: ${translateToken(reason)}.`
+  },
+  {
+    pattern: /^Selected time overlaps specialist absence:\s*(.+)\.$/i,
+    uz: (_match, reason, translateToken) => `Tanlangan vaqt mutaxassis yo'qligi bilan kesishadi: ${translateToken(reason)}.`,
+    ru: (_match, reason, translateToken) => `Выбранное время пересекается с отсутствием специалиста: ${translateToken(reason)}.`
+  },
+  {
+    pattern: /^Selected time overlaps specialist break:\s*(.+)\.$/i,
+    uz: (_match, reason, translateToken) => `Tanlangan vaqt mutaxassis tanaffusi bilan kesishadi: ${translateToken(reason)}.`,
+    ru: (_match, reason, translateToken) => `Выбранное время пересекается с перерывом специалиста: ${translateToken(reason)}.`
+  },
+  {
+    pattern: /^This slot is already occupied at (.+)\.$/i,
+    uz: (_match, details) => `Bu slot ${details} vaqtida band.`,
+    ru: (_match, details) => `Этот слот уже занят: ${details}.`
+  },
+  {
+    pattern: /^(.+) is required\.$/i,
+    uz: (_match, field, translateToken) => `${translateToken(field)} majburiy.`,
+    ru: (_match, field, translateToken) => `Поле "${translateToken(field)}" обязательно.`
+  },
+  {
+    pattern: /^(.+) must be a whole number\.$/i,
+    uz: (_match, field, translateToken) => `${translateToken(field)} butun son bo'lishi kerak.`,
+    ru: (_match, field, translateToken) => `Значение "${translateToken(field)}" должно быть целым числом.`
+  },
+  {
+    pattern: /^(.+) must be 0 or more\.$/i,
+    uz: (_match, field, translateToken) => `${translateToken(field)} 0 yoki undan katta bo'lishi kerak.`,
+    ru: (_match, field, translateToken) => `Значение "${translateToken(field)}" должно быть 0 или больше.`
+  },
+  {
+    pattern: /^(.+) must be at least (.+)\.$/i,
+    uz: (_match, field, min, translateToken) => `${translateToken(field)} kamida ${min} bo'lishi kerak.`,
+    ru: (_match, field, min, translateToken) => `Значение "${translateToken(field)}" должно быть не меньше ${min}.`
+  },
+  {
+    pattern: /^(.+) must be between (.+) and (.+)\.$/i,
+    uz: (_match, field, min, max, translateToken) => `${translateToken(field)} ${min} va ${max} oralig'ida bo'lishi kerak.`,
+    ru: (_match, field, min, max, translateToken) => `Значение "${translateToken(field)}" должно быть между ${min} и ${max}.`
+  },
+  {
+    pattern: /^(.+) must be between 0 and (.+)\.$/i,
+    uz: (_match, field, max, translateToken) => `${translateToken(field)} 0 va ${max} oralig'ida bo'lishi kerak.`,
+    ru: (_match, field, max, translateToken) => `Значение "${translateToken(field)}" должно быть между 0 и ${max}.`
   },
   {
     pattern: /^(\d+)\.\s+(.+)$/,

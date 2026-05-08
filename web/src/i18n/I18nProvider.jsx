@@ -59,6 +59,13 @@ function preserveOuterWhitespace(source, translated) {
 }
 
 function translatePattern(trimmed, language) {
+  const translateToken = (token) => {
+    const raw = String(token ?? "");
+    const entry = literalEntryByText.get(raw.trim().toLowerCase());
+    const translated = entry?.[normalizeLanguage(language)];
+    return translated ? preserveOuterWhitespace(raw, translated) : raw;
+  };
+
   for (const item of PATTERN_TRANSLATIONS) {
     const match = trimmed.match(item.pattern);
     if (!match) {
@@ -66,7 +73,7 @@ function translatePattern(trimmed, language) {
     }
     const handler = item[language];
     if (typeof handler === "function") {
-      return handler(...match);
+      return handler(...match, translateToken);
     }
   }
   return "";

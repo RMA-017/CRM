@@ -16,21 +16,21 @@ const HOME_I18N = {
   uz: {
     brandSubtitle: "Korreksion rivojlantirish markazi",
     seo: {
-      title: "Aaron Academy Kids | Autism terapiya va korreksion markaz Toshkent",
-      description: "Aaron Academy Kids - Toshkentdagi autism spektrli bolalar uchun korreksion rivojlantirish markazi. ABA terapiya, logoped, sensor integratsiya va individual dasturlar.",
-      keywords: "autism, autizm, autizm terapiya Toshkent, ABA terapiya, logoped Toshkent, sensor integratsiya, Aaron Academy Kids, korreksion markaz"
+      title: "Aaron Academy Kids | Autizm terapiya va korreksion markaz Toshkent",
+      description: "Aaron Academy Kids - Toshkentdagi autizm spektrli bolalar uchun korreksion rivojlantirish markazi. ABA terapiya, logoped, sensor integratsiya va individual dasturlar.",
+      keywords: "autizm, autizm terapiya Toshkent, ABA terapiya, logoped Toshkent, sensor integratsiya, Aaron Academy Kids, korreksion markaz"
     },
     navLinks: [
       { href: "#about", label: "Biz haqimizda" },
       { href: "#services", label: "Xizmatlar" },
       { href: "#kids", label: "Bolalar ijodi" },
-      { href: "#signup", label: "Online yozilish" },
+      { href: "#signup", label: "Onlayn yozilish" },
       { href: "#partners", label: "Hamkorlar" },
       { href: "#contact", label: "Aloqa" }
     ],
     actions: {
       login: "Kirish",
-      onlineSignup: "Online yozilish",
+      onlineSignup: "Onlayn yozilish",
       details: "Batafsil ma'lumot",
       submit: "Yozilish",
       openMap: "Xaritada ochish",
@@ -104,7 +104,7 @@ const HOME_I18N = {
     },
     signup: {
       kicker: "Yozilish",
-      title: "Online yozilish",
+      title: "Onlayn yozilish",
       text: "Formani to'ldiring, biz siz bilan bog'lanamiz",
       fullName: "F.I.SH.",
       phone: "Telefon raqam",
@@ -143,7 +143,7 @@ const HOME_I18N = {
     seo: {
       title: "Aaron Academy Kids | Центр терапии аутизма в Ташкенте",
       description: "Aaron Academy Kids - коррекционный центр для детей с аутизмом в Ташкенте. ABA терапия, логопед, сенсорная интеграция и индивидуальные программы развития.",
-      keywords: "autism, аутизм, терапия аутизма Ташкент, ABA терапия, логопед Ташкент, сенсорная интеграция, Aaron Academy Kids, коррекционный центр"
+      keywords: "аутизм, терапия аутизма Ташкент, ABA терапия, логопед Ташкент, сенсорная интеграция, Aaron Academy Kids, коррекционный центр"
     },
     navLinks: [
       { href: "#about", label: "О нас" },
@@ -626,7 +626,7 @@ function HomePage() {
       logo: `${window.location.origin}/crm.svg`,
       telephone: "+998954550033",
       email: "AARON.AAK.012@gmail.com",
-      medicalSpecialty: "Autism",
+      medicalSpecialty: "Autizm spektri",
       address: {
         "@type": "PostalAddress",
         streetAddress: language === "ru" ? "массив Буюк Ипак Йули, 5А" : "Buyuk Ipak Yo'li 5A",
