@@ -5,6 +5,7 @@ import "../css/profile.css";
 import { apiFetch, getApiErrorMessage, readApiResponseData } from "../lib/api.js";
 import { LOGOUT_FLAG_KEY } from "../lib/auth-flags.js";
 import { formatDateForInput, normalizeProfile } from "../lib/formatters.js";
+import { useI18n } from "../i18n/I18nProvider.jsx";
 import {
   createEmptyProfileEditState,
   EMPTY_PROFILE_EDIT_FORM,
@@ -36,6 +37,7 @@ const ProfileMainContent = lazy(() => import("./profile/ProfileMainContent.jsx")
 
 function ProfilePage({ forcedView = "none" }) {
   const navigate = useNavigate();
+  const { language, setLanguage, t } = useI18n();
   const menuRef = useRef(null);
   const menuToggleRef = useRef(null);
   const sideMenuRef = useRef(null);
@@ -1006,7 +1008,7 @@ function ProfilePage({ forcedView = "none" }) {
                 ref={menuToggleRef}
                 className="menu-toggle"
                 type="button"
-                aria-label="Open main menu"
+                aria-label={t("header.openMenu")}
                 aria-expanded="false"
                 aria-controls="mainMenu"
                 onClick={() => {
@@ -1034,7 +1036,7 @@ function ProfilePage({ forcedView = "none" }) {
                   <CustomSelect
                     id="headerOrganizationContextSelect"
                     value={String(profile?.organizationCode || "").trim().toLowerCase()}
-                    placeholder="Select organization"
+                    placeholder={t("header.selectOrganization")}
                     options={createOrganizationOptions}
                     disabled={organizationContextSwitching || createOrganizationOptions.length === 0}
                     menuPortal
@@ -1042,13 +1044,23 @@ function ProfilePage({ forcedView = "none" }) {
                     forceOpenDown
                     searchable
                     searchThreshold={8}
-                    searchPlaceholder="Search organization"
+                    searchPlaceholder={t("header.searchOrganization")}
                     onChange={handleOrganizationContextSwitch}
                   />
                 </div>
               ) : null}
 
               <HeaderNotifications enabled={Boolean(profile?.username)} navigate={navigate} />
+
+              <button
+                type="button"
+                className="header-btn home-language-btn"
+                aria-label={t("language.switch")}
+                title={t("language.current")}
+                onClick={() => setLanguage(language === "uz" ? "ru" : "uz")}
+              >
+                {t("language.next")}
+              </button>
 
               <div className="user-menu-wrap">
                 <button
@@ -1061,7 +1073,7 @@ function ProfilePage({ forcedView = "none" }) {
                     <img
                       id="headerAvatarImage"
                       className="header-avatar-image"
-                      alt="Profile photo"
+                      alt={t("header.profilePhoto")}
                       hidden={!avatarDataUrl}
                       src={avatarDataUrl || undefined}
                     />
@@ -1087,7 +1099,7 @@ function ProfilePage({ forcedView = "none" }) {
               </div>
 
               <button id="headerLogoutBtn" type="button" className="header-btn" onClick={() => setLogoutConfirmOpen(true)}>
-                Logout
+                {t("header.logout")}
               </button>
             </nav>
           </div>

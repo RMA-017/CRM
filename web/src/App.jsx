@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import { useI18n } from "./i18n/I18nProvider.jsx";
 import { loadProfilePage } from "./lib/load-profile-page.js";
 
 const HomePage = lazy(() => import("./pages/HomePage.jsx"));
@@ -63,6 +64,8 @@ const REDIRECT_ROUTE_GROUPS = Object.freeze([
 ]);
 
 function NotFoundPage() {
+  const { t } = useI18n();
+
   return (
     <div className="home-layout">
       <header className="home-header">
@@ -73,12 +76,12 @@ function NotFoundPage() {
           </a>
         </div>
       </header>
-      <main className="home-main" aria-label="Main content">
-        Not Found
+      <main className="home-main" aria-label={t("app.mainContent")}>
+        {t("app.notFound")}
       </main>
       <footer className="home-footer">
         <a className="footer-link" href="/">
-          <span>Back to Home</span>
+          <span>{t("app.backHome")}</span>
         </a>
       </footer>
     </div>

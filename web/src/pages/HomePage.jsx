@@ -3,13 +3,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { apiFetch, getApiErrorMessage, readApiResponseData } from "../lib/api.js";
 import { LOGOUT_FLAG_KEY } from "../lib/auth-flags.js";
 import { normalizeProfile } from "../lib/formatters.js";
+import { useI18n } from "../i18n/I18nProvider.jsx";
 import { loadProfilePage } from "../lib/load-profile-page.js";
 import { fetchPublicSiteContent } from "../lib/site-content.js";
 import "../css/layout/profile-layout.css";
 import ProfileSideMenu from "./profile/ProfileSideMenu.jsx";
 import { useProfileAccess } from "./profile/useProfileAccess.js";
 
-const HOME_LANGUAGE_KEY = "aaron_home_language";
 const TEAM_ITEMS_PER_PAGE = 4;
 
 const HOME_I18N = {
@@ -445,9 +445,7 @@ function HomePage() {
   const [teamItems, setTeamItems] = useState([]);
   const [teamPage, setTeamPage] = useState(1);
   const [partnerItems, setPartnerItems] = useState([]);
-  const [language, setLanguage] = useState(() => (
-    localStorage.getItem(HOME_LANGUAGE_KEY) === "ru" ? "ru" : "uz"
-  ));
+  const { language, setLanguage, t } = useI18n();
   const homeText = HOME_I18N[language];
 
   const {
@@ -739,11 +737,9 @@ function HomePage() {
 
   const toggleLanguage = useCallback(() => {
     setLanguage((currentLanguage) => {
-      const nextLanguage = currentLanguage === "uz" ? "ru" : "uz";
-      localStorage.setItem(HOME_LANGUAGE_KEY, nextLanguage);
-      return nextLanguage;
+      return currentLanguage === "uz" ? "ru" : "uz";
     });
-  }, []);
+  }, [setLanguage]);
 
   const updateSignupField = useCallback((field, value) => {
     setSignupForm((prev) => ({ ...prev, [field]: value }));
@@ -875,7 +871,7 @@ function HomePage() {
               <button
                 type="button"
                 className="header-btn home-language-btn"
-                aria-label="Switch language"
+                aria-label={t("language.switch")}
                 onClick={toggleLanguage}
               >
                 {homeText.actions.nextLanguage}

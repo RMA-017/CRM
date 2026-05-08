@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { translateLiteral, useI18n } from "../../i18n/I18nProvider.jsx";
 import { apiFetch, getApiErrorMessage, readApiResponseData } from "../../lib/api.js";
 import { handleProtectedStatus } from "./profile.helpers.js";
 
 const NOTIFICATION_REFRESH_MS = 30_000;
 const NOTIFICATION_LIMIT = 10;
 
-function formatNotificationTime(value) {
+function formatNotificationTime(value, language) {
   const date = value ? new Date(value) : null;
   if (!date || Number.isNaN(date.getTime())) {
     return "";
   }
-  return new Intl.DateTimeFormat("en-GB", {
+  return new Intl.DateTimeFormat(language === "ru" ? "ru-RU" : "uz-UZ", {
     month: "short",
     day: "2-digit",
     hour: "2-digit",
@@ -18,9 +19,9 @@ function formatNotificationTime(value) {
   }).format(date);
 }
 
-function formatEventType(value) {
+function formatEventType(value, language) {
   const normalized = String(value || "").trim().replace(/[._-]+/g, " ");
-  return normalized || "notification";
+  return translateLiteral(normalized || "notification", language);
 }
 
 function BellIcon() {
@@ -33,6 +34,7 @@ function BellIcon() {
 }
 
 function HeaderNotifications({ enabled = false, navigate }) {
+  const { language, t } = useI18n();
   const panelRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
@@ -67,7 +69,7 @@ function HeaderNotifications({ enabled = false, navigate }) {
         if (handleProtectedStatus(response, navigate)) {
           return;
         }
-        setMessage(getApiErrorMessage(response, data, "Failed to load notifications."));
+        setMessage(getApiErrorMessage(response, data, t("notifications.loadError")));
         return;
       }
       setItems(Array.isArray(data?.items) ? data.items : []);
@@ -75,14 +77,14 @@ function HeaderNotifications({ enabled = false, navigate }) {
       setMessage("");
     } catch {
       if (!silent) {
-        setMessage("Failed to load notifications.");
+        setMessage(t("notifications.loadError"));
       }
     } finally {
       if (!silent) {
         setLoading(false);
       }
     }
-  }, [enabled, navigate]);
+  }, [enabled, navigate, t]);
 
   const markNotificationRead = useCallback(async (notificationId) => {
     const id = Number.parseInt(String(notificationId || ""), 10);
@@ -174,9 +176,9 @@ function HeaderNotifications({ enabled = false, navigate }) {
       <button
         type="button"
         className={`header-btn header-notification-btn${unreadCount > 0 ? " has-unread" : ""}`}
-        aria-label={unreadCount > 0 ? `${unreadCount} unread notifications` : "Notifications"}
+        aria-label={unreadCount > 0 ? t("notifications.ariaUnread", { count: unreadCount }) : t("notifications.ariaEmpty")}
         aria-expanded={open}
-        title="Xabarlar"
+        title={t("notifications.title")}
         onClick={() => {
           setOpen((prev) => !prev);
           if (!open) {
@@ -191,22 +193,22 @@ function HeaderNotifications({ enabled = false, navigate }) {
       </button>
 
       {open ? (
-        <div className="header-notification-panel" role="dialog" aria-label="Xabarlar">
+        <div className="header-notification-panel" role="dialog" aria-label={t("notifications.title")}>
           <div className="header-notification-panel-head">
-            <strong>Xabarlar</strong>
+            <strong>{t("notifications.title")}</strong>
             {unreadCount > 0 ? (
               <button type="button" className="header-notification-read-all" onClick={markAllRead}>
-                O'qildi
+                {t("notifications.markRead")}
               </button>
             ) : null}
           </div>
 
           {message ? <div className="header-notification-empty">{message}</div> : null}
           {!message && loading && items.length === 0 ? (
-            <div className="header-notification-empty">Yuklanmoqda...</div>
+            <div className="header-notification-empty">{t("notifications.loading")}</div>
           ) : null}
           {!message && !loading && items.length === 0 ? (
-            <div className="header-notification-empty">Yangi xabar yo'q.</div>
+            <div className="header-notification-empty">{t("notifications.none")}</div>
           ) : null}
           {!message && items.length > 0 ? (
             <div className="header-notification-list">
@@ -221,10 +223,10 @@ function HeaderNotifications({ enabled = false, navigate }) {
                     onClick={() => markNotificationRead(itemId)}
                   >
                     <span className="header-notification-item-top">
-                      <span>{formatEventType(item?.eventType)}</span>
-                      <time>{formatNotificationTime(item?.createdAt)}</time>
+                      <span>{formatEventType(item?.eventType, language)}</span>
+                      <time>{formatNotificationTime(item?.createdAt, language)}</time>
                     </span>
-                    <span className="header-notification-item-message">{item?.message || "Notification"}</span>
+                    <span className="header-notification-item-message">{item?.message || t("notifications.fallback")}</span>
                   </button>
                 );
               })}
