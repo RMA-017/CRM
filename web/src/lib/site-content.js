@@ -1,10 +1,11 @@
 import { apiFetch, readApiResponseData } from "./api.js";
 
-export const SITE_CONTENT_SECTIONS = Object.freeze(["kids", "team", "partners"]);
+export const SITE_CONTENT_SECTIONS = Object.freeze(["kids", "blog", "team", "partners"]);
 
 export function emptySiteContentGroups() {
   return {
     kids: [],
+    blog: [],
     team: [],
     partners: []
   };

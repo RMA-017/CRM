@@ -182,7 +182,7 @@ CREATE TABLE site_content_items (
   id BIGSERIAL PRIMARY KEY,
   organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   section_key VARCHAR(32) NOT NULL
-    CHECK (section_key IN ('kids', 'team', 'partners')),
+    CHECK (section_key IN ('kids', 'blog', 'team', 'partners')),
   image_data TEXT NOT NULL,
   author VARCHAR(128),
   author_uz VARCHAR(128),
@@ -193,9 +193,9 @@ CREATE TABLE site_content_items (
   role VARCHAR(128),
   role_uz VARCHAR(128),
   role_ru VARCHAR(128),
-  description VARCHAR(512) NOT NULL,
-  description_uz VARCHAR(512),
-  description_ru VARCHAR(512),
+  description TEXT NOT NULL,
+  description_uz TEXT,
+  description_ru TEXT,
   sort_order INTEGER NOT NULL DEFAULT 0,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -205,7 +205,7 @@ CREATE TABLE site_content_items (
   CHECK (
     (section_key = 'kids' AND author IS NOT NULL AND name IS NULL)
     OR
-    (section_key IN ('team', 'partners') AND name IS NOT NULL)
+    (section_key IN ('blog', 'team', 'partners') AND name IS NOT NULL)
   )
 );
 

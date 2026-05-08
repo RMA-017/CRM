@@ -525,15 +525,6 @@ function ProfilePage({ forcedView = "none" }) {
       void loadClients(1);
       return;
     }
-    if (mainView === "create-user") {
-      if (canReadUsers && !allUsersLoadedOnce) {
-        void loadAllUsers(1);
-      }
-      if (hasAdminSettingsAccess) {
-        void loadOrganizations();
-      }
-      return;
-    }
     if (mainView === "settings-organizations") {
       if (hasAdminSettingsAccess) {
         void loadOrganizations();
@@ -548,9 +539,6 @@ function ProfilePage({ forcedView = "none" }) {
       void loadPositionsSettings();
     }
   }, [
-    allUsersLoadedOnce,
-    canReadUsers,
-    forcedView,
     hasAdminSettingsAccess,
     loadAllUsers,
     loadClients,
@@ -558,7 +546,27 @@ function ProfilePage({ forcedView = "none" }) {
     loadPositionsSettings,
     loadRolesSettings,
     mainView,
-    profile?.isPlatformAdmin,
+    profile?.username
+  ]);
+
+  useEffect(() => {
+    if (!profile?.username || mainView !== "create-user") {
+      return;
+    }
+
+    if (canReadUsers && !allUsersLoadedOnce) {
+      void loadAllUsers(1);
+    }
+    if (hasAdminSettingsAccess) {
+      void loadOrganizations();
+    }
+  }, [
+    allUsersLoadedOnce,
+    canReadUsers,
+    hasAdminSettingsAccess,
+    loadAllUsers,
+    loadOrganizations,
+    mainView,
     profile?.username
   ]);
 

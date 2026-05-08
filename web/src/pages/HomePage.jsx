@@ -24,6 +24,7 @@ const HOME_I18N = {
       { href: "#about", label: "Biz haqimizda" },
       { href: "#services", label: "Xizmatlar" },
       { href: "#kids", label: "Bolalar ijodi" },
+      { href: "#blog", label: "Blog" },
       { href: "#signup", label: "Onlayn yozilish" },
       { href: "#partners", label: "Hamkorlar" },
       { href: "#contact", label: "Aloqa" }
@@ -91,6 +92,13 @@ const HOME_I18N = {
         description: "Qisqa ta'rif kiriting."
       }
     },
+    blog: {
+      kicker: "Blog",
+      title: "Foydali maqolalar",
+      text: "Autizm, rivojlanish va ota-onalar uchun amaliy tavsiyalar",
+      empty: "Hozircha maqolalar yo'q",
+      readMore: "Maqolani o'qish"
+    },
     team: {
       kicker: "Jamoa",
       title: "Bizning mutaxassislar",
@@ -149,6 +157,7 @@ const HOME_I18N = {
       { href: "#about", label: "О нас" },
       { href: "#services", label: "Услуги" },
       { href: "#kids", label: "Творчество детей" },
+      { href: "#blog", label: "Блог" },
       { href: "#signup", label: "Онлайн запись" },
       { href: "#partners", label: "Партнеры" },
       { href: "#contact", label: "Контакты" }
@@ -215,6 +224,13 @@ const HOME_I18N = {
         author: "Введите имя автора.",
         description: "Введите краткое описание."
       }
+    },
+    blog: {
+      kicker: "Блог",
+      title: "Полезные статьи",
+      text: "Об аутизме, развитии и практических рекомендациях для родителей",
+      empty: "Пока статей нет",
+      readMore: "Читать статью"
     },
     team: {
       kicker: "Команда",
@@ -399,9 +415,26 @@ function localizeSiteContentItem(item, language) {
 function localizeSiteContentGroups(items, language) {
   return {
     kids: (items.kids || []).map((item) => localizeSiteContentItem(item, language)),
+    blog: (items.blog || []).map((item) => localizeSiteContentItem(item, language)),
     team: (items.team || []).map((item) => localizeSiteContentItem(item, language)),
     partners: (items.partners || []).map((item) => localizeSiteContentItem(item, language))
   };
+}
+
+function slugifyBlogTitle(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\u0400-\u04ff]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    || "article";
+}
+
+function getBlogPath(item) {
+  const id = String(item?.id || "").trim();
+  return `/blog/${encodeURIComponent(`${id}-${slugifyBlogTitle(item?.name || item?.nameUz || item?.nameRu)}`)}`;
 }
 
 function getUniquePartners(items, language) {
@@ -442,6 +475,7 @@ function HomePage() {
   const [signupForm, setSignupForm] = useState({ fullName: "", phone: "" });
   const [signupErrors, setSignupErrors] = useState({ fullName: "", phone: "" });
   const [kidsArtItems, setKidsArtItems] = useState([]);
+  const [blogItems, setBlogItems] = useState([]);
   const [teamItems, setTeamItems] = useState([]);
   const [teamPage, setTeamPage] = useState(1);
   const [partnerItems, setPartnerItems] = useState([]);
@@ -550,6 +584,7 @@ function HomePage() {
         }
         const localizedItems = localizeSiteContentGroups(items, language);
         setKidsArtItems(localizedItems.kids);
+        setBlogItems(localizedItems.blog);
         setTeamItems(localizedItems.team);
         setPartnerItems(localizedItems.partners);
       } catch {
@@ -557,6 +592,7 @@ function HomePage() {
           return;
         }
         setKidsArtItems([]);
+        setBlogItems([]);
         setTeamItems([]);
         setPartnerItems([]);
       }
@@ -1053,6 +1089,33 @@ function HomePage() {
               </div>
             ) : (
               <p className="home-empty-message">{homeText.gallery.empty}</p>
+            )}
+          </section>
+
+          <section id="blog" className="home-empty-section home-blog-section" aria-labelledby="blogTitle">
+            <div className="home-section-head">
+              <p className="home-section-kicker">{homeText.blog.kicker}</p>
+              <h2 id="blogTitle">{homeText.blog.title}</h2>
+              <p>{homeText.blog.text}</p>
+            </div>
+            {blogItems.length > 0 ? (
+              <div className="home-content-card-grid home-blog-grid">
+                {blogItems.map((item) => (
+                  <article key={item.id} className="home-content-card home-blog-card">
+                    {item.image ? <img src={item.image} alt={item.name || homeText.blog.title} /> : null}
+                    <div>
+                      <h3>{item.name}</h3>
+                      <p>{item.description}</p>
+                      <Link className="home-blog-link" to={getBlogPath(item)}>
+                        {homeText.blog.readMore}
+                        <span aria-hidden="true">→</span>
+                      </Link>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="home-empty-message">{homeText.blog.empty}</p>
             )}
           </section>
 

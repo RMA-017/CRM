@@ -4,6 +4,7 @@ import { useI18n } from "./i18n/I18nProvider.jsx";
 import { loadProfilePage } from "./lib/load-profile-page.js";
 
 const HomePage = lazy(() => import("./pages/HomePage.jsx"));
+const BlogArticlePage = lazy(() => import("./pages/BlogArticlePage.jsx"));
 const ProfilePage = lazy(loadProfilePage);
 
 const PROFILE_VIEW_ROUTES = Object.freeze([
@@ -93,6 +94,7 @@ function App() {
     <Suspense fallback={null}>
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/blog/:slug" element={<BlogArticlePage />} />
         {PROFILE_VIEW_ROUTES.map(({ path, forcedView }) => (
           <Route
             key={path}

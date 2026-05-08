@@ -1,6 +1,6 @@
 import pool from "../../config/db.js";
 
-export const SITE_CONTENT_SECTIONS = Object.freeze(["kids", "team", "partners"]);
+export const SITE_CONTENT_SECTIONS = Object.freeze(["kids", "blog", "team", "partners"]);
 
 function valueOrFallback(value, fallback = "") {
   return value || fallback || "";
@@ -42,6 +42,7 @@ function mapSiteContentItem(row) {
 export function groupSiteContentItems(items = []) {
   const grouped = {
     kids: [],
+    blog: [],
     team: [],
     partners: []
   };

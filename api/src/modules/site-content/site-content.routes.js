@@ -15,7 +15,7 @@ import {
 
 const MAX_IMAGE_DATA_LENGTH = 750_000;
 const SITE_CONTENT_BODY_LIMIT = 5 * 1024 * 1024;
-const MAX_DESCRIPTION_LENGTH = 512;
+const MAX_DESCRIPTION_LENGTH = 4000;
 
 function normalizeText(value, maxLength = 128) {
   return String(value || "").trim().slice(0, maxLength);

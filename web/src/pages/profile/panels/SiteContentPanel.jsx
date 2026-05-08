@@ -22,6 +22,17 @@ const SECTIONS = Object.freeze([
     ]
   },
   {
+    key: "blog",
+    title: "Blog",
+    imageLabel: "Cover image",
+    fields: [
+      { key: "nameUz", label: "Title (Uzbek)", placeholder: "Masalan: Autizm bu nima?" },
+      { key: "nameRu", label: "Title (Russian)", placeholder: "Например: Что такое аутизм?" },
+      { key: "descriptionUz", label: "Article (Uzbek)", placeholder: "Maqola matnini yoki qisqacha tavsifni yozing", type: "textarea" },
+      { key: "descriptionRu", label: "Article (Russian)", placeholder: "Напишите текст статьи или краткое описание", type: "textarea" }
+    ]
+  },
+  {
     key: "team",
     title: "Our Specialists",
     imageLabel: "Image",
@@ -49,6 +60,7 @@ const SECTIONS = Object.freeze([
 
 const EMPTY_FORMS = Object.freeze({
   kids: { image: "", authorUz: "", authorRu: "", descriptionUz: "", descriptionRu: "" },
+  blog: { image: "", nameUz: "", nameRu: "", descriptionUz: "", descriptionRu: "" },
   team: { image: "", nameUz: "", nameRu: "", roleUz: "", roleRu: "", descriptionUz: "", descriptionRu: "" },
   partners: { image: "", nameUz: "", nameRu: "", descriptionUz: "", descriptionRu: "" }
 });

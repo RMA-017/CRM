@@ -115,7 +115,7 @@ export function useProfilePanels({
   }, [closePanel]);
 
   const openSiteContentPanel = useCallback((sectionKey = "kids") => {
-    const section = ["kids", "team", "partners"].includes(sectionKey) ? sectionKey : "kids";
+    const section = ["kids", "blog", "team", "partners"].includes(sectionKey) ? sectionKey : "kids";
     openPanel(`/site/content?section=${section}`, canOpenSiteContent);
   }, [canOpenSiteContent, openPanel]);
 
