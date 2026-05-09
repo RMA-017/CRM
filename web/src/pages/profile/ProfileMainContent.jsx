@@ -13,6 +13,7 @@ const RolesSettingsPanel = lazy(() => import("./panels/RolesSettingsPanel.jsx"))
 const SettingsCreateModals = lazy(() => import("./panels/SettingsCreateModals.jsx"));
 const SiteContentPanel = lazy(() => import("./panels/SiteContentPanel.jsx"));
 const StatisticsPlannerReportPanel = lazy(() => import("./panels/StatisticsPlannerReportPanel.jsx"));
+const TelegramBotSettingsPanel = lazy(() => import("./panels/TelegramBotSettingsPanel.jsx"));
 
 const SPECIALIST_ROLE_MATCHERS = Object.freeze([
   "specialist",
@@ -71,11 +72,13 @@ function ProfileMainContent({
   canReadStatisticsPlannerReportPermission,
   canUpdateAppointmentBreaks,
   canUpdateSettingsAppointments,
+  canUpdateSettingsTelegramBot,
   canCreateAppointmentWorkSchedule,
   canUpdateAppointmentWorkSchedule,
   canDeleteAppointmentWorkSchedule,
   closeAppointmentPanel,
   closeAppointmentSettingsPanel,
+  closeTelegramBotSettingsPanel,
   closeOrganizationsPanel,
   closeRolesPanel,
   closePositionsPanel,
@@ -377,6 +380,15 @@ function ProfileMainContent({
               canUpdateSettingsAppointments={canUpdateSettingsAppointments}
               profile={profile}
               onClose={closeAppointmentSettingsPanel}
+            />
+          </Suspense>
+        ) : null}
+
+        {mainView === "telegram-bot-settings" ? (
+          <Suspense fallback={PANEL_LOADING_FALLBACK}>
+            <TelegramBotSettingsPanel
+              canUpdateSettingsTelegramBot={canUpdateSettingsTelegramBot}
+              onClose={closeTelegramBotSettingsPanel}
             />
           </Suspense>
         ) : null}

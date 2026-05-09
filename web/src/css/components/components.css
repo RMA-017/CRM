@@ -1242,6 +1242,45 @@ label.field > span:first-child,
   justify-self: auto;
 }
 
+.telegram-bot-settings-form {
+  gap: 18px;
+}
+
+.telegram-bot-settings-form .settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.settings-toggle-row,
+.settings-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.telegram-template-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+  gap: 18px;
+}
+
+.telegram-template-column {
+  display: grid;
+  gap: 10px;
+}
+
+.telegram-template-column h4 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.telegram-template-column textarea {
+  min-height: 58px;
+  resize: vertical;
+}
+
 .settings-error {
   display: block;
   margin-top: 6px;
@@ -3542,6 +3581,11 @@ label.field > span:first-child,
 
 .appointment-card-multi-slot.appointment-status-pending {
   border-left: 3px solid rgba(217, 119, 6, 0.7) !important;
+}
+
+.appointment-card.appointment-parent-response-coming {
+  background: linear-gradient(180deg, rgba(187, 247, 208, 0.78) 0%, rgba(240, 253, 244, 0.95) 100%) !important;
+  border-left: 3px solid rgba(22, 163, 74, 0.78) !important;
 }
 
 .appointment-card-multi-slot.appointment-status-cancelled {

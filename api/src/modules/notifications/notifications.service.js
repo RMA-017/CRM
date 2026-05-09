@@ -8,6 +8,7 @@ import {
   normalizeNotificationTargetUserIds as normalizeTargetUserIds
 } from "../../lib/notification-targets.js";
 import { normalizePositiveInteger } from "../../lib/number.js";
+import { normalizePermissionCodes } from "../../lib/permission-codes.js";
 
 const MAX_OUTBOX_MAX_RETRIES = 100;
 const ALL_TARGET_ROLE = "all";
@@ -57,6 +58,7 @@ async function resolveNotificationRecipientIds({
   organizationId,
   targetUserIds = [],
   targetRoles = [],
+  targetPermissionCodes = [],
   excludeUserId = 0,
   db = pool
 }) {
@@ -67,6 +69,7 @@ async function resolveNotificationRecipientIds({
 
   const normalizedTargetUserIds = normalizeTargetUserIds(targetUserIds);
   const normalizedTargetRoles = normalizeTargetRoles(targetRoles);
+  const normalizedTargetPermissionCodes = normalizePermissionCodes(targetPermissionCodes);
   const shouldIncludeAllUsers = normalizedTargetRoles.includes(ALL_TARGET_ROLE);
   const customRoles = normalizedTargetRoles.filter((roleLabel) => roleLabel !== ALL_TARGET_ROLE);
   const includeManagerSemantic = customRoles.some((roleLabel) => isManagerLikeRoleLabel(roleLabel));
@@ -76,6 +79,7 @@ async function resolveNotificationRecipientIds({
     && normalizedTargetUserIds.length === 0
     && exactRoleLabels.length === 0
     && !includeManagerSemantic
+    && normalizedTargetPermissionCodes.length === 0
   ) {
     return [];
   }
@@ -98,6 +102,18 @@ async function resolveNotificationRecipientIds({
           OR (CARDINALITY($2::integer[]) > 0 AND u.id = ANY($2::integer[]))
           OR (CARDINALITY($3::text[]) > 0 AND LOWER(TRIM(r.label)) = ANY($3::text[]))
           OR (
+            CARDINALITY($8::text[]) > 0
+            AND EXISTS (
+              SELECT 1
+                FROM role_permissions rp
+                JOIN permissions p
+                  ON p.id = rp.permission_id
+                 AND p.is_active = TRUE
+               WHERE rp.role_id = u.role_id
+                 AND LOWER(TRIM(p.code)) = ANY($8::text[])
+            )
+          )
+          OR (
             $5::boolean = TRUE
             AND (
               COALESCE(r.is_admin, FALSE) = TRUE
@@ -117,7 +133,8 @@ async function resolveNotificationRecipientIds({
       shouldIncludeAllUsers,
       includeManagerSemantic,
       MANAGER_ROLE_MATCHERS,
-      excludedUserId || null
+      excludedUserId || null,
+      normalizedTargetPermissionCodes
     ]
   );
 
@@ -265,6 +282,7 @@ export async function persistNotificationEvent({
   message = "",
   targetUserIds = [],
   targetRoles = [],
+  targetPermissionCodes = [],
   payload = {},
   aggregateType = "appointment",
   aggregateId = ""
@@ -286,6 +304,7 @@ export async function persistNotificationEvent({
       organizationId: normalizedOrganizationId,
       targetUserIds,
       targetRoles,
+      targetPermissionCodes,
       excludeUserId: normalizedSourceUserId,
       db: client
     });

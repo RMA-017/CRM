@@ -18,8 +18,10 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
   hasAppointmentsMenuAccess,
   canOpenAppointmentSchedule,
   canOpenAppointmentSettings,
+  canOpenTelegramBotSettings,
   openAppointmentPanel,
   openAppointmentSettingsPanel,
+  openTelegramBotSettingsPanel,
   hasUsersMenuAccess,
   canReadUsers,
   closeMenu,
@@ -330,6 +332,15 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 onClick={openRolesPanel}
               >
                 Roles
+              </button>
+              <button
+                id="openTelegramBotSettingsBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                hidden={!canOpenTelegramBotSettings}
+                onClick={openTelegramBotSettingsPanel}
+              >
+                Telegram Bot
               </button>
               <button
                 id="openPositionsBtn"

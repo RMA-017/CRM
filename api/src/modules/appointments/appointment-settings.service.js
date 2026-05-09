@@ -1479,6 +1479,7 @@ function toScheduleItem(row) {
       isRepeatRoot: false,
       isAutoRollingRepeat: false,
       isRecurring: true,
+      parentResponseStatus: "",
       clientFirstName: "",
       clientLastName: "",
       clientMiddleName: "",
@@ -1516,6 +1517,7 @@ function toScheduleItem(row) {
     isRepeatRoot: Boolean(row?.is_repeat_root),
     isAutoRollingRepeat: Boolean(row?.is_auto_rolling_repeat),
     isRecurring: repeatType === "weekly" && Boolean(repeatGroupKey),
+    parentResponseStatus: String(row?.parent_response_status || "").trim().toLowerCase(),
     clientFirstName: String(row?.first_name || "").trim(),
     clientLastName: String(row?.last_name || "").trim(),
     clientMiddleName: String(row?.middle_name || "").trim(),
@@ -2839,13 +2841,14 @@ export async function getAppointmentSchedulesByRange({
          s.note,
          s.repeat_group_key,
          s.repeat_type,
-         s.repeat_until_date,
-         s.repeat_days,
-         s.repeat_anchor_date,
-         s.is_repeat_root,
-         s.is_auto_rolling_repeat,
+        s.repeat_until_date,
+        s.repeat_days,
+        s.repeat_anchor_date,
+        s.is_repeat_root,
+        s.is_auto_rolling_repeat,
         s.created_at,
         s.updated_at,
+        COALESCE(parent_response.parent_response_status, '') AS parent_response_status,
         COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('Specialist #', s.specialist_id::text)) AS specialist_name,
         ${specialistPositionSelect}
         c.first_name,
@@ -2859,6 +2862,17 @@ export async function getAppointmentSchedulesByRange({
         JOIN clients c
           ON c.id = s.client_id
          AND c.organization_id = s.organization_id
+        LEFT JOIN LATERAL (
+          SELECT
+            CASE
+              WHEN BOOL_OR(apr.response_status = 'coming') THEN 'coming'
+              WHEN BOOL_OR(apr.response_status = 'not_coming') THEN 'not_coming'
+              ELSE ''
+            END AS parent_response_status
+            FROM appointment_parent_responses apr
+           WHERE apr.organization_id = s.organization_id
+             AND apr.appointment_schedule_id = s.id
+        ) parent_response ON TRUE
         WHERE ${whereParts.join("\n        AND ")}
         ORDER BY
           s.appointment_date ASC,

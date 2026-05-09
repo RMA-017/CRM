@@ -256,6 +256,21 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
             actionKey: "search"
           })
         ]
+      }),
+      defineFeature({
+        key: "appointments.notifications",
+        label: "Appointment Notifications",
+        sortOrder: 20,
+        permissions: [
+          definePermission({
+            constantKey: "APPOINTMENTS_NOTIFICATIONS_RECEIVE",
+            code: "appointments.notifications.receive",
+            label: "Receive Appointment Notifications",
+            uiLabel: "Receive",
+            sortOrder: 60,
+            actionKey: "receive"
+          })
+        ]
       })
     ]
   }),
@@ -370,6 +385,31 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
             sortOrder: 73,
             actionKey: "update",
             featureKeys: ["settings.appointments"]
+          })
+        ]
+      }),
+      defineFeature({
+        key: "settings.telegram_bot",
+        label: "Telegram Bot",
+        sortOrder: 15,
+        permissions: [
+          definePermission({
+            constantKey: "SETTINGS_TELEGRAM_BOT_READ",
+            code: "settings.telegram-bot.read",
+            label: "Read Telegram Bot Settings",
+            uiLabel: "Read",
+            sortOrder: 74,
+            actionKey: "read",
+            featureKeys: ["settings.telegram_bot"]
+          }),
+          definePermission({
+            constantKey: "SETTINGS_TELEGRAM_BOT_UPDATE",
+            code: "settings.telegram-bot.update",
+            label: "Update Telegram Bot Settings",
+            uiLabel: "Edit",
+            sortOrder: 75,
+            actionKey: "update",
+            featureKeys: ["settings.telegram_bot"]
           })
         ]
       }),

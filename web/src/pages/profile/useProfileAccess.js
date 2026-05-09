@@ -55,6 +55,8 @@ export function useProfileAccess(profile, forcedView) {
 
   const canReadSettingsAppointmentsPermission = hasPermissionCode(PERMISSIONS.SETTINGS_APPOINTMENTS_READ);
   const canUpdateSettingsAppointmentsPermission = hasPermissionCode(PERMISSIONS.SETTINGS_APPOINTMENTS_UPDATE);
+  const canReadSettingsTelegramBotPermission = hasPermissionCode(PERMISSIONS.SETTINGS_TELEGRAM_BOT_READ);
+  const canUpdateSettingsTelegramBotPermission = hasPermissionCode(PERMISSIONS.SETTINGS_TELEGRAM_BOT_UPDATE);
   const canReadSettingsRolesPermission = hasPermissionCode(PERMISSIONS.SETTINGS_ROLES_READ);
   const canCreateSettingsRolesPermission = hasPermissionCode(PERMISSIONS.SETTINGS_ROLES_CREATE);
   const canUpdateSettingsRolesPermission = hasPermissionCode(PERMISSIONS.SETTINGS_ROLES_UPDATE);
@@ -78,6 +80,10 @@ export function useProfileAccess(profile, forcedView) {
     canReadSettingsAppointmentsPermission
     || canUpdateSettingsAppointmentsPermission
   );
+  const hasExplicitTelegramBotSettingsPermissions = (
+    canReadSettingsTelegramBotPermission
+    || canUpdateSettingsTelegramBotPermission
+  );
   const hasExplicitRoleSettingsPermissions = (
     canReadSettingsRolesPermission
     || canCreateSettingsRolesPermission
@@ -96,6 +102,12 @@ export function useProfileAccess(profile, forcedView) {
     : legacyHasSettingsAccess;
   const canUpdateSettingsAppointments = hasExplicitAppointmentSettingsPermissions
     ? canUpdateSettingsAppointmentsPermission
+    : legacyHasSettingsAccess;
+  const canReadSettingsTelegramBot = hasExplicitTelegramBotSettingsPermissions
+    ? canReadSettingsTelegramBotPermission
+    : legacyHasSettingsAccess;
+  const canUpdateSettingsTelegramBot = hasExplicitTelegramBotSettingsPermissions
+    ? canUpdateSettingsTelegramBotPermission
     : legacyHasSettingsAccess;
   const canReadSettingsRoles = hasExplicitRoleSettingsPermissions
     ? canReadSettingsRolesPermission
@@ -156,12 +168,14 @@ export function useProfileAccess(profile, forcedView) {
   const canOpenSettingsRoles = canReadSettingsRoles;
   const canOpenSettingsPositions = canReadSettingsPositions;
   const canOpenAppointmentSettings = canReadSettingsAppointments;
+  const canOpenTelegramBotSettings = canReadSettingsTelegramBot;
 
   const hasAppointmentsMenuAccess = (
     canOpenAppointmentSchedule
   );
   const hasSettingsMenuAccess = (
     canOpenAppointmentSettings
+    || canOpenTelegramBotSettings
     || canOpenSettingsRoles
     || canOpenSettingsPositions
   );
@@ -209,6 +223,9 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "appointment-settings") {
       return canOpenAppointmentSettings;
     }
+    if (forcedView === "telegram-bot-settings") {
+      return canOpenTelegramBotSettings;
+    }
     if (forcedView === "settings-organizations") {
       return canOpenSettingsOrganizations;
     }
@@ -232,6 +249,7 @@ export function useProfileAccess(profile, forcedView) {
     canCreateUsers,
     canOpenAppointmentSchedule,
     canOpenAppointmentSettings,
+    canOpenTelegramBotSettings,
     canOpenSettingsOrganizations,
     canOpenSettingsPositions,
     canOpenSettingsRoles,
@@ -282,6 +300,8 @@ export function useProfileAccess(profile, forcedView) {
     canOpenStatisticsPlannerReport,
     canReadSettingsAppointments,
     canUpdateSettingsAppointments,
+    canOpenTelegramBotSettings,
+    canUpdateSettingsTelegramBot,
     canOpenSettingsOrganizations,
     canCreateSettingsOrganizations,
     canUpdateSettingsOrganizations,

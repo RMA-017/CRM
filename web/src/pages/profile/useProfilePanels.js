@@ -11,6 +11,7 @@ export function useProfilePanels({
   canOpenAppointmentSchedule,
   canOpenAppointmentStatistics,
   canOpenAppointmentSettings,
+  canOpenTelegramBotSettings,
   canOpenSettingsOrganizations,
   canOpenSettingsRoles,
   canOpenSettingsPositions,
@@ -68,6 +69,14 @@ export function useProfilePanels({
 
   const closeAppointmentSettingsPanel = useCallback(() => {
     closePanel("appointment-settings");
+  }, [closePanel]);
+
+  const openTelegramBotSettingsPanel = useCallback(() => {
+    openPanel("/settings/telegram-bot", canOpenTelegramBotSettings);
+  }, [canOpenTelegramBotSettings, openPanel]);
+
+  const closeTelegramBotSettingsPanel = useCallback(() => {
+    closePanel("telegram-bot-settings");
   }, [closePanel]);
 
   const openStatisticsPlannerReportPanel = useCallback(() => {
@@ -145,6 +154,8 @@ export function useProfilePanels({
     closeAppointmentPanel,
     openAppointmentSettingsPanel,
     closeAppointmentSettingsPanel,
+    openTelegramBotSettingsPanel,
+    closeTelegramBotSettingsPanel,
     openStatisticsPlannerReportPanel,
     closeStatisticsPanel,
     openOrganizationsPanel,

@@ -87,6 +87,8 @@ function ProfilePage({ forcedView = "none" }) {
     canReadStatisticsPlannerReportPermission,
     canOpenAppointmentSettings,
     canUpdateSettingsAppointments,
+    canOpenTelegramBotSettings,
+    canUpdateSettingsTelegramBot,
     canOpenSettingsOrganizations,
     canCreateSettingsOrganizations,
     canUpdateSettingsOrganizations,
@@ -639,6 +641,8 @@ function ProfilePage({ forcedView = "none" }) {
     closeAppointmentPanel,
     openAppointmentSettingsPanel,
     closeAppointmentSettingsPanel,
+    openTelegramBotSettingsPanel,
+    closeTelegramBotSettingsPanel,
     openStatisticsPlannerReportPanel,
     closeStatisticsPanel,
     openOrganizationsPanel,
@@ -663,6 +667,7 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenAppointmentSchedule,
     canOpenAppointmentStatistics,
     canOpenAppointmentSettings,
+    canOpenTelegramBotSettings,
     canOpenSettingsOrganizations,
     canOpenSettingsRoles,
     canOpenSettingsPositions,
@@ -1158,11 +1163,13 @@ function ProfilePage({ forcedView = "none" }) {
             canReadStatisticsPlannerReportPermission={canReadStatisticsPlannerReportPermission}
             canUpdateAppointmentBreaks={canUpdateAppointmentBreaks}
             canUpdateSettingsAppointments={canUpdateSettingsAppointments}
+            canUpdateSettingsTelegramBot={canUpdateSettingsTelegramBot}
             canCreateAppointmentWorkSchedule={canCreateAppointmentWorkSchedule}
             canUpdateAppointmentWorkSchedule={canUpdateAppointmentWorkSchedule}
             canDeleteAppointmentWorkSchedule={canDeleteAppointmentWorkSchedule}
             closeAppointmentPanel={closeAppointmentPanel}
             closeAppointmentSettingsPanel={closeAppointmentSettingsPanel}
+            closeTelegramBotSettingsPanel={closeTelegramBotSettingsPanel}
             closeOrganizationsPanel={closeOrganizationsPanel}
             closeRolesPanel={closeRolesPanel}
             closePositionsPanel={closePositionsPanel}
@@ -1333,8 +1340,10 @@ function ProfilePage({ forcedView = "none" }) {
         hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
         canOpenAppointmentSchedule={canOpenAppointmentSchedule}
         canOpenAppointmentSettings={canOpenAppointmentSettings}
+        canOpenTelegramBotSettings={canOpenTelegramBotSettings}
         openAppointmentPanel={openAppointmentPanel}
         openAppointmentSettingsPanel={openAppointmentSettingsPanel}
+        openTelegramBotSettingsPanel={openTelegramBotSettingsPanel}
         hasUsersMenuAccess={hasUsersMenuAccess}
         canReadUsers={canReadUsers}
         closeMenu={closeMenu}

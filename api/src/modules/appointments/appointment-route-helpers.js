@@ -293,7 +293,22 @@ export function buildScheduleNotification(action, items, actor) {
       actorFirstName: actorInfo.firstName,
       actorFullName: actorInfo.fullName,
       clientName: clientText,
-      appointmentDateText: dateText
+      appointmentDateText: dateText,
+      items: source.map((item) => ({
+        id: item?.id,
+        specialistId: item?.specialistId,
+        specialistName: item?.specialistName,
+        clientId: item?.clientId,
+        appointmentDate: item?.appointmentDate,
+        startTime: item?.startTime,
+        endTime: item?.endTime,
+        serviceName: item?.serviceName,
+        status: item?.status,
+        note: item?.note,
+        firstName: item?.clientFirstName || item?.firstName,
+        lastName: item?.clientLastName || item?.lastName,
+        middleName: item?.clientMiddleName || item?.middleName
+      }))
     }
   };
 }
@@ -691,6 +706,9 @@ export function validateSchedulePayload({
   }
   if (!APPOINTMENT_STATUS_SET.has(status)) {
     errors.status = "Invalid status.";
+  }
+  if (status === "cancelled" && !note) {
+    errors.note = "Cancellation note is required.";
   }
   if (note.length > 255) {
     errors.note = "Note is too long (max 255).";

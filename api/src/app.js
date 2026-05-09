@@ -18,6 +18,8 @@ import notificationsRoutes from "./modules/notifications/notifications.routes.js
 import profileRoutes from "./modules/profile/profile.routes.js";
 import settingsRoutes from "./modules/settings/settings.routes.js";
 import siteContentPublicRoutes, { siteContentProtectedRoutes } from "./modules/site-content/site-content.routes.js";
+import { telegramSettingsRoutes, telegramWebhookRoutes } from "./modules/telegram-bot/telegram-bot.routes.js";
+import { startTelegramReminderWorker } from "./modules/telegram-bot/telegram-bot.service.js";
 import usersRoutes from "./modules/users/users.routes.js";
 import { ensureSystemPermissions } from "./modules/users/permissions.service.js";
 
@@ -170,6 +172,7 @@ export async function buildApp() {
 
   await app.register(authRoutes, { prefix: "/api/login" });
   await app.register(siteContentPublicRoutes, { prefix: "/api/site-content" });
+  await app.register(telegramWebhookRoutes, { prefix: "/api/telegram" });
 
   // Protected routes — all require valid auth token
   await app.register(async function protectedRoutes(fastify) {
@@ -182,6 +185,7 @@ export async function buildApp() {
     await fastify.register(clientsRoutes, { prefix: "/api/clients" });
     await fastify.register(appointmentSettingsRoutes, { prefix: "/api/appointments" });
     await fastify.register(settingsRoutes, { prefix: "/api/settings" });
+    await fastify.register(telegramSettingsRoutes, { prefix: "/api/settings" });
     await fastify.register(monitoringRoutes, { prefix: "/api/monitoring" });
     await fastify.register(notificationsRoutes, { prefix: "/api/notifications" });
     await fastify.register(siteContentProtectedRoutes, { prefix: "/api/site-content" });
@@ -225,6 +229,12 @@ export async function buildApp() {
         responseTimeMs: Number.isFinite(elapsedTime) ? Math.round(elapsedTime) : 0
       });
     }
+    done();
+  });
+
+  const stopTelegramReminderWorker = startTelegramReminderWorker({ logger: app.log });
+  app.addHook("onClose", (_instance, done) => {
+    stopTelegramReminderWorker();
     done();
   });
 

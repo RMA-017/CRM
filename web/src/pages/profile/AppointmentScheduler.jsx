@@ -1012,6 +1012,7 @@ function mapScheduleItemToPlannerCard(item) {
       ? "routine"
       : String(item?.status || "pending").trim().toLowerCase(),
     note: String(item?.note || "").trim(),
+    parentResponseStatus: String(item?.parentResponseStatus || item?.parent_response_status || "").trim().toLowerCase(),
     activityType: String(item?.activityType || "").trim().toLowerCase(),
     className: String(item?.className || "").trim(),
     repeatType: String(item?.repeatType || "none").trim().toLowerCase(),
@@ -2225,6 +2226,12 @@ function AppointmentPlannerGrid({
                     )
                       ? `appointment-status-cell-${statusKey}`
                       : "";
+                    const parentResponseCardClassName = (
+                      statusKey === "pending"
+                      && String(item?.parentResponseStatus || "").trim().toLowerCase() === "coming"
+                    )
+                      ? " appointment-parent-response-coming"
+                      : "";
                     const canOpenCreateFromCell = (
                       isInsideWorkingHours
                       && !item
@@ -2354,7 +2361,7 @@ function AppointmentPlannerGrid({
                           (!isRoutineCard && canMutateAppointmentSpecialist(item) && (canUpdateAppointments || canDeleteAppointments)) ? (
                             <button
                               type="button"
-                              className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""}${isCompactAppointmentCard ? " appointment-card-compact" : ""}${isPendingAppointment && !isHistoryLockedDayCell ? " appointment-card-btn" : ""} appointment-status-${item.status}`}
+                              className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""}${isCompactAppointmentCard ? " appointment-card-compact" : ""}${isPendingAppointment && !isHistoryLockedDayCell ? " appointment-card-btn" : ""} appointment-status-${item.status}${parentResponseCardClassName}`}
                               onMouseDown={(event) => {
                                 if (event.button !== 0 || !isPendingAppointment || isHistoryLockedDayCell || typeof onMoveAppointment !== "function") {
                                   return;
@@ -2398,7 +2405,7 @@ function AppointmentPlannerGrid({
                             </button>
                           ) : (
                             <div
-                              className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""}${isCompactAppointmentCard ? " appointment-card-compact" : ""} appointment-status-${item.status}`}
+                              className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""}${isCompactAppointmentCard ? " appointment-card-compact" : ""} appointment-status-${item.status}${parentResponseCardClassName}`}
                               aria-label={isRoutineCard ? `Daily routine on ${day.label} at ${slot}` : `Appointment on ${day.label} at ${slot}`}
                             >
                               <p className="appointment-client">{cardPrimaryText}</p>

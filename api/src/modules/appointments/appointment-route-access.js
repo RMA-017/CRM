@@ -6,6 +6,7 @@ import {
   joinNormalizedRoleLabelParts
 } from "../../lib/role-labels.js";
 import { isNotificationsSchemaMissing, persistNotificationEvent } from "../notifications/notifications.service.js";
+import { notifyTelegramParentsForAppointmentChange } from "../telegram-bot/telegram-bot.service.js";
 import { hasPermission } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
 import { publishAppointmentEvent } from "./appointment-events.js";
@@ -104,14 +105,22 @@ export async function broadcastAppointmentChange(access, {
     specialistIds: normalizedSpecialistIds,
     ...normalizedData
   };
-  const audience = await resolveNotificationAudience(access, specialistIds);
-  if (audience.targetUserIds.length === 0 && audience.targetRoles.length === 0) {
-    return;
-  }
-
   const organizationId = parsePositiveInteger(access?.authContext?.organizationId);
   const sourceUserId = parsePositiveInteger(access?.authContext?.userId);
   const sourceUsername = String(access?.authContext?.username || "").trim();
+  const notifyParents = async () => {
+    await notifyTelegramParentsForAppointmentChange({
+      organizationId,
+      eventType: type,
+      items: payloadData.items,
+      actorName: payloadData.actorFullName || payloadData.actorFirstName || sourceUsername
+    }).catch(() => {});
+  };
+  const audience = await resolveNotificationAudience(access, specialistIds);
+  if (audience.targetUserIds.length === 0 && audience.targetRoles.length === 0) {
+    await notifyParents();
+    return;
+  }
 
   const publishFallbackEvent = () => {
     publishAppointmentEvent({
@@ -138,6 +147,7 @@ export async function broadcastAppointmentChange(access, {
     });
 
     if (!Array.isArray(persisted?.recipientUserIds) || persisted.recipientUserIds.length === 0) {
+      await notifyParents();
       return;
     }
 
@@ -150,12 +160,15 @@ export async function broadcastAppointmentChange(access, {
       targetUserIds: persisted.recipientUserIds,
       data: payloadData
     });
+    await notifyParents();
   } catch (error) {
     if (isNotificationsSchemaMissing(error)) {
       publishFallbackEvent();
+      await notifyParents();
       return;
     }
     publishFallbackEvent();
+    await notifyParents();
   }
 }
 
