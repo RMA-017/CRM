@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useI18n } from "../../../i18n/I18nProvider.jsx";
 import { apiFetch, getApiErrorMessage, readApiResponseData } from "../../../lib/api.js";
 
 const DEFAULT_TEMPLATES = Object.freeze({
@@ -23,14 +24,124 @@ const DEFAULT_TEMPLATES = Object.freeze({
 });
 
 const TEMPLATE_FIELDS = Object.freeze([
-  ["lessonCancelled", "Cancel"],
-  ["scheduleChanged", "Changed"],
-  ["scheduleCreated", "Created"],
-  ["scheduleDeleted", "Deleted"],
-  ["reminder24h", "First reminder"],
-  ["reminder2h", "Second reminder"],
-  ["parentCancelNotification", "Parent cancel"]
+  ["lessonCancelled", "lessonCancelled"],
+  ["scheduleChanged", "scheduleChanged"],
+  ["scheduleCreated", "scheduleCreated"],
+  ["scheduleDeleted", "scheduleDeleted"],
+  ["reminder24h", "reminder24h"],
+  ["reminder2h", "reminder2h"],
+  ["parentCancelNotification", "parentCancelNotification"]
 ]);
+
+const UI_TEXT = Object.freeze({
+  uz: Object.freeze({
+    title: "Telegram bot",
+    close: "Telegram bot sozlamalarini yopish",
+    loading: "Yuklanmoqda...",
+    saved: "Saqlangan.",
+    saving: "Saqlanmoqda...",
+    save: "Saqlash",
+    loadError: "Telegram bot sozlamalarini yuklab bo'lmadi.",
+    saveError: "Telegram bot sozlamalarini saqlab bo'lmadi.",
+    unexpectedError: "Kutilmagan xato. Iltimos, qayta urinib ko'ring.",
+    savedToken: "Saqlangan",
+    yes: "ha",
+    notSet: "Kiritilmagan",
+    botToken: "Bot tokeni",
+    mainSettings: "Asosiy sozlamalar",
+    reminders: "Eslatmalar",
+    templates: "Xabar shablonlari",
+    status: "Status",
+    activeStatus: "Faol",
+    inactiveStatus: "Faol emas",
+    cancelLockMinutes: "Bekor qilishni yopish (daqiqa)",
+    firstReminderHours: "Birinchi eslatma (darsdan oldin soat)",
+    secondReminderHours: "Ikkinchi eslatma (darsdan oldin soat)",
+    active: "Faol",
+    clearToken: "Tokenni tozalash",
+    languageUz: "O'zbekcha",
+    languageRu: "Русский",
+    templateLabels: Object.freeze({
+      lessonCancelled: "Dars bekor qilindi",
+      scheduleChanged: "Jadval o'zgardi",
+      scheduleCreated: "Dars yaratildi",
+      scheduleDeleted: "Dars o'chirildi",
+      reminder24h: "Birinchi eslatma",
+      reminder2h: "Ikkinchi eslatma",
+      parentCancelNotification: "Ota-ona bekor qilishi"
+    })
+  }),
+  ru: Object.freeze({
+    title: "Telegram-бот",
+    close: "Закрыть настройки Telegram-бота",
+    loading: "Загрузка...",
+    saved: "Сохранено.",
+    saving: "Сохранение...",
+    save: "Сохранить",
+    loadError: "Не удалось загрузить настройки Telegram-бота.",
+    saveError: "Не удалось сохранить настройки Telegram-бота.",
+    unexpectedError: "Неожиданная ошибка. Попробуйте еще раз.",
+    savedToken: "Сохранен",
+    yes: "да",
+    notSet: "Не задан",
+    botToken: "Токен бота",
+    mainSettings: "Основные настройки",
+    reminders: "Напоминания",
+    templates: "Шаблоны сообщений",
+    status: "Статус",
+    activeStatus: "Активен",
+    inactiveStatus: "Не активен",
+    cancelLockMinutes: "Блокировка отмены (минуты)",
+    firstReminderHours: "Первое напоминание (часов до занятия)",
+    secondReminderHours: "Второе напоминание (часов до занятия)",
+    active: "Активен",
+    clearToken: "Очистить токен",
+    languageUz: "O'zbekcha",
+    languageRu: "Русский",
+    templateLabels: Object.freeze({
+      lessonCancelled: "Занятие отменено",
+      scheduleChanged: "Расписание изменено",
+      scheduleCreated: "Занятие создано",
+      scheduleDeleted: "Занятие удалено",
+      reminder24h: "Первое напоминание",
+      reminder2h: "Второе напоминание",
+      parentCancelNotification: "Отмена родителем"
+    })
+  })
+});
+
+const API_MESSAGE_TRANSLATIONS = Object.freeze({
+  uz: Object.freeze({
+    "Cancel lock minutes must be between 0 and 10080.": "Bekor qilishni yopish vaqti 0 dan 10080 daqiqagacha bo'lishi kerak.",
+    "First reminder hours must be between 0 and 168.": "Birinchi eslatma 0 dan 168 soatgacha bo'lishi kerak.",
+    "Second reminder hours must be between 0 and 168.": "Ikkinchi eslatma 0 dan 168 soatgacha bo'lishi kerak.",
+    "Bot token is too short.": "Bot tokeni juda qisqa.",
+    "Telegram bot token is required.": "Telegram bot tokeni majburiy.",
+    "Webhook base URL must use HTTPS.": "Webhook manzili HTTPS bo'lishi kerak.",
+    "Forbidden.": "Ruxsat yo'q.",
+    "Unauthorized.": "Avtorizatsiyadan o'tilmagan.",
+    "Internal server error.": "Serverda ichki xato yuz berdi."
+  }),
+  ru: Object.freeze({
+    "Cancel lock minutes must be between 0 and 10080.": "Блокировка отмены должна быть от 0 до 10080 минут.",
+    "First reminder hours must be between 0 and 168.": "Первое напоминание должно быть от 0 до 168 часов.",
+    "Second reminder hours must be between 0 and 168.": "Второе напоминание должно быть от 0 до 168 часов.",
+    "Bot token is too short.": "Токен бота слишком короткий.",
+    "Telegram bot token is required.": "Токен Telegram-бота обязателен.",
+    "Webhook base URL must use HTTPS.": "Адрес webhook должен использовать HTTPS.",
+    "Forbidden.": "Нет доступа.",
+    "Unauthorized.": "Не выполнена авторизация.",
+    "Internal server error.": "Внутренняя ошибка сервера."
+  })
+});
+
+function localizeApiMessage(message, language) {
+  const text = String(message || "").trim();
+  if (!text) {
+    return "";
+  }
+  return API_MESSAGE_TRANSLATIONS[language]?.[text] || text;
+}
 
 function normalizeTemplates(value) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
@@ -62,16 +173,20 @@ function TelegramBotSettingsPanel({
   canUpdateSettingsTelegramBot,
   onClose
 }) {
+  const { language } = useI18n();
+  const ui = UI_TEXT[language] || UI_TEXT.uz;
+  const initialTemplateLanguage = language === "ru" ? "ru" : "uz";
   const [item, setItem] = useState(null);
   const [form, setForm] = useState(() => mapItemToForm(null));
+  const [templateLanguage, setTemplateLanguage] = useState(initialTemplateLanguage);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   const hasTokenLabel = useMemo(() => (
-    item?.hasBotToken ? `Saved: ${item.botTokenMasked || "yes"}` : "Not set"
-  ), [item?.botTokenMasked, item?.hasBotToken]);
+    item?.hasBotToken ? `${ui.savedToken}: ${item.botTokenMasked || ui.yes}` : ui.notSet
+  ), [item?.botTokenMasked, item?.hasBotToken, ui]);
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -84,29 +199,33 @@ function TelegramBotSettingsPanel({
       });
       const data = await readApiResponseData(response);
       if (!response.ok) {
-        setError(getApiErrorMessage(response, data, "Failed to load Telegram bot settings."));
+        setError(localizeApiMessage(getApiErrorMessage(response, data, ui.loadError), language));
         return;
       }
       setItem(data?.item || null);
       setForm(mapItemToForm(data?.item || null));
     } catch {
-      setError("Unexpected error. Please try again.");
+      setError(ui.unexpectedError);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [language, ui.loadError, ui.unexpectedError]);
 
   useEffect(() => {
     void loadSettings();
   }, [loadSettings]);
 
-  const updateTemplate = useCallback((language, key, value) => {
+  useEffect(() => {
+    setTemplateLanguage(language === "ru" ? "ru" : "uz");
+  }, [language]);
+
+  const updateTemplate = useCallback((templateLanguageKey, key, value) => {
     setForm((prev) => ({
       ...prev,
       templates: {
         ...prev.templates,
-        [language]: {
-          ...prev.templates[language],
+        [templateLanguageKey]: {
+          ...prev.templates[templateLanguageKey],
           [key]: value
         }
       }
@@ -142,126 +261,158 @@ function TelegramBotSettingsPanel({
       });
       const data = await readApiResponseData(response);
       if (!response.ok) {
-        setError(getApiErrorMessage(response, data, "Failed to save Telegram bot settings."));
+        setError(localizeApiMessage(getApiErrorMessage(response, data, ui.saveError), language));
         return;
       }
       setItem(data?.item || null);
       setForm(mapItemToForm(data?.item || null));
-      setMessage(data?.message || "Saved.");
+      setMessage(ui.saved);
     } catch {
-      setError("Unexpected error. Please try again.");
+      setError(ui.unexpectedError);
     } finally {
       setSaving(false);
     }
-  }, [canUpdateSettingsTelegramBot, form, saving]);
+  }, [canUpdateSettingsTelegramBot, form, language, saving, ui.saveError, ui.saved, ui.unexpectedError]);
 
   return (
     <section id="telegramBotSettingsPanel" className="all-users-panel settings-panel telegram-bot-settings-panel">
       <div className="all-users-head">
-        <h3>Telegram Bot</h3>
-        <button type="button" className="header-btn panel-close-btn" onClick={onClose} aria-label="Close Telegram bot settings">
+        <h3>{ui.title}</h3>
+        <button type="button" className="header-btn panel-close-btn" onClick={onClose} aria-label={ui.close}>
           ×
         </button>
       </div>
 
-      <p className="all-users-state" hidden={!loading}>Loading...</p>
+      <p className="all-users-state" hidden={!loading}>{ui.loading}</p>
       <p className="all-users-state" hidden={!message}>{message}</p>
       <p className="all-users-state error" hidden={!error}>{error}</p>
 
       <form className="auth-form settings-edit-form telegram-bot-settings-form" onSubmit={handleSave} hidden={loading}>
-        <div className="settings-grid">
-          <label className="field">
-            <span>Bot token</span>
-            <input
-              type="password"
-              value={form.botToken}
-              disabled={!canUpdateSettingsTelegramBot || saving}
-              placeholder={hasTokenLabel}
-              onChange={(event) => setForm((prev) => ({ ...prev, botToken: event.target.value, clearBotToken: false }))}
-            />
-          </label>
+        <div className="telegram-settings-section telegram-settings-primary">
+          <div className="telegram-settings-section-head">
+            <h4>{ui.mainSettings}</h4>
+            <span className={`telegram-settings-status-pill ${form.isActive ? "is-active" : "is-inactive"}`}>
+              {form.isActive ? ui.activeStatus : ui.inactiveStatus}
+            </span>
+          </div>
 
-          <label className="field">
-            <span>Cancel lock minutes</span>
-            <input
-              type="number"
-              min="0"
-              max="10080"
-              value={form.cancelLockMinutes}
-              disabled={!canUpdateSettingsTelegramBot || saving}
-              onChange={(event) => setForm((prev) => ({ ...prev, cancelLockMinutes: event.target.value }))}
-            />
-          </label>
+          <div className="telegram-token-layout">
+            <label className="field telegram-token-field">
+              <span>{ui.botToken}</span>
+              <input
+                type="password"
+                value={form.botToken}
+                disabled={!canUpdateSettingsTelegramBot || saving}
+                placeholder={hasTokenLabel}
+                onChange={(event) => setForm((prev) => ({ ...prev, botToken: event.target.value, clearBotToken: false }))}
+              />
+            </label>
 
-          <label className="field">
-            <span>First reminder hours</span>
-            <input
-              type="number"
-              min="0"
-              max="168"
-              value={form.reminder24hHours}
-              disabled={!canUpdateSettingsTelegramBot || saving}
-              onChange={(event) => setForm((prev) => ({ ...prev, reminder24hHours: event.target.value }))}
-            />
-          </label>
-
-          <label className="field">
-            <span>Second reminder hours</span>
-            <input
-              type="number"
-              min="0"
-              max="168"
-              value={form.reminder2hHours}
-              disabled={!canUpdateSettingsTelegramBot || saving}
-              onChange={(event) => setForm((prev) => ({ ...prev, reminder2hHours: event.target.value }))}
-            />
-          </label>
+            <div className="telegram-settings-switches">
+              <label className="settings-checkbox settings-checkbox-inline">
+                <input
+                  type="checkbox"
+                  checked={form.isActive}
+                  disabled={!canUpdateSettingsTelegramBot || saving}
+                  onChange={(event) => setForm((prev) => ({ ...prev, isActive: event.target.checked }))}
+                />
+                <span>{ui.active}</span>
+              </label>
+              <label className="settings-checkbox settings-checkbox-inline">
+                <input
+                  type="checkbox"
+                  checked={form.clearBotToken}
+                  disabled={!canUpdateSettingsTelegramBot || saving || !item?.hasBotToken}
+                  onChange={(event) => setForm((prev) => ({ ...prev, clearBotToken: event.target.checked, botToken: "" }))}
+                />
+                <span>{ui.clearToken}</span>
+              </label>
+            </div>
+          </div>
         </div>
 
-        <div className="settings-toggle-row">
-          <label className="settings-checkbox settings-checkbox-inline">
-            <input
-              type="checkbox"
-              checked={form.isActive}
-              disabled={!canUpdateSettingsTelegramBot || saving}
-              onChange={(event) => setForm((prev) => ({ ...prev, isActive: event.target.checked }))}
-            />
-            <span>Active</span>
-          </label>
-          <label className="settings-checkbox settings-checkbox-inline">
-            <input
-              type="checkbox"
-              checked={form.clearBotToken}
-              disabled={!canUpdateSettingsTelegramBot || saving || !item?.hasBotToken}
-              onChange={(event) => setForm((prev) => ({ ...prev, clearBotToken: event.target.checked, botToken: "" }))}
-            />
-            <span>Clear token</span>
-          </label>
+        <div className="telegram-settings-section">
+          <div className="telegram-settings-section-head">
+            <h4>{ui.reminders}</h4>
+          </div>
+          <div className="telegram-settings-number-grid">
+            <label className="field">
+              <span>{ui.cancelLockMinutes}</span>
+              <input
+                type="number"
+                min="0"
+                max="10080"
+                value={form.cancelLockMinutes}
+                disabled={!canUpdateSettingsTelegramBot || saving}
+                onChange={(event) => setForm((prev) => ({ ...prev, cancelLockMinutes: event.target.value }))}
+              />
+            </label>
+
+            <label className="field">
+              <span>{ui.firstReminderHours}</span>
+              <input
+                type="number"
+                min="0"
+                max="168"
+                value={form.reminder24hHours}
+                disabled={!canUpdateSettingsTelegramBot || saving}
+                onChange={(event) => setForm((prev) => ({ ...prev, reminder24hHours: event.target.value }))}
+              />
+            </label>
+
+            <label className="field">
+              <span>{ui.secondReminderHours}</span>
+              <input
+                type="number"
+                min="0"
+                max="168"
+                value={form.reminder2hHours}
+                disabled={!canUpdateSettingsTelegramBot || saving}
+                onChange={(event) => setForm((prev) => ({ ...prev, reminder2hHours: event.target.value }))}
+              />
+            </label>
+          </div>
         </div>
 
-        <div className="telegram-template-grid">
-          {["uz", "ru"].map((language) => (
-            <div className="telegram-template-column" key={language}>
-              <h4>{language.toUpperCase()}</h4>
-              {TEMPLATE_FIELDS.map(([key, label]) => (
-                <label className="field" key={`${language}-${key}`}>
-                  <span>{label}</span>
-                  <textarea
-                    rows="2"
-                    maxLength="500"
-                    value={form.templates[language]?.[key] || ""}
-                    disabled={!canUpdateSettingsTelegramBot || saving}
-                    onChange={(event) => updateTemplate(language, key, event.target.value)}
-                  />
-                </label>
+        <div className="telegram-settings-section telegram-template-section">
+          <div className="telegram-settings-section-head telegram-template-head">
+            <h4>{ui.templates}</h4>
+            <div className="telegram-language-tabs" role="tablist" aria-label={ui.templates}>
+              {["uz", "ru"].map((templateLanguageKey) => (
+                <button
+                  key={templateLanguageKey}
+                  type="button"
+                  className={`telegram-language-tab ${templateLanguage === templateLanguageKey ? "is-active" : ""}`}
+                  role="tab"
+                  aria-selected={templateLanguage === templateLanguageKey ? "true" : "false"}
+                  disabled={saving}
+                  onClick={() => setTemplateLanguage(templateLanguageKey)}
+                >
+                  {templateLanguageKey === "uz" ? ui.languageUz : ui.languageRu}
+                </button>
               ))}
             </div>
-          ))}
+          </div>
+
+          <div className="telegram-template-fields">
+            {TEMPLATE_FIELDS.map(([key, labelKey]) => (
+              <label className="field telegram-template-field" key={`${templateLanguage}-${key}`}>
+                <span>{ui.templateLabels[labelKey] || labelKey}</span>
+                <textarea
+                  rows="3"
+                  maxLength="500"
+                  value={form.templates[templateLanguage]?.[key] || ""}
+                  disabled={!canUpdateSettingsTelegramBot || saving}
+                  onChange={(event) => updateTemplate(templateLanguage, key, event.target.value)}
+                />
+              </label>
+            ))}
+          </div>
         </div>
 
         <div className="settings-actions-row">
           <button type="submit" className="btn" disabled={!canUpdateSettingsTelegramBot || saving}>
-            {saving ? "Saving..." : "Save"}
+            {saving ? ui.saving : ui.save}
           </button>
         </div>
       </form>

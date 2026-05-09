@@ -18,6 +18,10 @@ const TELEGRAM_SETTINGS_PERMISSIONS = Object.freeze({
 });
 
 function getRequestBaseUrl(request) {
+  const configuredBaseUrl = String(process.env.TELEGRAM_WEBHOOK_BASE_URL || "").trim();
+  if (configuredBaseUrl) {
+    return configuredBaseUrl;
+  }
   const forwardedProto = String(request.headers?.["x-forwarded-proto"] || "").split(",")[0].trim();
   const forwardedHost = String(request.headers?.["x-forwarded-host"] || "").split(",")[0].trim();
   const protocol = forwardedProto || request.protocol || "https";
@@ -172,10 +176,24 @@ export async function telegramSettingsRoutes(fastify) {
           reminder2hEnabled: body.reminder2hEnabled === undefined ? undefined : parseBooleanOr(body.reminder2hEnabled, true),
           templates: templates.value
         });
+        if (item?.isActive && item?.hasBotToken) {
+          const baseUrl = getRequestBaseUrl(request);
+          if (/^https:\/\//i.test(baseUrl)) {
+            const webhookItem = await setTelegramWebhookForOrganization({
+              organizationId: access.authContext.organizationId,
+              actorUserId: access.authContext.userId,
+              baseUrl
+            });
+            return reply.send({ message: "Telegram bot settings updated.", item: webhookItem || item });
+          }
+        }
         return reply.send({ message: "Telegram bot settings updated.", item });
       } catch (error) {
-        request.log.error({ err: error }, "Error updating Telegram bot settings");
-        return reply.status(500).send({ message: "Internal server error." });
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        if (statusCode >= 500) {
+          request.log.error({ err: error }, "Error updating Telegram bot settings");
+        }
+        return reply.status(statusCode).send({ message: error?.message || "Internal server error." });
       }
     }
   );

@@ -253,6 +253,8 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Appointment Durations", uz: "Dars davomiyliklari", ru: "Длительности занятий" },
   { en: "Visible Week Days", uz: "Ko'rinadigan hafta kunlari", ru: "Видимые дни недели" },
   { en: "Reminder Settings", uz: "Eslatma sozlamalari", ru: "Настройки напоминаний" },
+  { en: "Telegram Bot", uz: "Telegram bot", ru: "Telegram-бот" },
+  { en: "Telegram bot", uz: "Telegram bot", ru: "Telegram-бот" },
   { en: "Default Weekly Schedule", uz: "Standart haftalik jadval", ru: "Стандартное недельное расписание" },
   { en: "History Lock (days)", uz: "Tarixni yopish (kun)", ru: "Блокировка истории (дни)" },
   { en: "History lock", uz: "Tarixni yopish", ru: "Блокировка истории" },
