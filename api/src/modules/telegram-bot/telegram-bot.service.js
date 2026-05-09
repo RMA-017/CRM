@@ -7,9 +7,12 @@ import { updateAppointmentSchedulesByIds } from "../appointments/appointment-set
 import { persistNotificationEvent } from "../notifications/notifications.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
 
-const DEFAULT_LANGUAGE = "uz";
+const DEFAULT_LANGUAGE = "ru";
 const SUPPORTED_LANGUAGES = new Set(["uz", "ru"]);
 const DEFAULT_CANCEL_LOCK_MINUTES = 60;
+const DEFAULT_REMINDER_24H_HOURS = 24;
+const DEFAULT_REMINDER_2H_HOURS = 2;
+const MAX_REMINDER_HOURS = 168;
 const MAX_REASON_LENGTH = 255;
 const PENDING_ACTION_TTL_MINUTES = 30;
 const REMINDER_SWEEP_INTERVAL_MS = 60 * 1000;
@@ -91,8 +94,8 @@ const DEFAULT_TEMPLATES = Object.freeze({
     scheduleChanged: "{child} uchun {date} {time} dagi {service} darsi jadvali o'zgartirildi.",
     scheduleCreated: "{child} uchun {date} {time} dagi {service} darsi rejalashtirildi.",
     scheduleDeleted: "{child} uchun {date} {time} dagi {service} darsi o'chirildi.",
-    reminder24h: "Ertaga {time} da {service} darsi bor. Kelasizmi?",
-    reminder2h: "Bugun {time} da {service} darsingiz bor.",
+    reminder24h: "{date} {time} da {service} darsi bor. Kelasizmi?",
+    reminder2h: "{date} {time} da {service} darsingiz bor.",
     parentCancelNotification: "Ota-ona {child} uchun {date} {time} dagi {service} darsini bekor qildi. Sabab: {reason}."
   }),
   ru: Object.freeze({
@@ -100,8 +103,8 @@ const DEFAULT_TEMPLATES = Object.freeze({
     scheduleChanged: "Расписание урока {service} для {child} на {date} {time} изменено.",
     scheduleCreated: "Урок {service} для {child} запланирован на {date} {time}.",
     scheduleDeleted: "Урок {service} для {child} на {date} {time} удален.",
-    reminder24h: "Завтра в {time} урок {service}. Вы придете?",
-    reminder2h: "Сегодня в {time} у вас урок {service}.",
+    reminder24h: "{date} в {time} урок {service}. Вы придете?",
+    reminder2h: "{date} в {time} у вас урок {service}.",
     parentCancelNotification: "Родитель отменил урок {service} для {child} на {date} {time}. Причина: {reason}."
   })
 });
@@ -113,6 +116,8 @@ function isTelegramSchemaMissing(error) {
   const message = String(error?.message || "").toLowerCase();
   return message.includes("telegram_")
     || message.includes("appointment_parent_responses")
+    || message.includes("reminder_24h_hours")
+    || message.includes("reminder_2h_hours")
     || message.includes("manager_notification_permission_codes");
 }
 
@@ -173,6 +178,8 @@ function mapSettingsRow(row, { includeToken = false } = {}) {
     webhookUrl: String(row?.webhook_url || "").trim(),
     defaultLanguage: normalizeLanguage(row?.default_language),
     cancelLockMinutes: toBoundedInteger(row?.cancel_lock_minutes, DEFAULT_CANCEL_LOCK_MINUTES, 0, 10080),
+    reminder24hHours: toBoundedInteger(row?.reminder_24h_hours, DEFAULT_REMINDER_24H_HOURS, 0, MAX_REMINDER_HOURS),
+    reminder2hHours: toBoundedInteger(row?.reminder_2h_hours, DEFAULT_REMINDER_2H_HOURS, 0, MAX_REMINDER_HOURS),
     reminder24hEnabled: Boolean(row?.reminder_24h_enabled),
     reminder2hEnabled: Boolean(row?.reminder_2h_enabled),
     managerNotificationPermissionCodes: normalizePermissionCodes(row?.manager_notification_permission_codes)
@@ -535,6 +542,8 @@ export async function saveTelegramBotSettings({
   isActive,
   defaultLanguage,
   cancelLockMinutes,
+  reminder24hHours,
+  reminder2hHours,
   reminder24hEnabled,
   reminder2hEnabled,
   managerNotificationPermissionCodes,
@@ -570,11 +579,13 @@ export async function saveTelegramBotSettings({
             is_active = $3,
             default_language = $4,
             cancel_lock_minutes = $5,
-            reminder_24h_enabled = $6,
-            reminder_2h_enabled = $7,
-            manager_notification_permission_codes = $8::text[],
-            templates = $9::jsonb,
-            updated_by = $10,
+            reminder_24h_hours = $6,
+            reminder_2h_hours = $7,
+            reminder_24h_enabled = $8,
+            reminder_2h_enabled = $9,
+            manager_notification_permission_codes = $10::text[],
+            templates = $11::jsonb,
+            updated_by = $12,
             updated_at = CURRENT_TIMESTAMP
       WHERE organization_id = $1
       RETURNING *`,
@@ -582,8 +593,10 @@ export async function saveTelegramBotSettings({
       normalizedOrganizationId,
       nextToken,
       isActive === undefined ? existing.isActive : Boolean(isActive),
-      normalizeLanguage(defaultLanguage, existing.defaultLanguage),
+      defaultLanguage === undefined ? DEFAULT_LANGUAGE : normalizeLanguage(defaultLanguage, DEFAULT_LANGUAGE),
       toBoundedInteger(cancelLockMinutes, existing.cancelLockMinutes, 0, 10080),
+      toBoundedInteger(reminder24hHours, existing.reminder24hHours, 0, MAX_REMINDER_HOURS),
+      toBoundedInteger(reminder2hHours, existing.reminder2hHours, 0, MAX_REMINDER_HOURS),
       reminder24hEnabled === undefined ? existing.reminder24hEnabled : Boolean(reminder24hEnabled),
       reminder2hEnabled === undefined ? existing.reminder2hEnabled : Boolean(reminder2hEnabled),
       nextManagerCodes.length > 0 ? nextManagerCodes : [...DEFAULT_MANAGER_NOTIFICATION_PERMISSION_CODES],
@@ -1149,7 +1162,7 @@ async function handleContactMessage({ settings, message }) {
   const contact = message?.contact;
   const from = message?.from || {};
   const chat = message?.chat || {};
-  const language = normalizeLanguage(from?.language_code, settings.defaultLanguage);
+  const language = normalizeLanguage(settings.defaultLanguage);
   if (!contact?.phone_number) {
     await sendTelegramMessage({
       token: settings.botToken,
@@ -1186,7 +1199,7 @@ async function handleContactMessage({ settings, message }) {
 }
 
 async function requireParentOrAskContact({ settings, from, chat }) {
-  const language = normalizeLanguage(from?.language_code, settings.defaultLanguage);
+  const language = normalizeLanguage(settings.defaultLanguage);
   const parent = await findParentAccount({
     organizationId: settings.organizationId,
     telegramUserId: from?.id,
@@ -1543,8 +1556,9 @@ export async function notifyTelegramParentsForAppointmentChange({
   }
 }
 
-async function listReminderTargets({ reminderType, windowStartHours, windowEndHours, limit = 100 }) {
+async function listReminderTargets({ reminderType, limit = 100 }) {
   const enabledColumn = reminderType === "reminder_24h" ? "reminder_24h_enabled" : "reminder_2h_enabled";
+  const hoursColumn = reminderType === "reminder_24h" ? "reminder_24h_hours" : "reminder_2h_hours";
   const { rows } = await pool.query(
     `SELECT
        tbs.*,
@@ -1580,12 +1594,13 @@ async function listReminderTargets({ reminderType, windowStartHours, windowEndHo
      WHERE tbs.is_active = TRUE
        AND tbs.bot_token IS NOT NULL
        AND tbs.${enabledColumn} = TRUE
+       AND tbs.${hoursColumn} > 0
        AND s.status IN ('pending', 'confirmed')
-       AND (s.appointment_date + s.start_time) >= (TIMEZONE('Asia/Tashkent', NOW()) + ($1::text || ' hours')::interval)
-       AND (s.appointment_date + s.start_time) < (TIMEZONE('Asia/Tashkent', NOW()) + ($2::text || ' hours')::interval)
+       AND (s.appointment_date + s.start_time) >= (TIMEZONE('Asia/Tashkent', NOW()) + (tbs.${hoursColumn}::text || ' hours')::interval)
+       AND (s.appointment_date + s.start_time) < (TIMEZONE('Asia/Tashkent', NOW()) + ((tbs.${hoursColumn} + 1)::text || ' hours')::interval)
      ORDER BY s.appointment_date ASC, s.start_time ASC, s.id ASC
-     LIMIT $3`,
-    [String(windowStartHours), String(windowEndHours), limit]
+     LIMIT $1`,
+    [limit]
   );
   return rows || [];
 }
@@ -1628,18 +1643,14 @@ async function sendReminderRow({ row, reminderType }) {
 export async function runTelegramReminderSweep({ logger = null } = {}) {
   try {
     const reminder24hRows = await listReminderTargets({
-      reminderType: "reminder_24h",
-      windowStartHours: 24,
-      windowEndHours: 25
+      reminderType: "reminder_24h"
     });
     for (const row of reminder24hRows) {
       await sendReminderRow({ row, reminderType: "reminder_24h" });
     }
 
     const reminder2hRows = await listReminderTargets({
-      reminderType: "reminder_2h",
-      windowStartHours: 2,
-      windowEndHours: 3
+      reminderType: "reminder_2h"
     });
     for (const row of reminder2hRows) {
       await sendReminderRow({ row, reminderType: "reminder_2h" });

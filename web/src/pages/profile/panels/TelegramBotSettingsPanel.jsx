@@ -27,8 +27,8 @@ const TEMPLATE_FIELDS = Object.freeze([
   ["scheduleChanged", "Changed"],
   ["scheduleCreated", "Created"],
   ["scheduleDeleted", "Deleted"],
-  ["reminder24h", "24h"],
-  ["reminder2h", "2h"],
+  ["reminder24h", "First reminder"],
+  ["reminder2h", "Second reminder"],
   ["parentCancelNotification", "Parent cancel"]
 ]);
 
@@ -51,13 +51,9 @@ function mapItemToForm(item) {
     botToken: "",
     clearBotToken: false,
     isActive: Boolean(item?.isActive),
-    defaultLanguage: String(item?.defaultLanguage || "uz").trim().toLowerCase() === "ru" ? "ru" : "uz",
     cancelLockMinutes: String(item?.cancelLockMinutes ?? 60),
-    reminder24hEnabled: Boolean(item?.reminder24hEnabled ?? true),
-    reminder2hEnabled: Boolean(item?.reminder2hEnabled ?? true),
-    managerNotificationPermissionCodes: Array.isArray(item?.managerNotificationPermissionCodes)
-      ? item.managerNotificationPermissionCodes.join(", ")
-      : "appointments.notifications.receive",
+    reminder24hHours: String(item?.reminder24hHours ?? 24),
+    reminder2hHours: String(item?.reminder2hHours ?? 2),
     templates: normalizeTemplates(item?.templates)
   };
 }
@@ -126,17 +122,11 @@ function TelegramBotSettingsPanel({
     setMessage("");
     setError("");
     try {
-      const permissionCodes = String(form.managerNotificationPermissionCodes || "")
-        .split(",")
-        .map((code) => code.trim().toLowerCase())
-        .filter(Boolean);
       const payload = {
         isActive: form.isActive,
-        defaultLanguage: form.defaultLanguage,
         cancelLockMinutes: Number.parseInt(String(form.cancelLockMinutes || "60"), 10),
-        reminder24hEnabled: form.reminder24hEnabled,
-        reminder2hEnabled: form.reminder2hEnabled,
-        managerNotificationPermissionCodes: permissionCodes,
+        reminder24hHours: Number.parseInt(String(form.reminder24hHours || "24"), 10),
+        reminder2hHours: Number.parseInt(String(form.reminder2hHours || "2"), 10),
         templates: form.templates,
         clearBotToken: form.clearBotToken
       };
@@ -165,39 +155,12 @@ function TelegramBotSettingsPanel({
     }
   }, [canUpdateSettingsTelegramBot, form, saving]);
 
-  const runAction = useCallback(async (endpoint, method, successMessage) => {
-    if (!canUpdateSettingsTelegramBot && method !== "POST:test") {
-      return;
-    }
-    setSaving(true);
-    setMessage("");
-    setError("");
-    try {
-      const actualMethod = method === "POST:test" ? "POST" : method;
-      const response = await apiFetch(endpoint, { method: actualMethod });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        setError(getApiErrorMessage(response, data, "Request failed."));
-        return;
-      }
-      if (data?.item) {
-        setItem(data.item);
-        setForm(mapItemToForm(data.item));
-      }
-      setMessage(successMessage || data?.message || "Done.");
-    } catch {
-      setError("Unexpected error. Please try again.");
-    } finally {
-      setSaving(false);
-    }
-  }, [canUpdateSettingsTelegramBot]);
-
   return (
     <section id="telegramBotSettingsPanel" className="all-users-panel settings-panel telegram-bot-settings-panel">
       <div className="all-users-head">
         <h3>Telegram Bot</h3>
         <button type="button" className="header-btn panel-close-btn" onClick={onClose} aria-label="Close Telegram bot settings">
-          Close
+          ×
         </button>
       </div>
 
@@ -219,18 +182,6 @@ function TelegramBotSettingsPanel({
           </label>
 
           <label className="field">
-            <span>Default language</span>
-            <select
-              value={form.defaultLanguage}
-              disabled={!canUpdateSettingsTelegramBot || saving}
-              onChange={(event) => setForm((prev) => ({ ...prev, defaultLanguage: event.target.value }))}
-            >
-              <option value="uz">UZ</option>
-              <option value="ru">RU</option>
-            </select>
-          </label>
-
-          <label className="field">
             <span>Cancel lock minutes</span>
             <input
               type="number"
@@ -243,12 +194,26 @@ function TelegramBotSettingsPanel({
           </label>
 
           <label className="field">
-            <span>Manager permission codes</span>
+            <span>First reminder hours</span>
             <input
-              type="text"
-              value={form.managerNotificationPermissionCodes}
+              type="number"
+              min="0"
+              max="168"
+              value={form.reminder24hHours}
               disabled={!canUpdateSettingsTelegramBot || saving}
-              onChange={(event) => setForm((prev) => ({ ...prev, managerNotificationPermissionCodes: event.target.value }))}
+              onChange={(event) => setForm((prev) => ({ ...prev, reminder24hHours: event.target.value }))}
+            />
+          </label>
+
+          <label className="field">
+            <span>Second reminder hours</span>
+            <input
+              type="number"
+              min="0"
+              max="168"
+              value={form.reminder2hHours}
+              disabled={!canUpdateSettingsTelegramBot || saving}
+              onChange={(event) => setForm((prev) => ({ ...prev, reminder2hHours: event.target.value }))}
             />
           </label>
         </div>
@@ -262,24 +227,6 @@ function TelegramBotSettingsPanel({
               onChange={(event) => setForm((prev) => ({ ...prev, isActive: event.target.checked }))}
             />
             <span>Active</span>
-          </label>
-          <label className="settings-checkbox settings-checkbox-inline">
-            <input
-              type="checkbox"
-              checked={form.reminder24hEnabled}
-              disabled={!canUpdateSettingsTelegramBot || saving}
-              onChange={(event) => setForm((prev) => ({ ...prev, reminder24hEnabled: event.target.checked }))}
-            />
-            <span>24h reminder</span>
-          </label>
-          <label className="settings-checkbox settings-checkbox-inline">
-            <input
-              type="checkbox"
-              checked={form.reminder2hEnabled}
-              disabled={!canUpdateSettingsTelegramBot || saving}
-              onChange={(event) => setForm((prev) => ({ ...prev, reminder2hEnabled: event.target.checked }))}
-            />
-            <span>2h reminder</span>
           </label>
           <label className="settings-checkbox settings-checkbox-inline">
             <input
@@ -315,30 +262,6 @@ function TelegramBotSettingsPanel({
         <div className="settings-actions-row">
           <button type="submit" className="btn" disabled={!canUpdateSettingsTelegramBot || saving}>
             {saving ? "Saving..." : "Save"}
-          </button>
-          <button
-            type="button"
-            className="table-action-btn"
-            disabled={saving || !item?.hasBotToken}
-            onClick={() => runAction("/api/settings/telegram-bot/test", "POST:test", "Bot token is valid.")}
-          >
-            Test
-          </button>
-          <button
-            type="button"
-            className="table-action-btn"
-            disabled={!canUpdateSettingsTelegramBot || saving || !item?.hasBotToken}
-            onClick={() => runAction("/api/settings/telegram-bot/webhook", "POST", "Webhook updated.")}
-          >
-            Set webhook
-          </button>
-          <button
-            type="button"
-            className="table-action-btn table-action-btn-danger"
-            disabled={!canUpdateSettingsTelegramBot || saving || !item?.hasBotToken}
-            onClick={() => runAction("/api/settings/telegram-bot/webhook", "DELETE", "Webhook deleted.")}
-          >
-            Delete webhook
           </button>
         </div>
       </form>

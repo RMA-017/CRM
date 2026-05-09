@@ -1260,6 +1260,10 @@ label.field > span:first-child,
   align-items: center;
 }
 
+.settings-actions-row {
+  justify-content: center;
+}
+
 .telegram-template-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(260px, 1fr));

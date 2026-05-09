@@ -1,4 +1,3 @@
-import { normalizePermissionCode } from "../../lib/permission-codes.js";
 import { normalizePositiveInteger } from "../../lib/number.js";
 import { parseBooleanOr } from "../../lib/request-parsers.js";
 import { hasPermission } from "../users/access.service.js";
@@ -84,36 +83,6 @@ function parseTemplatePayload(value) {
   return { value };
 }
 
-function parsePermissionCodesPayload(value) {
-  if (value === undefined) {
-    return { value: undefined };
-  }
-  if (!Array.isArray(value)) {
-    return {
-      error: {
-        field: "managerNotificationPermissionCodes",
-        message: "Permission codes must be an array."
-      }
-    };
-  }
-  const items = Array.from(
-    new Set(
-      value
-        .map((item) => normalizePermissionCode(item))
-        .filter(Boolean)
-    )
-  );
-  if (items.length === 0) {
-    return {
-      error: {
-        field: "managerNotificationPermissionCodes",
-        message: "At least one permission code is required."
-      }
-    };
-  }
-  return { value: items };
-}
-
 function parseOptionalInteger(value, fallback = undefined) {
   if (value === undefined) {
     return fallback;
@@ -161,15 +130,25 @@ export async function telegramSettingsRoutes(fastify) {
         if (templates.error) {
           return reply.status(400).send(templates.error);
         }
-        const permissionCodes = parsePermissionCodesPayload(body.managerNotificationPermissionCodes);
-        if (permissionCodes.error) {
-          return reply.status(400).send(permissionCodes.error);
-        }
         const cancelLockMinutes = parseOptionalInteger(body.cancelLockMinutes);
         if (Number.isNaN(cancelLockMinutes) || (cancelLockMinutes !== undefined && (cancelLockMinutes < 0 || cancelLockMinutes > 10080))) {
           return reply.status(400).send({
             field: "cancelLockMinutes",
             message: "Cancel lock minutes must be between 0 and 10080."
+          });
+        }
+        const reminder24hHours = parseOptionalInteger(body.reminder24hHours);
+        const reminder2hHours = parseOptionalInteger(body.reminder2hHours);
+        if (Number.isNaN(reminder24hHours) || (reminder24hHours !== undefined && (reminder24hHours < 0 || reminder24hHours > 168))) {
+          return reply.status(400).send({
+            field: "reminder24hHours",
+            message: "First reminder hours must be between 0 and 168."
+          });
+        }
+        if (Number.isNaN(reminder2hHours) || (reminder2hHours !== undefined && (reminder2hHours < 0 || reminder2hHours > 168))) {
+          return reply.status(400).send({
+            field: "reminder2hHours",
+            message: "Second reminder hours must be between 0 and 168."
           });
         }
         const botToken = body.botToken === undefined ? undefined : String(body.botToken || "").trim();
@@ -186,11 +165,11 @@ export async function telegramSettingsRoutes(fastify) {
           botToken,
           clearBotToken: parseBooleanOr(body.clearBotToken, false),
           isActive: body.isActive === undefined ? undefined : parseBooleanOr(body.isActive, false),
-          defaultLanguage: body.defaultLanguage,
           cancelLockMinutes,
+          reminder24hHours,
+          reminder2hHours,
           reminder24hEnabled: body.reminder24hEnabled === undefined ? undefined : parseBooleanOr(body.reminder24hEnabled, true),
           reminder2hEnabled: body.reminder2hEnabled === undefined ? undefined : parseBooleanOr(body.reminder2hEnabled, true),
-          managerNotificationPermissionCodes: permissionCodes.value,
           templates: templates.value
         });
         return reply.send({ message: "Telegram bot settings updated.", item });
