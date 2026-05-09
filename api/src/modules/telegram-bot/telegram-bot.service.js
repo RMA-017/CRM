@@ -36,8 +36,11 @@ const TEXT = Object.freeze({
     messagesTitle: "Xabarlar",
     noMessages: "Hozircha xabarlar yo'q.",
     settingsTitle: "Sozlamalar",
+    settingsPrompt: "Tilni tanlang yoki kontaktni o'zgartiring.",
     languageSaved: "Til sozlamasi saqlandi.",
     changeContact: "Kontaktni o'zgartirish",
+    backToMainMenu: "Ortga",
+    mainMenuTitle: "Bosh menyu",
     coming: "Ha, kelamiz",
     notComing: "Yo'q, bormaymiz",
     comingSaved: "Javob saqlandi: kelamiz.",
@@ -68,8 +71,11 @@ const TEXT = Object.freeze({
     messagesTitle: "Сообщения",
     noMessages: "Сообщений пока нет.",
     settingsTitle: "Настройки",
+    settingsPrompt: "Выберите язык или измените контакт.",
     languageSaved: "Язык сохранен.",
     changeContact: "Изменить контакт",
+    backToMainMenu: "Назад",
+    mainMenuTitle: "Главное меню",
     coming: "Да, придем",
     notComing: "Нет, не придем",
     comingSaved: "Ответ сохранен: придем.",
@@ -291,15 +297,14 @@ function buildCancelReasonButtons(language, appointmentId) {
   };
 }
 
-function buildSettingsButtons(language) {
+function buildSettingsMenuReplyMarkup(language) {
   return {
-    inline_keyboard: [
-      [
-        { text: "O'zbekcha", callback_data: "lang:uz" },
-        { text: "Русский", callback_data: "lang:ru" }
-      ],
-      [{ text: getText(language, "changeContact"), callback_data: "settings:contact" }]
-    ]
+    keyboard: [
+      [{ text: "O'zbekcha" }, { text: "Русский" }],
+      [{ text: getText(language, "changeContact") }],
+      [{ text: getText(language, "backToMainMenu") }]
+    ],
+    resize_keyboard: true
   };
 }
 
@@ -310,6 +315,18 @@ function resolveMenuAction(text) {
   }
   if (normalized.startsWith("/start")) {
     return "start";
+  }
+  if (normalized === "o'zbekcha" || normalized === "ozbekcha" || normalized === "uzbekcha") {
+    return "language_uz";
+  }
+  if (normalized === "русский" || normalized === "ru") {
+    return "language_ru";
+  }
+  if (normalized === "ortga" || normalized === "назад") {
+    return "main";
+  }
+  if (normalized.includes("kontakt") || normalized.includes("контакт")) {
+    return "change_contact";
   }
   if (normalized.includes("farzand") || normalized.includes("ребен") || normalized.includes("ребён")) {
     return "children";
@@ -1032,12 +1049,17 @@ async function sendMessagesList({ settings, parent }) {
   });
 }
 
-async function sendSettingsMenu({ settings, parent }) {
+async function sendSettingsMenu({ settings, parent, messagePrefix = "" }) {
+  const lines = [
+    String(messagePrefix || "").trim(),
+    getText(parent.language, "settingsTitle"),
+    getText(parent.language, "settingsPrompt")
+  ].filter(Boolean);
   await sendTelegramMessage({
     token: settings.botToken,
     chatId: parent.chatId,
-    text: getText(parent.language, "settingsTitle"),
-    replyMarkup: buildSettingsButtons(parent.language)
+    text: lines.join("\n"),
+    replyMarkup: buildSettingsMenuReplyMarkup(parent.language)
   });
 }
 
@@ -1227,7 +1249,7 @@ async function handleTextMessage({ settings, message }) {
   }
 
   const action = resolveMenuAction(text);
-  if (action !== "start") {
+  if (!action) {
     const pending = await popPendingAction(parent);
     if (pending?.action_type === "cancel_reason") {
       await cancelParentAppointment({
@@ -1246,6 +1268,36 @@ async function handleTextMessage({ settings, message }) {
       chatId: parent.chatId,
       text: getText(parent.language, "linked"),
       replyMarkup: buildMainMenuReplyMarkup(parent.language)
+    });
+    return;
+  }
+  if (action === "language_uz" || action === "language_ru") {
+    const nextParent = await updateParentLanguage({
+      parent,
+      language: action === "language_ru" ? "ru" : "uz"
+    });
+    await sendSettingsMenu({
+      settings,
+      parent: nextParent,
+      messagePrefix: getText(nextParent.language, "languageSaved")
+    });
+    return;
+  }
+  if (action === "main") {
+    await sendTelegramMessage({
+      token: settings.botToken,
+      chatId: parent.chatId,
+      text: getText(parent.language, "mainMenuTitle"),
+      replyMarkup: buildMainMenuReplyMarkup(parent.language)
+    });
+    return;
+  }
+  if (action === "change_contact") {
+    await sendTelegramMessage({
+      token: settings.botToken,
+      chatId: parent.chatId,
+      text: getText(parent.language, "shareContact"),
+      replyMarkup: buildContactReplyMarkup(parent.language)
     });
     return;
   }
@@ -1322,7 +1374,11 @@ async function handleCallbackQuery({ settings, callbackQuery }) {
       callbackQueryId: callbackQuery.id,
       text: getText(nextParent.language, "languageSaved")
     });
-    await sendSettingsMenu({ settings, parent: nextParent });
+    await sendSettingsMenu({
+      settings,
+      parent: nextParent,
+      messagePrefix: getText(nextParent.language, "languageSaved")
+    });
     return;
   }
 
@@ -1333,6 +1389,17 @@ async function handleCallbackQuery({ settings, callbackQuery }) {
       chatId: parent.chatId,
       text: getText(parent.language, "shareContact"),
       replyMarkup: buildContactReplyMarkup(parent.language)
+    });
+    return;
+  }
+
+  if (data === "settings:back") {
+    await answerCallbackQuery({ token: settings.botToken, callbackQueryId: callbackQuery.id });
+    await sendTelegramMessage({
+      token: settings.botToken,
+      chatId: parent.chatId,
+      text: getText(parent.language, "mainMenuTitle"),
+      replyMarkup: buildMainMenuReplyMarkup(parent.language)
     });
     return;
   }
