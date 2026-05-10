@@ -407,3 +407,97 @@ test("client update persists VIP flag", { concurrency: false }, async () => {
     restoreQuery();
   }
 });
+
+test("client update to inactive removes future planner lessons", { concurrency: false }, async () => {
+  const recorder = createRouteRecorder();
+  await clientsRoutes(recorder.fastify);
+
+  const route = findRoute(recorder.routes, "PATCH", "/:id");
+  assert.equal(typeof route?.handler, "function");
+
+  const restoreQuery = stubPoolQuery(async (sql, params = []) => {
+    const queryText = String(sql || "");
+
+    if (queryText.includes("FROM role_options r") && queryText.includes("JOIN role_permissions rp")) {
+      return {
+        rows: [{ code: "clients.update" }]
+      };
+    }
+
+    if (
+      queryText.includes("FROM clients c")
+      && queryText.includes("LOWER(TRIM(c.first_name)) = $2")
+      && queryText.includes("AND c.id <> $5")
+    ) {
+      return { rows: [] };
+    }
+
+    if (queryText.includes("UPDATE clients")) {
+      assert.match(queryText, /DELETE FROM appointment_schedules s/);
+      assert.match(queryText, /\$8::boolean = FALSE/);
+      assert.deepEqual(params, [
+        "Ali",
+        "Valiyev",
+        null,
+        "2020-01-01",
+        null,
+        null,
+        null,
+        false,
+        7,
+        44,
+        5
+      ]);
+      return {
+        rows: [{
+          id: "44",
+          organization_id: "5",
+          first_name: "Ali",
+          last_name: "Valiyev",
+          middle_name: null,
+          birthday: "2020-01-01",
+          phone_number: null,
+          tg_mail: null,
+          is_vip: false,
+          created_by: "7",
+          updated_by: "7",
+          created_at: "2026-01-01T00:00:00.000Z",
+          updated_at: "2026-01-01T00:00:00.000Z",
+          note: null,
+          deleted_future_appointment_count: 2
+        }]
+      };
+    }
+
+    throw new Error(`Unexpected query in test: ${queryText} :: ${JSON.stringify(params)}`);
+  });
+
+  try {
+    clearRolePermissionsCache();
+
+    const reply = createReplyRecorder();
+    await route.handler({
+      authContext: createAuthContext(),
+      params: {
+        id: "44"
+      },
+      body: {
+        firstName: "Ali",
+        lastName: "Valiyev",
+        middleName: "",
+        birthday: "2020-01-01",
+        phone: "",
+        tgMail: "",
+        note: "",
+        isVip: false
+      },
+      log: { error() {} }
+    }, reply);
+
+    assert.equal(reply.state.statusCode, 200);
+    assert.equal(reply.state.payload?.item?.isVip, false);
+  } finally {
+    clearRolePermissionsCache();
+    restoreQuery();
+  }
+});

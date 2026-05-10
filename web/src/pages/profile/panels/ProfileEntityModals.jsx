@@ -146,7 +146,7 @@ function ProfileEntityModals({
                 </div>
 
                 <div className="field clients-create-vip-field">
-                  <label htmlFor="clientCreateModalIsVip">VIP</label>
+                  <label htmlFor="clientCreateModalIsVip">Active</label>
                   <label
                     className={`clients-create-vip-toggle${clientCreateForm.isVip ? " is-active" : ""}`}
                     htmlFor="clientCreateModalIsVip"

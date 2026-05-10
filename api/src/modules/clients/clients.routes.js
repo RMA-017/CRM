@@ -260,6 +260,13 @@ async function clientsRoutes(fastify) {
       const lastName = String(request.query?.lastName || "").trim();
       const middleName = String(request.query?.middleName || "").trim();
       const clientId = parsePositiveInteger(request.query?.clientId ?? request.query?.client_id);
+      const activeOnly = normalizeBooleanFlag(
+        request.query?.active
+        ?? request.query?.activeOnly
+        ?? request.query?.active_only
+        ?? request.query?.isVip
+        ?? request.query?.is_vip
+      );
       const page = Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1;
       const limit = Number.isInteger(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 20;
 
@@ -277,7 +284,8 @@ async function clientsRoutes(fastify) {
           firstName,
           lastName,
           middleName,
-          clientId
+          clientId,
+          activeOnly
         });
 
         return reply.send({

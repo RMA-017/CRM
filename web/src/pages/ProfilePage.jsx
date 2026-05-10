@@ -279,7 +279,9 @@ function ProfilePage({ forcedView = "none" }) {
     clientsPage,
     clientsTotalPages,
     clientsSearch,
+    clientsActiveOnly,
     setClientsSearch,
+    setClientsActiveOnly,
     clientCreateForm,
     clientCreateErrors,
     clientCreateSubmitting,
@@ -1140,7 +1142,9 @@ function ProfilePage({ forcedView = "none" }) {
             clientsPage={clientsPage}
             clientsTotalPages={clientsTotalPages}
             clientsSearch={clientsSearch}
+            clientsActiveOnly={clientsActiveOnly}
             setClientsSearch={setClientsSearch}
+            setClientsActiveOnly={setClientsActiveOnly}
             loadClients={loadClients}
             canCreateClients={canCreateClients}
             canUpdateClients={canUpdateClients}

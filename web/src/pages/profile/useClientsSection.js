@@ -43,7 +43,9 @@ export function useClientsSection({
   const [clientsPage, setClientsPage] = useState(1);
   const [clientsTotalPages, setClientsTotalPages] = useState(1);
   const [clientsSearch, setClientsSearch] = useState("");
+  const [clientsActiveOnly, setClientsActiveOnlyState] = useState(false);
   const clientsSearchRef = useRef("");
+  const clientsActiveOnlyRef = useRef(false);
   const lastClientsRequestKeyRef = useRef("");
   const clientsListRequestIdRef = useRef(0);
 
@@ -186,9 +188,13 @@ export function useClientsSection({
     const trimmedSearch = String(
       overrides?.search !== undefined ? overrides.search : clientsSearchRef.current
     ).trim();
+    const activeOnly = overrides?.activeOnly !== undefined
+      ? Boolean(overrides.activeOnly)
+      : clientsActiveOnlyRef.current;
     const requestKey = JSON.stringify({
       page: nextPage,
-      search: trimmedSearch
+      search: trimmedSearch,
+      activeOnly
     });
     if (!force && lastClientsRequestKeyRef.current === requestKey) {
       return;
@@ -206,6 +212,9 @@ export function useClientsSection({
       });
       if (trimmedSearch) {
         query.set("q", trimmedSearch);
+      }
+      if (activeOnly) {
+        query.set("active", "true");
       }
 
       const response = await apiFetch(`/api/clients?${query.toString()}`, {
@@ -534,6 +543,12 @@ export function useClientsSection({
     setClientsSearch(nextValue);
   }, []);
 
+  const updateClientsActiveOnly = useCallback((value) => {
+    const nextValue = Boolean(value);
+    clientsActiveOnlyRef.current = nextValue;
+    setClientsActiveOnlyState(nextValue);
+  }, []);
+
   return {
     clients,
     clientsLoading,
@@ -541,7 +556,9 @@ export function useClientsSection({
     clientsPage,
     clientsTotalPages,
     clientsSearch,
+    clientsActiveOnly,
     setClientsSearch: updateClientsSearch,
+    setClientsActiveOnly: updateClientsActiveOnly,
     clientCreateForm,
     clientCreateErrors,
     clientCreateSubmitting,

@@ -77,3 +77,56 @@ test("getClientsPage uses one paged query", async () => {
     resetClientsServiceSchemaCacheForTests();
   }
 });
+
+test("getClientsPage filters active clients when requested", async () => {
+  resetClientsServiceSchemaCacheForTests();
+  let callCount = 0;
+  const restoreQuery = stubPoolQuery(async (sql, params = []) => {
+    callCount += 1;
+    const text = String(sql || "");
+
+    assert.match(text, /WITH filtered_clients AS/i);
+    assert.match(text, /c\.is_vip = TRUE/i);
+    assert.deepEqual(params.slice(-2), [10, 1]);
+    return {
+      rows: [{
+        total: 1,
+        total_pages: 1,
+        id: "77",
+        organization_id: "9",
+        first_name: "Ali",
+        last_name: "Valiyev",
+        middle_name: "",
+        birthday: null,
+        phone_number: "",
+        tg_mail: "",
+        is_vip: true,
+        created_by: "4",
+        updated_by: "4",
+        created_by_name: "Admin",
+        updated_by_name: "Admin",
+        created_at: "2026-03-10T00:00:00.000Z",
+        updated_at: "2026-03-10T00:00:00.000Z",
+        note: "",
+        _sort_client_id: 77
+      }]
+    };
+  });
+
+  try {
+    const result = await getClientsPage({
+      organizationId: 9,
+      page: 1,
+      limit: 10,
+      activeOnly: true
+    });
+
+    assert.equal(callCount, 1);
+    assert.equal(result.total, 1);
+    assert.equal(result.rows.length, 1);
+    assert.equal(result.rows[0].is_vip, true);
+  } finally {
+    restoreQuery();
+    resetClientsServiceSchemaCacheForTests();
+  }
+});

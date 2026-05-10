@@ -2214,6 +2214,28 @@ label.field > span:first-child,
   border-color: var(--accent-color, #6366f1);
 }
 
+.panel-search-checkbox {
+  flex: 0 0 auto;
+  min-height: var(--btn-height);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 6px;
+  color: var(--text-main);
+  font-size: 0.82rem;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.panel-search-checkbox input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  cursor: pointer;
+}
+
 .panel-search-select {
   flex: 0 1 clamp(88px, 26vw, 120px);
   width: clamp(88px, 26vw, 120px);

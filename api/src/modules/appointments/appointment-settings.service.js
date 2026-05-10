@@ -3789,7 +3789,15 @@ export async function createAppointmentSchedule({
   const normalizedRepeatType = normalizeRepeatType(repeatType);
   const tableName = getAppointmentSchedulesTableName(scheduleScope);
   const { rows } = await db.query(
-    `WITH inserted AS (
+    `WITH activated_client AS (
+       UPDATE clients c
+          SET is_vip = TRUE
+        WHERE c.organization_id = $1
+          AND c.id = $3
+          AND c.is_vip IS DISTINCT FROM TRUE
+       RETURNING c.id
+     ),
+     inserted AS (
        INSERT INTO ${tableName} (
          organization_id,
          specialist_id,
@@ -3869,7 +3877,8 @@ export async function createAppointmentSchedule({
        i.updated_at,
        c.first_name,
        c.last_name,
-       c.middle_name
+       c.middle_name,
+       c.is_vip
       FROM inserted i
       JOIN clients c
         ON c.id = i.client_id
@@ -4107,6 +4116,15 @@ export async function updateAppointmentSchedulesByIds({
        WHERE s.organization_id = $13
          AND s.id = ANY($14::integer[])
      ),
+     activated_client AS (
+       UPDATE clients c
+          SET is_vip = TRUE
+        WHERE c.organization_id = $13
+          AND c.id = $2
+          AND c.is_vip IS DISTINCT FROM TRUE
+          AND EXISTS (SELECT 1 FROM target)
+       RETURNING c.id
+     ),
      updated AS (
        UPDATE ${tableName} s
           SET specialist_id = $1,
@@ -4213,7 +4231,8 @@ export async function updateAppointmentSchedulesByIds({
        u.updated_at,
        c.first_name,
        c.last_name,
-       c.middle_name
+       c.middle_name,
+       c.is_vip
       FROM updated u
       JOIN clients c
         ON c.id = u.client_id
@@ -4295,6 +4314,15 @@ export async function updateAppointmentScheduleByIdWithRepeatMeta({
        WHERE s.id = $17
          AND s.organization_id = $18
        LIMIT 1
+     ),
+     activated_client AS (
+       UPDATE clients c
+          SET is_vip = TRUE
+        WHERE c.organization_id = $18
+          AND c.id = $2
+          AND c.is_vip IS DISTINCT FROM TRUE
+          AND EXISTS (SELECT 1 FROM target)
+       RETURNING c.id
      ),
      updated AS (
        UPDATE ${tableName} s
@@ -4402,7 +4430,8 @@ export async function updateAppointmentScheduleByIdWithRepeatMeta({
        u.updated_at,
        c.first_name,
        c.last_name,
-       c.middle_name
+       c.middle_name,
+       c.is_vip
       FROM updated u
       JOIN clients c
         ON c.id = u.client_id

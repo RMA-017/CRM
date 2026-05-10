@@ -10,7 +10,9 @@ function ClientsPanel({
   clientsTable,
   clients,
   clientsPage,
-  clientsTotalPages
+  clientsTotalPages,
+  clientsActiveOnly,
+  setClientsActiveOnly
 }) {
   return (
     <section id="clientsPanel" className="all-users-panel">
@@ -44,7 +46,11 @@ function ClientsPanel({
         className="panel-search-bar"
         onSubmit={(event) => {
           event.preventDefault();
-          void loadClients(1, { search: clientsSearch, force: true });
+          void loadClients(1, {
+            search: clientsSearch,
+            activeOnly: clientsActiveOnly,
+            force: true
+          });
         }}
       >
         <input
@@ -54,6 +60,22 @@ function ClientsPanel({
           value={clientsSearch}
           onChange={(event) => setClientsSearch(event.currentTarget.value)}
         />
+        <label className="panel-search-checkbox">
+          <input
+            type="checkbox"
+            checked={Boolean(clientsActiveOnly)}
+            onChange={(event) => {
+              const nextActiveOnly = event.currentTarget.checked;
+              setClientsActiveOnly(nextActiveOnly);
+              void loadClients(1, {
+                search: clientsSearch,
+                activeOnly: nextActiveOnly,
+                force: true
+              });
+            }}
+          />
+          <span>Active</span>
+        </label>
         <button type="submit" className="btn panel-search-btn" disabled={clientsLoading}>
           Search
         </button>

@@ -117,7 +117,8 @@ test("appointment planner report filters cache results and clear on schedule wri
         ]
       };
     }
-    if (text.includes("WITH inserted AS") && text.includes("INSERT INTO appointment_schedules")) {
+    if (text.includes("INSERT INTO appointment_schedules")) {
+      assert.match(text, /UPDATE clients c[\s\S]*SET is_vip = TRUE/i);
       return {
         rows: [{
           id: 99,
@@ -141,7 +142,8 @@ test("appointment planner report filters cache results and clear on schedule wri
           updated_at: "2026-03-10T00:00:00.000Z",
           first_name: "Ali",
           last_name: "Valiyev",
-          middle_name: "Bek"
+          middle_name: "Bek",
+          is_vip: true
         }]
       };
     }

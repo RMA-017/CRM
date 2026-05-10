@@ -695,7 +695,7 @@ function ProfileModals(props) {
               </div>
 
               <div className="field clients-edit-vip-field">
-                <label htmlFor="clientsEditIsVip">VIP</label>
+                <label htmlFor="clientsEditIsVip">Active</label>
                 <label
                   className={`clients-create-vip-toggle${clientEditForm.isVip ? " is-active" : ""}`}
                   htmlFor="clientsEditIsVip"

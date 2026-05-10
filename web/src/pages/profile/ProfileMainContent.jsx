@@ -49,7 +49,9 @@ function ProfileMainContent({
   clientsPage,
   clientsTotalPages,
   clientsSearch,
+  clientsActiveOnly,
   setClientsSearch,
+  setClientsActiveOnly,
   loadClients,
   canCreateClients,
   canUpdateClients,
@@ -200,7 +202,7 @@ function ProfileMainContent({
           <th>Birthday</th>
           <th>Phone</th>
           <th>Email</th>
-          <th>VIP</th>
+          <th>Active</th>
           <th>Created At</th>
           <th>Note</th>
           <th>Edit</th>
@@ -231,7 +233,7 @@ function ProfileMainContent({
               <td>{formatDateYMD(item?.birthday || item?.birthdate || "")}</td>
               <td>{item?.phone || item?.phone_number || "-"}</td>
               <td>{displayTgMail || "-"}</td>
-              <td>{item?.isVip || item?.is_vip ? "VIP" : "-"}</td>
+              <td>{item?.isVip || item?.is_vip ? "Yes" : "No"}</td>
               <td>{formatDateYMD(createdAt)}</td>
               <td>{displayNote}</td>
               <td>
@@ -341,7 +343,9 @@ function ProfileMainContent({
               openClientCreateModal={openClientCreateModal}
               closeAllClientsPanel={closeAllClientsPanel}
               clientsSearch={clientsSearch}
+              clientsActiveOnly={clientsActiveOnly}
               setClientsSearch={setClientsSearch}
+              setClientsActiveOnly={setClientsActiveOnly}
               loadClients={loadClients}
               clientsLoading={clientsLoading}
               clientsMessage={clientsMessage}

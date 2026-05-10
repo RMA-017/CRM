@@ -1,4 +1,5 @@
 import pool from "../../config/db.js";
+import { clearAppointmentPlannerReportFilterCaches } from "../appointments/appointment-settings.service.js";
 import { createTtlCache } from "../../lib/ttl-cache.js";
 import {
   createMigrationRequiredError,
@@ -2444,10 +2445,15 @@ export async function getClientsPage({
   firstName = "",
   lastName = "",
   middleName = "",
-  clientId = null
+  clientId = null,
+  activeOnly = false
 }) {
   const whereParts = ["c.organization_id = $1", "o.is_active = TRUE"];
   const params = [organizationId];
+
+  if (activeOnly) {
+    whereParts.push("c.is_vip = TRUE");
+  }
 
   const normalizedFirstName = normalizeSearchToken(firstName);
   if (normalizedFirstName) {
@@ -3237,38 +3243,96 @@ export async function updateClientById({
   ];
 
   const { rows } = await pool.query(
-    `UPDATE clients
-        SET first_name = $1,
-            last_name = $2,
-            middle_name = $3,
-            birthday = $4,
-            phone_number = $5,
-            tg_mail = $6,
-            note = $7,
-            is_vip = $8,
-            updated_by = $9,
-            updated_at = CURRENT_TIMESTAMP
-      WHERE id = $10
-        AND organization_id = $11
-      RETURNING
-        id::text AS id,
-        organization_id::text AS organization_id,
-        first_name,
-        last_name,
-        middle_name,
-        birthday,
-        phone_number,
-        tg_mail,
-        is_vip,
-        created_by::text AS created_by,
-        updated_by::text AS updated_by,
-        created_at,
-        updated_at,
-        note`,
+    `WITH updated_client AS (
+       UPDATE clients c
+          SET first_name = $1,
+              last_name = $2,
+              middle_name = $3,
+              birthday = $4,
+              phone_number = $5,
+              tg_mail = $6,
+              note = $7,
+              is_vip = $8,
+              updated_by = $9,
+              updated_at = CURRENT_TIMESTAMP
+        WHERE c.id = $10
+          AND c.organization_id = $11
+        RETURNING
+          c.id::text AS id,
+          c.organization_id::text AS organization_id,
+          c.first_name,
+          c.last_name,
+          c.middle_name,
+          c.birthday,
+          c.phone_number,
+          c.tg_mail,
+          c.is_vip,
+          c.created_by::text AS created_by,
+          c.updated_by::text AS updated_by,
+          c.created_at,
+          c.updated_at,
+          c.note
+     ),
+     deleted_future_appointments AS (
+       DELETE FROM appointment_schedules s
+        WHERE $8::boolean = FALSE
+          AND s.organization_id = $11
+          AND s.client_id = $10
+          AND (
+            s.appointment_date > TIMEZONE('Asia/Tashkent', NOW())::date
+            OR (
+              s.appointment_date = TIMEZONE('Asia/Tashkent', NOW())::date
+              AND s.end_time > TIMEZONE('Asia/Tashkent', NOW())::time
+            )
+          )
+          AND EXISTS (SELECT 1 FROM updated_client)
+       RETURNING s.*
+     ),
+     history_inserted AS (
+       INSERT INTO appointment_status_history (
+         organization_id,
+         appointment_schedule_id,
+         event_type,
+         previous_status,
+         next_status,
+         changed_fields,
+         details,
+         changed_by
+       )
+       SELECT
+         d.organization_id,
+         d.id,
+         'deleted',
+         d.status,
+         NULL,
+         ARRAY['deleted']::text[],
+         jsonb_build_object(
+           'source', 'client-deactivated',
+           'before', jsonb_build_object(
+             'specialistId', d.specialist_id,
+             'clientId', d.client_id,
+             'appointmentDate', d.appointment_date,
+             'startTime', d.start_time,
+             'endTime', d.end_time,
+             'status', d.status
+           ),
+           'after', NULL
+         ),
+         $9::integer
+       FROM deleted_future_appointments d
+     )
+     SELECT
+       updated_client.*,
+       (SELECT COUNT(*)::integer FROM deleted_future_appointments) AS deleted_future_appointment_count
+      FROM updated_client`,
     params
   );
 
-  return rows[0] || null;
+  const row = rows[0] || null;
+  if (row) {
+    clearAppointmentPlannerReportFilterCaches();
+  }
+  return row;
 }
 
 export async function deleteClientById({ id, organizationId }) {
