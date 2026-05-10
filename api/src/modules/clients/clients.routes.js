@@ -1,5 +1,6 @@
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
+import { isValidPhoneInput, normalizePhoneNumber } from "../../lib/phone-number.js";
 import {
   normalizeDateYmd as normalizeLooseDateYmd,
   validateBirthdayYmd
@@ -16,8 +17,6 @@ import {
   searchClientsForSchedule,
   updateClientById
 } from "./clients.service.js";
-
-const PHONE_REGEX = /^\+?[0-9]{7,15}$/;
 
 function splitLegacyFullName(value) {
   const tokens = String(value || "").trim().split(/\s+/).filter(Boolean);
@@ -78,20 +77,22 @@ function normalizeClientPayload(body) {
   const payload = body && typeof body === "object" ? body : {};
   const legacyName = splitLegacyFullName(payload?.fullName);
   const legacyNotes = parseLegacyNotes(payload?.notes);
+  const phoneRaw = String(payload?.phone || payload?.phoneNumber || "").trim();
 
   return {
     firstName: String(payload?.firstName || legacyName.firstName || "").trim(),
     lastName: String(payload?.lastName || legacyName.lastName || "").trim(),
     middleName: String(payload?.middleName || legacyName.middleName || "").trim(),
     birthday: String(payload?.birthday || legacyNotes.birthday || "").trim(),
-    phone: String(payload?.phone || payload?.phoneNumber || "").trim(),
+    phone: normalizePhoneNumber(phoneRaw),
+    phoneRaw,
     tgMail: String(payload?.tgMail || payload?.telegramOrEmail || legacyNotes.contact || "").trim(),
     note: String(payload?.note || legacyNotes.note || "").trim(),
     isVip: normalizeBooleanFlag(payload?.isVip ?? payload?.is_vip)
   };
 }
 
-function validateClientPayload({ firstName, lastName, middleName, birthday, phone, tgMail, note }) {
+function validateClientPayload({ firstName, lastName, middleName, birthday, phone, phoneRaw, tgMail, note }) {
   const errors = {};
 
   if (!firstName) {
@@ -115,7 +116,7 @@ function validateClientPayload({ firstName, lastName, middleName, birthday, phon
     errors.birthday = birthdayError;
   }
 
-  if (phone && !PHONE_REGEX.test(phone)) {
+  if (phoneRaw && (!phone || !isValidPhoneInput(phoneRaw))) {
     errors.phone = "Invalid phone number.";
   }
 

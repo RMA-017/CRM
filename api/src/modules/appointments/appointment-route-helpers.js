@@ -307,7 +307,14 @@ export function buildScheduleNotification(action, items, actor) {
         note: item?.note,
         firstName: item?.clientFirstName || item?.firstName,
         lastName: item?.clientLastName || item?.lastName,
-        middleName: item?.clientMiddleName || item?.middleName
+        middleName: item?.clientMiddleName || item?.middleName,
+        repeatType: item?.repeatType,
+        repeatGroupKey: item?.repeatGroupKey,
+        repeatUntilDate: item?.repeatUntilDate,
+        repeatDays: item?.repeatDays,
+        repeatAnchorDate: item?.repeatAnchorDate,
+        isRepeatRoot: item?.isRepeatRoot,
+        isRecurring: item?.isRecurring
       }))
     }
   };

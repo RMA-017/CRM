@@ -1,10 +1,10 @@
 import { useCallback, useRef, useState } from "react";
 import { apiFetch, readApiResponseData } from "../../lib/api.js";
 import { formatDateForInput } from "../../lib/formatters.js";
+import { isValidPhoneInput, normalizePhoneNumber } from "../../lib/phone-number.js";
 import { ALL_USERS_LIMIT, createEmptyClientsDeleteState } from "./profile.constants.js";
 import { handleProtectedStatus } from "./profile.helpers.js";
 
-const PHONE_REGEX = /^\+?[0-9]{7,15}$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
 const TELEGRAM_USERNAME_REGEX = /^@?[a-zA-Z0-9_]{5,32}$/;
 
@@ -104,7 +104,7 @@ export function useClientsSection({
       errors.birthday = birthdayError;
     }
 
-    if (phone && !PHONE_REGEX.test(phone)) {
+    if (phone && !isValidPhoneInput(phone)) {
       errors.phone = "Invalid phone number.";
     }
 
@@ -156,7 +156,7 @@ export function useClientsSection({
       errors.birthday = birthdayError;
     }
 
-    if (phone && !PHONE_REGEX.test(phone)) {
+    if (phone && !isValidPhoneInput(phone)) {
       errors.phone = "Invalid phone number.";
     }
 
@@ -282,7 +282,7 @@ export function useClientsSection({
       lastName: String(clientCreateForm.lastName || "").trim(),
       middleName: String(clientCreateForm.middleName || "").trim(),
       birthday: String(clientCreateForm.birthday || "").trim(),
-      phone: String(clientCreateForm.phone || "").trim(),
+      phone: normalizePhoneNumber(clientCreateForm.phone),
       tgMail: String(clientCreateForm.telegramOrEmail || "").trim(),
       isVip: Boolean(clientCreateForm.isVip),
       note: ""
@@ -385,7 +385,7 @@ export function useClientsSection({
       lastName: String(clientEditForm.lastName || "").trim(),
       middleName: String(clientEditForm.middleName || "").trim(),
       birthday: String(clientEditForm.birthday || "").trim(),
-      phone: String(clientEditForm.phone || "").trim(),
+      phone: normalizePhoneNumber(clientEditForm.phone),
       tgMail: String(clientEditForm.tgMail || "").trim(),
       isVip: Boolean(clientEditForm.isVip),
       note: String(clientEditForm.note || "").trim()

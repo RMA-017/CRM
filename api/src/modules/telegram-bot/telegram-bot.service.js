@@ -2,6 +2,7 @@ import pool from "../../config/db.js";
 import { executeTransaction } from "../../lib/db-utils.js";
 import { normalizePermissionCodes } from "../../lib/permission-codes.js";
 import { normalizePositiveInteger } from "../../lib/number.js";
+import { normalizePhoneDigits, normalizePhoneNumber } from "../../lib/phone-number.js";
 import { toBoundedInteger } from "../../lib/bounded-integer.js";
 import { updateAppointmentSchedulesByIds } from "../appointments/appointment-settings.service.js";
 import { persistNotificationEvent } from "../notifications/notifications.service.js";
@@ -20,6 +21,20 @@ const DEFAULT_MANAGER_NOTIFICATION_PERMISSION_CODES = Object.freeze([
   PERMISSIONS.APPOINTMENTS_NOTIFICATIONS_RECEIVE || "appointments.notifications.receive"
 ]);
 const ACTIVE_APPOINTMENT_STATUSES = new Set(["pending", "confirmed"]);
+const CLIENT_PHONE_DIGITS_SQL = `(
+  CASE
+    WHEN regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g') LIKE '00%'
+      THEN SUBSTRING(regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g') FROM 3)
+    WHEN LENGTH(regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g')) = 9
+      THEN '998' || regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g')
+    WHEN LENGTH(regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g')) = 10
+      THEN '7' || regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g')
+    WHEN LENGTH(regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g')) = 11
+      AND regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g') LIKE '8%'
+      THEN '7' || SUBSTRING(regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g') FROM 2)
+    ELSE regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g')
+  END
+)`;
 
 const TEXT = Object.freeze({
   uz: Object.freeze({
@@ -99,6 +114,7 @@ const DEFAULT_TEMPLATES = Object.freeze({
     lessonCancelled: "Farzandingizni {date} {time} dagi {service} darsi {actor} tomonidan bekor qilindi. Sabab: {reason}. Buning uchun uzr so'raymiz.",
     scheduleChanged: "{child} uchun {date} {time} dagi {service} darsi jadvali o'zgartirildi.",
     scheduleCreated: "{child} uchun {date} {time} dagi {service} darsi rejalashtirildi.",
+    scheduleCreatedWeek: "{child} uchun yaqin haftalik darslar rejalashtirildi:\n{lessons}",
     scheduleDeleted: "{child} uchun {date} {time} dagi {service} darsi o'chirildi.",
     scheduleSeriesDeleted: "{child} uchun {service} darslari bekor qilindi.",
     specialistLessonsDeleted: "{child} uchun rejalashtirilgan darslar bekor qilindi.",
@@ -110,6 +126,7 @@ const DEFAULT_TEMPLATES = Object.freeze({
     lessonCancelled: "Урок {service} для {child} на {date} {time} отменен специалистом {actor}. Причина: {reason}. Приносим извинения.",
     scheduleChanged: "Расписание урока {service} для {child} на {date} {time} изменено.",
     scheduleCreated: "Урок {service} для {child} запланирован на {date} {time}.",
+    scheduleCreatedWeek: "Ближайшие занятия на неделю для {child} запланированы:\n{lessons}",
     scheduleDeleted: "Урок {service} для {child} на {date} {time} удален.",
     scheduleSeriesDeleted: "Занятия {service} для {child} отменены.",
     specialistLessonsDeleted: "Запланированные занятия для {child} отменены.",
@@ -134,15 +151,6 @@ function isTelegramSchemaMissing(error) {
 function normalizeLanguage(value, fallback = DEFAULT_LANGUAGE) {
   const normalized = String(value || "").trim().toLowerCase();
   return SUPPORTED_LANGUAGES.has(normalized) ? normalized : fallback;
-}
-
-function normalizePhoneDigits(value) {
-  return String(value || "").replace(/\D/g, "").slice(0, 15);
-}
-
-function normalizePhoneNumber(value) {
-  const digits = normalizePhoneDigits(value);
-  return digits ? `+${digits}` : "";
 }
 
 function normalizeMessageText(value, fallback = "") {
@@ -255,6 +263,24 @@ function renderTemplate(template, values) {
     const value = values?.[key];
     return value == null ? "" : String(value);
   }).replace(/\s+/g, " ").trim();
+}
+
+function renderTemplateWithLines(template, values) {
+  return String(template || "")
+    .replace(/\{([a-zA-Z0-9_]+)\}/g, (_match, key) => {
+      const value = values?.[key];
+      return value == null ? "" : String(value);
+    })
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+function formatDateDmy(value) {
+  const raw = String(value || "").trim();
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}.${match[2]}.${match[1]}` : raw;
 }
 
 function buildMainMenuReplyMarkup(language) {
@@ -777,9 +803,9 @@ async function listParentClients(parent) {
        c.last_name,
        c.middle_name,
        c.birthday
-      FROM clients c
+     FROM clients c
      WHERE c.organization_id = $1
-       AND regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g') = $2
+       AND ${CLIENT_PHONE_DIGITS_SQL} = $2
      ORDER BY LOWER(TRIM(c.last_name)) ASC, LOWER(TRIM(c.first_name)) ASC, c.id ASC`,
     [parent.organizationId, parent.phoneDigits]
   );
@@ -827,7 +853,7 @@ async function getParentAppointment({ parent, appointmentId }) {
       ) apr ON TRUE
      WHERE s.organization_id = $1
        AND s.id = $2
-       AND regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g') = $4
+       AND ${CLIENT_PHONE_DIGITS_SQL} = $4
      LIMIT 1`,
     [parent.organizationId, normalizedAppointmentId, parent.id, parent.phoneDigits]
   );
@@ -874,7 +900,7 @@ async function listParentAppointments({ parent, dateFrom, dateTo }) {
       ) apr ON TRUE
      WHERE s.organization_id = $1
        AND s.appointment_date BETWEEN $2::date AND $3::date
-       AND regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g') = $5
+       AND ${CLIENT_PHONE_DIGITS_SQL} = $5
      ORDER BY s.appointment_date ASC, s.start_time ASC, s.id ASC`,
     [parent.organizationId, dateFrom, dateTo, parent.id, parent.phoneDigits]
   );
@@ -1504,7 +1530,7 @@ async function listParentsForClient({ organizationId, clientId }) {
       JOIN telegram_parent_accounts pa
         ON pa.organization_id = c.organization_id
        AND pa.is_active = TRUE
-       AND pa.phone_digits = regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g')
+       AND pa.phone_digits = ${CLIENT_PHONE_DIGITS_SQL}
      WHERE c.organization_id = $1
        AND c.id = $2`,
     [organizationId, clientId]
@@ -1521,6 +1547,8 @@ async function listParentsForClient({ organizationId, clientId }) {
 }
 
 function normalizeNotificationItem(item) {
+  const repeatType = String(item?.repeatType || item?.repeat_type || "").trim().toLowerCase();
+  const repeatGroupKey = String(item?.repeatGroupKey || item?.repeat_group_key || "").trim();
   return {
     id: normalizePositiveInteger(item?.id || item?.appointmentId),
     organizationId: normalizePositiveInteger(item?.organizationId || item?.organization_id),
@@ -1535,7 +1563,13 @@ function normalizeNotificationItem(item) {
     note: String(item?.note || "").trim(),
     first_name: String(item?.firstName || item?.first_name || "").trim(),
     last_name: String(item?.lastName || item?.last_name || "").trim(),
-    middle_name: String(item?.middleName || item?.middle_name || "").trim()
+    middle_name: String(item?.middleName || item?.middle_name || "").trim(),
+    repeatType,
+    repeatGroupKey,
+    repeatUntilDate: String(item?.repeatUntilDate || item?.repeat_until_date || "").trim(),
+    repeatAnchorDate: String(item?.repeatAnchorDate || item?.repeat_anchor_date || "").trim(),
+    isRepeatRoot: Boolean(item?.isRepeatRoot ?? item?.is_repeat_root),
+    isRecurring: Boolean(item?.isRecurring ?? item?.is_recurring) || (repeatType === "weekly" && Boolean(repeatGroupKey))
   };
 }
 
@@ -1572,6 +1606,16 @@ function buildParentNotificationMessage({ settings, parent, item, eventType, act
 
 function isDeletedEvent(eventType) {
   return String(eventType || "").trim().toLowerCase().includes("deleted");
+}
+
+function isCreatedEvent(eventType) {
+  return String(eventType || "").trim().toLowerCase().includes("created");
+}
+
+function isRecurringCreateNotification({ eventType, items }) {
+  return isCreatedEvent(eventType)
+    && items.length > 1
+    && items.some((item) => item.isRecurring || item.repeatGroupKey || item.repeatType === "weekly");
 }
 
 function isSeriesDeleteNotification({ eventType, notificationContext, items }) {
@@ -1644,6 +1688,49 @@ function buildClientDeleteGroups(items) {
     ...group,
     items: group.items.sort(compareNotificationItemsByDateTime)
   }));
+}
+
+function buildRecurringCreateGroups(items) {
+  const groups = new Map();
+  for (const item of items) {
+    const group = groups.get(item.clientId) || {
+      clientId: item.clientId,
+      items: []
+    };
+    group.items.push(item);
+    groups.set(item.clientId, group);
+  }
+  return Array.from(groups.values()).map((group) => {
+    const sortedItems = group.items.sort(compareNotificationItemsByDateTime);
+    const firstDate = sortedItems[0]?.appointmentDate || "";
+    const lastWeekDate = firstDate ? shiftDateYmd(firstDate, 6) : "";
+    const weekItems = firstDate && lastWeekDate
+      ? sortedItems.filter((item) => item.appointmentDate >= firstDate && item.appointmentDate <= lastWeekDate)
+      : sortedItems;
+    return {
+      ...group,
+      items: weekItems
+    };
+  });
+}
+
+function buildRecurringCreatedNotificationMessage({ settings, parent, group }) {
+  const language = normalizeLanguage(parent.language, settings.defaultLanguage);
+  const templates = settings.templates?.[language] || DEFAULT_TEMPLATES[language];
+  const items = Array.isArray(group?.items) ? group.items : [];
+  const firstItem = items[0] || {};
+  const lessons = items.map((item, index) => [
+    `${index + 1}. ${formatDateDmy(item.appointmentDate)} ${item.startTime}`,
+    item.serviceName,
+    getSpecialistName(item)
+  ].filter(Boolean).join(" - ")).join("\n");
+  return renderTemplateWithLines(
+    templates.scheduleCreatedWeek || DEFAULT_TEMPLATES[language].scheduleCreatedWeek,
+    {
+      child: getClientName({ ...firstItem, ...parent }),
+      lessons
+    }
+  );
 }
 
 function buildSeriesDeletedNotificationMessage({ settings, parent, group, actorName }) {
@@ -1729,6 +1816,28 @@ export async function notifyTelegramParentsForAppointmentChange({
       }
       return parentsByClientId.get(normalizedClientId);
     };
+
+    if (isRecurringCreateNotification({ eventType, items: normalizedItems })) {
+      for (const group of buildRecurringCreateGroups(normalizedItems)) {
+        const parents = await getParentsForClient(group.clientId);
+        for (const parent of parents) {
+          const message = buildRecurringCreatedNotificationMessage({
+            settings,
+            parent,
+            group
+          });
+          await sendAndLogParentMessage({
+            settings,
+            parent,
+            appointmentScheduleId: null,
+            eventType,
+            message
+          });
+          sentCount += 1;
+        }
+      }
+      return { sentCount };
+    }
 
     if (isSpecialistLessonsDeleteNotification({ eventType, notificationContext, items: normalizedItems })) {
       for (const group of buildClientDeleteGroups(normalizedItems)) {
@@ -1837,7 +1946,7 @@ async function listReminderTargets({ reminderType, limit = 100 }) {
        AND pa.is_active = TRUE
       JOIN clients c
         ON c.organization_id = tbs.organization_id
-       AND regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g') = pa.phone_digits
+       AND ${CLIENT_PHONE_DIGITS_SQL} = pa.phone_digits
       JOIN appointment_schedules s
         ON s.organization_id = c.organization_id
        AND s.client_id = c.id

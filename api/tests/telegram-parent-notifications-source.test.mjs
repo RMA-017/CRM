@@ -57,6 +57,38 @@ test("Telegram parent notifications collapse recurring deletes into one message"
   );
 });
 
+test("Telegram parent notifications collapse recurring creates into one weekly message", async () => {
+  const serviceSource = await readFile(
+    new URL("../src/modules/telegram-bot/telegram-bot.service.js", import.meta.url),
+    "utf8"
+  );
+  const routeHelpersSource = await readFile(
+    new URL("../src/modules/appointments/appointment-route-helpers.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    serviceSource,
+    /scheduleCreatedWeek:\s*"\{child\} uchun yaqin haftalik darslar rejalashtirildi:\\n\{lessons\}"/,
+    "Telegram defaults should include a compact Uzbek weekly-create template."
+  );
+  assert.match(
+    routeHelpersSource,
+    /repeatGroupKey:\s*item\?\.repeatGroupKey[\s\S]*isRecurring:\s*item\?\.isRecurring/s,
+    "Schedule notifications should carry recurring metadata to Telegram."
+  );
+  assert.match(
+    serviceSource,
+    /function isRecurringCreateNotification\([\s\S]*isCreatedEvent\(eventType\)[\s\S]*items\.some\(\(item\) => item\.isRecurring \|\| item\.repeatGroupKey \|\| item\.repeatType === "weekly"\)/s,
+    "Telegram service should detect multi-item recurring create notifications."
+  );
+  assert.match(
+    serviceSource,
+    /if \(isRecurringCreateNotification\([\s\S]*for \(const group of buildRecurringCreateGroups\(normalizedItems\)\)[\s\S]*appointmentScheduleId:\s*null/s,
+    "Telegram service should send one weekly create message instead of per-slot messages."
+  );
+});
+
 test("specialist removal planner cleanup notifies Telegram parents after commit", async () => {
   const usersServiceSource = await readFile(
     new URL("../src/modules/users/users.service.js", import.meta.url),
