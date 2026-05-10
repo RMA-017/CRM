@@ -1,5 +1,4 @@
 import pool from "../../config/db.js";
-import { getTodayYmd } from "../../lib/date.js";
 import { createTtlCache } from "../../lib/ttl-cache.js";
 import {
   createMigrationRequiredError,
@@ -2524,6 +2523,7 @@ export async function getClientsPage({
          c.birthday,
          c.phone_number,
          c.tg_mail,
+         c.is_vip,
          c.created_by::text AS created_by,
          c.updated_by::text AS updated_by,
          COALESCE(
@@ -2679,6 +2679,7 @@ export async function searchClientsForSchedule({
        c.birthday,
        c.phone_number,
        c.tg_mail,
+       c.is_vip,
        c.created_by::text AS created_by,
        c.updated_by::text AS updated_by,
        COALESCE(
@@ -3086,6 +3087,7 @@ export async function createClient({
   phone,
   tgMail,
   note,
+  isVip = false,
   createdBy
 }) {
   const createSql = `INSERT INTO clients (
@@ -3096,11 +3098,12 @@ export async function createClient({
     birthday,
     phone_number,
     tg_mail,
+    is_vip,
     created_by,
     updated_by,
     note
   )
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
   RETURNING
     id::text AS id,
     organization_id::text AS organization_id,
@@ -3110,6 +3113,7 @@ export async function createClient({
     birthday,
     phone_number,
     tg_mail,
+    is_vip,
     created_by::text AS created_by,
     updated_by::text AS updated_by,
     created_at,
@@ -3124,6 +3128,7 @@ export async function createClient({
     birthday,
     phone || null,
     tgMail || null,
+    Boolean(isVip),
     createdBy || null,
     createdBy || null,
     note || null
@@ -3214,6 +3219,7 @@ export async function updateClientById({
   phone,
   tgMail,
   note,
+  isVip = false,
   updatedBy
 }) {
   const params = [
@@ -3224,6 +3230,7 @@ export async function updateClientById({
     phone || null,
     tgMail || null,
     note || null,
+    Boolean(isVip),
     updatedBy || null,
     id,
     organizationId
@@ -3238,10 +3245,11 @@ export async function updateClientById({
             phone_number = $5,
             tg_mail = $6,
             note = $7,
-            updated_by = $8,
+            is_vip = $8,
+            updated_by = $9,
             updated_at = CURRENT_TIMESTAMP
-      WHERE id = $9
-        AND organization_id = $10
+      WHERE id = $10
+        AND organization_id = $11
       RETURNING
         id::text AS id,
         organization_id::text AS organization_id,
@@ -3251,6 +3259,7 @@ export async function updateClientById({
         birthday,
         phone_number,
         tg_mail,
+        is_vip,
         created_by::text AS created_by,
         updated_by::text AS updated_by,
         created_at,

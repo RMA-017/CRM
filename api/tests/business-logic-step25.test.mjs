@@ -747,6 +747,13 @@ test("users delete removes linked planner and VIP records before deleting the us
     }
     cleanupQueries.push(queryText);
 
+    if (queryText.includes("SELECT username, full_name") && queryText.includes("FROM users")) {
+      assert.deepEqual(params, [9, 3]);
+      return {
+        rows: [{ username: "former.specialist", full_name: "Former Specialist" }],
+        rowCount: 1
+      };
+    }
     if (queryText.startsWith("UPDATE users")) {
       assert.deepEqual(params, [3, 9]);
       return { rows: [], rowCount: 1 };

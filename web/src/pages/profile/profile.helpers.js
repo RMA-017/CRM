@@ -421,16 +421,6 @@ export function mapValueLabelOptions(items, getValue, getLabel) {
     .filter((option) => option.value && option.label);
 }
 
-export function compareTextInsensitive(left, right) {
-  return String(left || "").trim().localeCompare(String(right || "").trim(), undefined, {
-    sensitivity: "base"
-  });
-}
-
-export function isViewBlockedByOrgFeatures(forcedView, rawOrgFeatures) {
-  return false;
-}
-
 export function handleProtectedStatus(response, navigate) {
   const status = Number(response?.status);
   if (status === 401) {

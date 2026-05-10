@@ -1,3 +1,4 @@
+import { useI18n } from "../../../i18n/I18nProvider.jsx";
 import AppointmentScheduler from "../AppointmentScheduler.jsx";
 
 function AppointmentPlannerPanel({
@@ -18,15 +19,17 @@ function AppointmentPlannerPanel({
   onNotification,
   onClose
 }) {
+  const { translate } = useI18n();
+
   return (
     <section id="appointmentPanel" className="all-users-panel">
       <div className="all-users-head">
-        <h3>Appointment Planner</h3>
+        <h3>{translate("Appointment planner")}</h3>
         <button
           id="closeAppointmentBtn"
           type="button"
           className="header-btn panel-close-btn"
-          aria-label="Close appointment panel"
+          aria-label={translate("Close appointment panel")}
           onClick={onClose}
         >
           ×

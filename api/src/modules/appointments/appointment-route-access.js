@@ -113,7 +113,8 @@ export async function broadcastAppointmentChange(access, {
       organizationId,
       eventType: type,
       items: payloadData.items,
-      actorName: payloadData.actorFullName || payloadData.actorFirstName || sourceUsername
+      actorName: payloadData.actorFullName || payloadData.actorFirstName || sourceUsername,
+      notificationContext: payloadData
     }).catch(() => {});
   };
   const audience = await resolveNotificationAudience(access, specialistIds);

@@ -14,7 +14,8 @@ const EMPTY_CLIENT_CREATE_FORM = {
   middleName: "",
   birthday: "",
   phone: "",
-  telegramOrEmail: ""
+  telegramOrEmail: "",
+  isVip: false
 };
 
 const EMPTY_CLIENT_EDIT_FORM = {
@@ -24,7 +25,8 @@ const EMPTY_CLIENT_EDIT_FORM = {
   birthday: "",
   phone: "",
   tgMail: "",
-  note: ""
+  note: "",
+  isVip: false
 };
 
 export function useClientsSection({
@@ -273,6 +275,7 @@ export function useClientsSection({
       birthday: String(clientCreateForm.birthday || "").trim(),
       phone: String(clientCreateForm.phone || "").trim(),
       tgMail: String(clientCreateForm.telegramOrEmail || "").trim(),
+      isVip: Boolean(clientCreateForm.isVip),
       note: ""
     };
 
@@ -345,7 +348,8 @@ export function useClientsSection({
         || item?.tg_mail
         || ""
       ).trim(),
-      note: String(item?.note || "").trim()
+      note: String(item?.note || "").trim(),
+      isVip: Boolean(item?.isVip ?? item?.is_vip)
     });
     setClientEditErrors({});
   }, []);
@@ -374,6 +378,7 @@ export function useClientsSection({
       birthday: String(clientEditForm.birthday || "").trim(),
       phone: String(clientEditForm.phone || "").trim(),
       tgMail: String(clientEditForm.tgMail || "").trim(),
+      isVip: Boolean(clientEditForm.isVip),
       note: String(clientEditForm.note || "").trim()
     };
 

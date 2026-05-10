@@ -200,6 +200,7 @@ function ProfileMainContent({
           <th>Birthday</th>
           <th>Phone</th>
           <th>Email</th>
+          <th>VIP</th>
           <th>Created At</th>
           <th>Note</th>
           <th>Edit</th>
@@ -210,7 +211,7 @@ function ProfileMainContent({
         {clientsLoading ? (
           [0, 1, 2, 3, 4].map((index) => (
             <tr key={index} aria-hidden="true">
-              <td colSpan="11" className="skel" />
+              <td colSpan="12" className="skel" />
             </tr>
           ))
         ) : clients.map((item) => {
@@ -230,6 +231,7 @@ function ProfileMainContent({
               <td>{formatDateYMD(item?.birthday || item?.birthdate || "")}</td>
               <td>{item?.phone || item?.phone_number || "-"}</td>
               <td>{displayTgMail || "-"}</td>
+              <td>{item?.isVip || item?.is_vip ? "VIP" : "-"}</td>
               <td>{formatDateYMD(createdAt)}</td>
               <td>{displayNote}</td>
               <td>

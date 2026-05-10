@@ -10,6 +10,52 @@ import {
   clearAppointmentPlannerReportFilterCaches,
   clearAppointmentReferenceCaches
 } from "../appointments/appointment-settings.service.js";
+import { notifyTelegramParentsForAppointmentChange } from "../telegram-bot/telegram-bot.service.js";
+
+function mapDeletedAppointmentNotificationRow(row) {
+  return {
+    id: row?.id,
+    organizationId: row?.organization_id,
+    specialistId: row?.specialist_id,
+    specialistName: row?.specialist_name,
+    clientId: row?.client_id,
+    appointmentDate: row?.appointment_date,
+    startTime: row?.start_time,
+    endTime: row?.end_time,
+    serviceName: row?.service_name,
+    status: row?.status,
+    note: row?.note,
+    firstName: row?.first_name,
+    lastName: row?.last_name,
+    middleName: row?.middle_name
+  };
+}
+
+function buildSpecialistLessonsDeletedNotification({ organizationId, specialistName, items }) {
+  const notificationItems = (Array.isArray(items) ? items : [])
+    .map(mapDeletedAppointmentNotificationRow)
+    .filter((item) => Number.parseInt(String(item?.id || "").trim(), 10) > 0);
+  if (!Number.parseInt(String(organizationId || "").trim(), 10) || notificationItems.length === 0) {
+    return null;
+  }
+  return {
+    organizationId,
+    eventType: "specialist-lessons-deleted",
+    actorName: String(specialistName || "").trim(),
+    items: notificationItems,
+    notificationContext: {
+      scope: "specialist_removed",
+      deletedCount: notificationItems.length
+    }
+  };
+}
+
+async function sendSpecialistLessonsDeletedNotification(notification) {
+  if (!notification?.organizationId || !Array.isArray(notification.items) || notification.items.length === 0) {
+    return;
+  }
+  await notifyTelegramParentsForAppointmentChange(notification).catch(() => {});
+}
 
 function buildUsersPagedResult(rows, {
   limit,
@@ -85,13 +131,43 @@ async function deleteFutureAppointmentSchedulesBySpecialist({
             )
           )
        RETURNING s.id
+          , s.organization_id
+          , s.specialist_id
+          , s.client_id
+          , s.appointment_date
+          , s.start_time
+          , s.end_time
+          , s.service_name
+          , s.status
+          , s.note
      )
-     SELECT COUNT(*)::integer AS deleted_count
-       FROM deleted`,
+     SELECT
+       d.id,
+       d.organization_id,
+       d.specialist_id,
+       d.client_id,
+       d.appointment_date::text AS appointment_date,
+       COALESCE(TO_CHAR(d.start_time, 'HH24:MI'), '') AS start_time,
+       COALESCE(TO_CHAR(d.end_time, 'HH24:MI'), '') AS end_time,
+       d.service_name,
+       d.status,
+       d.note,
+       c.first_name,
+       c.last_name,
+       c.middle_name,
+       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), 'Specialist #' || d.specialist_id::text) AS specialist_name
+      FROM deleted d
+      JOIN clients c
+        ON c.id = d.client_id
+       AND c.organization_id = d.organization_id
+      LEFT JOIN users u
+        ON u.id = d.specialist_id
+       AND u.organization_id = d.organization_id
+     ORDER BY d.appointment_date ASC, d.start_time ASC, d.id ASC`,
     [organizationId, specialistId]
   );
 
-  return Number.parseInt(String(rows?.[0]?.deleted_count ?? "0"), 10) || 0;
+  return rows || [];
 }
 
 async function deleteAppointmentSchedulesBySpecialist({
@@ -105,13 +181,48 @@ async function deleteAppointmentSchedulesBySpecialist({
         WHERE s.organization_id = $1
           AND s.specialist_id = $2
        RETURNING s.id
+          , s.organization_id
+          , s.specialist_id
+          , s.client_id
+          , s.appointment_date
+          , s.start_time
+          , s.end_time
+          , s.service_name
+          , s.status
+          , s.note
      )
-     SELECT COUNT(*)::integer AS deleted_count
-       FROM deleted`,
+     SELECT
+       d.id,
+       d.organization_id,
+       d.specialist_id,
+       d.client_id,
+       d.appointment_date::text AS appointment_date,
+       COALESCE(TO_CHAR(d.start_time, 'HH24:MI'), '') AS start_time,
+       COALESCE(TO_CHAR(d.end_time, 'HH24:MI'), '') AS end_time,
+       d.service_name,
+       d.status,
+       d.note,
+       c.first_name,
+       c.last_name,
+       c.middle_name,
+       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), 'Specialist #' || d.specialist_id::text) AS specialist_name
+      FROM deleted d
+      JOIN clients c
+        ON c.id = d.client_id
+       AND c.organization_id = d.organization_id
+      LEFT JOIN users u
+        ON u.id = d.specialist_id
+       AND u.organization_id = d.organization_id
+     WHERE d.appointment_date > TIMEZONE('Asia/Tashkent', NOW())::date
+        OR (
+          d.appointment_date = TIMEZONE('Asia/Tashkent', NOW())::date
+          AND d.end_time > TIMEZONE('Asia/Tashkent', NOW())::time
+        )
+     ORDER BY d.appointment_date ASC, d.start_time ASC, d.id ASC`,
     [organizationId, specialistId]
   );
 
-  return Number.parseInt(String(rows?.[0]?.deleted_count ?? "0"), 10) || 0;
+  return rows || [];
 }
 
 async function runUserDeleteCleanupStep(step, callback) {
@@ -292,7 +403,8 @@ export async function updateUserByAdmin({
   roleId,
   password
 }) {
-  return executeTransaction(async (client) => {
+  let specialistLessonsDeletedNotification = null;
+  const user = await executeTransaction(async (client) => {
     const parsedNextOrganizationId = Number(nextOrganizationId);
     const targetOrganizationId = Number.isInteger(parsedNextOrganizationId) && parsedNextOrganizationId > 0
       ? parsedNextOrganizationId
@@ -300,7 +412,7 @@ export async function updateUserByAdmin({
     const scopedOrganizationId = Number(currentOrganizationId);
 
     const currentUserResult = await client.query(
-      `SELECT role_id, position_id, username
+      `SELECT role_id, position_id, username, full_name
          FROM users
         WHERE id = $1
           AND organization_id = $2
@@ -316,6 +428,7 @@ export async function updateUserByAdmin({
     const currentRoleId = Number(currentUser.role_id);
     const currentPositionId = Number.parseInt(String(currentUser.position_id || "").trim(), 10) || 0;
     const nextUsername = String(currentUser.username || "").trim();
+    const currentFullName = String(currentUser.full_name || currentUser.username || "").trim();
     const currentRoleLabel = await getRoleLabelById(client, currentRoleId);
     const currentPositionLabel = await getPositionLabelById(client, currentPositionId);
     const nextRoleLabel = await getRoleLabelById(client, roleId);
@@ -386,11 +499,15 @@ export async function updateUserByAdmin({
     }
 
     if (shouldDeleteFuturePlannerLessons) {
-      await deleteFutureAppointmentSchedulesBySpecialist({
+      const deletedItems = await deleteFutureAppointmentSchedulesBySpecialist({
         client,
         organizationId: scopedOrganizationId,
-        specialistId: userId,
-        actorUserId: actorUserId || null
+        specialistId: userId
+      });
+      specialistLessonsDeletedNotification = buildSpecialistLessonsDeletedNotification({
+        organizationId: scopedOrganizationId,
+        specialistName: currentFullName,
+        items: deletedItems
       });
     }
 
@@ -424,12 +541,27 @@ export async function updateUserByAdmin({
 
     return rows[0] || null;
   });
+  await sendSpecialistLessonsDeletedNotification(specialistLessonsDeletedNotification);
+  return user;
 }
 
 export async function deleteUserById(userId, organizationId, {
   actorUserId = null
 } = {}) {
-  return executeTransaction(async (client) => {
+  let specialistLessonsDeletedNotification = null;
+  const result = await executeTransaction(async (client) => {
+    const targetUserResult = await runUserDeleteCleanupStep("user lookup", () => client.query(
+      `SELECT username, full_name
+         FROM users
+        WHERE id = $1
+          AND organization_id = $2
+        LIMIT 1
+        FOR UPDATE`,
+      [userId, organizationId]
+    ));
+    const targetUser = targetUserResult.rows?.[0] || null;
+    const targetUserName = String(targetUser?.full_name || targetUser?.username || "").trim();
+
     await runUserDeleteCleanupStep("user audit references", () => client.query(
       `UPDATE users
           SET created_by = CASE WHEN created_by = $2 THEN NULL ELSE created_by END,
@@ -451,11 +583,16 @@ export async function deleteUserById(userId, organizationId, {
       .map((row) => Number.parseInt(String(row?.id || "").trim(), 10))
       .filter((id) => Number.isInteger(id) && id > 0);
 
-    await runUserDeleteCleanupStep("appointment schedules", () => deleteAppointmentSchedulesBySpecialist({
+    const deletedAppointmentItems = await runUserDeleteCleanupStep("appointment schedules", () => deleteAppointmentSchedulesBySpecialist({
       client,
       organizationId,
       specialistId: userId
     }));
+    specialistLessonsDeletedNotification = buildSpecialistLessonsDeletedNotification({
+      organizationId,
+      specialistName: targetUserName,
+      items: deletedAppointmentItems
+    });
 
     await runUserDeleteCleanupStep("appointment breaks", () => client.query(
       `DELETE FROM appointment_breaks
@@ -534,4 +671,6 @@ export async function deleteUserById(userId, organizationId, {
     }
     return result;
   });
+  await sendSpecialistLessonsDeletedNotification(specialistLessonsDeletedNotification);
+  return result;
 }

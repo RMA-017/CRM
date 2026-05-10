@@ -673,24 +673,44 @@ function ProfileModals(props) {
               <small className="field-error">{clientEditErrors.middleName || ""}</small>
             </div>
 
-            <div className="field">
-              <label htmlFor="clientsEditBirthday">Birthday</label>
-              <input
-                id="clientsEditBirthday"
-                type="date"
-                min="1950-01-01"
-                max={maxBirthdayYmd}
-                className={clientEditErrors.birthday ? "input-error" : ""}
-                value={clientEditForm.birthday}
-                onInput={(event) => {
-                  const nextValue = event.currentTarget.value;
-                  setClientEditForm((prev) => ({ ...prev, birthday: nextValue }));
-                  if (clientEditErrors.birthday) {
-                    setClientEditErrors((prev) => ({ ...prev, birthday: "" }));
-                  }
-                }}
-              />
-              <small className="field-error">{clientEditErrors.birthday || ""}</small>
+            <div className="client-birthday-vip-row">
+              <div className="field">
+                <label htmlFor="clientsEditBirthday">Birthday</label>
+                <input
+                  id="clientsEditBirthday"
+                  type="date"
+                  min="1950-01-01"
+                  max={maxBirthdayYmd}
+                  className={clientEditErrors.birthday ? "input-error" : ""}
+                  value={clientEditForm.birthday}
+                  onInput={(event) => {
+                    const nextValue = event.currentTarget.value;
+                    setClientEditForm((prev) => ({ ...prev, birthday: nextValue }));
+                    if (clientEditErrors.birthday) {
+                      setClientEditErrors((prev) => ({ ...prev, birthday: "" }));
+                    }
+                  }}
+                />
+                <small className="field-error">{clientEditErrors.birthday || ""}</small>
+              </div>
+
+              <div className="field clients-edit-vip-field">
+                <label htmlFor="clientsEditIsVip">VIP</label>
+                <label
+                  className={`clients-create-vip-toggle${clientEditForm.isVip ? " is-active" : ""}`}
+                  htmlFor="clientsEditIsVip"
+                >
+                  <input
+                    id="clientsEditIsVip"
+                    type="checkbox"
+                    checked={Boolean(clientEditForm.isVip)}
+                    onChange={(event) => {
+                      setClientEditForm((prev) => ({ ...prev, isVip: event.currentTarget.checked }));
+                    }}
+                  />
+                </label>
+                <small className="field-error" />
+              </div>
             </div>
 
             <div className="field">

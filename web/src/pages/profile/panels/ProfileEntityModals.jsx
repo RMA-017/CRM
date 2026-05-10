@@ -122,26 +122,47 @@ function ProfileEntityModals({
                 <small className="field-error">{clientCreateErrors.middleName || ""}</small>
               </div>
 
-              <div className="field">
-                <label htmlFor="clientCreateModalBirthday">Birthday</label>
-                <input
-                  id="clientCreateModalBirthday"
-                  name="birthday"
-                  type="date"
-                  required
-                  min="1950-01-01"
-                  max={maxBirthdayYmd}
-                  className={clientCreateErrors.birthday ? "input-error" : ""}
-                  value={clientCreateForm.birthday}
-                  onInput={(event) => {
-                    const nextValue = event.currentTarget.value;
-                    setClientCreateForm((prev) => ({ ...prev, birthday: nextValue }));
-                    if (clientCreateErrors.birthday) {
-                      setClientCreateErrors((prev) => ({ ...prev, birthday: "" }));
-                    }
-                  }}
-                />
-                <small className="field-error">{clientCreateErrors.birthday || ""}</small>
+              <div className="client-birthday-vip-row">
+                <div className="field">
+                  <label htmlFor="clientCreateModalBirthday">Birthday</label>
+                  <input
+                    id="clientCreateModalBirthday"
+                    name="birthday"
+                    type="date"
+                    required
+                    min="1950-01-01"
+                    max={maxBirthdayYmd}
+                    className={clientCreateErrors.birthday ? "input-error" : ""}
+                    value={clientCreateForm.birthday}
+                    onInput={(event) => {
+                      const nextValue = event.currentTarget.value;
+                      setClientCreateForm((prev) => ({ ...prev, birthday: nextValue }));
+                      if (clientCreateErrors.birthday) {
+                        setClientCreateErrors((prev) => ({ ...prev, birthday: "" }));
+                      }
+                    }}
+                  />
+                  <small className="field-error">{clientCreateErrors.birthday || ""}</small>
+                </div>
+
+                <div className="field clients-create-vip-field">
+                  <label htmlFor="clientCreateModalIsVip">VIP</label>
+                  <label
+                    className={`clients-create-vip-toggle${clientCreateForm.isVip ? " is-active" : ""}`}
+                    htmlFor="clientCreateModalIsVip"
+                  >
+                    <input
+                      id="clientCreateModalIsVip"
+                      name="isVip"
+                      type="checkbox"
+                      checked={Boolean(clientCreateForm.isVip)}
+                      onChange={(event) => {
+                        setClientCreateForm((prev) => ({ ...prev, isVip: event.currentTarget.checked }));
+                      }}
+                    />
+                  </label>
+                  <small className="field-error" />
+                </div>
               </div>
 
               <div className="field">

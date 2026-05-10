@@ -66,6 +66,14 @@ function normalizeDateYmdValue(value) {
   });
 }
 
+function normalizeBooleanFlag(value) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return ["true", "1", "yes", "on"].includes(normalized);
+}
+
 function normalizeClientPayload(body) {
   const payload = body && typeof body === "object" ? body : {};
   const legacyName = splitLegacyFullName(payload?.fullName);
@@ -78,7 +86,8 @@ function normalizeClientPayload(body) {
     birthday: String(payload?.birthday || legacyNotes.birthday || "").trim(),
     phone: String(payload?.phone || payload?.phoneNumber || "").trim(),
     tgMail: String(payload?.tgMail || payload?.telegramOrEmail || legacyNotes.contact || "").trim(),
-    note: String(payload?.note || legacyNotes.note || "").trim()
+    note: String(payload?.note || legacyNotes.note || "").trim(),
+    isVip: normalizeBooleanFlag(payload?.isVip ?? payload?.is_vip)
   };
 }
 
@@ -150,6 +159,7 @@ function mapClient(row) {
     phone: String(row?.phone_number ?? row?.phone ?? "").trim(),
     tgMail,
     telegramOrEmail: tgMail,
+    isVip: Boolean(row?.is_vip ?? row?.isVip),
     createdById: String(row?.created_by ?? row?.createdBy ?? "").trim(),
     createdByName: String(row?.created_by_name ?? row?.createdByName ?? row?.created_by ?? "-").trim() || "-",
     updatedById: String(row?.updated_by ?? row?.updatedBy ?? "").trim(),
@@ -325,6 +335,7 @@ async function clientsRoutes(fastify) {
           phone: input.phone,
           tgMail: input.tgMail,
           note: input.note,
+          isVip: input.isVip,
           createdBy: request.authContext.userId
         });
 
@@ -386,6 +397,7 @@ async function clientsRoutes(fastify) {
           phone: input.phone,
           tgMail: input.tgMail,
           note: input.note,
+          isVip: input.isVip,
           updatedBy: request.authContext.userId
         });
 

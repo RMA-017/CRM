@@ -49,11 +49,11 @@ const TEXT = Object.freeze({
     cancelSaved: "Dars bekor qilindi.",
     cancelLocked: "Darsni bot orqali bekor qilish vaqti yopilgan. Iltimos, administrator bilan telefon orqali bog'laning.",
     notFound: "Dars topilmadi yoki bu raqamga ruxsat yo'q.",
-    menuChildren: "Mening farzandim",
-    menuToday: "Bugungi dars jadvali",
-    menuWeek: "Bir haftalik jadval",
-    menuMessages: "Xabarlar",
-    menuSettings: "Sozlamalar",
+    menuChildren: "👶 Farzandim",
+    menuToday: "📅 Bugun",
+    menuWeek: "🗓 Hafta",
+    menuMessages: "✉️ Xabarlar",
+    menuSettings: "⚙️ Sozlamalar",
     fallbackReason: "Ota-ona Telegram bot orqali bekor qildi",
     botDisabled: "Bot hozircha faol emas."
   }),
@@ -84,11 +84,11 @@ const TEXT = Object.freeze({
     cancelSaved: "Урок отменен.",
     cancelLocked: "Время отмены через бот закрыто. Пожалуйста, свяжитесь с администратором по телефону.",
     notFound: "Урок не найден или нет доступа для этого номера.",
-    menuChildren: "Мой ребенок",
-    menuToday: "Расписание на сегодня",
-    menuWeek: "Расписание на неделю",
-    menuMessages: "Сообщения",
-    menuSettings: "Настройки",
+    menuChildren: "👶 Ребенок",
+    menuToday: "📅 Сегодня",
+    menuWeek: "🗓 Неделя",
+    menuMessages: "✉️ Сообщения",
+    menuSettings: "⚙️ Настройки",
     fallbackReason: "Родитель отменил через Telegram бот",
     botDisabled: "Бот пока не активен."
   })
@@ -100,6 +100,8 @@ const DEFAULT_TEMPLATES = Object.freeze({
     scheduleChanged: "{child} uchun {date} {time} dagi {service} darsi jadvali o'zgartirildi.",
     scheduleCreated: "{child} uchun {date} {time} dagi {service} darsi rejalashtirildi.",
     scheduleDeleted: "{child} uchun {date} {time} dagi {service} darsi o'chirildi.",
+    scheduleSeriesDeleted: "{child} uchun {service} darslari bekor qilindi.",
+    specialistLessonsDeleted: "{child} uchun rejalashtirilgan darslar bekor qilindi.",
     reminder24h: "{date} {time} da {service} darsi bor. Kelasizmi?",
     reminder2h: "{date} {time} da {service} darsingiz bor.",
     parentCancelNotification: "Ota-ona {child} uchun {date} {time} dagi {service} darsini bekor qildi. Sabab: {reason}."
@@ -109,6 +111,8 @@ const DEFAULT_TEMPLATES = Object.freeze({
     scheduleChanged: "Расписание урока {service} для {child} на {date} {time} изменено.",
     scheduleCreated: "Урок {service} для {child} запланирован на {date} {time}.",
     scheduleDeleted: "Урок {service} для {child} на {date} {time} удален.",
+    scheduleSeriesDeleted: "Занятия {service} для {child} отменены.",
+    specialistLessonsDeleted: "Запланированные занятия для {child} отменены.",
     reminder24h: "{date} в {time} урок {service}. Вы придете?",
     reminder2h: "{date} в {time} у вас урок {service}.",
     parentCancelNotification: "Родитель отменил урок {service} для {child} на {date} {time}. Причина: {reason}."
@@ -331,7 +335,7 @@ function resolveMenuAction(text) {
   if (normalized.includes("farzand") || normalized.includes("ребен") || normalized.includes("ребён")) {
     return "children";
   }
-  if (normalized.includes("bugungi") || normalized.includes("сегодня")) {
+  if (normalized.includes("bugun") || normalized.includes("bugungi") || normalized.includes("сегодня")) {
     return "today";
   }
   if (normalized.includes("xaft") || normalized.includes("haft") || normalized.includes("недел")) {
@@ -1566,11 +1570,132 @@ function buildParentNotificationMessage({ settings, parent, item, eventType, act
   });
 }
 
+function isDeletedEvent(eventType) {
+  return String(eventType || "").trim().toLowerCase().includes("deleted");
+}
+
+function isSeriesDeleteNotification({ eventType, notificationContext, items }) {
+  if (!isDeletedEvent(eventType)) {
+    return false;
+  }
+  const scope = String(notificationContext?.scope || "").trim().toLowerCase();
+  if (scope !== "future" && scope !== "all") {
+    return false;
+  }
+  const deletedCount = normalizePositiveInteger(
+    notificationContext?.deletedCount || notificationContext?.deleted_count
+  );
+  return deletedCount > 1 || items.length > 1;
+}
+
+function isSpecialistLessonsDeleteNotification({ eventType, notificationContext, items }) {
+  if (!isDeletedEvent(eventType) || items.length === 0) {
+    return false;
+  }
+  const type = String(eventType || "").trim().toLowerCase();
+  const scope = String(notificationContext?.scope || "").trim().toLowerCase();
+  return type === "specialist-lessons-deleted" || scope === "specialist_removed";
+}
+
+function compareNotificationItemsByDateTime(left, right) {
+  return [
+    String(left?.appointmentDate || "").trim(),
+    String(left?.startTime || "").trim(),
+    String(left?.id || "").trim()
+  ].join(" ").localeCompare([
+    String(right?.appointmentDate || "").trim(),
+    String(right?.startTime || "").trim(),
+    String(right?.id || "").trim()
+  ].join(" "));
+}
+
+function buildSeriesDeleteGroups(items) {
+  const groups = new Map();
+  for (const item of items) {
+    const key = [
+      item.clientId,
+      String(item.serviceName || "").trim().toLowerCase()
+    ].join(":");
+    const group = groups.get(key) || {
+      clientId: item.clientId,
+      serviceName: item.serviceName,
+      items: []
+    };
+    group.items.push(item);
+    groups.set(key, group);
+  }
+  return Array.from(groups.values()).map((group) => ({
+    ...group,
+    items: group.items.sort(compareNotificationItemsByDateTime)
+  }));
+}
+
+function buildClientDeleteGroups(items) {
+  const groups = new Map();
+  for (const item of items) {
+    const group = groups.get(item.clientId) || {
+      clientId: item.clientId,
+      items: []
+    };
+    group.items.push(item);
+    groups.set(item.clientId, group);
+  }
+  return Array.from(groups.values()).map((group) => ({
+    ...group,
+    items: group.items.sort(compareNotificationItemsByDateTime)
+  }));
+}
+
+function buildSeriesDeletedNotificationMessage({ settings, parent, group, actorName }) {
+  const language = normalizeLanguage(parent.language, settings.defaultLanguage);
+  const templates = settings.templates?.[language] || DEFAULT_TEMPLATES[language];
+  const items = Array.isArray(group?.items) ? group.items : [];
+  const firstItem = items[0] || {};
+  const lastItem = items[items.length - 1] || firstItem;
+  const reason = String(items.find((item) => String(item?.note || "").trim())?.note || "").trim()
+    || (language === "ru" ? "не указано" : "ko'rsatilmagan");
+  return renderTemplate(templates.scheduleSeriesDeleted || DEFAULT_TEMPLATES[language].scheduleSeriesDeleted, {
+    child: getClientName({ ...firstItem, ...parent }),
+    date: firstItem.appointmentDate,
+    time: firstItem.startTime,
+    dateFrom: firstItem.appointmentDate,
+    dateTo: lastItem.appointmentDate,
+    count: items.length,
+    service: firstItem.serviceName || group?.serviceName || "Service",
+    specialist: firstItem.specialistName,
+    actor: String(actorName || firstItem.specialistName || "CRM").trim(),
+    reason
+  });
+}
+
+function buildSpecialistLessonsDeletedNotificationMessage({ settings, parent, group, actorName }) {
+  const language = normalizeLanguage(parent.language, settings.defaultLanguage);
+  const templates = settings.templates?.[language] || DEFAULT_TEMPLATES[language];
+  const items = Array.isArray(group?.items) ? group.items : [];
+  const firstItem = items[0] || {};
+  const lastItem = items[items.length - 1] || firstItem;
+  return renderTemplate(
+    templates.specialistLessonsDeleted || DEFAULT_TEMPLATES[language].specialistLessonsDeleted,
+    {
+      child: getClientName({ ...firstItem, ...parent }),
+      date: firstItem.appointmentDate,
+      time: firstItem.startTime,
+      dateFrom: firstItem.appointmentDate,
+      dateTo: lastItem.appointmentDate,
+      count: items.length,
+      service: firstItem.serviceName,
+      specialist: firstItem.specialistName,
+      actor: String(actorName || firstItem.specialistName || "CRM").trim()
+    }
+  );
+}
+
 export async function notifyTelegramParentsForAppointmentChange({
   organizationId,
   eventType,
   items = [],
-  actorName = ""
+  actorName = "",
+  notificationContext = {}
 }) {
   const normalizedOrganizationId = normalizePositiveInteger(organizationId);
   const normalizedItems = (Array.isArray(items) ? items : [])
@@ -1587,11 +1712,72 @@ export async function notifyTelegramParentsForAppointmentChange({
     }
 
     let sentCount = 0;
+    const parentsByClientId = new Map();
+    const getParentsForClient = async (clientId) => {
+      const normalizedClientId = normalizePositiveInteger(clientId);
+      if (!normalizedClientId) {
+        return [];
+      }
+      if (!parentsByClientId.has(normalizedClientId)) {
+        parentsByClientId.set(
+          normalizedClientId,
+          await listParentsForClient({
+            organizationId: normalizedOrganizationId,
+            clientId: normalizedClientId
+          })
+        );
+      }
+      return parentsByClientId.get(normalizedClientId);
+    };
+
+    if (isSpecialistLessonsDeleteNotification({ eventType, notificationContext, items: normalizedItems })) {
+      for (const group of buildClientDeleteGroups(normalizedItems)) {
+        const parents = await getParentsForClient(group.clientId);
+        for (const parent of parents) {
+          const message = buildSpecialistLessonsDeletedNotificationMessage({
+            settings,
+            parent,
+            group,
+            actorName
+          });
+          await sendAndLogParentMessage({
+            settings,
+            parent,
+            appointmentScheduleId: null,
+            eventType,
+            message
+          });
+          sentCount += 1;
+        }
+      }
+      return { sentCount };
+    }
+
+    if (isSeriesDeleteNotification({ eventType, notificationContext, items: normalizedItems })) {
+      for (const group of buildSeriesDeleteGroups(normalizedItems)) {
+        const parents = await getParentsForClient(group.clientId);
+        for (const parent of parents) {
+          const message = buildSeriesDeletedNotificationMessage({
+            settings,
+            parent,
+            group,
+            actorName
+          });
+          await sendAndLogParentMessage({
+            settings,
+            parent,
+            appointmentScheduleId: null,
+            eventType,
+            message
+          });
+          sentCount += 1;
+        }
+      }
+      return { sentCount };
+    }
+
     for (const item of normalizedItems) {
-      const parents = await listParentsForClient({
-        organizationId: normalizedOrganizationId,
-        clientId: item.clientId
-      });
+      const parents = await getParentsForClient(item.clientId);
       for (const parent of parents) {
         const message = buildParentNotificationMessage({
           settings,
@@ -1606,7 +1792,7 @@ export async function notifyTelegramParentsForAppointmentChange({
         await sendAndLogParentMessage({
           settings,
           parent,
-          appointmentScheduleId: String(eventType || "").includes("deleted") ? null : item.id,
+          appointmentScheduleId: isDeletedEvent(eventType) ? null : item.id,
           eventType,
           message,
           replyMarkup

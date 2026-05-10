@@ -8,6 +8,8 @@ const DEFAULT_TEMPLATES = Object.freeze({
     scheduleChanged: "",
     scheduleCreated: "",
     scheduleDeleted: "",
+    scheduleSeriesDeleted: "",
+    specialistLessonsDeleted: "",
     reminder24h: "",
     reminder2h: "",
     parentCancelNotification: ""
@@ -17,6 +19,8 @@ const DEFAULT_TEMPLATES = Object.freeze({
     scheduleChanged: "",
     scheduleCreated: "",
     scheduleDeleted: "",
+    scheduleSeriesDeleted: "",
+    specialistLessonsDeleted: "",
     reminder24h: "",
     reminder2h: "",
     parentCancelNotification: ""
@@ -28,6 +32,8 @@ const TEMPLATE_FIELDS = Object.freeze([
   ["scheduleChanged", "scheduleChanged"],
   ["scheduleCreated", "scheduleCreated"],
   ["scheduleDeleted", "scheduleDeleted"],
+  ["scheduleSeriesDeleted", "scheduleSeriesDeleted"],
+  ["specialistLessonsDeleted", "specialistLessonsDeleted"],
   ["reminder24h", "reminder24h"],
   ["reminder2h", "reminder2h"],
   ["parentCancelNotification", "parentCancelNotification"]
@@ -66,6 +72,8 @@ const UI_TEXT = Object.freeze({
       scheduleChanged: "Jadval o'zgardi",
       scheduleCreated: "Dars yaratildi",
       scheduleDeleted: "Dars o'chirildi",
+      scheduleSeriesDeleted: "Seriyali darslar bekor qilindi",
+      specialistLessonsDeleted: "Mutaxassis darslari bekor qilindi",
       reminder24h: "Birinchi eslatma",
       reminder2h: "Ikkinchi eslatma",
       parentCancelNotification: "Ota-ona bekor qilishi"
@@ -103,6 +111,8 @@ const UI_TEXT = Object.freeze({
       scheduleChanged: "Расписание изменено",
       scheduleCreated: "Занятие создано",
       scheduleDeleted: "Занятие удалено",
+      scheduleSeriesDeleted: "Серия занятий отменена",
+      specialistLessonsDeleted: "Занятия специалиста отменены",
       reminder24h: "Первое напоминание",
       reminder2h: "Второе напоминание",
       parentCancelNotification: "Отмена родителем"

@@ -1334,7 +1334,6 @@ label.field > span:first-child,
   gap: 12px;
 }
 
-.settings-toggle-row,
 .settings-actions-row {
   display: flex;
   flex-wrap: wrap;

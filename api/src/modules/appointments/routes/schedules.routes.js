@@ -3247,7 +3247,11 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                 type: "schedule-deleted",
                 message: scheduleNotification.message,
                 specialistIds,
-                data: scheduleNotification.data
+                data: {
+                  ...scheduleNotification.data,
+                  scope: target.scope,
+                  deletedCount
+                }
               });
               schedulesReadCache.clear();
 
@@ -3338,7 +3342,11 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               type: "schedule-deleted",
               message: scheduleNotification.message,
               specialistIds: deleteSpecialistIds,
-              data: scheduleNotification.data
+              data: {
+                ...scheduleNotification.data,
+                scope: target.scope,
+                deletedCount
+              }
             });
             schedulesReadCache.clear();
 
@@ -3371,7 +3379,11 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           type: "schedule-deleted",
           message: scheduleNotification.message,
           specialistIds: deleteSpecialistIds,
-          data: scheduleNotification.data
+          data: {
+            ...scheduleNotification.data,
+            scope: target.scope,
+            deletedCount
+          }
         });
         schedulesReadCache.clear();
 
