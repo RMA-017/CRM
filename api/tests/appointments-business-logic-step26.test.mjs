@@ -5,10 +5,12 @@ import test from "node:test";
 const referenceRoutesModule = await import("../src/modules/appointments/routes/reference.routes.js");
 const breaksRoutesModule = await import("../src/modules/appointments/routes/breaks.routes.js");
 const schedulesRoutesModule = await import("../src/modules/appointments/routes/schedules.routes.js");
+const appointmentRouteAccessModule = await import("../src/modules/appointments/appointment-route-access.js");
 
 const { registerAppointmentReferenceRoutes } = referenceRoutesModule;
 const { registerAppointmentBreakRoutes } = breaksRoutesModule;
 const { registerAppointmentScheduleRoutes } = schedulesRoutesModule;
+const { resolveOwnAppointmentSpecialistUserId } = appointmentRouteAccessModule;
 
 test("appointment schedule service normalizes malformed repeat group keys before recurring update logic", async () => {
   const source = await readFile(
@@ -62,6 +64,18 @@ test("appointment schedule routes block confirmed status for future appointments
     /const targetDatesForConfirmedStatus = target\.scope === "single"[\s\S]*const confirmedDateError = getConfirmedFutureDateError\(status, targetDatesForConfirmedStatus\);[\s\S]*return reply\.status\(400\)\.send\(confirmedDateError\);/s,
     "Schedule update should reject future confirmed appointments before saving."
   );
+});
+
+test("manager role is not locked to own planner by specialist position label", () => {
+  const specialistScope = resolveOwnAppointmentSpecialistUserId({
+    authContext: { userId: 17 },
+    requester: {
+      role_label: "Manager",
+      position_label: "Specialist"
+    }
+  });
+
+  assert.equal(specialistScope, null);
 });
 
 function createReplyRecorder() {
@@ -200,8 +214,6 @@ function createScheduleContext(overrides = {}) {
       APPOINTMENTS_PLANNER_CREATE: "appointments.planner.create",
       APPOINTMENTS_PLANNER_UPDATE: "appointments.planner.update",
       APPOINTMENTS_PLANNER_DELETE: "appointments.planner.delete",
-      APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip-clients.my-children",
-      APPOINTMENTS_VIP_CLIENTS_MY_CLASS: "appointments.vip-clients.my-class",
       APPOINTMENTS_STATISTICS_PLANNER_REPORT: "appointments.statistics.planner-report",
       APPOINTMENTS_STATISTICS_PLANNER_REPORT_ONLY: "appointments.statistics.planner-report.only",
       APPOINTMENTS_STATISTICS_PLANNER_REPORT_ALL: "appointments.statistics.planner-report.all"
@@ -259,7 +271,6 @@ function createScheduleContext(overrides = {}) {
     deleteAppointmentSchedulesByIds: async () => 1,
     withAppointmentTransaction: async (callback) => callback({ query: async () => ({ rows: [] }) }),
     toAppointmentDayNum: () => 1,
-    resolveAppointmentVipReadScope: async () => "all",
     resolveOwnAppointmentSpecialistUserId: () => null,
     isVipClientAssignedToUser: async () => true,
     broadcastAppointmentChange: async () => {},
@@ -284,12 +295,9 @@ function createReferenceContext(overrides = {}) {
       APPOINTMENTS_PLANNER_READ: "appointments.planner.read"
     },
     parsePositiveIntegerOr,
-    resolveOwnAppointmentSpecialistUserId: () => null,
-    resolveAppointmentVipReadScope: async () => "all",
     getAppointmentClientScopeInfo: async () => null,
     getAppointmentSpecialistsByOrganization: async () => [],
     getAppointmentClientNoShowSummary: async () => ({ clientId: "44", noShowCount: 0 }),
-    isVipClientAssignedToUser: async () => true,
     ...overrides
   };
 }
@@ -347,16 +355,16 @@ test("specialists reference endpoint keeps all specialists visible for planner r
   ]);
 });
 
-test("client no-show summary blocks assigned-scope access to unassigned VIP clients", async () => {
+test("client no-show summary allows VIP clients with planner read access", async () => {
   const recorder = createRouteRecorder();
+  let summaryArgs = null;
   registerAppointmentReferenceRoutes(
     recorder.fastify,
     createReferenceContext({
-      resolveAppointmentVipReadScope: async () => "assigned",
       getAppointmentClientScopeInfo: async () => ({ id: "44", isVip: true }),
-      isVipClientAssignedToUser: async () => false,
-      getAppointmentClientNoShowSummary: async () => {
-        throw new Error("Summary should not load for forbidden VIP client.");
+      getAppointmentClientNoShowSummary: async (args) => {
+        summaryArgs = args;
+        return { clientId: "44", noShowCount: 2 };
       }
     })
   );
@@ -373,8 +381,12 @@ test("client no-show summary blocks assigned-scope access to unassigned VIP clie
     reply
   );
 
-  assert.equal(reply.state.statusCode, 403);
-  assert.equal(reply.state.payload?.message, "Forbidden.");
+  assert.equal(reply.state.statusCode, 200);
+  assert.deepEqual(summaryArgs, {
+    organizationId: 3,
+    clientId: 44
+  });
+  assert.deepEqual(reply.state.payload?.item, { clientId: "44", noShowCount: 2 });
 });
 
 test("planner report only permission scopes report endpoints to requester", async () => {
@@ -893,41 +905,6 @@ test("breaks read allows planner readers to query another specialist", async () 
   });
 });
 
-test("schedule read blocks assigned-scope access to an unassigned VIP client", async () => {
-  const recorder = createRouteRecorder();
-  registerAppointmentScheduleRoutes(
-    recorder.fastify,
-    createScheduleContext({
-      resolveAppointmentVipReadScope: async () => "assigned",
-      getAppointmentClientScopeInfo: async () => ({ id: "44", isVip: true }),
-      isVipClientAssignedToUser: async () => false,
-      getAppointmentSchedulesByRange: async () => {
-        throw new Error("Schedules should not load for forbidden VIP client.");
-      }
-    })
-  );
-
-  const route = findRoute(recorder.routes, "GET", "/schedules");
-  assert.equal(typeof route?.handler, "function");
-
-  const reply = createReplyRecorder();
-  await route.handler(
-    {
-      ...createAccessRequest({ features: ["appointments.planner", "vip_clients.my_children"] }),
-      query: {
-        specialistId: "9",
-        clientId: "44",
-        dateFrom: "2026-03-09",
-        dateTo: "2026-03-09"
-      }
-    },
-    reply
-  );
-
-  assert.equal(reply.state.statusCode, 403);
-  assert.equal(reply.state.payload?.message, "Forbidden.");
-});
-
 test("schedule create blocks specialist users from writing another specialist schedule", async () => {
   const recorder = createRouteRecorder();
   registerAppointmentScheduleRoutes(
@@ -936,46 +913,6 @@ test("schedule create blocks specialist users from writing another specialist sc
       resolveOwnAppointmentSpecialistUserId: () => 7,
       createAppointmentSchedule: async () => {
         throw new Error("Schedule should not be created for another specialist.");
-      }
-    })
-  );
-
-  const route = findRoute(recorder.routes, "POST", "/schedules");
-  assert.equal(typeof route?.handler, "function");
-
-  const reply = createReplyRecorder();
-  await route.handler(
-    {
-      ...createAccessRequest({ features: ["appointments.planner"] }),
-      body: {
-        specialistId: "9",
-        clientId: "44",
-        appointmentDate: "2026-03-09",
-        startTime: "09:00",
-        endTime: "10:00",
-        durationMinutes: "60",
-        service: "Lesson",
-        status: "pending",
-        note: ""
-      }
-    },
-    reply
-  );
-
-  assert.equal(reply.state.statusCode, 403);
-  assert.equal(reply.state.payload?.message, "Forbidden.");
-});
-
-test("schedule create blocks assigned-scope writes for unassigned VIP clients", async () => {
-  const recorder = createRouteRecorder();
-  registerAppointmentScheduleRoutes(
-    recorder.fastify,
-    createScheduleContext({
-      resolveAppointmentVipReadScope: async () => "assigned",
-      getAppointmentClientScopeInfo: async () => ({ id: "44", isVip: true }),
-      isVipClientAssignedToUser: async () => false,
-      createAppointmentSchedule: async () => {
-        throw new Error("Schedule should not be created for forbidden VIP client.");
       }
     })
   );
@@ -3255,58 +3192,6 @@ test("schedule create maps client overlap exclusion constraint to a client confl
   assert.equal(reply.state.payload?.message, "This client already has another appointment at this time.");
 });
 
-test("schedule update blocks assigned-scope writes for unassigned VIP schedules", async () => {
-  const recorder = createRouteRecorder();
-  registerAppointmentScheduleRoutes(
-    recorder.fastify,
-    createScheduleContext({
-      resolveAppointmentVipReadScope: async () => "assigned",
-      getAppointmentClientScopeInfo: async () => ({ id: "44", isVip: true }),
-      getAppointmentScheduleTargetsByScope: async () => ({
-        items: [{
-          id: 91,
-          clientId: 44,
-          isVip: true,
-          appointmentDate: "2026-03-09"
-        }],
-        scope: "single",
-        isRecurring: false
-      }),
-      isVipClientAssignedToUser: async () => false,
-      updateAppointmentSchedulesByIds: async () => {
-        throw new Error("Schedule should not be updated for forbidden VIP client.");
-      }
-    })
-  );
-
-  const route = findRoute(recorder.routes, "PATCH", "/schedules/:id");
-  assert.equal(typeof route?.handler, "function");
-
-  const reply = createReplyRecorder();
-  await route.handler(
-    {
-      ...createAccessRequest({ features: ["appointments.planner", "vip_clients.my_children"] }),
-      params: { id: "91" },
-      query: { scope: "single" },
-      body: {
-        specialistId: "9",
-        clientId: "44",
-        appointmentDate: "2026-03-09",
-        startTime: "09:00",
-        endTime: "10:00",
-        durationMinutes: "60",
-        service: "Lesson",
-        status: "pending",
-        note: ""
-      }
-    },
-    reply
-  );
-
-  assert.equal(reply.state.statusCode, 403);
-  assert.equal(reply.state.payload?.message, "Forbidden.");
-});
-
 test("schedule delete blocks specialist users from deleting another specialist schedule", async () => {
   const recorder = createRouteRecorder();
   registerAppointmentScheduleRoutes(
@@ -3345,46 +3230,6 @@ test("schedule delete blocks specialist users from deleting another specialist s
 
   assert.equal(reply.state.statusCode, 403);
   assert.equal(reply.state.payload?.message, "You can only delete appointment in your own planner.");
-});
-
-test("schedule delete blocks assigned-scope writes for unassigned VIP schedules", async () => {
-  const recorder = createRouteRecorder();
-  registerAppointmentScheduleRoutes(
-    recorder.fastify,
-    createScheduleContext({
-      resolveAppointmentVipReadScope: async () => "assigned",
-      getAppointmentScheduleTargetsByScope: async () => ({
-        items: [{
-          id: 91,
-          clientId: 44,
-          isVip: true,
-          appointmentDate: "2026-03-09"
-        }],
-        scope: "single",
-        isRecurring: false
-      }),
-      isVipClientAssignedToUser: async () => false,
-      deleteAppointmentSchedulesByIds: async () => {
-        throw new Error("Schedule should not be deleted for forbidden VIP client.");
-      }
-    })
-  );
-
-  const route = findRoute(recorder.routes, "DELETE", "/schedules/:id");
-  assert.equal(typeof route?.handler, "function");
-
-  const reply = createReplyRecorder();
-  await route.handler(
-    {
-      ...createAccessRequest({ features: ["appointments.planner"] }),
-      params: { id: "91" },
-      query: { scope: "single" }
-    },
-    reply
-  );
-
-  assert.equal(reply.state.statusCode, 403);
-  assert.equal(reply.state.payload?.message, "You can only delete VIP appointment assigned to you.");
 });
 
 test("breaks routes require planner feature access", async () => {

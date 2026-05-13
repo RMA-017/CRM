@@ -1,6 +1,5 @@
 import { parsePositiveInteger } from "../../lib/number.js";
 import {
-  isDirectorLikeRoleLabel,
   isManagerLikeRoleLabel,
   isSpecialistLikeRoleLabel,
   joinNormalizedRoleLabelParts
@@ -12,24 +11,16 @@ import { PERMISSIONS } from "../users/users.constants.js";
 import { publishAppointmentEvent } from "./appointment-events.js";
 import { normalizeSpecialistIds } from "./appointment-route-helpers.js";
 
-function isDirectorLikeRequester(requester) {
-  if (Boolean(requester?.is_admin)) {
+function isSpecialistRole(requester) {
+  const roleText = joinNormalizedRoleLabelParts(requester?.role_label || requester?.role);
+  if (isManagerLikeRoleLabel(roleText)) {
+    return false;
+  }
+  if (isSpecialistLikeRoleLabel(roleText)) {
     return true;
   }
-  const roleText = joinNormalizedRoleLabelParts(
-    requester?.role_label || requester?.role,
-    requester?.position_label || requester?.position
-  );
-  return isDirectorLikeRoleLabel(roleText);
-}
-
-function isSpecialistRole(requester) {
-  return isSpecialistLikeRoleLabel(
-    joinNormalizedRoleLabelParts(
-      requester?.role_label || requester?.role,
-      requester?.position_label || requester?.position
-    )
-  );
+  const positionText = joinNormalizedRoleLabelParts(requester?.position_label || requester?.position);
+  return !roleText && isSpecialistLikeRoleLabel(positionText);
 }
 
 async function resolveNotificationAudience(access, specialistIds) {
@@ -171,20 +162,6 @@ export async function broadcastAppointmentChange(access, {
     publishFallbackEvent();
     await notifyParents();
   }
-}
-
-export async function resolveAppointmentVipReadScope({ roleId, requester }) {
-  const [canReadAllScope, canReadAssignedScope] = await Promise.all([
-    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_SCOPE_ALL),
-    hasPermission(roleId, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_SCOPE_ASSIGNED)
-  ]);
-  if (canReadAllScope) {
-    return "all";
-  }
-  if (canReadAssignedScope) {
-    return "assigned";
-  }
-  return isDirectorLikeRequester(requester) ? "all" : "assigned";
 }
 
 export function resolveOwnAppointmentSpecialistUserId(access) {

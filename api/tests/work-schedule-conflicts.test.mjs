@@ -406,8 +406,6 @@ test("work-schedule create route returns 409 when specialist still has future le
     },
     hasPermission: async () => true,
     PERMISSIONS: {
-      APPOINTMENTS_VIP_CLIENTS_MY_CLASS: "appointments.vip.my-class",
-      APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip.my-children",
       SETTINGS_APPOINTMENTS_READ: "settings.appointments.read",
       SETTINGS_APPOINTMENTS_UPDATE: "settings.appointments.update"
     },
@@ -518,8 +516,6 @@ test("work-schedule routes use planner permissions", async () => {
     },
     hasPermission: async (_roleId, permissionCode) => permissionSet.has(permissionCode),
     PERMISSIONS: {
-      APPOINTMENTS_VIP_CLIENTS_MY_CLASS: "appointments.vip.my-class",
-      APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip.my-children",
       SETTINGS_APPOINTMENTS_READ: "settings.appointments.read",
       SETTINGS_APPOINTMENTS_UPDATE: "settings.appointments.update",
       APPOINTMENTS_PLANNER_READ: "appointments.planner.read",
@@ -645,8 +641,6 @@ test("default weekly work-schedule route uses planner update permission", async 
     },
     hasPermission: async (_roleId, permissionCode) => permissionSet.has(permissionCode),
     PERMISSIONS: {
-      APPOINTMENTS_VIP_CLIENTS_MY_CLASS: "appointments.vip.my-class",
-      APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip.my-children",
       SETTINGS_APPOINTMENTS_READ: "settings.appointments.read",
       SETTINGS_APPOINTMENTS_UPDATE: "settings.appointments.update",
       APPOINTMENTS_PLANNER_READ: "appointments.planner.read",
@@ -755,8 +749,6 @@ test("work-schedule routes do not inherit appointment settings permissions for n
     },
     hasPermission: async (_roleId, permissionCode) => permissionSet.has(permissionCode),
     PERMISSIONS: {
-      APPOINTMENTS_VIP_CLIENTS_MY_CLASS: "appointments.vip.my-class",
-      APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip.my-children",
       SETTINGS_APPOINTMENTS_READ: "settings.appointments.read",
       SETTINGS_APPOINTMENTS_UPDATE: "settings.appointments.update",
       APPOINTMENTS_PLANNER_READ: "appointments.planner.read",
@@ -877,8 +869,6 @@ test("appointment settings read lets planner readers request another specialist 
     hasPermission: async (_roleId, permissionCode) => permissionCode === "appointments.planner.read",
     PERMISSIONS: {
       APPOINTMENTS_PLANNER_READ: "appointments.planner.read",
-      APPOINTMENTS_VIP_CLIENTS_MY_CLASS: "appointments.vip.my-class",
-      APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip.my-children",
       SETTINGS_APPOINTMENTS_READ: "settings.appointments.read",
       SETTINGS_APPOINTMENTS_UPDATE: "settings.appointments.update",
       APPOINTMENTS_PLANNER_CREATE: "appointments.planner.create",
@@ -987,8 +977,6 @@ test("appointment settings patch does not require work-schedule permissions for 
     hasPermission: async (_roleId, permissionCode) => permissionSet.has(permissionCode),
     PERMISSIONS: {
       APPOINTMENTS_PLANNER_READ: "appointments.planner.read",
-      APPOINTMENTS_VIP_CLIENTS_MY_CLASS: "appointments.vip.my-class",
-      APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip.my-children",
       SETTINGS_APPOINTMENTS_READ: "settings.appointments.read",
       SETTINGS_APPOINTMENTS_UPDATE: "settings.appointments.update",
       APPOINTMENTS_PLANNER_CREATE: "appointments.planner.create",
@@ -1104,8 +1092,6 @@ test("appointment settings patch returns 409 and skips settings save when defaul
     },
     hasPermission: async () => true,
     PERMISSIONS: {
-      APPOINTMENTS_VIP_CLIENTS_MY_CLASS: "appointments.vip.my-class",
-      APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN: "appointments.vip.my-children",
       SETTINGS_APPOINTMENTS_READ: "settings.appointments.read",
       SETTINGS_APPOINTMENTS_UPDATE: "settings.appointments.update"
     },

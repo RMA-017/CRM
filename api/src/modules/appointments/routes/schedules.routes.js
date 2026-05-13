@@ -92,10 +92,6 @@ function buildOwnPlannerSingleOnlyDeleteForbiddenMessage() {
   return "Specialists can only delete a single appointment in their own planner.";
 }
 
-function buildVipAssignedDeleteForbiddenMessage(scope = "single") {
-  return `You can only delete VIP ${buildDeleteScopeLabel(scope)} assigned to you.`;
-}
-
 function normalizeScheduleCompareText(value) {
   return String(value ?? "").trim();
 }
@@ -276,7 +272,6 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     getAppointmentClientScopeInfo,
     ensureAutoRollingRecurringSchedulesCoverRange,
     getAppointmentSchedulesByRange,
-    isVipClassAssignedToUser,
     getAppointmentHistoryLockDaysByOrganization,
     getAppointmentSettingsByOrganization,
     listAppointmentSpecialistAbsences,
@@ -292,7 +287,6 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     deleteAppointmentSchedulesByIds,
     withAppointmentTransaction,
     toAppointmentDayNum,
-    resolveAppointmentVipReadScope,
     resolveOwnAppointmentSpecialistUserId,
     isVipClientAssignedToUser,
     broadcastAppointmentChange,
@@ -824,37 +818,25 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const recurringOnly = parseNullableBoolean(
           request.query?.recurringOnly ?? request.query?.recurring_only
         ) === true;
-        const isMyChildrenScheduleRequest = vipOnly && !requestedSpecialistId && !classId;
 
-        const [rawCanReadAppointments, rawCanAccessMyChildren, rawCanAccessMyClass] = await Promise.all([
-          requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_PLANNER_READ),
-          isMyChildrenScheduleRequest
-            ? requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN)
-            : Promise.resolve(false),
-          vipOnly && classId > 0
-            ? requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CLASS)
-            : Promise.resolve(false)
-        ]);
+        const rawCanReadAppointments = await requesterHasPermission(
+          requester,
+          PERMISSIONS.APPOINTMENTS_PLANNER_READ
+        );
         const canReadAppointments = requesterHasOrgFeature(requester, "appointments.planner")
           && rawCanReadAppointments;
-        const canAccessMyChildren = requesterHasOrgFeature(requester, "vip_clients.my_children")
-          && rawCanAccessMyChildren;
-        const canAccessMyClass = requesterHasOrgFeature(requester, "vip_clients.my_class")
-          && rawCanAccessMyClass;
-        if (!canReadAppointments && !canAccessMyChildren && !canAccessMyClass) {
+        if (!canReadAppointments) {
           return reply.status(403).send({ message: "Forbidden." });
         }
 
         const access = { authContext, requester };
-        const ownSpecialistUserId = !vipOnly && !classId && !canReadAppointments
-          ? resolveOwnAppointmentSpecialistUserId(access)
-          : null;
+        const ownSpecialistUserId = null;
         if (ownSpecialistUserId && requestedSpecialistId && requestedSpecialistId !== ownSpecialistUserId) {
           return reply.status(403).send({ message: "Forbidden." });
         }
         const specialistId = ownSpecialistUserId || requestedSpecialistId;
 
-        if (!specialistId && !clientId && !classId && !isMyChildrenScheduleRequest) {
+        if (!specialistId && !clientId && !classId) {
           return reply.status(400).send({ field: "specialistId", message: "Specialist, client or class is required." });
         }
         if (classId && !vipOnly) {
@@ -873,55 +855,14 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             })
           : null;
         const effectiveVipOnly = vipOnly || clientScopeInfo?.isVip === true;
-        const enforceVipScope = effectiveVipOnly || classId > 0;
-        const scheduleReadScope = enforceVipScope
-          ? await resolveAppointmentVipReadScope({
-              roleId: access.requester?.role_id,
-              requester: access.requester
-            })
-          : "all";
-        const requesterUserId = parsePositiveIntegerOr(access.authContext?.userId, 0);
-        const assignedUserId = isMyChildrenScheduleRequest
-          ? requesterUserId
-          : (
-            scheduleReadScope === "all"
-              ? 0
-              : requesterUserId
-          );
-        if ((enforceVipScope && scheduleReadScope !== "all" && !assignedUserId) || (isMyChildrenScheduleRequest && !assignedUserId)) {
-          return reply.status(403).send({ message: "Forbidden." });
-        }
-        if (clientScopeInfo?.isVip && assignedUserId) {
-          const isAssignedClient = await isVipClientAssignedToUser({
-            organizationId: access.authContext.organizationId,
-            clientId,
-            userId: assignedUserId
-          });
-          if (!isAssignedClient) {
-            return reply.status(403).send({ message: "Forbidden." });
-          }
-        }
-        if (classId && scheduleReadScope !== "all") {
-          const requesterUserId = parsePositiveIntegerOr(access.authContext?.userId, 0);
-          if (!requesterUserId) {
-            return reply.status(403).send({ message: "Forbidden." });
-          }
-          const isAssignedClass = await isVipClassAssignedToUser({
-            organizationId: access.authContext.organizationId,
-            classId,
-            userId: requesterUserId
-          });
-          if (!isAssignedClass) {
-            return reply.status(403).send({ message: "Forbidden." });
-          }
-        }
+        const assignedUserId = 0;
 
         const autoRollingResult = await ensureAutoRollingRecurringSchedulesCoverRange({
           organizationId: access.authContext.organizationId,
           specialistId,
           clientId,
           classId,
-          assignedUserId: assignedUserId || null,
+          assignedUserId: null,
           dateTo,
           vipOnly: effectiveVipOnly
         });
@@ -951,7 +892,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           specialistId,
           clientId,
           classId,
-          assignedUserId: assignedUserId || null,
+          assignedUserId: null,
           dateFrom,
           dateTo,
           lightMode,
@@ -1034,31 +975,6 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const confirmedDateError = getConfirmedFutureDateError(status, [appointmentDate]);
         if (confirmedDateError) {
           return reply.status(400).send(confirmedDateError);
-        }
-
-        const clientScopeInfo = await getAppointmentClientScopeInfo({
-          organizationId: access.authContext.organizationId,
-          clientId
-        });
-        if (clientScopeInfo?.isVip) {
-          const vipReadScope = await resolveAppointmentVipReadScope({
-            roleId: access.requester?.role_id,
-            requester: access.requester
-          });
-          if (vipReadScope !== "all") {
-            const requesterUserId = parsePositiveIntegerOr(access.authContext?.userId, 0);
-            if (!requesterUserId) {
-              return reply.status(403).send({ message: "Forbidden." });
-            }
-            const isAssignedClient = await isVipClientAssignedToUser({
-              organizationId: access.authContext.organizationId,
-              clientId,
-              userId: requesterUserId
-            });
-            if (!isAssignedClient) {
-              return reply.status(403).send({ message: "Forbidden." });
-            }
-          }
         }
 
         const repeatError = validateScheduleRepeatPayload(repeat, appointmentDate);
@@ -1560,19 +1476,16 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           return reply.status(401).send({ message: "Unauthorized." });
         }
 
-        const [rawCanUpdateAppointments, rawCanAccessMyChildren] = await Promise.all([
-          requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_PLANNER_UPDATE),
-          requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN)
-        ]);
+        const rawCanUpdateAppointments = await requesterHasPermission(
+          requester,
+          PERMISSIONS.APPOINTMENTS_PLANNER_UPDATE
+        );
         const canUpdateAppointments = requesterHasOrgFeature(requester, "appointments.planner")
           && rawCanUpdateAppointments;
-        const canAccessMyChildren = requesterHasOrgFeature(requester, "vip_clients.my_children")
-          && rawCanAccessMyChildren;
-        if (!canUpdateAppointments && !canAccessMyChildren) {
+        if (!canUpdateAppointments) {
           return reply.status(403).send({ message: "Forbidden." });
         }
         const access = { authContext, requester };
-        const isMyChildrenConfirmOnly = !canUpdateAppointments && canAccessMyChildren;
 
         const id = parsePositiveIntegerOr(request.params?.id, 0);
         if (!id) {
@@ -1585,14 +1498,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const requestedScopedDayKeys = parseScheduleDayKeysQuery(
           request.query?.dayKeys ?? request.query?.day_keys
         );
-        if (isMyChildrenConfirmOnly && scope !== "single") {
-          return reply.status(403).send({ message: "Forbidden." });
-        }
 
         const specialistId = parsePositiveIntegerOr(request.body?.specialistId, 0);
-        const ownSpecialistUserId = !isMyChildrenConfirmOnly
-          ? resolveOwnAppointmentSpecialistUserId(access)
-          : null;
+        const ownSpecialistUserId = resolveOwnAppointmentSpecialistUserId(access);
         if (ownSpecialistUserId && scope !== "single") {
           return reply.status(403).send({ message: buildOwnPlannerSingleOnlyEditForbiddenMessage() });
         }
@@ -1619,10 +1527,6 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             )
           };
         }
-        if (isMyChildrenConfirmOnly && status !== "confirmed") {
-          return reply.status(403).send({ message: "Forbidden." });
-        }
-
         const errors = validateSchedulePayload({
           specialistId,
           clientId,
@@ -1638,10 +1542,6 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           return reply.status(400).send({ errors });
         }
 
-        const updatedClientScopeInfo = await getAppointmentClientScopeInfo({
-          organizationId: access.authContext.organizationId,
-          clientId
-        });
         const rawTarget = await getAppointmentScheduleTargetsByScope({
           organizationId: access.authContext.organizationId,
           id,
@@ -1673,73 +1573,6 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           );
           if (!keepsLimitedEditScope) {
             return reply.status(403).send({ message: buildOwnPlannerLimitedEditForbiddenMessage() });
-          }
-        }
-        const requiresVipScopeGuard = (target.items.some((item) => item?.isVip === true)
-          || updatedClientScopeInfo?.isVip === true)
-          && !ownSpecialistUserId;
-        if (requiresVipScopeGuard) {
-          const vipReadScope = await resolveAppointmentVipReadScope({
-            roleId: access.requester?.role_id,
-            requester: access.requester
-          });
-          if (vipReadScope !== "all") {
-            const requesterUserId = parsePositiveIntegerOr(access.authContext?.userId, 0);
-            if (!requesterUserId) {
-              return reply.status(403).send({ message: "Forbidden." });
-            }
-            const vipClientIds = new Set(
-              target.items
-                .filter((item) => item?.isVip === true)
-                .map((item) => Number.parseInt(String(item?.clientId || ""), 10))
-                .filter((value) => Number.isInteger(value) && value > 0)
-            );
-            if (updatedClientScopeInfo?.isVip === true) {
-              vipClientIds.add(clientId);
-            }
-            for (const vipClientId of vipClientIds) {
-              const isAssignedClient = await isVipClientAssignedToUser({
-                organizationId: access.authContext.organizationId,
-                clientId: vipClientId,
-                userId: requesterUserId
-              });
-              if (!isAssignedClient) {
-                return reply.status(403).send({ message: "Forbidden." });
-              }
-            }
-          }
-        }
-        if (isMyChildrenConfirmOnly) {
-          if (target.scope !== "single" || target.items.length !== 1) {
-            return reply.status(403).send({ message: "Forbidden." });
-          }
-          const targetItem = target.items[0];
-          const requesterUserId = parsePositiveIntegerOr(access.authContext?.userId, 0);
-          if (!requesterUserId) {
-            return reply.status(403).send({ message: "Forbidden." });
-          }
-          const isAssigned = await isVipClientAssignedToUser({
-            organizationId: access.authContext.organizationId,
-            clientId: targetItem?.clientId,
-            userId: requesterUserId
-          });
-          if (!isAssigned) {
-            return reply.status(403).send({ message: "Forbidden." });
-          }
-          const targetDurationMinutes = String(targetItem?.durationMinutes || "").trim();
-          const requestDurationMinutes = String(durationMinutes || "").trim();
-          const isSameSchedule = (
-            Number(targetItem?.specialistId || 0) === specialistId
-            && Number(targetItem?.clientId || 0) === clientId
-            && String(targetItem?.appointmentDate || "").trim() === appointmentDate
-            && String(targetItem?.startTime || "").trim() === startTime
-            && String(targetItem?.endTime || "").trim() === endTime
-            && targetDurationMinutes === requestDurationMinutes
-            && String(targetItem?.serviceName || "").trim() === serviceName
-            && String(targetItem?.note || "").trim() === note
-          );
-          if (!isSameSchedule || String(targetItem?.status || "").trim().toLowerCase() !== "pending") {
-            return reply.status(403).send({ message: "Forbidden." });
           }
         }
         const historyLockDays = await getAppointmentHistoryLockDaysByOrganization(
@@ -3151,31 +2984,6 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           && target.items.some((item) => Number.parseInt(String(item?.specialistId || ""), 10) !== ownSpecialistUserId)
         ) {
           return reply.status(403).send({ message: buildOwnPlannerDeleteForbiddenMessage(target.scope) });
-        }
-        if (target.items.some((item) => item?.isVip === true)) {
-          const vipReadScope = await resolveAppointmentVipReadScope({
-            roleId: access.requester?.role_id,
-            requester: access.requester
-          });
-          if (vipReadScope !== "all") {
-            const requesterUserId = parsePositiveIntegerOr(access.authContext?.userId, 0);
-            if (!requesterUserId) {
-              return reply.status(403).send({ message: buildVipAssignedDeleteForbiddenMessage(target.scope) });
-            }
-            for (const item of target.items) {
-              if (item?.isVip !== true) {
-                continue;
-              }
-              const isAssignedClient = await isVipClientAssignedToUser({
-                organizationId: access.authContext.organizationId,
-                clientId: item.clientId,
-                userId: requesterUserId
-              });
-              if (!isAssignedClient) {
-                return reply.status(403).send({ message: buildVipAssignedDeleteForbiddenMessage(target.scope) });
-              }
-            }
-          }
         }
         let effectiveDeleteItems = sortScheduleItems(target.items);
         const deleteSpecialistIds = Array.from(

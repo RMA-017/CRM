@@ -76,7 +76,7 @@ test("ensureSystemPermissions deactivates and unassigns unknown permission codes
   }
 });
 
-test("ensureSystemPermissions keeps planner read sync but does not recreate my class access", async () => {
+test("ensureSystemPermissions keeps planner read submenu sync", async () => {
   const executedQueries = [];
   const restoreConnect = stubPoolConnect(async (sql, params = []) => {
     const text = String(sql || "");
@@ -114,14 +114,7 @@ test("ensureSystemPermissions keeps planner read sync but does not recreate my c
         && params[0] === "appointments.schedule"
         && params[1] === "appointments.planner.read"
     );
-    const myClassCopyQuery = executedQueries.find(
-      ({ text, params }) => text.includes("INSERT INTO role_permissions")
-        && params[0] === "appointments.schedule"
-        && params[1] === "appointments.vip-clients.my-class"
-    );
-
     assert.ok(plannerReadCopyQuery, "expected planner submenu to keep syncing planner read");
-    assert.equal(myClassCopyQuery, undefined, "did not expect planner submenu to recreate my class access");
   } finally {
     restoreConnect();
   }

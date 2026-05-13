@@ -94,9 +94,8 @@ import {
 } from "./appointment-route-helpers.js";
 import {
   broadcastAppointmentChange,
-    resolveAppointmentVipReadScope,
-    resolveOwnAppointmentSpecialistUserId
-  } from "./appointment-route-access.js";
+  resolveOwnAppointmentSpecialistUserId
+} from "./appointment-route-access.js";
 import { getDurationMinutesFromTimes } from "./time.js";
 
 const parsePositiveIntegerOr = normalizePositiveInteger;
@@ -215,7 +214,6 @@ async function appointmentSettingsRoutes(fastify) {
     deleteAppointmentSchedulesByIds,
     withAppointmentTransaction,
     toAppointmentDayNum,
-    resolveAppointmentVipReadScope,
     resolveOwnAppointmentSpecialistUserId,
     saveAppointmentSettings,
     broadcastAppointmentChange,

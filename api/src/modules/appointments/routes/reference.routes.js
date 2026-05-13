@@ -9,12 +9,9 @@ export function registerAppointmentReferenceRoutes(fastify, context) {
     requesterHasPermission: contextRequesterHasPermission,
     PERMISSIONS,
     parsePositiveIntegerOr,
-    resolveOwnAppointmentSpecialistUserId,
-    resolveAppointmentVipReadScope,
     getAppointmentClientScopeInfo,
     getAppointmentSpecialistsByOrganization,
-    getAppointmentClientNoShowSummary,
-    isVipClientAssignedToUser
+    getAppointmentClientNoShowSummary
   } = context;
   const requesterHasPermission = typeof contextRequesterHasPermission === "function"
     ? contextRequesterHasPermission
@@ -92,28 +89,6 @@ export function registerAppointmentReferenceRoutes(fastify, context) {
         });
         if (!clientScopeInfo) {
           return reply.status(404).send({ message: "Client not found." });
-        }
-
-        const ownSpecialistUserId = resolveOwnAppointmentSpecialistUserId(access);
-        if (clientScopeInfo.isVip && !ownSpecialistUserId) {
-          const vipReadScope = await resolveAppointmentVipReadScope({
-            roleId: access.requester?.role_id,
-            requester: access.requester
-          });
-          if (vipReadScope !== "all") {
-            const requesterUserId = parsePositiveIntegerOr(access.authContext?.userId, 0);
-            if (!requesterUserId) {
-              return reply.status(403).send({ message: "Forbidden." });
-            }
-            const isAssignedClient = await isVipClientAssignedToUser({
-              organizationId: access.authContext.organizationId,
-              clientId,
-              userId: requesterUserId
-            });
-            if (!isAssignedClient) {
-              return reply.status(403).send({ message: "Forbidden." });
-            }
-          }
         }
 
         const item = await getAppointmentClientNoShowSummary({
