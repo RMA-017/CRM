@@ -469,6 +469,7 @@ function HomePage() {
   const [profile, setProfile] = useState(null);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);
+  const [isPublicNavOpen, setIsPublicNavOpen] = useState(false);
   const [form, setForm] = useState({ username: "", password: "" });
   const [errors, setErrors] = useState({ username: "", password: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -726,6 +727,10 @@ function HomePage() {
     sideMenuRef.current?.close();
   }, []);
 
+  const closePublicNav = useCallback(() => {
+    setIsPublicNavOpen(false);
+  }, []);
+
   const navigateFromMenu = useCallback((path) => {
     closeMenu();
     navigate(path);
@@ -742,8 +747,7 @@ function HomePage() {
 
   const openHeaderMenu = useCallback(() => {
     if (!isAuthenticated) {
-      prefetchProfilePage();
-      setIsLoginOpen(true);
+      setIsPublicNavOpen((current) => !current);
       return;
     }
 
@@ -753,7 +757,7 @@ function HomePage() {
     }
 
     openSideMenu();
-  }, [closeMenu, isAuthenticated, isSideMenuOpen, openSideMenu, prefetchProfilePage]);
+  }, [closeMenu, isAuthenticated, isSideMenuOpen, openSideMenu]);
 
   const handlePageAnchorClick = useCallback((event) => {
     const href = event.currentTarget.getAttribute("href");
@@ -767,9 +771,10 @@ function HomePage() {
     }
 
     event.preventDefault();
+    closePublicNav();
     target.scrollIntoView({ behavior: "smooth", block: "start" });
     window.history.pushState(null, "", href);
-  }, []);
+  }, [closePublicNav]);
 
   const toggleLanguage = useCallback(() => {
     setLanguage((currentLanguage) => {
@@ -877,9 +882,9 @@ function HomePage() {
               <button
                 type="button"
                 className="menu-toggle"
-                aria-label={isAuthenticated ? "Open workspace" : "Open login"}
-                aria-controls="mainMenu"
-                aria-expanded={isSideMenuOpen ? "true" : "false"}
+                aria-label={isAuthenticated ? "Open workspace" : "Open menu"}
+                aria-controls={isAuthenticated ? "mainMenu" : "homeMobileNav"}
+                aria-expanded={(isAuthenticated ? isSideMenuOpen : isPublicNavOpen) ? "true" : "false"}
                 onMouseEnter={isAuthenticated ? preloadSideMenu : prefetchProfilePage}
                 onFocus={isAuthenticated ? preloadSideMenu : prefetchProfilePage}
                 onClick={openHeaderMenu}
@@ -898,6 +903,17 @@ function HomePage() {
             </div>
 
             <nav className="home-nav-links" aria-label="Main site sections">
+              {homeText.navLinks.map((item) => (
+                <a key={item.href} href={item.href} onClick={handlePageAnchorClick}>{item.label}</a>
+              ))}
+            </nav>
+
+            <nav
+              id="homeMobileNav"
+              className={`home-mobile-nav${isPublicNavOpen ? " open" : ""}`}
+              aria-label="Main site sections"
+              hidden={!isPublicNavOpen}
+            >
               {homeText.navLinks.map((item) => (
                 <a key={item.href} href={item.href} onClick={handlePageAnchorClick}>{item.label}</a>
               ))}
@@ -1404,6 +1420,15 @@ function HomePage() {
           openMonitoringPanel={() => navigateFromMenu("/admin-settings/monitoring")}
           canOpenSiteContent={canOpenSiteContent}
           openSiteContentPanel={(sectionKey = "kids") => navigateFromMenu(`/site/content?section=${sectionKey}`)}
+        />
+      ) : null}
+
+      {!isAuthenticated && isPublicNavOpen ? (
+        <button
+          type="button"
+          className="home-mobile-nav-overlay"
+          aria-label="Close menu"
+          onClick={closePublicNav}
         />
       ) : null}
 

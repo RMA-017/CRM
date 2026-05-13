@@ -51,6 +51,10 @@
     padding: 0 24px;
   }
 
+  .home-site-layout .menu-toggle {
+    display: inline-flex;
+  }
+
   .home-nav-links {
     display: none;
   }
@@ -176,6 +180,12 @@
     padding: 8px 18px;
   }
 
+  .home-mobile-nav {
+    top: 76px;
+    left: 12px;
+    right: 12px;
+  }
+
   .brand-subtitle {
     display: none;
   }
@@ -236,6 +246,23 @@
   .home-header .menu-toggle {
     width: 30px;
     padding: 0 6px;
+  }
+
+  .home-mobile-nav {
+    top: 66px;
+    left: 8px;
+    right: 8px;
+    padding: 6px;
+  }
+
+  .home-mobile-nav.open {
+    grid-template-columns: 1fr;
+  }
+
+  .home-mobile-nav a {
+    min-height: 38px;
+    justify-content: flex-start;
+    padding: 8px 12px;
   }
 
   .home-main {
@@ -386,6 +413,14 @@
 }
 
 @media (max-width: 1180px) {
+  .home-site-layout .menu-toggle {
+    display: inline-flex;
+  }
+
+  .home-nav-links {
+    display: none;
+  }
+
   .home-about-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
