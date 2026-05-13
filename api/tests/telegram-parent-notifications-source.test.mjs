@@ -186,3 +186,21 @@ test("manual SMS notification broadcast uses role permission and Telegram parent
     "Manual broadcasts should be logged with their own event type."
   );
 });
+
+test("Telegram reminders stay retryable and use enabled reminder windows", async () => {
+  const serviceSource = await readFile(
+    new URL("../src/modules/telegram-bot/telegram-bot.service.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    serviceSource,
+    /if \(normalizedDedupeKey\)[\s\S]*SELECT id[\s\S]*await sendTelegramMessage\([\s\S]*const logResult = await logParentMessage/s,
+    "Dedupe reminders should check existing logs, then send before writing the log."
+  );
+  assert.match(
+    serviceSource,
+    /tbs\.\$\{enabledColumn\} = TRUE[\s\S]*tbs\.\$\{hoursColumn\} > 0[\s\S]*> TIMEZONE\('Asia\/Tashkent', NOW\(\)\)[\s\S]*<= \(TIMEZONE\('Asia\/Tashkent', NOW\(\)\) \+ \(tbs\.\$\{hoursColumn\}::text \|\| ' hours'\)::interval\)[\s\S]*NOT EXISTS/s,
+    "Reminder sweep should find upcoming unsent reminders within the configured window."
+  );
+});

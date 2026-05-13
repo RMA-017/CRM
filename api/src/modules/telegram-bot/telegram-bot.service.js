@@ -586,6 +586,24 @@ async function sendAndLogParentMessage({
 }) {
   const normalizedDedupeKey = String(dedupeKey || "").trim();
   if (normalizedDedupeKey) {
+    const { rows } = await pool.query(
+      `SELECT id
+         FROM telegram_parent_messages
+        WHERE organization_id = $1
+          AND parent_account_id = $2
+          AND dedupe_key = $3
+        LIMIT 1`,
+      [parent.organizationId, parent.id, normalizedDedupeKey]
+    );
+    if (rows.length > 0) {
+      return { skipped: true };
+    }
+    await sendTelegramMessage({
+      token: settings.botToken,
+      chatId: parent.chatId,
+      text: message,
+      replyMarkup
+    });
     const logResult = await logParentMessage({
       organizationId: parent.organizationId,
       parentAccountId: parent.id,
@@ -597,12 +615,6 @@ async function sendAndLogParentMessage({
     if (!logResult.inserted) {
       return { skipped: true };
     }
-    await sendTelegramMessage({
-      token: settings.botToken,
-      chatId: parent.chatId,
-      text: message,
-      replyMarkup
-    });
     return { skipped: false };
   }
 
@@ -2132,11 +2144,18 @@ async function listReminderTargets({ reminderType, limit = 100 }) {
        AND tbs.${enabledColumn} = TRUE
        AND tbs.${hoursColumn} > 0
        AND s.status IN ('pending', 'confirmed')
-       AND (s.appointment_date + s.start_time) >= (TIMEZONE('Asia/Tashkent', NOW()) + (tbs.${hoursColumn}::text || ' hours')::interval)
-       AND (s.appointment_date + s.start_time) < (TIMEZONE('Asia/Tashkent', NOW()) + ((tbs.${hoursColumn} + 1)::text || ' hours')::interval)
+       AND (s.appointment_date + s.start_time) > TIMEZONE('Asia/Tashkent', NOW())
+       AND (s.appointment_date + s.start_time) <= (TIMEZONE('Asia/Tashkent', NOW()) + (tbs.${hoursColumn}::text || ' hours')::interval)
+       AND NOT EXISTS (
+         SELECT 1
+           FROM telegram_parent_messages tpm
+          WHERE tpm.organization_id = tbs.organization_id
+            AND tpm.parent_account_id = pa.id
+            AND tpm.dedupe_key = ($2 || ':' || s.id::text || ':' || pa.id::text)
+       )
      ORDER BY s.appointment_date ASC, s.start_time ASC, s.id ASC
      LIMIT $1`,
-    [limit]
+    [limit, reminderType]
   );
   return rows || [];
 }

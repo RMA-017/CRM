@@ -175,6 +175,8 @@ function mapItemToForm(item) {
     cancelLockMinutes: String(item?.cancelLockMinutes ?? 60),
     reminder24hHours: String(item?.reminder24hHours ?? 24),
     reminder2hHours: String(item?.reminder2hHours ?? 2),
+    reminder24hEnabled: item?.reminder24hEnabled !== false,
+    reminder2hEnabled: item?.reminder2hEnabled !== false,
     templates: normalizeTemplates(item?.templates)
   };
 }
@@ -256,6 +258,8 @@ function TelegramBotSettingsPanel({
         cancelLockMinutes: Number.parseInt(String(form.cancelLockMinutes || "60"), 10),
         reminder24hHours: Number.parseInt(String(form.reminder24hHours || "24"), 10),
         reminder2hHours: Number.parseInt(String(form.reminder2hHours || "2"), 10),
+        reminder24hEnabled: Boolean(form.reminder24hEnabled),
+        reminder2hEnabled: Boolean(form.reminder2hEnabled),
         templates: form.templates,
         clearBotToken: form.clearBotToken
       };
@@ -368,6 +372,15 @@ function TelegramBotSettingsPanel({
                 disabled={!canUpdateSettingsTelegramBot || saving}
                 onChange={(event) => setForm((prev) => ({ ...prev, reminder24hHours: event.target.value }))}
               />
+              <div className="settings-checkbox settings-checkbox-inline">
+                <input
+                  type="checkbox"
+                  checked={form.reminder24hEnabled}
+                  disabled={!canUpdateSettingsTelegramBot || saving}
+                  onChange={(event) => setForm((prev) => ({ ...prev, reminder24hEnabled: event.target.checked }))}
+                />
+                <span>{ui.active}</span>
+              </div>
             </label>
 
             <label className="field">
@@ -380,6 +393,15 @@ function TelegramBotSettingsPanel({
                 disabled={!canUpdateSettingsTelegramBot || saving}
                 onChange={(event) => setForm((prev) => ({ ...prev, reminder2hHours: event.target.value }))}
               />
+              <div className="settings-checkbox settings-checkbox-inline">
+                <input
+                  type="checkbox"
+                  checked={form.reminder2hEnabled}
+                  disabled={!canUpdateSettingsTelegramBot || saving}
+                  onChange={(event) => setForm((prev) => ({ ...prev, reminder2hEnabled: event.target.checked }))}
+                />
+                <span>{ui.active}</span>
+              </div>
             </label>
           </div>
         </div>
