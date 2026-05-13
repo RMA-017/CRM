@@ -1,6 +1,6 @@
 import { setNoCacheHeaders } from "../../lib/http.js";
 import { parsePositiveInteger } from "../../lib/number.js";
-import { isValidPhoneInput, normalizePhoneNumber } from "../../lib/phone-number.js";
+import { isValidNormalizedPhoneNumber, normalizePhoneNumber } from "../../lib/phone-number.js";
 import {
   normalizeDateYmd as normalizeLooseDateYmd,
   validateBirthdayYmd
@@ -116,8 +116,10 @@ function validateClientPayload({ firstName, lastName, middleName, birthday, phon
     errors.birthday = birthdayError;
   }
 
-  if (phoneRaw && (!phone || !isValidPhoneInput(phoneRaw))) {
-    errors.phone = "Invalid phone number.";
+  if (!phoneRaw) {
+    errors.phone = "Phone number is required.";
+  } else if (!phone || !isValidNormalizedPhoneNumber(phoneRaw)) {
+    errors.phone = "Enter phone number in international format, e.g. +998977861070.";
   }
 
   if (tgMail.length > 96) {

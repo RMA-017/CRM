@@ -705,7 +705,8 @@ function ProfileModals(props) {
                     type="checkbox"
                     checked={Boolean(clientEditForm.isVip)}
                     onChange={(event) => {
-                      setClientEditForm((prev) => ({ ...prev, isVip: event.currentTarget.checked }));
+                      const checked = Boolean(event.currentTarget?.checked);
+                      setClientEditForm((prev) => ({ ...prev, isVip: checked }));
                     }}
                   />
                 </label>
@@ -717,8 +718,11 @@ function ProfileModals(props) {
               <label htmlFor="clientsEditPhone">Phone Number</label>
               <input
                 id="clientsEditPhone"
-                type="text"
+                type="tel"
                 placeholder="+998977861070"
+                required
+                inputMode="tel"
+                pattern="^\+\d{7,15}$"
                 className={clientEditErrors.phone ? "input-error" : ""}
                 value={clientEditForm.phone}
                 onInput={(event) => {

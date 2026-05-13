@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { apiFetch, readApiResponseData } from "../../lib/api.js";
 import { formatDateForInput } from "../../lib/formatters.js";
-import { isValidPhoneInput, normalizePhoneNumber } from "../../lib/phone-number.js";
+import { isValidNormalizedPhoneNumber, normalizePhoneNumber } from "../../lib/phone-number.js";
 import { ALL_USERS_LIMIT, createEmptyClientsDeleteState } from "./profile.constants.js";
 import { handleProtectedStatus } from "./profile.helpers.js";
 
@@ -104,8 +104,10 @@ export function useClientsSection({
       errors.birthday = birthdayError;
     }
 
-    if (phone && !isValidPhoneInput(phone)) {
-      errors.phone = "Invalid phone number.";
+    if (!phone) {
+      errors.phone = "Phone number is required.";
+    } else if (!isValidNormalizedPhoneNumber(phone)) {
+      errors.phone = "Enter phone number in international format, e.g. +998977861070.";
     }
 
     if (telegramOrEmail) {
@@ -156,8 +158,10 @@ export function useClientsSection({
       errors.birthday = birthdayError;
     }
 
-    if (phone && !isValidPhoneInput(phone)) {
-      errors.phone = "Invalid phone number.";
+    if (!phone) {
+      errors.phone = "Phone number is required.";
+    } else if (!isValidNormalizedPhoneNumber(phone)) {
+      errors.phone = "Enter phone number in international format, e.g. +998977861070.";
     }
 
     if (tgMail) {

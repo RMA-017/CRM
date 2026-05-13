@@ -138,7 +138,7 @@ test("client create blocks duplicate normalized full name before insert", { conc
         lastName: "Valiyev",
         middleName: "Bek",
         birthday: "2020-01-01",
-        phone: "",
+        phone: "+998901234567",
         tgMail: "",
         note: ""
       },
@@ -154,6 +154,53 @@ test("client create blocks duplicate normalized full name before insert", { conc
     clearRolePermissionsCache();
     restoreQuery();
   }
+});
+
+test("client create requires international phone format", async () => {
+  const recorder = createRouteRecorder();
+  await clientsRoutes(recorder.fastify);
+
+  const route = findRoute(recorder.routes, "POST", "/");
+  assert.equal(typeof route?.handler, "function");
+
+  const blankReply = createReplyRecorder();
+  await route.handler({
+    authContext: createAuthContext(),
+    body: {
+      firstName: "Ali",
+      lastName: "Valiyev",
+      middleName: "",
+      birthday: "2020-01-01",
+      phone: "",
+      tgMail: "",
+      note: ""
+    },
+    log: { error() {} }
+  }, blankReply);
+
+  assert.equal(blankReply.state.statusCode, 400);
+  assert.equal(blankReply.state.payload?.errors?.phone, "Phone number is required.");
+
+  const localReply = createReplyRecorder();
+  await route.handler({
+    authContext: createAuthContext(),
+    body: {
+      firstName: "Ali",
+      lastName: "Valiyev",
+      middleName: "",
+      birthday: "2020-01-01",
+      phone: "90 123 45 67",
+      tgMail: "",
+      note: ""
+    },
+    log: { error() {} }
+  }, localReply);
+
+  assert.equal(localReply.state.statusCode, 400);
+  assert.equal(
+    localReply.state.payload?.errors?.phone,
+    "Enter phone number in international format, e.g. +998977861070."
+  );
 });
 
 test("client create persists VIP flag", { concurrency: false }, async () => {
@@ -229,7 +276,7 @@ test("client create persists VIP flag", { concurrency: false }, async () => {
         lastName: "Valiyev",
         middleName: "",
         birthday: "2020-01-01",
-        phone: "90 123 45 67",
+        phone: "+998901234567",
         tgMail: "",
         note: "",
         isVip: true
@@ -298,7 +345,7 @@ test("client update blocks duplicate normalized full name before update", { conc
         lastName: "Valiyev",
         middleName: "Bek",
         birthday: "2020-01-01",
-        phone: "",
+        phone: "+998901234567",
         tgMail: "",
         note: ""
       },
@@ -392,7 +439,7 @@ test("client update persists VIP flag", { concurrency: false }, async () => {
         lastName: "Valiyev",
         middleName: "",
         birthday: "2020-01-01",
-        phone: "8 (916) 123-45-67",
+        phone: "+79161234567",
         tgMail: "",
         note: "",
         isVip: true
@@ -408,7 +455,7 @@ test("client update persists VIP flag", { concurrency: false }, async () => {
   }
 });
 
-test("client update to inactive removes future planner lessons", { concurrency: false }, async () => {
+test("client update from VIP to inactive removes all planner lessons", { concurrency: false }, async () => {
   const recorder = createRouteRecorder();
   await clientsRoutes(recorder.fastify);
 
@@ -435,12 +482,14 @@ test("client update to inactive removes future planner lessons", { concurrency: 
     if (queryText.includes("UPDATE clients")) {
       assert.match(queryText, /DELETE FROM appointment_schedules s/);
       assert.match(queryText, /\$8::boolean = FALSE/);
+      assert.match(queryText, /tc\.was_vip IS TRUE/);
+      assert.doesNotMatch(queryText, /s\.appointment_date > TIMEZONE/);
       assert.deepEqual(params, [
         "Ali",
         "Valiyev",
         null,
         "2020-01-01",
-        null,
+        "+998901234567",
         null,
         null,
         false,
@@ -456,7 +505,7 @@ test("client update to inactive removes future planner lessons", { concurrency: 
           last_name: "Valiyev",
           middle_name: null,
           birthday: "2020-01-01",
-          phone_number: null,
+          phone_number: "+998901234567",
           tg_mail: null,
           is_vip: false,
           created_by: "7",
@@ -464,7 +513,7 @@ test("client update to inactive removes future planner lessons", { concurrency: 
           created_at: "2026-01-01T00:00:00.000Z",
           updated_at: "2026-01-01T00:00:00.000Z",
           note: null,
-          deleted_future_appointment_count: 2
+          deleted_appointment_count: 2
         }]
       };
     }
@@ -486,7 +535,7 @@ test("client update to inactive removes future planner lessons", { concurrency: 
         lastName: "Valiyev",
         middleName: "",
         birthday: "2020-01-01",
-        phone: "",
+        phone: "+998901234567",
         tgMail: "",
         note: "",
         isVip: false

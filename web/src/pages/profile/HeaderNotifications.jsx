@@ -226,7 +226,9 @@ function HeaderNotifications({ enabled = false, navigate }) {
                       <span>{formatEventType(item?.eventType, language)}</span>
                       <time>{formatNotificationTime(item?.createdAt, language)}</time>
                     </span>
-                    <span className="header-notification-item-message">{item?.message || t("notifications.fallback")}</span>
+                    <span className="header-notification-item-message">
+                      {translateLiteral(item?.message || t("notifications.fallback"), language)}
+                    </span>
                   </button>
                 );
               })}

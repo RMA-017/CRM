@@ -157,7 +157,8 @@ function ProfileEntityModals({
                       type="checkbox"
                       checked={Boolean(clientCreateForm.isVip)}
                       onChange={(event) => {
-                        setClientCreateForm((prev) => ({ ...prev, isVip: event.currentTarget.checked }));
+                        const checked = Boolean(event.currentTarget?.checked);
+                        setClientCreateForm((prev) => ({ ...prev, isVip: checked }));
                       }}
                     />
                   </label>
@@ -172,6 +173,9 @@ function ProfileEntityModals({
                   name="phone"
                   type="tel"
                   placeholder="+998977861070"
+                  required
+                  inputMode="tel"
+                  pattern="^\+\d{7,15}$"
                   className={clientCreateErrors.phone ? "input-error" : ""}
                   value={clientCreateForm.phone}
                   onInput={(event) => {

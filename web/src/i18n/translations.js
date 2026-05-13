@@ -39,10 +39,14 @@ export const MESSAGES = Object.freeze({
       none: "Yangi xabar yo'q.",
       loading: "Yuklanmoqda...",
       loadError: "Xabarlarni yuklab bo'lmadi.",
-      markRead: "O'qildi",
+      markRead: "Hammasini o'qildi qilish",
       ariaEmpty: "Xabarlar",
       ariaUnread: "{count} ta o'qilmagan xabar",
       fallback: "Xabar"
+    },
+    planner: {
+      previousWeek: "Oldingi hafta",
+      nextWeek: "Keyingi hafta"
     }
   },
   ru: {
@@ -70,10 +74,14 @@ export const MESSAGES = Object.freeze({
       none: "Новых сообщений нет.",
       loading: "Загрузка...",
       loadError: "Не удалось загрузить сообщения.",
-      markRead: "Прочитано",
+      markRead: "Прочитать все",
       ariaEmpty: "Сообщения",
       ariaUnread: "{count} непрочитанных сообщений",
       fallback: "Сообщение"
+    },
+    planner: {
+      previousWeek: "Предыдущая неделя",
+      nextWeek: "Следующая неделя"
     }
   }
 });
@@ -354,6 +362,11 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Yuklanmoqda...", uz: "Yuklanmoqda...", ru: "Загрузка..." },
   { en: "O'qildi", uz: "O'qildi", ru: "Прочитано" },
   { en: "Notification", uz: "Xabar", ru: "Сообщение" },
+  { en: "schedule created", uz: "Dars yaratildi", ru: "Занятие создано" },
+  { en: "schedule updated", uz: "Dars tahrirlandi", ru: "Занятие изменено" },
+  { en: "schedule deleted", uz: "Dars o'chirildi", ru: "Занятие удалено" },
+  { en: "specialist absence updated", uz: "Mutaxassis yo'qligi yangilandi", ru: "Отсутствие специалиста изменено" },
+  { en: "appointment parent cancelled", uz: "Ota-ona darsni bekor qildi", ru: "Родитель отменил занятие" },
 
   { en: "Choose file", uz: "Fayl tanlash", ru: "Выбрать файл" },
   { en: "File selected", uz: "Fayl tanlandi", ru: "Файл выбран" },
@@ -587,6 +600,55 @@ export const PATTERN_TRANSLATIONS = Object.freeze([
     pattern: /^(\d+)\s+unread notifications$/i,
     uz: (_match, count) => `${count} ta o'qilmagan xabar`,
     ru: (_match, count) => `${count} непрочитанных сообщений`
+  },
+  {
+    pattern: /^Client\s+created\s+by\s+(.+)$/i,
+    uz: (_match, actor) => `Dars yaratildi. Muallif: ${actor}`,
+    ru: (_match, actor) => `Занятие создано. Автор: ${actor}`
+  },
+  {
+    pattern: /^Client\s+edited\s+by\s+(.+)$/i,
+    uz: (_match, actor) => `Dars tahrirlandi. Muallif: ${actor}`,
+    ru: (_match, actor) => `Занятие изменено. Автор: ${actor}`
+  },
+  {
+    pattern: /^Client\s+deleted\s+by\s+(.+)$/i,
+    uz: (_match, actor) => `Dars o'chirildi. Muallif: ${actor}`,
+    ru: (_match, actor) => `Занятие удалено. Автор: ${actor}`
+  },
+  {
+    pattern: /^Specialist absence saved\.$/i,
+    uz: () => "Mutaxassis yo'qligi saqlandi.",
+    ru: () => "Отсутствие специалиста сохранено."
+  },
+  {
+    pattern: /^Specialist absence saved\.\s+(\d+)\s+lessons cancelled\.$/i,
+    uz: (_match, count) => `Mutaxassis yo'qligi saqlandi. ${count} ta dars bekor qilindi.`,
+    ru: (_match, count) => `Отсутствие специалиста сохранено. Отменено занятий: ${count}.`
+  },
+  {
+    pattern: /^Specialist absence saved for\s+(\d+)\s+days\.$/i,
+    uz: (_match, count) => `Mutaxassis yo'qligi ${count} kunga saqlandi.`,
+    ru: (_match, count) => `Отсутствие специалиста сохранено на ${count} дн.`
+  },
+  {
+    pattern: /^Specialist absence saved for\s+(\d+)\s+days\.\s+(\d+)\s+lessons cancelled\.$/i,
+    uz: (_match, days, lessons) => `Mutaxassis yo'qligi ${days} kunga saqlandi. ${lessons} ta dars bekor qilindi.`,
+    ru: (_match, days, lessons) => `Отсутствие специалиста сохранено на ${days} дн. Отменено занятий: ${lessons}.`
+  },
+  {
+    pattern: /^Specialist absence deleted\.$/i,
+    uz: () => "Mutaxassis yo'qligi o'chirildi.",
+    ru: () => "Отсутствие специалиста удалено."
+  },
+  {
+    pattern: /^Ota-ona\s+(.+)\s+uchun\s+(.+)\s+(.+)\s+dagi\s+(.+)\s+darsini bekor qildi\. Sabab:\s*(.+)\.$/i,
+    uz: (_match, child, date, time, service, reason) => (
+      `Ota-ona ${child} uchun ${date} ${time} dagi ${service} darsini bekor qildi. Sabab: ${reason}.`
+    ),
+    ru: (_match, child, date, time, service, reason) => (
+      `Родитель отменил урок ${service} для ${child} на ${date} ${time}. Причина: ${reason}.`
+    )
   },
   {
     pattern: /^(.+)\s+appointments$/i,

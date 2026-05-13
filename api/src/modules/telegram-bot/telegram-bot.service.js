@@ -48,8 +48,6 @@ const TEXT = Object.freeze({
     noLessons: "Bu davr uchun dars topilmadi.",
     todaySchedule: "Bugungi dars jadvali",
     weekSchedule: "Bir haftalik jadval",
-    messagesTitle: "Xabarlar",
-    noMessages: "Hozircha xabarlar yo'q.",
     settingsTitle: "Sozlamalar",
     settingsPrompt: "Tilni tanlang yoki kontaktni o'zgartiring.",
     languageSaved: "Til sozlamasi saqlandi.",
@@ -67,7 +65,6 @@ const TEXT = Object.freeze({
     menuChildren: "👶 Farzandim",
     menuToday: "📅 Bugun",
     menuWeek: "🗓 Hafta",
-    menuMessages: "✉️ Xabarlar",
     menuSettings: "⚙️ Sozlamalar",
     fallbackReason: "Ota-ona Telegram bot orqali bekor qildi",
     botDisabled: "Bot hozircha faol emas."
@@ -83,8 +80,6 @@ const TEXT = Object.freeze({
     noLessons: "На этот период уроки не найдены.",
     todaySchedule: "Расписание на сегодня",
     weekSchedule: "Расписание на неделю",
-    messagesTitle: "Сообщения",
-    noMessages: "Сообщений пока нет.",
     settingsTitle: "Настройки",
     settingsPrompt: "Выберите язык или измените контакт.",
     languageSaved: "Язык сохранен.",
@@ -102,7 +97,6 @@ const TEXT = Object.freeze({
     menuChildren: "👶 Ребенок",
     menuToday: "📅 Сегодня",
     menuWeek: "🗓 Неделя",
-    menuMessages: "✉️ Сообщения",
     menuSettings: "⚙️ Настройки",
     fallbackReason: "Родитель отменил через Telegram бот",
     botDisabled: "Бот пока не активен."
@@ -287,7 +281,7 @@ function buildMainMenuReplyMarkup(language) {
   return {
     keyboard: [
       [{ text: getText(language, "menuChildren") }, { text: getText(language, "menuToday") }],
-      [{ text: getText(language, "menuWeek") }, { text: getText(language, "menuMessages") }],
+      [{ text: getText(language, "menuWeek") }],
       [{ text: getText(language, "menuSettings") }]
     ],
     resize_keyboard: true
@@ -366,9 +360,6 @@ function resolveMenuAction(text) {
   }
   if (normalized.includes("xaft") || normalized.includes("haft") || normalized.includes("недел")) {
     return "week";
-  }
-  if (normalized.includes("xabar") || normalized.includes("сообщ")) {
-    return "messages";
   }
   if (normalized.includes("sozlam") || normalized.includes("настрой")) {
     return "settings";
@@ -1048,37 +1039,6 @@ async function sendScheduleList({ settings, parent, dateFrom, dateTo, title }) {
   }
 }
 
-async function sendMessagesList({ settings, parent }) {
-  const { rows } = await pool.query(
-    `SELECT message, sent_at
-       FROM telegram_parent_messages
-      WHERE organization_id = $1
-        AND parent_account_id = $2
-      ORDER BY sent_at DESC, id DESC
-      LIMIT 10`,
-    [parent.organizationId, parent.id]
-  );
-  if (rows.length === 0) {
-    await sendTelegramMessage({
-      token: settings.botToken,
-      chatId: parent.chatId,
-      text: getText(parent.language, "noMessages"),
-      replyMarkup: buildMainMenuReplyMarkup(parent.language)
-    });
-    return;
-  }
-  const lines = [
-    getText(parent.language, "messagesTitle"),
-    ...rows.map((row, index) => `${index + 1}. ${String(row?.message || "").trim()}`)
-  ];
-  await sendTelegramMessage({
-    token: settings.botToken,
-    chatId: parent.chatId,
-    text: lines.join("\n\n"),
-    replyMarkup: buildMainMenuReplyMarkup(parent.language)
-  });
-}
-
 async function sendSettingsMenu({ settings, parent, messagePrefix = "" }) {
   const lines = [
     String(messagePrefix || "").trim(),
@@ -1355,10 +1315,6 @@ async function handleTextMessage({ settings, message }) {
       dateTo: shiftDateYmd(today, 6),
       title: getText(parent.language, "weekSchedule")
     });
-    return;
-  }
-  if (action === "messages") {
-    await sendMessagesList({ settings, parent });
     return;
   }
   if (action === "settings") {

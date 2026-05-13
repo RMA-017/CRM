@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import CustomSelect from "../../components/CustomSelect.jsx";
+import { useI18n } from "../../i18n/I18nProvider.jsx";
 import { apiFetch, readApiResponseData } from "../../lib/api.js";
 
 const DAY_ITEMS = [
@@ -2502,6 +2503,7 @@ function AppointmentScheduler({
   vipClassDailyRoutines = [],
   onNotification = null
 }) {
+  const { t } = useI18n();
   const specialistLabel = vipOnly ? "Class" : "Specialist";
   const specialistSelectPlaceholder = vipOnly ? "Select class" : "Select specialist";
   const specialistSearchPlaceholder = vipOnly ? "Search class" : "Search specialist";
@@ -7109,11 +7111,11 @@ function AppointmentScheduler({
         {showWeekSwitcher ? (
           <div className="appointment-toolbar-block appointment-week-switcher">
             <button type="button" className="header-btn" onClick={() => setWeekOffset((prev) => prev - 1)}>
-              Prev
+              {t("planner.previousWeek")}
             </button>
             <p className="appointment-week-range">{formatWeekRange(weekDays, { compact: compactWeekRange })}</p>
             <button type="button" className="header-btn" onClick={() => setWeekOffset((prev) => prev + 1)}>
-              Next
+              {t("planner.nextWeek")}
             </button>
           </div>
         ) : null}

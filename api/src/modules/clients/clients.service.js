@@ -3243,7 +3243,13 @@ export async function updateClientById({
   ];
 
   const { rows } = await pool.query(
-    `WITH updated_client AS (
+    `WITH target_client AS (
+       SELECT c.id, c.is_vip AS was_vip
+         FROM clients c
+        WHERE c.id = $10
+          AND c.organization_id = $11
+     ),
+     updated_client AS (
        UPDATE clients c
           SET first_name = $1,
               last_name = $2,
@@ -3255,8 +3261,10 @@ export async function updateClientById({
               is_vip = $8,
               updated_by = $9,
               updated_at = CURRENT_TIMESTAMP
+        FROM target_client tc
         WHERE c.id = $10
           AND c.organization_id = $11
+          AND c.id = tc.id
         RETURNING
           c.id::text AS id,
           c.organization_id::text AS organization_id,
@@ -3273,18 +3281,14 @@ export async function updateClientById({
           c.updated_at,
           c.note
      ),
-     deleted_future_appointments AS (
+     deleted_client_appointments AS (
        DELETE FROM appointment_schedules s
+        USING target_client tc
         WHERE $8::boolean = FALSE
+          AND tc.was_vip IS TRUE
           AND s.organization_id = $11
           AND s.client_id = $10
-          AND (
-            s.appointment_date > TIMEZONE('Asia/Tashkent', NOW())::date
-            OR (
-              s.appointment_date = TIMEZONE('Asia/Tashkent', NOW())::date
-              AND s.end_time > TIMEZONE('Asia/Tashkent', NOW())::time
-            )
-          )
+          AND s.client_id = tc.id
           AND EXISTS (SELECT 1 FROM updated_client)
        RETURNING s.*
      ),
@@ -3319,11 +3323,11 @@ export async function updateClientById({
            'after', NULL
          ),
          $9::integer
-       FROM deleted_future_appointments d
+       FROM deleted_client_appointments d
      )
      SELECT
        updated_client.*,
-       (SELECT COUNT(*)::integer FROM deleted_future_appointments) AS deleted_future_appointment_count
+       (SELECT COUNT(*)::integer FROM deleted_client_appointments) AS deleted_appointment_count
       FROM updated_client`,
     params
   );
