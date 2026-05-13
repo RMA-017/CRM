@@ -811,7 +811,6 @@
   border: 1px solid rgba(132, 168, 136, 0.28);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 18px 40px rgba(24, 45, 34, 0.16);
   padding: 8px;
   display: none;
 }
@@ -852,7 +851,7 @@
   inset: 0;
   z-index: 44;
   border: 0;
-  background: rgba(14, 27, 19, 0.18);
+  background: transparent;
   padding: 0;
 }
 
