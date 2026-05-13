@@ -356,12 +356,34 @@ function buildWeekDaysReplyMarkup(language, startDate = toDateYmdInTashkent()) {
     }
     const label = getWeekdayLabel(language, dateYmd);
     keyboard.push([{
-      text: label,
-      callback_data: `week_day:${dateYmd}`
+      text: label
     }]);
   }
-  keyboard.push([{ text: getText(language, "backToMainMenu"), callback_data: "week_back" }]);
-  return { inline_keyboard: keyboard };
+  keyboard.push([{ text: getText(language, "backToMainMenu") }]);
+  return {
+    keyboard,
+    resize_keyboard: true
+  };
+}
+
+function resolveWeekdayMenuDate(text, language, startDate = toDateYmdInTashkent()) {
+  const normalizedText = String(text || "").trim().toLowerCase();
+  if (!normalizedText) {
+    return "";
+  }
+  const weekStartDate = getWeekStartDateYmd(startDate);
+  for (const offset of WORK_WEEK_OFFSETS) {
+    const dateYmd = shiftDateYmd(weekStartDate, offset);
+    const labels = [
+      getWeekdayLabel(language, dateYmd),
+      getWeekdayLabel("uz", dateYmd),
+      getWeekdayLabel("ru", dateYmd)
+    ];
+    if (labels.some((label) => String(label || "").trim().toLowerCase() === normalizedText)) {
+      return dateYmd;
+    }
+  }
+  return "";
 }
 
 function buildCancelReasonButtons(language, appointmentId) {
@@ -779,16 +801,20 @@ export async function testTelegramBotToken(organizationId) {
 export async function sendTelegramBroadcastToParents({
   organizationId,
   actorUserId = null,
-  message
+  message,
+  messages
 }) {
   const normalizedOrganizationId = normalizePositiveInteger(organizationId);
-  const normalizedMessage = normalizeMessageText(message).slice(0, 4000);
+  const normalizedMessages = {
+    uz: normalizeMessageText(messages?.uz ?? message).slice(0, 4000),
+    ru: normalizeMessageText(messages?.ru ?? message).slice(0, 4000)
+  };
   if (!normalizedOrganizationId) {
     const error = new Error("Organization is required.");
     error.statusCode = 400;
     throw error;
   }
-  if (!normalizedMessage) {
+  if (!normalizedMessages.uz || !normalizedMessages.ru) {
     const error = new Error("Message is required.");
     error.statusCode = 400;
     throw error;
@@ -815,18 +841,20 @@ export async function sendTelegramBroadcastToParents({
   let failedCount = 0;
 
   for (const parent of parents) {
+    const parentLanguage = normalizeLanguage(parent.language);
+    const localizedMessage = normalizedMessages[parentLanguage] || normalizedMessages.uz || normalizedMessages.ru;
     try {
       await sendTelegramMessage({
         token: settings.botToken,
         chatId: parent.chatId,
-        text: normalizedMessage
+        text: localizedMessage
       });
       await logParentMessage({
         organizationId: parent.organizationId,
         parentAccountId: parent.id,
         appointmentScheduleId: null,
         eventType: "manual-broadcast",
-        message: normalizedMessage
+        message: localizedMessage
       }).catch(() => {});
       sentCount += 1;
     } catch {
@@ -1442,6 +1470,19 @@ async function handleTextMessage({ settings, message }) {
       settings,
       parent,
       startDate: today
+    });
+    return;
+  }
+  const selectedWeekdayDate = resolveWeekdayMenuDate(text, parent.language);
+  if (selectedWeekdayDate) {
+    await sendScheduleList({
+      settings,
+      parent,
+      dateFrom: selectedWeekdayDate,
+      dateTo: selectedWeekdayDate,
+      title: renderTemplate(getText(parent.language, "weekDaySchedule"), {
+        date: `${getWeekdayLabel(parent.language, selectedWeekdayDate)} ${formatDateDmy(selectedWeekdayDate)}`.trim()
+      })
     });
     return;
   }

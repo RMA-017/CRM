@@ -2503,7 +2503,10 @@ function AppointmentScheduler({
   vipClassDailyRoutines = [],
   onNotification = null
 }) {
-  const { t } = useI18n();
+  const { t, translate } = useI18n();
+  const showPlannerAlert = useCallback((text) => {
+    showImmediateAlert(translate(text));
+  }, [translate]);
   const specialistLabel = vipOnly ? "Class" : "Specialist";
   const specialistSelectPlaceholder = vipOnly ? "Select class" : "Select specialist";
   const specialistSearchPlaceholder = vipOnly ? "Search class" : "Search specialist";
@@ -3570,9 +3573,9 @@ function AppointmentScheduler({
   const clientSelectHasError = Boolean(createErrors.clientId) || (clientSelectNotFound && !createForm.clientId);
   useEffect(() => {
     if (clientSelectNotFound && clientSearchMessage && createModal.open) {
-      showImmediateAlert(clientSearchMessage);
+      showPlannerAlert(clientSearchMessage);
     }
-  }, [clientSearchMessage, clientSelectNotFound, createModal.open]);
+  }, [clientSearchMessage, clientSelectNotFound, createModal.open, showPlannerAlert]);
   const selectedClient = createForm.clientId ? (clientMap[createForm.clientId] || null) : null;
   const clientSelectOptions = useMemo(() => {
     const currentId = String(createForm.clientId || "").trim();
@@ -5319,7 +5322,7 @@ function AppointmentScheduler({
         if (workingHoursConflictMessage) {
           setMessage(workingHoursConflictMessage);
           if (shouldShowImmediateAlert) {
-            showImmediateAlert(workingHoursConflictMessage);
+            showPlannerAlert(workingHoursConflictMessage);
           }
           return;
         }
@@ -5334,7 +5337,7 @@ function AppointmentScheduler({
           const blockedTimeConflictMessage = `Selected time overlaps blocked time: ${blockedTimeConflictReason}.`;
           setMessage(blockedTimeConflictMessage);
           if (shouldShowImmediateAlert) {
-            showImmediateAlert(blockedTimeConflictMessage);
+            showPlannerAlert(blockedTimeConflictMessage);
           }
           return;
         }
@@ -5349,7 +5352,7 @@ function AppointmentScheduler({
           const breakConflictMessage = `Selected time overlaps specialist break: ${breakConflictReason}.`;
           setMessage(breakConflictMessage);
           if (shouldShowImmediateAlert) {
-            showImmediateAlert(breakConflictMessage);
+            showPlannerAlert(breakConflictMessage);
           }
           return;
         }
@@ -5364,7 +5367,7 @@ function AppointmentScheduler({
           const absenceConflictMessage = `Selected time overlaps specialist absence: ${absenceConflictReason}.`;
           setMessage(absenceConflictMessage);
           if (shouldShowImmediateAlert) {
-            showImmediateAlert(absenceConflictMessage);
+            showPlannerAlert(absenceConflictMessage);
           }
           return;
         }
@@ -5385,7 +5388,7 @@ function AppointmentScheduler({
           : "This slot is already occupied.";
         setMessage(conflictMessage);
         if (shouldShowImmediateAlert) {
-          showImmediateAlert(conflictMessage);
+          showPlannerAlert(conflictMessage);
         }
         return;
       }
@@ -5427,7 +5430,7 @@ function AppointmentScheduler({
         const serverMessage = String(data?.message || "Failed to move appointment.").trim();
         setMessage(serverMessage);
         if (response.status === 409 && shouldShowImmediateAlert) {
-          showImmediateAlert(serverMessage);
+          showPlannerAlert(serverMessage);
         }
         return;
       }
@@ -5650,10 +5653,13 @@ function AppointmentScheduler({
     setCreateErrors({});
   }
 
-  function setPlannerModalFormError(message) {
+  function setPlannerModalFormError(message, options = {}) {
     const text = String(message || "").trim() || "Request failed.";
     setCreateErrors({ form: text });
     setMessage(text);
+    if (options.alert) {
+      showPlannerAlert(text);
+    }
   }
 
   function validatePlannerBreakForm(value) {
@@ -5753,7 +5759,7 @@ function AppointmentScheduler({
         nextPayload.endTime
       );
       if (workingHoursConflictMessage) {
-        setPlannerModalFormError(workingHoursConflictMessage);
+        setPlannerModalFormError(workingHoursConflictMessage, { alert: true });
         return;
       }
 
@@ -5766,7 +5772,7 @@ function AppointmentScheduler({
         const conflictTime = localConflict.startTime && localConflict.endTime
           ? `${localConflict.startTime}-${localConflict.endTime}`
           : nextPayload.startTime;
-        setPlannerModalFormError(`Selected time overlaps existing appointment (${conflictTime}).`);
+        setPlannerModalFormError(`Selected time overlaps existing appointment (${conflictTime}).`, { alert: true });
         return;
       }
 
@@ -5777,7 +5783,7 @@ function AppointmentScheduler({
         nextPayload.endTime
       );
       if (blockedTimeConflictReason) {
-        setPlannerModalFormError(`Selected time overlaps blocked time: ${blockedTimeConflictReason}.`);
+        setPlannerModalFormError(`Selected time overlaps blocked time: ${blockedTimeConflictReason}.`, { alert: true });
         return;
       }
 
@@ -5788,7 +5794,7 @@ function AppointmentScheduler({
         nextPayload.endTime
       );
       if (absenceConflictReason) {
-        setPlannerModalFormError(`Selected time overlaps specialist absence: ${absenceConflictReason}.`);
+        setPlannerModalFormError(`Selected time overlaps specialist absence: ${absenceConflictReason}.`, { alert: true });
         return;
       }
     }
@@ -5929,7 +5935,7 @@ function AppointmentScheduler({
         nextPayload.endTime
       );
       if (workingHoursConflictMessage) {
-        setPlannerModalFormError(workingHoursConflictMessage);
+        setPlannerModalFormError(workingHoursConflictMessage, { alert: true });
         return;
       }
 
@@ -5942,7 +5948,7 @@ function AppointmentScheduler({
         const conflictTime = localConflict.startTime && localConflict.endTime
           ? `${localConflict.startTime}-${localConflict.endTime}`
           : nextPayload.startTime;
-        setPlannerModalFormError(`Selected time overlaps existing appointment (${conflictTime}).`);
+        setPlannerModalFormError(`Selected time overlaps existing appointment (${conflictTime}).`, { alert: true });
         return;
       }
 
@@ -5953,7 +5959,7 @@ function AppointmentScheduler({
         nextPayload.endTime
       );
       if (breakConflictReason) {
-        setPlannerModalFormError(`Selected time overlaps specialist break: ${breakConflictReason}.`);
+        setPlannerModalFormError(`Selected time overlaps specialist break: ${breakConflictReason}.`, { alert: true });
         return;
       }
 
@@ -5964,7 +5970,7 @@ function AppointmentScheduler({
         nextPayload.endTime
       );
       if (absenceConflictReason) {
-        setPlannerModalFormError(`Selected time overlaps specialist absence: ${absenceConflictReason}.`);
+        setPlannerModalFormError(`Selected time overlaps specialist absence: ${absenceConflictReason}.`, { alert: true });
         return;
       }
     }
@@ -6390,7 +6396,7 @@ function AppointmentScheduler({
             setCreateErrors({ form: workingHoursConflictMessage });
             setMessage(workingHoursConflictMessage);
             if (shouldShowImmediateAlert) {
-              showImmediateAlert(workingHoursConflictMessage);
+              showPlannerAlert(workingHoursConflictMessage);
             }
             return;
           }
@@ -6406,7 +6412,7 @@ function AppointmentScheduler({
             setCreateErrors({ form: blockedTimeConflictMessage });
             setMessage(blockedTimeConflictMessage);
             if (shouldShowImmediateAlert) {
-              showImmediateAlert(blockedTimeConflictMessage);
+              showPlannerAlert(blockedTimeConflictMessage);
             }
             return;
           }
@@ -6422,7 +6428,7 @@ function AppointmentScheduler({
             setCreateErrors({ form: breakConflictMessage });
             setMessage(breakConflictMessage);
             if (shouldShowImmediateAlert) {
-              showImmediateAlert(breakConflictMessage);
+              showPlannerAlert(breakConflictMessage);
             }
             return;
           }
@@ -6438,7 +6444,70 @@ function AppointmentScheduler({
             setCreateErrors({ form: absenceConflictMessage });
             setMessage(absenceConflictMessage);
             if (shouldShowImmediateAlert) {
-              showImmediateAlert(absenceConflictMessage);
+              showPlannerAlert(absenceConflictMessage);
+            }
+            return;
+          }
+        } else {
+          const workingHoursConflictMessage = getPlannerWorkingHoursConflictMessage(
+            settings,
+            appointmentDate,
+            startTime,
+            endTime
+          );
+          if (workingHoursConflictMessage) {
+            setCreateErrors({ form: workingHoursConflictMessage });
+            setMessage(workingHoursConflictMessage);
+            if (shouldShowImmediateAlert) {
+              showPlannerAlert(workingHoursConflictMessage);
+            }
+            return;
+          }
+
+          const blockedTimeConflictReason = findPlannerBlockedTimeConflict(
+            blockedTimesForSpecialist,
+            appointmentDate,
+            startTime,
+            endTime
+          );
+          if (blockedTimeConflictReason) {
+            const blockedTimeConflictMessage = `Selected time overlaps blocked time: ${blockedTimeConflictReason}.`;
+            setCreateErrors({ form: blockedTimeConflictMessage });
+            setMessage(blockedTimeConflictMessage);
+            if (shouldShowImmediateAlert) {
+              showPlannerAlert(blockedTimeConflictMessage);
+            }
+            return;
+          }
+
+          const breakConflictReason = findPlannerBreakConflict(
+            breaksForSpecialist,
+            appointmentDate,
+            startTime,
+            endTime
+          );
+          if (breakConflictReason) {
+            const breakConflictMessage = `Selected time overlaps specialist break: ${breakConflictReason}.`;
+            setCreateErrors({ form: breakConflictMessage });
+            setMessage(breakConflictMessage);
+            if (shouldShowImmediateAlert) {
+              showPlannerAlert(breakConflictMessage);
+            }
+            return;
+          }
+
+          const absenceConflictReason = findPlannerAbsenceConflict(
+            absencesForSpecialist,
+            appointmentDate,
+            startTime,
+            endTime
+          );
+          if (absenceConflictReason) {
+            const absenceConflictMessage = `Selected time overlaps specialist absence: ${absenceConflictReason}.`;
+            setCreateErrors({ form: absenceConflictMessage });
+            setMessage(absenceConflictMessage);
+            if (shouldShowImmediateAlert) {
+              showPlannerAlert(absenceConflictMessage);
             }
             return;
           }
@@ -6460,7 +6529,7 @@ function AppointmentScheduler({
           setCreateErrors({ form: conflictMessage });
           setMessage(conflictMessage);
           if (shouldShowImmediateAlert) {
-            showImmediateAlert(conflictMessage);
+            showPlannerAlert(conflictMessage);
           }
           return;
         }
@@ -6522,7 +6591,7 @@ function AppointmentScheduler({
         if (response.status === 409 && serverMessage) {
           setMessage(serverMessage);
           if (shouldShowImmediateAlert) {
-            showImmediateAlert(serverMessage);
+            showPlannerAlert(serverMessage);
           }
         }
         if (data?.errors && typeof data.errors === "object") {

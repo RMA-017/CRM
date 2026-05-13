@@ -131,17 +131,23 @@ export async function telegramSettingsRoutes(fastify) {
         if (!access) {
           return;
         }
-        const message = String(request.body?.message || "").trim();
-        if (!message) {
-          return reply.status(400).send({ field: "message", message: "Message is required." });
+        const messagesPayload = request.body?.messages && typeof request.body.messages === "object"
+          ? request.body.messages
+          : {};
+        const messages = {
+          uz: String(messagesPayload.uz ?? request.body?.message ?? "").trim(),
+          ru: String(messagesPayload.ru ?? request.body?.message ?? "").trim()
+        };
+        if (!messages.uz || !messages.ru) {
+          return reply.status(400).send({ field: "messages", message: "Messages are required." });
         }
-        if (message.length > 4000) {
-          return reply.status(400).send({ field: "message", message: "Message is too long." });
+        if (messages.uz.length > 4000 || messages.ru.length > 4000) {
+          return reply.status(400).send({ field: "messages", message: "Message is too long." });
         }
         const result = await sendTelegramBroadcastToParents({
           organizationId: access.authContext.organizationId,
           actorUserId: access.authContext.userId,
-          message
+          messages
         });
         return reply.send({ message: "Broadcast sent.", item: result });
       } catch (error) {

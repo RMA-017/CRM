@@ -1450,6 +1450,10 @@ label.field > span:first-child,
   gap: 16px;
 }
 
+.auth-form.settings-edit-form .sms-notifications-field {
+  margin: 0;
+}
+
 .sms-notifications-field textarea {
   min-height: 220px;
   resize: vertical;

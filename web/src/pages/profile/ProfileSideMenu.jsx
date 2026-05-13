@@ -1,5 +1,6 @@
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useI18n } from "../../i18n/I18nProvider.jsx";
 
 const CLOSED_SUBMENUS = Object.freeze({
   clients: false,
@@ -40,6 +41,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
   canOpenSiteContent,
   openSiteContentPanel
 }, ref) {
+  const { t } = useI18n();
   const [openSubmenus, setOpenSubmenus] = useState(CLOSED_SUBMENUS);
   const menuElementRef = useRef(null);
   const overlayElementRef = useRef(null);
@@ -278,7 +280,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
             hidden={!canOpenSmsNotifications}
             onClick={openSmsNotificationsPanel}
           >
-            SMS xabarnoma
+            {t("smsNotifications.menu")}
           </button>
 
           <div id="adminSettingsMenuGroup" className="side-menu-group" hidden={!hasAdminSettingsAccess}>

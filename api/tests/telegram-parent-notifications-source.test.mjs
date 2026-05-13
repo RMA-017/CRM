@@ -125,8 +125,8 @@ test("Telegram weekly menu opens day buttons before showing lessons", async () =
 
   assert.match(
     serviceSource,
-    /function buildWeekDaysReplyMarkup\([\s\S]*callback_data: `week_day:\$\{dateYmd\}`[\s\S]*callback_data: "week_back"/,
-    "Weekly menu should render weekday buttons and a back button."
+    /function buildWeekDaysReplyMarkup\([\s\S]*text: label[\s\S]*text: getText\(language, "backToMainMenu"\)[\s\S]*resize_keyboard: true/s,
+    "Weekly menu should render weekday buttons as the main keyboard with a back button."
   );
   assert.match(
     serviceSource,
@@ -135,8 +135,8 @@ test("Telegram weekly menu opens day buttons before showing lessons", async () =
   );
   assert.match(
     serviceSource,
-    /text: label,[\s\S]*callback_data: `week_day:\$\{dateYmd\}`/,
-    "Weekly menu buttons should show only the day name while keeping the date in callback data."
+    /function resolveWeekdayMenuDate\([\s\S]*getWeekdayLabel\(language, dateYmd\)[\s\S]*return dateYmd/s,
+    "Weekly menu day text should resolve to a current-week date."
   );
   assert.match(
     serviceSource,
@@ -145,8 +145,8 @@ test("Telegram weekly menu opens day buttons before showing lessons", async () =
   );
   assert.match(
     serviceSource,
-    /if \(data\.startsWith\("week_day:"\)\)[\s\S]*dateFrom: selectedDate,[\s\S]*dateTo: selectedDate/s,
-    "Selecting a weekday should load lessons only for that date."
+    /const selectedWeekdayDate = resolveWeekdayMenuDate\(text, parent\.language\)[\s\S]*dateFrom: selectedWeekdayDate,[\s\S]*dateTo: selectedWeekdayDate/s,
+    "Selecting a weekday keyboard button should load lessons only for that date."
   );
 });
 

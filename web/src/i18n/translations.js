@@ -47,6 +47,9 @@ export const MESSAGES = Object.freeze({
     planner: {
       previousWeek: "Oldingi",
       nextWeek: "Keyingi"
+    },
+    smsNotifications: {
+      menu: "SMS xabarnoma"
     }
   },
   ru: {
@@ -82,6 +85,9 @@ export const MESSAGES = Object.freeze({
     planner: {
       previousWeek: "Назад",
       nextWeek: "Вперёд"
+    },
+    smsNotifications: {
+      menu: "SMS уведомление"
     }
   }
 });
@@ -122,6 +128,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Monitoring", uz: "Monitoring", ru: "Мониторинг" },
   { en: "Roles", uz: "Rollar", ru: "Роли" },
   { en: "Positions", uz: "Lavozimlar", ru: "Должности" },
+  { en: "SMS xabarnoma", uz: "SMS xabarnoma", ru: "SMS уведомление" },
 
   { en: "Logout", uz: "Chiqish", ru: "Выйти" },
   { en: "Save", uz: "Saqlash", ru: "Сохранить" },

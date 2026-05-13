@@ -6,12 +6,14 @@ const UI_TEXT = Object.freeze({
   uz: Object.freeze({
     title: "SMS xabarnoma",
     close: "SMS xabarnoma panelini yopish",
-    message: "Xabar matni",
-    placeholder: "Masalan: Hurmatli ota-onalar, bayram munosabati bilan darslar bo'lmaydi.",
+    uzMessage: "O'zbekcha xabar",
+    ruMessage: "Ruscha xabar",
+    uzPlaceholder: "Masalan: Hurmatli ota-onalar, bayram munosabati bilan darslar bo'lmaydi.",
+    ruPlaceholder: "Например: Уважаемые родители, в праздничные дни занятий не будет.",
     send: "Yuborish",
     sending: "Yuborilmoqda...",
     sent: "Xabar yuborildi.",
-    required: "Xabar matnini kiriting.",
+    required: "Xabar matnini ikkala tilda kiriting.",
     tooLong: "Xabar juda uzun.",
     loadError: "Xabarni yuborib bo'lmadi.",
     noAccess: "Ruxsat yo'q.",
@@ -20,12 +22,14 @@ const UI_TEXT = Object.freeze({
   ru: Object.freeze({
     title: "SMS уведомление",
     close: "Закрыть панель SMS уведомлений",
-    message: "Текст сообщения",
-    placeholder: "Например: Уважаемые родители, в праздничные дни занятий не будет.",
+    uzMessage: "Сообщение на узбекском",
+    ruMessage: "Сообщение на русском",
+    uzPlaceholder: "Masalan: Hurmatli ota-onalar, bayram munosabati bilan darslar bo'lmaydi.",
+    ruPlaceholder: "Например: Уважаемые родители, в праздничные дни занятий не будет.",
     send: "Отправить",
     sending: "Отправка...",
     sent: "Сообщение отправлено.",
-    required: "Введите текст сообщения.",
+    required: "Введите текст сообщения на двух языках.",
     tooLong: "Сообщение слишком длинное.",
     loadError: "Не удалось отправить сообщение.",
     noAccess: "Нет доступа.",
@@ -47,6 +51,9 @@ function localizeApiMessage(message, ui) {
   if (text === "Message is required.") {
     return ui.required;
   }
+  if (text === "Messages are required.") {
+    return ui.required;
+  }
   if (text === "Message is too long.") {
     return ui.tooLong;
   }
@@ -56,7 +63,7 @@ function localizeApiMessage(message, ui) {
 function SmsNotificationsPanel({ canSendSmsNotifications, onClose }) {
   const { language } = useI18n();
   const ui = UI_TEXT[language] || UI_TEXT.uz;
-  const [message, setMessage] = useState("");
+  const [messages, setMessages] = useState({ uz: "", ru: "" });
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -66,13 +73,16 @@ function SmsNotificationsPanel({ canSendSmsNotifications, onClose }) {
     if (!canSendSmsNotifications || submitting) {
       return;
     }
-    const normalizedMessage = String(message || "").trim();
-    if (!normalizedMessage) {
+    const normalizedMessages = {
+      uz: String(messages.uz || "").trim(),
+      ru: String(messages.ru || "").trim()
+    };
+    if (!normalizedMessages.uz || !normalizedMessages.ru) {
       setError(ui.required);
       setNotice("");
       return;
     }
-    if (normalizedMessage.length > 4000) {
+    if (normalizedMessages.uz.length > 4000 || normalizedMessages.ru.length > 4000) {
       setError(ui.tooLong);
       setNotice("");
       return;
@@ -85,7 +95,7 @@ function SmsNotificationsPanel({ canSendSmsNotifications, onClose }) {
       const response = await apiFetch("/api/settings/sms-notifications/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: normalizedMessage })
+        body: JSON.stringify({ messages: normalizedMessages })
       });
       const data = await readApiResponseData(response);
       if (!response.ok) {
@@ -93,7 +103,7 @@ function SmsNotificationsPanel({ canSendSmsNotifications, onClose }) {
         return;
       }
       const item = data?.item || {};
-      setMessage("");
+      setMessages({ uz: "", ru: "" });
       setNotice([
         ui.sent,
         renderText(ui.summary, {
@@ -107,7 +117,7 @@ function SmsNotificationsPanel({ canSendSmsNotifications, onClose }) {
     } finally {
       setSubmitting(false);
     }
-  }, [canSendSmsNotifications, message, submitting, ui]);
+  }, [canSendSmsNotifications, messages, submitting, ui]);
 
   return (
     <section id="smsNotificationsPanel" className="all-users-panel settings-panel sms-notifications-panel">
@@ -123,15 +133,32 @@ function SmsNotificationsPanel({ canSendSmsNotifications, onClose }) {
 
       <form className="auth-form settings-edit-form sms-notifications-form" onSubmit={handleSubmit}>
         <label className="field sms-notifications-field">
-          <span>{ui.message}</span>
+          <span>{ui.uzMessage}</span>
           <textarea
             rows="9"
             maxLength="4000"
-            value={message}
+            value={messages.uz}
             disabled={!canSendSmsNotifications || submitting}
-            placeholder={ui.placeholder}
+            placeholder={ui.uzPlaceholder}
             onChange={(event) => {
-              setMessage(event.target.value);
+              setMessages((prev) => ({ ...prev, uz: event.target.value }));
+              if (error) {
+                setError("");
+              }
+            }}
+          />
+        </label>
+
+        <label className="field sms-notifications-field">
+          <span>{ui.ruMessage}</span>
+          <textarea
+            rows="9"
+            maxLength="4000"
+            value={messages.ru}
+            disabled={!canSendSmsNotifications || submitting}
+            placeholder={ui.ruPlaceholder}
+            onChange={(event) => {
+              setMessages((prev) => ({ ...prev, ru: event.target.value }));
               if (error) {
                 setError("");
               }
