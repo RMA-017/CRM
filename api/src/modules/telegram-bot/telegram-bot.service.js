@@ -1425,6 +1425,23 @@ async function handleTextMessage({ settings, message }) {
     return;
   }
 
+  const selectedWeekdayDate = resolveWeekdayMenuDate(text, parent.language);
+  if (selectedWeekdayDate) {
+    await sendScheduleList({
+      settings,
+      parent,
+      dateFrom: selectedWeekdayDate,
+      dateTo: selectedWeekdayDate,
+      title: renderTemplate(getText(parent.language, "weekDaySchedule"), {
+        date: `${getWeekdayLabel(parent.language, selectedWeekdayDate)} ${formatDateDmy(selectedWeekdayDate)}`.trim()
+      }),
+      replyMarkup: buildWeekDaysReplyMarkup(parent.language, selectedWeekdayDate),
+      emptyText: getText(parent.language, "noLessonsThisDay"),
+      includeDateTime: false
+    });
+    return;
+  }
+
   const action = resolveMenuAction(text);
   if (!action) {
     const pending = await popPendingAction(parent);
@@ -1499,22 +1516,6 @@ async function handleTextMessage({ settings, message }) {
       settings,
       parent,
       startDate: today
-    });
-    return;
-  }
-  const selectedWeekdayDate = resolveWeekdayMenuDate(text, parent.language);
-  if (selectedWeekdayDate) {
-    await sendScheduleList({
-      settings,
-      parent,
-      dateFrom: selectedWeekdayDate,
-      dateTo: selectedWeekdayDate,
-      title: renderTemplate(getText(parent.language, "weekDaySchedule"), {
-        date: `${getWeekdayLabel(parent.language, selectedWeekdayDate)} ${formatDateDmy(selectedWeekdayDate)}`.trim()
-      }),
-      replyMarkup: buildWeekDaysReplyMarkup(parent.language, selectedWeekdayDate),
-      emptyText: getText(parent.language, "noLessonsThisDay"),
-      includeDateTime: false
     });
     return;
   }

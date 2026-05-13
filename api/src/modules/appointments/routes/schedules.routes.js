@@ -303,6 +303,42 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           : false;
       };
 
+  function hasScheduleDateTimeChanges(previousItems, nextItems) {
+    const previousById = new Map(
+      (Array.isArray(previousItems) ? previousItems : [])
+        .map((item) => [String(item?.id || "").trim(), item])
+        .filter(([id]) => Boolean(id))
+    );
+    return (Array.isArray(nextItems) ? nextItems : []).some((item) => {
+      const previous = previousById.get(String(item?.id || "").trim());
+      if (!previous) {
+        return false;
+      }
+      return (
+        String(previous?.appointmentDate || "").trim() !== String(item?.appointmentDate || "").trim()
+        || String(previous?.startTime || "").trim() !== String(item?.startTime || "").trim()
+        || String(previous?.endTime || "").trim() !== String(item?.endTime || "").trim()
+      );
+    });
+  }
+
+  async function notifyScheduleDateTimeEdit(access, previousItems, nextItems) {
+    if (!hasScheduleDateTimeChanges(previousItems, nextItems)) {
+      return;
+    }
+    const notificationItems = Array.isArray(nextItems) ? nextItems : [];
+    if (notificationItems.length === 0) {
+      return;
+    }
+    const scheduleNotification = buildScheduleNotification("edit", notificationItems, access?.requester);
+    await broadcastAppointmentChange(access, {
+      type: "schedule-updated",
+      message: scheduleNotification.message,
+      specialistIds: notificationItems.map((item) => item?.specialistId),
+      data: scheduleNotification.data
+    });
+  }
+
   async function requirePlannerReportAccess(request, reply) {
     const authContext = request.authContext;
     const requester = authContext?.requester;
@@ -2041,6 +2077,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             ? `${affectedCount} appointments updated. ${skippedDates.length} conflicts skipped.`
             : `${affectedCount} appointments updated.`;
           schedulesReadCache.clear();
+          await notifyScheduleDateTimeEdit(access, target.items, items);
 
           return reply.send({
             message,
@@ -2137,6 +2174,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
 
           const updatedAnchorItem = items[0] || anchorItem;
           schedulesReadCache.clear();
+          await notifyScheduleDateTimeEdit(access, target.items, items);
 
           return reply.send({
             message: "Appointment updated.",
@@ -2448,6 +2486,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               ) || items[0];
               const affectedCount = items.length;
               schedulesReadCache.clear();
+              await notifyScheduleDateTimeEdit(access, scopedSourceItems, items);
 
               return reply.send({
                 message: `${affectedCount} appointments updated.`,
@@ -2594,6 +2633,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           ) || items[0];
           const affectedCount = items.length;
           schedulesReadCache.clear();
+          await notifyScheduleDateTimeEdit(access, target.items, items);
 
           return reply.send({
             message: `${affectedCount} appointments updated.`,
@@ -2842,6 +2882,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           ? "Appointment updated."
           : `${affectedCount} appointments updated.`;
         schedulesReadCache.clear();
+        await notifyScheduleDateTimeEdit(access, target.items, items);
 
         return reply.send({
           message,

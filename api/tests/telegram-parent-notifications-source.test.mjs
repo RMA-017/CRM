@@ -150,8 +150,36 @@ test("Telegram weekly menu opens day buttons before showing lessons", async () =
   );
   assert.match(
     serviceSource,
+    /const selectedWeekdayDate = resolveWeekdayMenuDate\(text, parent\.language\)[\s\S]*return;[\s\S]*const action = resolveMenuAction\(text\)/s,
+    "Weekday text should be handled before broad menu matching so Monday is not treated as the week command."
+  );
+  assert.match(
+    serviceSource,
     /replyMarkup: buildWeekDaysReplyMarkup\(parent\.language, selectedWeekdayDate\)[\s\S]*emptyText: getText\(parent\.language, "noLessonsThisDay"\)[\s\S]*includeDateTime: false/s,
     "Selecting a weekday should keep the week keyboard open and omit repeated date/time in lesson rows."
+  );
+});
+
+test("planner date or time edits notify Telegram parents", async () => {
+  const scheduleRoutesSource = await readFile(
+    new URL("../src/modules/appointments/routes/schedules.routes.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    scheduleRoutesSource,
+    /function hasScheduleDateTimeChanges\([\s\S]*appointmentDate[\s\S]*startTime[\s\S]*endTime/s,
+    "Planner schedule routes should detect date/time-only changes."
+  );
+  assert.match(
+    scheduleRoutesSource,
+    /async function notifyScheduleDateTimeEdit\([\s\S]*buildScheduleNotification\("edit"[\s\S]*type: "schedule-updated"/s,
+    "Planner date/time edits should send schedule-updated notifications."
+  );
+  assert.match(
+    scheduleRoutesSource,
+    /schedulesReadCache\.clear\(\);\s*await notifyScheduleDateTimeEdit\(access, target\.items, items\);/s,
+    "Regular planner edits should notify after successful update."
   );
 });
 
