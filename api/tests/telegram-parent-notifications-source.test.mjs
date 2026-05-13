@@ -160,6 +160,19 @@ test("Telegram weekly menu opens day buttons before showing lessons", async () =
   );
 });
 
+test("Telegram main menu keeps children on first row and daily weekly on second row", async () => {
+  const serviceSource = await readFile(
+    new URL("../src/modules/telegram-bot/telegram-bot.service.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    serviceSource,
+    /function buildMainMenuReplyMarkup\([\s\S]*keyboard:\s*\[\s*\[\{ text: getText\(language, "menuChildren"\) \}\],\s*\[\{ text: getText\(language, "menuToday"\) \}, \{ text: getText\(language, "menuWeek"\) \}\]/s,
+    "Main menu should show children alone on row 1 and today/week together on row 2."
+  );
+});
+
 test("planner date or time edits notify Telegram parents", async () => {
   const scheduleRoutesSource = await readFile(
     new URL("../src/modules/appointments/routes/schedules.routes.js", import.meta.url),
@@ -180,6 +193,19 @@ test("planner date or time edits notify Telegram parents", async () => {
     scheduleRoutesSource,
     /schedulesReadCache\.clear\(\);\s*await notifyScheduleDateTimeEdit\(access, target\.items, items\);/s,
     "Regular planner edits should notify after successful update."
+  );
+});
+
+test("Telegram coming callback is acknowledged before parent lookup", async () => {
+  const serviceSource = await readFile(
+    new URL("../src/modules/telegram-bot/telegram-bot.service.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    serviceSource,
+    /const data = String\(callbackQuery\?\.data \|\| ""\)\.trim\(\);\s*if \(data\.startsWith\("resp:coming:"\)\) \{\s*await answerCallbackQuery\([\s\S]*const parent = await requireParentOrAskContact/s,
+    "The 'coming' button should clear Telegram loading before database parent lookup or response saving."
   );
 });
 

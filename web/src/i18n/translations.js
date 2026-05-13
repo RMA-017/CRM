@@ -359,7 +359,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Client weekly schedule table", uz: "Bolaning haftalik jadvali", ru: "Недельное расписание ребенка" },
 
   { en: "Pending", uz: "Kutilmoqda", ru: "Ожидает" },
-  { en: "Confirmed", uz: "Tasdiqlangan", ru: "Подтверждено" },
+  { en: "Confirmed", uz: "Tasdiqlangan", ru: "Принято" },
   { en: "Cancelled", uz: "Bekor qilingan", ru: "Отменено" },
   { en: "No-show", uz: "Kelmagan", ru: "Не явился" },
 

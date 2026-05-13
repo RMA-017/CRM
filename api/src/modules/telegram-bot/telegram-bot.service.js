@@ -315,8 +315,8 @@ function formatDateDmy(value) {
 function buildMainMenuReplyMarkup(language) {
   return {
     keyboard: [
-      [{ text: getText(language, "menuChildren") }, { text: getText(language, "menuToday") }],
-      [{ text: getText(language, "menuWeek") }],
+      [{ text: getText(language, "menuChildren") }],
+      [{ text: getText(language, "menuToday") }, { text: getText(language, "menuWeek") }],
       [{ text: getText(language, "menuSettings") }]
     ],
     resize_keyboard: true
@@ -1550,6 +1550,9 @@ async function handleCallbackQuery({ settings, callbackQuery }) {
   const message = callbackQuery?.message || {};
   const chat = message?.chat || {};
   const data = String(callbackQuery?.data || "").trim();
+  if (data.startsWith("resp:coming:")) {
+    await answerCallbackQuery({ token: settings.botToken, callbackQueryId: callbackQuery.id });
+  }
   const parent = await requireParentOrAskContact({ settings, from, chat });
   if (!parent) {
     return;
