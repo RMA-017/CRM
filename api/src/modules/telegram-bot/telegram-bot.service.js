@@ -46,6 +46,7 @@ const TEXT = Object.freeze({
     noChildren: "Bu telefon raqamga ulangan farzand topilmadi.",
     childrenTitle: "Mening farzandim:",
     noLessons: "Bu davr uchun dars topilmadi.",
+    noLessonsThisDay: "Bu kunda darslar yo'q.",
     todaySchedule: "Bugungi dars jadvali",
     weekSchedule: "Bir haftalik jadval",
     weekDaysPrompt: "Hafta kunini tanlang:",
@@ -80,6 +81,7 @@ const TEXT = Object.freeze({
     noChildren: "К этому номеру не привязан ребенок.",
     childrenTitle: "Мой ребенок:",
     noLessons: "На этот период уроки не найдены.",
+    noLessonsThisDay: "В этот день занятий нет.",
     todaySchedule: "Расписание на сегодня",
     weekSchedule: "Расписание на неделю",
     weekDaysPrompt: "Выберите день недели:",
@@ -347,7 +349,7 @@ function buildAppointmentButtons(language, appointmentId) {
 }
 
 function buildWeekDaysReplyMarkup(language, startDate = toDateYmdInTashkent()) {
-  const keyboard = [];
+  const buttons = [];
   const weekStartDate = getWeekStartDateYmd(startDate);
   for (const offset of WORK_WEEK_OFFSETS) {
     const dateYmd = shiftDateYmd(weekStartDate, offset);
@@ -355,9 +357,13 @@ function buildWeekDaysReplyMarkup(language, startDate = toDateYmdInTashkent()) {
       continue;
     }
     const label = getWeekdayLabel(language, dateYmd);
-    keyboard.push([{
+    buttons.push({
       text: label
-    }]);
+    });
+  }
+  const keyboard = [];
+  for (let index = 0; index < buttons.length; index += 2) {
+    keyboard.push(buttons.slice(index, index + 2));
   }
   keyboard.push([{ text: getText(language, "backToMainMenu") }]);
   return {
@@ -1122,12 +1128,13 @@ async function deletePendingCancelAction({ parent, appointmentId = null }) {
   );
 }
 
-function formatAppointmentMessage(language, appointment) {
+function formatAppointmentMessage(language, appointment, options = {}) {
   const statusText = appointment.parentResponseStatus === "coming"
     ? " ✅"
     : (appointment.status === "cancelled" ? " ❌" : "");
+  const includeDateTime = options.includeDateTime !== false;
   return [
-    `${appointment.appointmentDate} ${appointment.startTime}${statusText}`,
+    includeDateTime ? `${appointment.appointmentDate} ${appointment.startTime}${statusText}` : statusText.trim(),
     `${getClientName(appointment)} - ${appointment.serviceName}`,
     getSpecialistName(appointment)
   ].filter(Boolean).join("\n");
@@ -1156,14 +1163,24 @@ async function sendChildrenList({ settings, parent }) {
   });
 }
 
-async function sendScheduleList({ settings, parent, dateFrom, dateTo, title }) {
+async function sendScheduleList({
+  settings,
+  parent,
+  dateFrom,
+  dateTo,
+  title,
+  replyMarkup,
+  emptyText,
+  includeDateTime = true
+}) {
   const items = await listParentAppointments({ parent, dateFrom, dateTo });
+  const nextReplyMarkup = replyMarkup || buildMainMenuReplyMarkup(parent.language);
   if (items.length === 0) {
     await sendTelegramMessage({
       token: settings.botToken,
       chatId: parent.chatId,
-      text: `${title}\n${getText(parent.language, "noLessons")}`,
-      replyMarkup: buildMainMenuReplyMarkup(parent.language)
+      text: `${title}\n${emptyText || getText(parent.language, "noLessons")}`,
+      replyMarkup: nextReplyMarkup
     });
     return;
   }
@@ -1172,7 +1189,7 @@ async function sendScheduleList({ settings, parent, dateFrom, dateTo, title }) {
     token: settings.botToken,
     chatId: parent.chatId,
     text: title,
-    replyMarkup: buildMainMenuReplyMarkup(parent.language)
+    replyMarkup: nextReplyMarkup
   });
 
   for (const item of items) {
@@ -1182,7 +1199,7 @@ async function sendScheduleList({ settings, parent, dateFrom, dateTo, title }) {
     await sendTelegramMessage({
       token: settings.botToken,
       chatId: parent.chatId,
-      text: formatAppointmentMessage(parent.language, item),
+      text: formatAppointmentMessage(parent.language, item, { includeDateTime }),
       replyMarkup
     });
   }
@@ -1482,7 +1499,10 @@ async function handleTextMessage({ settings, message }) {
       dateTo: selectedWeekdayDate,
       title: renderTemplate(getText(parent.language, "weekDaySchedule"), {
         date: `${getWeekdayLabel(parent.language, selectedWeekdayDate)} ${formatDateDmy(selectedWeekdayDate)}`.trim()
-      })
+      }),
+      replyMarkup: buildWeekDaysReplyMarkup(parent.language, selectedWeekdayDate),
+      emptyText: getText(parent.language, "noLessonsThisDay"),
+      includeDateTime: false
     });
     return;
   }
@@ -1584,7 +1604,10 @@ async function handleCallbackQuery({ settings, callbackQuery }) {
       dateTo: selectedDate,
       title: renderTemplate(getText(parent.language, "weekDaySchedule"), {
         date: `${getWeekdayLabel(parent.language, selectedDate)} ${formatDateDmy(selectedDate)}`.trim()
-      })
+      }),
+      replyMarkup: buildWeekDaysReplyMarkup(parent.language, selectedDate),
+      emptyText: getText(parent.language, "noLessonsThisDay"),
+      includeDateTime: false
     });
     return;
   }

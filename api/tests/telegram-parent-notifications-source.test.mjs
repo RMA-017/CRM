@@ -125,7 +125,7 @@ test("Telegram weekly menu opens day buttons before showing lessons", async () =
 
   assert.match(
     serviceSource,
-    /function buildWeekDaysReplyMarkup\([\s\S]*text: label[\s\S]*text: getText\(language, "backToMainMenu"\)[\s\S]*resize_keyboard: true/s,
+    /function buildWeekDaysReplyMarkup\([\s\S]*buttons\.push\(\{[\s\S]*text: label[\s\S]*for \(let index = 0; index < buttons\.length; index \+= 2\)[\s\S]*keyboard\.push\(buttons\.slice\(index, index \+ 2\)\)[\s\S]*text: getText\(language, "backToMainMenu"\)[\s\S]*resize_keyboard: true/s,
     "Weekly menu should render weekday buttons as the main keyboard with a back button."
   );
   assert.match(
@@ -147,6 +147,11 @@ test("Telegram weekly menu opens day buttons before showing lessons", async () =
     serviceSource,
     /const selectedWeekdayDate = resolveWeekdayMenuDate\(text, parent\.language\)[\s\S]*dateFrom: selectedWeekdayDate,[\s\S]*dateTo: selectedWeekdayDate/s,
     "Selecting a weekday keyboard button should load lessons only for that date."
+  );
+  assert.match(
+    serviceSource,
+    /replyMarkup: buildWeekDaysReplyMarkup\(parent\.language, selectedWeekdayDate\)[\s\S]*emptyText: getText\(parent\.language, "noLessonsThisDay"\)[\s\S]*includeDateTime: false/s,
+    "Selecting a weekday should keep the week keyboard open and omit repeated date/time in lesson rows."
   );
 });
 

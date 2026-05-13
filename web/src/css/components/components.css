@@ -2996,7 +2996,7 @@ label.field > span:first-child,
 }
 
 .appointment-grid tbody tr:nth-child(even) td:not(.appointment-off-slot-td):not(.appointment-break-type-lunch-td):not(.appointment-break-type-meeting-td):not(.appointment-break-type-training-td):not(.appointment-break-type-other-td):not(.appointment-work-schedule-blocked-td) {
-  background: #f2f7fd;
+  background: #ffffff;
 }
 
 .appointment-grid tbody td.appointment-day-col-gap.appointment-create-slot-td,
@@ -4236,7 +4236,7 @@ label.field > span:first-child,
 }
 
 .appointment-create-modal {
-  width: min(660px, calc(100vw - 24px));
+  width: min(720px, calc(100vw - 24px));
   min-height: 0;
   height: auto;
   max-height: none;
@@ -4296,20 +4296,26 @@ label.field > span:first-child,
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
   min-width: 0;
-  width: auto;
+  width: min(426px, 100%);
   max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.appointment-planner-modal-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .appointment-planner-modal-tab {
-  flex: 1 1 96px;
-  height: auto;
-  min-height: 28px;
-  width: auto;
-  min-width: min(96px, 100%);
-  max-width: 150px;
+  flex: 0 0 138px;
+  height: 32px;
+  min-height: 32px;
+  width: 138px;
+  min-width: 138px;
+  max-width: 138px;
   padding: 4px 8px;
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -4317,9 +4323,10 @@ label.field > span:first-child,
   color: var(--text-main);
   font-size: 12px;
   font-weight: 600;
-  line-height: 1.15;
-  white-space: normal;
-  overflow-wrap: anywhere;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   display: inline-flex;
   align-items: center;
   justify-content: center;
