@@ -48,6 +48,8 @@ const TEXT = Object.freeze({
     noLessons: "Bu davr uchun dars topilmadi.",
     todaySchedule: "Bugungi dars jadvali",
     weekSchedule: "Bir haftalik jadval",
+    weekDaysPrompt: "Hafta kunini tanlang:",
+    weekDaySchedule: "{date} uchun dars jadvali",
     settingsTitle: "Sozlamalar",
     settingsPrompt: "Tilni tanlang yoki kontaktni o'zgartiring.",
     languageSaved: "Til sozlamasi saqlandi.",
@@ -80,6 +82,8 @@ const TEXT = Object.freeze({
     noLessons: "На этот период уроки не найдены.",
     todaySchedule: "Расписание на сегодня",
     weekSchedule: "Расписание на неделю",
+    weekDaysPrompt: "Выберите день недели:",
+    weekDaySchedule: "Расписание на {date}",
     settingsTitle: "Настройки",
     settingsPrompt: "Выберите язык или измените контакт.",
     languageSaved: "Язык сохранен.",
@@ -102,6 +106,12 @@ const TEXT = Object.freeze({
     botDisabled: "Бот пока не активен."
   })
 });
+
+const WEEKDAY_LABELS = Object.freeze({
+  uz: Object.freeze(["Yakshanba", "Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba"]),
+  ru: Object.freeze(["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"])
+});
+const WORK_WEEK_OFFSETS = Object.freeze([0, 1, 2, 3, 4, 5]);
 
 const DEFAULT_TEMPLATES = Object.freeze({
   uz: Object.freeze({
@@ -209,6 +219,17 @@ function getText(language, key) {
   return TEXT[lang]?.[key] || TEXT[DEFAULT_LANGUAGE][key] || key;
 }
 
+function getWeekdayLabel(language, dateYmd) {
+  const [year, month, day] = String(dateYmd || "").split("-").map((part) => Number.parseInt(part, 10));
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return "";
+  }
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const dayIndex = date.getUTCDay();
+  const lang = normalizeLanguage(language);
+  return WEEKDAY_LABELS[lang]?.[dayIndex] || WEEKDAY_LABELS[DEFAULT_LANGUAGE][dayIndex] || "";
+}
+
 function toDateYmdInTashkent(value = new Date()) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Tashkent",
@@ -229,6 +250,18 @@ function shiftDateYmd(value, days) {
   }
   const date = new Date(Date.UTC(year, month - 1, day));
   date.setUTCDate(date.getUTCDate() + days);
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+}
+
+function getWeekStartDateYmd(value = toDateYmdInTashkent()) {
+  const [year, month, day] = String(value || "").split("-").map((part) => Number.parseInt(part, 10));
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return "";
+  }
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const dayIndex = date.getUTCDay();
+  const offsetToMonday = dayIndex === 0 ? -6 : 1 - dayIndex;
+  date.setUTCDate(date.getUTCDate() + offsetToMonday);
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
 }
 
@@ -311,6 +344,24 @@ function buildAppointmentButtons(language, appointmentId) {
       ]
     ]
   };
+}
+
+function buildWeekDaysReplyMarkup(language, startDate = toDateYmdInTashkent()) {
+  const keyboard = [];
+  const weekStartDate = getWeekStartDateYmd(startDate);
+  for (const offset of WORK_WEEK_OFFSETS) {
+    const dateYmd = shiftDateYmd(weekStartDate, offset);
+    if (!dateYmd) {
+      continue;
+    }
+    const label = getWeekdayLabel(language, dateYmd);
+    keyboard.push([{
+      text: label,
+      callback_data: `week_day:${dateYmd}`
+    }]);
+  }
+  keyboard.push([{ text: getText(language, "backToMainMenu"), callback_data: "week_back" }]);
+  return { inline_keyboard: keyboard };
 }
 
 function buildCancelReasonButtons(language, appointmentId) {
@@ -1039,6 +1090,15 @@ async function sendScheduleList({ settings, parent, dateFrom, dateTo, title }) {
   }
 }
 
+async function sendWeekDaysMenu({ settings, parent, startDate = toDateYmdInTashkent() }) {
+  await sendTelegramMessage({
+    token: settings.botToken,
+    chatId: parent.chatId,
+    text: `${getText(parent.language, "weekSchedule")}\n${getText(parent.language, "weekDaysPrompt")}`,
+    replyMarkup: buildWeekDaysReplyMarkup(parent.language, startDate)
+  });
+}
+
 async function sendSettingsMenu({ settings, parent, messagePrefix = "" }) {
   const lines = [
     String(messagePrefix || "").trim(),
@@ -1308,12 +1368,10 @@ async function handleTextMessage({ settings, message }) {
   }
   if (action === "week") {
     const today = toDateYmdInTashkent();
-    await sendScheduleList({
+    await sendWeekDaysMenu({
       settings,
       parent,
-      dateFrom: today,
-      dateTo: shiftDateYmd(today, 6),
-      title: getText(parent.language, "weekSchedule")
+      startDate: today
     });
     return;
   }
@@ -1386,6 +1444,36 @@ async function handleCallbackQuery({ settings, callbackQuery }) {
       chatId: parent.chatId,
       text: getText(parent.language, "mainMenuTitle"),
       replyMarkup: buildMainMenuReplyMarkup(parent.language)
+    });
+    return;
+  }
+
+  if (data === "week_back") {
+    await answerCallbackQuery({ token: settings.botToken, callbackQueryId: callbackQuery.id });
+    await sendTelegramMessage({
+      token: settings.botToken,
+      chatId: parent.chatId,
+      text: getText(parent.language, "mainMenuTitle"),
+      replyMarkup: buildMainMenuReplyMarkup(parent.language)
+    });
+    return;
+  }
+
+  if (data.startsWith("week_day:")) {
+    const selectedDate = String(data.slice("week_day:".length) || "").trim();
+    await answerCallbackQuery({ token: settings.botToken, callbackQueryId: callbackQuery.id });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
+      await sendWeekDaysMenu({ settings, parent });
+      return;
+    }
+    await sendScheduleList({
+      settings,
+      parent,
+      dateFrom: selectedDate,
+      dateTo: selectedDate,
+      title: renderTemplate(getText(parent.language, "weekDaySchedule"), {
+        date: `${getWeekdayLabel(parent.language, selectedDate)} ${formatDateDmy(selectedDate)}`.trim()
+      })
     });
     return;
   }

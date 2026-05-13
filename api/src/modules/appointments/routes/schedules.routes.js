@@ -2040,14 +2040,6 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           const message = skippedDates.length > 0
             ? `${affectedCount} appointments updated. ${skippedDates.length} conflicts skipped.`
             : `${affectedCount} appointments updated.`;
-          const scheduleNotification = buildScheduleNotification("edit", items, access?.requester);
-
-          await broadcastAppointmentChange(access, {
-            type: "schedule-updated",
-            message: scheduleNotification.message,
-            specialistIds: [specialistId],
-            data: scheduleNotification.data
-          });
           schedulesReadCache.clear();
 
           return reply.send({
@@ -2144,14 +2136,6 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           });
 
           const updatedAnchorItem = items[0] || anchorItem;
-          const scheduleNotification = buildScheduleNotification("edit", items, access?.requester);
-
-          await broadcastAppointmentChange(access, {
-            type: "schedule-updated",
-            message: scheduleNotification.message,
-            specialistIds: [specialistId],
-            data: scheduleNotification.data
-          });
           schedulesReadCache.clear();
 
           return reply.send({
@@ -2463,22 +2447,6 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                 (item) => String(item?.appointmentDate || "").trim() === String(target.anchorAppointmentDate || "").trim()
               ) || items[0];
               const affectedCount = items.length;
-              const scheduleNotification = buildScheduleNotification("edit", items, access?.requester);
-              const specialistIds = Array.from(
-                new Set(
-                  [
-                    specialistId,
-                    ...seriesItems.map((item) => Number.parseInt(String(item?.specialistId || ""), 10))
-                  ].filter((value) => Number.isInteger(value) && value > 0)
-                )
-              );
-
-              await broadcastAppointmentChange(access, {
-                type: "schedule-updated",
-                message: scheduleNotification.message,
-                specialistIds,
-                data: scheduleNotification.data
-              });
               schedulesReadCache.clear();
 
               return reply.send({
@@ -2625,22 +2593,6 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             (item) => String(item?.appointmentDate || "").trim() === String(target.anchorAppointmentDate || "").trim()
           ) || items[0];
           const affectedCount = items.length;
-          const scheduleNotification = buildScheduleNotification("edit", items, access?.requester);
-          const specialistIds = Array.from(
-            new Set(
-              [
-                specialistId,
-                ...seriesItems.map((item) => Number.parseInt(String(item?.specialistId || ""), 10))
-              ].filter((value) => Number.isInteger(value) && value > 0)
-            )
-          );
-
-          await broadcastAppointmentChange(access, {
-            type: "schedule-updated",
-            message: scheduleNotification.message,
-            specialistIds,
-            data: scheduleNotification.data
-          });
           schedulesReadCache.clear();
 
           return reply.send({
@@ -2889,14 +2841,6 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const message = target.scope === "single"
           ? "Appointment updated."
           : `${affectedCount} appointments updated.`;
-        const scheduleNotification = buildScheduleNotification("edit", items, access?.requester);
-
-        await broadcastAppointmentChange(access, {
-          type: "schedule-updated",
-          message: scheduleNotification.message,
-          specialistIds: [specialistId],
-          data: scheduleNotification.data
-        });
         schedulesReadCache.clear();
 
         return reply.send({

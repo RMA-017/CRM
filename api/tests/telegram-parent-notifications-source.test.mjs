@@ -116,3 +116,36 @@ test("specialist removal planner cleanup notifies Telegram parents after commit"
     "User-delete cleanup should notify parents after the database transaction has completed."
   );
 });
+
+test("Telegram weekly menu opens day buttons before showing lessons", async () => {
+  const serviceSource = await readFile(
+    new URL("../src/modules/telegram-bot/telegram-bot.service.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    serviceSource,
+    /function buildWeekDaysReplyMarkup\([\s\S]*callback_data: `week_day:\$\{dateYmd\}`[\s\S]*callback_data: "week_back"/,
+    "Weekly menu should render weekday buttons and a back button."
+  );
+  assert.match(
+    serviceSource,
+    /const WORK_WEEK_OFFSETS = Object\.freeze\(\[0, 1, 2, 3, 4, 5\]\)/,
+    "Weekly menu should only show Monday through Saturday."
+  );
+  assert.match(
+    serviceSource,
+    /text: label,[\s\S]*callback_data: `week_day:\$\{dateYmd\}`/,
+    "Weekly menu buttons should show only the day name while keeping the date in callback data."
+  );
+  assert.match(
+    serviceSource,
+    /if \(action === "week"\)[\s\S]*await sendWeekDaysMenu\(/,
+    "Weekly text action should open the weekday menu first."
+  );
+  assert.match(
+    serviceSource,
+    /if \(data\.startsWith\("week_day:"\)\)[\s\S]*dateFrom: selectedDate,[\s\S]*dateTo: selectedDate/s,
+    "Selecting a weekday should load lessons only for that date."
+  );
+});

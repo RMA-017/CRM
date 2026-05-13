@@ -120,6 +120,8 @@
   display: inline-flex;
   align-items: center;
   height: 100%;
+  flex: 0 0 auto;
+  z-index: var(--z-popover);
 }
 
 .header-notification-btn {
@@ -179,16 +181,17 @@
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  z-index: var(--z-dropdown);
-  width: min(360px, calc(100vw - 24px));
+  z-index: var(--z-popover);
+  width: min(380px, calc(100vw - 24px));
   max-height: min(430px, calc(100vh - 110px));
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: #fff;
   box-shadow: var(--shadow-lg);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+  isolation: isolate;
 }
 
 .header-notification-panel-head {
@@ -231,43 +234,54 @@
 .header-notification-list {
   min-height: 0;
   overflow-y: auto;
-  display: grid;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
 }
 
 .header-notification-item {
   width: 100%;
   border: 0;
   border-bottom: 1px solid var(--line);
-  background: transparent;
+  background: #fff;
   color: var(--text-main);
   text-align: left;
-  padding: 10px 12px;
+  padding: 11px 12px;
   cursor: pointer;
   display: grid;
-  gap: 5px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  white-space: normal;
+  min-width: 0;
+  min-height: 0;
+  appearance: none;
 }
 
 .header-notification-item:hover {
-  background: var(--surface-soft);
+  background: #F8FAFF;
+  color: var(--text-main);
 }
 
 .header-notification-item.unread {
-  background: var(--brand-light);
+  background: #EEF3FF;
 }
 
 .header-notification-item.unread:hover {
-  background: #E4EAFF;
+  background: #E5ECFF;
+  color: var(--text-main);
 }
 
 .header-notification-item-top {
   min-width: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
   color: var(--text-muted);
   font-size: 11px;
   text-transform: capitalize;
+  line-height: 1.25;
 }
 
 .header-notification-item-top span,
@@ -279,10 +293,20 @@
 }
 
 .header-notification-item-message {
+  display: block;
+  min-width: 0;
   color: var(--text-main);
   font-size: var(--fs-small);
   line-height: 1.45;
   overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.header-notification-item:hover .header-notification-item-top,
+.header-notification-item:hover .header-notification-item-message,
+.header-notification-item.unread:hover .header-notification-item-top,
+.header-notification-item.unread:hover .header-notification-item-message {
+  color: var(--text-main);
 }
 
 .header-org-switch {
