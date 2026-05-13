@@ -736,28 +736,9 @@ function HomePage() {
     navigate(path);
   }, [closeMenu, navigate]);
 
-  const openSideMenu = useCallback(() => {
-    if (!isAuthenticated) {
-      return;
-    }
-
-    setIsSideMenuOpen(true);
-    sideMenuRef.current?.open();
-  }, [isAuthenticated]);
-
   const openHeaderMenu = useCallback(() => {
-    if (!isAuthenticated) {
-      setIsPublicNavOpen((current) => !current);
-      return;
-    }
-
-    if (isSideMenuOpen) {
-      closeMenu();
-      return;
-    }
-
-    openSideMenu();
-  }, [closeMenu, isAuthenticated, isSideMenuOpen, openSideMenu]);
+    setIsPublicNavOpen((current) => !current);
+  }, []);
 
   const handlePageAnchorClick = useCallback((event) => {
     const href = event.currentTarget.getAttribute("href");
@@ -882,9 +863,9 @@ function HomePage() {
               <button
                 type="button"
                 className="menu-toggle"
-                aria-label={isAuthenticated ? "Open workspace" : "Open menu"}
-                aria-controls={isAuthenticated ? "mainMenu" : "homeMobileNav"}
-                aria-expanded={(isAuthenticated ? isSideMenuOpen : isPublicNavOpen) ? "true" : "false"}
+                aria-label="Open menu"
+                aria-controls="homeMobileNav"
+                aria-expanded={isPublicNavOpen ? "true" : "false"}
                 onMouseEnter={isAuthenticated ? preloadSideMenu : prefetchProfilePage}
                 onFocus={isAuthenticated ? preloadSideMenu : prefetchProfilePage}
                 onClick={openHeaderMenu}
@@ -906,6 +887,17 @@ function HomePage() {
               {homeText.navLinks.map((item) => (
                 <a key={item.href} href={item.href} onClick={handlePageAnchorClick}>{item.label}</a>
               ))}
+              <button
+                type="button"
+                className="home-mobile-nav-language"
+                aria-label={t("language.switch")}
+                onClick={() => {
+                  toggleLanguage();
+                  closePublicNav();
+                }}
+              >
+                {homeText.actions.nextLanguage}
+              </button>
             </nav>
 
             <nav
@@ -1423,7 +1415,7 @@ function HomePage() {
         />
       ) : null}
 
-      {!isAuthenticated && isPublicNavOpen ? (
+      {isPublicNavOpen ? (
         <button
           type="button"
           className="home-mobile-nav-overlay"

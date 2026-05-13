@@ -259,7 +259,8 @@
     grid-template-columns: 1fr;
   }
 
-  .home-mobile-nav a {
+  .home-mobile-nav a,
+  .home-mobile-nav-language {
     min-height: 38px;
     justify-content: flex-start;
     padding: 8px 12px;
