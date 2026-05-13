@@ -149,3 +149,35 @@ test("Telegram weekly menu opens day buttons before showing lessons", async () =
     "Selecting a weekday should load lessons only for that date."
   );
 });
+
+test("manual SMS notification broadcast uses role permission and Telegram parents", async () => {
+  const routesSource = await readFile(
+    new URL("../src/modules/telegram-bot/telegram-bot.routes.js", import.meta.url),
+    "utf8"
+  );
+  const serviceSource = await readFile(
+    new URL("../src/modules/telegram-bot/telegram-bot.service.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    routesSource,
+    /SMS_NOTIFICATIONS_SEND/,
+    "SMS notification sending should be guarded by the role permission."
+  );
+  assert.match(
+    routesSource,
+    /"\/sms-notifications\/send"[\s\S]*sendTelegramBroadcastToParents/s,
+    "Settings routes should expose the manual SMS notification send endpoint."
+  );
+  assert.match(
+    serviceSource,
+    /export async function sendTelegramBroadcastToParents\([\s\S]*FROM telegram_parent_accounts[\s\S]*sendTelegramMessage\(/s,
+    "Manual broadcasts should send Telegram messages to linked parent accounts."
+  );
+  assert.match(
+    serviceSource,
+    /eventType:\s*"manual-broadcast"/,
+    "Manual broadcasts should be logged with their own event type."
+  );
+});

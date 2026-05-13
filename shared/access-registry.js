@@ -359,6 +359,30 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
     ]
   }),
   defineMenu({
+    key: "sms_notifications",
+    label: "SMS xabarnoma",
+    sortOrder: 78,
+    rootPermissionsLabel: "SMS xabarnoma",
+    rootPermissions: [
+      definePermission({
+        constantKey: "SMS_NOTIFICATIONS_READ",
+        code: "sms-notifications.read",
+        label: "Open SMS Notifications",
+        uiLabel: "Open",
+        sortOrder: 71,
+        actionKey: "read"
+      }),
+      definePermission({
+        constantKey: "SMS_NOTIFICATIONS_SEND",
+        code: "sms-notifications.send",
+        label: "Send SMS Notifications",
+        uiLabel: "Send",
+        sortOrder: 72,
+        actionKey: "send"
+      })
+    ]
+  }),
+  defineMenu({
     key: "settings",
     label: "Settings",
     sortOrder: 80,

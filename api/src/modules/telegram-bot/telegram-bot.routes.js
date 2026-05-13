@@ -8,6 +8,7 @@ import {
   getTelegramBotSettingsByOrganization,
   handleTelegramUpdate,
   saveTelegramBotSettings,
+  sendTelegramBroadcastToParents,
   setTelegramWebhookForOrganization,
   testTelegramBotToken
 } from "./telegram-bot.service.js";
@@ -15,6 +16,11 @@ import {
 const TELEGRAM_SETTINGS_PERMISSIONS = Object.freeze({
   read: PERMISSIONS.SETTINGS_TELEGRAM_BOT_READ,
   update: PERMISSIONS.SETTINGS_TELEGRAM_BOT_UPDATE
+});
+
+const SMS_NOTIFICATION_PERMISSIONS = Object.freeze({
+  read: PERMISSIONS.SMS_NOTIFICATIONS_READ,
+  send: PERMISSIONS.SMS_NOTIFICATIONS_SEND
 });
 
 function getRequestBaseUrl(request) {
@@ -72,6 +78,24 @@ async function requireTelegramSettingsAccess(request, reply, action = "read") {
   };
 }
 
+async function requireSmsNotificationAccess(request, reply, action = "read") {
+  const authContext = request.authContext;
+  const requester = await findSettingsRequester(authContext);
+  if (!requester) {
+    reply.status(401).send({ message: "Unauthorized." });
+    return null;
+  }
+  const permissionCode = action === "send"
+    ? SMS_NOTIFICATION_PERMISSIONS.send
+    : SMS_NOTIFICATION_PERMISSIONS.read;
+  const canUse = Boolean(requester.is_platform_admin) || await hasPermission(requester.role_id, permissionCode);
+  if (!canUse) {
+    reply.status(403).send({ message: "Forbidden." });
+    return null;
+  }
+  return { authContext, requester };
+}
+
 function parseTemplatePayload(value) {
   if (value === undefined) {
     return { value: undefined };
@@ -96,6 +120,40 @@ function parseOptionalInteger(value, fallback = undefined) {
 }
 
 export async function telegramSettingsRoutes(fastify) {
+  fastify.post(
+    "/sms-notifications/send",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      try {
+        const access = await requireSmsNotificationAccess(request, reply, "send");
+        if (!access) {
+          return;
+        }
+        const message = String(request.body?.message || "").trim();
+        if (!message) {
+          return reply.status(400).send({ field: "message", message: "Message is required." });
+        }
+        if (message.length > 4000) {
+          return reply.status(400).send({ field: "message", message: "Message is too long." });
+        }
+        const result = await sendTelegramBroadcastToParents({
+          organizationId: access.authContext.organizationId,
+          actorUserId: access.authContext.userId,
+          message
+        });
+        return reply.send({ message: "Broadcast sent.", item: result });
+      } catch (error) {
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        if (statusCode >= 500) {
+          request.log.error({ err: error }, "Error sending SMS notification broadcast");
+        }
+        return reply.status(statusCode).send({ message: error?.message || "Internal server error." });
+      }
+    }
+  );
+
   fastify.get(
     "/telegram-bot",
     {

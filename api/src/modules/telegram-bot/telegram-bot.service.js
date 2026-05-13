@@ -458,6 +458,19 @@ function mapAppointmentRow(row) {
   };
 }
 
+function mapParentAccount(row) {
+  return row ? {
+    id: normalizePositiveInteger(row.id),
+    organizationId: normalizePositiveInteger(row.organization_id),
+    telegramUserId: String(row.telegram_user_id || "").trim(),
+    chatId: String(row.chat_id || "").trim(),
+    phoneNumber: String(row.phone_number || "").trim(),
+    phoneDigits: String(row.phone_digits || "").trim(),
+    language: normalizeLanguage(row.language),
+    isActive: Boolean(row.is_active)
+  } : null;
+}
+
 async function callTelegramApi(token, method, payload = {}) {
   const normalizedToken = String(token || "").trim();
   if (!normalizedToken) {
@@ -763,6 +776,73 @@ export async function testTelegramBotToken(organizationId) {
   return callTelegramApi(settings.botToken, "getMe", {});
 }
 
+export async function sendTelegramBroadcastToParents({
+  organizationId,
+  actorUserId = null,
+  message
+}) {
+  const normalizedOrganizationId = normalizePositiveInteger(organizationId);
+  const normalizedMessage = normalizeMessageText(message).slice(0, 4000);
+  if (!normalizedOrganizationId) {
+    const error = new Error("Organization is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!normalizedMessage) {
+    const error = new Error("Message is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const settings = await getTelegramBotSettingsByOrganization(normalizedOrganizationId, { includeToken: true });
+  if (!settings?.isActive || !settings.botToken) {
+    const error = new Error("Telegram bot is not active.");
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const { rows } = await pool.query(
+    `SELECT *
+       FROM telegram_parent_accounts
+      WHERE organization_id = $1
+        AND is_active = TRUE
+        AND chat_id IS NOT NULL
+      ORDER BY id ASC`,
+    [normalizedOrganizationId]
+  );
+  const parents = (rows || []).map(mapParentAccount).filter((parent) => parent.chatId);
+  let sentCount = 0;
+  let failedCount = 0;
+
+  for (const parent of parents) {
+    try {
+      await sendTelegramMessage({
+        token: settings.botToken,
+        chatId: parent.chatId,
+        text: normalizedMessage
+      });
+      await logParentMessage({
+        organizationId: parent.organizationId,
+        parentAccountId: parent.id,
+        appointmentScheduleId: null,
+        eventType: "manual-broadcast",
+        message: normalizedMessage
+      }).catch(() => {});
+      sentCount += 1;
+    } catch {
+      failedCount += 1;
+    }
+  }
+
+  return {
+    message: "Broadcast sent.",
+    recipientCount: parents.length,
+    sentCount,
+    failedCount,
+    actorUserId: normalizePositiveInteger(actorUserId) || null
+  };
+}
+
 async function findParentAccount({ organizationId, telegramUserId, chatId, db = pool }) {
   const { rows } = await db.query(
     `SELECT *
@@ -776,17 +856,7 @@ async function findParentAccount({ organizationId, telegramUserId, chatId, db = 
       LIMIT 1`,
     [organizationId, telegramUserId || null, chatId || null]
   );
-  const row = rows[0] || null;
-  return row ? {
-    id: normalizePositiveInteger(row.id),
-    organizationId: normalizePositiveInteger(row.organization_id),
-    telegramUserId: String(row.telegram_user_id || "").trim(),
-    chatId: String(row.chat_id || "").trim(),
-    phoneNumber: String(row.phone_number || "").trim(),
-    phoneDigits: String(row.phone_digits || "").trim(),
-    language: normalizeLanguage(row.language),
-    isActive: Boolean(row.is_active)
-  } : null;
+  return mapParentAccount(rows[0] || null);
 }
 
 async function upsertParentAccount({

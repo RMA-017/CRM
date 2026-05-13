@@ -89,6 +89,8 @@ function ProfilePage({ forcedView = "none" }) {
     canUpdateSettingsAppointments,
     canOpenTelegramBotSettings,
     canUpdateSettingsTelegramBot,
+    canOpenSmsNotifications,
+    canSendSmsNotifications,
     canOpenSettingsOrganizations,
     canCreateSettingsOrganizations,
     canUpdateSettingsOrganizations,
@@ -645,6 +647,8 @@ function ProfilePage({ forcedView = "none" }) {
     closeAppointmentSettingsPanel,
     openTelegramBotSettingsPanel,
     closeTelegramBotSettingsPanel,
+    openSmsNotificationsPanel,
+    closeSmsNotificationsPanel,
     openStatisticsPlannerReportPanel,
     closeStatisticsPanel,
     openOrganizationsPanel,
@@ -670,6 +674,7 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenAppointmentStatistics,
     canOpenAppointmentSettings,
     canOpenTelegramBotSettings,
+    canOpenSmsNotifications,
     canOpenSettingsOrganizations,
     canOpenSettingsRoles,
     canOpenSettingsPositions,
@@ -1168,12 +1173,14 @@ function ProfilePage({ forcedView = "none" }) {
             canUpdateAppointmentBreaks={canUpdateAppointmentBreaks}
             canUpdateSettingsAppointments={canUpdateSettingsAppointments}
             canUpdateSettingsTelegramBot={canUpdateSettingsTelegramBot}
+            canSendSmsNotifications={canSendSmsNotifications}
             canCreateAppointmentWorkSchedule={canCreateAppointmentWorkSchedule}
             canUpdateAppointmentWorkSchedule={canUpdateAppointmentWorkSchedule}
             canDeleteAppointmentWorkSchedule={canDeleteAppointmentWorkSchedule}
             closeAppointmentPanel={closeAppointmentPanel}
             closeAppointmentSettingsPanel={closeAppointmentSettingsPanel}
             closeTelegramBotSettingsPanel={closeTelegramBotSettingsPanel}
+            closeSmsNotificationsPanel={closeSmsNotificationsPanel}
             closeOrganizationsPanel={closeOrganizationsPanel}
             closeRolesPanel={closeRolesPanel}
             closePositionsPanel={closePositionsPanel}
@@ -1345,9 +1352,11 @@ function ProfilePage({ forcedView = "none" }) {
         canOpenAppointmentSchedule={canOpenAppointmentSchedule}
         canOpenAppointmentSettings={canOpenAppointmentSettings}
         canOpenTelegramBotSettings={canOpenTelegramBotSettings}
+        canOpenSmsNotifications={canOpenSmsNotifications}
         openAppointmentPanel={openAppointmentPanel}
         openAppointmentSettingsPanel={openAppointmentSettingsPanel}
         openTelegramBotSettingsPanel={openTelegramBotSettingsPanel}
+        openSmsNotificationsPanel={openSmsNotificationsPanel}
         hasUsersMenuAccess={hasUsersMenuAccess}
         canReadUsers={canReadUsers}
         closeMenu={closeMenu}

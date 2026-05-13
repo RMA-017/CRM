@@ -19,9 +19,11 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
   canOpenAppointmentSchedule,
   canOpenAppointmentSettings,
   canOpenTelegramBotSettings,
+  canOpenSmsNotifications,
   openAppointmentPanel,
   openAppointmentSettingsPanel,
   openTelegramBotSettingsPanel,
+  openSmsNotificationsPanel,
   hasUsersMenuAccess,
   canReadUsers,
   closeMenu,
@@ -268,6 +270,16 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
               </button>
             </div>
           </div>
+
+          <button
+            id="openSmsNotificationsBtn"
+            type="button"
+            className="side-menu-action side-menu-parent"
+            hidden={!canOpenSmsNotifications}
+            onClick={openSmsNotificationsPanel}
+          >
+            SMS xabarnoma
+          </button>
 
           <div id="adminSettingsMenuGroup" className="side-menu-group" hidden={!hasAdminSettingsAccess}>
             <button

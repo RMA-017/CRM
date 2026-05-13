@@ -13,6 +13,7 @@ const RolesSettingsPanel = lazy(() => import("./panels/RolesSettingsPanel.jsx"))
 const SettingsCreateModals = lazy(() => import("./panels/SettingsCreateModals.jsx"));
 const SiteContentPanel = lazy(() => import("./panels/SiteContentPanel.jsx"));
 const StatisticsPlannerReportPanel = lazy(() => import("./panels/StatisticsPlannerReportPanel.jsx"));
+const SmsNotificationsPanel = lazy(() => import("./panels/SmsNotificationsPanel.jsx"));
 const TelegramBotSettingsPanel = lazy(() => import("./panels/TelegramBotSettingsPanel.jsx"));
 
 const SPECIALIST_ROLE_MATCHERS = Object.freeze([
@@ -75,12 +76,14 @@ function ProfileMainContent({
   canUpdateAppointmentBreaks,
   canUpdateSettingsAppointments,
   canUpdateSettingsTelegramBot,
+  canSendSmsNotifications,
   canCreateAppointmentWorkSchedule,
   canUpdateAppointmentWorkSchedule,
   canDeleteAppointmentWorkSchedule,
   closeAppointmentPanel,
   closeAppointmentSettingsPanel,
   closeTelegramBotSettingsPanel,
+  closeSmsNotificationsPanel,
   closeOrganizationsPanel,
   closeRolesPanel,
   closePositionsPanel,
@@ -395,6 +398,14 @@ function ProfileMainContent({
             <TelegramBotSettingsPanel
               canUpdateSettingsTelegramBot={canUpdateSettingsTelegramBot}
               onClose={closeTelegramBotSettingsPanel}
+            />
+          </Suspense>
+        ) : null}
+        {mainView === "sms-notifications" ? (
+          <Suspense fallback={PANEL_LOADING_FALLBACK}>
+            <SmsNotificationsPanel
+              canSendSmsNotifications={canSendSmsNotifications}
+              onClose={closeSmsNotificationsPanel}
             />
           </Suspense>
         ) : null}

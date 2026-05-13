@@ -57,6 +57,8 @@ export function useProfileAccess(profile, forcedView) {
   const canUpdateSettingsAppointmentsPermission = hasPermissionCode(PERMISSIONS.SETTINGS_APPOINTMENTS_UPDATE);
   const canReadSettingsTelegramBotPermission = hasPermissionCode(PERMISSIONS.SETTINGS_TELEGRAM_BOT_READ);
   const canUpdateSettingsTelegramBotPermission = hasPermissionCode(PERMISSIONS.SETTINGS_TELEGRAM_BOT_UPDATE);
+  const canReadSmsNotificationsPermission = hasPermissionCode(PERMISSIONS.SMS_NOTIFICATIONS_READ);
+  const canSendSmsNotificationsPermission = hasPermissionCode(PERMISSIONS.SMS_NOTIFICATIONS_SEND);
   const canReadSettingsRolesPermission = hasPermissionCode(PERMISSIONS.SETTINGS_ROLES_READ);
   const canCreateSettingsRolesPermission = hasPermissionCode(PERMISSIONS.SETTINGS_ROLES_CREATE);
   const canUpdateSettingsRolesPermission = hasPermissionCode(PERMISSIONS.SETTINGS_ROLES_UPDATE);
@@ -169,6 +171,8 @@ export function useProfileAccess(profile, forcedView) {
   const canOpenSettingsPositions = canReadSettingsPositions;
   const canOpenAppointmentSettings = canReadSettingsAppointments;
   const canOpenTelegramBotSettings = canReadSettingsTelegramBot;
+  const canOpenSmsNotifications = canReadSmsNotificationsPermission || canSendSmsNotificationsPermission;
+  const canSendSmsNotifications = canSendSmsNotificationsPermission;
 
   const hasAppointmentsMenuAccess = (
     canOpenAppointmentSchedule
@@ -226,6 +230,9 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "telegram-bot-settings") {
       return canOpenTelegramBotSettings;
     }
+    if (forcedView === "sms-notifications") {
+      return canOpenSmsNotifications;
+    }
     if (forcedView === "settings-organizations") {
       return canOpenSettingsOrganizations;
     }
@@ -250,6 +257,7 @@ export function useProfileAccess(profile, forcedView) {
     canOpenAppointmentSchedule,
     canOpenAppointmentSettings,
     canOpenTelegramBotSettings,
+    canOpenSmsNotifications,
     canOpenSettingsOrganizations,
     canOpenSettingsPositions,
     canOpenSettingsRoles,
@@ -302,6 +310,8 @@ export function useProfileAccess(profile, forcedView) {
     canUpdateSettingsAppointments,
     canOpenTelegramBotSettings,
     canUpdateSettingsTelegramBot,
+    canOpenSmsNotifications,
+    canSendSmsNotifications,
     canOpenSettingsOrganizations,
     canCreateSettingsOrganizations,
     canUpdateSettingsOrganizations,

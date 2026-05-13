@@ -12,6 +12,7 @@ export function useProfilePanels({
   canOpenAppointmentStatistics,
   canOpenAppointmentSettings,
   canOpenTelegramBotSettings,
+  canOpenSmsNotifications,
   canOpenSettingsOrganizations,
   canOpenSettingsRoles,
   canOpenSettingsPositions,
@@ -77,6 +78,14 @@ export function useProfilePanels({
 
   const closeTelegramBotSettingsPanel = useCallback(() => {
     closePanel("telegram-bot-settings");
+  }, [closePanel]);
+
+  const openSmsNotificationsPanel = useCallback(() => {
+    openPanel("/sms-xabarnoma", canOpenSmsNotifications);
+  }, [canOpenSmsNotifications, openPanel]);
+
+  const closeSmsNotificationsPanel = useCallback(() => {
+    closePanel("sms-notifications");
   }, [closePanel]);
 
   const openStatisticsPlannerReportPanel = useCallback(() => {
@@ -156,6 +165,8 @@ export function useProfilePanels({
     closeAppointmentSettingsPanel,
     openTelegramBotSettingsPanel,
     closeTelegramBotSettingsPanel,
+    openSmsNotificationsPanel,
+    closeSmsNotificationsPanel,
     openStatisticsPlannerReportPanel,
     closeStatisticsPanel,
     openOrganizationsPanel,

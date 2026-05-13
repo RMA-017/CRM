@@ -1441,6 +1441,23 @@ label.field > span:first-child,
   grid-column: 1 / -1;
 }
 
+.sms-notifications-panel {
+  min-height: min(560px, calc(100dvh - 40px));
+}
+
+.sms-notifications-form {
+  display: grid;
+  gap: 16px;
+}
+
+.sms-notifications-field textarea {
+  min-height: 220px;
+  resize: vertical;
+  line-height: 1.5;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
 @media (max-width: 760px) {
   .telegram-settings-section {
     padding: 12px;
