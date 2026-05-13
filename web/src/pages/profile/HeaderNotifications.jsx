@@ -24,6 +24,76 @@ function formatEventType(value, language) {
   return translateLiteral(normalized || "notification", language);
 }
 
+function formatNotificationDateTime(dateValue, timeValue) {
+  const rawDate = String(dateValue || "").trim();
+  const rawTime = String(timeValue || "").trim();
+  const dateMatch = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const dateText = dateMatch ? `${dateMatch[3]}.${dateMatch[2]}` : rawDate;
+  const timeMatch = rawTime.match(/^(\d{2}):(\d{2})/);
+  const timeText = timeMatch ? `${timeMatch[1]}:${timeMatch[2]}` : rawTime;
+  return [dateText, timeText].filter(Boolean).join(" ");
+}
+
+function getPayloadItems(item) {
+  const items = item?.payload?.items;
+  return Array.isArray(items) ? items : [];
+}
+
+function getNotificationClientName(item) {
+  const payload = item?.payload && typeof item.payload === "object" ? item.payload : {};
+  const payloadName = String(payload.clientName || "").trim();
+  if (payloadName && payloadName !== "Client") {
+    return payloadName;
+  }
+  const firstItem = getPayloadItems(item)[0] || {};
+  return [
+    firstItem.lastName,
+    firstItem.firstName,
+    firstItem.middleName
+  ].map((part) => String(part || "").trim()).filter(Boolean).join(" ") || "Client";
+}
+
+function getFirstScheduleItem(item) {
+  return getPayloadItems(item)[0] || {};
+}
+
+function formatHeaderNotificationMessage(item, language, fallback) {
+  const eventType = String(item?.eventType || "").trim();
+  const payload = item?.payload && typeof item.payload === "object" ? item.payload : {};
+  const firstItem = getFirstScheduleItem(item);
+  const clientName = getNotificationClientName(item);
+  const dateTime = formatNotificationDateTime(
+    firstItem.appointmentDate || payload.appointmentDate,
+    firstItem.startTime || payload.startTime
+  );
+  const suffix = [clientName, dateTime].filter(Boolean).join(" - ");
+  const isRu = language === "ru";
+
+  if (eventType === "schedule-created") {
+    return `${isRu ? "Создано" : "Dars yaratildi"}: ${suffix}`.trim();
+  }
+  if (eventType === "schedule-updated") {
+    return `${isRu ? "Время изменено" : "Dars vaqti o'zgardi"}: ${suffix}`.trim();
+  }
+  if (eventType === "schedule-deleted") {
+    return `${isRu ? "Удалено" : "Dars o'chirildi"}: ${suffix}`.trim();
+  }
+  if (eventType === "appointment-parent-cancelled") {
+    const reason = String(payload.reason || "").trim();
+    const reasonText = reason ? ` (${reason})` : "";
+    return `${isRu ? "Родитель отменил" : "Ota-ona bekor qildi"}: ${suffix}${reasonText}`.trim();
+  }
+  if (eventType === "specialist-absence-updated") {
+    const dateText = formatNotificationDateTime(payload.absenceDate || payload.dateFrom, "");
+    const cancelledCount = Number(payload.cancelledCount || 0);
+    const countText = cancelledCount > 0
+      ? (isRu ? `, отменено: ${cancelledCount}` : `, bekor qilindi: ${cancelledCount}`)
+      : "";
+    return `${isRu ? "Отсутствие специалиста" : "Mutaxassis yo'qligi"}${dateText ? `: ${dateText}` : ""}${countText}`;
+  }
+  return translateLiteral(fallback || item?.message || "Notification", language);
+}
+
 function BellIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -227,7 +297,7 @@ function HeaderNotifications({ enabled = false, navigate }) {
                       <time>{formatNotificationTime(item?.createdAt, language)}</time>
                     </span>
                     <span className="header-notification-item-message">
-                      {translateLiteral(item?.message || t("notifications.fallback"), language)}
+                      {formatHeaderNotificationMessage(item, language, t("notifications.fallback"))}
                     </span>
                   </button>
                 );

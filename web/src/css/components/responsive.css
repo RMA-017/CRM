@@ -111,6 +111,41 @@
     white-space: nowrap;
   }
 
+  .notification-menu-wrap {
+    z-index: calc(var(--z-popover) + 2);
+  }
+
+  .header-notification-panel {
+    position: fixed;
+    top: calc(var(--bar-height) + 18px);
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
+    max-height: min(430px, calc(100dvh - var(--bar-height) - 34px));
+    border-radius: 8px;
+  }
+
+  .header-notification-panel-head {
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .header-notification-panel-head strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .header-notification-read-all {
+    flex: 0 0 auto;
+    max-width: 52%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .home-main {
     padding: 10px;
   }

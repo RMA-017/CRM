@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
+import { useI18n } from "../../../i18n/I18nProvider.jsx";
 import {
   createSiteContent,
   deleteSiteContent,
@@ -126,6 +127,7 @@ function SiteContentPanel({
   canDeleteSiteContent = false
 }) {
   const location = useLocation();
+  const { t } = useI18n();
   const [activeSectionKey, setActiveSectionKey] = useState(() => getSectionFromSearch(location.search));
   const [itemsBySection, setItemsBySection] = useState(emptySiteContentGroups);
   const [forms, setForms] = useState(EMPTY_FORMS);
@@ -144,6 +146,9 @@ function SiteContentPanel({
   const activeItems = itemsBySection[activeSection.key] || [];
   const activeForm = forms[activeSection.key] || EMPTY_FORMS[activeSection.key];
   const editingThisSection = editing.sectionKey === activeSection.key && editing.id;
+  const activeSectionTitle = activeSection.key === "blog"
+    ? t("siteContent.articles")
+    : activeSection.title;
 
   useEffect(() => {
     let active = true;
@@ -367,7 +372,7 @@ function SiteContentPanel({
     <form className="site-content-form" onSubmit={handleSubmit} noValidate>
       <div className="site-content-card-head">
         <div>
-          <h4>{activeSection.title}</h4>
+          <h4>{activeSectionTitle}</h4>
         </div>
       </div>
 
@@ -443,14 +448,14 @@ function SiteContentPanel({
     <section id="siteContentPanel" className="all-users-panel site-content-panel">
       <div className="site-content-panel-head">
         <div className="all-users-head">
-          <h3>Website Management</h3>
+          <h3>{t("siteContent.websiteManagement")}</h3>
           <div className="all-users-head-actions">
             <button
               id="openSiteContentCreateModalBtn"
               type="button"
               className="header-btn appointment-breaks-add-icon-btn"
-              aria-label={`Add ${activeSection.title}`}
-              title={`Add ${activeSection.title}`}
+              aria-label={`Add ${activeSectionTitle}`}
+              title={`Add ${activeSectionTitle}`}
               hidden={!canCreateSiteContent}
               onClick={openCreateModal}
             >
@@ -480,7 +485,7 @@ function SiteContentPanel({
           <div className="site-content-list-panel">
             <div className="site-content-card-head">
               <div>
-                <h4>{activeSection.title}</h4>
+                <h4>{activeSectionTitle}</h4>
               </div>
               <strong>{activeItems.length}</strong>
             </div>

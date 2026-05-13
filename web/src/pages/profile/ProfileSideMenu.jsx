@@ -235,7 +235,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 toggleSubmenu("site");
               }}
             >
-              Website Management
+              {t("siteContent.websiteManagement")}
             </button>
             <div id="siteSubMenu" className="side-submenu" hidden={!openSubmenus.site}>
               <button
@@ -251,9 +251,9 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 type="button"
                 className="side-submenu-link side-submenu-action"
                 onClick={() => openSiteContentPanel("blog")}
-              >
-                Articles
-              </button>
+            >
+                {t("siteContent.articles")}
+            </button>
               <button
                 id="openSiteTeamContentBtn"
                 type="button"

@@ -48,6 +48,10 @@ export const MESSAGES = Object.freeze({
       previousWeek: "Oldingi",
       nextWeek: "Keyingi"
     },
+    siteContent: {
+      websiteManagement: "Sayt boshqaruvi",
+      articles: "Maqolalar"
+    },
     smsNotifications: {
       menu: "SMS xabarnoma"
     }
@@ -86,6 +90,10 @@ export const MESSAGES = Object.freeze({
       previousWeek: "Назад",
       nextWeek: "Вперёд"
     },
+    siteContent: {
+      websiteManagement: "Управление сайтом",
+      articles: "Статьи"
+    },
     smsNotifications: {
       menu: "SMS уведомление"
     }
@@ -121,6 +129,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Settings", uz: "Sozlamalar", ru: "Настройки" },
   { en: "Admin Settings", uz: "Admin sozlamalar", ru: "Админ настройки" },
   { en: "Website Management", uz: "Sayt boshqaruvi", ru: "Управление сайтом" },
+  { en: "Articles", uz: "Maqolalar", ru: "Статьи" },
   { en: "Children's Creativity", uz: "Bolalar ijodi", ru: "Творчество детей" },
   { en: "Our Specialists", uz: "Mutaxassislarimiz", ru: "Наши специалисты" },
   { en: "Partners", uz: "Hamkorlar", ru: "Партнеры" },
