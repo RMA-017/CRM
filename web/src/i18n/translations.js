@@ -45,8 +45,8 @@ export const MESSAGES = Object.freeze({
       fallback: "Xabar"
     },
     planner: {
-      previousWeek: "Oldingi hafta",
-      nextWeek: "Keyingi hafta"
+      previousWeek: "Oldingi",
+      nextWeek: "Keyingi"
     }
   },
   ru: {
@@ -80,8 +80,8 @@ export const MESSAGES = Object.freeze({
       fallback: "Сообщение"
     },
     planner: {
-      previousWeek: "Предыдущая неделя",
-      nextWeek: "Следующая неделя"
+      previousWeek: "Назад",
+      nextWeek: "Вперёд"
     }
   }
 });

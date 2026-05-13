@@ -3903,6 +3903,7 @@ export async function createAppointmentSchedule({
        i.is_auto_rolling_repeat,
        i.created_at,
        i.updated_at,
+       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('Specialist #', i.specialist_id::text)) AS specialist_name,
        c.first_name,
        c.last_name,
        c.middle_name,
@@ -3911,6 +3912,9 @@ export async function createAppointmentSchedule({
       JOIN clients c
         ON c.id = i.client_id
        AND c.organization_id = i.organization_id
+      LEFT JOIN users u
+        ON u.id = i.specialist_id
+       AND u.organization_id = i.organization_id
       LIMIT 1`,
     [
       organizationId,

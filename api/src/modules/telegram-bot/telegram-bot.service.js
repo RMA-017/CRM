@@ -1851,16 +1851,12 @@ export async function notifyTelegramParentsForAppointmentChange({
           eventType,
           actorName
         });
-        const replyMarkup = ACTIVE_APPOINTMENT_STATUSES.has(item.status)
-          ? buildAppointmentButtons(parent.language, item.id)
-          : undefined;
         await sendAndLogParentMessage({
           settings,
           parent,
           appointmentScheduleId: isDeletedEvent(eventType) ? null : item.id,
           eventType,
-          message,
-          replyMarkup
+          message
         });
         sentCount += 1;
       }

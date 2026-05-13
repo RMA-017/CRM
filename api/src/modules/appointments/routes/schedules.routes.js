@@ -96,6 +96,42 @@ function buildVipAssignedDeleteForbiddenMessage(scope = "single") {
   return `You can only delete VIP ${buildDeleteScopeLabel(scope)} assigned to you.`;
 }
 
+function normalizeScheduleCompareText(value) {
+  return String(value ?? "").trim();
+}
+
+function normalizeScheduleCompareStatus(value) {
+  return normalizeScheduleCompareText(value).toLowerCase();
+}
+
+function isScheduleItemChangedByPayload(item, {
+  specialistId,
+  clientId,
+  appointmentDate,
+  startTime,
+  endTime,
+  durationMinutes,
+  serviceName,
+  status,
+  note,
+  applyAppointmentDate = true,
+  getDurationMinutesFromTimes: resolveDurationMinutes
+}) {
+  const previousDurationMinutes = Number.parseInt(String(item?.durationMinutes || "").trim(), 10)
+    || (typeof resolveDurationMinutes === "function" ? resolveDurationMinutes(item?.startTime, item?.endTime) : 0);
+  return (
+    Number.parseInt(String(item?.specialistId || ""), 10) !== specialistId
+    || Number.parseInt(String(item?.clientId || ""), 10) !== clientId
+    || (applyAppointmentDate && normalizeScheduleCompareText(item?.appointmentDate) !== normalizeScheduleCompareText(appointmentDate))
+    || normalizeScheduleCompareText(item?.startTime) !== normalizeScheduleCompareText(startTime)
+    || normalizeScheduleCompareText(item?.endTime) !== normalizeScheduleCompareText(endTime)
+    || previousDurationMinutes !== durationMinutes
+    || normalizeScheduleCompareText(item?.serviceName) !== normalizeScheduleCompareText(serviceName)
+    || normalizeScheduleCompareStatus(item?.status) !== normalizeScheduleCompareStatus(status)
+    || normalizeScheduleCompareText(item?.note) !== normalizeScheduleCompareText(note)
+  );
+}
+
 function toAbsenceTimeMinutes(value) {
   const normalized = String(value || "").trim();
   if (!/^\d{2}:\d{2}$/.test(normalized)) {
@@ -1735,6 +1771,34 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           return reply.status(400).send(confirmedDateError);
         }
 
+        const hasSingleScopePayloadChanges = target.scope === "single"
+          && target.items.some((item) => isScheduleItemChangedByPayload(item, {
+            specialistId,
+            clientId,
+            appointmentDate,
+            startTime,
+            endTime,
+            durationMinutes,
+            serviceName,
+            status,
+            note,
+            applyAppointmentDate: true,
+            getDurationMinutesFromTimes
+          }));
+        if (target.scope === "single" && !repeat.enabled && !hasSingleScopePayloadChanges) {
+          const unchangedItem = target.items[0] || null;
+          return reply.send({
+            message: "Appointment unchanged.",
+            item: unchangedItem,
+            items: target.items,
+            summary: {
+              scope: "single",
+              affectedCount: 0,
+              notificationSkipped: true
+            }
+          });
+        }
+
         const shouldConvertSingleToRepeat = repeat.enabled && target.scope === "single" && !target.isRecurring;
         if (shouldConvertSingleToRepeat) {
           const repeatError = validateScheduleRepeatPayload(repeat, appointmentDate);
@@ -2759,6 +2823,33 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
 
         const targetIds = target.items.map((item) => item.id);
         const applyAppointmentDate = target.scope === "single";
+        const changedTargetItems = target.items.filter((item) => isScheduleItemChangedByPayload(item, {
+          specialistId,
+          clientId,
+          appointmentDate,
+          startTime,
+          endTime,
+          durationMinutes,
+          serviceName,
+          status,
+          note,
+          applyAppointmentDate,
+          getDurationMinutesFromTimes
+        }));
+
+        if (changedTargetItems.length === 0) {
+          const unchangedAnchorItem = target.items.find((item) => Number.parseInt(String(item.id || ""), 10) === id) || target.items[0] || null;
+          return reply.send({
+            message: target.scope === "single" ? "Appointment unchanged." : "Appointments unchanged.",
+            item: unchangedAnchorItem,
+            items: target.items,
+            summary: {
+              scope: target.scope,
+              affectedCount: 0,
+              notificationSkipped: true
+            }
+          });
+        }
 
         if (status === "pending" || status === "confirmed") {
           const settingsForAvailability = await getAppointmentSettingsByOrganization(
