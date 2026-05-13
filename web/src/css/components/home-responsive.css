@@ -59,6 +59,10 @@
     display: none;
   }
 
+  .home-site-layout .home-language-btn {
+    display: none;
+  }
+
   .home-site-layout .home-main {
     padding: 0;
   }

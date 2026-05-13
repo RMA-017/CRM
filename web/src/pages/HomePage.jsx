@@ -887,17 +887,6 @@ function HomePage() {
               {homeText.navLinks.map((item) => (
                 <a key={item.href} href={item.href} onClick={handlePageAnchorClick}>{item.label}</a>
               ))}
-              <button
-                type="button"
-                className="home-mobile-nav-language"
-                aria-label={t("language.switch")}
-                onClick={() => {
-                  toggleLanguage();
-                  closePublicNav();
-                }}
-              >
-                {homeText.actions.nextLanguage}
-              </button>
             </nav>
 
             <nav
@@ -909,6 +898,17 @@ function HomePage() {
               {homeText.navLinks.map((item) => (
                 <a key={item.href} href={item.href} onClick={handlePageAnchorClick}>{item.label}</a>
               ))}
+              <button
+                type="button"
+                className="home-mobile-nav-language"
+                aria-label={t("language.switch")}
+                onClick={() => {
+                  toggleLanguage();
+                  closePublicNav();
+                }}
+              >
+                {homeText.actions.nextLanguage}
+              </button>
             </nav>
 
             <nav className="header-actions" aria-label="Header actions">
