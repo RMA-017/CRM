@@ -157,6 +157,16 @@ let appointmentPlannerReportIndexInitPromise = null;
 let appointmentSettingsColumnFlagsPromise = null;
 let vipClassDailyRoutineSchemaInitPromise = null;
 
+function isAppointmentParentResponsesSchemaMissing(error) {
+  if (error?.code !== "42P01" && error?.code !== "42703") {
+    return false;
+  }
+  const message = String(error?.message || "").trim().toLowerCase();
+  return message.includes("appointment_parent_responses")
+    || message.includes("parent_response_status")
+    || message.includes("response_status");
+}
+
 export {
   DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS,
   DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
@@ -2824,45 +2834,12 @@ export async function getAppointmentSchedulesByRange({
         ON r.id = u.role_id
       LEFT JOIN position_options p
         ON p.id = u.position_id`;
-
-  const [appointmentResult, vipRoutineRows] = await Promise.all([
-    pool.query(
-      `SELECT
-         s.id,
-         s.organization_id,
-         s.specialist_id,
-         s.client_id,
-         s.appointment_date,
-         s.start_time,
-         s.end_time,
-         s.duration_minutes,
-         s.service_name,
-         s.status,
-         s.note,
-         s.repeat_group_key,
-         s.repeat_type,
-        s.repeat_until_date,
-        s.repeat_days,
-        s.repeat_anchor_date,
-        s.is_repeat_root,
-        s.is_auto_rolling_repeat,
-        s.created_at,
-        s.updated_at,
-        COALESCE(parent_response.parent_response_status, '') AS parent_response_status,
-        COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('Specialist #', s.specialist_id::text)) AS specialist_name,
-        ${specialistPositionSelect}
-        c.first_name,
-        c.last_name,
-        c.middle_name
-        FROM ${tableName} s
-        LEFT JOIN users u
-          ON u.id = s.specialist_id
-         AND u.organization_id = s.organization_id
-        ${specialistPositionJoin}
-        JOIN clients c
-          ON c.id = s.client_id
-         AND c.organization_id = s.organization_id
-        LEFT JOIN LATERAL (
+  const fetchAppointmentRows = async ({ includeParentResponses = true } = {}) => {
+    const parentResponseSelect = includeParentResponses
+      ? "COALESCE(parent_response.parent_response_status, '') AS parent_response_status,"
+      : "'' AS parent_response_status,";
+    const parentResponseJoin = includeParentResponses
+      ? `LEFT JOIN LATERAL (
           SELECT
             CASE
               WHEN BOOL_OR(apr.response_status = 'coming') THEN 'coming'
@@ -2872,16 +2849,67 @@ export async function getAppointmentSchedulesByRange({
             FROM appointment_parent_responses apr
            WHERE apr.organization_id = s.organization_id
              AND apr.appointment_schedule_id = s.id
-        ) parent_response ON TRUE
-        WHERE ${whereParts.join("\n        AND ")}
-        ORDER BY
-          s.appointment_date ASC,
-          s.start_time ASC,
-          CASE WHEN s.status IN ('pending', 'confirmed') THEN 0 ELSE 1 END ASC,
-          s.updated_at DESC,
-          s.id DESC`,
-      params
-    ),
+        ) parent_response ON TRUE`
+      : "";
+
+    try {
+      return await pool.query(
+        `SELECT
+           s.id,
+           s.organization_id,
+           s.specialist_id,
+           s.client_id,
+           s.appointment_date,
+           s.start_time,
+           s.end_time,
+           s.duration_minutes,
+           s.service_name,
+           s.status,
+           s.note,
+           s.repeat_group_key,
+           s.repeat_type,
+          s.repeat_until_date,
+          s.repeat_days,
+          s.repeat_anchor_date,
+          s.is_repeat_root,
+          s.is_auto_rolling_repeat,
+          s.created_at,
+          s.updated_at,
+          ${parentResponseSelect}
+          COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('Specialist #', s.specialist_id::text)) AS specialist_name,
+          ${specialistPositionSelect}
+          c.first_name,
+          c.last_name,
+          c.middle_name,
+          c.is_vip
+          FROM ${tableName} s
+          LEFT JOIN users u
+            ON u.id = s.specialist_id
+           AND u.organization_id = s.organization_id
+          ${specialistPositionJoin}
+          JOIN clients c
+            ON c.id = s.client_id
+           AND c.organization_id = s.organization_id
+          ${parentResponseJoin}
+          WHERE ${whereParts.join("\n        AND ")}
+          ORDER BY
+            s.appointment_date ASC,
+            s.start_time ASC,
+            CASE WHEN s.status IN ('pending', 'confirmed') THEN 0 ELSE 1 END ASC,
+            s.updated_at DESC,
+            s.id DESC`,
+        params
+      );
+    } catch (error) {
+      if (includeParentResponses && isAppointmentParentResponsesSchemaMissing(error)) {
+        return fetchAppointmentRows({ includeParentResponses: false });
+      }
+      throw error;
+    }
+  };
+
+  const [appointmentResult, vipRoutineRows] = await Promise.all([
+    fetchAppointmentRows(),
     ((!vipOnly && normalizedSpecialistId > 0) || (vipOnly && normalizedClientId > 0))
       ? listVipDailyRoutineScheduleItems({
           organizationId,

@@ -254,6 +254,38 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
             uiLabel: "Search Clients",
             sortOrder: 59,
             actionKey: "search"
+          }),
+          definePermission({
+            constantKey: "APPOINTMENTS_VIP_CLIENTS_SCOPE_ASSIGNED",
+            code: "appointments.vip-clients.scope.assigned",
+            label: "Access Assigned VIP Clients In Planner",
+            uiLabel: "Assigned VIP",
+            sortOrder: 60,
+            actionKey: "assigned vip"
+          }),
+          definePermission({
+            constantKey: "APPOINTMENTS_VIP_CLIENTS_SCOPE_ALL",
+            code: "appointments.vip-clients.scope.all",
+            label: "Access All VIP Clients In Planner",
+            uiLabel: "All VIP",
+            sortOrder: 61,
+            actionKey: "all vip"
+          }),
+          definePermission({
+            constantKey: "APPOINTMENTS_VIP_CLIENTS_MY_CHILDREN",
+            code: "appointments.vip-clients.my-children",
+            label: "Access Own Children VIP Planner",
+            uiLabel: "My Children",
+            sortOrder: 62,
+            actionKey: "my children"
+          }),
+          definePermission({
+            constantKey: "APPOINTMENTS_VIP_CLIENTS_MY_CLASS",
+            code: "appointments.vip-clients.my-class",
+            label: "Access Own Class VIP Planner",
+            uiLabel: "My Class",
+            sortOrder: 63,
+            actionKey: "my class"
           })
         ]
       }),
