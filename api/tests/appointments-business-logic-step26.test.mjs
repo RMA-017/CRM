@@ -10,7 +10,7 @@ const appointmentRouteAccessModule = await import("../src/modules/appointments/a
 const { registerAppointmentReferenceRoutes } = referenceRoutesModule;
 const { registerAppointmentBreakRoutes } = breaksRoutesModule;
 const { registerAppointmentScheduleRoutes } = schedulesRoutesModule;
-const { resolveOwnAppointmentSpecialistUserId } = appointmentRouteAccessModule;
+const { resolveNotificationAudience, resolveOwnAppointmentSpecialistUserId } = appointmentRouteAccessModule;
 
 test("appointment schedule service normalizes malformed repeat group keys before recurring update logic", async () => {
   const source = await readFile(
@@ -76,6 +76,36 @@ test("manager role is not locked to own planner by specialist position label", (
   });
 
   assert.equal(specialistScope, null);
+});
+
+test("planner notifications target specialists for any non-specialist staff role", async () => {
+  const audience = await resolveNotificationAudience({
+    authContext: { userId: 7 },
+    requester: {
+      role_label: "Kassa",
+      position_label: ""
+    }
+  }, [11]);
+
+  assert.deepEqual(audience, {
+    targetUserIds: [11],
+    targetRoles: []
+  });
+});
+
+test("planner notifications target managers when a specialist changes own planner", async () => {
+  const audience = await resolveNotificationAudience({
+    authContext: { userId: 11 },
+    requester: {
+      role_label: "Specialist",
+      position_label: ""
+    }
+  }, [11]);
+
+  assert.deepEqual(audience, {
+    targetUserIds: [],
+    targetRoles: ["manager"]
+  });
 });
 
 function createReplyRecorder() {

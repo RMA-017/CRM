@@ -21,7 +21,7 @@ function isSpecialistRole(requester) {
   return !roleText && isSpecialistLikeRoleLabel(positionText);
 }
 
-async function resolveNotificationAudience(access, specialistIds) {
+export async function resolveNotificationAudience(access, specialistIds) {
   const actorUserId = parsePositiveInteger(access?.authContext?.userId);
   const normalizedSpecialistIds = normalizeSpecialistIds(specialistIds);
   if (!actorUserId || normalizedSpecialistIds.length === 0) {
@@ -31,29 +31,16 @@ async function resolveNotificationAudience(access, specialistIds) {
     };
   }
 
-  const requesterRoleText = joinNormalizedRoleLabelParts(
-    access?.requester?.role_label || access?.requester?.role
-  );
-  if (
-    Boolean(access?.requester?.is_admin)
-    || Boolean(access?.requester?.is_platform_admin)
-    || isManagerLikeRoleLabel(requesterRoleText)
-  ) {
-    const targetSpecialistIds = normalizedSpecialistIds.filter((id) => id !== actorUserId);
-    if (targetSpecialistIds.length === 0) {
-      return {
-        targetUserIds: [],
-        targetRoles: []
-      };
-    }
-
+  const targetSpecialistIds = normalizedSpecialistIds.filter((id) => id !== actorUserId);
+  const requesterIsSpecialist = isSpecialistRole(access?.requester);
+  if (!requesterIsSpecialist && targetSpecialistIds.length > 0) {
     return {
       targetUserIds: targetSpecialistIds,
       targetRoles: []
     };
   }
 
-  if (isSpecialistRole(access?.requester) || normalizedSpecialistIds.includes(actorUserId)) {
+  if (requesterIsSpecialist || normalizedSpecialistIds.includes(actorUserId)) {
     return {
       targetUserIds: [],
       targetRoles: ["manager"]
