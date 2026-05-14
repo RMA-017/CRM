@@ -173,8 +173,8 @@ function formatNotificationDateYmd(value) {
   if (!DATE_REGEX.test(raw)) {
     return raw;
   }
-  const [year, month, day] = raw.split("-");
-  return `${day}.${month}.${year}`;
+  const [, month, day] = raw.split("-");
+  return `${day}.${month}`;
 }
 
 function formatNotificationDateText(action, dates) {

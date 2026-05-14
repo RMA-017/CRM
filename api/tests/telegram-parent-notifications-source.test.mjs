@@ -211,6 +211,33 @@ test("planner date or time edits notify Telegram parents", async () => {
   );
 });
 
+test("planner status cancellation notifies Telegram parents without user notifications", async () => {
+  const accessSource = await readFile(
+    new URL("../src/modules/appointments/appointment-route-access.js", import.meta.url),
+    "utf8"
+  );
+  const scheduleRoutesSource = await readFile(
+    new URL("../src/modules/appointments/routes/schedules.routes.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    accessSource,
+    /export async function notifyAppointmentParentsOnly[\s\S]*notifyTelegramParentsForAppointmentChange\(\{[\s\S]*eventType:\s*type,[\s\S]*notificationContext:\s*normalizedData/s,
+    "Parent-only appointment notifications should bypass persisted user notifications."
+  );
+  assert.match(
+    scheduleRoutesSource,
+    /function getNewlyCancelledScheduleItems[\s\S]*previous\?\.status[\s\S]*!== "cancelled"[\s\S]*item\?\.status[\s\S]*=== "cancelled"/s,
+    "Schedule updates should detect newly cancelled appointments."
+  );
+  assert.match(
+    scheduleRoutesSource,
+    /async function notifyScheduleCancellationToParents[\s\S]*notifyAppointmentParentsOnly\(access,\s*\{[\s\S]*type:\s*"schedule-updated"[\s\S]*statusChangedTo:\s*"cancelled"/s,
+    "Newly cancelled appointments should notify Telegram parents with the cancelled status context."
+  );
+});
+
 test("Telegram coming callback is acknowledged before parent lookup", async () => {
   const serviceSource = await readFile(
     new URL("../src/modules/telegram-bot/telegram-bot.service.js", import.meta.url),

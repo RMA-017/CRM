@@ -94,6 +94,7 @@ import {
 } from "./appointment-route-helpers.js";
 import {
   broadcastAppointmentChange,
+  notifyAppointmentParentsOnly,
   resolveOwnAppointmentSpecialistUserId
 } from "./appointment-route-access.js";
 import { getDurationMinutesFromTimes } from "./time.js";
@@ -215,6 +216,7 @@ async function appointmentSettingsRoutes(fastify) {
     withAppointmentTransaction,
     toAppointmentDayNum,
     resolveOwnAppointmentSpecialistUserId,
+    notifyAppointmentParentsOnly,
     saveAppointmentSettings,
     broadcastAppointmentChange,
     DATE_REGEX

@@ -284,6 +284,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     toAppointmentDayNum,
     resolveOwnAppointmentSpecialistUserId,
     isVipClientAssignedToUser,
+    notifyAppointmentParentsOnly,
     broadcastAppointmentChange,
     DATE_REGEX
   } = context;
@@ -331,6 +332,41 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
       message: scheduleNotification.message,
       specialistIds: notificationItems.map((item) => item?.specialistId),
       data: scheduleNotification.data
+    });
+  }
+
+  function getNewlyCancelledScheduleItems(previousItems, nextItems) {
+    const previousById = new Map(
+      (Array.isArray(previousItems) ? previousItems : [])
+        .map((item) => [String(item?.id || "").trim(), item])
+        .filter(([id]) => Boolean(id))
+    );
+    return (Array.isArray(nextItems) ? nextItems : []).filter((item) => {
+      const id = String(item?.id || "").trim();
+      const previous = previousById.get(id);
+      if (!previous) {
+        return false;
+      }
+      return (
+        String(previous?.status || "").trim().toLowerCase() !== "cancelled"
+        && String(item?.status || "").trim().toLowerCase() === "cancelled"
+      );
+    });
+  }
+
+  async function notifyScheduleCancellationToParents(access, previousItems, nextItems) {
+    const cancelledItems = getNewlyCancelledScheduleItems(previousItems, nextItems);
+    if (cancelledItems.length === 0 || typeof notifyAppointmentParentsOnly !== "function") {
+      return;
+    }
+    const scheduleNotification = buildScheduleNotification("edit", cancelledItems, access?.requester);
+    await notifyAppointmentParentsOnly(access, {
+      type: "schedule-updated",
+      items: cancelledItems,
+      data: {
+        ...scheduleNotification.data,
+        statusChangedTo: "cancelled"
+      }
     });
   }
 
@@ -2078,6 +2114,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             : `${affectedCount} appointments updated.`;
           schedulesReadCache.clear();
           await notifyScheduleDateTimeEdit(access, target.items, items);
+          await notifyScheduleCancellationToParents(access, target.items, items);
 
           return reply.send({
             message,
@@ -2175,6 +2212,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           const updatedAnchorItem = items[0] || anchorItem;
           schedulesReadCache.clear();
           await notifyScheduleDateTimeEdit(access, target.items, items);
+          await notifyScheduleCancellationToParents(access, target.items, items);
 
           return reply.send({
             message: "Appointment updated.",
@@ -2487,6 +2525,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               const affectedCount = items.length;
               schedulesReadCache.clear();
               await notifyScheduleDateTimeEdit(access, scopedSourceItems, items);
+              await notifyScheduleCancellationToParents(access, scopedSourceItems, items);
 
               return reply.send({
                 message: `${affectedCount} appointments updated.`,
@@ -2634,6 +2673,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           const affectedCount = items.length;
           schedulesReadCache.clear();
           await notifyScheduleDateTimeEdit(access, target.items, items);
+          await notifyScheduleCancellationToParents(access, target.items, items);
 
           return reply.send({
             message: `${affectedCount} appointments updated.`,
@@ -2891,6 +2931,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           : `${affectedCount} appointments updated.`;
         schedulesReadCache.clear();
         await notifyScheduleDateTimeEdit(access, target.items, items);
+        await notifyScheduleCancellationToParents(access, target.items, items);
 
         return reply.send({
           message,

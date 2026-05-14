@@ -5,36 +5,50 @@ import { handleProtectedStatus } from "./profile.helpers.js";
 
 const NOTIFICATION_REFRESH_MS = 30_000;
 const NOTIFICATION_LIMIT = 10;
-const UZ_SHORT_MONTHS = ["yan", "fev", "mar", "apr", "may", "iyun", "iyul", "avg", "sen", "okt", "noy", "dek"];
 
-function formatNotificationTime(value, language) {
+function formatCompactDateFromDate(date) {
+  return `${String(date.getDate()).padStart(2, "0")}.${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatCompactTimeFromDate(date) {
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function formatNotificationTime(value) {
   const date = value ? new Date(value) : null;
   if (!date || Number.isNaN(date.getTime())) {
     return "";
   }
-  if (language === "uz") {
-    const day = String(date.getDate()).padStart(2, "0");
-    const month = UZ_SHORT_MONTHS[date.getMonth()] || "";
-    const hour = String(date.getHours()).padStart(2, "0");
-    const minute = String(date.getMinutes()).padStart(2, "0");
-    return `${day} ${month} ${hour}:${minute}`.trim();
+  return `${formatCompactDateFromDate(date)} / ${formatCompactTimeFromDate(date)}`;
+}
+
+function formatNotificationDateValue(value) {
+  const rawDate = String(value || "").trim();
+  if (!rawDate) {
+    return "";
   }
-  return new Intl.DateTimeFormat(language === "ru" ? "ru-RU" : "uz-UZ", {
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(date);
+  const dateMatch = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (dateMatch) {
+    return `${dateMatch[3]}.${dateMatch[2]}`;
+  }
+  return rawDate
+    .replace(/\b(\d{2})\.(\d{2})\.(\d{4})\b/g, "$1.$2")
+    .replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, "$3.$2");
+}
+
+function formatNotificationTimeValue(value) {
+  const rawTime = String(value || "").trim();
+  const timeMatch = rawTime.match(/^(\d{2}):(\d{2})/);
+  return timeMatch ? `${timeMatch[1]}:${timeMatch[2]}` : rawTime;
 }
 
 function formatNotificationDateTime(dateValue, timeValue) {
-  const rawDate = String(dateValue || "").trim();
-  const rawTime = String(timeValue || "").trim();
-  const dateMatch = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  const dateText = dateMatch ? `${dateMatch[3]}.${dateMatch[2]}` : rawDate;
-  const timeMatch = rawTime.match(/^(\d{2}):(\d{2})/);
-  const timeText = timeMatch ? `${timeMatch[1]}:${timeMatch[2]}` : rawTime;
-  return [dateText, timeText].filter(Boolean).join(" ");
+  const dateText = formatNotificationDateValue(dateValue);
+  const timeText = formatNotificationTimeValue(timeValue);
+  if (dateText && timeText) {
+    return `${dateText} / ${timeText}`;
+  }
+  return dateText || timeText;
 }
 
 function parseNotificationObject(value) {
@@ -134,13 +148,14 @@ function getNotificationDateTime(item) {
   const payload = getNotificationPayload(item);
   const firstItem = getFirstScheduleItem(item);
   const dateText = firstText(payload.appointmentDateText, payload.dateText);
-  if (dateText) {
-    return dateText;
-  }
-  return formatNotificationDateTime(
-    firstItem.appointmentDate || firstItem.appointment_date || payload.appointmentDate || payload.appointment_date || payload.date || payload.dateFrom,
+  const formattedDateTime = formatNotificationDateTime(
+    firstItem.appointmentDate || firstItem.appointment_date || payload.appointmentDate || payload.appointment_date || payload.date || payload.dateFrom || dateText,
     firstItem.startTime || firstItem.start_time || payload.startTime || payload.start_time || payload.time
   );
+  if (formattedDateTime) {
+    return formattedDateTime;
+  }
+  return formatNotificationDateValue(dateText);
 }
 
 function compactParts(parts) {
@@ -213,7 +228,10 @@ function formatHeaderNotificationMessage(item, language, fallback) {
     return `${isRu ? "Родитель отменил" : "Ota-ona bekor qildi"}: ${suffix}${reasonText}`.trim();
   }
   if (eventType === "specialist-absence-updated") {
-    const dateText = formatNotificationDateTime(payload.absenceDate || payload.dateFrom, "");
+    const dateText = formatNotificationDateTime(
+      payload.absenceDate || payload.dateFrom,
+      payload.startTime || payload.start_time || payload.time
+    );
     const cancelledCount = Number(payload.cancelledCount || 0);
     const countText = cancelledCount > 0
       ? (isRu ? `, отменено: ${cancelledCount}` : `, bekor qilindi: ${cancelledCount}`)
@@ -238,7 +256,10 @@ function getHeaderNotificationView(item, language, fallback) {
     : "";
 
   if (eventType === "specialist-absence-updated") {
-    const dateText = formatNotificationDateTime(payload.absenceDate || payload.dateFrom, "");
+    const dateText = formatNotificationDateTime(
+      payload.absenceDate || payload.dateFrom,
+      payload.startTime || payload.start_time || payload.time
+    );
     const primary = specialistName || (isRu ? "Специалист" : "Mutaxassis");
     const details = compactParts([
       getNotificationKind(item, language),

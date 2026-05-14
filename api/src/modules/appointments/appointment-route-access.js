@@ -133,6 +133,23 @@ export async function broadcastAppointmentChange(access, {
   }
 }
 
+export async function notifyAppointmentParentsOnly(access, {
+  type,
+  items = [],
+  data = {}
+}) {
+  const normalizedData = data && typeof data === "object" ? data : {};
+  const organizationId = parsePositiveInteger(access?.authContext?.organizationId);
+  const sourceUsername = String(access?.authContext?.username || "").trim();
+  await notifyTelegramParentsForAppointmentChange({
+    organizationId,
+    eventType: type,
+    items,
+    actorName: normalizedData.actorFullName || normalizedData.actorFirstName || sourceUsername,
+    notificationContext: normalizedData
+  }).catch(() => {});
+}
+
 export function resolveOwnAppointmentSpecialistUserId(access) {
   const requester = access?.requester;
   if (!requester) {
