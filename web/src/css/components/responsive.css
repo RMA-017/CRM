@@ -180,10 +180,13 @@
   }
 
   .appointment-create-modal {
-    width: calc(100vw - 30px);
-    max-width: calc(100vw - 30px);
+    left: calc(10px + env(safe-area-inset-left));
+    right: calc(10px + env(safe-area-inset-right));
+    width: auto;
+    max-width: none;
     min-width: 0;
     box-sizing: border-box;
+    transform: translateY(-50%);
     height: auto;
     max-height: calc(100dvh - 24px);
     padding: 7px;
@@ -289,6 +292,25 @@
     overflow: hidden;
   }
 
+  .appointment-create-modal,
+  .appointment-create-modal .appointment-create-head,
+  .appointment-create-modal .appointment-create-head-main,
+  .appointment-create-modal .appointment-planner-modal-tabs,
+  .appointment-create-modal .appointment-create-form,
+  .appointment-create-modal .appointment-create-fields {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .appointment-create-modal .appointment-create-head-main {
+    overflow: hidden;
+  }
+
+  .appointment-create-modal .appointment-planner-modal-tabs {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
   .appointment-create-modal .appointment-create-fields {
     width: 100%;
     max-width: 100%;
@@ -336,6 +358,11 @@
 
   .appointment-create-modal .appointment-client-select-row {
     align-items: stretch;
+  }
+
+  .custom-select-menu,
+  .appointment-create-modal .custom-select-menu {
+    max-width: calc(100dvw - 20px);
   }
 
   .appointment-create-modal .appointment-repeat-days {
@@ -559,10 +586,13 @@
   }
 
   .appointment-create-modal {
-    width: calc(100vw - 24px);
-    max-width: calc(100vw - 24px);
+    left: calc(8px + env(safe-area-inset-left));
+    right: calc(8px + env(safe-area-inset-right));
+    width: auto;
+    max-width: none;
     min-width: 0;
     box-sizing: border-box;
+    transform: translateY(-50%);
     height: auto;
     max-height: calc(100dvh - 20px);
     padding: 7px;
