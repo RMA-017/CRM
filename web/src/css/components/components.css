@@ -1339,7 +1339,7 @@ label.field > span:first-child,
 
 .telegram-token-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 280px);
+  grid-template-columns: 1fr;
   gap: 14px;
   align-items: stretch;
 }
@@ -1351,17 +1351,31 @@ label.field > span:first-child,
   border-radius: var(--radius-sm);
   background: #ffffff;
   box-sizing: border-box;
-  justify-content: end;
+  display: grid;
+  grid-template-columns: minmax(140px, 180px) minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.telegram-token-field span {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .telegram-token-field input {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  min-width: 0;
 }
 
 .telegram-settings-switches {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   align-content: stretch;
+  width: 100%;
 }
 
 .telegram-settings-switches .settings-checkbox-inline {
@@ -1705,6 +1719,11 @@ label.field > span:first-child,
   .telegram-token-layout,
   .telegram-settings-number-grid,
   .telegram-template-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .telegram-token-field,
+  .telegram-settings-switches {
     grid-template-columns: 1fr;
   }
 

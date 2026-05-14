@@ -274,6 +274,11 @@ test("Telegram reminders stay retryable and use enabled reminder windows", async
   );
   assert.match(
     serviceSource,
+    /const template = settings\.templates\?\.\[language\]\?\.\[templateKey\] \|\| DEFAULT_TEMPLATES\[language\]\[templateKey\]/,
+    "Reminder messages should use the editable Telegram settings template before falling back to defaults."
+  );
+  assert.match(
+    serviceSource,
     /reminder2h:\s*"Сегодня в \{time\} у вас урок \{service\}\. Специалист: \{specialist\}\."/,
     "Second reminder should be a short informational message with the specialist name and without a question."
   );

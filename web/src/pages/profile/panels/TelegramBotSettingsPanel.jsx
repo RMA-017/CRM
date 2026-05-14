@@ -168,11 +168,14 @@ function normalizeTemplates(value) {
 }
 
 function mapItemToForm(item) {
+  const cancelLockMinutes = Number.parseInt(String(item?.cancelLockMinutes ?? 60), 10);
+  const hasCancelLockMinutes = Number.isInteger(cancelLockMinutes) && cancelLockMinutes > 0;
   return {
     botToken: "",
     clearBotToken: false,
     isActive: Boolean(item?.isActive),
-    cancelLockMinutes: String(item?.cancelLockMinutes ?? 60),
+    cancelLockMinutes: String(hasCancelLockMinutes ? cancelLockMinutes : 60),
+    cancelLockEnabled: item?.cancelLockMinutes === undefined ? true : hasCancelLockMinutes,
     reminder24hHours: String(item?.reminder24hHours ?? 24),
     reminder2hHours: String(item?.reminder2hHours ?? 2),
     reminder24hEnabled: item?.reminder24hEnabled !== false,
@@ -255,7 +258,9 @@ function TelegramBotSettingsPanel({
     try {
       const payload = {
         isActive: form.isActive,
-        cancelLockMinutes: Number.parseInt(String(form.cancelLockMinutes || "60"), 10),
+        cancelLockMinutes: form.cancelLockEnabled
+          ? Number.parseInt(String(form.cancelLockMinutes || "60"), 10)
+          : 0,
         reminder24hHours: Number.parseInt(String(form.reminder24hHours || "24"), 10),
         reminder2hHours: Number.parseInt(String(form.reminder2hHours || "2"), 10),
         reminder24hEnabled: Boolean(form.reminder24hEnabled),
@@ -358,9 +363,25 @@ function TelegramBotSettingsPanel({
                 min="0"
                 max="10080"
                 value={form.cancelLockMinutes}
-                disabled={!canUpdateSettingsTelegramBot || saving}
+                disabled={!canUpdateSettingsTelegramBot || saving || !form.cancelLockEnabled}
                 onChange={(event) => setForm((prev) => ({ ...prev, cancelLockMinutes: event.target.value }))}
               />
+              <label className="settings-checkbox settings-checkbox-inline telegram-card-toggle" htmlFor="telegramCancelLockEnabled">
+                <span>{ui.active}</span>
+                <input
+                  id="telegramCancelLockEnabled"
+                  type="checkbox"
+                  checked={form.cancelLockEnabled}
+                  disabled={!canUpdateSettingsTelegramBot || saving}
+                  onChange={(event) => setForm((prev) => ({
+                    ...prev,
+                    cancelLockEnabled: event.target.checked,
+                    cancelLockMinutes: event.target.checked && Number.parseInt(String(prev.cancelLockMinutes || "0"), 10) <= 0
+                      ? "60"
+                      : prev.cancelLockMinutes
+                  }))}
+                />
+              </label>
             </div>
 
             <div className="telegram-number-card">
