@@ -6,8 +6,6 @@ import {
 } from "../../lib/role-labels.js";
 import { isNotificationsSchemaMissing, persistNotificationEvent } from "../notifications/notifications.service.js";
 import { notifyTelegramParentsForAppointmentChange } from "../telegram-bot/telegram-bot.service.js";
-import { hasPermission } from "../users/access.service.js";
-import { PERMISSIONS } from "../users/users.constants.js";
 import { publishAppointmentEvent } from "./appointment-events.js";
 import { normalizeSpecialistIds } from "./appointment-route-helpers.js";
 
@@ -25,27 +23,22 @@ function isSpecialistRole(requester) {
 
 async function resolveNotificationAudience(access, specialistIds) {
   const actorUserId = parsePositiveInteger(access?.authContext?.userId);
-  const actorRoleId = parsePositiveInteger(access?.requester?.role_id || access?.requester?.roleId);
   const normalizedSpecialistIds = normalizeSpecialistIds(specialistIds);
-  if (!actorUserId || !actorRoleId || normalizedSpecialistIds.length === 0) {
+  if (!actorUserId || normalizedSpecialistIds.length === 0) {
     return {
       targetUserIds: [],
       targetRoles: []
     };
   }
 
-  if (Boolean(access?.requester?.is_admin) || isManagerLikeRoleLabel(access?.requester?.role)) {
-    const canNotifySpecialists = await hasPermission(
-      actorRoleId,
-      PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_SPECIALIST
-    );
-    if (!canNotifySpecialists) {
-      return {
-        targetUserIds: [],
-        targetRoles: []
-      };
-    }
-
+  const requesterRoleText = joinNormalizedRoleLabelParts(
+    access?.requester?.role_label || access?.requester?.role
+  );
+  if (
+    Boolean(access?.requester?.is_admin)
+    || Boolean(access?.requester?.is_platform_admin)
+    || isManagerLikeRoleLabel(requesterRoleText)
+  ) {
     const targetSpecialistIds = normalizedSpecialistIds.filter((id) => id !== actorUserId);
     if (targetSpecialistIds.length === 0) {
       return {
@@ -61,17 +54,6 @@ async function resolveNotificationAudience(access, specialistIds) {
   }
 
   if (isSpecialistRole(access?.requester) || normalizedSpecialistIds.includes(actorUserId)) {
-    const canNotifyManagers = await hasPermission(
-      actorRoleId,
-      PERMISSIONS.NOTIFICATIONS_NOTIFY_TO_MANAGER
-    );
-    if (!canNotifyManagers) {
-      return {
-        targetUserIds: [],
-        targetRoles: []
-      };
-    }
-
     return {
       targetUserIds: [],
       targetRoles: ["manager"]

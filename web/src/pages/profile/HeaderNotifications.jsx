@@ -5,11 +5,19 @@ import { handleProtectedStatus } from "./profile.helpers.js";
 
 const NOTIFICATION_REFRESH_MS = 30_000;
 const NOTIFICATION_LIMIT = 10;
+const UZ_SHORT_MONTHS = ["yan", "fev", "mar", "apr", "may", "iyun", "iyul", "avg", "sen", "okt", "noy", "dek"];
 
 function formatNotificationTime(value, language) {
   const date = value ? new Date(value) : null;
   if (!date || Number.isNaN(date.getTime())) {
     return "";
+  }
+  if (language === "uz") {
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = UZ_SHORT_MONTHS[date.getMonth()] || "";
+    const hour = String(date.getHours()).padStart(2, "0");
+    const minute = String(date.getMinutes()).padStart(2, "0");
+    return `${day} ${month} ${hour}:${minute}`.trim();
   }
   return new Intl.DateTimeFormat(language === "ru" ? "ru-RU" : "uz-UZ", {
     month: "short",
