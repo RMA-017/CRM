@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import CustomSelect from "../../../components/CustomSelect.jsx";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 import { apiFetch, getApiErrorMessage, readApiResponseData } from "../../../lib/api.js";
 import { normalizePhoneNumber } from "../../../lib/phone-number.js";
@@ -77,12 +78,13 @@ function formatDate(value, language) {
   if (!date || Number.isNaN(date.getTime())) {
     return "-";
   }
-  return new Intl.DateTimeFormat(language === "ru" ? "ru-RU" : "uz-UZ", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(date);
+  const uzMonths = ["yan", "fev", "mar", "apr", "may", "iyun", "iyul", "avg", "sen", "okt", "noy", "dek"];
+  const ruMonths = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+  const months = language === "ru" ? ruMonths : uzMonths;
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${day}-${months[date.getMonth()]} ${hours}:${minutes}`;
 }
 
 function normalizeStatus(value) {
@@ -166,6 +168,14 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
     form: createConversionForm(),
     errors: {}
   });
+  const sourceOptions = useMemo(() => SOURCE_OPTIONS.map((source) => ({
+    value: source,
+    label: source ? ui.source[source] : ui.allSources
+  })), [ui.allSources, ui.source]);
+  const statusOptions = useMemo(() => PIPELINE_STATUSES.map((status) => ({
+    value: status,
+    label: ui.status[status]
+  })), [ui.status]);
 
   const itemsByStatus = useMemo(() => {
     const grouped = { new: [], contacted: [], converted: [], lost: [] };
@@ -517,17 +527,16 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
         </label>
         <label className="crm-toolbar-field">
           <span>{ui.allSources}</span>
-          <select
+          <CustomSelect
+            id="crmLeadSourceFilter"
             value={draftFilters.source}
-            onChange={(event) => {
-              const value = event.currentTarget.value;
+            placeholder={ui.allSources}
+            options={sourceOptions}
+            menuPortal
+            onChange={(value) => {
               setDraftFilters((prev) => ({ ...prev, source: value }));
             }}
-          >
-            {SOURCE_OPTIONS.map((source) => (
-              <option key={source || "all"} value={source}>{source ? ui.source[source] : ui.allSources}</option>
-            ))}
-          </select>
+          />
         </label>
         <div className="crm-toolbar-actions">
           <button type="submit" className="btn" disabled={loading}>{ui.filter}</button>
@@ -576,15 +585,14 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
                           placeholder={ui.note}
                           onInput={(event) => updateLeadEditField("note", event.currentTarget.value)}
                         />
-                        <select
-                          className="crm-lead-edit-select"
+                        <CustomSelect
+                          id={`crmLeadStatusSelect${leadId}`}
                           value={leadEdit.form.status}
-                          onChange={(event) => updateLeadEditField("status", event.currentTarget.value)}
-                        >
-                          {PIPELINE_STATUSES.map((nextStatus) => (
-                            <option key={nextStatus} value={nextStatus}>{ui.status[nextStatus]}</option>
-                          ))}
-                        </select>
+                          placeholder={ui.status.new}
+                          options={statusOptions}
+                          menuPortal
+                          onChange={(value) => updateLeadEditField("status", value)}
+                        />
                         {leadEdit.errors.fullName ? <small className="field-error">{leadEdit.errors.fullName}</small> : null}
                         <div className="crm-lead-edit-actions">
                           <button type="submit" className="btn" disabled={leadEdit.submitting}>{ui.save}</button>
@@ -607,7 +615,7 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
                           </a>
                           <time>{formatDate(item.updatedAt || item.createdAt, language)}</time>
                         </div>
-                        <p className={`crm-lead-note${note ? "" : " is-empty"}`}>{note || ui.note}</p>
+                        {note ? <p className="crm-lead-note">{note}</p> : null}
                       </>
                     )}
                   </article>

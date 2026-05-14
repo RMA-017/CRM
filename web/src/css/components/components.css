@@ -1628,9 +1628,7 @@ label.field > span:first-child,
 }
 
 .crm-toolbar input,
-.crm-toolbar select,
 .crm-lead-edit-input,
-.crm-lead-edit-select,
 .crm-lead-edit-textarea {
   width: 100%;
   min-height: var(--input-height);
@@ -1821,10 +1819,6 @@ label.field > span:first-child,
   overflow-wrap: anywhere;
 }
 
-.crm-lead-note.is-empty {
-  color: var(--text-muted);
-}
-
 .crm-lead-card-edit {
   display: grid;
   gap: 6px;
@@ -1832,7 +1826,6 @@ label.field > span:first-child,
 }
 
 .crm-lead-edit-input,
-.crm-lead-edit-select,
 .crm-lead-edit-textarea {
   min-height: 30px;
   font-size: 12px;
