@@ -1350,6 +1350,86 @@ test("schedule update allows status-only edits for active appointments without r
   assert.equal(reply.state.payload?.message, "Appointment updated.");
 });
 
+test("schedule update allows no-show slots to return to pending without stale availability checks", async () => {
+  let updated = false;
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      validateSlotAgainstWorkingHours: () => ({
+        field: "startTime",
+        message: "Selected time is outside working hours for mon."
+      }),
+      hasSpecialistAbsenceConflict: () => ({ startTime: "09:00", endTime: "10:00" }),
+      hasSpecialistWorkScheduleConflict: () => ({ startTime: "09:00", endTime: "10:00" }),
+      hasSpecialistBreakConflict: () => ({ startTime: "09:00", endTime: "10:00" }),
+      hasVipRoutineConflictForSpecialist: async () => true,
+      hasVipRoutineConflictForClient: async () => true,
+      getAppointmentScheduleTargetsByScope: async () => ({
+        anchorId: 91,
+        anchorAppointmentDate: "2026-03-09",
+        isRecurring: false,
+        scope: "single",
+        items: [
+          {
+            id: 91,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-09",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "no-show",
+            note: "",
+            isVip: false
+          }
+        ]
+      }),
+      updateAppointmentSchedulesByIds: async () => {
+        updated = true;
+        return [{
+          id: "91",
+          specialistId: "7",
+          clientId: "44",
+          appointmentDate: "2026-03-09",
+          startTime: "09:00",
+          endTime: "10:00",
+          status: "pending"
+        }];
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "PATCH", "/schedules/:id");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      params: { id: "91" },
+      query: { scope: "single" },
+      body: {
+        specialistId: "7",
+        clientId: "44",
+        appointmentDate: "2026-03-09",
+        startTime: "09:00",
+        endTime: "10:00",
+        durationMinutes: "60",
+        service: "Lesson",
+        status: "pending",
+        note: ""
+      }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 200);
+  assert.equal(updated, true);
+  assert.equal(reply.state.payload?.message, "Appointment updated.");
+});
+
 test("schedule update maps invalid repeat cast errors to invalid appointment data", async () => {
   const recorder = createRouteRecorder();
   registerAppointmentScheduleRoutes(

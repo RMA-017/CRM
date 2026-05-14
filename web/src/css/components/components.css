@@ -1568,18 +1568,12 @@ label.field > span:first-child,
 
 .crm-panel {
   display: grid;
-  gap: 18px;
-}
-
-.crm-panel-subtitle {
-  margin: 4px 0 0;
-  color: var(--text-muted);
-  font-size: var(--fs-small);
+  gap: 10px;
 }
 
 .crm-toolbar {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(128px, 160px) minmax(128px, 160px) minmax(140px, 190px);
+  grid-template-columns: minmax(180px, 1fr) minmax(128px, 160px) minmax(128px, 160px) minmax(140px, 190px) auto;
   gap: 10px;
   align-items: end;
 }
@@ -1594,6 +1588,20 @@ label.field > span:first-child,
   font-size: 11px;
   font-weight: 800;
   line-height: 1;
+}
+
+.crm-toolbar-actions {
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.crm-toolbar-actions .btn {
+  width: var(--btn-fixed-width);
+  min-width: var(--btn-fixed-width);
+  height: var(--btn-height);
+  padding: 0;
 }
 
 .crm-toolbar input,
@@ -1773,6 +1781,10 @@ label.field > span:first-child,
 @media (max-width: 760px) {
   .crm-toolbar {
     grid-template-columns: 1fr;
+  }
+
+  .crm-toolbar-actions {
+    justify-content: center;
   }
 
   .crm-lead-board {

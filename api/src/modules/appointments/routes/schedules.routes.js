@@ -2721,73 +2721,77 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             if (!scheduleChanged && wasPreviouslyActive) {
               continue;
             }
+            const isStatusOnlyReactivation = !scheduleChanged && !wasPreviouslyActive;
+            const shouldValidateAvailabilityWindows = !isStatusOnlyReactivation;
 
-            const absenceConflict = hasSpecialistAbsenceConflict({
-              absenceRangesByDate,
-              appointmentDate: conflictDate,
-              startTime,
-              endTime
-            });
-            if (absenceConflict) {
-              return reply.status(409).send({
-                message: buildSpecialistAbsenceConflictMessage(conflictDate, absenceConflict)
+            if (shouldValidateAvailabilityWindows) {
+              const absenceConflict = hasSpecialistAbsenceConflict({
+                absenceRangesByDate,
+                appointmentDate: conflictDate,
+                startTime,
+                endTime
               });
-            }
-
-            const workingHoursError = validateSlotAgainstWorkingHours({
-              settings: settingsForAvailability,
-              appointmentDate: conflictDate,
-              startTime,
-              endTime
-            });
-            if (workingHoursError) {
-              if (target.items.length > 1) {
-                return reply.status(400).send({
-                  field: workingHoursError.field,
-                  message: `${workingHoursError.message} (${conflictDate}).`
-                });
-              }
-              return reply.status(400).send(workingHoursError);
-            }
-
-            const blockedConflict = hasSpecialistWorkScheduleConflict({
-              blockedRangesByDay,
-              appointmentDate: conflictDate,
-              startTime,
-              endTime
-            });
-            if (blockedConflict) {
-              if (target.items.length > 1) {
+              if (absenceConflict) {
                 return reply.status(409).send({
-                  message: buildWorkScheduleBlockConflictMessage({
-                    conflict: blockedConflict,
-                    appointmentDate: conflictDate
-                  })
+                  message: buildSpecialistAbsenceConflictMessage(conflictDate, absenceConflict)
                 });
               }
-              return reply.status(409).send({
-                message: buildWorkScheduleBlockConflictMessage({ conflict: blockedConflict })
-              });
-            }
 
-            const breakConflict = hasSpecialistBreakConflict({
-              breakRangesByDay,
-              appointmentDate: conflictDate,
-              startTime,
-              endTime
-            });
-            if (breakConflict) {
-              if (target.items.length > 1) {
+              const workingHoursError = validateSlotAgainstWorkingHours({
+                settings: settingsForAvailability,
+                appointmentDate: conflictDate,
+                startTime,
+                endTime
+              });
+              if (workingHoursError) {
+                if (target.items.length > 1) {
+                  return reply.status(400).send({
+                    field: workingHoursError.field,
+                    message: `${workingHoursError.message} (${conflictDate}).`
+                  });
+                }
+                return reply.status(400).send(workingHoursError);
+              }
+
+              const blockedConflict = hasSpecialistWorkScheduleConflict({
+                blockedRangesByDay,
+                appointmentDate: conflictDate,
+                startTime,
+                endTime
+              });
+              if (blockedConflict) {
+                if (target.items.length > 1) {
+                  return reply.status(409).send({
+                    message: buildWorkScheduleBlockConflictMessage({
+                      conflict: blockedConflict,
+                      appointmentDate: conflictDate
+                    })
+                  });
+                }
                 return reply.status(409).send({
-                  message: buildBreakConflictMessage({
-                    conflict: breakConflict,
-                    appointmentDate: conflictDate
-                  })
+                  message: buildWorkScheduleBlockConflictMessage({ conflict: blockedConflict })
                 });
               }
-              return reply.status(409).send({
-                message: buildBreakConflictMessage({ conflict: breakConflict })
+
+              const breakConflict = hasSpecialistBreakConflict({
+                breakRangesByDay,
+                appointmentDate: conflictDate,
+                startTime,
+                endTime
               });
+              if (breakConflict) {
+                if (target.items.length > 1) {
+                  return reply.status(409).send({
+                    message: buildBreakConflictMessage({
+                      conflict: breakConflict,
+                      appointmentDate: conflictDate
+                    })
+                  });
+                }
+                return reply.status(409).send({
+                  message: buildBreakConflictMessage({ conflict: breakConflict })
+                });
+              }
             }
 
             const hasConflict = await hasAppointmentScheduleConflict({
@@ -2805,19 +2809,21 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               return reply.status(409).send({ message: "This slot conflicts with existing appointment." });
             }
 
-            const hasVipSpecialistConflict3 = await hasVipRoutineConflictForSpecialist({
-              organizationId: access.authContext.organizationId,
-              specialistId,
-              appointmentDate: conflictDate,
-              startTime,
-              endTime
-            });
-            if (hasVipSpecialistConflict3) {
-              return reply.status(409).send({
-                message: target.items.length > 1
-                  ? `Specialist has a VIP Daily Routine conflict on ${conflictDate}.`
-                  : "This slot conflicts with the specialist's VIP Daily Routine."
+            if (shouldValidateAvailabilityWindows) {
+              const hasVipSpecialistConflict3 = await hasVipRoutineConflictForSpecialist({
+                organizationId: access.authContext.organizationId,
+                specialistId,
+                appointmentDate: conflictDate,
+                startTime,
+                endTime
               });
+              if (hasVipSpecialistConflict3) {
+                return reply.status(409).send({
+                  message: target.items.length > 1
+                    ? `Specialist has a VIP Daily Routine conflict on ${conflictDate}.`
+                    : "This slot conflicts with the specialist's VIP Daily Routine."
+                });
+              }
             }
 
             const hasClientConflict = await hasAppointmentClientConflict({
@@ -2839,19 +2845,21 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               });
             }
 
-            const hasVipClientConflict3 = await hasVipRoutineConflictForClient({
-              organizationId: access.authContext.organizationId,
-              clientId,
-              appointmentDate: conflictDate,
-              startTime,
-              endTime
-            });
-            if (hasVipClientConflict3) {
-              return reply.status(409).send({
-                message: target.items.length > 1
-                  ? `Client has a VIP Daily Routine conflict on ${conflictDate}.`
-                  : "This slot conflicts with the client's VIP Daily Routine."
+            if (shouldValidateAvailabilityWindows) {
+              const hasVipClientConflict3 = await hasVipRoutineConflictForClient({
+                organizationId: access.authContext.organizationId,
+                clientId,
+                appointmentDate: conflictDate,
+                startTime,
+                endTime
               });
+              if (hasVipClientConflict3) {
+                return reply.status(409).send({
+                  message: target.items.length > 1
+                    ? `Client has a VIP Daily Routine conflict on ${conflictDate}.`
+                    : "This slot conflicts with the client's VIP Daily Routine."
+                });
+              }
             }
           }
         }

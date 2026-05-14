@@ -10,9 +10,11 @@ const TEXT = Object.freeze({
   uz: {
     title: "CRM",
     search: "Ism yoki telefon",
+    searchPlaceholder: "Ism yoki telefon kiriting",
     allSources: "Barcha manbalar",
     dateFrom: "Dan",
     dateTo: "Gacha",
+    filter: "Qidirish",
     close: "Yopish",
     empty: "Hozircha leadlar yo'q.",
     loading: "Yuklanmoqda...",
@@ -20,7 +22,6 @@ const TEXT = Object.freeze({
     status: { new: "Yangi", contacted: "Bog'lanildi", converted: "Client bo'ldi", lost: "Yo'qotildi" },
     note: "Izoh",
     convertTitle: "Leadni clientga aylantirish",
-    convertHint: "Client bazasiga yozish uchun ma'lumotlarni to'ldiring.",
     firstName: "Ism",
     lastName: "Familiya",
     middleName: "Otasining ismi",
@@ -38,9 +39,11 @@ const TEXT = Object.freeze({
   ru: {
     title: "CRM",
     search: "Имя или телефон",
+    searchPlaceholder: "Введите имя или телефон",
     allSources: "Все источники",
     dateFrom: "С",
     dateTo: "До",
+    filter: "Поиск",
     close: "Закрыть",
     empty: "Пока заявок нет.",
     loading: "Загрузка...",
@@ -48,7 +51,6 @@ const TEXT = Object.freeze({
     status: { new: "Новая", contacted: "Связались", converted: "Клиент", lost: "Потеряна" },
     note: "Заметка",
     convertTitle: "Перевести заявку в клиента",
-    convertHint: "Заполните данные, чтобы добавить клиента в базу.",
     firstName: "Имя",
     lastName: "Фамилия",
     middleName: "Отчество",
@@ -131,6 +133,7 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [filters, setFilters] = useState({ search: "", source: "", dateFrom: "", dateTo: "" });
+  const [draftFilters, setDraftFilters] = useState({ search: "", source: "", dateFrom: "", dateTo: "" });
   const [conversion, setConversion] = useState({
     open: false,
     submitting: false,
@@ -173,6 +176,11 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
   useEffect(() => {
     void loadItems();
   }, [loadItems]);
+
+  const handleFiltersSubmit = useCallback((event) => {
+    event.preventDefault();
+    setFilters({ ...draftFilters });
+  }, [draftFilters]);
 
   const updateLead = useCallback(async (item, patch) => {
     if (!canUpdateCrm) {
@@ -338,32 +346,26 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
 
   return (
     <section id="crmPanel" className="all-users-panel crm-panel">
-      <div className="all-users-head">
-        <div>
-          <h3>{ui.title}</h3>
-        </div>
-        <div className="all-users-head-actions">
-          <button type="button" className="header-btn panel-close-btn" onClick={onClose} aria-label={ui.close}>×</button>
-        </div>
-      </div>
-
-      <div className="crm-toolbar">
-        <input
-          value={filters.search}
-          placeholder={ui.search}
-          onInput={(event) => {
-            const value = event.currentTarget.value;
-            setFilters((prev) => ({ ...prev, search: value }));
-          }}
-        />
+      <form className="crm-toolbar" onSubmit={handleFiltersSubmit}>
+        <label className="crm-toolbar-field crm-toolbar-search-field">
+          <span>{ui.search}</span>
+          <input
+            value={draftFilters.search}
+            placeholder={ui.searchPlaceholder}
+            onInput={(event) => {
+              const value = event.currentTarget.value;
+              setDraftFilters((prev) => ({ ...prev, search: value }));
+            }}
+          />
+        </label>
         <label className="crm-toolbar-field">
           <span>{ui.dateFrom}</span>
           <input
             type="date"
-            value={filters.dateFrom}
+            value={draftFilters.dateFrom}
             onInput={(event) => {
               const value = event.currentTarget.value;
-              setFilters((prev) => ({ ...prev, dateFrom: value }));
+              setDraftFilters((prev) => ({ ...prev, dateFrom: value }));
             }}
           />
         </label>
@@ -371,25 +373,32 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
           <span>{ui.dateTo}</span>
           <input
             type="date"
-            value={filters.dateTo}
+            value={draftFilters.dateTo}
             onInput={(event) => {
               const value = event.currentTarget.value;
-              setFilters((prev) => ({ ...prev, dateTo: value }));
+              setDraftFilters((prev) => ({ ...prev, dateTo: value }));
             }}
           />
         </label>
-        <select
-          value={filters.source}
-          onChange={(event) => {
-            const value = event.currentTarget.value;
-            setFilters((prev) => ({ ...prev, source: value }));
-          }}
-        >
-          {SOURCE_OPTIONS.map((source) => (
-            <option key={source || "all"} value={source}>{source ? ui.source[source] : ui.allSources}</option>
-          ))}
-        </select>
-      </div>
+        <label className="crm-toolbar-field">
+          <span>{ui.allSources}</span>
+          <select
+            value={draftFilters.source}
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              setDraftFilters((prev) => ({ ...prev, source: value }));
+            }}
+          >
+            {SOURCE_OPTIONS.map((source) => (
+              <option key={source || "all"} value={source}>{source ? ui.source[source] : ui.allSources}</option>
+            ))}
+          </select>
+        </label>
+        <div className="crm-toolbar-actions">
+          <button type="submit" className="btn" disabled={loading}>{ui.filter}</button>
+          <button type="button" className="header-btn panel-close-btn" onClick={onClose} aria-label={ui.close}>×</button>
+        </div>
+      </form>
 
       {message ? <p className="all-users-state">{message}</p> : null}
       {loading && items.length === 0 ? <p className="all-users-state">{ui.loading}</p> : null}
@@ -446,16 +455,8 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
 
       {conversion.open ? (
         <>
-          <section className="logout-confirm-modal all-users-edit-modal crm-convert-modal">
-            <div className="all-users-head">
-              <div>
-                <h3>{ui.convertTitle}</h3>
-                <p className="crm-panel-subtitle">{ui.convertHint}</p>
-              </div>
-              <button type="button" className="header-btn panel-close-btn" onClick={closeConversionModal} aria-label={ui.cancel}>
-                ×
-              </button>
-            </div>
+          <section id="crmConvertClientModal" className="logout-confirm-modal all-users-edit-modal crm-convert-modal">
+            <h3>{ui.convertTitle}</h3>
             <form className="auth-form" noValidate onSubmit={handleConversionSubmit}>
               <div className="all-users-edit-fields">
                 <div className="field">
