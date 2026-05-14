@@ -51,6 +51,16 @@ function formatDate(value, language) {
   }).format(date);
 }
 
+function normalizeStatus(value) {
+  const status = String(value || "new").trim();
+  return STATUS_OPTIONS.includes(status) && status ? status : "new";
+}
+
+function normalizeSource(value) {
+  const source = String(value || "website").trim();
+  return SOURCE_OPTIONS.includes(source) && source ? source : "website";
+}
+
 function CrmLeadsPanel({ canUpdateCrm = false, onClose }) {
   const { language } = useI18n();
   const ui = TEXT[language] || TEXT.ru;
@@ -62,7 +72,7 @@ function CrmLeadsPanel({ canUpdateCrm = false, onClose }) {
   const stats = useMemo(() => {
     const next = { new: 0, contacted: 0, converted: 0, lost: 0 };
     items.forEach((item) => {
-      const status = String(item?.status || "new").trim();
+      const status = normalizeStatus(item?.status);
       if (Object.prototype.hasOwnProperty.call(next, status)) {
         next[status] += 1;
       }
@@ -157,11 +167,17 @@ function CrmLeadsPanel({ canUpdateCrm = false, onClose }) {
         <input
           value={filters.search}
           placeholder={ui.search}
-          onInput={(event) => setFilters((prev) => ({ ...prev, search: event.currentTarget.value }))}
+          onInput={(event) => {
+            const value = event.currentTarget.value;
+            setFilters((prev) => ({ ...prev, search: value }));
+          }}
         />
         <select
           value={filters.status}
-          onChange={(event) => setFilters((prev) => ({ ...prev, status: event.currentTarget.value }))}
+          onChange={(event) => {
+            const value = event.currentTarget.value;
+            setFilters((prev) => ({ ...prev, status: value }));
+          }}
         >
           {STATUS_OPTIONS.map((status) => (
             <option key={status || "all"} value={status}>{status ? ui.status[status] : ui.allStatuses}</option>
@@ -169,7 +185,10 @@ function CrmLeadsPanel({ canUpdateCrm = false, onClose }) {
         </select>
         <select
           value={filters.source}
-          onChange={(event) => setFilters((prev) => ({ ...prev, source: event.currentTarget.value }))}
+          onChange={(event) => {
+            const value = event.currentTarget.value;
+            setFilters((prev) => ({ ...prev, source: value }));
+          }}
         >
           {SOURCE_OPTIONS.map((source) => (
             <option key={source || "all"} value={source}>{source ? ui.source[source] : ui.allSources}</option>
@@ -183,8 +202,8 @@ function CrmLeadsPanel({ canUpdateCrm = false, onClose }) {
 
       <div className="crm-lead-board">
         {items.map((item) => {
-          const status = String(item?.status || "new").trim();
-          const source = String(item?.source || "website").trim();
+          const status = normalizeStatus(item?.status);
+          const source = normalizeSource(item?.source);
           return (
             <article key={item.id} className={`crm-lead-card is-${status}`}>
               <div className="crm-lead-card-head">

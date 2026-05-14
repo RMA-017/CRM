@@ -181,7 +181,8 @@
 
   .appointment-create-modal {
     width: calc(100vw - 30px);
-    max-height: calc(100dvh - 118px);
+    height: auto;
+    max-height: calc(100dvh - 24px);
     padding: 7px;
     overflow-y: hidden;
     overflow-x: hidden;
@@ -279,10 +280,15 @@
   }
 
   .appointment-create-modal .auth-form {
+    min-height: 0;
     overflow: hidden;
   }
 
   .appointment-create-modal .appointment-create-fields {
+    min-height: 0;
+    max-height: calc(100dvh - 154px);
+    overflow-y: auto;
+    overflow-x: hidden;
     padding-right: 5px;
   }
 
@@ -530,13 +536,26 @@
 
   .appointment-create-modal {
     width: calc(100vw - 24px);
-    max-height: calc(100dvh - 126px);
+    height: auto;
+    max-height: calc(100dvh - 20px);
     padding: 7px;
     overflow-y: hidden;
     overflow-x: hidden;
     --appointment-repeat-chip-height: 30px;
     --appointment-repeat-chip-padding-x: 3px;
     --appointment-repeat-chip-font-size: 10px;
+  }
+
+  .appointment-create-modal .auth-form {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .appointment-create-modal .appointment-create-fields {
+    min-height: 0;
+    max-height: calc(100dvh - 150px);
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
   #roleEditModal {
