@@ -1352,9 +1352,9 @@ label.field > span:first-child,
   background: #ffffff;
   box-sizing: border-box;
   display: grid;
-  grid-template-columns: minmax(140px, 180px) minmax(0, 1fr);
+  grid-template-columns: max-content minmax(0, 1fr);
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .telegram-token-field span {

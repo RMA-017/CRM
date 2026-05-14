@@ -269,6 +269,11 @@ test("Telegram reminders stay retryable and use enabled reminder windows", async
   );
   assert.match(
     serviceSource,
+    /export function startTelegramReminderWorker[\s\S]*void runTelegramReminderSweep\(\{ logger \}\);[\s\S]*setInterval\(\(\) => \{/,
+    "Reminder worker should run once immediately on startup, then continue on the interval."
+  );
+  assert.match(
+    serviceSource,
     /replyMarkup:\s*reminderType === "reminder_24h" \? buildAppointmentButtons\(language, item\.id\) : null/,
     "Only the first reminder should ask parents to confirm attendance."
   );

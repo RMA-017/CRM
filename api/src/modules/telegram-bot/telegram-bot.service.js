@@ -2259,11 +2259,17 @@ async function sendReminderRow({ row, reminderType }) {
 }
 
 async function sendReminderRows({ rows, reminderType, logger = null }) {
+  let sentCount = 0;
+  let failedCount = 0;
   for (const row of Array.isArray(rows) ? rows : []) {
     try {
-      await sendReminderRow({ row, reminderType });
+      const result = await sendReminderRow({ row, reminderType });
+      if (!result?.skipped) {
+        sentCount += 1;
+      }
     } catch (error) {
       if (!isTelegramSchemaMissing(error)) {
+        failedCount += 1;
         logger?.error?.({
           err: error,
           reminderType,
@@ -2274,6 +2280,11 @@ async function sendReminderRows({ rows, reminderType, logger = null }) {
       }
     }
   }
+  return {
+    targetCount: Array.isArray(rows) ? rows.length : 0,
+    sentCount,
+    failedCount
+  };
 }
 
 export async function runTelegramReminderSweep({ logger = null } = {}) {
@@ -2281,7 +2292,7 @@ export async function runTelegramReminderSweep({ logger = null } = {}) {
     const reminder24hRows = await listReminderTargets({
       reminderType: "reminder_24h"
     });
-    await sendReminderRows({
+    const reminder24hResult = await sendReminderRows({
       rows: reminder24hRows,
       reminderType: "reminder_24h",
       logger
@@ -2290,11 +2301,17 @@ export async function runTelegramReminderSweep({ logger = null } = {}) {
     const reminder2hRows = await listReminderTargets({
       reminderType: "reminder_2h"
     });
-    await sendReminderRows({
+    const reminder2hResult = await sendReminderRows({
       rows: reminder2hRows,
       reminderType: "reminder_2h",
       logger
     });
+    if (reminder24hResult.targetCount > 0 || reminder2hResult.targetCount > 0) {
+      logger?.info?.({
+        reminder24h: reminder24hResult,
+        reminder2h: reminder2hResult
+      }, "Telegram reminder sweep completed");
+    }
   } catch (error) {
     if (!isTelegramSchemaMissing(error)) {
       logger?.error?.({ err: error }, "Telegram reminder sweep failed");
@@ -2306,6 +2323,7 @@ export function startTelegramReminderWorker({ logger = null } = {}) {
   if (String(process.env.TELEGRAM_REMINDER_WORKER_ENABLED || "true").trim().toLowerCase() === "false") {
     return () => {};
   }
+  void runTelegramReminderSweep({ logger });
   const timer = setInterval(() => {
     void runTelegramReminderSweep({ logger });
   }, REMINDER_SWEEP_INTERVAL_MS);
