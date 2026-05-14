@@ -462,9 +462,46 @@
 #clientsEditModal.logout-confirm-modal.all-users-edit-modal,
 #crmConvertClientModal.logout-confirm-modal.all-users-edit-modal {
   width: min(520px, calc(100vw - 32px));
-  height: clamp(480px, 72dvh, 620px);
-  max-height: calc(100dvh - 24px);
+  height: auto;
+  min-height: 0;
+  max-height: min(520px, calc(100dvh - 24px));
   box-sizing: border-box;
+  grid-template-rows: auto minmax(0, auto);
+}
+
+#clientsEditModal .auth-form,
+#crmConvertClientModal .auth-form {
+  grid-template-rows: minmax(0, auto) auto;
+  align-content: start;
+  gap: 6px;
+}
+
+#clientsEditModal .all-users-edit-fields,
+#crmConvertClientModal .all-users-edit-fields {
+  max-height: min(420px, calc(100dvh - 106px));
+  align-content: start;
+  gap: 6px;
+  padding-right: 8px;
+}
+
+#clientsEditModal.logout-confirm-modal.all-users-edit-modal h3,
+#crmConvertClientModal.logout-confirm-modal.all-users-edit-modal h3 {
+  margin-bottom: 4px;
+}
+
+#clientsEditModal.logout-confirm-modal.all-users-edit-modal .field,
+#crmConvertClientModal.logout-confirm-modal.all-users-edit-modal .field {
+  gap: 2px;
+}
+
+#clientsEditModal .client-birthday-vip-row,
+#crmConvertClientModal .client-birthday-vip-row {
+  gap: 8px;
+}
+
+#clientsEditModal .client-birthday-vip-row .clients-edit-vip-field,
+#crmConvertClientModal .client-birthday-vip-row .clients-create-vip-field {
+  gap: 2px;
 }
 
 #usersCreateModal .auth-form,
@@ -1721,7 +1758,7 @@ label.field > span:first-child,
 .crm-pipeline-column-body {
   display: grid;
   align-content: start;
-  gap: 8px;
+  gap: 5.6px;
   min-height: 0;
   padding: 8px;
 }
