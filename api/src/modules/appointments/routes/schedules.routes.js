@@ -893,15 +893,20 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const effectiveVipOnly = vipOnly || clientScopeInfo?.isVip === true;
         const assignedUserId = 0;
 
-        const autoRollingResult = await ensureAutoRollingRecurringSchedulesCoverRange({
-          organizationId: access.authContext.organizationId,
-          specialistId,
-          clientId,
-          classId,
-          assignedUserId: null,
-          dateTo,
-          vipOnly: effectiveVipOnly
-        });
+        let autoRollingResult = null;
+        try {
+          autoRollingResult = await ensureAutoRollingRecurringSchedulesCoverRange({
+            organizationId: access.authContext.organizationId,
+            specialistId,
+            clientId,
+            classId,
+            assignedUserId: null,
+            dateTo,
+            vipOnly: effectiveVipOnly
+          });
+        } catch (error) {
+          request.log.error({ err: error }, "Error extending auto-rolling appointment schedules");
+        }
         if (autoRollingResult?.changed) {
           schedulesReadCache.clear();
         }

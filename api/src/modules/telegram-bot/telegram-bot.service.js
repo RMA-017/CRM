@@ -2217,21 +2217,43 @@ async function sendReminderRow({ row, reminderType }) {
   });
 }
 
+async function sendReminderRows({ rows, reminderType, logger = null }) {
+  for (const row of Array.isArray(rows) ? rows : []) {
+    try {
+      await sendReminderRow({ row, reminderType });
+    } catch (error) {
+      if (!isTelegramSchemaMissing(error)) {
+        logger?.error?.({
+          err: error,
+          reminderType,
+          organizationId: row?.organization_id,
+          parentAccountId: row?.parent_account_id,
+          appointmentId: row?.appointment_id
+        }, "Telegram reminder row failed");
+      }
+    }
+  }
+}
+
 export async function runTelegramReminderSweep({ logger = null } = {}) {
   try {
     const reminder24hRows = await listReminderTargets({
       reminderType: "reminder_24h"
     });
-    for (const row of reminder24hRows) {
-      await sendReminderRow({ row, reminderType: "reminder_24h" });
-    }
+    await sendReminderRows({
+      rows: reminder24hRows,
+      reminderType: "reminder_24h",
+      logger
+    });
 
     const reminder2hRows = await listReminderTargets({
       reminderType: "reminder_2h"
     });
-    for (const row of reminder2hRows) {
-      await sendReminderRow({ row, reminderType: "reminder_2h" });
-    }
+    await sendReminderRows({
+      rows: reminder2hRows,
+      reminderType: "reminder_2h",
+      logger
+    });
   } catch (error) {
     if (!isTelegramSchemaMissing(error)) {
       logger?.error?.({ err: error }, "Telegram reminder sweep failed");

@@ -257,4 +257,14 @@ test("Telegram reminders stay retryable and use enabled reminder windows", async
     /tbs\.\$\{enabledColumn\} = TRUE[\s\S]*tbs\.\$\{hoursColumn\} > 0[\s\S]*> TIMEZONE\('Asia\/Tashkent', NOW\(\)\)[\s\S]*<= \(TIMEZONE\('Asia\/Tashkent', NOW\(\)\) \+ \(tbs\.\$\{hoursColumn\}::text \|\| ' hours'\)::interval\)[\s\S]*NOT EXISTS/s,
     "Reminder sweep should find upcoming unsent reminders within the configured window."
   );
+  assert.match(
+    serviceSource,
+    /async function sendReminderRows\([\s\S]*for \(const row of Array\.isArray\(rows\) \? rows : \[\]\)[\s\S]*try \{[\s\S]*await sendReminderRow\(\{ row, reminderType \}\);[\s\S]*catch \(error\)[\s\S]*Telegram reminder row failed/s,
+    "Reminder sweep should continue sending other rows when one Telegram chat fails."
+  );
+  assert.match(
+    serviceSource,
+    /await sendReminderRows\(\{[\s\S]*reminderType: "reminder_24h"[\s\S]*await sendReminderRows\(\{[\s\S]*reminderType: "reminder_2h"/s,
+    "Both reminder windows should use the retryable per-row sender."
+  );
 });

@@ -730,7 +730,7 @@
 .home-site-layout .home-header {
   position: sticky;
   top: 0;
-  z-index: 40;
+  z-index: 50;
   min-height: 72px;
   border: 0;
   border-radius: 0;
@@ -807,7 +807,7 @@
   top: 76px;
   left: 14px;
   right: 14px;
-  z-index: 45;
+  z-index: 52;
   border: 1px solid rgba(132, 168, 136, 0.28);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.98);
@@ -849,7 +849,7 @@
 .home-mobile-nav-overlay {
   position: fixed;
   inset: 0;
-  z-index: 44;
+  z-index: 49;
   border: 0;
   background: transparent;
   padding: 0;
