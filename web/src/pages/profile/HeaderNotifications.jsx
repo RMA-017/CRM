@@ -53,8 +53,32 @@ function getNotificationClientName(item) {
   ].map((part) => String(part || "").trim()).filter(Boolean).join(" ") || "Client";
 }
 
+function getNotificationSpecialistName(item) {
+  const payload = item?.payload && typeof item.payload === "object" ? item.payload : {};
+  const payloadName = String(payload.specialistName || "").trim();
+  if (payloadName) {
+    return payloadName;
+  }
+  const firstItem = getPayloadItems(item)[0] || {};
+  return String(firstItem.specialistName || firstItem.specialist_name || "").trim();
+}
+
+function getNotificationServiceName(item) {
+  const payload = item?.payload && typeof item.payload === "object" ? item.payload : {};
+  const payloadService = String(payload.serviceName || "").trim();
+  if (payloadService) {
+    return payloadService;
+  }
+  const firstItem = getPayloadItems(item)[0] || {};
+  return String(firstItem.serviceName || firstItem.service_name || "").trim();
+}
+
 function getFirstScheduleItem(item) {
   return getPayloadItems(item)[0] || {};
+}
+
+function compactParts(parts) {
+  return parts.map((part) => String(part || "").trim()).filter(Boolean).join(" - ");
 }
 
 function formatHeaderNotificationMessage(item, language, fallback) {
@@ -62,18 +86,20 @@ function formatHeaderNotificationMessage(item, language, fallback) {
   const payload = item?.payload && typeof item.payload === "object" ? item.payload : {};
   const firstItem = getFirstScheduleItem(item);
   const clientName = getNotificationClientName(item);
+  const specialistName = getNotificationSpecialistName(item);
+  const serviceName = getNotificationServiceName(item);
   const dateTime = formatNotificationDateTime(
     firstItem.appointmentDate || payload.appointmentDate,
     firstItem.startTime || payload.startTime
   );
-  const suffix = [clientName, dateTime].filter(Boolean).join(" - ");
+  const suffix = compactParts([clientName, serviceName, specialistName, dateTime]);
   const isRu = language === "ru";
 
   if (eventType === "schedule-created") {
     return `${isRu ? "Создано" : "Dars yaratildi"}: ${suffix}`.trim();
   }
   if (eventType === "schedule-updated") {
-    return `${isRu ? "Время изменено" : "Dars vaqti o'zgardi"}: ${suffix}`.trim();
+    return `${isRu ? "Занятие изменено" : "Dars o'zgardi"}: ${suffix}`.trim();
   }
   if (eventType === "schedule-deleted") {
     return `${isRu ? "Удалено" : "Dars o'chirildi"}: ${suffix}`.trim();

@@ -182,8 +182,8 @@
   top: calc(100% + 8px);
   right: 0;
   z-index: var(--z-popover);
-  width: min(380px, calc(100vw - 24px));
-  max-height: min(430px, calc(100vh - 110px));
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(520px, calc(100vh - 110px));
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -247,7 +247,7 @@
   background: #fff;
   color: var(--text-main);
   text-align: left;
-  padding: 11px 12px;
+  padding: 12px 14px;
   cursor: pointer;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -297,7 +297,7 @@
   min-width: 0;
   color: var(--text-main);
   font-size: var(--fs-small);
-  line-height: 1.45;
+  line-height: 1.5;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -1337,7 +1337,7 @@ label.field > span:first-child,
 
 .telegram-token-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 260px);
   gap: 14px;
   align-items: end;
 }
@@ -1348,8 +1348,32 @@ label.field > span:first-child,
 
 .telegram-settings-switches {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   align-content: end;
+}
+
+.telegram-settings-switches .settings-checkbox-inline {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  background: #F8FAFC;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.telegram-settings-switches .settings-checkbox-inline span {
+  min-width: 0;
+  color: var(--text-main);
+  font-size: var(--fs-small);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.telegram-settings-switches .settings-checkbox-inline input[type="checkbox"] {
+  justify-self: end;
 }
 
 .telegram-settings-number-grid {

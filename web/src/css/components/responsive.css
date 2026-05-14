@@ -122,7 +122,7 @@
     right: 12px;
     width: auto;
     max-width: none;
-    max-height: min(430px, calc(100dvh - var(--bar-height) - 34px));
+    max-height: min(520px, calc(100dvh - var(--bar-height) - 34px));
     border-radius: 8px;
   }
 

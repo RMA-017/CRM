@@ -1284,9 +1284,12 @@ async function notifyStaffAboutParentCancel({ settings, appointment, reason }) {
     payload: {
       appointmentId: appointment.id,
       clientId: appointment.clientId,
+      clientName: getClientName(appointment),
       specialistId: appointment.specialistId,
+      specialistName: appointment.specialistName,
       appointmentDate: appointment.appointmentDate,
       startTime: appointment.startTime,
+      endTime: appointment.endTime,
       serviceName: appointment.serviceName,
       reason
     },
