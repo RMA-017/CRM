@@ -113,10 +113,10 @@ const TEXT = Object.freeze({
     menuToday: "📅 Сегодня",
     menuWeek: "🗓 Неделя",
     menuServices: "🧩 Наши услуги",
-    menuSpecialists: "👩‍⚕️ Наши специалисты",
+    menuSpecialists: "👩‍⚕️ Специалисты",
     menuSettings: "⚙️ Настройки",
     servicesTitle: "Наши услуги",
-    specialistsTitle: "Наши специалисты",
+    specialistsTitle: "Специалисты",
     specialistsEmpty: "Пока список специалистов пуст.",
     fallbackReason: "Родитель отменил через Telegram бот",
     botDisabled: "Бот пока не активен."

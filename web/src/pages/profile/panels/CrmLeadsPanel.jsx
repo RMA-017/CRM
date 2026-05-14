@@ -3,24 +3,21 @@ import { useI18n } from "../../../i18n/I18nProvider.jsx";
 import { apiFetch, getApiErrorMessage, readApiResponseData } from "../../../lib/api.js";
 import { normalizePhoneNumber } from "../../../lib/phone-number.js";
 
-const STATUS_OPTIONS = Object.freeze(["", "new", "contacted", "converted", "lost"]);
 const PIPELINE_STATUSES = Object.freeze(["new", "contacted", "converted", "lost"]);
 const SOURCE_OPTIONS = Object.freeze(["", "website", "telegram"]);
 
 const TEXT = Object.freeze({
   uz: {
     title: "CRM",
-    subtitle: "Varonka tizimi",
     search: "Ism yoki telefon",
-    allStatuses: "Barcha statuslar",
     allSources: "Barcha manbalar",
-    refresh: "Yangilash",
+    dateFrom: "Dan",
+    dateTo: "Gacha",
     close: "Yopish",
     empty: "Hozircha leadlar yo'q.",
     loading: "Yuklanmoqda...",
     source: { website: "Sayt", telegram: "Telegram" },
     status: { new: "Yangi", contacted: "Bog'lanildi", converted: "Client bo'ldi", lost: "Yo'qotildi" },
-    stats: { new: "Yangi", contacted: "Bog'lanildi", converted: "Client", lost: "Yo'qotildi" },
     note: "Izoh",
     convertTitle: "Leadni clientga aylantirish",
     convertHint: "Client bazasiga yozish uchun ma'lumotlarni to'ldiring.",
@@ -40,17 +37,15 @@ const TEXT = Object.freeze({
   },
   ru: {
     title: "CRM",
-    subtitle: "Воронка заявок",
     search: "Имя или телефон",
-    allStatuses: "Все статусы",
     allSources: "Все источники",
-    refresh: "Обновить",
+    dateFrom: "С",
+    dateTo: "До",
     close: "Закрыть",
     empty: "Пока заявок нет.",
     loading: "Загрузка...",
     source: { website: "Сайт", telegram: "Telegram" },
     status: { new: "Новая", contacted: "Связались", converted: "Клиент", lost: "Потеряна" },
-    stats: { new: "Новые", contacted: "Связались", converted: "Клиенты", lost: "Потеряно" },
     note: "Заметка",
     convertTitle: "Перевести заявку в клиента",
     convertHint: "Заполните данные, чтобы добавить клиента в базу.",
@@ -85,7 +80,7 @@ function formatDate(value, language) {
 
 function normalizeStatus(value) {
   const status = String(value || "new").trim();
-  return STATUS_OPTIONS.includes(status) && status ? status : "new";
+  return PIPELINE_STATUSES.includes(status) ? status : "new";
 }
 
 function normalizeSource(value) {
@@ -135,7 +130,7 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [filters, setFilters] = useState({ search: "", status: "", source: "" });
+  const [filters, setFilters] = useState({ search: "", source: "", dateFrom: "", dateTo: "" });
   const [conversion, setConversion] = useState({
     open: false,
     submitting: false,
@@ -143,17 +138,6 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
     form: createConversionForm(),
     errors: {}
   });
-
-  const stats = useMemo(() => {
-    const next = { new: 0, contacted: 0, converted: 0, lost: 0 };
-    items.forEach((item) => {
-      const status = normalizeStatus(item?.status);
-      if (Object.prototype.hasOwnProperty.call(next, status)) {
-        next[status] += 1;
-      }
-    });
-    return next;
-  }, [items]);
 
   const itemsByStatus = useMemo(() => {
     const grouped = { new: [], contacted: [], converted: [], lost: [] };
@@ -168,8 +152,9 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
       setLoading(true);
       const query = new URLSearchParams();
       if (filters.search.trim()) query.set("search", filters.search.trim());
-      if (filters.status) query.set("status", filters.status);
       if (filters.source) query.set("source", filters.source);
+      if (filters.dateFrom) query.set("dateFrom", filters.dateFrom);
+      if (filters.dateTo) query.set("dateTo", filters.dateTo);
       const response = await apiFetch(`/api/crm/leads?${query.toString()}`, { cache: "no-store" });
       const data = await readApiResponseData(response);
       if (!response.ok) {
@@ -183,7 +168,7 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
     } finally {
       setLoading(false);
     }
-  }, [filters.search, filters.source, filters.status]);
+  }, [filters.dateFrom, filters.dateTo, filters.search, filters.source]);
 
   useEffect(() => {
     void loadItems();
@@ -356,21 +341,10 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
       <div className="all-users-head">
         <div>
           <h3>{ui.title}</h3>
-          <p className="crm-panel-subtitle">{ui.subtitle}</p>
         </div>
         <div className="all-users-head-actions">
-          <button type="button" className="header-btn" onClick={loadItems}>{ui.refresh}</button>
           <button type="button" className="header-btn panel-close-btn" onClick={onClose} aria-label={ui.close}>×</button>
         </div>
-      </div>
-
-      <div className="crm-summary-grid">
-        {PIPELINE_STATUSES.map((status) => (
-          <article key={status} className={`crm-summary-card is-${status}`}>
-            <span>{ui.stats[status]}</span>
-            <strong>{stats[status]}</strong>
-          </article>
-        ))}
       </div>
 
       <div className="crm-toolbar">
@@ -382,17 +356,28 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
             setFilters((prev) => ({ ...prev, search: value }));
           }}
         />
-        <select
-          value={filters.status}
-          onChange={(event) => {
-            const value = event.currentTarget.value;
-            setFilters((prev) => ({ ...prev, status: value }));
-          }}
-        >
-          {STATUS_OPTIONS.map((status) => (
-            <option key={status || "all"} value={status}>{status ? ui.status[status] : ui.allStatuses}</option>
-          ))}
-        </select>
+        <label className="crm-toolbar-field">
+          <span>{ui.dateFrom}</span>
+          <input
+            type="date"
+            value={filters.dateFrom}
+            onInput={(event) => {
+              const value = event.currentTarget.value;
+              setFilters((prev) => ({ ...prev, dateFrom: value }));
+            }}
+          />
+        </label>
+        <label className="crm-toolbar-field">
+          <span>{ui.dateTo}</span>
+          <input
+            type="date"
+            value={filters.dateTo}
+            onInput={(event) => {
+              const value = event.currentTarget.value;
+              setFilters((prev) => ({ ...prev, dateTo: value }));
+            }}
+          />
+        </label>
         <select
           value={filters.source}
           onChange={(event) => {

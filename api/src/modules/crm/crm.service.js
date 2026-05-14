@@ -20,6 +20,11 @@ function normalizeText(value, maxLength = 180) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
+function normalizeDateYmd(value) {
+  const normalized = String(value || "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : "";
+}
+
 function mapLeadRow(row) {
   return {
     id: String(row?.id || ""),
@@ -183,6 +188,8 @@ export async function getCrmLeadsPage({
   status = "",
   source = "",
   search = "",
+  dateFrom = "",
+  dateTo = "",
   limit = 100,
   db = pool
 }) {
@@ -193,6 +200,8 @@ export async function getCrmLeadsPage({
   const normalizedStatus = normalizeLeadStatus(status, "");
   const normalizedSource = normalizeLeadSource(source, "");
   const normalizedSearch = normalizeText(search, 80).toLowerCase();
+  const normalizedDateFrom = normalizeDateYmd(dateFrom);
+  const normalizedDateTo = normalizeDateYmd(dateTo);
   const normalizedLimit = Math.min(Math.max(normalizePositiveInteger(limit) || 100, 1), 200);
   const params = [normalizedOrganizationId];
   const where = ["organization_id = $1"];
@@ -207,6 +216,14 @@ export async function getCrmLeadsPage({
   if (normalizedSearch) {
     params.push(`%${normalizedSearch}%`);
     where.push(`(LOWER(full_name) LIKE $${params.length} OR phone_digits LIKE $${params.length})`);
+  }
+  if (normalizedDateFrom) {
+    params.push(normalizedDateFrom);
+    where.push(`created_at >= $${params.length}::date`);
+  }
+  if (normalizedDateTo) {
+    params.push(normalizedDateTo);
+    where.push(`created_at < ($${params.length}::date + INTERVAL '1 day')`);
   }
   params.push(normalizedLimit);
   const { rows } = await db.query(

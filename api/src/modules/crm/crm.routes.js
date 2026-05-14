@@ -94,6 +94,8 @@ export async function crmProtectedRoutes(fastify) {
         status: request.query?.status,
         source: request.query?.source,
         search: request.query?.search,
+        dateFrom: request.query?.dateFrom,
+        dateTo: request.query?.dateTo,
         limit: request.query?.limit
       });
       return reply.send({ items });
