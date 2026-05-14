@@ -116,11 +116,20 @@ export async function crmProtectedRoutes(fastify) {
       if (!id) {
         return reply.status(400).send({ message: "Invalid lead id." });
       }
+      const body = request.body && typeof request.body === "object" ? request.body : {};
+      const hasFullName = Object.prototype.hasOwnProperty.call(body, "fullName")
+        || Object.prototype.hasOwnProperty.call(body, "full_name")
+        || Object.prototype.hasOwnProperty.call(body, "name");
+      const fullName = hasFullName ? normalizeText(body.fullName || body.full_name || body.name, 180) : undefined;
+      if (hasFullName && fullName.length < 3) {
+        return reply.status(400).send({ field: "fullName", message: "Full name is required." });
+      }
       const item = await updateCrmLeadById({
         organizationId: access.organizationId,
         id,
-        status: request.body?.status,
-        note: request.body?.note
+        fullName,
+        status: body.status,
+        note: body.note
       });
       if (!item) {
         return reply.status(404).send({ message: "Lead not found." });

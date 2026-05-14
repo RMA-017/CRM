@@ -248,12 +248,14 @@ export async function getCrmLeadsPage({
 export async function updateCrmLeadById({
   organizationId,
   id,
+  fullName,
   status,
   note,
   db = pool
 }) {
   const normalizedOrganizationId = normalizePositiveInteger(organizationId);
   const normalizedId = normalizePositiveInteger(id);
+  const normalizedFullName = fullName === undefined ? undefined : normalizeText(fullName, 180);
   const normalizedStatus = normalizeLeadStatus(status, "");
   const normalizedNote = note === undefined ? undefined : normalizeText(note, 2000);
   if (!normalizedOrganizationId || !normalizedId) {
@@ -261,6 +263,10 @@ export async function updateCrmLeadById({
   }
   const updates = [];
   const params = [normalizedOrganizationId, normalizedId];
+  if (normalizedFullName !== undefined) {
+    params.push(normalizedFullName);
+    updates.push(`full_name = $${params.length}`);
+  }
   if (normalizedStatus) {
     params.push(normalizedStatus);
     updates.push(`status = $${params.length}`);

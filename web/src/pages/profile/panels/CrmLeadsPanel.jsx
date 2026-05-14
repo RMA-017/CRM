@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 import { apiFetch, getApiErrorMessage, readApiResponseData } from "../../../lib/api.js";
 import { normalizePhoneNumber } from "../../../lib/phone-number.js";
@@ -20,7 +21,9 @@ const TEXT = Object.freeze({
     loading: "Yuklanmoqda...",
     source: { website: "Sayt", telegram: "Telegram" },
     status: { new: "Yangi", contacted: "Bog'lanildi", converted: "Client bo'ldi", lost: "Yo'qotildi" },
+    leadName: "Ism",
     note: "Izoh",
+    save: "Saqlash",
     convertTitle: "Leadni clientga aylantirish",
     firstName: "Ism",
     lastName: "Familiya",
@@ -29,7 +32,7 @@ const TEXT = Object.freeze({
     phone: "Telefon",
     telegramOrEmail: "Email / Telegram",
     active: "Aktiv",
-    saveClient: "Client yaratish",
+    saveClient: "Yaratish",
     savingClient: "Yaratilmoqda...",
     cancel: "Bekor qilish",
     createClientPermission: "Client yaratish uchun ruxsat yo'q.",
@@ -49,7 +52,9 @@ const TEXT = Object.freeze({
     loading: "Загрузка...",
     source: { website: "Сайт", telegram: "Telegram" },
     status: { new: "Новая", contacted: "Связались", converted: "Клиент", lost: "Потеряна" },
+    leadName: "Имя",
     note: "Заметка",
+    save: "Сохранить",
     convertTitle: "Перевести заявку в клиента",
     firstName: "Имя",
     lastName: "Фамилия",
@@ -58,7 +63,7 @@ const TEXT = Object.freeze({
     phone: "Телефон",
     telegramOrEmail: "Email / Telegram",
     active: "Активен",
-    saveClient: "Создать клиента",
+    saveClient: "Создать",
     savingClient: "Создание...",
     cancel: "Отмена",
     createClientPermission: "Нет доступа на создание клиента.",
@@ -126,6 +131,25 @@ function createConversionForm(item = {}) {
   };
 }
 
+function createLeadEditForm(item = {}) {
+  return {
+    fullName: String(item?.fullName || "").trim(),
+    note: String(item?.note || ""),
+    status: normalizeStatus(item?.status)
+  };
+}
+
+function getLeadNoteRows(value) {
+  const text = String(value || "");
+  if (!text.trim()) {
+    return 1;
+  }
+  const rows = text.split(/\r?\n/).reduce((total, line) => (
+    total + Math.max(1, Math.ceil(line.length / 34))
+  ), 0);
+  return Math.min(6, Math.max(1, rows));
+}
+
 function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose }) {
   const { language } = useI18n();
   const ui = TEXT[language] || TEXT.ru;
@@ -134,6 +158,7 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
   const [message, setMessage] = useState("");
   const [filters, setFilters] = useState({ search: "", source: "", dateFrom: "", dateTo: "" });
   const [draftFilters, setDraftFilters] = useState({ search: "", source: "", dateFrom: "", dateTo: "" });
+  const [leadEdit, setLeadEdit] = useState({ id: "", submitting: false, form: createLeadEditForm(), errors: {} });
   const [conversion, setConversion] = useState({
     open: false,
     submitting: false,
@@ -210,8 +235,9 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
         setItems((current) => current.map((lead) => (
           String(lead?.id || "") === id ? data.item : lead
         )));
+        return data.item;
       }
-      return true;
+      return { ...item, ...patch };
     } catch {
       setItems(previousItems);
       setMessage("Failed to update lead.");
@@ -243,18 +269,122 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
     });
   }, []);
 
-  const handleStatusChange = useCallback((item, nextStatus) => {
-    const normalizedNextStatus = normalizeStatus(nextStatus);
+  const startLeadEdit = useCallback((item) => {
+    if (!canUpdateCrm) {
+      return;
+    }
+    setLeadEdit({
+      id: String(item?.id || ""),
+      submitting: false,
+      form: createLeadEditForm(item),
+      errors: {}
+    });
+  }, [canUpdateCrm]);
+
+  const cancelLeadEdit = useCallback(() => {
+    setLeadEdit({ id: "", submitting: false, form: createLeadEditForm(), errors: {} });
+  }, []);
+
+  const updateLeadEditField = useCallback((field, value) => {
+    setLeadEdit((prev) => ({
+      ...prev,
+      form: {
+        ...prev.form,
+        [field]: value
+      },
+      errors: {
+        ...prev.errors,
+        [field]: ""
+      }
+    }));
+  }, []);
+
+  const handleLeadCardKeyDown = useCallback((event, item) => {
+    if (!canUpdateCrm || event.defaultPrevented) {
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      startLeadEdit(item);
+    }
+  }, [canUpdateCrm, startLeadEdit]);
+
+  const handleLeadEditSubmit = useCallback(async (event, item) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!canUpdateCrm || leadEdit.submitting) {
+      return;
+    }
+    const form = leadEdit.form || {};
+    const fullName = String(form.fullName || "").replace(/\s+/g, " ").trim();
+    if (fullName.length < 3) {
+      setLeadEdit((prev) => ({
+        ...prev,
+        errors: {
+          ...prev.errors,
+          fullName: ui.required
+        }
+      }));
+      return;
+    }
+
     const currentStatus = normalizeStatus(item?.status);
-    if (normalizedNextStatus === currentStatus) {
+    const nextStatus = normalizeStatus(form.status);
+    const note = String(form.note || "");
+    const patch = {};
+    if (fullName !== String(item?.fullName || "").trim()) {
+      patch.fullName = fullName;
+    }
+    if (note !== String(item?.note || "")) {
+      patch.note = note;
+    }
+
+    if (nextStatus === "converted" && currentStatus !== "converted") {
+      if (!canCreateClients) {
+        setMessage(ui.createClientPermission);
+        return;
+      }
+      let conversionLead = item;
+      if (Object.keys(patch).length > 0) {
+        setLeadEdit((prev) => ({ ...prev, submitting: true, errors: {} }));
+        const updatedLead = await updateLead(item, patch);
+        setLeadEdit((prev) => ({ ...prev, submitting: false }));
+        if (!updatedLead) {
+          return;
+        }
+        conversionLead = typeof updatedLead === "object" ? updatedLead : { ...item, ...patch };
+      }
+      cancelLeadEdit();
+      openConversionModal(conversionLead);
       return;
     }
-    if (normalizedNextStatus === "converted") {
-      openConversionModal(item);
+
+    if (nextStatus !== currentStatus) {
+      patch.status = nextStatus;
+    }
+    if (Object.keys(patch).length === 0) {
+      cancelLeadEdit();
       return;
     }
-    void updateLead(item, { status: normalizedNextStatus });
-  }, [openConversionModal, updateLead]);
+
+    setLeadEdit((prev) => ({ ...prev, submitting: true, errors: {} }));
+    const updatedLead = await updateLead(item, patch);
+    if (updatedLead) {
+      cancelLeadEdit();
+      return;
+    }
+    setLeadEdit((prev) => ({ ...prev, submitting: false }));
+  }, [
+    canCreateClients,
+    canUpdateCrm,
+    cancelLeadEdit,
+    leadEdit.form,
+    leadEdit.submitting,
+    openConversionModal,
+    ui.createClientPermission,
+    ui.required,
+    updateLead
+  ]);
 
   const updateConversionField = useCallback((field, value) => {
     setConversion((prev) => ({
@@ -346,6 +476,11 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
 
   return (
     <section id="crmPanel" className="all-users-panel crm-panel">
+      <div className="crm-panel-head">
+        <h3>{ui.title}</h3>
+        <button type="button" className="header-btn panel-close-btn" onClick={onClose} aria-label={ui.close}>×</button>
+      </div>
+
       <form className="crm-toolbar" onSubmit={handleFiltersSubmit}>
         <label className="crm-toolbar-field crm-toolbar-search-field">
           <span>{ui.search}</span>
@@ -396,7 +531,6 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
         </label>
         <div className="crm-toolbar-actions">
           <button type="submit" className="btn" disabled={loading}>{ui.filter}</button>
-          <button type="button" className="header-btn panel-close-btn" onClick={onClose} aria-label={ui.close}>×</button>
         </div>
       </form>
 
@@ -415,36 +549,67 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
               {itemsByStatus[columnStatus].map((item) => {
                 const status = normalizeStatus(item?.status);
                 const source = normalizeSource(item?.source);
+                const leadId = String(item?.id || "");
+                const isEditing = leadEdit.id === leadId;
+                const note = String(item?.note || "");
                 return (
-                  <article key={item.id} className={`crm-lead-card is-${status}`}>
-                    <div className="crm-lead-card-head">
-                      <strong>{item.fullName || "-"}</strong>
-                      <span>{ui.source[source] || source}</span>
-                    </div>
-                    <a className="crm-lead-phone" href={`tel:${item.phoneNumber}`}>{item.phoneNumber || item.phoneDigits || "-"}</a>
-                    <div className="crm-lead-meta">
-                      <time>{formatDate(item.updatedAt || item.createdAt, language)}</time>
-                      <select
-                        value={status}
-                        disabled={!canUpdateCrm}
-                        onChange={(event) => handleStatusChange(item, event.currentTarget.value)}
-                      >
-                        {PIPELINE_STATUSES.map((nextStatus) => (
-                          <option key={nextStatus} value={nextStatus}>{ui.status[nextStatus]}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <textarea
-                      defaultValue={item.note || ""}
-                      placeholder={ui.note}
-                      disabled={!canUpdateCrm}
-                      onBlur={(event) => {
-                        const nextNote = event.currentTarget.value;
-                        if (nextNote !== String(item.note || "")) {
-                          void updateLead(item, { note: nextNote });
-                        }
-                      }}
-                    />
+                  <article
+                    key={item.id}
+                    className={`crm-lead-card is-${status}${isEditing ? " is-editing" : ""}`}
+                    role={!isEditing && canUpdateCrm ? "button" : undefined}
+                    tabIndex={!isEditing && canUpdateCrm ? 0 : undefined}
+                    onClick={!isEditing ? () => startLeadEdit(item) : undefined}
+                    onKeyDown={!isEditing ? (event) => handleLeadCardKeyDown(event, item) : undefined}
+                  >
+                    {isEditing ? (
+                      <form className="crm-lead-card-edit" noValidate onSubmit={(event) => handleLeadEditSubmit(event, item)}>
+                        <input
+                          className={`crm-lead-edit-input${leadEdit.errors.fullName ? " input-error" : ""}`}
+                          value={leadEdit.form.fullName}
+                          placeholder={ui.leadName}
+                          onInput={(event) => updateLeadEditField("fullName", event.currentTarget.value)}
+                        />
+                        <textarea
+                          className="crm-lead-edit-textarea"
+                          rows={getLeadNoteRows(leadEdit.form.note)}
+                          value={leadEdit.form.note}
+                          placeholder={ui.note}
+                          onInput={(event) => updateLeadEditField("note", event.currentTarget.value)}
+                        />
+                        <select
+                          className="crm-lead-edit-select"
+                          value={leadEdit.form.status}
+                          onChange={(event) => updateLeadEditField("status", event.currentTarget.value)}
+                        >
+                          {PIPELINE_STATUSES.map((nextStatus) => (
+                            <option key={nextStatus} value={nextStatus}>{ui.status[nextStatus]}</option>
+                          ))}
+                        </select>
+                        {leadEdit.errors.fullName ? <small className="field-error">{leadEdit.errors.fullName}</small> : null}
+                        <div className="crm-lead-edit-actions">
+                          <button type="submit" className="btn" disabled={leadEdit.submitting}>{ui.save}</button>
+                          <button type="button" className="header-btn" disabled={leadEdit.submitting} onClick={cancelLeadEdit}>{ui.cancel}</button>
+                        </div>
+                      </form>
+                    ) : (
+                      <>
+                        <div className="crm-lead-card-head">
+                          <strong>{item.fullName || "-"}</strong>
+                          <span>{ui.source[source] || source}</span>
+                        </div>
+                        <div className="crm-lead-contact-row">
+                          <a
+                            className="crm-lead-phone"
+                            href={`tel:${item.phoneNumber}`}
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            {item.phoneNumber || item.phoneDigits || "-"}
+                          </a>
+                          <time>{formatDate(item.updatedAt || item.createdAt, language)}</time>
+                        </div>
+                        <p className={`crm-lead-note${note ? "" : " is-empty"}`}>{note || ui.note}</p>
+                      </>
+                    )}
                   </article>
                 );
               })}
@@ -453,7 +618,7 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
         ))}
       </div>
 
-      {conversion.open ? (
+      {conversion.open && typeof document !== "undefined" ? createPortal((
         <>
           <section id="crmConvertClientModal" className="logout-confirm-modal all-users-edit-modal crm-convert-modal">
             <h3>{ui.convertTitle}</h3>
@@ -552,7 +717,7 @@ function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose
           </section>
           <div className="login-overlay" onClick={closeConversionModal} />
         </>
-      ) : null}
+      ), document.body) : null}
     </section>
   );
 }
