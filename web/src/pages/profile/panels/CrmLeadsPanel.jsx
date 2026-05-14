@@ -152,14 +152,34 @@ function getLeadNoteRows(value) {
   return Math.min(6, Math.max(1, rows));
 }
 
+function formatLocalDateYmd(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function createCurrentMonthFilters() {
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  return {
+    search: "",
+    source: "",
+    dateFrom: formatLocalDateYmd(firstDay),
+    dateTo: formatLocalDateYmd(lastDay)
+  };
+}
+
 function CrmLeadsPanel({ canUpdateCrm = false, canCreateClients = false, onClose }) {
   const { language } = useI18n();
   const ui = TEXT[language] || TEXT.ru;
+  const defaultFilters = useMemo(() => createCurrentMonthFilters(), []);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [filters, setFilters] = useState({ search: "", source: "", dateFrom: "", dateTo: "" });
-  const [draftFilters, setDraftFilters] = useState({ search: "", source: "", dateFrom: "", dateTo: "" });
+  const [filters, setFilters] = useState(defaultFilters);
+  const [draftFilters, setDraftFilters] = useState(defaultFilters);
   const [leadEdit, setLeadEdit] = useState({ id: "", submitting: false, form: createLeadEditForm(), errors: {} });
   const [conversion, setConversion] = useState({
     open: false,

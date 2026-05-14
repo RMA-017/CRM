@@ -200,10 +200,14 @@ function formatNotificationDateText(action, dates) {
 }
 
 function formatNotificationClientName(item) {
-  const firstName = String(item?.clientFirstName || item?.firstName || "").trim();
-  const lastName = String(item?.clientLastName || item?.lastName || "").trim();
-  const middleName = String(item?.clientMiddleName || item?.middleName || "").trim();
-  const fullName = [firstName, lastName, middleName].filter(Boolean).join(" ").trim();
+  const explicitName = String(item?.clientName || item?.client_name || item?.fullName || item?.full_name || "").trim();
+  if (explicitName && explicitName !== "Client") {
+    return explicitName;
+  }
+  const firstName = String(item?.clientFirstName || item?.client_first_name || item?.firstName || item?.first_name || "").trim();
+  const lastName = String(item?.clientLastName || item?.client_last_name || item?.lastName || item?.last_name || "").trim();
+  const middleName = String(item?.clientMiddleName || item?.client_middle_name || item?.middleName || item?.middle_name || "").trim();
+  const fullName = [lastName, firstName, middleName].filter(Boolean).join(" ").trim();
   if (fullName) {
     return fullName;
   }
@@ -294,11 +298,18 @@ export function buildScheduleNotification(action, items, actor) {
       actorFullName: actorInfo.fullName,
       clientName: clientText,
       appointmentDateText: dateText,
+      changedCount: source.length,
+      specialistName: source.length === 1 ? String(source[0]?.specialistName || source[0]?.specialist_name || "").trim() : "",
+      serviceName: source.length === 1 ? String(source[0]?.serviceName || source[0]?.service_name || "").trim() : "",
+      appointmentDate: source.length === 1 ? source[0]?.appointmentDate : "",
+      startTime: source.length === 1 ? source[0]?.startTime : "",
+      endTime: source.length === 1 ? source[0]?.endTime : "",
       items: source.map((item) => ({
         id: item?.id,
         specialistId: item?.specialistId,
         specialistName: item?.specialistName,
         clientId: item?.clientId,
+        clientName: formatNotificationClientName(item),
         appointmentDate: item?.appointmentDate,
         startTime: item?.startTime,
         endTime: item?.endTime,

@@ -236,6 +236,7 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
           specialistIds: [specialistId],
           data: {
             specialistId: String(specialistId),
+            specialistName: String(items?.[0]?.specialistName || "").trim(),
             absenceDate: dateFrom,
             dateFrom,
             dateTo,
@@ -321,6 +322,7 @@ export function registerAppointmentAbsenceRoutes(fastify, context) {
           data: {
             absenceId: String(id),
             specialistId: String(result?.item?.specialistId || ownSpecialistUserId || "").trim(),
+            specialistName: String(result?.item?.specialistName || "").trim(),
             absenceDate: String(result?.item?.absenceDate || "").trim()
           }
         });

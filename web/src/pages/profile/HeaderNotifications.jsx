@@ -34,10 +34,26 @@ function formatNotificationDateTime(dateValue, timeValue) {
   return [dateText, timeText].filter(Boolean).join(" ");
 }
 
+function parseNotificationObject(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value;
+  }
+  if (typeof value !== "string") {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 function getNotificationPayload(item) {
-  const payload = item?.payload && typeof item.payload === "object" ? item.payload : {};
-  return payload.data && typeof payload.data === "object" && !Array.isArray(payload.data)
-    ? payload.data
+  const payload = parseNotificationObject(item?.payload);
+  const data = parseNotificationObject(payload.data);
+  return Object.keys(data).length > 0
+    ? data
     : payload;
 }
 
@@ -46,61 +62,112 @@ function getPayloadItems(item) {
   return Array.isArray(items) ? items : [];
 }
 
+function firstText(...values) {
+  return values
+    .map((value) => String(value || "").replace(/\s+/g, " ").trim())
+    .find(Boolean) || "";
+}
+
+function isGenericClientName(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return !normalized || normalized === "client" || /^client\s*#?\d*$/i.test(normalized);
+}
+
 function getNotificationClientName(item) {
   const payload = getNotificationPayload(item);
-  const payloadName = String(payload.clientName || "").trim();
-  if (payloadName && payloadName !== "Client") {
+  const firstItem = getPayloadItems(item)[0] || {};
+  const payloadName = firstText(
+    payload.clientName,
+    payload.client_name,
+    payload.childName,
+    payload.child,
+    payload.fullName,
+    payload.full_name
+  );
+  if (!isGenericClientName(payloadName)) {
     return payloadName;
   }
-  const firstItem = getPayloadItems(item)[0] || {};
+  const itemName = firstText(
+    firstItem.clientName,
+    firstItem.client_name,
+    firstItem.fullName,
+    firstItem.full_name
+  );
+  if (!isGenericClientName(itemName)) {
+    return itemName;
+  }
   return [
-    firstItem.lastName,
-    firstItem.firstName,
-    firstItem.middleName
-  ].map((part) => String(part || "").trim()).filter(Boolean).join(" ") || "Client";
+    firstItem.lastName || firstItem.last_name || firstItem.clientLastName || firstItem.client_last_name,
+    firstItem.firstName || firstItem.first_name || firstItem.clientFirstName || firstItem.client_first_name,
+    firstItem.middleName || firstItem.middle_name || firstItem.clientMiddleName || firstItem.client_middle_name
+  ].map((part) => String(part || "").trim()).filter(Boolean).join(" ");
 }
 
 function getNotificationSpecialistName(item) {
   const payload = getNotificationPayload(item);
-  const payloadName = String(payload.specialistName || "").trim();
+  const payloadName = firstText(payload.specialistName, payload.specialist_name);
   if (payloadName) {
     return payloadName;
   }
   const firstItem = getPayloadItems(item)[0] || {};
-  return String(firstItem.specialistName || firstItem.specialist_name || "").trim();
+  return firstText(firstItem.specialistName, firstItem.specialist_name);
 }
 
 function getNotificationServiceName(item) {
   const payload = getNotificationPayload(item);
-  const payloadService = String(payload.serviceName || "").trim();
+  const payloadService = firstText(payload.serviceName, payload.service_name, payload.service, payload.lessonName);
   if (payloadService) {
     return payloadService;
   }
   const firstItem = getPayloadItems(item)[0] || {};
-  return String(firstItem.serviceName || firstItem.service_name || "").trim();
+  return firstText(firstItem.serviceName, firstItem.service_name, firstItem.service, firstItem.lessonName);
 }
 
 function getFirstScheduleItem(item) {
   return getPayloadItems(item)[0] || {};
 }
 
+function getNotificationDateTime(item) {
+  const payload = getNotificationPayload(item);
+  const firstItem = getFirstScheduleItem(item);
+  const dateText = firstText(payload.appointmentDateText, payload.dateText);
+  if (dateText) {
+    return dateText;
+  }
+  return formatNotificationDateTime(
+    firstItem.appointmentDate || firstItem.appointment_date || payload.appointmentDate || payload.appointment_date || payload.date || payload.dateFrom,
+    firstItem.startTime || firstItem.start_time || payload.startTime || payload.start_time || payload.time
+  );
+}
+
 function compactParts(parts) {
   return parts.map((part) => String(part || "").trim()).filter(Boolean).join(" - ");
+}
+
+function getMessageFallback(item, language, fallback) {
+  const message = String(item?.message || "").trim();
+  if (message && !/^Client\s+(created|edited|deleted)\s+by\s+/i.test(message)) {
+    return translateLiteral(message, language);
+  }
+  return translateLiteral(fallback || message || "Notification", language);
 }
 
 function formatHeaderNotificationMessage(item, language, fallback) {
   const eventType = String(item?.eventType || "").trim();
   const payload = getNotificationPayload(item);
-  const firstItem = getFirstScheduleItem(item);
   const clientName = getNotificationClientName(item);
   const specialistName = getNotificationSpecialistName(item);
   const serviceName = getNotificationServiceName(item);
-  const dateTime = formatNotificationDateTime(
-    firstItem.appointmentDate || payload.appointmentDate,
-    firstItem.startTime || payload.startTime
-  );
-  const suffix = compactParts([clientName, serviceName, specialistName, dateTime]);
+  const dateTime = getNotificationDateTime(item);
+  const count = Number(payload.deletedCount || payload.cancelledCount || payload.changedCount || payload.createdCount || 0);
+  const countText = count > 1
+    ? (language === "ru" ? `${count} занятий` : `${count} ta dars`)
+    : "";
+  const suffix = compactParts([clientName, serviceName, specialistName, dateTime, countText]);
   const isRu = language === "ru";
+  if (!suffix) {
+    return getMessageFallback(item, language, fallback);
+  }
 
   if (eventType === "schedule-created") {
     return `${isRu ? "Создано" : "Dars yaratildi"}: ${suffix}`.trim();
@@ -124,7 +191,7 @@ function formatHeaderNotificationMessage(item, language, fallback) {
       : "";
     return `${isRu ? "Отсутствие специалиста" : "Mutaxassis yo'qligi"}${dateText ? `: ${dateText}` : ""}${countText}`;
   }
-  return translateLiteral(fallback || item?.message || "Notification", language);
+  return getMessageFallback(item, language, fallback);
 }
 
 function BellIcon() {
