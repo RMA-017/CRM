@@ -181,6 +181,9 @@
 
   .appointment-create-modal {
     width: calc(100vw - 30px);
+    max-width: calc(100vw - 30px);
+    min-width: 0;
+    box-sizing: border-box;
     height: auto;
     max-height: calc(100dvh - 24px);
     padding: 7px;
@@ -280,11 +283,15 @@
   }
 
   .appointment-create-modal .auth-form {
+    width: 100%;
+    max-width: 100%;
     min-height: 0;
     overflow: hidden;
   }
 
   .appointment-create-modal .appointment-create-fields {
+    width: 100%;
+    max-width: 100%;
     min-height: 0;
     max-height: calc(100dvh - 154px);
     overflow-y: auto;
@@ -303,11 +310,28 @@
   }
 
   .appointment-create-modal .appointment-create-date-time-row.appointment-create-date-time-row-with-next-toggle {
-    grid-template-columns: 64px repeat(3, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .appointment-create-modal .appointment-create-date-time-row.appointment-create-date-time-row-with-next-toggle.appointment-create-date-time-row-with-next-toggle-vip {
-    grid-template-columns: 64px repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .appointment-create-modal .appointment-modal-section,
+  .appointment-create-modal .appointment-create-date-time-row,
+  .appointment-create-modal .appointment-client-search-row,
+  .appointment-create-modal .appointment-client-select-row,
+  .appointment-create-modal .appointment-repeat-head-row,
+  .appointment-create-modal .appointment-status-note-row,
+  .appointment-create-modal .field,
+  .appointment-create-modal input,
+  .appointment-create-modal select,
+  .appointment-create-modal textarea,
+  .appointment-create-modal .custom-select,
+  .appointment-create-modal .custom-select-trigger {
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
   }
 
   .appointment-create-modal .appointment-client-select-row {
@@ -536,6 +560,9 @@
 
   .appointment-create-modal {
     width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    min-width: 0;
+    box-sizing: border-box;
     height: auto;
     max-height: calc(100dvh - 20px);
     padding: 7px;
@@ -547,11 +574,15 @@
   }
 
   .appointment-create-modal .auth-form {
+    width: 100%;
+    max-width: 100%;
     min-height: 0;
     overflow: hidden;
   }
 
   .appointment-create-modal .appointment-create-fields {
+    width: 100%;
+    max-width: 100%;
     min-height: 0;
     max-height: calc(100dvh - 150px);
     overflow-y: auto;

@@ -241,6 +241,24 @@ test("manual SMS notification broadcast uses role permission and Telegram parent
   );
 });
 
+test("Telegram contact link uses the user's Telegram language", async () => {
+  const serviceSource = await readFile(
+    new URL("../src/modules/telegram-bot/telegram-bot.service.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    serviceSource,
+    /function normalizeTelegramUserLanguage\([\s\S]*normalized\.startsWith\("ru"\)[\s\S]*return "ru"[\s\S]*normalized\.startsWith\("uz"\)[\s\S]*return "uz"/,
+    "Telegram user language should recognize Russian and Uzbek language_code values."
+  );
+  assert.match(
+    serviceSource,
+    /async function handleContactMessage[\s\S]*const language = normalizeTelegramUserLanguage\(from\.language_code, settings\.defaultLanguage\)/,
+    "Contact linking should save the parent language from Telegram language_code before sending the main menu."
+  );
+});
+
 test("Telegram reminders stay retryable and use enabled reminder windows", async () => {
   const serviceSource = await readFile(
     new URL("../src/modules/telegram-bot/telegram-bot.service.js", import.meta.url),

@@ -1,5 +1,6 @@
 import pool from "../../config/db.js";
 import { normalizePositiveInteger } from "../../lib/number.js";
+import { normalizeOrganizationCode } from "../../lib/organization-code.js";
 import { normalizePhoneDigits, normalizePhoneNumber } from "../../lib/phone-number.js";
 
 const LEAD_STATUSES = new Set(["new", "contacted", "converted", "lost"]);
@@ -37,7 +38,56 @@ function mapLeadRow(row) {
   };
 }
 
+function getConfiguredPublicOrganizationCodes() {
+  return [
+    process.env.CRM_PUBLIC_ORGANIZATION_CODE,
+    process.env.PUBLIC_CRM_ORGANIZATION_CODE,
+    process.env.PUBLIC_ORGANIZATION_CODE,
+    process.env.DEFAULT_ORGANIZATION_CODE,
+    "aaron",
+    "aaron-academy-kids",
+    "aaron_academy_kids",
+    "aaron-academy",
+    "aaronacademy"
+  ]
+    .map((code) => normalizeOrganizationCode(code))
+    .filter(Boolean);
+}
+
 export async function getDefaultLeadOrganizationId(db = pool) {
+  const candidateCodes = getConfiguredPublicOrganizationCodes();
+  if (candidateCodes.length > 0) {
+    const { rows } = await db.query(
+      `SELECT id
+         FROM organizations
+        WHERE is_active = TRUE
+          AND LOWER(code) = ANY($1::text[])
+        ORDER BY array_position($1::text[], LOWER(code)), id ASC
+        LIMIT 1`,
+      [candidateCodes]
+    );
+    const configuredOrganizationId = normalizePositiveInteger(rows?.[0]?.id);
+    if (configuredOrganizationId) {
+      return configuredOrganizationId;
+    }
+  }
+
+  const { rows: siteRows } = await db.query(
+    `SELECT o.id
+       FROM organizations o
+       JOIN site_content_items sci
+         ON sci.organization_id = o.id
+        AND sci.is_active = TRUE
+      WHERE o.is_active = TRUE
+      GROUP BY o.id
+      ORDER BY COUNT(*) DESC, o.id ASC
+      LIMIT 1`
+  );
+  const siteOrganizationId = normalizePositiveInteger(siteRows?.[0]?.id);
+  if (siteOrganizationId) {
+    return siteOrganizationId;
+  }
+
   const { rows } = await db.query(
     `SELECT id
        FROM organizations
@@ -50,6 +100,7 @@ export async function getDefaultLeadOrganizationId(db = pool) {
 
 export async function createOrUpdateCrmLead({
   organizationId,
+  organizationCode = "",
   fullName,
   phoneNumber,
   source = "website",
@@ -59,7 +110,20 @@ export async function createOrUpdateCrmLead({
   payload = {},
   db = pool
 }) {
-  const normalizedOrganizationId = normalizePositiveInteger(organizationId) || await getDefaultLeadOrganizationId(db);
+  let normalizedOrganizationId = normalizePositiveInteger(organizationId);
+  const normalizedOrganizationCode = normalizeOrganizationCode(organizationCode);
+  if (!normalizedOrganizationId && normalizedOrganizationCode) {
+    const { rows } = await db.query(
+      `SELECT id
+         FROM organizations
+        WHERE is_active = TRUE
+          AND LOWER(code) = LOWER($1)
+        LIMIT 1`,
+      [normalizedOrganizationCode]
+    );
+    normalizedOrganizationId = normalizePositiveInteger(rows?.[0]?.id);
+  }
+  normalizedOrganizationId = normalizedOrganizationId || await getDefaultLeadOrganizationId(db);
   const normalizedFullName = normalizeText(fullName || "Telegram contact", 180);
   const normalizedPhoneNumber = normalizePhoneNumber(phoneNumber);
   const phoneDigits = normalizePhoneDigits(phoneNumber);

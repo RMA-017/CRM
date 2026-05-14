@@ -66,7 +66,7 @@ const TEXT = Object.freeze({
     reasonPrompt: "Bekor qilish sababini yozing yoki O'tkazib yuborish tugmasini bosing.",
     skipReason: "O'tkazib yuborish",
     cancelSaved: "Dars bekor qilindi.",
-    cancelLocked: "Darsni bot orqali bekor qilish vaqti yopilgan. Iltimos, administrator bilan telefon orqali bog'laning.",
+    cancelLocked: "Darsni bot orqali bekor qilish vaqti yopilgan. Iltimos, administrator bilan telefon orqali bog'laning: +998 95 455 00 33.",
     notFound: "Dars topilmadi yoki bu raqamga ruxsat yo'q.",
     menuChildren: "👶 Farzandim",
     menuToday: "📅 Bugun",
@@ -101,7 +101,7 @@ const TEXT = Object.freeze({
     reasonPrompt: "Напишите причину отмены или нажмите Пропустить.",
     skipReason: "Пропустить",
     cancelSaved: "Урок отменен.",
-    cancelLocked: "Время отмены через бот закрыто. Пожалуйста, свяжитесь с администратором по телефону.",
+    cancelLocked: "Время отмены через бот закрыто. Пожалуйста, свяжитесь с администратором по телефону: +998 95 455 00 33.",
     notFound: "Урок не найден или нет доступа для этого номера.",
     menuChildren: "👶 Ребенок",
     menuToday: "📅 Сегодня",
@@ -160,6 +160,17 @@ function isTelegramSchemaMissing(error) {
 function normalizeLanguage(value, fallback = DEFAULT_LANGUAGE) {
   const normalized = String(value || "").trim().toLowerCase();
   return SUPPORTED_LANGUAGES.has(normalized) ? normalized : fallback;
+}
+
+function normalizeTelegramUserLanguage(value, fallback = DEFAULT_LANGUAGE) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized.startsWith("ru")) {
+    return "ru";
+  }
+  if (normalized.startsWith("uz")) {
+    return "uz";
+  }
+  return normalizeLanguage(fallback);
 }
 
 function normalizeMessageText(value, fallback = "") {
@@ -1403,7 +1414,7 @@ async function handleContactMessage({ settings, message }) {
   const contact = message?.contact;
   const from = message?.from || {};
   const chat = message?.chat || {};
-  const language = normalizeLanguage(settings.defaultLanguage);
+  const language = normalizeTelegramUserLanguage(from.language_code, settings.defaultLanguage);
   if (!contact?.phone_number) {
     await sendTelegramMessage({
       token: settings.botToken,

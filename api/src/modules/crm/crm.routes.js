@@ -19,7 +19,8 @@ function normalizeLeadPayload(body = {}) {
     fullName: normalizeText(payload.fullName || payload.full_name || payload.name, 180),
     phoneNumber: normalizeText(payload.phone || payload.phoneNumber || payload.phone_number, 32),
     note: normalizeText(payload.note || payload.message, 2000),
-    source: normalizeText(payload.source, 32) || "website"
+    source: normalizeText(payload.source, 32) || "website",
+    organizationCode: normalizeText(payload.organizationCode || payload.organization_code, 64)
   };
 }
 
@@ -58,6 +59,7 @@ export async function crmPublicRoutes(fastify) {
         return reply.status(400).send({ field: "phone", message: "Phone number is required." });
       }
       const item = await createOrUpdateCrmLead({
+        organizationCode: payload.organizationCode,
         fullName: payload.fullName,
         phoneNumber: normalizePhoneNumber(payload.phoneNumber),
         source: "website",
