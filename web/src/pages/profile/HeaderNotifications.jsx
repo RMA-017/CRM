@@ -233,11 +233,11 @@ function getHeaderNotificationView(item, language, fallback) {
     const dateText = formatNotificationDateTime(payload.absenceDate || payload.dateFrom, "");
     const primary = specialistName || (isRu ? "Специалист" : "Mutaxassis");
     const details = compactParts([
+      getNotificationKind(item, language),
       dateText,
       count > 0 ? (isRu ? `${count} отменено` : `${count} ta bekor qilindi`) : ""
     ]);
     return {
-      kind: getNotificationKind(item, language),
       primary,
       details,
       reason: "",
@@ -245,10 +245,9 @@ function getHeaderNotificationView(item, language, fallback) {
     };
   }
 
-  const details = compactParts([serviceName, specialistName, dateTime, countText]);
+  const details = compactParts([getNotificationKind(item, language), serviceName, specialistName, dateTime, countText]);
   const fallbackText = getMessageFallback(item, language, fallback);
   return {
-    kind: getNotificationKind(item, language),
     primary: clientName || fallbackText,
     details,
     reason: reason ? `${isRu ? "Причина" : "Sabab"}: ${reason}` : "",
@@ -456,7 +455,6 @@ function HeaderNotifications({ enabled = false, navigate }) {
                     onClick={() => markNotificationRead(itemId)}
                   >
                     <span className="header-notification-item-top">
-                      <span className="header-notification-kind">{notificationView.kind}</span>
                       <time>{formatNotificationTime(item?.createdAt, language)}</time>
                     </span>
                     <span className="header-notification-item-message">
