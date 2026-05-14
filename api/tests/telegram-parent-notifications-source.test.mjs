@@ -171,6 +171,21 @@ test("Telegram main menu keeps children on first row and daily weekly on second 
     /function buildMainMenuReplyMarkup\([\s\S]*keyboard:\s*\[\s*\[\{ text: getText\(language, "menuChildren"\) \}\],\s*\[\{ text: getText\(language, "menuToday"\) \}, \{ text: getText\(language, "menuWeek"\) \}\]/s,
     "Main menu should show children alone on row 1 and today/week together on row 2."
   );
+  assert.match(
+    serviceSource,
+    /function buildMainMenuReplyMarkup\([\s\S]*\[\{ text: getText\(language, "menuServices"\) \}, \{ text: getText\(language, "menuSpecialists"\) \}\],[\s\S]*\[\{ text: getText\(language, "menuSettings"\) \}\]/s,
+    "Main menu should show services and specialists together on row 3 before settings."
+  );
+  assert.match(
+    serviceSource,
+    /if \(action === "services"\)[\s\S]*await sendServicesList\(\{ settings, parent \}\);[\s\S]*if \(action === "specialists"\)[\s\S]*await sendSpecialistsList\(\{ settings, parent \}\);/s,
+    "Services and specialists menu actions should send their linked site content."
+  );
+  assert.match(
+    serviceSource,
+    /import \{ listPublicSiteContentItems \} from "\.\.\/site-content\/site-content\.service\.js";[\s\S]*async function sendSpecialistsList[\s\S]*listPublicSiteContentItems\(\)/s,
+    "The specialists bot menu should read the public website team content."
+  );
 });
 
 test("planner date or time edits notify Telegram parents", async () => {

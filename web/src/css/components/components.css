@@ -1630,8 +1630,88 @@ label.field > span:first-child,
 
 .crm-lead-board {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  grid-template-columns: repeat(4, minmax(230px, 1fr));
   gap: 12px;
+  align-items: stretch;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+}
+
+.crm-lead-board::-webkit-scrollbar {
+  height: 10px;
+}
+
+.crm-lead-board::-webkit-scrollbar-track {
+  background: var(--scroll-track);
+  border-radius: 10px;
+}
+
+.crm-lead-board::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.crm-pipeline-column {
+  min-width: 230px;
+  min-height: 360px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.crm-pipeline-column-head {
+  min-height: 46px;
+  padding: 10px 12px;
+  border-top: 4px solid #3b82f6;
+  border-bottom: 1px solid var(--line);
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.crm-pipeline-column.is-contacted .crm-pipeline-column-head { border-top-color: #f59e0b; }
+.crm-pipeline-column.is-converted .crm-pipeline-column-head { border-top-color: #22c55e; }
+.crm-pipeline-column.is-lost .crm-pipeline-column-head { border-top-color: #ef4444; }
+
+.crm-pipeline-column-head span {
+  min-width: 0;
+  color: var(--text-main);
+  font-size: var(--fs-small);
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crm-pipeline-column-head strong {
+  flex: 0 0 auto;
+  min-width: 28px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #334155;
+  font-size: 12px;
+  line-height: 24px;
+  text-align: center;
+}
+
+.crm-pipeline-column-body {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 0;
+  padding: 10px;
 }
 
 .crm-lead-card {
@@ -1642,6 +1722,7 @@ label.field > span:first-child,
   padding: 12px;
   display: grid;
   gap: 10px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
 }
 
 .crm-lead-card.is-contacted { border-left-color: #f59e0b; }
@@ -1700,6 +1781,14 @@ label.field > span:first-child,
   .crm-summary-grid,
   .crm-toolbar {
     grid-template-columns: 1fr;
+  }
+
+  .crm-lead-board {
+    grid-template-columns: repeat(4, minmax(220px, 78vw));
+  }
+
+  .crm-pipeline-column {
+    min-width: 220px;
   }
 
   .telegram-settings-section {

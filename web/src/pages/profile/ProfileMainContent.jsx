@@ -367,6 +367,7 @@ function ProfileMainContent({
           <Suspense fallback={PANEL_LOADING_FALLBACK}>
             <CrmLeadsPanel
               canUpdateCrm={canUpdateCrm}
+              canCreateClients={canCreateClients}
               onClose={closeCrmPanel}
             />
           </Suspense>

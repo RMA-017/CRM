@@ -34,13 +34,20 @@ function formatNotificationDateTime(dateValue, timeValue) {
   return [dateText, timeText].filter(Boolean).join(" ");
 }
 
+function getNotificationPayload(item) {
+  const payload = item?.payload && typeof item.payload === "object" ? item.payload : {};
+  return payload.data && typeof payload.data === "object" && !Array.isArray(payload.data)
+    ? payload.data
+    : payload;
+}
+
 function getPayloadItems(item) {
-  const items = item?.payload?.items;
+  const items = getNotificationPayload(item)?.items;
   return Array.isArray(items) ? items : [];
 }
 
 function getNotificationClientName(item) {
-  const payload = item?.payload && typeof item.payload === "object" ? item.payload : {};
+  const payload = getNotificationPayload(item);
   const payloadName = String(payload.clientName || "").trim();
   if (payloadName && payloadName !== "Client") {
     return payloadName;
@@ -54,7 +61,7 @@ function getNotificationClientName(item) {
 }
 
 function getNotificationSpecialistName(item) {
-  const payload = item?.payload && typeof item.payload === "object" ? item.payload : {};
+  const payload = getNotificationPayload(item);
   const payloadName = String(payload.specialistName || "").trim();
   if (payloadName) {
     return payloadName;
@@ -64,7 +71,7 @@ function getNotificationSpecialistName(item) {
 }
 
 function getNotificationServiceName(item) {
-  const payload = item?.payload && typeof item.payload === "object" ? item.payload : {};
+  const payload = getNotificationPayload(item);
   const payloadService = String(payload.serviceName || "").trim();
   if (payloadService) {
     return payloadService;
@@ -83,7 +90,7 @@ function compactParts(parts) {
 
 function formatHeaderNotificationMessage(item, language, fallback) {
   const eventType = String(item?.eventType || "").trim();
-  const payload = item?.payload && typeof item.payload === "object" ? item.payload : {};
+  const payload = getNotificationPayload(item);
   const firstItem = getFirstScheduleItem(item);
   const clientName = getNotificationClientName(item);
   const specialistName = getNotificationSpecialistName(item);

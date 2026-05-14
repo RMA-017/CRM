@@ -9,6 +9,7 @@ import { clearAppointmentSchedulesReadCache } from "../appointments/appointment-
 import { updateAppointmentSchedulesByIds } from "../appointments/appointment-settings.service.js";
 import { createOrUpdateCrmLead } from "../crm/crm.service.js";
 import { persistNotificationEvent } from "../notifications/notifications.service.js";
+import { listPublicSiteContentItems } from "../site-content/site-content.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
 
 const DEFAULT_LANGUAGE = "ru";
@@ -71,7 +72,12 @@ const TEXT = Object.freeze({
     menuChildren: "👶 Farzandim",
     menuToday: "📅 Bugun",
     menuWeek: "🗓 Hafta",
+    menuServices: "🧩 Xizmatlarimiz",
+    menuSpecialists: "👩‍⚕️ Mutaxassislarimiz",
     menuSettings: "⚙️ Sozlamalar",
+    servicesTitle: "Xizmatlarimiz",
+    specialistsTitle: "Mutaxassislarimiz",
+    specialistsEmpty: "Hozircha mutaxassislar ro'yxati yo'q.",
     fallbackReason: "Ota-ona Telegram bot orqali bekor qildi",
     botDisabled: "Bot hozircha faol emas."
   }),
@@ -106,10 +112,46 @@ const TEXT = Object.freeze({
     menuChildren: "👶 Ребенок",
     menuToday: "📅 Сегодня",
     menuWeek: "🗓 Неделя",
+    menuServices: "🧩 Наши услуги",
+    menuSpecialists: "👩‍⚕️ Наши специалисты",
     menuSettings: "⚙️ Настройки",
+    servicesTitle: "Наши услуги",
+    specialistsTitle: "Наши специалисты",
+    specialistsEmpty: "Пока список специалистов пуст.",
     fallbackReason: "Родитель отменил через Telegram бот",
     botDisabled: "Бот пока не активен."
   })
+});
+
+const BOT_SERVICE_ITEMS = Object.freeze({
+  uz: Object.freeze([
+    { title: "Logoped", text: "Nutq nuqsonlarini bartaraf etish va nutqni rivojlantirish mashg'ulotlari." },
+    { title: "Sopolchilik (loy) terapiyasi", text: "Loy bilan ishlash orqali mayda motorika va ijodkorlikni rivojlantirish." },
+    { title: "Logoritmika", text: "Nutq, musiqa va harakatni birlashtirgan kompleks mashg'ulotlar." },
+    { title: "Musiqa terapiyasi", text: "Musiqa orqali emotsional muvozanat va kommunikatsiyani rivojlantirish." },
+    { title: "ART terapiya", text: "San'at va ijod orqali emotsional rivojlanishni qo'llab-quvvatlash." },
+    { title: "ABA terapiya", text: "Xulq-atvor, muloqot va kundalik ko'nikmalarni bosqichma-bosqich shakllantirish." },
+    { title: "Neyropsixologiya", text: "Diqqat, xotira, tafakkur va o'zini boshqarish ko'nikmalarini rivojlantirish." },
+    { title: "Ijtimoiy-maishiy moslashuv", text: "Bolani kundalik hayot, muloqot va mustaqillik ko'nikmalariga o'rgatish." },
+    { title: "Barokamera", text: "Mutaxassis nazoratida kislorod bilan qo'llab-quvvatlovchi sog'lomlashtirish seanslari." },
+    { title: "Massaj", text: "Mushak tonusi, harakat faolligi va umumiy holatni qo'llab-quvvatlash." },
+    { title: "Gidroterapiya", text: "Suv muhitida harakat, koordinatsiya va sezgi integratsiyasini rivojlantirish." },
+    { title: "Ippoterapiya", text: "Ot bilan terapiya orqali muvozanat, ishonch va harakat ko'nikmalarini rivojlantirish." }
+  ]),
+  ru: Object.freeze([
+    { title: "Логопед", text: "Занятия по коррекции речевых нарушений и развитию речи." },
+    { title: "Глинотерапия", text: "Работа с глиной для развития мелкой моторики и творчества." },
+    { title: "Логоритмика", text: "Комплекс занятий, объединяющий речь, музыку и движение." },
+    { title: "Музыкальная терапия", text: "Развитие эмоционального баланса и коммуникации через музыку." },
+    { title: "ART терапия", text: "Поддержка эмоционального развития через искусство и творчество." },
+    { title: "ABA терапия", text: "Постепенное формирование поведения, общения и бытовых навыков." },
+    { title: "Нейропсихология", text: "Развитие внимания, памяти, мышления и навыков саморегуляции." },
+    { title: "СБО", text: "Формирование социально-бытовых навыков, самостоятельности и общения." },
+    { title: "Барокамера", text: "Оздоровительные кислородные сеансы под наблюдением специалиста." },
+    { title: "Массаж", text: "Поддержка мышечного тонуса, двигательной активности и общего состояния." },
+    { title: "Гидротерапия", text: "Развитие движений, координации и сенсорной интеграции в водной среде." },
+    { title: "Иппотерапия", text: "Терапия с лошадьми для развития равновесия, уверенности и моторики." }
+  ])
 });
 
 const WEEKDAY_LABELS = Object.freeze({
@@ -331,6 +373,7 @@ function buildMainMenuReplyMarkup(language) {
     keyboard: [
       [{ text: getText(language, "menuChildren") }],
       [{ text: getText(language, "menuToday") }, { text: getText(language, "menuWeek") }],
+      [{ text: getText(language, "menuServices") }, { text: getText(language, "menuSpecialists") }],
       [{ text: getText(language, "menuSettings") }]
     ],
     resize_keyboard: true
@@ -453,6 +496,12 @@ function resolveMenuAction(text) {
   }
   if (normalized.includes("xaft") || normalized.includes("haft") || normalized.includes("недел")) {
     return "week";
+  }
+  if (normalized.includes("xizmat") || normalized.includes("услуг")) {
+    return "services";
+  }
+  if (normalized.includes("mutaxassis") || normalized.includes("специалист")) {
+    return "specialists";
   }
   if (normalized.includes("sozlam") || normalized.includes("настрой")) {
     return "settings";
@@ -1189,6 +1238,66 @@ async function sendChildrenList({ settings, parent }) {
   });
 }
 
+function getLocalizedSiteContentValue(item, field, language) {
+  const lang = normalizeLanguage(language);
+  const suffix = lang === "ru" ? "Ru" : "Uz";
+  return String(item?.[`${field}${suffix}`] || item?.[field] || "").trim();
+}
+
+async function sendServicesList({ settings, parent }) {
+  const language = normalizeLanguage(parent.language);
+  const items = BOT_SERVICE_ITEMS[language] || BOT_SERVICE_ITEMS[DEFAULT_LANGUAGE];
+  const lines = [
+    getText(language, "servicesTitle"),
+    "",
+    ...items.map((item, index) => `${index + 1}. ${item.title}\n${item.text}`)
+  ];
+  await sendTelegramMessage({
+    token: settings.botToken,
+    chatId: parent.chatId,
+    text: lines.join("\n"),
+    replyMarkup: buildMainMenuReplyMarkup(language)
+  });
+}
+
+async function sendSpecialistsList({ settings, parent }) {
+  const language = normalizeLanguage(parent.language);
+  const items = (await listPublicSiteContentItems())
+    .filter((item) => item?.sectionKey === "team" && item?.isActive !== false);
+
+  if (items.length === 0) {
+    await sendTelegramMessage({
+      token: settings.botToken,
+      chatId: parent.chatId,
+      text: `${getText(language, "specialistsTitle")}\n${getText(language, "specialistsEmpty")}`,
+      replyMarkup: buildMainMenuReplyMarkup(language)
+    });
+    return;
+  }
+
+  const lines = [
+    getText(language, "specialistsTitle"),
+    "",
+    ...items.map((item, index) => {
+      const name = getLocalizedSiteContentValue(item, "name", language);
+      const role = getLocalizedSiteContentValue(item, "role", language);
+      const description = getLocalizedSiteContentValue(item, "description", language);
+      return [
+        `${index + 1}. ${name || role || getText(language, "specialistsTitle")}`,
+        role && role !== name ? role : "",
+        description
+      ].filter(Boolean).join("\n");
+    })
+  ];
+
+  await sendTelegramMessage({
+    token: settings.botToken,
+    chatId: parent.chatId,
+    text: lines.join("\n"),
+    replyMarkup: buildMainMenuReplyMarkup(language)
+  });
+}
+
 async function sendScheduleList({
   settings,
   parent,
@@ -1587,6 +1696,14 @@ async function handleTextMessage({ settings, message }) {
       parent,
       startDate: today
     });
+    return;
+  }
+  if (action === "services") {
+    await sendServicesList({ settings, parent });
+    return;
+  }
+  if (action === "specialists") {
+    await sendSpecialistsList({ settings, parent });
     return;
   }
   if (action === "settings") {
