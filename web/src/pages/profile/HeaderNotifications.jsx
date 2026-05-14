@@ -19,11 +19,6 @@ function formatNotificationTime(value, language) {
   }).format(date);
 }
 
-function formatEventType(value, language) {
-  const normalized = String(value || "").trim().replace(/[._-]+/g, " ");
-  return translateLiteral(normalized || "notification", language);
-}
-
 function formatNotificationDateTime(dateValue, timeValue) {
   const rawDate = String(dateValue || "").trim();
   const rawTime = String(timeValue || "").trim();
@@ -144,6 +139,32 @@ function compactParts(parts) {
   return parts.map((part) => String(part || "").trim()).filter(Boolean).join(" - ");
 }
 
+function getNotificationEventType(item) {
+  const payload = parseNotificationObject(item?.payload);
+  return firstText(item?.eventType, item?.event_type, payload.eventType, payload.event_type).toLowerCase();
+}
+
+function getNotificationKind(item, language) {
+  const eventType = getNotificationEventType(item);
+  const isRu = language === "ru";
+  if (eventType === "schedule-created") {
+    return isRu ? "Создано" : "Yaratildi";
+  }
+  if (eventType === "schedule-updated") {
+    return isRu ? "Изменено" : "O'zgardi";
+  }
+  if (eventType === "schedule-deleted") {
+    return isRu ? "Удалено" : "O'chirildi";
+  }
+  if (eventType === "appointment-parent-cancelled") {
+    return isRu ? "Отмена" : "Bekor qilindi";
+  }
+  if (eventType === "specialist-absence-updated") {
+    return isRu ? "Отсутствие" : "Yo'qlik";
+  }
+  return translateLiteral("Notification", language);
+}
+
 function getMessageFallback(item, language, fallback) {
   const message = String(item?.message || "").trim();
   if (message && !/^Client\s+(created|edited|deleted)\s+by\s+/i.test(message)) {
@@ -153,7 +174,7 @@ function getMessageFallback(item, language, fallback) {
 }
 
 function formatHeaderNotificationMessage(item, language, fallback) {
-  const eventType = String(item?.eventType || "").trim();
+  const eventType = getNotificationEventType(item);
   const payload = getNotificationPayload(item);
   const clientName = getNotificationClientName(item);
   const specialistName = getNotificationSpecialistName(item);
@@ -192,6 +213,47 @@ function formatHeaderNotificationMessage(item, language, fallback) {
     return `${isRu ? "Отсутствие специалиста" : "Mutaxassis yo'qligi"}${dateText ? `: ${dateText}` : ""}${countText}`;
   }
   return getMessageFallback(item, language, fallback);
+}
+
+function getHeaderNotificationView(item, language, fallback) {
+  const eventType = getNotificationEventType(item);
+  const payload = getNotificationPayload(item);
+  const isRu = language === "ru";
+  const clientName = getNotificationClientName(item);
+  const specialistName = getNotificationSpecialistName(item);
+  const serviceName = getNotificationServiceName(item);
+  const dateTime = getNotificationDateTime(item);
+  const reason = firstText(payload.reason, payload.cancelReason, payload.cancel_reason);
+  const count = Number(payload.deletedCount || payload.cancelledCount || payload.changedCount || payload.createdCount || 0);
+  const countText = count > 1
+    ? (isRu ? `${count} занятий` : `${count} ta dars`)
+    : "";
+
+  if (eventType === "specialist-absence-updated") {
+    const dateText = formatNotificationDateTime(payload.absenceDate || payload.dateFrom, "");
+    const primary = specialistName || (isRu ? "Специалист" : "Mutaxassis");
+    const details = compactParts([
+      dateText,
+      count > 0 ? (isRu ? `${count} отменено` : `${count} ta bekor qilindi`) : ""
+    ]);
+    return {
+      kind: getNotificationKind(item, language),
+      primary,
+      details,
+      reason: "",
+      fallback: getMessageFallback(item, language, fallback)
+    };
+  }
+
+  const details = compactParts([serviceName, specialistName, dateTime, countText]);
+  const fallbackText = getMessageFallback(item, language, fallback);
+  return {
+    kind: getNotificationKind(item, language),
+    primary: clientName || fallbackText,
+    details,
+    reason: reason ? `${isRu ? "Причина" : "Sabab"}: ${reason}` : "",
+    fallback: fallbackText
+  };
 }
 
 function BellIcon() {
@@ -385,6 +447,7 @@ function HeaderNotifications({ enabled = false, navigate }) {
               {items.map((item) => {
                 const itemId = Number(item?.id || 0);
                 const isRead = Boolean(item?.isRead);
+                const notificationView = getHeaderNotificationView(item, language, t("notifications.fallback"));
                 return (
                   <button
                     key={itemId || `${item?.eventType || "notification"}-${item?.createdAt || ""}`}
@@ -393,12 +456,18 @@ function HeaderNotifications({ enabled = false, navigate }) {
                     onClick={() => markNotificationRead(itemId)}
                   >
                     <span className="header-notification-item-top">
-                      <span>{formatEventType(item?.eventType, language)}</span>
+                      <span className="header-notification-kind">{notificationView.kind}</span>
                       <time>{formatNotificationTime(item?.createdAt, language)}</time>
                     </span>
                     <span className="header-notification-item-message">
-                      {formatHeaderNotificationMessage(item, language, t("notifications.fallback"))}
+                      {notificationView.primary}
                     </span>
+                    {notificationView.details ? (
+                      <span className="header-notification-item-details">{notificationView.details}</span>
+                    ) : null}
+                    {notificationView.reason ? (
+                      <span className="header-notification-item-reason">{notificationView.reason}</span>
+                    ) : null}
                   </button>
                 );
               })}

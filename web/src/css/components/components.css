@@ -247,11 +247,11 @@
   background: #fff;
   color: var(--text-main);
   text-align: left;
-  padding: 12px 14px;
+  padding: 10px 14px;
   cursor: pointer;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 6px;
+  gap: 5px;
   white-space: normal;
   min-width: 0;
   min-height: 0;
@@ -284,7 +284,7 @@
   line-height: 1.25;
 }
 
-.header-notification-item-top span,
+.header-notification-kind,
 .header-notification-item-top time {
   min-width: 0;
   overflow: hidden;
@@ -292,20 +292,56 @@
   white-space: nowrap;
 }
 
+.header-notification-kind {
+  width: fit-content;
+  max-width: 100%;
+  min-height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: var(--brand);
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  text-transform: none;
+}
+
 .header-notification-item-message {
   display: block;
   min-width: 0;
   color: var(--text-main);
   font-size: var(--fs-small);
-  line-height: 1.5;
+  font-weight: 800;
+  line-height: 1.35;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
+.header-notification-item-details,
+.header-notification-item-reason {
+  display: block;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.header-notification-item-reason {
+  color: var(--text-muted);
+}
+
 .header-notification-item:hover .header-notification-item-top,
 .header-notification-item:hover .header-notification-item-message,
+.header-notification-item:hover .header-notification-item-details,
+.header-notification-item:hover .header-notification-item-reason,
 .header-notification-item.unread:hover .header-notification-item-top,
-.header-notification-item.unread:hover .header-notification-item-message {
+.header-notification-item.unread:hover .header-notification-item-message,
+.header-notification-item.unread:hover .header-notification-item-details,
+.header-notification-item.unread:hover .header-notification-item-reason {
   color: var(--text-main);
 }
 
