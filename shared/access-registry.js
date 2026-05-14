@@ -275,6 +275,30 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
     ]
   }),
   defineMenu({
+    key: "crm",
+    label: "CRM",
+    sortOrder: 68,
+    rootPermissionsLabel: "CRM",
+    rootPermissions: [
+      definePermission({
+        constantKey: "CRM_LEADS_READ",
+        code: "crm.leads.read",
+        label: "Read CRM Leads",
+        uiLabel: "Read",
+        sortOrder: 67,
+        actionKey: "read"
+      }),
+      definePermission({
+        constantKey: "CRM_LEADS_UPDATE",
+        code: "crm.leads.update",
+        label: "Update CRM Leads",
+        uiLabel: "Edit",
+        sortOrder: 68,
+        actionKey: "update"
+      })
+    ]
+  }),
+  defineMenu({
     key: "statistics",
     label: "Statistics",
     sortOrder: 70,

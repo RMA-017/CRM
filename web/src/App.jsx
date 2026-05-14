@@ -12,6 +12,7 @@ const PROFILE_VIEW_ROUTES = Object.freeze([
   { path: "/users/allusers", forcedView: "all-users" },
   { path: "/users/create", forcedView: "create-user" },
   { path: "/clients/allclients", forcedView: "clients-all" },
+  { path: "/crm", forcedView: "crm" },
   { path: "/appointments/planner", forcedView: "appointment" },
   { path: "/sms-xabarnoma", forcedView: "sms-notifications" },
   { path: "/settings/appointments", forcedView: "appointment-settings" },
@@ -54,6 +55,7 @@ const REDIRECT_ROUTE_GROUPS = Object.freeze([
     paths: ["/profile/my-profile", "/profile/users"]
   },
   { to: "/users/allusers", paths: ["/profile/users/allusers"] },
+  { to: "/crm", paths: ["/profile/crm", "/crm/leads"] },
   { to: "/users/create", paths: ["/profile/users/create"] },
   { to: "/appointments/planner", paths: ["/appointments/breaks", "/profile/appointments/breaks"] },
   { to: "/appointments/planner", paths: ["/appointments/specialist-absences", "/profile/appointments/specialist-absences"] },

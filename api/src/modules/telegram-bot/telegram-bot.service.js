@@ -5,6 +5,7 @@ import { normalizePositiveInteger } from "../../lib/number.js";
 import { normalizePhoneDigits, normalizePhoneNumber } from "../../lib/phone-number.js";
 import { toBoundedInteger } from "../../lib/bounded-integer.js";
 import { updateAppointmentSchedulesByIds } from "../appointments/appointment-settings.service.js";
+import { createOrUpdateCrmLead } from "../crm/crm.service.js";
 import { persistNotificationEvent } from "../notifications/notifications.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
 
@@ -1388,6 +1389,23 @@ async function handleContactMessage({ settings, message }) {
     phoneNumber: contact.phone_number,
     language
   });
+  await createOrUpdateCrmLead({
+    organizationId: settings.organizationId,
+    fullName: [contact.last_name, contact.first_name].filter(Boolean).join(" ") || "Telegram contact",
+    phoneNumber: contact.phone_number,
+    source: "telegram",
+    telegramUserId: from.id,
+    telegramChatId: chat.id,
+    payload: {
+      source: "telegram",
+      telegramUserId: from.id,
+      chatId: chat.id,
+      username: from.username || "",
+      firstName: contact.first_name || from.first_name || "",
+      lastName: contact.last_name || from.last_name || "",
+      linkedAt: new Date().toISOString()
+    }
+  }).catch(() => {});
   await sendTelegramMessage({
     token: settings.botToken,
     chatId: parent.chatId,

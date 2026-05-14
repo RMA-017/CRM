@@ -1556,6 +1556,10 @@
   text-align: center;
 }
 
+.home-signup-status.is-error {
+  color: #c2410c;
+}
+
 .home-contact-section {
   display: grid;
   grid-template-columns: minmax(360px, 0.92fr) minmax(420px, 1fr);

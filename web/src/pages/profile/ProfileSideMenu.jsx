@@ -16,6 +16,8 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
   hasClientsMenuAccess,
   canReadClients,
   openAllClientsPanel,
+  canOpenCrm,
+  openCrmPanel,
   hasAppointmentsMenuAccess,
   canOpenAppointmentSchedule,
   canOpenAppointmentSettings,
@@ -224,6 +226,16 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
               </button>
             </div>
           </div>
+
+          <button
+            id="openCrmBtn"
+            type="button"
+            className="side-menu-action side-menu-parent"
+            hidden={!canOpenCrm}
+            onClick={openCrmPanel}
+          >
+            CRM
+          </button>
 
           <div id="siteMenuGroup" className="side-menu-group" hidden={!canOpenSiteContent}>
             <button

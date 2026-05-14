@@ -11,6 +11,7 @@ import appointmentSettingsRoutes from "./modules/appointments/appointment-settin
 import authRoutes from "./modules/auth/auth.routes.js";
 import clientsRoutes from "./modules/clients/clients.routes.js";
 import createUserRoutes from "./modules/create-user/create-user.routes.js";
+import { crmProtectedRoutes, crmPublicRoutes } from "./modules/crm/crm.routes.js";
 import metaRoutes from "./modules/meta/meta.routes.js";
 import monitoringRoutes from "./modules/monitoring/monitoring.routes.js";
 import { recordRequest } from "./modules/monitoring/monitoring.store.js";
@@ -171,6 +172,7 @@ export async function buildApp() {
   });
 
   await app.register(authRoutes, { prefix: "/api/login" });
+  await app.register(crmPublicRoutes, { prefix: "/api/crm" });
   await app.register(siteContentPublicRoutes, { prefix: "/api/site-content" });
   await app.register(telegramWebhookRoutes, { prefix: "/api/telegram" });
 
@@ -183,6 +185,7 @@ export async function buildApp() {
     await fastify.register(createUserRoutes, { prefix: "/api/users" });
     await fastify.register(usersRoutes, { prefix: "/api/users" });
     await fastify.register(clientsRoutes, { prefix: "/api/clients" });
+    await fastify.register(crmProtectedRoutes, { prefix: "/api/crm" });
     await fastify.register(appointmentSettingsRoutes, { prefix: "/api/appointments" });
     await fastify.register(settingsRoutes, { prefix: "/api/settings" });
     await fastify.register(telegramSettingsRoutes, { prefix: "/api/settings" });

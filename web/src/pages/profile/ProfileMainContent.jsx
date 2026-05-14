@@ -5,6 +5,7 @@ const AllUsersPanel = lazy(() => import("./panels/AllUsersPanel.jsx"));
 const AppointmentPlannerPanel = lazy(() => import("./panels/AppointmentPlannerPanel.jsx"));
 const AppointmentSettingsShellPanel = lazy(() => import("./panels/AppointmentSettingsShellPanel.jsx"));
 const ClientsPanel = lazy(() => import("./panels/ClientsPanel.jsx"));
+const CrmLeadsPanel = lazy(() => import("./panels/CrmLeadsPanel.jsx"));
 const MonitoringPanel = lazy(() => import("./MonitoringPanel.jsx"));
 const OrganizationsSettingsPanel = lazy(() => import("./panels/OrganizationsSettingsPanel.jsx"));
 const PositionsSettingsPanel = lazy(() => import("./panels/PositionsSettingsPanel.jsx"));
@@ -66,6 +67,8 @@ function ProfileMainContent({
   startClientEdit,
   openClientsDeleteModal,
   closeAllClientsPanel,
+  closeCrmPanel,
+  canUpdateCrm,
   canReadAppointments,
   canCreateAppointments,
   canUpdateAppointments,
@@ -356,6 +359,15 @@ function ProfileMainContent({
               clients={clients}
               clientsPage={clientsPage}
               clientsTotalPages={clientsTotalPages}
+            />
+          </Suspense>
+        ) : null}
+
+        {mainView === "crm" ? (
+          <Suspense fallback={PANEL_LOADING_FALLBACK}>
+            <CrmLeadsPanel
+              canUpdateCrm={canUpdateCrm}
+              onClose={closeCrmPanel}
             />
           </Suspense>
         ) : null}

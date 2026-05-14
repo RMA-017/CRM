@@ -91,6 +91,8 @@ function ProfilePage({ forcedView = "none" }) {
     canUpdateSettingsTelegramBot,
     canOpenSmsNotifications,
     canSendSmsNotifications,
+    canOpenCrm,
+    canUpdateCrm,
     canOpenSettingsOrganizations,
     canCreateSettingsOrganizations,
     canUpdateSettingsOrganizations,
@@ -640,6 +642,8 @@ function ProfilePage({ forcedView = "none" }) {
     closeMyProfilePanel,
     closeCreateUserPanel,
     openAllClientsPanel,
+    openCrmPanel,
+    closeCrmPanel,
     closeAllClientsPanel,
     openAppointmentPanel,
     closeAppointmentPanel,
@@ -670,6 +674,7 @@ function ProfilePage({ forcedView = "none" }) {
     setMyProfileModalOpen,
     canCreateUsers,
     canReadClients,
+    canOpenCrm,
     canOpenAppointmentSchedule,
     canOpenAppointmentStatistics,
     canOpenAppointmentSettings,
@@ -1163,6 +1168,8 @@ function ProfilePage({ forcedView = "none" }) {
             startClientEdit={startClientEdit}
             openClientsDeleteModal={openClientsDeleteModal}
             closeAllClientsPanel={closeAllClientsPanel}
+            closeCrmPanel={closeCrmPanel}
+            canUpdateCrm={canUpdateCrm}
             canReadAppointments={canReadAppointments}
             canCreateAppointments={canCreateAppointments}
             canUpdateAppointments={canUpdateAppointments}
@@ -1348,6 +1355,8 @@ function ProfilePage({ forcedView = "none" }) {
         hasClientsMenuAccess={hasClientsMenuAccess}
         canReadClients={canReadClients}
         openAllClientsPanel={openAllClientsPanel}
+        canOpenCrm={canOpenCrm}
+        openCrmPanel={openCrmPanel}
         hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
         canOpenAppointmentSchedule={canOpenAppointmentSchedule}
         canOpenAppointmentSettings={canOpenAppointmentSettings}

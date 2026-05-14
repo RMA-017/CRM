@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { apiFetch, getApiErrorMessage, readApiResponseData } from "../lib/api.js";
 import { LOGOUT_FLAG_KEY } from "../lib/auth-flags.js";
 import { normalizeProfile } from "../lib/formatters.js";
+import { isValidPhoneInput, normalizePhoneNumber } from "../lib/phone-number.js";
 import { useI18n } from "../i18n/I18nProvider.jsx";
 import { loadProfilePage } from "../lib/load-profile-page.js";
 import { fetchPublicSiteContent } from "../lib/site-content.js";
@@ -475,6 +476,8 @@ function HomePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [signupForm, setSignupForm] = useState({ fullName: "", phone: "" });
   const [signupErrors, setSignupErrors] = useState({ fullName: "", phone: "" });
+  const [signupMessage, setSignupMessage] = useState("");
+  const [signupSubmitting, setSignupSubmitting] = useState(false);
   const [kidsArtItems, setKidsArtItems] = useState([]);
   const [blogItems, setBlogItems] = useState([]);
   const [teamItems, setTeamItems] = useState([]);
@@ -494,6 +497,7 @@ function HomePage() {
     canOpenSettingsOrganizations,
     canOpenSettingsRoles,
     canOpenSettingsPositions,
+    canOpenCrm,
     hasUsersMenuAccess,
     canReadUsers,
     hasSettingsMenuAccess,
@@ -510,7 +514,8 @@ function HomePage() {
   const canSubmitSignup = useMemo(() => (
     signupForm.fullName.trim().length > 2
     && signupForm.phone.trim().length > 8
-  ), [signupForm.fullName, signupForm.phone]);
+    && !signupSubmitting
+  ), [signupForm.fullName, signupForm.phone, signupSubmitting]);
 
   const teamTotalPages = Math.max(1, Math.ceil(teamItems.length / TEAM_ITEMS_PER_PAGE));
   const visibleTeamItems = useMemo(() => {
@@ -765,12 +770,13 @@ function HomePage() {
 
   const updateSignupField = useCallback((field, value) => {
     setSignupForm((prev) => ({ ...prev, [field]: value }));
+    setSignupMessage("");
     if (signupErrors[field]) {
       setSignupErrors((prev) => ({ ...prev, [field]: "" }));
     }
   }, [signupErrors]);
 
-  const handleSignupSubmit = useCallback((event) => {
+  const handleSignupSubmit = useCallback(async (event) => {
     event.preventDefault();
     const payload = {
       fullName: signupForm.fullName.trim(),
@@ -781,7 +787,7 @@ function HomePage() {
     if (payload.fullName.length < 3) {
       nextErrors.fullName = homeText.signup.errors.fullName;
     }
-    if (payload.phone.replace(/\D/g, "").length < 9) {
+    if (!isValidPhoneInput(payload.phone)) {
       nextErrors.phone = homeText.signup.errors.phone;
     }
 
@@ -790,15 +796,35 @@ function HomePage() {
       return;
     }
 
-    const lead = {
-      ...payload,
-      createdAt: new Date().toISOString()
-    };
-    const savedLeads = JSON.parse(localStorage.getItem("aaron_public_leads") || "[]");
-    localStorage.setItem("aaron_public_leads", JSON.stringify([lead, ...savedLeads].slice(0, 50)));
-    setSignupForm({ fullName: "", phone: "" });
-    setSignupErrors({ fullName: "", phone: "" });
-  }, [homeText.signup.errors.fullName, homeText.signup.errors.phone, signupForm.fullName, signupForm.phone]);
+    try {
+      setSignupSubmitting(true);
+      const response = await apiFetch("/api/crm/public-leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...payload,
+          phone: normalizePhoneNumber(payload.phone)
+        })
+      });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        const field = String(data?.field || "").trim();
+        if (field === "fullName" || field === "phone") {
+          setSignupErrors((prev) => ({ ...prev, [field]: data?.message || "Invalid value." }));
+        } else {
+          setSignupMessage(getApiErrorMessage(response, data, "Request failed."));
+        }
+        return;
+      }
+      setSignupForm({ fullName: "", phone: "" });
+      setSignupErrors({ fullName: "", phone: "" });
+      setSignupMessage(language === "ru" ? "Заявка принята. Мы свяжемся с вами." : "Ariza qabul qilindi. Tez orada bog'lanamiz.");
+    } catch {
+      setSignupMessage(language === "ru" ? "Не удалось отправить заявку." : "Arizani yuborib bo'lmadi.");
+    } finally {
+      setSignupSubmitting(false);
+    }
+  }, [homeText.signup.errors.fullName, homeText.signup.errors.phone, language, signupForm.fullName, signupForm.phone]);
 
   const handleSubmit = useCallback(async (event) => {
     event.preventDefault();
@@ -1248,8 +1274,11 @@ function HomePage() {
               </div>
 
               <button type="submit" className="home-signup-submit" disabled={!canSubmitSignup}>
-                {homeText.actions.submit}
+                {signupSubmitting ? (language === "ru" ? "Отправка..." : "Yuborilmoqda...") : homeText.actions.submit}
               </button>
+              {signupErrors.fullName ? <p className="home-signup-status is-error">{signupErrors.fullName}</p> : null}
+              {signupErrors.phone ? <p className="home-signup-status is-error">{signupErrors.phone}</p> : null}
+              {signupMessage ? <p className="home-signup-status">{signupMessage}</p> : null}
             </form>
           </section>
 
@@ -1389,6 +1418,8 @@ function HomePage() {
           hasClientsMenuAccess={hasClientsMenuAccess}
           canReadClients={canReadClients}
           openAllClientsPanel={() => navigateFromMenu("/clients/allclients")}
+          canOpenCrm={canOpenCrm}
+          openCrmPanel={() => navigateFromMenu("/crm")}
           hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
           canOpenAppointmentSchedule={canOpenAppointmentSchedule}
           canOpenAppointmentStatistics={canOpenAppointmentStatistics}

@@ -1,6 +1,6 @@
 export const CRM_LANGUAGE_STORAGE_KEY = "aaron_crm_language";
 export const LEGACY_HOME_LANGUAGE_STORAGE_KEY = "aaron_home_language";
-export const DEFAULT_LANGUAGE = "uz";
+export const DEFAULT_LANGUAGE = "ru";
 
 export const SUPPORTED_LANGUAGES = Object.freeze(["uz", "ru"]);
 

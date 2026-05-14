@@ -8,6 +8,7 @@ export function useProfilePanels({
   setMyProfileModalOpen,
   canCreateUsers,
   canReadClients,
+  canOpenCrm,
   canOpenAppointmentSchedule,
   canOpenAppointmentStatistics,
   canOpenAppointmentSettings,
@@ -51,6 +52,14 @@ export function useProfilePanels({
   const openAllClientsPanel = useCallback(() => {
     openPanel("/clients/allclients", canReadClients);
   }, [canReadClients, openPanel]);
+
+  const openCrmPanel = useCallback(() => {
+    openPanel("/crm", canOpenCrm);
+  }, [canOpenCrm, openPanel]);
+
+  const closeCrmPanel = useCallback(() => {
+    closePanel("crm");
+  }, [closePanel]);
 
   const closeAllClientsPanel = useCallback(() => {
     closePanel("clients-all");
@@ -158,6 +167,8 @@ export function useProfilePanels({
     closeMyProfilePanel,
     openCreateUserPanel,
     openAllClientsPanel,
+    openCrmPanel,
+    closeCrmPanel,
     closeAllClientsPanel,
     openAppointmentPanel,
     closeAppointmentPanel,

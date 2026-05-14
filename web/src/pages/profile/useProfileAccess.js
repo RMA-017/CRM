@@ -52,6 +52,8 @@ export function useProfileAccess(profile, forcedView) {
   const canCreateSiteContentPermission = hasPermissionCode(PERMISSIONS.WEBSITE_MANAGEMENT_CREATE);
   const canUpdateSiteContentPermission = hasPermissionCode(PERMISSIONS.WEBSITE_MANAGEMENT_UPDATE);
   const canDeleteSiteContentPermission = hasPermissionCode(PERMISSIONS.WEBSITE_MANAGEMENT_DELETE);
+  const canReadCrmLeadsPermission = hasPermissionCode(PERMISSIONS.CRM_LEADS_READ);
+  const canUpdateCrmLeadsPermission = hasPermissionCode(PERMISSIONS.CRM_LEADS_UPDATE);
 
   const canReadSettingsAppointmentsPermission = hasPermissionCode(PERMISSIONS.SETTINGS_APPOINTMENTS_READ);
   const canUpdateSettingsAppointmentsPermission = hasPermissionCode(PERMISSIONS.SETTINGS_APPOINTMENTS_UPDATE);
@@ -137,6 +139,8 @@ export function useProfileAccess(profile, forcedView) {
     : legacyHasSettingsAccess;
 
   const hasClientsMenuAccess = canReadClients;
+  const canOpenCrm = canReadCrmLeadsPermission || canUpdateCrmLeadsPermission;
+  const canUpdateCrm = canUpdateCrmLeadsPermission;
   const hasUsersMenuAccess = canReadUsers || canCreateUsers;
 
   const canOpenAppointmentSchedule = canReadAppointments && (
@@ -221,6 +225,9 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "clients" || forcedView === "clients-all") {
       return hasClientsMenuAccess && canReadClients;
     }
+    if (forcedView === "crm") {
+      return canOpenCrm;
+    }
     if (forcedView === "appointment") {
       return canOpenAppointmentSchedule;
     }
@@ -258,6 +265,7 @@ export function useProfileAccess(profile, forcedView) {
     canOpenAppointmentSettings,
     canOpenTelegramBotSettings,
     canOpenSmsNotifications,
+    canOpenCrm,
     canOpenSettingsOrganizations,
     canOpenSettingsPositions,
     canOpenSettingsRoles,
@@ -312,6 +320,8 @@ export function useProfileAccess(profile, forcedView) {
     canUpdateSettingsTelegramBot,
     canOpenSmsNotifications,
     canSendSmsNotifications,
+    canOpenCrm,
+    canUpdateCrm,
     canOpenSettingsOrganizations,
     canCreateSettingsOrganizations,
     canUpdateSettingsOrganizations,
