@@ -4,6 +4,8 @@ import { normalizePermissionCodes } from "../../lib/permission-codes.js";
 import { normalizePositiveInteger } from "../../lib/number.js";
 import { normalizePhoneDigits, normalizePhoneNumber } from "../../lib/phone-number.js";
 import { toBoundedInteger } from "../../lib/bounded-integer.js";
+import { publishAppointmentEvent } from "../appointments/appointment-events.js";
+import { clearAppointmentSchedulesReadCache } from "../appointments/appointment-schedules-read-cache.js";
 import { updateAppointmentSchedulesByIds } from "../appointments/appointment-settings.service.js";
 import { createOrUpdateCrmLead } from "../crm/crm.service.js";
 import { persistNotificationEvent } from "../notifications/notifications.service.js";
@@ -126,7 +128,7 @@ const DEFAULT_TEMPLATES = Object.freeze({
     scheduleSeriesDeleted: "{child} uchun {service} darslari bekor qilindi.",
     specialistLessonsDeleted: "{child} uchun rejalashtirilgan darslar bekor qilindi.",
     reminder24h: "{date} {time} da {service} darsi bor. Kelasizmi?",
-    reminder2h: "{date} {time} da {service} darsingiz bor.",
+    reminder2h: "Bugun {time} da {service} darsingiz bor. Mutaxassis: {specialist}.",
     parentCancelNotification: "Ota-ona {child} uchun {date} {time} dagi {service} darsini bekor qildi. Sabab: {reason}."
   }),
   ru: Object.freeze({
@@ -138,7 +140,7 @@ const DEFAULT_TEMPLATES = Object.freeze({
     scheduleSeriesDeleted: "Занятия {service} для {child} отменены.",
     specialistLessonsDeleted: "Запланированные занятия для {child} отменены.",
     reminder24h: "{date} в {time} урок {service}. Вы придете?",
-    reminder2h: "{date} в {time} у вас урок {service}.",
+    reminder2h: "Сегодня в {time} у вас урок {service}. Специалист: {specialist}.",
     parentCancelNotification: "Родитель отменил урок {service} для {child} на {date} {time}. Причина: {reason}."
   })
 });
@@ -1256,6 +1258,24 @@ async function markParentComing({ settings, parent, appointmentId }) {
     appointment,
     responseStatus: "coming"
   });
+  clearAppointmentSchedulesReadCache();
+  publishAppointmentEvent({
+    organizationId: appointment.organizationId,
+    type: "appointment-parent-response",
+    message: "Parent confirmed appointment.",
+    targetUserIds: [appointment.specialistId].filter(Boolean),
+    targetRoles: ["manager"],
+    data: {
+      appointmentId: appointment.id,
+      clientId: appointment.clientId,
+      clientName: getClientName(appointment),
+      specialistId: appointment.specialistId,
+      specialistName: appointment.specialistName,
+      appointmentDate: appointment.appointmentDate,
+      startTime: appointment.startTime,
+      parentResponseStatus: "coming"
+    }
+  });
   await deletePendingCancelAction({ parent, appointmentId: appointment.id });
   await sendTelegramMessage({
     token: settings.botToken,
@@ -1353,6 +1373,24 @@ async function cancelParentAppointment({ settings, parent, appointmentId, reason
     );
   });
 
+  clearAppointmentSchedulesReadCache();
+  publishAppointmentEvent({
+    organizationId: appointment.organizationId,
+    type: "appointment-parent-response",
+    message: "Parent cancelled appointment.",
+    targetUserIds: [appointment.specialistId].filter(Boolean),
+    targetRoles: ["manager"],
+    data: {
+      appointmentId: appointment.id,
+      clientId: appointment.clientId,
+      clientName: getClientName(appointment),
+      specialistId: appointment.specialistId,
+      specialistName: appointment.specialistName,
+      appointmentDate: appointment.appointmentDate,
+      startTime: appointment.startTime,
+      parentResponseStatus: "not_coming"
+    }
+  });
   await notifyStaffAboutParentCancel({ settings, appointment, reason: normalizedReason });
   await sendTelegramMessage({
     token: settings.botToken,
@@ -2215,7 +2253,7 @@ async function sendReminderRow({ row, reminderType }) {
     appointmentScheduleId: item.id,
     eventType: reminderType,
     message,
-    replyMarkup: buildAppointmentButtons(language, item.id),
+    replyMarkup: reminderType === "reminder_24h" ? buildAppointmentButtons(language, item.id) : null,
     dedupeKey: `${reminderType}:${item.id}:${parent.id}`
   });
 }

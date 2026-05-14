@@ -4630,6 +4630,28 @@ function AppointmentScheduler({
     loadSchedulesForCurrentWeek
   ]);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.EventSource !== "function") {
+      return undefined;
+    }
+
+    const eventSource = new window.EventSource("/api/appointments/events", { withCredentials: true });
+    const handleAppointmentChange = (event) => {
+      let detail = {};
+      try {
+        detail = JSON.parse(event?.data || "{}");
+      } catch {
+        detail = {};
+      }
+      window.dispatchEvent(new window.CustomEvent("crm:appointment-change", { detail }));
+    };
+    eventSource.addEventListener("appointment-change", handleAppointmentChange);
+    return () => {
+      eventSource.removeEventListener("appointment-change", handleAppointmentChange);
+      eventSource.close();
+    };
+  }, []);
+
   const refreshPlannerServerState = useCallback(async () => {
     await Promise.all([
       loadAppointmentSettings({ silent: true }),

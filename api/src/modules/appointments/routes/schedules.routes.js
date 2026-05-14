@@ -1,13 +1,8 @@
-import { toBoundedInteger } from "../../../lib/bounded-integer.js";
-import { createTtlCache } from "../../../lib/ttl-cache.js";
 import { sendMigrationRequired } from "../../../lib/http.js";
 import { requesterHasOrgFeature } from "../../../lib/org-features.js";
+import { schedulesReadCache } from "../appointment-schedules-read-cache.js";
 import { appointmentRouteSchemas } from "./appointment.route-schemas.js";
 
-const schedulesReadCache = createTtlCache({
-  maxEntries: toBoundedInteger(process.env.APPOINTMENT_SCHEDULES_CACHE_MAX, 5000, 100, 50_000),
-  defaultTtlMs: toBoundedInteger(process.env.APPOINTMENT_SCHEDULES_CACHE_TTL_MS, 5000, 500, 60_000)
-});
 const VIP_AUTO_ROLLING_REPEAT_WINDOW_DAYS = 30;
 
 function buildSchedulesReadCacheKey({

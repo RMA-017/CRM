@@ -10,7 +10,14 @@ export const LANGUAGE_LABELS = Object.freeze({
 });
 
 export function normalizeLanguage(value) {
-  return String(value || "").trim().toLowerCase().startsWith("ru") ? "ru" : DEFAULT_LANGUAGE;
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized.startsWith("uz")) {
+    return "uz";
+  }
+  if (normalized.startsWith("ru")) {
+    return "ru";
+  }
+  return DEFAULT_LANGUAGE;
 }
 
 export const MESSAGES = Object.freeze({

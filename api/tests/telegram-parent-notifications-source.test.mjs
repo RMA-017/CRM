@@ -267,4 +267,14 @@ test("Telegram reminders stay retryable and use enabled reminder windows", async
     /await sendReminderRows\(\{[\s\S]*reminderType: "reminder_24h"[\s\S]*await sendReminderRows\(\{[\s\S]*reminderType: "reminder_2h"/s,
     "Both reminder windows should use the retryable per-row sender."
   );
+  assert.match(
+    serviceSource,
+    /replyMarkup:\s*reminderType === "reminder_24h" \? buildAppointmentButtons\(language, item\.id\) : null/,
+    "Only the first reminder should ask parents to confirm attendance."
+  );
+  assert.match(
+    serviceSource,
+    /reminder2h:\s*"Сегодня в \{time\} у вас урок \{service\}\. Специалист: \{specialist\}\."/,
+    "Second reminder should be a short informational message with the specialist name and without a question."
+  );
 });

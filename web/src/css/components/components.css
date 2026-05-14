@@ -1282,15 +1282,17 @@ label.field > span:first-child,
 
 .telegram-settings-section {
   display: grid;
-  gap: 12px;
-  padding: 14px;
+  gap: 14px;
+  padding: 16px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: linear-gradient(180deg, #ffffff 0%, var(--surface-soft) 100%);
+  border-radius: var(--radius);
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
 }
 
 .telegram-settings-primary {
-  border-color: rgba(67, 97, 238, 0.18);
+  border-color: rgba(67, 97, 238, 0.16);
+  background: linear-gradient(180deg, #ffffff 0%, #F8FAFC 100%);
 }
 
 .telegram-settings-section-head {
@@ -1337,9 +1339,19 @@ label.field > span:first-child,
 
 .telegram-token-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 260px);
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 280px);
   gap: 14px;
-  align-items: end;
+  align-items: stretch;
+}
+
+.telegram-token-field {
+  min-height: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  box-sizing: border-box;
+  justify-content: end;
 }
 
 .telegram-token-field input {
@@ -1348,20 +1360,21 @@ label.field > span:first-child,
 
 .telegram-settings-switches {
   display: grid;
-  gap: 6px;
-  align-content: end;
+  gap: 8px;
+  align-content: stretch;
 }
 
 .telegram-settings-switches .settings-checkbox-inline {
-  min-height: 36px;
-  padding: 0 10px;
+  min-height: 46px;
+  padding: 0 12px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-xs);
-  background: #F8FAFC;
+  border-radius: var(--radius-sm);
+  background: #ffffff;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
+  box-sizing: border-box;
 }
 
 .telegram-settings-switches .settings-checkbox-inline span {
@@ -1380,6 +1393,59 @@ label.field > span:first-child,
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
+}
+
+.telegram-number-card {
+  display: grid;
+  grid-template-rows: auto auto minmax(36px, auto);
+  gap: 8px;
+  min-width: 0;
+  min-height: 142px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #F8FAFC;
+  box-sizing: border-box;
+}
+
+.telegram-number-card > label:first-child {
+  min-height: 34px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-small);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.telegram-number-card > input {
+  width: 100%;
+  min-height: 38px;
+  box-sizing: border-box;
+}
+
+.telegram-card-toggle {
+  align-self: end;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: var(--radius-xs);
+  background: #ffffff;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+}
+
+.telegram-card-toggle span {
+  color: var(--text-main);
+  font-size: var(--fs-small);
+  font-weight: 700;
+}
+
+.telegram-card-toggle input[type="checkbox"] {
+  justify-self: end;
 }
 
 .settings-actions-row {
@@ -1640,6 +1706,11 @@ label.field > span:first-child,
   .telegram-settings-number-grid,
   .telegram-template-fields {
     grid-template-columns: 1fr;
+  }
+
+  .telegram-token-field,
+  .telegram-number-card {
+    min-height: auto;
   }
 
   .telegram-language-tabs {
