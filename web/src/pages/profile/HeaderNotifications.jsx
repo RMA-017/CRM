@@ -130,16 +130,6 @@ function getNotificationSpecialistName(item) {
   return firstText(firstItem.specialistName, firstItem.specialist_name);
 }
 
-function getNotificationServiceName(item) {
-  const payload = getNotificationPayload(item);
-  const payloadService = firstText(payload.serviceName, payload.service_name, payload.service, payload.lessonName);
-  if (payloadService) {
-    return payloadService;
-  }
-  const firstItem = getPayloadItems(item)[0] || {};
-  return firstText(firstItem.serviceName, firstItem.service_name, firstItem.service, firstItem.lessonName);
-}
-
 function getFirstScheduleItem(item) {
   return getPayloadItems(item)[0] || {};
 }
@@ -200,14 +190,13 @@ function formatHeaderNotificationMessage(item, language, fallback) {
   const eventType = getNotificationEventType(item);
   const payload = getNotificationPayload(item);
   const clientName = getNotificationClientName(item);
-  const specialistName = getNotificationSpecialistName(item);
-  const serviceName = getNotificationServiceName(item);
+  const specialistName = getNotificationSpecialistName(item) || (language === "ru" ? "Специалист" : "Mutaxassis");
   const dateTime = getNotificationDateTime(item);
   const count = Number(payload.deletedCount || payload.cancelledCount || payload.changedCount || payload.createdCount || 0);
   const countText = count > 1
     ? (language === "ru" ? `${count} занятий` : `${count} ta dars`)
     : "";
-  const suffix = compactParts([clientName, serviceName, specialistName, dateTime, countText]);
+  const suffix = compactParts([clientName, specialistName, dateTime, countText]);
   const isRu = language === "ru";
   if (!suffix) {
     return getMessageFallback(item, language, fallback);
@@ -246,8 +235,7 @@ function getHeaderNotificationView(item, language, fallback) {
   const payload = getNotificationPayload(item);
   const isRu = language === "ru";
   const clientName = getNotificationClientName(item);
-  const specialistName = getNotificationSpecialistName(item);
-  const serviceName = getNotificationServiceName(item);
+  const specialistName = getNotificationSpecialistName(item) || (isRu ? "Специалист" : "Mutaxassis");
   const dateTime = getNotificationDateTime(item);
   const reason = firstText(payload.reason, payload.cancelReason, payload.cancel_reason);
   const count = Number(payload.deletedCount || payload.cancelledCount || payload.changedCount || payload.createdCount || 0);
@@ -260,7 +248,7 @@ function getHeaderNotificationView(item, language, fallback) {
       payload.absenceDate || payload.dateFrom,
       payload.startTime || payload.start_time || payload.time
     );
-    const primary = specialistName || (isRu ? "Специалист" : "Mutaxassis");
+    const primary = specialistName;
     const details = compactParts([
       getNotificationKind(item, language),
       dateText,
@@ -274,7 +262,7 @@ function getHeaderNotificationView(item, language, fallback) {
     };
   }
 
-  const details = compactParts([getNotificationKind(item, language), serviceName, specialistName, dateTime, countText]);
+  const details = compactParts([getNotificationKind(item, language), specialistName, dateTime, countText]);
   const fallbackText = getMessageFallback(item, language, fallback);
   return {
     primary: clientName || fallbackText,

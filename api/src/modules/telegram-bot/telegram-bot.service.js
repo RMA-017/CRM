@@ -162,28 +162,28 @@ const WORK_WEEK_OFFSETS = Object.freeze([0, 1, 2, 3, 4, 5]);
 
 const DEFAULT_TEMPLATES = Object.freeze({
   uz: Object.freeze({
-    lessonCancelled: "Farzandingizni {date} {time} dagi {service} darsi {actor} tomonidan bekor qilindi. Sabab: {reason}. Buning uchun uzr so'raymiz.",
-    scheduleChanged: "{child} uchun {date} {time} dagi {service} darsi jadvali o'zgartirildi.",
-    scheduleCreated: "{child} uchun {date} {time} dagi {service} darsi rejalashtirildi.",
+    lessonCancelled: "Farzandingizni {date} {time} dagi {service} darsi bekor qilindi. Mutaxassis: {specialist}. Sabab: {reason}. Buning uchun uzr so'raymiz.",
+    scheduleChanged: "{child} uchun {date} {time} dagi {service} darsi jadvali o'zgartirildi. Mutaxassis: {specialist}.",
+    scheduleCreated: "{child} uchun {date} {time} dagi {service} darsi rejalashtirildi. Mutaxassis: {specialist}.",
     scheduleCreatedWeek: "{child} uchun yaqin haftalik darslar rejalashtirildi:\n{lessons}",
-    scheduleDeleted: "{child} uchun {date} {time} dagi {service} darsi o'chirildi.",
-    scheduleSeriesDeleted: "{child} uchun {service} darslari bekor qilindi.",
-    specialistLessonsDeleted: "{child} uchun rejalashtirilgan darslar bekor qilindi.",
-    reminder24h: "{date} {time} da {service} darsi bor. Kelasizmi?",
+    scheduleDeleted: "{child} uchun {date} {time} dagi {service} darsi o'chirildi. Mutaxassis: {specialist}.",
+    scheduleSeriesDeleted: "{child} uchun {service} darslari bekor qilindi. Mutaxassis: {specialist}.",
+    specialistLessonsDeleted: "{child} uchun rejalashtirilgan darslar bekor qilindi:\n{lessons}",
+    reminder24h: "{date} {time} da {service} darsi bor. Mutaxassis: {specialist}. Kelasizmi?",
     reminder2h: "Bugun {time} da {service} darsingiz bor. Mutaxassis: {specialist}.",
-    parentCancelNotification: "Ota-ona {child} uchun {date} {time} dagi {service} darsini bekor qildi. Sabab: {reason}."
+    parentCancelNotification: "Ota-ona {child} uchun {date} {time} dagi {service} darsini bekor qildi. Mutaxassis: {specialist}. Sabab: {reason}."
   }),
   ru: Object.freeze({
-    lessonCancelled: "Урок {service} для {child} на {date} {time} отменен специалистом {actor}. Причина: {reason}. Приносим извинения.",
-    scheduleChanged: "Расписание урока {service} для {child} на {date} {time} изменено.",
-    scheduleCreated: "Урок {service} для {child} запланирован на {date} {time}.",
+    lessonCancelled: "Урок {service} для {child} на {date} {time} отменен. Специалист: {specialist}. Причина: {reason}. Приносим извинения.",
+    scheduleChanged: "Расписание урока {service} для {child} на {date} {time} изменено. Специалист: {specialist}.",
+    scheduleCreated: "Урок {service} для {child} запланирован на {date} {time}. Специалист: {specialist}.",
     scheduleCreatedWeek: "Ближайшие занятия на неделю для {child} запланированы:\n{lessons}",
-    scheduleDeleted: "Урок {service} для {child} на {date} {time} удален.",
-    scheduleSeriesDeleted: "Занятия {service} для {child} отменены.",
-    specialistLessonsDeleted: "Запланированные занятия для {child} отменены.",
-    reminder24h: "{date} в {time} урок {service}. Вы придете?",
+    scheduleDeleted: "Урок {service} для {child} на {date} {time} удален. Специалист: {specialist}.",
+    scheduleSeriesDeleted: "Занятия {service} для {child} отменены. Специалист: {specialist}.",
+    specialistLessonsDeleted: "Запланированные занятия для {child} отменены:\n{lessons}",
+    reminder24h: "{date} в {time} урок {service}. Специалист: {specialist}. Вы придете?",
     reminder2h: "Сегодня в {time} у вас урок {service}. Специалист: {specialist}.",
-    parentCancelNotification: "Родитель отменил урок {service} для {child} на {date} {time}. Причина: {reason}."
+    parentCancelNotification: "Родитель отменил урок {service} для {child} на {date} {time}. Специалист: {specialist}. Причина: {reason}."
   })
 });
 
@@ -360,6 +360,32 @@ function renderTemplateWithLines(template, values) {
     .map((line) => line.replace(/[ \t]+/g, " ").trim())
     .filter(Boolean)
     .join("\n");
+}
+
+function textContainsPart(message, value) {
+  const needle = String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
+  if (!needle) {
+    return true;
+  }
+  return String(message || "").replace(/\s+/g, " ").trim().toLowerCase().includes(needle);
+}
+
+function appendRequiredAppointmentParts(message, {
+  language,
+  serviceName = "",
+  specialistName = ""
+}) {
+  const normalizedLanguage = normalizeLanguage(language);
+  const serviceText = String(serviceName || "").trim();
+  const specialistText = String(specialistName || "").trim();
+  const lines = [String(message || "").trim()].filter(Boolean);
+  if (serviceText && !textContainsPart(lines.join("\n"), serviceText)) {
+    lines.push(`${normalizedLanguage === "ru" ? "Урок" : "Dars"}: ${serviceText}`);
+  }
+  if (specialistText && !textContainsPart(lines.join("\n"), specialistText)) {
+    lines.push(`${normalizedLanguage === "ru" ? "Специалист" : "Mutaxassis"}: ${specialistText}`);
+  }
+  return lines.join("\n");
 }
 
 function formatDateDmy(value) {
@@ -1412,6 +1438,7 @@ async function notifyStaffAboutParentCancel({ settings, appointment, reason }) {
     date: appointment.appointmentDate,
     time: appointment.startTime,
     service: appointment.serviceName,
+    specialist: appointment.specialistName,
     reason
   });
   await persistNotificationEvent({
@@ -1974,14 +2001,20 @@ function buildParentNotificationMessage({ settings, parent, item, eventType, act
   const templateKey = getTemplateKeyForEvent(eventType, item);
   const reason = String(item.note || "").trim()
     || (language === "ru" ? "не указано" : "ko'rsatilmagan");
-  return renderTemplate(templates[templateKey] || DEFAULT_TEMPLATES[language][templateKey], {
+  const specialistName = getSpecialistName(item);
+  const message = renderTemplate(templates[templateKey] || DEFAULT_TEMPLATES[language][templateKey], {
     child: getClientName({ ...item, ...parent }),
     date: item.appointmentDate,
     time: item.startTime,
     service: item.serviceName,
-    specialist: item.specialistName,
-    actor: String(actorName || item.specialistName || "CRM").trim(),
+    specialist: specialistName,
+    actor: String(actorName || specialistName || "CRM").trim(),
     reason
+  });
+  return appendRequiredAppointmentParts(message, {
+    language,
+    serviceName: item.serviceName,
+    specialistName
   });
 }
 
@@ -2039,11 +2072,13 @@ function buildSeriesDeleteGroups(items) {
   for (const item of items) {
     const key = [
       item.clientId,
-      String(item.serviceName || "").trim().toLowerCase()
+      String(item.serviceName || "").trim().toLowerCase(),
+      getSpecialistName(item).toLowerCase()
     ].join(":");
     const group = groups.get(key) || {
       clientId: item.clientId,
       serviceName: item.serviceName,
+      specialistName: getSpecialistName(item),
       items: []
     };
     group.items.push(item);
@@ -2105,13 +2140,18 @@ function buildRecurringCreatedNotificationMessage({ settings, parent, group }) {
     item.serviceName,
     getSpecialistName(item)
   ].filter(Boolean).join(" - ")).join("\n");
-  return renderTemplateWithLines(
+  const message = renderTemplateWithLines(
     templates.scheduleCreatedWeek || DEFAULT_TEMPLATES[language].scheduleCreatedWeek,
     {
       child: getClientName({ ...firstItem, ...parent }),
       lessons
     }
   );
+  return appendRequiredAppointmentParts(message, {
+    language,
+    serviceName: firstItem.serviceName,
+    specialistName: getSpecialistName(firstItem)
+  });
 }
 
 function buildSeriesDeletedNotificationMessage({ settings, parent, group, actorName }) {
@@ -2122,17 +2162,24 @@ function buildSeriesDeletedNotificationMessage({ settings, parent, group, actorN
   const lastItem = items[items.length - 1] || firstItem;
   const reason = String(items.find((item) => String(item?.note || "").trim())?.note || "").trim()
     || (language === "ru" ? "не указано" : "ko'rsatilmagan");
-  return renderTemplate(templates.scheduleSeriesDeleted || DEFAULT_TEMPLATES[language].scheduleSeriesDeleted, {
+  const specialistName = getSpecialistName(firstItem);
+  const serviceName = firstItem.serviceName || group?.serviceName || "Service";
+  const message = renderTemplate(templates.scheduleSeriesDeleted || DEFAULT_TEMPLATES[language].scheduleSeriesDeleted, {
     child: getClientName({ ...firstItem, ...parent }),
     date: firstItem.appointmentDate,
     time: firstItem.startTime,
     dateFrom: firstItem.appointmentDate,
     dateTo: lastItem.appointmentDate,
     count: items.length,
-    service: firstItem.serviceName || group?.serviceName || "Service",
-    specialist: firstItem.specialistName,
-    actor: String(actorName || firstItem.specialistName || "CRM").trim(),
+    service: serviceName,
+    specialist: specialistName,
+    actor: String(actorName || specialistName || "CRM").trim(),
     reason
+  });
+  return appendRequiredAppointmentParts(message, {
+    language,
+    serviceName,
+    specialistName
   });
 }
 
@@ -2142,7 +2189,14 @@ function buildSpecialistLessonsDeletedNotificationMessage({ settings, parent, gr
   const items = Array.isArray(group?.items) ? group.items : [];
   const firstItem = items[0] || {};
   const lastItem = items[items.length - 1] || firstItem;
-  return renderTemplate(
+  const lessons = items.map((item, index) => [
+    `${index + 1}. ${formatDateDmy(item.appointmentDate)} ${item.startTime}`,
+    item.serviceName,
+    getSpecialistName(item)
+  ].filter(Boolean).join(" - ")).join("\n");
+  const serviceName = firstItem.serviceName || "Service";
+  const specialistName = getSpecialistName(firstItem);
+  const message = renderTemplateWithLines(
     templates.specialistLessonsDeleted || DEFAULT_TEMPLATES[language].specialistLessonsDeleted,
     {
       child: getClientName({ ...firstItem, ...parent }),
@@ -2151,11 +2205,17 @@ function buildSpecialistLessonsDeletedNotificationMessage({ settings, parent, gr
       dateFrom: firstItem.appointmentDate,
       dateTo: lastItem.appointmentDate,
       count: items.length,
-      service: firstItem.serviceName,
-      specialist: firstItem.specialistName,
-      actor: String(actorName || firstItem.specialistName || "CRM").trim()
+      service: serviceName,
+      specialist: specialistName,
+      actor: String(actorName || specialistName || "CRM").trim(),
+      lessons
     }
   );
+  return appendRequiredAppointmentParts(message, {
+    language,
+    serviceName,
+    specialistName
+  });
 }
 
 export async function notifyTelegramParentsForAppointmentChange({
@@ -2368,12 +2428,17 @@ async function sendReminderRow({ row, reminderType }) {
   const language = parent.language;
   const templateKey = reminderType === "reminder_24h" ? "reminder24h" : "reminder2h";
   const template = settings.templates?.[language]?.[templateKey] || DEFAULT_TEMPLATES[language][templateKey];
-  const message = renderTemplate(template, {
+  const specialistName = getSpecialistName(item);
+  const message = appendRequiredAppointmentParts(renderTemplate(template, {
     child: getClientName(item),
     date: item.appointmentDate,
     time: item.startTime,
     service: item.serviceName,
-    specialist: item.specialistName
+    specialist: specialistName
+  }), {
+    language,
+    serviceName: item.serviceName,
+    specialistName
   });
   await sendAndLogParentMessage({
     settings,

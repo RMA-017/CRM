@@ -32,8 +32,8 @@ test("Telegram parent notifications collapse recurring deletes into one message"
 
   assert.match(
     serviceSource,
-    /scheduleSeriesDeleted:\s*"\{child\} uchun \{service\} darslari bekor qilindi\."/,
-    "Telegram defaults should include a compact Uzbek series-delete template."
+    /scheduleSeriesDeleted:\s*"\{child\} uchun \{service\} darslari bekor qilindi\. Mutaxassis: \{specialist\}\."/,
+    "Telegram defaults should include service and specialist in the compact Uzbek series-delete template."
   );
   assert.match(
     serviceSource,
@@ -47,8 +47,8 @@ test("Telegram parent notifications collapse recurring deletes into one message"
   );
   assert.match(
     serviceSource,
-    /specialistLessonsDeleted:\s*"\{child\} uchun rejalashtirilgan darslar bekor qilindi\."/,
-    "Telegram defaults should include a compact specialist-removal template."
+    /specialistLessonsDeleted:\s*"\{child\} uchun rejalashtirilgan darslar bekor qilindi:\\n\{lessons\}"/,
+    "Telegram defaults should include lesson lines with service and specialist in specialist-removal messages."
   );
   assert.match(
     serviceSource,
@@ -71,6 +71,11 @@ test("Telegram parent notifications collapse recurring creates into one weekly m
     serviceSource,
     /scheduleCreatedWeek:\s*"\{child\} uchun yaqin haftalik darslar rejalashtirildi:\\n\{lessons\}"/,
     "Telegram defaults should include a compact Uzbek weekly-create template."
+  );
+  assert.match(
+    serviceSource,
+    /function appendRequiredAppointmentParts\([\s\S]*serviceText[\s\S]*Dars[\s\S]*specialistText[\s\S]*Mutaxassis/s,
+    "Telegram appointment messages should append missing service and specialist names for saved custom templates."
   );
   assert.match(
     routeHelpersSource,
@@ -341,6 +346,11 @@ test("Telegram reminders stay retryable and use enabled reminder windows", async
     serviceSource,
     /const template = settings\.templates\?\.\[language\]\?\.\[templateKey\] \|\| DEFAULT_TEMPLATES\[language\]\[templateKey\]/,
     "Reminder messages should use the editable Telegram settings template before falling back to defaults."
+  );
+  assert.match(
+    serviceSource,
+    /reminder24h:\s*"\{date\} в \{time\} урок \{service\}\. Специалист: \{specialist\}\. Вы придете\?"/,
+    "First reminder should include both service and specialist before asking parents to confirm attendance."
   );
   assert.match(
     serviceSource,
