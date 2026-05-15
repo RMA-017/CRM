@@ -1460,6 +1460,241 @@ test("schedule update allows no-show slots to return to pending without stale av
   assert.equal(reply.state.payload?.message, "Appointment updated.");
 });
 
+test("schedule update allows recurring future no-show slots to return to pending without rebuilding the series", async () => {
+  const updatedIds = [];
+  let repeatMetaUpdateCalled = false;
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      parseDateYmdToUtcDate: (value) => new Date(`${String(value || "").trim()}T00:00:00.000Z`),
+      buildWeeklyRecurringDates: () => ["2026-03-16", "2026-03-23"],
+      validateSlotAgainstWorkingHours: () => ({
+        field: "startTime",
+        message: "Selected time is outside working hours for mon."
+      }),
+      getAppointmentScheduleTargetsByScope: async () => ({
+        anchorId: 92,
+        anchorAppointmentDate: "2026-03-16",
+        repeatGroupKey: "old-group",
+        repeatUntilDate: "2026-03-30",
+        repeatAnchorDate: "2026-03-09",
+        repeatDays: ["mon"],
+        isRecurring: true,
+        scope: "future",
+        items: [
+          {
+            id: 92,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-16",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "no-show",
+            note: "",
+            isVip: false
+          },
+          {
+            id: 93,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-23",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "no-show",
+            note: "",
+            isVip: false
+          }
+        ],
+        seriesItems: [
+          {
+            id: 91,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-09",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "no-show",
+            note: "",
+            isVip: false
+          },
+          {
+            id: 92,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-16",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "no-show",
+            note: "",
+            isVip: false
+          },
+          {
+            id: 93,
+            specialistId: 7,
+            clientId: 44,
+            appointmentDate: "2026-03-23",
+            startTime: "09:00",
+            endTime: "10:00",
+            durationMinutes: 60,
+            serviceName: "Lesson",
+            status: "no-show",
+            note: "",
+            isVip: false
+          }
+        ]
+      }),
+      updateAppointmentScheduleByIdWithRepeatMeta: async () => {
+        repeatMetaUpdateCalled = true;
+        throw new Error("Status-only updates should not rebuild recurring repeat metadata.");
+      },
+      updateAppointmentSchedulesByIds: async (payload) => {
+        updatedIds.push(...payload.ids);
+        return payload.ids.map((id) => ({
+          id: String(id),
+          specialistId: "7",
+          clientId: "44",
+          appointmentDate: id === 92 ? "2026-03-16" : "2026-03-23",
+          startTime: "09:00",
+          endTime: "10:00",
+          status: "pending"
+        }));
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "PATCH", "/schedules/:id");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      params: { id: "92" },
+      query: { scope: "future" },
+      body: {
+        specialistId: "7",
+        clientId: "44",
+        appointmentDate: "2026-03-16",
+        startTime: "09:00",
+        endTime: "10:00",
+        durationMinutes: "60",
+        service: "Lesson",
+        status: "pending",
+        note: "",
+        repeat: {
+          enabled: true,
+          untilDate: "2026-03-30",
+          dayKeys: ["mon"]
+        }
+      }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 200);
+  assert.equal(repeatMetaUpdateCalled, false);
+  assert.deepEqual(updatedIds, [92, 93]);
+  assert.equal(reply.state.payload?.summary?.scope, "future");
+  assert.equal(reply.state.payload?.summary?.affectedCount, 2);
+});
+
+test("schedule update recurring future status-only edits keep non-selected weekdays unchanged", async () => {
+  const updatedIds = [];
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      parseDateYmdToUtcDate: (value) => new Date(`${String(value || "").trim()}T00:00:00.000Z`),
+      toDayKeyFromUtcDate: (date) => ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][date.getUTCDay()] || "",
+      validateSlotAgainstWorkingHours: () => ({
+        field: "startTime",
+        message: "Selected time is outside working hours."
+      }),
+      getAppointmentScheduleTargetsByScope: async () => ({
+        anchorId: 92,
+        anchorAppointmentDate: "2026-03-16",
+        repeatGroupKey: "old-group",
+        repeatUntilDate: "2026-03-30",
+        repeatAnchorDate: "2026-03-09",
+        repeatDays: ["mon", "wed"],
+        isRecurring: true,
+        scope: "future",
+        items: [
+          { id: 92, specialistId: 7, clientId: 44, appointmentDate: "2026-03-16", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "no-show", note: "", isVip: false },
+          { id: 96, specialistId: 7, clientId: 44, appointmentDate: "2026-03-18", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "no-show", note: "", isVip: false },
+          { id: 95, specialistId: 7, clientId: 44, appointmentDate: "2026-03-23", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "no-show", note: "", isVip: false },
+          { id: 98, specialistId: 7, clientId: 44, appointmentDate: "2026-03-25", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "no-show", note: "", isVip: false }
+        ],
+        seriesItems: [
+          { id: 91, specialistId: 7, clientId: 44, appointmentDate: "2026-03-09", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "no-show", note: "", isVip: false },
+          { id: 93, specialistId: 7, clientId: 44, appointmentDate: "2026-03-11", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "no-show", note: "", isVip: false },
+          { id: 92, specialistId: 7, clientId: 44, appointmentDate: "2026-03-16", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "no-show", note: "", isVip: false },
+          { id: 96, specialistId: 7, clientId: 44, appointmentDate: "2026-03-18", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "no-show", note: "", isVip: false },
+          { id: 95, specialistId: 7, clientId: 44, appointmentDate: "2026-03-23", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "no-show", note: "", isVip: false },
+          { id: 98, specialistId: 7, clientId: 44, appointmentDate: "2026-03-25", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceName: "Lesson", status: "no-show", note: "", isVip: false }
+        ]
+      }),
+      updateAppointmentScheduleByIdWithRepeatMeta: async () => {
+        throw new Error("Status-only updates should not rebuild recurring repeat metadata.");
+      },
+      updateAppointmentSchedulesByIds: async (payload) => {
+        updatedIds.push(...payload.ids);
+        return payload.ids.map((id) => ({
+          id: String(id),
+          specialistId: "7",
+          clientId: "44",
+          appointmentDate: id === 92 ? "2026-03-16" : "2026-03-23",
+          startTime: "09:00",
+          endTime: "10:00",
+          status: "pending"
+        }));
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "PATCH", "/schedules/:id");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      params: { id: "92" },
+      query: { scope: "future" },
+      body: {
+        specialistId: "7",
+        clientId: "44",
+        appointmentDate: "2026-03-16",
+        startTime: "09:00",
+        endTime: "10:00",
+        durationMinutes: "60",
+        service: "Lesson",
+        status: "pending",
+        note: "",
+        repeat: {
+          enabled: true,
+          untilDate: "2026-03-30",
+          dayKeys: ["mon", "wed"]
+        }
+      }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 200);
+  assert.deepEqual(updatedIds, [92, 95]);
+  assert.equal(reply.state.payload?.summary?.affectedCount, 2);
+});
+
 test("schedule update maps invalid repeat cast errors to invalid appointment data", async () => {
   const recorder = createRouteRecorder();
   registerAppointmentScheduleRoutes(

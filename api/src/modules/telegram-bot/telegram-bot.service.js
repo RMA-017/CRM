@@ -43,7 +43,7 @@ const CLIENT_PHONE_DIGITS_SQL = `(
 const TEXT = Object.freeze({
   uz: Object.freeze({
     shareContact: "Telefon raqamingizni yuboring",
-    contactButton: "Kontakt yuborish",
+    contactButton: "📱 Kontakt yuborish",
     contactOnly: "Iltimos, kontaktni Telegram tugmasi orqali yuboring.",
     contactMismatch: "Faqat o'zingizning Telegram kontaktingizni yuborishingiz mumkin.",
     linked: "Kontakt saqlandi.",
@@ -55,17 +55,28 @@ const TEXT = Object.freeze({
     weekSchedule: "Bir haftalik jadval",
     weekDaysPrompt: "Hafta kunini tanlang:",
     weekDaySchedule: "{date} uchun dars jadvali",
+    weekPrevious: "⬅️ Oldingi",
+    weekNext: "Keyingi ➡️",
+    weekAllComing: "✅ Hammasiga kelamiz",
+    weekCancelDay: "❌ Shu kunni bekor qilish",
+    weekCancelOne: "📝 Bitta darsni bekor qilish",
+    weekChooseLesson: "Qaysi darsni bekor qilamiz?",
+    weekConfirmCancelDay: "{date} dagi barcha darslarni bekor qilasizmi?",
+    weekConfirmCancel: "✅ Ha, bekor qilish",
+    weekDayComingSaved: "{date} dagi barcha darslar uchun javob saqlandi: kelamiz.\n{lessons}",
+    weekDayCancelSaved: "{date} dagi {count} ta dars bekor qilindi:\n{lessons}",
+    weekNoActiveLessons: "Bu kunda faol darslar yo'q.",
     settingsTitle: "Sozlamalar",
     settingsPrompt: "Tilni tanlang yoki kontaktni o'zgartiring.",
     languageSaved: "Til sozlamasi saqlandi.",
     changeContact: "Kontaktni o'zgartirish",
-    backToMainMenu: "Ortga",
+    backToMainMenu: "🔙 Ortga",
     mainMenuTitle: "Bosh menyu",
-    coming: "Ha, kelamiz",
-    notComing: "Yo'q, bormaymiz",
+    coming: "✅ Ha, kelamiz",
+    notComing: "❌ Yo'q, bormaymiz",
     comingSaved: "Javob saqlandi: kelamiz.",
     reasonPrompt: "Bekor qilish sababini yozing yoki O'tkazib yuborish tugmasini bosing.",
-    skipReason: "O'tkazib yuborish",
+    skipReason: "⏭ O'tkazib yuborish",
     cancelSaved: "Dars bekor qilindi.",
     cancelLocked: "Darsni bot orqali bekor qilish vaqti yopilgan. Iltimos, administrator bilan telefon orqali bog'laning: +998 95 455 00 33.",
     notFound: "Dars topilmadi yoki bu raqamga ruxsat yo'q.",
@@ -83,7 +94,7 @@ const TEXT = Object.freeze({
   }),
   ru: Object.freeze({
     shareContact: "Отправьте ваш номер телефона",
-    contactButton: "Отправить контакт",
+    contactButton: "📱 Отправить контакт",
     contactOnly: "Пожалуйста, отправьте контакт через кнопку Telegram.",
     contactMismatch: "Можно отправить только свой Telegram контакт.",
     linked: "Контакт сохранен.",
@@ -95,17 +106,28 @@ const TEXT = Object.freeze({
     weekSchedule: "Расписание на неделю",
     weekDaysPrompt: "Выберите день недели:",
     weekDaySchedule: "Расписание на {date}",
+    weekPrevious: "⬅️ Назад",
+    weekNext: "Вперед ➡️",
+    weekAllComing: "✅ Придем на все",
+    weekCancelDay: "❌ Отменить этот день",
+    weekCancelOne: "📝 Отменить одно занятие",
+    weekChooseLesson: "Какое занятие отменить?",
+    weekConfirmCancelDay: "Отменить все занятия на {date}?",
+    weekConfirmCancel: "✅ Да, отменить",
+    weekDayComingSaved: "Ответ сохранен: придем на все занятия {date}.\n{lessons}",
+    weekDayCancelSaved: "{count} занятий на {date} отменено:\n{lessons}",
+    weekNoActiveLessons: "В этот день нет активных занятий.",
     settingsTitle: "Настройки",
     settingsPrompt: "Выберите язык или измените контакт.",
     languageSaved: "Язык сохранен.",
     changeContact: "Изменить контакт",
-    backToMainMenu: "Назад",
+    backToMainMenu: "🔙 Назад",
     mainMenuTitle: "Главное меню",
-    coming: "Да, придем",
-    notComing: "Нет, не придем",
+    coming: "✅ Да, придем",
+    notComing: "❌ Нет, не придем",
     comingSaved: "Ответ сохранен: придем.",
     reasonPrompt: "Напишите причину отмены или нажмите Пропустить.",
-    skipReason: "Пропустить",
+    skipReason: "⏭ Пропустить",
     cancelSaved: "Урок отменен.",
     cancelLocked: "Время отмены через бот закрыто. Пожалуйста, свяжитесь с администратором по телефону: +998 95 455 00 33.",
     notFound: "Урок не найден или нет доступа для этого номера.",
@@ -394,6 +416,12 @@ function formatDateDmy(value) {
   return match ? `${match[3]}.${match[2]}.${match[1]}` : raw;
 }
 
+function formatWeekInterval(startDate) {
+  const weekStartDate = getWeekStartDateYmd(startDate);
+  const weekEndDate = shiftDateYmd(weekStartDate, 5);
+  return `${formatDateDmy(weekStartDate)} - ${formatDateDmy(weekEndDate)}`;
+}
+
 function buildMainMenuReplyMarkup(language) {
   return {
     keyboard: [
@@ -432,8 +460,8 @@ function buildAppointmentButtons(language, appointmentId) {
 }
 
 function buildWeekDaysReplyMarkup(language, startDate = toDateYmdInTashkent()) {
-  const buttons = [];
   const weekStartDate = getWeekStartDateYmd(startDate);
+  const buttons = [];
   for (const offset of WORK_WEEK_OFFSETS) {
     const dateYmd = shiftDateYmd(weekStartDate, offset);
     if (!dateYmd) {
@@ -441,17 +469,21 @@ function buildWeekDaysReplyMarkup(language, startDate = toDateYmdInTashkent()) {
     }
     const label = getWeekdayLabel(language, dateYmd);
     buttons.push({
-      text: label
+      text: label,
+      callback_data: `week_day:${dateYmd}`
     });
   }
-  const keyboard = [];
+  const inlineKeyboard = [];
   for (let index = 0; index < buttons.length; index += 2) {
-    keyboard.push(buttons.slice(index, index + 2));
+    inlineKeyboard.push(buttons.slice(index, index + 2));
   }
-  keyboard.push([{ text: getText(language, "backToMainMenu") }]);
+  inlineKeyboard.push([
+    { text: getText(language, "weekPrevious"), callback_data: `week_nav:${shiftDateYmd(weekStartDate, -7)}` },
+    { text: getText(language, "weekNext"), callback_data: `week_nav:${shiftDateYmd(weekStartDate, 7)}` }
+  ]);
+  inlineKeyboard.push([{ text: getText(language, "backToMainMenu"), callback_data: "week_back" }]);
   return {
-    keyboard,
-    resize_keyboard: true
+    inline_keyboard: inlineKeyboard
   };
 }
 
@@ -483,6 +515,51 @@ function buildCancelReasonButtons(language, appointmentId) {
   };
 }
 
+function buildDayCancelReasonButtons(language, dateYmd) {
+  return {
+    inline_keyboard: [
+      [{ text: getText(language, "skipReason"), callback_data: `week_cancel_day_skip:${dateYmd}` }],
+      [{ text: getText(language, "backToMainMenu"), callback_data: `week_day:${dateYmd}` }]
+    ]
+  };
+}
+
+function buildWeekDayActionsReplyMarkup(language, dateYmd, items = []) {
+  const activeItems = (Array.isArray(items) ? items : []).filter((item) => ACTIVE_APPOINTMENT_STATUSES.has(item.status));
+  const inlineKeyboard = [];
+  if (activeItems.length > 0) {
+    inlineKeyboard.push([{ text: getText(language, "weekAllComing"), callback_data: `week_all_coming:${dateYmd}` }]);
+    inlineKeyboard.push([{ text: getText(language, "weekCancelDay"), callback_data: `week_cancel_day:${dateYmd}` }]);
+    inlineKeyboard.push([{ text: getText(language, "weekCancelOne"), callback_data: `week_cancel_one:${dateYmd}` }]);
+  }
+  inlineKeyboard.push([{ text: getText(language, "backToMainMenu"), callback_data: `week_menu:${getWeekStartDateYmd(dateYmd)}` }]);
+  return {
+    inline_keyboard: inlineKeyboard
+  };
+}
+
+function buildWeekCancelOneReplyMarkup(language, dateYmd, items = []) {
+  const inlineKeyboard = (Array.isArray(items) ? items : [])
+    .filter((item) => ACTIVE_APPOINTMENT_STATUSES.has(item.status))
+    .map((item) => ([{
+      text: `${item.startTime} ${item.serviceName}`.trim(),
+      callback_data: `resp:cancel:${item.id}`
+    }]));
+  inlineKeyboard.push([{ text: getText(language, "backToMainMenu"), callback_data: `week_day:${dateYmd}` }]);
+  return {
+    inline_keyboard: inlineKeyboard
+  };
+}
+
+function buildConfirmDayCancelButtons(language, dateYmd) {
+  return {
+    inline_keyboard: [
+      [{ text: getText(language, "weekConfirmCancel"), callback_data: `week_cancel_day_confirm:${dateYmd}` }],
+      [{ text: getText(language, "backToMainMenu"), callback_data: `week_day:${dateYmd}` }]
+    ]
+  };
+}
+
 function buildSettingsMenuReplyMarkup(language) {
   return {
     keyboard: [
@@ -508,7 +585,7 @@ function resolveMenuAction(text) {
   if (normalized === "русский" || normalized === "ru") {
     return "language_ru";
   }
-  if (normalized === "ortga" || normalized === "назад") {
+  if (normalized.includes("ortga") || normalized.includes("назад")) {
     return "main";
   }
   if (normalized.includes("kontakt") || normalized.includes("контакт")) {
@@ -1189,15 +1266,55 @@ async function setPendingCancelReason({ parent, appointmentId }) {
        parent_account_id,
        action_type,
        appointment_schedule_id,
+       payload,
        expires_at
-     ) VALUES ($1,$2,'cancel_reason',$3,$4)
+     ) VALUES ($1,$2,'cancel_reason',$3,'{}'::jsonb,$4)
      ON CONFLICT (organization_id, parent_account_id, action_type)
      DO UPDATE SET
        appointment_schedule_id = EXCLUDED.appointment_schedule_id,
+       payload = EXCLUDED.payload,
        expires_at = EXCLUDED.expires_at,
        created_at = CURRENT_TIMESTAMP`,
     [parent.organizationId, parent.id, appointmentId, expiresAt]
   );
+}
+
+async function setPendingCancelDayReason({ parent, dateYmd, appointmentIds }) {
+  const normalizedAppointmentIds = (Array.isArray(appointmentIds) ? appointmentIds : [])
+    .map((value) => normalizePositiveInteger(value))
+    .filter(Boolean);
+  if (!dateYmd || normalizedAppointmentIds.length === 0) {
+    return false;
+  }
+  const expiresAt = new Date(Date.now() + PENDING_ACTION_TTL_MINUTES * 60000);
+  await pool.query(
+    `INSERT INTO telegram_parent_pending_actions (
+       organization_id,
+       parent_account_id,
+       action_type,
+       appointment_schedule_id,
+       payload,
+       expires_at
+     ) VALUES ($1,$2,'cancel_reason',$3,$4::jsonb,$5)
+     ON CONFLICT (organization_id, parent_account_id, action_type)
+     DO UPDATE SET
+       appointment_schedule_id = EXCLUDED.appointment_schedule_id,
+       payload = EXCLUDED.payload,
+       expires_at = EXCLUDED.expires_at,
+       created_at = CURRENT_TIMESTAMP`,
+    [
+      parent.organizationId,
+      parent.id,
+      normalizedAppointmentIds[0],
+      JSON.stringify({
+        mode: "day",
+        date: dateYmd,
+        appointmentIds: normalizedAppointmentIds
+      }),
+      expiresAt
+    ]
+  );
+  return true;
 }
 
 async function popPendingAction(parent) {
@@ -1210,6 +1327,14 @@ async function popPendingAction(parent) {
     [parent.organizationId, parent.id]
   );
   return rows[0] || null;
+}
+
+function parsePendingActionPayload(pending) {
+  const payload = pending?.payload;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return {};
+  }
+  return payload;
 }
 
 async function deletePendingCancelAction({ parent, appointmentId = null }) {
@@ -1239,6 +1364,36 @@ function formatAppointmentMessage(language, appointment, options = {}) {
     `${getClientName(appointment)} - ${appointment.serviceName}`,
     getSpecialistName(appointment)
   ].filter(Boolean).join("\n");
+}
+
+function getActiveAppointments(items) {
+  return (Array.isArray(items) ? items : []).filter((item) => ACTIVE_APPOINTMENT_STATUSES.has(item.status));
+}
+
+function formatWeekDayScheduleMessage({ language, title, items }) {
+  const lines = [title, ""];
+  if (!Array.isArray(items) || items.length === 0) {
+    return lines.concat(getText(language, "noLessonsThisDay")).join("\n");
+  }
+  items.forEach((item, index) => {
+    const statusText = item.parentResponseStatus === "coming"
+      ? " ✅"
+      : (item.status === "cancelled" ? " ❌" : "");
+    lines.push(`${index + 1}. ${item.startTime} - ${item.serviceName}${statusText}`);
+    lines.push(`   ${getClientName(item)}`);
+    lines.push(`   ${getSpecialistName(item)}`);
+  });
+  return lines.join("\n");
+}
+
+function formatAppointmentSummaryLines(items) {
+  return (Array.isArray(items) ? items : [])
+    .map((item, index) => [
+      `${index + 1}. ${item.startTime}`,
+      item.serviceName,
+      getSpecialistName(item)
+    ].filter(Boolean).join(" - "))
+    .join("\n");
 }
 
 async function sendChildrenList({ settings, parent }) {
@@ -1366,12 +1521,41 @@ async function sendScheduleList({
   }
 }
 
-async function sendWeekDaysMenu({ settings, parent, startDate = toDateYmdInTashkent() }) {
+async function sendWeekDaySchedule({ settings, parent, dateYmd }) {
+  const selectedDate = String(dateYmd || "").trim();
+  const title = renderTemplate(getText(parent.language, "weekDaySchedule"), {
+    date: `${getWeekdayLabel(parent.language, selectedDate)} ${formatDateDmy(selectedDate)}`.trim()
+  });
+  const items = await listParentAppointments({
+    parent,
+    dateFrom: selectedDate,
+    dateTo: selectedDate
+  });
   await sendTelegramMessage({
     token: settings.botToken,
     chatId: parent.chatId,
-    text: `${getText(parent.language, "weekSchedule")}\n${getText(parent.language, "weekDaysPrompt")}`,
-    replyMarkup: buildWeekDaysReplyMarkup(parent.language, startDate)
+    text: formatWeekDayScheduleMessage({
+      language: parent.language,
+      title,
+      items
+    }),
+    replyMarkup: items.length > 0
+      ? buildWeekDayActionsReplyMarkup(parent.language, selectedDate, items)
+      : buildWeekDaysReplyMarkup(parent.language, selectedDate)
+  });
+}
+
+async function sendWeekDaysMenu({ settings, parent, startDate = toDateYmdInTashkent() }) {
+  const weekStartDate = getWeekStartDateYmd(startDate);
+  await sendTelegramMessage({
+    token: settings.botToken,
+    chatId: parent.chatId,
+    text: [
+      getText(parent.language, "weekSchedule"),
+      formatWeekInterval(weekStartDate),
+      getText(parent.language, "weekDaysPrompt")
+    ].join("\n"),
+    replyMarkup: buildWeekDaysReplyMarkup(parent.language, weekStartDate)
   });
 }
 
@@ -1430,6 +1614,92 @@ async function markParentComing({ settings, parent, appointmentId }) {
   });
 }
 
+function getUniqueAppointmentSpecialistIds(items) {
+  return Array.from(new Set(
+    (Array.isArray(items) ? items : [])
+      .map((item) => normalizePositiveInteger(item?.specialistId || item?.specialist_id))
+      .filter(Boolean)
+  ));
+}
+
+function publishParentBulkResponseEvent({ appointments, responseStatus, message }) {
+  const items = Array.isArray(appointments) ? appointments : [];
+  const firstAppointment = items[0] || null;
+  if (!firstAppointment) {
+    return;
+  }
+  publishAppointmentEvent({
+    organizationId: firstAppointment.organizationId,
+    type: "appointment-parent-response",
+    message,
+    targetUserIds: getUniqueAppointmentSpecialistIds(items),
+    targetRoles: ["manager"],
+    data: {
+      appointmentIds: items.map((item) => item.id).filter(Boolean),
+      appointmentId: firstAppointment.id,
+      clientId: firstAppointment.clientId,
+      clientName: getClientName(firstAppointment),
+      specialistId: firstAppointment.specialistId,
+      specialistName: firstAppointment.specialistName,
+      appointmentDate: firstAppointment.appointmentDate,
+      startTime: firstAppointment.startTime,
+      parentResponseStatus: responseStatus,
+      changedCount: items.length
+    }
+  });
+}
+
+async function markParentDayComing({ settings, parent, dateYmd }) {
+  const selectedDate = String(dateYmd || "").trim();
+  const items = getActiveAppointments(await listParentAppointments({
+    parent,
+    dateFrom: selectedDate,
+    dateTo: selectedDate
+  }));
+  if (items.length === 0) {
+    await sendTelegramMessage({
+      token: settings.botToken,
+      chatId: parent.chatId,
+      text: getText(parent.language, "weekNoActiveLessons")
+    });
+    return;
+  }
+
+  await executeTransaction(async (db) => {
+    for (const appointment of items) {
+      await upsertParentResponse({
+        parent,
+        appointment,
+        responseStatus: "coming",
+        db
+      });
+    }
+    await db.query(
+      `DELETE FROM telegram_parent_pending_actions
+        WHERE organization_id = $1
+          AND parent_account_id = $2
+          AND action_type = 'cancel_reason'`,
+      [parent.organizationId, parent.id]
+    );
+  });
+
+  clearAppointmentSchedulesReadCache();
+  publishParentBulkResponseEvent({
+    appointments: items,
+    responseStatus: "coming",
+    message: "Parent confirmed day appointments."
+  });
+  await sendTelegramMessage({
+    token: settings.botToken,
+    chatId: parent.chatId,
+    text: renderTemplate(getText(parent.language, "weekDayComingSaved"), {
+      date: formatDateDmy(selectedDate),
+      count: items.length,
+      lessons: formatAppointmentSummaryLines(items)
+    })
+  });
+}
+
 async function notifyStaffAboutParentCancel({ settings, appointment, reason }) {
   const messageTemplate = settings.templates?.uz?.parentCancelNotification
     || DEFAULT_TEMPLATES.uz.parentCancelNotification;
@@ -1463,6 +1733,62 @@ async function notifyStaffAboutParentCancel({ settings, appointment, reason }) {
     aggregateType: "appointment",
     aggregateId: String(appointment.id)
   }).catch(() => {});
+}
+
+async function notifyStaffAboutParentDayCancel({ settings, appointments, reason }) {
+  const items = Array.isArray(appointments) ? appointments : [];
+  const groups = new Map();
+  for (const item of items) {
+    const specialistId = normalizePositiveInteger(item?.specialistId);
+    const key = specialistId || `unknown:${item?.id || ""}`;
+    const group = groups.get(key) || [];
+    group.push(item);
+    groups.set(key, group);
+  }
+
+  for (const groupItems of groups.values()) {
+    const firstAppointment = groupItems[0] || null;
+    if (!firstAppointment) {
+      continue;
+    }
+    const message = `Parent cancelled ${groupItems.length} appointments on ${firstAppointment.appointmentDate}.`;
+    await persistNotificationEvent({
+      organizationId: firstAppointment.organizationId,
+      sourceUserId: 0,
+      eventType: "appointment-parent-cancelled",
+      message,
+      targetUserIds: [firstAppointment.specialistId].filter(Boolean),
+      targetPermissionCodes: settings.managerNotificationPermissionCodes,
+      payload: {
+        appointmentId: firstAppointment.id,
+        appointmentIds: groupItems.map((item) => item.id).filter(Boolean),
+        clientId: firstAppointment.clientId,
+        clientName: getClientName(firstAppointment),
+        specialistId: firstAppointment.specialistId,
+        specialistName: firstAppointment.specialistName,
+        appointmentDate: firstAppointment.appointmentDate,
+        appointmentDateText: formatDateDmy(firstAppointment.appointmentDate),
+        startTime: firstAppointment.startTime,
+        endTime: firstAppointment.endTime,
+        serviceName: firstAppointment.serviceName,
+        reason,
+        cancelledCount: groupItems.length,
+        items: groupItems.map((item) => ({
+          appointmentId: item.id,
+          clientId: item.clientId,
+          clientName: getClientName(item),
+          specialistId: item.specialistId,
+          specialistName: item.specialistName,
+          appointmentDate: item.appointmentDate,
+          startTime: item.startTime,
+          endTime: item.endTime,
+          serviceName: item.serviceName
+        }))
+      },
+      aggregateType: "appointment",
+      aggregateId: `parent-day-cancel:${firstAppointment.appointmentDate}:${firstAppointment.specialistId || 0}`
+    }).catch(() => {});
+  }
 }
 
 async function cancelParentAppointment({ settings, parent, appointmentId, reason = "" }) {
@@ -1543,6 +1869,112 @@ async function cancelParentAppointment({ settings, parent, appointmentId, reason
     token: settings.botToken,
     chatId: parent.chatId,
     text: getText(parent.language, "cancelSaved")
+  });
+}
+
+async function getPendingDayCancelAppointments({ parent, pending }) {
+  const payload = parsePendingActionPayload(pending);
+  const selectedDate = String(payload.date || "").trim();
+  const appointmentIds = (Array.isArray(payload.appointmentIds) ? payload.appointmentIds : [])
+    .map((value) => normalizePositiveInteger(value))
+    .filter(Boolean);
+  if (payload.mode !== "day" || !selectedDate || appointmentIds.length === 0) {
+    return {
+      selectedDate,
+      items: []
+    };
+  }
+
+  const fetchedItems = [];
+  for (const appointmentId of appointmentIds) {
+    const appointment = await getParentAppointment({ parent, appointmentId });
+    if (
+      appointment
+      && appointment.appointmentDate === selectedDate
+      && ACTIVE_APPOINTMENT_STATUSES.has(appointment.status)
+    ) {
+      fetchedItems.push(appointment);
+    }
+  }
+  return {
+    selectedDate,
+    items: fetchedItems
+  };
+}
+
+async function cancelPendingDayAppointments({ settings, parent, pending, reason = "" }) {
+  const { selectedDate, items } = await getPendingDayCancelAppointments({ parent, pending });
+  if (items.length === 0) {
+    await sendTelegramMessage({
+      token: settings.botToken,
+      chatId: parent.chatId,
+      text: getText(parent.language, "weekNoActiveLessons")
+    });
+    return;
+  }
+
+  const lockedItem = items.find((item) => isCancelLocked(item.appointmentDate, item.startTime, settings.cancelLockMinutes));
+  if (lockedItem) {
+    await sendTelegramMessage({
+      token: settings.botToken,
+      chatId: parent.chatId,
+      text: getText(parent.language, "cancelLocked")
+    });
+    return;
+  }
+
+  const normalizedReason = String(reason || "").trim().slice(0, MAX_REASON_LENGTH)
+    || getText(parent.language, "fallbackReason");
+
+  await executeTransaction(async (db) => {
+    for (const appointment of items) {
+      await updateAppointmentSchedulesByIds({
+        organizationId: appointment.organizationId,
+        actorUserId: null,
+        ids: [appointment.id],
+        specialistId: appointment.specialistId,
+        clientId: appointment.clientId,
+        appointmentDate: appointment.appointmentDate,
+        startTime: appointment.startTime,
+        endTime: appointment.endTime,
+        durationMinutes: appointment.durationMinutes,
+        serviceName: appointment.serviceName,
+        status: "cancelled",
+        note: normalizedReason,
+        db
+      });
+      await upsertParentResponse({
+        parent,
+        appointment,
+        responseStatus: "not_coming",
+        reason: normalizedReason,
+        db
+      });
+    }
+    await db.query(
+      `DELETE FROM telegram_parent_pending_actions
+        WHERE organization_id = $1
+          AND parent_account_id = $2
+          AND action_type = 'cancel_reason'`,
+      [parent.organizationId, parent.id]
+    );
+  });
+
+  clearAppointmentSchedulesReadCache();
+  publishParentBulkResponseEvent({
+    appointments: items,
+    responseStatus: "not_coming",
+    message: "Parent cancelled day appointments."
+  });
+  await notifyStaffAboutParentDayCancel({ settings, appointments: items, reason: normalizedReason });
+  await sendTelegramMessage({
+    token: settings.botToken,
+    chatId: parent.chatId,
+    text: renderTemplate(getText(parent.language, "weekDayCancelSaved"), {
+      date: formatDateDmy(selectedDate),
+      count: items.length,
+      lessons: formatAppointmentSummaryLines(items)
+    })
   });
 }
 
@@ -1633,17 +2065,10 @@ async function handleTextMessage({ settings, message }) {
 
   const selectedWeekdayDate = resolveWeekdayMenuDate(text, parent.language);
   if (selectedWeekdayDate) {
-    await sendScheduleList({
+    await sendWeekDaySchedule({
       settings,
       parent,
-      dateFrom: selectedWeekdayDate,
-      dateTo: selectedWeekdayDate,
-      title: renderTemplate(getText(parent.language, "weekDaySchedule"), {
-        date: `${getWeekdayLabel(parent.language, selectedWeekdayDate)} ${formatDateDmy(selectedWeekdayDate)}`.trim()
-      }),
-      replyMarkup: buildWeekDaysReplyMarkup(parent.language, selectedWeekdayDate),
-      emptyText: getText(parent.language, "noLessonsThisDay"),
-      includeDateTime: false
+      dateYmd: selectedWeekdayDate
     });
     return;
   }
@@ -1652,6 +2077,16 @@ async function handleTextMessage({ settings, message }) {
   if (!action) {
     const pending = await popPendingAction(parent);
     if (pending?.action_type === "cancel_reason") {
+      const pendingPayload = parsePendingActionPayload(pending);
+      if (pendingPayload.mode === "day") {
+        await cancelPendingDayAppointments({
+          settings,
+          parent,
+          pending,
+          reason: text
+        });
+        return;
+      }
       await cancelParentAppointment({
         settings,
         parent,
@@ -1820,6 +2255,174 @@ async function handleCallbackQuery({ settings, callbackQuery }) {
     return;
   }
 
+  if (data.startsWith("week_nav:")) {
+    const selectedWeekStart = String(data.slice("week_nav:".length) || "").trim();
+    await answerCallbackQuery({ token: settings.botToken, callbackQueryId: callbackQuery.id });
+    await sendWeekDaysMenu({
+      settings,
+      parent,
+      startDate: /^\d{4}-\d{2}-\d{2}$/.test(selectedWeekStart)
+        ? selectedWeekStart
+        : toDateYmdInTashkent()
+    });
+    return;
+  }
+
+  if (data.startsWith("week_menu:")) {
+    const selectedWeekStart = String(data.slice("week_menu:".length) || "").trim();
+    await answerCallbackQuery({ token: settings.botToken, callbackQueryId: callbackQuery.id });
+    await sendWeekDaysMenu({
+      settings,
+      parent,
+      startDate: /^\d{4}-\d{2}-\d{2}$/.test(selectedWeekStart)
+        ? selectedWeekStart
+        : toDateYmdInTashkent()
+    });
+    return;
+  }
+
+  if (data.startsWith("week_all_coming:")) {
+    const selectedDate = String(data.slice("week_all_coming:".length) || "").trim();
+    await answerCallbackQuery({ token: settings.botToken, callbackQueryId: callbackQuery.id });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
+      await sendWeekDaysMenu({ settings, parent });
+      return;
+    }
+    await markParentDayComing({ settings, parent, dateYmd: selectedDate });
+    return;
+  }
+
+  if (data.startsWith("week_cancel_one:")) {
+    const selectedDate = String(data.slice("week_cancel_one:".length) || "").trim();
+    await answerCallbackQuery({ token: settings.botToken, callbackQueryId: callbackQuery.id });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
+      await sendWeekDaysMenu({ settings, parent });
+      return;
+    }
+    const items = await listParentAppointments({
+      parent,
+      dateFrom: selectedDate,
+      dateTo: selectedDate
+    });
+    const activeItems = getActiveAppointments(items);
+    await sendTelegramMessage({
+      token: settings.botToken,
+      chatId: parent.chatId,
+      text: activeItems.length > 0
+        ? getText(parent.language, "weekChooseLesson")
+        : getText(parent.language, "weekNoActiveLessons"),
+      replyMarkup: activeItems.length > 0
+        ? buildWeekCancelOneReplyMarkup(parent.language, selectedDate, activeItems)
+        : buildWeekDayActionsReplyMarkup(parent.language, selectedDate, items)
+    });
+    return;
+  }
+
+  if (data.startsWith("week_cancel_day_confirm:")) {
+    const selectedDate = String(data.slice("week_cancel_day_confirm:".length) || "").trim();
+    await answerCallbackQuery({ token: settings.botToken, callbackQueryId: callbackQuery.id });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
+      await sendWeekDaysMenu({ settings, parent });
+      return;
+    }
+    const items = getActiveAppointments(await listParentAppointments({
+      parent,
+      dateFrom: selectedDate,
+      dateTo: selectedDate
+    }));
+    if (items.length === 0) {
+      await sendTelegramMessage({
+        token: settings.botToken,
+        chatId: parent.chatId,
+        text: getText(parent.language, "weekNoActiveLessons"),
+        replyMarkup: buildWeekDaysReplyMarkup(parent.language, selectedDate)
+      });
+      return;
+    }
+    const lockedItem = items.find((item) => isCancelLocked(item.appointmentDate, item.startTime, settings.cancelLockMinutes));
+    if (lockedItem) {
+      await sendTelegramMessage({
+        token: settings.botToken,
+        chatId: parent.chatId,
+        text: getText(parent.language, "cancelLocked"),
+        replyMarkup: buildWeekDayActionsReplyMarkup(parent.language, selectedDate, items)
+      });
+      return;
+    }
+    await setPendingCancelDayReason({
+      parent,
+      dateYmd: selectedDate,
+      appointmentIds: items.map((item) => item.id)
+    });
+    await sendTelegramMessage({
+      token: settings.botToken,
+      chatId: parent.chatId,
+      text: getText(parent.language, "reasonPrompt"),
+      replyMarkup: buildDayCancelReasonButtons(parent.language, selectedDate)
+    });
+    return;
+  }
+
+  if (data.startsWith("week_cancel_day_skip:")) {
+    const selectedDate = String(data.slice("week_cancel_day_skip:".length) || "").trim();
+    await answerCallbackQuery({ token: settings.botToken, callbackQueryId: callbackQuery.id });
+    const pending = await popPendingAction(parent);
+    const pendingPayload = parsePendingActionPayload(pending);
+    if (pendingPayload.mode !== "day" || pendingPayload.date !== selectedDate) {
+      await sendTelegramMessage({
+        token: settings.botToken,
+        chatId: parent.chatId,
+        text: getText(parent.language, "weekNoActiveLessons")
+      });
+      return;
+    }
+    await cancelPendingDayAppointments({ settings, parent, pending, reason: "" });
+    return;
+  }
+
+  if (data.startsWith("week_cancel_day:")) {
+    const selectedDate = String(data.slice("week_cancel_day:".length) || "").trim();
+    await answerCallbackQuery({ token: settings.botToken, callbackQueryId: callbackQuery.id });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
+      await sendWeekDaysMenu({ settings, parent });
+      return;
+    }
+    const items = getActiveAppointments(await listParentAppointments({
+      parent,
+      dateFrom: selectedDate,
+      dateTo: selectedDate
+    }));
+    if (items.length === 0) {
+      await sendTelegramMessage({
+        token: settings.botToken,
+        chatId: parent.chatId,
+        text: getText(parent.language, "weekNoActiveLessons"),
+        replyMarkup: buildWeekDaysReplyMarkup(parent.language, selectedDate)
+      });
+      return;
+    }
+    const lockedItem = items.find((item) => isCancelLocked(item.appointmentDate, item.startTime, settings.cancelLockMinutes));
+    if (lockedItem) {
+      await sendTelegramMessage({
+        token: settings.botToken,
+        chatId: parent.chatId,
+        text: getText(parent.language, "cancelLocked"),
+        replyMarkup: buildWeekDayActionsReplyMarkup(parent.language, selectedDate, items)
+      });
+      return;
+    }
+    await sendTelegramMessage({
+      token: settings.botToken,
+      chatId: parent.chatId,
+      text: renderTemplate(getText(parent.language, "weekConfirmCancelDay"), {
+        date: formatDateDmy(selectedDate),
+        count: items.length
+      }),
+      replyMarkup: buildConfirmDayCancelButtons(parent.language, selectedDate)
+    });
+    return;
+  }
+
   if (data.startsWith("week_day:")) {
     const selectedDate = String(data.slice("week_day:".length) || "").trim();
     await answerCallbackQuery({ token: settings.botToken, callbackQueryId: callbackQuery.id });
@@ -1827,17 +2430,10 @@ async function handleCallbackQuery({ settings, callbackQuery }) {
       await sendWeekDaysMenu({ settings, parent });
       return;
     }
-    await sendScheduleList({
+    await sendWeekDaySchedule({
       settings,
       parent,
-      dateFrom: selectedDate,
-      dateTo: selectedDate,
-      title: renderTemplate(getText(parent.language, "weekDaySchedule"), {
-        date: `${getWeekdayLabel(parent.language, selectedDate)} ${formatDateDmy(selectedDate)}`.trim()
-      }),
-      replyMarkup: buildWeekDaysReplyMarkup(parent.language, selectedDate),
-      emptyText: getText(parent.language, "noLessonsThisDay"),
-      includeDateTime: false
+      dateYmd: selectedDate
     });
     return;
   }

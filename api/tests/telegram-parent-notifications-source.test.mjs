@@ -130,8 +130,8 @@ test("Telegram weekly menu opens day buttons before showing lessons", async () =
 
   assert.match(
     serviceSource,
-    /function buildWeekDaysReplyMarkup\([\s\S]*buttons\.push\(\{[\s\S]*text: label[\s\S]*for \(let index = 0; index < buttons\.length; index \+= 2\)[\s\S]*keyboard\.push\(buttons\.slice\(index, index \+ 2\)\)[\s\S]*text: getText\(language, "backToMainMenu"\)[\s\S]*resize_keyboard: true/s,
-    "Weekly menu should render weekday buttons as the main keyboard with a back button."
+    /function buildWeekDaysReplyMarkup\([\s\S]*buttons\.push\(\{[\s\S]*text: label,[\s\S]*callback_data: `week_day:\$\{dateYmd\}`[\s\S]*inlineKeyboard\.push\(buttons\.slice\(index, index \+ 2\)\)[\s\S]*callback_data: `week_nav:\$\{shiftDateYmd\(weekStartDate, -7\)\}`[\s\S]*callback_data: `week_nav:\$\{shiftDateYmd\(weekStartDate, 7\)\}`[\s\S]*callback_data: "week_back"[\s\S]*inline_keyboard: inlineKeyboard/s,
+    "Weekly menu should render weekday inline buttons with previous, next, and back controls."
   );
   assert.match(
     serviceSource,
@@ -140,8 +140,8 @@ test("Telegram weekly menu opens day buttons before showing lessons", async () =
   );
   assert.match(
     serviceSource,
-    /function resolveWeekdayMenuDate\([\s\S]*getWeekdayLabel\(language, dateYmd\)[\s\S]*return dateYmd/s,
-    "Weekly menu day text should resolve to a current-week date."
+    /async function sendWeekDaysMenu\([\s\S]*formatWeekInterval\(weekStartDate\)[\s\S]*replyMarkup: buildWeekDaysReplyMarkup\(parent\.language, weekStartDate\)/s,
+    "Weekly menu should show the selected week interval above weekday controls."
   );
   assert.match(
     serviceSource,
@@ -150,18 +150,38 @@ test("Telegram weekly menu opens day buttons before showing lessons", async () =
   );
   assert.match(
     serviceSource,
-    /const selectedWeekdayDate = resolveWeekdayMenuDate\(text, parent\.language\)[\s\S]*dateFrom: selectedWeekdayDate,[\s\S]*dateTo: selectedWeekdayDate/s,
-    "Selecting a weekday keyboard button should load lessons only for that date."
+    /if \(data\.startsWith\("week_nav:"\)\)[\s\S]*await sendWeekDaysMenu\(\{[\s\S]*startDate: \/\^\\d\{4\}-\\d\{2\}-\\d\{2\}\$\/\.test\(selectedWeekStart\)[\s\S]*\}\);[\s\S]*return;/s,
+    "Previous and next week controls should reopen the weekday menu for that week."
   );
   assert.match(
     serviceSource,
-    /const selectedWeekdayDate = resolveWeekdayMenuDate\(text, parent\.language\)[\s\S]*return;[\s\S]*const action = resolveMenuAction\(text\)/s,
+    /const selectedWeekdayDate = resolveWeekdayMenuDate\(text, parent\.language\)[\s\S]*await sendWeekDaySchedule\([\s\S]*dateYmd: selectedWeekdayDate[\s\S]*return;[\s\S]*const action = resolveMenuAction\(text\)/s,
     "Weekday text should be handled before broad menu matching so Monday is not treated as the week command."
   );
   assert.match(
     serviceSource,
-    /replyMarkup: buildWeekDaysReplyMarkup\(parent\.language, selectedWeekdayDate\)[\s\S]*emptyText: getText\(parent\.language, "noLessonsThisDay"\)[\s\S]*includeDateTime: false/s,
-    "Selecting a weekday should keep the week keyboard open and omit repeated date/time in lesson rows."
+    /if \(data\.startsWith\("week_day:"\)\)[\s\S]*await sendWeekDaySchedule\(\{[\s\S]*dateYmd: selectedDate[\s\S]*\}\);[\s\S]*return;/s,
+    "Selecting a weekday should open the simplified day view instead of adding buttons under every lesson."
+  );
+  assert.match(
+    serviceSource,
+    /function buildWeekDayActionsReplyMarkup\([\s\S]*weekAllComing[\s\S]*week_cancel_day:\$\{dateYmd\}[\s\S]*week_cancel_one:\$\{dateYmd\}[\s\S]*week_menu:\$\{getWeekStartDateYmd\(dateYmd\)\}/s,
+    "Weekly day view should expose only day-level actions plus a back-to-week control."
+  );
+  assert.match(
+    serviceSource,
+    /if \(data\.startsWith\("week_cancel_day_confirm:"\)\)[\s\S]*await setPendingCancelDayReason\([\s\S]*appointmentIds: items\.map\(\(item\) => item\.id\)[\s\S]*replyMarkup: buildDayCancelReasonButtons\(parent\.language, selectedDate\)/s,
+    "Day-level cancellation should require confirmation and then reuse the reason flow."
+  );
+  assert.match(
+    serviceSource,
+    /async function notifyStaffAboutParentDayCancel\([\s\S]*eventType: "appointment-parent-cancelled"[\s\S]*targetUserIds: \[firstAppointment\.specialistId\]\.filter\(Boolean\)[\s\S]*targetPermissionCodes: settings\.managerNotificationPermissionCodes[\s\S]*specialistName: firstAppointment\.specialistName[\s\S]*cancelledCount: groupItems\.length[\s\S]*specialistName: item\.specialistName/s,
+    "Day-level cancellations should notify the responsible specialist and manager-permission users with specialist details."
+  );
+  assert.match(
+    serviceSource,
+    /function formatAppointmentSummaryLines\([\s\S]*item\.serviceName,[\s\S]*getSpecialistName\(item\)[\s\S]*weekDayComingSaved[\s\S]*lessons: formatAppointmentSummaryLines\(items\)[\s\S]*weekDayCancelSaved[\s\S]*lessons: formatAppointmentSummaryLines\(items\)/s,
+    "Weekly bulk parent replies should include service and specialist names in the lesson summary."
   );
 });
 
@@ -190,6 +210,29 @@ test("Telegram main menu keeps children on first row and daily weekly on second 
     serviceSource,
     /import \{ listPublicSiteContentItems \} from "\.\.\/site-content\/site-content\.service\.js";[\s\S]*async function sendSpecialistsList[\s\S]*listPublicSiteContentItems\(\)/s,
     "The specialists bot menu should read the public website team content."
+  );
+});
+
+test("Header notifications keep appointment details compact and specialist-focused", async () => {
+  const headerSource = await readFile(
+    new URL("../../web/src/pages/profile/HeaderNotifications.jsx", import.meta.url),
+    "utf8"
+  );
+
+  assert.doesNotMatch(
+    headerSource,
+    /getNotificationServiceName/,
+    "Header notification rendering should not expose appointment service names."
+  );
+  assert.match(
+    headerSource,
+    /const details = compactParts\(\[getNotificationKind\(item, language\), specialistName, dateTime, countText\]\)/,
+    "Header notification details should use kind, specialist, date/time, and count."
+  );
+  assert.match(
+    headerSource,
+    /if \(eventType === "appointment-parent-cancelled"\)[\s\S]*return `\$\{isRu \? "Родитель отменил" : "Ota-ona bekor qildi"\}: \$\{suffix\}\$\{reasonText\}`\.trim\(\);/s,
+    "Parent cancellation notification fallback should include the compact specialist-focused suffix."
   );
 });
 

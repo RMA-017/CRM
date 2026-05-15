@@ -123,6 +123,30 @@ function isScheduleItemChangedByPayload(item, {
   );
 }
 
+function isScheduleItemStructureChangedByPayload(item, {
+  specialistId,
+  clientId,
+  appointmentDate,
+  startTime,
+  endTime,
+  durationMinutes,
+  serviceName,
+  applyAppointmentDate = true,
+  getDurationMinutesFromTimes: resolveDurationMinutes
+}) {
+  const previousDurationMinutes = Number.parseInt(String(item?.durationMinutes || "").trim(), 10)
+    || (typeof resolveDurationMinutes === "function" ? resolveDurationMinutes(item?.startTime, item?.endTime) : 0);
+  return (
+    Number.parseInt(String(item?.specialistId || ""), 10) !== specialistId
+    || Number.parseInt(String(item?.clientId || ""), 10) !== clientId
+    || (applyAppointmentDate && normalizeScheduleCompareText(item?.appointmentDate) !== normalizeScheduleCompareText(appointmentDate))
+    || normalizeScheduleCompareText(item?.startTime) !== normalizeScheduleCompareText(startTime)
+    || normalizeScheduleCompareText(item?.endTime) !== normalizeScheduleCompareText(endTime)
+    || previousDurationMinutes !== durationMinutes
+    || normalizeScheduleCompareText(item?.serviceName) !== normalizeScheduleCompareText(serviceName)
+  );
+}
+
 function toAbsenceTimeMinutes(value) {
   const normalized = String(value || "").trim();
   if (!/^\d{2}:\d{2}$/.test(normalized)) {
@@ -480,6 +504,90 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
       return false;
     }
     return normalizedLeft.every((dayKey, index) => dayKey === normalizedRight[index]);
+  }
+
+  function getRecurringLightweightUpdateItems({
+    target,
+    repeat
+  }) {
+    const seriesItems = sortScheduleItems(
+      Array.isArray(target?.seriesItems) && target.seriesItems.length > 0
+        ? target.seriesItems
+        : target?.items
+    );
+    const originalRepeatDayKeys = normalizeVisibleWeekDays(
+      Array.isArray(target?.repeatDays) && target.repeatDays.length > 0
+        ? target.repeatDays
+        : inferRepeatDayKeysFromSeriesItems(seriesItems)
+    );
+    const requestedRepeatDayKeys = normalizeVisibleWeekDays(Array.isArray(repeat?.dayKeys) ? repeat.dayKeys : []);
+    if (
+      repeat?.enabled
+      && originalRepeatDayKeys.length > 0
+      && requestedRepeatDayKeys.length > 0
+      && !haveSameNormalizedDayKeys(requestedRepeatDayKeys, originalRepeatDayKeys)
+    ) {
+      return [];
+    }
+
+    const scopedItems = sortScheduleItems(Array.isArray(target?.items) ? target.items : []);
+    const sourceSeriesDayKey = String(
+      toDayKeyFromUtcDate(parseDateYmdToUtcDate(target?.anchorAppointmentDate)) || ""
+    ).trim().toLowerCase();
+    if (
+      target?.scope === "future"
+      && originalRepeatDayKeys.length > 1
+      && sourceSeriesDayKey
+      && requestedRepeatDayKeys.length > 0
+      && haveSameNormalizedDayKeys(requestedRepeatDayKeys, originalRepeatDayKeys)
+    ) {
+      return scopedItems.filter((item) => getScheduleItemDayKey(item) === sourceSeriesDayKey);
+    }
+    return scopedItems;
+  }
+
+  function isRecurringLightweightUpdate({
+    target,
+    repeat,
+    specialistId,
+    clientId,
+    appointmentDate,
+    startTime,
+    endTime,
+    durationMinutes,
+    serviceName,
+    getDurationMinutesFromTimes: resolveDurationMinutes
+  }) {
+    if (!target?.isRecurring || target?.scope === "single" || !repeat?.enabled) {
+      return { lightweight: false, items: [] };
+    }
+    const repeatUntilDate = String(repeat?.untilDate || "").trim();
+    const targetRepeatUntilDate = String(target?.repeatUntilDate || "").trim();
+    if (repeatUntilDate && targetRepeatUntilDate && repeatUntilDate !== targetRepeatUntilDate) {
+      return { lightweight: false, items: [] };
+    }
+    if (normalizeScheduleCompareText(target?.anchorAppointmentDate) !== normalizeScheduleCompareText(appointmentDate)) {
+      return { lightweight: false, items: [] };
+    }
+    const items = getRecurringLightweightUpdateItems({ target, repeat });
+    if (items.length === 0) {
+      return { lightweight: false, items: [] };
+    }
+    const hasStructureChanges = items.some((item) => isScheduleItemStructureChangedByPayload(item, {
+      specialistId,
+      clientId,
+      appointmentDate,
+      startTime,
+      endTime,
+      durationMinutes,
+      serviceName,
+      applyAppointmentDate: false,
+      getDurationMinutesFromTimes: resolveDurationMinutes
+    }));
+    return {
+      lightweight: !hasStructureChanges,
+      items: hasStructureChanges ? [] : items
+    };
   }
 
   function parseScheduleDayKeysQuery(value) {
@@ -2221,6 +2329,88 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             summary: {
               scope: "single",
               affectedCount: items.length
+            }
+          });
+        }
+
+        const recurringLightweightUpdate = isRecurringLightweightUpdate({
+          target,
+          repeat,
+          specialistId,
+          clientId,
+          appointmentDate,
+          startTime,
+          endTime,
+          durationMinutes,
+          serviceName,
+          getDurationMinutesFromTimes
+        });
+        if (recurringLightweightUpdate.lightweight) {
+          const applyAppointmentDate = false;
+          const lightweightItems = recurringLightweightUpdate.items;
+          const changedLightweightItems = lightweightItems.filter((item) => isScheduleItemChangedByPayload(item, {
+            specialistId,
+            clientId,
+            appointmentDate,
+            startTime,
+            endTime,
+            durationMinutes,
+            serviceName,
+            status,
+            note,
+            applyAppointmentDate,
+            getDurationMinutesFromTimes
+          }));
+
+          if (changedLightweightItems.length === 0) {
+            const unchangedAnchorItem = lightweightItems.find((item) => Number.parseInt(String(item.id || ""), 10) === id)
+              || lightweightItems[0]
+              || null;
+            return reply.send({
+              message: "Appointments unchanged.",
+              item: unchangedAnchorItem,
+              items: lightweightItems,
+              summary: {
+                scope: target.scope,
+                affectedCount: 0,
+                notificationSkipped: true
+              }
+            });
+          }
+
+          const items = await updateAppointmentSchedulesByIds({
+            organizationId: access.authContext.organizationId,
+            actorUserId: access.authContext.userId,
+            ids: changedLightweightItems.map((item) => item.id),
+            specialistId,
+            clientId,
+            appointmentDate,
+            startTime,
+            endTime,
+            durationMinutes,
+            serviceName,
+            status,
+            note,
+            applyAppointmentDate
+          });
+
+          if (!Array.isArray(items) || items.length === 0) {
+            return reply.status(404).send({ message: "Appointment not found." });
+          }
+
+          const anchorItem = items.find((item) => Number.parseInt(String(item.id || ""), 10) === id) || items[0];
+          const affectedCount = items.length;
+          schedulesReadCache.clear();
+          await notifyScheduleDateTimeEdit(access, changedLightweightItems, items);
+          await notifyScheduleCancellationToParents(access, changedLightweightItems, items);
+
+          return reply.send({
+            message: `${affectedCount} appointments updated.`,
+            item: anchorItem,
+            items,
+            summary: {
+              scope: target.scope,
+              affectedCount
             }
           });
         }
