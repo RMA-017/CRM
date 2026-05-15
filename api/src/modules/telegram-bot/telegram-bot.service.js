@@ -361,9 +361,24 @@ function getClientName(item) {
 }
 
 function getSpecialistName(item) {
-  return String(item?.specialist_name ?? item?.specialistName ?? "").trim()
-    || String(item?.actorFullName ?? "").trim()
-    || "Specialist";
+  const explicitName = [
+    item?.specialistName,
+    item?.specialist_name,
+    item?.specialistFullName,
+    item?.specialist_full_name,
+    item?.userName,
+    item?.user_name
+  ].map((value) => String(value || "").trim()).find((value) => value && !isFallbackSpecialistName(value));
+  if (explicitName) {
+    return explicitName;
+  }
+  const specialistId = normalizePositiveInteger(item?.specialistId || item?.specialist_id);
+  return specialistId ? `Specialist #${specialistId}` : "Specialist";
+}
+
+function isFallbackSpecialistName(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return !normalized || normalized === "specialist" || /^specialist\s*#\d+$/.test(normalized);
 }
 
 function renderTemplate(template, values) {
@@ -1652,7 +1667,7 @@ async function markParentComing({ settings, parent, appointmentId }) {
       clientId: appointment.clientId,
       clientName: getClientName(appointment),
       specialistId: appointment.specialistId,
-      specialistName: appointment.specialistName,
+      specialistName: getSpecialistName(appointment),
       appointmentDate: appointment.appointmentDate,
       startTime: appointment.startTime,
       parentResponseStatus: "coming"
@@ -1692,7 +1707,7 @@ function publishParentBulkResponseEvent({ appointments, responseStatus, message 
       clientId: firstAppointment.clientId,
       clientName: getClientName(firstAppointment),
       specialistId: firstAppointment.specialistId,
-      specialistName: firstAppointment.specialistName,
+      specialistName: getSpecialistName(firstAppointment),
       appointmentDate: firstAppointment.appointmentDate,
       startTime: firstAppointment.startTime,
       parentResponseStatus: responseStatus,
@@ -1755,12 +1770,13 @@ async function markParentDayComing({ settings, parent, dateYmd }) {
 async function notifyStaffAboutParentCancel({ settings, appointment, reason }) {
   const messageTemplate = settings.templates?.uz?.parentCancelNotification
     || DEFAULT_TEMPLATES.uz.parentCancelNotification;
+  const specialistName = getSpecialistName(appointment);
   const message = renderTemplate(messageTemplate, {
     child: getClientName(appointment),
     date: appointment.appointmentDate,
     time: appointment.startTime,
     service: appointment.serviceName,
-    specialist: appointment.specialistName,
+    specialist: specialistName,
     reason
   });
   await persistNotificationEvent({
@@ -1775,7 +1791,7 @@ async function notifyStaffAboutParentCancel({ settings, appointment, reason }) {
       clientId: appointment.clientId,
       clientName: getClientName(appointment),
       specialistId: appointment.specialistId,
-      specialistName: appointment.specialistName,
+      specialistName,
       appointmentDate: appointment.appointmentDate,
       startTime: appointment.startTime,
       endTime: appointment.endTime,
@@ -1803,6 +1819,7 @@ async function notifyStaffAboutParentDayCancel({ settings, appointments, reason 
     if (!firstAppointment) {
       continue;
     }
+    const firstSpecialistName = getSpecialistName(firstAppointment);
     const message = `Parent cancelled ${groupItems.length} appointments on ${firstAppointment.appointmentDate}.`;
     await persistNotificationEvent({
       organizationId: firstAppointment.organizationId,
@@ -1817,7 +1834,7 @@ async function notifyStaffAboutParentDayCancel({ settings, appointments, reason 
         clientId: firstAppointment.clientId,
         clientName: getClientName(firstAppointment),
         specialistId: firstAppointment.specialistId,
-        specialistName: firstAppointment.specialistName,
+        specialistName: firstSpecialistName,
         appointmentDate: firstAppointment.appointmentDate,
         appointmentDateText: formatDateDmy(firstAppointment.appointmentDate),
         startTime: firstAppointment.startTime,
@@ -1830,7 +1847,7 @@ async function notifyStaffAboutParentDayCancel({ settings, appointments, reason 
           clientId: item.clientId,
           clientName: getClientName(item),
           specialistId: item.specialistId,
-          specialistName: item.specialistName,
+          specialistName: getSpecialistName(item),
           appointmentDate: item.appointmentDate,
           startTime: item.startTime,
           endTime: item.endTime,
@@ -1910,7 +1927,7 @@ async function cancelParentAppointment({ settings, parent, appointmentId, reason
       clientId: appointment.clientId,
       clientName: getClientName(appointment),
       specialistId: appointment.specialistId,
-      specialistName: appointment.specialistName,
+      specialistName: getSpecialistName(appointment),
       appointmentDate: appointment.appointmentDate,
       startTime: appointment.startTime,
       parentResponseStatus: "not_coming"
@@ -2622,7 +2639,15 @@ function normalizeNotificationItem(item) {
     id: normalizePositiveInteger(item?.id || item?.appointmentId),
     organizationId: normalizePositiveInteger(item?.organizationId || item?.organization_id),
     specialistId: normalizePositiveInteger(item?.specialistId || item?.specialist_id),
-    specialistName: String(item?.specialistName || item?.specialist_name || "").trim(),
+    specialistName: String(
+      item?.specialistName
+      || item?.specialist_name
+      || item?.specialistFullName
+      || item?.specialist_full_name
+      || item?.userName
+      || item?.user_name
+      || ""
+    ).trim(),
     clientId: normalizePositiveInteger(item?.clientId || item?.client_id),
     appointmentDate: String(item?.appointmentDate || item?.appointment_date || "").trim(),
     startTime: normalizeTimeHm(item?.startTime || item?.start_time),
@@ -2640,6 +2665,49 @@ function normalizeNotificationItem(item) {
     isRepeatRoot: Boolean(item?.isRepeatRoot ?? item?.is_repeat_root),
     isRecurring: Boolean(item?.isRecurring ?? item?.is_recurring) || (repeatType === "weekly" && Boolean(repeatGroupKey))
   };
+}
+
+async function hydrateNotificationSpecialistNames({ organizationId, items }) {
+  const sourceItems = Array.isArray(items) ? items : [];
+  const missingSpecialistIds = Array.from(new Set(
+    sourceItems
+      .filter((item) => isFallbackSpecialistName(item?.specialistName))
+      .map((item) => normalizePositiveInteger(item?.specialistId))
+      .filter(Boolean)
+  ));
+  if (missingSpecialistIds.length === 0) {
+    return sourceItems;
+  }
+
+  const { rows } = await pool.query(
+    `SELECT
+       id,
+       COALESCE(NULLIF(TRIM(full_name), ''), NULLIF(TRIM(username), ''), CONCAT('Specialist #', id::text)) AS specialist_name
+      FROM users
+     WHERE organization_id = $1
+       AND id = ANY($2::int[])`,
+    [organizationId, missingSpecialistIds]
+  );
+  const specialistNameById = new Map(
+    (rows || [])
+      .map((row) => [
+        normalizePositiveInteger(row?.id),
+        String(row?.specialist_name || "").trim()
+      ])
+      .filter(([id, name]) => Boolean(id) && Boolean(name))
+  );
+
+  return sourceItems.map((item) => {
+    if (!isFallbackSpecialistName(item?.specialistName)) {
+      return item;
+    }
+    const specialistId = normalizePositiveInteger(item?.specialistId);
+    const specialistName = specialistNameById.get(specialistId) || getSpecialistName(item);
+    return {
+      ...item,
+      specialistName
+    };
+  });
 }
 
 function getTemplateKeyForEvent(eventType, item) {
@@ -2887,7 +2955,7 @@ export async function notifyTelegramParentsForAppointmentChange({
   notificationContext = {}
 }) {
   const normalizedOrganizationId = normalizePositiveInteger(organizationId);
-  const normalizedItems = (Array.isArray(items) ? items : [])
+  let normalizedItems = (Array.isArray(items) ? items : [])
     .map(normalizeNotificationItem)
     .filter((item) => item.id && item.clientId);
   if (!normalizedOrganizationId || normalizedItems.length === 0) {
@@ -2895,6 +2963,10 @@ export async function notifyTelegramParentsForAppointmentChange({
   }
 
   try {
+    normalizedItems = await hydrateNotificationSpecialistNames({
+      organizationId: normalizedOrganizationId,
+      items: normalizedItems
+    });
     const settings = await getTelegramBotSettingsByOrganization(normalizedOrganizationId, { includeToken: true });
     if (!settings?.isActive || !settings.botToken) {
       return { sentCount: 0 };

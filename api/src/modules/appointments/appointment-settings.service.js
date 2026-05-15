@@ -3960,6 +3960,7 @@ export async function getAppointmentScheduleTargetsByScope({
     durationMinutes: Number.parseInt(String(row?.duration_minutes || ""), 10)
       || getDurationMinutesFromAppointmentTimes(row?.start_time, row?.end_time, { allowSeconds: true }),
     serviceName: String(row?.service_name || "").trim(),
+    specialistName: String(row?.specialist_name || "").trim(),
     status: String(row?.status || "").trim().toLowerCase(),
     note: String(row?.note || "").trim(),
     repeatType: normalizeRepeatType(row?.repeat_type),
@@ -4002,11 +4003,15 @@ export async function getAppointmentScheduleTargetsByScope({
        s.repeat_anchor_date,
        s.is_repeat_root,
        s.is_auto_rolling_repeat,
+       COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('Specialist #', s.specialist_id::text)) AS specialist_name,
        c.is_vip,
        c.first_name,
        c.last_name,
        c.middle_name
       FROM ${tableName} s
+      LEFT JOIN users u
+        ON u.id = s.specialist_id
+       AND u.organization_id = s.organization_id
       JOIN clients c
         ON c.id = s.client_id
        AND c.organization_id = s.organization_id
@@ -4053,11 +4058,15 @@ export async function getAppointmentScheduleTargetsByScope({
          s.repeat_anchor_date,
          s.is_repeat_root,
          s.is_auto_rolling_repeat,
+         COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('Specialist #', s.specialist_id::text)) AS specialist_name,
          c.is_vip,
          c.first_name,
          c.last_name,
          c.middle_name
        FROM ${tableName} s
+       LEFT JOIN users u
+         ON u.id = s.specialist_id
+        AND u.organization_id = s.organization_id
        JOIN clients c
          ON c.id = s.client_id
          AND c.organization_id = s.organization_id
@@ -4261,11 +4270,15 @@ export async function updateAppointmentSchedulesByIds({
        u.is_auto_rolling_repeat,
        u.created_at,
        u.updated_at,
+       COALESCE(NULLIF(TRIM(specialist_u.full_name), ''), NULLIF(TRIM(specialist_u.username), ''), CONCAT('Specialist #', u.specialist_id::text)) AS specialist_name,
        c.first_name,
        c.last_name,
        c.middle_name,
        c.is_vip
       FROM updated u
+      LEFT JOIN users specialist_u
+        ON specialist_u.id = u.specialist_id
+       AND specialist_u.organization_id = u.organization_id
       JOIN clients c
         ON c.id = u.client_id
        AND c.organization_id = u.organization_id
@@ -4460,11 +4473,15 @@ export async function updateAppointmentScheduleByIdWithRepeatMeta({
        u.is_auto_rolling_repeat,
        u.created_at,
        u.updated_at,
+       COALESCE(NULLIF(TRIM(specialist_u.full_name), ''), NULLIF(TRIM(specialist_u.username), ''), CONCAT('Specialist #', u.specialist_id::text)) AS specialist_name,
        c.first_name,
        c.last_name,
        c.middle_name,
        c.is_vip
       FROM updated u
+      LEFT JOIN users specialist_u
+        ON specialist_u.id = u.specialist_id
+       AND specialist_u.organization_id = u.organization_id
       JOIN clients c
         ON c.id = u.client_id
        AND c.organization_id = u.organization_id

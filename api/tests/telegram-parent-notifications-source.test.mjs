@@ -11,6 +11,10 @@ test("planner delete context reaches Telegram parent notifications", async () =>
     new URL("../src/modules/appointments/routes/schedules.routes.js", import.meta.url),
     "utf8"
   );
+  const settingsServiceSource = await readFile(
+    new URL("../src/modules/appointments/appointment-settings.service.js", import.meta.url),
+    "utf8"
+  );
 
   assert.match(
     accessSource,
@@ -21,6 +25,11 @@ test("planner delete context reaches Telegram parent notifications", async () =>
     scheduleRoutesSource,
     /type:\s*"schedule-deleted"[\s\S]*data:\s*\{[\s\S]*\.\.\.scheduleNotification\.data,[\s\S]*scope:\s*target\.scope,[\s\S]*deletedCount/s,
     "Planner delete notifications should include scope and deletedCount."
+  );
+  assert.match(
+    settingsServiceSource,
+    /export async function getAppointmentScheduleTargetsByScope[\s\S]*COALESCE\(NULLIF\(TRIM\(u\.full_name\), ''\), NULLIF\(TRIM\(u\.username\), ''\), CONCAT\('Specialist #', s\.specialist_id::text\)\) AS specialist_name[\s\S]*specialistName: String\(row\?\.specialist_name \|\| ""\)\.trim\(\)/s,
+    "Planner delete target items should carry the real specialist name to Telegram notifications."
   );
 });
 
@@ -34,6 +43,16 @@ test("Telegram parent notifications collapse recurring deletes into one message"
     serviceSource,
     /scheduleSeriesDeleted:\s*"\{child\} uchun \{service\} darslari bekor qilindi\. Mutaxassis: \{specialist\}\."/,
     "Telegram defaults should include service and specialist in the compact Uzbek series-delete template."
+  );
+  assert.match(
+    serviceSource,
+    /function getSpecialistName\(item\)[\s\S]*item\?\.specialistName,[\s\S]*item\?\.specialist_name,[\s\S]*item\?\.specialistFullName,[\s\S]*!isFallbackSpecialistName\(value\)[\s\S]*Specialist #\$\{specialistId\}/s,
+    "Telegram specialist name resolver should prefer real specialist names and fall back to a numbered specialist."
+  );
+  assert.match(
+    serviceSource,
+    /async function hydrateNotificationSpecialistNames\([\s\S]*COALESCE\(NULLIF\(TRIM\(full_name\), ''\), NULLIF\(TRIM\(username\), ''\), CONCAT\('Specialist #', id::text\)\) AS specialist_name[\s\S]*FROM users[\s\S]*normalizedItems = await hydrateNotificationSpecialistNames/s,
+    "Telegram notification items with missing specialist names should be hydrated from users before messages are built."
   );
   assert.match(
     serviceSource,
@@ -175,7 +194,7 @@ test("Telegram weekly menu opens day buttons before showing lessons", async () =
   );
   assert.match(
     serviceSource,
-    /async function notifyStaffAboutParentDayCancel\([\s\S]*eventType: "appointment-parent-cancelled"[\s\S]*targetUserIds: \[firstAppointment\.specialistId\]\.filter\(Boolean\)[\s\S]*targetPermissionCodes: settings\.managerNotificationPermissionCodes[\s\S]*specialistName: firstAppointment\.specialistName[\s\S]*cancelledCount: groupItems\.length[\s\S]*specialistName: item\.specialistName/s,
+    /async function notifyStaffAboutParentDayCancel\([\s\S]*const firstSpecialistName = getSpecialistName\(firstAppointment\)[\s\S]*eventType: "appointment-parent-cancelled"[\s\S]*targetUserIds: \[firstAppointment\.specialistId\]\.filter\(Boolean\)[\s\S]*targetPermissionCodes: settings\.managerNotificationPermissionCodes[\s\S]*specialistName: firstSpecialistName[\s\S]*cancelledCount: groupItems\.length[\s\S]*specialistName: getSpecialistName\(item\)/s,
     "Day-level cancellations should notify the responsible specialist and manager-permission users with specialist details."
   );
   assert.match(
@@ -241,6 +260,10 @@ test("planner date or time edits notify Telegram parents", async () => {
     new URL("../src/modules/appointments/routes/schedules.routes.js", import.meta.url),
     "utf8"
   );
+  const settingsServiceSource = await readFile(
+    new URL("../src/modules/appointments/appointment-settings.service.js", import.meta.url),
+    "utf8"
+  );
 
   assert.match(
     scheduleRoutesSource,
@@ -256,6 +279,16 @@ test("planner date or time edits notify Telegram parents", async () => {
     scheduleRoutesSource,
     /schedulesReadCache\.clear\(\);\s*await notifyScheduleDateTimeEdit\(access, target\.items, items\);/s,
     "Regular planner edits should notify after successful update."
+  );
+  assert.match(
+    settingsServiceSource,
+    /export async function updateAppointmentSchedulesByIds[\s\S]*FROM updated u[\s\S]*COALESCE\(NULLIF\(TRIM\(specialist_u\.full_name\), ''\), NULLIF\(TRIM\(specialist_u\.username\), ''\), CONCAT\('Specialist #', u\.specialist_id::text\)\) AS specialist_name[\s\S]*return \(rows \|\| \[\]\)\.map\(toScheduleItem\);/s,
+    "Regular planner edit results should carry the real specialist name to Telegram notifications."
+  );
+  assert.match(
+    settingsServiceSource,
+    /export async function updateAppointmentScheduleByIdWithRepeatMeta[\s\S]*FROM updated u[\s\S]*COALESCE\(NULLIF\(TRIM\(specialist_u\.full_name\), ''\), NULLIF\(TRIM\(specialist_u\.username\), ''\), CONCAT\('Specialist #', u\.specialist_id::text\)\) AS specialist_name[\s\S]*return rows\[0\] \? toScheduleItem\(rows\[0\]\) : null;/s,
+    "Recurring planner edit results should carry the real specialist name to Telegram notifications."
   );
 });
 
