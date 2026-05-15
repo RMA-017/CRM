@@ -149,8 +149,8 @@ test("Telegram weekly menu opens day buttons before showing lessons", async () =
 
   assert.match(
     serviceSource,
-    /function buildWeekDaysReplyMarkup\([\s\S]*buttons\.push\(\{[\s\S]*text: label[\s\S]*const keyboard = \[[\s\S]*weekPrevious[\s\S]*weekNext[\s\S]*keyboard\.push\(buttons\.slice\(index, index \+ 2\)\)[\s\S]*backToMainMenu[\s\S]*resize_keyboard: true/s,
-    "Weekly menu should render weekday reply-keyboard buttons with previous, next, and back controls."
+    /function buildWeekDaysReplyMarkup\([\s\S]*callback_data: `week_day:\$\{dateYmd\}`[\s\S]*const inlineKeyboard = \[[\s\S]*weekPrevious[\s\S]*callback_data: `week_nav:\$\{previousWeekStart\}`[\s\S]*weekNext[\s\S]*callback_data: `week_nav:\$\{nextWeekStart\}`[\s\S]*inlineKeyboard\.push\(buttons\.slice\(index, index \+ 2\)\)[\s\S]*inline_keyboard: inlineKeyboard/s,
+    "Weekly menu should render weekday inline buttons with previous and next controls."
   );
   assert.match(
     serviceSource,
@@ -159,8 +159,8 @@ test("Telegram weekly menu opens day buttons before showing lessons", async () =
   );
   assert.match(
     serviceSource,
-    /async function sendWeekDaysMenu\([\s\S]*setParentWeekMenuState\(parent, startDate\)[\s\S]*formatWeekInterval\(weekStartDate\)[\s\S]*replyMarkup: buildWeekDaysReplyMarkup\(parent\.language, weekStartDate\)/s,
-    "Weekly menu should save state and show the selected week interval above weekday controls."
+    /async function sendWeekDaysMenu\([\s\S]*messageId = null[\s\S]*setParentWeekMenuState\(parent, startDate\)[\s\S]*editTelegramMessageOrSend\(\{[\s\S]*messageId[\s\S]*formatWeekInterval\(weekStartDate\)[\s\S]*replyMarkup: buildWeekDaysReplyMarkup\(parent\.language, weekStartDate\)/s,
+    "Weekly menu should save state, show the selected week interval, and edit the same inline message when possible."
   );
   assert.match(
     serviceSource,
@@ -179,18 +179,33 @@ test("Telegram weekly menu opens day buttons before showing lessons", async () =
   );
   assert.match(
     serviceSource,
-    /if \(data\.startsWith\("week_day:"\)\)[\s\S]*await sendWeekDaySchedule\(\{[\s\S]*dateYmd: selectedDate[\s\S]*\}\);[\s\S]*return;/s,
-    "Selecting a weekday should open the simplified day view instead of adding buttons under every lesson."
+    /if \(data\.startsWith\("week_day:"\)\)[\s\S]*await sendWeekDaySchedule\(\{[\s\S]*dateYmd: selectedDate,[\s\S]*messageId: callbackMessageId[\s\S]*\}\);[\s\S]*return;/s,
+    "Selecting a weekday should edit the inline weekly message into the simplified day view."
   );
   assert.match(
     serviceSource,
-    /function buildWeekDayActionsReplyMarkup\([\s\S]*weekAllComing[\s\S]*week_cancel_day:\$\{dateYmd\}[\s\S]*week_cancel_one:\$\{dateYmd\}[\s\S]*week_menu:\$\{getWeekStartDateYmd\(dateYmd\)\}/s,
-    "Weekly day view should expose only day-level actions plus a back-to-week control."
+    /function buildWeekDayActionsReplyMarkup\(language, dateYmd, items = \[\], options = \{\}\)[\s\S]*weekAllComing[\s\S]*week_cancel_day:\$\{dateYmd\}[\s\S]*week_cancel_one:\$\{dateYmd\}[\s\S]*options\.includeBack !== false[\s\S]*backToWeekMenu[\s\S]*week_menu:\$\{getWeekStartDateYmd\(dateYmd\)\}/s,
+    "Weekly day actions should expose day-level controls and a return button to the inline week menu."
   );
   assert.match(
     serviceSource,
-    /if \(data\.startsWith\("week_cancel_day_confirm:"\)\)[\s\S]*await setPendingCancelDayReason\([\s\S]*appointmentIds: items\.map\(\(item\) => item\.id\)[\s\S]*replyMarkup: buildDayCancelReasonButtons\(parent\.language, selectedDate\)/s,
-    "Day-level cancellation should require confirmation and then reuse the reason flow."
+    /async function sendWeekDaySchedule\([\s\S]*editTelegramMessageOrSend\(\{[\s\S]*messageId[\s\S]*replyMarkup: buildWeekDayReplyMarkup\(parent\.language, selectedDate, items\)/s,
+    "Plain weekly day view should edit the same inline message and keep week navigation available."
+  );
+  assert.match(
+    serviceSource,
+    /if \(data\.startsWith\("week_cancel_day_confirm:"\)\)[\s\S]*await setPendingCancelDayReason\([\s\S]*appointmentIds: items\.map\(\(item\) => item\.id\),[\s\S]*telegramMessageId: callbackMessageId[\s\S]*editTelegramMessageOrSend\(\{[\s\S]*replyMarkup: buildDayCancelReasonButtons\(parent\.language, selectedDate\)/s,
+    "Day-level cancellation should require confirmation, remember the inline message, and then reuse the reason flow."
+  );
+  assert.match(
+    serviceSource,
+    /async function editTelegramMessageOrSend\([\s\S]*editTelegramMessageText[\s\S]*sendTelegramMessage/s,
+    "Inline weekly navigation should prefer editing the same Telegram message and fall back to sending if Telegram rejects the edit."
+  );
+  assert.match(
+    serviceSource,
+    /if \(data\.startsWith\("week_cancel_single:"\)\)[\s\S]*setPendingCancelReason\(\{[\s\S]*telegramMessageId: callbackMessageId[\s\S]*buildWeekSingleCancelReasonButtons/s,
+    "Single-lesson cancellation from the weekly flow should also keep the reason prompt inside the same inline message."
   );
   assert.match(
     serviceSource,
@@ -199,8 +214,13 @@ test("Telegram weekly menu opens day buttons before showing lessons", async () =
   );
   assert.match(
     serviceSource,
-    /function formatAppointmentSummaryLines\([\s\S]*item\.serviceName,[\s\S]*getSpecialistName\(item\)[\s\S]*weekDayComingSaved[\s\S]*lessons: formatAppointmentSummaryLines\(items\)[\s\S]*weekDayCancelSaved[\s\S]*lessons: formatAppointmentSummaryLines\(items\)/s,
-    "Weekly bulk parent replies should include service and specialist names in the lesson summary."
+    /weekDayComingSaved:\s*"\{date\} dagi barcha darslar uchun javob saqlandi: kelamiz\."[\s\S]*weekDayCancelSaved:\s*"\{date\} dagi \{count\} ta dars bekor qilindi\."[\s\S]*weekDayComingSaved:\s*"Ответ сохранен: придем на все занятия \{date\}\."[\s\S]*weekDayCancelSaved:\s*"\{count\} занятий на \{date\} отменено\."/s,
+    "Weekly bulk parent confirmation replies should stay short and not repeat lesson lists."
+  );
+  assert.doesNotMatch(
+    serviceSource,
+    /weekDayComingSaved[\s\S]*lessons: formatAppointmentSummaryLines\(items\)|weekDayCancelSaved[\s\S]*lessons: formatAppointmentSummaryLines\(items\)/,
+    "Weekly bulk confirmation replies should not append appointment summary lines."
   );
 });
 
