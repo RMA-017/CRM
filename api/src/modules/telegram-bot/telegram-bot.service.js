@@ -106,8 +106,8 @@ const TEXT = Object.freeze({
     weekSchedule: "Расписание на неделю",
     weekDaysPrompt: "Выберите день недели:",
     weekDaySchedule: "Расписание на {date}",
-    weekPrevious: "⬅️ Назад",
-    weekNext: "Вперед ➡️",
+    weekPrevious: "⬅️ Пред.",
+    weekNext: "След. ➡️",
     weekAllComing: "✅ Придем на все",
     weekCancelDay: "❌ Отменить этот день",
     weekCancelOne: "📝 Отменить одно занятие",
@@ -181,6 +181,7 @@ const WEEKDAY_LABELS = Object.freeze({
   ru: Object.freeze(["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"])
 });
 const WORK_WEEK_OFFSETS = Object.freeze([0, 1, 2, 3, 4, 5]);
+const parentWeekMenuState = new Map();
 
 const DEFAULT_TEMPLATES = Object.freeze({
   uz: Object.freeze({
@@ -422,6 +423,35 @@ function formatWeekInterval(startDate) {
   return `${formatDateDmy(weekStartDate)} - ${formatDateDmy(weekEndDate)}`;
 }
 
+function getParentWeekStateKey(parent) {
+  const organizationId = normalizePositiveInteger(parent?.organizationId);
+  const parentId = normalizePositiveInteger(parent?.id);
+  return organizationId && parentId ? `${organizationId}:${parentId}` : "";
+}
+
+function setParentWeekMenuState(parent, startDate) {
+  const key = getParentWeekStateKey(parent);
+  const weekStartDate = getWeekStartDateYmd(startDate);
+  if (!key || !/^\d{4}-\d{2}-\d{2}$/.test(weekStartDate)) {
+    return "";
+  }
+  parentWeekMenuState.set(key, weekStartDate);
+  return weekStartDate;
+}
+
+function getParentWeekMenuState(parent) {
+  const key = getParentWeekStateKey(parent);
+  const savedDate = key ? String(parentWeekMenuState.get(key) || "").trim() : "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(savedDate) ? savedDate : getWeekStartDateYmd(toDateYmdInTashkent());
+}
+
+function clearParentWeekMenuState(parent) {
+  const key = getParentWeekStateKey(parent);
+  if (key) {
+    parentWeekMenuState.delete(key);
+  }
+}
+
 function buildMainMenuReplyMarkup(language) {
   return {
     keyboard: [
@@ -469,22 +499,44 @@ function buildWeekDaysReplyMarkup(language, startDate = toDateYmdInTashkent()) {
     }
     const label = getWeekdayLabel(language, dateYmd);
     buttons.push({
-      text: label,
-      callback_data: `week_day:${dateYmd}`
+      text: label
     });
   }
-  const inlineKeyboard = [];
+  const keyboard = [
+    [{ text: getText(language, "weekPrevious") }, { text: getText(language, "weekNext") }]
+  ];
   for (let index = 0; index < buttons.length; index += 2) {
-    inlineKeyboard.push(buttons.slice(index, index + 2));
+    keyboard.push(buttons.slice(index, index + 2));
   }
-  inlineKeyboard.push([
-    { text: getText(language, "weekPrevious"), callback_data: `week_nav:${shiftDateYmd(weekStartDate, -7)}` },
-    { text: getText(language, "weekNext"), callback_data: `week_nav:${shiftDateYmd(weekStartDate, 7)}` }
-  ]);
-  inlineKeyboard.push([{ text: getText(language, "backToMainMenu"), callback_data: "week_back" }]);
+  keyboard.push([{ text: getText(language, "backToMainMenu") }]);
   return {
-    inline_keyboard: inlineKeyboard
+    keyboard,
+    resize_keyboard: true
   };
+}
+
+function resolveWeekNavigationAction(text, language) {
+  const normalizedText = String(text || "").trim().toLowerCase();
+  if (!normalizedText) {
+    return "";
+  }
+  const previousLabels = new Set([
+    getText(language, "weekPrevious"),
+    getText("uz", "weekPrevious"),
+    getText("ru", "weekPrevious")
+  ].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean));
+  const nextLabels = new Set([
+    getText(language, "weekNext"),
+    getText("uz", "weekNext"),
+    getText("ru", "weekNext")
+  ].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean));
+  if (previousLabels.has(normalizedText)) {
+    return "previous";
+  }
+  if (nextLabels.has(normalizedText)) {
+    return "next";
+  }
+  return "";
 }
 
 function resolveWeekdayMenuDate(text, language, startDate = toDateYmdInTashkent()) {
@@ -1546,7 +1598,7 @@ async function sendWeekDaySchedule({ settings, parent, dateYmd }) {
 }
 
 async function sendWeekDaysMenu({ settings, parent, startDate = toDateYmdInTashkent() }) {
-  const weekStartDate = getWeekStartDateYmd(startDate);
+  const weekStartDate = setParentWeekMenuState(parent, startDate) || getWeekStartDateYmd(startDate);
   await sendTelegramMessage({
     token: settings.botToken,
     chatId: parent.chatId,
@@ -2063,7 +2115,18 @@ async function handleTextMessage({ settings, message }) {
     return;
   }
 
-  const selectedWeekdayDate = resolveWeekdayMenuDate(text, parent.language);
+  const weekNavigationAction = resolveWeekNavigationAction(text, parent.language);
+  if (weekNavigationAction) {
+    const currentWeekStart = getParentWeekMenuState(parent);
+    await sendWeekDaysMenu({
+      settings,
+      parent,
+      startDate: shiftDateYmd(currentWeekStart, weekNavigationAction === "previous" ? -7 : 7)
+    });
+    return;
+  }
+
+  const selectedWeekdayDate = resolveWeekdayMenuDate(text, parent.language, getParentWeekMenuState(parent));
   if (selectedWeekdayDate) {
     await sendWeekDaySchedule({
       settings,
@@ -2098,6 +2161,7 @@ async function handleTextMessage({ settings, message }) {
   }
 
   if (action === "start") {
+    clearParentWeekMenuState(parent);
     await sendTelegramMessage({
       token: settings.botToken,
       chatId: parent.chatId,
@@ -2119,6 +2183,7 @@ async function handleTextMessage({ settings, message }) {
     return;
   }
   if (action === "main") {
+    clearParentWeekMenuState(parent);
     await sendTelegramMessage({
       token: settings.botToken,
       chatId: parent.chatId,

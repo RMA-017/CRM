@@ -130,8 +130,8 @@ test("Telegram weekly menu opens day buttons before showing lessons", async () =
 
   assert.match(
     serviceSource,
-    /function buildWeekDaysReplyMarkup\([\s\S]*buttons\.push\(\{[\s\S]*text: label,[\s\S]*callback_data: `week_day:\$\{dateYmd\}`[\s\S]*inlineKeyboard\.push\(buttons\.slice\(index, index \+ 2\)\)[\s\S]*callback_data: `week_nav:\$\{shiftDateYmd\(weekStartDate, -7\)\}`[\s\S]*callback_data: `week_nav:\$\{shiftDateYmd\(weekStartDate, 7\)\}`[\s\S]*callback_data: "week_back"[\s\S]*inline_keyboard: inlineKeyboard/s,
-    "Weekly menu should render weekday inline buttons with previous, next, and back controls."
+    /function buildWeekDaysReplyMarkup\([\s\S]*buttons\.push\(\{[\s\S]*text: label[\s\S]*const keyboard = \[[\s\S]*weekPrevious[\s\S]*weekNext[\s\S]*keyboard\.push\(buttons\.slice\(index, index \+ 2\)\)[\s\S]*backToMainMenu[\s\S]*resize_keyboard: true/s,
+    "Weekly menu should render weekday reply-keyboard buttons with previous, next, and back controls."
   );
   assert.match(
     serviceSource,
@@ -140,8 +140,8 @@ test("Telegram weekly menu opens day buttons before showing lessons", async () =
   );
   assert.match(
     serviceSource,
-    /async function sendWeekDaysMenu\([\s\S]*formatWeekInterval\(weekStartDate\)[\s\S]*replyMarkup: buildWeekDaysReplyMarkup\(parent\.language, weekStartDate\)/s,
-    "Weekly menu should show the selected week interval above weekday controls."
+    /async function sendWeekDaysMenu\([\s\S]*setParentWeekMenuState\(parent, startDate\)[\s\S]*formatWeekInterval\(weekStartDate\)[\s\S]*replyMarkup: buildWeekDaysReplyMarkup\(parent\.language, weekStartDate\)/s,
+    "Weekly menu should save state and show the selected week interval above weekday controls."
   );
   assert.match(
     serviceSource,
@@ -150,13 +150,13 @@ test("Telegram weekly menu opens day buttons before showing lessons", async () =
   );
   assert.match(
     serviceSource,
-    /if \(data\.startsWith\("week_nav:"\)\)[\s\S]*await sendWeekDaysMenu\(\{[\s\S]*startDate: \/\^\\d\{4\}-\\d\{2\}-\\d\{2\}\$\/\.test\(selectedWeekStart\)[\s\S]*\}\);[\s\S]*return;/s,
-    "Previous and next week controls should reopen the weekday menu for that week."
+    /const weekNavigationAction = resolveWeekNavigationAction\(text, parent\.language\)[\s\S]*getParentWeekMenuState\(parent\)[\s\S]*shiftDateYmd\(currentWeekStart, weekNavigationAction === "previous" \? -7 : 7\)[\s\S]*return;/s,
+    "Previous and next week reply-keyboard controls should reopen the weekday menu for that week."
   );
   assert.match(
     serviceSource,
-    /const selectedWeekdayDate = resolveWeekdayMenuDate\(text, parent\.language\)[\s\S]*await sendWeekDaySchedule\([\s\S]*dateYmd: selectedWeekdayDate[\s\S]*return;[\s\S]*const action = resolveMenuAction\(text\)/s,
-    "Weekday text should be handled before broad menu matching so Monday is not treated as the week command."
+    /const selectedWeekdayDate = resolveWeekdayMenuDate\(text, parent\.language, getParentWeekMenuState\(parent\)\)[\s\S]*await sendWeekDaySchedule\([\s\S]*dateYmd: selectedWeekdayDate[\s\S]*return;[\s\S]*const action = resolveMenuAction\(text\)/s,
+    "Weekday text should use the saved week and be handled before broad menu matching."
   );
   assert.match(
     serviceSource,
