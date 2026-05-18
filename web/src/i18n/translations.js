@@ -446,6 +446,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Break type is required.", uz: "Tanaffus turi majburiy.", ru: "Тип перерыва обязателен." },
   { en: "End time must be after start time.", uz: "Tugash vaqti boshlanishdan keyin bo'lishi kerak.", ru: "Время окончания должно быть позже начала." },
   { en: "Invalid appointment date.", uz: "Dars sanasi noto'g'ri.", ru: "Неверная дата занятия." },
+  { en: "Invalid appointment data.", uz: "Dars ma'lumotlari noto'g'ri.", ru: "Неверные данные занятия." },
   { en: "Invalid appointment duration.", uz: "Dars davomiyligi noto'g'ri.", ru: "Неверная длительность занятия." },
   { en: "Invalid appointment id.", uz: "Dars ID noto'g'ri.", ru: "Неверный ID занятия." },
   { en: "Invalid appointment move target.", uz: "Darsni ko'chirish manzili noto'g'ri.", ru: "Неверная цель переноса занятия." },
@@ -458,6 +459,10 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Note is too long.", uz: "Izoh juda uzun.", ru: "Примечание слишком длинное." },
   { en: "Reason is too long.", uz: "Sabab juda uzun.", ru: "Причина слишком длинная." },
   { en: "This slot is already occupied.", uz: "Bu vaqt band.", ru: "Это время уже занято." },
+  { en: "This slot conflicts with existing appointment.", uz: "Bu vaqt mavjud dars bilan to'qnashadi.", ru: "Это время конфликтует с существующим занятием." },
+  { en: "This slot conflicts with the specialist's VIP Daily Routine.", uz: "Bu vaqt mutaxassisning VIP kun tartibi bilan to'qnashadi.", ru: "Это время конфликтует с VIP распорядком специалиста." },
+  { en: "This slot conflicts with the client's VIP Daily Routine.", uz: "Bu vaqt bolaning VIP kun tartibi bilan to'qnashadi.", ru: "Это время конфликтует с VIP распорядком ребенка." },
+  { en: "This client already has another appointment at this time.", uz: "Bu bolada shu vaqtda boshqa dars bor.", ru: "У этого ребенка уже есть другое занятие в это время." },
   { en: "Selected time is outside specialist working hours.", uz: "Tanlangan vaqt mutaxassis ish vaqtidan tashqarida.", ru: "Выбранное время вне рабочего графика специалиста." },
   { en: "Specialist is unavailable on this day.", uz: "Mutaxassis bu kuni mavjud emas.", ru: "Специалист недоступен в этот день." },
   { en: "Only pending appointments can be moved.", uz: "Faqat kutilayotgan darslarni ko'chirish mumkin.", ru: "Переносить можно только ожидающие занятия." },
@@ -734,9 +739,84 @@ export const PATTERN_TRANSLATIONS = Object.freeze([
     ru: (_match, date) => `Будущие занятия нельзя подтверждать. Запрошенная дата: ${date}.`
   },
   {
+    pattern: /^History is locked before\s*(.+)\. Requested date:\s*(.+)\.$/i,
+    uz: (_match, cutoffDate, requestedDate) => `Tarix ${cutoffDate} sanasidan oldin yopilgan. So'ralgan sana: ${requestedDate}.`,
+    ru: (_match, cutoffDate, requestedDate) => `История заблокирована до ${cutoffDate}. Запрошенная дата: ${requestedDate}.`
+  },
+  {
+    pattern: /^Slot conflict on\s*(.+)\.$/i,
+    uz: (_match, date) => `${date} sanasida vaqt to'qnashuvi bor.`,
+    ru: (_match, date) => `Конфликт времени на дату ${date}.`
+  },
+  {
+    pattern: /^Selected day (.+) is not available\.$/i,
+    uz: (_match, day) => `Tanlangan ${day} kuni mavjud emas.`,
+    ru: (_match, day) => `Выбранный день ${day} недоступен.`
+  },
+  {
+    pattern: /^Working hours are not configured for (.+)\.$/i,
+    uz: (_match, day) => `${day} kuni uchun ish vaqti sozlanmagan.`,
+    ru: (_match, day) => `Рабочее время для ${day} не настроено.`
+  },
+  {
+    pattern: /^Selected time is outside working hours for (.+)\.$/i,
+    uz: (_match, day) => `Tanlangan vaqt ${day} kuni ish vaqtidan tashqarida.`,
+    ru: (_match, day) => `Выбранное время вне рабочего графика для ${day}.`
+  },
+  {
+    pattern: /^Selected time is outside working hours for (.+)\. \((.+)\)\.$/i,
+    uz: (_match, day, date) => `Tanlangan vaqt ${day} kuni ish vaqtidan tashqarida (${date}).`,
+    ru: (_match, day, date) => `Выбранное время вне рабочего графика для ${day} (${date}).`
+  },
+  {
+    pattern: /^Blocked slot on (.+):\s*(.+)\.$/i,
+    uz: (_match, date, reason, translateToken) => `${date} sanasida blocked slot bilan to'qnashuv: ${translateToken(reason)}.`,
+    ru: (_match, date, reason, translateToken) => `Конфликт с заблокированным временем на дату ${date}: ${translateToken(reason)}.`
+  },
+  {
+    pattern: /^Break conflict on (.+):\s*(.+)\.$/i,
+    uz: (_match, date, reason, translateToken) => `${date} sanasida tanaffus bilan to'qnashuv: ${translateToken(reason)}.`,
+    ru: (_match, date, reason, translateToken) => `Конфликт с перерывом на дату ${date}: ${translateToken(reason)}.`
+  },
+  {
+    pattern: /^Selected time conflicts with specialist blocked slot:\s*(.+)\.$/i,
+    uz: (_match, reason, translateToken) => `Tanlangan vaqt mutaxassis blocked sloti bilan to'qnashadi: ${translateToken(reason)}.`,
+    ru: (_match, reason, translateToken) => `Выбранное время конфликтует с заблокированным временем специалиста: ${translateToken(reason)}.`
+  },
+  {
+    pattern: /^Selected time conflicts with specialist break:\s*(.+)\.$/i,
+    uz: (_match, reason, translateToken) => `Tanlangan vaqt mutaxassis tanaffusi bilan to'qnashadi: ${translateToken(reason)}.`,
+    ru: (_match, reason, translateToken) => `Выбранное время конфликтует с перерывом специалиста: ${translateToken(reason)}.`
+  },
+  {
     pattern: /^Selected time overlaps existing appointment \((.+)\)\.$/i,
     uz: (_match, time) => `Tanlangan vaqt mavjud dars bilan kesishadi (${time}).`,
     ru: (_match, time) => `Выбранное время пересекается с существующим занятием (${time}).`
+  },
+  {
+    pattern: /^This client already has another appointment at this time \((.+)\)\.$/i,
+    uz: (_match, date) => `Bu bolada shu vaqtda boshqa dars bor (${date}).`,
+    ru: (_match, date) => `У этого ребенка уже есть другое занятие в это время (${date}).`
+  },
+  {
+    pattern: /^Specialist is marked absent on (.+) from (.+) to (.+)\.$/i,
+    uz: (_match, date, startTime, endTime) => `Mutaxassis ${date} kuni ${startTime}-${endTime} oralig'ida yo'q deb belgilangan.`,
+    ru: (_match, date, startTime, endTime) => `Специалист отмечен отсутствующим ${date} с ${startTime} до ${endTime}.`
+  },
+  {
+    pattern: /^Specialist is marked absent on (.+)\.$/i,
+    uz: (_match, date) => `Mutaxassis ${date} kuni yo'q deb belgilangan.`,
+    ru: (_match, date) => `Специалист отмечен отсутствующим ${date}.`
+  },
+  {
+    pattern: /^Specialist has a VIP Daily Routine conflict on (.+)\.$/i,
+    uz: (_match, date) => `Mutaxassisda ${date} sanasida VIP kun tartibi bilan to'qnashuv bor.`,
+    ru: (_match, date) => `У специалиста конфликт с VIP распорядком на дату ${date}.`
+  },
+  {
+    pattern: /^Client has a VIP Daily Routine conflict on (.+)\.$/i,
+    uz: (_match, date) => `Bolada ${date} sanasida VIP kun tartibi bilan to'qnashuv bor.`,
+    ru: (_match, date) => `У ребенка конфликт с VIP распорядком на дату ${date}.`
   },
   {
     pattern: /^Selected time overlaps blocked time:\s*(.+)\.$/i,

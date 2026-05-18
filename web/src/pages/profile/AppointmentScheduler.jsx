@@ -2500,8 +2500,7 @@ function AppointmentScheduler({
   vipOnly = false,
   recurringOnly = false,
   showWeekSwitcher = true,
-  vipClassDailyRoutines = [],
-  onNotification = null
+  vipClassDailyRoutines = []
 }) {
   const { t, translate } = useI18n();
   const showPlannerAlert = useCallback((text) => {
@@ -3571,11 +3570,6 @@ function AppointmentScheduler({
   );
   const clientSelectNotFound = clientSearchMessage === "No clients found.";
   const clientSelectHasError = Boolean(createErrors.clientId) || (clientSelectNotFound && !createForm.clientId);
-  useEffect(() => {
-    if (clientSelectNotFound && clientSearchMessage && createModal.open) {
-      showPlannerAlert(clientSearchMessage);
-    }
-  }, [clientSearchMessage, clientSelectNotFound, createModal.open, showPlannerAlert]);
   const selectedClient = createForm.clientId ? (clientMap[createForm.clientId] || null) : null;
   const clientSelectOptions = useMemo(() => {
     const currentId = String(createForm.clientId || "").trim();
@@ -5297,32 +5291,44 @@ function AppointmentScheduler({
     );
     const targetStartMinutes = normalizeTimeToMinutes(targetStartTime);
     if (!appointmentId || !specialistId || !targetAppointmentDate || targetStartMinutes === null) {
-      setMessage("Invalid appointment move target.");
+      const text = "Invalid appointment move target.";
+      setMessage(text);
+      showAppointmentError(text);
       return;
     }
     if (!isPendingAppointmentStatus(item?.status)) {
-      setMessage("Only pending appointments can be moved.");
+      const text = "Only pending appointments can be moved.";
+      setMessage(text);
+      showAppointmentError(text);
       return;
     }
     if (
       isHistoryLockedDateYmd(sourceAppointmentDate, settings?.historyLockDays)
       || isHistoryLockedDateYmd(targetAppointmentDate, settings?.historyLockDays)
     ) {
-      setMessage("Appointments cannot be moved outside the history lock window.");
+      const text = "Appointments cannot be moved outside the history lock window.";
+      setMessage(text);
+      showAppointmentError(text);
       return;
     }
     const targetWeekStart = formatDateYmd(getStartOfWeek(new Date(`${targetAppointmentDate}T00:00:00`)));
     const visibleWeekStart = formatDateYmd(weekStartDate);
     if (targetWeekStart !== visibleWeekStart) {
-      setMessage("Appointments can only be moved within the visible week.");
+      const text = "Appointments can only be moved within the visible week.";
+      setMessage(text);
+      showAppointmentError(text);
       return;
     }
     if (!canUpdateAppointments || !canMutateSpecialistId(specialistId)) {
-      setMessage("You do not have permission to move this appointment.");
+      const text = "You do not have permission to move this appointment.";
+      setMessage(text);
+      showAppointmentError(text);
       return;
     }
     if (!Number.isInteger(durationMinutes) || durationMinutes <= 0) {
-      setMessage("Invalid appointment duration.");
+      const text = "Invalid appointment duration.";
+      setMessage(text);
+      showAppointmentError(text);
       return;
     }
     if (sourceAppointmentDate === targetAppointmentDate && String(item?.time || "").trim() === targetStartTime) {
@@ -5331,7 +5337,6 @@ function AppointmentScheduler({
 
     const targetEndTime = minutesToTime(targetStartMinutes + durationMinutes);
     const normalizedStatus = String(item?.status || "pending").trim().toLowerCase();
-    const shouldShowImmediateAlert = typeof onNotification === "function";
     if (ACTIVE_SCHEDULE_STATUSES.has(normalizedStatus)) {
       const shouldCheckSpecialistLocalAvailability = !isClientFocusedMode;
       if (shouldCheckSpecialistLocalAvailability) {
@@ -5343,9 +5348,7 @@ function AppointmentScheduler({
         );
         if (workingHoursConflictMessage) {
           setMessage(workingHoursConflictMessage);
-          if (shouldShowImmediateAlert) {
-            showPlannerAlert(workingHoursConflictMessage);
-          }
+          showPlannerAlert(workingHoursConflictMessage);
           return;
         }
 
@@ -5358,9 +5361,7 @@ function AppointmentScheduler({
         if (blockedTimeConflictReason) {
           const blockedTimeConflictMessage = `Selected time overlaps blocked time: ${blockedTimeConflictReason}.`;
           setMessage(blockedTimeConflictMessage);
-          if (shouldShowImmediateAlert) {
-            showPlannerAlert(blockedTimeConflictMessage);
-          }
+          showPlannerAlert(blockedTimeConflictMessage);
           return;
         }
 
@@ -5373,9 +5374,7 @@ function AppointmentScheduler({
         if (breakConflictReason) {
           const breakConflictMessage = `Selected time overlaps specialist break: ${breakConflictReason}.`;
           setMessage(breakConflictMessage);
-          if (shouldShowImmediateAlert) {
-            showPlannerAlert(breakConflictMessage);
-          }
+          showPlannerAlert(breakConflictMessage);
           return;
         }
 
@@ -5388,9 +5387,7 @@ function AppointmentScheduler({
         if (absenceConflictReason) {
           const absenceConflictMessage = `Selected time overlaps specialist absence: ${absenceConflictReason}.`;
           setMessage(absenceConflictMessage);
-          if (shouldShowImmediateAlert) {
-            showPlannerAlert(absenceConflictMessage);
-          }
+          showPlannerAlert(absenceConflictMessage);
           return;
         }
       }
@@ -5409,9 +5406,7 @@ function AppointmentScheduler({
           ? `This slot is already occupied at ${localConflictTime}${localConflictClient}.`
           : "This slot is already occupied.";
         setMessage(conflictMessage);
-        if (shouldShowImmediateAlert) {
-          showPlannerAlert(conflictMessage);
-        }
+        showPlannerAlert(conflictMessage);
         return;
       }
     }
@@ -5451,7 +5446,7 @@ function AppointmentScheduler({
       if (!response.ok) {
         const serverMessage = String(data?.message || "Failed to move appointment.").trim();
         setMessage(serverMessage);
-        if (response.status === 409 && shouldShowImmediateAlert) {
+        if (response.status === 409) {
           showPlannerAlert(serverMessage);
         }
         return;
@@ -5460,7 +5455,9 @@ function AppointmentScheduler({
       await refreshPlannerServerState();
       setMessage("");
     } catch {
-      setMessage("Failed to move appointment.");
+      const text = "Failed to move appointment.";
+      setMessage(text);
+      showAppointmentError(text);
     }
   }
 
@@ -5680,6 +5677,21 @@ function AppointmentScheduler({
     setCreateErrors({ form: text });
     setMessage(text);
     if (options.alert) {
+      showPlannerAlert(text);
+    }
+  }
+
+  function getFirstFormErrorText(errors, fallback = "Request failed.") {
+    if (!errors || typeof errors !== "object") {
+      return fallback;
+    }
+    const firstValue = Object.values(errors).find((value) => String(value || "").trim());
+    return String(firstValue || fallback).trim();
+  }
+
+  function showAppointmentError(message) {
+    const text = String(message || "").trim();
+    if (text) {
       showPlannerAlert(text);
     }
   }
@@ -6298,18 +6310,19 @@ function AppointmentScheduler({
     const specialistId = String(createModal.specialistId || "").trim();
     if (!specialistId) {
       setCreateErrors({ specialistId: "Specialist is required." });
+      showAppointmentError("Specialist is required.");
       return;
     }
     if (!isEditMode && !canCreateOnPlannerSpecialist(specialistId)) {
-      setCreateErrors({
-        form: canCreateAppointments
+      showAppointmentError(
+        canCreateAppointments
           ? "You can only create appointments in your own planner."
           : "You do not have permission to create appointments."
-      });
+      );
       return;
     }
     if (isEditMode && !canUpdateAppointments) {
-      setCreateErrors({ form: "You do not have permission to update appointments." });
+      showAppointmentError("You do not have permission to update appointments.");
       return;
     }
     try {
@@ -6362,19 +6375,21 @@ function AppointmentScheduler({
       });
       if (Object.keys(errors).length > 0) {
         setCreateErrors(errors);
+        showAppointmentError(getFirstFormErrorText(errors, "Invalid appointment data."));
         return;
       }
 
       if (!canMutateSpecialistId(specialistId)) {
-        setCreateErrors({
-          specialistId: isEditMode
+        showAppointmentError(
+          isEditMode
             ? "You can only edit appointments in your own planner."
             : "You can only create appointments in your own planner."
-        });
+        );
         return;
       }
       if (!nextPayload.clientId) {
         setCreateErrors({ clientId: "Client is required." });
+        showAppointmentError("Client is required.");
         return;
       }
 
@@ -6384,14 +6399,15 @@ function AppointmentScheduler({
       const durationMinutes = Number.parseInt(String(nextPayload.durationMinutes || "").trim(), 10);
       if (!appointmentDate || startMinutes === null) {
         setCreateErrors({ form: "Invalid slot. Please try again." });
+        showAppointmentError("Invalid slot. Please try again.");
         return;
       }
       if (!Number.isInteger(durationMinutes) || durationMinutes <= 0) {
         setCreateErrors({ durationMinutes: "Invalid duration." });
+        showAppointmentError("Invalid duration.");
         return;
       }
       const endTime = minutesToTime(startMinutes + durationMinutes);
-      const shouldShowImmediateAlert = typeof onNotification === "function";
       const normalizedStatus = String(nextPayload.status || "").trim().toLowerCase();
       const shouldUseClientFocusedPreview = (
         isClientFocusedMode
@@ -6417,9 +6433,7 @@ function AppointmentScheduler({
           if (workingHoursConflictMessage) {
             setCreateErrors({ form: workingHoursConflictMessage });
             setMessage(workingHoursConflictMessage);
-            if (shouldShowImmediateAlert) {
-              showPlannerAlert(workingHoursConflictMessage);
-            }
+            showPlannerAlert(workingHoursConflictMessage);
             return;
           }
 
@@ -6433,9 +6447,7 @@ function AppointmentScheduler({
             const blockedTimeConflictMessage = `Selected time overlaps blocked time: ${blockedTimeConflictReason}.`;
             setCreateErrors({ form: blockedTimeConflictMessage });
             setMessage(blockedTimeConflictMessage);
-            if (shouldShowImmediateAlert) {
-              showPlannerAlert(blockedTimeConflictMessage);
-            }
+            showPlannerAlert(blockedTimeConflictMessage);
             return;
           }
 
@@ -6449,9 +6461,7 @@ function AppointmentScheduler({
             const breakConflictMessage = `Selected time overlaps specialist break: ${breakConflictReason}.`;
             setCreateErrors({ form: breakConflictMessage });
             setMessage(breakConflictMessage);
-            if (shouldShowImmediateAlert) {
-              showPlannerAlert(breakConflictMessage);
-            }
+            showPlannerAlert(breakConflictMessage);
             return;
           }
 
@@ -6465,9 +6475,7 @@ function AppointmentScheduler({
             const absenceConflictMessage = `Selected time overlaps specialist absence: ${absenceConflictReason}.`;
             setCreateErrors({ form: absenceConflictMessage });
             setMessage(absenceConflictMessage);
-            if (shouldShowImmediateAlert) {
-              showPlannerAlert(absenceConflictMessage);
-            }
+            showPlannerAlert(absenceConflictMessage);
             return;
           }
         } else {
@@ -6480,9 +6488,7 @@ function AppointmentScheduler({
           if (workingHoursConflictMessage) {
             setCreateErrors({ form: workingHoursConflictMessage });
             setMessage(workingHoursConflictMessage);
-            if (shouldShowImmediateAlert) {
-              showPlannerAlert(workingHoursConflictMessage);
-            }
+            showPlannerAlert(workingHoursConflictMessage);
             return;
           }
 
@@ -6496,9 +6502,7 @@ function AppointmentScheduler({
             const blockedTimeConflictMessage = `Selected time overlaps blocked time: ${blockedTimeConflictReason}.`;
             setCreateErrors({ form: blockedTimeConflictMessage });
             setMessage(blockedTimeConflictMessage);
-            if (shouldShowImmediateAlert) {
-              showPlannerAlert(blockedTimeConflictMessage);
-            }
+            showPlannerAlert(blockedTimeConflictMessage);
             return;
           }
 
@@ -6512,9 +6516,7 @@ function AppointmentScheduler({
             const breakConflictMessage = `Selected time overlaps specialist break: ${breakConflictReason}.`;
             setCreateErrors({ form: breakConflictMessage });
             setMessage(breakConflictMessage);
-            if (shouldShowImmediateAlert) {
-              showPlannerAlert(breakConflictMessage);
-            }
+            showPlannerAlert(breakConflictMessage);
             return;
           }
 
@@ -6528,9 +6530,7 @@ function AppointmentScheduler({
             const absenceConflictMessage = `Selected time overlaps specialist absence: ${absenceConflictReason}.`;
             setCreateErrors({ form: absenceConflictMessage });
             setMessage(absenceConflictMessage);
-            if (shouldShowImmediateAlert) {
-              showPlannerAlert(absenceConflictMessage);
-            }
+            showPlannerAlert(absenceConflictMessage);
             return;
           }
         }
@@ -6550,9 +6550,7 @@ function AppointmentScheduler({
             : "This slot is already occupied.";
           setCreateErrors({ form: conflictMessage });
           setMessage(conflictMessage);
-          if (shouldShowImmediateAlert) {
-            showPlannerAlert(conflictMessage);
-          }
+          showPlannerAlert(conflictMessage);
           return;
         }
       }
@@ -6612,16 +6610,15 @@ function AppointmentScheduler({
         const serverMessage = String(data?.message || "").trim();
         if (response.status === 409 && serverMessage) {
           setMessage(serverMessage);
-          if (shouldShowImmediateAlert) {
-            showPlannerAlert(serverMessage);
-          }
-        }
-        if (data?.errors && typeof data.errors === "object") {
+          showPlannerAlert(serverMessage);
+        } else if (data?.errors && typeof data.errors === "object") {
           setCreateErrors(data.errors);
+          showAppointmentError(getFirstFormErrorText(data.errors, "Invalid appointment data."));
         } else if (data?.field) {
           setCreateErrors({ [data.field]: data.message || "Invalid value." });
+          showAppointmentError(data.message || "Invalid value.");
         } else {
-          setCreateErrors({ form: data?.message || "Failed to save appointment." });
+          showAppointmentError(data?.message || "Failed to save appointment.");
         }
         return;
       }
@@ -6640,17 +6637,17 @@ function AppointmentScheduler({
     }
     const targetSpecialistId = String(createModal.specialistId || "").trim();
     if (!canMutateSpecialistId(targetSpecialistId)) {
-      setCreateErrors({ form: "You can only edit appointments in your own planner." });
+      showAppointmentError("You can only edit appointments in your own planner.");
       return;
     }
     if (!canDeleteAppointments) {
-      setCreateErrors({ form: "You do not have permission to delete appointments." });
+      showAppointmentError("You do not have permission to delete appointments.");
       return;
     }
 
     const appointmentId = String(createModal.appointmentId || "").trim();
     if (!appointmentId) {
-      setCreateErrors({ form: "Invalid appointment id." });
+      showAppointmentError("Invalid appointment id.");
       return;
     }
 
@@ -6675,7 +6672,7 @@ function AppointmentScheduler({
       const data = await readApiResponseData(response);
 
       if (!response.ok) {
-        setCreateErrors({ form: data?.message || "Failed to delete appointment." });
+        showAppointmentError(data?.message || "Failed to delete appointment.");
         return;
       }
 
@@ -6683,7 +6680,7 @@ function AppointmentScheduler({
       setMessage("");
       closeCreateModal();
     } catch {
-      setCreateErrors({ form: "Failed to delete appointment." });
+      showAppointmentError("Failed to delete appointment.");
     } finally {
       setCreateDeleting(false);
     }
@@ -6959,14 +6956,8 @@ function AppointmentScheduler({
       return;
     }
 
-    if (typeof onNotification === "function") {
-      onNotification(text);
-      setMessage("");
-      return;
-    }
-
     setMessage("");
-  }, [message, onNotification]);
+  }, [message]);
   const canCurrentUserConfirmVipPending = useCallback((row) => {
     if (!vipOnly || !canUpdateAppointments) {
       return false;
@@ -7011,7 +7002,9 @@ function AppointmentScheduler({
     const note = String(item?.note || "").trim();
 
     if (!appointmentId || !specialistId || !clientId || !appointmentDate || !startTime || !endTime || !durationMinutes) {
-      setMessage("Failed to confirm lesson.");
+      const text = "Failed to confirm lesson.";
+      setMessage(text);
+      showAppointmentError(text);
       return;
     }
     if (vipConfirmingByAppointmentId[appointmentId]) {
@@ -7046,14 +7039,18 @@ function AppointmentScheduler({
       );
       const data = await readApiResponseData(response);
       if (!response.ok) {
-        setMessage(String(data?.message || "Failed to confirm lesson.").trim());
+        const text = String(data?.message || "Failed to confirm lesson.").trim();
+        setMessage(text);
+        showAppointmentError(text);
         return;
       }
 
       await loadSchedulesForCurrentWeek();
       setMessage(String(data?.message || "Lesson confirmed.").trim());
     } catch {
-      setMessage("Failed to confirm lesson.");
+      const text = "Failed to confirm lesson.";
+      setMessage(text);
+      showAppointmentError(text);
     } finally {
       setVipConfirmingByAppointmentId((prev) => {
         const next = { ...prev };

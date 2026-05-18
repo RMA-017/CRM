@@ -16,7 +16,6 @@ function AppointmentPlannerPanel({
   currentUserId,
   restrictCreateToOwnSpecialist,
   specialistLimitedEdit,
-  onNotification,
   onClose
 }) {
   const { translate } = useI18n();
@@ -50,7 +49,6 @@ function AppointmentPlannerPanel({
         currentUserId={currentUserId}
         restrictCreateToOwnSpecialist={restrictCreateToOwnSpecialist}
         specialistLimitedEdit={specialistLimitedEdit}
-        onNotification={onNotification}
       />
     </section>
   );
