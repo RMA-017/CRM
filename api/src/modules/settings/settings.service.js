@@ -46,6 +46,20 @@ function cloneOptionItems(items) {
   }));
 }
 
+function cloneServiceCatalogItems(items) {
+  return (Array.isArray(items) ? items : []).map((item) => ({
+    id: String(item?.id || "").trim(),
+    organizationId: String(item?.organizationId || "").trim(),
+    positionId: String(item?.positionId || "").trim(),
+    positionLabel: String(item?.positionLabel || "").trim(),
+    name: String(item?.name || "").trim(),
+    priceUzs: Number.parseInt(String(item?.priceUzs ?? 0), 10) || 0,
+    isActive: Boolean(item?.isActive),
+    createdAt: item?.createdAt ?? null,
+    updatedAt: item?.updatedAt ?? null
+  }));
+}
+
 function clonePermissionOptions(items) {
   return (Array.isArray(items) ? items : []).map((item) => ({
     id: String(item?.id || "").trim(),
@@ -92,6 +106,20 @@ function mapOption(row) {
     organizationId: String(row.organization_id || ""),
     isActive: Boolean(row.is_active),
     createdAt: row.created_at
+  };
+}
+
+function mapServiceCatalogItem(row) {
+  return {
+    id: String(row.id),
+    organizationId: String(row.organization_id || ""),
+    positionId: String(row.position_id || ""),
+    positionLabel: String(row.position_label || "").trim(),
+    name: String(row.name || "").trim(),
+    priceUzs: Number.parseInt(String(row.price_uzs ?? 0), 10) || 0,
+    isActive: Boolean(row.is_active),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
   };
 }
 
@@ -678,6 +706,179 @@ export async function deletePositionOptionById(id, organizationId) {
     clearSettingsReadCaches();
   }
   return result;
+}
+
+function normalizeServiceCatalogStatus(status) {
+  const normalized = String(status || "active").trim().toLowerCase();
+  return ["active", "inactive", "all"].includes(normalized) ? normalized : "active";
+}
+
+async function fetchServiceCatalogItems(organizationId, status = "active") {
+  const normalizedStatus = normalizeServiceCatalogStatus(status);
+  const params = [organizationId];
+  let statusSql = "";
+  if (normalizedStatus === "active") {
+    statusSql = "AND sc.is_active = TRUE";
+  } else if (normalizedStatus === "inactive") {
+    statusSql = "AND sc.is_active = FALSE";
+  }
+  const { rows } = await pool.query(
+    `SELECT
+       sc.id,
+       sc.organization_id,
+       sc.position_id,
+       p.label AS position_label,
+       sc.name,
+       sc.price_uzs,
+       sc.is_active,
+       sc.created_at,
+       sc.updated_at
+      FROM service_catalog sc
+      JOIN position_options p
+        ON p.organization_id = sc.organization_id
+       AND p.id = sc.position_id
+     WHERE sc.organization_id = $1
+       ${statusSql}
+     ORDER BY p.sort_order ASC, p.label ASC, sc.name ASC, sc.id ASC`,
+    params
+  );
+  return rows.map(mapServiceCatalogItem);
+}
+
+export async function listServiceCatalogForSettings(organizationId, status = "active") {
+  const normalizedStatus = normalizeServiceCatalogStatus(status);
+  const cacheKey = `services-settings|org:${organizationId}|status:${normalizedStatus}`;
+  const cached = settingsReadCache.get(cacheKey);
+  if (cached) {
+    return cloneServiceCatalogItems(cached);
+  }
+  const items = await fetchServiceCatalogItems(organizationId, normalizedStatus);
+  settingsReadCache.set(cacheKey, cloneServiceCatalogItems(items));
+  return items;
+}
+
+export async function listActiveServices(organizationId) {
+  const cacheKey = `services-active|org:${organizationId}`;
+  const cached = settingsReadCache.get(cacheKey);
+  if (cached) {
+    return cloneServiceCatalogItems(cached);
+  }
+  const items = await fetchServiceCatalogItems(organizationId, "active");
+  settingsReadCache.set(cacheKey, cloneServiceCatalogItems(items));
+  return items;
+}
+
+export async function getServiceCatalogItemById(id, organizationId) {
+  const { rows } = await pool.query(
+    `SELECT
+       sc.id,
+       sc.organization_id,
+       sc.position_id,
+       p.label AS position_label,
+       sc.name,
+       sc.price_uzs,
+       sc.is_active,
+       sc.created_at,
+       sc.updated_at
+      FROM service_catalog sc
+      JOIN position_options p
+        ON p.organization_id = sc.organization_id
+       AND p.id = sc.position_id
+     WHERE sc.id = $1
+       AND sc.organization_id = $2
+     LIMIT 1`,
+    [id, organizationId]
+  );
+  return rows[0] ? mapServiceCatalogItem(rows[0]) : null;
+}
+
+export async function createServiceCatalogItem({
+  organizationId,
+  positionId,
+  name,
+  priceUzs = 0,
+  isActive = true,
+  actorUserId = null
+}) {
+  const { rows } = await pool.query(
+    `INSERT INTO service_catalog (
+       organization_id,
+       position_id,
+       name,
+       price_uzs,
+       is_active,
+       created_by,
+       updated_by
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $6)
+     RETURNING id`,
+    [organizationId, positionId, name, priceUzs, isActive, actorUserId]
+  );
+  const item = rows[0] ? await getServiceCatalogItemById(rows[0].id, organizationId) : null;
+  if (item) {
+    clearSettingsReadCaches();
+  }
+  return item;
+}
+
+export async function updateServiceCatalogItem({
+  id,
+  organizationId,
+  positionId,
+  name,
+  priceUzs = 0,
+  isActive = true,
+  actorUserId = null
+}) {
+  const { rows } = await pool.query(
+    `UPDATE service_catalog
+        SET position_id = $1,
+            name = $2,
+            price_uzs = $3,
+            is_active = $4,
+            updated_by = $5,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id = $6
+        AND organization_id = $7
+      RETURNING id`,
+    [positionId, name, priceUzs, isActive, actorUserId, id, organizationId]
+  );
+  const item = rows[0] ? await getServiceCatalogItemById(rows[0].id, organizationId) : null;
+  if (item) {
+    clearSettingsReadCaches();
+  }
+  return item;
+}
+
+export async function deactivateServiceCatalogItemById(id, organizationId, actorUserId = null) {
+  const { rows } = await pool.query(
+    `UPDATE service_catalog
+        SET is_active = FALSE,
+            updated_by = $3,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+        AND organization_id = $2
+      RETURNING id`,
+    [id, organizationId, actorUserId]
+  );
+  const item = rows[0] ? await getServiceCatalogItemById(rows[0].id, organizationId) : null;
+  if (item) {
+    clearSettingsReadCaches();
+  }
+  return item;
+}
+
+export async function hasActiveServicesForPosition({ organizationId, positionId }) {
+  const { rows } = await pool.query(
+    `SELECT 1
+       FROM service_catalog
+      WHERE organization_id = $1
+        AND position_id = $2
+        AND is_active = TRUE
+      LIMIT 1`,
+    [organizationId, positionId]
+  );
+  return Boolean(rows[0]);
 }
 
 export const __settingsServiceContracts = Object.freeze({

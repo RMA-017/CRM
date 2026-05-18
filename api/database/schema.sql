@@ -515,6 +515,29 @@ CREATE INDEX idx_appointment_breaks_org_day
 CREATE UNIQUE INDEX uq_appointment_breaks_exact_slot
   ON appointment_breaks (organization_id, specialist_id, day_of_week, start_time, end_time, break_type);
 
+CREATE TABLE service_catalog (
+  id SERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  position_id INTEGER NOT NULL,
+  name VARCHAR(128) NOT NULL,
+  price_uzs INTEGER NOT NULL DEFAULT 0 CHECK (price_uzs >= 0),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT uq_service_catalog_org_id UNIQUE (organization_id, id),
+  CONSTRAINT fk_service_catalog_position_org
+    FOREIGN KEY (organization_id, position_id)
+    REFERENCES position_options(organization_id, id) ON DELETE RESTRICT
+);
+
+CREATE UNIQUE INDEX uq_service_catalog_org_name
+  ON service_catalog (organization_id, LOWER(TRIM(name)));
+
+CREATE INDEX idx_service_catalog_org_active_position
+  ON service_catalog (organization_id, is_active, position_id, name);
+
 CREATE TABLE appointment_schedules (
   id SERIAL PRIMARY KEY,
   organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -524,7 +547,9 @@ CREATE TABLE appointment_schedules (
   start_time TIME NOT NULL,
   end_time TIME NOT NULL,
   duration_minutes INTEGER NOT NULL CHECK (duration_minutes > 0),
+  service_id INTEGER,
   service_name VARCHAR(128) NOT NULL,
+  service_price_uzs INTEGER NOT NULL DEFAULT 0 CHECK (service_price_uzs >= 0),
   status VARCHAR(24) NOT NULL DEFAULT 'pending',
   note VARCHAR(255),
   repeat_group_key UUID,
@@ -544,6 +569,9 @@ CREATE TABLE appointment_schedules (
   CONSTRAINT fk_appointment_schedules_client_org
     FOREIGN KEY (organization_id, client_id)
     REFERENCES clients(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fk_appointment_schedules_service_org
+    FOREIGN KEY (organization_id, service_id)
+    REFERENCES service_catalog(organization_id, id) ON DELETE RESTRICT,
   CHECK (start_time < end_time),
   CHECK (duration_minutes = ((EXTRACT(EPOCH FROM (end_time - start_time)) / 60)::integer)),
   CHECK (status IN ('pending', 'confirmed', 'cancelled', 'no-show')),

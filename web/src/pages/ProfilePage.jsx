@@ -93,6 +93,7 @@ function ProfilePage({ forcedView = "none" }) {
     canSendSmsNotifications,
     canOpenCrm,
     canUpdateCrm,
+    canOpenServices,
     canOpenSettingsOrganizations,
     canCreateSettingsOrganizations,
     canUpdateSettingsOrganizations,
@@ -105,6 +106,10 @@ function ProfilePage({ forcedView = "none" }) {
     canCreateSettingsPositions,
     canUpdateSettingsPositions,
     canDeleteSettingsPositions,
+    canOpenSettingsServices,
+    canCreateSettingsServices,
+    canUpdateSettingsServices,
+    canDeleteSettingsServices,
     hasAppointmentsMenuAccess,
     hasUsersMenuAccess,
     hasSettingsMenuAccess,
@@ -644,6 +649,8 @@ function ProfilePage({ forcedView = "none" }) {
     openAllClientsPanel,
     openCrmPanel,
     closeCrmPanel,
+    openServicesPanel,
+    closeServicesPanel,
     closeAllClientsPanel,
     openAppointmentPanel,
     closeAppointmentPanel,
@@ -661,6 +668,8 @@ function ProfilePage({ forcedView = "none" }) {
     closeRolesPanel,
     openPositionsPanel,
     closePositionsPanel,
+    openSettingsServicesPanel,
+    closeSettingsServicesPanel,
     openMonitoringPanel,
     closeMonitoringPanel,
     openSiteContentPanel,
@@ -675,6 +684,7 @@ function ProfilePage({ forcedView = "none" }) {
     canCreateUsers,
     canReadClients,
     canOpenCrm,
+    canOpenServices,
     canOpenAppointmentSchedule,
     canOpenAppointmentStatistics,
     canOpenAppointmentSettings,
@@ -683,6 +693,7 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenSettingsOrganizations,
     canOpenSettingsRoles,
     canOpenSettingsPositions,
+    canOpenSettingsServices,
     canOpenSiteContent,
     hasAdminSettingsAccess
   });
@@ -1169,6 +1180,7 @@ function ProfilePage({ forcedView = "none" }) {
             openClientsDeleteModal={openClientsDeleteModal}
             closeAllClientsPanel={closeAllClientsPanel}
             closeCrmPanel={closeCrmPanel}
+            closeServicesPanel={closeServicesPanel}
             canUpdateCrm={canUpdateCrm}
             canReadAppointments={canReadAppointments}
             canCreateAppointments={canCreateAppointments}
@@ -1191,6 +1203,7 @@ function ProfilePage({ forcedView = "none" }) {
             closeOrganizationsPanel={closeOrganizationsPanel}
             closeRolesPanel={closeRolesPanel}
             closePositionsPanel={closePositionsPanel}
+            closeSettingsServicesPanel={closeSettingsServicesPanel}
             closeMonitoringPanel={closeMonitoringPanel}
             closeSiteContentPanel={closeSiteContentPanel}
             closeStatisticsPanel={closeStatisticsPanel}
@@ -1238,6 +1251,9 @@ function ProfilePage({ forcedView = "none" }) {
             canCreateSettingsPositions={canCreateSettingsPositions}
             canUpdateSettingsPositions={canUpdateSettingsPositions}
             canDeleteSettingsPositions={canDeleteSettingsPositions}
+            canCreateSettingsServices={canCreateSettingsServices}
+            canUpdateSettingsServices={canUpdateSettingsServices}
+            canDeleteSettingsServices={canDeleteSettingsServices}
             canCreateUsers={canCreateUsers}
             handleCreateUserSubmit={handleCreateUserSubmit}
             createForm={createForm}
@@ -1362,10 +1378,12 @@ function ProfilePage({ forcedView = "none" }) {
         canOpenAppointmentSettings={canOpenAppointmentSettings}
         canOpenTelegramBotSettings={canOpenTelegramBotSettings}
         canOpenSmsNotifications={canOpenSmsNotifications}
+        canOpenServices={canOpenServices}
         openAppointmentPanel={openAppointmentPanel}
         openAppointmentSettingsPanel={openAppointmentSettingsPanel}
         openTelegramBotSettingsPanel={openTelegramBotSettingsPanel}
         openSmsNotificationsPanel={openSmsNotificationsPanel}
+        openServicesPanel={openServicesPanel}
         hasUsersMenuAccess={hasUsersMenuAccess}
         canReadUsers={canReadUsers}
         closeMenu={closeMenu}
@@ -1375,9 +1393,11 @@ function ProfilePage({ forcedView = "none" }) {
         canOpenSettingsOrganizations={canOpenSettingsOrganizations}
         canOpenSettingsRoles={canOpenSettingsRoles}
         canOpenSettingsPositions={canOpenSettingsPositions}
+        canOpenSettingsServices={canOpenSettingsServices}
         openOrganizationsPanel={openOrganizationsPanel}
         openRolesPanel={openRolesPanel}
         openPositionsPanel={openPositionsPanel}
+        openSettingsServicesPanel={openSettingsServicesPanel}
         openMonitoringPanel={openMonitoringPanel}
         canOpenSiteContent={canOpenSiteContent}
         openSiteContentPanel={openSiteContentPanel}

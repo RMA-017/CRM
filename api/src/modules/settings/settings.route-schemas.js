@@ -58,6 +58,21 @@ const positionBodySchema = {
   }
 };
 
+const serviceBodySchema = {
+  type: "object",
+  additionalProperties: true,
+  required: ["positionId", "name"],
+  properties: {
+    positionId: positiveIntegerLikeSchema,
+    position_id: positiveIntegerLikeSchema,
+    name: { type: "string", minLength: 1, maxLength: 128 },
+    priceUzs: integerLikeSchema,
+    price_uzs: integerLikeSchema,
+    isActive: booleanLikeSchema,
+    is_active: booleanLikeSchema
+  }
+};
+
 export const settingsRouteSchemas = Object.freeze({
   idParams: {
     type: "object",
@@ -102,5 +117,14 @@ export const settingsRouteSchemas = Object.freeze({
   roleCreateBody: roleBodySchema,
   roleUpdateBody: roleBodySchema,
   positionCreateBody: positionBodySchema,
-  positionUpdateBody: positionBodySchema
+  positionUpdateBody: positionBodySchema,
+  servicesQuery: {
+    type: "object",
+    additionalProperties: true,
+    properties: {
+      status: { type: "string", enum: ["active", "inactive", "all"] }
+    }
+  },
+  serviceCreateBody: serviceBodySchema,
+  serviceUpdateBody: serviceBodySchema
 });

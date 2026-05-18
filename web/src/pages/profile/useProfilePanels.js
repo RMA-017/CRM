@@ -9,6 +9,7 @@ export function useProfilePanels({
   canCreateUsers,
   canReadClients,
   canOpenCrm,
+  canOpenServices,
   canOpenAppointmentSchedule,
   canOpenAppointmentStatistics,
   canOpenAppointmentSettings,
@@ -17,6 +18,7 @@ export function useProfilePanels({
   canOpenSettingsOrganizations,
   canOpenSettingsRoles,
   canOpenSettingsPositions,
+  canOpenSettingsServices,
   canOpenSiteContent,
   hasAdminSettingsAccess
 }) {
@@ -59,6 +61,14 @@ export function useProfilePanels({
 
   const closeCrmPanel = useCallback(() => {
     closePanel("crm");
+  }, [closePanel]);
+
+  const openServicesPanel = useCallback(() => {
+    openPanel("/services", canOpenServices);
+  }, [canOpenServices, openPanel]);
+
+  const closeServicesPanel = useCallback(() => {
+    closePanel("services");
   }, [closePanel]);
 
   const closeAllClientsPanel = useCallback(() => {
@@ -133,6 +143,14 @@ export function useProfilePanels({
     closePanel("settings-positions");
   }, [closePanel]);
 
+  const openSettingsServicesPanel = useCallback(() => {
+    openPanel("/settings/services", canOpenSettingsServices);
+  }, [canOpenSettingsServices, openPanel]);
+
+  const closeSettingsServicesPanel = useCallback(() => {
+    closePanel("settings-services");
+  }, [closePanel]);
+
   const openMonitoringPanel = useCallback(() => {
     openPanel("/admin-settings/monitoring", hasAdminSettingsAccess);
   }, [hasAdminSettingsAccess, openPanel]);
@@ -169,6 +187,8 @@ export function useProfilePanels({
     openAllClientsPanel,
     openCrmPanel,
     closeCrmPanel,
+    openServicesPanel,
+    closeServicesPanel,
     closeAllClientsPanel,
     openAppointmentPanel,
     closeAppointmentPanel,
@@ -186,6 +206,8 @@ export function useProfilePanels({
     closeRolesPanel,
     openPositionsPanel,
     closePositionsPanel,
+    openSettingsServicesPanel,
+    closeSettingsServicesPanel,
     openMonitoringPanel,
     closeMonitoringPanel,
     openSiteContentPanel,

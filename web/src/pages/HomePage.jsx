@@ -497,7 +497,9 @@ function HomePage() {
     canOpenSettingsOrganizations,
     canOpenSettingsRoles,
     canOpenSettingsPositions,
+    canOpenSettingsServices,
     canOpenCrm,
+    canOpenServices,
     hasUsersMenuAccess,
     canReadUsers,
     hasSettingsMenuAccess,
@@ -1420,6 +1422,8 @@ function HomePage() {
           openAllClientsPanel={() => navigateFromMenu("/clients/allclients")}
           canOpenCrm={canOpenCrm}
           openCrmPanel={() => navigateFromMenu("/crm")}
+          canOpenServices={canOpenServices}
+          openServicesPanel={() => navigateFromMenu("/services")}
           hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
           canOpenAppointmentSchedule={canOpenAppointmentSchedule}
           canOpenAppointmentStatistics={canOpenAppointmentStatistics}
@@ -1437,9 +1441,11 @@ function HomePage() {
           canOpenSettingsOrganizations={canOpenSettingsOrganizations}
           canOpenSettingsRoles={canOpenSettingsRoles}
           canOpenSettingsPositions={canOpenSettingsPositions}
+          canOpenSettingsServices={canOpenSettingsServices}
           openOrganizationsPanel={() => navigateFromMenu("/admin-settings/organizations")}
           openRolesPanel={() => navigateFromMenu("/settings/roles")}
           openPositionsPanel={() => navigateFromMenu("/settings/positions")}
+          openSettingsServicesPanel={() => navigateFromMenu("/settings/services")}
           openMonitoringPanel={() => navigateFromMenu("/admin-settings/monitoring")}
           canOpenSiteContent={canOpenSiteContent}
           openSiteContentPanel={(sectionKey = "kids") => navigateFromMenu(`/site/content?section=${sectionKey}`)}

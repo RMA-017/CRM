@@ -337,6 +337,22 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
     ]
   }),
   defineMenu({
+    key: "services",
+    label: "Services",
+    sortOrder: 72,
+    rootPermissionsLabel: "Services",
+    rootPermissions: [
+      definePermission({
+        constantKey: "SERVICES_READ",
+        code: "services.read",
+        label: "Read Services",
+        uiLabel: "Read",
+        sortOrder: 71,
+        actionKey: "read"
+      })
+    ]
+  }),
+  defineMenu({
     key: "website",
     label: "Website Management",
     sortOrder: 75,
@@ -535,6 +551,45 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
             label: "Delete Position Settings",
             uiLabel: "Delete",
             sortOrder: 85,
+            actionKey: "delete"
+          })
+        ]
+      }),
+      defineFeature({
+        key: "settings.services",
+        label: "Services",
+        sortOrder: 40,
+        permissions: [
+          definePermission({
+            constantKey: "SETTINGS_SERVICES_READ",
+            code: "settings.services.read",
+            label: "Read Service Settings",
+            uiLabel: "Read",
+            sortOrder: 86,
+            actionKey: "read"
+          }),
+          definePermission({
+            constantKey: "SETTINGS_SERVICES_CREATE",
+            code: "settings.services.create",
+            label: "Create Service Settings",
+            uiLabel: "Create",
+            sortOrder: 87,
+            actionKey: "create"
+          }),
+          definePermission({
+            constantKey: "SETTINGS_SERVICES_UPDATE",
+            code: "settings.services.update",
+            label: "Update Service Settings",
+            uiLabel: "Edit",
+            sortOrder: 88,
+            actionKey: "update"
+          }),
+          definePermission({
+            constantKey: "SETTINGS_SERVICES_DELETE",
+            code: "settings.services.delete",
+            label: "Delete Service Settings",
+            uiLabel: "Delete",
+            sortOrder: 89,
             actionKey: "delete"
           })
         ]

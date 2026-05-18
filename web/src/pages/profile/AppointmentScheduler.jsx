@@ -252,7 +252,9 @@ function createEmptyClientForm({
     appointmentDate,
     startTime,
     durationMinutes: String(durationMinutes || "30"),
+    serviceId: "",
     service: DEFAULT_APPOINTMENT_SERVICE_NAME,
+    servicePriceUzs: "0",
     status: "pending",
     note: "",
     editScope: "single",
@@ -262,6 +264,12 @@ function createEmptyClientForm({
       ? Array.from(new Set(repeatDays.map((day) => String(day || "").trim().toLowerCase()).filter((day) => DAY_KEYS_SET.has(day))))
       : []
   };
+}
+
+function formatServiceOptionLabel(item) {
+  const name = String(item?.name || "").trim();
+  const price = Number.parseInt(String(item?.priceUzs ?? 0), 10) || 0;
+  return price > 0 ? `${name} - ${price.toLocaleString("ru-RU")} UZS` : name;
 }
 
 function createEmptyClientSearchForm() {
@@ -1002,6 +1010,7 @@ function mapScheduleItemToPlannerCard(item) {
     clientFirstName: String(item?.clientFirstName || "").trim(),
     clientLastName: String(item?.clientLastName || "").trim(),
     clientMiddleName: String(item?.clientMiddleName || "").trim(),
+    serviceId: String(item?.serviceId || "").trim(),
     service: isRoutineItem
       ? (
         String(item?.serviceName || "").trim()
@@ -1009,6 +1018,7 @@ function mapScheduleItemToPlannerCard(item) {
         || "Daily routine"
       )
       : String(item?.serviceName || "").trim(),
+    servicePriceUzs: Number.parseInt(String(item?.servicePriceUzs ?? 0), 10) || 0,
     status: isRoutineItem
       ? "routine"
       : String(item?.status || "pending").trim().toLowerCase(),
@@ -2603,6 +2613,7 @@ function AppointmentScheduler({
   const [clientSearchMessage, setClientSearchMessage] = useState("");
   const [clientOptions, setClientOptions] = useState([]);
   const [clientMap, setClientMap] = useState({});
+  const [serviceOptions, setServiceOptions] = useState([]);
   const [settings, setSettings] = useState({
     slotInterval: "30",
     slotSubDivisions: "1",
@@ -2635,6 +2646,34 @@ function AppointmentScheduler({
   const currentPlannerStorageHydrationKey = normalizedCurrentUserId
     ? `${vipOnly ? "vip" : "planner"}:${normalizedCurrentUserId}`
     : "";
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const response = await apiFetch("/api/services");
+        const data = await readApiResponseData(response);
+        if (!active || !response.ok) {
+          return;
+        }
+        const items = Array.isArray(data?.items) ? data.items : [];
+        setServiceOptions(items.map((item) => ({
+          value: String(item?.id || ""),
+          label: formatServiceOptionLabel(item),
+          name: String(item?.name || "").trim(),
+          priceUzs: Number.parseInt(String(item?.priceUzs ?? 0), 10) || 0
+        })).filter((item) => item.value && item.name));
+      } catch {
+        if (active) {
+          setServiceOptions([]);
+        }
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   useEffect(() => {
     if (!normalizedCurrentUserId) {
       return;
@@ -3571,6 +3610,44 @@ function AppointmentScheduler({
   const clientSelectNotFound = clientSearchMessage === "No clients found.";
   const clientSelectHasError = Boolean(createErrors.clientId) || (clientSelectNotFound && !createForm.clientId);
   const selectedClient = createForm.clientId ? (clientMap[createForm.clientId] || null) : null;
+  const appointmentServiceSelectOptions = useMemo(() => {
+    const selectedServiceId = String(createForm.serviceId || "").trim();
+    const selectedServiceName = String(createForm.service || "").trim();
+    const hasSelectedService = selectedServiceId
+      && serviceOptions.some((option) => option.value === selectedServiceId);
+    if (!selectedServiceId || hasSelectedService || !selectedServiceName) {
+      return serviceOptions;
+    }
+    const selectedPrice = Number.parseInt(String(createForm.servicePriceUzs ?? 0), 10) || 0;
+    return [
+      {
+        value: selectedServiceId,
+        label: formatServiceOptionLabel({ name: selectedServiceName, priceUzs: selectedPrice }),
+        name: selectedServiceName,
+        priceUzs: selectedPrice
+      },
+      ...serviceOptions
+    ];
+  }, [createForm.service, createForm.serviceId, createForm.servicePriceUzs, serviceOptions]);
+
+  useEffect(() => {
+    if (!createModal.open || createModal.mode === "edit" || serviceOptions.length === 0) {
+      return;
+    }
+    const currentServiceId = String(createForm.serviceId || "").trim();
+    const currentService = String(createForm.service || "").trim();
+    if (currentServiceId && currentService) {
+      return;
+    }
+    const firstService = serviceOptions[0];
+    setCreateForm((prev) => ({
+      ...prev,
+      serviceId: firstService.value,
+      service: firstService.name,
+      servicePriceUzs: String(firstService.priceUzs ?? 0)
+    }));
+  }, [createForm.service, createForm.serviceId, createModal.mode, createModal.open, serviceOptions]);
+
   const clientSelectOptions = useMemo(() => {
     const currentId = String(createForm.clientId || "").trim();
     if (!currentId || !selectedClient) {
@@ -5125,7 +5202,9 @@ function AppointmentScheduler({
         appointmentDate,
         startTime,
         durationMinutes: nextDuration,
+        serviceId: String(existingItem?.serviceId || ""),
         service: String(existingItem?.service || DEFAULT_APPOINTMENT_SERVICE_NAME),
+        servicePriceUzs: String(existingItem?.servicePriceUzs ?? 0),
         status: String(existingItem?.status || "pending"),
         note: String(existingItem?.note || ""),
         editScope: isExistingRecurring ? "future" : "single",
@@ -6335,7 +6414,9 @@ function AppointmentScheduler({
         appointmentDate: String(createForm.appointmentDate || "").trim(),
         startTime: String(createForm.startTime || "").trim(),
         durationMinutes: String(createForm.durationMinutes || "").trim(),
+        serviceId: String(createForm.serviceId || "").trim(),
         service: String(createForm.service || "").trim(),
+        servicePriceUzs: String(createForm.servicePriceUzs ?? "0").trim(),
         status: String(createForm.status || "pending").trim().toLowerCase(),
         note: String(createForm.note || "").trim(),
         editScope: isSpecialistLimitedEditMode ? "single" : normalizeEditScopeValue(createForm.editScope),
@@ -6562,7 +6643,9 @@ function AppointmentScheduler({
         startTime,
         endTime,
         durationMinutes: String(durationMinutes),
+        serviceId: nextPayload.serviceId || undefined,
         service: nextPayload.service || DEFAULT_APPOINTMENT_SERVICE_NAME,
+        servicePriceUzs: nextPayload.servicePriceUzs || "0",
         status: nextPayload.status,
         note: nextPayload.note
       };
@@ -7806,15 +7889,27 @@ function AppointmentScheduler({
 
                     <div className="field">
                       <label htmlFor="appointmentCreateService">Service</label>
-                      <input
+                      <CustomSelect
                         id="appointmentCreateService"
-                        type="text"
-                        className={createErrors.service ? "input-error" : ""}
+                        placeholder="Select service"
                         value={createForm.service}
+                        options={appointmentServiceSelectOptions.map((option) => ({ ...option, value: option.name }))}
+                        searchable
+                        searchThreshold={1}
+                        emptyText="No services found."
+                        menuPortal
+                        forceOpenDown={!compactWeekRange}
+                        forceOpenUp={compactWeekRange}
+                        error={Boolean(createErrors.service)}
                         disabled={createSubmitting || createDeleting}
-                        onInput={(event) => {
-                          const nextValue = event.currentTarget.value;
-                          setCreateForm((prev) => ({ ...prev, service: nextValue }));
+                        onChange={(nextValue) => {
+                          const selected = appointmentServiceSelectOptions.find((option) => option.name === nextValue);
+                          setCreateForm((prev) => ({
+                            ...prev,
+                            serviceId: selected?.value || "",
+                            service: nextValue,
+                            servicePriceUzs: String(selected?.priceUzs ?? 0)
+                          }));
                           if (createErrors.service) {
                             setCreateErrors((prev) => ({ ...prev, service: "" }));
                           }
@@ -7904,15 +7999,27 @@ function AppointmentScheduler({
 
                     <div className="field">
                       <label htmlFor="appointmentCreateService">Service</label>
-                      <input
+                      <CustomSelect
                         id="appointmentCreateService"
-                        type="text"
-                        className={createErrors.service ? "input-error" : ""}
+                        placeholder="Select service"
                         value={createForm.service}
+                        options={appointmentServiceSelectOptions.map((option) => ({ ...option, value: option.name }))}
+                        searchable
+                        searchThreshold={1}
+                        emptyText="No services found."
+                        menuPortal
+                        forceOpenDown={!compactWeekRange}
+                        forceOpenUp={compactWeekRange}
+                        error={Boolean(createErrors.service)}
                         disabled={createSubmitting || createDeleting}
-                        onInput={(event) => {
-                          const nextValue = event.currentTarget.value;
-                          setCreateForm((prev) => ({ ...prev, service: nextValue }));
+                        onChange={(nextValue) => {
+                          const selected = appointmentServiceSelectOptions.find((option) => option.name === nextValue);
+                          setCreateForm((prev) => ({
+                            ...prev,
+                            serviceId: selected?.value || "",
+                            service: nextValue,
+                            servicePriceUzs: String(selected?.priceUzs ?? 0)
+                          }));
                           if (createErrors.service) {
                             setCreateErrors((prev) => ({ ...prev, service: "" }));
                           }

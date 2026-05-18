@@ -11,12 +11,6 @@ const DAYS = [
   { key: "sun", dayOfWeek: "7", label: "Sun" }
 ];
 
-const REMINDER_CHANNEL_OPTIONS = [
-  { key: "sms", label: "SMS" },
-  { key: "email", label: "Email" },
-  { key: "telegram", label: "Telegram" }
-];
-
 function createDefaultForm() {
   return {
     slotInterval: "",
@@ -26,9 +20,7 @@ function createDefaultForm() {
     appointmentDurationOptions: "",
     visibleWeekDays: [],
     workingHours: null,
-    noShowThreshold: "1",
-    reminderHours: "",
-    reminderChannels: []
+    noShowThreshold: "1"
   };
 }
 
@@ -75,9 +67,7 @@ function mapSettingsItemToForm(source) {
     workingHours: normalizedSource.workingHours && typeof normalizedSource.workingHours === "object"
       ? normalizedSource.workingHours
       : null,
-    noShowThreshold: String(normalizedSource.noShowThreshold ?? "1"),
-    reminderHours: String(normalizedSource.reminderHours ?? ""),
-    reminderChannels: normalizeReminderChannels(normalizedSource.reminderChannels)
+    noShowThreshold: String(normalizedSource.noShowThreshold ?? "1")
   };
 }
 
@@ -137,15 +127,6 @@ function parseNonNegativeIntegerField(value, {
     return { ok: false, message: `${fieldLabel} must be 0 or more.` };
   }
   return { ok: true, value: parsed };
-}
-
-function normalizeReminderChannels(value) {
-  const normalized = Array.isArray(value)
-    ? value
-        .map((channel) => String(channel || "").trim().toLowerCase())
-        .filter((channel) => REMINDER_CHANNEL_OPTIONS.some((option) => option.key === channel))
-    : [];
-  return normalized.length > 0 ? normalized : [];
 }
 
 function withDefaultWeeklyTimes(row, nextStartTime, nextEndTime) {
@@ -251,23 +232,6 @@ function AppointmentSettingsPanel({
     });
   }
 
-  function handleReminderChannelToggle(channelKey, checked) {
-    setForm((prev) => {
-      const current = new Set(Array.isArray(prev?.reminderChannels) ? prev.reminderChannels : []);
-      if (checked) {
-        current.add(channelKey);
-      } else {
-        current.delete(channelKey);
-      }
-      return {
-        ...(prev || createDefaultForm()),
-        reminderChannels: Array.from(current).filter((item) => (
-          REMINDER_CHANNEL_OPTIONS.some((option) => option.key === item)
-        ))
-      };
-    });
-  }
-
   async function handleSave(event) {
     event.preventDefault();
     if (!form || saving || !canUpdateSettingsAppointments || !currentOrganizationId) {
@@ -325,15 +289,6 @@ function AppointmentSettingsPanel({
         return;
       }
 
-      const reminderHoursResult = parsePositiveIntegerField(form.reminderHours, {
-        fieldLabel: "Reminder hours",
-        min: 1
-      });
-      if (!reminderHoursResult.ok) {
-        setMessage(reminderHoursResult.message);
-        return;
-      }
-
       const payload = {
         organizationId: currentOrganizationId,
         slotInterval: slotIntervalResult.value,
@@ -343,8 +298,8 @@ function AppointmentSettingsPanel({
         appointmentDurationOptions: durationOptions,
         visibleWeekDays: form.visibleWeekDays,
         noShowThreshold: Number.parseInt(String(form.noShowThreshold || "1").trim(), 10) || 1,
-        reminderHours: reminderHoursResult.value,
-        reminderChannels: Array.isArray(form.reminderChannels) ? form.reminderChannels : [],
+        reminderHours: 24,
+        reminderChannels: ["sms", "email", "telegram"],
         defaultWeeklyItems: (Array.isArray(defaultWeeklyRows) ? defaultWeeklyRows : []).map((row) => {
           const startTime = String(row?.startTime || "").trim();
           const endTime = String(row?.endTime || "").trim();
@@ -447,7 +402,7 @@ function AppointmentSettingsPanel({
       </div>
 
       <div className="appointment-setting-row">
-        <label htmlFor="appointmentDurationInput">5. Appointment Durations</label>
+        <label htmlFor="appointmentDurationInput">4. Appointment Durations</label>
         <div className="appointment-setting-inline">
           <input
             id="appointmentDurationInput"
@@ -463,7 +418,7 @@ function AppointmentSettingsPanel({
       </div>
 
       <div className="appointment-setting-row">
-        <label>6. Visible Week Days</label>
+        <label>5. Visible Week Days</label>
         <div className="appointment-reminder-channels">
           {DAYS.map((day) => (
             <label key={day.key} htmlFor={`appointmentDay_${day.key}`}>
@@ -480,38 +435,9 @@ function AppointmentSettingsPanel({
         </div>
       </div>
 
-      <div className="appointment-setting-row">
-        <label>7. Reminder Settings</label>
-        <div className="appointment-setting-inline appointment-reminder-settings-inline">
-          <input
-            id="appointmentReminderHoursInput"
-            type="number"
-            min="1"
-            value={form.reminderHours}
-            disabled={!canUpdateSettingsAppointments}
-            onChange={(event) => handleFormField("reminderHours", event.currentTarget.value)}
-          />
-          <span>hours before appointment</span>
-          <div className="appointment-reminder-channels">
-            {REMINDER_CHANNEL_OPTIONS.map((channel) => (
-              <label key={channel.key} htmlFor={`appointmentReminderChannel_${channel.key}`}>
-                <input
-                  id={`appointmentReminderChannel_${channel.key}`}
-                  type="checkbox"
-                  checked={Array.isArray(form.reminderChannels) && form.reminderChannels.includes(channel.key)}
-                  disabled={!canUpdateSettingsAppointments}
-                  onChange={(event) => handleReminderChannelToggle(channel.key, event.currentTarget.checked)}
-                />
-                {channel.label}
-              </label>
-            ))}
-          </div>
-        </div>
-      </div>
-
       <div className="appointment-settings-form ws-default-form">
         <div className="appointment-setting-row">
-          <label>9. Default Weekly Schedule</label>
+          <label>6. Default Weekly Schedule</label>
           <div className="ws-default-group-body">
             {defaultWeeklyRows.map((row, index) => (
               <div className="ws-default-day-row" key={`defaultWeeklyRow_${row.dayOfWeek}`}>
@@ -557,7 +483,7 @@ function AppointmentSettingsPanel({
       </div>
 
       <div className="appointment-setting-row">
-        <label htmlFor="historyLockDaysInput">10. History Lock (days)</label>
+        <label htmlFor="historyLockDaysInput">7. History Lock (days)</label>
         <div className="appointment-setting-inline">
           <input
             id="historyLockDaysInput"

@@ -95,6 +95,14 @@ function normalizeScheduleCompareStatus(value) {
   return normalizeScheduleCompareText(value).toLowerCase();
 }
 
+function parseNonNegativeIntegerOr(value, fallback = 0) {
+  if (value == null || String(value).trim() === "") {
+    return fallback;
+  }
+  const parsed = Number.parseInt(String(value).trim(), 10);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
 function isScheduleItemChangedByPayload(item, {
   specialistId,
   clientId,
@@ -103,6 +111,8 @@ function isScheduleItemChangedByPayload(item, {
   endTime,
   durationMinutes,
   serviceName,
+  serviceId = null,
+  servicePriceUzs = 0,
   status,
   note,
   applyAppointmentDate = true,
@@ -117,7 +127,9 @@ function isScheduleItemChangedByPayload(item, {
     || normalizeScheduleCompareText(item?.startTime) !== normalizeScheduleCompareText(startTime)
     || normalizeScheduleCompareText(item?.endTime) !== normalizeScheduleCompareText(endTime)
     || previousDurationMinutes !== durationMinutes
+    || (Number.parseInt(String(item?.serviceId || ""), 10) || null) !== (serviceId || null)
     || normalizeScheduleCompareText(item?.serviceName) !== normalizeScheduleCompareText(serviceName)
+    || (Number.parseInt(String(item?.servicePriceUzs ?? 0), 10) || 0) !== (servicePriceUzs || 0)
     || normalizeScheduleCompareStatus(item?.status) !== normalizeScheduleCompareStatus(status)
     || normalizeScheduleCompareText(item?.note) !== normalizeScheduleCompareText(note)
   );
@@ -131,6 +143,8 @@ function isScheduleItemStructureChangedByPayload(item, {
   endTime,
   durationMinutes,
   serviceName,
+  serviceId = null,
+  servicePriceUzs = 0,
   applyAppointmentDate = true,
   getDurationMinutesFromTimes: resolveDurationMinutes
 }) {
@@ -143,7 +157,9 @@ function isScheduleItemStructureChangedByPayload(item, {
     || normalizeScheduleCompareText(item?.startTime) !== normalizeScheduleCompareText(startTime)
     || normalizeScheduleCompareText(item?.endTime) !== normalizeScheduleCompareText(endTime)
     || previousDurationMinutes !== durationMinutes
+    || (Number.parseInt(String(item?.serviceId || ""), 10) || null) !== (serviceId || null)
     || normalizeScheduleCompareText(item?.serviceName) !== normalizeScheduleCompareText(serviceName)
+    || (Number.parseInt(String(item?.servicePriceUzs ?? 0), 10) || 0) !== (servicePriceUzs || 0)
   );
 }
 
@@ -554,10 +570,12 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     appointmentDate,
     startTime,
     endTime,
-    durationMinutes,
-    serviceName,
-    getDurationMinutesFromTimes: resolveDurationMinutes
-  }) {
+  durationMinutes,
+  serviceName,
+  serviceId = null,
+  servicePriceUzs = 0,
+  getDurationMinutesFromTimes: resolveDurationMinutes
+}) {
     if (!target?.isRecurring || target?.scope === "single" || !repeat?.enabled) {
       return { lightweight: false, items: [] };
     }
@@ -581,6 +599,8 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
       endTime,
       durationMinutes,
       serviceName,
+      serviceId,
+      servicePriceUzs,
       applyAppointmentDate: false,
       getDurationMinutesFromTimes: resolveDurationMinutes
     }));
@@ -1124,6 +1144,8 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const requestedDurationMinutes = parsePositiveIntegerOr(request.body?.durationMinutes, 0);
         const durationMinutes = requestedDurationMinutes || getDurationMinutesFromTimes(startTime, endTime);
         const serviceName = String(request.body?.service || request.body?.serviceName || "").trim();
+        const serviceId = parsePositiveIntegerOr(request.body?.serviceId ?? request.body?.service_id, 0) || null;
+        const servicePriceUzs = parseNonNegativeIntegerOr(request.body?.servicePriceUzs ?? request.body?.service_price_uzs, 0);
         const status = normalizeAppointmentStatus(request.body?.status || "pending");
         const note = String(request.body?.note || "").trim();
         let repeat = normalizeScheduleRepeatPayload(request.body?.repeat);
@@ -1145,7 +1167,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           startTime,
           endTime,
           durationMinutes,
+          serviceId,
           serviceName,
+          servicePriceUzs,
           status,
           note
         });
@@ -1397,7 +1421,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                   startTime,
                   endTime,
                   durationMinutes,
+                  serviceId,
                   serviceName,
+                  servicePriceUzs,
                   status,
                   note,
                   repeatGroupKey,
@@ -1595,7 +1621,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           startTime,
           endTime,
           durationMinutes,
+          serviceId,
           serviceName,
+          servicePriceUzs,
           status,
           note
         });
@@ -1694,6 +1722,8 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const requestedDurationMinutes = parsePositiveIntegerOr(request.body?.durationMinutes, 0);
         const durationMinutes = requestedDurationMinutes || getDurationMinutesFromTimes(startTime, endTime);
         const serviceName = String(request.body?.service || request.body?.serviceName || "").trim();
+        const serviceId = parsePositiveIntegerOr(request.body?.serviceId ?? request.body?.service_id, 0) || null;
+        const servicePriceUzs = parseNonNegativeIntegerOr(request.body?.servicePriceUzs ?? request.body?.service_price_uzs, 0);
         const status = normalizeAppointmentStatus(request.body?.status || "pending");
         const note = String(request.body?.note || "").trim();
         let repeat = normalizeScheduleRepeatPayload(request.body?.repeat);
@@ -1792,7 +1822,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             startTime,
             endTime,
             durationMinutes,
+            serviceId,
             serviceName,
+            servicePriceUzs,
             status,
             note,
             applyAppointmentDate: true,
@@ -2012,7 +2044,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               startTime,
               endTime,
               durationMinutes,
+              serviceId,
               serviceName,
+              servicePriceUzs,
               status,
               note,
               repeatGroupKey,
@@ -2184,7 +2218,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                   startTime,
                   endTime,
                   durationMinutes,
+                  serviceId,
                   serviceName,
+                  servicePriceUzs,
                   status,
                   note,
                   repeatGroupKey,
@@ -2279,7 +2315,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               startTime,
               endTime,
               durationMinutes,
+              serviceId,
               serviceName,
+              servicePriceUzs,
               status,
               note,
               applyAppointmentDate: true,
@@ -2300,7 +2338,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                   startTime: seriesItem.startTime,
                   endTime: seriesItem.endTime,
                   durationMinutes: seriesItem.durationMinutes,
+                  serviceId: seriesItem.serviceId,
                   serviceName: seriesItem.serviceName,
+                  servicePriceUzs: seriesItem.servicePriceUzs,
                   status: seriesItem.status,
                   note: seriesItem.note,
                   repeatGroupKey: nextSeriesRepeatGroupKey,
@@ -2342,7 +2382,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           startTime,
           endTime,
           durationMinutes,
+          serviceId,
           serviceName,
+          servicePriceUzs,
           getDurationMinutesFromTimes
         });
         if (recurringLightweightUpdate.lightweight) {
@@ -2355,7 +2397,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             startTime,
             endTime,
             durationMinutes,
+            serviceId,
             serviceName,
+            servicePriceUzs,
             status,
             note,
             applyAppointmentDate,
@@ -2388,7 +2432,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             startTime,
             endTime,
             durationMinutes,
+            serviceId,
             serviceName,
+            servicePriceUzs,
             status,
             note,
             applyAppointmentDate
@@ -2601,7 +2647,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                       startTime: previousItem.startTime,
                       endTime: previousItem.endTime,
                       durationMinutes: previousItem.durationMinutes,
+                      serviceId: previousItem.serviceId,
                       serviceName: previousItem.serviceName,
+                      servicePriceUzs: previousItem.servicePriceUzs,
                       status: previousItem.status,
                       note: previousItem.note,
                       repeatGroupKey: String(target.repeatGroupKey || "").trim(),
@@ -2633,7 +2681,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                       startTime: remainingItem.startTime,
                       endTime: remainingItem.endTime,
                       durationMinutes: remainingItem.durationMinutes,
+                      serviceId: remainingItem.serviceId,
                       serviceName: remainingItem.serviceName,
+                      servicePriceUzs: remainingItem.servicePriceUzs,
                       status: remainingItem.status,
                       note: remainingItem.note,
                       repeatGroupKey: remainingContinuationGroupKey,
@@ -2659,7 +2709,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                     startTime,
                     endTime,
                     durationMinutes,
+                    serviceId,
                     serviceName,
+                    servicePriceUzs,
                     status,
                     note,
                     repeatGroupKey: splitRepeatGroupKey,
@@ -2685,7 +2737,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                     startTime,
                     endTime,
                     durationMinutes,
+                    serviceId,
                     serviceName,
+                    servicePriceUzs,
                     status,
                     note,
                     repeatGroupKey: splitRepeatGroupKey,
@@ -2781,7 +2835,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                   startTime: previousItem.startTime,
                   endTime: previousItem.endTime,
                   durationMinutes: previousItem.durationMinutes,
+                  serviceId: previousItem.serviceId,
                   serviceName: previousItem.serviceName,
+                  servicePriceUzs: previousItem.servicePriceUzs,
                   status: previousItem.status,
                   note: previousItem.note,
                   repeatGroupKey: String(target.repeatGroupKey || "").trim(),
@@ -2807,7 +2863,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                 startTime,
                 endTime,
                 durationMinutes,
+                serviceId,
                 serviceName,
+                servicePriceUzs,
                 status,
                 note,
                 repeatGroupKey: nextRepeatGroupKey,
@@ -2833,7 +2891,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                 startTime,
                 endTime,
                 durationMinutes,
+                serviceId,
                 serviceName,
+                servicePriceUzs,
                 status,
                 note,
                 repeatGroupKey: nextRepeatGroupKey,
@@ -2885,7 +2945,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           startTime,
           endTime,
           durationMinutes,
+          serviceId,
           serviceName,
+          servicePriceUzs,
           status,
           note,
           applyAppointmentDate,
@@ -3104,7 +3166,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           startTime,
           endTime,
           durationMinutes,
+          serviceId,
           serviceName,
+          servicePriceUzs,
           status,
           note,
           applyAppointmentDate
@@ -3297,7 +3361,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                       startTime: previousItem.startTime,
                       endTime: previousItem.endTime,
                       durationMinutes: previousItem.durationMinutes,
+                      serviceId: previousItem.serviceId,
                       serviceName: previousItem.serviceName,
+                      servicePriceUzs: previousItem.servicePriceUzs,
                       status: previousItem.status,
                       note: previousItem.note,
                       repeatGroupKey: String(target.repeatGroupKey || "").trim(),
@@ -3330,7 +3396,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                       startTime: remainingItem.startTime,
                       endTime: remainingItem.endTime,
                       durationMinutes: remainingItem.durationMinutes,
+                      serviceId: remainingItem.serviceId,
                       serviceName: remainingItem.serviceName,
+                      servicePriceUzs: remainingItem.servicePriceUzs,
                       status: remainingItem.status,
                       note: remainingItem.note,
                       repeatGroupKey: remainingFutureGroupKey,
@@ -3433,7 +3501,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
                   startTime: previousItem.startTime,
                   endTime: previousItem.endTime,
                   durationMinutes: previousItem.durationMinutes,
+                  serviceId: previousItem.serviceId,
                   serviceName: previousItem.serviceName,
+                  servicePriceUzs: previousItem.servicePriceUzs,
                   status: previousItem.status,
                   note: previousItem.note,
                   repeatGroupKey: String(target.repeatGroupKey || "").trim(),

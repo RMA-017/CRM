@@ -18,6 +18,8 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
   openAllClientsPanel,
   canOpenCrm,
   openCrmPanel,
+  canOpenServices,
+  openServicesPanel,
   hasAppointmentsMenuAccess,
   canOpenAppointmentSchedule,
   canOpenAppointmentSettings,
@@ -36,9 +38,11 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
   canOpenSettingsOrganizations,
   canOpenSettingsRoles,
   canOpenSettingsPositions,
+  canOpenSettingsServices,
   openOrganizationsPanel,
   openRolesPanel,
   openPositionsPanel,
+  openSettingsServicesPanel,
   openMonitoringPanel,
   canOpenSiteContent,
   openSiteContentPanel
@@ -237,6 +241,16 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
             CRM
           </button>
 
+          <button
+            id="openServicesBtn"
+            type="button"
+            className="side-menu-action side-menu-parent"
+            hidden={!canOpenServices}
+            onClick={openServicesPanel}
+          >
+            Services
+          </button>
+
           <div id="siteMenuGroup" className="side-menu-group" hidden={!canOpenSiteContent}>
             <button
               id="toggleSiteMenuBtn"
@@ -376,6 +390,15 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 onClick={openPositionsPanel}
               >
                 Positions
+              </button>
+              <button
+                id="openSettingsServicesBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                hidden={!canOpenSettingsServices}
+                onClick={openSettingsServicesPanel}
+              >
+                Services
               </button>
             </div>
           </div>

@@ -54,6 +54,7 @@ export function useProfileAccess(profile, forcedView) {
   const canDeleteSiteContentPermission = hasPermissionCode(PERMISSIONS.WEBSITE_MANAGEMENT_DELETE);
   const canReadCrmLeadsPermission = hasPermissionCode(PERMISSIONS.CRM_LEADS_READ);
   const canUpdateCrmLeadsPermission = hasPermissionCode(PERMISSIONS.CRM_LEADS_UPDATE);
+  const canReadServicesPermission = hasPermissionCode(PERMISSIONS.SERVICES_READ);
 
   const canReadSettingsAppointmentsPermission = hasPermissionCode(PERMISSIONS.SETTINGS_APPOINTMENTS_READ);
   const canUpdateSettingsAppointmentsPermission = hasPermissionCode(PERMISSIONS.SETTINGS_APPOINTMENTS_UPDATE);
@@ -69,6 +70,10 @@ export function useProfileAccess(profile, forcedView) {
   const canCreateSettingsPositionsPermission = hasPermissionCode(PERMISSIONS.SETTINGS_POSITIONS_CREATE);
   const canUpdateSettingsPositionsPermission = hasPermissionCode(PERMISSIONS.SETTINGS_POSITIONS_UPDATE);
   const canDeleteSettingsPositionsPermission = hasPermissionCode(PERMISSIONS.SETTINGS_POSITIONS_DELETE);
+  const canReadSettingsServicesPermission = hasPermissionCode(PERMISSIONS.SETTINGS_SERVICES_READ);
+  const canCreateSettingsServicesPermission = hasPermissionCode(PERMISSIONS.SETTINGS_SERVICES_CREATE);
+  const canUpdateSettingsServicesPermission = hasPermissionCode(PERMISSIONS.SETTINGS_SERVICES_UPDATE);
+  const canDeleteSettingsServicesPermission = hasPermissionCode(PERMISSIONS.SETTINGS_SERVICES_DELETE);
 
   const usesAdvancedMenuPermissions = (
     canOpenPlannerPermission
@@ -99,6 +104,12 @@ export function useProfileAccess(profile, forcedView) {
     || canCreateSettingsPositionsPermission
     || canUpdateSettingsPositionsPermission
     || canDeleteSettingsPositionsPermission
+  );
+  const hasExplicitServiceSettingsPermissions = (
+    canReadSettingsServicesPermission
+    || canCreateSettingsServicesPermission
+    || canUpdateSettingsServicesPermission
+    || canDeleteSettingsServicesPermission
   );
 
   const canReadSettingsAppointments = hasExplicitAppointmentSettingsPermissions
@@ -137,10 +148,23 @@ export function useProfileAccess(profile, forcedView) {
   const canDeleteSettingsPositions = hasExplicitPositionSettingsPermissions
     ? canDeleteSettingsPositionsPermission
     : legacyHasSettingsAccess;
+  const canReadSettingsServices = hasExplicitServiceSettingsPermissions
+    ? canReadSettingsServicesPermission
+    : legacyHasSettingsAccess;
+  const canCreateSettingsServices = hasExplicitServiceSettingsPermissions
+    ? canCreateSettingsServicesPermission
+    : legacyHasSettingsAccess;
+  const canUpdateSettingsServices = hasExplicitServiceSettingsPermissions
+    ? canUpdateSettingsServicesPermission
+    : legacyHasSettingsAccess;
+  const canDeleteSettingsServices = hasExplicitServiceSettingsPermissions
+    ? canDeleteSettingsServicesPermission
+    : legacyHasSettingsAccess;
 
   const hasClientsMenuAccess = canReadClients;
   const canOpenCrm = canReadCrmLeadsPermission || canUpdateCrmLeadsPermission;
   const canUpdateCrm = canUpdateCrmLeadsPermission;
+  const canReadServices = canReadServicesPermission || canReadSettingsServices;
   const hasUsersMenuAccess = canReadUsers || canCreateUsers;
 
   const canOpenAppointmentSchedule = canReadAppointments && (
@@ -173,6 +197,8 @@ export function useProfileAccess(profile, forcedView) {
   const canDeleteSettingsOrganizations = isPlatformAdmin;
   const canOpenSettingsRoles = canReadSettingsRoles;
   const canOpenSettingsPositions = canReadSettingsPositions;
+  const canOpenSettingsServices = canReadSettingsServices;
+  const canOpenServices = canReadServices;
   const canOpenAppointmentSettings = canReadSettingsAppointments;
   const canOpenTelegramBotSettings = canReadSettingsTelegramBot;
   const canOpenSmsNotifications = canReadSmsNotificationsPermission || canSendSmsNotificationsPermission;
@@ -186,6 +212,7 @@ export function useProfileAccess(profile, forcedView) {
     || canOpenTelegramBotSettings
     || canOpenSettingsRoles
     || canOpenSettingsPositions
+    || canOpenSettingsServices
   );
   const hasAdminSettingsAccess = isPlatformAdmin;
   const hasExplicitSiteContentPermissions = (
@@ -228,6 +255,9 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "crm") {
       return canOpenCrm;
     }
+    if (forcedView === "services") {
+      return canOpenServices;
+    }
     if (forcedView === "appointment") {
       return canOpenAppointmentSchedule;
     }
@@ -252,6 +282,9 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "settings-positions") {
       return canOpenSettingsPositions;
     }
+    if (forcedView === "settings-services") {
+      return canOpenSettingsServices;
+    }
     if (forcedView === "statistics" || forcedView === "statistics-planner-report") {
       return canOpenStatisticsPlannerReport;
     }
@@ -268,6 +301,8 @@ export function useProfileAccess(profile, forcedView) {
     canOpenCrm,
     canOpenSettingsOrganizations,
     canOpenSettingsPositions,
+    canOpenSettingsServices,
+    canOpenServices,
     canOpenSettingsRoles,
     canOpenStatisticsPlannerReport,
     canReadSiteContent,
@@ -322,6 +357,8 @@ export function useProfileAccess(profile, forcedView) {
     canSendSmsNotifications,
     canOpenCrm,
     canUpdateCrm,
+    canReadServices,
+    canOpenServices,
     canOpenSettingsOrganizations,
     canCreateSettingsOrganizations,
     canUpdateSettingsOrganizations,
@@ -336,6 +373,11 @@ export function useProfileAccess(profile, forcedView) {
     canCreateSettingsPositions,
     canUpdateSettingsPositions,
     canDeleteSettingsPositions,
+    canOpenSettingsServices,
+    canReadSettingsServices,
+    canCreateSettingsServices,
+    canUpdateSettingsServices,
+    canDeleteSettingsServices,
     hasAppointmentsMenuAccess,
     hasUsersMenuAccess,
     hasSettingsMenuAccess,

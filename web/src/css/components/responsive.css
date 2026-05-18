@@ -50,6 +50,12 @@
 }
 
 @media (max-width: 860px) {
+  .settings-inline-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 860px) {
   /* Layout shell */
   body {
     padding: 10px 5px;

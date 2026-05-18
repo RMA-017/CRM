@@ -13,6 +13,7 @@ const PROFILE_VIEW_ROUTES = Object.freeze([
   { path: "/users/create", forcedView: "create-user" },
   { path: "/clients/allclients", forcedView: "clients-all" },
   { path: "/crm", forcedView: "crm" },
+  { path: "/services", forcedView: "services" },
   { path: "/appointments/planner", forcedView: "appointment" },
   { path: "/sms-xabarnoma", forcedView: "sms-notifications" },
   { path: "/settings/appointments", forcedView: "appointment-settings" },
@@ -21,6 +22,7 @@ const PROFILE_VIEW_ROUTES = Object.freeze([
   { path: "/admin-settings/organizations", forcedView: "settings-organizations" },
   { path: "/settings/roles", forcedView: "settings-roles" },
   { path: "/settings/positions", forcedView: "settings-positions" },
+  { path: "/settings/services", forcedView: "settings-services" },
   { path: "/admin-settings/monitoring", forcedView: "settings-monitoring" },
   { path: "/site/content", forcedView: "site-content" }
 ]);
@@ -56,6 +58,7 @@ const REDIRECT_ROUTE_GROUPS = Object.freeze([
   },
   { to: "/users/allusers", paths: ["/profile/users/allusers"] },
   { to: "/crm", paths: ["/profile/crm", "/crm/leads"] },
+  { to: "/services", paths: ["/profile/services"] },
   { to: "/users/create", paths: ["/profile/users/create"] },
   { to: "/appointments/planner", paths: ["/appointments/breaks", "/profile/appointments/breaks"] },
   { to: "/appointments/planner", paths: ["/appointments/specialist-absences", "/profile/appointments/specialist-absences"] },
@@ -66,6 +69,7 @@ const REDIRECT_ROUTE_GROUPS = Object.freeze([
   { to: "/statistics/planner-report", paths: ["/profile/statistics/planner-report"] },
   { to: "/settings/roles", paths: ["/profile/settings/roles"] },
   { to: "/settings/positions", paths: ["/profile/settings/positions"] },
+  { to: "/settings/services", paths: ["/profile/settings/services"] },
   { to: "/site/content", paths: ["/profile/site/content", "/site"] },
   { to: "/", paths: ["/home"] }
 ]);

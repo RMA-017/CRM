@@ -156,17 +156,21 @@ test("settings routes expose stable contract", async () => {
     "DELETE /organizations/:id",
     "DELETE /positions/:id",
     "DELETE /roles/:id",
+    "DELETE /services/:id",
     "GET /admin-options",
     "GET /organizations",
     "GET /positions",
     "GET /roles",
+    "GET /services",
     "PATCH /admin-options",
     "PATCH /organizations/:id",
     "PATCH /positions/:id",
     "PATCH /roles/:id",
+    "PATCH /services/:id",
     "POST /organizations",
     "POST /positions",
-    "POST /roles"
+    "POST /roles",
+    "POST /services"
   ]);
 
   const organizationsPost = findRoute(recorder.routes, "POST", "/organizations");
@@ -186,6 +190,13 @@ test("settings routes expose stable contract", async () => {
   const positionsPatch = findRoute(recorder.routes, "PATCH", "/positions/:id");
   assert.equal(typeof positionsPatch?.options?.schema?.params, "object");
   assert.equal(typeof positionsPatch?.options?.schema?.body, "object");
+
+  const servicesGet = findRoute(recorder.routes, "GET", "/services");
+  assert.equal(typeof servicesGet?.options?.schema?.querystring, "object");
+
+  const servicesPatch = findRoute(recorder.routes, "PATCH", "/services/:id");
+  assert.equal(typeof servicesPatch?.options?.schema?.params, "object");
+  assert.equal(typeof servicesPatch?.options?.schema?.body, "object");
 
 });
 

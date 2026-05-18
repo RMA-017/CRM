@@ -11,6 +11,8 @@ const OrganizationsSettingsPanel = lazy(() => import("./panels/OrganizationsSett
 const PositionsSettingsPanel = lazy(() => import("./panels/PositionsSettingsPanel.jsx"));
 const ProfileEntityModals = lazy(() => import("./panels/ProfileEntityModals.jsx"));
 const RolesSettingsPanel = lazy(() => import("./panels/RolesSettingsPanel.jsx"));
+const ServicesPanel = lazy(() => import("./panels/ServicesPanel.jsx"));
+const ServicesSettingsPanel = lazy(() => import("./panels/ServicesSettingsPanel.jsx"));
 const SettingsCreateModals = lazy(() => import("./panels/SettingsCreateModals.jsx"));
 const SiteContentPanel = lazy(() => import("./panels/SiteContentPanel.jsx"));
 const StatisticsPlannerReportPanel = lazy(() => import("./panels/StatisticsPlannerReportPanel.jsx"));
@@ -68,6 +70,7 @@ function ProfileMainContent({
   openClientsDeleteModal,
   closeAllClientsPanel,
   closeCrmPanel,
+  closeServicesPanel,
   canUpdateCrm,
   canReadAppointments,
   canCreateAppointments,
@@ -90,6 +93,7 @@ function ProfileMainContent({
   closeOrganizationsPanel,
   closeRolesPanel,
   closePositionsPanel,
+  closeSettingsServicesPanel,
   closeMonitoringPanel,
   closeSiteContentPanel,
   closeStatisticsPanel,
@@ -137,6 +141,9 @@ function ProfileMainContent({
   canCreateSettingsPositions,
   canUpdateSettingsPositions,
   canDeleteSettingsPositions,
+  canCreateSettingsServices,
+  canUpdateSettingsServices,
+  canDeleteSettingsServices,
   canCreateUsers,
   handleCreateUserSubmit,
   createForm,
@@ -481,6 +488,23 @@ function ProfileMainContent({
               startPositionEdit={startPositionEdit}
               positionDeletingId={positionDeletingId}
               handlePositionDelete={handlePositionDelete}
+            />
+          </Suspense>
+        ) : null}
+
+        {mainView === "services" ? (
+          <Suspense fallback={PANEL_LOADING_FALLBACK}>
+            <ServicesPanel onClose={closeServicesPanel} />
+          </Suspense>
+        ) : null}
+
+        {mainView === "settings-services" ? (
+          <Suspense fallback={PANEL_LOADING_FALLBACK}>
+            <ServicesSettingsPanel
+              onClose={closeSettingsServicesPanel}
+              canCreateSettingsServices={canCreateSettingsServices}
+              canUpdateSettingsServices={canUpdateSettingsServices}
+              canDeleteSettingsServices={canDeleteSettingsServices}
             />
           </Suspense>
         ) : null}

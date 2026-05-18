@@ -184,6 +184,20 @@ export const appointmentRouteSchemas = Object.freeze({
       startTime: timeHmSchema,
       endTime: timeHmSchema,
       durationMinutes: positiveIntegerLikeSchema,
+      serviceId: positiveIntegerLikeSchema,
+      service_id: positiveIntegerLikeSchema,
+      servicePriceUzs: {
+        anyOf: [
+          { type: "integer", minimum: 0 },
+          { type: "string", pattern: "^\\d+$" }
+        ]
+      },
+      service_price_uzs: {
+        anyOf: [
+          { type: "integer", minimum: 0 },
+          { type: "string", pattern: "^\\d+$" }
+        ]
+      },
       service: { type: "string" },
       serviceName: { type: "string" },
       status: {
@@ -204,6 +218,20 @@ export const appointmentRouteSchemas = Object.freeze({
       startTime: timeHmSchema,
       endTime: timeHmSchema,
       durationMinutes: positiveIntegerLikeSchema,
+      serviceId: positiveIntegerLikeSchema,
+      service_id: positiveIntegerLikeSchema,
+      servicePriceUzs: {
+        anyOf: [
+          { type: "integer", minimum: 0 },
+          { type: "string", pattern: "^\\d+$" }
+        ]
+      },
+      service_price_uzs: {
+        anyOf: [
+          { type: "integer", minimum: 0 },
+          { type: "string", pattern: "^\\d+$" }
+        ]
+      },
       service: { type: "string" },
       serviceName: { type: "string" },
       status: {

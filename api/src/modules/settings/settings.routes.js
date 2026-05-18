@@ -22,19 +22,25 @@ import {
   createOrganization,
   createPositionOption,
   createRoleOption,
+  createServiceCatalogItem,
+  deactivateServiceCatalogItemById,
   deleteOrganizationById,
   deletePositionOptionById,
   deleteRoleOptionById,
   findSettingsRequester,
   getPositionOptionById,
   getRoleOptionById,
+  getServiceCatalogItemById,
+  hasActiveServicesForPosition,
   listOrganizations,
   listPermissionOptionsForSettings,
   listPositionOptionsForSettings,
   listRoleOptionsForSettings,
+  listServiceCatalogForSettings,
   updateOrganization,
   updatePositionOption,
-  updateRoleOption
+  updateRoleOption,
+  updateServiceCatalogItem
 } from "./settings.service.js";
 import { hasPermission } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
@@ -65,6 +71,15 @@ const SETTINGS_ROUTE_PERMISSION_CONFIG = Object.freeze({
       create: PERMISSIONS.SETTINGS_POSITIONS_CREATE,
       update: PERMISSIONS.SETTINGS_POSITIONS_UPDATE,
       delete: PERMISSIONS.SETTINGS_POSITIONS_DELETE
+    })
+  }),
+  services: Object.freeze({
+    legacyRequiresPlatformAdmin: false,
+    permissions: Object.freeze({
+      read: PERMISSIONS.SETTINGS_SERVICES_READ,
+      create: PERMISSIONS.SETTINGS_SERVICES_CREATE,
+      update: PERMISSIONS.SETTINGS_SERVICES_UPDATE,
+      delete: PERMISSIONS.SETTINGS_SERVICES_DELETE
     })
   })
 });
@@ -178,6 +193,35 @@ function validatePositionPayload({ label }) {
   return null;
 }
 
+function parsePriceUzs(value) {
+  if (value == null || String(value).trim() === "") {
+    return { value: 0 };
+  }
+  const parsed = Number.parseInt(String(value).trim(), 10);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return { error: { field: "priceUzs", message: "Price must be a non-negative integer." } };
+  }
+  return { value: parsed };
+}
+
+function validateServicePayload({ name, positionId }) {
+  if (!positionId) {
+    return { field: "positionId", message: "Position is required." };
+  }
+  if (!name) {
+    return { field: "name", message: "Service name is required." };
+  }
+  if (name.length > 128) {
+    return { field: "name", message: "Service name is too long (max 128)." };
+  }
+  return null;
+}
+
+function normalizeServicesStatus(value) {
+  const status = String(value || "active").trim().toLowerCase();
+  return ["active", "inactive", "all"].includes(status) ? status : "active";
+}
+
 async function requireOrganizationAdmin(request, reply) {
   const authContext = request.authContext;
 
@@ -214,7 +258,8 @@ async function getSettingsPermissionSnapshot(roleId) {
       usesAdvancedSettingsPermissions: false,
       appointments: { read: false, update: false },
       roles: { read: false, create: false, update: false, delete: false },
-      positions: { read: false, create: false, update: false, delete: false }
+      positions: { read: false, create: false, update: false, delete: false },
+      services: { read: false, create: false, update: false, delete: false }
     };
   }
 
@@ -240,7 +285,8 @@ async function getSettingsPermissionSnapshot(roleId) {
     usesAdvancedSettingsPermissions: Array.from(permissionState.values()).some(Boolean),
     appointments: resourceState.appointments,
     roles: resourceState.roles,
-    positions: resourceState.positions
+    positions: resourceState.positions,
+    services: resourceState.services
   };
 }
 
@@ -976,6 +1022,16 @@ async function settingsRoutes(fastify) {
           return reply.status(400).send(validationError);
         }
 
+        if (!isActive && await hasActiveServicesForPosition({
+          organizationId: adminContext.authContext.organizationId,
+          positionId: id
+        })) {
+          return reply.status(409).send({
+            field: "isActive",
+            message: "Position is used by active services and cannot be deactivated."
+          });
+        }
+
         const item = await updatePositionOption({
           id,
           organizationId: adminContext.authContext.organizationId,
@@ -1031,6 +1087,15 @@ async function settingsRoutes(fastify) {
           return reply.status(404).send({ message: "Position not found." });
         }
 
+        if (await hasActiveServicesForPosition({
+          organizationId: adminContext.authContext.organizationId,
+          positionId: id
+        })) {
+          return reply.status(409).send({
+            message: "Position is used by active services and cannot be deleted."
+          });
+        }
+
         const result = await deletePositionOptionById(id, adminContext.authContext.organizationId);
         if (result.rowCount === 0) {
           return reply.status(404).send({ message: "Position not found." });
@@ -1048,6 +1113,202 @@ async function settingsRoutes(fastify) {
     }
   );
 
+  fastify.get(
+    "/services",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        querystring: settingsRouteSchemas.servicesQuery
+      }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+
+      try {
+        const adminContext = await requireSettingsRouteAccess(request, reply, "services", "read");
+        if (!adminContext) {
+          return;
+        }
+
+        const items = await listServiceCatalogForSettings(
+          adminContext.authContext.organizationId,
+          normalizeServicesStatus(request.query?.status)
+        );
+        return reply.send({ items });
+      } catch (error) {
+        request.log.error({ err: error }, "Error fetching service catalog:");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.post(
+    "/services",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        body: settingsRouteSchemas.serviceCreateBody
+      }
+    },
+    async (request, reply) => {
+      try {
+        const adminContext = await requireSettingsRouteAccess(request, reply, "services", "create");
+        if (!adminContext) {
+          return;
+        }
+
+        const positionId = parsePositiveInteger(request.body?.positionId ?? request.body?.position_id);
+        const name = String(request.body?.name || "").trim();
+        const price = parsePriceUzs(request.body?.priceUzs ?? request.body?.price_uzs);
+        if (price.error) {
+          return reply.status(400).send(price.error);
+        }
+        const isActive = parseIsActive(request.body?.isActive ?? request.body?.is_active, true);
+        const validationError = validateServicePayload({ name, positionId });
+        if (validationError) {
+          return reply.status(400).send(validationError);
+        }
+
+        const position = await getPositionOptionById(positionId, adminContext.authContext.organizationId, false);
+        if (!position) {
+          return reply.status(400).send({ field: "positionId", message: "Position not found." });
+        }
+        if (isActive && !position.isActive) {
+          return reply.status(400).send({ field: "positionId", message: "Inactive position cannot be used for an active service." });
+        }
+
+        const item = await createServiceCatalogItem({
+          organizationId: adminContext.authContext.organizationId,
+          positionId,
+          name,
+          priceUzs: price.value,
+          isActive,
+          actorUserId: adminContext.authContext.userId
+        });
+        return reply.status(201).send({
+          message: "Service created.",
+          item
+        });
+      } catch (error) {
+        if (error?.code === "23505") {
+          return reply.status(409).send({ field: "name", message: "Service name already exists." });
+        }
+        if (error?.code === "23503") {
+          return reply.status(400).send({ field: "positionId", message: "Invalid position." });
+        }
+        request.log.error({ err: error }, "Error creating service catalog item:");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.patch(
+    "/services/:id",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        params: settingsRouteSchemas.idParams,
+        body: settingsRouteSchemas.serviceUpdateBody
+      }
+    },
+    async (request, reply) => {
+      try {
+        const adminContext = await requireSettingsRouteAccess(request, reply, "services", "update");
+        if (!adminContext) {
+          return;
+        }
+
+        const id = parsePositiveInteger(request.params?.id);
+        if (!id) {
+          return reply.status(400).send({ message: "Invalid service id." });
+        }
+        const existing = await getServiceCatalogItemById(id, adminContext.authContext.organizationId);
+        if (!existing) {
+          return reply.status(404).send({ message: "Service not found." });
+        }
+
+        const positionId = parsePositiveInteger(request.body?.positionId ?? request.body?.position_id);
+        const name = String(request.body?.name || "").trim();
+        const price = parsePriceUzs(request.body?.priceUzs ?? request.body?.price_uzs);
+        if (price.error) {
+          return reply.status(400).send(price.error);
+        }
+        const isActive = parseIsActive(request.body?.isActive ?? request.body?.is_active, true);
+        const validationError = validateServicePayload({ name, positionId });
+        if (validationError) {
+          return reply.status(400).send(validationError);
+        }
+
+        const position = await getPositionOptionById(positionId, adminContext.authContext.organizationId, false);
+        if (!position) {
+          return reply.status(400).send({ field: "positionId", message: "Position not found." });
+        }
+        if (isActive && !position.isActive) {
+          return reply.status(400).send({ field: "positionId", message: "Inactive position cannot be used for an active service." });
+        }
+
+        const item = await updateServiceCatalogItem({
+          id,
+          organizationId: adminContext.authContext.organizationId,
+          positionId,
+          name,
+          priceUzs: price.value,
+          isActive,
+          actorUserId: adminContext.authContext.userId
+        });
+        return reply.send({
+          message: "Service updated.",
+          item
+        });
+      } catch (error) {
+        if (error?.code === "23505") {
+          return reply.status(409).send({ field: "name", message: "Service name already exists." });
+        }
+        if (error?.code === "23503") {
+          return reply.status(400).send({ field: "positionId", message: "Invalid position." });
+        }
+        request.log.error({ err: error }, "Error updating service catalog item:");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.delete(
+    "/services/:id",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        params: settingsRouteSchemas.idParams
+      }
+    },
+    async (request, reply) => {
+      try {
+        const adminContext = await requireSettingsRouteAccess(request, reply, "services", "delete");
+        if (!adminContext) {
+          return;
+        }
+
+        const id = parsePositiveInteger(request.params?.id);
+        if (!id) {
+          return reply.status(400).send({ message: "Invalid service id." });
+        }
+
+        const item = await deactivateServiceCatalogItemById(
+          id,
+          adminContext.authContext.organizationId,
+          adminContext.authContext.userId
+        );
+        if (!item) {
+          return reply.status(404).send({ message: "Service not found." });
+        }
+        return reply.send({ message: "Service deactivated.", item });
+      } catch (error) {
+        request.log.error({ err: error }, "Error deactivating service catalog item:");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
 }
 
 export const __settingsRouteContracts = Object.freeze({
@@ -1058,7 +1319,9 @@ export const __settingsRouteContracts = Object.freeze({
   parsePermissionCodes,
   validateOrganizationPayload,
   validateRolePayload,
-  validatePositionPayload
+  validatePositionPayload,
+  validateServicePayload,
+  parsePriceUzs
 });
 
 export default settingsRoutes;
