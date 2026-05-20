@@ -551,20 +551,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
       return [];
     }
 
-    const scopedItems = sortScheduleItems(Array.isArray(target?.items) ? target.items : []);
-    const sourceSeriesDayKey = String(
-      toDayKeyFromUtcDate(parseDateYmdToUtcDate(target?.anchorAppointmentDate)) || ""
-    ).trim().toLowerCase();
-    if (
-      target?.scope === "future"
-      && originalRepeatDayKeys.length > 1
-      && sourceSeriesDayKey
-      && requestedRepeatDayKeys.length > 0
-      && haveSameNormalizedDayKeys(requestedRepeatDayKeys, originalRepeatDayKeys)
-    ) {
-      return scopedItems.filter((item) => getScheduleItemDayKey(item) === sourceSeriesDayKey);
-    }
-    return scopedItems;
+    return sortScheduleItems(Array.isArray(target?.items) ? target.items : []);
   }
 
   function isRecurringLightweightUpdate({
@@ -2515,14 +2502,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           const sourceSeriesDayKey = String(
             toDayKeyFromUtcDate(parseDateYmdToUtcDate(target.anchorAppointmentDate)) || ""
           ).trim().toLowerCase();
-          const repeatDayKeys = (
-            target.scope === "future"
-            && originalRepeatDayKeys.length > 1
-            && Boolean(sourceSeriesDayKey)
-            && haveSameNormalizedDayKeys(requestedRepeatDayKeys, originalRepeatDayKeys)
-          )
-            ? [sourceSeriesDayKey]
-            : requestedRepeatDayKeys;
+          const repeatDayKeys = requestedRepeatDayKeys;
           const recurringStartDate = target.scope === "all"
             ? String(target.repeatAnchorDate || target.anchorAppointmentDate || appointmentDate).trim()
             : String(target.anchorAppointmentDate || appointmentDate).trim();

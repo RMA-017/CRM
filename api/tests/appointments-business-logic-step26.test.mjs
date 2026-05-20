@@ -1607,7 +1607,7 @@ test("schedule update allows recurring future no-show slots to return to pending
   assert.equal(reply.state.payload?.summary?.affectedCount, 2);
 });
 
-test("schedule update recurring future status-only edits keep non-selected weekdays unchanged", async () => {
+test("schedule update recurring future status-only edits apply to every weekday in the series", async () => {
   const updatedIds = [];
   const recorder = createRouteRecorder();
   registerAppointmentScheduleRoutes(
@@ -1691,8 +1691,8 @@ test("schedule update recurring future status-only edits keep non-selected weekd
   );
 
   assert.equal(reply.state.statusCode, 200);
-  assert.deepEqual(updatedIds, [92, 95]);
-  assert.equal(reply.state.payload?.summary?.affectedCount, 2);
+  assert.deepEqual(updatedIds, [92, 96, 95, 98]);
+  assert.equal(reply.state.payload?.summary?.affectedCount, 4);
 });
 
 test("schedule update maps invalid repeat cast errors to invalid appointment data", async () => {
@@ -2840,7 +2840,7 @@ test("schedule update splits a selected weekday branch into a new recurring futu
   assert.equal(reply.state.payload?.summary?.affectedCount, 2);
 });
 
-test("schedule update future scope keeps non-selected weekdays unchanged even when repeat payload still contains the original multi-day pattern", async () => {
+test("schedule update future scope applies all original weekdays when repeat payload keeps the original multi-day pattern", async () => {
   const updateCalls = [];
   const recorder = createRouteRecorder();
   registerAppointmentScheduleRoutes(
@@ -2858,7 +2858,14 @@ test("schedule update future scope keeps non-selected weekdays unchanged even wh
         sat: 6,
         sun: 7
       }[String(value || "").trim().toLowerCase()] || 0),
-      buildWeeklyRecurringDates: () => ["2026-03-16", "2026-03-23"],
+      buildWeeklyRecurringDates: () => [
+        "2026-03-16",
+        "2026-03-18",
+        "2026-03-20",
+        "2026-03-23",
+        "2026-03-25",
+        "2026-03-27"
+      ],
       getAppointmentScheduleTargetsByScope: async () => ({
         anchorId: 92,
         anchorAppointmentDate: "2026-03-16",
@@ -2951,12 +2958,12 @@ test("schedule update future scope keeps non-selected weekdays unchanged even wh
       { id: 91, startTime: "09:00", endTime: "10:00", repeatGroupKey: "old-group" },
       { id: 93, startTime: "09:00", endTime: "10:00", repeatGroupKey: "old-group" },
       { id: 94, startTime: "09:00", endTime: "10:00", repeatGroupKey: "old-group" },
-      { id: 96, startTime: "09:00", endTime: "10:00", repeatGroupKey: "66666666-6666-6666-6666-666666666666" },
-      { id: 97, startTime: "09:00", endTime: "10:00", repeatGroupKey: "66666666-6666-6666-6666-666666666666" },
-      { id: 98, startTime: "09:00", endTime: "10:00", repeatGroupKey: "66666666-6666-6666-6666-666666666666" },
-      { id: 99, startTime: "09:00", endTime: "10:00", repeatGroupKey: "66666666-6666-6666-6666-666666666666" },
       { id: 92, startTime: "10:30", endTime: "11:30", repeatGroupKey: "66666666-6666-6666-6666-666666666666" },
-      { id: 95, startTime: "10:30", endTime: "11:30", repeatGroupKey: "66666666-6666-6666-6666-666666666666" }
+      { id: 96, startTime: "10:30", endTime: "11:30", repeatGroupKey: "66666666-6666-6666-6666-666666666666" },
+      { id: 97, startTime: "10:30", endTime: "11:30", repeatGroupKey: "66666666-6666-6666-6666-666666666666" },
+      { id: 95, startTime: "10:30", endTime: "11:30", repeatGroupKey: "66666666-6666-6666-6666-666666666666" },
+      { id: 98, startTime: "10:30", endTime: "11:30", repeatGroupKey: "66666666-6666-6666-6666-666666666666" },
+      { id: 99, startTime: "10:30", endTime: "11:30", repeatGroupKey: "66666666-6666-6666-6666-666666666666" }
     ]
   );
 });
