@@ -316,11 +316,12 @@ async function getSettingsPermissionSnapshot(roleId) {
   };
 }
 
-async function requireSettingsRouteAccess(request, reply, resourceKey, actionKey = "read") {
+async function requireSettingsRouteAccess(request, reply, resourceKey, actionKey = "read", options = {}) {
   const resourceConfig = SETTINGS_ROUTE_PERMISSION_CONFIG[resourceKey];
   if (!resourceConfig) {
     throw new Error(`Unknown settings resource: ${resourceKey}`);
   }
+  const extraAccessRules = Array.isArray(options?.alsoAllow) ? options.alsoAllow : [];
 
   const authContext = request.authContext;
   const requester = await findSettingsRequester(authContext);
@@ -332,6 +333,9 @@ async function requireSettingsRouteAccess(request, reply, resourceKey, actionKey
   const permissionSnapshot = await getSettingsPermissionSnapshot(requester.role_id);
   const usesAdvancedSettingsPermissions = permissionSnapshot.usesAdvancedSettingsPermissions;
   const hasResourcePermission = permissionSnapshot?.[resourceKey]?.[actionKey] === true;
+  const hasExtraPermission = extraAccessRules.some((rule) => (
+    permissionSnapshot?.[rule?.resourceKey]?.[rule?.actionKey || "read"] === true
+  ));
   const isLegacyAllowed = resourceConfig.legacyRequiresPlatformAdmin
     ? Boolean(requester.is_platform_admin)
     : Boolean(requester.is_admin);
@@ -341,7 +345,7 @@ async function requireSettingsRouteAccess(request, reply, resourceKey, actionKey
     return null;
   }
 
-  if (usesAdvancedSettingsPermissions ? !hasResourcePermission : !isLegacyAllowed) {
+  if (usesAdvancedSettingsPermissions ? !(hasResourcePermission || hasExtraPermission) : !isLegacyAllowed) {
     reply.status(403).send({ message: "Forbidden." });
     return null;
   }
@@ -960,7 +964,11 @@ async function settingsRoutes(fastify) {
       setNoCacheHeaders(reply);
 
       try {
-        const adminContext = await requireSettingsRouteAccess(request, reply, "positions", "read");
+        const adminContext = await requireSettingsRouteAccess(request, reply, "positions", "read", {
+          alsoAllow: [
+            { resourceKey: "services", actionKey: "read" }
+          ]
+        });
         if (!adminContext) {
           return;
         }
