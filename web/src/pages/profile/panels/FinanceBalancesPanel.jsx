@@ -316,7 +316,7 @@ function FinanceBalancesPanel({ onClose, canUpdateFinanceBalances }) {
   ]), []);
 
   return (
-    <section id="financeBalancesPanel" className="all-users-panel settings-panel">
+    <section id="financeBalancesPanel" className="all-users-panel settings-panel ops-panel-shell finance-panel-shell finance-balances-panel">
       <div className="all-users-head">
         <h3>{translate("Client Balances")}</h3>
         <div className="all-users-head-actions">

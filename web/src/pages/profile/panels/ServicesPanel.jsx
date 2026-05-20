@@ -50,32 +50,32 @@ function ServicesPanel({ onClose }) {
   }, [items, search]);
 
   return (
-    <section id="servicesPanel" className="all-users-panel settings-panel">
+    <section id="servicesPanel" className="all-users-panel settings-panel ops-panel-shell services-panel">
       <div className="all-users-head">
-        <h3>Services</h3>
+        <h3>{translate("Services")}</h3>
         <div className="all-users-head-actions">
           <input
             type="search"
             className="panel-search-input"
             value={search}
-            placeholder="Search..."
+            placeholder={translate("Search...")}
             onChange={(event) => setSearch(event.currentTarget.value)}
           />
-          <button type="button" className="header-btn panel-close-btn" aria-label="Close services panel" onClick={onClose}>
+          <button type="button" className="header-btn panel-close-btn" aria-label={translate("Close services panel")} onClick={onClose}>
             ×
           </button>
         </div>
       </div>
 
-      <p className="all-users-state" hidden={!message}>{message}</p>
+      <p className="all-users-state" hidden={!message}>{translate(message)}</p>
 
       <div className="all-users-table-wrap settings-table-wrap" hidden={filteredItems.length === 0}>
-        <table className="all-users-table settings-table" aria-label="Services table">
+        <table className="all-users-table settings-table" aria-label={translate("Services table")}>
           <thead>
             <tr>
-              <th>Position</th>
-              <th>Service Name</th>
-              <th>Price</th>
+              <th>{translate("Position")}</th>
+              <th>{translate("Service Name")}</th>
+              <th>{translate("Price")}</th>
             </tr>
           </thead>
           <tbody>

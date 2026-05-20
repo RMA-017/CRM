@@ -544,7 +544,7 @@ function FinanceCashierPanel({
   };
 
   return (
-    <section id="financeCashierPanel" className="all-users-panel settings-panel">
+    <section id="financeCashierPanel" className="all-users-panel settings-panel ops-panel-shell finance-panel-shell finance-cashier-panel">
       <div className="all-users-head">
         <h3>{translate("Cashier")}</h3>
         <div className="all-users-head-actions">
@@ -591,7 +591,7 @@ function FinanceCashierPanel({
         {cashSession ? <span>{`${translate("Opening Balance")}: ${formatMoney(cashSession.openingBalanceUzs)}`}</span> : null}
       </div>
 
-      <div className="settings-card-grid">
+      <div className="settings-card-grid finance-board-grid">
         <section className="settings-card-column">
           <h4>{translate("Pending Appointments")}</h4>
           {board.pendingAppointments.map((item) => <TicketCard key={String(item.id)} item={item} translate={translate} />)}

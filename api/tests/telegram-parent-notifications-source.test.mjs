@@ -113,6 +113,43 @@ test("Telegram parent notifications collapse recurring creates into one weekly m
   );
 });
 
+test("Telegram parent notifications collapse recurring schedule updates into one message", async () => {
+  const serviceSource = await readFile(
+    new URL("../src/modules/telegram-bot/telegram-bot.service.js", import.meta.url),
+    "utf8"
+  );
+  const settingsPanelSource = await readFile(
+    new URL("../../web/src/pages/profile/panels/TelegramBotSettingsPanel.jsx", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    serviceSource,
+    /scheduleSeriesChanged:\s*"\{child\} uchun \{service\} darslari jadvali o'zgartirildi\. Mutaxassis: \{specialist\}\. Yangi vaqt: \{time\}\. Sana: \{dateFrom\} - \{dateTo\}\."/,
+    "Telegram defaults should include a compact Uzbek series-update template."
+  );
+  assert.match(
+    serviceSource,
+    /function isRecurringUpdateNotification\([\s\S]*type\.includes\("updated"\)[\s\S]*statusChangedTo[\s\S]*items\.length > 1[\s\S]*item\.isRecurring \|\| item\.repeatGroupKey \|\| item\.repeatType === "weekly"/s,
+    "Telegram service should detect multi-item recurring schedule updates and ignore cancelled-status updates."
+  );
+  assert.match(
+    serviceSource,
+    /function buildSeriesUpdateGroups\([\s\S]*item\.clientId[\s\S]*item\.serviceName[\s\S]*getSpecialistName\(item\)[\s\S]*items: group\.items\.sort\(compareNotificationItemsByDateTime\)/s,
+    "Recurring schedule updates should be grouped by child, service, and specialist."
+  );
+  assert.match(
+    serviceSource,
+    /if \(isRecurringUpdateNotification\([\s\S]*for \(const group of buildSeriesUpdateGroups\(normalizedItems\)\)[\s\S]*appointmentScheduleId:\s*null/s,
+    "Telegram service should send grouped recurring update messages instead of per-slot messages."
+  );
+  assert.match(
+    settingsPanelSource,
+    /scheduleSeriesChanged:\s*""[\s\S]*\["scheduleSeriesChanged", "scheduleSeriesChanged"\][\s\S]*scheduleSeriesChanged:\s*"Seriyali darslar o'zgardi"[\s\S]*scheduleSeriesChanged:\s*"Серия занятий изменена"/s,
+    "Telegram settings UI should expose the series-update template in both languages."
+  );
+});
+
 test("specialist removal planner cleanup notifies Telegram parents after commit", async () => {
   const usersServiceSource = await readFile(
     new URL("../src/modules/users/users.service.js", import.meta.url),
@@ -191,6 +228,16 @@ test("Telegram weekly menu opens day buttons before showing lessons", async () =
     serviceSource,
     /async function sendWeekDaySchedule\([\s\S]*editTelegramMessageOrSend\(\{[\s\S]*messageId[\s\S]*replyMarkup: buildWeekDayReplyMarkup\(parent\.language, selectedDate, items\)/s,
     "Plain weekly day view should edit the same inline message and keep week navigation available."
+  );
+  assert.match(
+    serviceSource,
+    /function formatWeekDayScheduleMessage\([\s\S]*`\$\{index \+ 1\}\. \$\{item\.startTime\} - \$\{getClientName\(item\)\} - \$\{item\.serviceName\}\$\{statusText\}`[\s\S]*function sendChildrenList/s,
+    "Weekly day lesson rows should include the child name before the service name."
+  );
+  assert.match(
+    serviceSource,
+    /function buildWeekCancelOneReplyMarkup\([\s\S]*text: `\$\{item\.startTime\} \$\{getClientName\(item\)\} - \$\{item\.serviceName\}`\.trim\(\)/s,
+    "Weekly single-lesson cancellation choices should include the child name."
   );
   assert.match(
     serviceSource,

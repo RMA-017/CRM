@@ -191,6 +191,7 @@ const DEFAULT_TEMPLATES = Object.freeze({
   uz: Object.freeze({
     lessonCancelled: "Farzandingizni {date} {time} dagi {service} darsi bekor qilindi. Mutaxassis: {specialist}. Sabab: {reason}. Buning uchun uzr so'raymiz.",
     scheduleChanged: "{child} uchun {date} {time} dagi {service} darsi jadvali o'zgartirildi. Mutaxassis: {specialist}.",
+    scheduleSeriesChanged: "{child} uchun {service} darslari jadvali o'zgartirildi. Mutaxassis: {specialist}. Yangi vaqt: {time}. Sana: {dateFrom} - {dateTo}.",
     scheduleCreated: "{child} uchun {date} {time} dagi {service} darsi rejalashtirildi. Mutaxassis: {specialist}.",
     scheduleCreatedWeek: "{child} uchun yaqin haftalik darslar rejalashtirildi:\n{lessons}",
     scheduleDeleted: "{child} uchun {date} {time} dagi {service} darsi o'chirildi. Mutaxassis: {specialist}.",
@@ -203,6 +204,7 @@ const DEFAULT_TEMPLATES = Object.freeze({
   ru: Object.freeze({
     lessonCancelled: "Урок {service} для {child} на {date} {time} отменен. Специалист: {specialist}. Причина: {reason}. Приносим извинения.",
     scheduleChanged: "Расписание урока {service} для {child} на {date} {time} изменено. Специалист: {specialist}.",
+    scheduleSeriesChanged: "Расписание занятий {service} для {child} изменено. Специалист: {specialist}. Новое время: {time}. Даты: {dateFrom} - {dateTo}.",
     scheduleCreated: "Урок {service} для {child} запланирован на {date} {time}. Специалист: {specialist}.",
     scheduleCreatedWeek: "Ближайшие занятия на неделю для {child} запланированы:\n{lessons}",
     scheduleDeleted: "Урок {service} для {child} на {date} {time} удален. Специалист: {specialist}.",
@@ -622,7 +624,7 @@ function buildWeekCancelOneReplyMarkup(language, dateYmd, items = []) {
   const inlineKeyboard = (Array.isArray(items) ? items : [])
     .filter((item) => ACTIVE_APPOINTMENT_STATUSES.has(item.status))
     .map((item) => ([{
-      text: `${item.startTime} ${item.serviceName}`.trim(),
+      text: `${item.startTime} ${getClientName(item)} - ${item.serviceName}`.trim(),
       callback_data: `week_cancel_single:${item.id}:${dateYmd}`
     }]));
   inlineKeyboard.push([{ text: getText(language, "backToWeekDay"), callback_data: `week_day:${dateYmd}` }]);
@@ -1528,8 +1530,7 @@ function formatWeekDayScheduleMessage({ language, title, items }) {
     const statusText = item.parentResponseStatus === "coming"
       ? " ✅"
       : (item.status === "cancelled" ? " ❌" : "");
-    lines.push(`${index + 1}. ${item.startTime} - ${item.serviceName}${statusText}`);
-    lines.push(`   ${getClientName(item)}`);
+    lines.push(`${index + 1}. ${item.startTime} - ${getClientName(item)} - ${item.serviceName}${statusText}`);
     lines.push(`   ${getSpecialistName(item)}`);
   });
   return lines.join("\n");
@@ -2941,6 +2942,18 @@ function isSeriesDeleteNotification({ eventType, notificationContext, items }) {
   return deletedCount > 1 || items.length > 1;
 }
 
+function isRecurringUpdateNotification({ eventType, notificationContext, items }) {
+  const type = String(eventType || "").trim().toLowerCase();
+  if (isCreatedEvent(type) || isDeletedEvent(type) || !type.includes("updated")) {
+    return false;
+  }
+  if (String(notificationContext?.statusChangedTo || "").trim().toLowerCase() === "cancelled") {
+    return false;
+  }
+  return items.length > 1
+    && items.some((item) => item.isRecurring || item.repeatGroupKey || item.repeatType === "weekly");
+}
+
 function isSpecialistLessonsDeleteNotification({ eventType, notificationContext, items }) {
   if (!isDeletedEvent(eventType) || items.length === 0) {
     return false;
@@ -2963,6 +2976,29 @@ function compareNotificationItemsByDateTime(left, right) {
 }
 
 function buildSeriesDeleteGroups(items) {
+  const groups = new Map();
+  for (const item of items) {
+    const key = [
+      item.clientId,
+      String(item.serviceName || "").trim().toLowerCase(),
+      getSpecialistName(item).toLowerCase()
+    ].join(":");
+    const group = groups.get(key) || {
+      clientId: item.clientId,
+      serviceName: item.serviceName,
+      specialistName: getSpecialistName(item),
+      items: []
+    };
+    group.items.push(item);
+    groups.set(key, group);
+  }
+  return Array.from(groups.values()).map((group) => ({
+    ...group,
+    items: group.items.sort(compareNotificationItemsByDateTime)
+  }));
+}
+
+function buildSeriesUpdateGroups(items) {
   const groups = new Map();
   for (const item of items) {
     const key = [
@@ -3046,6 +3082,32 @@ function buildRecurringCreatedNotificationMessage({ settings, parent, group }) {
     language,
     serviceName: firstItem.serviceName,
     specialistName: getSpecialistName(firstItem)
+  });
+}
+
+function buildSeriesChangedNotificationMessage({ settings, parent, group, actorName }) {
+  const language = normalizeLanguage(parent.language, settings.defaultLanguage);
+  const templates = settings.templates?.[language] || DEFAULT_TEMPLATES[language];
+  const items = Array.isArray(group?.items) ? group.items : [];
+  const firstItem = items[0] || {};
+  const lastItem = items[items.length - 1] || firstItem;
+  const specialistName = getSpecialistName(firstItem);
+  const serviceName = firstItem.serviceName || group?.serviceName || "Service";
+  const message = renderTemplate(templates.scheduleSeriesChanged || DEFAULT_TEMPLATES[language].scheduleSeriesChanged, {
+    child: getClientName({ ...firstItem, ...parent }),
+    date: firstItem.appointmentDate,
+    time: firstItem.startTime,
+    dateFrom: firstItem.appointmentDate,
+    dateTo: lastItem.appointmentDate,
+    count: items.length,
+    service: serviceName,
+    specialist: specialistName,
+    actor: String(actorName || specialistName || "CRM").trim()
+  });
+  return appendRequiredAppointmentParts(message, {
+    language,
+    serviceName,
+    specialistName
   });
 }
 
@@ -3184,6 +3246,29 @@ export async function notifyTelegramParentsForAppointmentChange({
         const parents = await getParentsForClient(group.clientId);
         for (const parent of parents) {
           const message = buildSpecialistLessonsDeletedNotificationMessage({
+            settings,
+            parent,
+            group,
+            actorName
+          });
+          await sendAndLogParentMessage({
+            settings,
+            parent,
+            appointmentScheduleId: null,
+            eventType,
+            message
+          });
+          sentCount += 1;
+        }
+      }
+      return { sentCount };
+    }
+
+    if (isRecurringUpdateNotification({ eventType, notificationContext, items: normalizedItems })) {
+      for (const group of buildSeriesUpdateGroups(normalizedItems)) {
+        const parents = await getParentsForClient(group.clientId);
+        for (const parent of parents) {
+          const message = buildSeriesChangedNotificationMessage({
             settings,
             parent,
             group,

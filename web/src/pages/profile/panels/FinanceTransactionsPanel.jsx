@@ -179,7 +179,7 @@ function FinanceTransactionsPanel({ onClose }) {
   };
 
   return (
-    <section id="financeTransactionsPanel" className="all-users-panel settings-panel">
+    <section id="financeTransactionsPanel" className="all-users-panel settings-panel ops-panel-shell finance-panel-shell finance-transactions-panel">
       <div className="all-users-head">
         <h3>{translate("Transactions")}</h3>
         <div className="all-users-head-actions">

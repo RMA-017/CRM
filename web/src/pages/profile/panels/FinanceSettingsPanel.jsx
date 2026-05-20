@@ -119,7 +119,7 @@ function FinanceSettingsPanel({
   };
 
   return (
-    <section id="financeSettingsPanel" className="all-users-panel settings-panel">
+    <section id="financeSettingsPanel" className="all-users-panel settings-panel ops-panel-shell finance-panel-shell finance-settings-panel">
       <div className="all-users-head">
         <h3>{translate("Finance Settings")}</h3>
         <div className="all-users-head-actions">
@@ -135,7 +135,7 @@ function FinanceSettingsPanel({
       </div>
 
       <h4>{translate("Payment Methods")}</h4>
-      <form className="settings-inline-form" onSubmit={submitForm}>
+      <form className="settings-inline-form ops-inline-editor" onSubmit={submitForm}>
         <input
           type="text"
           maxLength={96}

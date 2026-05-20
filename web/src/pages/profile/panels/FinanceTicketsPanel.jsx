@@ -249,7 +249,7 @@ function FinanceTicketsPanel({ onClose }) {
   ]), []);
 
   return (
-    <section id="financeTicketsPanel" className="all-users-panel settings-panel">
+    <section id="financeTicketsPanel" className="all-users-panel settings-panel ops-panel-shell finance-panel-shell finance-tickets-panel">
       <div className="all-users-head">
         <h3>{translate("Tickets")}</h3>
         <div className="all-users-head-actions">

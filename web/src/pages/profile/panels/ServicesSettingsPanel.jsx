@@ -148,22 +148,26 @@ function ServicesSettingsPanel({
   };
 
   return (
-    <section id="servicesSettingsPanel" className="all-users-panel settings-panel">
+    <section id="servicesSettingsPanel" className="all-users-panel settings-panel ops-panel-shell services-settings-panel">
       <div className="all-users-head">
-        <h3>Service Settings</h3>
+        <h3>{translate("Service Settings")}</h3>
         <div className="all-users-head-actions">
-          <CustomSelect value={status} options={statusOptions} onChange={setStatus} />
-          <button type="button" className="header-btn panel-close-btn" aria-label="Close service settings panel" onClick={onClose}>
+          <CustomSelect
+            value={status}
+            options={statusOptions.map((option) => ({ ...option, label: translate(option.label) }))}
+            onChange={setStatus}
+          />
+          <button type="button" className="header-btn panel-close-btn" aria-label={translate("Close service settings panel")} onClick={onClose}>
             ×
           </button>
         </div>
       </div>
 
-      <form className="settings-inline-form" onSubmit={submitForm}>
+      <form className="settings-inline-form ops-inline-editor" onSubmit={submitForm}>
         <CustomSelect
           value={currentForm.positionId}
           options={positionOptions}
-          placeholder="Position"
+          placeholder={translate("Position")}
           searchable
           searchThreshold={1}
           onChange={(value) => setForm((current) => ({ ...normalizeForm(current), positionId: value }))}
@@ -172,7 +176,7 @@ function ServicesSettingsPanel({
           type="text"
           maxLength={128}
           value={currentForm.name}
-          placeholder="Service Name"
+          placeholder={translate("Service Name")}
           onChange={(event) => {
             const nextValue = event.currentTarget.value;
             setForm((current) => ({ ...normalizeForm(current), name: nextValue }));
@@ -182,7 +186,7 @@ function ServicesSettingsPanel({
           type="number"
           min="0"
           value={currentForm.priceUzs}
-          placeholder="Price"
+          placeholder={translate("Price")}
           onChange={(event) => {
             const nextValue = event.currentTarget.value;
             setForm((current) => ({ ...normalizeForm(current), priceUzs: nextValue }));
@@ -197,29 +201,29 @@ function ServicesSettingsPanel({
               setForm((current) => ({ ...normalizeForm(current), isActive: nextChecked }));
             }}
           />
-          Active
+          {translate("Active")}
         </label>
         <button type="submit" className="table-action-btn" disabled={submitting}>
-          {submitting ? "..." : (isEditing ? "Save" : "Create")}
+          {submitting ? "..." : translate(isEditing ? "Save" : "Create")}
         </button>
         {isEditing ? (
-          <button type="button" className="table-action-btn" onClick={resetForm}>Cancel</button>
+          <button type="button" className="table-action-btn" onClick={resetForm}>{translate("Cancel")}</button>
         ) : null}
       </form>
 
-      <p className="all-users-state" hidden={!message}>{message}</p>
+      <p className="all-users-state" hidden={!message}>{translate(message)}</p>
 
       <div className="all-users-table-wrap settings-table-wrap" hidden={items.length === 0}>
-        <table className="all-users-table settings-table" aria-label="Service settings table">
+        <table className="all-users-table settings-table" aria-label={translate("Service settings table")}>
           <thead>
             <tr>
               <th>ID</th>
-              <th>Position</th>
-              <th>Service Name</th>
-              <th>Price</th>
-              <th>Active</th>
-              <th>Edit</th>
-              <th>Delete</th>
+              <th>{translate("Position")}</th>
+              <th>{translate("Service Name")}</th>
+              <th>{translate("Price")}</th>
+              <th>{translate("Active")}</th>
+              <th>{translate("Edit")}</th>
+              <th>{translate("Delete")}</th>
             </tr>
           </thead>
           <tbody>
@@ -229,10 +233,10 @@ function ServicesSettingsPanel({
                 <td>{item.positionLabel || "-"}</td>
                 <td>{item.name || "-"}</td>
                 <td>{formatPrice(item.priceUzs)}</td>
-                <td>{item.isActive ? "Yes" : "No"}</td>
+                <td>{translate(item.isActive ? "Yes" : "No")}</td>
                 <td>
                   <button type="button" className="table-action-btn" hidden={!canUpdateSettingsServices} onClick={() => startEdit(item)}>
-                    Edit
+                    {translate("Edit")}
                   </button>
                 </td>
                 <td>
@@ -243,7 +247,7 @@ function ServicesSettingsPanel({
                     disabled={deletingId === String(item.id) || !item.isActive}
                     onClick={() => deactivate(item)}
                   >
-                    {deletingId === String(item.id) ? "..." : "Delete"}
+                    {deletingId === String(item.id) ? "..." : translate("Delete")}
                   </button>
                 </td>
               </tr>

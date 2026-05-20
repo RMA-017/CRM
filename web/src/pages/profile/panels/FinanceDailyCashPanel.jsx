@@ -208,7 +208,7 @@ function FinanceDailyCashPanel({ onClose }) {
   };
 
   return (
-    <section id="financeDailyCashPanel" className="all-users-panel settings-panel">
+    <section id="financeDailyCashPanel" className="all-users-panel settings-panel ops-panel-shell finance-panel-shell finance-daily-cash-panel">
       <div className="all-users-head">
         <h3>{translate("Daily Cash")}</h3>
         <div className="all-users-head-actions">

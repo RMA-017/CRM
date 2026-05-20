@@ -162,7 +162,7 @@ function FinanceReportsPanel({ onClose }) {
   const summary = report?.summary || {};
 
   return (
-    <section id="financeReportsPanel" className="all-users-panel settings-panel">
+    <section id="financeReportsPanel" className="all-users-panel settings-panel ops-panel-shell finance-panel-shell finance-reports-panel">
       <div className="all-users-head">
         <h3>{translate("Reports")}</h3>
         <div className="all-users-head-actions">

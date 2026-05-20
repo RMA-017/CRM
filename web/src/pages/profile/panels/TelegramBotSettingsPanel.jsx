@@ -6,6 +6,7 @@ const DEFAULT_TEMPLATES = Object.freeze({
   uz: Object.freeze({
     lessonCancelled: "",
     scheduleChanged: "",
+    scheduleSeriesChanged: "",
     scheduleCreated: "",
     scheduleDeleted: "",
     scheduleSeriesDeleted: "",
@@ -17,6 +18,7 @@ const DEFAULT_TEMPLATES = Object.freeze({
   ru: Object.freeze({
     lessonCancelled: "",
     scheduleChanged: "",
+    scheduleSeriesChanged: "",
     scheduleCreated: "",
     scheduleDeleted: "",
     scheduleSeriesDeleted: "",
@@ -30,6 +32,7 @@ const DEFAULT_TEMPLATES = Object.freeze({
 const TEMPLATE_FIELDS = Object.freeze([
   ["lessonCancelled", "lessonCancelled"],
   ["scheduleChanged", "scheduleChanged"],
+  ["scheduleSeriesChanged", "scheduleSeriesChanged"],
   ["scheduleCreated", "scheduleCreated"],
   ["scheduleDeleted", "scheduleDeleted"],
   ["scheduleSeriesDeleted", "scheduleSeriesDeleted"],
@@ -70,6 +73,7 @@ const UI_TEXT = Object.freeze({
     templateLabels: Object.freeze({
       lessonCancelled: "Dars bekor qilindi",
       scheduleChanged: "Jadval o'zgardi",
+      scheduleSeriesChanged: "Seriyali darslar o'zgardi",
       scheduleCreated: "Dars yaratildi",
       scheduleDeleted: "Dars o'chirildi",
       scheduleSeriesDeleted: "Seriyali darslar bekor qilindi",
@@ -109,6 +113,7 @@ const UI_TEXT = Object.freeze({
     templateLabels: Object.freeze({
       lessonCancelled: "Занятие отменено",
       scheduleChanged: "Расписание изменено",
+      scheduleSeriesChanged: "Серия занятий изменена",
       scheduleCreated: "Занятие создано",
       scheduleDeleted: "Занятие удалено",
       scheduleSeriesDeleted: "Серия занятий отменена",
