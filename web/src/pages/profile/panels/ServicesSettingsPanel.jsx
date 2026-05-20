@@ -11,6 +11,10 @@ const EMPTY_FORM = Object.freeze({
   isActive: true
 });
 
+function normalizeForm(value) {
+  return value && typeof value === "object" ? value : EMPTY_FORM;
+}
+
 function formatPrice(value) {
   const amount = Number.parseInt(String(value ?? 0), 10) || 0;
   return `${amount.toLocaleString("ru-RU")} UZS`;
@@ -30,6 +34,7 @@ function ServicesSettingsPanel({
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState("");
+  const currentForm = normalizeForm(form);
 
   const loadData = useCallback(async () => {
     try {
@@ -69,9 +74,9 @@ function ServicesSettingsPanel({
 
   const positionOptions = useMemo(() => (
     positions
-      .filter((item) => item?.isActive || String(item?.id) === String(form.positionId))
+      .filter((item) => item?.isActive || String(item?.id) === String(currentForm.positionId))
       .map((item) => ({ value: String(item.id), label: String(item.label || "").trim() || `#${item.id}` }))
-  ), [form.positionId, positions]);
+  ), [currentForm.positionId, positions]);
 
   const statusOptions = useMemo(() => [
     { value: "active", label: "Active" },
@@ -80,7 +85,7 @@ function ServicesSettingsPanel({
   ], []);
 
   const resetForm = () => setForm(EMPTY_FORM);
-  const isEditing = Boolean(form.id);
+  const isEditing = Boolean(currentForm.id);
 
   const submitForm = async (event) => {
     event.preventDefault();
@@ -88,12 +93,12 @@ function ServicesSettingsPanel({
     setSubmitting(true);
     try {
       const payload = {
-        positionId: form.positionId,
-        name: form.name.trim(),
-        priceUzs: form.priceUzs === "" ? 0 : form.priceUzs,
-        isActive: form.isActive
+        positionId: currentForm.positionId,
+        name: currentForm.name.trim(),
+        priceUzs: currentForm.priceUzs === "" ? 0 : currentForm.priceUzs,
+        isActive: currentForm.isActive
       };
-      const response = await apiFetch(isEditing ? `/api/settings/services/${form.id}` : "/api/settings/services", {
+      const response = await apiFetch(isEditing ? `/api/settings/services/${currentForm.id}` : "/api/settings/services", {
         method: isEditing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -156,32 +161,41 @@ function ServicesSettingsPanel({
 
       <form className="settings-inline-form" onSubmit={submitForm}>
         <CustomSelect
-          value={form.positionId}
+          value={currentForm.positionId}
           options={positionOptions}
           placeholder="Position"
           searchable
           searchThreshold={1}
-          onChange={(value) => setForm((current) => ({ ...current, positionId: value }))}
+          onChange={(value) => setForm((current) => ({ ...normalizeForm(current), positionId: value }))}
         />
         <input
           type="text"
           maxLength={128}
-          value={form.name}
+          value={currentForm.name}
           placeholder="Service Name"
-          onChange={(event) => setForm((current) => ({ ...current, name: event.currentTarget.value }))}
+          onChange={(event) => {
+            const nextValue = event.currentTarget.value;
+            setForm((current) => ({ ...normalizeForm(current), name: nextValue }));
+          }}
         />
         <input
           type="number"
           min="0"
-          value={form.priceUzs}
+          value={currentForm.priceUzs}
           placeholder="Price"
-          onChange={(event) => setForm((current) => ({ ...current, priceUzs: event.currentTarget.value }))}
+          onChange={(event) => {
+            const nextValue = event.currentTarget.value;
+            setForm((current) => ({ ...normalizeForm(current), priceUzs: nextValue }));
+          }}
         />
         <label className="settings-checkbox settings-checkbox-inline">
           <input
             type="checkbox"
-            checked={form.isActive}
-            onChange={(event) => setForm((current) => ({ ...current, isActive: event.currentTarget.checked }))}
+            checked={currentForm.isActive}
+            onChange={(event) => {
+              const nextChecked = event.currentTarget.checked;
+              setForm((current) => ({ ...normalizeForm(current), isActive: nextChecked }));
+            }}
           />
           Active
         </label>
