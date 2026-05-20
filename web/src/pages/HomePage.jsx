@@ -498,7 +498,15 @@ function HomePage() {
     canOpenSettingsRoles,
     canOpenSettingsPositions,
     canOpenSettingsServices,
+    canOpenSettingsFinance,
     canOpenCrm,
+    canOpenFinance,
+    canOpenFinanceCashier,
+    canOpenFinanceTickets,
+    canOpenFinanceTransactions,
+    canOpenFinanceBalances,
+    canOpenFinanceDailyCash,
+    canOpenFinanceReports,
     canOpenServices,
     hasUsersMenuAccess,
     canReadUsers,
@@ -1422,6 +1430,19 @@ function HomePage() {
           openAllClientsPanel={() => navigateFromMenu("/clients/allclients")}
           canOpenCrm={canOpenCrm}
           openCrmPanel={() => navigateFromMenu("/crm")}
+          canOpenFinance={canOpenFinance}
+          canOpenFinanceCashier={canOpenFinanceCashier}
+          openFinanceCashierPanel={() => navigateFromMenu("/finance/cashier")}
+          canOpenFinanceTickets={canOpenFinanceTickets}
+          openFinanceTicketsPanel={() => navigateFromMenu("/finance/tickets")}
+          canOpenFinanceTransactions={canOpenFinanceTransactions}
+          openFinanceTransactionsPanel={() => navigateFromMenu("/finance/transactions")}
+          canOpenFinanceBalances={canOpenFinanceBalances}
+          openFinanceBalancesPanel={() => navigateFromMenu("/finance/balances")}
+          canOpenFinanceDailyCash={canOpenFinanceDailyCash}
+          openFinanceDailyCashPanel={() => navigateFromMenu("/finance/daily-cash")}
+          canOpenFinanceReports={canOpenFinanceReports}
+          openFinanceReportsPanel={() => navigateFromMenu("/finance/reports")}
           canOpenServices={canOpenServices}
           openServicesPanel={() => navigateFromMenu("/services")}
           hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
@@ -1442,10 +1463,12 @@ function HomePage() {
           canOpenSettingsRoles={canOpenSettingsRoles}
           canOpenSettingsPositions={canOpenSettingsPositions}
           canOpenSettingsServices={canOpenSettingsServices}
+          canOpenSettingsFinance={canOpenSettingsFinance}
           openOrganizationsPanel={() => navigateFromMenu("/admin-settings/organizations")}
           openRolesPanel={() => navigateFromMenu("/settings/roles")}
           openPositionsPanel={() => navigateFromMenu("/settings/positions")}
           openSettingsServicesPanel={() => navigateFromMenu("/settings/services")}
+          openSettingsFinancePanel={() => navigateFromMenu("/settings/finance")}
           openMonitoringPanel={() => navigateFromMenu("/admin-settings/monitoring")}
           canOpenSiteContent={canOpenSiteContent}
           openSiteContentPanel={(sectionKey = "kids") => navigateFromMenu(`/site/content?section=${sectionKey}`)}

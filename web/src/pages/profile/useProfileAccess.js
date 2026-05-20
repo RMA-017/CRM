@@ -55,6 +55,16 @@ export function useProfileAccess(profile, forcedView) {
   const canReadCrmLeadsPermission = hasPermissionCode(PERMISSIONS.CRM_LEADS_READ);
   const canUpdateCrmLeadsPermission = hasPermissionCode(PERMISSIONS.CRM_LEADS_UPDATE);
   const canReadServicesPermission = hasPermissionCode(PERMISSIONS.SERVICES_READ);
+  const canReadFinanceCashierPermission = hasPermissionCode(PERMISSIONS.FINANCE_CASHIER_READ);
+  const canCreateFinanceCashierPermission = hasPermissionCode(PERMISSIONS.FINANCE_CASHIER_CREATE);
+  const canUpdateFinanceCashierPermission = hasPermissionCode(PERMISSIONS.FINANCE_CASHIER_UPDATE);
+  const canPayFinanceCashierPermission = hasPermissionCode(PERMISSIONS.FINANCE_CASHIER_PAY);
+  const canReadFinanceTicketsPermission = hasPermissionCode(PERMISSIONS.FINANCE_TICKETS_READ);
+  const canReadFinanceTransactionsPermission = hasPermissionCode(PERMISSIONS.FINANCE_TRANSACTIONS_READ);
+  const canReadFinanceBalancesPermission = hasPermissionCode(PERMISSIONS.FINANCE_BALANCES_READ);
+  const canUpdateFinanceBalancesPermission = hasPermissionCode(PERMISSIONS.FINANCE_BALANCES_UPDATE);
+  const canReadFinanceDailyCashPermission = hasPermissionCode(PERMISSIONS.FINANCE_DAILY_CASH_READ);
+  const canReadFinanceReportsPermission = hasPermissionCode(PERMISSIONS.FINANCE_REPORTS_READ);
 
   const canReadSettingsAppointmentsPermission = hasPermissionCode(PERMISSIONS.SETTINGS_APPOINTMENTS_READ);
   const canUpdateSettingsAppointmentsPermission = hasPermissionCode(PERMISSIONS.SETTINGS_APPOINTMENTS_UPDATE);
@@ -74,6 +84,10 @@ export function useProfileAccess(profile, forcedView) {
   const canCreateSettingsServicesPermission = hasPermissionCode(PERMISSIONS.SETTINGS_SERVICES_CREATE);
   const canUpdateSettingsServicesPermission = hasPermissionCode(PERMISSIONS.SETTINGS_SERVICES_UPDATE);
   const canDeleteSettingsServicesPermission = hasPermissionCode(PERMISSIONS.SETTINGS_SERVICES_DELETE);
+  const canReadSettingsFinancePermission = hasPermissionCode(PERMISSIONS.SETTINGS_FINANCE_READ);
+  const canCreateSettingsFinancePermission = hasPermissionCode(PERMISSIONS.SETTINGS_FINANCE_CREATE);
+  const canUpdateSettingsFinancePermission = hasPermissionCode(PERMISSIONS.SETTINGS_FINANCE_UPDATE);
+  const canDeleteSettingsFinancePermission = hasPermissionCode(PERMISSIONS.SETTINGS_FINANCE_DELETE);
 
   const usesAdvancedMenuPermissions = (
     canOpenPlannerPermission
@@ -110,6 +124,12 @@ export function useProfileAccess(profile, forcedView) {
     || canCreateSettingsServicesPermission
     || canUpdateSettingsServicesPermission
     || canDeleteSettingsServicesPermission
+  );
+  const hasExplicitFinanceSettingsPermissions = (
+    canReadSettingsFinancePermission
+    || canCreateSettingsFinancePermission
+    || canUpdateSettingsFinancePermission
+    || canDeleteSettingsFinancePermission
   );
 
   const canReadSettingsAppointments = hasExplicitAppointmentSettingsPermissions
@@ -160,10 +180,36 @@ export function useProfileAccess(profile, forcedView) {
   const canDeleteSettingsServices = hasExplicitServiceSettingsPermissions
     ? canDeleteSettingsServicesPermission
     : legacyHasSettingsAccess;
+  const canReadSettingsFinance = hasExplicitFinanceSettingsPermissions
+    ? canReadSettingsFinancePermission
+    : legacyHasSettingsAccess;
+  const canCreateSettingsFinance = hasExplicitFinanceSettingsPermissions
+    ? canCreateSettingsFinancePermission
+    : legacyHasSettingsAccess;
+  const canUpdateSettingsFinance = hasExplicitFinanceSettingsPermissions
+    ? canUpdateSettingsFinancePermission
+    : legacyHasSettingsAccess;
+  const canDeleteSettingsFinance = hasExplicitFinanceSettingsPermissions
+    ? canDeleteSettingsFinancePermission
+    : legacyHasSettingsAccess;
 
   const hasClientsMenuAccess = canReadClients;
   const canOpenCrm = canReadCrmLeadsPermission || canUpdateCrmLeadsPermission;
   const canUpdateCrm = canUpdateCrmLeadsPermission;
+  const canOpenFinanceCashier = canReadFinanceCashierPermission;
+  const canOpenFinanceTickets = canReadFinanceTicketsPermission;
+  const canOpenFinanceTransactions = canReadFinanceTransactionsPermission;
+  const canOpenFinanceBalances = canReadFinanceBalancesPermission;
+  const canOpenFinanceDailyCash = canReadFinanceDailyCashPermission;
+  const canOpenFinanceReports = canReadFinanceReportsPermission;
+  const canOpenFinance = (
+    canOpenFinanceCashier
+    || canOpenFinanceTickets
+    || canOpenFinanceTransactions
+    || canOpenFinanceBalances
+    || canOpenFinanceDailyCash
+    || canOpenFinanceReports
+  );
   const canReadServices = canReadServicesPermission || canReadSettingsServices;
   const hasUsersMenuAccess = canReadUsers || canCreateUsers;
 
@@ -198,6 +244,7 @@ export function useProfileAccess(profile, forcedView) {
   const canOpenSettingsRoles = canReadSettingsRoles;
   const canOpenSettingsPositions = canReadSettingsPositions;
   const canOpenSettingsServices = canReadSettingsServices;
+  const canOpenSettingsFinance = canReadSettingsFinance;
   const canOpenServices = canReadServices;
   const canOpenAppointmentSettings = canReadSettingsAppointments;
   const canOpenTelegramBotSettings = canReadSettingsTelegramBot;
@@ -213,6 +260,7 @@ export function useProfileAccess(profile, forcedView) {
     || canOpenSettingsRoles
     || canOpenSettingsPositions
     || canOpenSettingsServices
+    || canOpenSettingsFinance
   );
   const hasAdminSettingsAccess = isPlatformAdmin;
   const hasExplicitSiteContentPermissions = (
@@ -258,6 +306,24 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "services") {
       return canOpenServices;
     }
+    if (forcedView === "finance-cashier") {
+      return canOpenFinanceCashier;
+    }
+    if (forcedView === "finance-tickets") {
+      return canOpenFinanceTickets;
+    }
+    if (forcedView === "finance-transactions") {
+      return canOpenFinanceTransactions;
+    }
+    if (forcedView === "finance-balances") {
+      return canOpenFinanceBalances;
+    }
+    if (forcedView === "finance-daily-cash") {
+      return canOpenFinanceDailyCash;
+    }
+    if (forcedView === "finance-reports") {
+      return canOpenFinanceReports;
+    }
     if (forcedView === "appointment") {
       return canOpenAppointmentSchedule;
     }
@@ -285,6 +351,9 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "settings-services") {
       return canOpenSettingsServices;
     }
+    if (forcedView === "settings-finance") {
+      return canOpenSettingsFinance;
+    }
     if (forcedView === "statistics" || forcedView === "statistics-planner-report") {
       return canOpenStatisticsPlannerReport;
     }
@@ -299,9 +368,16 @@ export function useProfileAccess(profile, forcedView) {
     canOpenTelegramBotSettings,
     canOpenSmsNotifications,
     canOpenCrm,
+    canOpenFinanceCashier,
+    canOpenFinanceTickets,
+    canOpenFinanceTransactions,
+    canOpenFinanceBalances,
+    canOpenFinanceDailyCash,
+    canOpenFinanceReports,
     canOpenSettingsOrganizations,
     canOpenSettingsPositions,
     canOpenSettingsServices,
+    canOpenSettingsFinance,
     canOpenServices,
     canOpenSettingsRoles,
     canOpenStatisticsPlannerReport,
@@ -357,6 +433,19 @@ export function useProfileAccess(profile, forcedView) {
     canSendSmsNotifications,
     canOpenCrm,
     canUpdateCrm,
+    canOpenFinance,
+    canOpenFinanceCashier,
+    canOpenFinanceTickets,
+    canOpenFinanceTransactions,
+    canOpenFinanceBalances,
+    canOpenFinanceDailyCash,
+    canOpenFinanceReports,
+    canCreateFinanceCashier: canCreateFinanceCashierPermission,
+    canUpdateFinanceCashier: canUpdateFinanceCashierPermission,
+    canPayFinanceCashier: canPayFinanceCashierPermission,
+    canUpdateFinanceBalances: canUpdateFinanceBalancesPermission,
+    canOpenFinanceReports,
+    canReadFinanceReports: canReadFinanceReportsPermission,
     canReadServices,
     canOpenServices,
     canOpenSettingsOrganizations,
@@ -378,6 +467,11 @@ export function useProfileAccess(profile, forcedView) {
     canCreateSettingsServices,
     canUpdateSettingsServices,
     canDeleteSettingsServices,
+    canOpenSettingsFinance,
+    canReadSettingsFinance,
+    canCreateSettingsFinance,
+    canUpdateSettingsFinance,
+    canDeleteSettingsFinance,
     hasAppointmentsMenuAccess,
     hasUsersMenuAccess,
     hasSettingsMenuAccess,

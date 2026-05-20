@@ -73,6 +73,19 @@ const serviceBodySchema = {
   }
 };
 
+const paymentMethodBodySchema = {
+  type: "object",
+  additionalProperties: true,
+  required: ["name"],
+  properties: {
+    name: { type: "string", minLength: 1, maxLength: 96 },
+    sortOrder: integerLikeSchema,
+    sort_order: integerLikeSchema,
+    isActive: booleanLikeSchema,
+    is_active: booleanLikeSchema
+  }
+};
+
 export const settingsRouteSchemas = Object.freeze({
   idParams: {
     type: "object",
@@ -126,5 +139,14 @@ export const settingsRouteSchemas = Object.freeze({
     }
   },
   serviceCreateBody: serviceBodySchema,
-  serviceUpdateBody: serviceBodySchema
+  serviceUpdateBody: serviceBodySchema,
+  financePaymentMethodsQuery: {
+    type: "object",
+    additionalProperties: true,
+    properties: {
+      status: { type: "string", enum: ["active", "inactive", "all"] }
+    }
+  },
+  financePaymentMethodCreateBody: paymentMethodBodySchema,
+  financePaymentMethodUpdateBody: paymentMethodBodySchema
 });

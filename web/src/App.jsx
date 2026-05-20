@@ -14,6 +14,12 @@ const PROFILE_VIEW_ROUTES = Object.freeze([
   { path: "/clients/allclients", forcedView: "clients-all" },
   { path: "/crm", forcedView: "crm" },
   { path: "/services", forcedView: "services" },
+  { path: "/finance/cashier", forcedView: "finance-cashier" },
+  { path: "/finance/tickets", forcedView: "finance-tickets" },
+  { path: "/finance/transactions", forcedView: "finance-transactions" },
+  { path: "/finance/balances", forcedView: "finance-balances" },
+  { path: "/finance/daily-cash", forcedView: "finance-daily-cash" },
+  { path: "/finance/reports", forcedView: "finance-reports" },
   { path: "/appointments/planner", forcedView: "appointment" },
   { path: "/sms-xabarnoma", forcedView: "sms-notifications" },
   { path: "/settings/appointments", forcedView: "appointment-settings" },
@@ -23,6 +29,7 @@ const PROFILE_VIEW_ROUTES = Object.freeze([
   { path: "/settings/roles", forcedView: "settings-roles" },
   { path: "/settings/positions", forcedView: "settings-positions" },
   { path: "/settings/services", forcedView: "settings-services" },
+  { path: "/settings/finance", forcedView: "settings-finance" },
   { path: "/admin-settings/monitoring", forcedView: "settings-monitoring" },
   { path: "/site/content", forcedView: "site-content" }
 ]);
@@ -59,6 +66,12 @@ const REDIRECT_ROUTE_GROUPS = Object.freeze([
   { to: "/users/allusers", paths: ["/profile/users/allusers"] },
   { to: "/crm", paths: ["/profile/crm", "/crm/leads"] },
   { to: "/services", paths: ["/profile/services"] },
+  { to: "/finance/cashier", paths: ["/finance", "/profile/finance", "/profile/finance/cashier"] },
+  { to: "/finance/tickets", paths: ["/profile/finance/tickets"] },
+  { to: "/finance/transactions", paths: ["/profile/finance/transactions"] },
+  { to: "/finance/balances", paths: ["/profile/finance/balances"] },
+  { to: "/finance/daily-cash", paths: ["/profile/finance/daily-cash"] },
+  { to: "/finance/reports", paths: ["/profile/finance/reports"] },
   { to: "/users/create", paths: ["/profile/users/create"] },
   { to: "/appointments/planner", paths: ["/appointments/breaks", "/profile/appointments/breaks"] },
   { to: "/appointments/planner", paths: ["/appointments/specialist-absences", "/profile/appointments/specialist-absences"] },
@@ -70,6 +83,7 @@ const REDIRECT_ROUTE_GROUPS = Object.freeze([
   { to: "/settings/roles", paths: ["/profile/settings/roles"] },
   { to: "/settings/positions", paths: ["/profile/settings/positions"] },
   { to: "/settings/services", paths: ["/profile/settings/services"] },
+  { to: "/settings/finance", paths: ["/profile/settings/finance"] },
   { to: "/site/content", paths: ["/profile/site/content", "/site"] },
   { to: "/", paths: ["/home"] }
 ]);

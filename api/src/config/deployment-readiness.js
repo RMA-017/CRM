@@ -6,6 +6,15 @@ function toSha256(value) {
   return createHash("sha256").update(String(value), "utf8").digest("hex");
 }
 
+export const REQUIRED_MIGRATION_VERSIONS = Object.freeze([
+  "20260518_000001_service_catalog.sql",
+  "20260518_000002_finance_payment_methods.sql",
+  "20260518_000003_finance_cashier_tickets.sql",
+  "20260518_000004_finance_ticket_items_core.sql",
+  "20260518_000005_finance_cash_sessions_transactions.sql",
+  "20260518_000006_finance_deposit_ticket_payments.sql"
+]);
+
 export async function listMigrationFileMetadata({
   migrationsDir
 } = {}) {
@@ -99,6 +108,12 @@ export function buildMigrationReadinessReport({
   for (const version of normalizedAppliedByVersion.keys()) {
     if (!knownVersions.has(version)) {
       errors.push(`Applied migration is missing from the repo: ${version}`);
+    }
+  }
+
+  for (const version of REQUIRED_MIGRATION_VERSIONS) {
+    if (!knownVersions.has(version)) {
+      errors.push(`Required migration file is missing from the repo: ${version}`);
     }
   }
 

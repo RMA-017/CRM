@@ -6,6 +6,13 @@ const AppointmentPlannerPanel = lazy(() => import("./panels/AppointmentPlannerPa
 const AppointmentSettingsShellPanel = lazy(() => import("./panels/AppointmentSettingsShellPanel.jsx"));
 const ClientsPanel = lazy(() => import("./panels/ClientsPanel.jsx"));
 const CrmLeadsPanel = lazy(() => import("./panels/CrmLeadsPanel.jsx"));
+const FinanceCashierPanel = lazy(() => import("./panels/FinanceCashierPanel.jsx"));
+const FinanceSettingsPanel = lazy(() => import("./panels/FinanceSettingsPanel.jsx"));
+const FinanceTicketsPanel = lazy(() => import("./panels/FinanceTicketsPanel.jsx"));
+const FinanceTransactionsPanel = lazy(() => import("./panels/FinanceTransactionsPanel.jsx"));
+const FinanceBalancesPanel = lazy(() => import("./panels/FinanceBalancesPanel.jsx"));
+const FinanceDailyCashPanel = lazy(() => import("./panels/FinanceDailyCashPanel.jsx"));
+const FinanceReportsPanel = lazy(() => import("./panels/FinanceReportsPanel.jsx"));
 const MonitoringPanel = lazy(() => import("./MonitoringPanel.jsx"));
 const OrganizationsSettingsPanel = lazy(() => import("./panels/OrganizationsSettingsPanel.jsx"));
 const PositionsSettingsPanel = lazy(() => import("./panels/PositionsSettingsPanel.jsx"));
@@ -70,8 +77,18 @@ function ProfileMainContent({
   openClientsDeleteModal,
   closeAllClientsPanel,
   closeCrmPanel,
+  closeFinanceCashierPanel,
+  closeFinanceTicketsPanel,
+  closeFinanceTransactionsPanel,
+  closeFinanceBalancesPanel,
+  closeFinanceDailyCashPanel,
+  closeFinanceReportsPanel,
   closeServicesPanel,
   canUpdateCrm,
+  canCreateFinanceCashier,
+  canUpdateFinanceCashier,
+  canPayFinanceCashier,
+  canUpdateFinanceBalances,
   canReadAppointments,
   canCreateAppointments,
   canUpdateAppointments,
@@ -94,6 +111,7 @@ function ProfileMainContent({
   closeRolesPanel,
   closePositionsPanel,
   closeSettingsServicesPanel,
+  closeSettingsFinancePanel,
   closeMonitoringPanel,
   closeSiteContentPanel,
   closeStatisticsPanel,
@@ -144,6 +162,9 @@ function ProfileMainContent({
   canCreateSettingsServices,
   canUpdateSettingsServices,
   canDeleteSettingsServices,
+  canCreateSettingsFinance,
+  canUpdateSettingsFinance,
+  canDeleteSettingsFinance,
   canCreateUsers,
   handleCreateUserSubmit,
   createForm,
@@ -402,6 +423,50 @@ function ProfileMainContent({
           </Suspense>
         ) : null}
 
+        {mainView === "finance-cashier" ? (
+          <Suspense fallback={PANEL_LOADING_FALLBACK}>
+            <FinanceCashierPanel
+              onClose={closeFinanceCashierPanel}
+              canCreateFinanceCashier={canCreateFinanceCashier}
+              canUpdateFinanceCashier={canUpdateFinanceCashier}
+              canPayFinanceCashier={canPayFinanceCashier}
+            />
+          </Suspense>
+        ) : null}
+
+        {mainView === "finance-tickets" ? (
+          <Suspense fallback={PANEL_LOADING_FALLBACK}>
+            <FinanceTicketsPanel onClose={closeFinanceTicketsPanel} />
+          </Suspense>
+        ) : null}
+
+        {mainView === "finance-transactions" ? (
+          <Suspense fallback={PANEL_LOADING_FALLBACK}>
+            <FinanceTransactionsPanel onClose={closeFinanceTransactionsPanel} />
+          </Suspense>
+        ) : null}
+
+        {mainView === "finance-balances" ? (
+          <Suspense fallback={PANEL_LOADING_FALLBACK}>
+            <FinanceBalancesPanel
+              onClose={closeFinanceBalancesPanel}
+              canUpdateFinanceBalances={canUpdateFinanceBalances}
+            />
+          </Suspense>
+        ) : null}
+
+        {mainView === "finance-daily-cash" ? (
+          <Suspense fallback={PANEL_LOADING_FALLBACK}>
+            <FinanceDailyCashPanel onClose={closeFinanceDailyCashPanel} />
+          </Suspense>
+        ) : null}
+
+        {mainView === "finance-reports" ? (
+          <Suspense fallback={PANEL_LOADING_FALLBACK}>
+            <FinanceReportsPanel onClose={closeFinanceReportsPanel} />
+          </Suspense>
+        ) : null}
+
         {mainView === "appointment-settings" ? (
           <Suspense fallback={PANEL_LOADING_FALLBACK}>
             <AppointmentSettingsShellPanel
@@ -505,6 +570,17 @@ function ProfileMainContent({
               canCreateSettingsServices={canCreateSettingsServices}
               canUpdateSettingsServices={canUpdateSettingsServices}
               canDeleteSettingsServices={canDeleteSettingsServices}
+            />
+          </Suspense>
+        ) : null}
+
+        {mainView === "settings-finance" ? (
+          <Suspense fallback={PANEL_LOADING_FALLBACK}>
+            <FinanceSettingsPanel
+              onClose={closeSettingsFinancePanel}
+              canCreateSettingsFinance={canCreateSettingsFinance}
+              canUpdateSettingsFinance={canUpdateSettingsFinance}
+              canDeleteSettingsFinance={canDeleteSettingsFinance}
             />
           </Suspense>
         ) : null}

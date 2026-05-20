@@ -4131,6 +4131,28 @@ export async function getAppointmentScheduleTargetsByScope({
   };
 }
 
+export async function getFinanceTicketLockedAppointmentIds({ organizationId, appointmentScheduleIds }) {
+  const ids = Array.from(new Set(
+    (Array.isArray(appointmentScheduleIds) ? appointmentScheduleIds : [])
+      .map((item) => Number.parseInt(String(item || ""), 10))
+      .filter((item) => Number.isInteger(item) && item > 0)
+  ));
+  if (ids.length === 0) {
+    return [];
+  }
+  const result = await pool.query(
+    `SELECT DISTINCT appointment_schedule_id
+       FROM finance_tickets
+      WHERE organization_id = $1
+        AND appointment_schedule_id = ANY($2::bigint[])
+        AND status <> 'voided'`,
+    [organizationId, ids]
+  );
+  return result.rows
+    .map((row) => Number.parseInt(String(row.appointment_schedule_id || ""), 10))
+    .filter((item) => Number.isInteger(item) && item > 0);
+}
+
 export async function updateAppointmentSchedulesByIds({
   organizationId,
   actorUserId,

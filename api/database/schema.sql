@@ -538,6 +538,25 @@ CREATE UNIQUE INDEX uq_service_catalog_org_name
 CREATE INDEX idx_service_catalog_org_active_position
   ON service_catalog (organization_id, is_active, position_id, name);
 
+CREATE TABLE finance_payment_methods (
+  id SERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name VARCHAR(96) NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT uq_finance_payment_methods_org_id UNIQUE (organization_id, id)
+);
+
+CREATE UNIQUE INDEX uq_finance_payment_methods_org_name
+  ON finance_payment_methods (organization_id, LOWER(TRIM(name)));
+
+CREATE INDEX idx_finance_payment_methods_org_active_sort
+  ON finance_payment_methods (organization_id, is_active, sort_order, name);
+
 CREATE TABLE appointment_schedules (
   id SERIAL PRIMARY KEY,
   organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -632,6 +651,231 @@ CREATE UNIQUE INDEX uq_appointment_schedules_repeat_group_root
   ON appointment_schedules (organization_id, repeat_group_key)
   WHERE repeat_group_key IS NOT NULL
     AND is_repeat_root = TRUE;
+
+CREATE TABLE finance_tickets (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  ticket_number INTEGER NOT NULL,
+  ticket_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  source VARCHAR(24) NOT NULL DEFAULT 'manual',
+  appointment_schedule_id INTEGER REFERENCES appointment_schedules(id) ON DELETE RESTRICT,
+  client_id INTEGER NOT NULL,
+  specialist_id INTEGER,
+  service_id INTEGER,
+  service_name VARCHAR(128) NOT NULL,
+  amount_uzs INTEGER NOT NULL DEFAULT 0 CHECK (amount_uzs >= 0),
+  subtotal_uzs INTEGER NOT NULL DEFAULT 0 CHECK (subtotal_uzs >= 0),
+  discount_uzs INTEGER NOT NULL DEFAULT 0 CHECK (discount_uzs >= 0),
+  total_uzs INTEGER NOT NULL DEFAULT 0 CHECK (total_uzs >= 0),
+  status VARCHAR(24) NOT NULL DEFAULT 'issued',
+  note VARCHAR(255),
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT uq_finance_tickets_org_id UNIQUE (organization_id, id),
+  CONSTRAINT uq_finance_tickets_org_number UNIQUE (organization_id, ticket_number),
+  CONSTRAINT fk_finance_tickets_client_org
+    FOREIGN KEY (organization_id, client_id)
+    REFERENCES clients(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fk_finance_tickets_specialist_org
+    FOREIGN KEY (organization_id, specialist_id)
+    REFERENCES users(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fk_finance_tickets_service_org
+    FOREIGN KEY (organization_id, service_id)
+    REFERENCES service_catalog(organization_id, id) ON DELETE RESTRICT,
+  CHECK (source IN ('appointment', 'manual')),
+  CHECK (status IN ('issued', 'paid', 'unpaid', 'voided')),
+  CHECK (ticket_number >= 10000 AND ticket_number <= 99999),
+  CHECK (total_uzs = GREATEST(subtotal_uzs - discount_uzs, 0)),
+  CHECK (
+    (source = 'appointment' AND appointment_schedule_id IS NOT NULL)
+    OR
+    (source = 'manual')
+  )
+);
+
+CREATE TABLE finance_ticket_counters (
+  organization_id INTEGER PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
+  next_ticket_number INTEGER NOT NULL DEFAULT 10000 CHECK (next_ticket_number >= 10000 AND next_ticket_number <= 100000)
+);
+
+CREATE UNIQUE INDEX uq_finance_tickets_org_appointment
+  ON finance_tickets (organization_id, appointment_schedule_id)
+  WHERE appointment_schedule_id IS NOT NULL AND status <> 'voided';
+
+CREATE INDEX idx_finance_tickets_org_status_created
+  ON finance_tickets (organization_id, status, created_at DESC);
+
+CREATE INDEX idx_finance_tickets_org_client_created
+  ON finance_tickets (organization_id, client_id, created_at DESC);
+
+CREATE TABLE finance_ticket_items (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  ticket_id BIGINT NOT NULL,
+  line_number INTEGER NOT NULL DEFAULT 1 CHECK (line_number >= 1),
+  specialist_id INTEGER,
+  service_id INTEGER,
+  service_name VARCHAR(128) NOT NULL,
+  price_uzs INTEGER NOT NULL CHECK (price_uzs >= 0),
+  discount_type VARCHAR(16) NOT NULL DEFAULT 'amount',
+  discount_value INTEGER NOT NULL DEFAULT 0 CHECK (discount_value >= 0),
+  discount_uzs INTEGER NOT NULL DEFAULT 0 CHECK (discount_uzs >= 0),
+  final_amount_uzs INTEGER NOT NULL CHECK (final_amount_uzs >= 0),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_finance_ticket_items_ticket_org
+    FOREIGN KEY (organization_id, ticket_id)
+    REFERENCES finance_tickets(organization_id, id) ON DELETE CASCADE,
+  CONSTRAINT fk_finance_ticket_items_specialist_org
+    FOREIGN KEY (organization_id, specialist_id)
+    REFERENCES users(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fk_finance_ticket_items_service_org
+    FOREIGN KEY (organization_id, service_id)
+    REFERENCES service_catalog(organization_id, id) ON DELETE RESTRICT,
+  UNIQUE (organization_id, ticket_id, line_number),
+  CHECK (discount_type IN ('amount', 'percent')),
+  CHECK (discount_type <> 'percent' OR discount_value <= 100),
+  CHECK (discount_uzs <= price_uzs),
+  CHECK (final_amount_uzs = GREATEST(price_uzs - discount_uzs, 0))
+);
+
+CREATE INDEX idx_finance_ticket_items_org_ticket
+  ON finance_ticket_items (organization_id, ticket_id, line_number);
+
+CREATE TABLE finance_ticket_payments (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  ticket_id BIGINT NOT NULL,
+  payment_method_id INTEGER,
+  amount_uzs INTEGER NOT NULL CHECK (amount_uzs > 0),
+  paid_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  note VARCHAR(255),
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_finance_ticket_payments_ticket_org
+    FOREIGN KEY (organization_id, ticket_id)
+    REFERENCES finance_tickets(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fk_finance_ticket_payments_method_org
+    FOREIGN KEY (organization_id, payment_method_id)
+    REFERENCES finance_payment_methods(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT uq_finance_ticket_payments_org_id UNIQUE (organization_id, id)
+);
+
+CREATE INDEX idx_finance_ticket_payments_org_paid
+  ON finance_ticket_payments (organization_id, paid_at DESC);
+
+CREATE TABLE finance_ticket_history (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  ticket_id BIGINT NOT NULL,
+  action VARCHAR(32) NOT NULL,
+  from_status VARCHAR(24),
+  to_status VARCHAR(24),
+  details JSONB NOT NULL DEFAULT '{}'::jsonb,
+  changed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  changed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_finance_ticket_history_ticket_org
+    FOREIGN KEY (organization_id, ticket_id)
+    REFERENCES finance_tickets(organization_id, id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_finance_ticket_history_org_ticket
+  ON finance_ticket_history (organization_id, ticket_id, changed_at DESC);
+
+CREATE TABLE finance_cash_sessions (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  cashier_user_id INTEGER NOT NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'open',
+  opening_balance_uzs INTEGER NOT NULL DEFAULT 0 CHECK (opening_balance_uzs >= 0),
+  closing_balance_uzs INTEGER CHECK (closing_balance_uzs >= 0),
+  expected_balance_uzs INTEGER CHECK (expected_balance_uzs >= 0),
+  opened_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  closed_at TIMESTAMP,
+  note VARCHAR(255),
+  close_note VARCHAR(255),
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  closed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT uq_finance_cash_sessions_org_id UNIQUE (organization_id, id),
+  CONSTRAINT fk_finance_cash_sessions_cashier_org
+    FOREIGN KEY (organization_id, cashier_user_id)
+    REFERENCES users(organization_id, id) ON DELETE RESTRICT,
+  CHECK (status IN ('open', 'closed')),
+  CHECK (
+    (status = 'open' AND closed_at IS NULL)
+    OR
+    (status = 'closed' AND closed_at IS NOT NULL)
+  )
+);
+
+CREATE UNIQUE INDEX uq_finance_cash_sessions_org_cashier_open
+  ON finance_cash_sessions (organization_id, cashier_user_id)
+  WHERE status = 'open';
+
+CREATE INDEX idx_finance_cash_sessions_org_opened
+  ON finance_cash_sessions (organization_id, opened_at DESC);
+
+CREATE TABLE finance_transactions (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  cash_session_id BIGINT NOT NULL,
+  transaction_type VARCHAR(32) NOT NULL,
+  direction VARCHAR(8) NOT NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'posted',
+  client_id INTEGER,
+  ticket_id BIGINT,
+  ticket_payment_id BIGINT,
+  payment_method_id INTEGER,
+  amount_uzs INTEGER NOT NULL CHECK (amount_uzs > 0),
+  transaction_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  note VARCHAR(255),
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  voided_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  voided_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_finance_transactions_session_org
+    FOREIGN KEY (organization_id, cash_session_id)
+    REFERENCES finance_cash_sessions(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fk_finance_transactions_client_org
+    FOREIGN KEY (organization_id, client_id)
+    REFERENCES clients(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fk_finance_transactions_ticket_org
+    FOREIGN KEY (organization_id, ticket_id)
+    REFERENCES finance_tickets(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fk_finance_transactions_ticket_payment_org
+    FOREIGN KEY (organization_id, ticket_payment_id)
+    REFERENCES finance_ticket_payments(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fk_finance_transactions_method_org
+    FOREIGN KEY (organization_id, payment_method_id)
+    REFERENCES finance_payment_methods(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT chk_finance_transactions_type
+    CHECK (transaction_type IN ('ticket_payment', 'deposit_in', 'deposit_out', 'deposit_ticket_payment', 'deposit_ticket_refund', 'refund', 'correction')),
+  CONSTRAINT chk_finance_transactions_direction
+    CHECK (direction IN ('in', 'out', 'transfer')),
+  CHECK (status IN ('posted', 'voided')),
+  CHECK (
+    (status = 'posted' AND voided_at IS NULL)
+    OR
+    (status = 'voided' AND voided_at IS NOT NULL)
+  )
+);
+
+CREATE INDEX idx_finance_transactions_org_date
+  ON finance_transactions (organization_id, transaction_at DESC);
+
+CREATE INDEX idx_finance_transactions_org_session
+  ON finance_transactions (organization_id, cash_session_id, transaction_at DESC);
+
+CREATE INDEX idx_finance_transactions_org_client
+  ON finance_transactions (organization_id, client_id, transaction_at DESC);
+
+CREATE INDEX idx_finance_transactions_org_method
+  ON finance_transactions (organization_id, payment_method_id, transaction_at DESC);
 
 CREATE TABLE telegram_bot_settings (
   id SERIAL PRIMARY KEY,

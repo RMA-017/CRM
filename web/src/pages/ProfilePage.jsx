@@ -93,6 +93,17 @@ function ProfilePage({ forcedView = "none" }) {
     canSendSmsNotifications,
     canOpenCrm,
     canUpdateCrm,
+    canOpenFinance,
+    canOpenFinanceCashier,
+    canOpenFinanceTickets,
+    canOpenFinanceTransactions,
+    canOpenFinanceBalances,
+    canOpenFinanceDailyCash,
+    canOpenFinanceReports,
+    canCreateFinanceCashier,
+    canUpdateFinanceCashier,
+    canPayFinanceCashier,
+    canUpdateFinanceBalances,
     canOpenServices,
     canOpenSettingsOrganizations,
     canCreateSettingsOrganizations,
@@ -110,6 +121,10 @@ function ProfilePage({ forcedView = "none" }) {
     canCreateSettingsServices,
     canUpdateSettingsServices,
     canDeleteSettingsServices,
+    canOpenSettingsFinance,
+    canCreateSettingsFinance,
+    canUpdateSettingsFinance,
+    canDeleteSettingsFinance,
     hasAppointmentsMenuAccess,
     hasUsersMenuAccess,
     hasSettingsMenuAccess,
@@ -649,6 +664,18 @@ function ProfilePage({ forcedView = "none" }) {
     openAllClientsPanel,
     openCrmPanel,
     closeCrmPanel,
+    openFinanceCashierPanel,
+    closeFinanceCashierPanel,
+    openFinanceTicketsPanel,
+    closeFinanceTicketsPanel,
+    openFinanceTransactionsPanel,
+    closeFinanceTransactionsPanel,
+    openFinanceBalancesPanel,
+    closeFinanceBalancesPanel,
+    openFinanceDailyCashPanel,
+    closeFinanceDailyCashPanel,
+    openFinanceReportsPanel,
+    closeFinanceReportsPanel,
     openServicesPanel,
     closeServicesPanel,
     closeAllClientsPanel,
@@ -670,6 +697,8 @@ function ProfilePage({ forcedView = "none" }) {
     closePositionsPanel,
     openSettingsServicesPanel,
     closeSettingsServicesPanel,
+    openSettingsFinancePanel,
+    closeSettingsFinancePanel,
     openMonitoringPanel,
     closeMonitoringPanel,
     openSiteContentPanel,
@@ -684,6 +713,12 @@ function ProfilePage({ forcedView = "none" }) {
     canCreateUsers,
     canReadClients,
     canOpenCrm,
+    canOpenFinanceCashier,
+    canOpenFinanceTickets,
+    canOpenFinanceTransactions,
+    canOpenFinanceBalances,
+    canOpenFinanceDailyCash,
+    canOpenFinanceReports,
     canOpenServices,
     canOpenAppointmentSchedule,
     canOpenAppointmentStatistics,
@@ -694,6 +729,7 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenSettingsRoles,
     canOpenSettingsPositions,
     canOpenSettingsServices,
+    canOpenSettingsFinance,
     canOpenSiteContent,
     hasAdminSettingsAccess
   });
@@ -1180,8 +1216,18 @@ function ProfilePage({ forcedView = "none" }) {
             openClientsDeleteModal={openClientsDeleteModal}
             closeAllClientsPanel={closeAllClientsPanel}
             closeCrmPanel={closeCrmPanel}
+            closeFinanceCashierPanel={closeFinanceCashierPanel}
+            closeFinanceTicketsPanel={closeFinanceTicketsPanel}
+            closeFinanceTransactionsPanel={closeFinanceTransactionsPanel}
+            closeFinanceBalancesPanel={closeFinanceBalancesPanel}
+            closeFinanceDailyCashPanel={closeFinanceDailyCashPanel}
+            closeFinanceReportsPanel={closeFinanceReportsPanel}
             closeServicesPanel={closeServicesPanel}
             canUpdateCrm={canUpdateCrm}
+            canCreateFinanceCashier={canCreateFinanceCashier}
+            canUpdateFinanceCashier={canUpdateFinanceCashier}
+            canPayFinanceCashier={canPayFinanceCashier}
+            canUpdateFinanceBalances={canUpdateFinanceBalances}
             canReadAppointments={canReadAppointments}
             canCreateAppointments={canCreateAppointments}
             canUpdateAppointments={canUpdateAppointments}
@@ -1204,6 +1250,7 @@ function ProfilePage({ forcedView = "none" }) {
             closeRolesPanel={closeRolesPanel}
             closePositionsPanel={closePositionsPanel}
             closeSettingsServicesPanel={closeSettingsServicesPanel}
+            closeSettingsFinancePanel={closeSettingsFinancePanel}
             closeMonitoringPanel={closeMonitoringPanel}
             closeSiteContentPanel={closeSiteContentPanel}
             closeStatisticsPanel={closeStatisticsPanel}
@@ -1254,6 +1301,9 @@ function ProfilePage({ forcedView = "none" }) {
             canCreateSettingsServices={canCreateSettingsServices}
             canUpdateSettingsServices={canUpdateSettingsServices}
             canDeleteSettingsServices={canDeleteSettingsServices}
+            canCreateSettingsFinance={canCreateSettingsFinance}
+            canUpdateSettingsFinance={canUpdateSettingsFinance}
+            canDeleteSettingsFinance={canDeleteSettingsFinance}
             canCreateUsers={canCreateUsers}
             handleCreateUserSubmit={handleCreateUserSubmit}
             createForm={createForm}
@@ -1373,6 +1423,19 @@ function ProfilePage({ forcedView = "none" }) {
         openAllClientsPanel={openAllClientsPanel}
         canOpenCrm={canOpenCrm}
         openCrmPanel={openCrmPanel}
+        canOpenFinance={canOpenFinance}
+        canOpenFinanceCashier={canOpenFinanceCashier}
+        openFinanceCashierPanel={openFinanceCashierPanel}
+        canOpenFinanceTickets={canOpenFinanceTickets}
+        openFinanceTicketsPanel={openFinanceTicketsPanel}
+        canOpenFinanceTransactions={canOpenFinanceTransactions}
+        openFinanceTransactionsPanel={openFinanceTransactionsPanel}
+        canOpenFinanceBalances={canOpenFinanceBalances}
+        openFinanceBalancesPanel={openFinanceBalancesPanel}
+        canOpenFinanceDailyCash={canOpenFinanceDailyCash}
+        openFinanceDailyCashPanel={openFinanceDailyCashPanel}
+        canOpenFinanceReports={canOpenFinanceReports}
+        openFinanceReportsPanel={openFinanceReportsPanel}
         hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
         canOpenAppointmentSchedule={canOpenAppointmentSchedule}
         canOpenAppointmentSettings={canOpenAppointmentSettings}
@@ -1394,10 +1457,12 @@ function ProfilePage({ forcedView = "none" }) {
         canOpenSettingsRoles={canOpenSettingsRoles}
         canOpenSettingsPositions={canOpenSettingsPositions}
         canOpenSettingsServices={canOpenSettingsServices}
+        canOpenSettingsFinance={canOpenSettingsFinance}
         openOrganizationsPanel={openOrganizationsPanel}
         openRolesPanel={openRolesPanel}
         openPositionsPanel={openPositionsPanel}
         openSettingsServicesPanel={openSettingsServicesPanel}
+        openSettingsFinancePanel={openSettingsFinancePanel}
         openMonitoringPanel={openMonitoringPanel}
         canOpenSiteContent={canOpenSiteContent}
         openSiteContentPanel={openSiteContentPanel}

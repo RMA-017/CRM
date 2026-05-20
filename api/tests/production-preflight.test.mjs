@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildMigrationReadinessReport } from "../src/config/deployment-readiness.js";
+import {
+  REQUIRED_MIGRATION_VERSIONS,
+  buildMigrationReadinessReport
+} from "../src/config/deployment-readiness.js";
 import { getProductionPreflightReport } from "../src/config/production-preflight.js";
 
 test("production preflight accepts hardened production env values", () => {
@@ -48,6 +51,49 @@ test("production preflight forceProduction mode applies production checks", () =
 });
 
 test("migration readiness report passes when repo and applied migrations match", () => {
+  const requiredMigrationFiles = REQUIRED_MIGRATION_VERSIONS.map((version) => ({
+    version,
+    checksum: `checksum-${version}`
+  }));
+  const report = buildMigrationReadinessReport({
+    migrationFiles: [
+      { version: "20260309_000001_baseline.sql", checksum: "aaa" },
+      ...requiredMigrationFiles
+    ],
+    appliedByVersion: new Map([
+      ["20260309_000001_baseline.sql", { checksum: "aaa" }],
+      ...requiredMigrationFiles.map((item) => [item.version, { checksum: item.checksum }])
+    ])
+  });
+
+  assert.deepEqual(report.errors, []);
+  assert.equal(report.pendingCount, 0);
+});
+
+test("migration readiness report rejects pending, missing and checksum-drift migrations", () => {
+  const requiredMigrationFiles = REQUIRED_MIGRATION_VERSIONS.map((version) => ({
+    version,
+    checksum: `checksum-${version}`
+  }));
+  const report = buildMigrationReadinessReport({
+    migrationFiles: [
+      { version: "20260309_000001_baseline.sql", checksum: "aaa" },
+      { version: "20260310_000002_next.sql", checksum: "bbb" },
+      ...requiredMigrationFiles
+    ],
+    appliedByVersion: new Map([
+      ["20260309_000001_baseline.sql", { checksum: "zzz" }],
+      ["20260308_000000_old.sql", { checksum: "old" }],
+      ...requiredMigrationFiles.map((item) => [item.version, { checksum: item.checksum }])
+    ])
+  });
+
+  assert.ok(report.errors.some((error) => error.includes("checksum mismatch")));
+  assert.ok(report.errors.some((error) => error.includes("Pending migrations detected")));
+  assert.ok(report.errors.some((error) => error.includes("missing from the repo")));
+});
+
+test("migration readiness report requires finance migrations to stay in the repo", () => {
   const report = buildMigrationReadinessReport({
     migrationFiles: [
       { version: "20260309_000001_baseline.sql", checksum: "aaa" }
@@ -57,23 +103,10 @@ test("migration readiness report passes when repo and applied migrations match",
     ])
   });
 
-  assert.deepEqual(report.errors, []);
-  assert.equal(report.pendingCount, 0);
-});
-
-test("migration readiness report rejects pending, missing and checksum-drift migrations", () => {
-  const report = buildMigrationReadinessReport({
-    migrationFiles: [
-      { version: "20260309_000001_baseline.sql", checksum: "aaa" },
-      { version: "20260310_000002_next.sql", checksum: "bbb" }
-    ],
-    appliedByVersion: new Map([
-      ["20260309_000001_baseline.sql", { checksum: "zzz" }],
-      ["20260308_000000_old.sql", { checksum: "old" }]
-    ])
-  });
-
-  assert.ok(report.errors.some((error) => error.includes("checksum mismatch")));
-  assert.ok(report.errors.some((error) => error.includes("Pending migrations detected")));
-  assert.ok(report.errors.some((error) => error.includes("missing from the repo")));
+  assert.ok(
+    report.errors.some((error) => error.includes("20260518_000001_service_catalog.sql"))
+  );
+  assert.ok(
+    report.errors.some((error) => error.includes("20260518_000006_finance_deposit_ticket_payments.sql"))
+  );
 });

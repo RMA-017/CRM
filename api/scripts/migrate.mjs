@@ -282,7 +282,42 @@ async function main() {
   }
 }
 
+function formatErrorLine(error, index = null) {
+  const parts = [];
+  if (index !== null) {
+    parts.push(`#${index}`);
+  }
+  if (error?.name) {
+    parts.push(error.name);
+  }
+  if (error?.code) {
+    parts.push(`code=${error.code}`);
+  }
+  if (error?.address) {
+    parts.push(`address=${error.address}`);
+  }
+  if (error?.port) {
+    parts.push(`port=${error.port}`);
+  }
+  if (error?.message) {
+    parts.push(error.message);
+  }
+  return parts.join(" ");
+}
+
+function formatMigrationError(error) {
+  const lines = [formatErrorLine(error) || String(error)];
+  const nestedErrors = Array.isArray(error?.errors) ? error.errors : [];
+  nestedErrors.forEach((nestedError, index) => {
+    lines.push(`  ${formatErrorLine(nestedError, index + 1) || String(nestedError)}`);
+  });
+  if (error?.cause) {
+    lines.push(`  cause: ${formatErrorLine(error.cause) || String(error.cause)}`);
+  }
+  return lines.join("\n");
+}
+
 main().catch((error) => {
-  process.stderr.write(`[migrate] failed: ${error?.message || error}\n`);
+  process.stderr.write(`[migrate] failed: ${formatMigrationError(error)}\n`);
   process.exitCode = 1;
 });

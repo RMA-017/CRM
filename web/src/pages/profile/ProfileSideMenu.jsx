@@ -8,7 +8,8 @@ const CLOSED_SUBMENUS = Object.freeze({
   users: false,
   site: false,
   settings: false,
-  adminSettings: false
+  adminSettings: false,
+  finance: false
 });
 
 const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
@@ -18,6 +19,19 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
   openAllClientsPanel,
   canOpenCrm,
   openCrmPanel,
+  canOpenFinance,
+  canOpenFinanceCashier,
+  openFinanceCashierPanel,
+  canOpenFinanceTickets,
+  openFinanceTicketsPanel,
+  canOpenFinanceTransactions,
+  openFinanceTransactionsPanel,
+  canOpenFinanceBalances,
+  openFinanceBalancesPanel,
+  canOpenFinanceDailyCash,
+  openFinanceDailyCashPanel,
+  canOpenFinanceReports,
+  openFinanceReportsPanel,
   canOpenServices,
   openServicesPanel,
   hasAppointmentsMenuAccess,
@@ -39,10 +53,12 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
   canOpenSettingsRoles,
   canOpenSettingsPositions,
   canOpenSettingsServices,
+  canOpenSettingsFinance,
   openOrganizationsPanel,
   openRolesPanel,
   openPositionsPanel,
   openSettingsServicesPanel,
+  openSettingsFinancePanel,
   openMonitoringPanel,
   canOpenSiteContent,
   openSiteContentPanel
@@ -251,6 +267,76 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
             Services
           </button>
 
+          <div id="financeMenuGroup" className="side-menu-group" hidden={!canOpenFinance}>
+            <button
+              id="toggleFinanceMenuBtn"
+              type="button"
+              className="side-menu-action side-menu-parent"
+              aria-expanded={openSubmenus.finance ? "true" : "false"}
+              onClick={() => {
+                toggleSubmenu("finance");
+              }}
+            >
+              Finance
+            </button>
+            <div id="financeSubMenu" className="side-submenu" hidden={!openSubmenus.finance}>
+              <button
+                id="openFinanceCashierBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                hidden={!canOpenFinanceCashier}
+                onClick={openFinanceCashierPanel}
+              >
+                Kassa
+              </button>
+              <button
+                id="openFinanceTicketsBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                hidden={!canOpenFinanceTickets}
+                onClick={openFinanceTicketsPanel}
+              >
+                Tickets
+              </button>
+              <button
+                id="openFinanceTransactionsBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                hidden={!canOpenFinanceTransactions}
+                onClick={openFinanceTransactionsPanel}
+              >
+                Transactions
+              </button>
+              <button
+                id="openFinanceBalancesBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                hidden={!canOpenFinanceBalances}
+                onClick={openFinanceBalancesPanel}
+              >
+                Balances
+              </button>
+              <button
+                id="openFinanceDailyCashBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                hidden={!canOpenFinanceDailyCash}
+                onClick={openFinanceDailyCashPanel}
+              >
+                Daily Cash
+              </button>
+              <button
+                id="openFinanceReportsBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                hidden={!canOpenFinanceReports}
+                onClick={openFinanceReportsPanel}
+              >
+                Reports
+              </button>
+            </div>
+          </div>
+
           <div id="siteMenuGroup" className="side-menu-group" hidden={!canOpenSiteContent}>
             <button
               id="toggleSiteMenuBtn"
@@ -399,6 +485,15 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 onClick={openSettingsServicesPanel}
               >
                 Services
+              </button>
+              <button
+                id="openSettingsFinanceBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                hidden={!canOpenSettingsFinance}
+                onClick={openSettingsFinancePanel}
+              >
+                Finance
               </button>
             </div>
           </div>

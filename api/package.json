@@ -11,6 +11,8 @@
 		"migrate:prod": "node --env-file=.env.production.local scripts/migrate.mjs",
 		"migrate:status:prod": "node --env-file=.env.production.local scripts/migrate.mjs --status",
 		"migrate:adopt:prod": "node --env-file=.env.production.local scripts/migrate.mjs --adopt-existing",
+		"finance:schema-check": "node --env-file=.env scripts/finance-schema-check.mjs",
+		"finance:schema-check:prod": "node --env-file=.env.production.local scripts/finance-schema-check.mjs",
 		"normalize:client-phones": "node --env-file=.env scripts/normalize-client-phones.mjs",
 		"normalize:client-phones:prod": "node --env-file=.env.production.local scripts/normalize-client-phones.mjs",
 		"pm2:start": "pnpm run deploy:preflight && pm2 start ecosystem.config.cjs --env production",

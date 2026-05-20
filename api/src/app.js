@@ -12,6 +12,7 @@ import authRoutes from "./modules/auth/auth.routes.js";
 import clientsRoutes from "./modules/clients/clients.routes.js";
 import createUserRoutes from "./modules/create-user/create-user.routes.js";
 import { crmProtectedRoutes, crmPublicRoutes } from "./modules/crm/crm.routes.js";
+import financeRoutes from "./modules/finance/finance.routes.js";
 import metaRoutes from "./modules/meta/meta.routes.js";
 import monitoringRoutes from "./modules/monitoring/monitoring.routes.js";
 import { recordRequest } from "./modules/monitoring/monitoring.store.js";
@@ -187,6 +188,7 @@ export async function buildApp() {
     await fastify.register(usersRoutes, { prefix: "/api/users" });
     await fastify.register(clientsRoutes, { prefix: "/api/clients" });
     await fastify.register(servicesRoutes, { prefix: "/api/services" });
+    await fastify.register(financeRoutes, { prefix: "/api/finance" });
     await fastify.register(crmProtectedRoutes, { prefix: "/api/crm" });
     await fastify.register(appointmentSettingsRoutes, { prefix: "/api/appointments" });
     await fastify.register(settingsRoutes, { prefix: "/api/settings" });

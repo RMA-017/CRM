@@ -83,6 +83,10 @@ function buildOwnPlannerLimitedEditForbiddenMessage() {
   return "Specialists can only edit time, service, status and note on their own appointments.";
 }
 
+function buildFinanceTicketAppointmentLockMessage() {
+  return "This appointment has a finance ticket. Cancel the ticket before changing the appointment.";
+}
+
 function buildOwnPlannerSingleOnlyDeleteForbiddenMessage() {
   return "Specialists can only delete a single appointment in their own planner.";
 }
@@ -312,6 +316,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     listAppointmentSpecialistAbsences,
     getAppointmentBreaksBySpecialistAndDays,
     getAppointmentScheduleTargetsByScope,
+    getFinanceTicketLockedAppointmentIds,
     hasAppointmentClientConflict,
     hasAppointmentScheduleConflict,
     hasVipRoutineConflictForSpecialist,
@@ -1760,6 +1765,15 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const target = resolveRecurringSingleScopeTargetByDayKeys(rawTarget, requestedScopedDayKeys);
         if (!Array.isArray(target.items) || target.items.length === 0) {
           return reply.status(404).send({ message: "Appointment not found." });
+        }
+        if (typeof getFinanceTicketLockedAppointmentIds === "function") {
+          const lockedAppointmentIds = await getFinanceTicketLockedAppointmentIds({
+            organizationId: access.authContext.organizationId,
+            appointmentScheduleIds: target.items.map((item) => item.id)
+          });
+          if (lockedAppointmentIds.length > 0) {
+            return reply.status(409).send({ message: buildFinanceTicketAppointmentLockMessage() });
+          }
         }
         if (
           ownSpecialistUserId
@@ -3266,6 +3280,15 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const target = resolveRecurringSingleScopeTargetByDayKeys(rawTarget, requestedDeleteDayKeys);
         if (!Array.isArray(target.items) || target.items.length === 0) {
           return reply.status(404).send({ message: "Appointment not found." });
+        }
+        if (typeof getFinanceTicketLockedAppointmentIds === "function") {
+          const lockedAppointmentIds = await getFinanceTicketLockedAppointmentIds({
+            organizationId: access.authContext.organizationId,
+            appointmentScheduleIds: target.items.map((item) => item.id)
+          });
+          if (lockedAppointmentIds.length > 0) {
+            return reply.status(409).send({ message: buildFinanceTicketAppointmentLockMessage() });
+          }
         }
         if (
           ownSpecialistUserId

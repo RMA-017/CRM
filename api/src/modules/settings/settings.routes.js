@@ -20,24 +20,29 @@ import {
 } from "../appointments/services/appointment-settings-config.service.js";
 import {
   createOrganization,
+  createFinancePaymentMethod,
   createPositionOption,
   createRoleOption,
   createServiceCatalogItem,
+  deactivateFinancePaymentMethodById,
   deactivateServiceCatalogItemById,
   deleteOrganizationById,
   deletePositionOptionById,
   deleteRoleOptionById,
   findSettingsRequester,
   getPositionOptionById,
+  getFinancePaymentMethodById,
   getRoleOptionById,
   getServiceCatalogItemById,
   hasActiveServicesForPosition,
   listOrganizations,
+  listFinancePaymentMethodsForSettings,
   listPermissionOptionsForSettings,
   listPositionOptionsForSettings,
   listRoleOptionsForSettings,
   listServiceCatalogForSettings,
   updateOrganization,
+  updateFinancePaymentMethod,
   updatePositionOption,
   updateRoleOption,
   updateServiceCatalogItem
@@ -80,6 +85,15 @@ const SETTINGS_ROUTE_PERMISSION_CONFIG = Object.freeze({
       create: PERMISSIONS.SETTINGS_SERVICES_CREATE,
       update: PERMISSIONS.SETTINGS_SERVICES_UPDATE,
       delete: PERMISSIONS.SETTINGS_SERVICES_DELETE
+    })
+  }),
+  finance: Object.freeze({
+    legacyRequiresPlatformAdmin: false,
+    permissions: Object.freeze({
+      read: PERMISSIONS.SETTINGS_FINANCE_READ,
+      create: PERMISSIONS.SETTINGS_FINANCE_CREATE,
+      update: PERMISSIONS.SETTINGS_FINANCE_UPDATE,
+      delete: PERMISSIONS.SETTINGS_FINANCE_DELETE
     })
   })
 });
@@ -217,6 +231,16 @@ function validateServicePayload({ name, positionId }) {
   return null;
 }
 
+function validatePaymentMethodPayload({ name }) {
+  if (!name) {
+    return { field: "name", message: "Payment method name is required." };
+  }
+  if (name.length > 96) {
+    return { field: "name", message: "Payment method name is too long (max 96)." };
+  }
+  return null;
+}
+
 function normalizeServicesStatus(value) {
   const status = String(value || "active").trim().toLowerCase();
   return ["active", "inactive", "all"].includes(status) ? status : "active";
@@ -259,7 +283,8 @@ async function getSettingsPermissionSnapshot(roleId) {
       appointments: { read: false, update: false },
       roles: { read: false, create: false, update: false, delete: false },
       positions: { read: false, create: false, update: false, delete: false },
-      services: { read: false, create: false, update: false, delete: false }
+      services: { read: false, create: false, update: false, delete: false },
+      finance: { read: false, create: false, update: false, delete: false }
     };
   }
 
@@ -286,7 +311,8 @@ async function getSettingsPermissionSnapshot(roleId) {
     appointments: resourceState.appointments,
     roles: resourceState.roles,
     positions: resourceState.positions,
-    services: resourceState.services
+    services: resourceState.services,
+    finance: resourceState.finance
   };
 }
 
@@ -1309,6 +1335,169 @@ async function settingsRoutes(fastify) {
     }
   );
 
+  fastify.get(
+    "/finance/payment-methods",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        querystring: settingsRouteSchemas.financePaymentMethodsQuery
+      }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+
+      try {
+        const adminContext = await requireSettingsRouteAccess(request, reply, "finance", "read");
+        if (!adminContext) {
+          return;
+        }
+
+        const items = await listFinancePaymentMethodsForSettings(
+          adminContext.authContext.organizationId,
+          normalizeServicesStatus(request.query?.status)
+        );
+        return reply.send({ items });
+      } catch (error) {
+        request.log.error({ err: error }, "Error fetching finance payment methods:");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.post(
+    "/finance/payment-methods",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        body: settingsRouteSchemas.financePaymentMethodCreateBody
+      }
+    },
+    async (request, reply) => {
+      try {
+        const adminContext = await requireSettingsRouteAccess(request, reply, "finance", "create");
+        if (!adminContext) {
+          return;
+        }
+
+        const name = String(request.body?.name || "").trim();
+        const sortOrder = parseSortOrder(request.body?.sortOrder ?? request.body?.sort_order);
+        const isActive = parseIsActive(request.body?.isActive ?? request.body?.is_active, true);
+        const validationError = validatePaymentMethodPayload({ name });
+        if (validationError) {
+          return reply.status(400).send(validationError);
+        }
+
+        const item = await createFinancePaymentMethod({
+          organizationId: adminContext.authContext.organizationId,
+          name,
+          sortOrder,
+          isActive,
+          actorUserId: adminContext.authContext.userId
+        });
+        return reply.status(201).send({
+          message: "Payment method created.",
+          item
+        });
+      } catch (error) {
+        if (error?.code === "23505") {
+          return reply.status(409).send({ field: "name", message: "Payment method name already exists." });
+        }
+        request.log.error({ err: error }, "Error creating finance payment method:");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.patch(
+    "/finance/payment-methods/:id",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        params: settingsRouteSchemas.idParams,
+        body: settingsRouteSchemas.financePaymentMethodUpdateBody
+      }
+    },
+    async (request, reply) => {
+      try {
+        const adminContext = await requireSettingsRouteAccess(request, reply, "finance", "update");
+        if (!adminContext) {
+          return;
+        }
+
+        const id = parsePositiveInteger(request.params?.id);
+        if (!id) {
+          return reply.status(400).send({ message: "Invalid payment method id." });
+        }
+        const existing = await getFinancePaymentMethodById(id, adminContext.authContext.organizationId);
+        if (!existing) {
+          return reply.status(404).send({ message: "Payment method not found." });
+        }
+
+        const name = String(request.body?.name || "").trim();
+        const sortOrder = parseSortOrder(request.body?.sortOrder ?? request.body?.sort_order);
+        const isActive = parseIsActive(request.body?.isActive ?? request.body?.is_active, true);
+        const validationError = validatePaymentMethodPayload({ name });
+        if (validationError) {
+          return reply.status(400).send(validationError);
+        }
+
+        const item = await updateFinancePaymentMethod({
+          id,
+          organizationId: adminContext.authContext.organizationId,
+          name,
+          sortOrder,
+          isActive,
+          actorUserId: adminContext.authContext.userId
+        });
+        return reply.send({
+          message: "Payment method updated.",
+          item
+        });
+      } catch (error) {
+        if (error?.code === "23505") {
+          return reply.status(409).send({ field: "name", message: "Payment method name already exists." });
+        }
+        request.log.error({ err: error }, "Error updating finance payment method:");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.delete(
+    "/finance/payment-methods/:id",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        params: settingsRouteSchemas.idParams
+      }
+    },
+    async (request, reply) => {
+      try {
+        const adminContext = await requireSettingsRouteAccess(request, reply, "finance", "delete");
+        if (!adminContext) {
+          return;
+        }
+
+        const id = parsePositiveInteger(request.params?.id);
+        if (!id) {
+          return reply.status(400).send({ message: "Invalid payment method id." });
+        }
+        const item = await deactivateFinancePaymentMethodById(
+          id,
+          adminContext.authContext.organizationId,
+          adminContext.authContext.userId
+        );
+        if (!item) {
+          return reply.status(404).send({ message: "Payment method not found." });
+        }
+        return reply.send({ message: "Payment method deactivated.", item });
+      } catch (error) {
+        request.log.error({ err: error }, "Error deactivating finance payment method:");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
 }
 
 export const __settingsRouteContracts = Object.freeze({
@@ -1321,6 +1510,7 @@ export const __settingsRouteContracts = Object.freeze({
   validateRolePayload,
   validatePositionPayload,
   validateServicePayload,
+  validatePaymentMethodPayload,
   parsePriceUzs
 });
 

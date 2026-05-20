@@ -9,6 +9,12 @@ export function useProfilePanels({
   canCreateUsers,
   canReadClients,
   canOpenCrm,
+  canOpenFinanceCashier,
+  canOpenFinanceTickets,
+  canOpenFinanceTransactions,
+  canOpenFinanceBalances,
+  canOpenFinanceDailyCash,
+  canOpenFinanceReports,
   canOpenServices,
   canOpenAppointmentSchedule,
   canOpenAppointmentStatistics,
@@ -19,6 +25,7 @@ export function useProfilePanels({
   canOpenSettingsRoles,
   canOpenSettingsPositions,
   canOpenSettingsServices,
+  canOpenSettingsFinance,
   canOpenSiteContent,
   hasAdminSettingsAccess
 }) {
@@ -69,6 +76,54 @@ export function useProfilePanels({
 
   const closeServicesPanel = useCallback(() => {
     closePanel("services");
+  }, [closePanel]);
+
+  const openFinanceCashierPanel = useCallback(() => {
+    openPanel("/finance/cashier", canOpenFinanceCashier);
+  }, [canOpenFinanceCashier, openPanel]);
+
+  const closeFinanceCashierPanel = useCallback(() => {
+    closePanel("finance-cashier");
+  }, [closePanel]);
+
+  const openFinanceTicketsPanel = useCallback(() => {
+    openPanel("/finance/tickets", canOpenFinanceTickets);
+  }, [canOpenFinanceTickets, openPanel]);
+
+  const closeFinanceTicketsPanel = useCallback(() => {
+    closePanel("finance-tickets");
+  }, [closePanel]);
+
+  const openFinanceTransactionsPanel = useCallback(() => {
+    openPanel("/finance/transactions", canOpenFinanceTransactions);
+  }, [canOpenFinanceTransactions, openPanel]);
+
+  const closeFinanceTransactionsPanel = useCallback(() => {
+    closePanel("finance-transactions");
+  }, [closePanel]);
+
+  const openFinanceBalancesPanel = useCallback(() => {
+    openPanel("/finance/balances", canOpenFinanceBalances);
+  }, [canOpenFinanceBalances, openPanel]);
+
+  const closeFinanceBalancesPanel = useCallback(() => {
+    closePanel("finance-balances");
+  }, [closePanel]);
+
+  const openFinanceDailyCashPanel = useCallback(() => {
+    openPanel("/finance/daily-cash", canOpenFinanceDailyCash);
+  }, [canOpenFinanceDailyCash, openPanel]);
+
+  const closeFinanceDailyCashPanel = useCallback(() => {
+    closePanel("finance-daily-cash");
+  }, [closePanel]);
+
+  const openFinanceReportsPanel = useCallback(() => {
+    openPanel("/finance/reports", canOpenFinanceReports);
+  }, [canOpenFinanceReports, openPanel]);
+
+  const closeFinanceReportsPanel = useCallback(() => {
+    closePanel("finance-reports");
   }, [closePanel]);
 
   const closeAllClientsPanel = useCallback(() => {
@@ -151,6 +206,14 @@ export function useProfilePanels({
     closePanel("settings-services");
   }, [closePanel]);
 
+  const openSettingsFinancePanel = useCallback(() => {
+    openPanel("/settings/finance", canOpenSettingsFinance);
+  }, [canOpenSettingsFinance, openPanel]);
+
+  const closeSettingsFinancePanel = useCallback(() => {
+    closePanel("settings-finance");
+  }, [closePanel]);
+
   const openMonitoringPanel = useCallback(() => {
     openPanel("/admin-settings/monitoring", hasAdminSettingsAccess);
   }, [hasAdminSettingsAccess, openPanel]);
@@ -189,6 +252,18 @@ export function useProfilePanels({
     closeCrmPanel,
     openServicesPanel,
     closeServicesPanel,
+    openFinanceCashierPanel,
+    closeFinanceCashierPanel,
+    openFinanceTicketsPanel,
+    closeFinanceTicketsPanel,
+    openFinanceTransactionsPanel,
+    closeFinanceTransactionsPanel,
+    openFinanceBalancesPanel,
+    closeFinanceBalancesPanel,
+    openFinanceDailyCashPanel,
+    closeFinanceDailyCashPanel,
+    openFinanceReportsPanel,
+    closeFinanceReportsPanel,
     closeAllClientsPanel,
     openAppointmentPanel,
     closeAppointmentPanel,
@@ -208,6 +283,8 @@ export function useProfilePanels({
     closePositionsPanel,
     openSettingsServicesPanel,
     closeSettingsServicesPanel,
+    openSettingsFinancePanel,
+    closeSettingsFinancePanel,
     openMonitoringPanel,
     closeMonitoringPanel,
     openSiteContentPanel,

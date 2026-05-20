@@ -353,6 +353,135 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
     ]
   }),
   defineMenu({
+    key: "finance",
+    label: "Finance",
+    sortOrder: 73,
+    children: [
+      defineFeature({
+        key: "finance.cashier",
+        label: "Cashier",
+        sortOrder: 10,
+        permissions: [
+          definePermission({
+            constantKey: "FINANCE_CASHIER_READ",
+            code: "finance.cashier.read",
+            label: "Read Finance Cashier",
+            uiLabel: "Read",
+            sortOrder: 72,
+            actionKey: "read"
+          }),
+          definePermission({
+            constantKey: "FINANCE_CASHIER_CREATE",
+            code: "finance.cashier.create",
+            label: "Create Finance Tickets",
+            uiLabel: "Create",
+            sortOrder: 73,
+            actionKey: "create"
+          }),
+          definePermission({
+            constantKey: "FINANCE_CASHIER_UPDATE",
+            code: "finance.cashier.update",
+            label: "Update Finance Tickets",
+            uiLabel: "Edit",
+            sortOrder: 74,
+            actionKey: "update"
+          }),
+          definePermission({
+            constantKey: "FINANCE_CASHIER_PAY",
+            code: "finance.cashier.pay",
+            label: "Pay Finance Tickets",
+            uiLabel: "Pay",
+            sortOrder: 75,
+            actionKey: "pay"
+          })
+        ]
+      }),
+      defineFeature({
+        key: "finance.tickets",
+        label: "Tickets",
+        sortOrder: 20,
+        permissions: [
+          definePermission({
+            constantKey: "FINANCE_TICKETS_READ",
+            code: "finance.tickets.read",
+            label: "Read Finance Tickets",
+            uiLabel: "Read",
+            sortOrder: 76,
+            actionKey: "read"
+          })
+        ]
+      }),
+      defineFeature({
+        key: "finance.reports",
+        label: "Reports",
+        sortOrder: 30,
+        permissions: [
+          definePermission({
+            constantKey: "FINANCE_REPORTS_READ",
+            code: "finance.reports.read",
+            label: "Read Finance Reports",
+            uiLabel: "Read",
+            sortOrder: 77,
+            actionKey: "read"
+          })
+        ]
+      }),
+      defineFeature({
+        key: "finance.transactions",
+        label: "Transactions",
+        sortOrder: 40,
+        permissions: [
+          definePermission({
+            constantKey: "FINANCE_TRANSACTIONS_READ",
+            code: "finance.transactions.read",
+            label: "Read Finance Transactions",
+            uiLabel: "Read",
+            sortOrder: 78,
+            actionKey: "read"
+          })
+        ]
+      }),
+      defineFeature({
+        key: "finance.balances",
+        label: "Client Balances",
+        sortOrder: 50,
+        permissions: [
+          definePermission({
+            constantKey: "FINANCE_BALANCES_READ",
+            code: "finance.balances.read",
+            label: "Read Finance Client Balances",
+            uiLabel: "Read",
+            sortOrder: 79,
+            actionKey: "read"
+          }),
+          definePermission({
+            constantKey: "FINANCE_BALANCES_UPDATE",
+            code: "finance.balances.update",
+            label: "Update Finance Client Balances",
+            uiLabel: "Edit",
+            sortOrder: 80,
+            actionKey: "update"
+          })
+        ]
+      }),
+      defineFeature({
+        key: "finance.daily_cash",
+        label: "Daily Cash",
+        sortOrder: 60,
+        permissions: [
+          definePermission({
+            constantKey: "FINANCE_DAILY_CASH_READ",
+            code: "finance.daily_cash.read",
+            label: "Read Finance Daily Cash",
+            uiLabel: "Read",
+            sortOrder: 81,
+            actionKey: "read"
+          })
+        ]
+      })
+    ]
+  }),
+  defineMenu({
     key: "website",
     label: "Website Management",
     sortOrder: 75,
@@ -590,6 +719,45 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
             label: "Delete Service Settings",
             uiLabel: "Delete",
             sortOrder: 89,
+            actionKey: "delete"
+          })
+        ]
+      }),
+      defineFeature({
+        key: "settings.finance",
+        label: "Finance",
+        sortOrder: 50,
+        permissions: [
+          definePermission({
+            constantKey: "SETTINGS_FINANCE_READ",
+            code: "settings.finance.read",
+            label: "Read Finance Settings",
+            uiLabel: "Read",
+            sortOrder: 90,
+            actionKey: "read"
+          }),
+          definePermission({
+            constantKey: "SETTINGS_FINANCE_CREATE",
+            code: "settings.finance.create",
+            label: "Create Finance Settings",
+            uiLabel: "Create",
+            sortOrder: 91,
+            actionKey: "create"
+          }),
+          definePermission({
+            constantKey: "SETTINGS_FINANCE_UPDATE",
+            code: "settings.finance.update",
+            label: "Update Finance Settings",
+            uiLabel: "Edit",
+            sortOrder: 92,
+            actionKey: "update"
+          }),
+          definePermission({
+            constantKey: "SETTINGS_FINANCE_DELETE",
+            code: "settings.finance.delete",
+            label: "Delete Finance Settings",
+            uiLabel: "Delete",
+            sortOrder: 93,
             actionKey: "delete"
           })
         ]

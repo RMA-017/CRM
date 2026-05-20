@@ -60,6 +60,18 @@ function cloneServiceCatalogItems(items) {
   }));
 }
 
+function cloneFinancePaymentMethodItems(items) {
+  return (Array.isArray(items) ? items : []).map((item) => ({
+    id: String(item?.id || "").trim(),
+    organizationId: String(item?.organizationId || "").trim(),
+    name: String(item?.name || "").trim(),
+    sortOrder: Number(item?.sortOrder || 0),
+    isActive: Boolean(item?.isActive),
+    createdAt: item?.createdAt ?? null,
+    updatedAt: item?.updatedAt ?? null
+  }));
+}
+
 function clonePermissionOptions(items) {
   return (Array.isArray(items) ? items : []).map((item) => ({
     id: String(item?.id || "").trim(),
@@ -117,6 +129,18 @@ function mapServiceCatalogItem(row) {
     positionLabel: String(row.position_label || "").trim(),
     name: String(row.name || "").trim(),
     priceUzs: Number.parseInt(String(row.price_uzs ?? 0), 10) || 0,
+    isActive: Boolean(row.is_active),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapFinancePaymentMethod(row) {
+  return {
+    id: String(row.id),
+    organizationId: String(row.organization_id || ""),
+    name: String(row.name || "").trim(),
+    sortOrder: Number(row.sort_order || 0),
     isActive: Boolean(row.is_active),
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -879,6 +903,115 @@ export async function hasActiveServicesForPosition({ organizationId, positionId 
     [organizationId, positionId]
   );
   return Boolean(rows[0]);
+}
+
+function normalizeSettingsStatus(status) {
+  const normalized = String(status || "active").trim().toLowerCase();
+  return ["active", "inactive", "all"].includes(normalized) ? normalized : "active";
+}
+
+export async function listFinancePaymentMethodsForSettings(organizationId, status = "active") {
+  const normalizedStatus = normalizeSettingsStatus(status);
+  const cacheKey = `finance-payment-methods|org:${organizationId}|status:${normalizedStatus}`;
+  const cached = settingsReadCache.get(cacheKey);
+  if (cached) {
+    return cloneFinancePaymentMethodItems(cached);
+  }
+
+  let statusSql = "";
+  if (normalizedStatus === "active") {
+    statusSql = "AND is_active = TRUE";
+  } else if (normalizedStatus === "inactive") {
+    statusSql = "AND is_active = FALSE";
+  }
+  const { rows } = await pool.query(
+    `SELECT id, organization_id, name, sort_order, is_active, created_at, updated_at
+       FROM finance_payment_methods
+      WHERE organization_id = $1
+        ${statusSql}
+      ORDER BY sort_order ASC, name ASC, id ASC`,
+    [organizationId]
+  );
+  const items = rows.map(mapFinancePaymentMethod);
+  settingsReadCache.set(cacheKey, cloneFinancePaymentMethodItems(items));
+  return items;
+}
+
+export async function getFinancePaymentMethodById(id, organizationId) {
+  const { rows } = await pool.query(
+    `SELECT id, organization_id, name, sort_order, is_active, created_at, updated_at
+       FROM finance_payment_methods
+      WHERE id = $1
+        AND organization_id = $2
+      LIMIT 1`,
+    [id, organizationId]
+  );
+  return rows[0] ? mapFinancePaymentMethod(rows[0]) : null;
+}
+
+export async function createFinancePaymentMethod({
+  organizationId,
+  name,
+  sortOrder = 0,
+  isActive = true,
+  actorUserId = null
+}) {
+  const { rows } = await pool.query(
+    `INSERT INTO finance_payment_methods (organization_id, name, sort_order, is_active, created_by, updated_by)
+     VALUES ($1, $2, $3, $4, $5, $5)
+     RETURNING id`,
+    [organizationId, name, sortOrder, isActive, actorUserId]
+  );
+  const item = rows[0] ? await getFinancePaymentMethodById(rows[0].id, organizationId) : null;
+  if (item) {
+    clearSettingsReadCaches();
+  }
+  return item;
+}
+
+export async function updateFinancePaymentMethod({
+  id,
+  organizationId,
+  name,
+  sortOrder = 0,
+  isActive = true,
+  actorUserId = null
+}) {
+  const { rows } = await pool.query(
+    `UPDATE finance_payment_methods
+        SET name = $1,
+            sort_order = $2,
+            is_active = $3,
+            updated_by = $4,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id = $5
+        AND organization_id = $6
+      RETURNING id`,
+    [name, sortOrder, isActive, actorUserId, id, organizationId]
+  );
+  const item = rows[0] ? await getFinancePaymentMethodById(rows[0].id, organizationId) : null;
+  if (item) {
+    clearSettingsReadCaches();
+  }
+  return item;
+}
+
+export async function deactivateFinancePaymentMethodById(id, organizationId, actorUserId = null) {
+  const { rows } = await pool.query(
+    `UPDATE finance_payment_methods
+        SET is_active = FALSE,
+            updated_by = $3,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+        AND organization_id = $2
+      RETURNING id`,
+    [id, organizationId, actorUserId]
+  );
+  const item = rows[0] ? await getFinancePaymentMethodById(rows[0].id, organizationId) : null;
+  if (item) {
+    clearSettingsReadCaches();
+  }
+  return item;
 }
 
 export const __settingsServiceContracts = Object.freeze({

@@ -9,6 +9,7 @@ const {
 } = await import("../src/modules/appointments/appointment-settings.routes.js");
 const { default: authRoutes } = await import("../src/modules/auth/auth.routes.js");
 const { default: createUserRoutes } = await import("../src/modules/create-user/create-user.routes.js");
+const { default: financeRoutes } = await import("../src/modules/finance/finance.routes.js");
 const { default: metaRoutes } = await import("../src/modules/meta/meta.routes.js");
 const { default: profileRoutes } = await import("../src/modules/profile/profile.routes.js");
 const { usersRouteSchemas } = await import("../src/modules/users/users.route-schemas.js");
@@ -153,20 +154,24 @@ test("settings routes expose stable contract", async () => {
   assertRateLimitConfigured(recorder.routes);
 
   assert.deepEqual(toRouteSignatures(recorder.routes), [
+    "DELETE /finance/payment-methods/:id",
     "DELETE /organizations/:id",
     "DELETE /positions/:id",
     "DELETE /roles/:id",
     "DELETE /services/:id",
     "GET /admin-options",
+    "GET /finance/payment-methods",
     "GET /organizations",
     "GET /positions",
     "GET /roles",
     "GET /services",
     "PATCH /admin-options",
+    "PATCH /finance/payment-methods/:id",
     "PATCH /organizations/:id",
     "PATCH /positions/:id",
     "PATCH /roles/:id",
     "PATCH /services/:id",
+    "POST /finance/payment-methods",
     "POST /organizations",
     "POST /positions",
     "POST /roles",
@@ -183,6 +188,13 @@ test("settings routes expose stable contract", async () => {
   const adminOptionsGet = findRoute(recorder.routes, "GET", "/admin-options");
   assert.equal(typeof adminOptionsGet?.options?.schema?.querystring, "object");
 
+  const financePaymentMethodsGet = findRoute(recorder.routes, "GET", "/finance/payment-methods");
+  assert.equal(typeof financePaymentMethodsGet?.options?.schema?.querystring, "object");
+
+  const financePaymentMethodsPatch = findRoute(recorder.routes, "PATCH", "/finance/payment-methods/:id");
+  assert.equal(typeof financePaymentMethodsPatch?.options?.schema?.params, "object");
+  assert.equal(typeof financePaymentMethodsPatch?.options?.schema?.body, "object");
+
   const rolesPatch = findRoute(recorder.routes, "PATCH", "/roles/:id");
   assert.equal(typeof rolesPatch?.options?.schema?.params, "object");
   assert.equal(typeof rolesPatch?.options?.schema?.body, "object");
@@ -198,6 +210,97 @@ test("settings routes expose stable contract", async () => {
   assert.equal(typeof servicesPatch?.options?.schema?.params, "object");
   assert.equal(typeof servicesPatch?.options?.schema?.body, "object");
 
+});
+
+test("finance routes expose stable contract", async () => {
+  const recorder = createRouteRecorder();
+  await financeRoutes(recorder.fastify);
+
+  assertRateLimitConfigured(recorder.routes);
+
+  assert.deepEqual(toRouteSignatures(recorder.routes), [
+    "GET /cashier/board",
+    "GET /cashier/clients",
+    "GET /cashier/session/current",
+    "GET /client-balances",
+    "GET /client-balances/:id/debt-tickets",
+    "GET /daily-cash",
+    "GET /payment-methods",
+    "GET /reports",
+    "GET /tickets",
+    "GET /tickets/:id/history",
+    "GET /transactions",
+    "PATCH /cashier/tickets/:id",
+    "POST /cashier/session/close",
+    "POST /cashier/session/open",
+    "POST /cashier/tickets",
+    "POST /cashier/tickets/:id/pay",
+    "POST /cashier/tickets/:id/refund",
+    "POST /cashier/tickets/:id/unpaid",
+    "POST /cashier/tickets/:id/void",
+    "POST /client-balances/deposit",
+    "POST /client-balances/pay-from-deposit"
+  ]);
+
+  const boardGet = findRoute(recorder.routes, "GET", "/cashier/board");
+  assert.equal(typeof boardGet?.options?.schema?.querystring, "object");
+
+  const clientsGet = findRoute(recorder.routes, "GET", "/cashier/clients");
+  assert.equal(typeof clientsGet?.options?.schema?.querystring, "object");
+
+  const sessionCurrentGet = findRoute(recorder.routes, "GET", "/cashier/session/current");
+  assert.equal(sessionCurrentGet?.method, "GET");
+
+  const paymentMethodsGet = findRoute(recorder.routes, "GET", "/payment-methods");
+  assert.equal(paymentMethodsGet?.method, "GET");
+
+  const dailyCashGet = findRoute(recorder.routes, "GET", "/daily-cash");
+  assert.equal(typeof dailyCashGet?.options?.schema?.querystring, "object");
+
+  const reportsGet = findRoute(recorder.routes, "GET", "/reports");
+  assert.equal(typeof reportsGet?.options?.schema?.querystring, "object");
+
+  const clientBalancesGet = findRoute(recorder.routes, "GET", "/client-balances");
+  assert.equal(typeof clientBalancesGet?.options?.schema?.querystring, "object");
+
+  const clientBalanceDepositPost = findRoute(recorder.routes, "POST", "/client-balances/deposit");
+  assert.equal(typeof clientBalanceDepositPost?.options?.schema?.body, "object");
+
+  const clientDebtTicketsGet = findRoute(recorder.routes, "GET", "/client-balances/:id/debt-tickets");
+  assert.equal(typeof clientDebtTicketsGet?.options?.schema?.params, "object");
+
+  const clientPayFromDepositPost = findRoute(recorder.routes, "POST", "/client-balances/pay-from-deposit");
+  assert.equal(typeof clientPayFromDepositPost?.options?.schema?.body, "object");
+
+  const ticketsGet = findRoute(recorder.routes, "GET", "/tickets");
+  assert.equal(typeof ticketsGet?.options?.schema?.querystring, "object");
+
+  const ticketHistoryGet = findRoute(recorder.routes, "GET", "/tickets/:id/history");
+  assert.equal(typeof ticketHistoryGet?.options?.schema?.params, "object");
+
+  const transactionsGet = findRoute(recorder.routes, "GET", "/transactions");
+  assert.equal(typeof transactionsGet?.options?.schema?.querystring, "object");
+
+  const sessionOpenPost = findRoute(recorder.routes, "POST", "/cashier/session/open");
+  assert.equal(typeof sessionOpenPost?.options?.schema?.body, "object");
+
+  const sessionClosePost = findRoute(recorder.routes, "POST", "/cashier/session/close");
+  assert.equal(typeof sessionClosePost?.options?.schema?.body, "object");
+
+  const ticketsPost = findRoute(recorder.routes, "POST", "/cashier/tickets");
+  assert.equal(typeof ticketsPost?.options?.schema?.body, "object");
+
+  const ticketsPatch = findRoute(recorder.routes, "PATCH", "/cashier/tickets/:id");
+  assert.equal(typeof ticketsPatch?.options?.schema?.params, "object");
+  assert.equal(typeof ticketsPatch?.options?.schema?.body, "object");
+
+  const ticketsPay = findRoute(recorder.routes, "POST", "/cashier/tickets/:id/pay");
+  assert.equal(typeof ticketsPay?.options?.schema?.params, "object");
+  assert.equal(typeof ticketsPay?.options?.schema?.body, "object");
+
+  const ticketsRefund = findRoute(recorder.routes, "POST", "/cashier/tickets/:id/refund");
+  assert.equal(typeof ticketsRefund?.options?.schema?.params, "object");
+  assert.equal(typeof ticketsRefund?.options?.schema?.body, "object");
 });
 
 test("auth routes expose stable contract", async () => {
