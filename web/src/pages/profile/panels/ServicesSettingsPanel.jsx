@@ -275,7 +275,9 @@ function ServicesSettingsPanel({
               <th>{translate("Price")}</th>
               <th>{translate("Active")}</th>
               <th aria-label={translate("Edit")}>✎</th>
-              <th aria-label={translate("Delete")}>×</th>
+              <th aria-label={translate("Delete")}>
+                <span className="services-settings-trash-icon" aria-hidden="true" />
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -308,7 +310,9 @@ function ServicesSettingsPanel({
                     disabled={deletingId === String(item.id) || !item.isActive}
                     onClick={() => deactivate(item)}
                   >
-                    {deletingId === String(item.id) ? "..." : "×"}
+                    {deletingId === String(item.id) ? "..." : (
+                      <span className="services-settings-trash-icon" aria-hidden="true" />
+                    )}
                   </button>
                 </td>
               </tr>
