@@ -5983,6 +5983,7 @@ label.field > span:first-child,
 
 .finance-cashier-panel .finance-board-grid {
   display: flex;
+  justify-content: space-between;
   gap: 10px;
   align-items: stretch;
   padding: 2px 2px 10px;
@@ -5994,7 +5995,7 @@ label.field > span:first-child,
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  margin: 8px 0 10px;
+  margin: 0;
   padding: 8px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -6279,6 +6280,13 @@ label.field > span:first-child,
   overflow: hidden;
   box-sizing: border-box;
   font-size: 12px;
+}
+
+.finance-cashier-panel .stacked-modal-overlay {
+  border: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .finance-modal.logout-confirm-modal.all-users-edit-modal h3 {
