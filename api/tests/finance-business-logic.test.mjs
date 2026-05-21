@@ -7,6 +7,11 @@ const financeServiceSource = await readFile(
   "utf8"
 );
 
+const financeRoutesSource = await readFile(
+  new URL("../src/modules/finance/finance.routes.js", import.meta.url),
+  "utf8"
+);
+
 const appointmentScheduleRoutesSource = await readFile(
   new URL("../src/modules/appointments/routes/schedules.routes.js", import.meta.url),
   "utf8"
@@ -35,6 +40,12 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
     /if \(error\?\.code === "23505"\)[\s\S]*Ticket already exists for this appointment/s,
     "Duplicate active appointment tickets should be mapped to a user-facing conflict."
   );
+
+  assert.match(
+    financeServiceSource,
+    /export async function getCashierBoard\(\{ organizationId, dateFrom, dateTo, query \}\)[\s\S]*normalizeText\(query, 96\)[\s\S]*appointmentFilters\.push\(`\([\s\S]*a\.client_id::text = \$\$\{exactParam\}[\s\S]*ticketFilters\.push\(`\([\s\S]*ft\.ticket_number::text = \$\$\{exactParam\}/s,
+    "Cashier board search should be applied server-side for appointments and tickets before the board limit."
+  );
 });
 
 test("finance ticket creation only accepts confirmed appointments and snapshots ticket item totals", () => {
@@ -54,6 +65,26 @@ test("finance ticket creation only accepts confirmed appointments and snapshots 
     financeServiceSource,
     /const items = await buildTicketItems[\s\S]*const totals = getTicketTotals\(items\)[\s\S]*INSERT INTO finance_tickets[\s\S]*subtotal_uzs, discount_uzs, total_uzs, status[\s\S]*'issued'[\s\S]*await insertTicketItems/s,
     "Tickets should be issued with immutable line items and calculated subtotal/discount/total."
+  );
+});
+
+test("cashier can confirm pending planner cards before creating tickets without bypassing locks", () => {
+  assert.match(
+    financeRoutesSource,
+    /"\/cashier\/appointments\/:id\/confirm"[\s\S]*requireCashierAccess\(request, reply, "update"\)[\s\S]*confirmCashierAppointment/s,
+    "Cashier appointment confirmation should be exposed as a finance update permission route."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /export async function confirmCashierAppointment[\s\S]*getCashierAppointmentById[\s\S]*forUpdate: true[\s\S]*finance_ticket_id[\s\S]*This appointment has a finance ticket[\s\S]*appointment\.status !== "pending"[\s\S]*Only pending appointments can be confirmed/s,
+    "Cashier confirmation should lock the appointment, reject ticket-locked cards and only promote pending cards."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /getTodayYmdInTashkent\(\)[\s\S]*Future appointments cannot be confirmed[\s\S]*updateAppointmentSchedulesByIds[\s\S]*status: "confirmed"[\s\S]*applyAppointmentDate: false/s,
+    "Cashier confirmation should keep appointment history and the future-confirmation rule."
   );
 });
 

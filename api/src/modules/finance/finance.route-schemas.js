@@ -44,7 +44,10 @@ export const financeRouteSchemas = Object.freeze({
       dateFrom: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
       dateTo: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
       date_from: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
-      date_to: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" }
+      date_to: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      q: { type: "string", maxLength: 96 },
+      query: { type: "string", maxLength: 96 },
+      search: { type: "string", maxLength: 96 }
     }
   },
   clientSearchQuery: {

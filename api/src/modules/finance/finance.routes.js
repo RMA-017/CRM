@@ -5,6 +5,7 @@ import { findSettingsRequester } from "../settings/settings.service.js";
 import { financeRouteSchemas } from "./finance.route-schemas.js";
 import {
   closeCashSession,
+  confirmCashierAppointment,
   createFinanceDepositTransaction,
   createFinanceTicket,
   getCashierBoard,
@@ -489,11 +490,37 @@ async function financeRoutes(fastify) {
         return reply.send(await getCashierBoard({
           organizationId: request.authContext.organizationId,
           dateFrom: request.query?.dateFrom ?? request.query?.date_from,
-          dateTo: request.query?.dateTo ?? request.query?.date_to
+          dateTo: request.query?.dateTo ?? request.query?.date_to,
+          query: request.query?.q ?? request.query?.query ?? request.query?.search
         }));
       } catch (error) {
         request.log.error({ err: error }, "Error fetching finance cashier board:");
         return sendRouteError(reply, error, "Failed to load cashier board.");
+      }
+    }
+  );
+
+  fastify.post(
+    "/cashier/appointments/:id/confirm",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        params: financeRouteSchemas.idParams
+      }
+    },
+    async (request, reply) => {
+      try {
+        const requester = await requireCashierAccess(request, reply, "update");
+        if (!requester) return null;
+        const item = await confirmCashierAppointment({
+          organizationId: request.authContext.organizationId,
+          id: request.params.id,
+          actorUserId: requester.id
+        });
+        return reply.send({ item });
+      } catch (error) {
+        request.log.error({ err: error }, "Error confirming finance cashier appointment:");
+        return sendRouteError(reply, error, "Appointment update failed.");
       }
     }
   );

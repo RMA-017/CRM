@@ -1,5 +1,6 @@
 import pool from "../../config/db.js";
 import { parsePositiveInteger } from "../../lib/number.js";
+import { updateAppointmentSchedulesByIds } from "../appointments/services/appointment-schedules.service.js";
 
 const BOARD_LIMIT = 80;
 
@@ -17,6 +18,15 @@ function normalizeDate(value) {
   }
   const normalized = normalizeText(value, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null;
+}
+
+function getTodayYmdInTashkent() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tashkent",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date());
 }
 
 function normalizePage(value) {
@@ -230,6 +240,41 @@ function getBoardDates({ dateFrom, dateTo }) {
   };
 }
 
+async function getCashierAppointmentById(db, { organizationId, id, forUpdate = false }) {
+  const lockClause = forUpdate ? "FOR UPDATE OF a" : "";
+  const result = await db.query(
+    `SELECT a.id,
+            a.organization_id,
+            a.client_id,
+            CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+            a.specialist_id,
+            COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS specialist_name,
+            a.service_id,
+            a.service_name,
+            a.service_price_uzs,
+            a.status,
+            a.appointment_date,
+            a.start_time,
+            a.end_time,
+            a.duration_minutes,
+            a.note,
+            ft.id AS finance_ticket_id
+       FROM appointment_schedules a
+       JOIN clients c ON c.organization_id = a.organization_id AND c.id = a.client_id
+       JOIN users u ON u.organization_id = a.organization_id AND u.id = a.specialist_id
+       LEFT JOIN finance_tickets ft
+         ON ft.organization_id = a.organization_id
+        AND ft.appointment_schedule_id = a.id
+        AND ft.status <> 'voided'
+      WHERE a.organization_id = $1
+        AND a.id = $2
+      LIMIT 1
+      ${lockClause}`,
+    [organizationId, id]
+  );
+  return result.rows[0] || null;
+}
+
 async function insertHistory(db, { organizationId, ticketId, action, fromStatus, toStatus, details, actorUserId }) {
   await db.query(
     `INSERT INTO finance_ticket_history (
@@ -350,8 +395,10 @@ async function getNextTicketNumber(db, organizationId) {
   return ticketNumber;
 }
 
-export async function getCashierBoard({ organizationId, dateFrom, dateTo }) {
+export async function getCashierBoard({ organizationId, dateFrom, dateTo, query }) {
   const dates = getBoardDates({ dateFrom, dateTo });
+  const normalizedQuery = normalizeText(query, 96);
+  const normalizedQueryLike = `%${normalizedQuery.toLowerCase()}%`;
   const appointmentParams = [organizationId];
   const appointmentFilters = [
     "a.organization_id = $1",
@@ -366,9 +413,42 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo }) {
     appointmentParams.push(dates.to);
     appointmentFilters.push(`a.appointment_date <= $${appointmentParams.length}`);
   }
+  if (normalizedQuery) {
+    appointmentParams.push(normalizedQueryLike);
+    const likeParam = appointmentParams.length;
+    appointmentParams.push(normalizedQuery);
+    const exactParam = appointmentParams.length;
+    appointmentFilters.push(`(
+      LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE $${likeParam}
+      OR LOWER(COALESCE(a.service_name, '')) LIKE $${likeParam}
+      OR LOWER(COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), '')) LIKE $${likeParam}
+      OR a.id::text = $${exactParam}
+      OR a.client_id::text = $${exactParam}
+    )`);
+  }
   appointmentParams.push(BOARD_LIMIT);
 
-  const ticketParams = [organizationId, BOARD_LIMIT];
+  const ticketParams = [organizationId];
+  const ticketFilters = [
+    "ft.organization_id = $1",
+    "ft.status <> 'voided'"
+  ];
+  if (normalizedQuery) {
+    ticketParams.push(normalizedQueryLike);
+    const likeParam = ticketParams.length;
+    ticketParams.push(normalizedQuery);
+    const exactParam = ticketParams.length;
+    ticketFilters.push(`(
+      LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE $${likeParam}
+      OR LOWER(COALESCE(ft.service_name, '')) LIKE $${likeParam}
+      OR LOWER(COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), '')) LIKE $${likeParam}
+      OR ft.ticket_number::text = $${exactParam}
+      OR ft.id::text = $${exactParam}
+      OR ft.client_id::text = $${exactParam}
+      OR ft.appointment_schedule_id::text = $${exactParam}
+    )`);
+  }
+  ticketParams.push(BOARD_LIMIT);
   const [appointmentsResult, ticketsResult, paymentMethodsResult, servicesResult, specialistsResult] = await Promise.all([
     pool.query(
       `SELECT a.id,
@@ -438,10 +518,9 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo }) {
              FROM finance_ticket_items
             WHERE organization_id = ft.organization_id AND ticket_id = ft.id
          ) fti ON TRUE
-        WHERE ft.organization_id = $1
-          AND ft.status <> 'voided'
+        WHERE ${ticketFilters.join(" AND ")}
         ORDER BY ft.updated_at DESC, ft.id DESC
-        LIMIT $2`,
+        LIMIT $${ticketParams.length}`,
       ticketParams
     ),
     pool.query(
@@ -495,6 +574,82 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo }) {
     })),
     specialists: specialistsResult.rows.map(mapSpecialistOption)
   };
+}
+
+export async function confirmCashierAppointment({ organizationId, id, actorUserId }) {
+  const appointmentId = parsePositiveInteger(id);
+  if (!appointmentId) {
+    const error = new Error("Appointment not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const db = await pool.connect();
+  try {
+    await db.query("BEGIN");
+    const appointment = await getCashierAppointmentById(db, {
+      organizationId,
+      id: appointmentId,
+      forUpdate: true
+    });
+    if (!appointment) {
+      const error = new Error("Appointment not found.");
+      error.statusCode = 404;
+      throw error;
+    }
+    if (appointment.finance_ticket_id) {
+      const error = new Error("This appointment has a finance ticket. Cancel the ticket before changing the appointment.");
+      error.statusCode = 409;
+      throw error;
+    }
+    if (appointment.status === "confirmed") {
+      await db.query("COMMIT");
+      return mapAppointment(appointment);
+    }
+    if (appointment.status !== "pending") {
+      const error = new Error("Only pending appointments can be confirmed.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const appointmentDate = normalizeDate(appointment.appointment_date);
+    if (appointmentDate && appointmentDate > getTodayYmdInTashkent()) {
+      const error = new Error(`Future appointments cannot be confirmed. Requested date: ${appointmentDate}.`);
+      error.statusCode = 400;
+      throw error;
+    }
+
+    await updateAppointmentSchedulesByIds({
+      db,
+      organizationId,
+      actorUserId,
+      ids: [appointmentId],
+      specialistId: appointment.specialist_id,
+      clientId: appointment.client_id,
+      appointmentDate,
+      startTime: appointment.start_time,
+      endTime: appointment.end_time,
+      durationMinutes: appointment.duration_minutes,
+      serviceId: appointment.service_id,
+      serviceName: appointment.service_name,
+      servicePriceUzs: appointment.service_price_uzs,
+      status: "confirmed",
+      note: appointment.note || "",
+      applyAppointmentDate: false
+    });
+
+    const updatedAppointment = await getCashierAppointmentById(db, {
+      organizationId,
+      id: appointmentId
+    });
+    await db.query("COMMIT");
+    return mapAppointment(updatedAppointment);
+  } catch (error) {
+    await db.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    db.release();
+  }
 }
 
 export async function searchCashierClients({ organizationId, query, limit = 20 }) {

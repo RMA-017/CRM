@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CustomSelect from "../../../components/CustomSelect.jsx";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { formatDateYMD } from "../../../lib/formatters.js";
@@ -80,12 +80,58 @@ function translateFinanceStatus(translate, status) {
   return translate(labels[normalized] || normalized || "-");
 }
 
-function TicketCard({ item, footer, onClick, translate }) {
+function normalizeSearchValue(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function ticketCardMatchesSearch(item, query) {
+  if (!query) return true;
+  const haystack = [
+    item?.clientName,
+    item?.clientId,
+    item?.specialistName,
+    item?.serviceName,
+    item?.ticketNumber,
+    item?.appointmentDate,
+    item?.startTime,
+    item?.status
+  ].map(normalizeSearchValue).join(" ");
+  return haystack.includes(query);
+}
+
+function filterBoardItems(items, query) {
+  if (!query) return items;
+  return items.filter((item) => ticketCardMatchesSearch(item, query));
+}
+
+function BoardColumnTitle({ count, total = count, label, translate }) {
+  const countLabel = count === total ? String(count) : `${count}/${total}`;
+  return (
+    <h4 className="finance-board-column-title">
+      <span>{translate(label)}</span>
+      <span className="finance-board-count">{countLabel}</span>
+    </h4>
+  );
+}
+
+function TicketCard({ item, footer, onClick, translate, compact = false }) {
+  const className = [
+    "settings-card",
+    compact ? "finance-card-compact" : "",
+    onClick ? "settings-card-clickable" : ""
+  ].filter(Boolean).join(" ");
+  const clientName = item.clientName || "-";
+  const serviceName = item.serviceName || "-";
+  const specialistName = item.specialistName || "-";
+  const appointmentDate = formatDateYMD(item.appointmentDate);
+  const startTime = formatTime(item.startTime);
+
   return (
     <article
-      className={`settings-card${onClick ? " settings-card-clickable" : ""}`}
+      className={className}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
+      title={compact ? `${appointmentDate} ${startTime} - ${clientName} - ${serviceName} - ${specialistName}` : undefined}
       onClick={onClick}
       onKeyDown={(event) => {
         if (!onClick) return;
@@ -95,6 +141,19 @@ function TicketCard({ item, footer, onClick, translate }) {
         }
       }}
     >
+      {compact ? (
+        <>
+          <div className="settings-card-row">
+            <strong>{`${startTime} ${clientName}`}</strong>
+            <span>{appointmentDate}</span>
+          </div>
+          <div className="settings-card-row">
+            <span>{serviceName}</span>
+            <span>{specialistName}</span>
+          </div>
+        </>
+      ) : (
+        <>
       <div className="settings-card-row">
         <strong>{item.ticketNumber ? `#${item.ticketNumber}` : (item.clientName || "-")}</strong>
         <span>{formatMoney(item.amountUzs ?? item.totalUzs ?? item.servicePriceUzs)}</span>
@@ -116,6 +175,8 @@ function TicketCard({ item, footer, onClick, translate }) {
       <div className="settings-card-row">
         <span>{item.specialistName || "-"}</span>
       </div>
+        </>
+      )}
       {footer ? (
         <div className="settings-card-actions" onClick={(event) => event.stopPropagation()}>
           {footer}
@@ -139,7 +200,6 @@ function FinanceCashierPanel({
     confirmedAppointments: [],
     issuedTickets: [],
     paidTickets: [],
-    unpaidTickets: [],
     paymentMethods: [],
     services: [],
     specialists: []
@@ -147,6 +207,7 @@ function FinanceCashierPanel({
   const [message, setMessage] = useState("");
   const [busyId, setBusyId] = useState("");
   const [paymentMethodId, setPaymentMethodId] = useState("");
+  const [boardSearch, setBoardSearch] = useState("");
   const [manualModalOpen, setManualModalOpen] = useState(false);
   const [manualForm, setManualForm] = useState(() => createManualForm());
   const [manualSubmitting, setManualSubmitting] = useState(false);
@@ -160,6 +221,7 @@ function FinanceCashierPanel({
   const [sessionModal, setSessionModal] = useState("");
   const [sessionForm, setSessionForm] = useState(EMPTY_SESSION_FORM);
   const [sessionSubmitting, setSessionSubmitting] = useState(false);
+  const boardRequestRef = useRef(0);
 
   const paymentMethodOptions = useMemo(() => board.paymentMethods.map((item) => ({
     value: String(item.id),
@@ -177,10 +239,29 @@ function FinanceCashierPanel({
     label: `${item.fullName || item.id}${item.positionLabel ? ` - ${item.positionLabel}` : ""}`
   })), [board.specialists]);
 
-  const loadBoard = useCallback(async () => {
+  const normalizedBoardSearch = normalizeSearchValue(boardSearch);
+  const visibleBoard = useMemo(() => ({
+    pendingAppointments: filterBoardItems(board.pendingAppointments, normalizedBoardSearch),
+    cancelledAppointments: filterBoardItems(board.cancelledAppointments, normalizedBoardSearch),
+    noShowAppointments: filterBoardItems(board.noShowAppointments, normalizedBoardSearch),
+    confirmedAppointments: filterBoardItems(board.confirmedAppointments, normalizedBoardSearch),
+    issuedTickets: filterBoardItems(board.issuedTickets, normalizedBoardSearch),
+    paidTickets: filterBoardItems(board.paidTickets, normalizedBoardSearch)
+  }), [board, normalizedBoardSearch]);
+  const isBoardSearchActive = normalizedBoardSearch.length > 0;
+
+  const loadBoard = useCallback(async (searchQuery = "") => {
+    const requestId = boardRequestRef.current + 1;
+    boardRequestRef.current = requestId;
+    const isCurrentRequest = () => requestId === boardRequestRef.current;
     try {
-      const response = await apiFetch("/api/finance/cashier/board");
+      const normalizedSearchQuery = normalizeSearchValue(searchQuery);
+      const boardUrl = normalizedSearchQuery
+        ? `/api/finance/cashier/board?q=${encodeURIComponent(normalizedSearchQuery)}`
+        : "/api/finance/cashier/board";
+      const response = await apiFetch(boardUrl);
       const data = await readApiResponseData(response);
+      if (!isCurrentRequest()) return;
       if (!response.ok) {
         const nextMessage = data?.message || "Failed to load cashier board.";
         setMessage(nextMessage);
@@ -194,13 +275,13 @@ function FinanceCashierPanel({
         confirmedAppointments: Array.isArray(data?.confirmedAppointments) ? data.confirmedAppointments : [],
         issuedTickets: Array.isArray(data?.issuedTickets) ? data.issuedTickets : [],
         paidTickets: Array.isArray(data?.paidTickets) ? data.paidTickets : [],
-        unpaidTickets: Array.isArray(data?.unpaidTickets) ? data.unpaidTickets : [],
         paymentMethods: Array.isArray(data?.paymentMethods) ? data.paymentMethods : [],
         services: Array.isArray(data?.services) ? data.services : [],
         specialists: Array.isArray(data?.specialists) ? data.specialists : []
       });
       setMessage("");
     } catch {
+      if (!isCurrentRequest()) return;
       setMessage("Failed to load cashier board.");
       window.alert?.(translate("Failed to load cashier board."));
     }
@@ -227,15 +308,18 @@ function FinanceCashierPanel({
   }, [canPayFinanceCashier, translate]);
 
   useEffect(() => {
-    loadBoard();
-  }, [loadBoard]);
+    const timeoutId = window.setTimeout(() => {
+      loadBoard(normalizedBoardSearch);
+    }, normalizedBoardSearch ? 250 : 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [loadBoard, normalizedBoardSearch]);
 
   useEffect(() => {
     loadCashSession();
   }, [loadCashSession]);
 
   const refreshCashier = async () => {
-    await Promise.all([loadBoard(), loadCashSession()]);
+    await Promise.all([loadBoard(normalizedBoardSearch), loadCashSession()]);
   };
 
   const searchClients = useCallback(async () => {
@@ -309,6 +393,38 @@ function FinanceCashierPanel({
     setAppointmentTicketForm(EMPTY_APPOINTMENT_TICKET_FORM);
   };
 
+  const confirmAppointment = async (item, { openTicket = false } = {}) => {
+    const id = String(item?.id || "");
+    if (!id || busyId || !canUpdateFinanceCashier) return null;
+    if (openTicket && !canCreateFinanceCashier) return null;
+    const nextBusyId = openTicket ? `confirm-ticket-${id}` : `confirm-${id}`;
+    setBusyId(nextBusyId);
+    try {
+      const response = await apiFetch(`/api/finance/cashier/appointments/${id}/confirm`, { method: "POST" });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        window.alert?.(translate(data?.message || "Appointment update failed."));
+        return null;
+      }
+      const confirmedItem = {
+        ...item,
+        ...(data?.item || {}),
+        status: "confirmed"
+      };
+      if (openTicket) {
+        setAppointmentTicketSource(confirmedItem);
+        setAppointmentTicketForm(EMPTY_APPOINTMENT_TICKET_FORM);
+      }
+      await loadBoard(normalizedBoardSearch);
+      return confirmedItem;
+    } catch {
+      window.alert?.(translate("Appointment update failed."));
+      return null;
+    } finally {
+      setBusyId("");
+    }
+  };
+
   const closeAppointmentTicketModal = (force = false) => {
     if (appointmentTicketSubmitting && !force) return;
     setAppointmentTicketSource(null);
@@ -352,7 +468,7 @@ function FinanceCashierPanel({
         return;
       }
       closeAppointmentTicketModal(true);
-      await loadBoard();
+      await loadBoard(normalizedBoardSearch);
     } catch {
       window.alert?.(translate("Ticket create failed."));
     } finally {
@@ -372,7 +488,7 @@ function FinanceCashierPanel({
         window.alert?.(translate(data?.message || "Ticket update failed."));
         return;
       }
-      await loadBoard();
+      await loadBoard(normalizedBoardSearch);
     } catch {
       window.alert?.(translate("Ticket update failed."));
     } finally {
@@ -491,7 +607,7 @@ function FinanceCashierPanel({
         return;
       }
       closeManualModal(true);
-      await loadBoard();
+      await loadBoard(normalizedBoardSearch);
     } catch {
       window.alert?.(translate("Ticket create failed."));
     } finally {
@@ -591,28 +707,81 @@ function FinanceCashierPanel({
         {cashSession ? <span>{`${translate("Opening Balance")}: ${formatMoney(cashSession.openingBalanceUzs)}`}</span> : null}
       </div>
 
+      <div className="finance-board-search">
+        <label className="panel-search-label">
+          <span>{translate("Search")}</span>
+          <input
+            type="search"
+            className="panel-search-input"
+            value={boardSearch}
+            placeholder={translate("Search cashier cards")}
+            onChange={(event) => setBoardSearch(event.target.value)}
+          />
+        </label>
+        <button
+          type="button"
+          className="table-action-btn"
+          disabled={!boardSearch.trim()}
+          onClick={() => setBoardSearch("")}
+        >
+          {translate("Reset")}
+        </button>
+      </div>
+
       <div className="settings-card-grid finance-board-grid">
         <section className="settings-card-column">
-          <h4>{translate("Pending Appointments")}</h4>
-          {board.pendingAppointments.map((item) => <TicketCard key={String(item.id)} item={item} translate={translate} />)}
-          {board.pendingAppointments.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
+          <BoardColumnTitle
+            count={visibleBoard.pendingAppointments.length}
+            total={board.pendingAppointments.length}
+            label="Pending Appointments"
+            translate={translate}
+          />
+          {visibleBoard.pendingAppointments.map((item) => (
+            <TicketCard
+              key={String(item.id)}
+              item={item}
+              translate={translate}
+              compact
+              footer={isBoardSearchActive ? (
+                <>
+                  <button
+                    type="button"
+                    className="table-action-btn"
+                    disabled={!canUpdateFinanceCashier || Boolean(busyId)}
+                    onClick={() => confirmAppointment(item)}
+                  >
+                    {translate("Confirm Appointment")}
+                  </button>
+                  <button
+                    type="button"
+                    className="table-action-btn"
+                    disabled={!canUpdateFinanceCashier || !canCreateFinanceCashier || Boolean(busyId)}
+                    onClick={() => confirmAppointment(item, { openTicket: true })}
+                  >
+                    {translate("Confirm + Ticket")}
+                  </button>
+                </>
+              ) : null}
+            />
+          ))}
+          {visibleBoard.pendingAppointments.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
         </section>
 
         <section className="settings-card-column">
-          <h4>{translate("Cancelled")}</h4>
-          {board.cancelledAppointments.map((item) => <TicketCard key={String(item.id)} item={item} translate={translate} />)}
-          {board.cancelledAppointments.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
+          <BoardColumnTitle count={visibleBoard.cancelledAppointments.length} total={board.cancelledAppointments.length} label="Cancelled" translate={translate} />
+          {visibleBoard.cancelledAppointments.map((item) => <TicketCard key={String(item.id)} item={item} translate={translate} compact />)}
+          {visibleBoard.cancelledAppointments.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
         </section>
 
         <section className="settings-card-column">
-          <h4>{translate("No-show")}</h4>
-          {board.noShowAppointments.map((item) => <TicketCard key={String(item.id)} item={item} translate={translate} />)}
-          {board.noShowAppointments.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
+          <BoardColumnTitle count={visibleBoard.noShowAppointments.length} total={board.noShowAppointments.length} label="No-show" translate={translate} />
+          {visibleBoard.noShowAppointments.map((item) => <TicketCard key={String(item.id)} item={item} translate={translate} compact />)}
+          {visibleBoard.noShowAppointments.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
         </section>
 
         <section className="settings-card-column">
-          <h4>{translate("Confirmed Appointments")}</h4>
-          {board.confirmedAppointments.map((item) => (
+          <BoardColumnTitle count={visibleBoard.confirmedAppointments.length} total={board.confirmedAppointments.length} label="Confirmed Appointments" translate={translate} />
+          {visibleBoard.confirmedAppointments.map((item) => (
             <TicketCard
               key={String(item.id)}
               item={item}
@@ -630,12 +799,12 @@ function FinanceCashierPanel({
               )}
             />
           ))}
-          {board.confirmedAppointments.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
+          {visibleBoard.confirmedAppointments.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
         </section>
 
         <section className="settings-card-column">
-          <h4>{translate("Tickets")}</h4>
-          {board.issuedTickets.map((item) => (
+          <BoardColumnTitle count={visibleBoard.issuedTickets.length} total={board.issuedTickets.length} label="Tickets" translate={translate} />
+          {visibleBoard.issuedTickets.map((item) => (
             <TicketCard
               key={String(item.id)}
               item={item}
@@ -662,19 +831,13 @@ function FinanceCashierPanel({
               )}
             />
           ))}
-          {board.issuedTickets.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
+          {visibleBoard.issuedTickets.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
         </section>
 
         <section className="settings-card-column">
-          <h4>{translate("Paid")}</h4>
-          {board.paidTickets.map((item) => <TicketCard key={String(item.id)} item={item} translate={translate} />)}
-          {board.paidTickets.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
-        </section>
-
-        <section className="settings-card-column">
-          <h4>{translate("Unpaid")}</h4>
-          {board.unpaidTickets.map((item) => <TicketCard key={String(item.id)} item={item} translate={translate} />)}
-          {board.unpaidTickets.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
+          <BoardColumnTitle count={visibleBoard.paidTickets.length} total={board.paidTickets.length} label="Paid" translate={translate} />
+          {visibleBoard.paidTickets.map((item) => <TicketCard key={String(item.id)} item={item} translate={translate} />)}
+          {visibleBoard.paidTickets.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
         </section>
       </div>
 
@@ -686,7 +849,7 @@ function FinanceCashierPanel({
             aria-label={translate("Close ticket modal")}
             onClick={() => closeAppointmentTicketModal()}
           />
-          <div id="financeAppointmentTicketModal" className="logout-confirm-modal all-users-edit-modal">
+          <div id="financeAppointmentTicketModal" className="logout-confirm-modal all-users-edit-modal finance-modal">
             <h3>{translate("Create Ticket")}</h3>
             <form className="auth-form" onSubmit={submitAppointmentTicket}>
               <div className="all-users-edit-fields">
@@ -716,6 +879,7 @@ function FinanceCashierPanel({
                         { value: "amount", label: translate("Amount") },
                         { value: "percent", label: translate("Percent") }
                       ]}
+                      menuPortal
                       onChange={(value) => setAppointmentTicketForm((current) => ({ ...current, discountType: value }))}
                     />
                   </label>
@@ -766,7 +930,7 @@ function FinanceCashierPanel({
             aria-label={translate("Close manual ticket modal")}
             onClick={() => closeManualModal()}
           />
-          <div id="financeManualTicketModal" className="logout-confirm-modal all-users-edit-modal">
+          <div id="financeManualTicketModal" className="logout-confirm-modal all-users-edit-modal finance-modal">
             <h3>{translate("Create Manual Ticket")}</h3>
             <form className="auth-form" onSubmit={submitManualTicket}>
               <div className="all-users-edit-fields">
@@ -789,6 +953,7 @@ function FinanceCashierPanel({
                     placeholder={translate("Select client")}
                     searchable
                     searchThreshold={1}
+                    menuPortal
                     emptyText={translate("No clients found.")}
                     onChange={(value) => setManualForm((current) => ({ ...current, clientId: value }))}
                   />
@@ -831,6 +996,7 @@ function FinanceCashierPanel({
                               placeholder={translate("Select specialist")}
                               searchable
                               searchThreshold={1}
+                              menuPortal
                               emptyText={translate("No items found.")}
                               onChange={(value) => updateManualItem(item.key, { specialistId: value })}
                             />
@@ -843,6 +1009,7 @@ function FinanceCashierPanel({
                               placeholder={translate("Select service")}
                               searchable
                               searchThreshold={1}
+                              menuPortal
                               emptyText={translate("No items found.")}
                               onChange={(value) => updateManualItem(item.key, { serviceId: value })}
                             />
@@ -859,6 +1026,7 @@ function FinanceCashierPanel({
                                 { value: "amount", label: translate("Amount") },
                                 { value: "percent", label: translate("Percent") }
                               ]}
+                              menuPortal
                               onChange={(value) => updateManualItem(item.key, { discountType: value })}
                             />
                           </label>
@@ -921,7 +1089,7 @@ function FinanceCashierPanel({
             aria-label={translate("Close cash session modal")}
             onClick={() => closeSessionModal()}
           />
-          <div id="financeCashSessionModal" className="logout-confirm-modal all-users-edit-modal">
+          <div id="financeCashSessionModal" className="logout-confirm-modal all-users-edit-modal finance-modal">
             <h3>{translate(sessionModal === "open" ? "Open Cash" : "Close Cash")}</h3>
             <form className="auth-form" onSubmit={submitCashSession}>
               <div className="all-users-edit-fields">
