@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import CustomSelect from "../../../components/CustomSelect.jsx";
+import { createPortal } from "react-dom";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 
@@ -29,9 +29,9 @@ function ServicesSettingsPanel({
   const { translate } = useI18n();
   const [items, setItems] = useState([]);
   const [positions, setPositions] = useState([]);
-  const [status, setStatus] = useState("active");
   const [message, setMessage] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
+  const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState("");
   const currentForm = normalizeForm(form);
@@ -39,7 +39,7 @@ function ServicesSettingsPanel({
   const loadData = useCallback(async () => {
     try {
       const [servicesResponse, positionsResponse] = await Promise.all([
-        apiFetch(`/api/settings/services?status=${encodeURIComponent(status)}`),
+        apiFetch("/api/settings/services?status=all"),
         apiFetch("/api/settings/positions")
       ]);
       const [servicesData, positionsData] = await Promise.all([
@@ -66,7 +66,7 @@ function ServicesSettingsPanel({
       setMessage("Failed to load services.");
       window.alert?.(translate("Failed to load services."));
     }
-  }, [status, translate]);
+  }, [translate]);
 
   useEffect(() => {
     loadData();
@@ -78,14 +78,19 @@ function ServicesSettingsPanel({
       .map((item) => ({ value: String(item.id), label: String(item.label || "").trim() || `#${item.id}` }))
   ), [currentForm.positionId, positions]);
 
-  const statusOptions = useMemo(() => [
-    { value: "active", label: "Active" },
-    { value: "inactive", label: "Inactive" },
-    { value: "all", label: "All" }
-  ], []);
-
   const resetForm = () => setForm(EMPTY_FORM);
   const isEditing = Boolean(currentForm.id);
+
+  const openCreateModal = () => {
+    resetForm();
+    setModalOpen(true);
+  };
+
+  const closeModal = () => {
+    if (submitting) return;
+    setModalOpen(false);
+    resetForm();
+  };
 
   const submitForm = async (event) => {
     event.preventDefault();
@@ -111,6 +116,7 @@ function ServicesSettingsPanel({
         return;
       }
       resetForm();
+      setModalOpen(false);
       await loadData();
     } catch {
       window.alert?.(translate("Service save failed."));
@@ -119,13 +125,16 @@ function ServicesSettingsPanel({
     }
   };
 
-  const startEdit = (item) => setForm({
-    id: String(item?.id || ""),
-    positionId: String(item?.positionId || ""),
-    name: String(item?.name || ""),
-    priceUzs: String(item?.priceUzs ?? 0),
-    isActive: Boolean(item?.isActive)
-  });
+  const startEdit = (item) => {
+    setForm({
+      id: String(item?.id || ""),
+      positionId: String(item?.positionId || ""),
+      name: String(item?.name || ""),
+      priceUzs: String(item?.priceUzs ?? 0),
+      isActive: Boolean(item?.isActive)
+    });
+    setModalOpen(true);
+  };
 
   const deactivate = async (item) => {
     const id = String(item?.id || "");
@@ -147,69 +156,112 @@ function ServicesSettingsPanel({
     }
   };
 
+  const modalLayer = modalOpen && typeof document !== "undefined" ? createPortal((
+    <>
+      <section id="serviceSettingsEditModal" className="logout-confirm-modal settings-edit-modal">
+        <div className="all-users-head">
+          <h3>{`${translate(isEditing ? "Edit" : "Create")} ${translate("Service")}`}</h3>
+          <button
+            id="closeServiceSettingsEditModalBtn"
+            type="button"
+            className="header-btn panel-close-btn"
+            aria-label={translate("Close service settings panel")}
+            onClick={closeModal}
+          >
+            ×
+          </button>
+        </div>
+        <form className="auth-form settings-edit-form" noValidate onSubmit={submitForm}>
+          <div className="field">
+            <label htmlFor="serviceSettingsModalPosition">{translate("Position")}</label>
+            <select
+              id="serviceSettingsModalPosition"
+              value={currentForm.positionId}
+              onChange={(event) => {
+                const nextValue = event.currentTarget.value;
+                setForm((current) => ({ ...normalizeForm(current), positionId: nextValue }));
+              }}
+            >
+              <option value="">{translate("Position")}</option>
+              {positionOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="serviceSettingsModalName">{translate("Service Name")}</label>
+            <input
+              id="serviceSettingsModalName"
+              type="text"
+              maxLength={128}
+              value={currentForm.name}
+              placeholder={translate("Service Name")}
+              onChange={(event) => {
+                const nextValue = event.currentTarget.value;
+                setForm((current) => ({ ...normalizeForm(current), name: nextValue }));
+              }}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="serviceSettingsModalPrice">{translate("Price")}</label>
+            <input
+              id="serviceSettingsModalPrice"
+              type="number"
+              min="0"
+              value={currentForm.priceUzs}
+              placeholder={translate("Price")}
+              onChange={(event) => {
+                const nextValue = event.currentTarget.value;
+                setForm((current) => ({ ...normalizeForm(current), priceUzs: nextValue }));
+              }}
+            />
+          </div>
+          <div className="field settings-inline-control">
+            <label htmlFor="serviceSettingsModalIsActive">{translate("Active")}</label>
+            <label className="settings-checkbox settings-checkbox-inline" htmlFor="serviceSettingsModalIsActive">
+              <input
+                id="serviceSettingsModalIsActive"
+                type="checkbox"
+                checked={currentForm.isActive}
+                onChange={(event) => {
+                  const nextChecked = event.currentTarget.checked;
+                  setForm((current) => ({ ...normalizeForm(current), isActive: nextChecked }));
+                }}
+              />
+            </label>
+          </div>
+          <div className="edit-actions">
+            <button type="submit" className="btn" disabled={submitting}>
+              {submitting ? "..." : translate("Save")}
+            </button>
+          </div>
+        </form>
+      </section>
+      <div className="login-overlay" onClick={closeModal} />
+    </>
+  ), document.body) : null;
+
   return (
     <section id="servicesSettingsPanel" className="all-users-panel settings-panel ops-panel-shell services-settings-panel">
       <div className="all-users-head">
         <h3>{translate("Service Settings")}</h3>
         <div className="all-users-head-actions">
-          <CustomSelect
-            value={status}
-            options={statusOptions.map((option) => ({ ...option, label: translate(option.label) }))}
-            onChange={setStatus}
-          />
+          <button
+            id="openServiceCreateModalBtn"
+            type="button"
+            className="header-btn appointment-breaks-add-icon-btn"
+            aria-label={translate("Create")}
+            title={translate("Create")}
+            hidden={!canCreateSettingsServices}
+            onClick={openCreateModal}
+          >
+            +
+          </button>
           <button type="button" className="header-btn panel-close-btn" aria-label={translate("Close service settings panel")} onClick={onClose}>
             ×
           </button>
         </div>
       </div>
-
-      <form className="settings-inline-form ops-inline-editor" onSubmit={submitForm}>
-        <CustomSelect
-          value={currentForm.positionId}
-          options={positionOptions}
-          placeholder={translate("Position")}
-          searchable
-          searchThreshold={1}
-          onChange={(value) => setForm((current) => ({ ...normalizeForm(current), positionId: value }))}
-        />
-        <input
-          type="text"
-          maxLength={128}
-          value={currentForm.name}
-          placeholder={translate("Service Name")}
-          onChange={(event) => {
-            const nextValue = event.currentTarget.value;
-            setForm((current) => ({ ...normalizeForm(current), name: nextValue }));
-          }}
-        />
-        <input
-          type="number"
-          min="0"
-          value={currentForm.priceUzs}
-          placeholder={translate("Price")}
-          onChange={(event) => {
-            const nextValue = event.currentTarget.value;
-            setForm((current) => ({ ...normalizeForm(current), priceUzs: nextValue }));
-          }}
-        />
-        <label className="settings-checkbox settings-checkbox-inline">
-          <input
-            type="checkbox"
-            checked={currentForm.isActive}
-            onChange={(event) => {
-              const nextChecked = event.currentTarget.checked;
-              setForm((current) => ({ ...normalizeForm(current), isActive: nextChecked }));
-            }}
-          />
-          {translate("Active")}
-        </label>
-        <button type="submit" className="table-action-btn" disabled={submitting}>
-          {submitting ? "..." : translate(isEditing ? "Save" : "Create")}
-        </button>
-        {isEditing ? (
-          <button type="button" className="table-action-btn" onClick={resetForm}>{translate("Cancel")}</button>
-        ) : null}
-      </form>
 
       <p className="all-users-state" hidden={!message}>{translate(message)}</p>
 
@@ -222,8 +274,8 @@ function ServicesSettingsPanel({
               <th>{translate("Service Name")}</th>
               <th>{translate("Price")}</th>
               <th>{translate("Active")}</th>
-              <th>{translate("Edit")}</th>
-              <th>{translate("Delete")}</th>
+              <th aria-label={translate("Edit")}>✎</th>
+              <th aria-label={translate("Delete")}>×</th>
             </tr>
           </thead>
           <tbody>
@@ -235,19 +287,28 @@ function ServicesSettingsPanel({
                 <td>{formatPrice(item.priceUzs)}</td>
                 <td>{translate(item.isActive ? "Yes" : "No")}</td>
                 <td>
-                  <button type="button" className="table-action-btn" hidden={!canUpdateSettingsServices} onClick={() => startEdit(item)}>
-                    {translate("Edit")}
+                  <button
+                    type="button"
+                    className="table-action-btn services-settings-action-btn"
+                    aria-label={translate("Edit")}
+                    title={translate("Edit")}
+                    hidden={!canUpdateSettingsServices}
+                    onClick={() => startEdit(item)}
+                  >
+                    ✎
                   </button>
                 </td>
                 <td>
                   <button
                     type="button"
-                    className="table-action-btn table-action-btn-danger"
+                    className="table-action-btn table-action-btn-danger services-settings-action-btn"
+                    aria-label={translate("Delete")}
+                    title={translate("Delete")}
                     hidden={!canDeleteSettingsServices}
                     disabled={deletingId === String(item.id) || !item.isActive}
                     onClick={() => deactivate(item)}
                   >
-                    {deletingId === String(item.id) ? "..." : translate("Delete")}
+                    {deletingId === String(item.id) ? "..." : "×"}
                   </button>
                 </td>
               </tr>
@@ -255,6 +316,7 @@ function ServicesSettingsPanel({
           </tbody>
         </table>
       </div>
+      {modalLayer}
     </section>
   );
 }

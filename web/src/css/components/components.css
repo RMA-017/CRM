@@ -6360,6 +6360,73 @@ label.field > span:first-child,
   min-width: 640px;
 }
 
+#servicesSettingsPanel .settings-table {
+  min-width: 760px;
+  table-layout: fixed;
+}
+
+#servicesSettingsPanel .settings-table th,
+#servicesSettingsPanel .settings-table td {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+#servicesSettingsPanel .settings-table th:nth-child(1),
+#servicesSettingsPanel .settings-table td:nth-child(1) {
+  width: 64px;
+  text-align: center;
+}
+
+#servicesSettingsPanel .settings-table th:nth-child(2),
+#servicesSettingsPanel .settings-table td:nth-child(2) {
+  width: 25%;
+}
+
+#servicesSettingsPanel .settings-table th:nth-child(3),
+#servicesSettingsPanel .settings-table td:nth-child(3) {
+  width: 35%;
+}
+
+#servicesSettingsPanel .settings-table th:nth-child(4),
+#servicesSettingsPanel .settings-table td:nth-child(4) {
+  width: 150px;
+  text-align: right;
+}
+
+#servicesSettingsPanel .settings-table th:nth-child(5),
+#servicesSettingsPanel .settings-table td:nth-child(5) {
+  width: 92px;
+  text-align: center;
+}
+
+#servicesSettingsPanel .settings-table th:nth-child(6),
+#servicesSettingsPanel .settings-table td:nth-child(6),
+#servicesSettingsPanel .settings-table th:nth-child(7),
+#servicesSettingsPanel .settings-table td:nth-child(7) {
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  text-align: right;
+  padding-left: 3px;
+  padding-right: 3px;
+}
+
+#servicesSettingsPanel .settings-table th:nth-child(6),
+#servicesSettingsPanel .settings-table th:nth-child(7) {
+  text-align: center;
+}
+
+#servicesSettingsPanel .settings-table .services-settings-action-btn {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  margin-left: auto;
+  margin-right: 0;
+  font-size: 16px;
+}
+
 .services-panel .all-users-head {
   align-items: center;
 }
