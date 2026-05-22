@@ -5679,8 +5679,7 @@ label.field > span:first-child,
   gap: 8px;
 }
 
-.ops-panel-shell .all-users-head-actions .panel-search-input,
-.finance-cashier-panel .all-users-head-actions .custom-select {
+.ops-panel-shell .all-users-head-actions .panel-search-input {
   min-width: min(220px, 100%);
 }
 
@@ -6084,8 +6083,8 @@ label.field > span:first-child,
   flex: 1 0 210px;
   min-width: 210px;
   max-width: none;
-  height: calc(100dvh - 260px);
-  min-height: 300px;
+  height: clamp(180px, calc(100dvh - 360px), 620px);
+  min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-gutter: stable;
@@ -6234,6 +6233,17 @@ label.field > span:first-child,
 .finance-cashier-panel .settings-card-actions .table-action-btn {
   flex: 1 1 86px;
   min-width: 0;
+}
+
+.finance-cashier-panel .settings-card-actions .custom-select {
+  flex: 1 0 100%;
+  min-width: 0;
+}
+
+.finance-cashier-panel .settings-card-actions .custom-select-trigger {
+  height: 28px;
+  min-height: 28px;
+  font-size: 11px;
 }
 
 .finance-cashier-panel .finance-card-compact .settings-card-actions {
@@ -6600,8 +6610,7 @@ label.field > span:first-child,
     justify-content: flex-start;
   }
 
-  .ops-panel-shell .all-users-head-actions .panel-search-input,
-  .finance-cashier-panel .all-users-head-actions .custom-select {
+  .ops-panel-shell .all-users-head-actions .panel-search-input {
     flex: 1 1 180px;
     min-width: 0;
   }

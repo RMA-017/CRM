@@ -309,7 +309,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Paid tickets cannot be changed.", uz: "To'langan talonlarni o'zgartirib bo'lmaydi.", ru: "Оплаченные талоны нельзя изменить." },
   { en: "Ticket cannot be paid in the current status.", uz: "Bu statusdagi talonni to'lab bo'lmaydi.", ru: "Талон в текущем статусе нельзя оплатить." },
   { en: "Pending", uz: "Kutilmoqda", ru: "Ожидает" },
-  { en: "Confirmed", uz: "Tasdiqlangan", ru: "Подтверждено" },
+  { en: "Confirmed", uz: "Tasdiqlangan", ru: "Принято" },
   { en: "Confirm Appointment", uz: "Darsni tasdiqlash", ru: "Подтвердить занятие" },
   { en: "Confirm + Ticket", uz: "Tasdiqlash + talon", ru: "Подтвердить + талон" },
   { en: "Ticket Payment", uz: "Talon to'lovi", ru: "Оплата талона" },

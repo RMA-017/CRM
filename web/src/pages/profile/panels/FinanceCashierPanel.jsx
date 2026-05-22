@@ -699,11 +699,6 @@ function FinanceCashierPanel({
           >
             {translate("Close Cash")}
           </button>
-          <CustomSelect
-            value={paymentMethodId}
-            options={[{ value: "", label: translate("Payment Method") }, ...paymentMethodOptions]}
-            onChange={setPaymentMethodId}
-          />
           <button type="button" className="table-action-btn" onClick={refreshCashier}>{translate("Refresh")}</button>
           <button type="button" className="header-btn panel-close-btn" aria-label={translate("Close cashier panel")} onClick={onClose}>
             ×
@@ -756,6 +751,11 @@ function FinanceCashierPanel({
               compact
               footer={isBoardSearchActive ? (
                 <>
+                  <CustomSelect
+                    value={paymentMethodId}
+                    options={[{ value: "", label: translate("Payment Method") }, ...paymentMethodOptions]}
+                    onChange={setPaymentMethodId}
+                  />
                   <button
                     type="button"
                     className="table-action-btn"
