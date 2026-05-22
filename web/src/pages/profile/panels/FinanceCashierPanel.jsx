@@ -77,24 +77,36 @@ function normalizeSearchValue(value) {
   return String(value ?? "").trim().toLowerCase();
 }
 
-function ticketCardMatchesSearch(item, query) {
-  if (!query) return true;
-  const haystack = [
-    item?.clientName,
-    item?.clientId,
-    item?.specialistName,
-    item?.serviceName,
-    item?.ticketNumber,
-    item?.appointmentDate,
-    item?.startTime,
-    item?.status
-  ].map(normalizeSearchValue).join(" ");
-  return haystack.includes(query);
+function ticketCardMatchesFilters(item, filters) {
+  const clientQuery = normalizeSearchValue(filters?.clientQuery);
+  const serviceId = String(filters?.serviceId || "").trim();
+  const specialistId = String(filters?.specialistId || "").trim();
+  if (clientQuery) {
+    const clientHaystack = [
+      item?.clientName,
+      item?.clientId
+    ].map(normalizeSearchValue).join(" ");
+    if (!clientHaystack.includes(clientQuery)) {
+      return false;
+    }
+  }
+  if (serviceId && String(item?.serviceId || "") !== serviceId) {
+    return false;
+  }
+  if (specialistId && String(item?.specialistId || "") !== specialistId) {
+    return false;
+  }
+  return true;
 }
 
-function filterBoardItems(items, query) {
-  if (!query) return items;
-  return items.filter((item) => ticketCardMatchesSearch(item, query));
+function filterBoardItems(items, filters) {
+  const hasFilters = Boolean(
+    normalizeSearchValue(filters?.clientQuery)
+    || String(filters?.serviceId || "").trim()
+    || String(filters?.specialistId || "").trim()
+  );
+  if (!hasFilters) return items;
+  return items.filter((item) => ticketCardMatchesFilters(item, filters));
 }
 
 function BoardColumnTitle({ count, total = count, label, translate }) {
@@ -175,7 +187,11 @@ function FinanceCashierPanel({
   const [message, setMessage] = useState("");
   const [busyId, setBusyId] = useState("");
   const [paymentMethodId, setPaymentMethodId] = useState("");
-  const [boardSearch, setBoardSearch] = useState("");
+  const [boardFilters, setBoardFilters] = useState({
+    clientQuery: "",
+    serviceId: "",
+    specialistId: ""
+  });
   const [manualModalOpen, setManualModalOpen] = useState(false);
   const [manualForm, setManualForm] = useState(() => createManualForm());
   const [manualSubmitting, setManualSubmitting] = useState(false);
@@ -198,7 +214,7 @@ function FinanceCashierPanel({
 
   const serviceOptions = useMemo(() => board.services.map((item) => ({
       value: String(item.id),
-      label: `${item.name}${Number(item.priceUzs) > 0 ? ` - ${formatMoney(item.priceUzs)}` : ""}`,
+      label: item.name || String(item.id),
       item
     })), [board.services]);
 
@@ -207,28 +223,27 @@ function FinanceCashierPanel({
     label: `${item.fullName || item.id}${item.positionLabel ? ` - ${item.positionLabel}` : ""}`
   })), [board.specialists]);
 
-  const normalizedBoardSearch = normalizeSearchValue(boardSearch);
   const visibleBoard = useMemo(() => ({
-    pendingAppointments: filterBoardItems(board.pendingAppointments, normalizedBoardSearch),
-    cancelledAppointments: filterBoardItems(board.cancelledAppointments, normalizedBoardSearch),
-    noShowAppointments: filterBoardItems(board.noShowAppointments, normalizedBoardSearch),
-    confirmedAppointments: filterBoardItems(board.confirmedAppointments, normalizedBoardSearch),
-    issuedTickets: filterBoardItems(board.issuedTickets, normalizedBoardSearch)
-  }), [board, normalizedBoardSearch]);
-  const isBoardSearchActive = normalizedBoardSearch.length > 0;
+    pendingAppointments: filterBoardItems(board.pendingAppointments, boardFilters),
+    cancelledAppointments: filterBoardItems(board.cancelledAppointments, boardFilters),
+    noShowAppointments: filterBoardItems(board.noShowAppointments, boardFilters),
+    confirmedAppointments: filterBoardItems(board.confirmedAppointments, boardFilters),
+    issuedTickets: filterBoardItems(board.issuedTickets, boardFilters)
+  }), [board, boardFilters]);
+  const isBoardFilterActive = Boolean(
+    normalizeSearchValue(boardFilters.clientQuery)
+    || boardFilters.serviceId
+    || boardFilters.specialistId
+  );
   const currentCashierName = String(currentUser?.fullName || currentUser?.username || "").trim();
   const nowLabel = formatDateTime(new Date().toISOString());
 
-  const loadBoard = useCallback(async (searchQuery = "") => {
+  const loadBoard = useCallback(async () => {
     const requestId = boardRequestRef.current + 1;
     boardRequestRef.current = requestId;
     const isCurrentRequest = () => requestId === boardRequestRef.current;
     try {
-      const normalizedSearchQuery = normalizeSearchValue(searchQuery);
-      const boardUrl = normalizedSearchQuery
-        ? `/api/finance/cashier/board?q=${encodeURIComponent(normalizedSearchQuery)}`
-        : "/api/finance/cashier/board";
-      const response = await apiFetch(boardUrl);
+      const response = await apiFetch("/api/finance/cashier/board");
       const data = await readApiResponseData(response);
       if (!isCurrentRequest()) return;
       if (!response.ok) {
@@ -276,18 +291,15 @@ function FinanceCashierPanel({
   }, [canPayFinanceCashier, translate]);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      loadBoard(normalizedBoardSearch);
-    }, normalizedBoardSearch ? 250 : 0);
-    return () => window.clearTimeout(timeoutId);
-  }, [loadBoard, normalizedBoardSearch]);
+    loadBoard();
+  }, [loadBoard]);
 
   useEffect(() => {
     loadCashSession();
   }, [loadCashSession]);
 
   const refreshCashier = async () => {
-    await Promise.all([loadBoard(normalizedBoardSearch), loadCashSession()]);
+    await Promise.all([loadBoard(), loadCashSession()]);
   };
 
   const searchClients = useCallback(async () => {
@@ -383,7 +395,7 @@ function FinanceCashierPanel({
         setAppointmentTicketSource(confirmedItem);
         setAppointmentTicketForm(EMPTY_APPOINTMENT_TICKET_FORM);
       }
-      await loadBoard(normalizedBoardSearch);
+      await loadBoard();
       return confirmedItem;
     } catch {
       window.alert?.(translate("Appointment update failed."));
@@ -436,7 +448,7 @@ function FinanceCashierPanel({
         return;
       }
       closeAppointmentTicketModal(true);
-      await loadBoard(normalizedBoardSearch);
+      await loadBoard();
     } catch {
       window.alert?.(translate("Ticket create failed."));
     } finally {
@@ -456,7 +468,7 @@ function FinanceCashierPanel({
         window.alert?.(translate(data?.message || "Ticket update failed."));
         return;
       }
-      await loadBoard(normalizedBoardSearch);
+      await loadBoard();
     } catch {
       window.alert?.(translate("Ticket update failed."));
     } finally {
@@ -575,7 +587,7 @@ function FinanceCashierPanel({
         return;
       }
       closeManualModal(true);
-      await loadBoard(normalizedBoardSearch);
+      await loadBoard();
     } catch {
       window.alert?.(translate("Ticket create failed."));
     } finally {
@@ -667,20 +679,42 @@ function FinanceCashierPanel({
 
       <div className="finance-board-search">
         <label className="panel-search-label">
-          <span>{translate("Search")}</span>
+          <span>{translate("Client")}</span>
           <input
             type="search"
             className="panel-search-input"
-            value={boardSearch}
-            placeholder={translate("Search cashier cards")}
-            onChange={(event) => setBoardSearch(event.target.value)}
+            value={boardFilters.clientQuery}
+            placeholder={translate("Search client")}
+            onChange={(event) => setBoardFilters((current) => ({ ...current, clientQuery: event.target.value }))}
+          />
+        </label>
+        <label className="panel-search-label finance-board-select-filter">
+          <span>{translate("Service Name")}</span>
+          <CustomSelect
+            value={boardFilters.serviceId}
+            options={[{ value: "", label: translate("All services") }, ...serviceOptions]}
+            placeholder={translate("Select service")}
+            searchable
+            searchThreshold={1}
+            onChange={(value) => setBoardFilters((current) => ({ ...current, serviceId: value }))}
+          />
+        </label>
+        <label className="panel-search-label finance-board-select-filter">
+          <span>{translate("Specialist")}</span>
+          <CustomSelect
+            value={boardFilters.specialistId}
+            options={[{ value: "", label: translate("All specialists") }, ...specialistOptions]}
+            placeholder={translate("Select specialist")}
+            searchable
+            searchThreshold={1}
+            onChange={(value) => setBoardFilters((current) => ({ ...current, specialistId: value }))}
           />
         </label>
         <button
           type="button"
           className="table-action-btn"
-          disabled={!boardSearch.trim()}
-          onClick={() => setBoardSearch("")}
+          disabled={!isBoardFilterActive}
+          onClick={() => setBoardFilters({ clientQuery: "", serviceId: "", specialistId: "" })}
         >
           {translate("Reset")}
         </button>
@@ -698,33 +732,7 @@ function FinanceCashierPanel({
             <TicketCard
               key={String(item.id)}
               item={item}
-              translate={translate}
               compact
-              footer={isBoardSearchActive ? (
-                <>
-                  <CustomSelect
-                    value={paymentMethodId}
-                    options={[{ value: "", label: translate("Payment Method") }, ...paymentMethodOptions]}
-                    onChange={setPaymentMethodId}
-                  />
-                  <button
-                    type="button"
-                    className="table-action-btn"
-                    disabled={!canUpdateFinanceCashier || Boolean(busyId)}
-                    onClick={() => confirmAppointment(item)}
-                  >
-                    {translate("Confirm Appointment")}
-                  </button>
-                  <button
-                    type="button"
-                    className="table-action-btn"
-                    disabled={!canUpdateFinanceCashier || !canCreateFinanceCashier || Boolean(busyId)}
-                    onClick={() => confirmAppointment(item, { openTicket: true })}
-                  >
-                    {translate("Confirm + Ticket")}
-                  </button>
-                </>
-              ) : null}
             />
           ))}
           {visibleBoard.pendingAppointments.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
@@ -748,18 +756,8 @@ function FinanceCashierPanel({
             <TicketCard
               key={String(item.id)}
               item={item}
-              translate={translate}
               onClick={() => openAppointmentTicketModal(item)}
-              footer={(
-                <button
-                  type="button"
-                  className="table-action-btn"
-                  disabled={!canCreateFinanceCashier || busyId === `create-${item.id}`}
-                  onClick={() => openAppointmentTicketModal(item)}
-                >
-                  {translate("Open Ticket")}
-                </button>
-              )}
+              compact
             />
           ))}
           {visibleBoard.confirmedAppointments.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
@@ -771,9 +769,13 @@ function FinanceCashierPanel({
             <TicketCard
               key={String(item.id)}
               item={item}
-              translate={translate}
               footer={(
                 <>
+                  <CustomSelect
+                    value={paymentMethodId}
+                    options={[{ value: "", label: translate("Payment Method") }, ...paymentMethodOptions]}
+                    onChange={setPaymentMethodId}
+                  />
                   <button
                     type="button"
                     className="table-action-btn"
@@ -892,19 +894,33 @@ function FinanceCashierPanel({
             <h3>{translate("Create Manual Ticket")}</h3>
             <form className="auth-form" onSubmit={submitManualTicket}>
               <div className="all-users-edit-fields">
-                <label className="field">
-                  <span>{translate("Client")}</span>
-                  <div className="settings-inline-form finance-manual-client-search">
+                <div className="finance-manual-top-row">
+                  <label className="field">
+                    <span>{translate("Ticket Date")}</span>
                     <input
-                      type="search"
-                      value={clientSearch}
-                      placeholder={translate("Search by name or ID")}
-                      onChange={(event) => setClientSearch(event.currentTarget.value)}
+                      type="date"
+                      value={manualForm.ticketDate}
+                      onChange={(event) => setManualForm((current) => ({ ...current, ticketDate: event.currentTarget.value }))}
                     />
-                    <button type="button" className="table-action-btn" disabled={clientSearchBusy} onClick={searchClients}>
-                      {clientSearchBusy ? "..." : translate("Search")}
-                    </button>
-                  </div>
+                  </label>
+                  <label className="field">
+                    <span>{translate("Search client")}</span>
+                    <div className="settings-inline-form finance-manual-client-search">
+                      <input
+                        type="search"
+                        value={clientSearch}
+                        placeholder={translate("Search by name or ID")}
+                        onChange={(event) => setClientSearch(event.currentTarget.value)}
+                      />
+                      <button type="button" className="table-action-btn" disabled={clientSearchBusy} onClick={searchClients}>
+                        {clientSearchBusy ? "..." : translate("Search")}
+                      </button>
+                    </div>
+                  </label>
+                </div>
+
+                <label className="field finance-manual-client-select">
+                  <span>{translate("Client")}</span>
                   <CustomSelect
                     value={manualForm.clientId}
                     options={clientOptions}
@@ -914,15 +930,6 @@ function FinanceCashierPanel({
                     menuPortal
                     emptyText={translate("No clients found.")}
                     onChange={(value) => setManualForm((current) => ({ ...current, clientId: value }))}
-                  />
-                </label>
-
-                <label className="field">
-                  <span>{translate("Ticket Date")}</span>
-                  <input
-                    type="date"
-                    value={manualForm.ticketDate}
-                    onChange={(event) => setManualForm((current) => ({ ...current, ticketDate: event.currentTarget.value }))}
                   />
                 </label>
 
@@ -938,11 +945,13 @@ function FinanceCashierPanel({
                           <strong>{`${translate("Item")} ${index + 1}`}</strong>
                           <button
                             type="button"
-                            className="table-action-btn"
+                            className="table-action-btn finance-manual-icon-btn"
+                            aria-label={translate("Remove")}
+                            title={translate("Remove")}
                             disabled={manualForm.items.length <= 1}
                             onClick={() => removeManualItem(item.key)}
                           >
-                            {translate("Remove")}
+                            ×
                           </button>
                         </div>
                         <div className="finance-manual-item-grid">
@@ -1006,8 +1015,14 @@ function FinanceCashierPanel({
                       </div>
                     );
                   })}
-                  <button type="button" className="table-action-btn" onClick={addManualItem}>
-                    {translate("Add Service")}
+                  <button
+                    type="button"
+                    className="table-action-btn finance-manual-add-btn"
+                    aria-label={translate("Add Service")}
+                    title={translate("Add Service")}
+                    onClick={addManualItem}
+                  >
+                    +
                   </button>
                 </div>
 
