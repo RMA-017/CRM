@@ -32,7 +32,7 @@ function createManualForm() {
 }
 
 const EMPTY_SESSION_FORM = Object.freeze({
-  balanceUzs: "0",
+  submittedAmountUzs: "",
   note: ""
 });
 
@@ -49,6 +49,14 @@ function formatMoney(value) {
 
 function formatTime(value) {
   return String(value || "").slice(0, 5) || "-";
+}
+
+function formatDateTime(value) {
+  const raw = String(value || "");
+  if (!raw) return "-";
+  const date = formatDateYMD(raw);
+  const timeMatch = raw.match(/T(\d{2}:\d{2})/);
+  return timeMatch ? `${date} ${timeMatch[1]}` : date;
 }
 
 function calculateDiscount(priceUzs, discountType, discountValue) {
@@ -190,7 +198,8 @@ function FinanceCashierPanel({
   onClose,
   canCreateFinanceCashier,
   canUpdateFinanceCashier,
-  canPayFinanceCashier
+  canPayFinanceCashier,
+  currentUser
 }) {
   const { translate } = useI18n();
   const [board, setBoard] = useState({
@@ -249,6 +258,8 @@ function FinanceCashierPanel({
     paidTickets: filterBoardItems(board.paidTickets, normalizedBoardSearch)
   }), [board, normalizedBoardSearch]);
   const isBoardSearchActive = normalizedBoardSearch.length > 0;
+  const currentCashierName = String(currentUser?.fullName || currentUser?.username || "").trim();
+  const nowLabel = formatDateTime(new Date().toISOString());
 
   const loadBoard = useCallback(async (searchQuery = "") => {
     const requestId = boardRequestRef.current + 1;
@@ -619,7 +630,7 @@ function FinanceCashierPanel({
     if (!canPayFinanceCashier) return;
     setSessionModal(type);
     setSessionForm({
-      balanceUzs: type === "close" ? String(cashSession?.expectedBalanceUzs || cashSession?.openingBalanceUzs || 0) : "0",
+      submittedAmountUzs: type === "close" ? String(cashSession?.expectedBalanceUzs || 0) : "",
       note: ""
     });
   };
@@ -633,7 +644,7 @@ function FinanceCashierPanel({
   const submitCashSession = async (event) => {
     event.preventDefault();
     if (!sessionModal || sessionSubmitting || !canPayFinanceCashier) return;
-    const balanceUzs = normalizeMoneyInput(sessionForm.balanceUzs);
+    const submittedAmountUzs = normalizeMoneyInput(sessionForm.submittedAmountUzs);
     setSessionSubmitting(true);
     try {
       const isOpening = sessionModal === "open";
@@ -641,8 +652,8 @@ function FinanceCashierPanel({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(isOpening
-          ? { openingBalanceUzs: balanceUzs, note: sessionForm.note }
-          : { closingBalanceUzs: balanceUzs, note: sessionForm.note })
+          ? { note: sessionForm.note }
+          : { closingBalanceUzs: submittedAmountUzs, note: sessionForm.note })
       });
       const data = await readApiResponseData(response);
       if (!response.ok) {
@@ -703,8 +714,9 @@ function FinanceCashierPanel({
       <p className="all-users-state" hidden={!message}>{translate(message)}</p>
       <div className="finance-session-strip" hidden={!canPayFinanceCashier}>
         <strong>{cashSession ? translate("Cash session open") : translate("Cash session closed")}</strong>
-        <span>{cashSession ? `${translate("Opened At")}: ${formatDateYMD(cashSession.openedAt)}` : translate("Open cash before accepting payments.")}</span>
-        {cashSession ? <span>{`${translate("Opening Balance")}: ${formatMoney(cashSession.openingBalanceUzs)}`}</span> : null}
+        <span>{cashSession ? `${translate("Cashier")}: ${cashSession.cashierName || currentCashierName || "-"}` : translate("Open cash before accepting payments.")}</span>
+        {cashSession ? <span>{`${translate("Opened At")}: ${formatDateTime(cashSession.openedAt)}`}</span> : null}
+        {cashSession ? <span>{`${translate("Collected Cash")}: ${formatMoney(cashSession.expectedBalanceUzs)}`}</span> : null}
       </div>
 
       <div className="finance-board-search">
@@ -1093,15 +1105,31 @@ function FinanceCashierPanel({
             <h3>{translate(sessionModal === "open" ? "Open Cash" : "Close Cash")}</h3>
             <form className="auth-form" onSubmit={submitCashSession}>
               <div className="all-users-edit-fields">
-                <label className="field">
-                  <span>{translate(sessionModal === "open" ? "Opening Balance" : "Closing Balance")}</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={sessionForm.balanceUzs}
-                    onChange={(event) => setSessionForm((current) => ({ ...current, balanceUzs: event.currentTarget.value }))}
-                  />
-                </label>
+                <div className="finance-session-info-grid">
+                  <span>{translate("Cashier")}</span>
+                  <strong>{sessionModal === "open" ? (currentCashierName || "-") : (cashSession?.cashierName || currentCashierName || "-")}</strong>
+                  <span>{translate(sessionModal === "open" ? "Opening Time" : "Opened At")}</span>
+                  <strong>{sessionModal === "open" ? nowLabel : formatDateTime(cashSession?.openedAt)}</strong>
+                  {sessionModal === "close" ? (
+                    <>
+                      <span>{translate("Closing Time")}</span>
+                      <strong>{nowLabel}</strong>
+                      <span>{translate("Collected Cash")}</span>
+                      <strong>{formatMoney(cashSession?.expectedBalanceUzs)}</strong>
+                    </>
+                  ) : null}
+                </div>
+                {sessionModal === "close" ? (
+                  <label className="field">
+                    <span>{translate("Submitted Cash")}</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={sessionForm.submittedAmountUzs}
+                      onChange={(event) => setSessionForm((current) => ({ ...current, submittedAmountUzs: event.currentTarget.value }))}
+                    />
+                  </label>
+                ) : null}
                 <label className="field">
                   <span>{translate("Note")}</span>
                   <input

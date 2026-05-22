@@ -894,3 +894,13 @@ main.home-main:has(#positionsPanel) {
     min-width: max-content;
   }
 }
+
+#allUsersEditModal.logout-confirm-modal.all-users-edit-modal {
+  height: auto;
+  min-height: 0;
+  max-height: min(640px, calc(100dvh - 24px));
+}
+
+#allUsersEditModal .all-users-edit-fields {
+  max-height: min(520px, calc(100dvh - 112px));
+}

@@ -430,6 +430,7 @@ function ProfileMainContent({
               canCreateFinanceCashier={canCreateFinanceCashier}
               canUpdateFinanceCashier={canUpdateFinanceCashier}
               canPayFinanceCashier={canPayFinanceCashier}
+              currentUser={profile}
             />
           </Suspense>
         ) : null}

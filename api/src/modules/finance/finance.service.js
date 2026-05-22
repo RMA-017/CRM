@@ -917,12 +917,24 @@ export async function getFinanceTicketHistory({ organizationId, id }) {
 export async function getCurrentCashSession({ organizationId, actorUserId }) {
   const result = await pool.query(
     `SELECT s.*,
+            COALESCE(s.opening_balance_uzs, 0)
+              + COALESCE(SUM(
+                  CASE
+                    WHEN t.status = 'posted' AND t.direction = 'in' THEN t.amount_uzs
+                    WHEN t.status = 'posted' AND t.direction = 'out' THEN -t.amount_uzs
+                    ELSE 0
+                  END
+                ), 0) AS expected_balance_uzs,
             COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), '') AS cashier_name
        FROM finance_cash_sessions s
        JOIN users u ON u.organization_id = s.organization_id AND u.id = s.cashier_user_id
+       LEFT JOIN finance_transactions t
+         ON t.organization_id = s.organization_id
+        AND t.cash_session_id = s.id
       WHERE s.organization_id = $1
         AND s.cashier_user_id = $2
         AND s.status = 'open'
+      GROUP BY s.id, u.full_name, u.username
       ORDER BY s.opened_at DESC, s.id DESC
       LIMIT 1`,
     [organizationId, actorUserId]
@@ -931,7 +943,6 @@ export async function getCurrentCashSession({ organizationId, actorUserId }) {
 }
 
 export async function openCashSession({ organizationId, payload, actorUserId }) {
-  const openingBalanceUzs = normalizeAmount(payload?.openingBalanceUzs ?? payload?.opening_balance_uzs, 0);
   const note = normalizeText(payload?.note);
   const db = await pool.connect();
   try {
@@ -948,7 +959,7 @@ export async function openCashSession({ organizationId, payload, actorUserId }) 
        )
        VALUES ($1, $2, $3, $4, $2)
        RETURNING *`,
-      [organizationId, actorUserId, openingBalanceUzs, note || null]
+      [organizationId, actorUserId, 0, note || null]
     );
     await db.query("COMMIT");
     return mapCashSession(result.rows[0]);
@@ -972,7 +983,7 @@ export async function closeCashSession({ organizationId, payload, actorUserId })
     : normalizeAmount(requestedClosingBalance, -1);
   const closeNote = normalizeText(payload?.note ?? payload?.closeNote ?? payload?.close_note);
   if (closingBalanceUzs !== null && closingBalanceUzs < 0) {
-    const error = new Error("Closing balance is invalid.");
+    const error = new Error("Submitted cash is invalid.");
     error.statusCode = 400;
     throw error;
   }
