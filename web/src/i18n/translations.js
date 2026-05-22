@@ -215,6 +215,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Cash session close failed.", uz: "Kassani yopib bo'lmadi.", ru: "Не удалось закрыть кассу." },
   { en: "Cash session is already open.", uz: "Kassa allaqachon ochiq.", ru: "Касса уже открыта." },
   { en: "Open cash before accepting payments.", uz: "To'lov qabul qilishdan oldin kassani oching.", ru: "Откройте кассу перед приемом оплат." },
+  { en: "Cash is closed. Open cash before accepting payments.", uz: "Kassa yopiq. To'lov qabul qilishdan oldin kassani oching.", ru: "Касса закрыта. Откройте кассу перед приемом оплат." },
   { en: "Opening Balance", uz: "Boshlang'ich qoldiq", ru: "Начальный остаток" },
   { en: "Closing Balance", uz: "Yakuniy qoldiq", ru: "Конечный остаток" },
   { en: "Opened At", uz: "Ochilgan vaqt", ru: "Открыто" },

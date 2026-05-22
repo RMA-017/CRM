@@ -537,7 +537,7 @@ function FinanceCashierPanel({
       return;
     }
     if (!cashSession) {
-      window.alert?.(translate("Cash session is required."));
+      window.alert?.(translate("Cash is closed. Open cash before accepting payments."));
       return;
     }
     setBusyId(`pay-${id}`);
@@ -707,12 +707,6 @@ function FinanceCashierPanel({
       </div>
 
       <p className="all-users-state" hidden={!message}>{translate(message)}</p>
-      <div className="finance-session-strip" hidden={!canPayFinanceCashier}>
-        <strong>{cashSession ? translate("Cash session open") : translate("Cash session closed")}</strong>
-        <span>{cashSession ? `${translate("Cashier")}: ${cashSession.cashierName || currentCashierName || "-"}` : translate("Open cash before accepting payments.")}</span>
-        {cashSession ? <span>{`${translate("Opened At")}: ${formatDateTime(cashSession.openedAt)}`}</span> : null}
-        {cashSession ? <span>{`${translate("Collected Cash")}: ${formatMoney(cashSession.expectedBalanceUzs)}`}</span> : null}
-      </div>
 
       <div className="finance-board-search">
         <label className="panel-search-label">

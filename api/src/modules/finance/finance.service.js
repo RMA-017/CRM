@@ -555,8 +555,11 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
 
   const appointments = appointmentsResult.rows.map(mapAppointment);
   const tickets = ticketsResult.rows.map(mapTicket);
+  const todayYmd = getTodayYmdInTashkent();
   return {
-    pendingAppointments: appointments.filter((item) => item.status === "pending"),
+    pendingAppointments: appointments.filter((item) => (
+      item.status === "pending" && normalizeDate(item.appointmentDate) === todayYmd
+    )),
     cancelledAppointments: appointments.filter((item) => item.status === "cancelled"),
     noShowAppointments: appointments.filter((item) => item.status === "no-show"),
     confirmedAppointments: appointments.filter((item) => item.status === "confirmed"),

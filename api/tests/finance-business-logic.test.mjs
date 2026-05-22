@@ -46,6 +46,12 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
     /export async function getCashierBoard\(\{ organizationId, dateFrom, dateTo, query \}\)[\s\S]*normalizeText\(query, 96\)[\s\S]*appointmentFilters\.push\(`\([\s\S]*a\.client_id::text = \$\$\{exactParam\}[\s\S]*ticketFilters\.push\(`\([\s\S]*ft\.ticket_number::text = \$\$\{exactParam\}/s,
     "Cashier board search should be applied server-side for appointments and tickets before the board limit."
   );
+
+  assert.match(
+    financeServiceSource,
+    /const todayYmd = getTodayYmdInTashkent\(\);[\s\S]*pendingAppointments: appointments\.filter\(\(item\) => \([\s\S]*item\.status === "pending" && normalizeDate\(item\.appointmentDate\) === todayYmd/s,
+    "Pending cashier appointment cards should always be limited to today's lessons."
+  );
 });
 
 test("finance ticket creation only accepts confirmed appointments and snapshots ticket item totals", () => {
