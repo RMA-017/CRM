@@ -73,21 +73,6 @@ function normalizeMoneyInput(value) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
-function translateFinanceStatus(translate, status) {
-  const normalized = String(status || "");
-  const labels = {
-    pending: "Pending",
-    confirmed: "Confirmed",
-    cancelled: "Cancelled",
-    "no-show": "No-show",
-    issued: "Tickets",
-    paid: "Paid",
-    unpaid: "Unpaid",
-    voided: "Voided"
-  };
-  return translate(labels[normalized] || normalized || "-");
-}
-
 function normalizeSearchValue(value) {
   return String(value ?? "").trim().toLowerCase();
 }
@@ -122,7 +107,7 @@ function BoardColumnTitle({ count, total = count, label, translate }) {
   );
 }
 
-function TicketCard({ item, footer, onClick, translate, compact = false }) {
+function TicketCard({ item, footer, onClick, compact = false }) {
   const statusKey = String(item?.status || "").trim().toLowerCase().replace(/_/g, "-");
   const className = [
     "settings-card",
@@ -150,39 +135,16 @@ function TicketCard({ item, footer, onClick, translate, compact = false }) {
         }
       }}
     >
-      {compact ? (
-        <>
-          <div className="settings-card-row">
-            <strong>{`${startTime} ${clientName}`}</strong>
-            <span>{translateFinanceStatus(translate, item.status)}</span>
-          </div>
-          <div className="settings-card-row">
-            <span>{serviceName}</span>
-            <span>{specialistName}</span>
-          </div>
-        </>
-      ) : (
-        <>
       <div className="settings-card-row">
-        <strong>{item.ticketNumber ? `#${item.ticketNumber}` : (item.clientName || "-")}</strong>
-        <span>{formatMoney(item.amountUzs ?? item.totalUzs ?? item.servicePriceUzs)}</span>
-      </div>
-      {item.ticketNumber ? (
-        <div className="settings-card-row">
-          <span>{item.clientName || "-"}</span>
-          <span>{item.itemCount ? `${item.itemCount} ${translate("Item")}` : ""}</span>
-        </div>
-      ) : null}
-      <div className="settings-card-row">
-        <span>{item.serviceName || "-"}</span>
-        <span>{translateFinanceStatus(translate, item.status)}</span>
+        <strong>{clientName}</strong>
       </div>
       <div className="settings-card-row">
-        <span>{formatTime(item.startTime)}</span>
-        <span>{item.specialistName || "-"}</span>
+        <span>{serviceName}</span>
+        <span>{startTime}</span>
       </div>
-        </>
-      )}
+      <div className="settings-card-row">
+        <span>{specialistName}</span>
+      </div>
       {footer ? (
         <div className="settings-card-actions" onClick={(event) => event.stopPropagation()}>
           {footer}
@@ -206,7 +168,6 @@ function FinanceCashierPanel({
     noShowAppointments: [],
     confirmedAppointments: [],
     issuedTickets: [],
-    paidTickets: [],
     paymentMethods: [],
     services: [],
     specialists: []
@@ -252,8 +213,7 @@ function FinanceCashierPanel({
     cancelledAppointments: filterBoardItems(board.cancelledAppointments, normalizedBoardSearch),
     noShowAppointments: filterBoardItems(board.noShowAppointments, normalizedBoardSearch),
     confirmedAppointments: filterBoardItems(board.confirmedAppointments, normalizedBoardSearch),
-    issuedTickets: filterBoardItems(board.issuedTickets, normalizedBoardSearch),
-    paidTickets: filterBoardItems(board.paidTickets, normalizedBoardSearch)
+    issuedTickets: filterBoardItems(board.issuedTickets, normalizedBoardSearch)
   }), [board, normalizedBoardSearch]);
   const isBoardSearchActive = normalizedBoardSearch.length > 0;
   const currentCashierName = String(currentUser?.fullName || currentUser?.username || "").trim();
@@ -283,7 +243,6 @@ function FinanceCashierPanel({
         noShowAppointments: Array.isArray(data?.noShowAppointments) ? data.noShowAppointments : [],
         confirmedAppointments: Array.isArray(data?.confirmedAppointments) ? data.confirmedAppointments : [],
         issuedTickets: Array.isArray(data?.issuedTickets) ? data.issuedTickets : [],
-        paidTickets: Array.isArray(data?.paidTickets) ? data.paidTickets : [],
         paymentMethods: Array.isArray(data?.paymentMethods) ? data.paymentMethods : [],
         services: Array.isArray(data?.services) ? data.services : [],
         specialists: Array.isArray(data?.specialists) ? data.specialists : []
@@ -838,11 +797,6 @@ function FinanceCashierPanel({
           {visibleBoard.issuedTickets.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
         </section>
 
-        <section className="settings-card-column">
-          <BoardColumnTitle count={visibleBoard.paidTickets.length} total={board.paidTickets.length} label="Paid" translate={translate} />
-          {visibleBoard.paidTickets.map((item) => <TicketCard key={String(item.id)} item={item} translate={translate} />)}
-          {visibleBoard.paidTickets.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
-        </section>
       </div>
 
       {appointmentTicketSource ? (
