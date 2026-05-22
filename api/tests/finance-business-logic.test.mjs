@@ -49,8 +49,8 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
 
   assert.match(
     financeServiceSource,
-    /const todayYmd = getTodayYmdInTashkent\(\);[\s\S]*const appointmentParams = \[organizationId, todayYmd\];[\s\S]*"\(a\.status <> 'pending' OR a\.appointment_date = \$2::date\)"[\s\S]*pendingAppointments: appointments\.filter\(\(item\) => item\.status === "pending"\)/s,
-    "Pending cashier appointment cards should be limited to today's lessons before the board limit is applied."
+    /const todayYmd = getTodayYmdInTashkent\(\);[\s\S]*const boardDateFrom = dates\.from \|\| dates\.to \|\| todayYmd;[\s\S]*const boardDateTo = dates\.to \|\| boardDateFrom;[\s\S]*"a\.appointment_date >= \$2::date"[\s\S]*"a\.appointment_date <= \$3::date"[\s\S]*"COALESCE\(a\.appointment_date, ft\.ticket_date\) >= \$2::date"[\s\S]*"COALESCE\(a\.appointment_date, ft\.ticket_date\) <= \$3::date"/s,
+    "Cashier board columns should default to today's appointment/ticket date before the board limit is applied."
   );
 });
 

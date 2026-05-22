@@ -398,23 +398,18 @@ async function getNextTicketNumber(db, organizationId) {
 export async function getCashierBoard({ organizationId, dateFrom, dateTo, query }) {
   const dates = getBoardDates({ dateFrom, dateTo });
   const todayYmd = getTodayYmdInTashkent();
+  const boardDateFrom = dates.from || dates.to || todayYmd;
+  const boardDateTo = dates.to || boardDateFrom;
   const normalizedQuery = normalizeText(query, 96);
   const normalizedQueryLike = `%${normalizedQuery.toLowerCase()}%`;
-  const appointmentParams = [organizationId, todayYmd];
+  const appointmentParams = [organizationId, boardDateFrom, boardDateTo];
   const appointmentFilters = [
     "a.organization_id = $1",
     "a.status IN ('pending', 'confirmed', 'cancelled', 'no-show')",
     "ft.id IS NULL",
-    "(a.status <> 'pending' OR a.appointment_date = $2::date)"
+    "a.appointment_date >= $2::date",
+    "a.appointment_date <= $3::date"
   ];
-  if (dates.from) {
-    appointmentParams.push(dates.from);
-    appointmentFilters.push(`a.appointment_date >= $${appointmentParams.length}`);
-  }
-  if (dates.to) {
-    appointmentParams.push(dates.to);
-    appointmentFilters.push(`a.appointment_date <= $${appointmentParams.length}`);
-  }
   if (normalizedQuery) {
     appointmentParams.push(normalizedQueryLike);
     const likeParam = appointmentParams.length;
@@ -430,10 +425,12 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
   }
   appointmentParams.push(BOARD_LIMIT);
 
-  const ticketParams = [organizationId];
+  const ticketParams = [organizationId, boardDateFrom, boardDateTo];
   const ticketFilters = [
     "ft.organization_id = $1",
-    "ft.status <> 'voided'"
+    "ft.status <> 'voided'",
+    "COALESCE(a.appointment_date, ft.ticket_date) >= $2::date",
+    "COALESCE(a.appointment_date, ft.ticket_date) <= $3::date"
   ];
   if (normalizedQuery) {
     ticketParams.push(normalizedQueryLike);
