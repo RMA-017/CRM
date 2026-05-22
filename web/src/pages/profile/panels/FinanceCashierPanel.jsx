@@ -16,9 +16,7 @@ function createManualItem() {
   return {
     key: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     specialistId: "",
-    serviceId: "",
-    discountType: "amount",
-    discountValue: "0"
+    serviceId: ""
   };
 }
 
@@ -27,6 +25,8 @@ function createManualForm() {
     ticketDate: todayDateValue(),
     clientId: "",
     items: [createManualItem()],
+    discountType: "amount",
+    discountValue: "0",
     note: ""
   };
 }
@@ -45,6 +45,11 @@ const EMPTY_APPOINTMENT_TICKET_FORM = Object.freeze({
 function formatMoney(value) {
   const amount = Number.parseInt(String(value ?? 0), 10) || 0;
   return amount > 0 ? `${amount.toLocaleString("ru-RU")} UZS` : "-";
+}
+
+function formatTicketNumber(value) {
+  const number = Number.parseInt(String(value ?? ""), 10);
+  return number > 0 ? `#${String(number).padStart(5, "0")}` : "#-----";
 }
 
 function formatTime(value) {
@@ -66,6 +71,37 @@ function calculateDiscount(priceUzs, discountType, discountValue) {
     return Math.min(price, Math.floor((price * Math.min(value, 100)) / 100));
   }
   return Math.min(price, value);
+}
+
+function distributeDiscountUzs(prices, discountUzs) {
+  const normalizedPrices = prices.map((price) => normalizeMoneyInput(price));
+  const subtotal = normalizedPrices.reduce((sum, price) => sum + price, 0);
+  const normalizedDiscount = Math.min(normalizeMoneyInput(discountUzs), subtotal);
+  let remainingDiscount = normalizedDiscount;
+  let remainingPrice = subtotal;
+  if (remainingDiscount <= 0 || subtotal <= 0) {
+    return normalizedPrices.map(() => 0);
+  }
+
+  return normalizedPrices.map((price, index) => {
+    if (price <= 0 || remainingDiscount <= 0) {
+      remainingPrice -= price;
+      return 0;
+    }
+    if (index === normalizedPrices.length - 1) {
+      const amount = Math.min(price, remainingDiscount);
+      remainingDiscount -= amount;
+      remainingPrice -= price;
+      return amount;
+    }
+    const remainingPriceAfterItem = remainingPrice - price;
+    const proportionalAmount = Math.floor((normalizedDiscount * price) / subtotal);
+    const minimumAmount = Math.max(0, remainingDiscount - remainingPriceAfterItem);
+    const amount = Math.min(price, remainingDiscount, Math.max(proportionalAmount, minimumAmount));
+    remainingDiscount -= amount;
+    remainingPrice -= price;
+    return amount;
+  });
 }
 
 function normalizeMoneyInput(value) {
@@ -201,7 +237,8 @@ function FinanceCashierPanel({
     issuedTickets: [],
     paymentMethods: [],
     services: [],
-    specialists: []
+    specialists: [],
+    nextTicketNumber: null
   });
   const [message, setMessage] = useState("");
   const [busyId, setBusyId] = useState("");
@@ -227,7 +264,7 @@ function FinanceCashierPanel({
   const [draggedAppointment, setDraggedAppointment] = useState(null);
   const [dragOverColumn, setDragOverColumn] = useState("");
   const boardRequestRef = useRef(0);
-  const suppressCardClickRef = useRef(false);
+  const draggedAppointmentRef = useRef(null);
 
   const paymentMethodOptions = useMemo(() => board.paymentMethods.map((item) => ({
     value: String(item.id),
@@ -239,6 +276,12 @@ function FinanceCashierPanel({
       label: item.name || String(item.id),
       item
     })), [board.services]);
+
+  const manualServiceOptions = useMemo(() => board.services.map((item) => ({
+    value: String(item.id),
+    label: `${item.name || item.id} - ${formatMoney(item.priceUzs)}`,
+    item
+  })), [board.services]);
 
   const specialistOptions = useMemo(() => board.specialists.map((item) => ({
     value: String(item.id),
@@ -282,7 +325,8 @@ function FinanceCashierPanel({
         issuedTickets: Array.isArray(data?.issuedTickets) ? data.issuedTickets : [],
         paymentMethods: Array.isArray(data?.paymentMethods) ? data.paymentMethods : [],
         services: Array.isArray(data?.services) ? data.services : [],
-        specialists: Array.isArray(data?.specialists) ? data.specialists : []
+        specialists: Array.isArray(data?.specialists) ? data.specialists : [],
+        nextTicketNumber: data?.nextTicketNumber ?? data?.next_ticket_number ?? null
       });
       setMessage("");
     } catch {
@@ -324,30 +368,46 @@ function FinanceCashierPanel({
     await Promise.all([loadBoard(), loadCashSession()]);
   };
 
-  const searchClients = useCallback(async () => {
+  useEffect(() => {
+    if (!manualModalOpen) {
+      return undefined;
+    }
     const query = clientSearch.trim();
     if (!query || (!/^\d+$/.test(query) && query.length < 3)) {
-      setClientOptions([]);
-      return;
-    }
-    setClientSearchBusy(true);
-    try {
-      const response = await apiFetch(`/api/finance/cashier/clients?q=${encodeURIComponent(query)}&limit=30`);
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        window.alert?.(translate(data?.message || "Failed to search clients."));
-        return;
-      }
-      setClientOptions((Array.isArray(data?.items) ? data.items : []).map((item) => ({
-        value: String(item.id),
-        label: `${item.fullName || item.id}${item.phone ? ` - ${item.phone}` : ""}`
-      })));
-    } catch {
-      window.alert?.(translate("Failed to search clients."));
-    } finally {
       setClientSearchBusy(false);
+      return undefined;
     }
-  }, [clientSearch, translate]);
+    let cancelled = false;
+    const timeoutId = globalThis.setTimeout(async () => {
+      setClientSearchBusy(true);
+      try {
+        const response = await apiFetch(`/api/finance/cashier/clients?q=${encodeURIComponent(query)}&limit=30`);
+        const data = await readApiResponseData(response);
+        if (cancelled) return;
+        if (!response.ok) {
+          window.alert?.(translate(data?.message || "Failed to search clients."));
+          return;
+        }
+        setClientOptions((Array.isArray(data?.items) ? data.items : []).map((item) => ({
+          value: String(item.id),
+          label: `${item.fullName || item.id}${item.phone ? ` - ${item.phone}` : ""}`
+        })));
+      } catch {
+        if (!cancelled) {
+          window.alert?.(translate("Failed to search clients."));
+        }
+      } finally {
+        if (!cancelled) {
+          setClientSearchBusy(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      globalThis.clearTimeout(timeoutId);
+    };
+  }, [clientSearch, manualModalOpen, translate]);
 
   const closeManualModal = (force = false) => {
     if (manualSubmitting && !force) return;
@@ -396,16 +456,42 @@ function FinanceCashierPanel({
   };
 
   const resetBoardDrag = useCallback(() => {
+    draggedAppointmentRef.current = null;
     setDraggedAppointment(null);
     setDragOverColumn("");
   }, []);
 
-  const suppressNextCardClick = useCallback(() => {
-    suppressCardClickRef.current = true;
-    globalThis.setTimeout(() => {
-      suppressCardClickRef.current = false;
-    }, 0);
-  }, []);
+  const findBoardAppointmentById = useCallback((id) => {
+    const appointmentId = String(id || "");
+    if (!appointmentId) return null;
+    return [
+      ...board.pendingAppointments,
+      ...board.cancelledAppointments,
+      ...board.noShowAppointments,
+      ...board.confirmedAppointments
+    ].find((item) => String(item?.id || "") === appointmentId) || null;
+  }, [
+    board.pendingAppointments,
+    board.cancelledAppointments,
+    board.noShowAppointments,
+    board.confirmedAppointments
+  ]);
+
+  const getDraggedAppointmentFromEvent = useCallback((event) => {
+    if (draggedAppointmentRef.current) return draggedAppointmentRef.current;
+    if (draggedAppointment) return draggedAppointment;
+    const payload = event?.dataTransfer?.getData("application/x-finance-appointment") || "";
+    if (payload) {
+      try {
+        const parsed = JSON.parse(payload);
+        const item = findBoardAppointmentById(parsed?.id);
+        if (item) return item;
+      } catch {
+        return null;
+      }
+    }
+    return findBoardAppointmentById(event?.dataTransfer?.getData("text/plain"));
+  }, [draggedAppointment, findBoardAppointmentById]);
 
   const updateDraggedAppointmentStatus = async (item, status, { reload = true } = {}) => {
     const id = String(item?.id || "");
@@ -444,6 +530,7 @@ function FinanceCashierPanel({
       event.preventDefault();
       return;
     }
+    draggedAppointmentRef.current = item;
     setDraggedAppointment(item);
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("application/x-finance-appointment", JSON.stringify({
@@ -454,12 +541,11 @@ function FinanceCashierPanel({
   };
 
   const handleAppointmentDragEnd = () => {
-    suppressNextCardClick();
     resetBoardDrag();
   };
 
   const handleColumnDragOver = (event, columnKey) => {
-    if (!draggedAppointment || busyId || !canUpdateFinanceCashier) return;
+    if (!(draggedAppointmentRef.current || draggedAppointment) || busyId || !canUpdateFinanceCashier) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
     if (dragOverColumn !== columnKey) {
@@ -476,8 +562,7 @@ function FinanceCashierPanel({
 
   const handleAppointmentStatusDrop = async (event, targetStatus) => {
     event.preventDefault();
-    const item = draggedAppointment;
-    suppressNextCardClick();
+    const item = getDraggedAppointmentFromEvent(event);
     resetBoardDrag();
     if (!item || busyId || !canUpdateFinanceCashier) return;
     const nextStatus = normalizeStatusKey(targetStatus);
@@ -487,8 +572,7 @@ function FinanceCashierPanel({
 
   const handleTicketColumnDrop = async (event) => {
     event.preventDefault();
-    const item = draggedAppointment;
-    suppressNextCardClick();
+    const item = getDraggedAppointmentFromEvent(event);
     resetBoardDrag();
     if (!item || busyId || !canUpdateFinanceCashier) return;
     if (!canCreateFinanceCashier) {
@@ -508,6 +592,7 @@ function FinanceCashierPanel({
       "settings-card-column",
       dragOverColumn === columnKey ? "finance-board-drop-active" : ""
     ].filter(Boolean).join(" "),
+    onDragEnter: (event) => handleColumnDragOver(event, columnKey),
     onDragOver: (event) => handleColumnDragOver(event, columnKey),
     onDragLeave: (event) => handleColumnDragLeave(event, columnKey),
     onDrop: (event) => handleAppointmentStatusDrop(event, status)
@@ -518,6 +603,7 @@ function FinanceCashierPanel({
       "settings-card-column",
       dragOverColumn === "tickets" ? "finance-board-drop-active" : ""
     ].filter(Boolean).join(" "),
+    onDragEnter: (event) => handleColumnDragOver(event, "tickets"),
     onDragOver: (event) => handleColumnDragOver(event, "tickets"),
     onDragLeave: (event) => handleColumnDragLeave(event, "tickets"),
     onDrop: handleTicketColumnDrop
@@ -529,11 +615,6 @@ function FinanceCashierPanel({
     onDragStart: (event) => handleAppointmentDragStart(event, item),
     onDragEnd: handleAppointmentDragEnd
   });
-
-  const handleConfirmedCardClick = (item) => {
-    if (suppressCardClickRef.current) return;
-    openAppointmentTicketModal(item);
-  };
 
   const closeAppointmentTicketModal = (force = false) => {
     if (appointmentTicketSubmitting && !force) return;
@@ -615,17 +696,17 @@ function FinanceCashierPanel({
   const appointmentFinalUzs = Math.max(appointmentPriceUzs - appointmentDiscountUzs, 0);
 
   const manualTotals = useMemo(() => {
-    return manualForm.items.reduce((totals, item) => {
+    const subtotalUzs = manualForm.items.reduce((sum, item) => {
       const service = board.services.find((entry) => String(entry.id) === String(item.serviceId || ""));
-      const priceUzs = normalizeMoneyInput(service?.priceUzs);
-      const discountUzs = calculateDiscount(priceUzs, item.discountType, item.discountValue);
-      return {
-        subtotalUzs: totals.subtotalUzs + priceUzs,
-        discountUzs: totals.discountUzs + discountUzs,
-        totalUzs: totals.totalUzs + Math.max(priceUzs - discountUzs, 0)
-      };
-    }, { subtotalUzs: 0, discountUzs: 0, totalUzs: 0 });
-  }, [board.services, manualForm.items]);
+      return sum + normalizeMoneyInput(service?.priceUzs);
+    }, 0);
+    const discountUzs = calculateDiscount(subtotalUzs, manualForm.discountType, manualForm.discountValue);
+    return {
+      subtotalUzs,
+      discountUzs,
+      totalUzs: Math.max(subtotalUzs - discountUzs, 0)
+    };
+  }, [board.services, manualForm.discountType, manualForm.discountValue, manualForm.items]);
 
   const payTicket = async (item) => {
     const id = String(item?.id || "");
@@ -675,7 +756,11 @@ function FinanceCashierPanel({
       window.alert?.(translate("Ticket date is required."));
       return;
     }
-    for (const item of manualForm.items) {
+    const manualItemsWithServices = manualForm.items.map((item) => ({
+      item,
+      service: getManualItemService(item)
+    }));
+    for (const { item, service } of manualItemsWithServices) {
       if (!String(item.specialistId || "").trim()) {
         window.alert?.(translate("Specialist is required."));
         return;
@@ -684,7 +769,6 @@ function FinanceCashierPanel({
         window.alert?.(translate("Service is required."));
         return;
       }
-      const service = getManualItemService(item);
       if (normalizeMoneyInput(service?.priceUzs) <= 0) {
         window.alert?.(translate("Service price is required."));
         return;
@@ -694,6 +778,10 @@ function FinanceCashierPanel({
       window.alert?.(translate("Ticket amount is required."));
       return;
     }
+    const manualItemDiscounts = distributeDiscountUzs(
+      manualItemsWithServices.map(({ service }) => service?.priceUzs),
+      manualTotals.discountUzs
+    );
     setManualSubmitting(true);
     try {
       const response = await apiFetch("/api/finance/cashier/tickets", {
@@ -702,11 +790,11 @@ function FinanceCashierPanel({
         body: JSON.stringify({
           clientId,
           ticketDate,
-          items: manualForm.items.map((item) => ({
+          items: manualForm.items.map((item, index) => ({
             specialistId: item.specialistId,
             serviceId: item.serviceId,
-            discountType: item.discountType,
-            discountValue: item.discountValue
+            discountType: "amount",
+            discountValue: manualItemDiscounts[index] || 0
           })),
           note: manualForm.note
         })
@@ -907,7 +995,6 @@ function FinanceCashierPanel({
             <TicketCard
               key={String(item.id)}
               item={item}
-              onClick={() => handleConfirmedCardClick(item)}
               compact
               {...getAppointmentDragProps(item)}
             />
@@ -1043,7 +1130,10 @@ function FinanceCashierPanel({
             onClick={() => closeManualModal()}
           />
           <div id="financeManualTicketModal" className="logout-confirm-modal all-users-edit-modal finance-modal">
-            <h3>{translate("Create Manual Ticket")}</h3>
+            <h3 className="finance-modal-title-with-number">
+              <span>{translate("Create Manual Ticket")}</span>
+              <span className="finance-modal-ticket-number">{formatTicketNumber(board.nextTicketNumber)}</span>
+            </h3>
             <form className="auth-form" onSubmit={submitManualTicket}>
               <div className="all-users-edit-fields">
                 <div className="finance-manual-top-row">
@@ -1055,42 +1145,26 @@ function FinanceCashierPanel({
                       onChange={(event) => setManualForm((current) => ({ ...current, ticketDate: event.currentTarget.value }))}
                     />
                   </label>
-                  <label className="field">
-                    <span>{translate("Search client")}</span>
-                    <div className="settings-inline-form finance-manual-client-search">
-                      <input
-                        type="search"
-                        value={clientSearch}
-                        placeholder={translate("Search by name or ID")}
-                        onChange={(event) => setClientSearch(event.currentTarget.value)}
-                      />
-                      <button type="button" className="table-action-btn" disabled={clientSearchBusy} onClick={searchClients}>
-                        {clientSearchBusy ? "..." : translate("Search")}
-                      </button>
-                    </div>
+                  <label className="field finance-manual-client-select">
+                    <span>{translate("Client")}</span>
+                    <CustomSelect
+                      value={manualForm.clientId}
+                      options={clientOptions}
+                      placeholder={translate("Select client")}
+                      searchable
+                      searchPlaceholder={translate("Search by name or ID")}
+                      searchThreshold={0}
+                      menuPortal
+                      maxVisibleOptions={8}
+                      emptyText={clientSearchBusy ? "..." : translate("No clients found.")}
+                      onSearchChange={setClientSearch}
+                      onChange={(value) => setManualForm((current) => ({ ...current, clientId: value }))}
+                    />
                   </label>
                 </div>
 
-                <label className="field finance-manual-client-select">
-                  <span>{translate("Client")}</span>
-                  <CustomSelect
-                    value={manualForm.clientId}
-                    options={clientOptions}
-                    placeholder={translate("Select client")}
-                    searchable
-                    searchThreshold={1}
-                    menuPortal
-                    emptyText={translate("No clients found.")}
-                    onChange={(value) => setManualForm((current) => ({ ...current, clientId: value }))}
-                  />
-                </label>
-
                 <div className="finance-manual-items">
                   {manualForm.items.map((item, index) => {
-                    const service = getManualItemService(item);
-                    const priceUzs = normalizeMoneyInput(service?.priceUzs);
-                    const discountUzs = calculateDiscount(priceUzs, item.discountType, item.discountValue);
-                    const finalUzs = Math.max(priceUzs - discountUzs, 0);
                     return (
                       <div className="finance-manual-item" key={item.key}>
                         <div className="settings-card-row finance-manual-item-head">
@@ -1124,7 +1198,7 @@ function FinanceCashierPanel({
                             <span>{translate("Service")}</span>
                             <CustomSelect
                               value={item.serviceId}
-                              options={serviceOptions}
+                              options={manualServiceOptions}
                               placeholder={translate("Select service")}
                               searchable
                               searchThreshold={1}
@@ -1133,36 +1207,6 @@ function FinanceCashierPanel({
                               onChange={(value) => updateManualItem(item.key, { serviceId: value })}
                             />
                           </label>
-                          <div className="finance-ticket-line-total">
-                            <span>{translate("Price")}</span>
-                            <strong>{formatMoney(priceUzs)}</strong>
-                          </div>
-                          <label className="field">
-                            <span>{translate("Discount Type")}</span>
-                            <CustomSelect
-                              value={item.discountType}
-                              options={[
-                                { value: "amount", label: translate("Amount") },
-                                { value: "percent", label: translate("Percent") }
-                              ]}
-                              menuPortal
-                              onChange={(value) => updateManualItem(item.key, { discountType: value })}
-                            />
-                          </label>
-                          <label className="field">
-                            <span>{translate("Discount")}</span>
-                            <input
-                              type="number"
-                              min="0"
-                              max={item.discountType === "percent" ? "100" : undefined}
-                              value={item.discountValue}
-                              onChange={(event) => updateManualItem(item.key, { discountValue: event.currentTarget.value })}
-                            />
-                          </label>
-                          <div className="finance-ticket-line-total">
-                            <span>{translate("Final")}</span>
-                            <strong>{formatMoney(finalUzs)}</strong>
-                          </div>
                         </div>
                       </div>
                     );
@@ -1180,7 +1224,28 @@ function FinanceCashierPanel({
 
                 <div className="finance-ticket-summary finance-ticket-total">
                   <div><strong>{translate("Subtotal")}</strong><span>{formatMoney(manualTotals.subtotalUzs)}</span></div>
-                  <div><strong>{translate("Discount")}</strong><span>{formatMoney(manualTotals.discountUzs)}</span></div>
+                  <label className="field">
+                    <span>{translate("Discount Type")}</span>
+                    <CustomSelect
+                      value={manualForm.discountType}
+                      options={[
+                        { value: "amount", label: translate("Amount") },
+                        { value: "percent", label: translate("Percent") }
+                      ]}
+                      menuPortal
+                      onChange={(value) => setManualForm((current) => ({ ...current, discountType: value }))}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>{translate("Discount")}</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max={manualForm.discountType === "percent" ? "100" : undefined}
+                      value={manualForm.discountValue}
+                      onChange={(event) => setManualForm((current) => ({ ...current, discountValue: event.currentTarget.value }))}
+                    />
+                  </label>
                   <div><strong>{translate("Total")}</strong><span>{formatMoney(manualTotals.totalUzs)}</span></div>
                 </div>
 

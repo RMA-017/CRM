@@ -395,6 +395,26 @@ async function getNextTicketNumber(db, organizationId) {
   return ticketNumber;
 }
 
+async function getNextTicketNumberPreview(organizationId) {
+  const result = await pool.query(
+    `SELECT GREATEST(
+              COALESCE((
+                SELECT next_ticket_number
+                  FROM finance_ticket_counters
+                 WHERE organization_id = $1
+              ), 10000),
+              COALESCE((
+                SELECT MAX(ticket_number) + 1
+                  FROM finance_tickets
+                 WHERE organization_id = $1
+              ), 10000)
+            ) AS ticket_number`,
+    [organizationId]
+  );
+  const ticketNumber = Number.parseInt(String(result.rows[0]?.ticket_number || ""), 10);
+  return ticketNumber > 0 && ticketNumber <= 99999 ? ticketNumber : null;
+}
+
 export async function getCashierBoard({ organizationId, dateFrom, dateTo, query }) {
   const dates = getBoardDates({ dateFrom, dateTo });
   const todayYmd = getTodayYmdInTashkent();
@@ -448,7 +468,14 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
     )`);
   }
   ticketParams.push(BOARD_LIMIT);
-  const [appointmentsResult, ticketsResult, paymentMethodsResult, servicesResult, specialistsResult] = await Promise.all([
+  const [
+    appointmentsResult,
+    ticketsResult,
+    paymentMethodsResult,
+    servicesResult,
+    specialistsResult,
+    nextTicketNumber
+  ] = await Promise.all([
     pool.query(
       `SELECT a.id,
               a.client_id,
@@ -547,9 +574,10 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
            ON p.organization_id = u.organization_id
           AND p.id = u.position_id
         WHERE u.organization_id = $1
-        ORDER BY full_name ASC, u.id ASC`,
+       ORDER BY full_name ASC, u.id ASC`,
       [organizationId]
-    )
+    ),
+    getNextTicketNumberPreview(organizationId)
   ]);
 
   const appointments = appointmentsResult.rows.map(mapAppointment);
@@ -571,7 +599,8 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
       name: row.name,
       priceUzs: row.price_uzs
     })),
-    specialists: specialistsResult.rows.map(mapSpecialistOption)
+    specialists: specialistsResult.rows.map(mapSpecialistOption),
+    nextTicketNumber
   };
 }
 

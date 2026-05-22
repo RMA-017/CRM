@@ -6475,13 +6475,34 @@ label.field > span:first-child,
 
 .finance-cashier-panel .stacked-modal-overlay {
   border: 0;
-  background: transparent;
+  background: var(--overlay);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
   appearance: none;
   -webkit-appearance: none;
 }
 
 .finance-modal.logout-confirm-modal.all-users-edit-modal h3 {
   font-size: var(--fs-base);
+}
+
+.finance-modal .finance-modal-title-with-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.finance-modal .finance-modal-ticket-number {
+  padding: 2px 8px;
+  border: 1px solid rgba(64, 138, 243, 0.24);
+  border-radius: 999px;
+  background: rgba(64, 138, 243, 0.10);
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
 }
 
 .finance-modal .auth-form {
@@ -6545,7 +6566,7 @@ label.field > span:first-child,
 
 .ops-panel-shell .finance-manual-top-row {
   display: grid;
-  grid-template-columns: minmax(150px, 0.45fr) minmax(0, 1fr);
+  grid-template-columns: minmax(150px, 0.45fr) minmax(260px, 1fr);
   gap: 8px;
   align-items: end;
 }
@@ -6586,14 +6607,30 @@ label.field > span:first-child,
 
 .ops-panel-shell .finance-manual-item-grid {
   grid-template-columns:
-    minmax(150px, 1fr)
-    minmax(230px, 1.35fr)
-    minmax(86px, 0.5fr)
-    minmax(110px, 0.65fr)
-    minmax(88px, 0.5fr)
-    minmax(92px, 0.52fr);
+    minmax(150px, 0.75fr)
+    minmax(260px, 1.25fr);
   gap: 7px;
   align-items: end;
+}
+
+#financeManualTicketModal .finance-ticket-total {
+  grid-template-columns:
+    minmax(120px, 0.8fr)
+    minmax(150px, 1fr)
+    minmax(110px, 0.7fr)
+    minmax(120px, 0.8fr);
+  align-items: end;
+}
+
+#financeManualTicketModal .finance-ticket-total > .field {
+  margin: 0;
+}
+
+#financeManualTicketModal .finance-ticket-total > div {
+  min-height: var(--input-height);
+  grid-template-columns: 1fr;
+  gap: 4px;
+  align-content: center;
 }
 
 .finance-modal .custom-select-menu {
@@ -6841,6 +6878,10 @@ label.field > span:first-child,
   }
 
   .ops-panel-shell .finance-manual-item-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #financeManualTicketModal .finance-ticket-total {
     grid-template-columns: 1fr;
   }
 }
