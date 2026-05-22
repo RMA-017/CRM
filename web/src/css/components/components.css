@@ -5961,6 +5961,14 @@ label.field > span:first-child,
   font-size: var(--fs-base);
 }
 
+.finance-cashier-panel .all-users-head {
+  align-items: center;
+}
+
+.finance-cashier-panel .all-users-head h3 {
+  align-self: center;
+}
+
 .finance-panel-shell .all-users-head-actions {
   gap: 6px;
 }

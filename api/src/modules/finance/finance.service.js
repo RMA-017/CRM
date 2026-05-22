@@ -397,13 +397,15 @@ async function getNextTicketNumber(db, organizationId) {
 
 export async function getCashierBoard({ organizationId, dateFrom, dateTo, query }) {
   const dates = getBoardDates({ dateFrom, dateTo });
+  const todayYmd = getTodayYmdInTashkent();
   const normalizedQuery = normalizeText(query, 96);
   const normalizedQueryLike = `%${normalizedQuery.toLowerCase()}%`;
-  const appointmentParams = [organizationId];
+  const appointmentParams = [organizationId, todayYmd];
   const appointmentFilters = [
     "a.organization_id = $1",
     "a.status IN ('pending', 'confirmed', 'cancelled', 'no-show')",
-    "ft.id IS NULL"
+    "ft.id IS NULL",
+    "(a.status <> 'pending' OR a.appointment_date = $2::date)"
   ];
   if (dates.from) {
     appointmentParams.push(dates.from);
@@ -555,11 +557,8 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
 
   const appointments = appointmentsResult.rows.map(mapAppointment);
   const tickets = ticketsResult.rows.map(mapTicket);
-  const todayYmd = getTodayYmdInTashkent();
   return {
-    pendingAppointments: appointments.filter((item) => (
-      item.status === "pending" && normalizeDate(item.appointmentDate) === todayYmd
-    )),
+    pendingAppointments: appointments.filter((item) => item.status === "pending"),
     cancelledAppointments: appointments.filter((item) => item.status === "cancelled"),
     noShowAppointments: appointments.filter((item) => item.status === "no-show"),
     confirmedAppointments: appointments.filter((item) => item.status === "confirmed"),
