@@ -6186,7 +6186,8 @@ label.field > span:first-child,
 }
 
 .finance-cashier-panel .settings-card {
-  gap: 5px;
+  gap: 6px;
+  min-height: 86px;
   padding: 8px;
   border-color: rgba(205, 213, 240, 0.92);
   background: var(--surface);
@@ -6195,9 +6196,40 @@ label.field > span:first-child,
 }
 
 .finance-cashier-panel .finance-card-compact {
-  gap: 3px;
-  min-height: 46px;
-  padding: 6px 7px;
+  gap: 6px;
+  min-height: 86px;
+  padding: 8px;
+}
+
+.finance-cashier-panel .finance-board-card-pending {
+  border-left: 3px solid rgba(217, 119, 6, 0.72);
+  background: linear-gradient(180deg, rgba(254, 243, 199, 0.78) 0%, rgba(255, 251, 235, 0.95) 100%);
+}
+
+.finance-cashier-panel .finance-board-card-confirmed {
+  border-left: 3px solid rgba(5, 150, 105, 0.72);
+  background: linear-gradient(180deg, rgba(204, 251, 241, 0.78) 0%, rgba(240, 253, 250, 0.95) 100%);
+}
+
+.finance-cashier-panel .finance-board-card-cancelled {
+  border-left: 3px solid rgba(220, 38, 38, 0.55);
+  background: linear-gradient(180deg, rgba(254, 226, 226, 0.86) 0%, rgba(254, 242, 242, 0.95) 100%);
+}
+
+.finance-cashier-panel .finance-board-card-no-show {
+  border-left: 3px solid rgba(185, 28, 28, 0.72);
+  background: linear-gradient(180deg, rgba(254, 202, 202, 0.85) 0%, rgba(254, 242, 242, 0.95) 100%);
+}
+
+.finance-cashier-panel .finance-board-card-issued,
+.finance-cashier-panel .finance-board-card-unpaid {
+  border-left: 3px solid rgba(37, 99, 235, 0.62);
+  background: linear-gradient(180deg, rgba(219, 234, 254, 0.80) 0%, rgba(239, 246, 255, 0.96) 100%);
+}
+
+.finance-cashier-panel .finance-board-card-paid {
+  border-left: 3px solid rgba(22, 163, 74, 0.72);
+  background: linear-gradient(180deg, rgba(220, 252, 231, 0.82) 0%, rgba(240, 253, 244, 0.96) 100%);
 }
 
 .finance-cashier-panel .settings-card-clickable:hover {
@@ -6219,7 +6251,7 @@ label.field > span:first-child,
 
 .finance-cashier-panel .finance-card-compact .settings-card-row {
   gap: 6px;
-  min-height: 16px;
+  min-height: 18px;
   line-height: 1.15;
 }
 

@@ -123,15 +123,16 @@ function BoardColumnTitle({ count, total = count, label, translate }) {
 }
 
 function TicketCard({ item, footer, onClick, translate, compact = false }) {
+  const statusKey = String(item?.status || "").trim().toLowerCase().replace(/_/g, "-");
   const className = [
     "settings-card",
     compact ? "finance-card-compact" : "",
+    statusKey ? `finance-board-card-${statusKey}` : "",
     onClick ? "settings-card-clickable" : ""
   ].filter(Boolean).join(" ");
   const clientName = item.clientName || "-";
   const serviceName = item.serviceName || "-";
   const specialistName = item.specialistName || "-";
-  const appointmentDate = formatDateYMD(item.appointmentDate);
   const startTime = formatTime(item.startTime);
 
   return (
@@ -139,7 +140,7 @@ function TicketCard({ item, footer, onClick, translate, compact = false }) {
       className={className}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
-      title={compact ? `${appointmentDate} ${startTime} - ${clientName} - ${serviceName} - ${specialistName}` : undefined}
+      title={compact ? `${startTime} - ${clientName} - ${serviceName} - ${specialistName}` : undefined}
       onClick={onClick}
       onKeyDown={(event) => {
         if (!onClick) return;
@@ -153,7 +154,7 @@ function TicketCard({ item, footer, onClick, translate, compact = false }) {
         <>
           <div className="settings-card-row">
             <strong>{`${startTime} ${clientName}`}</strong>
-            <span>{appointmentDate}</span>
+            <span>{translateFinanceStatus(translate, item.status)}</span>
           </div>
           <div className="settings-card-row">
             <span>{serviceName}</span>
@@ -177,10 +178,7 @@ function TicketCard({ item, footer, onClick, translate, compact = false }) {
         <span>{translateFinanceStatus(translate, item.status)}</span>
       </div>
       <div className="settings-card-row">
-        <span>{formatDateYMD(item.appointmentDate)}</span>
         <span>{formatTime(item.startTime)}</span>
-      </div>
-      <div className="settings-card-row">
         <span>{item.specialistName || "-"}</span>
       </div>
         </>
