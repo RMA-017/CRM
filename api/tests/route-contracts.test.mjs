@@ -232,6 +232,7 @@ test("finance routes expose stable contract", async () => {
     "GET /transactions",
     "PATCH /cashier/tickets/:id",
     "POST /cashier/appointments/:id/confirm",
+    "POST /cashier/appointments/:id/status",
     "POST /cashier/session/close",
     "POST /cashier/session/open",
     "POST /cashier/tickets",
@@ -293,6 +294,10 @@ test("finance routes expose stable contract", async () => {
 
   const appointmentConfirmPost = findRoute(recorder.routes, "POST", "/cashier/appointments/:id/confirm");
   assert.equal(typeof appointmentConfirmPost?.options?.schema?.params, "object");
+
+  const appointmentStatusPost = findRoute(recorder.routes, "POST", "/cashier/appointments/:id/status");
+  assert.equal(typeof appointmentStatusPost?.options?.schema?.params, "object");
+  assert.equal(typeof appointmentStatusPost?.options?.schema?.body, "object");
 
   const ticketsPatch = findRoute(recorder.routes, "PATCH", "/cashier/tickets/:id");
   assert.equal(typeof ticketsPatch?.options?.schema?.params, "object");

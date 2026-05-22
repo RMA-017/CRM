@@ -651,6 +651,83 @@ export async function confirmCashierAppointment({ organizationId, id, actorUserI
   }
 }
 
+export async function updateCashierAppointmentStatus({ organizationId, id, status, actorUserId }) {
+  const appointmentId = parsePositiveInteger(id);
+  const nextStatus = String(status || "").trim().toLowerCase().replace(/_/g, "-");
+  if (!appointmentId) {
+    const error = new Error("Appointment not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+  if (!["pending", "confirmed", "cancelled", "no-show"].includes(nextStatus)) {
+    const error = new Error("Invalid appointment status.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const db = await pool.connect();
+  try {
+    await db.query("BEGIN");
+    const appointment = await getCashierAppointmentById(db, {
+      organizationId,
+      id: appointmentId,
+      forUpdate: true
+    });
+    if (!appointment) {
+      const error = new Error("Appointment not found.");
+      error.statusCode = 404;
+      throw error;
+    }
+    if (appointment.finance_ticket_id) {
+      const error = new Error("This appointment has a finance ticket. Cancel the ticket before changing the appointment.");
+      error.statusCode = 409;
+      throw error;
+    }
+    if (appointment.status === nextStatus) {
+      await db.query("COMMIT");
+      return mapAppointment(appointment);
+    }
+
+    const appointmentDate = normalizeDate(appointment.appointment_date);
+    if (nextStatus === "confirmed" && appointmentDate && appointmentDate > getTodayYmdInTashkent()) {
+      const error = new Error(`Future appointments cannot be confirmed. Requested date: ${appointmentDate}.`);
+      error.statusCode = 400;
+      throw error;
+    }
+
+    await updateAppointmentSchedulesByIds({
+      db,
+      organizationId,
+      actorUserId,
+      ids: [appointmentId],
+      specialistId: appointment.specialist_id,
+      clientId: appointment.client_id,
+      appointmentDate,
+      startTime: appointment.start_time,
+      endTime: appointment.end_time,
+      durationMinutes: appointment.duration_minutes,
+      serviceId: appointment.service_id,
+      serviceName: appointment.service_name,
+      servicePriceUzs: appointment.service_price_uzs,
+      status: nextStatus,
+      note: appointment.note || "",
+      applyAppointmentDate: false
+    });
+
+    const updatedAppointment = await getCashierAppointmentById(db, {
+      organizationId,
+      id: appointmentId
+    });
+    await db.query("COMMIT");
+    return mapAppointment(updatedAppointment);
+  } catch (error) {
+    await db.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    db.release();
+  }
+}
+
 export async function searchCashierClients({ organizationId, query, limit = 20 }) {
   const normalizedQuery = normalizeText(query, 96);
   const normalizedLimit = Math.max(1, Math.min(Number.parseInt(String(limit || 20), 10) || 20, 50));

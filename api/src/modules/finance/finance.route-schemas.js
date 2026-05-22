@@ -197,6 +197,17 @@ export const financeRouteSchemas = Object.freeze({
       close_note: { type: "string", maxLength: 255 }
     }
   },
+  cashierAppointmentStatusBody: {
+    type: "object",
+    additionalProperties: true,
+    required: ["status"],
+    properties: {
+      status: {
+        type: "string",
+        enum: ["pending", "confirmed", "cancelled", "no-show"]
+      }
+    }
+  },
   ticketCreateBody: {
     type: "object",
     additionalProperties: true,

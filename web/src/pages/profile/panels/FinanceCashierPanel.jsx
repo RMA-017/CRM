@@ -109,6 +109,10 @@ function filterBoardItems(items, filters) {
   return items.filter((item) => ticketCardMatchesFilters(item, filters));
 }
 
+function normalizeStatusKey(value) {
+  return String(value || "").trim().toLowerCase().replace(/_/g, "-");
+}
+
 function BoardColumnTitle({ count, total = count, label, translate }) {
   const countLabel = count === total ? String(count) : `${count}/${total}`;
   return (
@@ -119,13 +123,24 @@ function BoardColumnTitle({ count, total = count, label, translate }) {
   );
 }
 
-function TicketCard({ item, footer, onClick, compact = false }) {
-  const statusKey = String(item?.status || "").trim().toLowerCase().replace(/_/g, "-");
+function TicketCard({
+  item,
+  footer,
+  onClick,
+  compact = false,
+  draggable = false,
+  isDragging = false,
+  onDragStart,
+  onDragEnd
+}) {
+  const statusKey = normalizeStatusKey(item?.status);
   const className = [
     "settings-card",
     compact ? "finance-card-compact" : "",
     statusKey ? `finance-board-card-${statusKey}` : "",
-    onClick ? "settings-card-clickable" : ""
+    onClick ? "settings-card-clickable" : "",
+    draggable ? "finance-board-card-draggable" : "",
+    isDragging ? "finance-board-card-dragging" : ""
   ].filter(Boolean).join(" ");
   const clientName = item.clientName || "-";
   const serviceName = item.serviceName || "-";
@@ -139,6 +154,10 @@ function TicketCard({ item, footer, onClick, compact = false }) {
       tabIndex={onClick ? 0 : undefined}
       title={compact ? `${startTime} - ${clientName} - ${serviceName} - ${specialistName}` : undefined}
       onClick={onClick}
+      draggable={draggable}
+      aria-grabbed={draggable ? isDragging : undefined}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
       onKeyDown={(event) => {
         if (!onClick) return;
         if (event.key === "Enter" || event.key === " ") {
@@ -205,7 +224,10 @@ function FinanceCashierPanel({
   const [sessionModal, setSessionModal] = useState("");
   const [sessionForm, setSessionForm] = useState(EMPTY_SESSION_FORM);
   const [sessionSubmitting, setSessionSubmitting] = useState(false);
+  const [draggedAppointment, setDraggedAppointment] = useState(null);
+  const [dragOverColumn, setDragOverColumn] = useState("");
   const boardRequestRef = useRef(0);
+  const suppressCardClickRef = useRef(false);
 
   const paymentMethodOptions = useMemo(() => board.paymentMethods.map((item) => ({
     value: String(item.id),
@@ -373,36 +395,144 @@ function FinanceCashierPanel({
     setAppointmentTicketForm(EMPTY_APPOINTMENT_TICKET_FORM);
   };
 
-  const confirmAppointment = async (item, { openTicket = false } = {}) => {
+  const resetBoardDrag = useCallback(() => {
+    setDraggedAppointment(null);
+    setDragOverColumn("");
+  }, []);
+
+  const suppressNextCardClick = useCallback(() => {
+    suppressCardClickRef.current = true;
+    globalThis.setTimeout(() => {
+      suppressCardClickRef.current = false;
+    }, 0);
+  }, []);
+
+  const updateDraggedAppointmentStatus = async (item, status, { reload = true } = {}) => {
     const id = String(item?.id || "");
-    if (!id || busyId || !canUpdateFinanceCashier) return null;
-    if (openTicket && !canCreateFinanceCashier) return null;
-    const nextBusyId = openTicket ? `confirm-ticket-${id}` : `confirm-${id}`;
-    setBusyId(nextBusyId);
+    const nextStatus = normalizeStatusKey(status);
+    if (!id || !nextStatus || busyId || !canUpdateFinanceCashier) return null;
+    setBusyId(`status-${id}`);
     try {
-      const response = await apiFetch(`/api/finance/cashier/appointments/${id}/confirm`, { method: "POST" });
+      const response = await apiFetch(`/api/finance/cashier/appointments/${id}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus })
+      });
       const data = await readApiResponseData(response);
       if (!response.ok) {
         window.alert?.(translate(data?.message || "Appointment update failed."));
         return null;
       }
-      const confirmedItem = {
+      const updatedItem = {
         ...item,
         ...(data?.item || {}),
-        status: "confirmed"
+        status: nextStatus
       };
-      if (openTicket) {
-        setAppointmentTicketSource(confirmedItem);
-        setAppointmentTicketForm(EMPTY_APPOINTMENT_TICKET_FORM);
-      }
-      await loadBoard();
-      return confirmedItem;
+      if (reload) await loadBoard();
+      return updatedItem;
     } catch {
       window.alert?.(translate("Appointment update failed."));
       return null;
     } finally {
       setBusyId("");
     }
+  };
+
+  const handleAppointmentDragStart = (event, item) => {
+    const id = String(item?.id || "");
+    if (!id || busyId || !canUpdateFinanceCashier) {
+      event.preventDefault();
+      return;
+    }
+    setDraggedAppointment(item);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/x-finance-appointment", JSON.stringify({
+      id,
+      status: normalizeStatusKey(item?.status)
+    }));
+    event.dataTransfer.setData("text/plain", id);
+  };
+
+  const handleAppointmentDragEnd = () => {
+    suppressNextCardClick();
+    resetBoardDrag();
+  };
+
+  const handleColumnDragOver = (event, columnKey) => {
+    if (!draggedAppointment || busyId || !canUpdateFinanceCashier) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    if (dragOverColumn !== columnKey) {
+      setDragOverColumn(columnKey);
+    }
+  };
+
+  const handleColumnDragLeave = (event, columnKey) => {
+    if (event.currentTarget.contains(event.relatedTarget)) return;
+    if (dragOverColumn === columnKey) {
+      setDragOverColumn("");
+    }
+  };
+
+  const handleAppointmentStatusDrop = async (event, targetStatus) => {
+    event.preventDefault();
+    const item = draggedAppointment;
+    suppressNextCardClick();
+    resetBoardDrag();
+    if (!item || busyId || !canUpdateFinanceCashier) return;
+    const nextStatus = normalizeStatusKey(targetStatus);
+    if (!nextStatus || normalizeStatusKey(item.status) === nextStatus) return;
+    await updateDraggedAppointmentStatus(item, nextStatus);
+  };
+
+  const handleTicketColumnDrop = async (event) => {
+    event.preventDefault();
+    const item = draggedAppointment;
+    suppressNextCardClick();
+    resetBoardDrag();
+    if (!item || busyId || !canUpdateFinanceCashier) return;
+    if (!canCreateFinanceCashier) {
+      window.alert?.(translate("Ticket create failed."));
+      return;
+    }
+    const currentStatus = normalizeStatusKey(item.status);
+    const ticketSource = currentStatus === "confirmed"
+      ? item
+      : await updateDraggedAppointmentStatus(item, "confirmed");
+    if (!ticketSource) return;
+    openAppointmentTicketModal(ticketSource);
+  };
+
+  const getAppointmentColumnProps = (columnKey, status) => ({
+    className: [
+      "settings-card-column",
+      dragOverColumn === columnKey ? "finance-board-drop-active" : ""
+    ].filter(Boolean).join(" "),
+    onDragOver: (event) => handleColumnDragOver(event, columnKey),
+    onDragLeave: (event) => handleColumnDragLeave(event, columnKey),
+    onDrop: (event) => handleAppointmentStatusDrop(event, status)
+  });
+
+  const ticketColumnProps = {
+    className: [
+      "settings-card-column",
+      dragOverColumn === "tickets" ? "finance-board-drop-active" : ""
+    ].filter(Boolean).join(" "),
+    onDragOver: (event) => handleColumnDragOver(event, "tickets"),
+    onDragLeave: (event) => handleColumnDragLeave(event, "tickets"),
+    onDrop: handleTicketColumnDrop
+  };
+
+  const getAppointmentDragProps = (item) => ({
+    draggable: Boolean(canUpdateFinanceCashier && !busyId),
+    isDragging: String(draggedAppointment?.id || "") === String(item?.id || ""),
+    onDragStart: (event) => handleAppointmentDragStart(event, item),
+    onDragEnd: handleAppointmentDragEnd
+  });
+
+  const handleConfirmedCardClick = (item) => {
+    if (suppressCardClickRef.current) return;
+    openAppointmentTicketModal(item);
   };
 
   const closeAppointmentTicketModal = (force = false) => {
@@ -696,6 +826,8 @@ function FinanceCashierPanel({
             placeholder={translate("Select service")}
             searchable
             searchThreshold={1}
+            menuPortal
+            maxVisibleOptions={8}
             onChange={(value) => setBoardFilters((current) => ({ ...current, serviceId: value }))}
           />
         </label>
@@ -707,6 +839,8 @@ function FinanceCashierPanel({
             placeholder={translate("Select specialist")}
             searchable
             searchThreshold={1}
+            menuPortal
+            maxVisibleOptions={8}
             onChange={(value) => setBoardFilters((current) => ({ ...current, specialistId: value }))}
           />
         </label>
@@ -721,7 +855,7 @@ function FinanceCashierPanel({
       </div>
 
       <div className="settings-card-grid finance-board-grid">
-        <section className="settings-card-column">
+        <section {...getAppointmentColumnProps("pending", "pending")}>
           <BoardColumnTitle
             count={visibleBoard.pendingAppointments.length}
             total={board.pendingAppointments.length}
@@ -733,37 +867,55 @@ function FinanceCashierPanel({
               key={String(item.id)}
               item={item}
               compact
+              {...getAppointmentDragProps(item)}
             />
           ))}
           {visibleBoard.pendingAppointments.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
         </section>
 
-        <section className="settings-card-column">
+        <section {...getAppointmentColumnProps("cancelled", "cancelled")}>
           <BoardColumnTitle count={visibleBoard.cancelledAppointments.length} total={board.cancelledAppointments.length} label="Cancelled" translate={translate} />
-          {visibleBoard.cancelledAppointments.map((item) => <TicketCard key={String(item.id)} item={item} translate={translate} compact />)}
+          {visibleBoard.cancelledAppointments.map((item) => (
+            <TicketCard
+              key={String(item.id)}
+              item={item}
+              translate={translate}
+              compact
+              {...getAppointmentDragProps(item)}
+            />
+          ))}
           {visibleBoard.cancelledAppointments.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
         </section>
 
-        <section className="settings-card-column">
+        <section {...getAppointmentColumnProps("no-show", "no-show")}>
           <BoardColumnTitle count={visibleBoard.noShowAppointments.length} total={board.noShowAppointments.length} label="No-show" translate={translate} />
-          {visibleBoard.noShowAppointments.map((item) => <TicketCard key={String(item.id)} item={item} translate={translate} compact />)}
+          {visibleBoard.noShowAppointments.map((item) => (
+            <TicketCard
+              key={String(item.id)}
+              item={item}
+              translate={translate}
+              compact
+              {...getAppointmentDragProps(item)}
+            />
+          ))}
           {visibleBoard.noShowAppointments.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
         </section>
 
-        <section className="settings-card-column">
+        <section {...getAppointmentColumnProps("confirmed", "confirmed")}>
           <BoardColumnTitle count={visibleBoard.confirmedAppointments.length} total={board.confirmedAppointments.length} label="Confirmed Appointments" translate={translate} />
           {visibleBoard.confirmedAppointments.map((item) => (
             <TicketCard
               key={String(item.id)}
               item={item}
-              onClick={() => openAppointmentTicketModal(item)}
+              onClick={() => handleConfirmedCardClick(item)}
               compact
+              {...getAppointmentDragProps(item)}
             />
           ))}
           {visibleBoard.confirmedAppointments.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
         </section>
 
-        <section className="settings-card-column">
+        <section {...ticketColumnProps}>
           <BoardColumnTitle count={visibleBoard.issuedTickets.length} total={board.issuedTickets.length} label="Tickets" translate={translate} />
           {visibleBoard.issuedTickets.map((item) => (
             <TicketCard

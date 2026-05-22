@@ -24,6 +24,7 @@ import {
   payFinanceTicket,
   refundFinanceTicket,
   searchCashierClients,
+  updateCashierAppointmentStatus,
   updateFinanceTicket,
   voidFinanceTicket
 } from "./finance.service.js";
@@ -520,6 +521,33 @@ async function financeRoutes(fastify) {
         return reply.send({ item });
       } catch (error) {
         request.log.error({ err: error }, "Error confirming finance cashier appointment:");
+        return sendRouteError(reply, error, "Appointment update failed.");
+      }
+    }
+  );
+
+  fastify.post(
+    "/cashier/appointments/:id/status",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        params: financeRouteSchemas.idParams,
+        body: financeRouteSchemas.cashierAppointmentStatusBody
+      }
+    },
+    async (request, reply) => {
+      try {
+        const requester = await requireCashierAccess(request, reply, "update");
+        if (!requester) return null;
+        const item = await updateCashierAppointmentStatus({
+          organizationId: request.authContext.organizationId,
+          id: request.params.id,
+          status: request.body?.status,
+          actorUserId: requester.id
+        });
+        return reply.send({ item });
+      } catch (error) {
+        request.log.error({ err: error }, "Error updating finance cashier appointment status:");
         return sendRouteError(reply, error, "Appointment update failed.");
       }
     }
