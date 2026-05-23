@@ -245,13 +245,28 @@ export const financeRouteSchemas = Object.freeze({
     type: "object",
     additionalProperties: true,
     properties: {
+      ticketDate: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      ticket_date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      clientId: positiveIntegerLikeSchema,
+      client_id: positiveIntegerLikeSchema,
       amountUzs: integerLikeSchema,
       amount_uzs: integerLikeSchema,
+      items: {
+        type: "array",
+        minItems: 1,
+        maxItems: 20,
+        items: ticketItemSchema
+      },
       note: { type: "string", maxLength: 255 }
     },
     anyOf: [
+      { required: ["ticketDate"] },
+      { required: ["ticket_date"] },
+      { required: ["clientId"] },
+      { required: ["client_id"] },
       { required: ["amountUzs"] },
       { required: ["amount_uzs"] },
+      { required: ["items"] },
       { required: ["note"] }
     ]
   },

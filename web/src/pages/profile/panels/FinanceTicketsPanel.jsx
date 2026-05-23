@@ -3,6 +3,7 @@ import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { buildExportFilename, exportExcelWorkbook } from "../../../lib/excel-export.js";
 import { formatDateYMD } from "../../../lib/formatters.js";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
+import CustomSelect from "../../../components/CustomSelect.jsx";
 
 const EMPTY_FILTERS = Object.freeze({
   ticketNumber: "",
@@ -13,6 +14,13 @@ const EMPTY_FILTERS = Object.freeze({
   position: "",
   service: "",
   status: ""
+});
+
+const EMPTY_TICKET_EDIT_FORM = Object.freeze({
+  ticketDate: "",
+  clientId: "",
+  note: "",
+  items: []
 });
 
 function formatMoney(value) {
@@ -26,6 +34,75 @@ function formatDateTime(value) {
   const date = formatDateYMD(raw);
   const timeMatch = raw.match(/T(\d{2}:\d{2})/);
   return timeMatch ? `${date} ${timeMatch[1]}` : date;
+}
+
+function formatDateInput(value) {
+  const match = String(value || "").match(/^\d{4}-\d{2}-\d{2}/);
+  return match ? match[0] : "";
+}
+
+function normalizeMoneyInput(value) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function calculateDiscountUzs({ priceUzs, discountType, discountValue }) {
+  const price = normalizeMoneyInput(priceUzs);
+  const value = Math.max(0, Number.parseInt(String(discountValue ?? 0), 10) || 0);
+  if (discountType === "percent") {
+    return Math.min(price, Math.floor((price * Math.min(value, 100)) / 100));
+  }
+  return Math.min(price, value);
+}
+
+function createTicketEditItemRows(item) {
+  const rows = Array.isArray(item?.items) && item.items.length > 0
+    ? item.items
+    : [{
+        specialistId: item?.specialistId,
+        specialistName: item?.specialistName,
+        serviceId: item?.serviceId,
+        serviceName: item?.serviceName,
+        priceUzs: item?.totalUzs ?? item?.amountUzs,
+        discountType: "amount",
+        discountValue: 0
+      }];
+  return rows.map((row) => ({
+    specialistId: String(row?.specialistId || ""),
+    specialistName: String(row?.specialistName || ""),
+    serviceId: String(row?.serviceId || ""),
+    serviceName: String(row?.serviceName || ""),
+    priceUzs: normalizeMoneyInput(row?.priceUzs ?? row?.finalAmountUzs),
+    discountType: String(row?.discountType || "amount"),
+    discountValue: String(row?.discountValue ?? 0)
+  }));
+}
+
+function createTicketEditForm(item = null) {
+  if (!item) return EMPTY_TICKET_EDIT_FORM;
+  return {
+    ticketDate: formatDateInput(item.ticketDate),
+    clientId: String(item.clientId || ""),
+    note: item.note || "",
+    items: createTicketEditItemRows(item)
+  };
+}
+
+function makeClientOption(item) {
+  const id = String(item?.id ?? item?.clientId ?? "").trim();
+  if (!id) return null;
+  const label = String(item?.fullName || item?.clientName || `#${id}`).trim() || `#${id}`;
+  return { value: id, label };
+}
+
+function mergeOptions(baseOptions, nextOptions) {
+  const map = new Map();
+  [...baseOptions, ...nextOptions].forEach((option) => {
+    if (option?.value) {
+      map.set(String(option.value), option);
+    }
+  });
+  return Array.from(map.values());
 }
 
 function getTicketServiceText(item) {
@@ -59,7 +136,7 @@ function translateTicketStatus(translate, status) {
   return translate(labels[String(status || "")] || String(status || "-"));
 }
 
-function FinanceTicketsPanel({ onClose }) {
+function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
   const { translate } = useI18n();
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
@@ -74,6 +151,16 @@ function FinanceTicketsPanel({ onClose }) {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [refundingId, setRefundingId] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [editTicket, setEditTicket] = useState(null);
+  const [editForm, setEditForm] = useState(EMPTY_TICKET_EDIT_FORM);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editServices, setEditServices] = useState([]);
+  const [editSpecialists, setEditSpecialists] = useState([]);
+  const [editReferencesLoading, setEditReferencesLoading] = useState(false);
+  const [editClientSearch, setEditClientSearch] = useState("");
+  const [editClientOptions, setEditClientOptions] = useState([]);
+  const [editClientSearchBusy, setEditClientSearchBusy] = useState(false);
+  const [voidingId, setVoidingId] = useState("");
 
   const loadTickets = useCallback(async (nextPage = 1, nextFilters = EMPTY_FILTERS) => {
     setLoading(true);
@@ -112,6 +199,63 @@ function FinanceTicketsPanel({ onClose }) {
     void loadTickets(1, EMPTY_FILTERS);
   }, [loadTickets]);
 
+  const editServiceOptions = useMemo(() => {
+    const options = editServices.map((item) => ({
+      value: String(item.id),
+      label: `${item.name || item.id} - ${formatMoney(item.priceUzs)}`,
+      item
+    }));
+    const fallbackOptions = editForm.items
+      .filter((item) => item.serviceId && item.serviceName)
+      .map((item) => ({
+        value: item.serviceId,
+        label: `${item.serviceName} - ${formatMoney(item.priceUzs)}`,
+        item
+      }));
+    return mergeOptions(options, fallbackOptions);
+  }, [editForm.items, editServices]);
+
+  const editSpecialistOptions = useMemo(() => {
+    const options = editSpecialists.map((item) => ({
+      value: String(item.id),
+      label: `${item.fullName || item.id}${item.positionLabel ? ` - ${item.positionLabel}` : ""}`
+    }));
+    const fallbackOptions = editForm.items
+      .filter((item) => item.specialistId && item.specialistName)
+      .map((item) => ({
+        value: item.specialistId,
+        label: item.specialistName
+      }));
+    return mergeOptions(options, fallbackOptions);
+  }, [editForm.items, editSpecialists]);
+
+  const editServiceById = useMemo(() => {
+    const map = new Map();
+    editServiceOptions.forEach((option) => {
+      if (option?.value) {
+        map.set(String(option.value), option.item || {});
+      }
+    });
+    return map;
+  }, [editServiceOptions]);
+
+  const editTotals = useMemo(() => {
+    return editForm.items.reduce((totals, item) => {
+      const service = editServiceById.get(String(item.serviceId || ""));
+      const priceUzs = normalizeMoneyInput(service?.priceUzs ?? item.priceUzs);
+      const discountUzs = calculateDiscountUzs({
+        priceUzs,
+        discountType: item.discountType,
+        discountValue: item.discountValue
+      });
+      return {
+        subtotalUzs: totals.subtotalUzs + priceUzs,
+        discountUzs: totals.discountUzs + discountUzs,
+        totalUzs: totals.totalUzs + Math.max(priceUzs - discountUzs, 0)
+      };
+    }, { subtotalUzs: 0, discountUzs: 0, totalUzs: 0 });
+  }, [editForm.items, editServiceById]);
+
   const applyFilters = (event) => {
     event.preventDefault();
     setAppliedFilters(filters);
@@ -149,6 +293,214 @@ function FinanceTicketsPanel({ onClose }) {
     if (historyLoading) return;
     setHistoryTicket(null);
     setHistoryItems([]);
+  };
+
+  const loadEditReferences = useCallback(async () => {
+    setEditReferencesLoading(true);
+    try {
+      const response = await apiFetch("/api/finance/cashier/board");
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        window.alert?.(translate(data?.message || "Failed to load cashier board."));
+        return;
+      }
+      setEditServices(Array.isArray(data?.services) ? data.services : []);
+      setEditSpecialists(Array.isArray(data?.specialists) ? data.specialists : []);
+    } catch {
+      window.alert?.(translate("Failed to load cashier board."));
+    } finally {
+      setEditReferencesLoading(false);
+    }
+  }, [translate]);
+
+  useEffect(() => {
+    if (!editTicket) return undefined;
+    const query = editClientSearch.trim();
+    const selectedOption = makeClientOption(editTicket);
+    if (!query || (!/^\d+$/.test(query) && query.length < 3)) {
+      setEditClientSearchBusy(false);
+      setEditClientOptions((current) => mergeOptions(selectedOption ? [selectedOption] : [], current));
+      return undefined;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setEditClientSearchBusy(true);
+      try {
+        const response = await apiFetch(`/api/finance/cashier/clients?q=${encodeURIComponent(query)}&limit=30`);
+        const data = await readApiResponseData(response);
+        if (!response.ok) {
+          if (!cancelled) {
+            window.alert?.(translate(data?.message || "Failed to search clients."));
+          }
+          return;
+        }
+        if (!cancelled) {
+          const options = (Array.isArray(data?.items) ? data.items : [])
+            .map(makeClientOption)
+            .filter(Boolean);
+          setEditClientOptions(mergeOptions(selectedOption ? [selectedOption] : [], options));
+        }
+      } catch {
+        if (!cancelled) {
+          window.alert?.(translate("Failed to search clients."));
+        }
+      } finally {
+        if (!cancelled) {
+          setEditClientSearchBusy(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [editClientSearch, editTicket, translate]);
+
+  const openEditTicket = (item) => {
+    if (!canUpdateFinanceCashier) return;
+    if (item?.status === "paid" || item?.status === "voided") {
+      window.alert?.(translate("Paid or voided tickets cannot be edited."));
+      return;
+    }
+    const form = createTicketEditForm(item);
+    const clientOption = makeClientOption(item);
+    setEditTicket(item);
+    setEditForm(form);
+    setEditClientSearch("");
+    setEditClientOptions(clientOption ? [clientOption] : []);
+    void loadEditReferences();
+  };
+
+  const closeEditTicket = (force = false) => {
+    if (editSubmitting && !force) return;
+    setEditTicket(null);
+    setEditForm(EMPTY_TICKET_EDIT_FORM);
+    setEditClientSearch("");
+    setEditClientOptions([]);
+  };
+
+  const updateEditItem = (index, patch) => {
+    setEditForm((current) => ({
+      ...current,
+      items: current.items.map((item, itemIndex) => (
+        itemIndex === index ? { ...item, ...patch } : item
+      ))
+    }));
+  };
+
+  const addEditItem = () => {
+    setEditForm((current) => ({
+      ...current,
+      items: [
+        ...current.items,
+        {
+          specialistId: "",
+          specialistName: "",
+          serviceId: "",
+          serviceName: "",
+          priceUzs: 0,
+          discountType: "amount",
+          discountValue: "0"
+        }
+      ]
+    }));
+  };
+
+  const removeEditItem = (index) => {
+    setEditForm((current) => ({
+      ...current,
+      items: current.items.length <= 1
+        ? current.items
+        : current.items.filter((_, itemIndex) => itemIndex !== index)
+    }));
+  };
+
+  const submitEditTicket = async (event) => {
+    event.preventDefault();
+    const id = String(editTicket?.id || "");
+    if (!id || editSubmitting || !canUpdateFinanceCashier) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(editForm.ticketDate)) {
+      window.alert?.(translate("Ticket date is required."));
+      return;
+    }
+    if (!String(editForm.clientId || "").trim()) {
+      window.alert?.(translate("Client is required."));
+      return;
+    }
+    for (const item of editForm.items) {
+      if (!String(item.specialistId || "").trim()) {
+        window.alert?.(translate("Specialist is required."));
+        return;
+      }
+      if (!String(item.serviceId || "").trim()) {
+        window.alert?.(translate("Service is required."));
+        return;
+      }
+    }
+    if (editTotals.totalUzs <= 0) {
+      window.alert?.(translate("Ticket amount is required."));
+      return;
+    }
+
+    setEditSubmitting(true);
+    try {
+      const response = await apiFetch(`/api/finance/cashier/tickets/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticketDate: editForm.ticketDate,
+          clientId: editForm.clientId,
+          items: editForm.items.map((item) => ({
+            specialistId: item.specialistId,
+            serviceId: item.serviceId,
+            discountType: item.discountType || "amount",
+            discountValue: Number.parseInt(String(item.discountValue || 0), 10) || 0
+          })),
+          note: editForm.note
+        })
+      });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        window.alert?.(translate(data?.message || "Ticket update failed."));
+        return;
+      }
+      closeEditTicket(true);
+      await loadTickets(page, appliedFilters);
+    } catch {
+      window.alert?.(translate("Ticket update failed."));
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  const deleteTicket = async (item) => {
+    const id = String(item?.id || "");
+    if (!id || voidingId || !canUpdateFinanceCashier) return;
+    if (item?.status === "paid" || item?.status === "voided") {
+      window.alert?.(translate("Paid or voided tickets cannot be edited."));
+      return;
+    }
+    const confirmed = window.confirm?.(translate("Delete this ticket?")) ?? true;
+    if (!confirmed) return;
+    setVoidingId(id);
+    try {
+      const response = await apiFetch(`/api/finance/cashier/tickets/${id}/void`, {
+        method: "POST",
+        body: JSON.stringify({})
+      });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        window.alert?.(translate(data?.message || "Ticket delete failed."));
+        return;
+      }
+      await loadTickets(page, appliedFilters);
+    } catch {
+      window.alert?.(translate("Ticket delete failed."));
+    } finally {
+      setVoidingId("");
+    }
   };
 
   const refundTicket = async (item) => {
@@ -319,35 +671,68 @@ function FinanceTicketsPanel({ onClose }) {
                   <td colSpan="10" className="skel" />
                 </tr>
               ))
-            ) : items.map((item) => (
-              <tr key={String(item.id)}>
-                <td>{item.ticketNumber ? `#${item.ticketNumber}` : "-"}</td>
-                <td>{formatDateYMD(item.ticketDate)}</td>
-                <td>{item.clientName || "-"}</td>
-                <td>{getTicketSpecialistText(item)}</td>
-                <td>{getTicketPositionText(item)}</td>
-                <td>{getTicketServiceText(item)}</td>
-                <td>{formatMoney(item.totalUzs ?? item.amountUzs)}</td>
-                <td>{translateTicketStatus(translate, item.status)}</td>
-                <td>
-                  {item.status === "paid" ? (
-                    <button
-                      type="button"
-                      className="table-action-btn"
-                      disabled={refundingId === String(item.id)}
-                      onClick={() => refundTicket(item)}
-                    >
-                      {translate("Refund")}
+            ) : items.map((item) => {
+              const id = String(item.id);
+              const canEditRow = canUpdateFinanceCashier && item.status !== "paid" && item.status !== "voided";
+              const hasAction = canEditRow || item.status === "paid";
+              return (
+                <tr key={id}>
+                  <td>{item.ticketNumber ? `#${item.ticketNumber}` : "-"}</td>
+                  <td>{formatDateYMD(item.ticketDate)}</td>
+                  <td>{item.clientName || "-"}</td>
+                  <td>{getTicketSpecialistText(item)}</td>
+                  <td>{getTicketPositionText(item)}</td>
+                  <td>{getTicketServiceText(item)}</td>
+                  <td>{formatMoney(item.totalUzs ?? item.amountUzs)}</td>
+                  <td>{translateTicketStatus(translate, item.status)}</td>
+                  <td>
+                    {hasAction ? (
+                      <div className="finance-ticket-action-group">
+                        {canEditRow ? (
+                          <>
+                            <button
+                              type="button"
+                              className="table-action-btn finance-ticket-icon-btn"
+                              aria-label={translate("Edit")}
+                              title={translate("Edit")}
+                              disabled={editSubmitting}
+                              onClick={() => openEditTicket(item)}
+                            >
+                              ✎
+                            </button>
+                            <button
+                              type="button"
+                              className="table-action-btn table-action-btn-danger finance-ticket-icon-btn"
+                              aria-label={translate("Delete")}
+                              title={translate("Delete")}
+                              disabled={voidingId === id}
+                              onClick={() => deleteTicket(item)}
+                            >
+                              {voidingId === id ? "..." : <span className="finance-ticket-trash-icon" aria-hidden="true" />}
+                            </button>
+                          </>
+                        ) : null}
+                        {item.status === "paid" ? (
+                          <button
+                            type="button"
+                            className="table-action-btn"
+                            disabled={refundingId === id}
+                            onClick={() => refundTicket(item)}
+                          >
+                            {translate("Refund")}
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : "-"}
+                  </td>
+                  <td>
+                    <button type="button" className="table-action-btn" onClick={() => openHistory(item)}>
+                      {translate("Ticket History")}
                     </button>
-                  ) : "-"}
-                </td>
-                <td>
-                  <button type="button" className="table-action-btn" onClick={() => openHistory(item)}>
-                    {translate("Ticket History")}
-                  </button>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                </tr>
+              );
+            })}
             {!loading && items.length === 0 ? (
               <tr>
                 <td colSpan="10" className="all-users-state">{translate("No items found.")}</td>
@@ -377,11 +762,152 @@ function FinanceTicketsPanel({ onClose }) {
         </button>
       </div>
 
+      {editTicket ? (
+        <>
+          <button
+            type="button"
+            className="login-overlay stacked-modal-overlay finance-modal-overlay"
+            aria-label={translate("Close ticket edit modal")}
+            onClick={() => closeEditTicket()}
+          />
+          <div id="financeTicketEditModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-ticket-edit-modal">
+            <h3>{`${translate("Edit Ticket")} ${editTicket.ticketNumber ? `#${editTicket.ticketNumber}` : ""}`}</h3>
+            <form className="auth-form finance-ticket-edit-form" onSubmit={submitEditTicket}>
+              <div className="all-users-edit-fields">
+                <div className="finance-ticket-edit-top-row">
+                  <label className="field">
+                    <span>{translate("Ticket Date")}</span>
+                    <input
+                      type="date"
+                      value={editForm.ticketDate}
+                      onChange={(event) => setEditForm((current) => ({ ...current, ticketDate: event.currentTarget.value }))}
+                      required
+                    />
+                  </label>
+                  <label className="field">
+                    <span>{translate("Client")}</span>
+                    <CustomSelect
+                      value={editForm.clientId}
+                      options={editClientOptions}
+                      placeholder={translate("Select client")}
+                      searchable
+                      searchPlaceholder={translate("Search by name or ID")}
+                      searchThreshold={0}
+                      menuPortal
+                      menuHeightScale={1.2}
+                      emptyText={editClientSearchBusy ? "..." : translate("No clients found.")}
+                      onSearchChange={setEditClientSearch}
+                      onChange={(value) => setEditForm((current) => ({ ...current, clientId: value }))}
+                    />
+                  </label>
+                </div>
+
+                <div className="finance-ticket-edit-items">
+                  {editForm.items.map((item, index) => (
+                    <div className="finance-ticket-edit-item" key={`${index}-${item.serviceId}-${item.specialistId}`}>
+                      <div className="finance-ticket-edit-item-head">
+                        <h4>{`${translate("Bill")} ${index + 1}`}</h4>
+                        <div className="finance-ticket-edit-item-actions">
+                          <button
+                            type="button"
+                            className="table-action-btn finance-ticket-icon-btn"
+                            aria-label={translate("Add Service")}
+                            title={translate("Add Service")}
+                            onClick={addEditItem}
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            className="table-action-btn table-action-btn-danger finance-ticket-icon-btn"
+                            aria-label={translate("Remove")}
+                            title={translate("Remove")}
+                            disabled={editForm.items.length <= 1}
+                            onClick={() => removeEditItem(index)}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                      <div className="finance-ticket-edit-item-grid">
+                        <CustomSelect
+                          value={item.specialistId}
+                          options={editSpecialistOptions}
+                          placeholder={translate("Select specialist")}
+                          searchable
+                          searchPlaceholder={translate("Search")}
+                          searchThreshold={8}
+                          menuPortal
+                          disabled={editReferencesLoading}
+                          onChange={(value) => updateEditItem(index, { specialistId: value })}
+                        />
+                        <CustomSelect
+                          value={item.serviceId}
+                          options={editServiceOptions}
+                          placeholder={translate("Select service type")}
+                          searchable
+                          searchPlaceholder={translate("Search")}
+                          searchThreshold={8}
+                          menuPortal
+                          menuWidthScale={1.2}
+                          disabled={editReferencesLoading}
+                          onChange={(value) => {
+                            const service = editServiceById.get(String(value)) || {};
+                            updateEditItem(index, {
+                              serviceId: value,
+                              serviceName: service.name || item.serviceName,
+                              priceUzs: normalizeMoneyInput(service.priceUzs ?? item.priceUzs)
+                            });
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <label className="field">
+                  <span>{translate("Note")}</span>
+                  <textarea
+                    rows="2"
+                    maxLength="255"
+                    value={editForm.note}
+                    onChange={(event) => setEditForm((current) => ({ ...current, note: event.currentTarget.value }))}
+                  />
+                </label>
+
+                <div className="finance-ticket-total finance-ticket-edit-total">
+                  <div className="finance-total-cell">
+                    <span>{translate("Subtotal")}</span>
+                    <strong>{formatMoney(editTotals.subtotalUzs)}</strong>
+                  </div>
+                  <div className="finance-total-cell">
+                    <span>{translate("Discount")}</span>
+                    <strong>{formatMoney(editTotals.discountUzs)}</strong>
+                  </div>
+                  <div className="finance-total-cell">
+                    <span>{translate("Total")}</span>
+                    <strong>{formatMoney(editTotals.totalUzs)}</strong>
+                  </div>
+                </div>
+              </div>
+              <div className="edit-actions">
+                <button type="submit" className="btn btn-primary" disabled={editSubmitting || editReferencesLoading}>
+                  {translate("Save")}
+                </button>
+                <button type="button" className="btn btn-secondary" disabled={editSubmitting} onClick={() => closeEditTicket()}>
+                  {translate("Cancel")}
+                </button>
+              </div>
+            </form>
+          </div>
+        </>
+      ) : null}
+
       {historyTicket ? (
         <>
           <button
             type="button"
-            className="login-overlay stacked-modal-overlay"
+            className="login-overlay stacked-modal-overlay finance-modal-overlay"
             aria-label={translate("Close ticket history modal")}
             onClick={closeHistory}
           />

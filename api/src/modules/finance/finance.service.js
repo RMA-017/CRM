@@ -2138,6 +2138,11 @@ export async function createFinanceTicket({ organizationId, payload, actorUserId
 
 export async function updateFinanceTicket({ organizationId, id, payload, actorUserId }) {
   const ticketId = parsePositiveInteger(id);
+  const hasTicketDate = payload?.ticketDate !== undefined || payload?.ticket_date !== undefined;
+  const ticketDate = hasTicketDate ? normalizeDate(payload?.ticketDate ?? payload?.ticket_date) : null;
+  const hasClientId = payload?.clientId !== undefined || payload?.client_id !== undefined;
+  const clientId = hasClientId ? parsePositiveInteger(payload?.clientId ?? payload?.client_id) : null;
+  const hasItems = Array.isArray(payload?.items);
   const amountUzs = payload?.amountUzs !== undefined || payload?.amount_uzs !== undefined
     ? normalizeAmount(payload?.amountUzs ?? payload?.amount_uzs, -1)
     : null;
@@ -2145,6 +2150,16 @@ export async function updateFinanceTicket({ organizationId, id, payload, actorUs
   if (!ticketId) {
     const error = new Error("Ticket not found.");
     error.statusCode = 404;
+    throw error;
+  }
+  if (hasTicketDate && !ticketDate) {
+    const error = new Error("Ticket date is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (hasClientId && !clientId) {
+    const error = new Error("Client is required.");
+    error.statusCode = 400;
     throw error;
   }
   if (amountUzs !== null && amountUzs <= 0) {
@@ -2167,24 +2182,129 @@ export async function updateFinanceTicket({ organizationId, id, payload, actorUs
       error.statusCode = 400;
       throw error;
     }
+    const nextClientId = hasClientId ? clientId : current.client_id;
+    if (hasClientId) {
+      const clientResult = await db.query(
+        `SELECT id
+           FROM clients
+          WHERE organization_id = $1
+            AND id = $2
+          LIMIT 1`,
+        [organizationId, nextClientId]
+      );
+      if (!clientResult.rows[0]) {
+        const error = new Error("Client not found.");
+        error.statusCode = 404;
+        throw error;
+      }
+    }
+
+    let nextItems = null;
+    let nextTotals = null;
+    let nextSpecialistId = current.specialist_id;
+    let nextServiceId = current.service_id;
+    let nextServiceName = current.service_name;
+    let nextAmountUzs = normalizeAmount(current.amount_uzs, 0);
+    let nextSubtotalUzs = normalizeAmount(current.subtotal_uzs ?? current.amount_uzs, 0);
+    let nextDiscountUzs = normalizeAmount(current.discount_uzs, 0);
+    let nextTotalUzs = normalizeAmount(current.total_uzs ?? current.amount_uzs, 0);
+
+    if (hasItems) {
+      nextItems = await buildTicketItems(db, {
+        organizationId,
+        payload,
+        appointment: null,
+        fallbackServiceName: current.service_name,
+        fallbackAmount: current.total_uzs ?? current.amount_uzs
+      });
+      nextTotals = getTicketTotals(nextItems);
+      if (nextTotals.totalUzs <= 0) {
+        const error = new Error("Ticket amount is required.");
+        error.statusCode = 400;
+        throw error;
+      }
+      const firstItem = nextItems[0];
+      nextSpecialistId = firstItem.specialistId || null;
+      nextServiceId = firstItem.serviceId || null;
+      nextServiceName = firstItem.serviceName;
+      nextAmountUzs = nextTotals.totalUzs;
+      nextSubtotalUzs = nextTotals.subtotalUzs;
+      nextDiscountUzs = nextTotals.discountUzs;
+      nextTotalUzs = nextTotals.totalUzs;
+    } else if (amountUzs !== null) {
+      nextAmountUzs = amountUzs;
+      nextSubtotalUzs = amountUzs;
+      nextDiscountUzs = 0;
+      nextTotalUzs = amountUzs;
+      nextItems = [{
+        specialistId: current.specialist_id || null,
+        serviceId: current.service_id || null,
+        serviceName: normalizeText(current.service_name, 128) || "Manual service",
+        priceUzs: amountUzs,
+        discountType: "amount",
+        discountValue: 0,
+        discountUzs: 0,
+        finalAmountUzs: amountUzs
+      }];
+      nextTotals = getTicketTotals(nextItems);
+    }
+
     const result = await db.query(
       `UPDATE finance_tickets
-          SET amount_uzs = COALESCE($3, amount_uzs),
-              note = COALESCE($4, note),
-              updated_by = $5,
+          SET ticket_date = $3,
+              client_id = $4,
+              specialist_id = $5,
+              service_id = $6,
+              service_name = $7,
+              amount_uzs = $8,
+              subtotal_uzs = $9,
+              discount_uzs = $10,
+              total_uzs = $11,
+              note = $12,
+              updated_by = $13,
               updated_at = CURRENT_TIMESTAMP
         WHERE organization_id = $1
           AND id = $2
         RETURNING *`,
-      [organizationId, ticketId, amountUzs, note, actorUserId || null]
+      [
+        organizationId,
+        ticketId,
+        hasTicketDate ? ticketDate : current.ticket_date,
+        nextClientId,
+        nextSpecialistId,
+        nextServiceId,
+        nextServiceName,
+        nextAmountUzs,
+        nextSubtotalUzs,
+        nextDiscountUzs,
+        nextTotalUzs,
+        payload?.note !== undefined ? (note || null) : current.note,
+        actorUserId || null
+      ]
     );
+    if (nextItems) {
+      await db.query(
+        `DELETE FROM finance_ticket_items
+          WHERE organization_id = $1
+            AND ticket_id = $2`,
+        [organizationId, ticketId]
+      );
+      await insertTicketItems(db, { organizationId, ticketId, items: nextItems });
+    }
     await insertHistory(db, {
       organizationId,
       ticketId,
       action: "updated",
       fromStatus: current.status,
       toStatus: current.status,
-      details: { amountUzs, note },
+      details: {
+        ticketDate: hasTicketDate ? ticketDate : undefined,
+        clientId: hasClientId ? nextClientId : undefined,
+        amountUzs: amountUzs !== null ? amountUzs : undefined,
+        note: payload?.note !== undefined ? note : undefined,
+        totals: nextTotals || undefined,
+        items: nextItems || undefined
+      },
       actorUserId
     });
     await db.query("COMMIT");

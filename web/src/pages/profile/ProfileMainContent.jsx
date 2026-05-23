@@ -437,7 +437,10 @@ function ProfileMainContent({
 
         {mainView === "finance-tickets" ? (
           <Suspense fallback={PANEL_LOADING_FALLBACK}>
-            <FinanceTicketsPanel onClose={closeFinanceTicketsPanel} />
+            <FinanceTicketsPanel
+              onClose={closeFinanceTicketsPanel}
+              canUpdateFinanceCashier={canUpdateFinanceCashier}
+            />
           </Suspense>
         ) : null}
 

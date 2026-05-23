@@ -1044,7 +1044,7 @@ function FinanceCashierPanel({
         <>
           <button
             type="button"
-            className="login-overlay stacked-modal-overlay"
+            className="login-overlay stacked-modal-overlay finance-modal-overlay"
             aria-label={translate("Close ticket modal")}
             onClick={() => closeAppointmentTicketModal()}
           />
@@ -1125,7 +1125,7 @@ function FinanceCashierPanel({
         <>
           <button
             type="button"
-            className="login-overlay stacked-modal-overlay"
+            className="login-overlay stacked-modal-overlay finance-modal-overlay"
             aria-label={translate("Close manual ticket modal")}
             onClick={() => closeManualModal()}
           />
@@ -1137,7 +1137,7 @@ function FinanceCashierPanel({
             <form className="auth-form" onSubmit={submitManualTicket}>
               <div className="all-users-edit-fields">
                 <div className="finance-manual-top-row">
-                  <label className="field">
+                  <label className="field finance-manual-date-field">
                     <span>{translate("Ticket Date")}</span>
                     <input
                       type="date"
@@ -1168,21 +1168,31 @@ function FinanceCashierPanel({
                     return (
                       <div className="finance-manual-item" key={item.key}>
                         <div className="settings-card-row finance-manual-item-head">
-                          <strong>{`${translate("Item")} ${index + 1}`}</strong>
-                          <button
-                            type="button"
-                            className="table-action-btn finance-manual-icon-btn"
-                            aria-label={translate("Remove")}
-                            title={translate("Remove")}
-                            disabled={manualForm.items.length <= 1}
-                            onClick={() => removeManualItem(item.key)}
-                          >
-                            ×
-                          </button>
+                          <strong>{`${translate("Bill")} ${index + 1}`}</strong>
+                          <div className="finance-manual-item-actions">
+                            <button
+                              type="button"
+                              className="table-action-btn finance-manual-icon-btn finance-manual-add-btn"
+                              aria-label={translate("Add Service")}
+                              title={translate("Add Service")}
+                              onClick={addManualItem}
+                            >
+                              +
+                            </button>
+                            <button
+                              type="button"
+                              className="table-action-btn finance-manual-icon-btn"
+                              aria-label={translate("Remove")}
+                              title={translate("Remove")}
+                              disabled={manualForm.items.length <= 1}
+                              onClick={() => removeManualItem(item.key)}
+                            >
+                              ×
+                            </button>
+                          </div>
                         </div>
                         <div className="finance-manual-item-grid">
                           <label className="field">
-                            <span>{translate("Specialist")}</span>
                             <CustomSelect
                               value={item.specialistId}
                               options={specialistOptions}
@@ -1195,11 +1205,10 @@ function FinanceCashierPanel({
                             />
                           </label>
                           <label className="field">
-                            <span>{translate("Service")}</span>
                             <CustomSelect
                               value={item.serviceId}
                               options={manualServiceOptions}
-                              placeholder={translate("Select service")}
+                              placeholder={translate("Select service type")}
                               searchable
                               searchThreshold={1}
                               menuPortal
@@ -1211,20 +1220,11 @@ function FinanceCashierPanel({
                       </div>
                     );
                   })}
-                  <button
-                    type="button"
-                    className="table-action-btn finance-manual-add-btn"
-                    aria-label={translate("Add Service")}
-                    title={translate("Add Service")}
-                    onClick={addManualItem}
-                  >
-                    +
-                  </button>
                 </div>
 
                 <div className="finance-ticket-summary finance-ticket-total">
-                  <div><strong>{translate("Subtotal")}</strong><span>{formatMoney(manualTotals.subtotalUzs)}</span></div>
-                  <label className="field">
+                  <div className="finance-total-cell"><strong>{translate("Subtotal")}</strong><span>{formatMoney(manualTotals.subtotalUzs)}</span></div>
+                  <label className="field finance-total-cell">
                     <span>{translate("Discount Type")}</span>
                     <CustomSelect
                       value={manualForm.discountType}
@@ -1236,7 +1236,7 @@ function FinanceCashierPanel({
                       onChange={(value) => setManualForm((current) => ({ ...current, discountType: value }))}
                     />
                   </label>
-                  <label className="field">
+                  <label className="field finance-total-cell">
                     <span>{translate("Discount")}</span>
                     <input
                       type="number"
@@ -1246,7 +1246,7 @@ function FinanceCashierPanel({
                       onChange={(event) => setManualForm((current) => ({ ...current, discountValue: event.currentTarget.value }))}
                     />
                   </label>
-                  <div><strong>{translate("Total")}</strong><span>{formatMoney(manualTotals.totalUzs)}</span></div>
+                  <div className="finance-total-cell"><strong>{translate("Total")}</strong><span>{formatMoney(manualTotals.totalUzs)}</span></div>
                 </div>
 
                 <label className="field">
@@ -1275,7 +1275,7 @@ function FinanceCashierPanel({
         <>
           <button
             type="button"
-            className="login-overlay stacked-modal-overlay"
+            className="login-overlay stacked-modal-overlay finance-modal-overlay"
             aria-label={translate("Close cash session modal")}
             onClick={() => closeSessionModal()}
           />
