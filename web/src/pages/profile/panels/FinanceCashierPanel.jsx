@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import CustomSelect from "../../../components/CustomSelect.jsx";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { formatDateYMD } from "../../../lib/formatters.js";
@@ -493,6 +494,12 @@ function FinanceCashierPanel({
     return findBoardAppointmentById(event?.dataTransfer?.getData("text/plain"));
   }, [draggedAppointment, findBoardAppointmentById]);
 
+  const isFinanceAppointmentDragEvent = useCallback((event) => {
+    if (draggedAppointmentRef.current || draggedAppointment) return true;
+    const types = Array.from(event?.dataTransfer?.types || []);
+    return types.includes("application/x-finance-appointment") || types.includes("text/plain");
+  }, [draggedAppointment]);
+
   const updateDraggedAppointmentStatus = async (item, status, { reload = true } = {}) => {
     const id = String(item?.id || "");
     const nextStatus = normalizeStatusKey(status);
@@ -545,7 +552,7 @@ function FinanceCashierPanel({
   };
 
   const handleColumnDragOver = (event, columnKey) => {
-    if (!(draggedAppointmentRef.current || draggedAppointment) || busyId || !canUpdateFinanceCashier) return;
+    if (!isFinanceAppointmentDragEvent(event) || busyId || !canUpdateFinanceCashier) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
     if (dragOverColumn !== columnKey) {
@@ -1040,7 +1047,7 @@ function FinanceCashierPanel({
 
       </div>
 
-      {appointmentTicketSource ? (
+      {appointmentTicketSource && typeof document !== "undefined" ? createPortal((
         <>
           <button
             type="button"
@@ -1119,9 +1126,9 @@ function FinanceCashierPanel({
             </form>
           </div>
         </>
-      ) : null}
+      ), document.body) : null}
 
-      {manualModalOpen ? (
+      {manualModalOpen && typeof document !== "undefined" ? createPortal((
         <>
           <button
             type="button"
@@ -1269,9 +1276,9 @@ function FinanceCashierPanel({
             </form>
           </div>
         </>
-      ) : null}
+      ), document.body) : null}
 
-      {sessionModal ? (
+      {sessionModal && typeof document !== "undefined" ? createPortal((
         <>
           <button
             type="button"
@@ -1327,7 +1334,7 @@ function FinanceCashierPanel({
             </form>
           </div>
         </>
-      ) : null}
+      ), document.body) : null}
     </section>
   );
 }
