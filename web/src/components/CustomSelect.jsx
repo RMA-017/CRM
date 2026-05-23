@@ -35,7 +35,11 @@ function CustomSelect({
   const [menuMaxHeight, setMenuMaxHeight] = useState("");
   const [menuPortalStyle, setMenuPortalStyle] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const normalizedOptions = Array.isArray(options) ? options : [];
+  const normalizedOptions = useMemo(() => (
+    Array.isArray(options)
+      ? options.filter((option) => option && typeof option === "object" && "value" in option)
+      : []
+  ), [options]);
 
   const optionLabelByValue = useMemo(() => {
     const map = new Map();

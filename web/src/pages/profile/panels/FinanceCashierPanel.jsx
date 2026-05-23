@@ -266,24 +266,24 @@ function FinanceCashierPanel({
   const boardRequestRef = useRef(0);
   const draggedAppointmentRef = useRef(null);
 
-  const paymentMethodOptions = useMemo(() => board.paymentMethods.map((item) => ({
+  const paymentMethodOptions = useMemo(() => board.paymentMethods.filter(Boolean).map((item) => ({
     value: String(item.id),
     label: item.name
   })), [board.paymentMethods]);
 
-  const serviceOptions = useMemo(() => board.services.map((item) => ({
+  const serviceOptions = useMemo(() => board.services.filter(Boolean).map((item) => ({
       value: String(item.id),
       label: item.name || String(item.id),
       item
     })), [board.services]);
 
-  const manualServiceOptions = useMemo(() => board.services.map((item) => ({
+  const manualServiceOptions = useMemo(() => board.services.filter(Boolean).map((item) => ({
     value: String(item.id),
     label: `${item.name || item.id} - ${formatMoney(item.priceUzs)}`,
     item
   })), [board.services]);
 
-  const specialistOptions = useMemo(() => board.specialists.map((item) => ({
+  const specialistOptions = useMemo(() => board.specialists.filter(Boolean).map((item) => ({
     value: String(item.id),
     label: `${item.fullName || item.id}${item.positionLabel ? ` - ${item.positionLabel}` : ""}`
   })), [board.specialists]);

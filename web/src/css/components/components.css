@@ -6685,7 +6685,7 @@ label.field > span:first-child,
   min-height: 46px;
   display: grid;
   align-content: center;
-  gap: 4px;
+  gap: 7px;
   padding: 7px 9px;
   border: 1px solid rgba(34, 197, 94, 0.20);
   border-radius: 8px;
@@ -6796,7 +6796,7 @@ label.field > span:first-child,
   background: var(--surface);
   display: grid;
   grid-template-columns: 1fr;
-  gap: 4px;
+  gap: 7px;
   align-content: center;
 }
 
