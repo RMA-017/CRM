@@ -910,7 +910,10 @@ function FinanceCashierPanel({
             className="panel-search-input"
             value={boardFilters.clientQuery}
             placeholder={translate("Search client")}
-            onChange={(event) => setBoardFilters((current) => ({ ...current, clientQuery: event.target.value }))}
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              setBoardFilters((current) => ({ ...current, clientQuery: value }));
+            }}
           />
         </label>
         <label className="panel-search-label finance-board-select-filter">
@@ -1096,7 +1099,10 @@ function FinanceCashierPanel({
                       min="0"
                       max={appointmentTicketForm.discountType === "percent" ? "100" : undefined}
                       value={appointmentTicketForm.discountValue}
-                      onChange={(event) => setAppointmentTicketForm((current) => ({ ...current, discountValue: event.currentTarget.value }))}
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setAppointmentTicketForm((current) => ({ ...current, discountValue: value }));
+                      }}
                     />
                   </label>
                 </div>
@@ -1112,7 +1118,10 @@ function FinanceCashierPanel({
                     type="text"
                     maxLength={255}
                     value={appointmentTicketForm.note}
-                    onChange={(event) => setAppointmentTicketForm((current) => ({ ...current, note: event.currentTarget.value }))}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setAppointmentTicketForm((current) => ({ ...current, note: value }));
+                    }}
                   />
                 </label>
               </div>
@@ -1149,7 +1158,10 @@ function FinanceCashierPanel({
                     <input
                       type="date"
                       value={manualForm.ticketDate}
-                      onChange={(event) => setManualForm((current) => ({ ...current, ticketDate: event.currentTarget.value }))}
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setManualForm((current) => ({ ...current, ticketDate: value }));
+                      }}
                     />
                   </label>
                   <label className="field finance-manual-client-select">
@@ -1250,7 +1262,10 @@ function FinanceCashierPanel({
                       min="0"
                       max={manualForm.discountType === "percent" ? "100" : undefined}
                       value={manualForm.discountValue}
-                      onChange={(event) => setManualForm((current) => ({ ...current, discountValue: event.currentTarget.value }))}
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setManualForm((current) => ({ ...current, discountValue: value }));
+                      }}
                     />
                   </label>
                   <div className="finance-total-cell"><strong>{translate("Total")}</strong><span>{formatMoney(manualTotals.totalUzs)}</span></div>
@@ -1262,7 +1277,10 @@ function FinanceCashierPanel({
                     type="text"
                     maxLength={255}
                     value={manualForm.note}
-                    onChange={(event) => setManualForm((current) => ({ ...current, note: event.currentTarget.value }))}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setManualForm((current) => ({ ...current, note: value }));
+                    }}
                   />
                 </label>
               </div>
@@ -1311,7 +1329,10 @@ function FinanceCashierPanel({
                       type="number"
                       min="0"
                       value={sessionForm.submittedAmountUzs}
-                      onChange={(event) => setSessionForm((current) => ({ ...current, submittedAmountUzs: event.currentTarget.value }))}
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setSessionForm((current) => ({ ...current, submittedAmountUzs: value }));
+                      }}
                     />
                   </label>
                 ) : null}
@@ -1321,7 +1342,10 @@ function FinanceCashierPanel({
                     type="text"
                     maxLength={255}
                     value={sessionForm.note}
-                    onChange={(event) => setSessionForm((current) => ({ ...current, note: event.currentTarget.value }))}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setSessionForm((current) => ({ ...current, note: value }));
+                    }}
                   />
                 </label>
               </div>

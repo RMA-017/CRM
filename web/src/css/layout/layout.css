@@ -3163,8 +3163,14 @@ html {
 .login-overlay {
   position: fixed;
   inset: 0;
+  padding: 0;
+  border: 0;
   background: var(--overlay);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   z-index: var(--z-overlay-backdrop);
+  appearance: none;
+  -webkit-appearance: none;
   animation: none;
   will-change: auto;
 }

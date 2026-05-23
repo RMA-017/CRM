@@ -622,7 +622,10 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
             <input
               type={field.type}
               value={filters[field.key]}
-              onChange={(event) => setFilters((current) => ({ ...current, [field.key]: event.currentTarget.value }))}
+              onChange={(event) => {
+                const value = event.currentTarget.value;
+                setFilters((current) => ({ ...current, [field.key]: value }));
+              }}
             />
           </label>
         ))}
@@ -630,7 +633,10 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
           <span>{translate("Status")}</span>
           <select
             value={filters.status}
-            onChange={(event) => setFilters((current) => ({ ...current, status: event.currentTarget.value }))}
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              setFilters((current) => ({ ...current, status: value }));
+            }}
           >
             <option value="">{translate("All")}</option>
             <option value="issued">{translate("Tickets")}</option>
@@ -780,7 +786,10 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                     <input
                       type="date"
                       value={editForm.ticketDate}
-                      onChange={(event) => setEditForm((current) => ({ ...current, ticketDate: event.currentTarget.value }))}
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setEditForm((current) => ({ ...current, ticketDate: value }));
+                      }}
                       required
                     />
                   </label>
@@ -871,7 +880,10 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                     rows="2"
                     maxLength="255"
                     value={editForm.note}
-                    onChange={(event) => setEditForm((current) => ({ ...current, note: event.currentTarget.value }))}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setEditForm((current) => ({ ...current, note: value }));
+                    }}
                   />
                 </label>
 

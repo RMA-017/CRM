@@ -7084,14 +7084,17 @@ label.field > span:first-child,
   }
 
   .ops-panel-shell .finance-manual-top-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(108px, 0.36fr) minmax(0, 1fr);
   }
 
   .ops-panel-shell .finance-manual-item-grid {
     grid-template-columns: 1fr;
   }
 
-  #financeTicketEditModal .finance-ticket-edit-top-row,
+  #financeTicketEditModal .finance-ticket-edit-top-row {
+    grid-template-columns: minmax(118px, 0.36fr) minmax(0, 1fr);
+  }
+
   #financeTicketEditModal .finance-ticket-edit-item-grid,
   #financeTicketEditModal .finance-ticket-edit-total {
     grid-template-columns: 1fr;
