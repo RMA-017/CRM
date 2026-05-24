@@ -1,5 +1,6 @@
 import pool from "../../config/db.js";
 import { parsePositiveInteger } from "../../lib/number.js";
+import { getAppointmentHistoryLockDaysByOrganization } from "../appointments/appointment-settings.service.js";
 import { updateAppointmentSchedulesByIds } from "../appointments/services/appointment-schedules.service.js";
 
 const BOARD_LIMIT = 80;
@@ -27,6 +28,18 @@ function getTodayYmdInTashkent() {
     month: "2-digit",
     day: "2-digit"
   }).format(new Date());
+}
+
+function addDaysToDateYmd(value, days) {
+  const normalized = normalizeDate(value);
+  if (!normalized) return "";
+  const [year, month, day] = normalized.split("-").map((part) => Number.parseInt(part, 10));
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
+  const nextYear = String(date.getUTCFullYear());
+  const nextMonth = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const nextDay = String(date.getUTCDate()).padStart(2, "0");
+  return `${nextYear}-${nextMonth}-${nextDay}`;
 }
 
 function normalizePage(value) {
@@ -418,6 +431,8 @@ async function getNextTicketNumberPreview(organizationId) {
 export async function getCashierBoard({ organizationId, dateFrom, dateTo, query }) {
   const dates = getBoardDates({ dateFrom, dateTo });
   const todayYmd = getTodayYmdInTashkent();
+  const historyLockDays = await getAppointmentHistoryLockDaysByOrganization(organizationId);
+  const historyLockCutoffDate = addDaysToDateYmd(todayYmd, -historyLockDays) || todayYmd;
   const boardDateFrom = dates.from || dates.to || todayYmd;
   const boardDateTo = dates.to || boardDateFrom;
   const normalizedQuery = normalizeText(query, 96);
@@ -445,6 +460,29 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
   }
   appointmentParams.push(BOARD_LIMIT);
 
+  const overdueAppointmentParams = [organizationId, historyLockCutoffDate, todayYmd];
+  const overdueAppointmentFilters = [
+    "a.organization_id = $1",
+    "a.status = 'confirmed'",
+    "ft.id IS NULL",
+    "a.appointment_date >= $2::date",
+    "a.appointment_date < $3::date"
+  ];
+  if (normalizedQuery) {
+    overdueAppointmentParams.push(normalizedQueryLike);
+    const likeParam = overdueAppointmentParams.length;
+    overdueAppointmentParams.push(normalizedQuery);
+    const exactParam = overdueAppointmentParams.length;
+    overdueAppointmentFilters.push(`(
+      LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE $${likeParam}
+      OR LOWER(COALESCE(a.service_name, '')) LIKE $${likeParam}
+      OR LOWER(COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), '')) LIKE $${likeParam}
+      OR a.id::text = $${exactParam}
+      OR a.client_id::text = $${exactParam}
+    )`);
+  }
+  overdueAppointmentParams.push(BOARD_LIMIT);
+
   const ticketParams = [organizationId, boardDateFrom, boardDateTo];
   const ticketFilters = [
     "ft.organization_id = $1",
@@ -470,6 +508,7 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
   ticketParams.push(BOARD_LIMIT);
   const [
     appointmentsResult,
+    overdueAppointmentsResult,
     ticketsResult,
     paymentMethodsResult,
     servicesResult,
@@ -500,6 +539,31 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
         ORDER BY a.appointment_date ASC, a.start_time ASC, a.id ASC
         LIMIT $${appointmentParams.length}`,
       appointmentParams
+    ),
+    pool.query(
+      `SELECT a.id,
+              a.client_id,
+              CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+              a.specialist_id,
+              COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS specialist_name,
+              a.service_id,
+              a.service_name,
+              a.service_price_uzs,
+              a.status,
+              a.appointment_date,
+              a.start_time,
+              a.end_time
+         FROM appointment_schedules a
+         JOIN clients c ON c.organization_id = a.organization_id AND c.id = a.client_id
+         JOIN users u ON u.organization_id = a.organization_id AND u.id = a.specialist_id
+         LEFT JOIN finance_tickets ft
+           ON ft.organization_id = a.organization_id
+          AND ft.appointment_schedule_id = a.id
+          AND ft.status <> 'voided'
+        WHERE ${overdueAppointmentFilters.join(" AND ")}
+        ORDER BY a.appointment_date DESC, a.start_time ASC, a.id ASC
+        LIMIT $${overdueAppointmentParams.length}`,
+      overdueAppointmentParams
     ),
     pool.query(
       `SELECT ft.id,
@@ -581,12 +645,14 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
   ]);
 
   const appointments = appointmentsResult.rows.map(mapAppointment);
+  const overdueAppointments = overdueAppointmentsResult.rows.map(mapAppointment);
   const tickets = ticketsResult.rows.map(mapTicket);
   return {
     pendingAppointments: appointments.filter((item) => item.status === "pending"),
     cancelledAppointments: appointments.filter((item) => item.status === "cancelled"),
     noShowAppointments: appointments.filter((item) => item.status === "no-show"),
     confirmedAppointments: appointments.filter((item) => item.status === "confirmed"),
+    overdueConfirmedAppointments: overdueAppointments,
     issuedTickets: tickets.filter((item) => item.status === "issued"),
     paidTickets: tickets.filter((item) => item.status === "paid"),
     unpaidTickets: tickets.filter((item) => item.status === "unpaid"),

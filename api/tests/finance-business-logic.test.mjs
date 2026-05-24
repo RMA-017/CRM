@@ -52,6 +52,12 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
     /const todayYmd = getTodayYmdInTashkent\(\);[\s\S]*const boardDateFrom = dates\.from \|\| dates\.to \|\| todayYmd;[\s\S]*const boardDateTo = dates\.to \|\| boardDateFrom;[\s\S]*"a\.appointment_date >= \$2::date"[\s\S]*"a\.appointment_date <= \$3::date"[\s\S]*"COALESCE\(a\.appointment_date, ft\.ticket_date\) >= \$2::date"[\s\S]*"COALESCE\(a\.appointment_date, ft\.ticket_date\) <= \$3::date"/s,
     "Cashier board columns should default to today's appointment/ticket date before the board limit is applied."
   );
+
+  assert.match(
+    financeServiceSource,
+    /getAppointmentHistoryLockDaysByOrganization\(organizationId\)[\s\S]*historyLockCutoffDate[\s\S]*overdueAppointmentFilters[\s\S]*"a\.status = 'confirmed'"[\s\S]*"ft\.id IS NULL"[\s\S]*"a\.appointment_date >= \$2::date"[\s\S]*"a\.appointment_date < \$3::date"[\s\S]*overdueConfirmedAppointments: overdueAppointments/s,
+    "Cashier board should expose past confirmed appointment cards without tickets only inside the history-lock window."
+  );
 });
 
 test("finance ticket creation only accepts confirmed appointments and snapshots ticket item totals", () => {

@@ -188,6 +188,7 @@ function TicketCard({
   footer,
   onClick,
   compact = false,
+  showDateBadge = false,
   draggable = false,
   isDragging = false,
   onDragStart,
@@ -228,6 +229,7 @@ function TicketCard({
     >
       <div className="settings-card-row">
         <strong>{clientName}</strong>
+        {showDateBadge ? <span className="finance-board-date-badge">{formatDateYMD(item.appointmentDate)}</span> : null}
       </div>
       <div className="settings-card-row">
         <span>{serviceName}</span>
@@ -258,6 +260,7 @@ function FinanceCashierPanel({
     cancelledAppointments: [],
     noShowAppointments: [],
     confirmedAppointments: [],
+    overdueConfirmedAppointments: [],
     issuedTickets: [],
     paymentMethods: [],
     services: [],
@@ -318,6 +321,7 @@ function FinanceCashierPanel({
     cancelledAppointments: filterBoardItems(board.cancelledAppointments, boardFilters),
     noShowAppointments: filterBoardItems(board.noShowAppointments, boardFilters),
     confirmedAppointments: filterBoardItems(board.confirmedAppointments, boardFilters),
+    overdueConfirmedAppointments: filterBoardItems(board.overdueConfirmedAppointments, boardFilters),
     issuedTickets: filterBoardItems(board.issuedTickets, boardFilters)
   }), [board, boardFilters]);
   const isBoardFilterActive = Boolean(
@@ -347,6 +351,9 @@ function FinanceCashierPanel({
         cancelledAppointments: Array.isArray(data?.cancelledAppointments) ? data.cancelledAppointments : [],
         noShowAppointments: Array.isArray(data?.noShowAppointments) ? data.noShowAppointments : [],
         confirmedAppointments: Array.isArray(data?.confirmedAppointments) ? data.confirmedAppointments : [],
+        overdueConfirmedAppointments: Array.isArray(data?.overdueConfirmedAppointments)
+          ? data.overdueConfirmedAppointments.map((item) => ({ ...item, boardGroup: "overdue-ticket" }))
+          : [],
         issuedTickets: Array.isArray(data?.issuedTickets) ? data.issuedTickets : [],
         paymentMethods: Array.isArray(data?.paymentMethods) ? data.paymentMethods : [],
         services: Array.isArray(data?.services) ? data.services : [],
@@ -501,13 +508,15 @@ function FinanceCashierPanel({
       ...board.pendingAppointments,
       ...board.cancelledAppointments,
       ...board.noShowAppointments,
-      ...board.confirmedAppointments
+      ...board.confirmedAppointments,
+      ...board.overdueConfirmedAppointments
     ].find((item) => String(item?.id || "") === appointmentId) || null;
   }, [
     board.pendingAppointments,
     board.cancelledAppointments,
     board.noShowAppointments,
-    board.confirmedAppointments
+    board.confirmedAppointments,
+    board.overdueConfirmedAppointments
   ]);
 
   const getDraggedAppointmentFromEvent = useCallback((event) => {
@@ -606,6 +615,10 @@ function FinanceCashierPanel({
     if (!item || busyId || !canUpdateFinanceCashier) return;
     const nextStatus = normalizeStatusKey(targetStatus);
     if (!nextStatus || normalizeStatusKey(item.status) === nextStatus) return;
+    if (item.boardGroup === "overdue-ticket") {
+      window.alert?.(translate("Past confirmed lessons are waiting for ticket only."));
+      return;
+    }
     await updateDraggedAppointmentStatus(item, nextStatus);
   };
 
@@ -969,29 +982,43 @@ function FinanceCashierPanel({
         <div className="all-users-head-actions">
           <button
             type="button"
-            className="table-action-btn"
+            className="table-action-btn finance-head-icon-btn"
             hidden={!canCreateFinanceCashier}
+            aria-label={translate("Create Manual Ticket")}
+            title={translate("Create Manual Ticket")}
             onClick={openManualModal}
           >
-            {translate("Create Manual Ticket")}
+            <span className="finance-head-icon finance-head-icon-ticket" aria-hidden="true" />
           </button>
           <button
             type="button"
-            className="table-action-btn"
+            className="table-action-btn finance-head-icon-btn"
             hidden={!canPayFinanceCashier || Boolean(cashSession)}
+            aria-label={translate("Open Cash")}
+            title={translate("Open Cash")}
             onClick={() => openSessionModal("open")}
           >
-            {translate("Open Cash")}
+            <span className="finance-head-icon finance-head-icon-cash" aria-hidden="true" />
           </button>
           <button
             type="button"
-            className="table-action-btn"
+            className="table-action-btn finance-head-icon-btn"
             hidden={!canPayFinanceCashier || !cashSession}
+            aria-label={translate("Close Cash")}
+            title={translate("Close Cash")}
             onClick={() => openSessionModal("close")}
           >
-            {translate("Close Cash")}
+            <span className="finance-head-icon finance-head-icon-cash-close" aria-hidden="true" />
           </button>
-          <button type="button" className="table-action-btn" onClick={refreshCashier}>{translate("Refresh")}</button>
+          <button
+            type="button"
+            className="table-action-btn finance-head-icon-btn"
+            aria-label={translate("Refresh")}
+            title={translate("Refresh")}
+            onClick={refreshCashier}
+          >
+            <span className="finance-head-icon finance-head-icon-refresh" aria-hidden="true" />
+          </button>
           <button type="button" className="header-btn panel-close-btn" aria-label={translate("Close cashier panel")} onClick={onClose}>
             ×
           </button>
@@ -1112,6 +1139,20 @@ function FinanceCashierPanel({
             />
           ))}
           {visibleBoard.confirmedAppointments.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
+        </section>
+
+        <section className="settings-card-column finance-board-readonly-column">
+          <BoardColumnTitle count={visibleBoard.overdueConfirmedAppointments.length} total={board.overdueConfirmedAppointments.length} label="Awaiting Ticket" translate={translate} />
+          {visibleBoard.overdueConfirmedAppointments.map((item) => (
+            <TicketCard
+              key={String(item.id)}
+              item={item}
+              compact
+              showDateBadge
+              {...getAppointmentDragProps(item)}
+            />
+          ))}
+          {visibleBoard.overdueConfirmedAppointments.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
         </section>
 
         <section {...ticketColumnProps}>
