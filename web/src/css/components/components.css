@@ -6173,38 +6173,17 @@ label.field > span:first-child,
   flex: 1 0 210px;
   min-width: 210px;
   max-width: none;
-  height: 100%;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
   padding: 8px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(248, 250, 255, 0.72);
   box-shadow: var(--shadow-xs);
-  overscroll-behavior: contain;
 }
 
 .finance-cashier-panel .settings-card-column.finance-board-drop-active {
   border-color: rgba(64, 138, 243, 0.55);
   background: rgba(239, 246, 255, 0.92);
   box-shadow: 0 0 0 2px rgba(64, 138, 243, 0.14), var(--shadow-xs);
-}
-
-.finance-cashier-panel .settings-card-column::-webkit-scrollbar {
-  width: var(--scrollbar-size);
-}
-
-.finance-cashier-panel .settings-card-column::-webkit-scrollbar-track {
-  background: var(--scroll-track);
-  border-radius: var(--scrollbar-size);
-}
-
-.finance-cashier-panel .settings-card-column::-webkit-scrollbar-thumb {
-  background: var(--scroll-thumb);
-  border: 2px solid rgba(248, 250, 255, 0.72);
-  border-radius: var(--scrollbar-size);
 }
 
 .finance-cashier-panel .settings-card-column h4,

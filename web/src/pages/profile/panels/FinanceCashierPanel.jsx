@@ -150,6 +150,13 @@ function normalizeStatusKey(value) {
   return String(value || "").trim().toLowerCase().replace(/_/g, "-");
 }
 
+const FINANCE_BOARD_COLUMN_STATUSES = Object.freeze({
+  pending: "pending",
+  cancelled: "cancelled",
+  "no-show": "no-show",
+  confirmed: "confirmed"
+});
+
 function BoardColumnTitle({ count, total = count, label, translate }) {
   const countLabel = count === total ? String(count) : `${count}/${total}`;
   return (
@@ -266,6 +273,7 @@ function FinanceCashierPanel({
   const [dragOverColumn, setDragOverColumn] = useState("");
   const boardRequestRef = useRef(0);
   const draggedAppointmentRef = useRef(null);
+  const boardColumnRefs = useRef(new Map());
 
   const paymentMethodOptions = useMemo(() => board.paymentMethods.filter(Boolean).map((item) => ({
     value: String(item.id),
@@ -462,6 +470,14 @@ function FinanceCashierPanel({
     setDragOverColumn("");
   }, []);
 
+  const setBoardColumnRef = useCallback((columnKey, node) => {
+    if (node) {
+      boardColumnRefs.current.set(columnKey, node);
+      return;
+    }
+    boardColumnRefs.current.delete(columnKey);
+  }, []);
+
   const findBoardAppointmentById = useCallback((id) => {
     const appointmentId = String(id || "");
     if (!appointmentId) return null;
@@ -594,7 +610,71 @@ function FinanceCashierPanel({
     openAppointmentTicketModal(ticketSource);
   };
 
+  const getBoardColumnKeyFromEvent = useCallback((event) => {
+    const target = event?.target;
+    const closestColumn = target?.closest?.("[data-finance-board-column]");
+    if (closestColumn?.dataset?.financeBoardColumn) {
+      return closestColumn.dataset.financeBoardColumn;
+    }
+
+    const clientX = Number(event?.clientX);
+    const clientY = Number(event?.clientY);
+    if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return "";
+
+    const elementsAtPoint = typeof document !== "undefined" && document.elementsFromPoint
+      ? document.elementsFromPoint(clientX, clientY)
+      : [];
+    const columnAtPoint = elementsAtPoint
+      .map((element) => element?.closest?.("[data-finance-board-column]"))
+      .find(Boolean);
+    if (columnAtPoint?.dataset?.financeBoardColumn) {
+      return columnAtPoint.dataset.financeBoardColumn;
+    }
+
+    for (const [columnKey, node] of boardColumnRefs.current.entries()) {
+      const rect = node.getBoundingClientRect();
+      if (
+        clientX >= rect.left
+        && clientX <= rect.right
+        && clientY >= rect.top
+        && clientY <= rect.bottom
+      ) {
+        return columnKey;
+      }
+    }
+    return "";
+  }, []);
+
+  const handleBoardDragOverCapture = (event) => {
+    if (!isFinanceAppointmentDragEvent(event) || busyId || !canUpdateFinanceCashier) return;
+    const columnKey = getBoardColumnKeyFromEvent(event);
+    if (!columnKey) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    if (dragOverColumn !== columnKey) {
+      setDragOverColumn(columnKey);
+    }
+  };
+
+  const handleBoardDropCapture = (event) => {
+    if (!isFinanceAppointmentDragEvent(event) || busyId || !canUpdateFinanceCashier) return;
+    const columnKey = getBoardColumnKeyFromEvent(event);
+    if (!columnKey) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (columnKey === "tickets") {
+      void handleTicketColumnDrop(event);
+      return;
+    }
+    const targetStatus = FINANCE_BOARD_COLUMN_STATUSES[columnKey];
+    if (targetStatus) {
+      void handleAppointmentStatusDrop(event, targetStatus);
+    }
+  };
+
   const getAppointmentColumnProps = (columnKey, status) => ({
+    ref: (node) => setBoardColumnRef(columnKey, node),
+    "data-finance-board-column": columnKey,
     className: [
       "settings-card-column",
       dragOverColumn === columnKey ? "finance-board-drop-active" : ""
@@ -606,6 +686,8 @@ function FinanceCashierPanel({
   });
 
   const ticketColumnProps = {
+    ref: (node) => setBoardColumnRef("tickets", node),
+    "data-finance-board-column": "tickets",
     className: [
       "settings-card-column",
       dragOverColumn === "tickets" ? "finance-board-drop-active" : ""
@@ -952,7 +1034,11 @@ function FinanceCashierPanel({
         </button>
       </div>
 
-      <div className="settings-card-grid finance-board-grid">
+      <div
+        className="settings-card-grid finance-board-grid"
+        onDragOverCapture={handleBoardDragOverCapture}
+        onDropCapture={handleBoardDropCapture}
+      >
         <section {...getAppointmentColumnProps("pending", "pending")}>
           <BoardColumnTitle
             count={visibleBoard.pendingAppointments.length}
