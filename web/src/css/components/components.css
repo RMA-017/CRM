@@ -6508,10 +6508,17 @@ label.field > span:first-child,
 
 .finance-cashier-panel .stacked-modal-overlay,
 .finance-modal-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
   border: 0;
-  background: var(--overlay);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
+  background: rgba(10, 15, 50, 0.52) !important;
+  backdrop-filter: blur(8px) saturate(85%) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(85%) !important;
+  z-index: var(--z-modal) !important;
   appearance: none;
   -webkit-appearance: none;
 }
@@ -6554,7 +6561,7 @@ label.field > span:first-child,
 #financeManualTicketModal.logout-confirm-modal.all-users-edit-modal {
   width: min(880px, calc(100vw - 24px));
   height: auto;
-  max-height: calc(100dvh - 24px);
+  max-height: min(680px, calc(100dvh - 24px));
 }
 
 #financeManualTicketModal .auth-form {
@@ -6562,8 +6569,8 @@ label.field > span:first-child,
 }
 
 #financeManualTicketModal .all-users-edit-fields {
-  max-height: calc(100dvh - 132px);
-  overflow-y: auto;
+  min-height: 0;
+  overflow: visible;
 }
 
 #financeAppointmentTicketModal.logout-confirm-modal.all-users-edit-modal,
@@ -6717,12 +6724,50 @@ label.field > span:first-child,
   align-items: end;
 }
 
+#financeManualTicketModal .finance-manual-top-row {
+  display: grid;
+  grid-template-columns: minmax(116px, 0.22fr) minmax(280px, 1fr);
+  gap: 8px;
+  align-items: end;
+}
+
 .ops-panel-shell .finance-manual-date-field {
+  max-width: 132px;
+}
+
+#financeManualTicketModal .finance-manual-date-field {
   max-width: 132px;
 }
 
 .ops-panel-shell .finance-manual-client-select {
   width: 100%;
+}
+
+#financeManualTicketModal .finance-manual-client-select {
+  width: 100%;
+}
+
+#financeManualTicketModal .finance-manual-items {
+  max-height: 204px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+#financeManualTicketModal .finance-manual-items::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+}
+
+#financeManualTicketModal .finance-manual-items::-webkit-scrollbar-track {
+  background: var(--scroll-track);
+  border-radius: var(--scrollbar-size);
+}
+
+#financeManualTicketModal .finance-manual-items::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border: 2px solid var(--surface);
+  border-radius: var(--scrollbar-size);
 }
 
 .ops-panel-shell .finance-manual-item {
@@ -7063,6 +7108,10 @@ label.field > span:first-child,
   }
 
   .ops-panel-shell .finance-manual-top-row {
+    grid-template-columns: minmax(108px, 0.36fr) minmax(0, 1fr);
+  }
+
+  #financeManualTicketModal .finance-manual-top-row {
     grid-template-columns: minmax(108px, 0.36fr) minmax(0, 1fr);
   }
 

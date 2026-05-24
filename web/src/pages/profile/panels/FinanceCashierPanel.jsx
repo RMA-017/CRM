@@ -157,6 +157,22 @@ const FINANCE_BOARD_COLUMN_STATUSES = Object.freeze({
   confirmed: "confirmed"
 });
 
+const FINANCE_MODAL_OVERLAY_STYLE = Object.freeze({
+  position: "fixed",
+  inset: 0,
+  width: "100vw",
+  height: "100dvh",
+  margin: 0,
+  padding: 0,
+  border: 0,
+  backgroundColor: "rgba(10, 15, 50, 0.52)",
+  backdropFilter: "blur(8px) saturate(85%)",
+  WebkitBackdropFilter: "blur(8px) saturate(85%)",
+  zIndex: "var(--z-modal)",
+  appearance: "none",
+  WebkitAppearance: "none"
+});
+
 function BoardColumnTitle({ count, total = count, label, translate }) {
   const countLabel = count === total ? String(count) : `${count}/${total}`;
   return (
@@ -1141,6 +1157,7 @@ function FinanceCashierPanel({
           <button
             type="button"
             className="login-overlay stacked-modal-overlay finance-modal-overlay"
+            style={FINANCE_MODAL_OVERLAY_STYLE}
             aria-label={translate("Close ticket modal")}
             onClick={() => closeAppointmentTicketModal()}
           />
@@ -1228,6 +1245,7 @@ function FinanceCashierPanel({
           <button
             type="button"
             className="login-overlay stacked-modal-overlay finance-modal-overlay"
+            style={FINANCE_MODAL_OVERLAY_STYLE}
             aria-label={translate("Close manual ticket modal")}
             onClick={() => closeManualModal()}
           />
@@ -1387,6 +1405,7 @@ function FinanceCashierPanel({
           <button
             type="button"
             className="login-overlay stacked-modal-overlay finance-modal-overlay"
+            style={FINANCE_MODAL_OVERLAY_STYLE}
             aria-label={translate("Close cash session modal")}
             onClick={() => closeSessionModal()}
           />
