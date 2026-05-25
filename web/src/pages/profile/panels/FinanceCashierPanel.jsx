@@ -233,7 +233,7 @@ function TicketCard({
       </div>
       <div className="settings-card-row">
         <span>{specialistName}</span>
-        {shortDate ? <span className="finance-board-date-badge">{shortDate}</span> : null}
+        {shortDate ? <span>{shortDate}</span> : null}
       </div>
       {footer ? (
         <div className="settings-card-actions" onClick={(event) => event.stopPropagation()}>
@@ -992,14 +992,14 @@ function FinanceCashierPanel({
             <form className="auth-form" onSubmit={submitAppointmentTicket}>
               <div className="all-users-edit-fields">
                 <div className="finance-manual-top-row">
-                  <div className="field finance-manual-date-field finance-readonly-field">
+                  <label className="field finance-manual-date-field">
                     <span>{translate("Ticket Date")}</span>
-                    <strong>{formatDateYMD(appointmentTicketSource.appointmentDate)}</strong>
-                  </div>
-                  <div className="field finance-manual-client-select finance-readonly-field">
+                    <input type="text" value={formatDateYMD(appointmentTicketSource.appointmentDate)} readOnly />
+                  </label>
+                  <label className="field finance-manual-client-select">
                     <span>{translate("Client")}</span>
-                    <strong>{appointmentTicketSource.clientName || "-"}</strong>
-                  </div>
+                    <input type="text" value={appointmentTicketSource.clientName || "-"} readOnly />
+                  </label>
                 </div>
 
                 <div className="finance-manual-items">
@@ -1007,15 +1007,15 @@ function FinanceCashierPanel({
                     <div className="settings-card-row finance-manual-item-head">
                       <strong>{`${translate("Bill")} 1`}</strong>
                     </div>
-                    <div className="finance-manual-item-grid finance-readonly-item-grid">
-                      <div className="field finance-readonly-field">
+                    <div className="finance-manual-item-grid">
+                      <label className="field">
                         <span>{translate("Specialist")}</span>
-                        <strong>{appointmentTicketSource.specialistName || "-"}</strong>
-                      </div>
-                      <div className="field finance-readonly-field">
+                        <input type="text" value={appointmentTicketSource.specialistName || "-"} readOnly />
+                      </label>
+                      <label className="field">
                         <span>{translate("Service")}</span>
-                        <strong>{appointmentTicketSource.serviceName || "-"}</strong>
-                      </div>
+                        <input type="text" value={appointmentTicketSource.serviceName || "-"} readOnly />
+                      </label>
                     </div>
                   </div>
                 </div>

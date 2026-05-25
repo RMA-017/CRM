@@ -6436,29 +6436,9 @@ label.field > span:first-child,
   font-weight: 700;
 }
 
-.finance-cashier-panel .finance-board-date-badge {
-  flex: 0 0 auto;
-  max-width: none;
-  margin-left: auto;
-  padding: 2px 5px;
-  border: 1px solid rgba(64, 138, 243, 0.22);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.66);
-  color: var(--brand);
-  font-size: 10px;
-  font-weight: 800;
-  line-height: 1;
-}
-
 .finance-cashier-panel .finance-card-compact .settings-card-row:first-child span {
   color: var(--text-muted);
   font-weight: 700;
-}
-
-.finance-cashier-panel .finance-card-compact .settings-card-row .finance-board-date-badge {
-  color: var(--brand);
-  font-size: 10px;
-  font-weight: 800;
 }
 
 .finance-cashier-panel .settings-card-row:nth-child(3) span:first-child {
@@ -6673,14 +6653,11 @@ label.field > span:first-child,
   scrollbar-gutter: stable;
 }
 
-#financeManualTicketModal.logout-confirm-modal.all-users-edit-modal {
+#financeManualTicketModal.logout-confirm-modal.all-users-edit-modal,
+#financeAppointmentTicketModal.logout-confirm-modal.all-users-edit-modal {
   width: min(880px, calc(100vw - 24px));
   height: auto;
   max-height: min(680px, calc(100dvh - 24px));
-}
-
-#financeAppointmentTicketModal.logout-confirm-modal.all-users-edit-modal {
-  width: min(880px, calc(100vw - 24px));
 }
 
 #financeManualTicketModal .auth-form,
@@ -6696,7 +6673,6 @@ label.field > span:first-child,
   padding-right: 0;
 }
 
-#financeAppointmentTicketModal.logout-confirm-modal.all-users-edit-modal,
 #financeCashSessionModal.logout-confirm-modal.all-users-edit-modal {
   height: auto;
   min-height: 0;
@@ -6929,48 +6905,6 @@ label.field > span:first-child,
   overflow-y: auto;
   padding-right: 0;
   scrollbar-gutter: auto;
-}
-
-#financeAppointmentTicketModal .finance-manual-items {
-  overflow: visible;
-}
-
-#financeAppointmentTicketModal .finance-readonly-item-grid {
-  grid-template-columns:
-    minmax(150px, 0.75fr)
-    minmax(260px, 1.25fr);
-}
-
-.ops-panel-shell .finance-readonly-field {
-  min-width: 0;
-  display: grid;
-  gap: 7px;
-  margin: 0;
-}
-
-.ops-panel-shell .finance-readonly-field > span {
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 1.2;
-}
-
-.ops-panel-shell .finance-readonly-field > strong {
-  min-width: 0;
-  min-height: 30px;
-  display: flex;
-  align-items: center;
-  padding: 0 9px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--text-main);
-  font-size: 12px;
-  font-weight: 900;
-  line-height: 1.2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 #financeManualTicketModal .finance-manual-items::-webkit-scrollbar {
@@ -7411,8 +7345,7 @@ label.field > span:first-child,
     grid-template-columns: minmax(108px, 0.36fr) minmax(0, 1fr);
   }
 
-  .ops-panel-shell .finance-manual-item-grid,
-  #financeAppointmentTicketModal .finance-readonly-item-grid {
+  .ops-panel-shell .finance-manual-item-grid {
     grid-template-columns: 1fr;
   }
 
