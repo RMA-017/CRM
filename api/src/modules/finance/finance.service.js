@@ -59,6 +59,19 @@ function normalizeText(value, maxLength = 255) {
   return String(value ?? "").trim().slice(0, maxLength);
 }
 
+function normalizeIdList(value, limit = 50) {
+  const rawValues = Array.isArray(value) ? value : String(value ?? "").split(",");
+  const ids = [];
+  const seen = new Set();
+  rawValues.forEach((item) => {
+    const id = parsePositiveInteger(item);
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    ids.push(id);
+  });
+  return ids.slice(0, limit);
+}
+
 function normalizeDiscountType(value) {
   const normalized = String(value || "").trim().toLowerCase();
   return normalized === "percent" ? "percent" : "amount";
@@ -1238,7 +1251,7 @@ export async function getFinanceTransactions({ organizationId, filters = {} }) {
     LEFT JOIN clients c ON c.organization_id = t.organization_id AND c.id = t.client_id
     LEFT JOIN finance_tickets ft ON ft.organization_id = t.organization_id AND ft.id = t.ticket_id
     LEFT JOIN finance_payment_methods fpm ON fpm.organization_id = t.organization_id AND fpm.id = t.payment_method_id
-    LEFT JOIN users cu ON cu.organization_id = s.organization_id AND cu.id = s.cashier_user_id
+    LEFT JOIN users cu ON cu.id = s.cashier_user_id
    WHERE ${whereSql}`;
   const countResult = await pool.query(`SELECT COUNT(*) AS total ${fromSql}`, params);
   const total = Number.parseInt(String(countResult.rows[0]?.total || "0"), 10) || 0;
@@ -1340,7 +1353,7 @@ export async function getFinanceDailyCash({ organizationId, filters = {} }) {
     LEFT JOIN clients c ON c.organization_id = t.organization_id AND c.id = t.client_id
     LEFT JOIN finance_tickets ft ON ft.organization_id = t.organization_id AND ft.id = t.ticket_id
     LEFT JOIN finance_payment_methods fpm ON fpm.organization_id = t.organization_id AND fpm.id = t.payment_method_id
-    LEFT JOIN users cu ON cu.organization_id = s.organization_id AND cu.id = s.cashier_user_id
+    LEFT JOIN users cu ON cu.id = s.cashier_user_id
    WHERE ${whereSql}`;
   const countResult = await pool.query(`SELECT COUNT(*) AS total ${fromSql}`, params);
   const total = Number.parseInt(String(countResult.rows[0]?.total || "0"), 10) || 0;
@@ -1427,8 +1440,10 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
     AND t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')`;
   const signedItemAmountSql = `
     CASE
-      WHEN t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN fti.final_amount_uzs
-      WHEN t.transaction_type IN ('refund', 'deposit_ticket_refund') THEN -fti.final_amount_uzs
+      WHEN t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN
+        ROUND((t.amount_uzs::numeric * fti.final_amount_uzs::numeric) / NULLIF(ft.total_uzs::numeric, 0))
+      WHEN t.transaction_type IN ('refund', 'deposit_ticket_refund') THEN
+        -ROUND((t.amount_uzs::numeric * fti.final_amount_uzs::numeric) / NULLIF(ft.total_uzs::numeric, 0))
       ELSE 0
     END`;
   const itemFromSql = `
@@ -1452,7 +1467,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
     `SELECT fti.service_id AS id,
             COALESCE(NULLIF(TRIM(fti.service_name), ''), 'No service') AS label,
             COALESCE(SUM(${signedItemAmountSql}), 0) AS amount_uzs,
-            COUNT(*) AS item_count
+            COUNT(DISTINCT fti.id) AS item_count
        ${itemFromSql}
       GROUP BY fti.service_id, fti.service_name
       ORDER BY amount_uzs DESC, label ASC
@@ -1463,7 +1478,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
     `SELECT fti.specialist_id AS id,
             COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), 'No specialist') AS label,
             COALESCE(SUM(${signedItemAmountSql}), 0) AS amount_uzs,
-            COUNT(*) AS item_count
+            COUNT(DISTINCT fti.id) AS item_count
        ${itemFromSql}
        LEFT JOIN users u ON u.organization_id = fti.organization_id AND u.id = fti.specialist_id
       GROUP BY fti.specialist_id, u.full_name, u.username
@@ -1475,7 +1490,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
     `SELECT p.id,
             COALESCE(NULLIF(TRIM(p.label), ''), 'No department') AS label,
             COALESCE(SUM(${signedItemAmountSql}), 0) AS amount_uzs,
-            COUNT(*) AS item_count
+            COUNT(DISTINCT fti.id) AS item_count
        ${itemFromSql}
        LEFT JOIN users u ON u.organization_id = fti.organization_id AND u.id = fti.specialist_id
        LEFT JOIN position_options p ON p.organization_id = u.organization_id AND p.id = u.position_id
@@ -1537,12 +1552,18 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
 
 export async function getFinanceClientBalances({ organizationId, filters = {} }) {
   const client = normalizeText(filters.client, 96).toLowerCase();
+  const clientIds = normalizeIdList(filters.clientIds ?? filters.client_ids, 100);
   const type = String(filters.type || "all").trim().toLowerCase();
   const page = normalizePage(filters.page);
   const pageSize = normalizePageSize(filters.pageSize ?? filters.page_size, 20);
   const offset = (page - 1) * pageSize;
   const params = [organizationId];
   const where = ["c.organization_id = $1"];
+
+  if (clientIds.length > 0) {
+    params.push(clientIds);
+    where.push(`c.id = ANY($${params.length}::int[])`);
+  }
 
   if (client) {
     params.push(`%${client}%`);
@@ -2476,9 +2497,15 @@ export async function payFinanceTicket({ organizationId, id, payload, actorUserI
       error.statusCode = 400;
       throw error;
     }
-    const amountUzs = requestedAmount > 0 ? requestedAmount : normalizeAmount(current.amount_uzs, 0);
+    const payableAmountUzs = normalizeAmount(current.total_uzs ?? current.amount_uzs, 0);
+    const amountUzs = requestedAmount > 0 ? requestedAmount : payableAmountUzs;
     if (amountUzs <= 0) {
       const error = new Error("Payment amount is required.");
+      error.statusCode = 400;
+      throw error;
+    }
+    if (amountUzs !== payableAmountUzs) {
+      const error = new Error("Payment total must match selected tickets total.");
       error.statusCode = 400;
       throw error;
     }
@@ -2563,10 +2590,23 @@ export async function payFinanceTicketsBatch({ organizationId, payload, actorUse
     throw error;
   }
   const paymentTotals = new Map();
+  const depositTotals = new Map();
   for (const rawPayment of rawPayments.slice(0, 8)) {
+    const source = String(rawPayment?.source ?? rawPayment?.paymentSource ?? rawPayment?.payment_source ?? "method").trim().toLowerCase();
     const paymentMethodId = parsePositiveInteger(rawPayment?.paymentMethodId ?? rawPayment?.payment_method_id);
+    const clientId = parsePositiveInteger(rawPayment?.clientId ?? rawPayment?.client_id);
     const amountUzs = normalizeAmount(rawPayment?.amountUzs ?? rawPayment?.amount_uzs, 0);
-    if (!paymentMethodId || amountUzs <= 0) {
+    if (amountUzs <= 0) {
+      continue;
+    }
+    if (source === "deposit") {
+      if (!clientId) {
+        continue;
+      }
+      depositTotals.set(clientId, (depositTotals.get(clientId) || 0) + amountUzs);
+      continue;
+    }
+    if (!paymentMethodId) {
       continue;
     }
     paymentTotals.set(paymentMethodId, (paymentTotals.get(paymentMethodId) || 0) + amountUzs);
@@ -2575,7 +2615,11 @@ export async function payFinanceTicketsBatch({ organizationId, payload, actorUse
     paymentMethodId,
     amountUzs
   }));
-  if (payments.length === 0) {
+  const depositPayments = Array.from(depositTotals.entries()).map(([clientId, amountUzs]) => ({
+    clientId,
+    amountUzs
+  }));
+  if (payments.length === 0 && depositPayments.length === 0) {
     const error = new Error("Payment method is required.");
     error.statusCode = 400;
     throw error;
@@ -2595,18 +2639,20 @@ export async function payFinanceTicketsBatch({ organizationId, payload, actorUse
       throw error;
     }
 
-    const methodsResult = await db.query(
-      `SELECT id
-         FROM finance_payment_methods
-        WHERE organization_id = $1
-          AND id = ANY($2::int[])
-          AND is_active = TRUE`,
-      [organizationId, payments.map((payment) => payment.paymentMethodId)]
-    );
-    if (methodsResult.rows.length !== payments.length) {
-      const error = new Error("Payment method not found.");
-      error.statusCode = 400;
-      throw error;
+    if (payments.length > 0) {
+      const methodsResult = await db.query(
+        `SELECT id
+           FROM finance_payment_methods
+          WHERE organization_id = $1
+            AND id = ANY($2::int[])
+            AND is_active = TRUE`,
+        [organizationId, payments.map((payment) => payment.paymentMethodId)]
+      );
+      if (methodsResult.rows.length !== payments.length) {
+        const error = new Error("Payment method not found.");
+        error.statusCode = 400;
+        throw error;
+      }
     }
 
     const ticketsResult = await db.query(
@@ -2629,11 +2675,36 @@ export async function payFinanceTicketsBatch({ organizationId, payload, actorUse
       payableAmountUzs: normalizeAmount(ticket.total_uzs ?? ticket.amount_uzs, 0)
     }));
     const totalAmountUzs = tickets.reduce((sum, ticket) => sum + ticket.payableAmountUzs, 0);
-    const paidAmountUzs = payments.reduce((sum, payment) => sum + payment.amountUzs, 0);
+    const paidAmountUzs = payments.reduce((sum, payment) => sum + payment.amountUzs, 0)
+      + depositPayments.reduce((sum, payment) => sum + payment.amountUzs, 0);
     if (totalAmountUzs <= 0) {
       const error = new Error("Payment amount is required.");
       error.statusCode = 400;
       throw error;
+    }
+    const selectedTotalByClient = new Map();
+    tickets.forEach((ticket) => {
+      selectedTotalByClient.set(
+        ticket.client_id,
+        (selectedTotalByClient.get(ticket.client_id) || 0) + ticket.payableAmountUzs
+      );
+    });
+    for (const depositPayment of depositPayments) {
+      const selectedClientTotal = selectedTotalByClient.get(depositPayment.clientId) || 0;
+      if (depositPayment.amountUzs > selectedClientTotal) {
+        const error = new Error("Deposit amount exceeds selected client tickets total.");
+        error.statusCode = 400;
+        throw error;
+      }
+      const currentDeposit = await getClientDepositBalance(db, {
+        organizationId,
+        clientId: depositPayment.clientId
+      });
+      if (depositPayment.amountUzs > currentDeposit) {
+        const error = new Error("Deposit balance is not enough.");
+        error.statusCode = 400;
+        throw error;
+      }
     }
     if (paidAmountUzs !== totalAmountUzs) {
       const error = new Error("Payment total must match selected tickets total.");
@@ -2651,11 +2722,53 @@ export async function payFinanceTicketsBatch({ organizationId, payload, actorUse
     );
     const paymentGroupId = groupResult.rows[0]?.id || null;
     const paymentQueue = payments.map((payment) => ({ ...payment }));
+    const depositQueueByClient = new Map(depositPayments.map((payment) => [payment.clientId, { ...payment }]));
     const paidTickets = [];
 
     for (const ticket of tickets) {
       let remainingTicketAmount = ticket.payableAmountUzs;
       const allocationIds = [];
+      const currentDeposit = depositQueueByClient.get(ticket.client_id);
+      if (currentDeposit?.amountUzs > 0 && remainingTicketAmount > 0) {
+        const allocationAmount = Math.min(remainingTicketAmount, currentDeposit.amountUzs);
+        const paymentResult = await db.query(
+          `INSERT INTO finance_ticket_payments (
+             organization_id, ticket_id, payment_group_id, payment_method_id, amount_uzs, note, created_by
+           )
+           VALUES ($1, $2, $3, NULL, $4, $5, $6)
+           RETURNING id`,
+          [
+            organizationId,
+            ticket.id,
+            paymentGroupId,
+            allocationAmount,
+            note || null,
+            actorUserId || null
+          ]
+        );
+        const paymentId = paymentResult.rows[0]?.id || null;
+        allocationIds.push(paymentId);
+        await insertFinanceTransaction(db, {
+          organizationId,
+          cashSessionId: cashSession.id,
+          paymentGroupId,
+          transactionType: "deposit_ticket_payment",
+          direction: "transfer",
+          clientId: ticket.client_id,
+          ticketId: ticket.id,
+          ticketPaymentId: paymentId,
+          paymentMethodId: null,
+          amountUzs: allocationAmount,
+          note,
+          metadata: {
+            ticketNumber: ticket.ticket_number,
+            source: "ticket_batch_deposit_payment"
+          },
+          actorUserId
+        });
+        currentDeposit.amountUzs -= allocationAmount;
+        remainingTicketAmount -= allocationAmount;
+      }
       while (remainingTicketAmount > 0) {
         const currentPayment = paymentQueue.find((payment) => payment.amountUzs > 0);
         if (!currentPayment) {
@@ -2781,69 +2894,79 @@ export async function refundFinanceTicket({ organizationId, id, payload, actorUs
       throw error;
     }
 
-    const paymentResult = await db.query(
-      `SELECT id, payment_method_id, amount_uzs
-         FROM finance_ticket_payments
-        WHERE organization_id = $1
-          AND ticket_id = $2
-        ORDER BY paid_at DESC, id DESC
-        LIMIT 1`,
+    const paymentsResult = await db.query(
+      `SELECT p.id,
+              p.payment_group_id,
+              p.payment_method_id,
+              p.amount_uzs,
+              original.transaction_type AS original_transaction_type
+         FROM finance_ticket_payments p
+         LEFT JOIN LATERAL (
+           SELECT t.transaction_type
+             FROM finance_transactions t
+            WHERE t.organization_id = p.organization_id
+              AND t.ticket_id = p.ticket_id
+              AND t.ticket_payment_id = p.id
+              AND t.status = 'posted'
+              AND t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment')
+            ORDER BY t.transaction_at DESC, t.id DESC
+            LIMIT 1
+         ) original ON TRUE
+        WHERE p.organization_id = $1
+          AND p.ticket_id = $2
+          AND NOT EXISTS (
+            SELECT 1
+              FROM finance_transactions refunded
+             WHERE refunded.organization_id = p.organization_id
+               AND refunded.ticket_id = p.ticket_id
+               AND refunded.ticket_payment_id = p.id
+               AND refunded.status = 'posted'
+               AND refunded.transaction_type IN ('refund', 'deposit_ticket_refund')
+          )
+        ORDER BY p.paid_at ASC, p.id ASC`,
       [organizationId, ticketId]
     );
-    const payment = paymentResult.rows[0];
-    if (!payment) {
+    const payments = paymentsResult.rows;
+    if (payments.length === 0) {
       const error = new Error("Ticket payment not found.");
       error.statusCode = 400;
       throw error;
     }
 
-    const refundedResult = await db.query(
-      `SELECT id
-         FROM finance_transactions
-        WHERE organization_id = $1
-          AND ticket_id = $2
-          AND ticket_payment_id = $3
-          AND transaction_type = 'refund'
-          AND status = 'posted'
-        LIMIT 1`,
-      [organizationId, ticketId, payment.id]
-    );
-    if (refundedResult.rows[0]) {
-      const error = new Error("Ticket payment is already refunded.");
+    const refundedPaymentIds = [];
+    let refundedAmountUzs = 0;
+    for (const payment of payments) {
+      const amountUzs = normalizeAmount(payment.amount_uzs, 0);
+      if (amountUzs <= 0) {
+        continue;
+      }
+      const isDepositTicketPayment = payment.original_transaction_type === "deposit_ticket_payment";
+      await insertFinanceTransaction(db, {
+        organizationId,
+        cashSessionId: cashSession.id,
+        paymentGroupId: payment.payment_group_id || null,
+        transactionType: isDepositTicketPayment ? "deposit_ticket_refund" : "refund",
+        direction: isDepositTicketPayment ? "transfer" : "out",
+        clientId: current.client_id,
+        ticketId,
+        ticketPaymentId: payment.id,
+        paymentMethodId: payment.payment_method_id,
+        amountUzs,
+        note,
+        metadata: {
+          ticketNumber: current.ticket_number,
+          source: "ticket_refund"
+        },
+        actorUserId
+      });
+      refundedPaymentIds.push(payment.id);
+      refundedAmountUzs += amountUzs;
+    }
+    if (refundedPaymentIds.length === 0) {
+      const error = new Error("Ticket payment not found.");
       error.statusCode = 400;
       throw error;
     }
-
-    const originalTransactionResult = await db.query(
-      `SELECT transaction_type
-         FROM finance_transactions
-        WHERE organization_id = $1
-          AND ticket_id = $2
-          AND ticket_payment_id = $3
-          AND status = 'posted'
-        ORDER BY transaction_at DESC, id DESC
-        LIMIT 1`,
-      [organizationId, ticketId, payment.id]
-    );
-    const isDepositTicketPayment = originalTransactionResult.rows[0]?.transaction_type === "deposit_ticket_payment";
-
-    await insertFinanceTransaction(db, {
-      organizationId,
-      cashSessionId: cashSession.id,
-      transactionType: isDepositTicketPayment ? "deposit_ticket_refund" : "refund",
-      direction: isDepositTicketPayment ? "transfer" : "out",
-      clientId: current.client_id,
-      ticketId,
-      ticketPaymentId: payment.id,
-      paymentMethodId: payment.payment_method_id,
-      amountUzs: normalizeAmount(payment.amount_uzs, 0),
-      note,
-      metadata: {
-        ticketNumber: current.ticket_number,
-        source: "ticket_refund"
-      },
-      actorUserId
-    });
 
     const result = await db.query(
       `UPDATE finance_tickets
@@ -2862,10 +2985,9 @@ export async function refundFinanceTicket({ organizationId, id, payload, actorUs
       fromStatus: current.status,
       toStatus: "issued",
       details: {
-        paymentMethodId: payment.payment_method_id,
-        amountUzs: normalizeAmount(payment.amount_uzs, 0),
+        amountUzs: refundedAmountUzs,
         cashSessionId: cashSession.id,
-        paymentId: payment.id
+        paymentIds: refundedPaymentIds
       },
       actorUserId
     });

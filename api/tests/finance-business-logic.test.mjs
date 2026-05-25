@@ -103,8 +103,8 @@ test("cashier can confirm pending planner cards before creating tickets without 
 test("finance payments, deposits and refunds preserve cash-session and balance rules", () => {
   assert.match(
     financeServiceSource,
-    /export async function payFinanceTicket[\s\S]*paymentMethodId[\s\S]*AND is_active = TRUE[\s\S]*const cashSession = await getOpenCashSession[\s\S]*Cash session is required\.[\s\S]*transactionType: "ticket_payment"[\s\S]*direction: "in"[\s\S]*SET status = 'paid'/s,
-    "Ticket payment should require an active method, open cash session, posted cash-in transaction and paid ticket status."
+    /export async function payFinanceTicket[\s\S]*paymentMethodId[\s\S]*AND is_active = TRUE[\s\S]*payableAmountUzs[\s\S]*if \(amountUzs !== payableAmountUzs\)[\s\S]*Payment total must match selected tickets total\.[\s\S]*const cashSession = await getOpenCashSession[\s\S]*Cash session is required\.[\s\S]*transactionType: "ticket_payment"[\s\S]*direction: "in"[\s\S]*SET status = 'paid'/s,
+    "Ticket payment should require an active method, exact full amount, open cash session, posted cash-in transaction and paid ticket status."
   );
 
   assert.match(
@@ -121,8 +121,8 @@ test("finance payments, deposits and refunds preserve cash-session and balance r
 
   assert.match(
     financeServiceSource,
-    /export async function refundFinanceTicket[\s\S]*if \(current\.status !== "paid"\)[\s\S]*Only paid tickets can be refunded\.[\s\S]*isDepositTicketPayment[\s\S]*transactionType: isDepositTicketPayment \? "deposit_ticket_refund" : "refund"[\s\S]*direction: isDepositTicketPayment \? "transfer" : "out"[\s\S]*SET status = 'issued'/s,
-    "Refund should reverse paid tickets either back to deposit transfer or cash out, then reopen the ticket."
+    /export async function refundFinanceTicket[\s\S]*if \(current\.status !== "paid"\)[\s\S]*Only paid tickets can be refunded\.[\s\S]*NOT EXISTS \([\s\S]*refunded\.transaction_type IN \('refund', 'deposit_ticket_refund'\)[\s\S]*for \(const payment of payments\)[\s\S]*paymentGroupId: payment\.payment_group_id \|\| null[\s\S]*transactionType: isDepositTicketPayment \? "deposit_ticket_refund" : "refund"[\s\S]*direction: isDepositTicketPayment \? "transfer" : "out"[\s\S]*SET status = 'issued'[\s\S]*paymentIds: refundedPaymentIds/s,
+    "Refund should reverse every active payment allocation either back to deposit transfer or cash out, then reopen the ticket."
   );
 });
 
@@ -135,8 +135,14 @@ test("finance daily cash and reports separate real cash movement from deposit tr
 
   assert.match(
     financeServiceSource,
-    /export async function getFinanceReports[\s\S]*t\.transaction_type IN \('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund'\)[\s\S]*WHEN t\.transaction_type IN \('ticket_payment', 'deposit_ticket_payment'\) THEN fti\.final_amount_uzs[\s\S]*WHEN t\.transaction_type IN \('refund', 'deposit_ticket_refund'\) THEN -fti\.final_amount_uzs/s,
-    "Finance reports should count paid ticket revenue from cash or deposit and subtract both refund types by ticket item."
+    /export async function getFinanceReports[\s\S]*t\.transaction_type IN \('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund'\)[\s\S]*t\.amount_uzs::numeric \* fti\.final_amount_uzs::numeric[\s\S]*NULLIF\(ft\.total_uzs::numeric, 0\)[\s\S]*COUNT\(DISTINCT fti\.id\) AS item_count/s,
+    "Finance reports should allocate split payment transaction amounts across ticket items and avoid duplicate item counts."
+  );
+
+  assert.doesNotMatch(
+    financeServiceSource,
+    /LEFT JOIN users cu ON cu\.organization_id = s\.organization_id AND cu\.id = s\.cashier_user_id/,
+    "Cashier joins should resolve platform-admin cash sessions by user id without requiring the cash-session organization."
   );
 });
 

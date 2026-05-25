@@ -35,7 +35,9 @@ function createManualForm() {
 function createBatchPaymentRow(amountUzs = "") {
   return {
     key: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    source: "method",
     paymentMethodId: "",
+    clientId: "",
     amountUzs: amountUzs === "" ? "" : String(amountUzs)
   };
 }
@@ -54,6 +56,13 @@ const EMPTY_APPOINTMENT_TICKET_FORM = Object.freeze({
 function formatMoney(value) {
   const amount = Number.parseInt(String(value ?? 0), 10) || 0;
   return amount > 0 ? `${amount.toLocaleString("ru-RU")} UZS` : "-";
+}
+
+function formatSignedMoney(value) {
+  const amount = Number.parseInt(String(value ?? 0), 10) || 0;
+  if (amount === 0) return "-";
+  const prefix = amount > 0 ? "+" : "-";
+  return `${prefix}${Math.abs(amount).toLocaleString("ru-RU")} UZS`;
 }
 
 function formatTicketNumber(value) {
@@ -230,7 +239,9 @@ function TicketCard({
   const serviceName = item.serviceName || "-";
   const specialistName = item.specialistName || "-";
   const startTime = formatTime(item.startTime);
-  const shortDate = showShortDate ? formatShortDateDM(item.appointmentDate) : "";
+  const shortDate = showShortDate
+    ? formatShortDateDM(item.createdAt || item.ticketDate || item.appointmentDate)
+    : "";
   const cardTitle = actionTitle || (compact
     ? [startTime, clientName, serviceName, specialistName].filter(Boolean).join(" - ")
     : undefined);
@@ -254,13 +265,6 @@ function TicketCard({
     >
       <div className="settings-card-row">
         <strong>{clientName}</strong>
-      </div>
-      <div className="settings-card-row">
-        <span>{serviceName}</span>
-        <span>{startTime}</span>
-      </div>
-      <div className="settings-card-row">
-        <span>{specialistName}</span>
         {selectable ? (
           <label
             className="finance-ticket-select-control"
@@ -279,7 +283,15 @@ function TicketCard({
               onDoubleClick={(event) => event.stopPropagation()}
             />
           </label>
-        ) : shortDate ? <span>{shortDate}</span> : null}
+        ) : null}
+      </div>
+      <div className="settings-card-row">
+        <span>{serviceName}</span>
+        <span>{startTime}</span>
+      </div>
+      <div className="settings-card-row">
+        <span>{specialistName}</span>
+        {shortDate ? <span className="finance-card-date">{shortDate}</span> : null}
       </div>
       {footer ? (
         <div className="settings-card-actions" onClick={(event) => event.stopPropagation()}>
@@ -317,6 +329,8 @@ function FinanceCashierPanel({
   const [batchPaymentRows, setBatchPaymentRows] = useState(() => [createBatchPaymentRow()]);
   const [batchPaymentNote, setBatchPaymentNote] = useState("");
   const [batchPaymentSubmitting, setBatchPaymentSubmitting] = useState(false);
+  const [batchClientBalances, setBatchClientBalances] = useState({});
+  const [batchClientBalancesLoading, setBatchClientBalancesLoading] = useState(false);
   const [boardFilters, setBoardFilters] = useState({
     clientQuery: "",
     serviceId: "",
@@ -384,6 +398,41 @@ function FinanceCashierPanel({
   ), [batchPaymentRows]);
   const batchRemainingUzs = Math.max(batchPaymentTotalUzs - batchPaidTotalUzs, 0);
   const batchOverpaidUzs = Math.max(batchPaidTotalUzs - batchPaymentTotalUzs, 0);
+  const batchClientSummaries = useMemo(() => {
+    const byClient = new Map();
+    batchPaymentTickets.forEach((ticket) => {
+      const clientId = String(ticket?.clientId || "");
+      if (!clientId) return;
+      const current = byClient.get(clientId) || {
+        clientId,
+        clientName: ticket?.clientName || "-",
+        selectedTotalUzs: 0,
+        ticketCount: 0
+      };
+      current.selectedTotalUzs += normalizeMoneyInput(ticket?.totalUzs ?? ticket?.amountUzs);
+      current.ticketCount += 1;
+      byClient.set(clientId, current);
+    });
+    return Array.from(byClient.values()).map((item) => {
+      const balance = batchClientBalances[item.clientId] || {};
+      const depositUzs = normalizeMoneyInput(balance.depositUzs);
+      const debtUzs = normalizeMoneyInput(balance.debtUzs);
+      return {
+        ...item,
+        depositUzs,
+        debtUzs,
+        balanceUzs: depositUzs - debtUzs
+      };
+    });
+  }, [batchPaymentTickets, batchClientBalances]);
+  const batchClientOptions = useMemo(() => batchClientSummaries.map((client) => ({
+    value: client.clientId,
+    label: `${client.clientName} - ${translate("Deposit")}: ${formatMoney(client.depositUzs)}`
+  })), [batchClientSummaries, translate]);
+  const batchDepositTotalUzs = useMemo(() => (
+    batchPaymentRows.reduce((sum, row) => row.source === "deposit" ? sum + normalizeMoneyInput(row.amountUzs) : sum, 0)
+  ), [batchPaymentRows]);
+  const batchExternalTotalUzs = Math.max(batchPaidTotalUzs - batchDepositTotalUzs, 0);
 
   const loadBoard = useCallback(async () => {
     const requestId = boardRequestRef.current + 1;
@@ -676,6 +725,36 @@ function FinanceCashierPanel({
     });
   };
 
+  const loadBatchClientBalances = async (tickets) => {
+    const clientIds = Array.from(new Set(
+      (Array.isArray(tickets) ? tickets : [])
+        .map((ticket) => String(ticket?.clientId || "").trim())
+        .filter(Boolean)
+    ));
+    setBatchClientBalances({});
+    if (clientIds.length === 0) return;
+    setBatchClientBalancesLoading(true);
+    try {
+      const query = new URLSearchParams({
+        clientIds: clientIds.join(","),
+        type: "all",
+        pageSize: String(Math.max(clientIds.length, 20))
+      });
+      const response = await apiFetch(`/api/finance/client-balances?${query.toString()}`);
+      const data = await readApiResponseData(response);
+      if (!response.ok) return;
+      const nextBalances = {};
+      (Array.isArray(data?.items) ? data.items : []).forEach((item) => {
+        const clientId = String(item?.clientId || "");
+        if (!clientId) return;
+        nextBalances[clientId] = item;
+      });
+      setBatchClientBalances(nextBalances);
+    } finally {
+      setBatchClientBalancesLoading(false);
+    }
+  };
+
   const openBatchPaymentModal = (item) => {
     if (!canPayFinanceCashier) return;
     if (!cashSession) {
@@ -692,6 +771,7 @@ function FinanceCashierPanel({
     setBatchPaymentTickets(nextTickets);
     setBatchPaymentRows([createBatchPaymentRow(totalUzs)]);
     setBatchPaymentNote("");
+    void loadBatchClientBalances(nextTickets);
   };
 
   const closeBatchPaymentModal = (force = false) => {
@@ -699,10 +779,20 @@ function FinanceCashierPanel({
     setBatchPaymentTickets([]);
     setBatchPaymentRows([createBatchPaymentRow()]);
     setBatchPaymentNote("");
+    setBatchClientBalances({});
+    setBatchClientBalancesLoading(false);
   };
 
   const updateBatchPaymentRow = (key, updates) => {
-    setBatchPaymentRows((current) => current.map((row) => (row.key === key ? { ...row, ...updates } : row)));
+    setBatchPaymentRows((current) => current.map((row) => {
+      if (row.key !== key) return row;
+      const next = { ...row, ...updates };
+      if (Object.prototype.hasOwnProperty.call(updates, "source")) {
+        next.paymentMethodId = "";
+        next.clientId = "";
+      }
+      return next;
+    }));
   };
 
   const addBatchPaymentRow = () => {
@@ -739,11 +829,16 @@ function FinanceCashierPanel({
     if (batchPaymentSubmitting || !canPayFinanceCashier) return;
     const ticketIds = batchPaymentTickets.map((ticket) => Number.parseInt(String(ticket.id), 10)).filter(Boolean);
     const payments = batchPaymentRows
-      .map((row) => ({
-        paymentMethodId: String(row.paymentMethodId || "").trim(),
-        amountUzs: normalizeMoneyInput(row.amountUzs)
-      }))
-      .filter((row) => row.paymentMethodId && row.amountUzs > 0);
+      .map((row) => {
+        const source = row.source === "deposit" ? "deposit" : "method";
+        return {
+          source,
+          paymentMethodId: String(row.paymentMethodId || "").trim(),
+          clientId: String(row.clientId || "").trim(),
+          amountUzs: normalizeMoneyInput(row.amountUzs)
+        };
+      })
+      .filter((row) => row.amountUzs > 0 && (row.source === "deposit" ? row.clientId : row.paymentMethodId));
     if (ticketIds.length === 0) return;
     if (payments.length === 0) {
       window.alert?.(translate("Payment method is required."));
@@ -999,6 +1094,7 @@ function FinanceCashierPanel({
               key={String(item.id)}
               item={item}
               compact
+              showShortDate
               {...getCreateTicketDoubleClickProps(item)}
             />
           ))}
@@ -1013,6 +1109,7 @@ function FinanceCashierPanel({
               item={item}
               translate={translate}
               compact
+              showShortDate
             />
           ))}
           {visibleBoard.cancelledAppointments.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
@@ -1026,6 +1123,7 @@ function FinanceCashierPanel({
               item={item}
               translate={translate}
               compact
+              showShortDate
             />
           ))}
           {visibleBoard.noShowAppointments.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
@@ -1038,6 +1136,7 @@ function FinanceCashierPanel({
               key={String(item.id)}
               item={item}
               compact
+              showShortDate
               {...getCreateTicketDoubleClickProps(item)}
             />
           ))}
@@ -1065,6 +1164,7 @@ function FinanceCashierPanel({
               key={String(item.id)}
               item={item}
               compact
+              showShortDate
               selectable
               selected={selectedTicketIds.has(String(item.id))}
               onSelectionChange={(checked) => toggleTicketSelection(item, checked)}
@@ -1093,10 +1193,43 @@ function FinanceCashierPanel({
             </h3>
             <form className="auth-form" onSubmit={submitBatchPayment}>
               <div className="all-users-edit-fields">
+                <div className="finance-batch-client-balances">
+                  <div className="finance-batch-client-balance-row finance-batch-client-balance-head">
+                    <span>{translate("Client")}</span>
+                    <span>{translate("Selected Total")}</span>
+                    <span>{translate("Deposit")}</span>
+                    <span>{translate("Debt")}</span>
+                    <span>{translate("Balance")}</span>
+                  </div>
+                  {batchClientSummaries.map((client) => (
+                    <div className="finance-batch-client-balance-row" key={client.clientId}>
+                      <strong>{client.clientName}</strong>
+                      <span>{formatMoney(client.selectedTotalUzs)}</span>
+                      <span className={client.depositUzs > 0 ? "finance-balance-positive" : ""}>{formatMoney(client.depositUzs)}</span>
+                      <span className={client.debtUzs > 0 ? "finance-balance-negative" : ""}>{formatMoney(client.debtUzs)}</span>
+                      <span className={client.balanceUzs >= 0 ? "finance-balance-positive" : "finance-balance-negative"}>{formatSignedMoney(client.balanceUzs)}</span>
+                    </div>
+                  ))}
+                  {batchClientBalancesLoading ? <p className="all-users-state">{translate("Loading...")}</p> : null}
+                </div>
+
                 <div className="finance-batch-ticket-list">
+                  <div className="finance-batch-ticket-row finance-batch-ticket-head">
+                    <span>{translate("Ticket Number")}</span>
+                    <span>{translate("Ticket ID")}</span>
+                    <span>{translate("Ticket Date")}</span>
+                    <span>{translate("Client")}</span>
+                    <span>{translate("Specialist")}</span>
+                    <span>{translate("Service")}</span>
+                    <span>{translate("Total")}</span>
+                  </div>
                   {batchPaymentTickets.map((ticket) => (
                     <div className="finance-batch-ticket-row" key={String(ticket.id)}>
-                      <strong>{ticket.clientName || "-"}</strong>
+                      <strong>{formatTicketNumber(ticket.ticketNumber)}</strong>
+                      <span>#{ticket.id}</span>
+                      <span>{formatDateYMD(ticket.ticketDate || ticket.appointmentDate)}</span>
+                      <span>{ticket.clientName || "-"}</span>
+                      <span>{ticket.specialistName || "-"}</span>
                       <span>{ticket.serviceName || "-"}</span>
                       <span>{formatMoney(ticket.totalUzs ?? ticket.amountUzs)}</span>
                     </div>
@@ -1104,17 +1237,45 @@ function FinanceCashierPanel({
                 </div>
 
                 <div className="finance-batch-payment-methods">
+                  <div className="finance-batch-section-title">
+                    <span>{translate("Payment Sources")}</span>
+                    <strong>{formatMoney(batchPaidTotalUzs)}</strong>
+                  </div>
                   {batchPaymentRows.map((row, index) => (
                     <div className="finance-batch-payment-row" key={row.key}>
                       <label className="field">
-                        <span>{translate("Payment Method")}</span>
+                        <span>{translate("Payment Source")}</span>
                         <CustomSelect
-                          value={row.paymentMethodId}
-                          options={[{ value: "", label: translate("Payment Method") }, ...paymentMethodOptions]}
+                          value={row.source || "method"}
+                          options={[
+                            { value: "method", label: translate("External Payment") },
+                            { value: "deposit", label: translate("From Client Balance") }
+                          ]}
                           menuPortal
-                          onChange={(value) => updateBatchPaymentRow(row.key, { paymentMethodId: value })}
+                          onChange={(value) => updateBatchPaymentRow(row.key, { source: value })}
                         />
                       </label>
+                      {row.source === "deposit" ? (
+                        <label className="field">
+                          <span>{translate("Client Balance")}</span>
+                          <CustomSelect
+                            value={row.clientId}
+                            options={[{ value: "", label: translate("Client") }, ...batchClientOptions]}
+                            menuPortal
+                            onChange={(value) => updateBatchPaymentRow(row.key, { clientId: value })}
+                          />
+                        </label>
+                      ) : (
+                        <label className="field">
+                          <span>{translate("Payment Method")}</span>
+                          <CustomSelect
+                            value={row.paymentMethodId}
+                            options={[{ value: "", label: translate("Payment Method") }, ...paymentMethodOptions]}
+                            menuPortal
+                            onChange={(value) => updateBatchPaymentRow(row.key, { paymentMethodId: value })}
+                          />
+                        </label>
+                      )}
                       <label className="field">
                         <span>{translate("Amount")}</span>
                         <input
@@ -1151,6 +1312,8 @@ function FinanceCashierPanel({
 
                 <div className="finance-ticket-summary finance-ticket-total">
                   <div className="finance-total-cell"><strong>{translate("Total")}</strong><span>{formatMoney(batchPaymentTotalUzs)}</span></div>
+                  <div className="finance-total-cell"><strong>{translate("External Payment")}</strong><span>{formatMoney(batchExternalTotalUzs)}</span></div>
+                  <div className="finance-total-cell"><strong>{translate("From Client Balance")}</strong><span>{formatMoney(batchDepositTotalUzs)}</span></div>
                   <div className="finance-total-cell"><strong>{translate("Paid")}</strong><span>{formatMoney(batchPaidTotalUzs)}</span></div>
                   <div className="finance-total-cell"><strong>{translate("Remaining")}</strong><span>{formatMoney(batchRemainingUzs)}</span></div>
                   <div className="finance-total-cell"><strong>{translate("Overpaid")}</strong><span>{formatMoney(batchOverpaidUzs)}</span></div>

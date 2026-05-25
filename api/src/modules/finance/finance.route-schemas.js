@@ -32,8 +32,13 @@ const ticketBatchPaymentMethodSchema = {
   type: "object",
   additionalProperties: true,
   properties: {
+    source: { type: "string", enum: ["method", "deposit"] },
+    paymentSource: { type: "string", enum: ["method", "deposit"] },
+    payment_source: { type: "string", enum: ["method", "deposit"] },
     paymentMethodId: positiveIntegerLikeSchema,
     payment_method_id: positiveIntegerLikeSchema,
+    clientId: positiveIntegerLikeSchema,
+    client_id: positiveIntegerLikeSchema,
     amountUzs: integerLikeSchema,
     amount_uzs: integerLikeSchema
   },
@@ -41,7 +46,11 @@ const ticketBatchPaymentMethodSchema = {
     { required: ["paymentMethodId", "amountUzs"] },
     { required: ["paymentMethodId", "amount_uzs"] },
     { required: ["payment_method_id", "amountUzs"] },
-    { required: ["payment_method_id", "amount_uzs"] }
+    { required: ["payment_method_id", "amount_uzs"] },
+    { required: ["clientId", "amountUzs"] },
+    { required: ["clientId", "amount_uzs"] },
+    { required: ["client_id", "amountUzs"] },
+    { required: ["client_id", "amount_uzs"] }
   ]
 };
 
@@ -144,6 +153,8 @@ export const financeRouteSchemas = Object.freeze({
     additionalProperties: true,
     properties: {
       client: { type: "string", maxLength: 96 },
+      clientIds: { type: "string", maxLength: 512 },
+      client_ids: { type: "string", maxLength: 512 },
       type: { type: "string", enum: ["", "all", "debt", "deposit"] },
       page: positiveIntegerLikeSchema,
       pageSize: positiveIntegerLikeSchema,
