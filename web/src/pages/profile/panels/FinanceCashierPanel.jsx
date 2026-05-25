@@ -1239,81 +1239,88 @@ function FinanceCashierPanel({
                     <span>{translate("Payment Sources")}</span>
                     <strong>{formatMoney(batchPaidTotalUzs)}</strong>
                   </div>
-                  {batchPaymentRows.map((row, index) => (
-                    <div className="finance-batch-payment-row" key={row.key}>
-                      <label className="field">
-                        <span>{translate("Payment Source")}</span>
-                        <CustomSelect
-                          value={row.source || "method"}
-                          options={[
-                            { value: "method", label: translate("External Payment") },
-                            { value: "deposit", label: translate("From Client Balance") }
-                          ]}
-                          menuPortal
-                          onChange={(value) => updateBatchPaymentRow(row.key, { source: value })}
-                        />
-                      </label>
-                      {row.source === "deposit" ? (
+                  <div className="finance-batch-payment-list">
+                    {batchPaymentRows.map((row) => (
+                      <div
+                        className={`finance-batch-payment-row finance-batch-payment-row-${row.source === "deposit" ? "deposit" : "method"}`}
+                        key={row.key}
+                      >
                         <label className="field">
-                          <span>{translate("Client Balance")}</span>
+                          <span>{translate("Payment Source")}</span>
                           <CustomSelect
-                            value={row.clientId}
-                            options={[{ value: "", label: translate("Client") }, ...batchClientOptions]}
+                            value={row.source || "method"}
+                            options={[
+                              { value: "method", label: translate("External Payment") },
+                              { value: "deposit", label: translate("From Client Balance") }
+                            ]}
                             menuPortal
-                            onChange={(value) => updateBatchPaymentRow(row.key, { clientId: value })}
+                            onChange={(value) => updateBatchPaymentRow(row.key, { source: value })}
                           />
                         </label>
-                      ) : (
+                        {row.source === "deposit" ? (
+                          <label className="field">
+                            <span>{translate("Client Balance")}</span>
+                            <CustomSelect
+                              value={row.clientId}
+                              options={batchClientOptions}
+                              placeholder={translate("Client")}
+                              menuPortal
+                              onChange={(value) => updateBatchPaymentRow(row.key, { clientId: value })}
+                            />
+                          </label>
+                        ) : (
+                          <label className="field">
+                            <span>{translate("Payment Method")}</span>
+                            <CustomSelect
+                              value={row.paymentMethodId}
+                              options={paymentMethodOptions}
+                              placeholder={translate("Payment Method")}
+                              menuPortal
+                              onChange={(value) => updateBatchPaymentRow(row.key, { paymentMethodId: value })}
+                            />
+                          </label>
+                        )}
                         <label className="field">
-                          <span>{translate("Payment Method")}</span>
-                          <CustomSelect
-                            value={row.paymentMethodId}
-                            options={[{ value: "", label: translate("Payment Method") }, ...paymentMethodOptions]}
-                            menuPortal
-                            onChange={(value) => updateBatchPaymentRow(row.key, { paymentMethodId: value })}
+                          <span>{translate("Amount")}</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={row.amountUzs}
+                            onChange={(event) => updateBatchPaymentRow(row.key, { amountUzs: event.currentTarget.value })}
                           />
                         </label>
-                      )}
-                      <label className="field">
-                        <span>{translate("Amount")}</span>
-                        <input
-                          type="number"
-                          min="0"
-                          value={row.amountUzs}
-                          onChange={(event) => updateBatchPaymentRow(row.key, { amountUzs: event.currentTarget.value })}
-                        />
-                      </label>
-                      <div className="finance-batch-payment-actions">
-                        <button
-                          type="button"
-                          className="table-action-btn finance-manual-icon-btn finance-manual-add-btn"
-                          aria-label={translate("Add")}
-                          title={translate("Add")}
-                          onClick={addBatchPaymentRow}
-                        >
-                          +
-                        </button>
-                        <button
-                          type="button"
-                          className="table-action-btn finance-manual-icon-btn"
-                          aria-label={translate("Remove")}
-                          title={translate("Remove")}
-                          disabled={batchPaymentRows.length <= 1}
-                          onClick={() => removeBatchPaymentRow(row.key)}
-                        >
-                          ×
-                        </button>
+                        <div className="finance-batch-payment-actions">
+                          <button
+                            type="button"
+                            className="table-action-btn finance-manual-icon-btn finance-manual-add-btn"
+                            aria-label={translate("Add")}
+                            title={translate("Add")}
+                            onClick={addBatchPaymentRow}
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            className="table-action-btn finance-manual-icon-btn"
+                            aria-label={translate("Remove")}
+                            title={translate("Remove")}
+                            disabled={batchPaymentRows.length <= 1}
+                            onClick={() => removeBatchPaymentRow(row.key)}
+                          >
+                            ×
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
 
                 <div className="finance-ticket-summary finance-ticket-total">
-                  <div className="finance-total-cell"><strong>{translate("Total")}</strong><span>{formatMoney(batchPaymentTotalUzs)}</span></div>
-                  <div className="finance-total-cell"><strong>{translate("External Payment")}</strong><span>{formatMoney(batchExternalTotalUzs)}</span></div>
-                  <div className="finance-total-cell"><strong>{translate("From Client Balance")}</strong><span>{formatMoney(batchDepositTotalUzs)}</span></div>
-                  <div className="finance-total-cell"><strong>{translate("To Pay")}</strong><span>{formatMoney(batchPaidTotalUzs)}</span></div>
-                  <div className="finance-total-cell"><strong>{translate("Remaining")}</strong><span>{formatMoney(batchRemainingUzs)}</span></div>
+                  <div className="finance-total-cell finance-total-cell-total"><strong>{translate("Total")}</strong><span>{formatMoney(batchPaymentTotalUzs)}</span></div>
+                  <div className="finance-total-cell finance-total-cell-external"><strong>{translate("External Payment")}</strong><span>{formatMoney(batchExternalTotalUzs)}</span></div>
+                  <div className="finance-total-cell finance-total-cell-deposit"><strong>{translate("From Client Balance")}</strong><span>{formatMoney(batchDepositTotalUzs)}</span></div>
+                  <div className="finance-total-cell finance-total-cell-pay"><strong>{translate("To Pay")}</strong><span>{formatMoney(batchPaidTotalUzs)}</span></div>
+                  <div className="finance-total-cell finance-total-cell-remaining"><strong>{translate("Remaining")}</strong><span>{formatMoney(batchRemainingUzs)}</span></div>
                 </div>
 
                 <label className="field">

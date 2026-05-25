@@ -6658,14 +6658,13 @@ label.field > span:first-child,
   font-size: var(--fs-base);
 }
 
-.finance-modal .finance-modal-title-with-number {
+.finance-modal.logout-confirm-modal.all-users-edit-modal h3.finance-modal-title-with-number {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-top: 10px;
-  margin-bottom: 10px;
+  margin: 10px 0;
 }
 
 .finance-modal .finance-modal-ticket-number {
@@ -6677,6 +6676,16 @@ label.field > span:first-child,
   font-size: 12px;
   font-weight: 800;
   line-height: 1.2;
+}
+
+#financeBatchPaymentModal .finance-modal-ticket-number {
+  min-width: 26px;
+  min-height: 24px;
+  display: inline-grid;
+  place-items: center;
+  border-color: rgba(37, 99, 235, 0.24);
+  background: linear-gradient(135deg, rgba(219, 234, 254, 0.92), rgba(224, 242, 254, 0.72));
+  color: #1d4ed8;
 }
 
 .finance-modal .auth-form {
@@ -6702,6 +6711,9 @@ label.field > span:first-child,
   width: min(1180px, calc(100vw - 24px));
   height: auto;
   max-height: min(760px, calc(100dvh - 24px));
+  border-color: rgba(148, 163, 184, 0.32);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(248, 251, 255, 0.99) 100%);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
 }
 
 #financeManualTicketModal .auth-form,
@@ -6717,6 +6729,7 @@ label.field > span:first-child,
   overflow: visible;
   padding-left: 0;
   padding-right: 0;
+  gap: 9px;
 }
 
 #financeCashSessionModal.logout-confirm-modal.all-users-edit-modal {
@@ -7052,6 +7065,62 @@ label.field > span:first-child,
   align-content: center;
 }
 
+#financeBatchPaymentModal .finance-ticket-total > .finance-total-cell {
+  border-color: rgba(148, 163, 184, 0.26);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+#financeBatchPaymentModal .finance-ticket-total > .finance-total-cell::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: rgba(100, 116, 139, 0.32);
+}
+
+#financeBatchPaymentModal .finance-total-cell-total::before {
+  background: #2563eb;
+}
+
+#financeBatchPaymentModal .finance-total-cell-external::before {
+  background: #0891b2;
+}
+
+#financeBatchPaymentModal .finance-total-cell-deposit::before {
+  background: #16a34a;
+}
+
+#financeBatchPaymentModal .finance-total-cell-pay::before {
+  background: #7c3aed;
+}
+
+#financeBatchPaymentModal .finance-total-cell-remaining::before {
+  background: #f59e0b;
+}
+
+#financeBatchPaymentModal .finance-total-cell-total {
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.96), rgba(255, 255, 255, 0.92));
+}
+
+#financeBatchPaymentModal .finance-total-cell-external {
+  background: linear-gradient(180deg, rgba(236, 254, 255, 0.96), rgba(255, 255, 255, 0.92));
+}
+
+#financeBatchPaymentModal .finance-total-cell-deposit {
+  background: linear-gradient(180deg, rgba(240, 253, 244, 0.96), rgba(255, 255, 255, 0.92));
+}
+
+#financeBatchPaymentModal .finance-total-cell-pay {
+  background: linear-gradient(180deg, rgba(245, 243, 255, 0.95), rgba(255, 255, 255, 0.92));
+}
+
+#financeBatchPaymentModal .finance-total-cell-remaining {
+  background: linear-gradient(180deg, rgba(255, 251, 235, 0.98), rgba(255, 255, 255, 0.92));
+}
+
 #financeManualTicketModal .finance-ticket-total .finance-total-cell > strong,
 #financeManualTicketModal .finance-ticket-total .finance-total-cell > span:first-child,
 #financeAppointmentTicketModal .finance-ticket-total .finance-total-cell > strong,
@@ -7086,6 +7155,31 @@ label.field > span:first-child,
   color: var(--text-main);
 }
 
+#financeBatchPaymentModal .finance-ticket-total .finance-total-cell > span:last-child {
+  border-color: rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+#financeBatchPaymentModal .finance-total-cell-total > span:last-child {
+  color: #1d4ed8;
+}
+
+#financeBatchPaymentModal .finance-total-cell-external > span:last-child {
+  color: #0e7490;
+}
+
+#financeBatchPaymentModal .finance-total-cell-deposit > span:last-child {
+  color: #15803d;
+}
+
+#financeBatchPaymentModal .finance-total-cell-pay > span:last-child {
+  color: #6d28d9;
+}
+
+#financeBatchPaymentModal .finance-total-cell-remaining > span:last-child {
+  color: #b45309;
+}
+
 #financeManualTicketModal .finance-ticket-total .finance-total-cell input,
 #financeManualTicketModal .finance-ticket-total .finance-total-cell .custom-select-trigger,
 #financeAppointmentTicketModal .finance-ticket-total .finance-total-cell input,
@@ -7110,6 +7204,45 @@ label.field > span:first-child,
   border: 1px solid var(--line);
   border-radius: 8px;
   background: linear-gradient(180deg, rgba(248, 250, 255, 0.88), rgba(255, 255, 255, 0.94));
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.055);
+}
+
+#financeBatchPaymentModal .finance-batch-client-balances::before,
+#financeBatchPaymentModal .finance-batch-ticket-list::before,
+#financeBatchPaymentModal .finance-batch-payment-methods::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+}
+
+#financeBatchPaymentModal .finance-batch-client-balances {
+  border-color: rgba(34, 197, 94, 0.24);
+  background: linear-gradient(180deg, rgba(240, 253, 244, 0.82), rgba(255, 255, 255, 0.95));
+}
+
+#financeBatchPaymentModal .finance-batch-client-balances::before {
+  background: linear-gradient(90deg, #22c55e, #06b6d4);
+}
+
+#financeBatchPaymentModal .finance-batch-ticket-list {
+  border-color: rgba(37, 99, 235, 0.22);
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.86), rgba(255, 255, 255, 0.95));
+}
+
+#financeBatchPaymentModal .finance-batch-ticket-list::before {
+  background: linear-gradient(90deg, #2563eb, #38bdf8);
+}
+
+#financeBatchPaymentModal .finance-batch-payment-methods {
+  border-color: rgba(124, 58, 237, 0.20);
+  background: linear-gradient(180deg, rgba(245, 243, 255, 0.78), rgba(255, 255, 255, 0.95));
+}
+
+#financeBatchPaymentModal .finance-batch-payment-methods::before {
+  background: linear-gradient(90deg, #7c3aed, #14b8a6);
 }
 
 #financeBatchPaymentModal .finance-batch-client-balance-row {
@@ -7138,16 +7271,45 @@ label.field > span:first-child,
   font-weight: 800;
 }
 
+#financeBatchPaymentModal .finance-batch-client-balance-row:not(.finance-batch-client-balance-head) {
+  padding: 8px 9px;
+  border: 1px solid rgba(34, 197, 94, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.035);
+}
+
+#financeBatchPaymentModal .finance-batch-client-balance-row:not(.finance-batch-client-balance-head):hover {
+  border-color: rgba(34, 197, 94, 0.30);
+  background: rgba(255, 255, 255, 0.92);
+}
+
 #financeBatchPaymentModal .finance-batch-client-balance-row span:not(:first-child) {
   text-align: right;
   font-weight: 800;
 }
 
 #financeBatchPaymentModal .finance-balance-positive {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid rgba(22, 163, 74, 0.18);
+  border-radius: 999px;
+  background: rgba(220, 252, 231, 0.70);
   color: #15803d;
 }
 
 #financeBatchPaymentModal .finance-balance-negative {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid rgba(220, 38, 38, 0.16);
+  border-radius: 999px;
+  background: rgba(254, 226, 226, 0.70);
   color: #b91c1c;
 }
 
@@ -7168,6 +7330,17 @@ label.field > span:first-child,
   background: rgba(248, 250, 255, 0.72);
 }
 
+#financeBatchPaymentModal .finance-batch-ticket-row:not(.finance-batch-ticket-head) {
+  border-color: rgba(37, 99, 235, 0.14);
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.035);
+}
+
+#financeBatchPaymentModal .finance-batch-ticket-row:not(.finance-batch-ticket-head):hover {
+  border-color: rgba(37, 99, 235, 0.28);
+  background: rgba(255, 255, 255, 0.94);
+}
+
 #financeBatchPaymentModal .finance-batch-section-title {
   display: flex;
   align-items: center;
@@ -7177,10 +7350,18 @@ label.field > span:first-child,
   color: var(--text-main);
   font-size: 12px;
   font-weight: 900;
+  padding: 2px 0 0;
 }
 
 #financeBatchPaymentModal .finance-batch-section-title strong {
-  color: var(--accent);
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid rgba(124, 58, 237, 0.18);
+  border-radius: 999px;
+  background: rgba(245, 243, 255, 0.82);
+  color: #6d28d9;
   font-size: 13px;
   font-weight: 900;
 }
@@ -7212,21 +7393,114 @@ label.field > span:first-child,
   font-weight: 800;
 }
 
+#financeBatchPaymentModal .finance-batch-ticket-row:not(.finance-batch-ticket-head) strong {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  border-radius: 999px;
+  background: rgba(219, 234, 254, 0.66);
+  color: #1d4ed8;
+}
+
+#financeBatchPaymentModal .finance-batch-ticket-row:not(.finance-batch-ticket-head) span:last-child {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid rgba(20, 184, 166, 0.15);
+  border-radius: 999px;
+  background: rgba(204, 251, 241, 0.44);
+  color: #0f766e;
+}
+
 #financeBatchPaymentModal .finance-batch-payment-row {
   display: grid;
   grid-template-columns: minmax(160px, 0.7fr) minmax(240px, 1fr) minmax(140px, 0.55fr) auto;
   gap: 8px;
   align-items: end;
-  padding: 8px;
-  border: 1px solid var(--line);
+  padding: 9px 9px 9px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 8px;
-  background: var(--surface);
+  background: rgba(255, 255, 255, 0.78);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 5px 14px rgba(15, 23, 42, 0.045);
+}
+
+#financeBatchPaymentModal .finance-batch-payment-row::before {
+  content: "";
+  position: absolute;
+  inset: 8px auto 8px 0;
+  width: 4px;
+  border-radius: 0 999px 999px 0;
+  background: #0891b2;
+}
+
+#financeBatchPaymentModal .finance-batch-payment-row-method::before {
+  background: #0891b2;
+}
+
+#financeBatchPaymentModal .finance-batch-payment-row-deposit::before {
+  background: #16a34a;
+}
+
+#financeBatchPaymentModal .finance-batch-payment-row:hover {
+  border-color: rgba(124, 58, 237, 0.22);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+#financeBatchPaymentModal .finance-batch-payment-row .field > span {
+  color: #475569;
+  font-weight: 900;
+}
+
+#financeBatchPaymentModal .finance-batch-payment-row input,
+#financeBatchPaymentModal .finance-batch-payment-row .custom-select-trigger {
+  border-color: rgba(148, 163, 184, 0.28);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+#financeBatchPaymentModal .finance-batch-payment-list {
+  display: grid;
+  gap: 8px;
+  max-height: 206px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-gutter: stable;
+}
+
+#financeBatchPaymentModal .finance-batch-payment-list::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+}
+
+#financeBatchPaymentModal .finance-batch-payment-list::-webkit-scrollbar-track {
+  background: var(--scroll-track);
+  border-radius: var(--scrollbar-size);
+}
+
+#financeBatchPaymentModal .finance-batch-payment-list::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border: 2px solid var(--surface);
+  border-radius: var(--scrollbar-size);
 }
 
 #financeBatchPaymentModal .finance-batch-payment-actions {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+}
+
+#financeBatchPaymentModal .all-users-edit-fields > .field {
+  padding: 9px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
 }
 
 .finance-modal .custom-select-menu {
