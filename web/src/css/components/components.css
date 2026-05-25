@@ -6455,7 +6455,7 @@ label.field > span:first-child,
   margin-left: auto;
   text-align: right;
   color: var(--text-main);
-  font-weight: 800;
+  font-weight: 400;
 }
 
 .finance-cashier-panel .settings-card-actions {
@@ -6968,6 +6968,17 @@ label.field > span:first-child,
     minmax(260px, 1.25fr);
   gap: 7px;
   align-items: end;
+}
+
+.ops-panel-shell .finance-readonly-select-value {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  color: var(--text-main);
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: default;
+  user-select: text;
 }
 
 #financeManualTicketModal .finance-ticket-total,

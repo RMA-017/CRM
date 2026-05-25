@@ -1010,11 +1010,11 @@ function FinanceCashierPanel({
                     <div className="finance-manual-item-grid">
                       <label className="field">
                         <span>{translate("Specialist")}</span>
-                        <input type="text" value={appointmentTicketSource.specialistName || "-"} readOnly />
+                        <span className="custom-select-trigger finance-readonly-select-value">{appointmentTicketSource.specialistName || "-"}</span>
                       </label>
                       <label className="field">
                         <span>{translate("Service")}</span>
-                        <input type="text" value={appointmentTicketSource.serviceName || "-"} readOnly />
+                        <span className="custom-select-trigger finance-readonly-select-value">{appointmentTicketSource.serviceName || "-"}</span>
                       </label>
                     </div>
                   </div>
