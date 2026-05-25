@@ -991,25 +991,38 @@ function FinanceCashierPanel({
             </h3>
             <form className="auth-form" onSubmit={submitAppointmentTicket}>
               <div className="all-users-edit-fields">
-                <div className="finance-ticket-summary">
-                  <div><strong>{translate("Client")}</strong><span>{appointmentTicketSource.clientName || "-"}</span></div>
-                  <div><strong>{translate("Date")}</strong><span>{formatDateYMD(appointmentTicketSource.appointmentDate)}</span></div>
-                  <div><strong>{translate("Specialist")}</strong><span>{appointmentTicketSource.specialistName || "-"}</span></div>
-                </div>
-
-                <div className="finance-ticket-item-row">
-                  <div>
-                    <span>{translate("Service")}</span>
-                    <strong>{appointmentTicketSource.serviceName || "-"}</strong>
+                <div className="finance-manual-top-row">
+                  <div className="field finance-manual-date-field finance-readonly-field">
+                    <span>{translate("Ticket Date")}</span>
+                    <strong>{formatDateYMD(appointmentTicketSource.appointmentDate)}</strong>
                   </div>
-                  <div>
-                    <span>{translate("Price")}</span>
-                    <strong>{formatMoney(appointmentPriceUzs)}</strong>
+                  <div className="field finance-manual-client-select finance-readonly-field">
+                    <span>{translate("Client")}</span>
+                    <strong>{appointmentTicketSource.clientName || "-"}</strong>
                   </div>
                 </div>
 
-                <div className="finance-ticket-discount-row">
-                  <label className="field">
+                <div className="finance-manual-items">
+                  <div className="finance-manual-item">
+                    <div className="settings-card-row finance-manual-item-head">
+                      <strong>{`${translate("Bill")} 1`}</strong>
+                    </div>
+                    <div className="finance-manual-item-grid finance-readonly-item-grid">
+                      <div className="field finance-readonly-field">
+                        <span>{translate("Specialist")}</span>
+                        <strong>{appointmentTicketSource.specialistName || "-"}</strong>
+                      </div>
+                      <div className="field finance-readonly-field">
+                        <span>{translate("Service")}</span>
+                        <strong>{appointmentTicketSource.serviceName || "-"}</strong>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="finance-ticket-summary finance-ticket-total">
+                  <div className="finance-total-cell"><strong>{translate("Subtotal")}</strong><span>{formatMoney(appointmentPriceUzs)}</span></div>
+                  <label className="field finance-total-cell">
                     <span>{translate("Discount Type")}</span>
                     <CustomSelect
                       value={appointmentTicketForm.discountType}
@@ -1021,7 +1034,7 @@ function FinanceCashierPanel({
                       onChange={(value) => setAppointmentTicketForm((current) => ({ ...current, discountType: value }))}
                     />
                   </label>
-                  <label className="field">
+                  <label className="field finance-total-cell">
                     <span>{translate("Discount")}</span>
                     <input
                       type="number"
@@ -1034,10 +1047,6 @@ function FinanceCashierPanel({
                       }}
                     />
                   </label>
-                </div>
-
-                <div className="finance-ticket-summary finance-ticket-total">
-                  <div className="finance-total-cell"><strong>{translate("Discount")}</strong><span>{formatMoney(appointmentDiscountUzs)}</span></div>
                   <div className="finance-total-cell"><strong>{translate("Total")}</strong><span>{formatMoney(appointmentFinalUzs)}</span></div>
                 </div>
 

@@ -6683,13 +6683,17 @@ label.field > span:first-child,
   width: min(880px, calc(100vw - 24px));
 }
 
-#financeManualTicketModal .auth-form {
+#financeManualTicketModal .auth-form,
+#financeAppointmentTicketModal .auth-form {
   grid-template-rows: minmax(0, 1fr) auto;
 }
 
-#financeManualTicketModal .all-users-edit-fields {
+#financeManualTicketModal .all-users-edit-fields,
+#financeAppointmentTicketModal .all-users-edit-fields {
   min-height: 0;
   overflow: visible;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 #financeAppointmentTicketModal.logout-confirm-modal.all-users-edit-modal,
@@ -6699,13 +6703,11 @@ label.field > span:first-child,
   grid-template-rows: auto auto;
 }
 
-#financeAppointmentTicketModal .auth-form,
 #financeCashSessionModal .auth-form {
   grid-template-rows: auto auto;
   overflow: visible;
 }
 
-#financeAppointmentTicketModal .all-users-edit-fields,
 #financeCashSessionModal .all-users-edit-fields {
   overflow: visible;
 }
@@ -6891,7 +6893,8 @@ label.field > span:first-child,
   align-items: end;
 }
 
-#financeManualTicketModal .finance-manual-top-row {
+#financeManualTicketModal .finance-manual-top-row,
+#financeAppointmentTicketModal .finance-manual-top-row {
   display: grid;
   grid-template-columns: minmax(116px, 0.22fr) minmax(280px, 1fr);
   gap: 8px;
@@ -6903,7 +6906,8 @@ label.field > span:first-child,
   max-width: none;
 }
 
-#financeManualTicketModal .finance-manual-date-field {
+#financeManualTicketModal .finance-manual-date-field,
+#financeAppointmentTicketModal .finance-manual-date-field {
   width: 100%;
   max-width: none;
 }
@@ -6912,16 +6916,61 @@ label.field > span:first-child,
   width: 100%;
 }
 
-#financeManualTicketModal .finance-manual-client-select {
+#financeManualTicketModal .finance-manual-client-select,
+#financeAppointmentTicketModal .finance-manual-client-select {
   width: 100%;
 }
 
-#financeManualTicketModal .finance-manual-items {
+#financeManualTicketModal .finance-manual-items,
+#financeAppointmentTicketModal .finance-manual-items {
+  width: 100%;
   max-height: 204px;
   min-height: 0;
   overflow-y: auto;
   padding-right: 0;
-  scrollbar-gutter: stable;
+  scrollbar-gutter: auto;
+}
+
+#financeAppointmentTicketModal .finance-manual-items {
+  overflow: visible;
+}
+
+#financeAppointmentTicketModal .finance-readonly-item-grid {
+  grid-template-columns:
+    minmax(150px, 0.75fr)
+    minmax(260px, 1.25fr);
+}
+
+.ops-panel-shell .finance-readonly-field {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.ops-panel-shell .finance-readonly-field > span {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.ops-panel-shell .finance-readonly-field > strong {
+  min-width: 0;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 #financeManualTicketModal .finance-manual-items::-webkit-scrollbar {
@@ -6994,10 +7043,6 @@ label.field > span:first-child,
   align-items: stretch;
 }
 
-#financeAppointmentTicketModal .finance-ticket-total {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
 #financeManualTicketModal .finance-ticket-total > .finance-total-cell,
 #financeAppointmentTicketModal .finance-ticket-total > .finance-total-cell {
   margin: 0;
@@ -7043,7 +7088,9 @@ label.field > span:first-child,
 }
 
 #financeManualTicketModal .finance-ticket-total .finance-total-cell input,
-#financeManualTicketModal .finance-ticket-total .finance-total-cell .custom-select-trigger {
+#financeManualTicketModal .finance-ticket-total .finance-total-cell .custom-select-trigger,
+#financeAppointmentTicketModal .finance-ticket-total .finance-total-cell input,
+#financeAppointmentTicketModal .finance-ticket-total .finance-total-cell .custom-select-trigger {
   height: 30px;
   min-height: 30px;
 }
@@ -7359,11 +7406,13 @@ label.field > span:first-child,
     grid-template-columns: minmax(108px, 0.36fr) minmax(0, 1fr);
   }
 
-  #financeManualTicketModal .finance-manual-top-row {
+  #financeManualTicketModal .finance-manual-top-row,
+  #financeAppointmentTicketModal .finance-manual-top-row {
     grid-template-columns: minmax(108px, 0.36fr) minmax(0, 1fr);
   }
 
-  .ops-panel-shell .finance-manual-item-grid {
+  .ops-panel-shell .finance-manual-item-grid,
+  #financeAppointmentTicketModal .finance-readonly-item-grid {
     grid-template-columns: 1fr;
   }
 
@@ -7376,7 +7425,8 @@ label.field > span:first-child,
     grid-template-columns: 1fr;
   }
 
-  #financeManualTicketModal .finance-ticket-total {
+  #financeManualTicketModal .finance-ticket-total,
+  #financeAppointmentTicketModal .finance-ticket-total {
     grid-template-columns: 1fr;
   }
 }
