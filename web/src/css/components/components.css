@@ -6709,8 +6709,10 @@ label.field > span:first-child,
 
 #financeBatchPaymentModal.logout-confirm-modal.all-users-edit-modal {
   width: min(1180px, calc(100vw - 24px));
-  height: min(760px, calc(100dvh - 24px));
-  max-height: min(760px, calc(100dvh - 24px));
+  height: min(700px, calc(100dvh - 32px));
+  min-height: 0;
+  max-height: min(700px, calc(100dvh - 32px));
+  overflow: hidden;
   grid-template-rows: auto minmax(0, 1fr);
   border-color: rgba(148, 163, 184, 0.32);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(248, 251, 255, 0.99) 100%);
@@ -6734,17 +6736,29 @@ label.field > span:first-child,
 }
 
 #financeBatchPaymentModal .auth-form {
-  height: 100%;
+  height: auto;
+  max-height: 100%;
   min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
   overflow: hidden;
 }
 
 #financeBatchPaymentModal .all-users-edit-fields {
+  height: 100%;
   max-height: none;
+  min-height: 0;
+  align-content: start;
+  grid-auto-rows: max-content;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 8px;
+  overscroll-behavior: contain;
   scrollbar-gutter: stable;
+}
+
+#financeBatchPaymentModal .edit-actions {
+  flex-shrink: 0;
 }
 
 #financeCashSessionModal.logout-confirm-modal.all-users-edit-modal {
@@ -7206,6 +7220,9 @@ label.field > span:first-child,
 #financeBatchPaymentModal .finance-batch-payment-methods {
   display: grid;
   gap: 8px;
+  min-width: 0;
+  min-height: 0;
+  align-content: start;
 }
 
 #financeBatchPaymentModal .finance-batch-client-balances,
@@ -7216,7 +7233,7 @@ label.field > span:first-child,
   border-radius: 8px;
   background: linear-gradient(180deg, rgba(248, 250, 255, 0.88), rgba(255, 255, 255, 0.94));
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   box-shadow: 0 10px 26px rgba(15, 23, 42, 0.055);
 }
 
@@ -7318,6 +7335,8 @@ label.field > span:first-child,
   justify-content: flex-end;
   min-height: 26px;
   padding: 0 8px;
+  border: 0;
+  background: transparent;
   color: #b91c1c;
 }
 
@@ -7366,8 +7385,7 @@ label.field > span:first-child,
   display: inline-flex;
   align-items: center;
   padding: 0 10px;
-  border: 1px solid rgba(124, 58, 237, 0.18);
-  border-radius: 999px;
+  border: 0;
   background: transparent;
   color: #6d28d9;
   font-size: 13px;
@@ -7420,8 +7438,8 @@ label.field > span:first-child,
   justify-content: flex-end;
   min-height: 26px;
   padding: 0 8px;
-  border: 1px solid rgba(20, 184, 166, 0.15);
-  border-radius: 999px;
+  border: 0;
+  background: transparent;
   color: #0f766e;
 }
 
