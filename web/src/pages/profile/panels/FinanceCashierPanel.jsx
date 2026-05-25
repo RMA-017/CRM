@@ -215,9 +215,9 @@ function TicketCard({
   const specialistName = item.specialistName || "-";
   const startTime = formatTime(item.startTime);
   const shortDate = showShortDate ? formatShortDateDM(item.appointmentDate) : "";
-  const cardTitle = compact
-    ? [startTime, clientName, serviceName, specialistName, actionTitle].filter(Boolean).join(" - ")
-    : actionTitle || undefined;
+  const cardTitle = actionTitle || (compact
+    ? [startTime, clientName, serviceName, specialistName].filter(Boolean).join(" - ")
+    : undefined);
 
   return (
     <article
