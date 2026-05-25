@@ -5845,8 +5845,8 @@ label.field > span:first-child,
 }
 
 .ops-panel-shell .table-pagination {
-  justify-content: flex-end;
-  margin-top: 0;
+  justify-content: center;
+  margin-top: auto;
   padding: 8px 0 0;
 }
 
@@ -6177,7 +6177,7 @@ label.field > span:first-child,
 }
 
 #financeTicketFilterModal.finance-ticket-filter-modal {
-  width: min(440px, calc(100vw - 32px));
+  width: min(520px, calc(100vw - 32px));
   height: auto;
   min-height: 0;
   max-height: min(680px, calc(100dvh - 24px));
@@ -6194,8 +6194,15 @@ label.field > span:first-child,
   margin: 0;
   border: 0;
   box-shadow: none;
-  padding: 0 8px 0 0;
+  padding: 0;
   background: transparent;
+}
+
+#financeTicketFilterModal .finance-ticket-filter-date-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
 }
 
 #financeTicketsPanel .finance-ticket-action-group {
@@ -7914,11 +7921,10 @@ label.field > span:first-child,
 
   .ops-panel-shell .settings-filter-actions,
   .ops-panel-shell .table-pagination {
-    justify-content: stretch;
+    justify-content: center;
   }
 
-  .ops-panel-shell .settings-filter-actions .table-action-btn,
-  .ops-panel-shell .table-pagination .table-action-btn {
+  .ops-panel-shell .settings-filter-actions .table-action-btn {
     flex: 1 1 120px;
   }
 

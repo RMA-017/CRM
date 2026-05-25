@@ -259,10 +259,28 @@ function mapClientOption(row) {
   };
 }
 
+function mapServiceOption(row) {
+  return {
+    id: row.id,
+    name: row.name || "",
+    priceUzs: row.price_uzs ?? 0,
+    positionId: row.position_id,
+    positionLabel: row.position_label || ""
+  };
+}
+
+function mapPositionOption(row) {
+  return {
+    id: row.id,
+    label: row.label || ""
+  };
+}
+
 function mapSpecialistOption(row) {
   return {
     id: row.id,
     fullName: row.full_name,
+    positionId: row.position_id,
     positionLabel: row.position_label || ""
   };
 }
@@ -884,6 +902,54 @@ export async function searchCashierClients({ organizationId, query, limit = 20 }
     [params[0], params[1], params[2], normalizedQuery, params[3]]
   );
   return result.rows.map(mapClientOption);
+}
+
+export async function getFinanceTicketFilterReferences({ organizationId }) {
+  const [servicesResult, specialistsResult, positionsResult] = await Promise.all([
+    pool.query(
+      `SELECT sc.id,
+              sc.name,
+              sc.price_uzs,
+              sc.position_id,
+              p.label AS position_label
+         FROM service_catalog sc
+         JOIN position_options p
+           ON p.organization_id = sc.organization_id
+          AND p.id = sc.position_id
+        WHERE sc.organization_id = $1
+          AND sc.is_active = TRUE
+          AND p.is_active = TRUE
+        ORDER BY p.sort_order ASC, p.label ASC, sc.name ASC, sc.id ASC`,
+      [organizationId]
+    ),
+    pool.query(
+      `SELECT u.id,
+              COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS full_name,
+              u.position_id,
+              p.label AS position_label
+         FROM users u
+         LEFT JOIN position_options p
+           ON p.organization_id = u.organization_id
+          AND p.id = u.position_id
+        WHERE u.organization_id = $1
+        ORDER BY full_name ASC, u.id ASC`,
+      [organizationId]
+    ),
+    pool.query(
+      `SELECT id, label
+         FROM position_options
+        WHERE organization_id = $1
+          AND is_active = TRUE
+        ORDER BY sort_order ASC, label ASC, id ASC`,
+      [organizationId]
+    )
+  ]);
+
+  return {
+    services: servicesResult.rows.map(mapServiceOption),
+    specialists: specialistsResult.rows.map(mapSpecialistOption),
+    positions: positionsResult.rows.map(mapPositionOption)
+  };
 }
 
 export async function getFinanceActivePaymentMethods({ organizationId }) {

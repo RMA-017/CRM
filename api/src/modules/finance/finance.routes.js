@@ -15,6 +15,7 @@ import {
   getFinanceClientDebtTickets,
   getFinanceDailyCash,
   getFinanceReports,
+  getFinanceTicketFilterReferences,
   getFinanceTicketHistory,
   getFinanceTickets,
   getFinanceTransactions,
@@ -349,6 +350,52 @@ async function financeRoutes(fastify) {
       } catch (error) {
         request.log.error({ err: error }, "Error fetching finance tickets:");
         return sendRouteError(reply, error, "Failed to load tickets.");
+      }
+    }
+  );
+
+  fastify.get(
+    "/tickets/references",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+      try {
+        const requester = await requireTicketsAccess(request, reply, "read");
+        if (!requester) return null;
+        return reply.send(await getFinanceTicketFilterReferences({
+          organizationId: request.authContext.organizationId
+        }));
+      } catch (error) {
+        request.log.error({ err: error }, "Error fetching finance ticket filter references:");
+        return sendRouteError(reply, error, "Failed to load ticket references.");
+      }
+    }
+  );
+
+  fastify.get(
+    "/tickets/clients",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        querystring: financeRouteSchemas.clientSearchQuery
+      }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+      try {
+        const requester = await requireTicketsAccess(request, reply, "read");
+        if (!requester) return null;
+        const items = await searchCashierClients({
+          organizationId: request.authContext.organizationId,
+          query: request.query?.q,
+          limit: request.query?.limit
+        });
+        return reply.send({ items });
+      } catch (error) {
+        request.log.error({ err: error }, "Error searching finance ticket clients:");
+        return sendRouteError(reply, error, "Failed to search clients.");
       }
     }
   );

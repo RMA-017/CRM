@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { buildExportFilename, exportExcelWorkbook } from "../../../lib/excel-export.js";
 import { formatDateYMD } from "../../../lib/formatters.js";
@@ -122,6 +123,15 @@ function mergeOptions(baseOptions, nextOptions) {
   return Array.from(map.values());
 }
 
+function makeTextOption(value, label = value) {
+  const normalizedValue = String(value || "").trim();
+  if (!normalizedValue) return null;
+  return {
+    value: normalizedValue,
+    label: String(label || normalizedValue).trim() || normalizedValue
+  };
+}
+
 function getTicketServiceText(item) {
   const services = Array.isArray(item?.items)
     ? item.items.map((row) => String(row?.serviceName || "").trim()).filter(Boolean)
@@ -179,6 +189,11 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
   const [editClientSearchBusy, setEditClientSearchBusy] = useState(false);
   const [voidingId, setVoidingId] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filterReferences, setFilterReferences] = useState({ services: [], specialists: [], positions: [] });
+  const [filterReferencesLoading, setFilterReferencesLoading] = useState(false);
+  const [filterClientSearch, setFilterClientSearch] = useState("");
+  const [filterClientOptions, setFilterClientOptions] = useState([]);
+  const [filterClientSearchBusy, setFilterClientSearchBusy] = useState(false);
 
   const loadTickets = useCallback(async (nextPage = 1, nextFilters = EMPTY_FILTERS) => {
     setLoading(true);
@@ -247,6 +262,33 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
     return mergeOptions(options, fallbackOptions);
   }, [editForm.items, editSpecialists]);
 
+  const filterSpecialistOptions = useMemo(() => {
+    const options = (Array.isArray(filterReferences.specialists) ? filterReferences.specialists : [])
+      .map((item) => makeTextOption(
+        item.fullName,
+        `${item.fullName || item.id}${item.positionLabel ? ` - ${item.positionLabel}` : ""}`
+      ))
+      .filter(Boolean);
+    return [{ value: "", label: translate("All") }, ...options];
+  }, [filterReferences.specialists, translate]);
+
+  const filterPositionOptions = useMemo(() => {
+    const options = (Array.isArray(filterReferences.positions) ? filterReferences.positions : [])
+      .map((item) => makeTextOption(item.label))
+      .filter(Boolean);
+    return [{ value: "", label: translate("All") }, ...options];
+  }, [filterReferences.positions, translate]);
+
+  const filterServiceOptions = useMemo(() => {
+    const options = (Array.isArray(filterReferences.services) ? filterReferences.services : [])
+      .map((item) => makeTextOption(
+        item.name,
+        `${item.name || item.id}${item.positionLabel ? ` - ${item.positionLabel}` : ""}`
+      ))
+      .filter(Boolean);
+    return [{ value: "", label: translate("All") }, ...options];
+  }, [filterReferences.services, translate]);
+
   const editServiceById = useMemo(() => {
     const map = new Map();
     editServiceOptions.forEach((option) => {
@@ -285,6 +327,8 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
     const nextFilters = createDefaultFilters();
     setFilters(nextFilters);
     setAppliedFilters(nextFilters);
+    setFilterClientSearch("");
+    setFilterClientOptions([]);
     void loadTickets(1, nextFilters);
   };
 
@@ -332,6 +376,84 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
       setEditReferencesLoading(false);
     }
   }, [translate]);
+
+  const loadFilterReferences = useCallback(async () => {
+    setFilterReferencesLoading(true);
+    try {
+      const response = await apiFetch("/api/finance/tickets/references");
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        window.alert?.(translate(data?.message || "Failed to load ticket references."));
+        return;
+      }
+      setFilterReferences({
+        services: Array.isArray(data?.services) ? data.services : [],
+        specialists: Array.isArray(data?.specialists) ? data.specialists : [],
+        positions: Array.isArray(data?.positions) ? data.positions : []
+      });
+    } catch {
+      window.alert?.(translate("Failed to load ticket references."));
+    } finally {
+      setFilterReferencesLoading(false);
+    }
+  }, [translate]);
+
+  useEffect(() => {
+    if (!filtersOpen) return;
+    void loadFilterReferences();
+  }, [filtersOpen, loadFilterReferences]);
+
+  useEffect(() => {
+    if (!filtersOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [filtersOpen]);
+
+  useEffect(() => {
+    if (!filtersOpen) return undefined;
+    const query = filterClientSearch.trim();
+    if (!query || (!/^\d+$/.test(query) && query.length < 3)) {
+      setFilterClientSearchBusy(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setFilterClientSearchBusy(true);
+      try {
+        const response = await apiFetch(`/api/finance/tickets/clients?q=${encodeURIComponent(query)}&limit=30`);
+        const data = await readApiResponseData(response);
+        if (!response.ok) {
+          if (!cancelled) {
+            window.alert?.(translate(data?.message || "Failed to search clients."));
+          }
+          return;
+        }
+        if (!cancelled) {
+          const options = (Array.isArray(data?.items) ? data.items : [])
+            .map(makeClientOption)
+            .filter(Boolean);
+          setFilterClientOptions(options);
+        }
+      } catch {
+        if (!cancelled) {
+          window.alert?.(translate("Failed to search clients."));
+        }
+      } finally {
+        if (!cancelled) {
+          setFilterClientSearchBusy(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [filterClientSearch, filtersOpen, translate]);
 
   useEffect(() => {
     if (!editTicket) return undefined;
@@ -610,16 +732,6 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
     }
   };
 
-  const filterFields = useMemo(() => ([
-    { key: "ticketNumber", label: "Ticket Number", type: "text" },
-    { key: "dateFrom", label: "Ticket Date From", type: "date" },
-    { key: "dateTo", label: "Ticket Date To", type: "date" },
-    { key: "client", label: "Client", type: "text" },
-    { key: "specialist", label: "Specialist", type: "text" },
-    { key: "position", label: "Department", type: "text" },
-    { key: "service", label: "Service", type: "text" }
-  ]), []);
-
   const closeFilters = () => {
     if (loading) return;
     setFiltersOpen(false);
@@ -655,7 +767,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
         </div>
       </div>
 
-      {filtersOpen ? (
+      {filtersOpen && typeof document !== "undefined" ? createPortal((
         <>
           <button
             type="button"
@@ -667,19 +779,100 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
             <h3>{translate("Filter")}</h3>
             <form className="auth-form" onSubmit={applyFilters}>
               <div className="all-users-edit-fields settings-filter-grid finance-ticket-filter-grid">
-                {filterFields.map((field) => (
-                  <label className="field" key={field.key}>
-                    <span>{translate(field.label)}</span>
+                <label className="field">
+                  <span>{translate("Ticket Number")}</span>
+                  <input
+                    type="text"
+                    value={filters.ticketNumber}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setFilters((current) => ({ ...current, ticketNumber: value }));
+                    }}
+                  />
+                </label>
+                <div className="finance-ticket-filter-date-row">
+                  <label className="field">
+                    <span>{translate("Ticket Date From")}</span>
                     <input
-                      type={field.type}
-                      value={filters[field.key]}
+                      type="date"
+                      value={filters.dateFrom}
                       onChange={(event) => {
                         const value = event.currentTarget.value;
-                        setFilters((current) => ({ ...current, [field.key]: value }));
+                        setFilters((current) => ({ ...current, dateFrom: value }));
                       }}
                     />
                   </label>
-                ))}
+                  <label className="field">
+                    <span>{translate("Ticket Date To")}</span>
+                    <input
+                      type="date"
+                      value={filters.dateTo}
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setFilters((current) => ({ ...current, dateTo: value }));
+                      }}
+                    />
+                  </label>
+                </div>
+                <label className="field">
+                  <span>{translate("Client")}</span>
+                  <CustomSelect
+                    value={filters.client}
+                    options={[{ value: "", label: translate("All") }, ...filterClientOptions]}
+                    placeholder={translate("Client")}
+                    searchable
+                    searchPlaceholder={translate("Search by name or ID")}
+                    searchThreshold={0}
+                    menuPortal
+                    menuHeightScale={1.2}
+                    emptyText={filterClientSearchBusy ? "..." : translate("No clients found.")}
+                    onSearchChange={setFilterClientSearch}
+                    onChange={(value) => setFilters((current) => ({ ...current, client: value }))}
+                  />
+                </label>
+                <label className="field">
+                  <span>{translate("Specialist")}</span>
+                  <CustomSelect
+                    value={filters.specialist}
+                    options={filterSpecialistOptions}
+                    placeholder={translate("All")}
+                    searchable
+                    searchPlaceholder={translate("Search")}
+                    searchThreshold={8}
+                    menuPortal
+                    disabled={filterReferencesLoading}
+                    onChange={(value) => setFilters((current) => ({ ...current, specialist: value }))}
+                  />
+                </label>
+                <label className="field">
+                  <span>{translate("Department")}</span>
+                  <CustomSelect
+                    value={filters.position}
+                    options={filterPositionOptions}
+                    placeholder={translate("All")}
+                    searchable
+                    searchPlaceholder={translate("Search")}
+                    searchThreshold={8}
+                    menuPortal
+                    disabled={filterReferencesLoading}
+                    onChange={(value) => setFilters((current) => ({ ...current, position: value }))}
+                  />
+                </label>
+                <label className="field">
+                  <span>{translate("Service")}</span>
+                  <CustomSelect
+                    value={filters.service}
+                    options={filterServiceOptions}
+                    placeholder={translate("All")}
+                    searchable
+                    searchPlaceholder={translate("Search")}
+                    searchThreshold={8}
+                    menuPortal
+                    menuWidthScale={1.2}
+                    disabled={filterReferencesLoading}
+                    onChange={(value) => setFilters((current) => ({ ...current, service: value }))}
+                  />
+                </label>
                 <label className="field">
                   <span>{translate("Status")}</span>
                   <select
@@ -704,7 +897,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
             </form>
           </div>
         </>
-      ) : null}
+      ), document.body) : null}
 
       <p className="all-users-state" hidden={!message}>{translate(message)}</p>
 
