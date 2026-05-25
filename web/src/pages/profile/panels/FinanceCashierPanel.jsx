@@ -65,6 +65,11 @@ function formatDateTime(value) {
   return timeMatch ? `${date} ${timeMatch[1]}` : date;
 }
 
+function formatShortDateDM(value) {
+  const formatted = formatDateYMD(value);
+  return formatted && formatted !== "-" ? formatted.slice(0, 5) : "-";
+}
+
 function calculateDiscount(priceUzs, discountType, discountValue) {
   const price = Number.parseInt(String(priceUzs ?? 0), 10) || 0;
   const value = Number.parseInt(String(discountValue ?? 0), 10) || 0;
@@ -188,7 +193,7 @@ function TicketCard({
   footer,
   onClick,
   compact = false,
-  showDateBadge = false,
+  showShortDate = false,
   draggable = false,
   isDragging = false,
   onDragStart,
@@ -207,6 +212,7 @@ function TicketCard({
   const serviceName = item.serviceName || "-";
   const specialistName = item.specialistName || "-";
   const startTime = formatTime(item.startTime);
+  const shortDate = showShortDate ? formatShortDateDM(item.appointmentDate) : "";
 
   return (
     <article
@@ -229,7 +235,6 @@ function TicketCard({
     >
       <div className="settings-card-row">
         <strong>{clientName}</strong>
-        {showDateBadge ? <span className="finance-board-date-badge">{formatDateYMD(item.appointmentDate)}</span> : null}
       </div>
       <div className="settings-card-row">
         <span>{serviceName}</span>
@@ -237,6 +242,7 @@ function TicketCard({
       </div>
       <div className="settings-card-row">
         <span>{specialistName}</span>
+        {shortDate ? <span className="finance-board-date-badge">{shortDate}</span> : null}
       </div>
       {footer ? (
         <div className="settings-card-actions" onClick={(event) => event.stopPropagation()}>
@@ -292,6 +298,7 @@ function FinanceCashierPanel({
   const [dragOverColumn, setDragOverColumn] = useState("");
   const boardRequestRef = useRef(0);
   const draggedAppointmentRef = useRef(null);
+  const dragOverColumnRef = useRef("");
   const boardColumnRefs = useRef(new Map());
 
   const paymentMethodOptions = useMemo(() => board.paymentMethods.filter(Boolean).map((item) => ({
@@ -489,8 +496,14 @@ function FinanceCashierPanel({
 
   const resetBoardDrag = useCallback(() => {
     draggedAppointmentRef.current = null;
+    dragOverColumnRef.current = "";
     setDraggedAppointment(null);
     setDragOverColumn("");
+  }, []);
+
+  const setActiveDragOverColumn = useCallback((columnKey = "") => {
+    dragOverColumnRef.current = columnKey;
+    setDragOverColumn(columnKey);
   }, []);
 
   const setBoardColumnRef = useCallback((columnKey, node) => {
@@ -588,32 +601,24 @@ function FinanceCashierPanel({
     event.dataTransfer.setData("text/plain", id);
   };
 
-  const handleAppointmentDragEnd = () => {
-    resetBoardDrag();
-  };
-
-  const handleColumnDragOver = (event, columnKey) => {
-    if (!isFinanceAppointmentDragEvent(event) || busyId || !canUpdateFinanceCashier) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-    if (dragOverColumn !== columnKey) {
-      setDragOverColumn(columnKey);
+  const dropAppointmentToColumn = async (item, columnKey) => {
+    const nextColumnKey = String(columnKey || "").trim();
+    if (!item || !nextColumnKey || busyId || !canUpdateFinanceCashier) return;
+    if (nextColumnKey === "tickets") {
+      if (!canCreateFinanceCashier) {
+        window.alert?.(translate("Ticket create failed."));
+        return;
+      }
+      const currentStatus = normalizeStatusKey(item.status);
+      const ticketSource = currentStatus === "confirmed"
+        ? item
+        : await updateDraggedAppointmentStatus(item, "confirmed");
+      if (!ticketSource) return;
+      openAppointmentTicketModal(ticketSource);
+      return;
     }
-  };
 
-  const handleColumnDragLeave = (event, columnKey) => {
-    if (event.currentTarget.contains(event.relatedTarget)) return;
-    if (dragOverColumn === columnKey) {
-      setDragOverColumn("");
-    }
-  };
-
-  const handleAppointmentStatusDrop = async (event, targetStatus) => {
-    event.preventDefault();
-    const item = getDraggedAppointmentFromEvent(event);
-    resetBoardDrag();
-    if (!item || busyId || !canUpdateFinanceCashier) return;
-    const nextStatus = normalizeStatusKey(targetStatus);
+    const nextStatus = FINANCE_BOARD_COLUMN_STATUSES[nextColumnKey];
     if (!nextStatus || normalizeStatusKey(item.status) === nextStatus) return;
     if (item.boardGroup === "overdue-ticket") {
       window.alert?.(translate("Past confirmed lessons are waiting for ticket only."));
@@ -622,21 +627,44 @@ function FinanceCashierPanel({
     await updateDraggedAppointmentStatus(item, nextStatus);
   };
 
+  const handleAppointmentDragEnd = () => {
+    const item = draggedAppointmentRef.current;
+    const columnKey = dragOverColumnRef.current;
+    resetBoardDrag();
+    if (item && columnKey) {
+      void dropAppointmentToColumn(item, columnKey);
+    }
+  };
+
+  const handleColumnDragOver = (event, columnKey) => {
+    if (!isFinanceAppointmentDragEvent(event) || busyId || !canUpdateFinanceCashier) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    if (dragOverColumn !== columnKey) {
+      setActiveDragOverColumn(columnKey);
+    }
+  };
+
+  const handleColumnDragLeave = (event, columnKey) => {
+    if (event.currentTarget.contains(event.relatedTarget)) return;
+    if (dragOverColumn === columnKey) {
+      setActiveDragOverColumn("");
+    }
+  };
+
+  const handleAppointmentStatusDrop = async (event, targetStatus) => {
+    event.preventDefault();
+    const item = getDraggedAppointmentFromEvent(event);
+    resetBoardDrag();
+    const nextStatus = normalizeStatusKey(targetStatus);
+    await dropAppointmentToColumn(item, nextStatus);
+  };
+
   const handleTicketColumnDrop = async (event) => {
     event.preventDefault();
     const item = getDraggedAppointmentFromEvent(event);
     resetBoardDrag();
-    if (!item || busyId || !canUpdateFinanceCashier) return;
-    if (!canCreateFinanceCashier) {
-      window.alert?.(translate("Ticket create failed."));
-      return;
-    }
-    const currentStatus = normalizeStatusKey(item.status);
-    const ticketSource = currentStatus === "confirmed"
-      ? item
-      : await updateDraggedAppointmentStatus(item, "confirmed");
-    if (!ticketSource) return;
-    openAppointmentTicketModal(ticketSource);
+    await dropAppointmentToColumn(item, "tickets");
   };
 
   const getBoardColumnKeyFromEvent = useCallback((event) => {
@@ -681,7 +709,7 @@ function FinanceCashierPanel({
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
     if (dragOverColumn !== columnKey) {
-      setDragOverColumn(columnKey);
+      setActiveDragOverColumn(columnKey);
     }
   };
 
@@ -1148,7 +1176,7 @@ function FinanceCashierPanel({
               key={String(item.id)}
               item={item}
               compact
-              showDateBadge
+              showShortDate
               {...getAppointmentDragProps(item)}
             />
           ))}
