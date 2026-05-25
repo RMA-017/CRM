@@ -6709,8 +6709,9 @@ label.field > span:first-child,
 
 #financeBatchPaymentModal.logout-confirm-modal.all-users-edit-modal {
   width: min(1180px, calc(100vw - 24px));
-  height: auto;
+  height: min(760px, calc(100dvh - 24px));
   max-height: min(760px, calc(100dvh - 24px));
+  grid-template-rows: auto minmax(0, 1fr);
   border-color: rgba(148, 163, 184, 0.32);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(248, 251, 255, 0.99) 100%);
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
@@ -6733,12 +6734,13 @@ label.field > span:first-child,
 }
 
 #financeBatchPaymentModal .auth-form {
+  height: 100%;
   min-height: 0;
   overflow: hidden;
 }
 
 #financeBatchPaymentModal .all-users-edit-fields {
-  max-height: min(620px, calc(100dvh - 132px));
+  max-height: none;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 8px;
@@ -7316,8 +7318,6 @@ label.field > span:first-child,
   justify-content: flex-end;
   min-height: 26px;
   padding: 0 8px;
-  border: 1px solid rgba(220, 38, 38, 0.16);
-  border-radius: 999px;
   color: #b91c1c;
 }
 
@@ -7368,6 +7368,7 @@ label.field > span:first-child,
   padding: 0 10px;
   border: 1px solid rgba(124, 58, 237, 0.18);
   border-radius: 999px;
+  background: transparent;
   color: #6d28d9;
   font-size: 13px;
   font-weight: 900;
@@ -7421,7 +7422,6 @@ label.field > span:first-child,
   padding: 0 8px;
   border: 1px solid rgba(20, 184, 166, 0.15);
   border-radius: 999px;
-  background: rgba(204, 251, 241, 0.44);
   color: #0f766e;
 }
 
@@ -7475,11 +7475,11 @@ label.field > span:first-child,
 #financeBatchPaymentModal .finance-batch-payment-list {
   display: grid;
   gap: 8px;
-  max-height: 206px;
+  max-height: none;
   min-height: 0;
-  overflow-y: auto;
-  padding-right: 2px;
-  scrollbar-gutter: stable;
+  overflow: visible;
+  padding-right: 0;
+  scrollbar-gutter: auto;
 }
 
 #financeBatchPaymentModal .finance-batch-payment-list::-webkit-scrollbar {
