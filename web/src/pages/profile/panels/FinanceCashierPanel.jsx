@@ -1246,7 +1246,6 @@ function FinanceCashierPanel({
                         key={row.key}
                       >
                         <label className="field">
-                          <span>{translate("Payment Source")}</span>
                           <CustomSelect
                             value={row.source || "method"}
                             options={[
@@ -1259,7 +1258,6 @@ function FinanceCashierPanel({
                         </label>
                         {row.source === "deposit" ? (
                           <label className="field">
-                            <span>{translate("Client Balance")}</span>
                             <CustomSelect
                               value={row.clientId}
                               options={batchClientOptions}
@@ -1270,7 +1268,6 @@ function FinanceCashierPanel({
                           </label>
                         ) : (
                           <label className="field">
-                            <span>{translate("Payment Method")}</span>
                             <CustomSelect
                               value={row.paymentMethodId}
                               options={paymentMethodOptions}
@@ -1281,11 +1278,13 @@ function FinanceCashierPanel({
                           </label>
                         )}
                         <label className="field">
-                          <span>{translate("Amount")}</span>
                           <input
                             type="number"
                             min="0"
+                            placeholder={translate("Amount")}
+                            aria-label={translate("Amount")}
                             value={row.amountUzs}
+                            onWheel={(event) => event.currentTarget.blur()}
                             onChange={(event) => updateBatchPaymentRow(row.key, { amountUzs: event.currentTarget.value })}
                           />
                         </label>

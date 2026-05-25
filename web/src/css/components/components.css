@@ -6709,9 +6709,9 @@ label.field > span:first-child,
 
 #financeBatchPaymentModal.logout-confirm-modal.all-users-edit-modal {
   width: min(1180px, calc(100vw - 24px));
-  height: min(700px, calc(100dvh - 32px));
+  height: min(760px, calc(100dvh - 24px));
   min-height: 0;
-  max-height: min(700px, calc(100dvh - 32px));
+  max-height: min(760px, calc(100dvh - 24px));
   overflow: hidden;
   grid-template-rows: auto minmax(0, 1fr);
   border-color: rgba(148, 163, 184, 0.32);
@@ -7077,6 +7077,10 @@ label.field > span:first-child,
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   align-items: stretch;
+  flex-shrink: 0;
+  min-width: 0;
+  box-sizing: border-box;
+  contain: layout paint;
 }
 
 #financeManualTicketModal .finance-ticket-total > .finance-total-cell,
@@ -7095,6 +7099,9 @@ label.field > span:first-child,
 }
 
 #financeBatchPaymentModal .finance-ticket-total > .finance-total-cell {
+  height: 56px;
+  min-width: 0;
+  box-sizing: border-box;
   border-color: rgba(148, 163, 184, 0.26);
   background: rgba(255, 255, 255, 0.78);
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
@@ -7181,8 +7188,12 @@ label.field > span:first-child,
 }
 
 #financeBatchPaymentModal .finance-ticket-total .finance-total-cell > span:last-child {
+  min-width: 0;
+  box-sizing: border-box;
   border-color: rgba(148, 163, 184, 0.22);
   background: rgba(255, 255, 255, 0.78);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 
 #financeBatchPaymentModal .finance-total-cell-total > span:last-child {
@@ -7447,7 +7458,7 @@ label.field > span:first-child,
   display: grid;
   grid-template-columns: minmax(160px, 0.7fr) minmax(240px, 1fr) minmax(140px, 0.55fr) auto;
   gap: 8px;
-  align-items: end;
+  align-items: center;
   padding: 9px 9px 9px 12px;
   border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 8px;
@@ -7482,6 +7493,10 @@ label.field > span:first-child,
 #financeBatchPaymentModal .finance-batch-payment-row .field > span {
   color: #475569;
   font-weight: 900;
+}
+
+#financeBatchPaymentModal .finance-batch-payment-row .field {
+  gap: 0;
 }
 
 #financeBatchPaymentModal .finance-batch-payment-row input,
