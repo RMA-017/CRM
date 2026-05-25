@@ -6709,11 +6709,11 @@ label.field > span:first-child,
 
 #financeBatchPaymentModal.logout-confirm-modal.all-users-edit-modal {
   width: min(1180px, calc(100vw - 24px));
-  height: min(760px, calc(100dvh - 24px));
+  height: auto;
   min-height: 0;
   max-height: min(760px, calc(100dvh - 24px));
   overflow: hidden;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
   border-color: rgba(148, 163, 184, 0.32);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(248, 251, 255, 0.99) 100%);
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
@@ -6737,15 +6737,16 @@ label.field > span:first-child,
 
 #financeBatchPaymentModal .auth-form {
   height: auto;
-  max-height: 100%;
+  max-height: min(704px, calc(100dvh - 96px));
   min-height: 0;
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 
 #financeBatchPaymentModal .all-users-edit-fields {
-  height: 100%;
+  flex: 0 1 auto;
+  height: auto;
   max-height: none;
   min-height: 0;
   align-content: start;
@@ -7328,24 +7329,23 @@ label.field > span:first-child,
   font-weight: 800;
 }
 
-#financeBatchPaymentModal .finance-balance-positive {
+#financeBatchPaymentModal .finance-batch-client-balance-row:not(.finance-batch-client-balance-head) span:nth-child(3),
+#financeBatchPaymentModal .finance-batch-client-balance-row:not(.finance-batch-client-balance-head) span:nth-child(4) {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   min-height: 26px;
   padding: 0 8px;
-  border: 1px solid rgba(22, 163, 74, 0.18);
   border-radius: 999px;
+  background: transparent;
+}
+
+#financeBatchPaymentModal .finance-balance-positive {
   background: rgba(220, 252, 231, 0.70);
   color: #15803d;
 }
 
 #financeBatchPaymentModal .finance-balance-negative {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  min-height: 26px;
-  padding: 0 8px;
   border: 0;
   background: transparent;
   color: #b91c1c;
