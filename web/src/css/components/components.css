@@ -6007,6 +6007,21 @@ label.field > span:first-child,
   font-size: 12px;
 }
 
+.finance-panel-shell .all-users-head-actions .finance-head-icon-btn {
+  flex: 0 0 30px;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  border-radius: 8px;
+  color: var(--text-secondary);
+}
+
+.finance-panel-shell .all-users-head-actions .finance-head-icon-btn:hover {
+  color: var(--brand);
+}
+
 .finance-cashier-panel .all-users-head-actions .finance-head-icon-btn {
   flex: 0 0 30px;
   width: 30px;
@@ -6111,6 +6126,76 @@ label.field > span:first-child,
   border-top: 1.8px solid currentColor;
   border-right: 1.8px solid currentColor;
   transform: rotate(20deg);
+}
+
+.finance-head-icon-export::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 2px;
+  width: 10px;
+  height: 14px;
+  border: 1.6px solid currentColor;
+  border-radius: 3px;
+}
+
+.finance-head-icon-export::after {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 5px;
+  width: 8px;
+  height: 10px;
+  background:
+    linear-gradient(currentColor 0 0) center 0 / 1.7px 9px no-repeat,
+    linear-gradient(currentColor 0 0) center bottom / 7px 1.7px no-repeat;
+  transform: translateY(1px);
+}
+
+.finance-head-icon-filter::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 4px;
+  width: 12px;
+  height: 10px;
+  border: 1.8px solid currentColor;
+  border-top: 0;
+  clip-path: polygon(0 0, 100% 0, 64% 45%, 64% 100%, 36% 100%, 36% 45%);
+  background: currentColor;
+}
+
+.finance-head-icon-filter::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 14px;
+  height: 1.8px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+#financeTicketFilterModal.finance-ticket-filter-modal {
+  width: min(440px, calc(100vw - 32px));
+  height: auto;
+  min-height: 0;
+  max-height: min(680px, calc(100dvh - 24px));
+  grid-template-rows: auto minmax(0, auto);
+}
+
+#financeTicketFilterModal .auth-form {
+  grid-template-rows: minmax(0, auto) auto;
+}
+
+#financeTicketFilterModal .finance-ticket-filter-grid {
+  grid-template-columns: 1fr;
+  align-content: start;
+  margin: 0;
+  border: 0;
+  box-shadow: none;
+  padding: 0 8px 0 0;
+  background: transparent;
 }
 
 #financeTicketsPanel .finance-ticket-action-group {

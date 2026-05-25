@@ -320,11 +320,15 @@ function FinanceBalancesPanel({ onClose, canUpdateFinanceBalances }) {
       <div className="all-users-head">
         <h3>{translate("Client Balances")}</h3>
         <div className="all-users-head-actions">
-          <button type="button" className="table-action-btn" disabled={loading || exporting} onClick={exportBalances}>
-            {translate("Export Excel")}
-          </button>
-          <button type="button" className="table-action-btn" onClick={() => loadBalances(page, appliedFilters)}>
-            {translate("Refresh")}
+          <button
+            type="button"
+            className="table-action-btn finance-head-icon-btn"
+            aria-label={translate("Export Excel")}
+            title={translate("Export Excel")}
+            disabled={loading || exporting}
+            onClick={exportBalances}
+          >
+            <span className="finance-head-icon finance-head-icon-export" aria-hidden="true" />
           </button>
           <button type="button" className="header-btn panel-close-btn" aria-label="Close balances panel" onClick={onClose}>
             ×

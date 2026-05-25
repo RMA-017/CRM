@@ -212,11 +212,15 @@ function FinanceDailyCashPanel({ onClose }) {
       <div className="all-users-head">
         <h3>{translate("Daily Cash")}</h3>
         <div className="all-users-head-actions">
-          <button type="button" className="table-action-btn" disabled={loading || exporting} onClick={exportDailyCash}>
-            {translate("Export Excel")}
-          </button>
-          <button type="button" className="table-action-btn" onClick={() => loadDailyCash(page, appliedFilters)}>
-            {translate("Refresh")}
+          <button
+            type="button"
+            className="table-action-btn finance-head-icon-btn"
+            aria-label={translate("Export Excel")}
+            title={translate("Export Excel")}
+            disabled={loading || exporting}
+            onClick={exportDailyCash}
+          >
+            <span className="finance-head-icon finance-head-icon-export" aria-hidden="true" />
           </button>
           <button type="button" className="header-btn panel-close-btn" aria-label={translate("Close daily cash panel")} onClick={onClose}>
             ×

@@ -16,6 +16,23 @@ const EMPTY_FILTERS = Object.freeze({
   status: ""
 });
 
+function todayDateValue() {
+  const date = new Date();
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function createDefaultFilters() {
+  const today = todayDateValue();
+  return {
+    ...EMPTY_FILTERS,
+    dateFrom: today,
+    dateTo: today
+  };
+}
+
 const EMPTY_TICKET_EDIT_FORM = Object.freeze({
   ticketDate: "",
   clientId: "",
@@ -138,8 +155,8 @@ function translateTicketStatus(translate, status) {
 
 function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
   const { translate } = useI18n();
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
+  const [filters, setFilters] = useState(() => createDefaultFilters());
+  const [appliedFilters, setAppliedFilters] = useState(() => createDefaultFilters());
   const [items, setItems] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -161,6 +178,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
   const [editClientOptions, setEditClientOptions] = useState([]);
   const [editClientSearchBusy, setEditClientSearchBusy] = useState(false);
   const [voidingId, setVoidingId] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const loadTickets = useCallback(async (nextPage = 1, nextFilters = EMPTY_FILTERS) => {
     setLoading(true);
@@ -196,7 +214,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
   }, [translate]);
 
   useEffect(() => {
-    void loadTickets(1, EMPTY_FILTERS);
+    void loadTickets(1, appliedFilters);
   }, [loadTickets]);
 
   const editServiceOptions = useMemo(() => {
@@ -259,13 +277,15 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
   const applyFilters = (event) => {
     event.preventDefault();
     setAppliedFilters(filters);
+    setFiltersOpen(false);
     void loadTickets(1, filters);
   };
 
   const resetFilters = () => {
-    setFilters(EMPTY_FILTERS);
-    setAppliedFilters(EMPTY_FILTERS);
-    void loadTickets(1, EMPTY_FILTERS);
+    const nextFilters = createDefaultFilters();
+    setFilters(nextFilters);
+    setAppliedFilters(nextFilters);
+    void loadTickets(1, nextFilters);
   };
 
   const openHistory = async (item) => {
@@ -600,59 +620,93 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
     { key: "service", label: "Service", type: "text" }
   ]), []);
 
+  const closeFilters = () => {
+    if (loading) return;
+    setFiltersOpen(false);
+  };
+
   return (
     <section id="financeTicketsPanel" className="all-users-panel settings-panel ops-panel-shell finance-panel-shell finance-tickets-panel">
       <div className="all-users-head">
         <h3>{translate("Tickets")}</h3>
         <div className="all-users-head-actions">
-          <button type="button" className="table-action-btn" disabled={loading || exporting} onClick={exportTickets}>
-            {translate("Export Excel")}
+          <button
+            type="button"
+            className="table-action-btn finance-head-icon-btn"
+            aria-label={translate("Export Excel")}
+            title={translate("Export Excel")}
+            disabled={loading || exporting}
+            onClick={exportTickets}
+          >
+            <span className="finance-head-icon finance-head-icon-export" aria-hidden="true" />
           </button>
-          <button type="button" className="table-action-btn" onClick={() => loadTickets(page, appliedFilters)}>{translate("Refresh")}</button>
+          <button
+            type="button"
+            className="table-action-btn finance-head-icon-btn"
+            aria-label={translate("Filter")}
+            title={translate("Filter")}
+            onClick={() => setFiltersOpen(true)}
+          >
+            <span className="finance-head-icon finance-head-icon-filter" aria-hidden="true" />
+          </button>
           <button type="button" className="header-btn panel-close-btn" aria-label={translate("Close tickets panel")} onClick={onClose}>
             ×
           </button>
         </div>
       </div>
 
-      <form className="settings-filter-grid" onSubmit={applyFilters}>
-        {filterFields.map((field) => (
-          <label className="field" key={field.key}>
-            <span>{translate(field.label)}</span>
-            <input
-              type={field.type}
-              value={filters[field.key]}
-              onChange={(event) => {
-                const value = event.currentTarget.value;
-                setFilters((current) => ({ ...current, [field.key]: value }));
-              }}
-            />
-          </label>
-        ))}
-        <label className="field">
-          <span>{translate("Status")}</span>
-          <select
-            value={filters.status}
-            onChange={(event) => {
-              const value = event.currentTarget.value;
-              setFilters((current) => ({ ...current, status: value }));
-            }}
-          >
-            <option value="">{translate("All")}</option>
-            <option value="issued">{translate("Tickets")}</option>
-            <option value="paid">{translate("Paid")}</option>
-            <option value="unpaid">{translate("Unpaid")}</option>
-            <option value="voided">{translate("Voided")}</option>
-          </select>
-        </label>
-        <div className="settings-filter-actions">
-          <button type="submit" className="table-action-btn" disabled={loading}>{translate("Search")}</button>
-          <button type="button" className="table-action-btn" disabled={loading} onClick={resetFilters}>{translate("Reset")}</button>
-        </div>
-      </form>
+      {filtersOpen ? (
+        <>
+          <button
+            type="button"
+            className="login-overlay stacked-modal-overlay finance-modal-overlay"
+            aria-label={translate("Close")}
+            onClick={closeFilters}
+          />
+          <div id="financeTicketFilterModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-ticket-filter-modal">
+            <h3>{translate("Filter")}</h3>
+            <form className="auth-form" onSubmit={applyFilters}>
+              <div className="all-users-edit-fields settings-filter-grid finance-ticket-filter-grid">
+                {filterFields.map((field) => (
+                  <label className="field" key={field.key}>
+                    <span>{translate(field.label)}</span>
+                    <input
+                      type={field.type}
+                      value={filters[field.key]}
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setFilters((current) => ({ ...current, [field.key]: value }));
+                      }}
+                    />
+                  </label>
+                ))}
+                <label className="field">
+                  <span>{translate("Status")}</span>
+                  <select
+                    value={filters.status}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setFilters((current) => ({ ...current, status: value }));
+                    }}
+                  >
+                    <option value="">{translate("All")}</option>
+                    <option value="issued">{translate("Tickets")}</option>
+                    <option value="paid">{translate("Paid")}</option>
+                    <option value="unpaid">{translate("Unpaid")}</option>
+                    <option value="voided">{translate("Voided")}</option>
+                  </select>
+                </label>
+              </div>
+              <div className="edit-actions">
+                <button type="submit" className="btn btn-primary" disabled={loading}>{translate("Search")}</button>
+                <button type="button" className="btn btn-secondary" disabled={loading} onClick={resetFilters}>{translate("Reset")}</button>
+              </div>
+            </form>
+          </div>
+        </>
+      ) : null}
 
       <p className="all-users-state" hidden={!message}>{translate(message)}</p>
-      <p className="all-users-state">{`${translate("Total")}: ${total}`}</p>
 
       <div className="all-users-table-scroll">
         <table className="all-users-table" aria-label="Finance tickets table">
@@ -667,14 +721,13 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
               <th>{translate("Total")}</th>
               <th>{translate("Status")}</th>
               <th>{translate("Actions")}</th>
-              <th>{translate("Ticket History")}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               [0, 1, 2, 3, 4].map((index) => (
                 <tr key={index} aria-hidden="true">
-                  <td colSpan="10" className="skel" />
+                  <td colSpan="9" className="skel" />
                 </tr>
               ))
             ) : items.map((item) => {
@@ -682,7 +735,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
               const canEditRow = canUpdateFinanceCashier && item.status !== "paid" && item.status !== "voided";
               const hasAction = canEditRow || item.status === "paid";
               return (
-                <tr key={id}>
+                <tr key={id} onDoubleClick={() => openHistory(item)}>
                   <td>{item.ticketNumber ? `#${item.ticketNumber}` : "-"}</td>
                   <td>{formatDateYMD(item.ticketDate)}</td>
                   <td>{item.clientName || "-"}</td>
@@ -731,17 +784,12 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                       </div>
                     ) : "-"}
                   </td>
-                  <td>
-                    <button type="button" className="table-action-btn" onClick={() => openHistory(item)}>
-                      {translate("Ticket History")}
-                    </button>
-                  </td>
                 </tr>
               );
             })}
             {!loading && items.length === 0 ? (
               <tr>
-                <td colSpan="10" className="all-users-state">{translate("No items found.")}</td>
+                <td colSpan="9" className="all-users-state">{translate("No items found.")}</td>
               </tr>
             ) : null}
           </tbody>

@@ -166,11 +166,15 @@ function FinanceReportsPanel({ onClose }) {
       <div className="all-users-head">
         <h3>{translate("Reports")}</h3>
         <div className="all-users-head-actions">
-          <button type="button" className="table-action-btn" disabled={loading || exporting} onClick={exportReports}>
-            {translate("Export Excel")}
-          </button>
-          <button type="button" className="table-action-btn" onClick={() => loadReports(appliedFilters)}>
-            {translate("Refresh")}
+          <button
+            type="button"
+            className="table-action-btn finance-head-icon-btn"
+            aria-label={translate("Export Excel")}
+            title={translate("Export Excel")}
+            disabled={loading || exporting}
+            onClick={exportReports}
+          >
+            <span className="finance-head-icon finance-head-icon-export" aria-hidden="true" />
           </button>
           <button type="button" className="header-btn panel-close-btn" aria-label="Close finance reports panel" onClick={onClose}>
             ×
