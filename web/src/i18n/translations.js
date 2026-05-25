@@ -252,6 +252,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Ticket Payment", uz: "Talonlar to'lovi", ru: "Оплата талонов" },
   { en: "Pay", uz: "To'lash", ru: "Оплатить" },
   { en: "Entered", uz: "Kiritilgan", ru: "Внесено" },
+  { en: "To Pay", uz: "To'lovga", ru: "К оплате" },
   { en: "Double-click to pay ticket", uz: "Talonni to'lash uchun ikki marta bosing", ru: "Дважды нажмите, чтобы оплатить талон" },
   { en: "Double-click to pay selected tickets", uz: "Tanlangan talonlarni to'lash uchun ikki marta bosing", ru: "Дважды нажмите, чтобы оплатить выбранные талоны" },
   { en: "Remaining", uz: "Qoldi", ru: "Осталось" },

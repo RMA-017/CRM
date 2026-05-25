@@ -1196,7 +1196,7 @@ function FinanceCashierPanel({
             </h3>
             <form className="auth-form" onSubmit={submitBatchPayment}>
               <div className="all-users-edit-fields">
-                <div className="finance-batch-client-balances">
+                <div className="finance-batch-client-balances" aria-busy={batchClientBalancesLoading ? "true" : "false"}>
                   <div className="finance-batch-client-balance-row finance-batch-client-balance-head">
                     <span>{translate("Client")}</span>
                     <span>{translate("Selected Total")}</span>
@@ -1211,7 +1211,6 @@ function FinanceCashierPanel({
                       <span className={client.debtUzs > 0 ? "finance-balance-negative" : ""}>{formatMoney(client.debtUzs)}</span>
                     </div>
                   ))}
-                  {batchClientBalancesLoading ? <p className="all-users-state">{translate("Loading...")}</p> : null}
                 </div>
 
                 <div className="finance-batch-ticket-list">
@@ -1313,7 +1312,7 @@ function FinanceCashierPanel({
                   <div className="finance-total-cell"><strong>{translate("Total")}</strong><span>{formatMoney(batchPaymentTotalUzs)}</span></div>
                   <div className="finance-total-cell"><strong>{translate("External Payment")}</strong><span>{formatMoney(batchExternalTotalUzs)}</span></div>
                   <div className="finance-total-cell"><strong>{translate("From Client Balance")}</strong><span>{formatMoney(batchDepositTotalUzs)}</span></div>
-                  <div className="finance-total-cell"><strong>{translate("Entered")}</strong><span>{formatMoney(batchPaidTotalUzs)}</span></div>
+                  <div className="finance-total-cell"><strong>{translate("To Pay")}</strong><span>{formatMoney(batchPaidTotalUzs)}</span></div>
                   <div className="finance-total-cell"><strong>{translate("Remaining")}</strong><span>{formatMoney(batchRemainingUzs)}</span></div>
                 </div>
 
