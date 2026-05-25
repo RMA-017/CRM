@@ -66,11 +66,27 @@ function formatTime(value) {
 }
 
 function formatDateTime(value) {
-  const raw = String(value || "");
+  const raw = String(value || "").trim();
   if (!raw) return "-";
-  const date = formatDateYMD(raw);
-  const timeMatch = raw.match(/T(\d{2}:\d{2})/);
-  return timeMatch ? `${date} ${timeMatch[1]}` : date;
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) {
+    const formattedDate = formatDateYMD(raw);
+    const timeMatch = raw.match(/[T\s](\d{2}:\d{2})/);
+    return timeMatch && formattedDate !== "-" ? `${formattedDate} ${timeMatch[1]}` : formattedDate;
+  }
+  const parts = new Intl.DateTimeFormat("ru-RU", {
+    timeZone: "Asia/Tashkent",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).formatToParts(date).reduce((accumulator, part) => {
+    accumulator[part.type] = part.value;
+    return accumulator;
+  }, {});
+  return `${parts.day}.${parts.month}.${parts.year} ${parts.hour}:${parts.minute}`;
 }
 
 function formatShortDateDM(value) {
@@ -1043,7 +1059,7 @@ function FinanceCashierPanel({
         </section>
 
         <section className="settings-card-column">
-          <BoardColumnTitle count={visibleBoard.issuedTickets.length} total={board.issuedTickets.length} label="Tickets" translate={translate} />
+          <BoardColumnTitle count={selectedTicketCount} total={board.issuedTickets.length} label="Tickets" translate={translate} />
           {visibleBoard.issuedTickets.map((item) => (
             <TicketCard
               key={String(item.id)}
