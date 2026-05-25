@@ -172,6 +172,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Pending Appointments", uz: "Pending darslar", ru: "Ожидающие занятия" },
   { en: "Confirmed Appointments", uz: "Tasdiqlangan darslar", ru: "Подтвержденные занятия" },
   { en: "Awaiting Ticket", uz: "Talon kutilmoqda", ru: "Ожидает талон" },
+  { en: "Double-click to create ticket", uz: "Talon yaratish uchun ikki marta bosing", ru: "Дважды нажмите, чтобы создать талон" },
   { en: "Cancelled", uz: "Bekor qilingan", ru: "Отменено" },
   { en: "No-show", uz: "Kelmadi", ru: "Не пришел" },
   { en: "Tickets", uz: "Talonlar", ru: "Талоны" },

@@ -4472,7 +4472,7 @@ label.field > span:first-child,
   overflow: visible;
 }
 
-:is(#organizationsPanel, #rolesPanel, #positionsPanel, #clientsPanel, #allUsersPanel, #siteContentPanel, #servicesSettingsPanel) .appointment-breaks-add-icon-btn {
+:is(#organizationsPanel, #rolesPanel, #positionsPanel, #clientsPanel, #allUsersPanel, #siteContentPanel, #servicesSettingsPanel, #financeSettingsPanel) .appointment-breaks-add-icon-btn {
   width: 30px;
   min-width: 30px;
   height: 30px;
@@ -6285,12 +6285,6 @@ label.field > span:first-child,
   box-shadow: var(--shadow-xs);
 }
 
-.finance-cashier-panel .settings-card-column.finance-board-drop-active {
-  border-color: rgba(64, 138, 243, 0.55);
-  background: rgba(239, 246, 255, 0.92);
-  box-shadow: 0 0 0 2px rgba(64, 138, 243, 0.14), var(--shadow-xs);
-}
-
 .finance-cashier-panel .settings-card-column h4,
 .finance-cashier-panel .finance-board-column-title {
   position: sticky;
@@ -6397,17 +6391,8 @@ label.field > span:first-child,
   transform: translateY(-1px);
 }
 
-.finance-cashier-panel .finance-board-card-draggable {
-  cursor: grab;
-}
-
-.finance-cashier-panel .finance-board-card-draggable:active {
-  cursor: grabbing;
-}
-
-.finance-cashier-panel .finance-board-card-dragging {
-  opacity: 0.58;
-  transform: scale(0.985);
+.finance-cashier-panel .finance-board-card-ticketable {
+  cursor: pointer;
 }
 
 .finance-cashier-panel .settings-card-row {

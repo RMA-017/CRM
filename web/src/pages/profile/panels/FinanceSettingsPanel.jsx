@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import CustomSelect from "../../../components/CustomSelect.jsx";
+import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 import { formatDateYMD } from "../../../lib/formatters.js";
@@ -11,6 +11,10 @@ const EMPTY_FORM = Object.freeze({
   isActive: true
 });
 
+function normalizeForm(value) {
+  return value && typeof value === "object" ? value : EMPTY_FORM;
+}
+
 function FinanceSettingsPanel({
   onClose,
   canCreateSettingsFinance,
@@ -19,21 +23,16 @@ function FinanceSettingsPanel({
 }) {
   const { translate } = useI18n();
   const [items, setItems] = useState([]);
-  const [status, setStatus] = useState("active");
   const [message, setMessage] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
+  const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState("");
-
-  const statusOptions = useMemo(() => [
-    { value: "active", label: "Active" },
-    { value: "inactive", label: "Inactive" },
-    { value: "all", label: "All" }
-  ], []);
+  const currentForm = normalizeForm(form);
 
   const loadItems = useCallback(async () => {
     try {
-      const response = await apiFetch(`/api/settings/finance/payment-methods?status=${encodeURIComponent(status)}`);
+      const response = await apiFetch("/api/settings/finance/payment-methods?status=all");
       const data = await readApiResponseData(response);
       if (!response.ok) {
         const nextMessage = data?.message || "Failed to load payment methods.";
@@ -48,14 +47,25 @@ function FinanceSettingsPanel({
       setMessage("Failed to load payment methods.");
       window.alert?.(translate("Failed to load payment methods."));
     }
-  }, [status, translate]);
+  }, [translate]);
 
   useEffect(() => {
     loadItems();
   }, [loadItems]);
 
-  const isEditing = Boolean(form.id);
+  const isEditing = Boolean(currentForm.id);
   const resetForm = () => setForm(EMPTY_FORM);
+
+  const openCreateModal = () => {
+    resetForm();
+    setModalOpen(true);
+  };
+
+  const closeModal = () => {
+    if (submitting) return;
+    setModalOpen(false);
+    resetForm();
+  };
 
   const submitForm = async (event) => {
     event.preventDefault();
@@ -63,12 +73,14 @@ function FinanceSettingsPanel({
     setSubmitting(true);
     try {
       const payload = {
-        name: form.name.trim(),
-        sortOrder: form.sortOrder === "" ? 0 : form.sortOrder,
-        isActive: form.isActive
+        name: currentForm.name.trim()
       };
+      if (isEditing) {
+        payload.sortOrder = currentForm.sortOrder === "" ? 0 : currentForm.sortOrder;
+        payload.isActive = currentForm.isActive;
+      }
       const response = await apiFetch(
-        isEditing ? `/api/settings/finance/payment-methods/${form.id}` : "/api/settings/finance/payment-methods",
+        isEditing ? `/api/settings/finance/payment-methods/${currentForm.id}` : "/api/settings/finance/payment-methods",
         {
           method: isEditing ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
@@ -83,6 +95,7 @@ function FinanceSettingsPanel({
         return;
       }
       resetForm();
+      setModalOpen(false);
       await loadItems();
     } catch {
       window.alert?.(translate("Payment method save failed."));
@@ -91,12 +104,15 @@ function FinanceSettingsPanel({
     }
   };
 
-  const startEdit = (item) => setForm({
-    id: String(item?.id || ""),
-    name: String(item?.name || ""),
-    sortOrder: String(item?.sortOrder ?? 0),
-    isActive: Boolean(item?.isActive)
-  });
+  const startEdit = (item) => {
+    setForm({
+      id: String(item?.id || ""),
+      name: String(item?.name || ""),
+      sortOrder: String(item?.sortOrder ?? 0),
+      isActive: Boolean(item?.isActive)
+    });
+    setModalOpen(true);
+  };
 
   const deactivate = async (item) => {
     const id = String(item?.id || "");
@@ -118,16 +134,63 @@ function FinanceSettingsPanel({
     }
   };
 
+  const modalLayer = modalOpen && typeof document !== "undefined" ? createPortal((
+    <>
+      <section id="financePaymentMethodEditModal" className="logout-confirm-modal settings-edit-modal">
+        <div className="all-users-head">
+          <h3>{`${translate(isEditing ? "Edit" : "Create")} ${translate("Payment Method")}`}</h3>
+          <button
+            id="closeFinancePaymentMethodEditModalBtn"
+            type="button"
+            className="header-btn panel-close-btn"
+            aria-label={translate("Close finance settings panel")}
+            onClick={closeModal}
+          >
+            ×
+          </button>
+        </div>
+        <form className="auth-form settings-edit-form" noValidate onSubmit={submitForm}>
+          <div className="field">
+            <label htmlFor="financePaymentMethodModalName">{translate("Payment Method")}</label>
+            <input
+              id="financePaymentMethodModalName"
+              type="text"
+              maxLength={96}
+              value={currentForm.name}
+              placeholder={translate("Payment Method")}
+              onChange={(event) => {
+                const nextValue = event?.target?.value ?? "";
+                setForm((current) => ({ ...normalizeForm(current), name: nextValue }));
+              }}
+            />
+          </div>
+          <div className="edit-actions">
+            <button type="submit" className="btn" disabled={submitting}>
+              {submitting ? "..." : translate("Save")}
+            </button>
+          </div>
+        </form>
+      </section>
+      <div className="login-overlay" onClick={closeModal} />
+    </>
+  ), document.body) : null;
+
   return (
     <section id="financeSettingsPanel" className="all-users-panel settings-panel ops-panel-shell finance-panel-shell finance-settings-panel">
       <div className="all-users-head">
         <h3>{translate("Finance Settings")}</h3>
         <div className="all-users-head-actions">
-          <CustomSelect
-            value={status}
-            options={statusOptions.map((option) => ({ ...option, label: translate(option.label) }))}
-            onChange={setStatus}
-          />
+          <button
+            id="openFinancePaymentMethodCreateModalBtn"
+            type="button"
+            className="header-btn appointment-breaks-add-icon-btn"
+            aria-label={translate("Create")}
+            title={translate("Create")}
+            hidden={!canCreateSettingsFinance}
+            onClick={openCreateModal}
+          >
+            +
+          </button>
           <button type="button" className="header-btn panel-close-btn" aria-label={translate("Close finance settings panel")} onClick={onClose}>
             ×
           </button>
@@ -135,35 +198,6 @@ function FinanceSettingsPanel({
       </div>
 
       <h4>{translate("Payment Methods")}</h4>
-      <form className="settings-inline-form ops-inline-editor" onSubmit={submitForm}>
-        <input
-          type="text"
-          maxLength={96}
-          value={form.name}
-          placeholder={translate("Payment Method")}
-          onChange={(event) => setForm((current) => ({ ...current, name: event.currentTarget.value }))}
-        />
-        <input
-          type="number"
-          value={form.sortOrder}
-          placeholder={translate("Sort Order")}
-          onChange={(event) => setForm((current) => ({ ...current, sortOrder: event.currentTarget.value }))}
-        />
-        <label className="settings-checkbox settings-checkbox-inline">
-          <input
-            type="checkbox"
-            checked={form.isActive}
-            onChange={(event) => setForm((current) => ({ ...current, isActive: event.currentTarget.checked }))}
-          />
-          {translate("Active")}
-        </label>
-        <button type="submit" className="table-action-btn" disabled={submitting}>
-          {submitting ? "..." : translate(isEditing ? "Save" : "Create")}
-        </button>
-        {isEditing ? (
-          <button type="button" className="table-action-btn" onClick={resetForm}>{translate("Cancel")}</button>
-        ) : null}
-      </form>
 
       <p className="all-users-state" hidden={!message}>{translate(message)}</p>
 
@@ -209,6 +243,7 @@ function FinanceSettingsPanel({
           </tbody>
         </table>
       </div>
+      {modalLayer}
     </section>
   );
 }
