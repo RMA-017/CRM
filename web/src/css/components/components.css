@@ -6700,6 +6700,8 @@ label.field > span:first-child,
   width: min(1180px, calc(100vw - 24px));
   height: auto;
   max-height: min(760px, calc(100dvh - 24px));
+  margin-top: 10px;
+  margin-bottom: 10px;
 }
 
 #financeManualTicketModal .auth-form,
@@ -6985,10 +6987,11 @@ label.field > span:first-child,
 }
 
 .ops-panel-shell .finance-manual-icon-btn {
-  flex: 0 0 28px;
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
   padding: 0;
   border-radius: 8px;
   font-size: 18px;
@@ -6996,10 +6999,11 @@ label.field > span:first-child,
 }
 
 .ops-panel-shell .finance-manual-add-btn {
-  flex: 0 0 28px;
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
+  flex: 0 0 30px;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
   padding: 0;
   border-radius: 8px;
   font-size: 18px;
@@ -7108,7 +7112,6 @@ label.field > span:first-child,
     minmax(160px, 1fr)
     minmax(118px, 0.62fr)
     minmax(112px, 0.56fr)
-    minmax(112px, 0.56fr)
     minmax(112px, 0.56fr);
   gap: 8px;
   align-items: center;
@@ -7146,9 +7149,8 @@ label.field > span:first-child,
   display: grid;
   grid-template-columns:
     minmax(76px, 0.45fr)
-    minmax(72px, 0.42fr)
     minmax(92px, 0.52fr)
-    minmax(140px, 0.9fr)
+    minmax(190px, 1.25fr)
     minmax(140px, 0.9fr)
     minmax(160px, 1fr)
     minmax(112px, 0.55fr);

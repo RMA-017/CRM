@@ -146,6 +146,20 @@ test("finance daily cash and reports separate real cash movement from deposit tr
   );
 });
 
+test("finance client balance filters use the projected balance columns", () => {
+  assert.match(
+    financeServiceSource,
+    /export async function getFinanceClientBalances[\s\S]*const clientIds = normalizeIdList[\s\S]*c\.id = ANY\(\$[\s\S]*::int\[\]\)[\s\S]*COALESCE\(debt_uzs, 0\) > 0[\s\S]*COALESCE\(deposit_uzs, 0\) > 0/s,
+    "Client balance filters should work from the balances subquery projection and support explicit client id lookups."
+  );
+
+  assert.doesNotMatch(
+    financeServiceSource,
+    /having\.push\("[^"]*COALESCE\((?:debt|deposit)\.(?:debt_uzs|deposit_uzs), 0\)/,
+    "Client balance outer filters should not reference inner query aliases."
+  );
+});
+
 test("appointments with non-voided finance tickets are locked against planner updates and deletes", () => {
   assert.match(
     appointmentSettingsServiceSource,

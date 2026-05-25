@@ -420,8 +420,7 @@ function FinanceCashierPanel({
       return {
         ...item,
         depositUzs,
-        debtUzs,
-        balanceUzs: depositUzs - debtUzs
+        debtUzs
       };
     });
   }, [batchPaymentTickets, batchClientBalances]);
@@ -1199,7 +1198,6 @@ function FinanceCashierPanel({
                     <span>{translate("Selected Total")}</span>
                     <span>{translate("Deposit")}</span>
                     <span>{translate("Debt")}</span>
-                    <span>{translate("Balance")}</span>
                   </div>
                   {batchClientSummaries.map((client) => (
                     <div className="finance-batch-client-balance-row" key={client.clientId}>
@@ -1207,7 +1205,6 @@ function FinanceCashierPanel({
                       <span>{formatMoney(client.selectedTotalUzs)}</span>
                       <span className={client.depositUzs > 0 ? "finance-balance-positive" : ""}>{formatMoney(client.depositUzs)}</span>
                       <span className={client.debtUzs > 0 ? "finance-balance-negative" : ""}>{formatMoney(client.debtUzs)}</span>
-                      <span className={client.balanceUzs >= 0 ? "finance-balance-positive" : "finance-balance-negative"}>{formatSignedMoney(client.balanceUzs)}</span>
                     </div>
                   ))}
                   {batchClientBalancesLoading ? <p className="all-users-state">{translate("Loading...")}</p> : null}
@@ -1216,7 +1213,6 @@ function FinanceCashierPanel({
                 <div className="finance-batch-ticket-list">
                   <div className="finance-batch-ticket-row finance-batch-ticket-head">
                     <span>{translate("Ticket Number")}</span>
-                    <span>{translate("Ticket ID")}</span>
                     <span>{translate("Ticket Date")}</span>
                     <span>{translate("Client")}</span>
                     <span>{translate("Specialist")}</span>
@@ -1226,7 +1222,6 @@ function FinanceCashierPanel({
                   {batchPaymentTickets.map((ticket) => (
                     <div className="finance-batch-ticket-row" key={String(ticket.id)}>
                       <strong>{formatTicketNumber(ticket.ticketNumber)}</strong>
-                      <span>#{ticket.id}</span>
                       <span>{formatDateYMD(ticket.ticketDate || ticket.appointmentDate)}</span>
                       <span>{ticket.clientName || "-"}</span>
                       <span>{ticket.specialistName || "-"}</span>
@@ -1314,9 +1309,8 @@ function FinanceCashierPanel({
                   <div className="finance-total-cell"><strong>{translate("Total")}</strong><span>{formatMoney(batchPaymentTotalUzs)}</span></div>
                   <div className="finance-total-cell"><strong>{translate("External Payment")}</strong><span>{formatMoney(batchExternalTotalUzs)}</span></div>
                   <div className="finance-total-cell"><strong>{translate("From Client Balance")}</strong><span>{formatMoney(batchDepositTotalUzs)}</span></div>
-                  <div className="finance-total-cell"><strong>{translate("Paid")}</strong><span>{formatMoney(batchPaidTotalUzs)}</span></div>
+                  <div className="finance-total-cell"><strong>{translate("Entered")}</strong><span>{formatMoney(batchPaidTotalUzs)}</span></div>
                   <div className="finance-total-cell"><strong>{translate("Remaining")}</strong><span>{formatMoney(batchRemainingUzs)}</span></div>
-                  <div className="finance-total-cell"><strong>{translate("Overpaid")}</strong><span>{formatMoney(batchOverpaidUzs)}</span></div>
                 </div>
 
                 <label className="field">
@@ -1337,7 +1331,7 @@ function FinanceCashierPanel({
                   className="btn"
                   disabled={batchPaymentSubmitting || batchPaymentTotalUzs <= 0 || batchRemainingUzs > 0 || batchOverpaidUzs > 0}
                 >
-                  {batchPaymentSubmitting ? "..." : translate("Paid")}
+                  {batchPaymentSubmitting ? "..." : translate("Pay")}
                 </button>
               </div>
             </form>

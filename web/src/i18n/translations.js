@@ -250,6 +250,8 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Deposit ticket payment failed.", uz: "Talonlarni depozitdan yopib bo'lmadi.", ru: "Не удалось закрыть талоны с депозита." },
   { en: "Selected tickets are not payable.", uz: "Tanlangan talonlarni to'lab bo'lmaydi.", ru: "Выбранные талоны нельзя оплатить." },
   { en: "Ticket Payment", uz: "Talonlar to'lovi", ru: "Оплата талонов" },
+  { en: "Pay", uz: "To'lash", ru: "Оплатить" },
+  { en: "Entered", uz: "Kiritilgan", ru: "Внесено" },
   { en: "Double-click to pay ticket", uz: "Talonni to'lash uchun ikki marta bosing", ru: "Дважды нажмите, чтобы оплатить талон" },
   { en: "Double-click to pay selected tickets", uz: "Tanlangan talonlarni to'lash uchun ikki marta bosing", ru: "Дважды нажмите, чтобы оплатить выбранные талоны" },
   { en: "Remaining", uz: "Qoldi", ru: "Осталось" },
