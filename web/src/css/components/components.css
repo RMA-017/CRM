@@ -6986,7 +6986,10 @@ label.field > span:first-child,
   margin-left: auto;
 }
 
-.ops-panel-shell .finance-manual-icon-btn {
+.ops-panel-shell .finance-manual-icon-btn,
+#financeBatchPaymentModal .finance-manual-icon-btn,
+#financeManualTicketModal .finance-manual-icon-btn,
+#financeAppointmentTicketModal .finance-manual-icon-btn {
   flex: 0 0 30px;
   width: 30px;
   height: 30px;
@@ -6998,7 +7001,10 @@ label.field > span:first-child,
   line-height: 1;
 }
 
-.ops-panel-shell .finance-manual-add-btn {
+.ops-panel-shell .finance-manual-add-btn,
+#financeBatchPaymentModal .finance-manual-add-btn,
+#financeManualTicketModal .finance-manual-add-btn,
+#financeAppointmentTicketModal .finance-manual-add-btn {
   flex: 0 0 30px;
   width: 30px;
   min-width: 30px;
@@ -7026,7 +7032,7 @@ label.field > span:first-child,
 }
 
 #financeBatchPaymentModal .finance-ticket-total {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   align-items: stretch;
 }
