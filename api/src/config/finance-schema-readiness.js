@@ -159,7 +159,7 @@ export const REQUIRED_FINANCE_CONSTRAINTS = Object.freeze([
   "uq_finance_ticket_payments_org_id",
   "fk_finance_ticket_history_ticket_org",
   "uq_finance_cash_sessions_org_id",
-  "fk_finance_cash_sessions_cashier_org",
+  "fk_finance_cash_sessions_cashier_user",
   "uq_finance_payment_groups_org_id",
   "fk_finance_payment_groups_session_org",
   "fk_finance_transactions_session_org",

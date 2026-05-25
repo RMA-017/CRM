@@ -800,9 +800,9 @@ CREATE TABLE finance_cash_sessions (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT uq_finance_cash_sessions_org_id UNIQUE (organization_id, id),
-  CONSTRAINT fk_finance_cash_sessions_cashier_org
-    FOREIGN KEY (organization_id, cashier_user_id)
-    REFERENCES users(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fk_finance_cash_sessions_cashier_user
+    FOREIGN KEY (cashier_user_id)
+    REFERENCES users(id) ON DELETE RESTRICT,
   CHECK (status IN ('open', 'closed')),
   CHECK (
     (status = 'open' AND closed_at IS NULL)

@@ -311,7 +311,7 @@ async function getOpenCashSession(db, { organizationId, cashierUserId, forUpdate
     `SELECT s.*,
             COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), '') AS cashier_name
        FROM finance_cash_sessions s
-       JOIN users u ON u.organization_id = s.organization_id AND u.id = s.cashier_user_id
+       JOIN users u ON u.id = s.cashier_user_id
       WHERE s.organization_id = $1
         AND s.cashier_user_id = $2
         AND s.status = 'open'
@@ -1100,7 +1100,7 @@ export async function getCurrentCashSession({ organizationId, actorUserId }) {
                 ), 0) AS expected_balance_uzs,
             COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), '') AS cashier_name
        FROM finance_cash_sessions s
-       JOIN users u ON u.organization_id = s.organization_id AND u.id = s.cashier_user_id
+       JOIN users u ON u.id = s.cashier_user_id
        LEFT JOIN finance_transactions t
          ON t.organization_id = s.organization_id
         AND t.cash_session_id = s.id
@@ -1512,7 +1512,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
             COUNT(*) AS transaction_count
        FROM finance_transactions t
        JOIN finance_cash_sessions s ON s.organization_id = t.organization_id AND s.id = t.cash_session_id
-       LEFT JOIN users u ON u.organization_id = s.organization_id AND u.id = s.cashier_user_id
+       LEFT JOIN users u ON u.id = s.cashier_user_id
       WHERE ${ticketMovementWhere}
       GROUP BY s.cashier_user_id, u.full_name, u.username
       ORDER BY amount_uzs DESC, label ASC
