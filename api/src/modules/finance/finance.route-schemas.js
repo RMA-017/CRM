@@ -28,6 +28,23 @@ const ticketItemSchema = {
   }
 };
 
+const ticketBatchPaymentMethodSchema = {
+  type: "object",
+  additionalProperties: true,
+  properties: {
+    paymentMethodId: positiveIntegerLikeSchema,
+    payment_method_id: positiveIntegerLikeSchema,
+    amountUzs: integerLikeSchema,
+    amount_uzs: integerLikeSchema
+  },
+  anyOf: [
+    { required: ["paymentMethodId", "amountUzs"] },
+    { required: ["paymentMethodId", "amount_uzs"] },
+    { required: ["payment_method_id", "amountUzs"] },
+    { required: ["payment_method_id", "amount_uzs"] }
+  ]
+};
+
 export const financeRouteSchemas = Object.freeze({
   idParams: {
     type: "object",
@@ -283,6 +300,35 @@ export const financeRouteSchemas = Object.freeze({
     anyOf: [
       { required: ["paymentMethodId"] },
       { required: ["payment_method_id"] }
+    ]
+  },
+  ticketBatchPaymentBody: {
+    type: "object",
+    additionalProperties: true,
+    properties: {
+      ticketIds: {
+        type: "array",
+        minItems: 1,
+        maxItems: 100,
+        items: positiveIntegerLikeSchema
+      },
+      ticket_ids: {
+        type: "array",
+        minItems: 1,
+        maxItems: 100,
+        items: positiveIntegerLikeSchema
+      },
+      payments: {
+        type: "array",
+        minItems: 1,
+        maxItems: 8,
+        items: ticketBatchPaymentMethodSchema
+      },
+      note: { type: "string", maxLength: 255 }
+    },
+    anyOf: [
+      { required: ["ticketIds", "payments"] },
+      { required: ["ticket_ids", "payments"] }
     ]
   },
   ticketRefundBody: {

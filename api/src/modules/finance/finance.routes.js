@@ -19,6 +19,7 @@ import {
   getFinanceTickets,
   getFinanceTransactions,
   markFinanceTicketUnpaid,
+  payFinanceTicketsBatch,
   openCashSession,
   payFinanceTicketsFromDeposit,
   payFinanceTicket,
@@ -601,6 +602,30 @@ async function financeRoutes(fastify) {
       } catch (error) {
         request.log.error({ err: error }, "Error updating finance ticket:");
         return sendRouteError(reply, error, "Ticket update failed.");
+      }
+    }
+  );
+
+  fastify.post(
+    "/cashier/tickets/pay-batch",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        body: financeRouteSchemas.ticketBatchPaymentBody
+      }
+    },
+    async (request, reply) => {
+      try {
+        const requester = await requireCashierAccess(request, reply, "pay");
+        if (!requester) return null;
+        return reply.send(await payFinanceTicketsBatch({
+          organizationId: request.authContext.organizationId,
+          payload: request.body,
+          actorUserId: requester.id
+        }));
+      } catch (error) {
+        request.log.error({ err: error }, "Error paying finance tickets batch:");
+        return sendRouteError(reply, error, "Ticket payment failed.");
       }
     }
   );

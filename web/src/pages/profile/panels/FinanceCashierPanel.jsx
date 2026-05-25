@@ -32,6 +32,14 @@ function createManualForm() {
   };
 }
 
+function createBatchPaymentRow(amountUzs = "") {
+  return {
+    key: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    paymentMethodId: "",
+    amountUzs: amountUzs === "" ? "" : String(amountUzs)
+  };
+}
+
 const EMPTY_SESSION_FORM = Object.freeze({
   submittedAmountUzs: "",
   note: ""
@@ -188,13 +196,17 @@ function TicketCard({
   onDoubleClick,
   actionTitle = "",
   compact = false,
-  showShortDate = false
+  showShortDate = false,
+  selectable = false,
+  selected = false,
+  onSelectionChange
 }) {
   const statusKey = normalizeStatusKey(item?.status);
   const className = [
     "settings-card",
     compact ? "finance-card-compact" : "",
     statusKey ? `finance-board-card-${statusKey}` : "",
+    selected ? "finance-board-card-selected" : "",
     onClick ? "settings-card-clickable" : "",
     onDoubleClick ? "finance-board-card-ticketable" : ""
   ].filter(Boolean).join(" ");
@@ -233,7 +245,25 @@ function TicketCard({
       </div>
       <div className="settings-card-row">
         <span>{specialistName}</span>
-        {shortDate ? <span>{shortDate}</span> : null}
+        {selectable ? (
+          <label
+            className="finance-ticket-select-control"
+            aria-label={selected ? "Deselect ticket" : "Select ticket"}
+            onClick={(event) => event.stopPropagation()}
+            onDoubleClick={(event) => event.stopPropagation()}
+          >
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={(event) => {
+                event.stopPropagation();
+                onSelectionChange?.(event.currentTarget.checked);
+              }}
+              onClick={(event) => event.stopPropagation()}
+              onDoubleClick={(event) => event.stopPropagation()}
+            />
+          </label>
+        ) : shortDate ? <span>{shortDate}</span> : null}
       </div>
       {footer ? (
         <div className="settings-card-actions" onClick={(event) => event.stopPropagation()}>
@@ -266,7 +296,11 @@ function FinanceCashierPanel({
   });
   const [message, setMessage] = useState("");
   const [busyId, setBusyId] = useState("");
-  const [paymentMethodId, setPaymentMethodId] = useState("");
+  const [selectedTicketIds, setSelectedTicketIds] = useState(() => new Set());
+  const [batchPaymentTickets, setBatchPaymentTickets] = useState([]);
+  const [batchPaymentRows, setBatchPaymentRows] = useState(() => [createBatchPaymentRow()]);
+  const [batchPaymentNote, setBatchPaymentNote] = useState("");
+  const [batchPaymentSubmitting, setBatchPaymentSubmitting] = useState(false);
   const [boardFilters, setBoardFilters] = useState({
     clientQuery: "",
     serviceId: "",
@@ -324,6 +358,16 @@ function FinanceCashierPanel({
   );
   const currentCashierName = String(currentUser?.fullName || currentUser?.username || "").trim();
   const nowLabel = formatDateTime(new Date().toISOString());
+
+  const selectedTicketCount = selectedTicketIds.size;
+  const batchPaymentTotalUzs = useMemo(() => (
+    batchPaymentTickets.reduce((sum, item) => sum + normalizeMoneyInput(item?.totalUzs ?? item?.amountUzs), 0)
+  ), [batchPaymentTickets]);
+  const batchPaidTotalUzs = useMemo(() => (
+    batchPaymentRows.reduce((sum, row) => sum + normalizeMoneyInput(row.amountUzs), 0)
+  ), [batchPaymentRows]);
+  const batchRemainingUzs = Math.max(batchPaymentTotalUzs - batchPaidTotalUzs, 0);
+  const batchOverpaidUzs = Math.max(batchPaidTotalUzs - batchPaymentTotalUzs, 0);
 
   const loadBoard = useCallback(async () => {
     const requestId = boardRequestRef.current + 1;
@@ -602,6 +646,57 @@ function FinanceCashierPanel({
     }
   };
 
+  const toggleTicketSelection = (item, checked) => {
+    const id = String(item?.id || "");
+    if (!id) return;
+    setSelectedTicketIds((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  };
+
+  const openBatchPaymentModal = (item) => {
+    if (!canPayFinanceCashier) return;
+    if (!cashSession) {
+      window.alert?.(translate("Cash is closed. Open cash before accepting payments."));
+      return;
+    }
+    const itemId = String(item?.id || "");
+    const selectedItems = board.issuedTickets.filter((ticket) => selectedTicketIds.has(String(ticket.id)));
+    const nextTickets = selectedItems.length > 0 && selectedTicketIds.has(itemId)
+      ? selectedItems
+      : (item ? [item] : selectedItems);
+    if (nextTickets.length === 0) return;
+    const totalUzs = nextTickets.reduce((sum, ticket) => sum + normalizeMoneyInput(ticket?.totalUzs ?? ticket?.amountUzs), 0);
+    setBatchPaymentTickets(nextTickets);
+    setBatchPaymentRows([createBatchPaymentRow(totalUzs)]);
+    setBatchPaymentNote("");
+  };
+
+  const closeBatchPaymentModal = (force = false) => {
+    if (batchPaymentSubmitting && !force) return;
+    setBatchPaymentTickets([]);
+    setBatchPaymentRows([createBatchPaymentRow()]);
+    setBatchPaymentNote("");
+  };
+
+  const updateBatchPaymentRow = (key, updates) => {
+    setBatchPaymentRows((current) => current.map((row) => (row.key === key ? { ...row, ...updates } : row)));
+  };
+
+  const addBatchPaymentRow = () => {
+    setBatchPaymentRows((current) => [...current, createBatchPaymentRow(batchRemainingUzs > 0 ? batchRemainingUzs : "")]);
+  };
+
+  const removeBatchPaymentRow = (key) => {
+    setBatchPaymentRows((current) => current.length > 1 ? current.filter((row) => row.key !== key) : current);
+  };
+
   const appointmentPriceUzs = Number.parseInt(String(appointmentTicketSource?.servicePriceUzs ?? 0), 10) || 0;
   const appointmentDiscountUzs = calculateDiscount(
     appointmentPriceUzs,
@@ -623,26 +718,34 @@ function FinanceCashierPanel({
     };
   }, [board.services, manualForm.discountType, manualForm.discountValue, manualForm.items]);
 
-  const payTicket = async (item) => {
-    const id = String(item?.id || "");
-    const methodId = String(paymentMethodId || "");
-    if (!id || busyId || !canPayFinanceCashier) return;
-    if (!methodId) {
+  const submitBatchPayment = async (event) => {
+    event.preventDefault();
+    if (batchPaymentSubmitting || !canPayFinanceCashier) return;
+    const ticketIds = batchPaymentTickets.map((ticket) => Number.parseInt(String(ticket.id), 10)).filter(Boolean);
+    const payments = batchPaymentRows
+      .map((row) => ({
+        paymentMethodId: String(row.paymentMethodId || "").trim(),
+        amountUzs: normalizeMoneyInput(row.amountUzs)
+      }))
+      .filter((row) => row.paymentMethodId && row.amountUzs > 0);
+    if (ticketIds.length === 0) return;
+    if (payments.length === 0) {
       window.alert?.(translate("Payment method is required."));
       return;
     }
-    if (!cashSession) {
-      window.alert?.(translate("Cash is closed. Open cash before accepting payments."));
+    if (batchRemainingUzs > 0 || batchOverpaidUzs > 0) {
+      window.alert?.(translate("Payment total must match selected tickets total."));
       return;
     }
-    setBusyId(`pay-${id}`);
+    setBatchPaymentSubmitting(true);
     try {
-      const response = await apiFetch(`/api/finance/cashier/tickets/${id}/pay`, {
+      const response = await apiFetch("/api/finance/cashier/tickets/pay-batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          paymentMethodId: methodId,
-          amountUzs: item.amountUzs
+          ticketIds,
+          payments,
+          note: batchPaymentNote
         })
       });
       const data = await readApiResponseData(response);
@@ -650,11 +753,13 @@ function FinanceCashierPanel({
         window.alert?.(translate(data?.message || "Ticket payment failed."));
         return;
       }
+      closeBatchPaymentModal(true);
+      setSelectedTicketIds(new Set());
       await refreshCashier();
     } catch {
       window.alert?.(translate("Ticket payment failed."));
     } finally {
-      setBusyId("");
+      setBatchPaymentSubmitting(false);
     }
   };
 
@@ -943,37 +1048,123 @@ function FinanceCashierPanel({
             <TicketCard
               key={String(item.id)}
               item={item}
-              footer={(
-                <>
-                  <CustomSelect
-                    value={paymentMethodId}
-                    options={[{ value: "", label: translate("Payment Method") }, ...paymentMethodOptions]}
-                    onChange={setPaymentMethodId}
-                  />
-                  <button
-                    type="button"
-                    className="table-action-btn"
-                    disabled={!canPayFinanceCashier || busyId === `pay-${item.id}`}
-                    onClick={() => payTicket(item)}
-                  >
-                    {translate("Paid")}
-                  </button>
-                  <button
-                    type="button"
-                    className="table-action-btn"
-                    disabled={!canUpdateFinanceCashier || busyId === `unpaid-${item.id}`}
-                    onClick={() => markUnpaid(item)}
-                  >
-                    {translate("Unpaid")}
-                  </button>
-                </>
-              )}
+              compact
+              selectable
+              selected={selectedTicketIds.has(String(item.id))}
+              onSelectionChange={(checked) => toggleTicketSelection(item, checked)}
+              onDoubleClick={() => openBatchPaymentModal(item)}
+              actionTitle={selectedTicketCount > 0 ? translate("Double-click to pay selected tickets") : translate("Double-click to pay ticket")}
             />
           ))}
           {visibleBoard.issuedTickets.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
         </section>
 
       </div>
+
+      {batchPaymentTickets.length > 0 && typeof document !== "undefined" ? createPortal((
+        <>
+          <button
+            type="button"
+            className="login-overlay stacked-modal-overlay finance-modal-overlay"
+            style={FINANCE_MODAL_OVERLAY_STYLE}
+            aria-label={translate("Close ticket payment modal")}
+            onClick={() => closeBatchPaymentModal()}
+          />
+          <div id="financeBatchPaymentModal" className="logout-confirm-modal all-users-edit-modal finance-modal">
+            <h3 className="finance-modal-title-with-number">
+              <span>{translate("Ticket Payment")}</span>
+              <span className="finance-modal-ticket-number">{batchPaymentTickets.length}</span>
+            </h3>
+            <form className="auth-form" onSubmit={submitBatchPayment}>
+              <div className="all-users-edit-fields">
+                <div className="finance-batch-ticket-list">
+                  {batchPaymentTickets.map((ticket) => (
+                    <div className="finance-batch-ticket-row" key={String(ticket.id)}>
+                      <strong>{ticket.clientName || "-"}</strong>
+                      <span>{ticket.serviceName || "-"}</span>
+                      <span>{formatMoney(ticket.totalUzs ?? ticket.amountUzs)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="finance-batch-payment-methods">
+                  {batchPaymentRows.map((row, index) => (
+                    <div className="finance-batch-payment-row" key={row.key}>
+                      <label className="field">
+                        <span>{translate("Payment Method")}</span>
+                        <CustomSelect
+                          value={row.paymentMethodId}
+                          options={[{ value: "", label: translate("Payment Method") }, ...paymentMethodOptions]}
+                          menuPortal
+                          onChange={(value) => updateBatchPaymentRow(row.key, { paymentMethodId: value })}
+                        />
+                      </label>
+                      <label className="field">
+                        <span>{translate("Amount")}</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={row.amountUzs}
+                          onChange={(event) => updateBatchPaymentRow(row.key, { amountUzs: event.currentTarget.value })}
+                        />
+                      </label>
+                      <div className="finance-batch-payment-actions">
+                        <button
+                          type="button"
+                          className="table-action-btn finance-manual-icon-btn finance-manual-add-btn"
+                          aria-label={translate("Add")}
+                          title={translate("Add")}
+                          onClick={addBatchPaymentRow}
+                        >
+                          +
+                        </button>
+                        <button
+                          type="button"
+                          className="table-action-btn finance-manual-icon-btn"
+                          aria-label={translate("Remove")}
+                          title={translate("Remove")}
+                          disabled={batchPaymentRows.length <= 1}
+                          onClick={() => removeBatchPaymentRow(row.key)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="finance-ticket-summary finance-ticket-total">
+                  <div className="finance-total-cell"><strong>{translate("Total")}</strong><span>{formatMoney(batchPaymentTotalUzs)}</span></div>
+                  <div className="finance-total-cell"><strong>{translate("Paid")}</strong><span>{formatMoney(batchPaidTotalUzs)}</span></div>
+                  <div className="finance-total-cell"><strong>{translate("Remaining")}</strong><span>{formatMoney(batchRemainingUzs)}</span></div>
+                  <div className="finance-total-cell"><strong>{translate("Overpaid")}</strong><span>{formatMoney(batchOverpaidUzs)}</span></div>
+                </div>
+
+                <label className="field">
+                  <span>{translate("Note")}</span>
+                  <input
+                    type="text"
+                    maxLength={255}
+                    value={batchPaymentNote}
+                    onChange={(event) => setBatchPaymentNote(event.currentTarget.value)}
+                  />
+                </label>
+              </div>
+
+              <div className="edit-actions">
+                <button type="button" className="btn btn-secondary" onClick={() => closeBatchPaymentModal()}>{translate("Cancel")}</button>
+                <button
+                  type="submit"
+                  className="btn"
+                  disabled={batchPaymentSubmitting || batchPaymentTotalUzs <= 0 || batchRemainingUzs > 0 || batchOverpaidUzs > 0}
+                >
+                  {batchPaymentSubmitting ? "..." : translate("Paid")}
+                </button>
+              </div>
+            </form>
+          </div>
+        </>
+      ), document.body) : null}
 
       {appointmentTicketSource && typeof document !== "undefined" ? createPortal((
         <>
@@ -1010,11 +1201,11 @@ function FinanceCashierPanel({
                     <div className="finance-manual-item-grid">
                       <label className="field">
                         <span>{translate("Specialist")}</span>
-                        <span className="custom-select-trigger finance-readonly-select-value">{appointmentTicketSource.specialistName || "-"}</span>
+                        <input type="text" value={appointmentTicketSource.specialistName || "-"} readOnly />
                       </label>
                       <label className="field">
                         <span>{translate("Service")}</span>
-                        <span className="custom-select-trigger finance-readonly-select-value">{appointmentTicketSource.serviceName || "-"}</span>
+                        <input type="text" value={appointmentTicketSource.serviceName || "-"} readOnly />
                       </label>
                     </div>
                   </div>

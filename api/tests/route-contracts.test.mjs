@@ -240,6 +240,7 @@ test("finance routes expose stable contract", async () => {
     "POST /cashier/tickets/:id/refund",
     "POST /cashier/tickets/:id/unpaid",
     "POST /cashier/tickets/:id/void",
+    "POST /cashier/tickets/pay-batch",
     "POST /client-balances/deposit",
     "POST /client-balances/pay-from-deposit"
   ]);
@@ -306,6 +307,9 @@ test("finance routes expose stable contract", async () => {
   const ticketsPay = findRoute(recorder.routes, "POST", "/cashier/tickets/:id/pay");
   assert.equal(typeof ticketsPay?.options?.schema?.params, "object");
   assert.equal(typeof ticketsPay?.options?.schema?.body, "object");
+
+  const ticketsPayBatch = findRoute(recorder.routes, "POST", "/cashier/tickets/pay-batch");
+  assert.equal(typeof ticketsPayBatch?.options?.schema?.body, "object");
 
   const ticketsRefund = findRoute(recorder.routes, "POST", "/cashier/tickets/:id/refund");
   assert.equal(typeof ticketsRefund?.options?.schema?.params, "object");

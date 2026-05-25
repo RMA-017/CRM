@@ -348,6 +348,7 @@ async function getCashSessionExpectedBalance(db, { organizationId, cashSessionId
 async function insertFinanceTransaction(db, {
   organizationId,
   cashSessionId,
+  paymentGroupId = null,
   transactionType,
   direction,
   clientId,
@@ -361,14 +362,15 @@ async function insertFinanceTransaction(db, {
 }) {
   const result = await db.query(
     `INSERT INTO finance_transactions (
-       organization_id, cash_session_id, transaction_type, direction, client_id,
+       organization_id, cash_session_id, payment_group_id, transaction_type, direction, client_id,
        ticket_id, ticket_payment_id, payment_method_id, amount_uzs, note, metadata, created_by
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13)
      RETURNING *`,
     [
       organizationId,
       cashSessionId,
+      paymentGroupId || null,
       transactionType,
       direction,
       clientId || null,
@@ -2539,6 +2541,203 @@ export async function payFinanceTicket({ organizationId, id, payload, actorUserI
     });
     await db.query("COMMIT");
     return result.rows[0];
+  } catch (error) {
+    await db.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    db.release();
+  }
+}
+
+export async function payFinanceTicketsBatch({ organizationId, payload, actorUserId }) {
+  const ticketIds = Array.from(new Set(
+    (payload?.ticketIds ?? payload?.ticket_ids ?? [])
+      .map((item) => parsePositiveInteger(item))
+      .filter(Boolean)
+  ));
+  const rawPayments = Array.isArray(payload?.payments) ? payload.payments : [];
+  const note = normalizeText(payload?.note);
+  if (ticketIds.length === 0) {
+    const error = new Error("Select at least one ticket.");
+    error.statusCode = 400;
+    throw error;
+  }
+  const paymentTotals = new Map();
+  for (const rawPayment of rawPayments.slice(0, 8)) {
+    const paymentMethodId = parsePositiveInteger(rawPayment?.paymentMethodId ?? rawPayment?.payment_method_id);
+    const amountUzs = normalizeAmount(rawPayment?.amountUzs ?? rawPayment?.amount_uzs, 0);
+    if (!paymentMethodId || amountUzs <= 0) {
+      continue;
+    }
+    paymentTotals.set(paymentMethodId, (paymentTotals.get(paymentMethodId) || 0) + amountUzs);
+  }
+  const payments = Array.from(paymentTotals.entries()).map(([paymentMethodId, amountUzs]) => ({
+    paymentMethodId,
+    amountUzs
+  }));
+  if (payments.length === 0) {
+    const error = new Error("Payment method is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const db = await pool.connect();
+  try {
+    await db.query("BEGIN");
+    const cashSession = await getOpenCashSession(db, {
+      organizationId,
+      cashierUserId: actorUserId,
+      forUpdate: true
+    });
+    if (!cashSession) {
+      const error = new Error("Cash session is required.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const methodsResult = await db.query(
+      `SELECT id
+         FROM finance_payment_methods
+        WHERE organization_id = $1
+          AND id = ANY($2::int[])
+          AND is_active = TRUE`,
+      [organizationId, payments.map((payment) => payment.paymentMethodId)]
+    );
+    if (methodsResult.rows.length !== payments.length) {
+      const error = new Error("Payment method not found.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const ticketsResult = await db.query(
+      `SELECT *
+         FROM finance_tickets
+        WHERE organization_id = $1
+          AND id = ANY($2::bigint[])
+          AND status IN ('issued', 'unpaid')
+        ORDER BY ticket_date ASC, id ASC
+        FOR UPDATE`,
+      [organizationId, ticketIds]
+    );
+    if (ticketsResult.rows.length !== ticketIds.length) {
+      const error = new Error("Selected tickets are not payable.");
+      error.statusCode = 400;
+      throw error;
+    }
+    const tickets = ticketsResult.rows.map((ticket) => ({
+      ...ticket,
+      payableAmountUzs: normalizeAmount(ticket.total_uzs ?? ticket.amount_uzs, 0)
+    }));
+    const totalAmountUzs = tickets.reduce((sum, ticket) => sum + ticket.payableAmountUzs, 0);
+    const paidAmountUzs = payments.reduce((sum, payment) => sum + payment.amountUzs, 0);
+    if (totalAmountUzs <= 0) {
+      const error = new Error("Payment amount is required.");
+      error.statusCode = 400;
+      throw error;
+    }
+    if (paidAmountUzs !== totalAmountUzs) {
+      const error = new Error("Payment total must match selected tickets total.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const groupResult = await db.query(
+      `INSERT INTO finance_payment_groups (
+         organization_id, cash_session_id, total_amount_uzs, note, created_by
+       )
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id`,
+      [organizationId, cashSession.id, totalAmountUzs, note || null, actorUserId || null]
+    );
+    const paymentGroupId = groupResult.rows[0]?.id || null;
+    const paymentQueue = payments.map((payment) => ({ ...payment }));
+    const paidTickets = [];
+
+    for (const ticket of tickets) {
+      let remainingTicketAmount = ticket.payableAmountUzs;
+      const allocationIds = [];
+      while (remainingTicketAmount > 0) {
+        const currentPayment = paymentQueue.find((payment) => payment.amountUzs > 0);
+        if (!currentPayment) {
+          const error = new Error("Payment total must match selected tickets total.");
+          error.statusCode = 400;
+          throw error;
+        }
+        const allocationAmount = Math.min(remainingTicketAmount, currentPayment.amountUzs);
+        const paymentResult = await db.query(
+          `INSERT INTO finance_ticket_payments (
+             organization_id, ticket_id, payment_group_id, payment_method_id, amount_uzs, note, created_by
+           )
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING id`,
+          [
+            organizationId,
+            ticket.id,
+            paymentGroupId,
+            currentPayment.paymentMethodId,
+            allocationAmount,
+            note || null,
+            actorUserId || null
+          ]
+        );
+        const paymentId = paymentResult.rows[0]?.id || null;
+        allocationIds.push(paymentId);
+        await insertFinanceTransaction(db, {
+          organizationId,
+          cashSessionId: cashSession.id,
+          paymentGroupId,
+          transactionType: "ticket_payment",
+          direction: "in",
+          clientId: ticket.client_id,
+          ticketId: ticket.id,
+          ticketPaymentId: paymentId,
+          paymentMethodId: currentPayment.paymentMethodId,
+          amountUzs: allocationAmount,
+          note,
+          metadata: {
+            ticketNumber: ticket.ticket_number,
+            source: "ticket_batch_payment"
+          },
+          actorUserId
+        });
+        currentPayment.amountUzs -= allocationAmount;
+        remainingTicketAmount -= allocationAmount;
+      }
+
+      const updatedResult = await db.query(
+        `UPDATE finance_tickets
+            SET status = 'paid',
+                amount_uzs = $3,
+                updated_by = $4,
+                updated_at = CURRENT_TIMESTAMP
+          WHERE organization_id = $1
+            AND id = $2
+          RETURNING *`,
+        [organizationId, ticket.id, ticket.payableAmountUzs, actorUserId || null]
+      );
+      await insertHistory(db, {
+        organizationId,
+        ticketId: ticket.id,
+        action: "paid",
+        fromStatus: ticket.status,
+        toStatus: "paid",
+        details: {
+          amountUzs: ticket.payableAmountUzs,
+          cashSessionId: cashSession.id,
+          paymentGroupId,
+          paymentIds: allocationIds.filter(Boolean)
+        },
+        actorUserId
+      });
+      paidTickets.push(updatedResult.rows[0]);
+    }
+
+    await db.query("COMMIT");
+    return {
+      items: paidTickets.map(mapTicket),
+      paymentGroupId,
+      totalAmountUzs
+    };
   } catch (error) {
     await db.query("ROLLBACK").catch(() => {});
     throw error;

@@ -6395,6 +6395,11 @@ label.field > span:first-child,
   cursor: pointer;
 }
 
+.finance-cashier-panel .finance-board-card-selected {
+  border-color: rgba(64, 138, 243, 0.55);
+  box-shadow: 0 0 0 2px rgba(64, 138, 243, 0.14), var(--shadow-xs);
+}
+
 .finance-cashier-panel .settings-card-row {
   align-items: center;
   color: var(--text-secondary);
@@ -6444,6 +6449,26 @@ label.field > span:first-child,
 .finance-cashier-panel .settings-card-row:nth-child(3) span:first-child {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.finance-cashier-panel .finance-ticket-select-control {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  cursor: pointer;
+}
+
+.finance-cashier-panel .finance-ticket-select-control input {
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  margin: 0;
+  accent-color: var(--brand);
+  cursor: pointer;
 }
 
 .finance-cashier-panel .settings-card-row:nth-child(2) span:first-child {
@@ -6654,19 +6679,22 @@ label.field > span:first-child,
 }
 
 #financeManualTicketModal.logout-confirm-modal.all-users-edit-modal,
-#financeAppointmentTicketModal.logout-confirm-modal.all-users-edit-modal {
+#financeAppointmentTicketModal.logout-confirm-modal.all-users-edit-modal,
+#financeBatchPaymentModal.logout-confirm-modal.all-users-edit-modal {
   width: min(880px, calc(100vw - 24px));
   height: auto;
   max-height: min(680px, calc(100dvh - 24px));
 }
 
 #financeManualTicketModal .auth-form,
-#financeAppointmentTicketModal .auth-form {
+#financeAppointmentTicketModal .auth-form,
+#financeBatchPaymentModal .auth-form {
   grid-template-rows: minmax(0, 1fr) auto;
 }
 
 #financeManualTicketModal .all-users-edit-fields,
-#financeAppointmentTicketModal .all-users-edit-fields {
+#financeAppointmentTicketModal .all-users-edit-fields,
+#financeBatchPaymentModal .all-users-edit-fields {
   min-height: 0;
   overflow: visible;
   padding-left: 0;
@@ -6970,26 +6998,17 @@ label.field > span:first-child,
   align-items: end;
 }
 
-.ops-panel-shell .finance-readonly-select-value {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  color: var(--text-main);
-  font-weight: 700;
-  line-height: 1.2;
-  cursor: default;
-  user-select: text;
-}
-
 #financeManualTicketModal .finance-ticket-total,
-#financeAppointmentTicketModal .finance-ticket-total {
+#financeAppointmentTicketModal .finance-ticket-total,
+#financeBatchPaymentModal .finance-ticket-total {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   align-items: stretch;
 }
 
 #financeManualTicketModal .finance-ticket-total > .finance-total-cell,
-#financeAppointmentTicketModal .finance-ticket-total > .finance-total-cell {
+#financeAppointmentTicketModal .finance-ticket-total > .finance-total-cell,
+#financeBatchPaymentModal .finance-ticket-total > .finance-total-cell {
   margin: 0;
   min-height: 56px;
   padding: 7px;
@@ -7005,7 +7024,9 @@ label.field > span:first-child,
 #financeManualTicketModal .finance-ticket-total .finance-total-cell > strong,
 #financeManualTicketModal .finance-ticket-total .finance-total-cell > span:first-child,
 #financeAppointmentTicketModal .finance-ticket-total .finance-total-cell > strong,
-#financeAppointmentTicketModal .finance-ticket-total .finance-total-cell > span:first-child {
+#financeAppointmentTicketModal .finance-ticket-total .finance-total-cell > span:first-child,
+#financeBatchPaymentModal .finance-ticket-total .finance-total-cell > strong,
+#financeBatchPaymentModal .finance-ticket-total .finance-total-cell > span:first-child {
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 800;
@@ -7013,7 +7034,8 @@ label.field > span:first-child,
 }
 
 #financeManualTicketModal .finance-ticket-total .finance-total-cell > span:last-child,
-#financeAppointmentTicketModal .finance-ticket-total .finance-total-cell > span:last-child {
+#financeAppointmentTicketModal .finance-ticket-total .finance-total-cell > span:last-child,
+#financeBatchPaymentModal .finance-ticket-total .finance-total-cell > span:last-child {
   color: var(--text-main);
   font-size: 12px;
   font-weight: 900;
@@ -7021,7 +7043,8 @@ label.field > span:first-child,
 }
 
 #financeManualTicketModal .finance-ticket-total .finance-total-cell > span:last-child,
-#financeAppointmentTicketModal .finance-ticket-total .finance-total-cell > span:last-child {
+#financeAppointmentTicketModal .finance-ticket-total .finance-total-cell > span:last-child,
+#financeBatchPaymentModal .finance-ticket-total .finance-total-cell > span:last-child {
   min-height: 30px;
   display: flex;
   align-items: center;
@@ -7035,9 +7058,55 @@ label.field > span:first-child,
 #financeManualTicketModal .finance-ticket-total .finance-total-cell input,
 #financeManualTicketModal .finance-ticket-total .finance-total-cell .custom-select-trigger,
 #financeAppointmentTicketModal .finance-ticket-total .finance-total-cell input,
-#financeAppointmentTicketModal .finance-ticket-total .finance-total-cell .custom-select-trigger {
+#financeAppointmentTicketModal .finance-ticket-total .finance-total-cell .custom-select-trigger,
+#financeBatchPaymentModal .finance-ticket-total .finance-total-cell input,
+#financeBatchPaymentModal .finance-ticket-total .finance-total-cell .custom-select-trigger {
   height: 30px;
   min-height: 30px;
+}
+
+#financeBatchPaymentModal .finance-batch-ticket-list,
+#financeBatchPaymentModal .finance-batch-payment-methods {
+  display: grid;
+  gap: 7px;
+}
+
+#financeBatchPaymentModal .finance-batch-ticket-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.9fr) minmax(180px, 1.2fr) minmax(120px, 0.6fr);
+  gap: 8px;
+  align-items: center;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(248, 250, 255, 0.72);
+}
+
+#financeBatchPaymentModal .finance-batch-ticket-row strong,
+#financeBatchPaymentModal .finance-batch-ticket-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+#financeBatchPaymentModal .finance-batch-ticket-row span:last-child {
+  text-align: right;
+  font-weight: 800;
+}
+
+#financeBatchPaymentModal .finance-batch-payment-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(140px, 0.55fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+#financeBatchPaymentModal .finance-batch-payment-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .finance-modal .custom-select-menu {
@@ -7370,7 +7439,10 @@ label.field > span:first-child,
   }
 
   #financeManualTicketModal .finance-ticket-total,
-  #financeAppointmentTicketModal .finance-ticket-total {
+  #financeAppointmentTicketModal .finance-ticket-total,
+  #financeBatchPaymentModal .finance-ticket-total,
+  #financeBatchPaymentModal .finance-batch-ticket-row,
+  #financeBatchPaymentModal .finance-batch-payment-row {
     grid-template-columns: 1fr;
   }
 }
