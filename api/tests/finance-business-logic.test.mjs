@@ -37,6 +37,12 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
 
   assert.match(
     financeServiceSource,
+    /issuedTickets: tickets\.filter\(\(item\) => item\.status === "issued" \|\| item\.status === "unpaid"\)/,
+    "Cashier ticket column should keep unpaid/partially paid tickets visible until they are fully paid."
+  );
+
+  assert.match(
+    financeServiceSource,
     /if \(error\?\.code === "23505"\)[\s\S]*Ticket already exists for this appointment/s,
     "Duplicate active appointment tickets should be mapped to a user-facing conflict."
   );
@@ -103,8 +109,8 @@ test("cashier can confirm pending planner cards before creating tickets without 
 test("finance payments, deposits and refunds preserve cash-session and balance rules", () => {
   assert.match(
     financeServiceSource,
-    /export async function payFinanceTicket[\s\S]*paymentMethodId[\s\S]*AND is_active = TRUE[\s\S]*payableAmountUzs[\s\S]*if \(amountUzs !== payableAmountUzs\)[\s\S]*Payment total must match selected tickets total\.[\s\S]*const cashSession = await getOpenCashSession[\s\S]*Cash session is required\.[\s\S]*transactionType: "ticket_payment"[\s\S]*direction: "in"[\s\S]*SET status = 'paid'/s,
-    "Ticket payment should require an active method, exact full amount, open cash session, posted cash-in transaction and paid ticket status."
+    /export async function payFinanceTicket[\s\S]*paymentMethodId[\s\S]*AND is_active = TRUE[\s\S]*paid_amount_uzs[\s\S]*payableAmountUzs[\s\S]*if \(amountUzs > payableAmountUzs\)[\s\S]*Payment amount exceeds selected tickets total\.[\s\S]*const nextStatus = nextPaidAmountUzs >= totalAmountUzs \? "paid" : "unpaid"[\s\S]*transactionType: "ticket_payment"[\s\S]*direction: "in"[\s\S]*SET status = \$3/s,
+    "Ticket payment should require an active method, allow partial payment up to the remaining amount, and only mark tickets paid when fully covered."
   );
 
   assert.match(
@@ -115,8 +121,14 @@ test("finance payments, deposits and refunds preserve cash-session and balance r
 
   assert.match(
     financeServiceSource,
-    /export async function payFinanceTicketsFromDeposit[\s\S]*AND status IN \('issued', 'unpaid'\)[\s\S]*const currentDeposit = await getClientDepositBalance[\s\S]*if \(totalAmountUzs > currentDeposit\)[\s\S]*VALUES \(\$1, \$2, NULL, \$3, \$4, \$5\)[\s\S]*transactionType: "deposit_ticket_payment"[\s\S]*direction: "transfer"[\s\S]*paymentMethodId: null[\s\S]*SET status = 'paid'/s,
-    "Deposit ticket payments should only close payable debt tickets and use transfer transactions without cash payment methods."
+    /export async function payFinanceTicketsFromDeposit[\s\S]*AND ft\.status IN \('issued', 'unpaid'\)[\s\S]*payableAmountUzs[\s\S]*const currentDeposit = await getClientDepositBalance[\s\S]*if \(totalAmountUzs > currentDeposit\)[\s\S]*VALUES \(\$1, \$2, NULL, \$3, \$4, \$5\)[\s\S]*transactionType: "deposit_ticket_payment"[\s\S]*direction: "transfer"[\s\S]*paymentMethodId: null[\s\S]*SET status = 'paid'/s,
+    "Deposit ticket payments should close remaining payable debt tickets and use transfer transactions without cash payment methods."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /export async function payFinanceTicketsBatch[\s\S]*paid_amount_uzs[\s\S]*payableAmountUzs[\s\S]*if \(paidAmountUzs > totalAmountUzs\)[\s\S]*Payment amount exceeds selected tickets total\.[\s\S]*break;[\s\S]*const nextStatus = nextPaidAmountUzs >= ticket\.totalAmountUzs \? "paid" : "unpaid"[\s\S]*SET status = \$3/s,
+    "Batch ticket payments should accept partial allocations and leave partially paid tickets in unpaid status."
   );
 
   assert.match(

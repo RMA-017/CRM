@@ -104,6 +104,11 @@ function mapTicket(row) {
     subtotalUzs: row.subtotal_uzs ?? row.amount_uzs,
     discountUzs: row.discount_uzs ?? 0,
     totalUzs: row.total_uzs ?? row.amount_uzs,
+    paidAmountUzs: row.paid_amount_uzs ?? 0,
+    remainingAmountUzs: Math.max(
+      normalizeAmount(row.total_uzs ?? row.amount_uzs, 0) - normalizeAmount(row.paid_amount_uzs, 0),
+      0
+    ),
     status: row.status,
     note: row.note || "",
     appointmentDate: row.appointment_date,
@@ -219,6 +224,11 @@ function mapClientDebtTicket(row) {
     clientName: row.client_name || "",
     serviceName: row.service_name || "",
     totalUzs: row.total_uzs ?? row.amount_uzs,
+    paidAmountUzs: row.paid_amount_uzs ?? 0,
+    remainingAmountUzs: Math.max(
+      normalizeAmount(row.total_uzs ?? row.amount_uzs, 0) - normalizeAmount(row.paid_amount_uzs, 0),
+      0
+    ),
     status: row.status
   };
 }
@@ -603,6 +613,7 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
               fp.payment_method_id,
               fpm.name AS payment_method_name,
               fp.paid_at,
+              COALESCE(fpaid.paid_amount_uzs, 0) AS paid_amount_uzs,
               COALESCE(fti.item_count, 1) AS item_count,
               ft.created_at,
               ft.updated_at
@@ -618,6 +629,18 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
             LIMIT 1
          ) fp ON TRUE
          LEFT JOIN finance_payment_methods fpm ON fpm.organization_id = ft.organization_id AND fpm.id = fp.payment_method_id
+         LEFT JOIN LATERAL (
+           SELECT COALESCE(SUM(CASE
+                    WHEN t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN t.amount_uzs
+                    WHEN t.transaction_type IN ('refund', 'deposit_ticket_refund') THEN -t.amount_uzs
+                    ELSE 0
+                  END), 0) AS paid_amount_uzs
+             FROM finance_transactions t
+            WHERE t.organization_id = ft.organization_id
+              AND t.ticket_id = ft.id
+              AND t.status = 'posted'
+              AND t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')
+         ) fpaid ON TRUE
          LEFT JOIN LATERAL (
            SELECT COUNT(*) AS item_count
              FROM finance_ticket_items
@@ -668,7 +691,7 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
     noShowAppointments: appointments.filter((item) => item.status === "no-show"),
     confirmedAppointments: appointments.filter((item) => item.status === "confirmed"),
     overdueConfirmedAppointments: overdueAppointments,
-    issuedTickets: tickets.filter((item) => item.status === "issued"),
+    issuedTickets: tickets.filter((item) => item.status === "issued" || item.status === "unpaid"),
     paidTickets: tickets.filter((item) => item.status === "paid"),
     unpaidTickets: tickets.filter((item) => item.status === "unpaid"),
     paymentMethods: paymentMethodsResult.rows.map((row) => ({
@@ -1595,11 +1618,27 @@ export async function getFinanceClientBalances({ organizationId, filters = {} })
              COALESCE(deposit.deposit_uzs, 0) AS deposit_uzs
         FROM clients c
         LEFT JOIN (
-          SELECT client_id, SUM(total_uzs) AS debt_uzs
-            FROM finance_tickets
-           WHERE organization_id = $1
-             AND status IN ('issued', 'unpaid')
-           GROUP BY client_id
+          SELECT ft.client_id,
+                 SUM(GREATEST(
+                   COALESCE(ft.total_uzs, ft.amount_uzs, 0) - COALESCE(fpaid.paid_amount_uzs, 0),
+                   0
+                 )) AS debt_uzs
+            FROM finance_tickets ft
+            LEFT JOIN LATERAL (
+              SELECT COALESCE(SUM(CASE
+                       WHEN t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN t.amount_uzs
+                       WHEN t.transaction_type IN ('refund', 'deposit_ticket_refund') THEN -t.amount_uzs
+                       ELSE 0
+                     END), 0) AS paid_amount_uzs
+                FROM finance_transactions t
+               WHERE t.organization_id = ft.organization_id
+                 AND t.ticket_id = ft.id
+                 AND t.status = 'posted'
+                 AND t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')
+            ) fpaid ON TRUE
+           WHERE ft.organization_id = $1
+             AND ft.status IN ('issued', 'unpaid')
+           GROUP BY ft.client_id
         ) debt ON debt.client_id = c.id
         LEFT JOIN (
           SELECT client_id,
@@ -1781,9 +1820,22 @@ export async function getFinanceClientDebtTickets({ organizationId, clientId }) 
             ft.service_name,
             ft.amount_uzs,
             ft.total_uzs,
+            COALESCE(fpaid.paid_amount_uzs, 0) AS paid_amount_uzs,
             ft.status
        FROM finance_tickets ft
        JOIN clients c ON c.organization_id = ft.organization_id AND c.id = ft.client_id
+       LEFT JOIN LATERAL (
+         SELECT COALESCE(SUM(CASE
+                  WHEN t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN t.amount_uzs
+                  WHEN t.transaction_type IN ('refund', 'deposit_ticket_refund') THEN -t.amount_uzs
+                  ELSE 0
+                END), 0) AS paid_amount_uzs
+           FROM finance_transactions t
+          WHERE t.organization_id = ft.organization_id
+            AND t.ticket_id = ft.id
+            AND t.status = 'posted'
+            AND t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')
+       ) fpaid ON TRUE
       WHERE ft.organization_id = $1
         AND ft.client_id = $2
         AND ft.status IN ('issued', 'unpaid')
@@ -1828,13 +1880,26 @@ export async function payFinanceTicketsFromDeposit({ organizationId, payload, ac
     }
 
     const ticketsResult = await db.query(
-      `SELECT *
-         FROM finance_tickets
-        WHERE organization_id = $1
-          AND client_id = $2
-          AND id = ANY($3::bigint[])
-          AND status IN ('issued', 'unpaid')
-        ORDER BY ticket_date ASC, id ASC
+      `SELECT ft.*,
+              COALESCE(fpaid.paid_amount_uzs, 0) AS paid_amount_uzs
+         FROM finance_tickets ft
+         LEFT JOIN LATERAL (
+           SELECT COALESCE(SUM(CASE
+                    WHEN t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN t.amount_uzs
+                    WHEN t.transaction_type IN ('refund', 'deposit_ticket_refund') THEN -t.amount_uzs
+                    ELSE 0
+                  END), 0) AS paid_amount_uzs
+             FROM finance_transactions t
+            WHERE t.organization_id = ft.organization_id
+              AND t.ticket_id = ft.id
+              AND t.status = 'posted'
+              AND t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')
+         ) fpaid ON TRUE
+        WHERE ft.organization_id = $1
+          AND ft.client_id = $2
+          AND ft.id = ANY($3::bigint[])
+          AND ft.status IN ('issued', 'unpaid')
+        ORDER BY ft.ticket_date ASC, ft.id ASC
         FOR UPDATE`,
       [organizationId, clientId, ticketIds]
     );
@@ -1844,10 +1909,16 @@ export async function payFinanceTicketsFromDeposit({ organizationId, payload, ac
       throw error;
     }
 
-    const totalAmountUzs = ticketsResult.rows.reduce(
-      (sum, ticket) => sum + normalizeAmount(ticket.total_uzs ?? ticket.amount_uzs, 0),
-      0
-    );
+    const tickets = ticketsResult.rows.map((ticket) => ({
+      ...ticket,
+      totalAmountUzs: normalizeAmount(ticket.total_uzs ?? ticket.amount_uzs, 0),
+      paidAmountUzs: normalizeAmount(ticket.paid_amount_uzs, 0),
+      payableAmountUzs: Math.max(
+        normalizeAmount(ticket.total_uzs ?? ticket.amount_uzs, 0) - normalizeAmount(ticket.paid_amount_uzs, 0),
+        0
+      )
+    }));
+    const totalAmountUzs = tickets.reduce((sum, ticket) => sum + ticket.payableAmountUzs, 0);
     if (totalAmountUzs <= 0) {
       const error = new Error("Payment amount is required.");
       error.statusCode = 400;
@@ -1862,8 +1933,8 @@ export async function payFinanceTicketsFromDeposit({ organizationId, payload, ac
     }
 
     const paidTickets = [];
-    for (const ticket of ticketsResult.rows) {
-      const amountUzs = normalizeAmount(ticket.total_uzs ?? ticket.amount_uzs, 0);
+    for (const ticket of tickets) {
+      const amountUzs = ticket.payableAmountUzs;
       const paymentResult = await db.query(
         `INSERT INTO finance_ticket_payments (
            organization_id, ticket_id, payment_method_id, amount_uzs, note, created_by
@@ -1895,13 +1966,12 @@ export async function payFinanceTicketsFromDeposit({ organizationId, payload, ac
       const updatedResult = await db.query(
         `UPDATE finance_tickets
             SET status = 'paid',
-                amount_uzs = $3,
-                updated_by = $4,
+                updated_by = $3,
                 updated_at = CURRENT_TIMESTAMP
           WHERE organization_id = $1
             AND id = $2
           RETURNING *`,
-        [organizationId, ticket.id, amountUzs, actorUserId || null]
+        [organizationId, ticket.id, actorUserId || null]
       );
       await insertHistory(db, {
         organizationId,
@@ -1909,7 +1979,13 @@ export async function payFinanceTicketsFromDeposit({ organizationId, payload, ac
         action: "paid_from_deposit",
         fromStatus: ticket.status,
         toStatus: "paid",
-        details: { amountUzs, cashSessionId: cashSession.id, paymentId },
+        details: {
+          amountUzs,
+          paidAmountUzs: ticket.paidAmountUzs + amountUzs,
+          remainingAmountUzs: 0,
+          cashSessionId: cashSession.id,
+          paymentId
+        },
         actorUserId
       });
       paidTickets.push(updatedResult.rows[0]);
@@ -2497,15 +2573,30 @@ export async function payFinanceTicket({ organizationId, id, payload, actorUserI
       error.statusCode = 400;
       throw error;
     }
-    const payableAmountUzs = normalizeAmount(current.total_uzs ?? current.amount_uzs, 0);
+    const paidResult = await db.query(
+      `SELECT COALESCE(SUM(CASE
+                WHEN transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN amount_uzs
+                WHEN transaction_type IN ('refund', 'deposit_ticket_refund') THEN -amount_uzs
+                ELSE 0
+              END), 0) AS paid_amount_uzs
+         FROM finance_transactions
+        WHERE organization_id = $1
+          AND ticket_id = $2
+          AND status = 'posted'
+          AND transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')`,
+      [organizationId, ticketId]
+    );
+    const totalAmountUzs = normalizeAmount(current.total_uzs ?? current.amount_uzs, 0);
+    const paidAmountUzs = normalizeAmount(paidResult.rows[0]?.paid_amount_uzs, 0);
+    const payableAmountUzs = Math.max(totalAmountUzs - paidAmountUzs, 0);
     const amountUzs = requestedAmount > 0 ? requestedAmount : payableAmountUzs;
     if (amountUzs <= 0) {
       const error = new Error("Payment amount is required.");
       error.statusCode = 400;
       throw error;
     }
-    if (amountUzs !== payableAmountUzs) {
-      const error = new Error("Payment total must match selected tickets total.");
+    if (amountUzs > payableAmountUzs) {
+      const error = new Error("Payment amount exceeds selected tickets total.");
       error.statusCode = 400;
       throw error;
     }
@@ -2546,24 +2637,32 @@ export async function payFinanceTicket({ organizationId, id, payload, actorUserI
       },
       actorUserId
     });
+    const nextPaidAmountUzs = paidAmountUzs + amountUzs;
+    const nextStatus = nextPaidAmountUzs >= totalAmountUzs ? "paid" : "unpaid";
     const result = await db.query(
       `UPDATE finance_tickets
-          SET status = 'paid',
-              amount_uzs = $3,
+          SET status = $3,
               updated_by = $4,
               updated_at = CURRENT_TIMESTAMP
         WHERE organization_id = $1
           AND id = $2
         RETURNING *`,
-      [organizationId, ticketId, amountUzs, actorUserId || null]
+      [organizationId, ticketId, nextStatus, actorUserId || null]
     );
     await insertHistory(db, {
       organizationId,
       ticketId,
       action: "paid",
       fromStatus: current.status,
-      toStatus: "paid",
-      details: { paymentMethodId, amountUzs, cashSessionId: cashSession.id, paymentId },
+      toStatus: nextStatus,
+      details: {
+        paymentMethodId,
+        amountUzs,
+        paidAmountUzs: nextPaidAmountUzs,
+        remainingAmountUzs: Math.max(totalAmountUzs - nextPaidAmountUzs, 0),
+        cashSessionId: cashSession.id,
+        paymentId
+      },
       actorUserId
     });
     await db.query("COMMIT");
@@ -2656,12 +2755,25 @@ export async function payFinanceTicketsBatch({ organizationId, payload, actorUse
     }
 
     const ticketsResult = await db.query(
-      `SELECT *
-         FROM finance_tickets
-        WHERE organization_id = $1
-          AND id = ANY($2::bigint[])
-          AND status IN ('issued', 'unpaid')
-        ORDER BY ticket_date ASC, id ASC
+      `SELECT ft.*,
+              COALESCE(fpaid.paid_amount_uzs, 0) AS paid_amount_uzs
+         FROM finance_tickets ft
+         LEFT JOIN LATERAL (
+           SELECT COALESCE(SUM(CASE
+                    WHEN t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN t.amount_uzs
+                    WHEN t.transaction_type IN ('refund', 'deposit_ticket_refund') THEN -t.amount_uzs
+                    ELSE 0
+                  END), 0) AS paid_amount_uzs
+             FROM finance_transactions t
+            WHERE t.organization_id = ft.organization_id
+              AND t.ticket_id = ft.id
+              AND t.status = 'posted'
+              AND t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')
+         ) fpaid ON TRUE
+        WHERE ft.organization_id = $1
+          AND ft.id = ANY($2::bigint[])
+          AND ft.status IN ('issued', 'unpaid')
+        ORDER BY ft.ticket_date ASC, ft.id ASC
         FOR UPDATE`,
       [organizationId, ticketIds]
     );
@@ -2672,7 +2784,12 @@ export async function payFinanceTicketsBatch({ organizationId, payload, actorUse
     }
     const tickets = ticketsResult.rows.map((ticket) => ({
       ...ticket,
-      payableAmountUzs: normalizeAmount(ticket.total_uzs ?? ticket.amount_uzs, 0)
+      totalAmountUzs: normalizeAmount(ticket.total_uzs ?? ticket.amount_uzs, 0),
+      paidAmountUzs: normalizeAmount(ticket.paid_amount_uzs, 0),
+      payableAmountUzs: Math.max(
+        normalizeAmount(ticket.total_uzs ?? ticket.amount_uzs, 0) - normalizeAmount(ticket.paid_amount_uzs, 0),
+        0
+      )
     }));
     const totalAmountUzs = tickets.reduce((sum, ticket) => sum + ticket.payableAmountUzs, 0);
     const paidAmountUzs = payments.reduce((sum, payment) => sum + payment.amountUzs, 0)
@@ -2706,8 +2823,8 @@ export async function payFinanceTicketsBatch({ organizationId, payload, actorUse
         throw error;
       }
     }
-    if (paidAmountUzs !== totalAmountUzs) {
-      const error = new Error("Payment total must match selected tickets total.");
+    if (paidAmountUzs > totalAmountUzs) {
+      const error = new Error("Payment amount exceeds selected tickets total.");
       error.statusCode = 400;
       throw error;
     }
@@ -2715,10 +2832,10 @@ export async function payFinanceTicketsBatch({ organizationId, payload, actorUse
     const groupResult = await db.query(
       `INSERT INTO finance_payment_groups (
          organization_id, cash_session_id, total_amount_uzs, note, created_by
-       )
+      )
        VALUES ($1, $2, $3, $4, $5)
        RETURNING id`,
-      [organizationId, cashSession.id, totalAmountUzs, note || null, actorUserId || null]
+      [organizationId, cashSession.id, paidAmountUzs, note || null, actorUserId || null]
     );
     const paymentGroupId = groupResult.rows[0]?.id || null;
     const paymentQueue = payments.map((payment) => ({ ...payment }));
@@ -2772,9 +2889,7 @@ export async function payFinanceTicketsBatch({ organizationId, payload, actorUse
       while (remainingTicketAmount > 0) {
         const currentPayment = paymentQueue.find((payment) => payment.amountUzs > 0);
         if (!currentPayment) {
-          const error = new Error("Payment total must match selected tickets total.");
-          error.statusCode = 400;
-          throw error;
+          break;
         }
         const allocationAmount = Math.min(remainingTicketAmount, currentPayment.amountUzs);
         const paymentResult = await db.query(
@@ -2816,26 +2931,33 @@ export async function payFinanceTicketsBatch({ organizationId, payload, actorUse
         currentPayment.amountUzs -= allocationAmount;
         remainingTicketAmount -= allocationAmount;
       }
+      const allocatedAmountUzs = ticket.payableAmountUzs - remainingTicketAmount;
+      if (allocatedAmountUzs <= 0) {
+        continue;
+      }
+      const nextPaidAmountUzs = ticket.paidAmountUzs + allocatedAmountUzs;
+      const nextStatus = nextPaidAmountUzs >= ticket.totalAmountUzs ? "paid" : "unpaid";
 
       const updatedResult = await db.query(
         `UPDATE finance_tickets
-            SET status = 'paid',
-                amount_uzs = $3,
+            SET status = $3,
                 updated_by = $4,
                 updated_at = CURRENT_TIMESTAMP
           WHERE organization_id = $1
             AND id = $2
           RETURNING *`,
-        [organizationId, ticket.id, ticket.payableAmountUzs, actorUserId || null]
+        [organizationId, ticket.id, nextStatus, actorUserId || null]
       );
       await insertHistory(db, {
         organizationId,
         ticketId: ticket.id,
         action: "paid",
         fromStatus: ticket.status,
-        toStatus: "paid",
+        toStatus: nextStatus,
         details: {
-          amountUzs: ticket.payableAmountUzs,
+          amountUzs: allocatedAmountUzs,
+          paidAmountUzs: nextPaidAmountUzs,
+          remainingAmountUzs: Math.max(ticket.totalAmountUzs - nextPaidAmountUzs, 0),
           cashSessionId: cashSession.id,
           paymentGroupId,
           paymentIds: allocationIds.filter(Boolean)
@@ -2849,7 +2971,8 @@ export async function payFinanceTicketsBatch({ organizationId, payload, actorUse
     return {
       items: paidTickets.map(mapTicket),
       paymentGroupId,
-      totalAmountUzs
+      totalAmountUzs: paidAmountUzs,
+      selectedTotalAmountUzs: totalAmountUzs
     };
   } catch (error) {
     await db.query("ROLLBACK").catch(() => {});

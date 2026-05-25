@@ -6664,6 +6664,8 @@ label.field > span:first-child,
   justify-content: center;
   gap: 8px;
   flex-wrap: wrap;
+  margin-top: 10px;
+  margin-bottom: 10px;
 }
 
 .finance-modal .finance-modal-ticket-number {
@@ -6700,8 +6702,6 @@ label.field > span:first-child,
   width: min(1180px, calc(100vw - 24px));
   height: auto;
   max-height: min(760px, calc(100dvh - 24px));
-  margin-top: 10px;
-  margin-bottom: 10px;
 }
 
 #financeManualTicketModal .auth-form,

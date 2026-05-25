@@ -148,6 +148,10 @@ function normalizeMoneyInput(value) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
+function getTicketPayableAmount(ticket) {
+  return normalizeMoneyInput(ticket?.remainingAmountUzs ?? ticket?.remaining_amount_uzs ?? ticket?.totalUzs ?? ticket?.amountUzs);
+}
+
 function normalizeSearchValue(value) {
   return String(value ?? "").trim().toLowerCase();
 }
@@ -391,7 +395,7 @@ function FinanceCashierPanel({
 
   const selectedTicketCount = selectedTicketIds.size;
   const batchPaymentTotalUzs = useMemo(() => (
-    batchPaymentTickets.reduce((sum, item) => sum + normalizeMoneyInput(item?.totalUzs ?? item?.amountUzs), 0)
+    batchPaymentTickets.reduce((sum, item) => sum + getTicketPayableAmount(item), 0)
   ), [batchPaymentTickets]);
   const batchPaidTotalUzs = useMemo(() => (
     batchPaymentRows.reduce((sum, row) => sum + normalizeMoneyInput(row.amountUzs), 0)
@@ -409,7 +413,7 @@ function FinanceCashierPanel({
         selectedTotalUzs: 0,
         ticketCount: 0
       };
-      current.selectedTotalUzs += normalizeMoneyInput(ticket?.totalUzs ?? ticket?.amountUzs);
+      current.selectedTotalUzs += getTicketPayableAmount(ticket);
       current.ticketCount += 1;
       byClient.set(clientId, current);
     });
@@ -843,8 +847,8 @@ function FinanceCashierPanel({
       window.alert?.(translate("Payment method is required."));
       return;
     }
-    if (batchRemainingUzs > 0 || batchOverpaidUzs > 0) {
-      window.alert?.(translate("Payment total must match selected tickets total."));
+    if (batchOverpaidUzs > 0) {
+      window.alert?.(translate("Payment amount exceeds selected tickets total."));
       return;
     }
     setBatchPaymentSubmitting(true);
@@ -1226,7 +1230,7 @@ function FinanceCashierPanel({
                       <span>{ticket.clientName || "-"}</span>
                       <span>{ticket.specialistName || "-"}</span>
                       <span>{ticket.serviceName || "-"}</span>
-                      <span>{formatMoney(ticket.totalUzs ?? ticket.amountUzs)}</span>
+                      <span>{formatMoney(getTicketPayableAmount(ticket))}</span>
                     </div>
                   ))}
                 </div>
@@ -1329,7 +1333,7 @@ function FinanceCashierPanel({
                 <button
                   type="submit"
                   className="btn"
-                  disabled={batchPaymentSubmitting || batchPaymentTotalUzs <= 0 || batchRemainingUzs > 0 || batchOverpaidUzs > 0}
+                  disabled={batchPaymentSubmitting || batchPaymentTotalUzs <= 0 || batchPaidTotalUzs <= 0 || batchOverpaidUzs > 0}
                 >
                   {batchPaymentSubmitting ? "..." : translate("Pay")}
                 </button>
