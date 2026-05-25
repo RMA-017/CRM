@@ -73,11 +73,11 @@ function FinanceSettingsPanel({
     setSubmitting(true);
     try {
       const payload = {
-        name: currentForm.name.trim()
+        name: currentForm.name.trim(),
+        isActive: currentForm.isActive
       };
       if (isEditing) {
         payload.sortOrder = currentForm.sortOrder === "" ? 0 : currentForm.sortOrder;
-        payload.isActive = currentForm.isActive;
       }
       const response = await apiFetch(
         isEditing ? `/api/settings/finance/payment-methods/${currentForm.id}` : "/api/settings/finance/payment-methods",
@@ -164,6 +164,20 @@ function FinanceSettingsPanel({
               }}
             />
           </div>
+          <div className="field settings-inline-control">
+            <label htmlFor="financePaymentMethodModalIsActive">{translate("Active")}</label>
+            <label className="settings-checkbox settings-checkbox-inline" htmlFor="financePaymentMethodModalIsActive">
+              <input
+                id="financePaymentMethodModalIsActive"
+                type="checkbox"
+                checked={currentForm.isActive}
+                onChange={(event) => {
+                  const nextChecked = Boolean(event?.target?.checked);
+                  setForm((current) => ({ ...normalizeForm(current), isActive: nextChecked }));
+                }}
+              />
+            </label>
+          </div>
           <div className="edit-actions">
             <button type="submit" className="btn" disabled={submitting}>
               {submitting ? "..." : translate("Save")}
@@ -207,11 +221,12 @@ function FinanceSettingsPanel({
             <tr>
               <th>ID</th>
               <th>{translate("Payment Method")}</th>
-              <th>{translate("Sort Order")}</th>
               <th>{translate("Active")}</th>
               <th>{translate("Created")}</th>
-              <th>{translate("Edit")}</th>
-              <th>{translate("Delete")}</th>
+              <th aria-label={translate("Edit")}>✎</th>
+              <th aria-label={translate("Delete")}>
+                <span className="services-settings-trash-icon" aria-hidden="true" />
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -219,23 +234,33 @@ function FinanceSettingsPanel({
               <tr key={String(item.id)}>
                 <td>{item.id}</td>
                 <td>{item.name || "-"}</td>
-                <td>{item.sortOrder ?? 0}</td>
                 <td>{translate(item.isActive ? "Yes" : "No")}</td>
                 <td>{formatDateYMD(item.createdAt)}</td>
                 <td>
-                  <button type="button" className="table-action-btn" hidden={!canUpdateSettingsFinance} onClick={() => startEdit(item)}>
-                    {translate("Edit")}
+                  <button
+                    type="button"
+                    className="table-action-btn services-settings-action-btn"
+                    aria-label={translate("Edit")}
+                    title={translate("Edit")}
+                    hidden={!canUpdateSettingsFinance}
+                    onClick={() => startEdit(item)}
+                  >
+                    ✎
                   </button>
                 </td>
                 <td>
                   <button
                     type="button"
-                    className="table-action-btn table-action-btn-danger"
+                    className="table-action-btn table-action-btn-danger services-settings-action-btn"
+                    aria-label={translate("Delete")}
+                    title={translate("Delete")}
                     hidden={!canDeleteSettingsFinance}
                     disabled={deletingId === String(item.id) || !item.isActive}
                     onClick={() => deactivate(item)}
                   >
-                    {deletingId === String(item.id) ? "..." : translate("Delete")}
+                    {deletingId === String(item.id) ? "..." : (
+                      <span className="services-settings-trash-icon" aria-hidden="true" />
+                    )}
                   </button>
                 </td>
               </tr>

@@ -985,7 +985,10 @@ function FinanceCashierPanel({
             onClick={() => closeAppointmentTicketModal()}
           />
           <div id="financeAppointmentTicketModal" className="logout-confirm-modal all-users-edit-modal finance-modal">
-            <h3>{translate("Create Ticket")}</h3>
+            <h3 className="finance-modal-title-with-number">
+              <span>{translate("Create Ticket")}</span>
+              <span className="finance-modal-ticket-number">{formatTicketNumber(board.nextTicketNumber)}</span>
+            </h3>
             <form className="auth-form" onSubmit={submitAppointmentTicket}>
               <div className="all-users-edit-fields">
                 <div className="finance-ticket-summary">
@@ -1034,8 +1037,8 @@ function FinanceCashierPanel({
                 </div>
 
                 <div className="finance-ticket-summary finance-ticket-total">
-                  <div><strong>{translate("Discount")}</strong><span>{formatMoney(appointmentDiscountUzs)}</span></div>
-                  <div><strong>{translate("Total")}</strong><span>{formatMoney(appointmentFinalUzs)}</span></div>
+                  <div className="finance-total-cell"><strong>{translate("Discount")}</strong><span>{formatMoney(appointmentDiscountUzs)}</span></div>
+                  <div className="finance-total-cell"><strong>{translate("Total")}</strong><span>{formatMoney(appointmentFinalUzs)}</span></div>
                 </div>
 
                 <label className="field">

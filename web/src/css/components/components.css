@@ -6679,6 +6679,10 @@ label.field > span:first-child,
   max-height: min(680px, calc(100dvh - 24px));
 }
 
+#financeAppointmentTicketModal.logout-confirm-modal.all-users-edit-modal {
+  width: min(880px, calc(100vw - 24px));
+}
+
 #financeManualTicketModal .auth-form {
   grid-template-rows: minmax(0, 1fr) auto;
 }
@@ -6895,11 +6899,13 @@ label.field > span:first-child,
 }
 
 .ops-panel-shell .finance-manual-date-field {
-  max-width: 132px;
+  width: 100%;
+  max-width: none;
 }
 
 #financeManualTicketModal .finance-manual-date-field {
-  max-width: 132px;
+  width: 100%;
+  max-width: none;
 }
 
 .ops-panel-shell .finance-manual-client-select {
@@ -6914,7 +6920,7 @@ label.field > span:first-child,
   max-height: 204px;
   min-height: 0;
   overflow-y: auto;
-  padding-right: 4px;
+  padding-right: 0;
   scrollbar-gutter: stable;
 }
 
@@ -6936,6 +6942,8 @@ label.field > span:first-child,
 .ops-panel-shell .finance-manual-item {
   gap: 7px;
   padding: 7px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .ops-panel-shell .finance-manual-item-head {
@@ -6979,13 +6987,19 @@ label.field > span:first-child,
   align-items: end;
 }
 
-#financeManualTicketModal .finance-ticket-total {
+#financeManualTicketModal .finance-ticket-total,
+#financeAppointmentTicketModal .finance-ticket-total {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   align-items: stretch;
 }
 
-#financeManualTicketModal .finance-ticket-total > .finance-total-cell {
+#financeAppointmentTicketModal .finance-ticket-total {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+#financeManualTicketModal .finance-ticket-total > .finance-total-cell,
+#financeAppointmentTicketModal .finance-ticket-total > .finance-total-cell {
   margin: 0;
   min-height: 56px;
   padding: 7px;
@@ -6999,21 +7013,25 @@ label.field > span:first-child,
 }
 
 #financeManualTicketModal .finance-ticket-total .finance-total-cell > strong,
-#financeManualTicketModal .finance-ticket-total .finance-total-cell > span:first-child {
+#financeManualTicketModal .finance-ticket-total .finance-total-cell > span:first-child,
+#financeAppointmentTicketModal .finance-ticket-total .finance-total-cell > strong,
+#financeAppointmentTicketModal .finance-ticket-total .finance-total-cell > span:first-child {
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 800;
   line-height: 1.2;
 }
 
-#financeManualTicketModal .finance-ticket-total .finance-total-cell > span:last-child {
+#financeManualTicketModal .finance-ticket-total .finance-total-cell > span:last-child,
+#financeAppointmentTicketModal .finance-ticket-total .finance-total-cell > span:last-child {
   color: var(--text-main);
   font-size: 12px;
   font-weight: 900;
   line-height: 1.2;
 }
 
-#financeManualTicketModal .finance-ticket-total .finance-total-cell > span:last-child {
+#financeManualTicketModal .finance-ticket-total .finance-total-cell > span:last-child,
+#financeAppointmentTicketModal .finance-ticket-total .finance-total-cell > span:last-child {
   min-height: 30px;
   display: flex;
   align-items: center;
@@ -7035,7 +7053,8 @@ label.field > span:first-child,
 }
 
 .services-panel .settings-table,
-.services-settings-panel .settings-table {
+.services-settings-panel .settings-table,
+.finance-settings-panel .settings-table {
   min-width: 640px;
 }
 
@@ -7106,11 +7125,77 @@ label.field > span:first-child,
   font-size: 16px;
 }
 
+#financeSettingsPanel .settings-table {
+  min-width: 620px;
+  table-layout: fixed;
+}
+
+#financeSettingsPanel .settings-table th,
+#financeSettingsPanel .settings-table td {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+#financeSettingsPanel .settings-table th:nth-child(1),
+#financeSettingsPanel .settings-table td:nth-child(1) {
+  width: 64px;
+  text-align: center;
+}
+
+#financeSettingsPanel .settings-table th:nth-child(2),
+#financeSettingsPanel .settings-table td:nth-child(2) {
+  width: auto;
+}
+
+#financeSettingsPanel .settings-table th:nth-child(3),
+#financeSettingsPanel .settings-table td:nth-child(3) {
+  width: 92px;
+  text-align: center;
+}
+
+#financeSettingsPanel .settings-table th:nth-child(4),
+#financeSettingsPanel .settings-table td:nth-child(4) {
+  width: 132px;
+  text-align: center;
+}
+
+#financeSettingsPanel .settings-table th:nth-child(5),
+#financeSettingsPanel .settings-table td:nth-child(5),
+#financeSettingsPanel .settings-table th:nth-child(6),
+#financeSettingsPanel .settings-table td:nth-child(6) {
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  text-align: right;
+  padding-left: 3px;
+  padding-right: 3px;
+}
+
+#financeSettingsPanel .settings-table th:nth-child(5),
+#financeSettingsPanel .settings-table th:nth-child(6) {
+  text-align: center;
+}
+
+#financeSettingsPanel .settings-table .services-settings-action-btn {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  margin-left: auto;
+  margin-right: 0;
+  font-size: 16px;
+}
+
+#financeSettingsPanel .settings-table td:nth-child(6) .services-settings-action-btn {
+  margin-right: 6px;
+}
+
 #servicesSettingsPanel .settings-table td:nth-child(7) .services-settings-action-btn {
   margin-right: 6px;
 }
 
-#servicesSettingsPanel .services-settings-trash-icon {
+:is(#servicesSettingsPanel, #financeSettingsPanel) .services-settings-trash-icon {
   position: relative;
   display: inline-block;
   width: 11px;
@@ -7123,7 +7208,7 @@ label.field > span:first-child,
   transform: translateY(1px);
 }
 
-#servicesSettingsPanel .services-settings-trash-icon::before {
+:is(#servicesSettingsPanel, #financeSettingsPanel) .services-settings-trash-icon::before {
   content: "";
   position: absolute;
   left: -1.5px;
@@ -7134,7 +7219,7 @@ label.field > span:first-child,
   background: currentColor;
 }
 
-#servicesSettingsPanel .services-settings-trash-icon::after {
+:is(#servicesSettingsPanel, #financeSettingsPanel) .services-settings-trash-icon::after {
   content: "";
   position: absolute;
   left: 3px;
