@@ -6248,51 +6248,73 @@ label.field > span:first-child,
   align-items: center;
   gap: 8px;
   min-width: 0;
-  padding: 7px 8px;
+  min-height: 34px;
+  padding: 7px 10px;
   border: 1px solid rgba(148, 163, 184, 0.28);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.84);
-  color: var(--text-primary);
+  background: #ffffff;
+  color: #111827;
   font-size: 13px;
+  line-height: 1.25;
 }
 
 #financeTicketFilterModal .finance-ticket-status-filter-option input {
   flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
 }
 
 #financeTicketFilterModal .finance-ticket-status-filter-option span {
+  display: block;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: #111827;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 #financeTicketColumnsModal.finance-ticket-columns-modal {
-  width: min(360px, calc(100vw - 32px));
+  width: min(420px, calc(100vw - 32px));
   height: auto;
   min-height: 0;
+  max-height: min(620px, calc(100dvh - 24px));
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 #financeTicketColumnsModal .finance-ticket-columns-list {
   display: grid;
-  gap: 8px;
+  gap: 7px;
+  min-height: 0;
+  max-height: min(520px, calc(100dvh - 116px));
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1px 2px 1px 1px;
 }
 
 #financeTicketColumnsModal .finance-ticket-column-option {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   min-width: 0;
-  padding: 7px 8px;
+  min-height: 34px;
+  padding: 7px 10px;
   border: 1px solid rgba(148, 163, 184, 0.28);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.84);
   color: var(--text-primary);
   font-size: 13px;
+  line-height: 1.25;
 }
 
 #financeTicketColumnsModal .finance-ticket-column-option input {
   flex: 0 0 auto;
+}
+
+#financeTicketColumnsModal .finance-ticket-column-option span {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 #financeTicketHistoryModal.logout-confirm-modal.all-users-edit-modal {
