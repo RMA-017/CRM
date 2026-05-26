@@ -44,7 +44,6 @@ function FinanceBalancesPanel({ onClose, canUpdateFinanceBalances }) {
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [operationForm, setOperationForm] = useState(null);
@@ -76,7 +75,6 @@ function FinanceBalancesPanel({ onClose, canUpdateFinanceBalances }) {
       setItems(Array.isArray(data?.items) ? data.items : []);
       setPage(Number.parseInt(String(data?.page || nextPage), 10) || 1);
       setTotalPages(Number.parseInt(String(data?.totalPages || 1), 10) || 1);
-      setTotal(Number.parseInt(String(data?.total || 0), 10) || 0);
       setMessage("");
     } catch {
       setMessage("Failed to load client balances.");
@@ -107,12 +105,6 @@ function FinanceBalancesPanel({ onClose, canUpdateFinanceBalances }) {
     event.preventDefault();
     setAppliedFilters(filters);
     void loadBalances(1, filters);
-  };
-
-  const resetFilters = () => {
-    setFilters(EMPTY_FILTERS);
-    setAppliedFilters(EMPTY_FILTERS);
-    void loadBalances(1, EMPTY_FILTERS);
   };
 
   const fetchAllBalances = async () => {
@@ -309,17 +301,23 @@ function FinanceBalancesPanel({ onClose, canUpdateFinanceBalances }) {
     }
   };
 
-  const typeOptions = useMemo(() => ([
-    { value: "all", label: "All" },
-    { value: "debt", label: "Debt" },
-    { value: "deposit", label: "Deposit" }
-  ]), []);
-
   return (
     <section id="financeBalancesPanel" className="all-users-panel settings-panel ops-panel-shell finance-panel-shell finance-balances-panel">
       <div className="all-users-head">
         <h3>{translate("Client Balances")}</h3>
         <div className="all-users-head-actions">
+          <form className="finance-balances-head-search" onSubmit={applyFilters}>
+            <input
+              type="search"
+              className="panel-search-input"
+              placeholder={translate("Client")}
+              value={filters.client}
+              onChange={(event) => setFilters((current) => ({ ...current, client: event.currentTarget.value }))}
+            />
+            <button type="submit" className="table-action-btn" disabled={loading}>
+              {translate("Search")}
+            </button>
+          </form>
           <button
             type="button"
             className="table-action-btn finance-head-icon-btn"
@@ -336,34 +334,7 @@ function FinanceBalancesPanel({ onClose, canUpdateFinanceBalances }) {
         </div>
       </div>
 
-      <form className="settings-filter-grid" onSubmit={applyFilters}>
-        <label className="field">
-          <span>{translate("Client")}</span>
-          <input
-            type="text"
-            value={filters.client}
-            onChange={(event) => setFilters((current) => ({ ...current, client: event.currentTarget.value }))}
-          />
-        </label>
-        <label className="field">
-          <span>{translate("Type")}</span>
-          <select
-            value={filters.type}
-            onChange={(event) => setFilters((current) => ({ ...current, type: event.currentTarget.value }))}
-          >
-            {typeOptions.map((option) => (
-              <option key={option.value} value={option.value}>{translate(option.label)}</option>
-            ))}
-          </select>
-        </label>
-        <div className="settings-filter-actions">
-          <button type="submit" className="table-action-btn" disabled={loading}>{translate("Search")}</button>
-          <button type="button" className="table-action-btn" disabled={loading} onClick={resetFilters}>{translate("Reset")}</button>
-        </div>
-      </form>
-
       <p className="all-users-state" hidden={!message}>{translate(message)}</p>
-      <p className="all-users-state">{`${translate("Total")}: ${total}`}</p>
 
       <div className="all-users-table-scroll">
         <table className="all-users-table" aria-label="Finance client balances table">

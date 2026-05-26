@@ -6046,6 +6046,22 @@ label.field > span:first-child,
   color: var(--brand);
 }
 
+.finance-balances-head-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: min(320px, 100%);
+}
+
+.finance-balances-head-search .panel-search-input {
+  width: min(220px, 42vw);
+  min-width: 160px;
+}
+
+.finance-balances-head-search .table-action-btn {
+  min-width: 68px;
+}
+
 .finance-transactions-table {
   table-layout: fixed;
 }
