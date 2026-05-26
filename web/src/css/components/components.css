@@ -6084,11 +6084,16 @@ label.field > span:first-child,
   white-space: nowrap;
 }
 
-.finance-transactions-table :is(th:nth-child(7), td:nth-child(7)) {
+.finance-transactions-table :is(th:nth-child(7), td:nth-child(7)),
+.finance-transactions-amount-cell {
   text-align: right;
 }
 
 .finance-transactions-status-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
   text-align: center;
 }
 
@@ -6438,7 +6443,8 @@ label.field > span:first-child,
   resize: vertical;
 }
 
-#financeTicketColumnsModal.finance-ticket-columns-modal {
+#financeTicketColumnsModal.finance-ticket-columns-modal,
+#financeTransactionColumnsModal.finance-transaction-columns-modal {
   width: min(420px, calc(100vw - 32px));
   height: auto;
   min-height: 0;

@@ -14,6 +14,41 @@ const EMPTY_FILTERS = Object.freeze({
   paymentMethodId: ""
 });
 
+const FINANCE_TRANSACTION_COLUMNS_STORAGE_KEY = "aaron_crm_finance_transaction_columns";
+const DEFAULT_FINANCE_TRANSACTION_COLUMN_IDS = Object.freeze([
+  "date",
+  "action",
+  "ticketNumber",
+  "client",
+  "clientId",
+  "paymentMethod",
+  "amount",
+  "cashier",
+  "status"
+]);
+
+function loadStoredTransactionColumnIds() {
+  if (typeof window === "undefined") return [...DEFAULT_FINANCE_TRANSACTION_COLUMN_IDS];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(FINANCE_TRANSACTION_COLUMNS_STORAGE_KEY) || "[]");
+    const stored = Array.isArray(parsed) ? parsed : [];
+    const allowed = new Set(DEFAULT_FINANCE_TRANSACTION_COLUMN_IDS);
+    const normalized = DEFAULT_FINANCE_TRANSACTION_COLUMN_IDS.filter((id) => stored.includes(id) && allowed.has(id));
+    return normalized.length > 0 ? normalized : [...DEFAULT_FINANCE_TRANSACTION_COLUMN_IDS];
+  } catch {
+    return [...DEFAULT_FINANCE_TRANSACTION_COLUMN_IDS];
+  }
+}
+
+function storeTransactionColumnIds(columnIds) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(FINANCE_TRANSACTION_COLUMNS_STORAGE_KEY, JSON.stringify(columnIds));
+  } catch {
+    // Ignore storage failures; the current session state still works.
+  }
+}
+
 function formatMoney(value) {
   const amount = Number.parseInt(String(value ?? 0), 10) || 0;
   return amount > 0 ? `${amount.toLocaleString("ru-RU")} UZS` : "-";
@@ -87,11 +122,121 @@ function FinanceTransactionsPanel({ onClose }) {
   const [voidTarget, setVoidTarget] = useState(null);
   const [voidReason, setVoidReason] = useState("");
   const [voidingId, setVoidingId] = useState("");
+  const [columnsOpen, setColumnsOpen] = useState(false);
+  const [visibleColumnIds, setVisibleColumnIds] = useState(() => loadStoredTransactionColumnIds());
 
   const paymentMethodOptions = useMemo(() => paymentMethods.map((item) => ({
     value: String(item.id),
     label: item.name
   })), [paymentMethods]);
+
+  const transactionColumns = [
+    {
+      id: "date",
+      label: "Date",
+      className: "finance-transactions-col-date",
+      render: (item) => formatDateTime(item.transactionAt),
+      exportValue: (item) => formatDateTime(item.transactionAt)
+    },
+    {
+      id: "action",
+      label: "Action",
+      className: "finance-transactions-col-action",
+      render: (item) => getTransactionActionLabel(translate, item),
+      exportValue: (item) => getTransactionActionLabel(translate, item)
+    },
+    {
+      id: "ticketNumber",
+      label: "Ticket Number",
+      className: "finance-transactions-col-ticket",
+      render: (item) => item.ticketNumber ? `#${item.ticketNumber}` : "-",
+      exportValue: (item) => item.ticketNumber || ""
+    },
+    {
+      id: "client",
+      label: "Client",
+      className: "finance-transactions-col-client",
+      render: (item) => item.clientName || "-",
+      exportValue: (item) => item.clientName || ""
+    },
+    {
+      id: "clientId",
+      label: "Client ID",
+      className: "finance-transactions-col-client-id",
+      render: (item) => item.clientId || "-",
+      exportValue: (item) => item.clientId || ""
+    },
+    {
+      id: "paymentMethod",
+      label: "Payment Method",
+      className: "finance-transactions-col-method",
+      render: (item) => item.paymentMethodName || translate("Balance"),
+      exportValue: (item) => item.paymentMethodName || translate("Balance")
+    },
+    {
+      id: "amount",
+      label: "Amount UZS",
+      className: "finance-transactions-col-amount",
+      render: (item) => formatMoney(item.amountUzs),
+      exportValue: (item) => Number.parseInt(String(item.amountUzs || 0), 10) || 0
+    },
+    {
+      id: "cashier",
+      label: "Cashier",
+      className: "finance-transactions-col-cashier",
+      render: (item) => item.cashierName || "-",
+      exportValue: (item) => item.cashierName || ""
+    },
+    {
+      id: "status",
+      label: "Status",
+      className: "finance-transactions-col-status",
+      render: (item) => (
+        <span className="finance-transactions-status-cell">
+          {item.status === "voided" ? (
+            <span className="finance-transaction-status-voided">{translate("Cancelled")}</span>
+          ) : (
+            <button
+              type="button"
+              className="finance-transaction-void-btn"
+              title={translate("Cancel transaction")}
+              aria-label={translate("Cancel transaction")}
+              disabled={voidingId === String(item.id)}
+              onClick={() => openVoidTransaction(item)}
+            >
+              ⓧ
+            </button>
+          )}
+        </span>
+      ),
+      exportValue: (item) => getTransactionStatusLabel(translate, item.status)
+    }
+  ];
+  const visibleColumns = transactionColumns.filter((column) => visibleColumnIds.includes(column.id));
+  const visibleColumnCount = Math.max(visibleColumns.length, 1);
+
+  const toggleColumnVisibility = (columnId) => {
+    setVisibleColumnIds((current) => {
+      const currentIds = Array.isArray(current) ? current : DEFAULT_FINANCE_TRANSACTION_COLUMN_IDS;
+      const nextIds = new Set(currentIds);
+      if (nextIds.has(columnId)) {
+        if (nextIds.size <= 1) return currentIds;
+        nextIds.delete(columnId);
+      } else if (transactionColumns.some((column) => column.id === columnId)) {
+        nextIds.add(columnId);
+      }
+      const next = transactionColumns.map((column) => column.id).filter((id) => nextIds.has(id));
+      if (next.length > 0) {
+        storeTransactionColumnIds(next);
+        return next;
+      }
+      return currentIds;
+    });
+  };
+
+  const closeColumns = () => {
+    setColumnsOpen(false);
+  };
 
   const loadPaymentMethods = useCallback(async () => {
     try {
@@ -234,28 +379,8 @@ function FinanceTransactionsPanel({ onClose }) {
       exportExcelWorkbook(buildExportFilename("finance-transactions"), [{
         name: translate("Transactions"),
         rows: [
-          [
-            translate("Date"),
-            translate("Action"),
-            translate("Ticket Number"),
-            translate("Client"),
-            translate("Client ID"),
-            translate("Payment Method"),
-            translate("Amount UZS"),
-            translate("Cashier"),
-            translate("Status")
-          ],
-          ...rows.map((item) => [
-            formatDateTime(item.transactionAt),
-            getTransactionActionLabel(translate, item),
-            item.ticketNumber || "",
-            item.clientName || "",
-            item.clientId || "",
-            item.paymentMethodName || "",
-            Number.parseInt(String(item.amountUzs || 0), 10) || 0,
-            item.cashierName || "",
-            getTransactionStatusLabel(translate, item.status)
-          ])
+          visibleColumns.map((column) => translate(column.label)),
+          ...rows.map((item) => visibleColumns.map((column) => column.exportValue(item)))
         ]
       }]);
     } catch (error) {
@@ -315,6 +440,15 @@ function FinanceTransactionsPanel({ onClose }) {
           <button
             type="button"
             className="table-action-btn finance-head-icon-btn"
+            aria-label={translate("Table columns")}
+            title={translate("Table columns")}
+            onClick={() => setColumnsOpen(true)}
+          >
+            <span className="finance-head-icon finance-head-icon-columns" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="table-action-btn finance-head-icon-btn"
             aria-label={translate("Filter")}
             title={translate("Filter")}
             onClick={() => setFiltersOpen(true)}
@@ -336,6 +470,36 @@ function FinanceTransactionsPanel({ onClose }) {
           </button>
         </div>
       </div>
+
+      {columnsOpen && typeof document !== "undefined" ? createPortal((
+        <>
+          <button
+            type="button"
+            className="login-overlay stacked-modal-overlay finance-modal-overlay"
+            aria-label={translate("Close")}
+            onClick={closeColumns}
+          />
+          <div id="financeTransactionColumnsModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-ticket-columns-modal finance-transaction-columns-modal">
+            <h3>{translate("Table columns")}</h3>
+            <div className="finance-ticket-columns-list">
+              {transactionColumns.map((column) => {
+                const checked = visibleColumnIds.includes(column.id);
+                return (
+                  <label className="finance-ticket-column-option" key={column.id}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={checked && visibleColumnIds.length <= 1}
+                      onChange={() => toggleColumnVisibility(column.id)}
+                    />
+                    <span>{translate(column.label)}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      ), document.body) : null}
 
       {filtersOpen && typeof document !== "undefined" ? createPortal((
         <>
@@ -446,66 +610,35 @@ function FinanceTransactionsPanel({ onClose }) {
       <div className="all-users-table-scroll">
         <table className="all-users-table finance-transactions-table" aria-label="Finance transactions table">
           <colgroup>
-            <col className="finance-transactions-col-date" />
-            <col className="finance-transactions-col-action" />
-            <col className="finance-transactions-col-ticket" />
-            <col className="finance-transactions-col-client" />
-            <col className="finance-transactions-col-client-id" />
-            <col className="finance-transactions-col-method" />
-            <col className="finance-transactions-col-amount" />
-            <col className="finance-transactions-col-cashier" />
-            <col className="finance-transactions-col-status" />
+            {visibleColumns.map((column) => (
+              <col key={column.id} className={column.className} />
+            ))}
           </colgroup>
           <thead>
             <tr>
-              <th>{translate("Date")}</th>
-              <th>{translate("Action")}</th>
-              <th>{translate("Ticket Number")}</th>
-              <th>{translate("Client")}</th>
-              <th>{translate("Client ID")}</th>
-              <th>{translate("Payment Method")}</th>
-              <th>{translate("Amount UZS")}</th>
-              <th>{translate("Cashier")}</th>
-              <th>{translate("Status")}</th>
+              {visibleColumns.map((column) => (
+                <th key={column.id}>{translate(column.label)}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
               [0, 1, 2, 3, 4].map((index) => (
                 <tr key={index} aria-hidden="true">
-                  <td colSpan="9" className="skel" />
+                  <td colSpan={visibleColumnCount} className="skel" />
                 </tr>
               ))
             ) : items.map((item) => (
               <tr key={String(item.id)}>
-                <td>{formatDateTime(item.transactionAt)}</td>
-                <td>{getTransactionActionLabel(translate, item)}</td>
-                <td>{item.ticketNumber ? `#${item.ticketNumber}` : "-"}</td>
-                <td>{item.clientName || "-"}</td>
-                <td>{item.clientId || "-"}</td>
-                <td>{item.paymentMethodName || translate("Balance")}</td>
-                <td>{formatMoney(item.amountUzs)}</td>
-                <td>{item.cashierName || "-"}</td>
-                <td className="finance-transactions-status-cell">
-                  {item.status === "voided" ? (
-                    <span className="finance-transaction-status-voided">{translate("Cancelled")}</span>
-                  ) : (
-                    <button
-                      type="button"
-                      className="finance-transaction-void-btn"
-                      title={translate("Cancel transaction")}
-                      aria-label={translate("Cancel transaction")}
-                      disabled={voidingId === String(item.id)}
-                      onClick={() => openVoidTransaction(item)}
-                    >
-                      ⓧ
-                    </button>
-                  )}
-                </td>
+                {visibleColumns.map((column) => (
+                  <td key={column.id} className={column.id === "amount" ? "finance-transactions-amount-cell" : undefined}>
+                    {column.render(item)}
+                  </td>
+                ))}
               </tr>
             ))}
             {!loading && items.length === 0 ? (
-              <tr><td colSpan="9" className="all-users-state">{translate("No items found.")}</td></tr>
+              <tr><td colSpan={visibleColumnCount} className="all-users-state">{translate("No items found.")}</td></tr>
             ) : null}
           </tbody>
         </table>
