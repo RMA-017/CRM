@@ -28,6 +28,7 @@ import {
   searchCashierClients,
   updateCashierAppointmentStatus,
   updateFinanceTicket,
+  voidFinanceTransaction,
   voidFinanceTicket
 } from "./finance.service.js";
 
@@ -207,6 +208,36 @@ async function financeRoutes(fastify) {
       } catch (error) {
         request.log.error({ err: error }, "Error searching finance transaction clients:");
         return sendRouteError(reply, error, "Failed to search clients.");
+      }
+    }
+  );
+
+  fastify.post(
+    "/transactions/:id/void",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        params: financeRouteSchemas.idParams,
+        body: financeRouteSchemas.transactionVoidBody
+      }
+    },
+    async (request, reply) => {
+      try {
+        const requester = await requireAnyFinanceAccess(request, reply, [
+          PERMISSIONS.FINANCE_CASHIER_PAY,
+          PERMISSIONS.FINANCE_BALANCES_UPDATE
+        ]);
+        if (!requester) return null;
+        const item = await voidFinanceTransaction({
+          organizationId: request.authContext.organizationId,
+          id: request.params.id,
+          payload: request.body,
+          actorUserId: requester.id
+        });
+        return reply.send({ item });
+      } catch (error) {
+        request.log.error({ err: error }, "Error voiding finance transaction:");
+        return sendRouteError(reply, error, "Transaction cancellation failed.");
       }
     }
   );

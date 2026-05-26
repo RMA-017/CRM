@@ -122,6 +122,14 @@ export const financeRouteSchemas = Object.freeze({
       page_size: positiveIntegerLikeSchema
     }
   },
+  transactionVoidBody: {
+    type: "object",
+    additionalProperties: true,
+    required: ["reason"],
+    properties: {
+      reason: { type: "string", minLength: 3, maxLength: 255 }
+    }
+  },
   dailyCashQuery: {
     type: "object",
     additionalProperties: true,

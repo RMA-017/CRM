@@ -245,7 +245,8 @@ test("finance routes expose stable contract", async () => {
     "POST /cashier/tickets/:id/void",
     "POST /cashier/tickets/pay-batch",
     "POST /client-balances/deposit",
-    "POST /client-balances/pay-from-deposit"
+    "POST /client-balances/pay-from-deposit",
+    "POST /transactions/:id/void"
   ]);
 
   const boardGet = findRoute(recorder.routes, "GET", "/cashier/board");
@@ -295,6 +296,10 @@ test("finance routes expose stable contract", async () => {
 
   const transactionClientsGet = findRoute(recorder.routes, "GET", "/transactions/clients");
   assert.equal(typeof transactionClientsGet?.options?.schema?.querystring, "object");
+
+  const transactionVoidPost = findRoute(recorder.routes, "POST", "/transactions/:id/void");
+  assert.equal(typeof transactionVoidPost?.options?.schema?.params, "object");
+  assert.equal(typeof transactionVoidPost?.options?.schema?.body, "object");
 
   const sessionOpenPost = findRoute(recorder.routes, "POST", "/cashier/session/open");
   assert.equal(typeof sessionOpenPost?.options?.schema?.body, "object");

@@ -6038,6 +6038,95 @@ label.field > span:first-child,
   color: var(--brand);
 }
 
+.finance-transactions-table {
+  table-layout: fixed;
+}
+
+.finance-transactions-col-date {
+  width: 118px;
+}
+
+.finance-transactions-col-action {
+  width: 210px;
+}
+
+.finance-transactions-col-ticket {
+  width: 92px;
+}
+
+.finance-transactions-col-client {
+  width: 170px;
+}
+
+.finance-transactions-col-client-id {
+  width: 86px;
+}
+
+.finance-transactions-col-method {
+  width: 140px;
+}
+
+.finance-transactions-col-amount {
+  width: 120px;
+}
+
+.finance-transactions-col-cashier {
+  width: 130px;
+}
+
+.finance-transactions-col-status {
+  width: 80px;
+}
+
+.finance-transactions-table :is(th, td) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finance-transactions-table :is(th:nth-child(7), td:nth-child(7)) {
+  text-align: right;
+}
+
+.finance-transactions-status-cell {
+  text-align: center;
+}
+
+.finance-transaction-void-btn {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  padding: 0;
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  border-radius: 999px;
+  background: rgba(254, 242, 242, 0.86);
+  color: #dc2626;
+  cursor: pointer;
+  font: inherit;
+  font-size: 17px;
+  line-height: 1;
+  display: inline-grid;
+  place-items: center;
+}
+
+.finance-transaction-void-btn:hover,
+.finance-transaction-void-btn:focus-visible {
+  border-color: rgba(220, 38, 38, 0.5);
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.finance-transaction-void-btn:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.finance-transaction-status-voided {
+  color: #991b1b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .finance-cashier-panel .all-users-head-actions .finance-head-icon-btn {
   flex: 0 0 30px;
   width: 30px;
@@ -6325,6 +6414,28 @@ label.field > span:first-child,
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   min-width: 0;
+}
+
+#financeTransactionVoidModal.finance-transaction-void-modal {
+  width: min(460px, calc(100vw - 32px));
+  height: auto;
+  min-height: 0;
+  max-height: min(420px, calc(100dvh - 24px));
+  grid-template-rows: auto minmax(0, auto);
+}
+
+#financeTransactionVoidModal .auth-form {
+  grid-template-rows: minmax(0, auto) auto;
+}
+
+#financeTransactionVoidModal .finance-transaction-void-fields {
+  padding: 0;
+  overflow: visible;
+}
+
+#financeTransactionVoidModal textarea {
+  min-height: 82px;
+  resize: vertical;
 }
 
 #financeTicketColumnsModal.finance-ticket-columns-modal {

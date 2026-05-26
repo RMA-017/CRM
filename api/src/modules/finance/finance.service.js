@@ -176,8 +176,11 @@ function mapTransaction(row) {
     amountUzs: row.amount_uzs,
     transactionAt: row.transaction_at,
     note: row.note || "",
+    metadata: row.metadata || {},
     cashierUserId: row.cashier_user_id,
     cashierName: row.cashier_name || "",
+    voidedAt: row.voided_at,
+    voidedBy: row.voided_by,
     createdAt: row.created_at
   };
 }
@@ -1391,6 +1394,9 @@ export async function getFinanceTransactions({ organizationId, filters = {} }) {
             t.amount_uzs,
             t.transaction_at,
             t.note,
+            t.metadata,
+            t.voided_at,
+            t.voided_by,
             s.cashier_user_id,
             COALESCE(NULLIF(TRIM(cu.full_name), ''), NULLIF(TRIM(cu.username), ''), '') AS cashier_name,
             t.created_at
@@ -1409,6 +1415,138 @@ export async function getFinanceTransactions({ organizationId, filters = {} }) {
     dateFrom,
     dateTo
   };
+}
+
+async function refreshTicketPaymentStatus(db, { organizationId, ticketId, actorUserId }) {
+  const id = parsePositiveInteger(ticketId);
+  if (!id) return null;
+  const result = await db.query(
+    `WITH totals AS (
+       SELECT ft.id,
+              normalize_amount.total_uzs,
+              COALESCE(SUM(CASE
+                WHEN t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN t.amount_uzs
+                WHEN t.transaction_type IN ('refund', 'deposit_ticket_refund') THEN -t.amount_uzs
+                ELSE 0
+              END), 0) AS paid_amount_uzs
+         FROM finance_tickets ft
+         CROSS JOIN LATERAL (
+           SELECT COALESCE(ft.total_uzs, ft.amount_uzs, 0) AS total_uzs
+         ) normalize_amount
+         LEFT JOIN finance_transactions t
+           ON t.organization_id = ft.organization_id
+          AND t.ticket_id = ft.id
+          AND t.status = 'posted'
+          AND t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')
+        WHERE ft.organization_id = $1
+          AND ft.id = $2
+          AND ft.status <> 'voided'
+        GROUP BY ft.id, normalize_amount.total_uzs
+      )
+      UPDATE finance_tickets ft
+         SET status = CASE
+               WHEN totals.paid_amount_uzs >= totals.total_uzs AND totals.total_uzs > 0 THEN 'paid'
+               WHEN totals.paid_amount_uzs > 0 THEN 'unpaid'
+               ELSE 'issued'
+             END,
+             updated_by = $3,
+             updated_at = CURRENT_TIMESTAMP
+        FROM totals
+       WHERE ft.organization_id = $1
+         AND ft.id = totals.id
+       RETURNING ft.*`,
+    [organizationId, id, actorUserId || null]
+  );
+  return result.rows[0] || null;
+}
+
+export async function voidFinanceTransaction({ organizationId, id, payload, actorUserId }) {
+  const transactionId = parsePositiveInteger(id);
+  const reason = normalizeText(payload?.reason);
+  if (!transactionId) {
+    const error = new Error("Transaction not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+  if (reason.length < 3) {
+    const error = new Error("Cancellation reason is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const db = await pool.connect();
+  try {
+    await db.query("BEGIN");
+    const currentResult = await db.query(
+      `SELECT *
+         FROM finance_transactions
+        WHERE organization_id = $1
+          AND id = $2
+        FOR UPDATE`,
+      [organizationId, transactionId]
+    );
+    const current = currentResult.rows[0];
+    if (!current) {
+      const error = new Error("Transaction not found.");
+      error.statusCode = 404;
+      throw error;
+    }
+    if (current.status !== "posted") {
+      const error = new Error("Transaction is already cancelled.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const updatedResult = await db.query(
+      `UPDATE finance_transactions
+          SET status = 'voided',
+              voided_by = $3,
+              voided_at = CURRENT_TIMESTAMP,
+              metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                'voidReason', $4::text,
+                'voidedBy', $3::int,
+                'voidedAt', CURRENT_TIMESTAMP
+              ),
+              updated_at = CURRENT_TIMESTAMP
+        WHERE organization_id = $1
+          AND id = $2
+        RETURNING *`,
+      [organizationId, transactionId, actorUserId || null, reason]
+    );
+
+    const refreshedTicket = current.ticket_id
+      ? await refreshTicketPaymentStatus(db, {
+          organizationId,
+          ticketId: current.ticket_id,
+          actorUserId
+        })
+      : null;
+
+    if (refreshedTicket) {
+      await insertHistory(db, {
+        organizationId,
+        ticketId: refreshedTicket.id,
+        action: "transaction_voided",
+        fromStatus: current.transaction_type,
+        toStatus: refreshedTicket.status,
+        details: {
+          transactionId,
+          transactionType: current.transaction_type,
+          amountUzs: current.amount_uzs,
+          reason
+        },
+        actorUserId
+      });
+    }
+
+    await db.query("COMMIT");
+    return mapTransaction(updatedResult.rows[0]);
+  } catch (error) {
+    await db.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    db.release();
+  }
 }
 
 export async function getFinanceDailyCash({ organizationId, filters = {} }) {

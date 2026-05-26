@@ -217,6 +217,7 @@ function getHistoryActionLabel(translate, action) {
     paid: "Ticket paid",
     refunded: "Ticket refunded",
     voided: "Ticket voided",
+    transaction_voided: "Transaction cancelled",
     marked_unpaid: "Marked unpaid"
   };
   return translate(labels[String(action || "")] || String(action || "-"));

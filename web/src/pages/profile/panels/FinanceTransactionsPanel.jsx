@@ -40,6 +40,28 @@ function translateTransactionType(translate, type) {
   return translate(labels[String(type || "")] || String(type || "-"));
 }
 
+function getTransactionActionLabel(translate, item) {
+  const ticket = item?.ticketNumber ? ` #${item.ticketNumber}` : "";
+  const labels = {
+    ticket_payment: "Ticket payment",
+    deposit_in: "Client balance top-up",
+    deposit_out: "Client balance withdrawal",
+    deposit_ticket_payment: "Client balance ticket payment",
+    deposit_ticket_refund: "Client balance ticket refund",
+    refund: "Ticket refund",
+    correction: "Balance correction"
+  };
+  const type = String(item?.transactionType || "");
+  const base = translate(labels[type] || translateTransactionType(translate, type));
+  return ticket && ["ticket_payment", "deposit_ticket_payment", "deposit_ticket_refund", "refund"].includes(type)
+    ? `${base}${ticket}`
+    : base;
+}
+
+function getTransactionStatusLabel(translate, status) {
+  return String(status || "") === "voided" ? translate("Cancelled") : translate("Active");
+}
+
 function makeClientOption(item) {
   const id = String(item?.id ?? item?.clientId ?? "").trim();
   if (!id) return null;
@@ -62,6 +84,9 @@ function FinanceTransactionsPanel({ onClose }) {
   const [filterClientSearch, setFilterClientSearch] = useState("");
   const [filterClientOptions, setFilterClientOptions] = useState([]);
   const [filterClientSearchBusy, setFilterClientSearchBusy] = useState(false);
+  const [voidTarget, setVoidTarget] = useState(null);
+  const [voidReason, setVoidReason] = useState("");
+  const [voidingId, setVoidingId] = useState("");
 
   const paymentMethodOptions = useMemo(() => paymentMethods.map((item) => ({
     value: String(item.id),
@@ -211,21 +236,25 @@ function FinanceTransactionsPanel({ onClose }) {
         rows: [
           [
             translate("Date"),
-            translate("Payment Method"),
-            translate("Client"),
-            translate("Amount UZS"),
-            translate("Type"),
+            translate("Action"),
             translate("Ticket Number"),
-            translate("Cashier")
+            translate("Client"),
+            translate("Client ID"),
+            translate("Payment Method"),
+            translate("Amount UZS"),
+            translate("Cashier"),
+            translate("Status")
           ],
           ...rows.map((item) => [
             formatDateTime(item.transactionAt),
-            item.paymentMethodName || "",
-            item.clientName || "",
-            Number.parseInt(String(item.amountUzs || 0), 10) || 0,
-            translateTransactionType(translate, item.transactionType),
+            getTransactionActionLabel(translate, item),
             item.ticketNumber || "",
-            item.cashierName || ""
+            item.clientName || "",
+            item.clientId || "",
+            item.paymentMethodName || "",
+            Number.parseInt(String(item.amountUzs || 0), 10) || 0,
+            item.cashierName || "",
+            getTransactionStatusLabel(translate, item.status)
           ])
         ]
       }]);
@@ -233,6 +262,48 @@ function FinanceTransactionsPanel({ onClose }) {
       window.alert?.(translate(error?.message || "Export failed."));
     } finally {
       setExporting(false);
+    }
+  };
+
+  const openVoidTransaction = (item) => {
+    if (!item || item.status === "voided" || voidingId) return;
+    setVoidTarget(item);
+    setVoidReason("");
+  };
+
+  const closeVoidTransaction = () => {
+    if (voidingId) return;
+    setVoidTarget(null);
+    setVoidReason("");
+  };
+
+  const submitVoidTransaction = async (event) => {
+    event.preventDefault();
+    const id = String(voidTarget?.id || "");
+    const reason = voidReason.trim();
+    if (!id || voidingId) return;
+    if (reason.length < 3) {
+      window.alert?.(translate("Cancellation reason is required."));
+      return;
+    }
+    setVoidingId(id);
+    try {
+      const response = await apiFetch(`/api/finance/transactions/${id}/void`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason })
+      });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        window.alert?.(translate(data?.message || "Transaction cancellation failed."));
+        return;
+      }
+      closeVoidTransaction();
+      void loadTransactions(page, appliedFilters);
+    } catch {
+      window.alert?.(translate("Transaction cancellation failed."));
+    } finally {
+      setVoidingId("");
     }
   };
 
@@ -338,41 +409,103 @@ function FinanceTransactionsPanel({ onClose }) {
         </>
       ), document.body) : null}
 
+      {voidTarget && typeof document !== "undefined" ? createPortal((
+        <>
+          <button
+            type="button"
+            className="login-overlay stacked-modal-overlay finance-modal-overlay"
+            aria-label={translate("Close")}
+            onClick={closeVoidTransaction}
+          />
+          <div id="financeTransactionVoidModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-transaction-void-modal">
+            <h3>{translate("Cancel transaction")}</h3>
+            <form className="auth-form" onSubmit={submitVoidTransaction}>
+              <div className="all-users-edit-fields finance-transaction-void-fields">
+                <label className="field">
+                  <span>{translate("Cancellation reason")}</span>
+                  <textarea
+                    value={voidReason}
+                    rows={3}
+                    maxLength={255}
+                    required
+                    onChange={(event) => setVoidReason(event.currentTarget.value)}
+                  />
+                </label>
+              </div>
+              <div className="edit-actions">
+                <button type="button" className="btn btn-secondary" disabled={Boolean(voidingId)} onClick={closeVoidTransaction}>{translate("Cancel")}</button>
+                <button type="submit" className="btn" disabled={Boolean(voidingId)}>{voidingId ? "..." : translate("Confirm")}</button>
+              </div>
+            </form>
+          </div>
+        </>
+      ), document.body) : null}
+
       <p className="all-users-state" hidden={!message}>{translate(message)}</p>
 
       <div className="all-users-table-scroll">
-        <table className="all-users-table" aria-label="Finance transactions table">
+        <table className="all-users-table finance-transactions-table" aria-label="Finance transactions table">
+          <colgroup>
+            <col className="finance-transactions-col-date" />
+            <col className="finance-transactions-col-action" />
+            <col className="finance-transactions-col-ticket" />
+            <col className="finance-transactions-col-client" />
+            <col className="finance-transactions-col-client-id" />
+            <col className="finance-transactions-col-method" />
+            <col className="finance-transactions-col-amount" />
+            <col className="finance-transactions-col-cashier" />
+            <col className="finance-transactions-col-status" />
+          </colgroup>
           <thead>
             <tr>
               <th>{translate("Date")}</th>
-              <th>{translate("Payment Method")}</th>
-              <th>{translate("Client")}</th>
-              <th>{translate("Amount UZS")}</th>
-              <th>{translate("Type")}</th>
+              <th>{translate("Action")}</th>
               <th>{translate("Ticket Number")}</th>
+              <th>{translate("Client")}</th>
+              <th>{translate("Client ID")}</th>
+              <th>{translate("Payment Method")}</th>
+              <th>{translate("Amount UZS")}</th>
               <th>{translate("Cashier")}</th>
+              <th>{translate("Status")}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               [0, 1, 2, 3, 4].map((index) => (
                 <tr key={index} aria-hidden="true">
-                  <td colSpan="7" className="skel" />
+                  <td colSpan="9" className="skel" />
                 </tr>
               ))
             ) : items.map((item) => (
               <tr key={String(item.id)}>
                 <td>{formatDateTime(item.transactionAt)}</td>
-                <td>{item.paymentMethodName || "-"}</td>
-                <td>{item.clientName || "-"}</td>
-                <td>{formatMoney(item.amountUzs)}</td>
-                <td>{translateTransactionType(translate, item.transactionType)}</td>
+                <td>{getTransactionActionLabel(translate, item)}</td>
                 <td>{item.ticketNumber ? `#${item.ticketNumber}` : "-"}</td>
+                <td>{item.clientName || "-"}</td>
+                <td>{item.clientId || "-"}</td>
+                <td>{item.paymentMethodName || translate("Balance")}</td>
+                <td>{formatMoney(item.amountUzs)}</td>
                 <td>{item.cashierName || "-"}</td>
+                <td className="finance-transactions-status-cell">
+                  {item.status === "voided" ? (
+                    <span className="finance-transaction-status-voided">{translate("Cancelled")}</span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="finance-transaction-void-btn"
+                      title={translate("Cancel transaction")}
+                      aria-label={translate("Cancel transaction")}
+                      disabled={voidingId === String(item.id)}
+                      onClick={() => openVoidTransaction(item)}
+                    >
+                      ⓧ
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
             {!loading && items.length === 0 ? (
-              <tr><td colSpan="7" className="all-users-state">{translate("No items found.")}</td></tr>
+              <tr><td colSpan="9" className="all-users-state">{translate("No items found.")}</td></tr>
             ) : null}
           </tbody>
         </table>
