@@ -1186,11 +1186,11 @@ export async function getFinanceTicketHistory({ organizationId, id }) {
             h.changed_by,
             COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), '') AS actor_name,
             h.changed_at AS created_at
-       FROM finance_ticket_history h
+      FROM finance_ticket_history h
        LEFT JOIN users u ON u.organization_id = h.organization_id AND u.id = h.changed_by
       WHERE h.organization_id = $1
         AND h.ticket_id = $2
-      ORDER BY h.created_at DESC, h.id DESC`,
+      ORDER BY h.changed_at DESC, h.id DESC`,
     [organizationId, ticketId]
   );
   return result.rows.map(mapTicketHistory);
