@@ -98,7 +98,7 @@ export const financeRouteSchemas = Object.freeze({
       specialist: { type: "string", maxLength: 96 },
       position: { type: "string", maxLength: 96 },
       service: { type: "string", maxLength: 128 },
-      status: { type: "string", enum: ["", "issued", "paid", "unpaid", "voided"] },
+      status: { type: "string", maxLength: 64 },
       page: positiveIntegerLikeSchema,
       pageSize: positiveIntegerLikeSchema,
       page_size: positiveIntegerLikeSchema

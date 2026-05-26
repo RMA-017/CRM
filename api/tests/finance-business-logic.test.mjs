@@ -43,6 +43,12 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
 
   assert.match(
     financeServiceSource,
+    /function buildTicketsListWhere[\s\S]*const statuses = Array\.from\(new Set\([\s\S]*"issued", "paid", "unpaid", "voided"[\s\S]*if \(statuses\.length > 0\)[\s\S]*where\.push\(`ft\.status = ANY\(\$\$\{params\.length\}::text\[\]\)`\)[\s\S]*else \{[\s\S]*where\.push\("ft\.status <> 'voided'"\)/s,
+    "Finance ticket list filters should support multiple statuses and hide deleted/voided tickets unless explicitly requested."
+  );
+
+  assert.match(
+    financeServiceSource,
     /if \(error\?\.code === "23505"\)[\s\S]*Ticket already exists for this appointment/s,
     "Duplicate active appointment tickets should be mapped to a user-facing conflict."
   );

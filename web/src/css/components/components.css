@@ -6176,8 +6176,36 @@ label.field > span:first-child,
   background: currentColor;
 }
 
+.finance-head-icon-columns::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 3px;
+  width: 14px;
+  height: 12px;
+  border: 1.6px solid currentColor;
+  border-radius: 3px;
+  background:
+    linear-gradient(currentColor 0 0) 33% 0 / 1.4px 100% no-repeat,
+    linear-gradient(currentColor 0 0) 66% 0 / 1.4px 100% no-repeat,
+    linear-gradient(currentColor 0 0) 0 50% / 100% 1.4px no-repeat;
+}
+
+.finance-head-icon-columns::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background:
+    linear-gradient(currentColor 0 0) center / 5px 1.5px no-repeat,
+    linear-gradient(currentColor 0 0) center / 1.5px 5px no-repeat;
+}
+
 #financeTicketFilterModal.finance-ticket-filter-modal {
-  width: min(520px, calc(100vw - 32px));
+  width: min(560px, calc(100vw - 32px));
   height: auto;
   min-height: 0;
   max-height: min(680px, calc(100dvh - 24px));
@@ -6203,6 +6231,136 @@ label.field > span:first-child,
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   min-width: 0;
+}
+
+#financeTicketFilterModal .finance-ticket-status-filter-field {
+  gap: 6px;
+}
+
+#financeTicketFilterModal .finance-ticket-status-filter-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+#financeTicketFilterModal .finance-ticket-status-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.84);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+#financeTicketFilterModal .finance-ticket-status-filter-option input {
+  flex: 0 0 auto;
+}
+
+#financeTicketFilterModal .finance-ticket-status-filter-option span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#financeTicketColumnsModal.finance-ticket-columns-modal {
+  width: min(360px, calc(100vw - 32px));
+  height: auto;
+  min-height: 0;
+}
+
+#financeTicketColumnsModal .finance-ticket-columns-list {
+  display: grid;
+  gap: 8px;
+}
+
+#financeTicketColumnsModal .finance-ticket-column-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.84);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+#financeTicketColumnsModal .finance-ticket-column-option input {
+  flex: 0 0 auto;
+}
+
+#financeTicketHistoryModal.logout-confirm-modal.all-users-edit-modal {
+  width: min(960px, calc(100vw - 32px));
+  max-height: min(760px, calc(100dvh - 24px));
+}
+
+#financeTicketHistoryModal .all-users-table {
+  min-width: 880px;
+  table-layout: fixed;
+}
+
+#financeTicketHistoryModal .all-users-table :is(th, td) {
+  padding: 8px 10px;
+  height: auto;
+  min-height: 34px;
+  line-height: 1.3;
+  vertical-align: top;
+}
+
+#financeTicketHistoryModal .all-users-table :is(th:nth-child(1), td:nth-child(1)) {
+  width: 136px;
+}
+
+#financeTicketHistoryModal .all-users-table :is(th:nth-child(2), td:nth-child(2)) {
+  width: 140px;
+}
+
+#financeTicketHistoryModal .all-users-table :is(th:nth-child(3), td:nth-child(3)) {
+  width: 130px;
+}
+
+#financeTicketHistoryModal .all-users-table :is(th:nth-child(4), td:nth-child(4)) {
+  width: 150px;
+}
+
+#financeTicketHistoryModal .all-users-table :is(th:nth-child(5), td:nth-child(5)) {
+  width: auto;
+  min-width: 320px;
+  max-width: none;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+#financeTicketHistoryModal .finance-ticket-history-details {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  max-width: none;
+  white-space: normal;
+  line-height: 1.4;
+}
+
+#financeTicketHistoryModal .finance-ticket-history-details div {
+  display: grid;
+  grid-template-columns: minmax(96px, max-content) minmax(0, 1fr);
+  gap: 8px;
+}
+
+#financeTicketHistoryModal .finance-ticket-history-details strong {
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
+#financeTicketHistoryModal .finance-ticket-history-details span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 #financeTicketsPanel .finance-ticket-action-group {

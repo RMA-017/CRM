@@ -17,6 +17,13 @@ const EMPTY_FILTERS = Object.freeze({
   status: ""
 });
 
+const TICKET_STATUS_FILTER_OPTIONS = Object.freeze([
+  { value: "issued", label: "Tickets" },
+  { value: "unpaid", label: "Unpaid" },
+  { value: "paid", label: "Paid" },
+  { value: "voided", label: "Voided" }
+]);
+
 function todayDateValue() {
   const date = new Date();
   const year = String(date.getFullYear());
@@ -163,6 +170,85 @@ function translateTicketStatus(translate, status) {
   return translate(labels[String(status || "")] || String(status || "-"));
 }
 
+function getHistoryActionLabel(translate, action) {
+  const labels = {
+    created: "Ticket created",
+    updated: "Ticket updated",
+    paid: "Ticket paid",
+    refunded: "Ticket refunded",
+    voided: "Ticket voided",
+    marked_unpaid: "Marked unpaid"
+  };
+  return translate(labels[String(action || "")] || String(action || "-"));
+}
+
+function makeHistoryLine(label, value) {
+  const normalized = value === null || value === undefined ? "" : String(value).trim();
+  return normalized && normalized !== "-" ? { label, value: normalized } : null;
+}
+
+function makeHistoryItemsLine(translate, items) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  return makeHistoryLine(
+    "Services",
+    items.map((item) => {
+      const service = String(item?.serviceName || item?.service_name || "-").trim();
+      const specialist = String(item?.specialistName || item?.specialist_name || "").trim();
+      const finalAmount = item?.finalAmountUzs ?? item?.final_amount_uzs;
+      const discount = item?.discountUzs ?? item?.discount_uzs;
+      const parts = [service];
+      if (specialist) parts.push(`${translate("Specialist")}: ${specialist}`);
+      parts.push(`${translate("Final")}: ${formatMoney(finalAmount)}`);
+      if (Number.parseInt(String(discount ?? 0), 10) > 0) {
+        parts.push(`${translate("Discount")}: ${formatMoney(discount)}`);
+      }
+      return parts.join(" / ");
+    }).join("; ")
+  );
+}
+
+function buildTicketHistoryDetails(translate, item) {
+  const details = item?.details && typeof item.details === "object" ? item.details : {};
+  const totals = details.totals || details.after?.totals || {};
+  const items = details.items || details.after?.items || [];
+  const before = details.before || {};
+  const after = details.after || {};
+  const lines = [
+    makeHistoryLine("Ticket Number", details.ticketNumber || after.ticketNumber),
+    makeHistoryLine("Ticket Date", details.ticketDate || after.ticketDate),
+    makeHistoryLine("Client ID", details.clientId || after.clientId),
+    makeHistoryLine("Subtotal", formatMoney(totals.subtotalUzs)),
+    makeHistoryLine("Discount", formatMoney(totals.discountUzs)),
+    makeHistoryLine("Total", formatMoney(totals.totalUzs)),
+    makeHistoryLine("Amount UZS", formatMoney(details.amountUzs)),
+    makeHistoryLine("Paid", formatMoney(details.paidAmountUzs)),
+    makeHistoryLine("Remaining", formatMoney(details.remainingAmountUzs)),
+    makeHistoryLine("Payment Method", details.paymentMethodName || details.paymentMethodId),
+    makeHistoryLine("Payment ID", details.paymentId),
+    makeHistoryLine("Payment Group", details.paymentGroupId),
+    makeHistoryLine("Cash session", details.cashSessionId),
+    makeHistoryLine("Appointment", details.appointmentScheduleId),
+    makeHistoryLine("Note", details.note || after.note),
+    makeHistoryItemsLine(translate, items)
+  ].filter(Boolean);
+
+  if (before.ticketDate || after.ticketDate || before.clientId || after.clientId || before.totals || after.totals) {
+    lines.push(makeHistoryLine("Changed", [
+      before.ticketDate && after.ticketDate && before.ticketDate !== after.ticketDate
+        ? `${translate("Ticket Date")}: ${before.ticketDate} -> ${after.ticketDate}`
+        : "",
+      before.clientId && after.clientId && String(before.clientId) !== String(after.clientId)
+        ? `${translate("Client ID")}: ${before.clientId} -> ${after.clientId}`
+        : "",
+      before.totals?.totalUzs !== undefined && after.totals?.totalUzs !== undefined && Number(before.totals.totalUzs) !== Number(after.totals.totalUzs)
+        ? `${translate("Total")}: ${formatMoney(before.totals.totalUzs)} -> ${formatMoney(after.totals.totalUzs)}`
+        : ""
+    ].filter(Boolean).join("; ")));
+  }
+
+  return lines.filter(Boolean);
+}
+
 function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
   const { translate } = useI18n();
   const [filters, setFilters] = useState(() => createDefaultFilters());
@@ -189,6 +275,19 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
   const [editClientSearchBusy, setEditClientSearchBusy] = useState(false);
   const [voidingId, setVoidingId] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [columnsOpen, setColumnsOpen] = useState(false);
+  const [visibleColumnIds, setVisibleColumnIds] = useState(() => [
+    "ticketNumber",
+    "createdAt",
+    "clientName",
+    "clientId",
+    "ticketDate",
+    "service",
+    "department",
+    "specialist",
+    "toPay",
+    "actions"
+  ]);
   const [filterReferences, setFilterReferences] = useState({ services: [], specialists: [], positions: [] });
   const [filterReferencesLoading, setFilterReferencesLoading] = useState(false);
   const [filterClientSearch, setFilterClientSearch] = useState("");
@@ -289,6 +388,126 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
     return [{ value: "", label: translate("All") }, ...options];
   }, [filterReferences.services, translate]);
 
+  const ticketColumns = [
+    {
+      id: "ticketNumber",
+      label: "Ticket Number",
+      render: (item) => item.ticketNumber ? `#${item.ticketNumber}` : "-",
+      exportValue: (item) => item.ticketNumber || ""
+    },
+    {
+      id: "createdAt",
+      label: "Created At",
+      render: (item) => formatDateTime(item.createdAt),
+      exportValue: (item) => formatDateTime(item.createdAt)
+    },
+    {
+      id: "clientName",
+      label: "Client",
+      render: (item) => item.clientName || "-",
+      exportValue: (item) => item.clientName || ""
+    },
+    {
+      id: "clientId",
+      label: "Client ID",
+      render: (item) => item.clientId || "-",
+      exportValue: (item) => item.clientId || ""
+    },
+    {
+      id: "ticketDate",
+      label: "Ticket Date",
+      render: (item) => formatDateYMD(item.ticketDate),
+      exportValue: (item) => formatDateYMD(item.ticketDate)
+    },
+    {
+      id: "service",
+      label: "Service",
+      render: (item) => getTicketServiceText(item),
+      exportValue: (item) => getTicketServiceText(item)
+    },
+    {
+      id: "department",
+      label: "Department",
+      render: (item) => getTicketPositionText(item),
+      exportValue: (item) => getTicketPositionText(item)
+    },
+    {
+      id: "specialist",
+      label: "Specialist",
+      render: (item) => getTicketSpecialistText(item),
+      exportValue: (item) => getTicketSpecialistText(item)
+    },
+    {
+      id: "toPay",
+      label: "To Pay",
+      render: (item) => formatMoney(item.totalUzs ?? item.amountUzs),
+      exportValue: (item) => Number.parseInt(String(item.totalUzs ?? item.amountUzs ?? 0), 10) || 0
+    },
+    {
+      id: "actions",
+      label: "Actions",
+      render: (item) => {
+        const id = String(item.id);
+        const canEditRow = canUpdateFinanceCashier && item.status !== "paid" && item.status !== "voided";
+        const hasAction = canEditRow || item.status === "paid";
+        return hasAction ? (
+          <div className="finance-ticket-action-group">
+            {canEditRow ? (
+              <>
+                <button
+                  type="button"
+                  className="table-action-btn finance-ticket-icon-btn"
+                  aria-label={translate("Edit")}
+                  title={translate("Edit")}
+                  disabled={editSubmitting}
+                  onClick={() => openEditTicket(item)}
+                >
+                  ✎
+                </button>
+                <button
+                  type="button"
+                  className="table-action-btn table-action-btn-danger finance-ticket-icon-btn"
+                  aria-label={translate("Delete")}
+                  title={translate("Delete")}
+                  disabled={voidingId === id}
+                  onClick={() => deleteTicket(item)}
+                >
+                  {voidingId === id ? "..." : <span className="finance-ticket-trash-icon" aria-hidden="true" />}
+                </button>
+              </>
+            ) : null}
+            {item.status === "paid" ? (
+              <button
+                type="button"
+                className="table-action-btn"
+                disabled={refundingId === id}
+                onClick={() => refundTicket(item)}
+              >
+                {translate("Refund")}
+              </button>
+            ) : null}
+          </div>
+        ) : "-";
+      },
+      exportValue: () => ""
+    }
+  ];
+  const visibleColumns = ticketColumns.filter((column) => visibleColumnIds.includes(column.id));
+  const visibleColumnCount = Math.max(visibleColumns.length, 1);
+
+  const toggleColumnVisibility = (columnId) => {
+    setVisibleColumnIds((current) => {
+      if (current.includes(columnId)) {
+        return current.length > 1 ? current.filter((id) => id !== columnId) : current;
+      }
+      if (!ticketColumns.some((column) => column.id === columnId)) {
+        return current;
+      }
+      const nextIds = new Set([...current, columnId]);
+      return ticketColumns.map((column) => column.id).filter((id) => nextIds.has(id));
+    });
+  };
+
   const editServiceById = useMemo(() => {
     const map = new Map();
     editServiceOptions.forEach((option) => {
@@ -323,13 +542,19 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
     void loadTickets(1, filters);
   };
 
-  const resetFilters = () => {
-    const nextFilters = createDefaultFilters();
-    setFilters(nextFilters);
-    setAppliedFilters(nextFilters);
-    setFilterClientSearch("");
-    setFilterClientOptions([]);
-    void loadTickets(1, nextFilters);
+  const toggleStatusFilter = (status) => {
+    setFilters((current) => {
+      const selected = new Set(String(current.status || "").split(",").filter(Boolean));
+      if (selected.has(status)) {
+        selected.delete(status);
+      } else {
+        selected.add(status);
+      }
+      const ordered = TICKET_STATUS_FILTER_OPTIONS
+        .map((option) => option.value)
+        .filter((value) => selected.has(value));
+      return { ...current, status: ordered.join(",") };
+    });
   };
 
   const openHistory = async (item) => {
@@ -703,26 +928,8 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
       exportExcelWorkbook(buildExportFilename("finance-tickets"), [{
         name: translate("Tickets"),
         rows: [
-          [
-            translate("Ticket Number"),
-            translate("Ticket Date"),
-            translate("Client"),
-            translate("Specialist"),
-            translate("Department"),
-            translate("Service"),
-            translate("Total"),
-            translate("Status")
-          ],
-          ...rows.map((item) => [
-            item.ticketNumber || "",
-            formatDateYMD(item.ticketDate),
-            item.clientName || "",
-            getTicketSpecialistText(item),
-            getTicketPositionText(item),
-            getTicketServiceText(item),
-            Number.parseInt(String(item.totalUzs ?? item.amountUzs ?? 0), 10) || 0,
-            translateTicketStatus(translate, item.status)
-          ])
+          visibleColumns.map((column) => translate(column.label)),
+          ...rows.map((item) => visibleColumns.map((column) => column.exportValue(item)))
         ]
       }]);
     } catch (error) {
@@ -737,11 +944,24 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
     setFiltersOpen(false);
   };
 
+  const closeColumns = () => {
+    setColumnsOpen(false);
+  };
+
   return (
     <section id="financeTicketsPanel" className="all-users-panel settings-panel ops-panel-shell finance-panel-shell finance-tickets-panel">
       <div className="all-users-head">
         <h3>{translate("Tickets")}</h3>
         <div className="all-users-head-actions">
+          <button
+            type="button"
+            className="table-action-btn finance-head-icon-btn"
+            aria-label={translate("Table columns")}
+            title={translate("Table columns")}
+            onClick={() => setColumnsOpen(true)}
+          >
+            <span className="finance-head-icon finance-head-icon-columns" aria-hidden="true" />
+          </button>
           <button
             type="button"
             className="table-action-btn finance-head-icon-btn"
@@ -766,6 +986,36 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
           </button>
         </div>
       </div>
+
+      {columnsOpen && typeof document !== "undefined" ? createPortal((
+        <>
+          <button
+            type="button"
+            className="login-overlay stacked-modal-overlay finance-modal-overlay"
+            aria-label={translate("Close")}
+            onClick={closeColumns}
+          />
+          <div id="financeTicketColumnsModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-ticket-columns-modal">
+            <h3>{translate("Table columns")}</h3>
+            <div className="finance-ticket-columns-list">
+              {ticketColumns.map((column) => {
+                const checked = visibleColumnIds.includes(column.id);
+                return (
+                  <label className="finance-ticket-column-option" key={column.id}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={checked && visibleColumnIds.length <= 1}
+                      onChange={() => toggleColumnVisibility(column.id)}
+                    />
+                    <span>{translate(column.label)}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      ), document.body) : null}
 
       {filtersOpen && typeof document !== "undefined" ? createPortal((
         <>
@@ -868,31 +1118,31 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                     searchPlaceholder={translate("Search")}
                     searchThreshold={8}
                     menuPortal
-                    menuWidthScale={1.2}
                     disabled={filterReferencesLoading}
                     onChange={(value) => setFilters((current) => ({ ...current, service: value }))}
                   />
                 </label>
-                <label className="field">
+                <label className="field finance-ticket-status-filter-field">
                   <span>{translate("Status")}</span>
-                  <select
-                    value={filters.status}
-                    onChange={(event) => {
-                      const value = event.currentTarget.value;
-                      setFilters((current) => ({ ...current, status: value }));
-                    }}
-                  >
-                    <option value="">{translate("All")}</option>
-                    <option value="issued">{translate("Tickets")}</option>
-                    <option value="paid">{translate("Paid")}</option>
-                    <option value="unpaid">{translate("Unpaid")}</option>
-                    <option value="voided">{translate("Voided")}</option>
-                  </select>
+                  <div className="finance-ticket-status-filter-list">
+                    {TICKET_STATUS_FILTER_OPTIONS.map((option) => {
+                      const checked = String(filters.status || "").split(",").includes(option.value);
+                      return (
+                        <label className="finance-ticket-status-filter-option" key={option.value}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleStatusFilter(option.value)}
+                          />
+                          <span>{translate(option.label)}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </label>
               </div>
               <div className="edit-actions">
                 <button type="submit" className="btn btn-primary" disabled={loading}>{translate("Search")}</button>
-                <button type="button" className="btn btn-secondary" disabled={loading} onClick={resetFilters}>{translate("Reset")}</button>
               </div>
             </form>
           </div>
@@ -905,84 +1155,31 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
         <table className="all-users-table" aria-label="Finance tickets table">
           <thead>
             <tr>
-              <th>{translate("Ticket Number")}</th>
-              <th>{translate("Ticket Date")}</th>
-              <th>{translate("Client")}</th>
-              <th>{translate("Specialist")}</th>
-              <th>{translate("Department")}</th>
-              <th>{translate("Service")}</th>
-              <th>{translate("Total")}</th>
-              <th>{translate("Status")}</th>
-              <th>{translate("Actions")}</th>
+              {visibleColumns.map((column) => (
+                <th key={column.id}>{translate(column.label)}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
               [0, 1, 2, 3, 4].map((index) => (
                 <tr key={index} aria-hidden="true">
-                  <td colSpan="9" className="skel" />
+                  <td colSpan={visibleColumnCount} className="skel" />
                 </tr>
               ))
             ) : items.map((item) => {
               const id = String(item.id);
-              const canEditRow = canUpdateFinanceCashier && item.status !== "paid" && item.status !== "voided";
-              const hasAction = canEditRow || item.status === "paid";
               return (
                 <tr key={id} onDoubleClick={() => openHistory(item)}>
-                  <td>{item.ticketNumber ? `#${item.ticketNumber}` : "-"}</td>
-                  <td>{formatDateYMD(item.ticketDate)}</td>
-                  <td>{item.clientName || "-"}</td>
-                  <td>{getTicketSpecialistText(item)}</td>
-                  <td>{getTicketPositionText(item)}</td>
-                  <td>{getTicketServiceText(item)}</td>
-                  <td>{formatMoney(item.totalUzs ?? item.amountUzs)}</td>
-                  <td>{translateTicketStatus(translate, item.status)}</td>
-                  <td>
-                    {hasAction ? (
-                      <div className="finance-ticket-action-group">
-                        {canEditRow ? (
-                          <>
-                            <button
-                              type="button"
-                              className="table-action-btn finance-ticket-icon-btn"
-                              aria-label={translate("Edit")}
-                              title={translate("Edit")}
-                              disabled={editSubmitting}
-                              onClick={() => openEditTicket(item)}
-                            >
-                              ✎
-                            </button>
-                            <button
-                              type="button"
-                              className="table-action-btn table-action-btn-danger finance-ticket-icon-btn"
-                              aria-label={translate("Delete")}
-                              title={translate("Delete")}
-                              disabled={voidingId === id}
-                              onClick={() => deleteTicket(item)}
-                            >
-                              {voidingId === id ? "..." : <span className="finance-ticket-trash-icon" aria-hidden="true" />}
-                            </button>
-                          </>
-                        ) : null}
-                        {item.status === "paid" ? (
-                          <button
-                            type="button"
-                            className="table-action-btn"
-                            disabled={refundingId === id}
-                            onClick={() => refundTicket(item)}
-                          >
-                            {translate("Refund")}
-                          </button>
-                        ) : null}
-                      </div>
-                    ) : "-"}
-                  </td>
+                  {visibleColumns.map((column) => (
+                    <td key={column.id}>{column.render(item)}</td>
+                  ))}
                 </tr>
               );
             })}
             {!loading && items.length === 0 ? (
               <tr>
-                <td colSpan="9" className="all-users-state">{translate("No items found.")}</td>
+                <td colSpan={visibleColumnCount} className="all-users-state">{translate("No items found.")}</td>
               </tr>
             ) : null}
           </tbody>
@@ -1156,7 +1353,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
         </>
       ) : null}
 
-      {historyTicket ? (
+      {historyTicket && typeof document !== "undefined" ? createPortal((
         <>
           <button
             type="button"
@@ -1174,21 +1371,37 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                     <th>{translate("Action")}</th>
                     <th>{translate("Status")}</th>
                     <th>{translate("User")}</th>
+                    <th>{translate("Details")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {historyLoading ? (
-                    <tr><td colSpan="4" className="skel" /></tr>
-                  ) : historyItems.map((item) => (
-                    <tr key={String(item.id)}>
-                      <td>{formatDateTime(item.createdAt)}</td>
-                      <td>{translate(item.action || "-")}</td>
-                      <td>{[item.fromStatus, item.toStatus].filter(Boolean).map((status) => translateTicketStatus(translate, status)).join(" -> ") || "-"}</td>
-                      <td>{item.actorName || "-"}</td>
-                    </tr>
-                  ))}
+                    <tr><td colSpan="5" className="skel" /></tr>
+                  ) : historyItems.map((item) => {
+                    const detailLines = buildTicketHistoryDetails(translate, item);
+                    return (
+                      <tr key={String(item.id)}>
+                        <td>{formatDateTime(item.createdAt)}</td>
+                        <td>{getHistoryActionLabel(translate, item.action)}</td>
+                        <td>{[item.fromStatus, item.toStatus].filter(Boolean).map((status) => translateTicketStatus(translate, status)).join(" -> ") || "-"}</td>
+                        <td>{item.actorName || "-"}</td>
+                        <td>
+                          {detailLines.length > 0 ? (
+                            <div className="finance-ticket-history-details">
+                              {detailLines.map((line) => (
+                                <div key={`${line.label}-${line.value}`}>
+                                  <strong>{translate(line.label)}:</strong>
+                                  <span>{line.value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : "-"}
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {!historyLoading && historyItems.length === 0 ? (
-                    <tr><td colSpan="4" className="all-users-state">{translate("No items found.")}</td></tr>
+                    <tr><td colSpan="5" className="all-users-state">{translate("No items found.")}</td></tr>
                   ) : null}
                 </tbody>
               </table>
@@ -1198,7 +1411,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
             </div>
           </div>
         </>
-      ) : null}
+      ), document.body) : null}
     </section>
   );
 }

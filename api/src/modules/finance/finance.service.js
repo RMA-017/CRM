@@ -977,7 +977,12 @@ function buildTicketsListWhere({ organizationId, filters = {} }) {
   const specialist = normalizeText(filters.specialist, 96).toLowerCase();
   const position = normalizeText(filters.position, 96).toLowerCase();
   const service = normalizeText(filters.service, 128).toLowerCase();
-  const status = normalizeText(filters.status, 16);
+  const statuses = Array.from(new Set(
+    normalizeText(filters.status, 64)
+      .split(",")
+      .map((item) => item.trim())
+      .filter((item) => ["issued", "paid", "unpaid", "voided"].includes(item))
+  ));
 
   if (/^\d{1,5}$/.test(ticketNumber)) {
     params.push(Number.parseInt(ticketNumber, 10));
@@ -1047,9 +1052,11 @@ function buildTicketsListWhere({ organizationId, filters = {} }) {
       )
     )`);
   }
-  if (["issued", "paid", "unpaid", "voided"].includes(status)) {
-    params.push(status);
-    where.push(`ft.status = $${params.length}`);
+  if (statuses.length > 0) {
+    params.push(statuses);
+    where.push(`ft.status = ANY($${params.length}::text[])`);
+  } else {
+    where.push("ft.status <> 'voided'");
   }
 
   return { params, whereSql: where.join(" AND ") };
@@ -2102,6 +2109,112 @@ async function getTicketById(db, { organizationId, id }) {
   return result.rows[0] || null;
 }
 
+async function hydrateHistoryItems(db, { organizationId, items }) {
+  const specialistIds = Array.from(new Set(
+    (Array.isArray(items) ? items : [])
+      .map((item) => parsePositiveInteger(item?.specialistId ?? item?.specialist_id))
+      .filter(Boolean)
+  ));
+  const specialists = new Map();
+  if (specialistIds.length > 0) {
+    const result = await db.query(
+      `SELECT u.id,
+              COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS specialist_name,
+              p.label AS position_label
+         FROM users u
+         LEFT JOIN position_options p ON p.organization_id = u.organization_id AND p.id = u.position_id
+        WHERE u.organization_id = $1
+          AND u.id = ANY($2::int[])`,
+      [organizationId, specialistIds]
+    );
+    result.rows.forEach((row) => {
+      specialists.set(String(row.id), row);
+    });
+  }
+  return (Array.isArray(items) ? items : []).map((item, index) => {
+    const specialistId = parsePositiveInteger(item?.specialistId ?? item?.specialist_id);
+    const specialist = specialists.get(String(specialistId)) || {};
+    return {
+      lineNumber: Number.parseInt(String(item?.lineNumber ?? item?.line_number ?? index + 1), 10) || index + 1,
+      specialistId: specialistId || null,
+      specialistName: specialist.specialist_name || item?.specialistName || "",
+      positionLabel: specialist.position_label || item?.positionLabel || "",
+      serviceId: parsePositiveInteger(item?.serviceId ?? item?.service_id) || null,
+      serviceName: item?.serviceName ?? item?.service_name ?? "",
+      priceUzs: normalizeAmount(item?.priceUzs ?? item?.price_uzs, 0),
+      discountType: normalizeDiscountType(item?.discountType ?? item?.discount_type),
+      discountValue: normalizeAmount(item?.discountValue ?? item?.discount_value, 0),
+      discountUzs: normalizeAmount(item?.discountUzs ?? item?.discount_uzs, 0),
+      finalAmountUzs: normalizeAmount(item?.finalAmountUzs ?? item?.final_amount_uzs, 0)
+    };
+  });
+}
+
+async function getTicketHistorySnapshot(db, { organizationId, ticketId }) {
+  const result = await db.query(
+    `SELECT ft.id,
+            ft.ticket_number,
+            ft.ticket_date,
+            ft.source,
+            ft.appointment_schedule_id,
+            ft.client_id,
+            CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+            ft.subtotal_uzs,
+            ft.discount_uzs,
+            ft.total_uzs,
+            ft.amount_uzs,
+            ft.status,
+            ft.note,
+            COALESCE(
+              json_agg(
+                json_build_object(
+                  'lineNumber', fti.line_number,
+                  'specialistId', fti.specialist_id,
+                  'specialistName', COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), ''),
+                  'positionLabel', p.label,
+                  'serviceId', fti.service_id,
+                  'serviceName', fti.service_name,
+                  'priceUzs', fti.price_uzs,
+                  'discountType', fti.discount_type,
+                  'discountValue', fti.discount_value,
+                  'discountUzs', fti.discount_uzs,
+                  'finalAmountUzs', fti.final_amount_uzs
+                )
+                ORDER BY fti.line_number ASC, fti.id ASC
+              ) FILTER (WHERE fti.id IS NOT NULL),
+              '[]'::json
+            ) AS items
+       FROM finance_tickets ft
+       JOIN clients c ON c.organization_id = ft.organization_id AND c.id = ft.client_id
+       LEFT JOIN finance_ticket_items fti ON fti.organization_id = ft.organization_id AND fti.ticket_id = ft.id
+       LEFT JOIN users u ON u.organization_id = fti.organization_id AND u.id = fti.specialist_id
+       LEFT JOIN position_options p ON p.organization_id = u.organization_id AND p.id = u.position_id
+      WHERE ft.organization_id = $1
+        AND ft.id = $2
+      GROUP BY ft.id, c.last_name, c.first_name, c.middle_name
+      LIMIT 1`,
+    [organizationId, ticketId]
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  return {
+    ticketNumber: row.ticket_number,
+    ticketDate: row.ticket_date,
+    source: row.source,
+    appointmentScheduleId: row.appointment_schedule_id,
+    clientId: row.client_id,
+    clientName: row.client_name,
+    status: row.status,
+    note: row.note || "",
+    totals: {
+      subtotalUzs: row.subtotal_uzs ?? row.amount_uzs,
+      discountUzs: row.discount_uzs ?? 0,
+      totalUzs: row.total_uzs ?? row.amount_uzs
+    },
+    items: Array.isArray(row.items) ? row.items : []
+  };
+}
+
 async function getServiceById(db, { organizationId, serviceId }) {
   const result = await db.query(
     `SELECT sc.id,
@@ -2337,6 +2450,7 @@ export async function createFinanceTicket({ organizationId, payload, actorUserId
     );
     const ticket = insertResult.rows[0];
     await insertTicketItems(db, { organizationId, ticketId: ticket.id, items });
+    const historyItems = await hydrateHistoryItems(db, { organizationId, items });
     await insertHistory(db, {
       organizationId,
       ticketId: ticket.id,
@@ -2348,7 +2462,7 @@ export async function createFinanceTicket({ organizationId, payload, actorUserId
         ticketNumber,
         ticketDate,
         totals,
-        items
+        items: historyItems
       },
       actorUserId
     });
@@ -2413,6 +2527,7 @@ export async function updateFinanceTicket({ organizationId, id, payload, actorUs
       error.statusCode = 400;
       throw error;
     }
+    const beforeSnapshot = await getTicketHistorySnapshot(db, { organizationId, ticketId });
     const nextClientId = hasClientId ? clientId : current.client_id;
     if (hasClientId) {
       const clientResult = await db.query(
@@ -2522,6 +2637,7 @@ export async function updateFinanceTicket({ organizationId, id, payload, actorUs
       );
       await insertTicketItems(db, { organizationId, ticketId, items: nextItems });
     }
+    const afterSnapshot = await getTicketHistorySnapshot(db, { organizationId, ticketId });
     await insertHistory(db, {
       organizationId,
       ticketId,
@@ -2534,7 +2650,9 @@ export async function updateFinanceTicket({ organizationId, id, payload, actorUs
         amountUzs: amountUzs !== null ? amountUzs : undefined,
         note: payload?.note !== undefined ? note : undefined,
         totals: nextTotals || undefined,
-        items: nextItems || undefined
+        items: nextItems ? await hydrateHistoryItems(db, { organizationId, items: nextItems }) : undefined,
+        before: beforeSnapshot || undefined,
+        after: afterSnapshot || undefined
       },
       actorUserId
     });
@@ -2572,6 +2690,7 @@ async function updateTicketStatus({ organizationId, id, status, action, actorUse
       error.statusCode = 400;
       throw error;
     }
+    const beforeSnapshot = await getTicketHistorySnapshot(db, { organizationId, ticketId });
     const result = await db.query(
       `UPDATE finance_tickets
           SET status = $3,
@@ -2588,6 +2707,10 @@ async function updateTicketStatus({ organizationId, id, status, action, actorUse
       action,
       fromStatus: current.status,
       toStatus: status,
+      details: {
+        before: beforeSnapshot || undefined,
+        after: await getTicketHistorySnapshot(db, { organizationId, ticketId }) || undefined
+      },
       actorUserId
     });
     await db.query("COMMIT");
@@ -2626,7 +2749,7 @@ export async function payFinanceTicket({ organizationId, id, payload, actorUserI
       throw error;
     }
     const methodResult = await db.query(
-      `SELECT id
+      `SELECT id, name
          FROM finance_payment_methods
         WHERE organization_id = $1
           AND id = $2
@@ -2723,6 +2846,7 @@ export async function payFinanceTicket({ organizationId, id, payload, actorUserI
       toStatus: nextStatus,
       details: {
         paymentMethodId,
+        paymentMethodName: methodResult.rows[0]?.name || "",
         amountUzs,
         paidAmountUzs: nextPaidAmountUzs,
         remainingAmountUzs: Math.max(totalAmountUzs - nextPaidAmountUzs, 0),
