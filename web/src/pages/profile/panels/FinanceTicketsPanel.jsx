@@ -24,6 +24,8 @@ const TICKET_STATUS_FILTER_OPTIONS = Object.freeze([
   { value: "voided", label: "Voided" }
 ]);
 
+const DEFAULT_TICKET_STATUS_FILTER = "issued,unpaid,paid";
+
 function todayDateValue() {
   const date = new Date();
   const year = String(date.getFullYear());
@@ -37,7 +39,8 @@ function createDefaultFilters() {
   return {
     ...EMPTY_FILTERS,
     dateFrom: today,
-    dateTo: today
+    dateTo: today,
+    status: DEFAULT_TICKET_STATUS_FILTER
   };
 }
 
@@ -1206,7 +1209,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
         </button>
       </div>
 
-      {editTicket ? (
+      {editTicket && typeof document !== "undefined" ? createPortal((
         <>
           <button
             type="button"
@@ -1215,7 +1218,12 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
             onClick={() => closeEditTicket()}
           />
           <div id="financeTicketEditModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-ticket-edit-modal">
-            <h3>{`${translate("Edit Ticket")} ${editTicket.ticketNumber ? `#${editTicket.ticketNumber}` : ""}`}</h3>
+            <h3 className="finance-modal-title-with-number">
+              <span>{translate("Edit Ticket")}</span>
+              {editTicket.ticketNumber ? (
+                <span className="finance-modal-ticket-number">{`#${editTicket.ticketNumber}`}</span>
+              ) : null}
+            </h3>
             <form className="auth-form finance-ticket-edit-form" onSubmit={submitEditTicket}>
               <div className="all-users-edit-fields">
                 <div className="finance-ticket-edit-top-row">
@@ -1351,7 +1359,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
             </form>
           </div>
         </>
-      ) : null}
+      ), document.body) : null}
 
       {historyTicket && typeof document !== "undefined" ? createPortal((
         <>
