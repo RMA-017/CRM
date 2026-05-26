@@ -4602,6 +4602,18 @@ export async function deleteAppointmentSchedulesByIds({
   const tableName = getAppointmentSchedulesTableName(scheduleScope);
   const previousSnapshotSql = buildScheduleSnapshotSql("d");
 
+  await db.query(
+    `UPDATE finance_tickets
+        SET source = 'manual',
+            appointment_schedule_id = NULL,
+            updated_by = $3,
+            updated_at = CURRENT_TIMESTAMP
+      WHERE organization_id = $1
+        AND appointment_schedule_id = ANY($2::integer[])
+        AND status = 'voided'`,
+    [organizationId, normalizedIds, actorUserId || null]
+  );
+
   const { rows } = await db.query(
     `WITH deleted AS (
        DELETE FROM ${tableName}
