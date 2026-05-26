@@ -25,6 +25,41 @@ const TICKET_STATUS_FILTER_OPTIONS = Object.freeze([
 ]);
 
 const DEFAULT_TICKET_STATUS_FILTER = "issued,unpaid,paid";
+const FINANCE_TICKET_COLUMNS_STORAGE_KEY = "aaron_crm_finance_ticket_columns";
+const DEFAULT_FINANCE_TICKET_COLUMN_IDS = Object.freeze([
+  "ticketNumber",
+  "createdAt",
+  "clientName",
+  "clientId",
+  "ticketDate",
+  "service",
+  "department",
+  "specialist",
+  "toPay",
+  "actions"
+]);
+
+function loadStoredTicketColumnIds() {
+  if (typeof window === "undefined") return [...DEFAULT_FINANCE_TICKET_COLUMN_IDS];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(FINANCE_TICKET_COLUMNS_STORAGE_KEY) || "[]");
+    const stored = Array.isArray(parsed) ? parsed : [];
+    const allowed = new Set(DEFAULT_FINANCE_TICKET_COLUMN_IDS);
+    const normalized = DEFAULT_FINANCE_TICKET_COLUMN_IDS.filter((id) => stored.includes(id) && allowed.has(id));
+    return normalized.length > 0 ? normalized : [...DEFAULT_FINANCE_TICKET_COLUMN_IDS];
+  } catch {
+    return [...DEFAULT_FINANCE_TICKET_COLUMN_IDS];
+  }
+}
+
+function storeTicketColumnIds(columnIds) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(FINANCE_TICKET_COLUMNS_STORAGE_KEY, JSON.stringify(columnIds));
+  } catch {
+    // Ignore storage failures; the current session state still works.
+  }
+}
 
 function todayDateValue() {
   const date = new Date();
@@ -279,18 +314,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
   const [voidingId, setVoidingId] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [columnsOpen, setColumnsOpen] = useState(false);
-  const [visibleColumnIds, setVisibleColumnIds] = useState(() => [
-    "ticketNumber",
-    "createdAt",
-    "clientName",
-    "clientId",
-    "ticketDate",
-    "service",
-    "department",
-    "specialist",
-    "toPay",
-    "actions"
-  ]);
+  const [visibleColumnIds, setVisibleColumnIds] = useState(() => loadStoredTicketColumnIds());
   const [filterReferences, setFilterReferences] = useState({ services: [], specialists: [], positions: [] });
   const [filterReferencesLoading, setFilterReferencesLoading] = useState(false);
   const [filterClientSearch, setFilterClientSearch] = useState("");
@@ -500,14 +524,17 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
 
   const toggleColumnVisibility = (columnId) => {
     setVisibleColumnIds((current) => {
+      let next = current;
       if (current.includes(columnId)) {
-        return current.length > 1 ? current.filter((id) => id !== columnId) : current;
+        next = current.length > 1 ? current.filter((id) => id !== columnId) : current;
+      } else if (ticketColumns.some((column) => column.id === columnId)) {
+        const nextIds = new Set([...current, columnId]);
+        next = ticketColumns.map((column) => column.id).filter((id) => nextIds.has(id));
       }
-      if (!ticketColumns.some((column) => column.id === columnId)) {
-        return current;
+      if (next !== current) {
+        storeTicketColumnIds(next);
       }
-      const nextIds = new Set([...current, columnId]);
-      return ticketColumns.map((column) => column.id).filter((id) => nextIds.has(id));
+      return next;
     });
   };
 
