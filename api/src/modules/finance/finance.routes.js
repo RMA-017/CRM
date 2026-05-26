@@ -287,8 +287,7 @@ async function financeRoutes(fastify) {
     {
       config: { rateLimit: fastify.apiRateLimit },
       schema: {
-        params: financeRouteSchemas.idParams,
-        body: financeRouteSchemas.ticketVoidBody
+        params: financeRouteSchemas.idParams
       }
     },
     async (request, reply) => {
@@ -762,7 +761,8 @@ async function financeRoutes(fastify) {
     {
       config: { rateLimit: fastify.apiRateLimit },
       schema: {
-        params: financeRouteSchemas.idParams
+        params: financeRouteSchemas.idParams,
+        body: financeRouteSchemas.ticketVoidBody
       }
     },
     async (request, reply) => {
