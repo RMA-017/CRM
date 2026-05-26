@@ -6452,7 +6452,8 @@ label.field > span:first-child,
   grid-template-rows: auto minmax(0, 1fr);
 }
 
-#financeTicketColumnsModal .finance-ticket-columns-list {
+#financeTicketColumnsModal .finance-ticket-columns-list,
+#financeTransactionColumnsModal .finance-ticket-columns-list {
   display: grid;
   gap: 4px;
   min-height: 0;
@@ -6462,7 +6463,8 @@ label.field > span:first-child,
   padding: 1px 2px 1px 1px;
 }
 
-#financeTicketColumnsModal .finance-ticket-column-option {
+#financeTicketColumnsModal .finance-ticket-column-option,
+#financeTransactionColumnsModal .finance-ticket-column-option {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -6477,13 +6479,15 @@ label.field > span:first-child,
   line-height: 1.15;
 }
 
-#financeTicketColumnsModal .finance-ticket-column-option input {
+#financeTicketColumnsModal .finance-ticket-column-option input,
+#financeTransactionColumnsModal .finance-ticket-column-option input {
   flex: 0 0 auto;
   width: 13px;
   height: 13px;
 }
 
-#financeTicketColumnsModal .finance-ticket-column-option span {
+#financeTicketColumnsModal .finance-ticket-column-option span,
+#financeTransactionColumnsModal .finance-ticket-column-option span {
   display: block;
   min-width: 0;
   color: #111827;
