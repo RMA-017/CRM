@@ -287,7 +287,8 @@ async function financeRoutes(fastify) {
     {
       config: { rateLimit: fastify.apiRateLimit },
       schema: {
-        params: financeRouteSchemas.idParams
+        params: financeRouteSchemas.idParams,
+        body: financeRouteSchemas.ticketVoidBody
       }
     },
     async (request, reply) => {
@@ -771,6 +772,7 @@ async function financeRoutes(fastify) {
         const ticket = await voidFinanceTicket({
           organizationId: request.authContext.organizationId,
           id: request.params.id,
+          payload: request.body,
           actorUserId: requester.id
         });
         return reply.send({ item: ticket });

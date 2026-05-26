@@ -1187,7 +1187,7 @@ export async function getFinanceTicketHistory({ organizationId, id }) {
             COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), '') AS actor_name,
             h.changed_at AS created_at
       FROM finance_ticket_history h
-       LEFT JOIN users u ON u.organization_id = h.organization_id AND u.id = h.changed_by
+       LEFT JOIN users u ON u.id = h.changed_by
       WHERE h.organization_id = $1
         AND h.ticket_id = $2
       ORDER BY h.changed_at DESC, h.id DESC`,
@@ -2492,9 +2492,15 @@ export async function updateFinanceTicket({ organizationId, id, payload, actorUs
     ? normalizeAmount(payload?.amountUzs ?? payload?.amount_uzs, -1)
     : null;
   const note = payload?.note !== undefined ? normalizeText(payload.note) : null;
+  const reason = normalizeText(payload?.reason ?? payload?.changeReason ?? payload?.change_reason);
   if (!ticketId) {
     const error = new Error("Ticket not found.");
     error.statusCode = 404;
+    throw error;
+  }
+  if (!reason) {
+    const error = new Error("Change reason is required.");
+    error.statusCode = 400;
     throw error;
   }
   if (hasTicketDate && !ticketDate) {
@@ -2649,6 +2655,7 @@ export async function updateFinanceTicket({ organizationId, id, payload, actorUs
         clientId: hasClientId ? nextClientId : undefined,
         amountUzs: amountUzs !== null ? amountUzs : undefined,
         note: payload?.note !== undefined ? note : undefined,
+        reason,
         totals: nextTotals || undefined,
         items: nextItems ? await hydrateHistoryItems(db, { organizationId, items: nextItems }) : undefined,
         before: beforeSnapshot || undefined,
@@ -2670,11 +2677,17 @@ export async function markFinanceTicketUnpaid({ organizationId, id, actorUserId 
   return updateTicketStatus({ organizationId, id, status: "unpaid", action: "marked_unpaid", actorUserId });
 }
 
-export async function voidFinanceTicket({ organizationId, id, actorUserId }) {
-  return updateTicketStatus({ organizationId, id, status: "voided", action: "voided", actorUserId });
+export async function voidFinanceTicket({ organizationId, id, payload, actorUserId }) {
+  const reason = normalizeText(payload?.reason);
+  if (!reason) {
+    const error = new Error("Delete reason is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+  return updateTicketStatus({ organizationId, id, status: "voided", action: "voided", reason, actorUserId });
 }
 
-async function updateTicketStatus({ organizationId, id, status, action, actorUserId }) {
+async function updateTicketStatus({ organizationId, id, status, action, reason = "", actorUserId }) {
   const ticketId = parsePositiveInteger(id);
   const db = await pool.connect();
   try {
@@ -2708,6 +2721,7 @@ async function updateTicketStatus({ organizationId, id, status, action, actorUse
       fromStatus: current.status,
       toStatus: status,
       details: {
+        reason: reason || undefined,
         before: beforeSnapshot || undefined,
         after: await getTicketHistorySnapshot(db, { organizationId, ticketId }) || undefined
       },

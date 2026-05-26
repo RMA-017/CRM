@@ -258,7 +258,10 @@ export const financeRouteSchemas = Object.freeze({
         maxItems: 20,
         items: ticketItemSchema
       },
-      note: { type: "string", maxLength: 255 }
+      note: { type: "string", maxLength: 255 },
+      reason: { type: "string", maxLength: 255 },
+      changeReason: { type: "string", maxLength: 255 },
+      change_reason: { type: "string", maxLength: 255 }
     },
     anyOf: [
       { required: ["appointmentScheduleId"] },
@@ -297,6 +300,14 @@ export const financeRouteSchemas = Object.freeze({
       { required: ["items"] },
       { required: ["note"] }
     ]
+  },
+  ticketVoidBody: {
+    type: "object",
+    additionalProperties: true,
+    required: ["reason"],
+    properties: {
+      reason: { type: "string", minLength: 1, maxLength: 255 }
+    }
   },
   ticketPaymentBody: {
     type: "object",

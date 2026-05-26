@@ -83,6 +83,7 @@ const EMPTY_TICKET_EDIT_FORM = Object.freeze({
   ticketDate: "",
   clientId: "",
   note: "",
+  reason: "",
   items: []
 });
 
@@ -147,6 +148,7 @@ function createTicketEditForm(item = null) {
     ticketDate: formatDateInput(item.ticketDate),
     clientId: String(item.clientId || ""),
     note: item.note || "",
+    reason: "",
     items: createTicketEditItemRows(item)
   };
 }
@@ -247,44 +249,8 @@ function makeHistoryItemsLine(translate, items) {
 
 function buildTicketHistoryDetails(translate, item) {
   const details = item?.details && typeof item.details === "object" ? item.details : {};
-  const totals = details.totals || details.after?.totals || {};
-  const items = details.items || details.after?.items || [];
-  const before = details.before || {};
-  const after = details.after || {};
-  const lines = [
-    makeHistoryLine("Ticket Number", details.ticketNumber || after.ticketNumber),
-    makeHistoryLine("Ticket Date", details.ticketDate || after.ticketDate),
-    makeHistoryLine("Client ID", details.clientId || after.clientId),
-    makeHistoryLine("Subtotal", formatMoney(totals.subtotalUzs)),
-    makeHistoryLine("Discount", formatMoney(totals.discountUzs)),
-    makeHistoryLine("Total", formatMoney(totals.totalUzs)),
-    makeHistoryLine("Amount UZS", formatMoney(details.amountUzs)),
-    makeHistoryLine("Paid", formatMoney(details.paidAmountUzs)),
-    makeHistoryLine("Remaining", formatMoney(details.remainingAmountUzs)),
-    makeHistoryLine("Payment Method", details.paymentMethodName || details.paymentMethodId),
-    makeHistoryLine("Payment ID", details.paymentId),
-    makeHistoryLine("Payment Group", details.paymentGroupId),
-    makeHistoryLine("Cash session", details.cashSessionId),
-    makeHistoryLine("Appointment", details.appointmentScheduleId),
-    makeHistoryLine("Note", details.note || after.note),
-    makeHistoryItemsLine(translate, items)
-  ].filter(Boolean);
-
-  if (before.ticketDate || after.ticketDate || before.clientId || after.clientId || before.totals || after.totals) {
-    lines.push(makeHistoryLine("Changed", [
-      before.ticketDate && after.ticketDate && before.ticketDate !== after.ticketDate
-        ? `${translate("Ticket Date")}: ${before.ticketDate} -> ${after.ticketDate}`
-        : "",
-      before.clientId && after.clientId && String(before.clientId) !== String(after.clientId)
-        ? `${translate("Client ID")}: ${before.clientId} -> ${after.clientId}`
-        : "",
-      before.totals?.totalUzs !== undefined && after.totals?.totalUzs !== undefined && Number(before.totals.totalUzs) !== Number(after.totals.totalUzs)
-        ? `${translate("Total")}: ${formatMoney(before.totals.totalUzs)} -> ${formatMoney(after.totals.totalUzs)}`
-        : ""
-    ].filter(Boolean).join("; ")));
-  }
-
-  return lines.filter(Boolean);
+  const reason = String(details.reason || details.changeReason || "").trim();
+  return reason ? [makeHistoryLine("Reason", reason)] : [];
 }
 
 function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
@@ -840,6 +806,11 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
       window.alert?.(translate("Ticket amount is required."));
       return;
     }
+    const reason = String(editForm.reason || "").trim();
+    if (!reason) {
+      window.alert?.(translate("Change reason is required."));
+      return;
+    }
 
     setEditSubmitting(true);
     try {
@@ -855,7 +826,8 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
             discountType: item.discountType || "amount",
             discountValue: Number.parseInt(String(item.discountValue || 0), 10) || 0
           })),
-          note: editForm.note
+          note: editForm.note,
+          reason
         })
       });
       const data = await readApiResponseData(response);
@@ -879,13 +851,17 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
       window.alert?.(translate("Paid or voided tickets cannot be edited."));
       return;
     }
-    const confirmed = window.confirm?.(translate("Delete this ticket?")) ?? true;
-    if (!confirmed) return;
+    const reason = String(window.prompt?.(translate("Enter ticket delete reason")) || "").trim();
+    if (!reason) {
+      window.alert?.(translate("Delete reason is required."));
+      return;
+    }
     setVoidingId(id);
     try {
       const response = await apiFetch(`/api/finance/cashier/tickets/${id}/void`, {
         method: "POST",
-        body: JSON.stringify({})
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason })
       });
       const data = await readApiResponseData(response);
       if (!response.ok) {
@@ -1200,7 +1176,11 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
             ) : items.map((item) => {
               const id = String(item.id);
               return (
-                <tr key={id} onDoubleClick={() => openHistory(item)}>
+                <tr
+                  key={id}
+                  title={translate("Double-click to view ticket history")}
+                  onDoubleClick={() => openHistory(item)}
+                >
                   {visibleColumns.map((column) => (
                     <td key={column.id}>{column.render(item)}</td>
                   ))}
@@ -1356,6 +1336,20 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                     onChange={(event) => {
                       const value = event.currentTarget.value;
                       setEditForm((current) => ({ ...current, note: value }));
+                    }}
+                  />
+                </label>
+
+                <label className="field">
+                  <span>{translate("Change reason")}</span>
+                  <textarea
+                    rows="2"
+                    maxLength="255"
+                    required
+                    value={editForm.reason}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setEditForm((current) => ({ ...current, reason: value }));
                     }}
                   />
                 </label>
