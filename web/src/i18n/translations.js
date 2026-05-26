@@ -332,6 +332,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Appointment update failed.", uz: "Darsni yangilab bo'lmadi.", ru: "Не удалось обновить занятие." },
   { en: "Ticket payment failed.", uz: "Talon to'lovini amalga oshirib bo'lmadi.", ru: "Не удалось оплатить талон." },
   { en: "Ticket amount is required.", uz: "Talon summasi majburiy.", ru: "Сумма талона обязательна." },
+  { en: "Ticket total cannot be less than paid amount.", uz: "Talon jami to'langan summadan kam bo'lishi mumkin emas.", ru: "Итог талона не может быть меньше оплаченной суммы." },
   { en: "Enter amount UZS.", uz: "Summani UZS da kiriting.", ru: "Введите сумму в UZS." },
   { en: "Only confirmed appointments can become tickets.", uz: "Faqat tasdiqlangan darslardan talon yaratiladi.", ru: "Талон можно создать только из подтвержденного занятия." },
   { en: "Only pending appointments can be confirmed.", uz: "Faqat kutilayotgan darslarni tasdiqlash mumkin.", ru: "Подтвердить можно только ожидающие занятия." },

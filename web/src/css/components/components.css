@@ -6234,6 +6234,10 @@ label.field > span:first-child,
   background: transparent;
 }
 
+#financeTicketFilterModal .all-users-edit-fields.settings-filter-grid.finance-ticket-filter-grid {
+  padding: 0;
+}
+
 #financeTicketFilterModal .finance-ticket-filter-date-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

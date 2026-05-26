@@ -247,10 +247,10 @@ function makeHistoryItemsLine(translate, items) {
   );
 }
 
-function buildTicketHistoryDetails(translate, item) {
+function buildTicketHistoryDetails(item) {
   const details = item?.details && typeof item.details === "object" ? item.details : {};
   const reason = String(details.reason || details.changeReason || "").trim();
-  return reason ? [makeHistoryLine("Reason", reason)] : [];
+  return reason ? [reason] : [];
 }
 
 function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
@@ -1407,7 +1407,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                   {historyLoading ? (
                     <tr><td colSpan="5" className="skel" /></tr>
                   ) : historyItems.map((item) => {
-                    const detailLines = buildTicketHistoryDetails(translate, item);
+                    const detailLines = buildTicketHistoryDetails(item);
                     return (
                       <tr key={String(item.id)}>
                         <td>{formatDateTime(item.createdAt)}</td>
@@ -1418,10 +1418,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                           {detailLines.length > 0 ? (
                             <div className="finance-ticket-history-details">
                               {detailLines.map((line) => (
-                                <div key={`${line.label}-${line.value}`}>
-                                  <strong>{translate(line.label)}:</strong>
-                                  <span>{line.value}</span>
-                                </div>
+                                <div key={line}>{line}</div>
                               ))}
                             </div>
                           ) : "-"}

@@ -347,6 +347,23 @@ async function insertHistory(db, { organizationId, ticketId, action, fromStatus,
   );
 }
 
+async function getTicketPaidAmount(db, { organizationId, ticketId }) {
+  const result = await db.query(
+    `SELECT COALESCE(SUM(CASE
+              WHEN transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN amount_uzs
+              WHEN transaction_type IN ('refund', 'deposit_ticket_refund') THEN -amount_uzs
+              ELSE 0
+            END), 0) AS paid_amount_uzs
+       FROM finance_transactions
+      WHERE organization_id = $1
+        AND ticket_id = $2
+        AND status = 'posted'
+        AND transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')`,
+    [organizationId, ticketId]
+  );
+  return normalizeAmount(result.rows[0]?.paid_amount_uzs, 0);
+}
+
 async function getOpenCashSession(db, { organizationId, cashierUserId, forUpdate = false }) {
   const result = await db.query(
     `SELECT s.*,
@@ -2643,13 +2660,31 @@ export async function updateFinanceTicket({ organizationId, id, payload, actorUs
       );
       await insertTicketItems(db, { organizationId, ticketId, items: nextItems });
     }
+    const paidAmountUzs = await getTicketPaidAmount(db, { organizationId, ticketId });
+    if (paidAmountUzs > nextTotalUzs) {
+      const error = new Error("Ticket total cannot be less than paid amount.");
+      error.statusCode = 400;
+      throw error;
+    }
+    if (paidAmountUzs > 0 && paidAmountUzs >= nextTotalUzs && current.status !== "paid") {
+      await db.query(
+        `UPDATE finance_tickets
+            SET status = 'paid',
+                updated_by = $3,
+                updated_at = CURRENT_TIMESTAMP
+          WHERE organization_id = $1
+            AND id = $2`,
+        [organizationId, ticketId, actorUserId || null]
+      );
+      result.rows[0].status = "paid";
+    }
     const afterSnapshot = await getTicketHistorySnapshot(db, { organizationId, ticketId });
     await insertHistory(db, {
       organizationId,
       ticketId,
       action: "updated",
       fromStatus: current.status,
-      toStatus: current.status,
+      toStatus: result.rows[0]?.status || current.status,
       details: {
         ticketDate: hasTicketDate ? ticketDate : undefined,
         clientId: hasClientId ? nextClientId : undefined,
@@ -2698,7 +2733,7 @@ async function updateTicketStatus({ organizationId, id, status, action, reason =
       error.statusCode = 404;
       throw error;
     }
-    if (current.status === "paid" && status !== "voided") {
+    if (current.status === "paid") {
       const error = new Error("Paid tickets cannot be changed.");
       error.statusCode = 400;
       throw error;
