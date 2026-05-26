@@ -5969,11 +5969,19 @@ label.field > span:first-child,
   align-items: center;
 }
 
+.finance-transactions-panel .all-users-head {
+  align-items: center;
+}
+
 .finance-cashier-panel .all-users-head h3 {
   align-self: center;
 }
 
 .finance-tickets-panel .all-users-head h3 {
+  align-self: center;
+}
+
+.finance-transactions-panel .all-users-head h3 {
   align-self: center;
 }
 
