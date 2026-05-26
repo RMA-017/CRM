@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import CustomSelect from "../../../components/CustomSelect.jsx";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { buildExportFilename, exportExcelWorkbook } from "../../../lib/excel-export.js";
@@ -8,6 +9,7 @@ import { useI18n } from "../../../i18n/I18nProvider.jsx";
 const EMPTY_FILTERS = Object.freeze({
   dateFrom: getTodayYmd(),
   dateTo: getTodayYmd(),
+  ticketNumber: "",
   client: "",
   paymentMethodId: ""
 });
@@ -46,10 +48,10 @@ function FinanceTransactionsPanel({ onClose }) {
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const paymentMethodOptions = useMemo(() => paymentMethods.map((item) => ({
     value: String(item.id),
@@ -90,7 +92,6 @@ function FinanceTransactionsPanel({ onClose }) {
       setItems(Array.isArray(data?.items) ? data.items : []);
       setPage(Number.parseInt(String(data?.page || nextPage), 10) || 1);
       setTotalPages(Number.parseInt(String(data?.totalPages || 1), 10) || 1);
-      setTotal(Number.parseInt(String(data?.total || 0), 10) || 0);
       setMessage("");
     } catch {
       setMessage("Failed to load transactions.");
@@ -108,13 +109,8 @@ function FinanceTransactionsPanel({ onClose }) {
   const applyFilters = (event) => {
     event.preventDefault();
     setAppliedFilters(filters);
+    setFiltersOpen(false);
     void loadTransactions(1, filters);
-  };
-
-  const resetFilters = () => {
-    setFilters(EMPTY_FILTERS);
-    setAppliedFilters(EMPTY_FILTERS);
-    void loadTransactions(1, EMPTY_FILTERS);
   };
 
   const fetchAllTransactions = async () => {
@@ -186,6 +182,15 @@ function FinanceTransactionsPanel({ onClose }) {
           <button
             type="button"
             className="table-action-btn finance-head-icon-btn"
+            aria-label={translate("Filter")}
+            title={translate("Filter")}
+            onClick={() => setFiltersOpen(true)}
+          >
+            <span className="finance-head-icon finance-head-icon-filter" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="table-action-btn finance-head-icon-btn"
             aria-label={translate("Export Excel")}
             title={translate("Export Excel")}
             disabled={loading || exporting}
@@ -199,47 +204,71 @@ function FinanceTransactionsPanel({ onClose }) {
         </div>
       </div>
 
-      <form className="settings-filter-grid" onSubmit={applyFilters}>
-        <label className="field">
-          <span>{translate("Date From")}</span>
-          <input
-            type="date"
-            value={filters.dateFrom}
-            onChange={(event) => setFilters((current) => ({ ...current, dateFrom: event.currentTarget.value }))}
+      {filtersOpen && typeof document !== "undefined" ? createPortal((
+        <>
+          <button
+            type="button"
+            className="login-overlay stacked-modal-overlay finance-modal-overlay"
+            aria-label={translate("Close")}
+            onClick={() => setFiltersOpen(false)}
           />
-        </label>
-        <label className="field">
-          <span>{translate("Date To")}</span>
-          <input
-            type="date"
-            value={filters.dateTo}
-            onChange={(event) => setFilters((current) => ({ ...current, dateTo: event.currentTarget.value }))}
-          />
-        </label>
-        <label className="field">
-          <span>{translate("Client")}</span>
-          <input
-            type="search"
-            value={filters.client}
-            onChange={(event) => setFilters((current) => ({ ...current, client: event.currentTarget.value }))}
-          />
-        </label>
-        <label className="field">
-          <span>{translate("Payment Method")}</span>
-          <CustomSelect
-            value={filters.paymentMethodId}
-            options={[{ value: "", label: translate("All") }, ...paymentMethodOptions]}
-            onChange={(value) => setFilters((current) => ({ ...current, paymentMethodId: value }))}
-          />
-        </label>
-        <div className="settings-filter-actions">
-          <button type="submit" className="table-action-btn" disabled={loading}>{translate("Search")}</button>
-          <button type="button" className="table-action-btn" disabled={loading} onClick={resetFilters}>{translate("Reset")}</button>
-        </div>
-      </form>
+          <div id="financeTransactionsFilterModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-transactions-filter-modal">
+            <h3>{translate("Filter")}</h3>
+            <form className="auth-form" onSubmit={applyFilters}>
+              <div className="all-users-edit-fields settings-filter-grid finance-transactions-filter-grid">
+                <div className="finance-transactions-filter-date-row">
+                  <label className="field">
+                    <span>{translate("Date From")}</span>
+                    <input
+                      type="date"
+                      value={filters.dateFrom}
+                      onChange={(event) => setFilters((current) => ({ ...current, dateFrom: event.currentTarget.value }))}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>{translate("Date To")}</span>
+                    <input
+                      type="date"
+                      value={filters.dateTo}
+                      onChange={(event) => setFilters((current) => ({ ...current, dateTo: event.currentTarget.value }))}
+                    />
+                  </label>
+                </div>
+                <label className="field">
+                  <span>{translate("Ticket Number")}</span>
+                  <input
+                    type="text"
+                    value={filters.ticketNumber}
+                    onChange={(event) => setFilters((current) => ({ ...current, ticketNumber: event.currentTarget.value }))}
+                  />
+                </label>
+                <label className="field">
+                  <span>{translate("Client")}</span>
+                  <input
+                    type="search"
+                    value={filters.client}
+                    onChange={(event) => setFilters((current) => ({ ...current, client: event.currentTarget.value }))}
+                  />
+                </label>
+                <label className="field">
+                  <span>{translate("Payment Method")}</span>
+                  <CustomSelect
+                    value={filters.paymentMethodId}
+                    options={[{ value: "", label: translate("All") }, ...paymentMethodOptions]}
+                    menuPortal
+                    onChange={(value) => setFilters((current) => ({ ...current, paymentMethodId: value }))}
+                  />
+                </label>
+              </div>
+              <div className="edit-actions">
+                <button type="submit" className="btn" disabled={loading}>{translate("Search")}</button>
+              </div>
+            </form>
+          </div>
+        </>
+      ), document.body) : null}
 
       <p className="all-users-state" hidden={!message}>{translate(message)}</p>
-      <p className="all-users-state">{`${translate("Total")}: ${total}`}</p>
 
       <div className="all-users-table-scroll">
         <table className="all-users-table" aria-label="Finance transactions table">

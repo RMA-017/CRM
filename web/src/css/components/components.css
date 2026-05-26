@@ -6286,6 +6286,39 @@ label.field > span:first-child,
   overflow-wrap: anywhere;
 }
 
+#financeTransactionsFilterModal.finance-transactions-filter-modal {
+  width: min(540px, calc(100vw - 32px));
+  height: auto;
+  min-height: 0;
+  max-height: min(620px, calc(100dvh - 24px));
+  grid-template-rows: auto minmax(0, auto);
+}
+
+#financeTransactionsFilterModal .auth-form {
+  grid-template-rows: minmax(0, auto) auto;
+}
+
+#financeTransactionsFilterModal .finance-transactions-filter-grid {
+  grid-template-columns: 1fr;
+  align-content: start;
+  margin: 0;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  background: transparent;
+}
+
+#financeTransactionsFilterModal .all-users-edit-fields.settings-filter-grid.finance-transactions-filter-grid {
+  padding: 0;
+}
+
+#financeTransactionsFilterModal .finance-transactions-filter-date-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
 #financeTicketColumnsModal.finance-ticket-columns-modal {
   width: min(420px, calc(100vw - 32px));
   height: auto;
@@ -8161,6 +8194,10 @@ label.field > span:first-child,
   #financeBatchPaymentModal .finance-batch-client-balance-row,
   #financeBatchPaymentModal .finance-batch-ticket-row,
   #financeBatchPaymentModal .finance-batch-payment-row {
+    grid-template-columns: 1fr;
+  }
+
+  #financeTransactionsFilterModal .finance-transactions-filter-date-row {
     grid-template-columns: 1fr;
   }
 }

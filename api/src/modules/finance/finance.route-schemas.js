@@ -112,6 +112,8 @@ export const financeRouteSchemas = Object.freeze({
       dateTo: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
       date_from: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
       date_to: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      ticketNumber: { type: "string", maxLength: 5 },
+      ticket_number: { type: "string", maxLength: 5 },
       client: { type: "string", maxLength: 96 },
       paymentMethodId: positiveIntegerLikeSchema,
       payment_method_id: positiveIntegerLikeSchema,

@@ -1334,6 +1334,7 @@ export async function getFinanceTransactions({ organizationId, filters = {} }) {
   const today = new Date().toISOString().slice(0, 10);
   const dateFrom = normalizeDate(filters.dateFrom ?? filters.date_from) || today;
   const dateTo = normalizeDate(filters.dateTo ?? filters.date_to) || dateFrom;
+  const ticketNumber = normalizeText(filters.ticketNumber ?? filters.ticket_number, 5);
   const client = normalizeText(filters.client, 96).toLowerCase();
   const paymentMethodId = parsePositiveInteger(filters.paymentMethodId ?? filters.payment_method_id);
   const page = normalizePage(filters.page);
@@ -1352,6 +1353,10 @@ export async function getFinanceTransactions({ organizationId, filters = {} }) {
       LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE $${params.length - 1}
       OR c.id::text = $${params.length}
     )`);
+  }
+  if (/^\d{1,5}$/.test(ticketNumber)) {
+    params.push(Number.parseInt(ticketNumber, 10));
+    where.push(`ft.ticket_number = $${params.length}`);
   }
   if (paymentMethodId) {
     params.push(paymentMethodId);
