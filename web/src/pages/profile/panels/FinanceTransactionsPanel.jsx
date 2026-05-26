@@ -40,6 +40,13 @@ function translateTransactionType(translate, type) {
   return translate(labels[String(type || "")] || String(type || "-"));
 }
 
+function makeClientOption(item) {
+  const id = String(item?.id ?? item?.clientId ?? "").trim();
+  if (!id) return null;
+  const label = String(item?.fullName || item?.clientName || `#${id}`).trim() || `#${id}`;
+  return { value: id, label };
+}
+
 function FinanceTransactionsPanel({ onClose }) {
   const { translate } = useI18n();
   const [filters, setFilters] = useState(EMPTY_FILTERS);
@@ -52,6 +59,9 @@ function FinanceTransactionsPanel({ onClose }) {
   const [message, setMessage] = useState("");
   const [exporting, setExporting] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filterClientSearch, setFilterClientSearch] = useState("");
+  const [filterClientOptions, setFilterClientOptions] = useState([]);
+  const [filterClientSearchBusy, setFilterClientSearchBusy] = useState(false);
 
   const paymentMethodOptions = useMemo(() => paymentMethods.map((item) => ({
     value: String(item.id),
@@ -105,6 +115,58 @@ function FinanceTransactionsPanel({ onClose }) {
     void loadPaymentMethods();
     void loadTransactions(1, EMPTY_FILTERS);
   }, [loadPaymentMethods, loadTransactions]);
+
+  useEffect(() => {
+    if (!filtersOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [filtersOpen]);
+
+  useEffect(() => {
+    if (!filtersOpen) return undefined;
+    const query = filterClientSearch.trim();
+    if (!query || (!/^\d+$/.test(query) && query.length < 3)) {
+      setFilterClientSearchBusy(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setFilterClientSearchBusy(true);
+      try {
+        const response = await apiFetch(`/api/finance/transactions/clients?q=${encodeURIComponent(query)}&limit=30`);
+        const data = await readApiResponseData(response);
+        if (!response.ok) {
+          if (!cancelled) {
+            window.alert?.(translate(data?.message || "Failed to search clients."));
+          }
+          return;
+        }
+        if (!cancelled) {
+          const options = (Array.isArray(data?.items) ? data.items : [])
+            .map(makeClientOption)
+            .filter(Boolean);
+          setFilterClientOptions(options);
+        }
+      } catch {
+        if (!cancelled) {
+          window.alert?.(translate("Failed to search clients."));
+        }
+      } finally {
+        if (!cancelled) {
+          setFilterClientSearchBusy(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [filterClientSearch, filtersOpen, translate]);
 
   const applyFilters = (event) => {
     event.preventDefault();
@@ -244,10 +306,18 @@ function FinanceTransactionsPanel({ onClose }) {
                 </label>
                 <label className="field">
                   <span>{translate("Client")}</span>
-                  <input
-                    type="search"
+                  <CustomSelect
                     value={filters.client}
-                    onChange={(event) => setFilters((current) => ({ ...current, client: event.currentTarget.value }))}
+                    options={[{ value: "", label: translate("All") }, ...filterClientOptions]}
+                    placeholder={translate("Client")}
+                    searchable
+                    searchPlaceholder={translate("Search by name or ID")}
+                    searchThreshold={0}
+                    menuPortal
+                    menuHeightScale={1.2}
+                    emptyText={filterClientSearchBusy ? "..." : translate("No clients found.")}
+                    onSearchChange={setFilterClientSearch}
+                    onChange={(value) => setFilters((current) => ({ ...current, client: value }))}
                   />
                 </label>
                 <label className="field">
