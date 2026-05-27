@@ -6582,11 +6582,11 @@ label.field > span:first-child,
   white-space: nowrap;
 }
 
-.finance-daily-cash-table :is(th:nth-child(1), td:nth-child(1), th:nth-child(3), td:nth-child(3), th:nth-child(7), td:nth-child(7)) {
+.finance-daily-cash-table .finance-daily-cash-cell-center {
   text-align: center;
 }
 
-.finance-daily-cash-table :is(th:nth-child(6), td:nth-child(6)) {
+.finance-daily-cash-table .finance-daily-cash-cell-amount {
   text-align: right;
 }
 
@@ -6613,7 +6613,8 @@ label.field > span:first-child,
 }
 
 #financeTicketColumnsModal.finance-ticket-columns-modal,
-#financeTransactionColumnsModal.finance-transaction-columns-modal {
+#financeTransactionColumnsModal.finance-transaction-columns-modal,
+#financeDailyCashColumnsModal.finance-daily-cash-columns-modal {
   width: min(420px, calc(100vw - 32px));
   height: auto;
   min-height: 0;
@@ -6622,7 +6623,8 @@ label.field > span:first-child,
 }
 
 #financeTicketColumnsModal .finance-ticket-columns-list,
-#financeTransactionColumnsModal .finance-ticket-columns-list {
+#financeTransactionColumnsModal .finance-ticket-columns-list,
+#financeDailyCashColumnsModal .finance-ticket-columns-list {
   display: grid;
   gap: 4px;
   min-height: 0;
@@ -6633,7 +6635,8 @@ label.field > span:first-child,
 }
 
 #financeTicketColumnsModal .finance-ticket-column-option,
-#financeTransactionColumnsModal .finance-ticket-column-option {
+#financeTransactionColumnsModal .finance-ticket-column-option,
+#financeDailyCashColumnsModal .finance-ticket-column-option {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -6649,14 +6652,16 @@ label.field > span:first-child,
 }
 
 #financeTicketColumnsModal .finance-ticket-column-option input,
-#financeTransactionColumnsModal .finance-ticket-column-option input {
+#financeTransactionColumnsModal .finance-ticket-column-option input,
+#financeDailyCashColumnsModal .finance-ticket-column-option input {
   flex: 0 0 auto;
   width: 13px;
   height: 13px;
 }
 
 #financeTicketColumnsModal .finance-ticket-column-option span,
-#financeTransactionColumnsModal .finance-ticket-column-option span {
+#financeTransactionColumnsModal .finance-ticket-column-option span,
+#financeDailyCashColumnsModal .finance-ticket-column-option span {
   display: block;
   min-width: 0;
   color: #111827;

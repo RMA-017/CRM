@@ -16,6 +16,41 @@ const EMPTY_FILTERS = Object.freeze({
   sessionScope: "current"
 });
 
+const FINANCE_DAILY_CASH_COLUMNS_STORAGE_KEY = "aaron_crm_finance_daily_cash_columns";
+const DEFAULT_FINANCE_DAILY_CASH_COLUMN_IDS = Object.freeze([
+  "index",
+  "client",
+  "clientId",
+  "date",
+  "paymentMethod",
+  "amount",
+  "ticketNumber",
+  "service",
+  "cashier"
+]);
+
+function loadStoredDailyCashColumnIds() {
+  if (typeof window === "undefined") return [...DEFAULT_FINANCE_DAILY_CASH_COLUMN_IDS];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(FINANCE_DAILY_CASH_COLUMNS_STORAGE_KEY) || "[]");
+    const stored = Array.isArray(parsed) ? parsed : [];
+    const allowed = new Set(DEFAULT_FINANCE_DAILY_CASH_COLUMN_IDS);
+    const normalized = DEFAULT_FINANCE_DAILY_CASH_COLUMN_IDS.filter((id) => stored.includes(id) && allowed.has(id));
+    return normalized.length > 0 ? normalized : [...DEFAULT_FINANCE_DAILY_CASH_COLUMN_IDS];
+  } catch {
+    return [...DEFAULT_FINANCE_DAILY_CASH_COLUMN_IDS];
+  }
+}
+
+function storeDailyCashColumnIds(columnIds) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(FINANCE_DAILY_CASH_COLUMNS_STORAGE_KEY, JSON.stringify(columnIds));
+  } catch {
+    // The current state still works even if localStorage is unavailable.
+  }
+}
+
 function formatMoney(value) {
   const amount = Number.parseInt(String(value ?? 0), 10) || 0;
   return amount !== 0 ? `${amount.toLocaleString("ru-RU")} UZS` : "-";
@@ -54,6 +89,8 @@ function FinanceDailyCashPanel({ onClose }) {
   const [filterClientSearch, setFilterClientSearch] = useState("");
   const [filterClientOptions, setFilterClientOptions] = useState([]);
   const [filterClientSearchBusy, setFilterClientSearchBusy] = useState(false);
+  const [columnsOpen, setColumnsOpen] = useState(false);
+  const [visibleColumnIds, setVisibleColumnIds] = useState(() => loadStoredDailyCashColumnIds());
 
   const paymentMethodOptions = useMemo(() => paymentMethods.map((item) => ({
     value: String(item.id),
@@ -64,6 +101,101 @@ function FinanceDailyCashPanel({ onClose }) {
     value: String(item.name || ""),
     label: item.name || "-"
   })).filter((item) => item.value), [services]);
+
+  const dailyCashColumns = [
+    {
+      id: "index",
+      label: "#",
+      className: "finance-daily-cash-col-index",
+      cellClassName: "finance-daily-cash-cell-center",
+      render: (_item, index) => (page - 1) * 20 + index + 1,
+      exportValue: (_item, index) => index + 1
+    },
+    {
+      id: "client",
+      label: "Client",
+      className: "finance-daily-cash-col-client",
+      render: (item) => item.clientName || "-",
+      exportValue: (item) => item.clientName || ""
+    },
+    {
+      id: "clientId",
+      label: "Client ID",
+      className: "finance-daily-cash-col-client-id",
+      cellClassName: "finance-daily-cash-cell-center",
+      render: (item) => item.clientId || "-",
+      exportValue: (item) => item.clientId || ""
+    },
+    {
+      id: "date",
+      label: "Date",
+      className: "finance-daily-cash-col-date",
+      render: (item) => formatDateTime(item.transactionAt),
+      exportValue: (item) => formatDateTime(item.transactionAt)
+    },
+    {
+      id: "paymentMethod",
+      label: "Payment Method",
+      className: "finance-daily-cash-col-method",
+      render: (item) => item.paymentMethodName || "-",
+      exportValue: (item) => item.paymentMethodName || ""
+    },
+    {
+      id: "amount",
+      label: "Amount UZS",
+      className: "finance-daily-cash-col-amount",
+      cellClassName: "finance-daily-cash-cell-amount",
+      render: (item) => formatMoney(item.amountUzs),
+      exportValue: (item) => Number.parseInt(String(item.amountUzs || 0), 10) || 0
+    },
+    {
+      id: "ticketNumber",
+      label: "Ticket Number",
+      className: "finance-daily-cash-col-ticket",
+      cellClassName: "finance-daily-cash-cell-center",
+      render: (item) => item.ticketNumber ? `#${item.ticketNumber}` : "-",
+      exportValue: (item) => item.ticketNumber || ""
+    },
+    {
+      id: "service",
+      label: "Service",
+      className: "finance-daily-cash-col-service",
+      render: (item) => item.serviceName || "-",
+      exportValue: (item) => item.serviceName || ""
+    },
+    {
+      id: "cashier",
+      label: "Cashier",
+      className: "finance-daily-cash-col-cashier",
+      render: (item) => item.cashierName || "-",
+      exportValue: (item) => item.cashierName || ""
+    }
+  ];
+  const visibleColumns = dailyCashColumns.filter((column) => visibleColumnIds.includes(column.id));
+  const visibleColumnCount = Math.max(visibleColumns.length, 1);
+
+  const toggleColumnVisibility = (columnId) => {
+    setVisibleColumnIds((current) => {
+      const currentIds = Array.isArray(current) ? current : DEFAULT_FINANCE_DAILY_CASH_COLUMN_IDS;
+      const nextIds = new Set(currentIds);
+      if (nextIds.has(columnId)) {
+        if (nextIds.size <= 1) return currentIds;
+        nextIds.delete(columnId);
+      } else if (dailyCashColumns.some((column) => column.id === columnId)) {
+        nextIds.add(columnId);
+      }
+      const next = dailyCashColumns.map((column) => column.id).filter((id) => nextIds.has(id));
+      if (next.length > 0) {
+        storeDailyCashColumnIds(next);
+        return next;
+      }
+      return currentIds;
+    });
+  };
+
+  const closeColumns = () => {
+    setColumnsOpen(false);
+  };
 
   const loadPaymentMethods = useCallback(async () => {
     try {
@@ -229,28 +361,8 @@ function FinanceDailyCashPanel({ onClose }) {
         {
           name: translate("Daily Cash"),
           rows: [
-            [
-              "#",
-              translate("Client"),
-              translate("Client ID"),
-              translate("Date"),
-              translate("Payment Method"),
-              translate("Amount UZS"),
-              translate("Ticket Number"),
-              translate("Service"),
-              translate("Cashier")
-            ],
-            ...result.items.map((item, index) => [
-              index + 1,
-              item.clientName || "",
-              item.clientId || "",
-              formatDateTime(item.transactionAt),
-              item.paymentMethodName || "",
-              Number.parseInt(String(item.amountUzs || 0), 10) || 0,
-              item.ticketNumber || "",
-              item.serviceName || "",
-              item.cashierName || ""
-            ])
+            visibleColumns.map((column) => column.label === "#" ? "#" : translate(column.label)),
+            ...result.items.map((item, index) => visibleColumns.map((column) => column.exportValue(item, index)))
           ]
         },
         {
@@ -283,6 +395,15 @@ function FinanceDailyCashPanel({ onClose }) {
           <button
             type="button"
             className="table-action-btn finance-head-icon-btn"
+            aria-label={translate("Table columns")}
+            title={translate("Table columns")}
+            onClick={() => setColumnsOpen(true)}
+          >
+            <span className="finance-head-icon finance-head-icon-columns" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="table-action-btn finance-head-icon-btn"
             aria-label={translate("Filter")}
             title={translate("Filter")}
             onClick={() => setFiltersOpen(true)}
@@ -304,6 +425,36 @@ function FinanceDailyCashPanel({ onClose }) {
           </button>
         </div>
       </div>
+
+      {columnsOpen && typeof document !== "undefined" ? createPortal((
+        <>
+          <button
+            type="button"
+            className="login-overlay stacked-modal-overlay finance-modal-overlay"
+            aria-label={translate("Close")}
+            onClick={closeColumns}
+          />
+          <div id="financeDailyCashColumnsModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-ticket-columns-modal finance-daily-cash-columns-modal">
+            <h3>{translate("Table columns")}</h3>
+            <div className="finance-ticket-columns-list">
+              {dailyCashColumns.map((column) => {
+                const checked = visibleColumnIds.includes(column.id);
+                return (
+                  <label className="finance-ticket-column-option" key={column.id}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={checked && visibleColumnIds.length <= 1}
+                      onChange={() => toggleColumnVisibility(column.id)}
+                    />
+                    <span>{column.label === "#" ? "#" : translate(column.label)}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      ), document.body) : null}
 
       {filtersOpen && typeof document !== "undefined" ? createPortal((
         <>
@@ -391,51 +542,35 @@ function FinanceDailyCashPanel({ onClose }) {
       <div className="all-users-table-scroll">
         <table className="all-users-table finance-daily-cash-table" aria-label="Finance daily cash table">
           <colgroup>
-            <col className="finance-daily-cash-col-index" />
-            <col className="finance-daily-cash-col-client" />
-            <col className="finance-daily-cash-col-client-id" />
-            <col className="finance-daily-cash-col-date" />
-            <col className="finance-daily-cash-col-method" />
-            <col className="finance-daily-cash-col-amount" />
-            <col className="finance-daily-cash-col-ticket" />
-            <col className="finance-daily-cash-col-service" />
-            <col className="finance-daily-cash-col-cashier" />
+            {visibleColumns.map((column) => (
+              <col key={column.id} className={column.className} />
+            ))}
           </colgroup>
           <thead>
             <tr>
-              <th>#</th>
-              <th>{translate("Client")}</th>
-              <th>{translate("Client ID")}</th>
-              <th>{translate("Date")}</th>
-              <th>{translate("Payment Method")}</th>
-              <th>{translate("Amount UZS")}</th>
-              <th>{translate("Ticket Number")}</th>
-              <th>{translate("Service")}</th>
-              <th>{translate("Cashier")}</th>
+              {visibleColumns.map((column) => (
+                <th key={column.id} className={column.cellClassName}>{column.label === "#" ? "#" : translate(column.label)}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
               [0, 1, 2, 3, 4].map((index) => (
                 <tr key={index} aria-hidden="true">
-                  <td colSpan="9" className="skel" />
+                  <td colSpan={visibleColumnCount} className="skel" />
                 </tr>
               ))
             ) : items.map((item, index) => (
               <tr key={String(item.id)}>
-                <td>{(page - 1) * 20 + index + 1}</td>
-                <td>{item.clientName || "-"}</td>
-                <td>{item.clientId || "-"}</td>
-                <td>{formatDateTime(item.transactionAt)}</td>
-                <td>{item.paymentMethodName || "-"}</td>
-                <td>{formatMoney(item.amountUzs)}</td>
-                <td>{item.ticketNumber ? `#${item.ticketNumber}` : "-"}</td>
-                <td>{item.serviceName || "-"}</td>
-                <td>{item.cashierName || "-"}</td>
+                {visibleColumns.map((column) => (
+                  <td key={column.id} className={column.cellClassName}>
+                    {column.render(item, index)}
+                  </td>
+                ))}
               </tr>
             ))}
             {!loading && items.length === 0 ? (
-              <tr><td colSpan="9" className="all-users-state">{translate("No items found.")}</td></tr>
+              <tr><td colSpan={visibleColumnCount} className="all-users-state">{translate("No items found.")}</td></tr>
             ) : null}
           </tbody>
         </table>
