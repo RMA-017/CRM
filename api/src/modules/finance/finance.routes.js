@@ -147,6 +147,7 @@ async function financeRoutes(fastify) {
         const requester = await requireAnyFinanceAccess(request, reply, [
           PERMISSIONS.FINANCE_TRANSACTIONS_READ,
           PERMISSIONS.FINANCE_DAILY_CASH_READ,
+          PERMISSIONS.FINANCE_REPORTS_READ,
           PERMISSIONS.FINANCE_BALANCES_UPDATE,
           PERMISSIONS.FINANCE_CASHIER_PAY
         ]);
@@ -420,7 +421,10 @@ async function financeRoutes(fastify) {
     async (request, reply) => {
       setNoCacheHeaders(reply);
       try {
-        const requester = await requireTicketsAccess(request, reply, "read");
+        const requester = await requireAnyFinanceAccess(request, reply, [
+          PERMISSIONS.FINANCE_TICKETS_READ,
+          PERMISSIONS.FINANCE_REPORTS_READ
+        ]);
         if (!requester) return null;
         return reply.send(await getFinanceTicketFilterReferences({
           organizationId: request.authContext.organizationId
