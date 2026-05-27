@@ -474,6 +474,14 @@ function FinanceReportsPanel({ onClose }) {
                     onChange={(event) => setFilters((current) => ({ ...current, ticketNumber: event.currentTarget.value }))}
                   />
                 </label>
+                <label className="field">
+                  <span>{translate("Cashier")}</span>
+                  <input
+                    type="search"
+                    value={filters.cashier}
+                    onChange={(event) => setFilters((current) => ({ ...current, cashier: event.currentTarget.value }))}
+                  />
+                </label>
                 <label className="field finance-reports-filter-wide-field">
                   <span>{translate("Client")}</span>
                   <CustomSelect
@@ -530,14 +538,6 @@ function FinanceReportsPanel({ onClose }) {
                     menuPortal
                     disabled={filterReferencesLoading}
                     onChange={(value) => setFilters((current) => ({ ...current, specialist: value }))}
-                  />
-                </label>
-                <label className="field">
-                  <span>{translate("Cashier")}</span>
-                  <input
-                    type="search"
-                    value={filters.cashier}
-                    onChange={(event) => setFilters((current) => ({ ...current, cashier: event.currentTarget.value }))}
                   />
                 </label>
                 <label className="field">
