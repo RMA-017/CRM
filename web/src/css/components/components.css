@@ -6049,11 +6049,17 @@ label.field > span:first-child,
 .finance-balances-head-search {
   display: inline-flex;
   align-items: center;
+  flex: 0 1 292px;
   gap: 6px;
   min-width: min(320px, 100%);
 }
 
+.finance-balances-panel .all-users-head-actions {
+  flex-wrap: nowrap;
+}
+
 .finance-balances-head-search .panel-search-input {
+  flex: 1 1 auto;
   width: min(220px, 42vw);
   min-width: 160px;
 }
