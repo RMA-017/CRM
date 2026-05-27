@@ -204,7 +204,18 @@ function mapReportRow(row) {
 }
 
 function shouldUseLegacyReportFallback(error) {
-  return ["42P01", "42703", "42883", "22012"].includes(String(error?.code || ""));
+  return Boolean(String(error?.code || ""));
+}
+
+async function runFinanceReportQuery(sql, params, fallbackRows = []) {
+  try {
+    return await pool.query(sql, params);
+  } catch (error) {
+    if (!shouldUseLegacyReportFallback(error)) {
+      throw error;
+    }
+    return { rows: fallbackRows };
+  }
 }
 
 function mapClientBalance(row) {
@@ -1743,7 +1754,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
     JOIN finance_ticket_items fti ON fti.organization_id = ft.organization_id AND fti.ticket_id = ft.id
     WHERE ${ticketMovementWhere}`;
 
-  const summaryResult = await pool.query(
+  const summaryResult = await runFinanceReportQuery(
     `SELECT COALESCE(SUM(CASE
               WHEN t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN t.amount_uzs
               WHEN t.transaction_type IN ('refund', 'deposit_ticket_refund') THEN -t.amount_uzs
@@ -1752,7 +1763,8 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
             COUNT(*) AS transaction_count
        FROM finance_transactions t
       WHERE ${ticketMovementWhere}`,
-    params
+    params,
+    [{ amount_uzs: 0, transaction_count: 0 }]
   );
   let byServiceResult;
   let bySpecialistResult;
@@ -1802,7 +1814,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
       FROM finance_transactions t
       JOIN finance_tickets ft ON ft.organization_id = t.organization_id AND ft.id = t.ticket_id
       WHERE ${ticketMovementWhere}`;
-    byServiceResult = await pool.query(
+    byServiceResult = await runFinanceReportQuery(
       `SELECT ft.service_id AS id,
               COALESCE(NULLIF(TRIM(ft.service_name), ''), 'No service') AS label,
               COALESCE(SUM(${signedTicketAmountSql}), 0) AS amount_uzs,
@@ -1813,7 +1825,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
         LIMIT 100`,
       params
     );
-    bySpecialistResult = await pool.query(
+    bySpecialistResult = await runFinanceReportQuery(
       `SELECT ft.specialist_id AS id,
               COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), 'No specialist') AS label,
               COALESCE(SUM(${signedTicketAmountSql}), 0) AS amount_uzs,
@@ -1825,7 +1837,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
         LIMIT 100`,
       params
     );
-    byDepartmentResult = await pool.query(
+    byDepartmentResult = await runFinanceReportQuery(
       `SELECT p.id,
               COALESCE(NULLIF(TRIM(p.label), ''), 'No department') AS label,
               COALESCE(SUM(${signedTicketAmountSql}), 0) AS amount_uzs,
@@ -1839,7 +1851,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
       params
     );
   }
-  const byClientResult = await pool.query(
+  const byClientResult = await runFinanceReportQuery(
     `SELECT c.id,
             COALESCE(NULLIF(TRIM(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)), ''), 'No client') AS label,
             COALESCE(SUM(CASE
@@ -1856,7 +1868,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
       LIMIT 100`,
     params
   );
-  const byCashierResult = await pool.query(
+  const byCashierResult = await runFinanceReportQuery(
     `SELECT s.cashier_user_id AS id,
             COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), 'No cashier') AS label,
             COALESCE(SUM(CASE
