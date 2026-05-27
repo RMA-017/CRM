@@ -172,7 +172,7 @@ function FinanceReportsPanel({ onClose }) {
     const options = (Array.isArray(filterReferences.services) ? filterReferences.services : [])
       .map((item) => makeTextOption(
         item.name,
-        `${item.name || item.id}${item.positionLabel ? ` - ${item.positionLabel}` : ""}`
+        item.name || item.id
       ))
       .filter(Boolean);
     return [{ value: "", label: translate("All") }, ...options];
