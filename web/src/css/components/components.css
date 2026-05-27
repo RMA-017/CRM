@@ -6062,6 +6062,48 @@ label.field > span:first-child,
   min-width: 68px;
 }
 
+.finance-balances-table {
+  table-layout: fixed;
+  min-width: 820px;
+}
+
+.finance-balances-col-index {
+  width: 52px;
+}
+
+.finance-balances-col-client-id {
+  width: 96px;
+}
+
+.finance-balances-col-client {
+  width: 230px;
+}
+
+.finance-balances-col-debt,
+.finance-balances-col-deposit {
+  width: 135px;
+}
+
+.finance-balances-col-actions {
+  width: 305px;
+}
+
+.finance-balances-table :is(th, td) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finance-balances-table :is(th:nth-child(4), td:nth-child(4), th:nth-child(5), td:nth-child(5)) {
+  text-align: right;
+}
+
+.finance-balances-table .table-actions-row {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .finance-transactions-table {
   table-layout: fixed;
 }

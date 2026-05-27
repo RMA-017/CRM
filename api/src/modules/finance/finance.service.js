@@ -1836,6 +1836,8 @@ export async function getFinanceClientBalances({ organizationId, filters = {} })
     having.push("COALESCE(debt_uzs, 0) > 0");
   } else if (type === "deposit") {
     having.push("COALESCE(deposit_uzs, 0) > 0");
+  } else if (type === "active") {
+    having.push("(COALESCE(debt_uzs, 0) > 0 OR COALESCE(deposit_uzs, 0) > 0)");
   } else if (!client && clientIds.length === 0) {
     having.push("(COALESCE(debt_uzs, 0) > 0 OR COALESCE(deposit_uzs, 0) > 0)");
   }

@@ -5,7 +5,7 @@ import { useI18n } from "../../../i18n/I18nProvider.jsx";
 
 const EMPTY_FILTERS = Object.freeze({
   client: "",
-  type: "all"
+  type: "active"
 });
 
 const EMPTY_OPERATION = Object.freeze({
@@ -143,19 +143,17 @@ function FinanceBalancesPanel({ onClose, canUpdateFinanceBalances }) {
         rows: [
           [
             "#",
-            "ID",
+            translate("Client ID"),
             translate("Client"),
             translate("Debt"),
-            translate("Deposit"),
-            translate("Balance")
+            translate("Deposit")
           ],
           ...rows.map((item, index) => [
             index + 1,
             item.clientId || "",
             item.clientName || "",
             Number.parseInt(String(item.debtUzs || 0), 10) || 0,
-            Number.parseInt(String(item.depositUzs || 0), 10) || 0,
-            Number.parseInt(String(item.balanceUzs || 0), 10) || 0
+            Number.parseInt(String(item.depositUzs || 0), 10) || 0
           ])
         ]
       }]);
@@ -337,15 +335,22 @@ function FinanceBalancesPanel({ onClose, canUpdateFinanceBalances }) {
       <p className="all-users-state" hidden={!message}>{translate(message)}</p>
 
       <div className="all-users-table-scroll">
-        <table className="all-users-table" aria-label="Finance client balances table">
+        <table className="all-users-table finance-balances-table" aria-label="Finance client balances table">
+          <colgroup>
+            <col className="finance-balances-col-index" />
+            <col className="finance-balances-col-client-id" />
+            <col className="finance-balances-col-client" />
+            <col className="finance-balances-col-debt" />
+            <col className="finance-balances-col-deposit" />
+            <col className="finance-balances-col-actions" />
+          </colgroup>
           <thead>
             <tr>
               <th>#</th>
-              <th>ID</th>
+              <th>{translate("Client ID")}</th>
               <th>{translate("Client")}</th>
               <th>{translate("Debt")}</th>
               <th>{translate("Deposit")}</th>
-              <th>{translate("Balance")}</th>
               <th>{translate("Actions")}</th>
             </tr>
           </thead>
@@ -353,7 +358,7 @@ function FinanceBalancesPanel({ onClose, canUpdateFinanceBalances }) {
             {loading ? (
               [0, 1, 2, 3, 4].map((index) => (
                 <tr key={index} aria-hidden="true">
-                  <td colSpan="7" className="skel" />
+                  <td colSpan="6" className="skel" />
                 </tr>
               ))
             ) : items.map((item, index) => (
@@ -363,7 +368,6 @@ function FinanceBalancesPanel({ onClose, canUpdateFinanceBalances }) {
                 <td>{item.clientName || "-"}</td>
                 <td>{formatMoney(item.debtUzs)}</td>
                 <td>{formatMoney(item.depositUzs)}</td>
-                <td>{formatMoney(Math.abs(item.balanceUzs))}</td>
                 <td>
                   {canUpdateFinanceBalances ? (
                     <div className="table-actions-row">
@@ -397,7 +401,7 @@ function FinanceBalancesPanel({ onClose, canUpdateFinanceBalances }) {
             ))}
             {!loading && items.length === 0 ? (
               <tr>
-                <td colSpan="7" className="all-users-state">{translate("No items found.")}</td>
+                <td colSpan="6" className="all-users-state">{translate("No items found.")}</td>
               </tr>
             ) : null}
           </tbody>

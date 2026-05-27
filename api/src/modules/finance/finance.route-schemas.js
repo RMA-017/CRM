@@ -165,7 +165,7 @@ export const financeRouteSchemas = Object.freeze({
       client: { type: "string", maxLength: 96 },
       clientIds: { type: "string", maxLength: 512 },
       client_ids: { type: "string", maxLength: 512 },
-      type: { type: "string", enum: ["", "all", "debt", "deposit"] },
+      type: { type: "string", enum: ["", "all", "active", "debt", "deposit"] },
       page: positiveIntegerLikeSchema,
       pageSize: positiveIntegerLikeSchema,
       page_size: positiveIntegerLikeSchema
