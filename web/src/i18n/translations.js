@@ -233,6 +233,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Cash Net", uz: "Kassa sof", ru: "Чистая касса" },
   { en: "Refunds", uz: "Qaytarilganlar", ru: "Возвраты" },
   { en: "Operation Type", uz: "Operatsiya turi", ru: "Тип операции" },
+  { en: "Operation Status", uz: "Operatsiya statusi", ru: "Статус операции" },
   { en: "Ticket Status", uz: "Talon statusi", ru: "Статус талона" },
   { en: "Finance report details", uz: "Finance hisobot tafsilotlari", ru: "Детали финансового отчета" },
   { en: "Name", uz: "Nomi", ru: "Название" },

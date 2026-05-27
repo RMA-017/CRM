@@ -568,7 +568,7 @@ function FinanceReportsPanel({ onClose }) {
                   />
                 </label>
                 <label className="field">
-                  <span>{translate("Status")}</span>
+                  <span>{translate("Operation Status")}</span>
                   <CustomSelect
                     value={filters.transactionStatus}
                     options={TRANSACTION_STATUS_OPTIONS.map((option) => ({ ...option, label: translate(option.label) }))}
