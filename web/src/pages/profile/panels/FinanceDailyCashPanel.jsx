@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import CustomSelect from "../../../components/CustomSelect.jsx";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { buildExportFilename, exportExcelWorkbook } from "../../../lib/excel-export.js";
@@ -38,6 +39,13 @@ function translateTransactionType(translate, type) {
   return translate(labels[String(type || "")] || String(type || "-"));
 }
 
+function makeClientOption(item) {
+  const id = String(item?.id ?? item?.clientId ?? "").trim();
+  if (!id) return null;
+  const label = String(item?.fullName || item?.clientName || `#${id}`).trim() || `#${id}`;
+  return { value: id, label };
+}
+
 function FinanceDailyCashPanel({ onClose }) {
   const { translate } = useI18n();
   const [filters, setFilters] = useState(EMPTY_FILTERS);
@@ -46,17 +54,27 @@ function FinanceDailyCashPanel({ onClose }) {
   const [summary, setSummary] = useState({ totalInUzs: 0, totalOutUzs: 0, netUzs: 0, transactionCount: 0 });
   const [paymentSummary, setPaymentSummary] = useState([]);
   const [paymentMethods, setPaymentMethods] = useState([]);
+  const [services, setServices] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filterClientSearch, setFilterClientSearch] = useState("");
+  const [filterClientOptions, setFilterClientOptions] = useState([]);
+  const [filterClientSearchBusy, setFilterClientSearchBusy] = useState(false);
 
   const paymentMethodOptions = useMemo(() => paymentMethods.map((item) => ({
     value: String(item.id),
     label: item.name
   })), [paymentMethods]);
+
+  const serviceOptions = useMemo(() => services.map((item) => ({
+    value: String(item.name || ""),
+    label: item.name || "-"
+  })).filter((item) => item.value), [services]);
 
   const loadPaymentMethods = useCallback(async () => {
     try {
@@ -67,6 +85,18 @@ function FinanceDailyCashPanel({ onClose }) {
       }
     } catch {
       setPaymentMethods([]);
+    }
+  }, []);
+
+  const loadServices = useCallback(async () => {
+    try {
+      const response = await apiFetch("/api/services");
+      const data = await readApiResponseData(response);
+      if (response.ok) {
+        setServices(Array.isArray(data?.items) ? data.items : []);
+      }
+    } catch {
+      setServices([]);
     }
   }, []);
 
@@ -107,19 +137,67 @@ function FinanceDailyCashPanel({ onClose }) {
 
   useEffect(() => {
     void loadPaymentMethods();
+    void loadServices();
     void loadDailyCash(1, EMPTY_FILTERS);
-  }, [loadDailyCash, loadPaymentMethods]);
+  }, [loadDailyCash, loadPaymentMethods, loadServices]);
+
+  useEffect(() => {
+    if (!filtersOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [filtersOpen]);
+
+  useEffect(() => {
+    if (!filtersOpen) return undefined;
+    const query = filterClientSearch.trim();
+    if (!query || (!/^\d+$/.test(query) && query.length < 3)) {
+      setFilterClientSearchBusy(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setFilterClientSearchBusy(true);
+      try {
+        const response = await apiFetch(`/api/finance/transactions/clients?q=${encodeURIComponent(query)}&limit=30`);
+        const data = await readApiResponseData(response);
+        if (!response.ok) {
+          if (!cancelled) {
+            window.alert?.(translate(data?.message || "Failed to search clients."));
+          }
+          return;
+        }
+        if (!cancelled) {
+          const options = (Array.isArray(data?.items) ? data.items : [])
+            .map(makeClientOption)
+            .filter(Boolean);
+          setFilterClientOptions(options);
+        }
+      } catch {
+        if (!cancelled) {
+          window.alert?.(translate("Failed to search clients."));
+        }
+      } finally {
+        if (!cancelled) {
+          setFilterClientSearchBusy(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [filterClientSearch, filtersOpen, translate]);
 
   const applyFilters = (event) => {
     event.preventDefault();
     setAppliedFilters(filters);
+    setFiltersOpen(false);
     void loadDailyCash(1, filters);
-  };
-
-  const resetFilters = () => {
-    setFilters(EMPTY_FILTERS);
-    setAppliedFilters(EMPTY_FILTERS);
-    void loadDailyCash(1, EMPTY_FILTERS);
   };
 
   const fetchAllDailyCash = async () => {
@@ -215,6 +293,15 @@ function FinanceDailyCashPanel({ onClose }) {
           <button
             type="button"
             className="table-action-btn finance-head-icon-btn"
+            aria-label={translate("Filter")}
+            title={translate("Filter")}
+            onClick={() => setFiltersOpen(true)}
+          >
+            <span className="finance-head-icon finance-head-icon-filter" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="table-action-btn finance-head-icon-btn"
             aria-label={translate("Export Excel")}
             title={translate("Export Excel")}
             disabled={loading || exporting}
@@ -228,40 +315,86 @@ function FinanceDailyCashPanel({ onClose }) {
         </div>
       </div>
 
-      <form className="settings-filter-grid" onSubmit={applyFilters}>
-        <label className="field">
-          <span>{translate("Date From")}</span>
-          <input type="date" value={filters.dateFrom} onChange={(event) => setFilters((current) => ({ ...current, dateFrom: event.currentTarget.value }))} />
-        </label>
-        <label className="field">
-          <span>{translate("Date To")}</span>
-          <input type="date" value={filters.dateTo} onChange={(event) => setFilters((current) => ({ ...current, dateTo: event.currentTarget.value }))} />
-        </label>
-        <label className="field">
-          <span>{translate("Cashier")}</span>
-          <input type="search" value={filters.cashier} onChange={(event) => setFilters((current) => ({ ...current, cashier: event.currentTarget.value }))} />
-        </label>
-        <label className="field">
-          <span>{translate("Client")}</span>
-          <input type="search" value={filters.client} onChange={(event) => setFilters((current) => ({ ...current, client: event.currentTarget.value }))} />
-        </label>
-        <label className="field">
-          <span>{translate("Service")}</span>
-          <input type="search" value={filters.service} onChange={(event) => setFilters((current) => ({ ...current, service: event.currentTarget.value }))} />
-        </label>
-        <label className="field">
-          <span>{translate("Payment Method")}</span>
-          <CustomSelect
-            value={filters.paymentMethodId}
-            options={[{ value: "", label: translate("All") }, ...paymentMethodOptions]}
-            onChange={(value) => setFilters((current) => ({ ...current, paymentMethodId: value }))}
+      {filtersOpen && typeof document !== "undefined" ? createPortal((
+        <>
+          <button
+            type="button"
+            className="login-overlay stacked-modal-overlay finance-modal-overlay"
+            aria-label={translate("Close")}
+            onClick={() => setFiltersOpen(false)}
           />
-        </label>
-        <div className="settings-filter-actions">
-          <button type="submit" className="table-action-btn" disabled={loading}>{translate("Search")}</button>
-          <button type="button" className="table-action-btn" disabled={loading} onClick={resetFilters}>{translate("Reset")}</button>
-        </div>
-      </form>
+          <div id="financeDailyCashFilterModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-daily-cash-filter-modal">
+            <h3>{translate("Filter")}</h3>
+            <form className="auth-form" onSubmit={applyFilters}>
+              <div className="all-users-edit-fields settings-filter-grid finance-daily-cash-filter-grid">
+                <div className="finance-daily-cash-filter-date-row">
+                  <label className="field">
+                    <span>{translate("Date From")}</span>
+                    <input
+                      type="date"
+                      value={filters.dateFrom}
+                      onChange={(event) => setFilters((current) => ({ ...current, dateFrom: event.currentTarget.value }))}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>{translate("Date To")}</span>
+                    <input
+                      type="date"
+                      value={filters.dateTo}
+                      onChange={(event) => setFilters((current) => ({ ...current, dateTo: event.currentTarget.value }))}
+                    />
+                  </label>
+                </div>
+                <label className="field">
+                  <span>{translate("Cashier")}</span>
+                  <input
+                    type="search"
+                    value={filters.cashier}
+                    onChange={(event) => setFilters((current) => ({ ...current, cashier: event.currentTarget.value }))}
+                  />
+                </label>
+                <label className="field">
+                  <span>{translate("Client")}</span>
+                  <CustomSelect
+                    value={filters.client}
+                    options={[{ value: "", label: translate("All") }, ...filterClientOptions]}
+                    placeholder={translate("Client")}
+                    searchable
+                    searchPlaceholder={translate("Search by name or ID")}
+                    searchThreshold={0}
+                    menuPortal
+                    menuHeightScale={1.2}
+                    emptyText={filterClientSearchBusy ? "..." : translate("No clients found.")}
+                    onSearchChange={setFilterClientSearch}
+                    onChange={(value) => setFilters((current) => ({ ...current, client: value }))}
+                  />
+                </label>
+                <label className="field">
+                  <span>{translate("Service")}</span>
+                  <CustomSelect
+                    value={filters.service}
+                    options={[{ value: "", label: translate("All") }, ...serviceOptions]}
+                    menuPortal
+                    onChange={(value) => setFilters((current) => ({ ...current, service: value }))}
+                  />
+                </label>
+                <label className="field">
+                  <span>{translate("Payment Method")}</span>
+                  <CustomSelect
+                    value={filters.paymentMethodId}
+                    options={[{ value: "", label: translate("All") }, ...paymentMethodOptions]}
+                    menuPortal
+                    onChange={(value) => setFilters((current) => ({ ...current, paymentMethodId: value }))}
+                  />
+                </label>
+              </div>
+              <div className="edit-actions">
+                <button type="submit" className="btn" disabled={loading}>{translate("Search")}</button>
+              </div>
+            </form>
+          </div>
+        </>
+      ), document.body) : null}
 
       <div className="finance-summary-grid">
         <div className="finance-summary-card">
