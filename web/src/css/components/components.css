@@ -6544,14 +6544,14 @@ label.field > span:first-child,
 
 #financeReportsFilterModal.finance-reports-filter-modal {
   width: min(720px, calc(100vw - 32px));
-  height: min(720px, calc(100dvh - 24px));
+  height: auto;
   min-height: 0;
-  max-height: calc(100dvh - 24px);
-  grid-template-rows: auto minmax(0, 1fr);
+  max-height: min(640px, calc(100dvh - 24px));
+  grid-template-rows: auto minmax(0, auto);
 }
 
 #financeReportsFilterModal .auth-form {
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, auto) auto;
   min-height: 0;
 }
 
@@ -6567,6 +6567,7 @@ label.field > span:first-child,
 }
 
 #financeReportsFilterModal .all-users-edit-fields.settings-filter-grid.finance-reports-filter-grid {
+  max-height: min(520px, calc(100dvh - 124px));
   padding: 2px 8px 2px 2px;
 }
 
@@ -8630,11 +8631,12 @@ label.field > span:first-child,
 
   #financeReportsFilterModal.finance-reports-filter-modal {
     width: calc(100vw - 20px);
-    height: calc(100dvh - 20px);
+    height: auto;
     max-height: calc(100dvh - 20px);
   }
 
   #financeReportsFilterModal .finance-reports-filter-grid {
+    max-height: calc(100dvh - 118px);
     grid-template-columns: 1fr;
   }
 
