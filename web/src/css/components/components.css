@@ -6575,6 +6575,10 @@ label.field > span:first-child,
   min-width: 0;
 }
 
+#financeReportsFilterModal .finance-reports-filter-wide-field {
+  grid-column: 1 / -1;
+}
+
 #financeReportsFilterModal .finance-reports-filter-date-row {
   display: grid;
   grid-column: 1 / -1;

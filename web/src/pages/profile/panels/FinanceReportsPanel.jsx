@@ -474,7 +474,7 @@ function FinanceReportsPanel({ onClose }) {
                     onChange={(event) => setFilters((current) => ({ ...current, ticketNumber: event.currentTarget.value }))}
                   />
                 </label>
-                <label className="field">
+                <label className="field finance-reports-filter-wide-field">
                   <span>{translate("Client")}</span>
                   <CustomSelect
                     value={filters.client}
@@ -518,7 +518,7 @@ function FinanceReportsPanel({ onClose }) {
                     onChange={(value) => setFilters((current) => ({ ...current, position: value }))}
                   />
                 </label>
-                <label className="field">
+                <label className="field finance-reports-filter-wide-field">
                   <span>{translate("Specialist")}</span>
                   <CustomSelect
                     value={filters.specialist}
