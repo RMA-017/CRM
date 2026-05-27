@@ -203,6 +203,10 @@ function mapReportRow(row) {
   };
 }
 
+function shouldUseLegacyReportFallback(error) {
+  return ["42P01", "42703", "42883", "22012"].includes(String(error?.code || ""));
+}
+
 function mapClientBalance(row) {
   if (!row) return null;
   const debtUzs = normalizeAmount(row.debt_uzs, 0);
@@ -1722,9 +1726,15 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
   const signedItemAmountSql = `
     CASE
       WHEN t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN
-        ROUND((t.amount_uzs::numeric * fti.final_amount_uzs::numeric) / NULLIF(ft.total_uzs::numeric, 0))
+        ROUND((t.amount_uzs::numeric * fti.final_amount_uzs::numeric) / COALESCE(NULLIF(ft.total_uzs::numeric, 0), NULLIF(ft.amount_uzs::numeric, 0)))
       WHEN t.transaction_type IN ('refund', 'deposit_ticket_refund') THEN
-        -ROUND((t.amount_uzs::numeric * fti.final_amount_uzs::numeric) / NULLIF(ft.total_uzs::numeric, 0))
+        -ROUND((t.amount_uzs::numeric * fti.final_amount_uzs::numeric) / COALESCE(NULLIF(ft.total_uzs::numeric, 0), NULLIF(ft.amount_uzs::numeric, 0)))
+      ELSE 0
+    END`;
+  const signedTicketAmountSql = `
+    CASE
+      WHEN t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN t.amount_uzs
+      WHEN t.transaction_type IN ('refund', 'deposit_ticket_refund') THEN -t.amount_uzs
       ELSE 0
     END`;
   const itemFromSql = `
@@ -1744,42 +1754,91 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
       WHERE ${ticketMovementWhere}`,
     params
   );
-  const byServiceResult = await pool.query(
-    `SELECT fti.service_id AS id,
-            COALESCE(NULLIF(TRIM(fti.service_name), ''), 'No service') AS label,
-            COALESCE(SUM(${signedItemAmountSql}), 0) AS amount_uzs,
-            COUNT(DISTINCT fti.id) AS item_count
-       ${itemFromSql}
-      GROUP BY fti.service_id, fti.service_name
-      ORDER BY amount_uzs DESC, label ASC
-      LIMIT 100`,
-    params
-  );
-  const bySpecialistResult = await pool.query(
-    `SELECT fti.specialist_id AS id,
-            COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), 'No specialist') AS label,
-            COALESCE(SUM(${signedItemAmountSql}), 0) AS amount_uzs,
-            COUNT(DISTINCT fti.id) AS item_count
-       ${itemFromSql}
-       LEFT JOIN users u ON u.organization_id = fti.organization_id AND u.id = fti.specialist_id
-      GROUP BY fti.specialist_id, u.full_name, u.username
-      ORDER BY amount_uzs DESC, label ASC
-      LIMIT 100`,
-    params
-  );
-  const byDepartmentResult = await pool.query(
-    `SELECT p.id,
-            COALESCE(NULLIF(TRIM(p.label), ''), 'No department') AS label,
-            COALESCE(SUM(${signedItemAmountSql}), 0) AS amount_uzs,
-            COUNT(DISTINCT fti.id) AS item_count
-       ${itemFromSql}
-       LEFT JOIN users u ON u.organization_id = fti.organization_id AND u.id = fti.specialist_id
-       LEFT JOIN position_options p ON p.organization_id = u.organization_id AND p.id = u.position_id
-      GROUP BY p.id, p.label
-      ORDER BY amount_uzs DESC, label ASC
-      LIMIT 100`,
-    params
-  );
+  let byServiceResult;
+  let bySpecialistResult;
+  let byDepartmentResult;
+  try {
+    byServiceResult = await pool.query(
+      `SELECT fti.service_id AS id,
+              COALESCE(NULLIF(TRIM(fti.service_name), ''), 'No service') AS label,
+              COALESCE(SUM(${signedItemAmountSql}), 0) AS amount_uzs,
+              COUNT(DISTINCT fti.id) AS item_count
+         ${itemFromSql}
+        GROUP BY fti.service_id, fti.service_name
+        ORDER BY amount_uzs DESC, label ASC
+        LIMIT 100`,
+      params
+    );
+    bySpecialistResult = await pool.query(
+      `SELECT fti.specialist_id AS id,
+              COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), 'No specialist') AS label,
+              COALESCE(SUM(${signedItemAmountSql}), 0) AS amount_uzs,
+              COUNT(DISTINCT fti.id) AS item_count
+         ${itemFromSql}
+         LEFT JOIN users u ON u.organization_id = fti.organization_id AND u.id = fti.specialist_id
+        GROUP BY fti.specialist_id, u.full_name, u.username
+        ORDER BY amount_uzs DESC, label ASC
+        LIMIT 100`,
+      params
+    );
+    byDepartmentResult = await pool.query(
+      `SELECT p.id,
+              COALESCE(NULLIF(TRIM(p.label), ''), 'No department') AS label,
+              COALESCE(SUM(${signedItemAmountSql}), 0) AS amount_uzs,
+              COUNT(DISTINCT fti.id) AS item_count
+         ${itemFromSql}
+         LEFT JOIN users u ON u.organization_id = fti.organization_id AND u.id = fti.specialist_id
+         LEFT JOIN position_options p ON p.organization_id = u.organization_id AND p.id = u.position_id
+        GROUP BY p.id, p.label
+        ORDER BY amount_uzs DESC, label ASC
+        LIMIT 100`,
+      params
+    );
+  } catch (error) {
+    if (!shouldUseLegacyReportFallback(error)) {
+      throw error;
+    }
+    const legacyTicketFromSql = `
+      FROM finance_transactions t
+      JOIN finance_tickets ft ON ft.organization_id = t.organization_id AND ft.id = t.ticket_id
+      WHERE ${ticketMovementWhere}`;
+    byServiceResult = await pool.query(
+      `SELECT ft.service_id AS id,
+              COALESCE(NULLIF(TRIM(ft.service_name), ''), 'No service') AS label,
+              COALESCE(SUM(${signedTicketAmountSql}), 0) AS amount_uzs,
+              COUNT(*) AS transaction_count
+         ${legacyTicketFromSql}
+        GROUP BY ft.service_id, ft.service_name
+        ORDER BY amount_uzs DESC, label ASC
+        LIMIT 100`,
+      params
+    );
+    bySpecialistResult = await pool.query(
+      `SELECT ft.specialist_id AS id,
+              COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), 'No specialist') AS label,
+              COALESCE(SUM(${signedTicketAmountSql}), 0) AS amount_uzs,
+              COUNT(*) AS transaction_count
+         ${legacyTicketFromSql}
+         LEFT JOIN users u ON u.organization_id = ft.organization_id AND u.id = ft.specialist_id
+        GROUP BY ft.specialist_id, u.full_name, u.username
+        ORDER BY amount_uzs DESC, label ASC
+        LIMIT 100`,
+      params
+    );
+    byDepartmentResult = await pool.query(
+      `SELECT p.id,
+              COALESCE(NULLIF(TRIM(p.label), ''), 'No department') AS label,
+              COALESCE(SUM(${signedTicketAmountSql}), 0) AS amount_uzs,
+              COUNT(*) AS transaction_count
+         ${legacyTicketFromSql}
+         LEFT JOIN users u ON u.organization_id = ft.organization_id AND u.id = ft.specialist_id
+         LEFT JOIN position_options p ON p.organization_id = u.organization_id AND p.id = u.position_id
+        GROUP BY p.id, p.label
+        ORDER BY amount_uzs DESC, label ASC
+        LIMIT 100`,
+      params
+    );
+  }
   const byClientResult = await pool.query(
     `SELECT c.id,
             COALESCE(NULLIF(TRIM(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)), ''), 'No client') AS label,
