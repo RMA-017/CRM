@@ -6543,36 +6543,50 @@ label.field > span:first-child,
 }
 
 #financeReportsFilterModal.finance-reports-filter-modal {
-  width: min(620px, calc(100vw - 32px));
-  height: auto;
+  width: min(720px, calc(100vw - 32px));
+  height: min(720px, calc(100dvh - 24px));
   min-height: 0;
-  max-height: min(760px, calc(100dvh - 24px));
-  grid-template-rows: auto minmax(0, auto);
+  max-height: calc(100dvh - 24px);
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 #financeReportsFilterModal .auth-form {
-  grid-template-rows: minmax(0, auto) auto;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
 }
 
 #financeReportsFilterModal .finance-reports-filter-grid {
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-content: start;
   margin: 0;
   border: 0;
   box-shadow: none;
-  padding: 0;
+  padding: 2px 8px 2px 2px;
   background: transparent;
+  gap: 8px 10px;
 }
 
 #financeReportsFilterModal .all-users-edit-fields.settings-filter-grid.finance-reports-filter-grid {
-  padding: 0;
+  padding: 2px 8px 2px 2px;
+}
+
+#financeReportsFilterModal .finance-reports-filter-grid > .field {
+  min-width: 0;
 }
 
 #financeReportsFilterModal .finance-reports-filter-date-row {
   display: grid;
+  grid-column: 1 / -1;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   min-width: 0;
+}
+
+#financeReportsFilterModal .edit-actions {
+  justify-content: flex-end;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
 }
 
 .finance-reports-summary-grid {
@@ -8612,6 +8626,21 @@ label.field > span:first-child,
 
   #financeReportsFilterModal .finance-reports-filter-date-row {
     grid-template-columns: 1fr;
+  }
+
+  #financeReportsFilterModal.finance-reports-filter-modal {
+    width: calc(100vw - 20px);
+    height: calc(100dvh - 20px);
+    max-height: calc(100dvh - 20px);
+  }
+
+  #financeReportsFilterModal .finance-reports-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #financeReportsFilterModal .edit-actions .btn {
+    width: 100%;
+    flex: 1 1 auto;
   }
 }
 
