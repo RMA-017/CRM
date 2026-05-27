@@ -515,7 +515,12 @@ function FinanceDailyCashPanel({ onClose }) {
                   <CustomSelect
                     value={filters.service}
                     options={[{ value: "", label: translate("All") }, ...serviceOptions]}
+                    placeholder={translate("Service")}
+                    searchable
+                    searchPlaceholder={translate("Search...")}
+                    searchThreshold={0}
                     menuPortal
+                    menuHeightScale={1.2}
                     onChange={(value) => setFilters((current) => ({ ...current, service: value }))}
                   />
                 </label>
