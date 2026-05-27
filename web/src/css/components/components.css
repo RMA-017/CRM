@@ -6536,7 +6536,7 @@ label.field > span:first-child,
 
 .finance-daily-cash-table {
   table-layout: fixed;
-  min-width: 1040px;
+  min-width: 1290px;
 }
 
 .finance-daily-cash-col-index {
@@ -6544,41 +6544,46 @@ label.field > span:first-child,
 }
 
 .finance-daily-cash-col-client {
-  width: 185px;
+  width: 225px;
 }
 
 .finance-daily-cash-col-client-id {
-  width: 92px;
+  width: 90px;
 }
 
 .finance-daily-cash-col-date {
-  width: 132px;
+  width: 138px;
 }
 
 .finance-daily-cash-col-method {
-  width: 140px;
-}
-
-.finance-daily-cash-col-amount {
-  width: 132px;
-}
-
-.finance-daily-cash-col-ticket {
-  width: 108px;
-}
-
-.finance-daily-cash-col-service {
-  width: 165px;
-}
-
-.finance-daily-cash-col-cashier {
   width: 150px;
 }
 
+.finance-daily-cash-col-amount {
+  width: 135px;
+}
+
+.finance-daily-cash-col-ticket {
+  width: 112px;
+}
+
+.finance-daily-cash-col-service {
+  width: 215px;
+}
+
+.finance-daily-cash-col-cashier {
+  width: 170px;
+}
+
 .finance-daily-cash-table :is(th, td) {
+  max-width: none;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.finance-daily-cash-table :is(th:nth-child(1), td:nth-child(1), th:nth-child(3), td:nth-child(3), th:nth-child(7), td:nth-child(7)) {
+  text-align: center;
 }
 
 .finance-daily-cash-table :is(th:nth-child(6), td:nth-child(6)) {
