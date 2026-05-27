@@ -12,7 +12,8 @@ const EMPTY_FILTERS = Object.freeze({
   cashier: "",
   client: "",
   service: "",
-  paymentMethodId: ""
+  paymentMethodId: "",
+  sessionScope: "current"
 });
 
 function formatMoney(value) {
@@ -26,17 +27,6 @@ function formatDateTime(value) {
   const date = formatDateYMD(raw);
   const timeMatch = raw.match(/T(\d{2}:\d{2})/);
   return timeMatch ? `${date} ${timeMatch[1]}` : date;
-}
-
-function translateTransactionType(translate, type) {
-  const labels = {
-    ticket_payment: "Ticket Payment",
-    deposit_in: "Deposit In",
-    deposit_out: "Deposit Out",
-    refund: "Refund",
-    correction: "Correction"
-  };
-  return translate(labels[String(type || "")] || String(type || "-"));
 }
 
 function makeClientOption(item) {
@@ -240,24 +230,26 @@ function FinanceDailyCashPanel({ onClose }) {
           name: translate("Daily Cash"),
           rows: [
             [
-              translate("Date"),
-              translate("Cashier"),
+              "#",
               translate("Client"),
-              translate("Ticket Number"),
-              translate("Service"),
+              translate("Client ID"),
+              translate("Date"),
               translate("Payment Method"),
               translate("Amount UZS"),
-              translate("Type")
+              translate("Ticket Number"),
+              translate("Service"),
+              translate("Cashier")
             ],
-            ...result.items.map((item) => [
-              formatDateTime(item.transactionAt),
-              item.cashierName || "",
+            ...result.items.map((item, index) => [
+              index + 1,
               item.clientName || "",
-              item.ticketNumber || "",
-              item.serviceName || "",
+              item.clientId || "",
+              formatDateTime(item.transactionAt),
               item.paymentMethodName || "",
               Number.parseInt(String(item.amountUzs || 0), 10) || 0,
-              translateTransactionType(translate, item.transactionType)
+              item.ticketNumber || "",
+              item.serviceName || "",
+              item.cashierName || ""
             ])
           ]
         },
@@ -397,40 +389,53 @@ function FinanceDailyCashPanel({ onClose }) {
       <p className="all-users-state" hidden={!message}>{translate(message)}</p>
 
       <div className="all-users-table-scroll">
-        <table className="all-users-table" aria-label="Finance daily cash table">
+        <table className="all-users-table finance-daily-cash-table" aria-label="Finance daily cash table">
+          <colgroup>
+            <col className="finance-daily-cash-col-index" />
+            <col className="finance-daily-cash-col-client" />
+            <col className="finance-daily-cash-col-client-id" />
+            <col className="finance-daily-cash-col-date" />
+            <col className="finance-daily-cash-col-method" />
+            <col className="finance-daily-cash-col-amount" />
+            <col className="finance-daily-cash-col-ticket" />
+            <col className="finance-daily-cash-col-service" />
+            <col className="finance-daily-cash-col-cashier" />
+          </colgroup>
           <thead>
             <tr>
-              <th>{translate("Date")}</th>
-              <th>{translate("Cashier")}</th>
+              <th>#</th>
               <th>{translate("Client")}</th>
-              <th>{translate("Ticket Number")}</th>
-              <th>{translate("Service")}</th>
+              <th>{translate("Client ID")}</th>
+              <th>{translate("Date")}</th>
               <th>{translate("Payment Method")}</th>
               <th>{translate("Amount UZS")}</th>
-              <th>{translate("Type")}</th>
+              <th>{translate("Ticket Number")}</th>
+              <th>{translate("Service")}</th>
+              <th>{translate("Cashier")}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               [0, 1, 2, 3, 4].map((index) => (
                 <tr key={index} aria-hidden="true">
-                  <td colSpan="8" className="skel" />
+                  <td colSpan="9" className="skel" />
                 </tr>
               ))
-            ) : items.map((item) => (
+            ) : items.map((item, index) => (
               <tr key={String(item.id)}>
-                <td>{formatDateTime(item.transactionAt)}</td>
-                <td>{item.cashierName || "-"}</td>
+                <td>{(page - 1) * 20 + index + 1}</td>
                 <td>{item.clientName || "-"}</td>
-                <td>{item.ticketNumber ? `#${item.ticketNumber}` : "-"}</td>
-                <td>{item.serviceName || "-"}</td>
+                <td>{item.clientId || "-"}</td>
+                <td>{formatDateTime(item.transactionAt)}</td>
                 <td>{item.paymentMethodName || "-"}</td>
                 <td>{formatMoney(item.amountUzs)}</td>
-                <td>{translateTransactionType(translate, item.transactionType)}</td>
+                <td>{item.ticketNumber ? `#${item.ticketNumber}` : "-"}</td>
+                <td>{item.serviceName || "-"}</td>
+                <td>{item.cashierName || "-"}</td>
               </tr>
             ))}
             {!loading && items.length === 0 ? (
-              <tr><td colSpan="8" className="all-users-state">{translate("No items found.")}</td></tr>
+              <tr><td colSpan="9" className="all-users-state">{translate("No items found.")}</td></tr>
             ) : null}
           </tbody>
         </table>

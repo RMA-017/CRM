@@ -1549,7 +1549,7 @@ export async function voidFinanceTransaction({ organizationId, id, payload, acto
   }
 }
 
-export async function getFinanceDailyCash({ organizationId, filters = {} }) {
+export async function getFinanceDailyCash({ organizationId, filters = {}, actorUserId = null }) {
   const today = new Date().toISOString().slice(0, 10);
   const dateFrom = normalizeDate(filters.dateFrom ?? filters.date_from) || today;
   const dateTo = normalizeDate(filters.dateTo ?? filters.date_to) || dateFrom;
@@ -1557,17 +1557,42 @@ export async function getFinanceDailyCash({ organizationId, filters = {} }) {
   const client = normalizeText(filters.client, 96).toLowerCase();
   const service = normalizeText(filters.service, 128).toLowerCase();
   const paymentMethodId = parsePositiveInteger(filters.paymentMethodId ?? filters.payment_method_id);
+  const sessionScope = normalizeText(filters.sessionScope ?? filters.session_scope, 32).toLowerCase();
+  const useCurrentSession = sessionScope === "current";
   const page = normalizePage(filters.page);
   const pageSize = normalizePageSize(filters.pageSize ?? filters.page_size, 20);
   const offset = (page - 1) * pageSize;
-  const params = [organizationId, dateFrom, dateTo];
+  const params = [organizationId];
   const where = [
     "t.organization_id = $1",
     "t.status = 'posted'",
-    "t.direction IN ('in', 'out')",
-    "t.transaction_at::date >= $2::date",
-    "t.transaction_at::date <= $3::date"
+    "t.direction IN ('in', 'out')"
   ];
+  if (useCurrentSession) {
+    const currentSession = actorUserId
+      ? await getOpenCashSession(pool, { organizationId, cashierUserId: actorUserId })
+      : null;
+    if (!currentSession) {
+      return {
+        items: [],
+        summary: mapDailyCashSummary({}),
+        paymentMethods: [],
+        page,
+        pageSize,
+        total: 0,
+        totalPages: 1,
+        dateFrom,
+        dateTo
+      };
+    }
+    params.push(currentSession.id);
+    where.push(`t.cash_session_id = $${params.length}`);
+  } else {
+    params.push(dateFrom);
+    params.push(dateTo);
+    where.push(`t.transaction_at::date >= $${params.length - 1}::date`);
+    where.push(`t.transaction_at::date <= $${params.length}::date`);
+  }
   if (cashier) {
     params.push(`%${cashier}%`);
     params.push(cashier);

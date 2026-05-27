@@ -6534,6 +6534,57 @@ label.field > span:first-child,
   min-width: 0;
 }
 
+.finance-daily-cash-table {
+  table-layout: fixed;
+  min-width: 1040px;
+}
+
+.finance-daily-cash-col-index {
+  width: 52px;
+}
+
+.finance-daily-cash-col-client {
+  width: 185px;
+}
+
+.finance-daily-cash-col-client-id {
+  width: 92px;
+}
+
+.finance-daily-cash-col-date {
+  width: 132px;
+}
+
+.finance-daily-cash-col-method {
+  width: 140px;
+}
+
+.finance-daily-cash-col-amount {
+  width: 132px;
+}
+
+.finance-daily-cash-col-ticket {
+  width: 108px;
+}
+
+.finance-daily-cash-col-service {
+  width: 165px;
+}
+
+.finance-daily-cash-col-cashier {
+  width: 150px;
+}
+
+.finance-daily-cash-table :is(th, td) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finance-daily-cash-table :is(th:nth-child(6), td:nth-child(6)) {
+  text-align: right;
+}
+
 #financeTransactionVoidModal.finance-transaction-void-modal {
   width: min(460px, calc(100vw - 32px));
   height: auto;

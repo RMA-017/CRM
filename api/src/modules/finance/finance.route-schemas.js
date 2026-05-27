@@ -143,6 +143,8 @@ export const financeRouteSchemas = Object.freeze({
       service: { type: "string", maxLength: 128 },
       paymentMethodId: positiveIntegerLikeSchema,
       payment_method_id: positiveIntegerLikeSchema,
+      sessionScope: { type: "string", enum: ["", "current", "all"] },
+      session_scope: { type: "string", enum: ["", "current", "all"] },
       page: positiveIntegerLikeSchema,
       pageSize: positiveIntegerLikeSchema,
       page_size: positiveIntegerLikeSchema

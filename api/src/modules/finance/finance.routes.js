@@ -257,7 +257,8 @@ async function financeRoutes(fastify) {
         if (!requester) return null;
         return reply.send(await getFinanceDailyCash({
           organizationId: request.authContext.organizationId,
-          filters: request.query
+          filters: request.query,
+          actorUserId: requester.id
         }));
       } catch (error) {
         request.log.error({ err: error }, "Error fetching finance daily cash:");
