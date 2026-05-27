@@ -57,7 +57,6 @@ function FinanceDailyCashPanel({ onClose }) {
   const [services, setServices] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [exporting, setExporting] = useState(false);
@@ -125,7 +124,6 @@ function FinanceDailyCashPanel({ onClose }) {
       setPaymentSummary(Array.isArray(data?.paymentMethods) ? data.paymentMethods : []);
       setPage(Number.parseInt(String(data?.page || nextPage), 10) || 1);
       setTotalPages(Number.parseInt(String(data?.totalPages || 1), 10) || 1);
-      setTotal(Number.parseInt(String(data?.total || 0), 10) || 0);
       setMessage("");
     } catch {
       setMessage("Failed to load daily cash.");
@@ -396,35 +394,7 @@ function FinanceDailyCashPanel({ onClose }) {
         </>
       ), document.body) : null}
 
-      <div className="finance-summary-grid">
-        <div className="finance-summary-card">
-          <span>{translate("Total In")}</span>
-          <strong>{formatMoney(summary.totalInUzs)}</strong>
-        </div>
-        <div className="finance-summary-card">
-          <span>{translate("Total Out")}</span>
-          <strong>{formatMoney(summary.totalOutUzs)}</strong>
-        </div>
-        <div className="finance-summary-card">
-          <span>{translate("Net Total")}</span>
-          <strong>{formatMoney(summary.netUzs)}</strong>
-        </div>
-        <div className="finance-summary-card">
-          <span>{translate("Transactions")}</span>
-          <strong>{Number.parseInt(String(summary.transactionCount || 0), 10) || 0}</strong>
-        </div>
-      </div>
-
-      <div className="finance-payment-summary" hidden={paymentSummary.length === 0}>
-        {paymentSummary.map((item) => (
-          <span key={`${item.paymentMethodId || "none"}-${item.paymentMethodName}`}>
-            {`${item.paymentMethodName || "-"}: ${formatMoney(item.netUzs)}`}
-          </span>
-        ))}
-      </div>
-
       <p className="all-users-state" hidden={!message}>{translate(message)}</p>
-      <p className="all-users-state">{`${translate("Total")}: ${total}`}</p>
 
       <div className="all-users-table-scroll">
         <table className="all-users-table" aria-label="Finance daily cash table">
