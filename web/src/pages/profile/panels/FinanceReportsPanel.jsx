@@ -21,16 +21,6 @@ const EMPTY_FILTERS = Object.freeze({
   ticketStatus: ""
 });
 
-const REPORT_GROUPS = Object.freeze([
-  ["By Day", "byDay"],
-  ["By Payment Method", "byPaymentMethod"],
-  ["By Service", "byService"],
-  ["By Specialist", "bySpecialist"],
-  ["By Department", "byDepartment"],
-  ["By Client", "byClient"],
-  ["By Cashier", "byCashier"]
-]);
-
 const TRANSACTION_TYPE_OPTIONS = Object.freeze([
   { value: "", label: "All" },
   { value: "ticket_payment", label: "Ticket Payment" },
@@ -53,6 +43,22 @@ const TICKET_STATUS_OPTIONS = Object.freeze([
 const TRANSACTION_STATUS_OPTIONS = Object.freeze([
   { value: "", label: "Active" },
   { value: "voided", label: "Cancelled" }
+]);
+
+const REPORT_COLUMN_OPTIONS = Object.freeze([
+  { key: "date", label: "Date" },
+  { key: "ticketNumber", label: "Ticket Number" },
+  { key: "client", label: "Client" },
+  { key: "clientId", label: "Client ID" },
+  { key: "service", label: "Service" },
+  { key: "specialist", label: "Specialist" },
+  { key: "department", label: "Department" },
+  { key: "cashier", label: "Cashier" },
+  { key: "paymentMethod", label: "Payment Method" },
+  { key: "amount", label: "Amount UZS" },
+  { key: "operationType", label: "Operation Type" },
+  { key: "ticketStatus", label: "Ticket Status" },
+  { key: "operationStatus", label: "Operation Status" }
 ]);
 
 function toNumber(value) {
@@ -106,44 +112,56 @@ function getTransactionActionLabel(translate, item) {
     : base;
 }
 
-function ReportTable({ title, items, translate }) {
-  return (
-    <section className="finance-report-section">
-      <h4>{translate(title)}</h4>
-      <div className="all-users-table-scroll">
-        <table className="all-users-table" aria-label={`${title} report table`}>
-          <thead>
-            <tr>
-              <th>{translate("Name")}</th>
-              <th>{translate("Amount UZS")}</th>
-              <th>{translate("Count")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={`${title}-${item.id || item.label}`}>
-                <td>{item.label || "-"}</td>
-                <td>{formatMoney(item.amountUzs)}</td>
-                <td>{toNumber(item.count)}</td>
-              </tr>
-            ))}
-            {items.length === 0 ? (
-              <tr><td colSpan="3" className="all-users-state">{translate("No items found.")}</td></tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
+function getTicketStatusLabel(translate, value) {
+  const status = String(value || "").trim();
+  const labels = {
+    issued: "Tickets",
+    unpaid: "Unpaid",
+    paid: "Paid",
+    voided: "Voided"
+  };
+  return status ? translate(labels[status] || status) : "-";
 }
 
-function SummaryCard({ label, value, translate, money = true }) {
-  return (
-    <div className="finance-summary-card">
-      <span>{translate(label)}</span>
-      <strong>{money ? formatMoney(value) : toNumber(value)}</strong>
-    </div>
-  );
+function getReportColumnValue(columnKey, item, translate, forExport = false) {
+  switch (columnKey) {
+    case "date":
+      return formatDateTime(item.transactionAt);
+    case "ticketNumber":
+      return forExport ? (item.ticketNumber || "") : (item.ticketNumber ? `#${item.ticketNumber}` : "-");
+    case "client":
+      return item.clientName || "-";
+    case "clientId":
+      return item.clientId || "-";
+    case "service":
+      return item.serviceName || "-";
+    case "specialist":
+      return item.specialistName || "-";
+    case "department":
+      return item.positionLabel || "-";
+    case "cashier":
+      return item.cashierName || "-";
+    case "paymentMethod":
+      return item.paymentMethodName || translate("Balance");
+    case "amount":
+      return forExport ? toNumber(item.signedAmountUzs) : formatMoney(item.signedAmountUzs);
+    case "operationType":
+      return getTransactionActionLabel(translate, item);
+    case "ticketStatus":
+      return getTicketStatusLabel(translate, item.ticketStatus);
+    case "operationStatus":
+      return item.status === "voided" ? translate("Cancelled") : translate("Active");
+    default:
+      return "-";
+  }
+}
+
+function getReportColumnClass(columnKey) {
+  if (columnKey === "amount") return "finance-reports-amount-cell";
+  if (["ticketNumber", "clientId", "ticketStatus", "operationStatus"].includes(columnKey)) {
+    return "finance-reports-center-cell";
+  }
+  return "";
 }
 
 function FinanceReportsPanel({ onClose }) {
@@ -158,6 +176,8 @@ function FinanceReportsPanel({ onClose }) {
   const [filterClientOptions, setFilterClientOptions] = useState([]);
   const [filterClientSearchBusy, setFilterClientSearchBusy] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [selectedColumns, setSelectedColumns] = useState([]);
+  const [appliedColumns, setAppliedColumns] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -194,6 +214,14 @@ function FinanceReportsPanel({ onClose }) {
       .filter(Boolean);
     return [{ value: "", label: translate("All") }, ...options];
   }, [filterReferences.positions, translate]);
+
+  const selectedColumnSet = useMemo(() => new Set(selectedColumns), [selectedColumns]);
+
+  const appliedColumnDefinitions = useMemo(() => (
+    appliedColumns
+      .map((key) => REPORT_COLUMN_OPTIONS.find((item) => item.key === key))
+      .filter(Boolean)
+  ), [appliedColumns]);
 
   const loadFilterReferences = useCallback(async () => {
     setFilterReferencesLoading(true);
@@ -311,14 +339,32 @@ function FinanceReportsPanel({ onClose }) {
 
   const applyFilters = (event) => {
     event.preventDefault();
+    if (selectedColumns.length === 0) {
+      window.alert?.(translate("Select at least one column."));
+      return;
+    }
     setAppliedFilters(filters);
+    setAppliedColumns(selectedColumns);
     setHasSearched(true);
     setFiltersOpen(false);
     void loadReports(filters);
   };
 
+  const toggleReportColumn = (columnKey) => {
+    setSelectedColumns((current) => (
+      current.includes(columnKey)
+        ? current.filter((item) => item !== columnKey)
+        : [...current, columnKey]
+    ));
+  };
+
   const exportReports = async () => {
     if (exporting || !hasSearched) return;
+    const exportColumns = appliedColumnDefinitions;
+    if (exportColumns.length === 0) {
+      window.alert?.(translate("Select at least one column."));
+      return;
+    }
     setExporting(true);
     try {
       let nextReport = report;
@@ -337,61 +383,15 @@ function FinanceReportsPanel({ onClose }) {
         }
         nextReport = data || {};
       }
-      const nextSummary = nextReport?.summary || {};
       const detailRows = Array.isArray(nextReport?.details) ? nextReport.details : [];
       const reportSheets = [
         {
-          name: translate("Reports"),
-          rows: [
-            [translate("Name"), translate("Amount UZS")],
-            [translate("Net Total"), toNumber(nextSummary.netTotalUzs)],
-            [translate("Ticket Revenue"), toNumber(nextSummary.ticketRevenueUzs)],
-            [translate("Cash In"), toNumber(nextSummary.cashInUzs)],
-            [translate("Cash Out"), toNumber(nextSummary.cashOutUzs)],
-            [translate("Cash Net"), toNumber(nextSummary.cashNetUzs)],
-            [translate("Deposit In"), toNumber(nextSummary.depositInUzs)],
-            [translate("Deposit Out"), toNumber(nextSummary.depositOutUzs)],
-            [translate("Refunds"), toNumber(nextSummary.refundUzs)],
-            [translate("Transactions"), toNumber(nextSummary.transactionCount)],
-            [translate("Tickets"), toNumber(nextSummary.ticketCount)]
-          ]
-        },
-        ...REPORT_GROUPS.map(([title, key]) => ({
-          name: translate(title),
-          rows: [
-            [translate("Name"), translate("Amount UZS"), translate("Count")],
-            ...(Array.isArray(nextReport?.[key]) ? nextReport[key] : []).map((item) => [
-              item.label || "",
-              toNumber(item.amountUzs),
-              toNumber(item.count)
-            ])
-          ]
-        })),
-        {
           name: translate("Details"),
           rows: [
-            [
-              translate("Date"),
-              translate("Action"),
-              translate("Ticket Number"),
-              translate("Client"),
-              translate("Client ID"),
-              translate("Payment Method"),
-              translate("Amount UZS"),
-              translate("Cashier"),
-              translate("Status")
-            ],
-            ...detailRows.map((item) => [
-              formatDateTime(item.transactionAt),
-              getTransactionActionLabel(translate, item),
-              item.ticketNumber || "",
-              item.clientName || "",
-              item.clientId || "",
-              item.paymentMethodName || translate("Balance"),
-              toNumber(item.signedAmountUzs),
-              item.cashierName || "",
-              item.status === "voided" ? translate("Cancelled") : translate("Active")
-            ])
+            exportColumns.map((column) => translate(column.label)),
+            ...detailRows.map((item) => exportColumns.map((column) => (
+              getReportColumnValue(column.key, item, translate, true)
+            )))
           ]
         }
       ];
@@ -403,8 +403,8 @@ function FinanceReportsPanel({ onClose }) {
     }
   };
 
-  const summary = report?.summary || {};
   const details = Array.isArray(report?.details) ? report.details : [];
+  const detailsTableMinWidth = Math.max(620, appliedColumnDefinitions.length * 148);
 
   return (
     <section id="financeReportsPanel" className="all-users-panel settings-panel ops-panel-shell finance-panel-shell finance-reports-panel">
@@ -576,6 +576,21 @@ function FinanceReportsPanel({ onClose }) {
                     onChange={(value) => setFilters((current) => ({ ...current, transactionStatus: value }))}
                   />
                 </label>
+                <div className="finance-reports-column-picker">
+                  <span className="finance-reports-column-picker-title">{translate("Columns")}</span>
+                  <div className="finance-reports-column-picker-grid">
+                    {REPORT_COLUMN_OPTIONS.map((column) => (
+                      <label key={column.key} className="settings-checkbox settings-checkbox-inline finance-reports-column-option">
+                        <input
+                          type="checkbox"
+                          checked={selectedColumnSet.has(column.key)}
+                          onChange={() => toggleReportColumn(column.key)}
+                        />
+                        <span>{translate(column.label)}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </div>
               <div className="edit-actions">
                 <button type="submit" className="btn" disabled={loading}>{translate("Search")}</button>
@@ -589,65 +604,38 @@ function FinanceReportsPanel({ onClose }) {
       {loading ? <p className="all-users-state">{translate("Loading...")}</p> : null}
 
       {hasSearched && !loading ? (
-        <>
-          <div className="finance-summary-grid finance-reports-summary-grid">
-            <SummaryCard label="Net Total" value={summary.netTotalUzs} translate={translate} />
-            <SummaryCard label="Ticket Revenue" value={summary.ticketRevenueUzs ?? summary.amountUzs} translate={translate} />
-            <SummaryCard label="Cash In" value={summary.cashInUzs} translate={translate} />
-            <SummaryCard label="Cash Out" value={summary.cashOutUzs} translate={translate} />
-            <SummaryCard label="Cash Net" value={summary.cashNetUzs} translate={translate} />
-            <SummaryCard label="Deposit In" value={summary.depositInUzs} translate={translate} />
-            <SummaryCard label="Deposit Out" value={summary.depositOutUzs} translate={translate} />
-            <SummaryCard label="Refunds" value={summary.refundUzs} translate={translate} />
-            <SummaryCard label="Transactions" value={summary.transactionCount} translate={translate} money={false} />
-            <SummaryCard label="Tickets" value={summary.ticketCount} translate={translate} money={false} />
-          </div>
-
-          <div className="finance-report-grid">
-            {REPORT_GROUPS.map(([title, key]) => (
-              <ReportTable key={key} title={title} items={Array.isArray(report?.[key]) ? report[key] : []} translate={translate} />
-            ))}
-          </div>
-
-          <section className="finance-report-section finance-report-details-section">
-            <h4>{translate("Details")}</h4>
-            <div className="all-users-table-scroll">
-              <table className="all-users-table finance-reports-details-table" aria-label={translate("Finance report details")}>
-                <thead>
-                  <tr>
-                    <th>{translate("Date")}</th>
-                    <th>{translate("Action")}</th>
-                    <th>{translate("Ticket Number")}</th>
-                    <th>{translate("Client")}</th>
-                    <th>{translate("Client ID")}</th>
-                    <th>{translate("Payment Method")}</th>
-                    <th>{translate("Amount UZS")}</th>
-                    <th>{translate("Cashier")}</th>
-                    <th>{translate("Status")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {details.map((item) => (
-                    <tr key={String(item.id)}>
-                      <td>{formatDateTime(item.transactionAt)}</td>
-                      <td>{getTransactionActionLabel(translate, item)}</td>
-                      <td>{item.ticketNumber ? `#${item.ticketNumber}` : "-"}</td>
-                      <td>{item.clientName || "-"}</td>
-                      <td>{item.clientId || "-"}</td>
-                      <td>{item.paymentMethodName || translate("Balance")}</td>
-                      <td className="finance-reports-amount-cell">{formatMoney(item.signedAmountUzs)}</td>
-                      <td>{item.cashierName || "-"}</td>
-                      <td>{item.status === "voided" ? translate("Cancelled") : translate("Active")}</td>
-                    </tr>
+        <section className="finance-report-section finance-report-details-section">
+          <h4>{translate("Details")}</h4>
+          <div className="all-users-table-scroll">
+            <table
+              className="all-users-table finance-reports-details-table"
+              style={{ minWidth: `${detailsTableMinWidth}px` }}
+              aria-label={translate("Finance report details")}
+            >
+              <thead>
+                <tr>
+                  {appliedColumnDefinitions.map((column) => (
+                    <th key={column.key} className={`finance-reports-col-${column.key}`}>{translate(column.label)}</th>
                   ))}
-                  {details.length === 0 ? (
-                    <tr><td colSpan="9" className="all-users-state">{translate("No items found.")}</td></tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </>
+                </tr>
+              </thead>
+              <tbody>
+                {details.map((item) => (
+                  <tr key={String(item.id)}>
+                    {appliedColumnDefinitions.map((column) => (
+                      <td key={`${item.id}-${column.key}`} className={`finance-reports-col-${column.key} ${getReportColumnClass(column.key)}`}>
+                        {getReportColumnValue(column.key, item, translate)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                {details.length === 0 ? (
+                  <tr><td colSpan={Math.max(appliedColumnDefinitions.length, 1)} className="all-users-state">{translate("No items found.")}</td></tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </section>
       ) : null}
     </section>
   );
