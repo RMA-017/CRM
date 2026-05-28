@@ -235,6 +235,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Operation Type", uz: "Operatsiya turi", ru: "Тип операции" },
   { en: "Operation Status", uz: "Operatsiya statusi", ru: "Статус операции" },
   { en: "Columns", uz: "Ustunlar", ru: "Столбцы" },
+  { en: "Show in table", uz: "Jadvalda ko'rsatish", ru: "Показать в таблице" },
   { en: "Select at least one column.", uz: "Kamida bitta ustunni tanlang.", ru: "Выберите хотя бы один столбец." },
   { en: "Ticket Status", uz: "Talon statusi", ru: "Статус талона" },
   { en: "Finance report details", uz: "Finance hisobot tafsilotlari", ru: "Детали финансового отчета" },

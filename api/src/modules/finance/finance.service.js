@@ -1763,8 +1763,9 @@ export async function getFinanceDailyCash({ organizationId, filters = {}, actorU
 
 export async function getFinanceReports({ organizationId, filters = {} }) {
   const today = new Date().toISOString().slice(0, 10);
-  const dateFrom = normalizeDate(filters.dateFrom ?? filters.date_from) || today;
-  const dateTo = normalizeDate(filters.dateTo ?? filters.date_to) || dateFrom;
+  const allDates = normalizeBooleanFlag(filters.allDates ?? filters.all_dates);
+  const dateFrom = allDates ? null : (normalizeDate(filters.dateFrom ?? filters.date_from) || today);
+  const dateTo = allDates ? null : (normalizeDate(filters.dateTo ?? filters.date_to) || dateFrom);
   const ticketNumber = normalizeText(filters.ticketNumber ?? filters.ticket_number, 12);
   const client = normalizeText(filters.client, 96).toLowerCase();
   const clientId = parsePositiveInteger(filters.clientId ?? filters.client_id);
@@ -1802,12 +1803,17 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
   ];
   const ticketStatuses = new Set(["issued", "unpaid", "paid", "voided"]);
   const transactionStatuses = new Set(["posted", "voided"]);
-  const params = [organizationId, dateFrom, dateTo];
+  const params = [organizationId];
   const commonWhere = [
-    "t.organization_id = $1",
-    "t.transaction_at::date >= $2::date",
-    "t.transaction_at::date <= $3::date"
+    "t.organization_id = $1"
   ];
+
+  if (!allDates) {
+    params.push(dateFrom);
+    commonWhere.push(`t.transaction_at::date >= $${params.length}::date`);
+    params.push(dateTo);
+    commonWhere.push(`t.transaction_at::date <= $${params.length}::date`);
+  }
 
   if (transactionStatuses.has(transactionStatus)) {
     params.push(transactionStatus);
@@ -2233,7 +2239,8 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
       transactionType,
       transactionStatus,
       ticketStatus,
-      includeVoided
+      includeVoided,
+      allDates
     },
     summary: {
       amountUzs: Number.parseInt(String(summaryRow.amount_uzs || 0), 10) || 0,

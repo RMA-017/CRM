@@ -185,7 +185,9 @@ export const financeRouteSchemas = Object.freeze({
       ticketStatus: { type: "string", enum: ["", "issued", "unpaid", "paid", "voided"] },
       ticket_status: { type: "string", enum: ["", "issued", "unpaid", "paid", "voided"] },
       includeVoided: { type: "string", enum: ["", "1", "true", "false", "yes", "no", "on", "off"] },
-      include_voided: { type: "string", enum: ["", "1", "true", "false", "yes", "no", "on", "off"] }
+      include_voided: { type: "string", enum: ["", "1", "true", "false", "yes", "no", "on", "off"] },
+      allDates: { type: "string", enum: ["", "1", "true", "false", "yes", "no", "on", "off"] },
+      all_dates: { type: "string", enum: ["", "1", "true", "false", "yes", "no", "on", "off"] }
     }
   },
   clientBalanceListQuery: {
