@@ -655,7 +655,6 @@ function FinanceReportsPanel({ onClose }) {
                     onChange={(value) => updateFilterValue("client", value)}
                   />
                 </div>
-                {renderColumnOnlyField("clientId", "Client ID")}
                 <div className="field finance-reports-check-field">
                   {renderColumnToggle("service", "Service")}
                   <CustomSelect
@@ -708,13 +707,6 @@ function FinanceReportsPanel({ onClose }) {
                     onChange={(value) => updateFilterValue("paymentMethodId", value)}
                   />
                 </div>
-                {renderColumnOnlyField("amount", "Amount UZS")}
-                {renderColumnOnlyField("ticketSubtotal", "Subtotal")}
-                {renderColumnOnlyField("ticketDiscount", "Discount")}
-                {renderColumnOnlyField("ticketToPay", "To Pay")}
-                {renderColumnOnlyField("ticketPaid", "Paid Amount")}
-                {renderColumnOnlyField("ticketRemaining", "Remaining Amount")}
-                {renderColumnOnlyField("ticketClosed", "Ticket Closed")}
                 <div className="field finance-reports-check-field">
                   {renderColumnToggle("operationType", "Operation Type")}
                   <CustomSelect
@@ -745,6 +737,14 @@ function FinanceReportsPanel({ onClose }) {
                     onChange={(value) => updateFilterValue("transactionStatus", value)}
                   />
                 </div>
+                {renderColumnOnlyField("clientId", "Client ID")}
+                {renderColumnOnlyField("amount", "Amount UZS")}
+                {renderColumnOnlyField("ticketSubtotal", "Subtotal")}
+                {renderColumnOnlyField("ticketDiscount", "Discount")}
+                {renderColumnOnlyField("ticketToPay", "To Pay")}
+                {renderColumnOnlyField("ticketPaid", "Paid Amount")}
+                {renderColumnOnlyField("ticketRemaining", "Remaining Amount")}
+                {renderColumnOnlyField("ticketClosed", "Ticket Closed")}
               </div>
               <div className="edit-actions">
                 <button type="submit" className="btn" disabled={loading}>{translate("Search")}</button>
