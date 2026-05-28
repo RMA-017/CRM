@@ -67,6 +67,17 @@ const REPORT_COLUMN_OPTIONS = Object.freeze([
   { key: "operationStatus", label: "Operation Status" }
 ]);
 
+const REPORT_COLUMN_DEPENDENCIES = Object.freeze({
+  clientId: ["client"],
+  ticketSubtotal: ["ticketNumber"],
+  ticketDiscount: ["ticketNumber", "ticketSubtotal", "ticketToPay"],
+  ticketToPay: ["ticketNumber"],
+  ticketPaid: ["ticketNumber", "ticketToPay"],
+  ticketRemaining: ["ticketNumber", "ticketToPay", "ticketPaid"],
+  ticketClosed: ["ticketNumber", "ticketToPay", "ticketPaid", "ticketRemaining"],
+  ticketStatus: ["ticketNumber"]
+});
+
 function toNumber(value) {
   return Number.parseInt(String(value ?? 0), 10) || 0;
 }
@@ -190,6 +201,38 @@ function getReportColumnClass(columnKey) {
     return "finance-reports-center-cell";
   }
   return "";
+}
+
+function appendColumnWithDependencies(columnKeys, columnKey) {
+  const nextKeys = Array.isArray(columnKeys) ? [...columnKeys] : [];
+  const seen = new Set(nextKeys);
+
+  function appendKey(key) {
+    if (seen.has(key)) return;
+    (REPORT_COLUMN_DEPENDENCIES[key] || []).forEach(appendKey);
+    seen.add(key);
+    nextKeys.push(key);
+  }
+
+  appendKey(columnKey);
+  return nextKeys;
+}
+
+function removeColumnWithDependents(columnKeys, columnKey) {
+  const blocked = new Set([columnKey]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    columnKeys.forEach((key) => {
+      if (blocked.has(key)) return;
+      const dependencies = REPORT_COLUMN_DEPENDENCIES[key] || [];
+      if (dependencies.some((dependency) => blocked.has(dependency))) {
+        blocked.add(key);
+        changed = true;
+      }
+    });
+  }
+  return columnKeys.filter((key) => !blocked.has(key));
 }
 
 function FinanceReportsPanel({ onClose }) {
@@ -381,8 +424,8 @@ function FinanceReportsPanel({ onClose }) {
   const toggleReportColumn = (columnKey) => {
     setSelectedColumns((current) => (
       current.includes(columnKey)
-        ? current.filter((item) => item !== columnKey)
-        : [...current, columnKey]
+        ? removeColumnWithDependents(current, columnKey)
+        : appendColumnWithDependencies(current, columnKey)
     ));
   };
 
