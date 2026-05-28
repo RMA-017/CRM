@@ -217,6 +217,15 @@ function mapFinanceReportDetail(row) {
     serviceName: row.service_name || "",
     specialistName: row.specialist_name || "",
     positionLabel: row.position_label || "",
+    ticketSubtotalUzs: Number.parseInt(String(row.ticket_subtotal_uzs || 0), 10) || 0,
+    ticketDiscountUzs: Number.parseInt(String(row.ticket_discount_uzs || 0), 10) || 0,
+    ticketTotalUzs: Number.parseInt(String(row.ticket_total_uzs || 0), 10) || 0,
+    ticketPaidUzs: Number.parseInt(String(row.ticket_paid_uzs || 0), 10) || 0,
+    ticketRemainingUzs: Math.max(
+      (Number.parseInt(String(row.ticket_total_uzs || 0), 10) || 0)
+        - (Number.parseInt(String(row.ticket_paid_uzs || 0), 10) || 0),
+      0
+    ),
     paymentMethodId: row.payment_method_id,
     paymentMethodName: row.payment_method_name || "",
     amountUzs: Number.parseInt(String(row.amount_uzs || 0), 10) || 0,
@@ -2178,6 +2187,20 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
             ft.service_name,
             COALESCE(NULLIF(TRIM(ts.full_name), ''), NULLIF(TRIM(ts.username), ''), '') AS specialist_name,
             COALESCE(NULLIF(TRIM(tp.label), ''), '') AS position_label,
+            COALESCE(ft.subtotal_uzs, ft.amount_uzs, 0) AS ticket_subtotal_uzs,
+            COALESCE(ft.discount_uzs, 0) AS ticket_discount_uzs,
+            COALESCE(ft.total_uzs, ft.amount_uzs, 0) AS ticket_total_uzs,
+            COALESCE((
+              SELECT SUM(CASE
+                WHEN pt.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN pt.amount_uzs
+                WHEN pt.transaction_type IN ('refund', 'deposit_ticket_refund') THEN -pt.amount_uzs
+                ELSE 0
+              END)
+                FROM finance_transactions pt
+               WHERE pt.organization_id = ft.organization_id
+                 AND pt.ticket_id = ft.id
+                 AND pt.status = 'posted'
+            ), 0) AS ticket_paid_uzs,
             t.payment_method_id,
             COALESCE(NULLIF(TRIM(fpm.name), ''), CASE WHEN t.direction = 'transfer' THEN 'Client Balance' ELSE '' END) AS payment_method_name,
             t.amount_uzs,

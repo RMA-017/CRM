@@ -56,6 +56,12 @@ const REPORT_COLUMN_OPTIONS = Object.freeze([
   { key: "cashier", label: "Cashier" },
   { key: "paymentMethod", label: "Payment Method" },
   { key: "amount", label: "Amount UZS" },
+  { key: "ticketSubtotal", label: "Subtotal" },
+  { key: "ticketDiscount", label: "Discount" },
+  { key: "ticketToPay", label: "To Pay" },
+  { key: "ticketPaid", label: "Paid Amount" },
+  { key: "ticketRemaining", label: "Remaining Amount" },
+  { key: "ticketClosed", label: "Ticket Closed" },
   { key: "operationType", label: "Operation Type" },
   { key: "ticketStatus", label: "Ticket Status" },
   { key: "operationStatus", label: "Operation Status" }
@@ -124,6 +130,11 @@ function getTicketStatusLabel(translate, value) {
 }
 
 function getReportColumnValue(columnKey, item, translate, forExport = false) {
+  const hasTicket = Boolean(item.ticketId || item.ticketNumber);
+  const ticketNumberValue = (field) => {
+    if (!hasTicket) return forExport ? "" : "-";
+    return forExport ? toNumber(item[field]) : formatMoney(item[field]);
+  };
   switch (columnKey) {
     case "date":
       return formatDateTime(item.transactionAt);
@@ -145,6 +156,21 @@ function getReportColumnValue(columnKey, item, translate, forExport = false) {
       return item.paymentMethodName || translate("Balance");
     case "amount":
       return forExport ? toNumber(item.signedAmountUzs) : formatMoney(item.signedAmountUzs);
+    case "ticketSubtotal":
+      return ticketNumberValue("ticketSubtotalUzs");
+    case "ticketDiscount":
+      return ticketNumberValue("ticketDiscountUzs");
+    case "ticketToPay":
+      return ticketNumberValue("ticketTotalUzs");
+    case "ticketPaid":
+      return ticketNumberValue("ticketPaidUzs");
+    case "ticketRemaining":
+      return ticketNumberValue("ticketRemainingUzs");
+    case "ticketClosed":
+      if (!hasTicket) return forExport ? "" : "-";
+      return toNumber(item.ticketTotalUzs) > 0 && toNumber(item.ticketPaidUzs) >= toNumber(item.ticketTotalUzs)
+        ? translate("Yes")
+        : translate("No");
     case "operationType":
       return getTransactionActionLabel(translate, item);
     case "ticketStatus":
@@ -157,8 +183,10 @@ function getReportColumnValue(columnKey, item, translate, forExport = false) {
 }
 
 function getReportColumnClass(columnKey) {
-  if (columnKey === "amount") return "finance-reports-amount-cell";
-  if (["ticketNumber", "clientId", "ticketStatus", "operationStatus"].includes(columnKey)) {
+  if (["amount", "ticketSubtotal", "ticketDiscount", "ticketToPay", "ticketPaid", "ticketRemaining"].includes(columnKey)) {
+    return "finance-reports-amount-cell";
+  }
+  if (["ticketNumber", "clientId", "ticketStatus", "operationStatus", "ticketClosed"].includes(columnKey)) {
     return "finance-reports-center-cell";
   }
   return "";
