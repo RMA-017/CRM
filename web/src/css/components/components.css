@@ -6588,7 +6588,7 @@ label.field > span:first-child,
 }
 
 #financeReportsFilterModal .edit-actions {
-  justify-content: flex-end;
+  justify-content: center;
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid var(--line);
@@ -8645,8 +8645,8 @@ label.field > span:first-child,
   }
 
   #financeReportsFilterModal .edit-actions .btn {
-    width: 100%;
-    flex: 1 1 auto;
+    width: min(220px, 100%);
+    flex: 0 1 220px;
   }
 }
 
