@@ -5,6 +5,13 @@ const positiveIntegerLikeSchema = {
   ]
 };
 
+const nonNegativeIntegerLikeSchema = {
+  anyOf: [
+    { type: "integer", minimum: 0 },
+    { type: "string", pattern: "^\\d+$" }
+  ]
+};
+
 const integerLikeSchema = {
   anyOf: [
     { type: "integer" },
@@ -158,14 +165,38 @@ export const financeRouteSchemas = Object.freeze({
       dateTo: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
       date_from: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
       date_to: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      ticketCreatedFrom: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      ticketCreatedTo: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      ticket_created_from: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      ticket_created_to: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      ticketDateFrom: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      ticketDateTo: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      ticket_date_from: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      ticket_date_to: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      paymentDateFrom: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      paymentDateTo: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      payment_date_from: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      payment_date_to: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
       ticketNumber: { type: "string", maxLength: 12 },
       ticket_number: { type: "string", maxLength: 12 },
       client: { type: "string", maxLength: 96 },
       clientId: positiveIntegerLikeSchema,
       client_id: positiveIntegerLikeSchema,
+      clientBirthdayFrom: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      clientBirthdayTo: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      client_birthday_from: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      client_birthday_to: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      clientGender: { type: "string", enum: ["", "male", "female"] },
+      client_gender: { type: "string", enum: ["", "male", "female"] },
+      clientPhone: { type: "string", maxLength: 32 },
+      client_phone: { type: "string", maxLength: 32 },
       service: { type: "string", maxLength: 128 },
       serviceId: positiveIntegerLikeSchema,
       service_id: positiveIntegerLikeSchema,
+      serviceAmountFrom: nonNegativeIntegerLikeSchema,
+      serviceAmountTo: nonNegativeIntegerLikeSchema,
+      service_amount_from: nonNegativeIntegerLikeSchema,
+      service_amount_to: nonNegativeIntegerLikeSchema,
       specialist: { type: "string", maxLength: 96 },
       specialistId: positiveIntegerLikeSchema,
       specialist_id: positiveIntegerLikeSchema,
@@ -178,6 +209,18 @@ export const financeRouteSchemas = Object.freeze({
       cashier_id: positiveIntegerLikeSchema,
       paymentMethodId: positiveIntegerLikeSchema,
       payment_method_id: positiveIntegerLikeSchema,
+      ticketDiscountFrom: nonNegativeIntegerLikeSchema,
+      ticketDiscountTo: nonNegativeIntegerLikeSchema,
+      ticket_discount_from: nonNegativeIntegerLikeSchema,
+      ticket_discount_to: nonNegativeIntegerLikeSchema,
+      ticketToPayFrom: nonNegativeIntegerLikeSchema,
+      ticketToPayTo: nonNegativeIntegerLikeSchema,
+      ticket_to_pay_from: nonNegativeIntegerLikeSchema,
+      ticket_to_pay_to: nonNegativeIntegerLikeSchema,
+      ticketPaidFrom: nonNegativeIntegerLikeSchema,
+      ticketPaidTo: nonNegativeIntegerLikeSchema,
+      ticket_paid_from: nonNegativeIntegerLikeSchema,
+      ticket_paid_to: nonNegativeIntegerLikeSchema,
       transactionType: { type: "string", maxLength: 64 },
       transaction_type: { type: "string", maxLength: 64 },
       transactionStatus: { type: "string", enum: ["", "posted", "voided"] },

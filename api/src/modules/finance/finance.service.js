@@ -13,12 +13,30 @@ function normalizeAmount(value, fallback = 0) {
   return parsed;
 }
 
+function normalizeOptionalAmount(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
 function normalizeDate(value) {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
     return value.toISOString().slice(0, 10);
   }
   const normalized = normalizeText(value, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null;
+}
+
+function normalizeGender(value) {
+  const normalized = normalizeText(value, 24).toLowerCase();
+  if (["male", "m", "man", "boy", "erkak", "муж", "мужской"].includes(normalized)) {
+    return "male";
+  }
+  if (["female", "f", "woman", "girl", "ayol", "жен", "женский"].includes(normalized)) {
+    return "female";
+  }
+  return "";
 }
 
 function getTodayYmdInTashkent() {
@@ -205,20 +223,30 @@ function mapReportRow(row) {
 
 function mapFinanceReportDetail(row) {
   return {
-    id: row.id,
+    id: row.ticket_item_id ? `${row.id}:${row.ticket_item_id}` : row.id,
     transactionType: row.transaction_type || "",
     direction: row.direction || "",
     status: row.status || "",
     ticketStatus: row.ticket_status || "",
     ticketId: row.ticket_id,
     ticketNumber: row.ticket_number,
+    ticketCreatedAt: row.ticket_created_at,
+    ticketDate: row.ticket_date,
     clientId: row.client_id,
     clientName: row.client_name || "",
+    clientBirthday: row.client_birthday,
+    clientGender: row.client_gender || "",
+    clientPhone: row.client_phone || "",
+    ticketItemId: row.ticket_item_id,
+    ticketItemLineNumber: Number.parseInt(String(row.ticket_item_line_number || 0), 10) || 0,
     serviceName: row.service_name || "",
+    serviceAmountUzs: Number.parseInt(String(row.service_amount_uzs || 0), 10) || 0,
     specialistName: row.specialist_name || "",
     positionLabel: row.position_label || "",
     ticketSubtotalUzs: Number.parseInt(String(row.ticket_subtotal_uzs || 0), 10) || 0,
-    ticketDiscountUzs: Number.parseInt(String(row.ticket_discount_uzs || 0), 10) || 0,
+    ticketDiscountUzs: Number.parseInt(String(row.ticket_discount_uzs || row.service_discount_uzs || 0), 10) || 0,
+    serviceDiscountUzs: Number.parseInt(String(row.service_discount_uzs || 0), 10) || 0,
+    serviceFinalAmountUzs: Number.parseInt(String(row.service_final_amount_uzs || 0), 10) || 0,
     ticketTotalUzs: Number.parseInt(String(row.ticket_total_uzs || 0), 10) || 0,
     ticketPaidUzs: Number.parseInt(String(row.ticket_paid_uzs || 0), 10) || 0,
     ticketRemainingUzs: Math.max(
@@ -978,7 +1006,7 @@ export async function searchCashierClients({ organizationId, query, limit = 20 }
 }
 
 export async function getFinanceTicketFilterReferences({ organizationId }) {
-  const [servicesResult, specialistsResult, positionsResult] = await Promise.all([
+  const [servicesResult, specialistsResult, positionsResult, cashiersResult] = await Promise.all([
     pool.query(
       `SELECT sc.id,
               sc.name,
@@ -1015,13 +1043,36 @@ export async function getFinanceTicketFilterReferences({ organizationId }) {
           AND is_active = TRUE
         ORDER BY sort_order ASC, label ASC, id ASC`,
       [organizationId]
+    ),
+    pool.query(
+      `SELECT DISTINCT
+              u.id,
+              COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS full_name
+         FROM users u
+         JOIN role_options r
+           ON r.organization_id = u.organization_id
+          AND r.id = u.role_id
+          AND r.is_active = TRUE
+         LEFT JOIN role_permissions rp ON rp.role_id = r.id
+         LEFT JOIN permissions p ON p.id = rp.permission_id AND p.is_active = TRUE
+        WHERE u.organization_id = $1
+          AND (
+            r.is_admin = TRUE
+            OR p.code IN ('finance.cashier.read', 'finance.cashier.create', 'finance.cashier.update', 'finance.cashier.pay')
+          )
+        ORDER BY full_name ASC, u.id ASC`,
+      [organizationId]
     )
   ]);
 
   return {
     services: servicesResult.rows.map(mapServiceOption),
     specialists: specialistsResult.rows.map(mapSpecialistOption),
-    positions: positionsResult.rows.map(mapPositionOption)
+    positions: positionsResult.rows.map(mapPositionOption),
+    cashiers: cashiersResult.rows.map((row) => ({
+      id: row.id,
+      fullName: row.full_name
+    }))
   };
 }
 
@@ -1762,16 +1813,30 @@ export async function getFinanceDailyCash({ organizationId, filters = {}, actorU
 }
 
 export async function getFinanceReports({ organizationId, filters = {} }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const allDates = normalizeBooleanFlag(filters.allDates ?? filters.all_dates);
-  const dateFrom = allDates ? null : (normalizeDate(filters.dateFrom ?? filters.date_from) || today);
-  const dateTo = allDates ? null : (normalizeDate(filters.dateTo ?? filters.date_to) || dateFrom);
+  const ticketCreatedFrom = normalizeDate(filters.ticketCreatedFrom ?? filters.ticket_created_from);
+  const ticketCreatedTo = normalizeDate(filters.ticketCreatedTo ?? filters.ticket_created_to);
+  const ticketDateFrom = normalizeDate(filters.ticketDateFrom ?? filters.ticket_date_from);
+  const ticketDateTo = normalizeDate(filters.ticketDateTo ?? filters.ticket_date_to);
+  const paymentDateFrom = normalizeDate(filters.paymentDateFrom ?? filters.payment_date_from ?? filters.dateFrom ?? filters.date_from);
+  const paymentDateTo = normalizeDate(filters.paymentDateTo ?? filters.payment_date_to ?? filters.dateTo ?? filters.date_to);
   const ticketNumber = normalizeText(filters.ticketNumber ?? filters.ticket_number, 12);
   const client = normalizeText(filters.client, 96).toLowerCase();
   const clientId = parsePositiveInteger(filters.clientId ?? filters.client_id);
+  const clientBirthdayFrom = normalizeDate(filters.clientBirthdayFrom ?? filters.client_birthday_from);
+  const clientBirthdayTo = normalizeDate(filters.clientBirthdayTo ?? filters.client_birthday_to);
+  const clientGender = normalizeGender(filters.clientGender ?? filters.client_gender);
+  const clientPhone = normalizeText(filters.clientPhone ?? filters.client_phone, 32);
   const serviceRaw = filters.service ?? filters.serviceName ?? filters.service_name;
   const service = normalizeText(serviceRaw, 128).toLowerCase();
   const serviceId = parsePositiveInteger(filters.serviceId ?? filters.service_id ?? serviceRaw);
+  const serviceAmountFrom = normalizeOptionalAmount(filters.serviceAmountFrom ?? filters.service_amount_from);
+  const serviceAmountTo = normalizeOptionalAmount(filters.serviceAmountTo ?? filters.service_amount_to);
+  const discountFrom = normalizeOptionalAmount(filters.ticketDiscountFrom ?? filters.ticket_discount_from ?? filters.discountFrom ?? filters.discount_from);
+  const discountTo = normalizeOptionalAmount(filters.ticketDiscountTo ?? filters.ticket_discount_to ?? filters.discountTo ?? filters.discount_to);
+  const ticketToPayFrom = normalizeOptionalAmount(filters.ticketToPayFrom ?? filters.ticket_to_pay_from);
+  const ticketToPayTo = normalizeOptionalAmount(filters.ticketToPayTo ?? filters.ticket_to_pay_to);
+  const ticketPaidFrom = normalizeOptionalAmount(filters.ticketPaidFrom ?? filters.ticket_paid_from);
+  const ticketPaidTo = normalizeOptionalAmount(filters.ticketPaidTo ?? filters.ticket_paid_to);
   const specialistRaw = filters.specialist ?? filters.specialistId ?? filters.specialist_id;
   const specialist = normalizeText(specialistRaw, 96).toLowerCase();
   const specialistId = parsePositiveInteger(filters.specialistId ?? filters.specialist_id ?? specialistRaw);
@@ -1807,12 +1872,31 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
   const commonWhere = [
     "t.organization_id = $1"
   ];
+  const itemOnlyWhere = [];
 
-  if (!allDates) {
-    params.push(dateFrom);
+  if (paymentDateFrom) {
+    params.push(paymentDateFrom);
     commonWhere.push(`t.transaction_at::date >= $${params.length}::date`);
-    params.push(dateTo);
+  }
+  if (paymentDateTo) {
+    params.push(paymentDateTo);
     commonWhere.push(`t.transaction_at::date <= $${params.length}::date`);
+  }
+  if (ticketCreatedFrom) {
+    params.push(ticketCreatedFrom);
+    commonWhere.push(`ft.created_at::date >= $${params.length}::date`);
+  }
+  if (ticketCreatedTo) {
+    params.push(ticketCreatedTo);
+    commonWhere.push(`ft.created_at::date <= $${params.length}::date`);
+  }
+  if (ticketDateFrom) {
+    params.push(ticketDateFrom);
+    commonWhere.push(`ft.ticket_date >= $${params.length}::date`);
+  }
+  if (ticketDateTo) {
+    params.push(ticketDateTo);
+    commonWhere.push(`ft.ticket_date <= $${params.length}::date`);
   }
 
   if (transactionStatuses.has(transactionStatus)) {
@@ -1837,6 +1921,23 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
     }
   }
 
+  if (clientBirthdayFrom) {
+    params.push(clientBirthdayFrom);
+    commonWhere.push(`c.birthday >= $${params.length}::date`);
+  }
+  if (clientBirthdayTo) {
+    params.push(clientBirthdayTo);
+    commonWhere.push(`c.birthday <= $${params.length}::date`);
+  }
+  if (clientGender) {
+    params.push(clientGender);
+    commonWhere.push(`LOWER(COALESCE(c.gender, '')) = $${params.length}`);
+  }
+  if (clientPhone) {
+    params.push(`%${clientPhone}%`);
+    commonWhere.push(`COALESCE(c.phone_number, '') LIKE $${params.length}`);
+  }
+
   if (/^\d{1,8}$/.test(ticketNumber)) {
     params.push(Number.parseInt(ticketNumber, 10));
     commonWhere.push(`ft.ticket_number = $${params.length}`);
@@ -1851,9 +1952,10 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
           FROM finance_ticket_items fti_filter
          WHERE fti_filter.organization_id = ft.organization_id
            AND fti_filter.ticket_id = ft.id
-           AND fti_filter.service_id = $${params.length}
+          AND fti_filter.service_id = $${params.length}
       )
     )`);
+    itemOnlyWhere.push(`fti.service_id = $${params.length}`);
   } else if (service) {
     params.push(`%${service}%`);
     commonWhere.push(`(
@@ -1866,6 +1968,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
            AND LOWER(COALESCE(fti_filter.service_name, '')) LIKE $${params.length}
       )
     )`);
+    itemOnlyWhere.push(`LOWER(COALESCE(fti.service_name, '')) LIKE $${params.length}`);
   }
 
   if (specialistId) {
@@ -1877,9 +1980,10 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
           FROM finance_ticket_items fti_filter
          WHERE fti_filter.organization_id = ft.organization_id
            AND fti_filter.ticket_id = ft.id
-           AND fti_filter.specialist_id = $${params.length}
+          AND fti_filter.specialist_id = $${params.length}
       )
     )`);
+    itemOnlyWhere.push(`fti.specialist_id = $${params.length}`);
   } else if (specialist) {
     params.push(`%${specialist}%`);
     commonWhere.push(`(
@@ -1893,6 +1997,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
            AND LOWER(COALESCE(NULLIF(TRIM(iu.full_name), ''), NULLIF(TRIM(iu.username), ''), '')) LIKE $${params.length}
       )
     )`);
+    itemOnlyWhere.push(`LOWER(COALESCE(NULLIF(TRIM(isu.full_name), ''), NULLIF(TRIM(isu.username), ''), '')) LIKE $${params.length}`);
   }
 
   if (positionId) {
@@ -1908,6 +2013,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
            AND iu.position_id = $${params.length}
       )
     )`);
+    itemOnlyWhere.push(`isu.position_id = $${params.length}`);
   } else if (position) {
     params.push(`%${position}%`);
     commonWhere.push(`(
@@ -1922,6 +2028,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
            AND LOWER(COALESCE(ip.label, '')) LIKE $${params.length}
       )
     )`);
+    itemOnlyWhere.push(`LOWER(COALESCE(ip.label, '')) LIKE $${params.length}`);
   }
 
   if (cashierId) {
@@ -1939,6 +2046,67 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
   if (paymentMethodId) {
     params.push(paymentMethodId);
     commonWhere.push(`t.payment_method_id = $${params.length}`);
+  }
+
+  if (serviceAmountFrom !== null) {
+    params.push(serviceAmountFrom);
+    commonWhere.push(`EXISTS (
+      SELECT 1
+        FROM finance_ticket_items fti_filter
+       WHERE fti_filter.organization_id = ft.organization_id
+         AND fti_filter.ticket_id = ft.id
+         AND fti_filter.price_uzs >= $${params.length}
+    )`);
+    itemOnlyWhere.push(`fti.price_uzs >= $${params.length}`);
+  }
+  if (serviceAmountTo !== null) {
+    params.push(serviceAmountTo);
+    commonWhere.push(`EXISTS (
+      SELECT 1
+        FROM finance_ticket_items fti_filter
+       WHERE fti_filter.organization_id = ft.organization_id
+         AND fti_filter.ticket_id = ft.id
+         AND fti_filter.price_uzs <= $${params.length}
+    )`);
+    itemOnlyWhere.push(`fti.price_uzs <= $${params.length}`);
+  }
+  if (discountFrom !== null) {
+    params.push(discountFrom);
+    commonWhere.push(`EXISTS (
+      SELECT 1
+        FROM finance_ticket_items fti_filter
+       WHERE fti_filter.organization_id = ft.organization_id
+         AND fti_filter.ticket_id = ft.id
+         AND fti_filter.discount_uzs >= $${params.length}
+    )`);
+    itemOnlyWhere.push(`fti.discount_uzs >= $${params.length}`);
+  }
+  if (discountTo !== null) {
+    params.push(discountTo);
+    commonWhere.push(`EXISTS (
+      SELECT 1
+        FROM finance_ticket_items fti_filter
+       WHERE fti_filter.organization_id = ft.organization_id
+         AND fti_filter.ticket_id = ft.id
+         AND fti_filter.discount_uzs <= $${params.length}
+    )`);
+    itemOnlyWhere.push(`fti.discount_uzs <= $${params.length}`);
+  }
+  if (ticketToPayFrom !== null) {
+    params.push(ticketToPayFrom);
+    commonWhere.push(`COALESCE(ft.total_uzs, ft.amount_uzs, 0) >= $${params.length}`);
+  }
+  if (ticketToPayTo !== null) {
+    params.push(ticketToPayTo);
+    commonWhere.push(`COALESCE(ft.total_uzs, ft.amount_uzs, 0) <= $${params.length}`);
+  }
+  if (ticketPaidFrom !== null) {
+    params.push(ticketPaidFrom);
+    commonWhere.push(`COALESCE(fpaid.paid_amount_uzs, 0) >= $${params.length}`);
+  }
+  if (ticketPaidTo !== null) {
+    params.push(ticketPaidTo);
+    commonWhere.push(`COALESCE(fpaid.paid_amount_uzs, 0) <= $${params.length}`);
   }
 
   if (ticketStatuses.has(ticketStatus)) {
@@ -1963,6 +2131,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
   } else {
     ticketMovementWhereParts.push("t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')");
   }
+  ticketMovementWhereParts.push(...itemOnlyWhere);
 
   const reportWhereSql = reportWhere.join("\n    AND ");
   const ticketMovementWhere = ticketMovementWhereParts.join("\n    AND ");
@@ -1991,6 +2160,18 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
     JOIN finance_cash_sessions s ON s.organization_id = t.organization_id AND s.id = t.cash_session_id
     LEFT JOIN clients c ON c.organization_id = t.organization_id AND c.id = t.client_id
     LEFT JOIN finance_tickets ft ON ft.organization_id = t.organization_id AND ft.id = t.ticket_id
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(SUM(CASE
+               WHEN pt.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN pt.amount_uzs
+               WHEN pt.transaction_type IN ('refund', 'deposit_ticket_refund') THEN -pt.amount_uzs
+               ELSE 0
+             END), 0) AS paid_amount_uzs
+        FROM finance_transactions pt
+       WHERE pt.organization_id = ft.organization_id
+         AND pt.ticket_id = ft.id
+         AND pt.status = 'posted'
+         AND pt.transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')
+    ) fpaid ON TRUE
     LEFT JOIN finance_payment_methods fpm ON fpm.organization_id = t.organization_id AND fpm.id = t.payment_method_id
     LEFT JOIN users cu ON cu.id = s.cashier_user_id
     LEFT JOIN users ts ON ts.organization_id = ft.organization_id AND ts.id = ft.specialist_id
@@ -2004,10 +2185,24 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
     JOIN finance_ticket_items fti ON fti.organization_id = ft.organization_id AND fti.ticket_id = ft.id
     JOIN finance_cash_sessions s ON s.organization_id = t.organization_id AND s.id = t.cash_session_id
     LEFT JOIN clients c ON c.organization_id = t.organization_id AND c.id = t.client_id
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(SUM(CASE
+               WHEN pt.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN pt.amount_uzs
+               WHEN pt.transaction_type IN ('refund', 'deposit_ticket_refund') THEN -pt.amount_uzs
+               ELSE 0
+             END), 0) AS paid_amount_uzs
+        FROM finance_transactions pt
+       WHERE pt.organization_id = ft.organization_id
+         AND pt.ticket_id = ft.id
+         AND pt.status = 'posted'
+         AND pt.transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')
+    ) fpaid ON TRUE
     LEFT JOIN finance_payment_methods fpm ON fpm.organization_id = t.organization_id AND fpm.id = t.payment_method_id
     LEFT JOIN users cu ON cu.id = s.cashier_user_id
     LEFT JOIN users ts ON ts.organization_id = ft.organization_id AND ts.id = ft.specialist_id
-    LEFT JOIN position_options tp ON tp.organization_id = ts.organization_id AND tp.id = ts.position_id`;
+    LEFT JOIN position_options tp ON tp.organization_id = ts.organization_id AND tp.id = ts.position_id
+    LEFT JOIN users isu ON isu.organization_id = fti.organization_id AND isu.id = fti.specialist_id
+    LEFT JOIN position_options ip ON ip.organization_id = isu.organization_id AND ip.id = isu.position_id`;
   const itemFromSql = `
     ${itemBaseSql}
    WHERE ${ticketMovementWhere}`;
@@ -2180,6 +2375,32 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
       ORDER BY t.transaction_at::date ASC`,
     params
   );
+  const detailWhereSql = [...reportWhere, ...itemOnlyWhere].join("\n    AND ");
+  const detailBaseSql = `
+    FROM finance_transactions t
+    JOIN finance_cash_sessions s ON s.organization_id = t.organization_id AND s.id = t.cash_session_id
+    LEFT JOIN clients c ON c.organization_id = t.organization_id AND c.id = t.client_id
+    LEFT JOIN finance_tickets ft ON ft.organization_id = t.organization_id AND ft.id = t.ticket_id
+    LEFT JOIN finance_ticket_items fti ON fti.organization_id = ft.organization_id AND fti.ticket_id = ft.id
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(SUM(CASE
+               WHEN pt.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN pt.amount_uzs
+               WHEN pt.transaction_type IN ('refund', 'deposit_ticket_refund') THEN -pt.amount_uzs
+               ELSE 0
+             END), 0) AS paid_amount_uzs
+        FROM finance_transactions pt
+       WHERE pt.organization_id = ft.organization_id
+         AND pt.ticket_id = ft.id
+         AND pt.status = 'posted'
+         AND pt.transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')
+    ) fpaid ON TRUE
+    LEFT JOIN finance_payment_methods fpm ON fpm.organization_id = t.organization_id AND fpm.id = t.payment_method_id
+    LEFT JOIN users cu ON cu.id = s.cashier_user_id
+    LEFT JOIN users ts ON ts.organization_id = ft.organization_id AND ts.id = ft.specialist_id
+    LEFT JOIN position_options tp ON tp.organization_id = ts.organization_id AND tp.id = ts.position_id
+    LEFT JOIN users isu ON isu.organization_id = fti.organization_id AND isu.id = fti.specialist_id
+    LEFT JOIN position_options ip ON ip.organization_id = isu.organization_id AND ip.id = isu.position_id
+   WHERE ${detailWhereSql}`;
   const detailsResult = await runFinanceReportQuery(
     `SELECT t.id,
             t.transaction_type,
@@ -2187,26 +2408,26 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
             t.status,
             t.client_id,
             CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+            c.birthday AS client_birthday,
+            COALESCE(c.gender, '') AS client_gender,
+            COALESCE(c.phone_number, '') AS client_phone,
             t.ticket_id,
             ft.ticket_number,
+            ft.created_at AS ticket_created_at,
+            ft.ticket_date,
             ft.status AS ticket_status,
-            ft.service_name,
-            COALESCE(NULLIF(TRIM(ts.full_name), ''), NULLIF(TRIM(ts.username), ''), '') AS specialist_name,
-            COALESCE(NULLIF(TRIM(tp.label), ''), '') AS position_label,
+            fti.id AS ticket_item_id,
+            fti.line_number AS ticket_item_line_number,
+            COALESCE(NULLIF(TRIM(fti.service_name), ''), NULLIF(TRIM(ft.service_name), ''), '') AS service_name,
+            COALESCE(fti.price_uzs, ft.amount_uzs, 0) AS service_amount_uzs,
+            COALESCE(fti.discount_uzs, ft.discount_uzs, 0) AS service_discount_uzs,
+            COALESCE(fti.final_amount_uzs, ft.total_uzs, ft.amount_uzs, 0) AS service_final_amount_uzs,
+            COALESCE(NULLIF(TRIM(isu.full_name), ''), NULLIF(TRIM(isu.username), ''), NULLIF(TRIM(ts.full_name), ''), NULLIF(TRIM(ts.username), ''), '') AS specialist_name,
+            COALESCE(NULLIF(TRIM(ip.label), ''), NULLIF(TRIM(tp.label), ''), '') AS position_label,
             COALESCE(ft.subtotal_uzs, ft.amount_uzs, 0) AS ticket_subtotal_uzs,
-            COALESCE(ft.discount_uzs, 0) AS ticket_discount_uzs,
+            COALESCE(fti.discount_uzs, ft.discount_uzs, 0) AS ticket_discount_uzs,
             COALESCE(ft.total_uzs, ft.amount_uzs, 0) AS ticket_total_uzs,
-            COALESCE((
-              SELECT SUM(CASE
-                WHEN pt.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN pt.amount_uzs
-                WHEN pt.transaction_type IN ('refund', 'deposit_ticket_refund') THEN -pt.amount_uzs
-                ELSE 0
-              END)
-                FROM finance_transactions pt
-               WHERE pt.organization_id = ft.organization_id
-                 AND pt.ticket_id = ft.id
-                 AND pt.status = 'posted'
-            ), 0) AS ticket_paid_uzs,
+            COALESCE(fpaid.paid_amount_uzs, 0) AS ticket_paid_uzs,
             t.payment_method_id,
             COALESCE(NULLIF(TRIM(fpm.name), ''), CASE WHEN t.direction = 'transfer' THEN 'Client Balance' ELSE '' END) AS payment_method_name,
             t.amount_uzs,
@@ -2215,8 +2436,8 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
             t.note,
             s.cashier_user_id,
             COALESCE(NULLIF(TRIM(cu.full_name), ''), NULLIF(TRIM(cu.username), ''), '') AS cashier_name
-       ${reportFromSql}
-      ORDER BY t.transaction_at DESC, t.id DESC
+       ${detailBaseSql}
+      ORDER BY t.transaction_at DESC, t.id DESC, fti.line_number ASC NULLS LAST
       LIMIT 500`,
     params
   );
@@ -2226,21 +2447,39 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
   const totalOutUzs = Number.parseInt(String(summaryRow.total_out_uzs || 0), 10) || 0;
 
   return {
-    dateFrom,
-    dateTo,
+    dateFrom: paymentDateFrom,
+    dateTo: paymentDateTo,
     filters: {
+      ticketCreatedFrom,
+      ticketCreatedTo,
+      ticketDateFrom,
+      ticketDateTo,
+      paymentDateFrom,
+      paymentDateTo,
       ticketNumber,
       client: clientId || client,
+      clientId: clientId || "",
+      clientBirthdayFrom,
+      clientBirthdayTo,
+      clientGender,
+      clientPhone,
       service: serviceId || service,
+      serviceAmountFrom: serviceAmountFrom ?? "",
+      serviceAmountTo: serviceAmountTo ?? "",
       specialist: specialistId || specialist,
       position: positionId || position,
       cashier: cashierId || cashier,
       paymentMethodId: paymentMethodId || "",
+      ticketDiscountFrom: discountFrom ?? "",
+      ticketDiscountTo: discountTo ?? "",
+      ticketToPayFrom: ticketToPayFrom ?? "",
+      ticketToPayTo: ticketToPayTo ?? "",
+      ticketPaidFrom: ticketPaidFrom ?? "",
+      ticketPaidTo: ticketPaidTo ?? "",
       transactionType,
       transactionStatus,
       ticketStatus,
-      includeVoided,
-      allDates
+      includeVoided
     },
     summary: {
       amountUzs: Number.parseInt(String(summaryRow.amount_uzs || 0), 10) || 0,

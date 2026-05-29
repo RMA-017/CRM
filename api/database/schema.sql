@@ -116,6 +116,7 @@ CREATE TABLE clients (
   last_name VARCHAR(64) NOT NULL,
   middle_name VARCHAR(64),
   birthday DATE NOT NULL,
+  gender VARCHAR(16),
   phone_number VARCHAR(15),
   tg_mail VARCHAR(96),
   tg_chat_id BIGINT,
@@ -125,7 +126,8 @@ CREATE TABLE clients (
   updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   note VARCHAR(255),
-  UNIQUE (organization_id, id)
+  UNIQUE (organization_id, id),
+  CONSTRAINT chk_clients_gender CHECK (gender IS NULL OR gender IN ('male', 'female'))
 );
 
 SELECT setval(

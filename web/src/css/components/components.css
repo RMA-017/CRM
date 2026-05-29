@@ -6543,7 +6543,7 @@ label.field > span:first-child,
 }
 
 #financeReportsFilterModal.finance-reports-filter-modal {
-  width: min(720px, calc(100vw - 32px));
+  width: min(780px, calc(100vw - 32px));
   height: auto;
   min-height: 0;
   max-height: min(640px, calc(100dvh - 24px));
@@ -6556,7 +6556,7 @@ label.field > span:first-child,
 }
 
 #financeReportsFilterModal .finance-reports-filter-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   align-content: start;
   margin: 0;
   border: 0;
@@ -6577,33 +6577,49 @@ label.field > span:first-child,
 
 #financeReportsFilterModal .finance-reports-check-field {
   display: grid;
-  grid-template-columns: minmax(136px, 0.42fr) minmax(0, 1fr);
+  grid-template-columns: minmax(210px, 0.36fr) minmax(0, 1fr);
   align-items: end;
   gap: 8px;
   min-width: 0;
 }
 
 #financeReportsFilterModal .finance-reports-field-toggle {
+  display: grid;
+  grid-template-columns: 16px 24px minmax(0, 1fr);
+  gap: 7px;
   align-self: end;
   min-height: var(--input-height);
   margin: 0;
   min-width: 0;
+  justify-self: stretch;
 }
 
-#financeReportsFilterModal .finance-reports-field-toggle span {
+#financeReportsFilterModal .finance-reports-field-toggle > span:last-child {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-#financeReportsFilterModal .finance-reports-filter-wide-field {
-  grid-column: 1 / -1;
+#financeReportsFilterModal .finance-reports-order-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
 }
 
-#financeReportsFilterModal .finance-reports-filter-date-row {
-  grid-column: 1 / -1;
-  grid-template-columns: minmax(136px, 0.22fr) minmax(0, 1fr);
+#financeReportsFilterModal .finance-reports-order-badge.is-active {
+  border-color: var(--accent, #2563eb);
+  background: var(--accent, #2563eb);
+  color: #fff;
 }
 
 #financeReportsFilterModal .finance-reports-filter-date-inputs {
@@ -6611,23 +6627,6 @@ label.field > span:first-child,
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   min-width: 0;
-}
-
-#financeReportsFilterModal .finance-reports-column-only-placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: var(--input-height);
-  min-width: 0;
-  padding: 0 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface-soft);
-  color: var(--text-muted);
-  font-size: var(--fs-small);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 #financeReportsFilterModal :is(input, select, textarea, .custom-select-trigger):disabled {

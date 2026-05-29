@@ -3,19 +3,36 @@ import { createPortal } from "react-dom";
 import CustomSelect from "../../../components/CustomSelect.jsx";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { buildExportFilename, exportExcelWorkbook } from "../../../lib/excel-export.js";
-import { formatDateYMD, getTodayYmd } from "../../../lib/formatters.js";
+import { formatDateYMD } from "../../../lib/formatters.js";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 
 const EMPTY_FILTERS = Object.freeze({
-  dateFrom: getTodayYmd(),
-  dateTo: getTodayYmd(),
+  ticketCreatedFrom: "",
+  ticketCreatedTo: "",
+  ticketDateFrom: "",
+  ticketDateTo: "",
+  paymentDateFrom: "",
+  paymentDateTo: "",
   ticketNumber: "",
+  paymentMethodId: "",
+  cashier: "",
   client: "",
-  service: "",
+  clientId: "",
+  clientBirthdayFrom: "",
+  clientBirthdayTo: "",
+  clientGender: "",
+  clientPhone: "",
   specialist: "",
   position: "",
-  cashier: "",
-  paymentMethodId: "",
+  service: "",
+  serviceAmountFrom: "",
+  serviceAmountTo: "",
+  ticketDiscountFrom: "",
+  ticketDiscountTo: "",
+  ticketToPayFrom: "",
+  ticketToPayTo: "",
+  ticketPaidFrom: "",
+  ticketPaidTo: "",
   transactionType: "",
   transactionStatus: "",
   ticketStatus: ""
@@ -45,51 +62,64 @@ const TRANSACTION_STATUS_OPTIONS = Object.freeze([
   { value: "voided", label: "Cancelled" }
 ]);
 
+const CLIENT_GENDER_OPTIONS = Object.freeze([
+  { value: "", label: "All" },
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" }
+]);
+
 const REPORT_COLUMN_OPTIONS = Object.freeze([
-  { key: "date", label: "Date" },
+  { key: "ticketCreatedAt", label: "Ticket Created At" },
+  { key: "ticketDate", label: "Ticket Date" },
+  { key: "paymentDate", label: "Ticket Payment Date" },
   { key: "ticketNumber", label: "Ticket Number" },
+  { key: "paymentMethod", label: "Payment Method" },
+  { key: "cashier", label: "Cashier" },
   { key: "client", label: "Client" },
   { key: "clientId", label: "Client ID" },
-  { key: "service", label: "Service" },
+  { key: "clientBirthday", label: "Client Birthday" },
+  { key: "clientGender", label: "Client Gender" },
+  { key: "clientPhone", label: "Client Phone" },
   { key: "specialist", label: "Specialist" },
   { key: "department", label: "Department" },
-  { key: "cashier", label: "Cashier" },
-  { key: "paymentMethod", label: "Payment Method" },
-  { key: "amount", label: "Amount UZS" },
-  { key: "ticketSubtotal", label: "Subtotal" },
+  { key: "service", label: "Service Name" },
+  { key: "serviceAmount", label: "Service Amount" },
   { key: "ticketDiscount", label: "Discount" },
   { key: "ticketToPay", label: "To Pay" },
   { key: "ticketPaid", label: "Paid Amount" },
-  { key: "ticketRemaining", label: "Remaining Amount" },
-  { key: "ticketClosed", label: "Ticket Closed" },
   { key: "operationType", label: "Operation Type" },
-  { key: "ticketStatus", label: "Ticket Status" },
-  { key: "operationStatus", label: "Operation Status" }
+  { key: "operationStatus", label: "Operation Status" },
+  { key: "ticketStatus", label: "Ticket Status" }
 ]);
 
 const REPORT_COLUMN_DEPENDENCIES = Object.freeze({
-  clientId: ["client"],
-  ticketSubtotal: ["ticketNumber"],
-  ticketDiscount: ["ticketNumber", "ticketSubtotal", "ticketToPay"],
   ticketToPay: ["ticketNumber"],
   ticketPaid: ["ticketNumber", "ticketToPay"],
-  ticketRemaining: ["ticketNumber", "ticketToPay", "ticketPaid"],
-  ticketClosed: ["ticketNumber", "ticketToPay", "ticketPaid", "ticketRemaining"],
   ticketStatus: ["ticketNumber"]
 });
 
 const REPORT_FILTER_KEYS_BY_COLUMN = Object.freeze({
-  date: ["dateFrom", "dateTo"],
+  ticketCreatedAt: ["ticketCreatedFrom", "ticketCreatedTo"],
+  ticketDate: ["ticketDateFrom", "ticketDateTo"],
+  paymentDate: ["paymentDateFrom", "paymentDateTo"],
   ticketNumber: ["ticketNumber"],
+  paymentMethod: ["paymentMethodId"],
+  cashier: ["cashier"],
   client: ["client"],
-  service: ["service"],
+  clientId: ["clientId"],
+  clientBirthday: ["clientBirthdayFrom", "clientBirthdayTo"],
+  clientGender: ["clientGender"],
+  clientPhone: ["clientPhone"],
   specialist: ["specialist"],
   department: ["position"],
-  cashier: ["cashier"],
-  paymentMethod: ["paymentMethodId"],
+  service: ["service"],
+  serviceAmount: ["serviceAmountFrom", "serviceAmountTo"],
+  ticketDiscount: ["ticketDiscountFrom", "ticketDiscountTo"],
+  ticketToPay: ["ticketToPayFrom", "ticketToPayTo"],
+  ticketPaid: ["ticketPaidFrom", "ticketPaidTo"],
   operationType: ["transactionType"],
-  ticketStatus: ["ticketStatus"],
-  operationStatus: ["transactionStatus"]
+  operationStatus: ["transactionStatus"],
+  ticketStatus: ["ticketStatus"]
 });
 
 function toNumber(value) {
@@ -161,7 +191,11 @@ function getReportColumnValue(columnKey, item, translate, forExport = false) {
     return forExport ? toNumber(item[field]) : formatMoney(item[field]);
   };
   switch (columnKey) {
-    case "date":
+    case "ticketCreatedAt":
+      return formatDateTime(item.ticketCreatedAt);
+    case "ticketDate":
+      return formatDateYMD(item.ticketDate);
+    case "paymentDate":
       return formatDateTime(item.transactionAt);
     case "ticketNumber":
       return forExport ? (item.ticketNumber || "") : (item.ticketNumber ? `#${item.ticketNumber}` : "-");
@@ -169,8 +203,16 @@ function getReportColumnValue(columnKey, item, translate, forExport = false) {
       return item.clientName || "-";
     case "clientId":
       return item.clientId || "-";
+    case "clientBirthday":
+      return formatDateYMD(item.clientBirthday);
+    case "clientGender":
+      return item.clientGender ? translate(item.clientGender === "female" ? "Female" : "Male") : "-";
+    case "clientPhone":
+      return item.clientPhone || "-";
     case "service":
       return item.serviceName || "-";
+    case "serviceAmount":
+      return forExport ? toNumber(item.serviceAmountUzs) : formatMoney(item.serviceAmountUzs);
     case "specialist":
       return item.specialistName || "-";
     case "department":
@@ -179,12 +221,8 @@ function getReportColumnValue(columnKey, item, translate, forExport = false) {
       return item.cashierName || "-";
     case "paymentMethod":
       return item.paymentMethodName || translate("Balance");
-    case "amount":
-      return forExport ? toNumber(item.signedAmountUzs) : formatMoney(item.signedAmountUzs);
-    case "ticketSubtotal":
-      return ticketNumberValue("ticketSubtotalUzs");
     case "ticketDiscount":
-      return ticketNumberValue("ticketDiscountUzs");
+      return ticketNumberValue("serviceDiscountUzs");
     case "ticketToPay":
       return ticketNumberValue("ticketTotalUzs");
     case "ticketPaid":
@@ -208,10 +246,10 @@ function getReportColumnValue(columnKey, item, translate, forExport = false) {
 }
 
 function getReportColumnClass(columnKey) {
-  if (["amount", "ticketSubtotal", "ticketDiscount", "ticketToPay", "ticketPaid", "ticketRemaining"].includes(columnKey)) {
+  if (["serviceAmount", "ticketDiscount", "ticketToPay", "ticketPaid"].includes(columnKey)) {
     return "finance-reports-amount-cell";
   }
-  if (["ticketNumber", "clientId", "ticketStatus", "operationStatus", "ticketClosed"].includes(columnKey)) {
+  if (["ticketNumber", "clientId", "clientGender", "ticketStatus", "operationStatus"].includes(columnKey)) {
     return "finance-reports-center-cell";
   }
   return "";
@@ -257,9 +295,6 @@ function buildFinanceReportsQuery(filters, columnKeys) {
   });
 
   const query = new URLSearchParams();
-  if (!selected.has("date")) {
-    query.set("allDates", "1");
-  }
 
   Object.entries(filters || {}).forEach(([key, value]) => {
     if (!activeFilterKeys.has(key)) return;
@@ -284,11 +319,7 @@ function clearFiltersForColumns(filters, columnKeys) {
 
 function applyFilterDefaultsForColumns(filters, columnKeys) {
   const nextFilters = { ...filters };
-  if ((Array.isArray(columnKeys) ? columnKeys : []).includes("date")) {
-    const today = getTodayYmd();
-    nextFilters.dateFrom = nextFilters.dateFrom || today;
-    nextFilters.dateTo = nextFilters.dateTo || nextFilters.dateFrom;
-  }
+  void columnKeys;
   return nextFilters;
 }
 
@@ -298,7 +329,7 @@ function FinanceReportsPanel({ onClose }) {
   const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
   const [report, setReport] = useState(null);
   const [paymentMethods, setPaymentMethods] = useState([]);
-  const [filterReferences, setFilterReferences] = useState({ services: [], specialists: [], positions: [] });
+  const [filterReferences, setFilterReferences] = useState({ services: [], specialists: [], positions: [], cashiers: [] });
   const [filterReferencesLoading, setFilterReferencesLoading] = useState(false);
   const [filterClientSearch, setFilterClientSearch] = useState("");
   const [filterClientOptions, setFilterClientOptions] = useState([]);
@@ -343,6 +374,13 @@ function FinanceReportsPanel({ onClose }) {
     return [{ value: "", label: translate("All") }, ...options];
   }, [filterReferences.positions, translate]);
 
+  const cashierOptions = useMemo(() => {
+    const options = (Array.isArray(filterReferences.cashiers) ? filterReferences.cashiers : [])
+      .map((item) => makeTextOption(item.id, item.fullName || item.id))
+      .filter(Boolean);
+    return [{ value: "", label: translate("All") }, ...options];
+  }, [filterReferences.cashiers, translate]);
+
   const selectedColumnSet = useMemo(() => new Set(selectedColumns), [selectedColumns]);
 
   const appliedColumnDefinitions = useMemo(() => (
@@ -363,7 +401,8 @@ function FinanceReportsPanel({ onClose }) {
       setFilterReferences({
         services: Array.isArray(data?.services) ? data.services : [],
         specialists: Array.isArray(data?.specialists) ? data.specialists : [],
-        positions: Array.isArray(data?.positions) ? data.positions : []
+        positions: Array.isArray(data?.positions) ? data.positions : [],
+        cashiers: Array.isArray(data?.cashiers) ? data.cashiers : []
       });
     } catch {
       window.alert?.(translate("Failed to load ticket references."));
@@ -529,6 +568,7 @@ function FinanceReportsPanel({ onClose }) {
   const details = Array.isArray(report?.details) ? report.details : [];
   const detailsTableMinWidth = Math.max(620, appliedColumnDefinitions.length * 148);
   const isColumnSelected = (columnKey) => selectedColumnSet.has(columnKey);
+  const getColumnOrder = (columnKey) => selectedColumns.indexOf(columnKey) + 1;
   const updateFilterValue = (filterKey, value) => {
     setFilters((current) => ({ ...current, [filterKey]: value }));
   };
@@ -539,19 +579,60 @@ function FinanceReportsPanel({ onClose }) {
         checked={isColumnSelected(columnKey)}
         onChange={() => toggleReportColumn(columnKey)}
       />
+      <span className={`finance-reports-order-badge${isColumnSelected(columnKey) ? " is-active" : ""}`}>
+        {isColumnSelected(columnKey) ? getColumnOrder(columnKey) : ""}
+      </span>
       <span>{translate(label)}</span>
     </label>
   );
-  const renderColumnOnlyField = (columnKey, label) => (
-    <div className="field finance-reports-check-field finance-reports-column-only-field">
+  const renderDateRangeField = (columnKey, label, fromKey, toKey) => (
+    <div className="finance-reports-filter-date-row finance-reports-check-field">
       {renderColumnToggle(columnKey, label)}
-      <span
-        className="finance-reports-column-only-placeholder"
-        title={translate("Show in table")}
-        aria-label={translate("Show in table")}
-      >
-        -
-      </span>
+      <div className="finance-reports-filter-date-inputs">
+        <label className="field">
+          <span>{translate("From")}</span>
+          <input
+            type="date"
+            value={filters[fromKey]}
+            disabled={!isColumnSelected(columnKey)}
+            onChange={(event) => updateFilterValue(fromKey, event.currentTarget.value)}
+          />
+        </label>
+        <label className="field">
+          <span>{translate("To")}</span>
+          <input
+            type="date"
+            value={filters[toKey]}
+            disabled={!isColumnSelected(columnKey)}
+            onChange={(event) => updateFilterValue(toKey, event.currentTarget.value)}
+          />
+        </label>
+      </div>
+    </div>
+  );
+  const renderAmountRangeField = (columnKey, label, fromKey, toKey) => (
+    <div className="field finance-reports-check-field">
+      {renderColumnToggle(columnKey, label)}
+      <div className="finance-reports-filter-date-inputs">
+        <input
+          type="number"
+          min="0"
+          inputMode="numeric"
+          placeholder={translate("From")}
+          value={filters[fromKey]}
+          disabled={!isColumnSelected(columnKey)}
+          onChange={(event) => updateFilterValue(fromKey, event.currentTarget.value)}
+        />
+        <input
+          type="number"
+          min="0"
+          inputMode="numeric"
+          placeholder={translate("To")}
+          value={filters[toKey]}
+          disabled={!isColumnSelected(columnKey)}
+          onChange={(event) => updateFilterValue(toKey, event.currentTarget.value)}
+        />
+      </div>
     </div>
   );
 
@@ -597,48 +678,44 @@ function FinanceReportsPanel({ onClose }) {
             <h3>{translate("Filter")}</h3>
             <form className="auth-form" onSubmit={applyFilters}>
               <div className="all-users-edit-fields settings-filter-grid finance-reports-filter-grid">
-                <div className="finance-reports-filter-date-row finance-reports-check-field">
-                  {renderColumnToggle("date", "Date")}
-                  <div className="finance-reports-filter-date-inputs">
-                    <label className="field">
-                      <span>{translate("Date From")}</span>
-                      <input
-                        type="date"
-                        value={filters.dateFrom}
-                        disabled={!isColumnSelected("date")}
-                        onChange={(event) => updateFilterValue("dateFrom", event.currentTarget.value)}
-                      />
-                    </label>
-                    <label className="field">
-                      <span>{translate("Date To")}</span>
-                      <input
-                        type="date"
-                        value={filters.dateTo}
-                        disabled={!isColumnSelected("date")}
-                        onChange={(event) => updateFilterValue("dateTo", event.currentTarget.value)}
-                      />
-                    </label>
-                  </div>
-                </div>
+                {renderDateRangeField("ticketCreatedAt", "Ticket Created At", "ticketCreatedFrom", "ticketCreatedTo")}
+                {renderDateRangeField("ticketDate", "Ticket Date", "ticketDateFrom", "ticketDateTo")}
+                {renderDateRangeField("paymentDate", "Ticket Payment Date", "paymentDateFrom", "paymentDateTo")}
                 <div className="field finance-reports-check-field">
                   {renderColumnToggle("ticketNumber", "Ticket Number")}
                   <input
-                    type="text"
+                    type="search"
+                    inputMode="numeric"
                     value={filters.ticketNumber}
                     disabled={!isColumnSelected("ticketNumber")}
                     onChange={(event) => updateFilterValue("ticketNumber", event.currentTarget.value)}
                   />
                 </div>
                 <div className="field finance-reports-check-field">
-                  {renderColumnToggle("cashier", "Cashier")}
-                  <input
-                    type="search"
-                    value={filters.cashier}
-                    disabled={!isColumnSelected("cashier")}
-                    onChange={(event) => updateFilterValue("cashier", event.currentTarget.value)}
+                  {renderColumnToggle("paymentMethod", "Payment Method")}
+                  <CustomSelect
+                    value={filters.paymentMethodId}
+                    options={[{ value: "", label: translate("All") }, ...paymentMethodOptions]}
+                    menuPortal
+                    disabled={!isColumnSelected("paymentMethod")}
+                    onChange={(value) => updateFilterValue("paymentMethodId", value)}
                   />
                 </div>
-                <div className="field finance-reports-check-field finance-reports-filter-wide-field">
+                <div className="field finance-reports-check-field">
+                  {renderColumnToggle("cashier", "Cashier")}
+                  <CustomSelect
+                    value={filters.cashier}
+                    options={cashierOptions}
+                    placeholder={translate("All")}
+                    searchable
+                    searchPlaceholder={translate("Search")}
+                    searchThreshold={0}
+                    menuPortal
+                    disabled={!isColumnSelected("cashier") || filterReferencesLoading}
+                    onChange={(value) => updateFilterValue("cashier", value)}
+                  />
+                </div>
+                <div className="field finance-reports-check-field">
                   {renderColumnToggle("client", "Client")}
                   <CustomSelect
                     value={filters.client}
@@ -656,17 +733,48 @@ function FinanceReportsPanel({ onClose }) {
                   />
                 </div>
                 <div className="field finance-reports-check-field">
-                  {renderColumnToggle("service", "Service")}
+                  {renderColumnToggle("clientId", "Client ID")}
+                  <input
+                    type="search"
+                    inputMode="numeric"
+                    value={filters.clientId}
+                    disabled={!isColumnSelected("clientId")}
+                    onChange={(event) => updateFilterValue("clientId", event.currentTarget.value)}
+                  />
+                </div>
+                {renderDateRangeField("clientBirthday", "Client Birthday", "clientBirthdayFrom", "clientBirthdayTo")}
+                <div className="field finance-reports-check-field">
+                  {renderColumnToggle("clientGender", "Client Gender")}
                   <CustomSelect
-                    value={filters.service}
-                    options={serviceOptions}
+                    value={filters.clientGender}
+                    options={CLIENT_GENDER_OPTIONS.map((option) => ({ ...option, label: translate(option.label) }))}
+                    menuPortal
+                    disabled={!isColumnSelected("clientGender")}
+                    onChange={(value) => updateFilterValue("clientGender", value)}
+                  />
+                </div>
+                <div className="field finance-reports-check-field">
+                  {renderColumnToggle("clientPhone", "Client Phone")}
+                  <input
+                    type="search"
+                    inputMode="tel"
+                    value={filters.clientPhone}
+                    disabled={!isColumnSelected("clientPhone")}
+                    onChange={(event) => updateFilterValue("clientPhone", event.currentTarget.value)}
+                  />
+                </div>
+                <div className="field finance-reports-check-field">
+                  {renderColumnToggle("specialist", "Specialist")}
+                  <CustomSelect
+                    value={filters.specialist}
+                    options={specialistOptions}
                     placeholder={translate("All")}
                     searchable
                     searchPlaceholder={translate("Search")}
                     searchThreshold={8}
                     menuPortal
-                    disabled={!isColumnSelected("service") || filterReferencesLoading}
-                    onChange={(value) => updateFilterValue("service", value)}
+                    disabled={!isColumnSelected("specialist") || filterReferencesLoading}
+                    onChange={(value) => updateFilterValue("specialist", value)}
                   />
                 </div>
                 <div className="field finance-reports-check-field">
@@ -683,30 +791,24 @@ function FinanceReportsPanel({ onClose }) {
                     onChange={(value) => updateFilterValue("position", value)}
                   />
                 </div>
-                <div className="field finance-reports-check-field finance-reports-filter-wide-field">
-                  {renderColumnToggle("specialist", "Specialist")}
+                <div className="field finance-reports-check-field">
+                  {renderColumnToggle("service", "Service Name")}
                   <CustomSelect
-                    value={filters.specialist}
-                    options={specialistOptions}
+                    value={filters.service}
+                    options={serviceOptions}
                     placeholder={translate("All")}
                     searchable
                     searchPlaceholder={translate("Search")}
                     searchThreshold={8}
                     menuPortal
-                    disabled={!isColumnSelected("specialist") || filterReferencesLoading}
-                    onChange={(value) => updateFilterValue("specialist", value)}
+                    disabled={!isColumnSelected("service") || filterReferencesLoading}
+                    onChange={(value) => updateFilterValue("service", value)}
                   />
                 </div>
-                <div className="field finance-reports-check-field">
-                  {renderColumnToggle("paymentMethod", "Payment Method")}
-                  <CustomSelect
-                    value={filters.paymentMethodId}
-                    options={[{ value: "", label: translate("All") }, ...paymentMethodOptions]}
-                    menuPortal
-                    disabled={!isColumnSelected("paymentMethod")}
-                    onChange={(value) => updateFilterValue("paymentMethodId", value)}
-                  />
-                </div>
+                {renderAmountRangeField("serviceAmount", "Service Amount", "serviceAmountFrom", "serviceAmountTo")}
+                {renderAmountRangeField("ticketDiscount", "Discount", "ticketDiscountFrom", "ticketDiscountTo")}
+                {renderAmountRangeField("ticketToPay", "To Pay", "ticketToPayFrom", "ticketToPayTo")}
+                {renderAmountRangeField("ticketPaid", "Paid Amount", "ticketPaidFrom", "ticketPaidTo")}
                 <div className="field finance-reports-check-field">
                   {renderColumnToggle("operationType", "Operation Type")}
                   <CustomSelect
@@ -737,14 +839,6 @@ function FinanceReportsPanel({ onClose }) {
                     onChange={(value) => updateFilterValue("transactionStatus", value)}
                   />
                 </div>
-                {renderColumnOnlyField("clientId", "Client ID")}
-                {renderColumnOnlyField("amount", "Amount UZS")}
-                {renderColumnOnlyField("ticketSubtotal", "Subtotal")}
-                {renderColumnOnlyField("ticketDiscount", "Discount")}
-                {renderColumnOnlyField("ticketToPay", "To Pay")}
-                {renderColumnOnlyField("ticketPaid", "Paid Amount")}
-                {renderColumnOnlyField("ticketRemaining", "Remaining Amount")}
-                {renderColumnOnlyField("ticketClosed", "Ticket Closed")}
               </div>
               <div className="edit-actions">
                 <button type="submit" className="btn" disabled={loading}>{translate("Search")}</button>
