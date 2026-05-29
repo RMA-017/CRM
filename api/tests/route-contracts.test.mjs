@@ -227,6 +227,7 @@ test("finance routes expose stable contract", async () => {
     "GET /daily-cash",
     "GET /payment-methods",
     "GET /reports",
+    "GET /reports/clients",
     "GET /tickets",
     "GET /tickets/:id/history",
     "GET /tickets/clients",
@@ -266,6 +267,9 @@ test("finance routes expose stable contract", async () => {
 
   const reportsGet = findRoute(recorder.routes, "GET", "/reports");
   assert.equal(typeof reportsGet?.options?.schema?.querystring, "object");
+
+  const reportClientsGet = findRoute(recorder.routes, "GET", "/reports/clients");
+  assert.equal(typeof reportClientsGet?.options?.schema?.querystring, "object");
 
   const clientBalancesGet = findRoute(recorder.routes, "GET", "/client-balances");
   assert.equal(typeof clientBalancesGet?.options?.schema?.querystring, "object");

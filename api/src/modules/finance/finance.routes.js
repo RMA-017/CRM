@@ -269,6 +269,32 @@ async function financeRoutes(fastify) {
   );
 
   fastify.get(
+    "/reports/clients",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        querystring: financeRouteSchemas.clientSearchQuery
+      }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+      try {
+        const requester = await requireReportsAccess(request, reply, "read");
+        if (!requester) return null;
+        const items = await searchCashierClients({
+          organizationId: request.authContext.organizationId,
+          query: request.query?.q,
+          limit: request.query?.limit
+        });
+        return reply.send({ items });
+      } catch (error) {
+        request.log.error({ err: error }, "Error searching finance report clients:");
+        return sendRouteError(reply, error, "Failed to search clients.");
+      }
+    }
+  );
+
+  fastify.get(
     "/reports",
     {
       config: { rateLimit: fastify.apiRateLimit },

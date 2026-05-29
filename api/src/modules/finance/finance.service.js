@@ -986,7 +986,7 @@ export async function searchCashierClients({ organizationId, query, limit = 20 }
   if (!normalizedQuery || (!/^\d+$/.test(normalizedQuery) && normalizedQuery.length < 3)) {
     return [];
   }
-  const params = [organizationId, `%${normalizedQuery.toLowerCase()}%`, `${normalizedQuery}%`, normalizedLimit];
+  const normalizedPhoneDigits = normalizedQuery.replace(/\D/g, "");
   const result = await pool.query(
     `SELECT id,
             CONCAT_WS(' ', last_name, first_name, middle_name) AS full_name,
@@ -996,11 +996,19 @@ export async function searchCashierClients({ organizationId, query, limit = 20 }
         AND (
           LOWER(CONCAT_WS(' ', last_name, first_name, middle_name)) LIKE $2
           OR phone_number LIKE $3
-          OR id::text = $4
+          OR ($4 <> '' AND regexp_replace(COALESCE(phone_number, ''), '[^0-9]', '', 'g') LIKE $4)
+          OR id::text = $5
         )
       ORDER BY last_name ASC, first_name ASC, id ASC
-      LIMIT $5`,
-    [params[0], params[1], params[2], normalizedQuery, params[3]]
+      LIMIT $6`,
+    [
+      organizationId,
+      `%${normalizedQuery.toLowerCase()}%`,
+      `${normalizedQuery}%`,
+      normalizedPhoneDigits ? `%${normalizedPhoneDigits}%` : "",
+      normalizedQuery,
+      normalizedLimit
+    ]
   );
   return result.rows.map(mapClientOption);
 }
@@ -1049,16 +1057,27 @@ export async function getFinanceTicketFilterReferences({ organizationId }) {
               u.id,
               COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS full_name
          FROM users u
-         JOIN role_options r
+         LEFT JOIN role_options r
            ON r.organization_id = u.organization_id
           AND r.id = u.role_id
-          AND r.is_active = TRUE
          LEFT JOIN role_permissions rp ON rp.role_id = r.id
          LEFT JOIN permissions p ON p.id = rp.permission_id AND p.is_active = TRUE
         WHERE u.organization_id = $1
           AND (
-            r.is_admin = TRUE
-            OR p.code IN ('finance.cashier.read', 'finance.cashier.create', 'finance.cashier.update', 'finance.cashier.pay')
+            u.is_platform_admin = TRUE
+            OR EXISTS (
+              SELECT 1
+                FROM finance_cash_sessions fcs
+               WHERE fcs.organization_id = u.organization_id
+                 AND fcs.cashier_user_id = u.id
+            )
+            OR (
+              r.is_active = TRUE
+              AND (
+                r.is_admin = TRUE
+                OR p.code LIKE 'finance.%'
+              )
+            )
           )
         ORDER BY full_name ASC, u.id ASC`,
       [organizationId]

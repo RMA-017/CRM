@@ -44,7 +44,7 @@ function CustomSelect({
   const optionLabelByValue = useMemo(() => {
     const map = new Map();
     normalizedOptions.forEach((option) => {
-      map.set(option.value, option.label);
+      map.set(option.value, option.selectedLabel || option.label);
     });
     return map;
   }, [normalizedOptions]);

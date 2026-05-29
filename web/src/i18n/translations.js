@@ -337,6 +337,8 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "No clients found.", uz: "Bolalar topilmadi.", ru: "Дети не найдены." },
   { en: "Failed to search clients.", uz: "Bolalarni qidirib bo'lmadi.", ru: "Не удалось найти детей." },
   { en: "Search by name or ID", uz: "Ism yoki ID bo'yicha qidirish", ru: "Поиск по имени или ID" },
+  { en: "Search by ID", uz: "ID bo'yicha qidirish", ru: "Поиск по ID" },
+  { en: "Search by phone", uz: "Telefon bo'yicha qidirish", ru: "Поиск по телефону" },
   { en: "Search cashier cards", uz: "Kassa cardlarini qidirish", ru: "Поиск карточек кассы" },
   { en: "Search", uz: "Qidirish", ru: "Поиск" },
   { en: "Amount UZS", uz: "Summa UZS", ru: "Сумма UZS" },

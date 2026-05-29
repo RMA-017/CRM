@@ -164,6 +164,26 @@ test("finance daily cash and reports separate real cash movement from deposit tr
   );
 });
 
+test("finance report filters expose report-scoped client search and broad cashier references", () => {
+  assert.match(
+    financeServiceSource,
+    /export async function searchCashierClients[\s\S]*regexp_replace\(COALESCE\(phone_number, ''\), '\[\^0-9\]', '', 'g'\) LIKE \$4/s,
+    "Finance client search should match phone numbers by their digits even when stored with formatting."
+  );
+
+  assert.match(
+    financeRoutesSource,
+    /"\/reports\/clients"[\s\S]*requireReportsAccess\(request, reply, "read"\)[\s\S]*searchCashierClients/s,
+    "Report client search should be available with the finance reports permission."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /u\.is_platform_admin = TRUE[\s\S]*FROM finance_cash_sessions fcs[\s\S]*p\.code LIKE 'finance\.%'/s,
+    "Finance report cashier references should include platform admins, historical cashiers and finance-permitted users."
+  );
+});
+
 test("finance client balance filters use the projected balance columns", () => {
   assert.match(
     financeServiceSource,

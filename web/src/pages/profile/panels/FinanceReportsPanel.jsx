@@ -146,6 +146,43 @@ function makeClientOption(item) {
   return { value: id, label };
 }
 
+function makeClientIdOption(item) {
+  const id = String(item?.id ?? item?.clientId ?? "").trim();
+  if (!id) return null;
+  const fullName = String(item?.fullName || item?.clientName || "").trim();
+  const phone = String(item?.phone || item?.clientPhone || item?.phoneNumber || "").trim();
+  return {
+    value: id,
+    label: [`#${id}`, fullName, phone].filter(Boolean).join(" - "),
+    selectedLabel: id
+  };
+}
+
+function makeClientPhoneOption(item) {
+  const phone = String(item?.phone || item?.clientPhone || item?.phoneNumber || "").trim();
+  if (!phone) return null;
+  const id = String(item?.id ?? item?.clientId ?? "").trim();
+  const fullName = String(item?.fullName || item?.clientName || "").trim();
+  return {
+    value: phone,
+    label: [phone, fullName, id ? `#${id}` : ""].filter(Boolean).join(" - "),
+    selectedLabel: phone
+  };
+}
+
+function mergeSelectOptions(...groups) {
+  const seen = new Set();
+  const merged = [];
+  groups.flat().forEach((option) => {
+    if (!option || option.value === undefined || option.value === null) return;
+    const value = String(option.value);
+    if (seen.has(value)) return;
+    seen.add(value);
+    merged.push({ ...option, value });
+  });
+  return merged;
+}
+
 function makeTextOption(value, label = value) {
   const normalizedValue = String(value || "").trim();
   if (!normalizedValue) return null;
@@ -334,6 +371,12 @@ function FinanceReportsPanel({ onClose }) {
   const [filterClientSearch, setFilterClientSearch] = useState("");
   const [filterClientOptions, setFilterClientOptions] = useState([]);
   const [filterClientSearchBusy, setFilterClientSearchBusy] = useState(false);
+  const [filterClientIdSearch, setFilterClientIdSearch] = useState("");
+  const [filterClientIdOptions, setFilterClientIdOptions] = useState([]);
+  const [filterClientIdSearchBusy, setFilterClientIdSearchBusy] = useState(false);
+  const [filterClientPhoneSearch, setFilterClientPhoneSearch] = useState("");
+  const [filterClientPhoneOptions, setFilterClientPhoneOptions] = useState([]);
+  const [filterClientPhoneSearchBusy, setFilterClientPhoneSearchBusy] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedColumns, setSelectedColumns] = useState([]);
   const [appliedColumns, setAppliedColumns] = useState([]);
@@ -380,6 +423,22 @@ function FinanceReportsPanel({ onClose }) {
       .filter(Boolean);
     return [{ value: "", label: translate("All") }, ...options];
   }, [filterReferences.cashiers, translate]);
+
+  const clientIdOptions = useMemo(() => mergeSelectOptions(
+    [{ value: "", label: translate("All"), selectedLabel: translate("All") }],
+    filters.clientId
+      ? [{ value: filters.clientId, label: `#${filters.clientId}`, selectedLabel: filters.clientId }]
+      : [],
+    filterClientIdOptions
+  ), [filterClientIdOptions, filters.clientId, translate]);
+
+  const clientPhoneOptions = useMemo(() => mergeSelectOptions(
+    [{ value: "", label: translate("All"), selectedLabel: translate("All") }],
+    filters.clientPhone
+      ? [{ value: filters.clientPhone, label: filters.clientPhone, selectedLabel: filters.clientPhone }]
+      : [],
+    filterClientPhoneOptions
+  ), [filterClientPhoneOptions, filters.clientPhone, translate]);
 
   const selectedColumnSet = useMemo(() => new Set(selectedColumns), [selectedColumns]);
 
@@ -467,7 +526,7 @@ function FinanceReportsPanel({ onClose }) {
     const timer = window.setTimeout(async () => {
       setFilterClientSearchBusy(true);
       try {
-        const response = await apiFetch(`/api/finance/transactions/clients?q=${encodeURIComponent(query)}&limit=30`);
+        const response = await apiFetch(`/api/finance/reports/clients?q=${encodeURIComponent(query)}&limit=30`);
         const data = await readApiResponseData(response);
         if (!response.ok) {
           if (!cancelled) {
@@ -497,6 +556,92 @@ function FinanceReportsPanel({ onClose }) {
       window.clearTimeout(timer);
     };
   }, [filterClientSearch, filtersOpen, translate]);
+
+  useEffect(() => {
+    if (!filtersOpen) return undefined;
+    const query = filterClientIdSearch.trim();
+    if (!query || (!/^\d+$/.test(query) && query.length < 3)) {
+      setFilterClientIdSearchBusy(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setFilterClientIdSearchBusy(true);
+      try {
+        const response = await apiFetch(`/api/finance/reports/clients?q=${encodeURIComponent(query)}&limit=30`);
+        const data = await readApiResponseData(response);
+        if (!response.ok) {
+          if (!cancelled) {
+            window.alert?.(translate(data?.message || "Failed to search clients."));
+          }
+          return;
+        }
+        if (!cancelled) {
+          const options = (Array.isArray(data?.items) ? data.items : [])
+            .map(makeClientIdOption)
+            .filter(Boolean);
+          setFilterClientIdOptions(options);
+        }
+      } catch {
+        if (!cancelled) {
+          window.alert?.(translate("Failed to search clients."));
+        }
+      } finally {
+        if (!cancelled) {
+          setFilterClientIdSearchBusy(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [filterClientIdSearch, filtersOpen, translate]);
+
+  useEffect(() => {
+    if (!filtersOpen) return undefined;
+    const query = filterClientPhoneSearch.trim();
+    if (!query || (!/^\d+$/.test(query) && query.length < 3)) {
+      setFilterClientPhoneSearchBusy(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setFilterClientPhoneSearchBusy(true);
+      try {
+        const response = await apiFetch(`/api/finance/reports/clients?q=${encodeURIComponent(query)}&limit=30`);
+        const data = await readApiResponseData(response);
+        if (!response.ok) {
+          if (!cancelled) {
+            window.alert?.(translate(data?.message || "Failed to search clients."));
+          }
+          return;
+        }
+        if (!cancelled) {
+          const options = (Array.isArray(data?.items) ? data.items : [])
+            .map(makeClientPhoneOption)
+            .filter(Boolean);
+          setFilterClientPhoneOptions(options);
+        }
+      } catch {
+        if (!cancelled) {
+          window.alert?.(translate("Failed to search clients."));
+        }
+      } finally {
+        if (!cancelled) {
+          setFilterClientPhoneSearchBusy(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [filterClientPhoneSearch, filtersOpen, translate]);
 
   const applyFilters = (event) => {
     event.preventDefault();
@@ -734,12 +879,19 @@ function FinanceReportsPanel({ onClose }) {
                 </div>
                 <div className="field finance-reports-check-field">
                   {renderColumnToggle("clientId", "Client ID")}
-                  <input
-                    type="search"
-                    inputMode="numeric"
+                  <CustomSelect
                     value={filters.clientId}
+                    options={clientIdOptions}
+                    placeholder={translate("All")}
+                    searchable
+                    searchPlaceholder={translate("Search by ID")}
+                    searchThreshold={0}
+                    menuPortal
+                    menuHeightScale={1.2}
                     disabled={!isColumnSelected("clientId")}
-                    onChange={(event) => updateFilterValue("clientId", event.currentTarget.value)}
+                    emptyText={filterClientIdSearchBusy ? "..." : translate("No clients found.")}
+                    onSearchChange={setFilterClientIdSearch}
+                    onChange={(value) => updateFilterValue("clientId", value)}
                   />
                 </div>
                 {renderDateRangeField("clientBirthday", "Client Birthday", "clientBirthdayFrom", "clientBirthdayTo")}
@@ -755,12 +907,19 @@ function FinanceReportsPanel({ onClose }) {
                 </div>
                 <div className="field finance-reports-check-field">
                   {renderColumnToggle("clientPhone", "Client Phone")}
-                  <input
-                    type="search"
-                    inputMode="tel"
+                  <CustomSelect
                     value={filters.clientPhone}
+                    options={clientPhoneOptions}
+                    placeholder={translate("All")}
+                    searchable
+                    searchPlaceholder={translate("Search by phone")}
+                    searchThreshold={0}
+                    menuPortal
+                    menuHeightScale={1.2}
                     disabled={!isColumnSelected("clientPhone")}
-                    onChange={(event) => updateFilterValue("clientPhone", event.currentTarget.value)}
+                    emptyText={filterClientPhoneSearchBusy ? "..." : translate("No clients found.")}
+                    onSearchChange={setFilterClientPhoneSearch}
+                    onChange={(value) => updateFilterValue("clientPhone", value)}
                   />
                 </div>
                 <div className="field finance-reports-check-field">
