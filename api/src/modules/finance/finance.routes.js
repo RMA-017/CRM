@@ -13,6 +13,7 @@ import {
   getFinanceActivePaymentMethods,
   getFinanceClientBalances,
   getFinanceClientDebtTickets,
+  getFinanceClientTransactions,
   getFinanceDailyCash,
   getFinanceReports,
   getFinanceTicketFilterReferences,
@@ -363,6 +364,30 @@ async function financeRoutes(fastify) {
       } catch (error) {
         request.log.error({ err: error }, "Error creating finance deposit transaction:");
         return sendRouteError(reply, error, "Deposit transaction failed.");
+      }
+    }
+  );
+
+  fastify.get(
+    "/client-balances/:id/transactions",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        params: financeRouteSchemas.idParams
+      }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+      try {
+        const requester = await requireBalancesAccess(request, reply, "read");
+        if (!requester) return null;
+        return reply.send(await getFinanceClientTransactions({
+          organizationId: request.authContext.organizationId,
+          clientId: request.params.id
+        }));
+      } catch (error) {
+        request.log.error({ err: error }, "Error fetching finance client transactions:");
+        return sendRouteError(reply, error, "Failed to load client transactions.");
       }
     }
   );

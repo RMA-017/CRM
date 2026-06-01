@@ -6192,44 +6192,145 @@ label.field > span:first-child,
 
 .finance-balances-table {
   table-layout: fixed;
-  min-width: 820px;
+  min-width: 760px;
 }
 
 .finance-balances-col-index {
-  width: 52px;
+  width: 7%;
 }
 
 .finance-balances-col-client-id {
-  width: 96px;
+  width: 14%;
 }
 
 .finance-balances-col-client {
-  width: 230px;
+  width: 43%;
 }
 
 .finance-balances-col-debt,
 .finance-balances-col-deposit {
-  width: 135px;
-}
-
-.finance-balances-col-actions {
-  width: 305px;
+  width: 18%;
 }
 
 .finance-balances-table :is(th, td) {
   overflow: hidden;
+  padding-inline: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.finance-balances-table :is(th:nth-child(1), td:nth-child(1)) {
+  text-align: center;
 }
 
 .finance-balances-table :is(th:nth-child(4), td:nth-child(4), th:nth-child(5), td:nth-child(5)) {
   text-align: right;
 }
 
-.finance-balances-table .table-actions-row {
-  flex-wrap: nowrap;
-  justify-content: flex-end;
-  gap: 6px;
+.finance-balances-client-row {
+  cursor: pointer;
+}
+
+.finance-balances-client-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+#financeClientLedgerModal.finance-client-ledger-modal {
+  width: min(1180px, calc(100vw - 32px));
+  max-height: min(760px, calc(100vh - 32px));
+}
+
+.finance-client-ledger-summary {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(120px, 1fr));
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+
+.finance-client-ledger-summary div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.finance-client-ledger-summary strong {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finance-client-ledger-summary span {
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finance-client-ledger-modal .finance-balance-positive {
+  color: #15803d;
+}
+
+.finance-client-ledger-modal .finance-balance-negative {
+  color: #b91c1c;
+}
+
+.finance-client-ledger-table-scroll {
+  max-height: 460px;
+}
+
+.finance-client-ledger-table {
+  min-width: 1160px;
+  table-layout: fixed;
+}
+
+.finance-client-ledger-table :is(th, td) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finance-client-ledger-table :is(th:nth-child(5), td:nth-child(5), th:nth-child(6), td:nth-child(6), th:nth-child(7), td:nth-child(7), th:nth-child(8), td:nth-child(8)) {
+  text-align: right;
+}
+
+.finance-client-ledger-table :is(th:nth-child(1), td:nth-child(1)) {
+  width: 118px;
+}
+
+.finance-client-ledger-table :is(th:nth-child(2), td:nth-child(2)) {
+  width: 190px;
+}
+
+.finance-client-ledger-table :is(th:nth-child(3), td:nth-child(3)) {
+  width: 90px;
+}
+
+.finance-client-ledger-table :is(th:nth-child(4), td:nth-child(4)) {
+  width: 130px;
+}
+
+.finance-client-ledger-table :is(th:nth-child(5), td:nth-child(5), th:nth-child(6), td:nth-child(6), th:nth-child(7), td:nth-child(7), th:nth-child(8), td:nth-child(8)) {
+  width: 120px;
+}
+
+.finance-client-ledger-table :is(th:nth-child(9), td:nth-child(9)) {
+  width: 120px;
+}
+
+.finance-client-ledger-table :is(th:nth-child(10), td:nth-child(10)) {
+  width: 90px;
+}
+
+.finance-client-ledger-table :is(th:nth-child(11), td:nth-child(11)) {
+  width: 170px;
 }
 
 .finance-transactions-table {

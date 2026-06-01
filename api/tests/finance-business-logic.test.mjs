@@ -200,6 +200,20 @@ test("finance daily cash and reports separate real cash movement from deposit tr
   );
 });
 
+test("finance transaction list defaults and filters by transaction creation date", () => {
+  assert.match(
+    financeServiceSource,
+    /export async function getFinanceTransactions[\s\S]*const today = getTodayYmdInTashkent\(\);[\s\S]*const dateFrom = normalizeDate\(filters\.dateFrom \?\? filters\.date_from\) \|\| today;[\s\S]*"t\.created_at::date >= \$2::date"[\s\S]*"t\.created_at::date <= \$3::date"[\s\S]*ORDER BY t\.created_at DESC, t\.id DESC/s,
+    "Finance transactions page should show today's newly created transactions by default and filter by created_at."
+  );
+
+  assert.doesNotMatch(
+    financeServiceSource,
+    /export async function getFinanceTransactions[\s\S]*"t\.transaction_at::date >= \$2::date"[\s\S]*"t\.transaction_at::date <= \$3::date"/s,
+    "Finance transactions page date filters should not use the business transaction_at date."
+  );
+});
+
 test("finance report filters expose report-scoped client search and broad cashier references", () => {
   assert.match(
     financeServiceSource,
@@ -225,6 +239,24 @@ test("finance client balance filters use the projected balance columns", () => {
     financeServiceSource,
     /export async function getFinanceClientBalances[\s\S]*const clientIds = normalizeIdList[\s\S]*c\.id = ANY\(\$[\s\S]*::int\[\]\)[\s\S]*COALESCE\(debt_uzs, 0\) > 0[\s\S]*COALESCE\(deposit_uzs, 0\) > 0/s,
     "Client balance filters should work from the balances subquery projection and support explicit client id lookups."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /export async function getFinanceClientTransactions[\s\S]*WHERE t\.organization_id = \$1[\s\S]*AND t\.client_id = \$2[\s\S]*mapClientLedgerTransaction\(row, runningDepositUzs\)/s,
+    "Client balance rows should expose a full client transaction ledger with cash, deposit and debt summary fields."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /summary: \{[\s\S]*cashInUzs:[\s\S]*cashOutUzs:[\s\S]*depositUsedUzs:[\s\S]*depositUzs:[\s\S]*debtUzs:/s,
+    "Client transaction ledger should return cash, deposit and debt summary fields."
+  );
+
+  assert.match(
+    financeRoutesSource,
+    /"\/client-balances\/:id\/transactions"[\s\S]*requireBalancesAccess\(request, reply, "read"\)[\s\S]*getFinanceClientTransactions/s,
+    "Client ledger should be available from balances read access without enabling balance mutation actions."
   );
 
   assert.doesNotMatch(

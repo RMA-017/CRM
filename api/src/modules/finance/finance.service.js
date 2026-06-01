@@ -317,6 +317,34 @@ function mapClientDebtTicket(row) {
   };
 }
 
+function getLedgerDepositChange(row) {
+  if (row?.status !== "posted") return 0;
+  const amountUzs = normalizeAmount(row.amount_uzs, 0);
+  switch (row.transaction_type) {
+    case "deposit_in":
+    case "deposit_ticket_refund":
+      return amountUzs;
+    case "deposit_out":
+    case "deposit_ticket_payment":
+      return -amountUzs;
+    default:
+      return 0;
+  }
+}
+
+function mapClientLedgerTransaction(row, depositBalanceAfterUzs) {
+  const transaction = mapTransaction(row);
+  const amountUzs = normalizeAmount(row.amount_uzs, 0);
+  const isPosted = row.status === "posted";
+  return {
+    ...transaction,
+    cashInUzs: isPosted && row.direction === "in" ? amountUzs : 0,
+    cashOutUzs: isPosted && row.direction === "out" ? amountUzs : 0,
+    depositChangeUzs: getLedgerDepositChange(row),
+    depositBalanceAfterUzs
+  };
+}
+
 function mapAppointment(row) {
   if (!row) return null;
   return {
@@ -1489,7 +1517,7 @@ export async function closeCashSession({ organizationId, payload, actorUserId })
 }
 
 export async function getFinanceTransactions({ organizationId, filters = {} }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getTodayYmdInTashkent();
   const dateFrom = normalizeDate(filters.dateFrom ?? filters.date_from) || today;
   const dateTo = normalizeDate(filters.dateTo ?? filters.date_to) || dateFrom;
   const ticketNumber = normalizeText(filters.ticketNumber ?? filters.ticket_number, 5);
@@ -1501,8 +1529,8 @@ export async function getFinanceTransactions({ organizationId, filters = {} }) {
   const params = [organizationId, dateFrom, dateTo];
   const where = [
     "t.organization_id = $1",
-    "t.transaction_at::date >= $2::date",
-    "t.transaction_at::date <= $3::date"
+    "t.created_at::date >= $2::date",
+    "t.created_at::date <= $3::date"
   ];
   if (client) {
     params.push(`%${client}%`);
@@ -1556,7 +1584,7 @@ export async function getFinanceTransactions({ organizationId, filters = {} }) {
             COALESCE(NULLIF(TRIM(cu.full_name), ''), NULLIF(TRIM(cu.username), ''), '') AS cashier_name,
             t.created_at
        ${fromSql}
-      ORDER BY t.transaction_at DESC, t.id DESC
+      ORDER BY t.created_at DESC, t.id DESC
       LIMIT $${listParams.length - 1}
      OFFSET $${listParams.length}`,
     listParams
@@ -2828,6 +2856,125 @@ export async function getFinanceClientDebtTickets({ organizationId, clientId }) 
     [organizationId, normalizedClientId]
   );
   return { items: result.rows.map(mapClientDebtTicket) };
+}
+
+export async function getFinanceClientTransactions({ organizationId, clientId }) {
+  const normalizedClientId = parsePositiveInteger(clientId);
+  if (!normalizedClientId) {
+    const error = new Error("Client is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const clientResult = await pool.query(
+    `SELECT id,
+            CONCAT_WS(' ', last_name, first_name, middle_name) AS client_name,
+            phone_number
+       FROM clients
+      WHERE organization_id = $1
+        AND id = $2
+      LIMIT 1`,
+    [organizationId, normalizedClientId]
+  );
+  const client = clientResult.rows[0];
+  if (!client) {
+    const error = new Error("Client not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const transactionsResult = await pool.query(
+    `SELECT t.id,
+            t.cash_session_id,
+            t.transaction_type,
+            t.direction,
+            t.status,
+            t.client_id,
+            CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+            t.ticket_id,
+            ft.ticket_number,
+            ft.service_name,
+            t.ticket_payment_id,
+            t.payment_method_id,
+            fpm.name AS payment_method_name,
+            t.amount_uzs,
+            t.transaction_at,
+            t.note,
+            t.metadata,
+            t.voided_at,
+            t.voided_by,
+            s.cashier_user_id,
+            COALESCE(NULLIF(TRIM(cu.full_name), ''), NULLIF(TRIM(cu.username), ''), '') AS cashier_name,
+            t.created_at
+       FROM finance_transactions t
+       LEFT JOIN finance_cash_sessions s ON s.organization_id = t.organization_id AND s.id = t.cash_session_id
+       LEFT JOIN clients c ON c.organization_id = t.organization_id AND c.id = t.client_id
+       LEFT JOIN finance_tickets ft ON ft.organization_id = t.organization_id AND ft.id = t.ticket_id
+       LEFT JOIN finance_payment_methods fpm ON fpm.organization_id = t.organization_id AND fpm.id = t.payment_method_id
+       LEFT JOIN users cu ON cu.id = s.cashier_user_id
+      WHERE t.organization_id = $1
+        AND t.client_id = $2
+      ORDER BY t.transaction_at ASC, t.id ASC`,
+    [organizationId, normalizedClientId]
+  );
+
+  let runningDepositUzs = 0;
+  const chronologicalItems = transactionsResult.rows.map((row) => {
+    runningDepositUzs += getLedgerDepositChange(row);
+    return mapClientLedgerTransaction(row, runningDepositUzs);
+  });
+  const postedItems = chronologicalItems.filter((item) => item.status === "posted");
+
+  const debtResult = await pool.query(
+    `SELECT COALESCE(SUM(GREATEST(
+              COALESCE(ft.total_uzs, ft.amount_uzs, 0) - COALESCE(fpaid.paid_amount_uzs, 0),
+              0
+            )), 0) AS debt_uzs
+       FROM finance_tickets ft
+       LEFT JOIN LATERAL (
+         SELECT COALESCE(SUM(CASE
+                  WHEN t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN t.amount_uzs
+                  WHEN t.transaction_type IN ('refund', 'deposit_ticket_refund') THEN -t.amount_uzs
+                  ELSE 0
+                END), 0) AS paid_amount_uzs
+           FROM finance_transactions t
+          WHERE t.organization_id = ft.organization_id
+            AND t.ticket_id = ft.id
+            AND t.status = 'posted'
+            AND t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')
+       ) fpaid ON TRUE
+      WHERE ft.organization_id = $1
+        AND ft.client_id = $2
+        AND ft.status IN ('issued', 'unpaid')`,
+    [organizationId, normalizedClientId]
+  );
+
+  const sumByType = (types) => postedItems.reduce((sum, item) => (
+    types.includes(item.transactionType) ? sum + normalizeAmount(item.amountUzs, 0) : sum
+  ), 0);
+
+  return {
+    client: {
+      clientId: client.id,
+      clientName: client.client_name || "",
+      phone: client.phone_number || ""
+    },
+    summary: {
+      transactionCount: chronologicalItems.length,
+      postedTransactionCount: postedItems.length,
+      cashInUzs: postedItems.reduce((sum, item) => sum + normalizeAmount(item.cashInUzs, 0), 0),
+      cashOutUzs: postedItems.reduce((sum, item) => sum + normalizeAmount(item.cashOutUzs, 0), 0),
+      depositInUzs: sumByType(["deposit_in"]),
+      depositOutUzs: sumByType(["deposit_out"]),
+      depositUsedUzs: sumByType(["deposit_ticket_payment"]),
+      depositRefundUzs: sumByType(["deposit_ticket_refund"]),
+      ticketPaidUzs: sumByType(["ticket_payment", "deposit_ticket_payment"]),
+      refundUzs: sumByType(["refund", "deposit_ticket_refund"]),
+      depositUzs: runningDepositUzs,
+      debtUzs: normalizeAmount(debtResult.rows[0]?.debt_uzs, 0)
+    },
+    items: chronologicalItems.reverse()
+  };
 }
 
 export async function payFinanceTicketsFromDeposit({ organizationId, payload, actorUserId }) {

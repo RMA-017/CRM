@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { buildExportFilename, exportExcelWorkbook } from "../../../lib/excel-export.js";
+import { formatDateYMD } from "../../../lib/formatters.js";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 
 const EMPTY_FILTERS = Object.freeze({
@@ -8,49 +9,70 @@ const EMPTY_FILTERS = Object.freeze({
   type: "active"
 });
 
-const EMPTY_OPERATION = Object.freeze({
-  clientId: "",
-  clientName: "",
-  operation: "in",
-  amountUzs: "",
-  paymentMethodId: "",
-  note: ""
-});
-
-const EMPTY_TICKET_PAYMENT = Object.freeze({
-  clientId: "",
-  clientName: "",
-  depositUzs: 0,
-  tickets: [],
-  selectedIds: [],
-  note: ""
-});
-
 function formatMoney(value) {
   const amount = Number.parseInt(String(value ?? 0), 10) || 0;
   return amount > 0 ? `${amount.toLocaleString("ru-RU")} UZS` : "-";
 }
 
-function normalizeAmountInput(value) {
-  const parsed = Number.parseInt(String(value || "").replace(/\D+/g, ""), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? String(parsed) : "";
+function formatSignedMoney(value) {
+  const amount = Number.parseInt(String(value ?? 0), 10) || 0;
+  if (amount === 0) return "-";
+  const sign = amount > 0 ? "+" : "-";
+  return `${sign}${Math.abs(amount).toLocaleString("ru-RU")} UZS`;
 }
 
-function FinanceBalancesPanel({ onClose, canUpdateFinanceBalances }) {
+function formatDateTime(value) {
+  const raw = String(value || "");
+  if (!raw) return "-";
+  const date = formatDateYMD(raw);
+  const timeMatch = raw.match(/T(\d{2}:\d{2})/);
+  return timeMatch ? `${date} ${timeMatch[1]}` : date;
+}
+
+function translateTransactionType(translate, type) {
+  const labels = {
+    ticket_payment: "Ticket Payment",
+    deposit_in: "Deposit In",
+    deposit_out: "Deposit Out",
+    deposit_ticket_payment: "Deposit Ticket Payment",
+    deposit_ticket_refund: "Deposit Ticket Refund",
+    refund: "Refund",
+    correction: "Correction"
+  };
+  return translate(labels[String(type || "")] || String(type || "-"));
+}
+
+function getTransactionActionLabel(translate, item) {
+  const ticket = item?.ticketNumber ? ` #${item.ticketNumber}` : "";
+  const labels = {
+    ticket_payment: "Ticket payment",
+    deposit_in: "Client balance top-up",
+    deposit_out: "Client balance withdrawal",
+    deposit_ticket_payment: "Client balance ticket payment",
+    deposit_ticket_refund: "Client balance ticket refund",
+    refund: "Ticket refund",
+    correction: "Balance correction"
+  };
+  const type = String(item?.transactionType || "");
+  const base = translate(labels[type] || translateTransactionType(translate, type));
+  return ticket && ["ticket_payment", "deposit_ticket_payment", "deposit_ticket_refund", "refund"].includes(type)
+    ? `${base}${ticket}`
+    : base;
+}
+
+function FinanceBalancesPanel({ onClose }) {
   const { translate } = useI18n();
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
   const [items, setItems] = useState([]);
-  const [paymentMethods, setPaymentMethods] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [operationForm, setOperationForm] = useState(null);
-  const [ticketPaymentForm, setTicketPaymentForm] = useState(null);
-  const [ticketsLoading, setTicketsLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [ledgerClient, setLedgerClient] = useState(null);
+  const [ledgerData, setLedgerData] = useState(null);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
 
   const loadBalances = useCallback(async (nextPage = 1, nextFilters = EMPTY_FILTERS) => {
     setLoading(true);
@@ -84,22 +106,9 @@ function FinanceBalancesPanel({ onClose, canUpdateFinanceBalances }) {
     }
   }, [translate]);
 
-  const loadPaymentMethods = useCallback(async () => {
-    try {
-      const response = await apiFetch("/api/finance/payment-methods");
-      const data = await readApiResponseData(response);
-      if (response.ok) {
-        setPaymentMethods(Array.isArray(data?.items) ? data.items : []);
-      }
-    } catch {
-      setPaymentMethods([]);
-    }
-  }, []);
-
   useEffect(() => {
     void loadBalances(1, EMPTY_FILTERS);
-    void loadPaymentMethods();
-  }, [loadBalances, loadPaymentMethods]);
+  }, [loadBalances]);
 
   const applyFilters = (event) => {
     event.preventDefault();
@@ -164,140 +173,36 @@ function FinanceBalancesPanel({ onClose, canUpdateFinanceBalances }) {
     }
   };
 
-  const openOperation = (item, operation) => {
-    setOperationForm({
-      ...EMPTY_OPERATION,
-      clientId: String(item.clientId || ""),
-      clientName: item.clientName || "",
-      operation,
-      paymentMethodId: String(paymentMethods[0]?.id || "")
-    });
-  };
-
-  const closeOperation = () => {
-    if (submitting) return;
-    setOperationForm(null);
-  };
-
-  const openTicketPayment = async (item) => {
-    if (submitting || ticketsLoading) return;
-    const clientId = String(item.clientId || "");
-    if (!clientId) return;
-    setTicketsLoading(true);
+  const openClientLedger = async (item) => {
+    const clientId = String(item?.clientId || "");
+    if (!clientId || ledgerLoading) return;
+    setLedgerClient(item);
+    setLedgerData(null);
+    setLedgerLoading(true);
     try {
-      const response = await apiFetch(`/api/finance/client-balances/${clientId}/debt-tickets`);
+      const response = await apiFetch(`/api/finance/client-balances/${clientId}/transactions`);
       const data = await readApiResponseData(response);
       if (!response.ok) {
-        window.alert?.(translate(data?.message || "Failed to load client debt tickets."));
+        window.alert?.(translate(data?.message || "Failed to load client transactions."));
+        setLedgerClient(null);
         return;
       }
-      setTicketPaymentForm({
-        ...EMPTY_TICKET_PAYMENT,
-        clientId,
-        clientName: item.clientName || "",
-        depositUzs: Number.parseInt(String(item.depositUzs || 0), 10) || 0,
-        tickets: Array.isArray(data?.items) ? data.items : []
-      });
+      setLedgerData(data || null);
     } catch {
-      window.alert?.(translate("Failed to load client debt tickets."));
+      window.alert?.(translate("Failed to load client transactions."));
+      setLedgerClient(null);
     } finally {
-      setTicketsLoading(false);
+      setLedgerLoading(false);
     }
   };
 
-  const closeTicketPayment = () => {
-    if (submitting) return;
-    setTicketPaymentForm(null);
+  const closeClientLedger = () => {
+    setLedgerClient(null);
+    setLedgerData(null);
   };
 
-  const toggleTicketSelection = (ticketId) => {
-    const normalizedId = String(ticketId || "");
-    if (!normalizedId) return;
-    setTicketPaymentForm((current) => {
-      if (!current) return current;
-      const selected = new Set(current.selectedIds.map(String));
-      if (selected.has(normalizedId)) {
-        selected.delete(normalizedId);
-      } else {
-        selected.add(normalizedId);
-      }
-      return { ...current, selectedIds: Array.from(selected) };
-    });
-  };
-
-  const submitOperation = async (event) => {
-    event.preventDefault();
-    if (!operationForm || submitting) return;
-    setSubmitting(true);
-    try {
-      const response = await apiFetch("/api/finance/client-balances/deposit", {
-        method: "POST",
-        body: JSON.stringify({
-          clientId: operationForm.clientId,
-          paymentMethodId: operationForm.paymentMethodId,
-          amountUzs: operationForm.amountUzs,
-          operation: operationForm.operation,
-          note: operationForm.note
-        })
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        window.alert?.(translate(data?.message || "Deposit transaction failed."));
-        return;
-      }
-      setOperationForm(null);
-      await loadBalances(page, appliedFilters);
-    } catch {
-      window.alert?.(translate("Deposit transaction failed."));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const selectedTicketTotal = useMemo(() => {
-    if (!ticketPaymentForm) return 0;
-    const selected = new Set(ticketPaymentForm.selectedIds.map(String));
-    return ticketPaymentForm.tickets.reduce((sum, ticket) => (
-      selected.has(String(ticket.id))
-        ? sum + (Number.parseInt(String(ticket.totalUzs || 0), 10) || 0)
-        : sum
-    ), 0);
-  }, [ticketPaymentForm]);
-
-  const submitTicketPayment = async (event) => {
-    event.preventDefault();
-    if (!ticketPaymentForm || submitting) return;
-    if (ticketPaymentForm.selectedIds.length === 0) {
-      window.alert?.(translate("Select at least one ticket."));
-      return;
-    }
-    if (selectedTicketTotal > ticketPaymentForm.depositUzs) {
-      window.alert?.(translate("Deposit balance is not enough."));
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const response = await apiFetch("/api/finance/client-balances/pay-from-deposit", {
-        method: "POST",
-        body: JSON.stringify({
-          clientId: ticketPaymentForm.clientId,
-          ticketIds: ticketPaymentForm.selectedIds,
-          note: ticketPaymentForm.note
-        })
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        window.alert?.(translate(data?.message || "Deposit ticket payment failed."));
-        return;
-      }
-      setTicketPaymentForm(null);
-      await loadBalances(page, appliedFilters);
-    } catch {
-      window.alert?.(translate("Deposit ticket payment failed."));
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const ledgerSummary = ledgerData?.summary || {};
+  const ledgerItems = Array.isArray(ledgerData?.items) ? ledgerData.items : [];
 
   return (
     <section id="financeBalancesPanel" className="all-users-panel settings-panel ops-panel-shell finance-panel-shell finance-balances-panel">
@@ -342,7 +247,6 @@ function FinanceBalancesPanel({ onClose, canUpdateFinanceBalances }) {
             <col className="finance-balances-col-client" />
             <col className="finance-balances-col-debt" />
             <col className="finance-balances-col-deposit" />
-            <col className="finance-balances-col-actions" />
           </colgroup>
           <thead>
             <tr>
@@ -351,57 +255,38 @@ function FinanceBalancesPanel({ onClose, canUpdateFinanceBalances }) {
               <th>{translate("Client")}</th>
               <th>{translate("Debt")}</th>
               <th>{translate("Deposit")}</th>
-              <th>{translate("Actions")}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               [0, 1, 2, 3, 4].map((index) => (
                 <tr key={index} aria-hidden="true">
-                  <td colSpan="6" className="skel" />
+                  <td colSpan="5" className="skel" />
                 </tr>
               ))
             ) : items.map((item, index) => (
-              <tr key={String(item.clientId)}>
+              <tr
+                key={String(item.clientId)}
+                className="finance-balances-client-row"
+                title={translate("Double-click to view client transactions")}
+                tabIndex={0}
+                onDoubleClick={() => openClientLedger(item)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    void openClientLedger(item);
+                  }
+                }}
+              >
                 <td>{(page - 1) * 20 + index + 1}</td>
                 <td>{item.clientId}</td>
                 <td>{item.clientName || "-"}</td>
                 <td>{formatMoney(item.debtUzs)}</td>
                 <td>{formatMoney(item.depositUzs)}</td>
-                <td>
-                  {canUpdateFinanceBalances ? (
-                    <div className="table-actions-row">
-                      <button type="button" className="table-action-btn" onClick={() => openOperation(item, "in")}>
-                        {translate("Deposit In")}
-                      </button>
-                      <button
-                        type="button"
-                        className="table-action-btn"
-                        disabled={(Number.parseInt(String(item.depositUzs || 0), 10) || 0) <= 0}
-                        onClick={() => openOperation(item, "out")}
-                      >
-                        {translate("Deposit Out")}
-                      </button>
-                      <button
-                        type="button"
-                        className="table-action-btn"
-                        disabled={
-                          ticketsLoading
-                          || (Number.parseInt(String(item.depositUzs || 0), 10) || 0) <= 0
-                          || (Number.parseInt(String(item.debtUzs || 0), 10) || 0) <= 0
-                        }
-                        onClick={() => openTicketPayment(item)}
-                      >
-                        {translate("Pay Tickets")}
-                      </button>
-                    </div>
-                  ) : "-"}
-                </td>
               </tr>
             ))}
             {!loading && items.length === 0 ? (
               <tr>
-                <td colSpan="6" className="all-users-state">{translate("No items found.")}</td>
+                <td colSpan="5" className="all-users-state">{translate("No items found.")}</td>
               </tr>
             ) : null}
           </tbody>
@@ -428,140 +313,98 @@ function FinanceBalancesPanel({ onClose, canUpdateFinanceBalances }) {
         </button>
       </div>
 
-      {operationForm ? (
+      {ledgerClient ? (
         <>
           <button
             type="button"
-            className="login-overlay stacked-modal-overlay"
-            aria-label="Close deposit modal"
-            onClick={closeOperation}
+            className="login-overlay stacked-modal-overlay finance-modal-overlay"
+            aria-label={translate("Close client transactions modal")}
+            onClick={closeClientLedger}
           />
-          <form id="financeDepositModal" className="logout-confirm-modal all-users-edit-modal" onSubmit={submitOperation}>
-            <h3>{translate(operationForm.operation === "in" ? "Deposit In" : "Deposit Out")}</h3>
-            <label className="field">
-              <span>{translate("Client")}</span>
-              <input type="text" value={operationForm.clientName} disabled />
-            </label>
-            <label className="field">
-              <span>{translate("Payment Method")}</span>
-              <select
-                value={operationForm.paymentMethodId}
-                required
-                onChange={(event) => setOperationForm((current) => ({ ...current, paymentMethodId: event.currentTarget.value }))}
-              >
-                <option value="">{translate("Select")}</option>
-                {paymentMethods.map((method) => (
-                  <option key={String(method.id)} value={String(method.id)}>{method.name}</option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span>{translate("Amount UZS")}</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={operationForm.amountUzs}
-                required
-                onChange={(event) => setOperationForm((current) => ({
-                  ...current,
-                  amountUzs: normalizeAmountInput(event.currentTarget.value)
-                }))}
-              />
-            </label>
-            <label className="field">
-              <span>{translate("Note")}</span>
-              <input
-                type="text"
-                value={operationForm.note}
-                onChange={(event) => setOperationForm((current) => ({ ...current, note: event.currentTarget.value }))}
-              />
-            </label>
-            <div className="edit-actions">
-              <button type="button" className="btn btn-secondary" disabled={submitting} onClick={closeOperation}>
-                {translate("Cancel")}
-              </button>
-              <button type="submit" className="btn btn-primary" disabled={submitting}>
-                {translate("Save")}
-              </button>
+          <div id="financeClientLedgerModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-client-ledger-modal">
+            <h3>{`${translate("Client Transactions")} - ${ledgerData?.client?.clientName || ledgerClient.clientName || "-"}`}</h3>
+            <div className="finance-client-ledger-summary" aria-busy={ledgerLoading ? "true" : "false"}>
+              <div>
+                <strong>{translate("Debt")}</strong>
+                <span className={ledgerSummary.debtUzs > 0 ? "finance-balance-negative" : ""}>{formatMoney(ledgerSummary.debtUzs)}</span>
+              </div>
+              <div>
+                <strong>{translate("Deposit")}</strong>
+                <span className={ledgerSummary.depositUzs > 0 ? "finance-balance-positive" : ""}>{formatMoney(ledgerSummary.depositUzs)}</span>
+              </div>
+              <div>
+                <strong>{translate("Cash In")}</strong>
+                <span>{formatMoney(ledgerSummary.cashInUzs)}</span>
+              </div>
+              <div>
+                <strong>{translate("Cash Out")}</strong>
+                <span>{formatMoney(ledgerSummary.cashOutUzs)}</span>
+              </div>
+              <div>
+                <strong>{translate("Ticket Paid")}</strong>
+                <span>{formatMoney(ledgerSummary.ticketPaidUzs)}</span>
+              </div>
+              <div>
+                <strong>{translate("Deposit Used")}</strong>
+                <span>{formatMoney(ledgerSummary.depositUsedUzs)}</span>
+              </div>
             </div>
-          </form>
-        </>
-      ) : null}
-
-      {ticketPaymentForm ? (
-        <>
-          <button
-            type="button"
-            className="login-overlay stacked-modal-overlay"
-            aria-label="Close deposit ticket payment modal"
-            onClick={closeTicketPayment}
-          />
-          <form id="financeDepositTicketPaymentModal" className="logout-confirm-modal all-users-edit-modal" onSubmit={submitTicketPayment}>
-            <h3>{translate("Pay Tickets From Deposit")}</h3>
-            <p className="all-users-state">{ticketPaymentForm.clientName || "-"}</p>
-            <p className="all-users-state">{`${translate("Deposit")}: ${formatMoney(ticketPaymentForm.depositUzs)}`}</p>
-            <p className="all-users-state">{`${translate("Selected Total")}: ${formatMoney(selectedTicketTotal)}`}</p>
-            <div className="all-users-table-scroll">
-              <table className="all-users-table" aria-label="Deposit ticket selection table">
+            <div className="all-users-table-scroll finance-client-ledger-table-scroll">
+              <table className="all-users-table finance-client-ledger-table" aria-label="Client transaction ledger table">
                 <thead>
                   <tr>
-                    <th>{translate("Select")}</th>
+                    <th>{translate("Created At")}</th>
+                    <th>{translate("Action")}</th>
                     <th>{translate("Ticket Number")}</th>
-                    <th>{translate("Ticket Date")}</th>
-                    <th>{translate("Service")}</th>
-                    <th>{translate("Total")}</th>
+                    <th>{translate("Payment Method")}</th>
+                    <th>{translate("Cash In")}</th>
+                    <th>{translate("Cash Out")}</th>
+                    <th>{translate("Deposit +/-")}</th>
+                    <th>{translate("Deposit Balance")}</th>
+                    <th>{translate("Cashier")}</th>
+                    <th>{translate("Status")}</th>
+                    <th>{translate("Note")}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {ticketPaymentForm.tickets.map((ticket) => (
-                    <tr key={String(ticket.id)}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={ticketPaymentForm.selectedIds.includes(String(ticket.id))}
-                          onChange={() => toggleTicketSelection(ticket.id)}
-                        />
+                  {ledgerLoading ? (
+                    [0, 1, 2].map((index) => (
+                      <tr key={index} aria-hidden="true">
+                        <td colSpan="11" className="skel" />
+                      </tr>
+                    ))
+                  ) : ledgerItems.map((item) => (
+                    <tr key={String(item.id)}>
+                      <td>{formatDateTime(item.createdAt || item.transactionAt)}</td>
+                      <td>{getTransactionActionLabel(translate, item)}</td>
+                      <td>{item.ticketNumber ? `#${item.ticketNumber}` : "-"}</td>
+                      <td>{item.paymentMethodName || translate("Balance")}</td>
+                      <td>{formatMoney(item.cashInUzs)}</td>
+                      <td>{formatMoney(item.cashOutUzs)}</td>
+                      <td className={item.depositChangeUzs > 0 ? "finance-balance-positive" : item.depositChangeUzs < 0 ? "finance-balance-negative" : undefined}>
+                        {formatSignedMoney(item.depositChangeUzs)}
                       </td>
-                      <td>{ticket.ticketNumber ? `#${ticket.ticketNumber}` : "-"}</td>
-                      <td>{ticket.ticketDate || "-"}</td>
-                      <td>{ticket.serviceName || "-"}</td>
-                      <td>{formatMoney(ticket.totalUzs)}</td>
+                      <td>{formatMoney(item.depositBalanceAfterUzs)}</td>
+                      <td>{item.cashierName || "-"}</td>
+                      <td>{item.status === "voided" ? translate("Cancelled") : translate("Active")}</td>
+                      <td>{item.note || "-"}</td>
                     </tr>
                   ))}
-                  {ticketPaymentForm.tickets.length === 0 ? (
-                    <tr><td colSpan="5" className="all-users-state">{translate("No items found.")}</td></tr>
+                  {!ledgerLoading && ledgerItems.length === 0 ? (
+                    <tr>
+                      <td colSpan="11" className="all-users-state">{translate("No items found.")}</td>
+                    </tr>
                   ) : null}
                 </tbody>
               </table>
             </div>
-            <label className="field">
-              <span>{translate("Note")}</span>
-              <input
-                type="text"
-                value={ticketPaymentForm.note}
-                onChange={(event) => setTicketPaymentForm((current) => ({ ...current, note: event.currentTarget.value }))}
-              />
-            </label>
             <div className="edit-actions">
-              <button type="button" className="btn btn-secondary" disabled={submitting} onClick={closeTicketPayment}>
-                {translate("Cancel")}
-              </button>
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={
-                  submitting
-                  || ticketPaymentForm.selectedIds.length === 0
-                  || selectedTicketTotal <= 0
-                  || selectedTicketTotal > ticketPaymentForm.depositUzs
-                }
-              >
-                {translate("Save")}
-              </button>
+              <button type="button" className="btn btn-secondary" onClick={closeClientLedger}>{translate("Close")}</button>
             </div>
-          </form>
+          </div>
         </>
       ) : null}
+
     </section>
   );
 }
