@@ -1385,7 +1385,6 @@ function FinanceCashierPanel({
                           searchPlaceholder={translate("Search")}
                           searchThreshold={8}
                           menuPortal
-                          menuWidthScale={1.2}
                           onChange={(value) => {
                             const service = board.services.find((entry) => String(entry.id) === String(value || "")) || {};
                             setAppointmentTicketForm((current) => ({
@@ -1393,19 +1392,6 @@ function FinanceCashierPanel({
                               serviceId: value,
                               priceUzs: String(normalizeMoneyInput(service.priceUzs ?? current.priceUzs))
                             }));
-                          }}
-                        />
-                      </label>
-                      <label className="field">
-                        <span>{translate("Price")}</span>
-                        <input
-                          type="number"
-                          min="0"
-                          value={appointmentTicketForm.priceUzs}
-                          onWheel={(event) => event.currentTarget.blur()}
-                          onChange={(event) => {
-                            const value = event.currentTarget.value;
-                            setAppointmentTicketForm((current) => ({ ...current, priceUzs: value }));
                           }}
                         />
                       </label>

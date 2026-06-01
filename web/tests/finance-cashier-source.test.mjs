@@ -39,11 +39,16 @@ test("cashier ticket cards stay compact while payment modal shows multi-service 
   );
 });
 
-test("appointment ticket modal allows changing service and price before save", () => {
+test("appointment ticket modal derives price from the selected service before save", async () => {
+  const styles = await readFile(
+    new URL("../src/css/components/components.css", import.meta.url),
+    "utf8"
+  );
+
   assert.match(
     cashierPanelSource,
     /function createAppointmentTicketForm[\s\S]*serviceId: String\(item\?\.serviceId \|\| ""\)[\s\S]*priceUzs: String\(normalizeMoneyInput\(item\?\.servicePriceUzs\)\)/s,
-    "Appointment ticket modal should initialize editable service and price fields from the planner card."
+    "Appointment ticket modal should initialize service and derived price state from the planner card."
   );
 
   assert.match(
@@ -51,17 +56,27 @@ test("appointment ticket modal allows changing service and price before save", (
     /value=\{appointmentTicketForm\.serviceId\}[\s\S]*options=\{manualServiceOptions\}[\s\S]*Select service type[\s\S]*priceUzs: String\(normalizeMoneyInput\(service\.priceUzs \?\? current\.priceUzs\)\)/s,
     "The service field in Create Ticket should be a selectable service dropdown that refreshes the price."
   );
-
-  assert.match(
+  assert.doesNotMatch(
     cashierPanelSource,
-    /value=\{appointmentTicketForm\.priceUzs\}[\s\S]*setAppointmentTicketForm\(\(current\) => \(\{ \.\.\.current, priceUzs: value \}\)\)/s,
-    "Create Ticket should expose an editable price input."
+    /id="financeAppointmentTicketModal"[\s\S]*menuWidthScale=\{1\.2\}/s,
+    "Create Ticket service dropdown should not render wider than its trigger."
+  );
+  assert.match(
+    styles,
+    /#financeAppointmentTicketModal \.finance-manual-item-grid > \.field,[\s\S]*#financeAppointmentTicketModal \.finance-manual-item-grid \.custom-select-trigger \{[\s\S]*max-width: 100%;[\s\S]*min-width: 0;[\s\S]*#financeAppointmentTicketModal \.finance-manual-item-grid \.custom-select-trigger > span \{[\s\S]*overflow: hidden;[\s\S]*text-overflow: ellipsis;[\s\S]*white-space: nowrap;/s,
+    "Create Ticket service select should stay inside its parent and truncate long labels."
+  );
+
+  assert.doesNotMatch(
+    cashierPanelSource,
+    /<span>\{translate\("Price"\)\}<\/span>[\s\S]*value=\{appointmentTicketForm\.priceUzs\}[\s\S]*setAppointmentTicketForm\(\(current\) => \(\{ \.\.\.current, priceUzs: value \}\)\)/s,
+    "Create Ticket should not expose an editable price input."
   );
 
   assert.match(
     cashierPanelSource,
     /payload\.items = \[\{[\s\S]*serviceId,[\s\S]*priceUzs,[\s\S]*discountType: appointmentTicketForm\.discountType/s,
-    "Create Ticket should submit the selected service and edited price as a ticket line item."
+    "Create Ticket should submit the selected service and derived price as a ticket line item."
   );
 });
 

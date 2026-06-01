@@ -7763,7 +7763,7 @@ label.field > span:first-child,
 
 #financeTicketEditModal .finance-ticket-edit-item-grid {
   display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr) minmax(118px, 0.55fr) minmax(96px, 0.45fr);
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
   gap: 7px;
   align-items: end;
 }
@@ -7774,10 +7774,6 @@ label.field > span:first-child,
 
 #financeTicketEditModal .finance-ticket-edit-item-grid .custom-select {
   max-width: 100%;
-}
-
-#financeTicketEditModal .finance-ticket-edit-discount-field {
-  gap: 4px;
 }
 
 #financeTicketEditModal .finance-ticket-edit-reason-field {
@@ -7792,7 +7788,7 @@ label.field > span:first-child,
 
 #financeTicketEditModal .finance-ticket-edit-total {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 7px;
   padding: 7px;
 }
@@ -7800,6 +7796,7 @@ label.field > span:first-child,
 #financeTicketEditModal .finance-ticket-edit-total > .finance-total-cell {
   min-height: 46px;
   display: grid;
+  grid-template-columns: 1fr;
   align-content: center;
   gap: 7px;
   padding: 7px 9px;
@@ -7835,6 +7832,12 @@ label.field > span:first-child,
   border-radius: 8px;
   background: var(--surface);
   color: var(--text-main);
+}
+
+#financeTicketEditModal .finance-ticket-edit-total .finance-total-cell input,
+#financeTicketEditModal .finance-ticket-edit-total .finance-total-cell .custom-select-trigger {
+  height: 30px;
+  min-height: 30px;
 }
 
 .ops-panel-shell .finance-manual-client-search {
@@ -7880,6 +7883,21 @@ label.field > span:first-child,
 #financeManualTicketModal .finance-manual-client-select,
 #financeAppointmentTicketModal .finance-manual-client-select {
   width: 100%;
+}
+
+#financeAppointmentTicketModal .finance-manual-item-grid > .field,
+#financeAppointmentTicketModal .finance-manual-item-grid .custom-select,
+#financeAppointmentTicketModal .finance-manual-item-grid .custom-select-trigger {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+#financeAppointmentTicketModal .finance-manual-item-grid .custom-select-trigger > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 #financeManualTicketModal .finance-manual-items,

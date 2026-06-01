@@ -88,6 +88,8 @@ function createInitialAppliedFilters() {
 const EMPTY_TICKET_EDIT_FORM = Object.freeze({
   ticketDate: "",
   clientId: "",
+  discountType: "amount",
+  discountValue: "0",
   reason: "",
   items: []
 });
@@ -124,6 +126,65 @@ function calculateDiscountUzs({ priceUzs, discountType, discountValue }) {
   return Math.min(price, value);
 }
 
+function distributeDiscountUzs(prices, discountUzs) {
+  const normalizedPrices = prices.map((price) => normalizeMoneyInput(price));
+  const subtotal = normalizedPrices.reduce((sum, price) => sum + price, 0);
+  const normalizedDiscount = Math.min(normalizeMoneyInput(discountUzs), subtotal);
+  let remainingDiscount = normalizedDiscount;
+  let remainingPrice = subtotal;
+  if (remainingDiscount <= 0 || subtotal <= 0) {
+    return normalizedPrices.map(() => 0);
+  }
+
+  return normalizedPrices.map((price, index) => {
+    if (price <= 0 || remainingDiscount <= 0) {
+      remainingPrice -= price;
+      return 0;
+    }
+    if (index === normalizedPrices.length - 1) {
+      const amount = Math.min(price, remainingDiscount);
+      remainingDiscount -= amount;
+      remainingPrice -= price;
+      return amount;
+    }
+    const remainingPriceAfterItem = remainingPrice - price;
+    const proportionalAmount = Math.floor((normalizedDiscount * price) / subtotal);
+    const minimumAmount = Math.max(0, remainingDiscount - remainingPriceAfterItem);
+    const amount = Math.min(price, remainingDiscount, Math.max(proportionalAmount, minimumAmount));
+    remainingDiscount -= amount;
+    remainingPrice -= price;
+    return amount;
+  });
+}
+
+function getTicketEditRowDiscountUzs(row) {
+  if (row?.discountUzs !== undefined && row?.discountUzs !== null) {
+    return normalizeMoneyInput(row.discountUzs);
+  }
+  return calculateDiscountUzs({
+    priceUzs: row?.priceUzs ?? row?.finalAmountUzs,
+    discountType: row?.discountType,
+    discountValue: row?.discountValue
+  });
+}
+
+function createTicketEditDiscountForm(item) {
+  const rows = Array.isArray(item?.items) && item.items.length > 0 ? item.items : [];
+  if (rows.length === 1 && String(rows[0]?.discountType || "").toLowerCase() === "percent") {
+    return {
+      discountType: "percent",
+      discountValue: String(rows[0]?.discountValue ?? 0)
+    };
+  }
+  const discountUzs = rows.length > 0
+    ? rows.reduce((sum, row) => sum + getTicketEditRowDiscountUzs(row), 0)
+    : normalizeMoneyInput(item?.discountUzs);
+  return {
+    discountType: "amount",
+    discountValue: String(discountUzs)
+  };
+}
+
 function createTicketEditItemRows(item) {
   const rows = Array.isArray(item?.items) && item.items.length > 0
     ? item.items
@@ -132,26 +193,25 @@ function createTicketEditItemRows(item) {
         specialistName: item?.specialistName,
         serviceId: item?.serviceId,
         serviceName: item?.serviceName,
-        priceUzs: item?.totalUzs ?? item?.amountUzs,
-        discountType: "amount",
-        discountValue: 0
+        priceUzs: item?.totalUzs ?? item?.amountUzs
       }];
   return rows.map((row) => ({
     specialistId: String(row?.specialistId || ""),
     specialistName: String(row?.specialistName || ""),
     serviceId: String(row?.serviceId || ""),
     serviceName: String(row?.serviceName || ""),
-    priceUzs: normalizeMoneyInput(row?.priceUzs ?? row?.finalAmountUzs),
-    discountType: String(row?.discountType || "amount"),
-    discountValue: String(row?.discountValue ?? 0)
+    priceUzs: normalizeMoneyInput(row?.priceUzs ?? row?.finalAmountUzs)
   }));
 }
 
 function createTicketEditForm(item = null) {
   if (!item) return EMPTY_TICKET_EDIT_FORM;
+  const discountForm = createTicketEditDiscountForm(item);
   return {
     ticketDate: formatDateInput(item.ticketDate),
     clientId: String(item.clientId || ""),
+    discountType: discountForm.discountType,
+    discountValue: discountForm.discountValue,
     reason: "",
     items: createTicketEditItemRows(item)
   };
@@ -520,21 +580,22 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
   }, [editServiceOptions]);
 
   const editTotals = useMemo(() => {
-    return editForm.items.reduce((totals, item) => {
+    const subtotalUzs = editForm.items.reduce((sum, item) => {
       const service = editServiceById.get(String(item.serviceId || ""));
       const priceUzs = normalizeMoneyInput(service?.priceUzs ?? item.priceUzs);
-      const discountUzs = calculateDiscountUzs({
-        priceUzs,
-        discountType: item.discountType,
-        discountValue: item.discountValue
-      });
-      return {
-        subtotalUzs: totals.subtotalUzs + priceUzs,
-        discountUzs: totals.discountUzs + discountUzs,
-        totalUzs: totals.totalUzs + Math.max(priceUzs - discountUzs, 0)
-      };
-    }, { subtotalUzs: 0, discountUzs: 0, totalUzs: 0 });
-  }, [editForm.items, editServiceById]);
+      return sum + priceUzs;
+    }, 0);
+    const discountUzs = calculateDiscountUzs({
+      priceUzs: subtotalUzs,
+      discountType: editForm.discountType,
+      discountValue: editForm.discountValue
+    });
+    return {
+      subtotalUzs,
+      discountUzs,
+      totalUzs: Math.max(subtotalUzs - discountUzs, 0)
+    };
+  }, [editForm.discountType, editForm.discountValue, editForm.items, editServiceById]);
 
   const applyFilters = (event) => {
     event.preventDefault();
@@ -798,6 +859,13 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
       window.alert?.(translate("Change reason is required."));
       return;
     }
+    const editItemDiscounts = distributeDiscountUzs(
+      editForm.items.map((item) => {
+        const service = editServiceById.get(String(item.serviceId || ""));
+        return normalizeMoneyInput(service?.priceUzs ?? item.priceUzs);
+      }),
+      editTotals.discountUzs
+    );
 
     setEditSubmitting(true);
     try {
@@ -807,11 +875,11 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
         body: JSON.stringify({
           ticketDate: editForm.ticketDate,
           clientId: editForm.clientId,
-          items: editForm.items.map((item) => ({
+          items: editForm.items.map((item, index) => ({
             specialistId: item.specialistId,
             serviceId: item.serviceId,
-            discountType: item.discountType || "amount",
-            discountValue: Number.parseInt(String(item.discountValue || 0), 10) || 0
+            discountType: "amount",
+            discountValue: editItemDiscounts[index] || 0
           })),
           reason
         })
@@ -1298,31 +1366,6 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                             });
                           }}
                         />
-                        <label className="field finance-ticket-edit-discount-field">
-                          <span>{translate("Discount Type")}</span>
-                          <CustomSelect
-                            value={item.discountType || "amount"}
-                            options={[
-                              { value: "amount", label: translate("Amount") },
-                              { value: "percent", label: translate("Percent") }
-                            ]}
-                            menuPortal
-                            onChange={(value) => updateEditItem(index, { discountType: value })}
-                          />
-                        </label>
-                        <label className="field finance-ticket-edit-discount-field">
-                          <span>{translate("Discount")}</span>
-                          <input
-                            type="number"
-                            min="0"
-                            max={item.discountType === "percent" ? "100" : undefined}
-                            value={item.discountValue}
-                            onChange={(event) => {
-                              const value = event.currentTarget.value;
-                              updateEditItem(index, { discountValue: value });
-                            }}
-                          />
-                        </label>
                       </div>
                     </div>
                   ))}
@@ -1342,15 +1385,36 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                   />
                 </label>
 
-                <div className="finance-ticket-total finance-ticket-edit-total">
+                <div className="finance-ticket-summary finance-ticket-total finance-ticket-edit-total">
                   <div className="finance-total-cell">
                     <span>{translate("Subtotal")}</span>
                     <strong>{formatMoney(editTotals.subtotalUzs)}</strong>
                   </div>
-                  <div className="finance-total-cell">
+                  <label className="field finance-total-cell">
+                    <span>{translate("Discount Type")}</span>
+                    <CustomSelect
+                      value={editForm.discountType}
+                      options={[
+                        { value: "amount", label: translate("Amount") },
+                        { value: "percent", label: translate("Percent") }
+                      ]}
+                      menuPortal
+                      onChange={(value) => setEditForm((current) => ({ ...current, discountType: value }))}
+                    />
+                  </label>
+                  <label className="field finance-total-cell">
                     <span>{translate("Discount")}</span>
-                    <strong>{formatMoney(editTotals.discountUzs)}</strong>
-                  </div>
+                    <input
+                      type="number"
+                      min="0"
+                      max={editForm.discountType === "percent" ? "100" : undefined}
+                      value={editForm.discountValue}
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setEditForm((current) => ({ ...current, discountValue: value }));
+                      }}
+                    />
+                  </label>
                   <div className="finance-total-cell">
                     <span>{translate("Total")}</span>
                     <strong>{formatMoney(editTotals.totalUzs)}</strong>

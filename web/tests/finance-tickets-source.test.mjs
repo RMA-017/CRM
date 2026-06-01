@@ -25,7 +25,7 @@ test("ticket edit modal keeps only change reason and preserves existing note", a
   );
 });
 
-test("ticket edit change reason field uses a narrower horizontal size", async () => {
+test("ticket edit change reason field uses full width and compact height", async () => {
   const styles = await readFile(
     new URL("../src/css/components/components.css", import.meta.url),
     "utf8"
@@ -33,12 +33,12 @@ test("ticket edit change reason field uses a narrower horizontal size", async ()
 
   assert.match(
     styles,
-    /#financeTicketEditModal \.finance-ticket-edit-reason-field \{[\s\S]*width: min\(520px, 100%\);[\s\S]*#financeTicketEditModal \.finance-ticket-edit-reason-field textarea \{[\s\S]*resize: vertical;/s,
-    "Change reason should be narrower on the x axis and avoid horizontal textarea resizing."
+    /#financeTicketEditModal \.finance-ticket-edit-reason-field \{[\s\S]*width: 100%;[\s\S]*#financeTicketEditModal \.finance-ticket-edit-reason-field textarea \{[\s\S]*min-height: 44px;[\s\S]*height: 44px;[\s\S]*resize: vertical;/s,
+    "Change reason should fill the x axis and use the compact textarea height."
   );
 });
 
-test("ticket edit modal allows changing discounts and recalculates totals", async () => {
+test("ticket edit modal uses one shared discount and distributes it to line items", async () => {
   const source = await readFile(
     new URL("../src/pages/profile/panels/FinanceTicketsPanel.jsx", import.meta.url),
     "utf8"
@@ -50,23 +50,33 @@ test("ticket edit modal allows changing discounts and recalculates totals", asyn
 
   assert.match(
     source,
-    /const editTotals = useMemo\(\(\) => \{[\s\S]*calculateDiscountUzs\(\{[\s\S]*discountType: item\.discountType,[\s\S]*discountValue: item\.discountValue[\s\S]*totalUzs: totals\.totalUzs \+ Math\.max\(priceUzs - discountUzs, 0\)/s,
-    "Edit ticket totals should recalculate subtotal, discount and total from edited line discounts."
+    /const EMPTY_TICKET_EDIT_FORM = Object\.freeze\(\{[\s\S]*discountType: "amount",[\s\S]*discountValue: "0"/s,
+    "Edit ticket form should keep shared discount state."
   );
   assert.match(
     source,
-    /finance-ticket-edit-discount-field[\s\S]*translate\("Discount Type"\)[\s\S]*value=\{item\.discountType \|\| "amount"\}[\s\S]*translate\("Discount"\)[\s\S]*max=\{item\.discountType === "percent" \? "100" : undefined\}[\s\S]*updateEditItem\(index, \{ discountValue: value \}\)/s,
-    "Edit ticket modal should expose discount type and discount value controls for each line."
+    /const editTotals = useMemo\(\(\) => \{[\s\S]*const subtotalUzs = editForm\.items\.reduce[\s\S]*calculateDiscountUzs\(\{[\s\S]*priceUzs: subtotalUzs,[\s\S]*discountType: editForm\.discountType,[\s\S]*discountValue: editForm\.discountValue[\s\S]*totalUzs: Math\.max\(subtotalUzs - discountUzs, 0\)/s,
+    "Edit ticket totals should recalculate subtotal, shared discount and total from the shared discount controls."
+  );
+  assert.doesNotMatch(
+    source,
+    /finance-ticket-edit-discount-field/,
+    "Edit ticket item rows should not render per-line discount controls."
   );
   assert.match(
     source,
-    /items: editForm\.items\.map\(\(item\) => \(\{[\s\S]*discountType: item\.discountType \|\| "amount",[\s\S]*discountValue: Number\.parseInt\(String\(item\.discountValue \|\| 0\), 10\) \|\| 0/s,
-    "Edited discount values should be sent with ticket update items."
+    /className="finance-ticket-summary finance-ticket-total finance-ticket-edit-total"[\s\S]*translate\("Discount Type"\)[\s\S]*value=\{editForm\.discountType\}[\s\S]*translate\("Discount"\)[\s\S]*max=\{editForm\.discountType === "percent" \? "100" : undefined\}[\s\S]*value=\{editForm\.discountValue\}/s,
+    "Edit ticket modal should expose one shared discount block like manual ticket creation."
+  );
+  assert.match(
+    source,
+    /const editItemDiscounts = distributeDiscountUzs\([\s\S]*editTotals\.discountUzs[\s\S]*items: editForm\.items\.map\(\(item, index\) => \(\{[\s\S]*discountType: "amount",[\s\S]*discountValue: editItemDiscounts\[index\] \|\| 0/s,
+    "Edited shared discount should be distributed across ticket items before update."
   );
   assert.match(
     styles,
-    /#financeTicketEditModal \.finance-ticket-edit-item-grid \{[\s\S]*grid-template-columns: minmax\(0, 0\.85fr\) minmax\(0, 1\.15fr\) minmax\(118px, 0\.55fr\) minmax\(96px, 0\.45fr\);[\s\S]*#financeTicketEditModal \.finance-ticket-edit-item-grid > \* \{[\s\S]*min-width: 0;[\s\S]*#financeTicketEditModal \.finance-ticket-edit-item-grid \.custom-select \{[\s\S]*max-width: 100%;/s,
-    "Edit ticket item rows should keep service selects inside the modal while leaving room for discount controls."
+    /#financeTicketEditModal \.finance-ticket-edit-item-grid \{[\s\S]*grid-template-columns: minmax\(0, 0\.85fr\) minmax\(0, 1\.15fr\);[\s\S]*#financeTicketEditModal \.finance-ticket-edit-total \{[\s\S]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/s,
+    "Edit ticket item rows should only contain specialist and service selects while the shared total row has four cells."
   );
   assert.doesNotMatch(
     source,
