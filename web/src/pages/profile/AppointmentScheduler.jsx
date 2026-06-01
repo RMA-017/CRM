@@ -1181,6 +1181,8 @@ function AppointmentPlannerGrid({
   breaksForSpecialist = [],
   blockedTimesForSpecialist = [],
   absencesForSpecialist = [],
+  showBusyOverlay = true,
+  highlightAvailableCommonSlots = false,
   slotCellHeightPx = DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
   now = new Date(),
   canCreateOnSpecialist = false,
@@ -2289,11 +2291,14 @@ function AppointmentPlannerGrid({
                       ? breakBlockedItem
                       : (canOpenWorkScheduleBlockFromCell ? workScheduleBlockedItem : null);
                     const canOpenEditableBlockFromCell = Boolean(editableBlockType && editableBlockItem);
+                    const shouldShowBusyOverlay = Boolean(showBusyOverlay && overlayBusyItem);
+                    const isCommonFreeSlot = Boolean(highlightAvailableCommonSlots && canOpenCreateFromCell);
                     const tdClassName = [
                       "appointment-day-col-gap",
                       canOpenCreateFromCell ? "appointment-create-slot-td" : "",
                       canDropAppointmentToCell ? "appointment-drop-slot-td" : "",
                       canOpenEditableBlockFromCell ? "appointment-editable-block-slot-td" : "",
+                      isCommonFreeSlot ? "appointment-common-free-slot-td" : "",
                       timeHoverCellClassName,
                       tdRowSpan ? "appointment-td-multi-slot" : "",
                       reachesBottom ? "appointment-td-reaches-bottom" : "",
@@ -2301,9 +2306,9 @@ function AppointmentPlannerGrid({
                       statusCellClassName,
                       (absenceBlockedItem || workScheduleBlockedItem) ? "appointment-work-schedule-blocked-td" : "",
                       breakBlockedItem ? `appointment-break-type-${breakBlockedItem.breakType}-td` : "",
-                      overlayBusyItem ? "appointment-shadow-overlay-td" : "",
-                      overlayBusyItem?.isStart ? "appointment-shadow-overlay-start-td" : "",
-                      overlayBusyItem?.rangePosition ? `appointment-shadow-overlay-${overlayBusyItem.rangePosition}-td` : "",
+                      shouldShowBusyOverlay ? "appointment-shadow-overlay-td" : "",
+                      shouldShowBusyOverlay && overlayBusyItem?.isStart ? "appointment-shadow-overlay-start-td" : "",
+                      shouldShowBusyOverlay && overlayBusyItem?.rangePosition ? `appointment-shadow-overlay-${overlayBusyItem.rangePosition}-td` : "",
                     ].filter(Boolean).join(" ") || undefined;
 
                     return (
@@ -2453,7 +2458,7 @@ function AppointmentPlannerGrid({
                             <span className="appointment-break-slot-text">{breakBlockedItem.reasonShort}</span>
                           </span>
                         ) : null}
-                        {overlayBusyItem ? (
+                        {shouldShowBusyOverlay ? (
                           <span
                             className={`appointment-shadow-overlay is-${overlayBusyItem.rangePosition || "middle"} appointment-shadow-overlay-${overlayBusyItem.status || "pending"}`}
                             title={String(overlayBusyItem.title || "").trim() || undefined}
@@ -7398,6 +7403,8 @@ function AppointmentScheduler({
               rawAppointmentsByDay={clientFocusedAppointmentsByDay}
               overlayAppointmentsByDay={comparisonOverlayAppointmentsByDay}
               overlayLabel={comparisonOverlayLabel}
+              showBusyOverlay={!hasPlannerComparisonOverlay}
+              highlightAvailableCommonSlots={hasPlannerComparisonOverlay}
               selectedClientId={normalizedSelectedPlannerClientFilterId}
               breaksForSpecialist={breaksForSpecialist}
               blockedTimesForSpecialist={blockedTimesForSpecialist}
@@ -7430,6 +7437,8 @@ function AppointmentScheduler({
             rawAppointmentsByDay={rawAppointmentsByDay}
             overlayAppointmentsByDay={comparisonOverlayAppointmentsByDay}
             overlayLabel={comparisonOverlayLabel}
+            showBusyOverlay={!hasPlannerComparisonOverlay}
+            highlightAvailableCommonSlots={hasPlannerComparisonOverlay}
             breaksForSpecialist={breaksForSpecialist}
             blockedTimesForSpecialist={blockedTimesForSpecialist}
             absencesForSpecialist={absencesForSpecialist}

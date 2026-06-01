@@ -3,7 +3,10 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 
 test("Appointment scheduler supports client-focused multi-specialist planner view", async () => {
-  const source = await readFile(new URL("../src/pages/profile/AppointmentScheduler.jsx", import.meta.url), "utf8");
+  const [source, css] = await Promise.all([
+    readFile(new URL("../src/pages/profile/AppointmentScheduler.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/css/components/components.css", import.meta.url), "utf8")
+  ]);
 
   assert.match(
     source,
@@ -97,8 +100,18 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /overlayBusySlotsByDay[\s\S]*appointment-shadow-overlay-td[\s\S]*appointment-shadow-overlay/s,
-    "Comparison appointments should render as shadow overlay slots instead of replacing the primary planner."
+    /showBusyOverlay=\{!hasPlannerComparisonOverlay\}[\s\S]*highlightAvailableCommonSlots=\{hasPlannerComparisonOverlay\}/s,
+    "When both specialist and client are selected, comparison busy slots should stay blocking-only and common free slots should be highlighted."
+  );
+  assert.match(
+    source,
+    /const isCommonFreeSlot = Boolean\(highlightAvailableCommonSlots && canOpenCreateFromCell\);[\s\S]*appointment-common-free-slot-td/s,
+    "Planner should only mark a common free slot green when the cell is actually open for creating an appointment."
+  );
+  assert.match(
+    css,
+    /appointment-common-free-slot-td[\s\S]*rgba\(34,\s*197,\s*94,\s*0\.12\)/,
+    "Common free appointment slots should use a soft green background."
   );
   assert.match(
     source,
