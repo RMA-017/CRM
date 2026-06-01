@@ -6,11 +6,16 @@ const referenceRoutesModule = await import("../src/modules/appointments/routes/r
 const breaksRoutesModule = await import("../src/modules/appointments/routes/breaks.routes.js");
 const schedulesRoutesModule = await import("../src/modules/appointments/routes/schedules.routes.js");
 const appointmentRouteAccessModule = await import("../src/modules/appointments/appointment-route-access.js");
+const appointmentRouteHelpersModule = await import("../src/modules/appointments/appointment-route-helpers.js");
 
 const { registerAppointmentReferenceRoutes } = referenceRoutesModule;
 const { registerAppointmentBreakRoutes } = breaksRoutesModule;
 const { registerAppointmentScheduleRoutes } = schedulesRoutesModule;
 const { resolveNotificationAudience, resolveOwnAppointmentSpecialistUserId } = appointmentRouteAccessModule;
+const {
+  formatAppointmentCancellationNote,
+  prefixAppointmentCancellationNote
+} = appointmentRouteHelpersModule;
 
 test("appointment schedule service normalizes malformed repeat group keys before recurring update logic", async () => {
   const source = await readFile(
@@ -119,6 +124,30 @@ test("planner notifications target managers when a specialist changes own planne
     targetUserIds: [],
     targetRoles: ["manager"]
   });
+});
+
+test("appointment cancellation notes include their source", () => {
+  assert.equal(prefixAppointmentCancellationNote("bola kasal", "Parent"), "Parent: bola kasal");
+  assert.equal(prefixAppointmentCancellationNote("Parent: bola kasal", "Parent"), "Parent: bola kasal");
+  assert.equal(
+    formatAppointmentCancellationNote("vaqtim yo'q", "cancelled", {
+      requester: {
+        role_label: "Specialist",
+        position_label: ""
+      }
+    }),
+    "Specialist: vaqtim yo'q"
+  );
+  assert.equal(
+    formatAppointmentCancellationNote("jadval o'zgardi", "cancelled", {
+      requester: {
+        role_label: "Manager",
+        position_label: ""
+      }
+    }),
+    "Manager: jadval o'zgardi"
+  );
+  assert.equal(formatAppointmentCancellationNote("oddiy note", "pending", {}), "oddiy note");
 });
 
 function createReplyRecorder() {

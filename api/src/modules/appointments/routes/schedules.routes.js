@@ -305,6 +305,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     buildWorkScheduleBlockConflictMessage,
     buildScheduleNotification,
     createRouteError,
+    formatAppointmentCancellationNote,
     isUniqueOrExclusionConflict,
     getAppointmentPlannerReportFilters,
     getAppointmentPlannerReport,
@@ -1139,7 +1140,10 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const serviceId = parsePositiveIntegerOr(request.body?.serviceId ?? request.body?.service_id, 0) || null;
         const servicePriceUzs = parseNonNegativeIntegerOr(request.body?.servicePriceUzs ?? request.body?.service_price_uzs, 0);
         const status = normalizeAppointmentStatus(request.body?.status || "pending");
-        const note = String(request.body?.note || "").trim();
+        const rawNote = String(request.body?.note || "").trim();
+        const note = typeof formatAppointmentCancellationNote === "function"
+          ? formatAppointmentCancellationNote(rawNote, status, access)
+          : rawNote;
         let repeat = normalizeScheduleRepeatPayload(request.body?.repeat);
         if (repeat.enabled && repeat.autoRolling) {
           repeat = {
@@ -1717,7 +1721,10 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const serviceId = parsePositiveIntegerOr(request.body?.serviceId ?? request.body?.service_id, 0) || null;
         const servicePriceUzs = parseNonNegativeIntegerOr(request.body?.servicePriceUzs ?? request.body?.service_price_uzs, 0);
         const status = normalizeAppointmentStatus(request.body?.status || "pending");
-        const note = String(request.body?.note || "").trim();
+        const rawNote = String(request.body?.note || "").trim();
+        const note = typeof formatAppointmentCancellationNote === "function"
+          ? formatAppointmentCancellationNote(rawNote, status, access)
+          : rawNote;
         let repeat = normalizeScheduleRepeatPayload(request.body?.repeat);
         if (repeat.enabled && repeat.autoRolling) {
           repeat = {

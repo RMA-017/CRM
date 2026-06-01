@@ -5,6 +5,7 @@ import { normalizePositiveInteger } from "../../lib/number.js";
 import { normalizePhoneDigits, normalizePhoneNumber } from "../../lib/phone-number.js";
 import { toBoundedInteger } from "../../lib/bounded-integer.js";
 import { publishAppointmentEvent } from "../appointments/appointment-events.js";
+import { prefixAppointmentCancellationNote } from "../appointments/appointment-route-helpers.js";
 import { clearAppointmentSchedulesReadCache } from "../appointments/appointment-schedules-read-cache.js";
 import { updateAppointmentSchedulesByIds } from "../appointments/appointment-settings.service.js";
 import { createOrUpdateCrmLead } from "../crm/crm.service.js";
@@ -1869,7 +1870,7 @@ async function notifyStaffAboutParentCancel({ settings, appointment, reason }) {
     eventType: "appointment-parent-cancelled",
     message,
     targetUserIds: [appointment.specialistId].filter(Boolean),
-    targetPermissionCodes: settings.managerNotificationPermissionCodes,
+    targetRoles: ["manager"],
     payload: {
       appointmentId: appointment.id,
       clientId: appointment.clientId,
@@ -1887,7 +1888,7 @@ async function notifyStaffAboutParentCancel({ settings, appointment, reason }) {
   }).catch(() => {});
 }
 
-async function notifyStaffAboutParentDayCancel({ settings, appointments, reason }) {
+async function notifyStaffAboutParentDayCancel({ appointments, reason }) {
   const items = Array.isArray(appointments) ? appointments : [];
   const groups = new Map();
   for (const item of items) {
@@ -1911,7 +1912,7 @@ async function notifyStaffAboutParentDayCancel({ settings, appointments, reason 
       eventType: "appointment-parent-cancelled",
       message,
       targetUserIds: [firstAppointment.specialistId].filter(Boolean),
-      targetPermissionCodes: settings.managerNotificationPermissionCodes,
+      targetRoles: ["manager"],
       payload: {
         appointmentId: firstAppointment.id,
         appointmentIds: groupItems.map((item) => item.id).filter(Boolean),
@@ -1969,6 +1970,7 @@ async function cancelParentAppointment({ settings, parent, appointmentId, reason
 
   const normalizedReason = String(reason || "").trim().slice(0, MAX_REASON_LENGTH)
     || getText(parent.language, "fallbackReason");
+  const scheduleNote = prefixAppointmentCancellationNote(normalizedReason, "Parent");
 
   await executeTransaction(async (db) => {
     await updateAppointmentSchedulesByIds({
@@ -1983,7 +1985,7 @@ async function cancelParentAppointment({ settings, parent, appointmentId, reason
       durationMinutes: appointment.durationMinutes,
       serviceName: appointment.serviceName,
       status: "cancelled",
-      note: normalizedReason,
+      note: scheduleNote,
       db
     });
     await upsertParentResponse({
@@ -2090,6 +2092,7 @@ async function cancelPendingDayAppointments({ settings, parent, pending, reason 
 
   const normalizedReason = String(reason || "").trim().slice(0, MAX_REASON_LENGTH)
     || getText(parent.language, "fallbackReason");
+  const scheduleNote = prefixAppointmentCancellationNote(normalizedReason, "Parent");
 
   await executeTransaction(async (db) => {
     for (const appointment of items) {
@@ -2105,7 +2108,7 @@ async function cancelPendingDayAppointments({ settings, parent, pending, reason 
         durationMinutes: appointment.durationMinutes,
         serviceName: appointment.serviceName,
         status: "cancelled",
-        note: normalizedReason,
+        note: scheduleNote,
         db
       });
       await upsertParentResponse({
@@ -2131,7 +2134,7 @@ async function cancelPendingDayAppointments({ settings, parent, pending, reason 
     responseStatus: "not_coming",
     message: "Parent cancelled day appointments."
   });
-  await notifyStaffAboutParentDayCancel({ settings, appointments: items, reason: normalizedReason });
+  await notifyStaffAboutParentDayCancel({ appointments: items, reason: normalizedReason });
   await editTelegramMessageOrSend({
     token: settings.botToken,
     chatId: parent.chatId,

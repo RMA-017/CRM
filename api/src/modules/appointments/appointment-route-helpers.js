@@ -1,5 +1,10 @@
 import { parsePositiveInteger } from "../../lib/number.js";
 import {
+  isManagerLikeRoleLabel,
+  isSpecialistLikeRoleLabel,
+  joinNormalizedRoleLabelParts
+} from "../../lib/role-labels.js";
+import {
   DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS,
   MAX_APPOINTMENT_HISTORY_LOCK_DAYS,
   MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
@@ -18,6 +23,8 @@ export const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const APPOINTMENT_STATUS_SET = new Set(["pending", "confirmed", "cancelled", "no-show"]);
 const MAX_RECURRING_RANGE_DAYS = 366;
 const BREAK_TYPE_SET = new Set(["lunch", "meeting", "training", "other"]);
+const CANCELLATION_NOTE_PREFIX_PATTERN = /^(parent|specialist|manager)\s*:/i;
+const APPOINTMENT_NOTE_MAX_LENGTH = 255;
 
 export function resolveTargetOrganizationId(access, requestedOrganizationId) {
   const authOrganizationId = parsePositiveInteger(access?.authContext?.organizationId);
@@ -77,6 +84,45 @@ export function normalizeBreakItems(value) {
 
 export function normalizeAppointmentStatus(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+export function prefixAppointmentCancellationNote(note, sourceLabel = "Manager") {
+  const normalizedNote = String(note || "").replace(/\s+/g, " ").trim();
+  if (!normalizedNote) {
+    return "";
+  }
+  if (CANCELLATION_NOTE_PREFIX_PATTERN.test(normalizedNote)) {
+    return normalizedNote.slice(0, APPOINTMENT_NOTE_MAX_LENGTH).trim();
+  }
+  const normalizedSourceLabel = String(sourceLabel || "Manager").replace(/\s+/g, " ").trim() || "Manager";
+  return `${normalizedSourceLabel}: ${normalizedNote}`.slice(0, APPOINTMENT_NOTE_MAX_LENGTH).trim();
+}
+
+export function getAppointmentCancellationSourceLabel(access) {
+  const requester = access?.requester || access || {};
+  if (Boolean(requester?.is_admin) || Boolean(requester?.is_platform_admin)) {
+    return "Manager";
+  }
+  const roleText = joinNormalizedRoleLabelParts(requester?.role_label || requester?.role);
+  if (isManagerLikeRoleLabel(roleText)) {
+    return "Manager";
+  }
+  if (isSpecialistLikeRoleLabel(roleText)) {
+    return "Specialist";
+  }
+  const positionText = joinNormalizedRoleLabelParts(requester?.position_label || requester?.position);
+  return isSpecialistLikeRoleLabel(positionText) ? "Specialist" : "Manager";
+}
+
+export function formatAppointmentCancellationNote(note, status, access) {
+  const normalizedNote = String(note || "").trim();
+  if (normalizeAppointmentStatus(status) !== "cancelled") {
+    return normalizedNote;
+  }
+  return prefixAppointmentCancellationNote(
+    normalizedNote,
+    getAppointmentCancellationSourceLabel(access)
+  );
 }
 
 function formatUtcDateYmd(value) {

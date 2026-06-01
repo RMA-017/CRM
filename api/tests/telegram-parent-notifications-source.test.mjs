@@ -256,8 +256,23 @@ test("Telegram weekly menu opens day buttons before showing lessons", async () =
   );
   assert.match(
     serviceSource,
-    /async function notifyStaffAboutParentDayCancel\([\s\S]*const firstSpecialistName = getSpecialistName\(firstAppointment\)[\s\S]*eventType: "appointment-parent-cancelled"[\s\S]*targetUserIds: \[firstAppointment\.specialistId\]\.filter\(Boolean\)[\s\S]*targetPermissionCodes: settings\.managerNotificationPermissionCodes[\s\S]*specialistName: firstSpecialistName[\s\S]*cancelledCount: groupItems\.length[\s\S]*specialistName: getSpecialistName\(item\)/s,
-    "Day-level cancellations should notify the responsible specialist and manager-permission users with specialist details."
+    /async function notifyStaffAboutParentDayCancel\([\s\S]*const firstSpecialistName = getSpecialistName\(firstAppointment\)[\s\S]*eventType: "appointment-parent-cancelled"[\s\S]*targetUserIds: \[firstAppointment\.specialistId\]\.filter\(Boolean\)[\s\S]*targetRoles: \["manager"\][\s\S]*specialistName: firstSpecialistName[\s\S]*cancelledCount: groupItems\.length[\s\S]*specialistName: getSpecialistName\(item\)/s,
+    "Day-level cancellations should notify the responsible specialist and manager-role users with specialist details."
+  );
+  assert.match(
+    serviceSource,
+    /async function notifyStaffAboutParentCancel\([\s\S]*eventType: "appointment-parent-cancelled"[\s\S]*targetUserIds: \[appointment\.specialistId\]\.filter\(Boolean\)[\s\S]*targetRoles: \["manager"\]/s,
+    "Single parent cancellations should target the responsible specialist and manager-role users."
+  );
+  assert.match(
+    serviceSource,
+    /const scheduleNote = prefixAppointmentCancellationNote\(normalizedReason, "Parent"\)[\s\S]*status: "cancelled",[\s\S]*note: scheduleNote/s,
+    "Parent cancellations should store a source-prefixed appointment note."
+  );
+  assert.doesNotMatch(
+    serviceSource,
+    /targetPermissionCodes: settings\.managerNotificationPermissionCodes/,
+    "Parent cancellation staff notifications should not fan out through broad notification permissions."
   );
   assert.match(
     serviceSource,
