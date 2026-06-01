@@ -202,7 +202,6 @@ function FinanceBalancesPanel({ onClose }) {
     setLedgerData(null);
   };
 
-  const ledgerSummary = ledgerData?.summary || {};
   const ledgerItems = Array.isArray(ledgerData?.items) ? ledgerData.items : [];
 
   return (
@@ -324,32 +323,6 @@ function FinanceBalancesPanel({ onClose }) {
           />
           <div id="financeClientLedgerModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-client-ledger-modal">
             <h3>{`${translate("Client Transactions")} - ${ledgerData?.client?.clientName || ledgerClient.clientName || "-"}`}</h3>
-            <div className="finance-client-ledger-summary" aria-busy={ledgerLoading ? "true" : "false"}>
-              <div>
-                <strong>{translate("Debt")}</strong>
-                <span className={ledgerSummary.debtUzs > 0 ? "finance-balance-negative" : ""}>{formatMoney(ledgerSummary.debtUzs)}</span>
-              </div>
-              <div>
-                <strong>{translate("Deposit")}</strong>
-                <span className={ledgerSummary.depositUzs > 0 ? "finance-balance-positive" : ""}>{formatMoney(ledgerSummary.depositUzs)}</span>
-              </div>
-              <div>
-                <strong>{translate("Cash In")}</strong>
-                <span>{formatMoney(ledgerSummary.cashInUzs)}</span>
-              </div>
-              <div>
-                <strong>{translate("Cash Out")}</strong>
-                <span>{formatMoney(ledgerSummary.cashOutUzs)}</span>
-              </div>
-              <div>
-                <strong>{translate("Ticket Paid")}</strong>
-                <span>{formatMoney(ledgerSummary.ticketPaidUzs)}</span>
-              </div>
-              <div>
-                <strong>{translate("Deposit Used")}</strong>
-                <span>{formatMoney(ledgerSummary.depositUsedUzs)}</span>
-              </div>
-            </div>
             <div className="all-users-table-scroll finance-client-ledger-table-scroll">
               <table className="all-users-table finance-client-ledger-table" aria-label="Client transaction ledger table">
                 <thead>

@@ -25,10 +25,10 @@ test("client balance rows open a read-only client transaction ledger", () => {
     "Balances rows should open the client ledger with a double-click."
   );
 
-  assert.match(
+  assert.doesNotMatch(
     balancesPanelSource,
-    /id="financeClientLedgerModal"[\s\S]*Client Transactions[\s\S]*Debt[\s\S]*Deposit[\s\S]*Cash In[\s\S]*Cash Out[\s\S]*Ticket Paid[\s\S]*Deposit Used/s,
-    "Client ledger modal should show quick summary fields for answering balance questions."
+    /finance-client-ledger-summary|ledgerSummary|Ticket Paid|Deposit Used/,
+    "Client ledger modal should stay focused on transaction rows without a duplicate summary strip."
   );
 
   assert.match(
@@ -45,7 +45,7 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     styles,
-    /#financeClientLedgerModal\.finance-client-ledger-modal[\s\S]*width: min\(1180px,[\s\S]*\.finance-client-ledger-summary[\s\S]*grid-template-columns: repeat\(6,[\s\S]*\.finance-client-ledger-table[\s\S]*min-width: 1320px/s,
+    /#financeClientLedgerModal\.finance-client-ledger-modal[\s\S]*width: min\(1180px,[\s\S]*\.finance-client-ledger-table[\s\S]*min-width: 1320px/s,
     "Client ledger modal should have a wide, scannable layout."
   );
 });

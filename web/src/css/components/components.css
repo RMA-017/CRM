@@ -6245,43 +6245,6 @@ label.field > span:first-child,
   max-height: min(760px, calc(100vh - 32px));
 }
 
-.finance-client-ledger-summary {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(120px, 1fr));
-  gap: 6px;
-  margin: 6px 0 8px;
-}
-
-.finance-client-ledger-summary div {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-  min-height: 42px;
-  padding: 5px 8px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--surface-soft);
-}
-
-.finance-client-ledger-summary strong {
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1.1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.finance-client-ledger-summary span {
-  overflow: hidden;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.15;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .finance-client-ledger-modal .finance-balance-positive {
   color: #15803d;
 }
