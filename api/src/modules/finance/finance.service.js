@@ -2893,7 +2893,7 @@ export async function getFinanceClientTransactions({ organizationId, clientId })
             CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
             t.ticket_id,
             ft.ticket_number,
-            ft.service_name,
+            COALESCE(NULLIF(TRIM(ticket_services.service_names), ''), ft.service_name) AS service_name,
             t.ticket_payment_id,
             t.payment_method_id,
             fpm.name AS payment_method_name,
@@ -2910,6 +2910,12 @@ export async function getFinanceClientTransactions({ organizationId, clientId })
        LEFT JOIN finance_cash_sessions s ON s.organization_id = t.organization_id AND s.id = t.cash_session_id
        LEFT JOIN clients c ON c.organization_id = t.organization_id AND c.id = t.client_id
        LEFT JOIN finance_tickets ft ON ft.organization_id = t.organization_id AND ft.id = t.ticket_id
+       LEFT JOIN LATERAL (
+         SELECT STRING_AGG(NULLIF(TRIM(fti.service_name), ''), ', ' ORDER BY fti.line_number, fti.id) AS service_names
+           FROM finance_ticket_items fti
+          WHERE fti.organization_id = ft.organization_id
+            AND fti.ticket_id = ft.id
+       ) ticket_services ON TRUE
        LEFT JOIN finance_payment_methods fpm ON fpm.organization_id = t.organization_id AND fpm.id = t.payment_method_id
        LEFT JOIN users cu ON cu.id = s.cashier_user_id
       WHERE t.organization_id = $1

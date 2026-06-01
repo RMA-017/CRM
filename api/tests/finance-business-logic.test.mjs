@@ -249,6 +249,12 @@ test("finance client balance filters use the projected balance columns", () => {
 
   assert.match(
     financeServiceSource,
+    /export async function getFinanceClientTransactions[\s\S]*COALESCE\(NULLIF\(TRIM\(ticket_services\.service_names\), ''\), ft\.service_name\) AS service_name[\s\S]*STRING_AGG\(NULLIF\(TRIM\(fti\.service_name\), ''\), ', ' ORDER BY fti\.line_number, fti\.id\) AS service_names/s,
+    "Client transaction ledger should show every service name from multi-service tickets."
+  );
+
+  assert.match(
+    financeServiceSource,
     /summary: \{[\s\S]*cashInUzs:[\s\S]*cashOutUzs:[\s\S]*depositUsedUzs:[\s\S]*depositUzs:[\s\S]*debtUzs:/s,
     "Client transaction ledger should return cash, deposit and debt summary fields."
   );

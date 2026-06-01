@@ -6227,6 +6227,10 @@ label.field > span:first-child,
   text-align: right;
 }
 
+.finance-balances-table :is(th:nth-child(5), td:nth-child(5)) {
+  padding-right: 28px;
+}
+
 .finance-balances-client-row {
   cursor: pointer;
 }
@@ -6244,32 +6248,36 @@ label.field > span:first-child,
 .finance-client-ledger-summary {
   display: grid;
   grid-template-columns: repeat(6, minmax(120px, 1fr));
-  gap: 8px;
-  margin: 10px 0 12px;
+  gap: 6px;
+  margin: 6px 0 8px;
 }
 
 .finance-client-ledger-summary div {
   display: grid;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
-  padding: 8px 10px;
+  min-height: 42px;
+  padding: 5px 8px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--surface-soft);
 }
 
 .finance-client-ledger-summary strong {
   overflow: hidden;
   color: var(--muted);
-  font-size: var(--fs-small);
+  font-size: 10px;
   font-weight: 600;
+  line-height: 1.1;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .finance-client-ledger-summary span {
   overflow: hidden;
+  font-size: 11px;
   font-weight: 700;
+  line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -6287,7 +6295,7 @@ label.field > span:first-child,
 }
 
 .finance-client-ledger-table {
-  min-width: 1160px;
+  min-width: 1320px;
   table-layout: fixed;
 }
 
@@ -6297,7 +6305,7 @@ label.field > span:first-child,
   white-space: nowrap;
 }
 
-.finance-client-ledger-table :is(th:nth-child(5), td:nth-child(5), th:nth-child(6), td:nth-child(6), th:nth-child(7), td:nth-child(7), th:nth-child(8), td:nth-child(8)) {
+.finance-client-ledger-table :is(th:nth-child(6), td:nth-child(6), th:nth-child(7), td:nth-child(7), th:nth-child(8), td:nth-child(8), th:nth-child(9), td:nth-child(9)) {
   text-align: right;
 }
 
@@ -6314,22 +6322,26 @@ label.field > span:first-child,
 }
 
 .finance-client-ledger-table :is(th:nth-child(4), td:nth-child(4)) {
+  width: 170px;
+}
+
+.finance-client-ledger-table :is(th:nth-child(5), td:nth-child(5)) {
   width: 130px;
 }
 
-.finance-client-ledger-table :is(th:nth-child(5), td:nth-child(5), th:nth-child(6), td:nth-child(6), th:nth-child(7), td:nth-child(7), th:nth-child(8), td:nth-child(8)) {
-  width: 120px;
-}
-
-.finance-client-ledger-table :is(th:nth-child(9), td:nth-child(9)) {
+.finance-client-ledger-table :is(th:nth-child(6), td:nth-child(6), th:nth-child(7), td:nth-child(7), th:nth-child(8), td:nth-child(8), th:nth-child(9), td:nth-child(9)) {
   width: 120px;
 }
 
 .finance-client-ledger-table :is(th:nth-child(10), td:nth-child(10)) {
-  width: 90px;
+  width: 120px;
 }
 
 .finance-client-ledger-table :is(th:nth-child(11), td:nth-child(11)) {
+  width: 90px;
+}
+
+.finance-client-ledger-table :is(th:nth-child(12), td:nth-child(12)) {
   width: 170px;
 }
 

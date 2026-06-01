@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { buildExportFilename, exportExcelWorkbook } from "../../../lib/excel-export.js";
 import { formatDateYMD } from "../../../lib/formatters.js";
@@ -313,7 +314,7 @@ function FinanceBalancesPanel({ onClose }) {
         </button>
       </div>
 
-      {ledgerClient ? (
+      {ledgerClient && typeof document !== "undefined" ? createPortal((
         <>
           <button
             type="button"
@@ -356,6 +357,7 @@ function FinanceBalancesPanel({ onClose }) {
                     <th>{translate("Created At")}</th>
                     <th>{translate("Action")}</th>
                     <th>{translate("Ticket Number")}</th>
+                    <th>{translate("Service Name")}</th>
                     <th>{translate("Payment Method")}</th>
                     <th>{translate("Cash In")}</th>
                     <th>{translate("Cash Out")}</th>
@@ -370,7 +372,7 @@ function FinanceBalancesPanel({ onClose }) {
                   {ledgerLoading ? (
                     [0, 1, 2].map((index) => (
                       <tr key={index} aria-hidden="true">
-                        <td colSpan="11" className="skel" />
+                        <td colSpan="12" className="skel" />
                       </tr>
                     ))
                   ) : ledgerItems.map((item) => (
@@ -378,6 +380,7 @@ function FinanceBalancesPanel({ onClose }) {
                       <td>{formatDateTime(item.createdAt || item.transactionAt)}</td>
                       <td>{getTransactionActionLabel(translate, item)}</td>
                       <td>{item.ticketNumber ? `#${item.ticketNumber}` : "-"}</td>
+                      <td>{item.serviceName || "-"}</td>
                       <td>{item.paymentMethodName || translate("Balance")}</td>
                       <td>{formatMoney(item.cashInUzs)}</td>
                       <td>{formatMoney(item.cashOutUzs)}</td>
@@ -392,7 +395,7 @@ function FinanceBalancesPanel({ onClose }) {
                   ))}
                   {!ledgerLoading && ledgerItems.length === 0 ? (
                     <tr>
-                      <td colSpan="11" className="all-users-state">{translate("No items found.")}</td>
+                      <td colSpan="12" className="all-users-state">{translate("No items found.")}</td>
                     </tr>
                   ) : null}
                 </tbody>
@@ -403,7 +406,7 @@ function FinanceBalancesPanel({ onClose }) {
             </div>
           </div>
         </>
-      ) : null}
+      ), document.body) : null}
 
     </section>
   );

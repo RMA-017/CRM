@@ -33,7 +33,7 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     balancesPanelSource,
-    /finance-client-ledger-table[\s\S]*Created At[\s\S]*Action[\s\S]*Ticket Number[\s\S]*Payment Method[\s\S]*Deposit \+\/-[\s\S]*Deposit Balance[\s\S]*Cashier[\s\S]*Note/s,
+    /finance-client-ledger-table[\s\S]*Created At[\s\S]*Action[\s\S]*Ticket Number[\s\S]*Service Name[\s\S]*Payment Method[\s\S]*Deposit \+\/-[\s\S]*Deposit Balance[\s\S]*Cashier[\s\S]*Note/s,
     "Client ledger modal should show detailed transaction rows."
   );
 
@@ -45,7 +45,7 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     styles,
-    /#financeClientLedgerModal\.finance-client-ledger-modal[\s\S]*width: min\(1180px,[\s\S]*\.finance-client-ledger-summary[\s\S]*grid-template-columns: repeat\(6,[\s\S]*\.finance-client-ledger-table[\s\S]*min-width: 1160px/s,
+    /#financeClientLedgerModal\.finance-client-ledger-modal[\s\S]*width: min\(1180px,[\s\S]*\.finance-client-ledger-summary[\s\S]*grid-template-columns: repeat\(6,[\s\S]*\.finance-client-ledger-table[\s\S]*min-width: 1320px/s,
     "Client ledger modal should have a wide, scannable layout."
   );
 });
