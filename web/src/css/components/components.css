@@ -5701,23 +5701,23 @@ label.field > span:first-child,
 .finance-cashier-panel .all-users-head-actions {
   flex: 1 1 760px;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: flex-end;
   gap: 6px;
 }
 
 .finance-cashier-panel .all-users-head-actions .finance-board-head-client-filter {
-  flex: 1 1 170px;
+  flex: 1 1 213px;
   width: auto;
-  min-width: 140px;
-  max-width: 230px;
+  min-width: 175px;
+  max-width: 288px;
   height: 30px;
   font-size: 12px;
 }
 
 .finance-cashier-panel .all-users-head-actions .finance-board-head-select-filter {
-  flex: 1 1 180px;
-  min-width: 150px;
-  max-width: 230px;
+  flex: 1 1 225px;
+  min-width: 188px;
+  max-width: 288px;
 }
 
 .finance-cashier-panel .all-users-head-actions .finance-board-head-select-filter .custom-select,
@@ -7763,9 +7763,29 @@ label.field > span:first-child,
 
 #financeTicketEditModal .finance-ticket-edit-item-grid {
   display: grid;
-  grid-template-columns: minmax(150px, 0.75fr) minmax(260px, 1.25fr);
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr) minmax(118px, 0.55fr) minmax(96px, 0.45fr);
   gap: 7px;
   align-items: end;
+}
+
+#financeTicketEditModal .finance-ticket-edit-item-grid > * {
+  min-width: 0;
+}
+
+#financeTicketEditModal .finance-ticket-edit-item-grid .custom-select {
+  max-width: 100%;
+}
+
+#financeTicketEditModal .finance-ticket-edit-discount-field {
+  gap: 4px;
+}
+
+#financeTicketEditModal .finance-ticket-edit-reason-field {
+  width: min(520px, 100%);
+}
+
+#financeTicketEditModal .finance-ticket-edit-reason-field textarea {
+  resize: vertical;
 }
 
 #financeTicketEditModal .finance-ticket-edit-total {

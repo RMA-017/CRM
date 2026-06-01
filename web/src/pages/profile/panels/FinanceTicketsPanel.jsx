@@ -758,24 +758,6 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
     }));
   };
 
-  const addEditItem = () => {
-    setEditForm((current) => ({
-      ...current,
-      items: [
-        ...current.items,
-        {
-          specialistId: "",
-          specialistName: "",
-          serviceId: "",
-          serviceName: "",
-          priceUzs: 0,
-          discountType: "amount",
-          discountValue: "0"
-        }
-      ]
-    }));
-  };
-
   const removeEditItem = (index) => {
     setEditForm((current) => ({
       ...current,
@@ -1276,15 +1258,6 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                         <div className="finance-ticket-edit-item-actions">
                           <button
                             type="button"
-                            className="table-action-btn finance-ticket-icon-btn"
-                            aria-label={translate("Add Service")}
-                            title={translate("Add Service")}
-                            onClick={addEditItem}
-                          >
-                            +
-                          </button>
-                          <button
-                            type="button"
                             className="table-action-btn table-action-btn-danger finance-ticket-icon-btn"
                             aria-label={translate("Remove")}
                             title={translate("Remove")}
@@ -1315,7 +1288,6 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                           searchPlaceholder={translate("Search")}
                           searchThreshold={8}
                           menuPortal
-                          menuWidthScale={1.2}
                           disabled={editReferencesLoading}
                           onChange={(value) => {
                             const service = editServiceById.get(String(value)) || {};
@@ -1326,12 +1298,37 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                             });
                           }}
                         />
+                        <label className="field finance-ticket-edit-discount-field">
+                          <span>{translate("Discount Type")}</span>
+                          <CustomSelect
+                            value={item.discountType || "amount"}
+                            options={[
+                              { value: "amount", label: translate("Amount") },
+                              { value: "percent", label: translate("Percent") }
+                            ]}
+                            menuPortal
+                            onChange={(value) => updateEditItem(index, { discountType: value })}
+                          />
+                        </label>
+                        <label className="field finance-ticket-edit-discount-field">
+                          <span>{translate("Discount")}</span>
+                          <input
+                            type="number"
+                            min="0"
+                            max={item.discountType === "percent" ? "100" : undefined}
+                            value={item.discountValue}
+                            onChange={(event) => {
+                              const value = event.currentTarget.value;
+                              updateEditItem(index, { discountValue: value });
+                            }}
+                          />
+                        </label>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                <label className="field">
+                <label className="field finance-ticket-edit-reason-field">
                   <span>{translate("Change reason")}</span>
                   <textarea
                     rows="2"

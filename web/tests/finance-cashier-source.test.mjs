@@ -83,7 +83,7 @@ test("cashier board filters live in header actions without visible labels", asyn
   );
   assert.match(
     styles,
-    /\.finance-cashier-panel \.all-users-head-actions \.finance-board-head-select-filter[\s\S]*max-width: 230px;/s,
-    "Cashier header select filters should use compact header sizing."
+    /\.finance-cashier-panel \.all-users-head-actions \{[\s\S]*justify-content: flex-end;[\s\S]*\.finance-cashier-panel \.all-users-head-actions \.finance-board-head-client-filter[\s\S]*max-width: 288px;[\s\S]*\.finance-cashier-panel \.all-users-head-actions \.finance-board-head-select-filter[\s\S]*max-width: 288px;/s,
+    "Cashier header filters should be right-aligned and wider in the header."
   );
 });
