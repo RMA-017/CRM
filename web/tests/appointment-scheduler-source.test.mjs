@@ -110,7 +110,7 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     css,
-    /appointment-common-free-slot-td[\s\S]*rgba\(34,\s*197,\s*94,\s*0\.12\)/,
+    /appointment-common-free-slot-td[\s\S]*rgba\(34,\s*197,\s*94,\s*0\.07\)/,
     "Common free appointment slots should use a soft green background."
   );
   assert.match(

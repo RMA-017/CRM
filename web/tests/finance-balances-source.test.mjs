@@ -48,4 +48,10 @@ test("client balance rows open a read-only client transaction ledger", () => {
     /#financeClientLedgerModal\.finance-client-ledger-modal[\s\S]*width: min\(1180px,[\s\S]*\.finance-client-ledger-table[\s\S]*min-width: 1320px/s,
     "Client ledger modal should have a wide, scannable layout."
   );
+
+  assert.match(
+    styles,
+    /\.finance-panel-shell \.finance-balances-table :is\(th:nth-child\(5\), td:nth-child\(5\)\) \{\s*padding-right: 44px;\s*\}/,
+    "Balances deposit header and values should keep right-side spacing inside finance panels."
+  );
 });
