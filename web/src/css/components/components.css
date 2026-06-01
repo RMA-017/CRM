@@ -7781,10 +7781,12 @@ label.field > span:first-child,
 }
 
 #financeTicketEditModal .finance-ticket-edit-reason-field {
-  width: min(520px, 100%);
+  width: 100%;
 }
 
 #financeTicketEditModal .finance-ticket-edit-reason-field textarea {
+  min-height: 44px;
+  height: 44px;
   resize: vertical;
 }
 
@@ -8357,7 +8359,6 @@ label.field > span:first-child,
 #financeBatchPaymentModal .finance-batch-ticket-lines {
   display: grid;
   gap: 4px;
-  margin-left: 14px;
   padding: 7px 9px;
   border-left: 2px solid rgba(37, 99, 235, 0.18);
   background: rgba(255, 255, 255, 0.52);
