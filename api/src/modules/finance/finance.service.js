@@ -627,12 +627,10 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
   }
   overdueAppointmentParams.push(BOARD_LIMIT);
 
-  const ticketParams = [organizationId, boardDateFrom, boardDateTo];
+  const ticketParams = [organizationId];
   const ticketFilters = [
     "ft.organization_id = $1",
-    "ft.status <> 'voided'",
-    "COALESCE(a.appointment_date, ft.ticket_date) >= $2::date",
-    "COALESCE(a.appointment_date, ft.ticket_date) <= $3::date"
+    "ft.status IN ('issued', 'unpaid')"
   ];
   if (normalizedQuery) {
     ticketParams.push(normalizedQueryLike);

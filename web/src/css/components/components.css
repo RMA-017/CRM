@@ -7926,8 +7926,8 @@ label.field > span:first-child,
 }
 
 .ops-panel-shell .finance-manual-item {
-  gap: 7px;
-  padding: 7px;
+  gap: 5px;
+  padding: 6px;
   width: 100%;
   box-sizing: border-box;
 }
@@ -7977,7 +7977,7 @@ label.field > span:first-child,
   grid-template-columns:
     minmax(150px, 0.75fr)
     minmax(260px, 1.25fr);
-  gap: 7px;
+  gap: 5px;
   align-items: end;
 }
 
