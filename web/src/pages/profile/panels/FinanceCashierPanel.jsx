@@ -42,16 +42,23 @@ function createBatchPaymentRow(amountUzs = "") {
   };
 }
 
-const EMPTY_SESSION_FORM = Object.freeze({
-  submittedAmountUzs: "",
-  note: ""
-});
-
 const EMPTY_APPOINTMENT_TICKET_FORM = Object.freeze({
+  serviceId: "",
+  priceUzs: "",
   discountType: "amount",
   discountValue: "0",
   note: ""
 });
+
+function createAppointmentTicketForm(item = null) {
+  return {
+    serviceId: String(item?.serviceId || ""),
+    priceUzs: String(normalizeMoneyInput(item?.servicePriceUzs)),
+    discountType: "amount",
+    discountValue: "0",
+    note: ""
+  };
+}
 
 function formatMoney(value) {
   const amount = Number.parseInt(String(value ?? 0), 10) || 0;
@@ -72,30 +79,6 @@ function formatTicketNumber(value) {
 
 function formatTime(value) {
   return String(value || "").slice(0, 5) || "-";
-}
-
-function formatDateTime(value) {
-  const raw = String(value || "").trim();
-  if (!raw) return "-";
-  const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) {
-    const formattedDate = formatDateYMD(raw);
-    const timeMatch = raw.match(/[T\s](\d{2}:\d{2})/);
-    return timeMatch && formattedDate !== "-" ? `${formattedDate} ${timeMatch[1]}` : formattedDate;
-  }
-  const parts = new Intl.DateTimeFormat("ru-RU", {
-    timeZone: "Asia/Tashkent",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false
-  }).formatToParts(date).reduce((accumulator, part) => {
-    accumulator[part.type] = part.value;
-    return accumulator;
-  }, {});
-  return `${parts.day}.${parts.month}.${parts.year} ${parts.hour}:${parts.minute}`;
 }
 
 function formatShortDateDM(value) {
@@ -152,6 +135,61 @@ function getTicketPayableAmount(ticket) {
   return normalizeMoneyInput(ticket?.remainingAmountUzs ?? ticket?.remaining_amount_uzs ?? ticket?.totalUzs ?? ticket?.amountUzs);
 }
 
+function getTicketLineItems(item) {
+  const rows = Array.isArray(item?.items)
+    ? item.items.filter((row) => row && typeof row === "object")
+    : [];
+  if (rows.length > 0) {
+    return rows;
+  }
+  return [{
+    specialistId: item?.specialistId,
+    specialistName: item?.specialistName,
+    serviceId: item?.serviceId,
+    serviceName: item?.serviceName,
+    priceUzs: item?.subtotalUzs ?? item?.amountUzs ?? item?.totalUzs,
+    discountUzs: item?.discountUzs ?? 0,
+    finalAmountUzs: item?.totalUzs ?? item?.amountUzs
+  }];
+}
+
+function getUniqueLineValues(rows, fieldName) {
+  const seen = new Set();
+  const values = [];
+  rows.forEach((row) => {
+    const value = String(row?.[fieldName] || "").trim();
+    if (!value || seen.has(value)) return;
+    seen.add(value);
+    values.push(value);
+  });
+  return values;
+}
+
+function getTicketServiceSummary(item) {
+  const rows = getTicketLineItems(item);
+  if (rows.length > 1) {
+    return `${rows.length} services`;
+  }
+  return String(rows[0]?.serviceName || item?.serviceName || "-").trim() || "-";
+}
+
+function getTicketSpecialistSummary(item) {
+  const rows = getTicketLineItems(item);
+  const specialists = getUniqueLineValues(rows, "specialistName");
+  if (rows.length > 1) {
+    const count = specialists.length || rows.length;
+    return `${count} ${count === 1 ? "specialist" : "specialists"}`;
+  }
+  return specialists[0] || String(item?.specialistName || "-").trim() || "-";
+}
+
+function getBoardCardDate(item) {
+  if (item?.ticketNumber || item?.ticket_number) {
+    return item?.createdAt || item?.created_at || item?.ticketDate || item?.ticket_date || item?.appointmentDate || item?.appointment_date;
+  }
+  return item?.appointmentDate || item?.appointment_date || item?.ticketDate || item?.ticket_date;
+}
+
 function normalizeSearchValue(value) {
   return String(value ?? "").trim().toLowerCase();
 }
@@ -170,10 +208,16 @@ function ticketCardMatchesFilters(item, filters) {
     }
   }
   if (serviceId && String(item?.serviceId || "") !== serviceId) {
-    return false;
+    const hasMatchingItem = getTicketLineItems(item).some((row) => String(row?.serviceId || "") === serviceId);
+    if (!hasMatchingItem) {
+      return false;
+    }
   }
   if (specialistId && String(item?.specialistId || "") !== specialistId) {
-    return false;
+    const hasMatchingItem = getTicketLineItems(item).some((row) => String(row?.specialistId || "") === specialistId);
+    if (!hasMatchingItem) {
+      return false;
+    }
   }
   return true;
 }
@@ -240,11 +284,11 @@ function TicketCard({
     onDoubleClick ? "finance-board-card-ticketable" : ""
   ].filter(Boolean).join(" ");
   const clientName = item.clientName || "-";
-  const serviceName = item.serviceName || "-";
-  const specialistName = item.specialistName || "-";
+  const serviceName = getTicketServiceSummary(item);
+  const specialistName = getTicketSpecialistSummary(item);
   const startTime = formatTime(item.startTime);
   const shortDate = showShortDate
-    ? formatShortDateDM(item.createdAt || item.ticketDate || item.appointmentDate)
+    ? formatShortDateDM(getBoardCardDate(item))
     : "";
   const cardTitle = actionTitle || (compact
     ? [startTime, clientName, serviceName, specialistName].filter(Boolean).join(" - ")
@@ -310,8 +354,7 @@ function FinanceCashierPanel({
   onClose,
   canCreateFinanceCashier,
   canUpdateFinanceCashier,
-  canPayFinanceCashier,
-  currentUser
+  canPayFinanceCashier
 }) {
   const { translate } = useI18n();
   const [board, setBoard] = useState({
@@ -350,9 +393,6 @@ function FinanceCashierPanel({
   const [appointmentTicketForm, setAppointmentTicketForm] = useState(EMPTY_APPOINTMENT_TICKET_FORM);
   const [appointmentTicketSubmitting, setAppointmentTicketSubmitting] = useState(false);
   const [cashSession, setCashSession] = useState(null);
-  const [sessionModal, setSessionModal] = useState("");
-  const [sessionForm, setSessionForm] = useState(EMPTY_SESSION_FORM);
-  const [sessionSubmitting, setSessionSubmitting] = useState(false);
   const boardRequestRef = useRef(0);
 
   const paymentMethodOptions = useMemo(() => board.paymentMethods.filter(Boolean).map((item) => ({
@@ -390,9 +430,6 @@ function FinanceCashierPanel({
     || boardFilters.serviceId
     || boardFilters.specialistId
   );
-  const currentCashierName = String(currentUser?.fullName || currentUser?.username || "").trim();
-  const nowLabel = formatDateTime(new Date().toISOString());
-
   const selectedTicketCount = selectedTicketIds.size;
   const batchPaymentTotalUzs = useMemo(() => (
     batchPaymentTickets.reduce((sum, item) => sum + getTicketPayableAmount(item), 0)
@@ -501,10 +538,6 @@ function FinanceCashierPanel({
     loadCashSession();
   }, [loadCashSession]);
 
-  const refreshCashier = async () => {
-    await Promise.all([loadBoard(), loadCashSession()]);
-  };
-
   useEffect(() => {
     if (!manualModalOpen) {
       return undefined;
@@ -589,7 +622,7 @@ function FinanceCashierPanel({
   const openAppointmentTicketModal = (item) => {
     if (!canCreateFinanceCashier) return;
     setAppointmentTicketSource(item);
-    setAppointmentTicketForm(EMPTY_APPOINTMENT_TICKET_FORM);
+    setAppointmentTicketForm(createAppointmentTicketForm(item));
   };
 
   const updateAppointmentStatus = async (item, status, { reload = true } = {}) => {
@@ -654,7 +687,12 @@ function FinanceCashierPanel({
     const item = appointmentTicketSource;
     const id = String(item?.id || "");
     if (!id || appointmentTicketSubmitting || !canCreateFinanceCashier) return;
-    const priceUzs = Number.parseInt(String(item?.servicePriceUzs ?? 0), 10) || 0;
+    const serviceId = String(appointmentTicketForm.serviceId || "").trim();
+    const priceUzs = normalizeMoneyInput(appointmentTicketForm.priceUzs);
+    if (!serviceId) {
+      window.alert?.(translate("Service is required."));
+      return;
+    }
     if (priceUzs <= 0) {
       window.alert?.(translate("Ticket amount is required."));
       return;
@@ -667,14 +705,13 @@ function FinanceCashierPanel({
         amountUzs: priceUzs,
         note: appointmentTicketForm.note
       };
-      if (item?.serviceId) {
-        payload.items = [{
-          serviceId: item.serviceId,
-          specialistId: item.specialistId,
-          discountType: appointmentTicketForm.discountType,
-          discountValue: appointmentTicketForm.discountValue
-        }];
-      }
+      payload.items = [{
+        serviceId,
+        specialistId: item.specialistId,
+        priceUzs,
+        discountType: appointmentTicketForm.discountType,
+        discountValue: appointmentTicketForm.discountValue
+      }];
       const response = await apiFetch("/api/finance/cashier/tickets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -806,7 +843,7 @@ function FinanceCashierPanel({
     setBatchPaymentRows((current) => current.length > 1 ? current.filter((row) => row.key !== key) : current);
   };
 
-  const appointmentPriceUzs = Number.parseInt(String(appointmentTicketSource?.servicePriceUzs ?? 0), 10) || 0;
+  const appointmentPriceUzs = normalizeMoneyInput(appointmentTicketForm.priceUzs || appointmentTicketSource?.servicePriceUzs);
   const appointmentDiscountUzs = calculateDiscount(
     appointmentPriceUzs,
     appointmentTicketForm.discountType,
@@ -947,55 +984,56 @@ function FinanceCashierPanel({
     }
   };
 
-  const openSessionModal = (type) => {
-    if (!canPayFinanceCashier) return;
-    setSessionModal(type);
-    setSessionForm({
-      submittedAmountUzs: type === "close" ? String(cashSession?.expectedBalanceUzs || 0) : "",
-      note: ""
-    });
-  };
-
-  const closeSessionModal = (force = false) => {
-    if (sessionSubmitting && !force) return;
-    setSessionModal("");
-    setSessionForm(EMPTY_SESSION_FORM);
-  };
-
-  const submitCashSession = async (event) => {
-    event.preventDefault();
-    if (!sessionModal || sessionSubmitting || !canPayFinanceCashier) return;
-    const submittedAmountUzs = normalizeMoneyInput(sessionForm.submittedAmountUzs);
-    setSessionSubmitting(true);
-    try {
-      const isOpening = sessionModal === "open";
-      const response = await apiFetch(`/api/finance/cashier/session/${isOpening ? "open" : "close"}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(isOpening
-          ? { note: sessionForm.note }
-          : { closingBalanceUzs: submittedAmountUzs, note: sessionForm.note })
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        window.alert?.(translate(data?.message || (isOpening ? "Cash session open failed." : "Cash session close failed.")));
-        return;
-      }
-      setCashSession(data?.item || null);
-      closeSessionModal(true);
-      await refreshCashier();
-    } catch {
-      window.alert?.(translate(sessionModal === "open" ? "Cash session open failed." : "Cash session close failed."));
-    } finally {
-      setSessionSubmitting(false);
-    }
-  };
-
   return (
     <section id="financeCashierPanel" className="all-users-panel settings-panel ops-panel-shell finance-panel-shell finance-cashier-panel">
       <div className="all-users-head">
         <h3>{translate("Cashier")}</h3>
         <div className="all-users-head-actions">
+          <input
+            type="search"
+            className="panel-search-input finance-board-head-client-filter"
+            value={boardFilters.clientQuery}
+            aria-label={translate("Client")}
+            placeholder={translate("Client")}
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              setBoardFilters((current) => ({ ...current, clientQuery: value }));
+            }}
+          />
+          <div className="finance-board-head-select-filter" aria-label={translate("Service Name")}>
+            <CustomSelect
+              value={boardFilters.serviceId}
+              options={[{ value: "", label: translate("All services"), selectedLabel: translate("Service Name") }, ...serviceOptions]}
+              placeholder={translate("Service Name")}
+              searchable
+              searchPlaceholder={translate("Service Name")}
+              searchThreshold={1}
+              menuPortal
+              maxVisibleOptions={8}
+              onChange={(value) => setBoardFilters((current) => ({ ...current, serviceId: value }))}
+            />
+          </div>
+          <div className="finance-board-head-select-filter" aria-label={translate("Specialist")}>
+            <CustomSelect
+              value={boardFilters.specialistId}
+              options={[{ value: "", label: translate("All specialists"), selectedLabel: translate("Specialist") }, ...specialistOptions]}
+              placeholder={translate("Specialist")}
+              searchable
+              searchPlaceholder={translate("Specialist")}
+              searchThreshold={1}
+              menuPortal
+              maxVisibleOptions={8}
+              onChange={(value) => setBoardFilters((current) => ({ ...current, specialistId: value }))}
+            />
+          </div>
+          <button
+            type="button"
+            className="table-action-btn finance-board-head-reset"
+            disabled={!isBoardFilterActive}
+            onClick={() => setBoardFilters({ clientQuery: "", serviceId: "", specialistId: "" })}
+          >
+            {translate("Reset")}
+          </button>
           <button
             type="button"
             className="table-action-btn finance-head-icon-btn"
@@ -1006,26 +1044,6 @@ function FinanceCashierPanel({
           >
             <span className="finance-head-icon finance-head-icon-ticket" aria-hidden="true" />
           </button>
-          <button
-            type="button"
-            className="table-action-btn finance-head-icon-btn"
-            hidden={!canPayFinanceCashier || Boolean(cashSession)}
-            aria-label={translate("Open Cash")}
-            title={translate("Open Cash")}
-            onClick={() => openSessionModal("open")}
-          >
-            <span className="finance-head-icon finance-head-icon-cash" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className="table-action-btn finance-head-icon-btn"
-            hidden={!canPayFinanceCashier || !cashSession}
-            aria-label={translate("Close Cash")}
-            title={translate("Close Cash")}
-            onClick={() => openSessionModal("close")}
-          >
-            <span className="finance-head-icon finance-head-icon-cash-close" aria-hidden="true" />
-          </button>
           <button type="button" className="header-btn panel-close-btn" aria-label={translate("Close cashier panel")} onClick={onClose}>
             ×
           </button>
@@ -1033,56 +1051,6 @@ function FinanceCashierPanel({
       </div>
 
       <p className="all-users-state" hidden={!message}>{translate(message)}</p>
-
-      <div className="finance-board-search">
-        <label className="panel-search-label">
-          <span>{translate("Client")}</span>
-          <input
-            type="search"
-            className="panel-search-input"
-            value={boardFilters.clientQuery}
-            placeholder={translate("Search client")}
-            onChange={(event) => {
-              const value = event.currentTarget.value;
-              setBoardFilters((current) => ({ ...current, clientQuery: value }));
-            }}
-          />
-        </label>
-        <label className="panel-search-label finance-board-select-filter">
-          <span>{translate("Service Name")}</span>
-          <CustomSelect
-            value={boardFilters.serviceId}
-            options={[{ value: "", label: translate("All services") }, ...serviceOptions]}
-            placeholder={translate("Select service")}
-            searchable
-            searchThreshold={1}
-            menuPortal
-            maxVisibleOptions={8}
-            onChange={(value) => setBoardFilters((current) => ({ ...current, serviceId: value }))}
-          />
-        </label>
-        <label className="panel-search-label finance-board-select-filter">
-          <span>{translate("Specialist")}</span>
-          <CustomSelect
-            value={boardFilters.specialistId}
-            options={[{ value: "", label: translate("All specialists") }, ...specialistOptions]}
-            placeholder={translate("Select specialist")}
-            searchable
-            searchThreshold={1}
-            menuPortal
-            maxVisibleOptions={8}
-            onChange={(value) => setBoardFilters((current) => ({ ...current, specialistId: value }))}
-          />
-        </label>
-        <button
-          type="button"
-          className="table-action-btn"
-          disabled={!isBoardFilterActive}
-          onClick={() => setBoardFilters({ clientQuery: "", serviceId: "", specialistId: "" })}
-        >
-          {translate("Reset")}
-        </button>
-      </div>
 
       <div className="settings-card-grid finance-board-grid">
         <section className="settings-card-column">
@@ -1223,13 +1191,35 @@ function FinanceCashierPanel({
                     <span>{translate("Total")}</span>
                   </div>
                   {batchPaymentTickets.map((ticket) => (
-                    <div className="finance-batch-ticket-row" key={String(ticket.id)}>
-                      <strong>{formatTicketNumber(ticket.ticketNumber)}</strong>
-                      <span>{formatDateYMD(ticket.ticketDate || ticket.appointmentDate)}</span>
-                      <span>{ticket.clientName || "-"}</span>
-                      <span>{ticket.specialistName || "-"}</span>
-                      <span>{ticket.serviceName || "-"}</span>
-                      <span>{formatMoney(getTicketPayableAmount(ticket))}</span>
+                    <div className="finance-batch-ticket-group" key={String(ticket.id)}>
+                      <div className="finance-batch-ticket-row">
+                        <strong>{formatTicketNumber(ticket.ticketNumber)}</strong>
+                        <span>{formatDateYMD(ticket.ticketDate || ticket.appointmentDate)}</span>
+                        <span>{ticket.clientName || "-"}</span>
+                        <span>{getTicketSpecialistSummary(ticket)}</span>
+                        <span>{getTicketServiceSummary(ticket)}</span>
+                        <span>{formatMoney(getTicketPayableAmount(ticket))}</span>
+                      </div>
+                      {getTicketLineItems(ticket).length > 1 ? (
+                        <div className="finance-batch-ticket-lines">
+                          <div className="finance-batch-ticket-line finance-batch-ticket-line-head">
+                            <span>{translate("Service")}</span>
+                            <span>{translate("Specialist")}</span>
+                            <span>{translate("Price")}</span>
+                            <span>{translate("Discount")}</span>
+                            <span>{translate("Final")}</span>
+                          </div>
+                          {getTicketLineItems(ticket).map((lineItem, lineIndex) => (
+                            <div className="finance-batch-ticket-line" key={`${lineItem?.id || lineItem?.lineNumber || lineIndex}-${lineIndex}`}>
+                              <strong>{lineItem?.serviceName || "-"}</strong>
+                              <span>{lineItem?.specialistName || "-"}</span>
+                              <span>{formatMoney(lineItem?.priceUzs ?? lineItem?.finalAmountUzs)}</span>
+                              <span>{formatMoney(lineItem?.discountUzs)}</span>
+                              <span>{formatMoney(lineItem?.finalAmountUzs ?? lineItem?.priceUzs)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -1387,7 +1377,37 @@ function FinanceCashierPanel({
                       </label>
                       <label className="field">
                         <span>{translate("Service")}</span>
-                        <input type="text" value={appointmentTicketSource.serviceName || "-"} readOnly />
+                        <CustomSelect
+                          value={appointmentTicketForm.serviceId}
+                          options={manualServiceOptions}
+                          placeholder={translate("Select service type")}
+                          searchable
+                          searchPlaceholder={translate("Search")}
+                          searchThreshold={8}
+                          menuPortal
+                          menuWidthScale={1.2}
+                          onChange={(value) => {
+                            const service = board.services.find((entry) => String(entry.id) === String(value || "")) || {};
+                            setAppointmentTicketForm((current) => ({
+                              ...current,
+                              serviceId: value,
+                              priceUzs: String(normalizeMoneyInput(service.priceUzs ?? current.priceUzs))
+                            }));
+                          }}
+                        />
+                      </label>
+                      <label className="field">
+                        <span>{translate("Price")}</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={appointmentTicketForm.priceUzs}
+                          onWheel={(event) => event.currentTarget.blur()}
+                          onChange={(event) => {
+                            const value = event.currentTarget.value;
+                            setAppointmentTicketForm((current) => ({ ...current, priceUzs: value }));
+                          }}
+                        />
                       </label>
                     </div>
                   </div>
@@ -1608,70 +1628,6 @@ function FinanceCashierPanel({
         </>
       ), document.body) : null}
 
-      {sessionModal && typeof document !== "undefined" ? createPortal((
-        <>
-          <button
-            type="button"
-            className="login-overlay stacked-modal-overlay finance-modal-overlay"
-            style={FINANCE_MODAL_OVERLAY_STYLE}
-            aria-label={translate("Close cash session modal")}
-            onClick={() => closeSessionModal()}
-          />
-          <div id="financeCashSessionModal" className="logout-confirm-modal all-users-edit-modal finance-modal">
-            <h3>{translate(sessionModal === "open" ? "Open Cash" : "Close Cash")}</h3>
-            <form className="auth-form" onSubmit={submitCashSession}>
-              <div className="all-users-edit-fields">
-                <div className="finance-session-info-grid">
-                  <span>{translate("Cashier")}</span>
-                  <strong>{sessionModal === "open" ? (currentCashierName || "-") : (cashSession?.cashierName || currentCashierName || "-")}</strong>
-                  <span>{translate(sessionModal === "open" ? "Opening Time" : "Opened At")}</span>
-                  <strong>{sessionModal === "open" ? nowLabel : formatDateTime(cashSession?.openedAt)}</strong>
-                  {sessionModal === "close" ? (
-                    <>
-                      <span>{translate("Closing Time")}</span>
-                      <strong>{nowLabel}</strong>
-                      <span>{translate("Collected Cash")}</span>
-                      <strong>{formatMoney(cashSession?.expectedBalanceUzs)}</strong>
-                    </>
-                  ) : null}
-                </div>
-                {sessionModal === "close" ? (
-                  <label className="field">
-                    <span>{translate("Submitted Cash")}</span>
-                    <input
-                      type="number"
-                      min="0"
-                      value={sessionForm.submittedAmountUzs}
-                      onChange={(event) => {
-                        const value = event.currentTarget.value;
-                        setSessionForm((current) => ({ ...current, submittedAmountUzs: value }));
-                      }}
-                    />
-                  </label>
-                ) : null}
-                <label className="field">
-                  <span>{translate("Note")}</span>
-                  <input
-                    type="text"
-                    maxLength={255}
-                    value={sessionForm.note}
-                    onChange={(event) => {
-                      const value = event.currentTarget.value;
-                      setSessionForm((current) => ({ ...current, note: value }));
-                    }}
-                  />
-                </label>
-              </div>
-              <div className="edit-actions">
-                <button type="button" className="btn btn-secondary" onClick={() => closeSessionModal()}>{translate("Cancel")}</button>
-                <button type="submit" className="btn" disabled={sessionSubmitting}>
-                  {sessionSubmitting ? "..." : translate("Save")}
-                </button>
-              </div>
-            </form>
-          </div>
-        </>
-      ), document.body) : null}
     </section>
   );
 }

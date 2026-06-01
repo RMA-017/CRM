@@ -70,19 +70,24 @@ function todayDateValue() {
 }
 
 function createDefaultFilters() {
-  const today = todayDateValue();
   return {
     ...EMPTY_FILTERS,
-    dateFrom: today,
-    dateTo: today,
     status: DEFAULT_TICKET_STATUS_FILTER
+  };
+}
+
+function createInitialAppliedFilters() {
+  const today = todayDateValue();
+  return {
+    ...createDefaultFilters(),
+    ticketCreatedFrom: today,
+    ticketCreatedTo: today
   };
 }
 
 const EMPTY_TICKET_EDIT_FORM = Object.freeze({
   ticketDate: "",
   clientId: "",
-  note: "",
   reason: "",
   items: []
 });
@@ -147,7 +152,6 @@ function createTicketEditForm(item = null) {
   return {
     ticketDate: formatDateInput(item.ticketDate),
     clientId: String(item.clientId || ""),
-    note: item.note || "",
     reason: "",
     items: createTicketEditItemRows(item)
   };
@@ -257,7 +261,7 @@ function buildTicketHistoryDetails(item) {
 function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
   const { translate } = useI18n();
   const [filters, setFilters] = useState(() => createDefaultFilters());
-  const [appliedFilters, setAppliedFilters] = useState(() => createDefaultFilters());
+  const [appliedFilters, setAppliedFilters] = useState(() => createInitialAppliedFilters());
   const [items, setItems] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -827,7 +831,6 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
             discountType: item.discountType || "amount",
             discountValue: Number.parseInt(String(item.discountValue || 0), 10) || 0
           })),
-          note: editForm.note,
           reason
         })
       });
@@ -1327,19 +1330,6 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                     </div>
                   ))}
                 </div>
-
-                <label className="field">
-                  <span>{translate("Note")}</span>
-                  <textarea
-                    rows="2"
-                    maxLength="255"
-                    value={editForm.note}
-                    onChange={(event) => {
-                      const value = event.currentTarget.value;
-                      setEditForm((current) => ({ ...current, note: value }));
-                    }}
-                  />
-                </label>
 
                 <label className="field">
                   <span>{translate("Change reason")}</span>

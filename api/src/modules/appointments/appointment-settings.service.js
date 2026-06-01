@@ -5128,7 +5128,8 @@ export async function getAppointmentPlannerReport({
          c.first_name,
          c.last_name,
          c.middle_name,
-         COALESCE(NULLIF(TRIM(s.service_name), ''), 'Service') AS service_name
+         COALESCE(NULLIF(TRIM(s.service_name), ''), 'Service') AS service_name,
+         COALESCE(NULLIF(TRIM(s.note), ''), NULLIF(TRIM(parent_cancel.reason), ''), '') AS note
        FROM appointment_schedules s
        JOIN clients c
          ON c.id = s.client_id
@@ -5136,6 +5137,15 @@ export async function getAppointmentPlannerReport({
        JOIN users u
          ON u.id = s.specialist_id
         AND u.organization_id = s.organization_id
+       LEFT JOIN LATERAL (
+         SELECT apr.reason
+           FROM appointment_parent_responses apr
+          WHERE apr.organization_id = s.organization_id
+            AND apr.appointment_schedule_id = s.id
+            AND apr.response_status = 'not_coming'
+          ORDER BY apr.responded_at DESC, apr.id DESC
+          LIMIT 1
+       ) parent_cancel ON TRUE
         WHERE s.organization_id = $1
           AND s.appointment_date BETWEEN $2::date AND $3::date
           ${specialistFilterSql}
@@ -5201,7 +5211,8 @@ export async function getAppointmentPlannerReport({
           String(row?.middle_name || "").trim()
         ].filter(Boolean).join(" ").trim() || `Client #${currentClientId}`,
         serviceName: String(row?.service_name || "").trim() || "Service",
-        status
+        status,
+        note: String(row?.note || "").trim()
       };
     });
   const specialists = (Array.isArray(specialistRows) ? specialistRows : [])

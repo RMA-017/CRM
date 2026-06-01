@@ -386,6 +386,62 @@ test("planner status cancellation notifies Telegram parents without user notific
   );
 });
 
+test("planner status cancellation skips parents who already cancelled the lesson", async () => {
+  const serviceSource = await readFile(
+    new URL("../src/modules/telegram-bot/telegram-bot.service.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    serviceSource,
+    /async function hasParentNotComingResponse[\s\S]*FROM appointment_parent_responses[\s\S]*response_status = 'not_coming'/s,
+    "Telegram parent cancellation notifications should be able to detect parent not-coming responses."
+  );
+  assert.match(
+    serviceSource,
+    /const shouldSkipCancelledParentNotification = async[\s\S]*statusChangedTo[\s\S]*"cancelled"[\s\S]*hasParentNotComingResponse/s,
+    "Planner status cancellation should skip Telegram parents who already marked the same lesson as not coming."
+  );
+  assert.match(
+    serviceSource,
+    /for \(const parent of parents\) \{[\s\S]*if \(await shouldSkipCancelledParentNotification\(\{ parent, item \}\)\) \{[\s\S]*continue;[\s\S]*\}[\s\S]*buildParentNotificationMessage/s,
+    "Skipped parent cancellations should not build or send the duplicate cancellation message."
+  );
+});
+
+test("Telegram parent cancel shows already-cancelled text for specialist-cancelled lessons", async () => {
+  const serviceSource = await readFile(
+    new URL("../src/modules/telegram-bot/telegram-bot.service.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    serviceSource,
+    /alreadyCancelled:\s*"Bu dars allaqachon bekor qilingan\."/,
+    "Uzbek bot text should explain that the lesson is already cancelled."
+  );
+  assert.match(
+    serviceSource,
+    /alreadyCancelled:\s*"Это занятие уже отменено\."/,
+    "Russian bot text should explain that the lesson is already cancelled."
+  );
+  assert.match(
+    serviceSource,
+    /function getInactiveCancelText\(language, appointment\)[\s\S]*appointment\?\.status[\s\S]*"cancelled"[\s\S]*getText\(language, "alreadyCancelled"\)[\s\S]*getText\(language, "notFound"\)/s,
+    "Inactive cancel responses should distinguish cancelled lessons from missing lessons."
+  );
+  assert.match(
+    serviceSource,
+    /async function cancelParentAppointment[\s\S]*!appointment \|\| !ACTIVE_APPOINTMENT_STATUSES\.has\(appointment\.status\)[\s\S]*text: getInactiveCancelText\(parent\.language, appointment\)/s,
+    "Final parent cancellation should show already-cancelled text when the specialist cancelled first."
+  );
+  assert.match(
+    serviceSource,
+    /if \(data\.startsWith\("week_cancel_single:"\)\)[\s\S]*!appointment \|\| !ACTIVE_APPOINTMENT_STATUSES\.has\(appointment\.status\)[\s\S]*text: getInactiveCancelText\(parent\.language, appointment\)/s,
+    "Weekly single-cancel should show already-cancelled text before asking for a reason."
+  );
+});
+
 test("Telegram coming callback is acknowledged before parent lookup", async () => {
   const serviceSource = await readFile(
     new URL("../src/modules/telegram-bot/telegram-bot.service.js", import.meta.url),

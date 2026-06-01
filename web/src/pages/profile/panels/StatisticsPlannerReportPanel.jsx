@@ -1,7 +1,46 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import CustomSelect from "../../../components/CustomSelect.jsx";
+import { useI18n } from "../../../i18n/I18nProvider.jsx";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { ALL_USERS_LIMIT } from "../profile.constants.js";
+
+const PLANNER_REPORT_COLUMNS_STORAGE_KEY = "aaron_crm_planner_report_columns";
+const DEFAULT_PLANNER_REPORT_COLUMN_IDS = Object.freeze([
+  "ticketDate",
+  "clientName",
+  "clientId",
+  "serviceName",
+  "specialistName",
+  "status",
+  "note"
+]);
+
+function loadStoredPlannerReportColumnIds() {
+  if (typeof window === "undefined") {
+    return [...DEFAULT_PLANNER_REPORT_COLUMN_IDS];
+  }
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(PLANNER_REPORT_COLUMNS_STORAGE_KEY) || "[]");
+    const stored = Array.isArray(parsed) ? parsed : [];
+    const allowed = new Set(DEFAULT_PLANNER_REPORT_COLUMN_IDS);
+    const normalized = DEFAULT_PLANNER_REPORT_COLUMN_IDS.filter((id) => stored.includes(id) && allowed.has(id));
+    return normalized.length > 0 ? normalized : [...DEFAULT_PLANNER_REPORT_COLUMN_IDS];
+  } catch {
+    return [...DEFAULT_PLANNER_REPORT_COLUMN_IDS];
+  }
+}
+
+function storePlannerReportColumnIds(columnIds) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(PLANNER_REPORT_COLUMNS_STORAGE_KEY, JSON.stringify(columnIds));
+  } catch {
+    // Keep the current session state even when localStorage is unavailable.
+  }
+}
 
 function getCurrentMonthBounds() {
   const now = new Date();
@@ -83,6 +122,7 @@ function StatisticsPlannerReportPanel({
   closeStatisticsPanel,
   showBootstrapSkeleton = false
 }) {
+  const { translate } = useI18n();
   const initialBounds = getCurrentMonthBounds();
   const [from, setFrom] = useState(initialBounds.from);
   const [to, setTo] = useState(initialBounds.to);
@@ -97,6 +137,8 @@ function StatisticsPlannerReportPanel({
   const [hasLoadedFilterOptions, setHasLoadedFilterOptions] = useState(false);
   const [page, setPage] = useState(1);
   const [detailStatusFilter, setDetailStatusFilter] = useState("all");
+  const [columnsOpen, setColumnsOpen] = useState(false);
+  const [visibleColumnIds, setVisibleColumnIds] = useState(() => loadStoredPlannerReportColumnIds());
   const reportRequestIdRef = useRef(0);
 
   const reportScope = reportData?.scope || reportFilterOptions?.scope || {};
@@ -266,21 +308,138 @@ function StatisticsPlannerReportPanel({
     (safePage - 1) * ALL_USERS_LIMIT,
     safePage * ALL_USERS_LIMIT
   );
+  const plannerReportColumns = useMemo(() => [
+    {
+      id: "ticketDate",
+      label: "Ticket Date",
+      className: "planner-report-date-cell",
+      render: (row) => formatPlannerReportDate(row.appointmentDate)
+    },
+    {
+      id: "clientName",
+      label: "Client Name",
+      className: "planner-report-client-cell",
+      render: (row) => (
+        <span className="planner-report-client-text" title={row.clientName || "-"}>
+          {row.clientName || "-"}
+        </span>
+      )
+    },
+    {
+      id: "clientId",
+      label: "Client ID",
+      className: "planner-report-client-id-cell",
+      render: (row) => row.clientId || "-"
+    },
+    {
+      id: "serviceName",
+      label: "Service Name",
+      className: "planner-report-service-cell",
+      render: (row) => row.serviceName || "-"
+    },
+    {
+      id: "specialistName",
+      label: "Specialist Name",
+      className: "planner-report-specialist-cell",
+      render: (row) => row.specialistName || "-"
+    },
+    {
+      id: "status",
+      label: "Status",
+      className: "planner-report-status-cell",
+      render: (row) => {
+        const statusPresentation = getPlannerReportStatusPresentation(row.status);
+        return <span className={statusPresentation.className}>{statusPresentation.label}</span>;
+      }
+    },
+    {
+      id: "note",
+      label: "Note",
+      className: "planner-report-note-cell",
+      render: (row) => {
+        const note = String(row?.note || "").trim();
+        return <span className="planner-report-note-text" title={note || "-"}>{note || "-"}</span>;
+      }
+    }
+  ], []);
+  const visibleColumns = plannerReportColumns.filter((column) => visibleColumnIds.includes(column.id));
+  const visibleColumnCount = Math.max(visibleColumns.length, 1);
+
+  const toggleColumnVisibility = (columnId) => {
+    setVisibleColumnIds((current) => {
+      let next = current;
+      if (current.includes(columnId)) {
+        next = current.length > 1 ? current.filter((id) => id !== columnId) : current;
+      } else if (plannerReportColumns.some((column) => column.id === columnId)) {
+        const nextIds = new Set([...current, columnId]);
+        next = plannerReportColumns.map((column) => column.id).filter((id) => nextIds.has(id));
+      }
+      if (next !== current) {
+        storePlannerReportColumnIds(next);
+      }
+      return next;
+    });
+  };
+
+  const closeColumns = () => {
+    setColumnsOpen(false);
+  };
 
   return (
     <section id="statisticsPlannerReportPanel" className="all-users-panel">
       <div className="all-users-head">
-        <h3>Dashboard</h3>
-        <button
-          id="closeStatisticsPlannerReportBtn"
-          type="button"
-          className="header-btn panel-close-btn"
-          aria-label="Close planner report panel"
-          onClick={closeStatisticsPanel}
-        >
-          ×
-        </button>
+        <h3>{translate("Dashboard")}</h3>
+        <div className="all-users-head-actions">
+          <button
+            type="button"
+            className="table-action-btn finance-head-icon-btn"
+            aria-label={translate("Table columns")}
+            title={translate("Table columns")}
+            onClick={() => setColumnsOpen(true)}
+          >
+            <span className="finance-head-icon finance-head-icon-columns" aria-hidden="true" />
+          </button>
+          <button
+            id="closeStatisticsPlannerReportBtn"
+            type="button"
+            className="header-btn panel-close-btn"
+            aria-label={translate("Close planner report panel")}
+            onClick={closeStatisticsPanel}
+          >
+            ×
+          </button>
+        </div>
       </div>
+
+      {columnsOpen && typeof document !== "undefined" ? createPortal((
+        <>
+          <button
+            type="button"
+            className="login-overlay stacked-modal-overlay finance-modal-overlay"
+            aria-label={translate("Close")}
+            onClick={closeColumns}
+          />
+          <div id="plannerReportColumnsModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-ticket-columns-modal">
+            <h3>{translate("Table columns")}</h3>
+            <div className="finance-ticket-columns-list">
+              {plannerReportColumns.map((column) => {
+                const checked = visibleColumnIds.includes(column.id);
+                return (
+                  <label className="finance-ticket-column-option" key={column.id}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={checked && visibleColumnIds.length <= 1}
+                      onChange={() => toggleColumnVisibility(column.id)}
+                    />
+                    <span>{translate(column.label)}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      ), document.body) : null}
 
       <form
         className="planner-report-toolbar"
@@ -396,38 +555,32 @@ function StatisticsPlannerReportPanel({
 
           <div className="all-users-table-wrap">
             <table className="all-users-table planner-report-table is-detail-report" aria-label="Lesson status report details">
+              <colgroup>
+                {visibleColumns.map((column) => (
+                  <col key={column.id} className={`planner-report-col-${column.id}`} />
+                ))}
+              </colgroup>
               <thead>
                 <tr>
-                  <th>Client Name</th>
-                  <th>Client ID</th>
-                  <th>Date</th>
-                  <th>Service Name</th>
-                  <th>Specialist Name</th>
-                  <th>Status</th>
+                  {visibleColumns.map((column) => (
+                    <th key={column.id} className={column.className}>{translate(column.label)}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {visibleDetailRows.length > 0 ? visibleDetailRows.map((row) => {
-                  const statusPresentation = getPlannerReportStatusPresentation(row.status);
                   return (
                     <tr
                       key={`plannerReportDetail_${row.appointmentId || `${row.appointmentDate}_${row.startTime}_${row.specialistId}_${row.clientId}_${row.serviceName}_${row.status}`}`}
                     >
-                      <td className="planner-report-client-cell">
-                        <span className="planner-report-client-text" title={row.clientName || "-"}>
-                          {row.clientName || "-"}
-                        </span>
-                      </td>
-                      <td>{row.clientId || "-"}</td>
-                      <td>{formatPlannerReportDate(row.appointmentDate)}</td>
-                      <td>{row.serviceName || "-"}</td>
-                      <td>{row.specialistName || "-"}</td>
-                      <td className={statusPresentation.className}>{statusPresentation.label}</td>
+                      {visibleColumns.map((column) => (
+                        <td key={column.id} className={column.className}>{column.render(row)}</td>
+                      ))}
                     </tr>
                   );
                 }) : (
                   <tr>
-                    <td colSpan="6" className="all-users-state">No lesson records found.</td>
+                    <td colSpan={visibleColumnCount} className="all-users-state">{translate("No lesson records found.")}</td>
                   </tr>
                 )}
               </tbody>

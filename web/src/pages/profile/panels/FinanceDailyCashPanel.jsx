@@ -16,6 +16,11 @@ const EMPTY_FILTERS = Object.freeze({
   sessionScope: "current"
 });
 
+const EMPTY_SESSION_FORM = Object.freeze({
+  submittedAmountUzs: "",
+  note: ""
+});
+
 const FINANCE_DAILY_CASH_COLUMNS_STORAGE_KEY = "aaron_crm_finance_daily_cash_columns";
 const DEFAULT_FINANCE_DAILY_CASH_COLUMN_IDS = Object.freeze([
   "index",
@@ -56,6 +61,16 @@ function formatMoney(value) {
   return amount !== 0 ? `${amount.toLocaleString("ru-RU")} UZS` : "-";
 }
 
+function formatMoneyValue(value) {
+  const amount = Number.parseInt(String(value ?? 0), 10) || 0;
+  return `${amount.toLocaleString("ru-RU")} UZS`;
+}
+
+function normalizeMoneyInput(value) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
 function formatDateTime(value) {
   const raw = String(value || "");
   if (!raw) return "-";
@@ -71,7 +86,60 @@ function makeClientOption(item) {
   return { value: id, label };
 }
 
-function FinanceDailyCashPanel({ onClose }) {
+function getPaymentMethodSummaryCards(paymentMethods, paymentSummary) {
+  const summaryById = new Map();
+  const methodIds = new Set();
+  const unmatchedSummaries = [];
+  (Array.isArray(paymentSummary) ? paymentSummary : []).forEach((item) => {
+    const id = String(item?.paymentMethodId || "").trim();
+    if (id) {
+      summaryById.set(id, item);
+    } else {
+      unmatchedSummaries.push(item);
+    }
+  });
+
+  const cards = (Array.isArray(paymentMethods) ? paymentMethods : []).map((method, index) => {
+    const id = String(method?.id || "").trim();
+    if (id) {
+      methodIds.add(id);
+    }
+    const summaryItem = summaryById.get(id) || {};
+    return {
+      key: `method-${id || method?.name || index}`,
+      paymentMethodName: method?.name || summaryItem.paymentMethodName || "-",
+      totalInUzs: Number.parseInt(String(summaryItem.totalInUzs || 0), 10) || 0,
+      totalOutUzs: Number.parseInt(String(summaryItem.totalOutUzs || 0), 10) || 0,
+      netUzs: Number.parseInt(String(summaryItem.netUzs || 0), 10) || 0
+    };
+  });
+
+  (Array.isArray(paymentSummary) ? paymentSummary : []).forEach((item) => {
+    const id = String(item?.paymentMethodId || "").trim();
+    if (!id || methodIds.has(id)) return;
+    cards.push({
+      key: `summary-method-${id}`,
+      paymentMethodName: item?.paymentMethodName || `#${id}`,
+      totalInUzs: Number.parseInt(String(item?.totalInUzs || 0), 10) || 0,
+      totalOutUzs: Number.parseInt(String(item?.totalOutUzs || 0), 10) || 0,
+      netUzs: Number.parseInt(String(item?.netUzs || 0), 10) || 0
+    });
+  });
+
+  unmatchedSummaries.forEach((item, index) => {
+    cards.push({
+      key: `summary-${item?.paymentMethodName || index}`,
+      paymentMethodName: item?.paymentMethodName || "No payment method",
+      totalInUzs: Number.parseInt(String(item?.totalInUzs || 0), 10) || 0,
+      totalOutUzs: Number.parseInt(String(item?.totalOutUzs || 0), 10) || 0,
+      netUzs: Number.parseInt(String(item?.netUzs || 0), 10) || 0
+    });
+  });
+
+  return cards;
+}
+
+function FinanceDailyCashPanel({ onClose, canPayFinanceCashier = false, currentUser = null }) {
   const { translate } = useI18n();
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
@@ -91,11 +159,22 @@ function FinanceDailyCashPanel({ onClose }) {
   const [filterClientSearchBusy, setFilterClientSearchBusy] = useState(false);
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [visibleColumnIds, setVisibleColumnIds] = useState(() => loadStoredDailyCashColumnIds());
+  const [cashSession, setCashSession] = useState(null);
+  const [sessionModal, setSessionModal] = useState("");
+  const [sessionForm, setSessionForm] = useState(EMPTY_SESSION_FORM);
+  const [sessionSubmitting, setSessionSubmitting] = useState(false);
+  const currentCashierName = String(currentUser?.fullName || currentUser?.username || "").trim();
+  const nowLabel = formatDateTime(new Date().toISOString());
 
   const paymentMethodOptions = useMemo(() => paymentMethods.map((item) => ({
     value: String(item.id),
     label: item.name
   })), [paymentMethods]);
+
+  const paymentMethodSummaryCards = useMemo(
+    () => getPaymentMethodSummaryCards(paymentMethods, paymentSummary),
+    [paymentMethods, paymentSummary]
+  );
 
   const serviceOptions = useMemo(() => services.map((item) => ({
     value: String(item.name || ""),
@@ -221,6 +300,26 @@ function FinanceDailyCashPanel({ onClose }) {
     }
   }, []);
 
+  const loadCashSession = useCallback(async () => {
+    if (!canPayFinanceCashier) {
+      setCashSession(null);
+      return;
+    }
+    try {
+      const response = await apiFetch("/api/finance/cashier/session/current");
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        window.alert?.(translate(data?.message || "Failed to load cash session."));
+        setCashSession(null);
+        return;
+      }
+      setCashSession(data?.item || null);
+    } catch {
+      window.alert?.(translate("Failed to load cash session."));
+      setCashSession(null);
+    }
+  }, [canPayFinanceCashier, translate]);
+
   const loadDailyCash = useCallback(async (nextPage = 1, nextFilters = EMPTY_FILTERS) => {
     setLoading(true);
     try {
@@ -258,8 +357,9 @@ function FinanceDailyCashPanel({ onClose }) {
   useEffect(() => {
     void loadPaymentMethods();
     void loadServices();
+    void loadCashSession();
     void loadDailyCash(1, EMPTY_FILTERS);
-  }, [loadDailyCash, loadPaymentMethods, loadServices]);
+  }, [loadCashSession, loadDailyCash, loadPaymentMethods, loadServices]);
 
   useEffect(() => {
     if (!filtersOpen) return undefined;
@@ -318,6 +418,53 @@ function FinanceDailyCashPanel({ onClose }) {
     setAppliedFilters(filters);
     setFiltersOpen(false);
     void loadDailyCash(1, filters);
+  };
+
+  const openSessionModal = (type) => {
+    if (!canPayFinanceCashier) return;
+    setSessionModal(type);
+    setSessionForm({
+      submittedAmountUzs: type === "close" ? String(cashSession?.expectedBalanceUzs || 0) : "",
+      note: ""
+    });
+  };
+
+  const closeSessionModal = (force = false) => {
+    if (sessionSubmitting && !force) return;
+    setSessionModal("");
+    setSessionForm(EMPTY_SESSION_FORM);
+  };
+
+  const submitCashSession = async (event) => {
+    event.preventDefault();
+    if (!sessionModal || sessionSubmitting || !canPayFinanceCashier) return;
+    const submittedAmountUzs = normalizeMoneyInput(sessionForm.submittedAmountUzs);
+    setSessionSubmitting(true);
+    try {
+      const isOpening = sessionModal === "open";
+      const response = await apiFetch(`/api/finance/cashier/session/${isOpening ? "open" : "close"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(isOpening
+          ? { note: sessionForm.note }
+          : { closingBalanceUzs: submittedAmountUzs, note: sessionForm.note })
+      });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        window.alert?.(translate(data?.message || (isOpening ? "Cash session open failed." : "Cash session close failed.")));
+        return;
+      }
+      setCashSession(data?.item || null);
+      closeSessionModal(true);
+      await Promise.all([
+        loadCashSession(),
+        loadDailyCash(1, appliedFilters)
+      ]);
+    } catch {
+      window.alert?.(translate(sessionModal === "open" ? "Cash session open failed." : "Cash session close failed."));
+    } finally {
+      setSessionSubmitting(false);
+    }
   };
 
   const fetchAllDailyCash = async () => {
@@ -395,6 +542,26 @@ function FinanceDailyCashPanel({ onClose }) {
           <button
             type="button"
             className="table-action-btn finance-head-icon-btn"
+            hidden={!canPayFinanceCashier || Boolean(cashSession)}
+            aria-label={translate("Open Cash")}
+            title={translate("Open Cash")}
+            onClick={() => openSessionModal("open")}
+          >
+            <span className="finance-head-icon finance-head-icon-cash" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="table-action-btn finance-head-icon-btn"
+            hidden={!canPayFinanceCashier || !cashSession}
+            aria-label={translate("Close Cash")}
+            title={translate("Close Cash")}
+            onClick={() => openSessionModal("close")}
+          >
+            <span className="finance-head-icon finance-head-icon-cash-close" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="table-action-btn finance-head-icon-btn"
             aria-label={translate("Table columns")}
             title={translate("Table columns")}
             onClick={() => setColumnsOpen(true)}
@@ -424,6 +591,23 @@ function FinanceDailyCashPanel({ onClose }) {
             ×
           </button>
         </div>
+      </div>
+
+      <div className="finance-daily-cash-method-summary" aria-busy={loading ? "true" : "false"}>
+        {paymentMethodSummaryCards.length > 0 ? paymentMethodSummaryCards.map((item) => (
+          <article className="finance-daily-cash-method-card" key={item.key}>
+            <span title={item.paymentMethodName}>{item.paymentMethodName}</span>
+            <strong>{formatMoneyValue(item.totalInUzs)}</strong>
+            {item.totalOutUzs > 0 ? (
+              <small>{translate("Total Out")}: {formatMoneyValue(item.totalOutUzs)}</small>
+            ) : null}
+          </article>
+        )) : (
+          <article className="finance-daily-cash-method-card">
+            <span>{translate("Payment Method")}</span>
+            <strong>{formatMoneyValue(0)}</strong>
+          </article>
+        )}
       </div>
 
       {columnsOpen && typeof document !== "undefined" ? createPortal((
@@ -590,6 +774,70 @@ function FinanceDailyCashPanel({ onClose }) {
           {translate("Next")}
         </button>
       </div>
+
+      {sessionModal && typeof document !== "undefined" ? createPortal((
+        <>
+          <button
+            type="button"
+            className="login-overlay stacked-modal-overlay finance-modal-overlay"
+            aria-label={translate("Close cash session modal")}
+            onClick={() => closeSessionModal()}
+          />
+          <div id="financeCashSessionModal" className="logout-confirm-modal all-users-edit-modal finance-modal">
+            <h3>{translate(sessionModal === "open" ? "Open Cash" : "Close Cash")}</h3>
+            <form className="auth-form" onSubmit={submitCashSession}>
+              <div className="all-users-edit-fields">
+                <div className="finance-session-info-grid">
+                  <span>{translate("Cashier")}</span>
+                  <strong>{sessionModal === "open" ? (currentCashierName || "-") : (cashSession?.cashierName || currentCashierName || "-")}</strong>
+                  <span>{translate(sessionModal === "open" ? "Opening Time" : "Opened At")}</span>
+                  <strong>{sessionModal === "open" ? nowLabel : formatDateTime(cashSession?.openedAt)}</strong>
+                  {sessionModal === "close" ? (
+                    <>
+                      <span>{translate("Closing Time")}</span>
+                      <strong>{nowLabel}</strong>
+                      <span>{translate("Collected Cash")}</span>
+                      <strong>{formatMoney(cashSession?.expectedBalanceUzs)}</strong>
+                    </>
+                  ) : null}
+                </div>
+                {sessionModal === "close" ? (
+                  <label className="field">
+                    <span>{translate("Submitted Cash")}</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={sessionForm.submittedAmountUzs}
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setSessionForm((current) => ({ ...current, submittedAmountUzs: value }));
+                      }}
+                    />
+                  </label>
+                ) : null}
+                <label className="field">
+                  <span>{translate("Note")}</span>
+                  <input
+                    type="text"
+                    maxLength={255}
+                    value={sessionForm.note}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setSessionForm((current) => ({ ...current, note: value }));
+                    }}
+                  />
+                </label>
+              </div>
+              <div className="edit-actions">
+                <button type="button" className="btn btn-secondary" onClick={() => closeSessionModal()}>{translate("Cancel")}</button>
+                <button type="submit" className="btn" disabled={sessionSubmitting}>
+                  {sessionSubmitting ? "..." : translate("Save")}
+                </button>
+              </div>
+            </form>
+          </div>
+        </>
+      ), document.body) : null}
     </section>
   );
 }

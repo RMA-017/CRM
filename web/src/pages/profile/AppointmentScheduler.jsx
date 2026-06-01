@@ -253,7 +253,7 @@ function createEmptyClientForm({
     startTime,
     durationMinutes: String(durationMinutes || "30"),
     serviceId: "",
-    service: DEFAULT_APPOINTMENT_SERVICE_NAME,
+    service: "",
     servicePriceUzs: "0",
     status: "pending",
     note: "",
@@ -3630,24 +3630,6 @@ function AppointmentScheduler({
     ];
   }, [createForm.service, createForm.serviceId, createForm.servicePriceUzs, serviceOptions]);
 
-  useEffect(() => {
-    if (!createModal.open || createModal.mode === "edit" || serviceOptions.length === 0) {
-      return;
-    }
-    const currentServiceId = String(createForm.serviceId || "").trim();
-    const currentService = String(createForm.service || "").trim();
-    if (currentServiceId && currentService) {
-      return;
-    }
-    const firstService = serviceOptions[0];
-    setCreateForm((prev) => ({
-      ...prev,
-      serviceId: firstService.value,
-      service: firstService.name,
-      servicePriceUzs: String(firstService.priceUzs ?? 0)
-    }));
-  }, [createForm.service, createForm.serviceId, createModal.mode, createModal.open, serviceOptions]);
-
   const clientSelectOptions = useMemo(() => {
     const currentId = String(createForm.clientId || "").trim();
     if (!currentId || !selectedClient) {
@@ -6340,6 +6322,9 @@ function AppointmentScheduler({
     if (!Number.isInteger(durationMinutes) || durationMinutes <= 0) {
       errors.durationMinutes = "Invalid duration.";
     }
+    if (!service) {
+      errors.service = "Service is required.";
+    }
     if (status === "confirmed" && isFutureDateYmd(appointmentDate)) {
       errors.status = "Future appointments cannot be confirmed.";
     }
@@ -6644,7 +6629,7 @@ function AppointmentScheduler({
         endTime,
         durationMinutes: String(durationMinutes),
         serviceId: nextPayload.serviceId || undefined,
-        service: nextPayload.service || DEFAULT_APPOINTMENT_SERVICE_NAME,
+        service: nextPayload.service,
         servicePriceUzs: nextPayload.servicePriceUzs || "0",
         status: nextPayload.status,
         note: nextPayload.note

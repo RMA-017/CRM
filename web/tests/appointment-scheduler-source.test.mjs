@@ -227,6 +227,21 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
+    /service: "",[\s\S]*servicePriceUzs: "0"/s,
+    "Planner create form should start without a default service so the user must choose one."
+  );
+  assert.match(
+    source,
+    /if \(!service\) \{[\s\S]*errors\.service = "Service is required\.";[\s\S]*if \(status === "confirmed"/s,
+    "Planner modal should require a selected service before saving an appointment."
+  );
+  assert.doesNotMatch(
+    source,
+    /service: nextPayload\.service \|\| DEFAULT_APPOINTMENT_SERVICE_NAME/,
+    "Planner submit should not silently fall back to a default service name."
+  );
+  assert.match(
+    source,
     /repeatEnabled: Boolean\(createForm\.repeatEnabled\),[\s\S]*if \(!nextPayload\.repeatEnabled\) \{[\s\S]*nextPayload\.repeatDays = \[\];[\s\S]*\} else if \(nextPayload\.repeatDays\.length > 0\) \{[\s\S]*nextPayload\.repeatDays = ensureAnchoredRepeatDayKeys\([\s\S]*nextPayload\.appointmentDate,[\s\S]*nextPayload\.repeatDays,[\s\S]*visibleRepeatDayKeys/s,
     "Planner submit should treat the clicked weekday as a visual default until repeat mode is explicitly activated."
   );

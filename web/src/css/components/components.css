@@ -2452,8 +2452,23 @@ label.field > span:first-child,
 #statisticsPlannerReportPanel .all-users-table-wrap {
   margin-top: 10px;
   max-height: none;
-  overflow-x: visible;
+  overflow-x: auto;
   overflow-y: visible;
+}
+
+#statisticsPlannerReportPanel .all-users-head-actions .finance-head-icon-btn {
+  flex: 0 0 30px;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  border-radius: 8px;
+  color: var(--text-secondary);
+}
+
+#statisticsPlannerReportPanel .all-users-head-actions .finance-head-icon-btn:hover {
+  color: var(--brand);
 }
 
 .planner-report-summary-card {
@@ -2526,6 +2541,7 @@ label.field > span:first-child,
 
 .planner-report-table {
   width: 100%;
+  min-width: 1080px;
   table-layout: fixed;
 }
 
@@ -2538,29 +2554,38 @@ label.field > span:first-child,
 
 .planner-report-table.is-detail-report th:nth-child(1),
 .planner-report-table.is-detail-report td:nth-child(1) {
-  width: 30%;
   padding-left: 10px;
 }
 
-.planner-report-table.is-detail-report th:nth-child(2),
-.planner-report-table.is-detail-report td:nth-child(2) {
-  width: 10%;
+#statisticsPlannerReportPanel .planner-report-table.is-detail-report .planner-report-date-cell {
+  width: 112px;
+}
+
+#statisticsPlannerReportPanel .planner-report-table.is-detail-report .planner-report-client-cell {
+  width: 220px;
+}
+
+#statisticsPlannerReportPanel .planner-report-table.is-detail-report .planner-report-client-id-cell {
+  width: 92px;
   text-align: center;
 }
 
-.planner-report-table.is-detail-report th:nth-child(3),
-.planner-report-table.is-detail-report td:nth-child(3) {
-  width: 13%;
+#statisticsPlannerReportPanel .planner-report-table.is-detail-report .planner-report-service-cell {
+  width: 190px;
 }
 
-.planner-report-table.is-detail-report th:nth-child(4),
-.planner-report-table.is-detail-report td:nth-child(4) {
-  width: 19%;
+#statisticsPlannerReportPanel .planner-report-table.is-detail-report .planner-report-specialist-cell {
+  width: 190px;
 }
 
-.planner-report-table.is-detail-report th:nth-child(5),
-.planner-report-table.is-detail-report td:nth-child(5) {
-  width: 20%;
+#statisticsPlannerReportPanel .planner-report-table.is-detail-report .planner-report-status-cell {
+  width: 112px;
+  text-align: center;
+}
+
+#statisticsPlannerReportPanel .planner-report-table.is-detail-report .planner-report-note-cell {
+  width: 260px;
+  padding-right: 10px;
 }
 
 .planner-report-client-cell {
@@ -2578,11 +2603,14 @@ label.field > span:first-child,
   white-space: nowrap;
 }
 
-.planner-report-table.is-detail-report th:nth-child(6),
-.planner-report-table.is-detail-report td:nth-child(6) {
-  width: 8%;
-  padding-right: 0;
-  text-align: center;
+.planner-report-note-text {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .planner-report-cell-confirmed {
@@ -5663,7 +5691,7 @@ label.field > span:first-child,
 .finance-cashier-panel {
   height: 100%;
   min-height: 0;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
 }
 
 .finance-cashier-panel .all-users-head {
@@ -5671,7 +5699,42 @@ label.field > span:first-child,
 }
 
 .finance-cashier-panel .all-users-head-actions {
+  flex: 1 1 760px;
   align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+}
+
+.finance-cashier-panel .all-users-head-actions .finance-board-head-client-filter {
+  flex: 1 1 170px;
+  width: auto;
+  min-width: 140px;
+  max-width: 230px;
+  height: 30px;
+  font-size: 12px;
+}
+
+.finance-cashier-panel .all-users-head-actions .finance-board-head-select-filter {
+  flex: 1 1 180px;
+  min-width: 150px;
+  max-width: 230px;
+}
+
+.finance-cashier-panel .all-users-head-actions .finance-board-head-select-filter .custom-select,
+.finance-cashier-panel .all-users-head-actions .finance-board-head-select-filter .custom-select-trigger {
+  width: 100%;
+  height: 30px;
+  min-height: 30px;
+  font-size: 12px;
+}
+
+.finance-cashier-panel .all-users-head-actions .finance-board-head-reset {
+  flex: 0 0 auto;
+  height: 30px;
+  min-height: 30px;
+  min-width: 66px;
+  padding: 0 9px;
+  font-size: 12px;
 }
 
 .ops-panel-shell .all-users-head {
@@ -5979,6 +6042,49 @@ label.field > span:first-child,
 
 .finance-daily-cash-panel .all-users-head {
   align-items: center;
+}
+
+.finance-daily-cash-method-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.finance-daily-cash-method-card {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.finance-daily-cash-method-card span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: 700;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finance-daily-cash-method-card strong {
+  color: var(--text-main);
+  font-size: 17px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.finance-daily-cash-method-card small {
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .finance-reports-panel .all-users-head {
@@ -6757,7 +6863,8 @@ label.field > span:first-child,
 
 #financeTicketColumnsModal.finance-ticket-columns-modal,
 #financeTransactionColumnsModal.finance-transaction-columns-modal,
-#financeDailyCashColumnsModal.finance-daily-cash-columns-modal {
+#financeDailyCashColumnsModal.finance-daily-cash-columns-modal,
+#plannerReportColumnsModal.finance-ticket-columns-modal {
   width: min(420px, calc(100vw - 32px));
   height: auto;
   min-height: 0;
@@ -6767,7 +6874,8 @@ label.field > span:first-child,
 
 #financeTicketColumnsModal .finance-ticket-columns-list,
 #financeTransactionColumnsModal .finance-ticket-columns-list,
-#financeDailyCashColumnsModal .finance-ticket-columns-list {
+#financeDailyCashColumnsModal .finance-ticket-columns-list,
+#plannerReportColumnsModal .finance-ticket-columns-list {
   display: grid;
   gap: 4px;
   min-height: 0;
@@ -6779,7 +6887,8 @@ label.field > span:first-child,
 
 #financeTicketColumnsModal .finance-ticket-column-option,
 #financeTransactionColumnsModal .finance-ticket-column-option,
-#financeDailyCashColumnsModal .finance-ticket-column-option {
+#financeDailyCashColumnsModal .finance-ticket-column-option,
+#plannerReportColumnsModal .finance-ticket-column-option {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -6796,7 +6905,8 @@ label.field > span:first-child,
 
 #financeTicketColumnsModal .finance-ticket-column-option input,
 #financeTransactionColumnsModal .finance-ticket-column-option input,
-#financeDailyCashColumnsModal .finance-ticket-column-option input {
+#financeDailyCashColumnsModal .finance-ticket-column-option input,
+#plannerReportColumnsModal .finance-ticket-column-option input {
   flex: 0 0 auto;
   width: 13px;
   height: 13px;
@@ -6804,7 +6914,8 @@ label.field > span:first-child,
 
 #financeTicketColumnsModal .finance-ticket-column-option span,
 #financeTransactionColumnsModal .finance-ticket-column-option span,
-#financeDailyCashColumnsModal .finance-ticket-column-option span {
+#financeDailyCashColumnsModal .finance-ticket-column-option span,
+#plannerReportColumnsModal .finance-ticket-column-option span {
   display: block;
   min-width: 0;
   color: #111827;
@@ -8131,6 +8242,12 @@ label.field > span:first-child,
   background: rgba(248, 250, 255, 0.72);
 }
 
+#financeBatchPaymentModal .finance-batch-ticket-group {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
 #financeBatchPaymentModal .finance-batch-ticket-row:not(.finance-batch-ticket-head) {
   border-color: rgba(37, 99, 235, 0.14);
   background: rgba(255, 255, 255, 0.76);
@@ -8215,6 +8332,52 @@ label.field > span:first-child,
   border: 0;
   background: transparent;
   color: #0f766e;
+}
+
+#financeBatchPaymentModal .finance-batch-ticket-lines {
+  display: grid;
+  gap: 4px;
+  margin-left: 14px;
+  padding: 7px 9px;
+  border-left: 2px solid rgba(37, 99, 235, 0.18);
+  background: rgba(255, 255, 255, 0.52);
+}
+
+#financeBatchPaymentModal .finance-batch-ticket-line {
+  display: grid;
+  grid-template-columns:
+    minmax(170px, 1.15fr)
+    minmax(140px, 0.9fr)
+    minmax(98px, 0.52fr)
+    minmax(98px, 0.52fr)
+    minmax(104px, 0.55fr);
+  gap: 8px;
+  align-items: center;
+  min-height: 24px;
+}
+
+#financeBatchPaymentModal .finance-batch-ticket-line strong,
+#financeBatchPaymentModal .finance-batch-ticket-line span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+}
+
+#financeBatchPaymentModal .finance-batch-ticket-line-head span {
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+#financeBatchPaymentModal .finance-batch-ticket-line span:nth-child(n + 3) {
+  text-align: right;
+  font-weight: 800;
+}
+
+#financeBatchPaymentModal .finance-batch-ticket-line:not(.finance-batch-ticket-line-head) strong {
+  color: var(--text-main);
 }
 
 #financeBatchPaymentModal .finance-batch-payment-row {
@@ -8493,27 +8656,14 @@ label.field > span:first-child,
 }
 
 .services-panel .all-users-head-actions {
-  flex: 0 0 auto;
+  flex: 1 1 420px;
   justify-content: flex-end;
 }
 
-.services-panel .services-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  min-width: 0;
-  margin: 0;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-  box-shadow: var(--shadow-xs);
-}
-
-.services-panel .services-toolbar .panel-search-input {
-  flex: 0 1 440px;
-  width: min(440px, 100%);
-  min-width: min(280px, 100%);
+.services-panel .all-users-head-actions .panel-search-input {
+  flex: 0 1 360px;
+  width: min(360px, 44vw);
+  min-width: min(220px, 100%);
 }
 
 .services-panel .services-table {
@@ -8571,7 +8721,7 @@ label.field > span:first-child,
     min-width: 0;
   }
 
-  .services-panel .services-toolbar .panel-search-input {
+  .services-panel .all-users-head-actions .panel-search-input {
     flex: 1 1 auto;
     width: 100%;
     min-width: 0;
@@ -8639,6 +8789,7 @@ label.field > span:first-child,
   #financeBatchPaymentModal .finance-ticket-total,
   #financeBatchPaymentModal .finance-batch-client-balance-row,
   #financeBatchPaymentModal .finance-batch-ticket-row,
+  #financeBatchPaymentModal .finance-batch-ticket-line,
   #financeBatchPaymentModal .finance-batch-payment-row {
     grid-template-columns: 1fr;
   }

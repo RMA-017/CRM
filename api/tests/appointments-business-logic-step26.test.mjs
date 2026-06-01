@@ -66,6 +66,19 @@ test("appointment schedule routes block confirmed status for future appointments
   );
 });
 
+test("appointment schedule validation requires a service name", async () => {
+  const source = await readFile(
+    new URL("../src/modules/appointments/appointment-route-helpers.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    source,
+    /if \(!serviceName\) \{[\s\S]*errors\.service = "Service is required\.";[\s\S]*if \(serviceName\.length > 128\)/s,
+    "Schedule validation should reject planner appointments that do not have a selected service."
+  );
+});
+
 test("manager role is not locked to own planner by specialist position label", () => {
   const specialistScope = resolveOwnAppointmentSpecialistUserId({
     authContext: { userId: 17 },
@@ -795,6 +808,29 @@ test("planner report returns migration-required when planner report schema is mi
 
   assert.equal(reply.state.statusCode, 409);
   assert.equal(reply.state.payload?.code, "MIGRATION_REQUIRED");
+});
+
+test("planner report includes cancellation notes from appointments and parent responses", async () => {
+  const serviceSource = await readFile(
+    new URL("../src/modules/appointments/appointment-settings.service.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    serviceSource,
+    /export async function getAppointmentPlannerReport[\s\S]*COALESCE\(NULLIF\(TRIM\(s\.note\), ''\), NULLIF\(TRIM\(parent_cancel\.reason\), ''\), ''\) AS note/s,
+    "Planner report should project appointment notes and fall back to parent cancellation reasons."
+  );
+  assert.match(
+    serviceSource,
+    /LEFT JOIN LATERAL \([\s\S]*FROM appointment_parent_responses apr[\s\S]*apr\.response_status = 'not_coming'[\s\S]*ORDER BY apr\.responded_at DESC, apr\.id DESC[\s\S]*\) parent_cancel ON TRUE/s,
+    "Planner report should read the latest parent not-coming reason when the appointment note is empty."
+  );
+  assert.match(
+    serviceSource,
+    /serviceName: String\(row\?\.service_name \|\| ""\)\.trim\(\) \|\| "Service",[\s\S]*note: String\(row\?\.note \|\| ""\)\.trim\(\)/s,
+    "Planner report details should return the note field to the dashboard."
+  );
 });
 
 test("planner report blocks assigned-scope access to an unassigned VIP client filter", async () => {

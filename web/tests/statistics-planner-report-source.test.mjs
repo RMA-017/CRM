@@ -52,6 +52,30 @@ test("statistics planner report detail table uses 20-row pagination and summary 
 
   assert.match(
     source,
+    /PLANNER_REPORT_COLUMNS_STORAGE_KEY[\s\S]*DEFAULT_PLANNER_REPORT_COLUMN_IDS[\s\S]*"ticketDate"[\s\S]*"clientName"[\s\S]*"clientId"[\s\S]*"serviceName"[\s\S]*"specialistName"[\s\S]*"status"[\s\S]*"note"/s,
+    "Planner report should keep the requested dashboard column order and persist visible columns."
+  );
+
+  assert.match(
+    source,
+    /const \[columnsOpen, setColumnsOpen\] = useState\(false\);[\s\S]*loadStoredPlannerReportColumnIds\(\)/s,
+    "Planner report should track the dashboard table columns modal and visible column ids."
+  );
+
+  assert.match(
+    source,
+    /aria-label=\{translate\("Table columns"\)\}[\s\S]*finance-head-icon-columns[\s\S]*id="plannerReportColumnsModal"[\s\S]*plannerReportColumns\.map/s,
+    "Planner report should render a table-columns button next to the close button."
+  );
+
+  assert.match(
+    source,
+    /id: "note"[\s\S]*label: "Note"[\s\S]*row\?\.note/s,
+    "Planner report should render the appointment cancellation/no-show note column."
+  );
+
+  assert.match(
+    source,
     /const filteredDetailRows = detailRows\.filter\(\(row\) => \(\s*detailStatusFilter === "all"[\s\S]*normalizePlannerReportStatusFilter\(row\?\.status\) === detailStatusFilter/s,
     "Planner report should filter detail rows by the selected summary status."
   );

@@ -461,7 +461,11 @@ function ProfileMainContent({
 
         {mainView === "finance-daily-cash" ? (
           <Suspense fallback={PANEL_LOADING_FALLBACK}>
-            <FinanceDailyCashPanel onClose={closeFinanceDailyCashPanel} />
+            <FinanceDailyCashPanel
+              onClose={closeFinanceDailyCashPanel}
+              canPayFinanceCashier={canPayFinanceCashier}
+              currentUser={profile}
+            />
           </Suspense>
         ) : null}
 

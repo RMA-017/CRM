@@ -81,6 +81,7 @@ const TEXT = Object.freeze({
     skipReason: "⏭ O'tkazib yuborish",
     cancelSaved: "Dars bekor qilindi.",
     cancelLocked: "Darsni bot orqali bekor qilish vaqti yopilgan. Iltimos, administrator bilan telefon orqali bog'laning: +998 95 455 00 33.",
+    alreadyCancelled: "Bu dars allaqachon bekor qilingan.",
     notFound: "Dars topilmadi yoki bu raqamga ruxsat yo'q.",
     menuChildren: "👶 Farzandim",
     menuToday: "📅 Bugun",
@@ -134,6 +135,7 @@ const TEXT = Object.freeze({
     skipReason: "⏭ Пропустить",
     cancelSaved: "Урок отменен.",
     cancelLocked: "Время отмены через бот закрыто. Пожалуйста, свяжитесь с администратором по телефону: +998 95 455 00 33.",
+    alreadyCancelled: "Это занятие уже отменено.",
     notFound: "Урок не найден или нет доступа для этого номера.",
     menuChildren: "👶 Ребенок",
     menuToday: "📅 Сегодня",
@@ -304,6 +306,12 @@ function mapSettingsRow(row, { includeToken = false } = {}) {
 function getText(language, key) {
   const lang = normalizeLanguage(language);
   return TEXT[lang]?.[key] || TEXT[DEFAULT_LANGUAGE][key] || key;
+}
+
+function getInactiveCancelText(language, appointment) {
+  return String(appointment?.status || "").trim().toLowerCase() === "cancelled"
+    ? getText(language, "alreadyCancelled")
+    : getText(language, "notFound");
 }
 
 function getWeekdayLabel(language, dateYmd) {
@@ -1943,7 +1951,7 @@ async function cancelParentAppointment({ settings, parent, appointmentId, reason
       token: settings.botToken,
       chatId: parent.chatId,
       messageId,
-      text: getText(parent.language, "notFound")
+      text: getInactiveCancelText(parent.language, appointment)
     });
     return;
   }
@@ -2505,7 +2513,7 @@ async function handleCallbackQuery({ settings, callbackQuery }) {
         token: settings.botToken,
         chatId: parent.chatId,
         messageId: callbackMessageId,
-        text: getText(parent.language, "notFound"),
+        text: getInactiveCancelText(parent.language, appointment),
         replyMarkup: selectedDate ? buildWeekBackReplyMarkup(parent.language, selectedDate) : undefined
       });
       return;
@@ -2706,7 +2714,7 @@ async function handleCallbackQuery({ settings, callbackQuery }) {
       await answerCallbackQuery({
         token: settings.botToken,
         callbackQueryId: callbackQuery.id,
-        text: getText(parent.language, "notFound")
+        text: getInactiveCancelText(parent.language, appointment)
       });
       return;
     }
@@ -2797,6 +2805,33 @@ async function listParentsForClient({ organizationId, clientId }) {
     last_name: row.last_name,
     middle_name: row.middle_name
   })).filter((item) => item.id && item.chatId);
+}
+
+async function hasParentNotComingResponse({ organizationId, parentId, appointmentId }) {
+  const normalizedOrganizationId = normalizePositiveInteger(organizationId);
+  const normalizedParentId = normalizePositiveInteger(parentId);
+  const normalizedAppointmentId = normalizePositiveInteger(appointmentId);
+  if (!normalizedOrganizationId || !normalizedParentId || !normalizedAppointmentId) {
+    return false;
+  }
+  try {
+    const { rows } = await pool.query(
+      `SELECT 1
+         FROM appointment_parent_responses
+        WHERE organization_id = $1
+          AND parent_account_id = $2
+          AND appointment_schedule_id = $3
+          AND response_status = 'not_coming'
+        LIMIT 1`,
+      [normalizedOrganizationId, normalizedParentId, normalizedAppointmentId]
+    );
+    return Boolean(rows?.[0]);
+  } catch (error) {
+    if (isTelegramSchemaMissing(error)) {
+      return false;
+    }
+    throw error;
+  }
 }
 
 function normalizeNotificationItem(item) {
@@ -3202,6 +3237,7 @@ export async function notifyTelegramParentsForAppointmentChange({
 
     let sentCount = 0;
     const parentsByClientId = new Map();
+    const skipCancelledParentNotificationByKey = new Map();
     const getParentsForClient = async (clientId) => {
       const normalizedClientId = normalizePositiveInteger(clientId);
       if (!normalizedClientId) {
@@ -3217,6 +3253,23 @@ export async function notifyTelegramParentsForAppointmentChange({
         );
       }
       return parentsByClientId.get(normalizedClientId);
+    };
+    const shouldSkipCancelledParentNotification = async ({ parent, item }) => {
+      if (String(notificationContext?.statusChangedTo || "").trim().toLowerCase() !== "cancelled") {
+        return false;
+      }
+      const key = `${parent.id}:${item.id}`;
+      if (!skipCancelledParentNotificationByKey.has(key)) {
+        skipCancelledParentNotificationByKey.set(
+          key,
+          await hasParentNotComingResponse({
+            organizationId: normalizedOrganizationId,
+            parentId: parent.id,
+            appointmentId: item.id
+          })
+        );
+      }
+      return skipCancelledParentNotificationByKey.get(key) === true;
     };
 
     if (isRecurringCreateNotification({ eventType, items: normalizedItems })) {
@@ -3313,6 +3366,9 @@ export async function notifyTelegramParentsForAppointmentChange({
     for (const item of normalizedItems) {
       const parents = await getParentsForClient(item.clientId);
       for (const parent of parents) {
+        if (await shouldSkipCancelledParentNotification({ parent, item })) {
+          continue;
+        }
         const message = buildParentNotificationMessage({
           settings,
           parent,

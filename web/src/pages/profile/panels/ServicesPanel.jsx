@@ -54,21 +54,18 @@ function ServicesPanel({ onClose }) {
       <div className="all-users-head">
         <h3>{translate("Services")}</h3>
         <div className="all-users-head-actions">
+          <input
+            type="search"
+            className="panel-search-input"
+            value={search}
+            aria-label={translate("Search")}
+            placeholder={translate("Search...")}
+            onChange={(event) => setSearch(event.currentTarget.value)}
+          />
           <button type="button" className="header-btn panel-close-btn" aria-label={translate("Close services panel")} onClick={onClose}>
             ×
           </button>
         </div>
-      </div>
-
-      <div className="services-toolbar">
-        <input
-          type="search"
-          className="panel-search-input"
-          value={search}
-          aria-label={translate("Search")}
-          placeholder={translate("Search...")}
-          onChange={(event) => setSearch(event.currentTarget.value)}
-        />
       </div>
 
       <p className="all-users-state" hidden={!message}>{translate(message)}</p>

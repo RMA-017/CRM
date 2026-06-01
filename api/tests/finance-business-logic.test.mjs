@@ -43,8 +43,20 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
 
   assert.match(
     financeServiceSource,
+    /export async function getCashierBoard[\s\S]*COALESCE\(fti\.items, '\[\]'::json\) AS items[\s\S]*'finalAmountUzs', fti_item\.final_amount_uzs[\s\S]*FROM finance_ticket_items fti_item/s,
+    "Cashier board tickets should include every ticket item so multi-service manual tickets can be opened with full details."
+  );
+
+  assert.match(
+    financeServiceSource,
     /function buildTicketsListWhere[\s\S]*const statuses = Array\.from\(new Set\([\s\S]*"issued", "paid", "unpaid", "voided"[\s\S]*if \(statuses\.length > 0\)[\s\S]*where\.push\(`ft\.status = ANY\(\$\$\{params\.length\}::text\[\]\)`\)[\s\S]*else \{[\s\S]*where\.push\("ft\.status <> 'voided'"\)/s,
     "Finance ticket list filters should support multiple statuses and hide deleted/voided tickets unless explicitly requested."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /function buildTicketsListWhere[\s\S]*const ticketCreatedFrom = normalizeDate\(filters\.ticketCreatedFrom \?\? filters\.ticket_created_from\);[\s\S]*ft\.created_at::date >= \$\$\{params\.length\}::date[\s\S]*ft\.created_at::date <= \$\$\{params\.length\}::date[\s\S]*ft\.ticket_date >= \$\$\{params\.length\}/s,
+    "Finance ticket list should support created-at defaults separately from manual ticket-date filters."
   );
 
   assert.match(
@@ -89,6 +101,12 @@ test("finance ticket creation only accepts confirmed appointments and snapshots 
     financeServiceSource,
     /const items = await buildTicketItems[\s\S]*const totals = getTicketTotals\(items\)[\s\S]*INSERT INTO finance_tickets[\s\S]*subtotal_uzs, discount_uzs, total_uzs, status[\s\S]*'issued'[\s\S]*await insertTicketItems/s,
     "Tickets should be issued with immutable line items and calculated subtotal/discount/total."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /const requestedPriceUzs = normalizeAmount\(rawItem\?\.priceUzs[\s\S]*const priceUzs = requestedPriceUzs > 0 \? requestedPriceUzs : normalizeAmount\(service\.price_uzs, 0\)/s,
+    "Ticket line items should allow appointment ticket price overrides while falling back to the service catalog price."
   );
 });
 
@@ -149,6 +167,24 @@ test("finance daily cash and reports separate real cash movement from deposit tr
     financeServiceSource,
     /export async function getFinanceDailyCash[\s\S]*"t\.direction IN \('in', 'out'\)"[\s\S]*SUM\(CASE WHEN t\.direction = 'in' THEN t\.amount_uzs ELSE 0 END\)[\s\S]*SUM\(CASE WHEN t\.direction = 'out' THEN t\.amount_uzs ELSE 0 END\)/s,
     "Daily cash should include only real cash in/out movement and exclude transfer-only deposit ticket payments."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /export async function openCashSession[\s\S]*getOpenCashSession\(db, \{ organizationId, cashierUserId: actorUserId, forUpdate: true \}\)[\s\S]*VALUES \(\$1, \$2, \$3, \$4, \$2\)[\s\S]*\[organizationId, actorUserId, 0, note \|\| null\]/s,
+    "Opening a cash session should be per cashier and start the new session balance from zero."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /export async function getFinanceDailyCash[\s\S]*getOpenCashSession\(pool, \{ organizationId, cashierUserId: actorUserId \}\)[\s\S]*where\.push\(`t\.cash_session_id = \$\$\{params\.length\}`\)/s,
+    "Daily cash current-session totals should be scoped to the active session of the current cashier."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /const paymentSummaryResult = await pool\.query\([\s\S]*COALESCE\(fpm\.name, 'No payment method'\) AS payment_method_name[\s\S]*GROUP BY t\.payment_method_id, fpm\.name[\s\S]*paymentMethods: paymentSummaryResult\.rows\.map/s,
+    "Daily cash should return totals grouped by payment method for the payment-method indicator block."
   );
 
   assert.match(

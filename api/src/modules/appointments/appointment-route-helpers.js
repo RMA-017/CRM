@@ -719,6 +719,9 @@ export function validateSchedulePayload({
       errors.durationMinutes = "Duration must match start and end time.";
     }
   }
+  if (!serviceName) {
+    errors.service = "Service is required.";
+  }
   if (serviceName.length > 128) {
     errors.service = "Service is too long (max 128).";
   }

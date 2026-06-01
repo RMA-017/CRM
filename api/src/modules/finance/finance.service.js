@@ -734,6 +734,7 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
               fp.paid_at,
               COALESCE(fpaid.paid_amount_uzs, 0) AS paid_amount_uzs,
               COALESCE(fti.item_count, 1) AS item_count,
+              COALESCE(fti.items, '[]'::json) AS items,
               ft.created_at,
               ft.updated_at
          FROM finance_tickets ft
@@ -761,9 +762,32 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
               AND t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')
          ) fpaid ON TRUE
          LEFT JOIN LATERAL (
-           SELECT COUNT(*) AS item_count
-             FROM finance_ticket_items
-            WHERE organization_id = ft.organization_id AND ticket_id = ft.id
+           SELECT COUNT(*) AS item_count,
+                  COALESCE(
+                    json_agg(
+                      json_build_object(
+                        'id', fti_item.id,
+                        'lineNumber', fti_item.line_number,
+                        'specialistId', fti_item.specialist_id,
+                        'specialistName', COALESCE(NULLIF(TRIM(iu.full_name), ''), NULLIF(TRIM(iu.username), ''), ''),
+                        'positionLabel', ip.label,
+                        'serviceId', fti_item.service_id,
+                        'serviceName', fti_item.service_name,
+                        'priceUzs', fti_item.price_uzs,
+                        'discountType', fti_item.discount_type,
+                        'discountValue', fti_item.discount_value,
+                        'discountUzs', fti_item.discount_uzs,
+                        'finalAmountUzs', fti_item.final_amount_uzs
+                      )
+                      ORDER BY fti_item.line_number ASC, fti_item.id ASC
+                    ),
+                    '[]'::json
+                  ) AS items
+             FROM finance_ticket_items fti_item
+             LEFT JOIN users iu ON iu.organization_id = fti_item.organization_id AND iu.id = fti_item.specialist_id
+             LEFT JOIN position_options ip ON ip.organization_id = iu.organization_id AND ip.id = iu.position_id
+            WHERE fti_item.organization_id = ft.organization_id
+              AND fti_item.ticket_id = ft.id
          ) fti ON TRUE
         WHERE ${ticketFilters.join(" AND ")}
         ORDER BY ft.updated_at DESC, ft.id DESC
@@ -1114,6 +1138,8 @@ function buildTicketsListWhere({ organizationId, filters = {} }) {
   const params = [organizationId];
   const where = ["ft.organization_id = $1"];
   const ticketNumber = normalizeText(filters.ticketNumber ?? filters.ticket_number, 5);
+  const ticketCreatedFrom = normalizeDate(filters.ticketCreatedFrom ?? filters.ticket_created_from);
+  const ticketCreatedTo = normalizeDate(filters.ticketCreatedTo ?? filters.ticket_created_to);
   const dateFrom = normalizeDate(filters.dateFrom ?? filters.date_from);
   const dateTo = normalizeDate(filters.dateTo ?? filters.date_to);
   const client = normalizeText(filters.client, 96).toLowerCase();
@@ -1130,6 +1156,14 @@ function buildTicketsListWhere({ organizationId, filters = {} }) {
   if (/^\d{1,5}$/.test(ticketNumber)) {
     params.push(Number.parseInt(ticketNumber, 10));
     where.push(`ft.ticket_number = $${params.length}`);
+  }
+  if (ticketCreatedFrom) {
+    params.push(ticketCreatedFrom);
+    where.push(`ft.created_at::date >= $${params.length}::date`);
+  }
+  if (ticketCreatedTo) {
+    params.push(ticketCreatedTo);
+    where.push(`ft.created_at::date <= $${params.length}::date`);
   }
   if (dateFrom) {
     params.push(dateFrom);
@@ -3129,7 +3163,8 @@ async function buildTicketItems(db, { organizationId, payload, appointment, fall
         error.statusCode = 404;
         throw error;
       }
-      const priceUzs = normalizeAmount(service.price_uzs, 0);
+      const requestedPriceUzs = normalizeAmount(rawItem?.priceUzs ?? rawItem?.price_uzs ?? rawItem?.amountUzs ?? rawItem?.amount_uzs, 0);
+      const priceUzs = requestedPriceUzs > 0 ? requestedPriceUzs : normalizeAmount(service.price_uzs, 0);
       if (priceUzs <= 0) {
         const error = new Error("Service price is required.");
         error.statusCode = 400;
