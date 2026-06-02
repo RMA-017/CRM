@@ -34,8 +34,8 @@ test("statistics planner report detail table uses 20-row pagination and summary 
 
   assert.match(
     source,
-    /useEffect\(\(\) => \{\s*if \(showBootstrapSkeleton\) \{\s*return;\s*\}[\s\S]*void loadReport\(\{[\s\S]*nextSpecialistId: specialistId[\s\S]*\}\);/s,
-    "Planner report should reload when toolbar filters change so the specialist select affects the report immediately."
+    /const \[appliedFilters, setAppliedFilters\] = useState\(\(\) => \(\{[\s\S]*fromDate: initialBounds\.from,[\s\S]*toDate: initialBounds\.to,[\s\S]*specialistId: ""[\s\S]*useEffect\(\(\) => \{[\s\S]*void loadReport\(\{[\s\S]*fromDate: appliedFilters\.fromDate,[\s\S]*toDate: appliedFilters\.toDate,[\s\S]*nextSpecialistId: appliedFilters\.specialistId[\s\S]*\}, \[appliedFilters, loadReport, showBootstrapSkeleton\]\);[\s\S]*onSubmit=\{\(event\) => \{[\s\S]*event\.preventDefault\(\);[\s\S]*setAppliedFilters\(\{[\s\S]*fromDate: from,[\s\S]*toDate: to,[\s\S]*specialistId[\s\S]*\}\);/s,
+    "Planner report should keep toolbar filter changes local until Reload applies them."
   );
 
   assert.match(

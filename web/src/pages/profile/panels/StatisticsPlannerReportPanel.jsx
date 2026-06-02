@@ -128,6 +128,11 @@ function StatisticsPlannerReportPanel({
   const [from, setFrom] = useState(initialBounds.from);
   const [to, setTo] = useState(initialBounds.to);
   const [specialistId, setSpecialistId] = useState("");
+  const [appliedFilters, setAppliedFilters] = useState(() => ({
+    fromDate: initialBounds.from,
+    toDate: initialBounds.to,
+    specialistId: ""
+  }));
   const [reportData, setReportData] = useState(null);
   const [reportFilterOptions, setReportFilterOptions] = useState({
     specialists: [],
@@ -250,11 +255,11 @@ function StatisticsPlannerReportPanel({
       return;
     }
     void loadReport({
-      fromDate: from,
-      toDate: to,
-      nextSpecialistId: specialistId
+      fromDate: appliedFilters.fromDate,
+      toDate: appliedFilters.toDate,
+      nextSpecialistId: appliedFilters.specialistId
     });
-  }, [from, loadReport, showBootstrapSkeleton, specialistId, to]);
+  }, [appliedFilters, loadReport, showBootstrapSkeleton]);
 
   useEffect(() => {
     if (showBootstrapSkeleton || hasLoadedFilterOptions) {
@@ -446,10 +451,10 @@ function StatisticsPlannerReportPanel({
         className="planner-report-toolbar"
         onSubmit={(event) => {
           event.preventDefault();
-          void loadReport({
+          setAppliedFilters({
             fromDate: from,
             toDate: to,
-            nextSpecialistId: specialistId
+            specialistId
           });
         }}
       >
