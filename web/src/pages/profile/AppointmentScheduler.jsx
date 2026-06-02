@@ -2217,11 +2217,7 @@ function AppointmentPlannerGrid({
                       ? (
                         isRoutineCard
                           ? (cardTimeRangeLabel || "Daily routine")
-                          : (
-                            String(item?.secondaryText || "").trim()
-                            || String(item?.specialistPosition || "").trim()
-                            || "Specialist"
-                          )
+                          : (String(item?.service || item?.serviceName || "").trim() || "Service")
                       )
                       : (String(item?.service || "").trim() || "Service");
                     const cardDurationLabel = item

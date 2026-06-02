@@ -20,9 +20,18 @@ function normalizeOptionalAmount(value) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
+function formatDateYmdInTashkent(value) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tashkent",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(value);
+}
+
 function normalizeDate(value) {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value.toISOString().slice(0, 10);
+    return formatDateYmdInTashkent(value);
   }
   const normalized = normalizeText(value, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null;
@@ -40,12 +49,7 @@ function normalizeGender(value) {
 }
 
 function getTodayYmdInTashkent() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tashkent",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).format(new Date());
+  return formatDateYmdInTashkent(new Date());
 }
 
 function addDaysToDateYmd(value, days) {

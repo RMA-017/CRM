@@ -67,6 +67,12 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
 
   assert.match(
     financeServiceSource,
+    /function formatDateYmdInTashkent\(value\) \{[\s\S]*timeZone: "Asia\/Tashkent"[\s\S]*function normalizeDate\(value\) \{[\s\S]*return formatDateYmdInTashkent\(value\);/s,
+    "Finance date-only normalization should keep Tashkent calendar dates instead of shifting them through UTC."
+  );
+
+  assert.match(
+    financeServiceSource,
     /if \(error\?\.code === "23505"\)[\s\S]*Ticket already exists for this appointment/s,
     "Duplicate active appointment tickets should be mapped to a user-facing conflict."
   );

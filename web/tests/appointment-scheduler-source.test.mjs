@@ -186,13 +186,13 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /isRoutineCard[\s\S]*String\(item\?\.secondaryText \|\| ""\)\.trim\(\)[\s\S]*String\(item\?\.specialistPosition \|\| ""\)\.trim\(\)[\s\S]*"Specialist"/s,
-    "Client mode planner cards should prefer specialist position text instead of appointment service names."
+    /isRoutineCard[\s\S]*String\(item\?\.service \|\| item\?\.serviceName \|\| ""\)\.trim\(\) \|\| "Service"/s,
+    "Client mode planner cards should show appointment service names under the specialist name."
   );
   assert.match(
     source,
     /const specialistPositionText = truncateWithEllipsis\([\s\S]*item\?\.specialistPosition[\s\S]*specialistRoleFallback[\s\S]*"Specialist"[\s\S]*secondaryText: specialistPositionText/s,
-    "Client-focused planner rows should derive their secondary text from the specialist position fallback chain."
+    "VIP weekly client rows should keep the specialist position fallback chain for their secondary text."
   );
   assert.match(
     source,
