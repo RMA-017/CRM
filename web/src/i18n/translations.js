@@ -185,6 +185,8 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Ticket ID", uz: "Talon ID", ru: "ID талона" },
   { en: "Ticket Date From", uz: "Talon sanasi dan", ru: "Дата талона с" },
   { en: "Ticket Date To", uz: "Talon sanasi gacha", ru: "Дата талона до" },
+  { en: "Ticket Created From", uz: "Talon yaratilgan sana dan", ru: "Дата создания с" },
+  { en: "Ticket Created To", uz: "Talon yaratilgan sana gacha", ru: "Дата создания до" },
   { en: "Department", uz: "Bo'lim", ru: "Отдел" },
   { en: "Status", uz: "Status", ru: "Статус" },
   { en: "Voided", uz: "Bekor qilingan", ru: "Отмена" },

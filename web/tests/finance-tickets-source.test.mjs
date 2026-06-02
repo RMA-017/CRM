@@ -85,25 +85,38 @@ test("ticket edit modal uses one shared discount and distributes it to line item
   );
 });
 
-test("ticket list opens with today's created tickets while ticket date stays a manual filter", async () => {
-  const source = await readFile(
-    new URL("../src/pages/profile/panels/FinanceTicketsPanel.jsx", import.meta.url),
-    "utf8"
-  );
+test("ticket list and filter modal use ticket creation dates", async () => {
+  const [source, translations] = await Promise.all([
+    readFile(
+      new URL("../src/pages/profile/panels/FinanceTicketsPanel.jsx", import.meta.url),
+      "utf8"
+    ),
+    readFile(new URL("../src/i18n/translations.js", import.meta.url), "utf8")
+  ]);
 
   assert.match(
     source,
     /function createDefaultFilters\(\) \{[\s\S]*\.\.\.EMPTY_FILTERS,[\s\S]*status: DEFAULT_TICKET_STATUS_FILTER[\s\S]*function createInitialAppliedFilters\(\) \{[\s\S]*ticketCreatedFrom: today,[\s\S]*ticketCreatedTo: today/s,
-    "Finance tickets should initially request tickets created today without pre-filling the visible ticket-date filters."
+    "Finance tickets should initially request tickets created today."
   );
   assert.match(
     source,
-    /const \[filters, setFilters\] = useState\(\(\) => createDefaultFilters\(\)\);[\s\S]*const \[appliedFilters, setAppliedFilters\] = useState\(\(\) => createInitialAppliedFilters\(\)\)/s,
-    "Visible filters should stay independent from the initial created-at filter."
+    /const \[filters, setFilters\] = useState\(\(\) => createInitialAppliedFilters\(\)\);[\s\S]*const \[appliedFilters, setAppliedFilters\] = useState\(\(\) => createInitialAppliedFilters\(\)\)/s,
+    "The visible filter modal dates should mirror the active created-at filter."
   );
   assert.match(
     source,
-    /value=\{filters\.dateFrom\}[\s\S]*setFilters\(\(current\) => \(\{ \.\.\.current, dateFrom: value \}\)\)[\s\S]*value=\{filters\.dateTo\}/s,
-    "Ticket date inputs should continue to filter by ticket date when the user searches."
+    /translate\("Ticket Created From"\)[\s\S]*value=\{filters\.ticketCreatedFrom\}[\s\S]*ticketCreatedFrom: value[\s\S]*translate\("Ticket Created To"\)[\s\S]*value=\{filters\.ticketCreatedTo\}[\s\S]*ticketCreatedTo: value/s,
+    "Finance ticket filter modal date inputs should filter by the real ticket creation date."
+  );
+  assert.doesNotMatch(
+    source,
+    /translate\("Ticket Date From"\)[\s\S]*value=\{filters\.dateFrom\}[\s\S]*translate\("Ticket Date To"\)[\s\S]*value=\{filters\.dateTo\}/s,
+    "Finance ticket filter modal should not expose ticket-date date range inputs."
+  );
+  assert.match(
+    translations,
+    /Ticket Created From", uz: "Talon yaratilgan sana dan", ru: "Дата создания с"[\s\S]*Ticket Created To", uz: "Talon yaratilgan sana gacha", ru: "Дата создания до"/s,
+    "Created-at date filter labels should be translated without saying ticket date."
   );
 });
