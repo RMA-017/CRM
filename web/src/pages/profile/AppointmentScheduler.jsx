@@ -5,13 +5,13 @@ import { useI18n } from "../../i18n/I18nProvider.jsx";
 import { apiFetch, readApiResponseData } from "../../lib/api.js";
 
 const DAY_ITEMS = [
-  { key: "mon", label: "Monday", offset: 0 },
-  { key: "tue", label: "Tuesday", offset: 1 },
-  { key: "wed", label: "Wednesday", offset: 2 },
-  { key: "thu", label: "Thursday", offset: 3 },
-  { key: "fri", label: "Friday", offset: 4 },
-  { key: "sat", label: "Saturday", offset: 5 },
-  { key: "sun", label: "Sunday", offset: 6 }
+  { key: "mon", label: "Monday", shortLabel: "Mon", offset: 0 },
+  { key: "tue", label: "Tuesday", shortLabel: "Tue", offset: 1 },
+  { key: "wed", label: "Wednesday", shortLabel: "Wed", offset: 2 },
+  { key: "thu", label: "Thursday", shortLabel: "Thu", offset: 3 },
+  { key: "fri", label: "Friday", shortLabel: "Fri", offset: 4 },
+  { key: "sat", label: "Saturday", shortLabel: "Sat", offset: 5 },
+  { key: "sun", label: "Sunday", shortLabel: "Sun", offset: 6 }
 ];
 
 const STATUS_OPTIONS = [
@@ -951,15 +951,29 @@ function buildPlannerEndTimeOptions(timeSlots, workingHours, visibleDayKeys = []
     .map((value) => ({ value, label: value }));
 }
 
-function buildPlannerWeekDays(weekStartDate, visibleWeekDays = []) {
+function getPlannerDayDisplayLabels(day, translate = null) {
+  const translateText = typeof translate === "function" ? translate : (value) => value;
+  const label = String(day?.label || "").trim();
+  const shortLabel = String(day?.shortLabel || label.slice(0, 3)).trim();
+  return {
+    label: translateText(label),
+    shortLabel: translateText(shortLabel)
+  };
+}
+
+function buildPlannerWeekDays(weekStartDate, visibleWeekDays = [], translate = null) {
   const visibleDays = normalizeVisibleDays(visibleWeekDays);
   return DAY_ITEMS
     .filter((day) => visibleDays.includes(day.key))
-    .map((day) => ({
-      key: day.key,
-      label: day.label,
-      date: addDays(weekStartDate, day.offset)
-    }));
+    .map((day) => {
+      const displayLabels = getPlannerDayDisplayLabels(day, translate);
+      return {
+        key: day.key,
+        label: displayLabels.label,
+        shortLabel: displayLabels.shortLabel,
+        date: addDays(weekStartDate, day.offset)
+      };
+    });
 }
 
 function buildEmptyAppointmentsByDay(weekDays = []) {
@@ -1200,9 +1214,10 @@ function AppointmentPlannerGrid({
   cardDisplayMode = "specialist",
   wrapperClassName = ""
 }) {
+  const { translate } = useI18n();
   const weekDays = useMemo(
-    () => buildPlannerWeekDays(weekStartDate, settings?.visibleWeekDays),
-    [settings?.visibleWeekDays, weekStartDate]
+    () => buildPlannerWeekDays(weekStartDate, settings?.visibleWeekDays, translate),
+    [settings?.visibleWeekDays, translate, weekStartDate]
   );
   const slotRowHeightStyle = useMemo(() => ({
     height: `${slotCellHeightPx}px`,
@@ -3287,12 +3302,16 @@ function AppointmentScheduler({
 
     return DAY_ITEMS
       .filter((day) => visibleDays.includes(day.key))
-      .map((day) => ({
-        key: day.key,
-        label: day.label,
-        date: addDays(weekStartDate, day.offset)
-      }));
-  }, [settings.visibleWeekDays, weekStartDate]);
+      .map((day) => {
+        const displayLabels = getPlannerDayDisplayLabels(day, translate);
+        return {
+          key: day.key,
+          label: displayLabels.label,
+          shortLabel: displayLabels.shortLabel,
+          date: addDays(weekStartDate, day.offset)
+        };
+      });
+  }, [settings.visibleWeekDays, translate, weekStartDate]);
   const weekDataKey = useMemo(() => (
     weekDays.map((day) => `${day.key}:${formatDateYmd(day.date)}`).join("|")
   ), [weekDays]);
@@ -3609,8 +3628,13 @@ function AppointmentScheduler({
     [settings.visibleWeekDays]
   );
   const visibleRepeatDayItems = useMemo(
-    () => DAY_ITEMS.filter((day) => visibleRepeatDayKeys.includes(day.key)),
-    [visibleRepeatDayKeys]
+    () => DAY_ITEMS
+      .filter((day) => visibleRepeatDayKeys.includes(day.key))
+      .map((day) => ({
+        ...day,
+        ...getPlannerDayDisplayLabels(day, translate)
+      })),
+    [translate, visibleRepeatDayKeys]
   );
   const clientSelectNotFound = clientSearchMessage === "No clients found.";
   const clientSelectHasError = Boolean(createErrors.clientId) || (clientSelectNotFound && !createForm.clientId);
@@ -8129,7 +8153,7 @@ function AppointmentScheduler({
                                   )}
                                   onChange={() => toggleRepeatDay(day.key)}
                                 />
-                                <span>{day.label.slice(0, 3)}</span>
+                                <span>{day.shortLabel}</span>
                               </label>
                             );
                           })}
@@ -8314,7 +8338,7 @@ function AppointmentScheduler({
                                 disabled={createSubmitting || createDeleting}
                                 onChange={() => toggleRepeatDay(day.key)}
                               />
-                              <span>{day.label.slice(0, 3)}</span>
+                              <span>{day.shortLabel}</span>
                             </label>
                           );
                         })}
@@ -8467,7 +8491,7 @@ function AppointmentScheduler({
                                 disabled={createSubmitting || createDeleting}
                                 onChange={() => toggleRepeatDay(day.key)}
                               />
-                              <span>{day.label.slice(0, 3)}</span>
+                              <span>{day.shortLabel}</span>
                             </label>
                           );
                         })}

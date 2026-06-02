@@ -3,9 +3,10 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 
 test("Appointment scheduler supports client-focused multi-specialist planner view", async () => {
-  const [source, css] = await Promise.all([
+  const [source, css, translations] = await Promise.all([
     readFile(new URL("../src/pages/profile/AppointmentScheduler.jsx", import.meta.url), "utf8"),
-    readFile(new URL("../src/css/components/components.css", import.meta.url), "utf8")
+    readFile(new URL("../src/css/components/components.css", import.meta.url), "utf8"),
+    readFile(new URL("../src/i18n/translations.js", import.meta.url), "utf8")
   ]);
 
   assert.match(
@@ -17,6 +18,26 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
     source,
     /clientFocusedSchedulesBySpecialist/,
     "Appointment scheduler should keep client-focused appointments grouped by specialist."
+  );
+  assert.match(
+    source,
+    /function getPlannerDayDisplayLabels\(day, translate = null\)[\s\S]*label: translateText\(label\),[\s\S]*shortLabel: translateText\(shortLabel\)/s,
+    "Appointment planner should translate full and short weekday labels before rendering them."
+  );
+  assert.match(
+    source,
+    /function AppointmentPlannerGrid\([\s\S]*const \{ translate \} = useI18n\(\);[\s\S]*buildPlannerWeekDays\(weekStartDate, settings\?\.visibleWeekDays, translate\)/s,
+    "Appointment planner grid should rebuild weekday headers when the active language changes."
+  );
+  assert.match(
+    source,
+    /const visibleRepeatDayItems = useMemo\([\s\S]*getPlannerDayDisplayLabels\(day, translate\)[\s\S]*<span>\{day\.shortLabel\}<\/span>/s,
+    "Appointment repeat weekday chips should use translated short labels instead of slicing English names."
+  );
+  assert.match(
+    translations,
+    /Monday", uz: "Dushanba", ru: "Понедельник"[\s\S]*Tuesday", uz: "Seshanba", ru: "Вторник"[\s\S]*Sunday", uz: "Yakshanba", ru: "Воскресенье"/s,
+    "Appointment planner should have full weekday translations for Uzbek and Russian."
   );
   assert.match(
     source,
