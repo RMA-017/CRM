@@ -3,10 +3,16 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 
 test("statistics planner report detail table uses 20-row pagination and summary filters", async () => {
-  const source = await readFile(
-    new URL("../src/pages/profile/panels/StatisticsPlannerReportPanel.jsx", import.meta.url),
-    "utf8"
-  );
+  const [source, css] = await Promise.all([
+    readFile(
+      new URL("../src/pages/profile/panels/StatisticsPlannerReportPanel.jsx", import.meta.url),
+      "utf8"
+    ),
+    readFile(
+      new URL("../src/css/components/components.css", import.meta.url),
+      "utf8"
+    )
+  ]);
 
   assert.match(
     source,
@@ -96,6 +102,18 @@ test("statistics planner report detail table uses 20-row pagination and summary 
     source,
     /<article[\s\S]*className=\{`planner-report-summary-card \$\{item\.className\}\$\{isActive \? " is-active" : ""\}`\}[\s\S]*role="button"[\s\S]*setDetailStatusFilter\(\(current\) => \(\s*current === item\.key\s*\?\s*"all"\s*:\s*item\.key/s,
     "Planner report summary cards should toggle the detail status filter when clicked."
+  );
+
+  assert.match(
+    css,
+    /\.planner-report-summary-card\.is-cancelled \{[\s\S]*border-color: rgba\(100, 116, 139, 0\.75\);[\s\S]*background: linear-gradient\(180deg, rgba\(226, 232, 240, 0\.9\) 0%, rgba\(248, 250, 252, 0\.96\) 100%\);[\s\S]*\.planner-report-summary-card\.is-no-show \{[\s\S]*border-color: rgba\(225, 29, 72, 0\.82\);[\s\S]*background: linear-gradient\(180deg, rgba\(253, 164, 175, 0\.9\) 0%, rgba\(255, 241, 242, 0\.96\) 100%\);/s,
+    "Planner report summary status cards should use the same cancelled and no-show colors as the appointment planner."
+  );
+
+  assert.match(
+    css,
+    /\.planner-report-cell-cancelled \{[\s\S]*color: #64748b;[\s\S]*\.planner-report-cell-no-show \{[\s\S]*color: #e11d48;/s,
+    "Planner report detail status labels should use the same cancelled and no-show colors as the appointment planner."
   );
 
   assert.match(

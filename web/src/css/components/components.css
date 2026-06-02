@@ -2509,23 +2509,23 @@ label.field > span:first-child,
 }
 
 .planner-report-summary-card.is-confirmed {
-  border-color: rgba(5, 150, 105, 0.72);
+  border-color: rgba(5, 150, 105, 0.7);
   background: linear-gradient(180deg, rgba(204, 251, 241, 0.78) 0%, rgba(240, 253, 250, 0.95) 100%);
 }
 
 .planner-report-summary-card.is-pending {
-  border-color: rgba(217, 119, 6, 0.72);
+  border-color: rgba(217, 119, 6, 0.7);
   background: linear-gradient(180deg, rgba(254, 243, 199, 0.78) 0%, rgba(255, 251, 235, 0.95) 100%);
 }
 
 .planner-report-summary-card.is-cancelled {
-  border-color: rgba(220, 38, 38, 0.55);
-  background: linear-gradient(180deg, rgba(254, 226, 226, 0.86) 0%, rgba(254, 242, 242, 0.95) 100%);
+  border-color: rgba(100, 116, 139, 0.75);
+  background: linear-gradient(180deg, rgba(226, 232, 240, 0.9) 0%, rgba(248, 250, 252, 0.96) 100%);
 }
 
 .planner-report-summary-card.is-no-show {
-  border-color: rgba(185, 28, 28, 0.72);
-  background: linear-gradient(180deg, rgba(254, 202, 202, 0.85) 0%, rgba(254, 242, 242, 0.95) 100%);
+  border-color: rgba(225, 29, 72, 0.82);
+  background: linear-gradient(180deg, rgba(253, 164, 175, 0.9) 0%, rgba(255, 241, 242, 0.96) 100%);
 }
 
 .planner-report-summary-label {
@@ -2614,22 +2614,22 @@ label.field > span:first-child,
 }
 
 .planner-report-cell-confirmed {
-  color: #0f7a4a;
+  color: #059669;
   font-weight: 700;
 }
 
 .planner-report-cell-pending {
-  color: #a46300;
+  color: #d97706;
   font-weight: 700;
 }
 
 .planner-report-cell-cancelled {
-  color: #b42318;
+  color: #64748b;
   font-weight: 700;
 }
 
 .planner-report-cell-no-show {
-  color: #6b5b4d;
+  color: #e11d48;
   font-weight: 700;
 }
 
@@ -3556,12 +3556,12 @@ label.field > span:first-child,
 
 .appointment-grid tbody td.appointment-day-col-gap.appointment-common-free-slot-td,
 .appointment-grid tbody tr:nth-child(even) td.appointment-day-col-gap.appointment-common-free-slot-td:not(.appointment-off-slot-td):not(.appointment-break-type-lunch-td):not(.appointment-break-type-meeting-td):not(.appointment-break-type-training-td):not(.appointment-break-type-other-td):not(.appointment-work-schedule-blocked-td) {
-  background: #c7dffc;
+  background: #d2e5fc;
 }
 
 .appointment-grid tbody td.appointment-day-col-gap.appointment-common-free-slot-td:hover,
 .appointment-grid tbody tr:nth-child(even) td.appointment-day-col-gap.appointment-common-free-slot-td:not(.appointment-off-slot-td):not(.appointment-break-type-lunch-td):not(.appointment-break-type-meeting-td):not(.appointment-break-type-training-td):not(.appointment-break-type-other-td):not(.appointment-work-schedule-blocked-td):hover {
-  background: #c7dffc;
+  background: #d2e5fc;
 }
 
 .appointment-grid tbody td.appointment-editable-block-slot-td:hover {
