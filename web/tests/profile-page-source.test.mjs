@@ -102,12 +102,17 @@ test("clients table uses a finance-style table columns modal", async () => {
   );
   assert.match(
     profileMainSource,
+    /clientsTableVisibleDataColumnCount[\s\S]*const clientsTableStyle = useMemo\(\(\) => \(\{[\s\S]*"--clients-table-min-width"[\s\S]*clientsTableVisibleDataColumnCount \* 104[\s\S]*clientsTableVisibleActionColumnCount \* 42/s,
+    "Clients table spacing should be recalculated from the currently visible columns."
+  );
+  assert.match(
+    profileMainSource,
     /clientsTableColumns=\{clientsTableColumnOptions\}[\s\S]*visibleClientsTableColumnIds=\{visibleClientsTableColumnIds\}[\s\S]*toggleClientsTableColumnVisibility=\{toggleClientsTableColumnVisibility\}/s,
     "ProfileMainContent should pass client column controls to ClientsPanel."
   );
   assert.match(
     stylesSource,
-    /#clientsPanel \.all-users-head-actions \.finance-head-icon-btn \{[\s\S]*width: 30px;[\s\S]*clients-table-col-id[\s\S]*clients-table-col-action[\s\S]*#clientsColumnsModal\.finance-ticket-columns-modal[\s\S]*#clientsColumnsModal \.finance-ticket-columns-list[\s\S]*#clientsColumnsModal \.finance-ticket-column-option/s,
+    /#clientsPanel \.all-users-head-actions \.finance-head-icon-btn \{[\s\S]*width: 30px;[\s\S]*#clientsPanel \.clients-table \{[\s\S]*--clients-action-column-width: 42px;[\s\S]*min-width: var\(--clients-table-min-width[\s\S]*table-layout: auto;[\s\S]*clients-table-col-action[\s\S]*#clientsColumnsModal\.finance-ticket-columns-modal[\s\S]*#clientsColumnsModal \.finance-ticket-columns-list[\s\S]*#clientsColumnsModal \.finance-ticket-column-option/s,
     "Clients columns modal should reuse finance-style button and modal layout."
   );
   assert.doesNotMatch(

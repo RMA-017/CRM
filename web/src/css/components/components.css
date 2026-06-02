@@ -2694,73 +2694,44 @@ label.field > span:first-child,
 
 }
 
-#clientsPanel .all-users-table {
+#clientsPanel .clients-table {
+  --clients-action-column-width: 42px;
   width: 100%;
-  table-layout: fixed;
+  min-width: var(--clients-table-min-width, 1124px);
+  table-layout: auto;
 }
 
-#clientsPanel .all-users-table th,
-#clientsPanel .all-users-table td {
+#clientsPanel .clients-table th,
+#clientsPanel .clients-table td {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-#clientsPanel .all-users-table td {
+#clientsPanel .clients-table td {
   padding-left: 4px;
   padding-right: 4px;
 }
 
-#clientsPanel .all-users-table .clients-table-col-id {
-  width: 5%;
+#clientsPanel .clients-table .clients-table-col-id,
+#clientsPanel .clients-table .clients-table-col-active {
   text-align: center;
 }
 
-#clientsPanel .all-users-table .clients-table-col-first-name {
-  width: 11%;
-}
-
-#clientsPanel .all-users-table .clients-table-col-last-name,
-#clientsPanel .all-users-table .clients-table-col-middle-name {
-  width: 11%;
-}
-
-#clientsPanel .all-users-table .clients-table-col-birthday {
-  width: 8%;
-}
-
-#clientsPanel .all-users-table .clients-table-col-phone {
-  width: 10%;
-}
-
-#clientsPanel .all-users-table .clients-table-col-email {
-  width: 8%;
-}
-
-#clientsPanel .all-users-table .clients-table-col-active {
-  width: 5%;
-  text-align: center;
-}
-
-#clientsPanel .all-users-table .clients-table-col-created-at {
-  width: 9%;
-}
-
-#clientsPanel .all-users-table .clients-table-col-note {
-  width: 10%;
+#clientsPanel .clients-table .clients-table-col-note {
   text-align: left;
 }
 
-#clientsPanel .all-users-table .clients-table-col-action {
-  width: 6%;
-  min-width: 90px;
-  max-width: 90px;
+#clientsPanel .clients-table .clients-table-col-action {
+  width: var(--clients-action-column-width);
+  min-width: var(--clients-action-column-width);
+  max-width: var(--clients-action-column-width);
   text-align: center;
-  padding-left: 4px;
-  padding-right: 4px;
+  padding-left: 2px;
+  padding-right: 2px;
 }
 
-#clientsPanel .all-users-table .clients-table-col-action .table-action-btn {
+#clientsPanel .clients-table .clients-table-col-action .table-action-btn {
   margin-left: auto;
   margin-right: auto;
 }

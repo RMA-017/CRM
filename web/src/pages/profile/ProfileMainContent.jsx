@@ -332,6 +332,7 @@ function ProfileMainContent({
       id: "edit",
       label: "Edit",
       className: "clients-table-col-action",
+      isAction: true,
       header: <span aria-hidden="true">✎</span>,
       render: (item) => (
         <button
@@ -350,6 +351,7 @@ function ProfileMainContent({
       id: "delete",
       label: "Delete",
       className: "clients-table-col-action",
+      isAction: true,
       header: <span className="table-trash-icon" aria-hidden="true" />,
       render: (item) => (
         <button
@@ -398,9 +400,20 @@ function ProfileMainContent({
   };
 
   const clientsTableVisibleColumnCount = visibleClientsTableColumns.length || 1;
+  const clientsTableVisibleActionColumnCount = visibleClientsTableColumns.filter((column) => column.isAction).length;
+  const clientsTableVisibleDataColumnCount = Math.max(
+    1,
+    clientsTableVisibleColumnCount - clientsTableVisibleActionColumnCount
+  );
+  const clientsTableStyle = useMemo(() => ({
+    "--clients-table-min-width": `${Math.max(
+      520,
+      (clientsTableVisibleDataColumnCount * 104) + (clientsTableVisibleActionColumnCount * 42)
+    )}px`
+  }), [clientsTableVisibleActionColumnCount, clientsTableVisibleDataColumnCount]);
 
   const clientsTable = useMemo(() => (
-    <table className="all-users-table" aria-label="Clients table">
+    <table className="all-users-table clients-table" aria-label="Clients table" style={clientsTableStyle}>
       <thead>
         <tr>
           {visibleClientsTableColumns.map((column) => (
@@ -433,7 +446,7 @@ function ProfileMainContent({
         })}
       </tbody>
     </table>
-  ), [clients, clientsLoading, clientsTableVisibleColumnCount, visibleClientsTableColumns]);
+  ), [clients, clientsLoading, clientsTableStyle, clientsTableVisibleColumnCount, visibleClientsTableColumns]);
 
   const shouldRenderProfileEntityModals = userCreateModalOpen || clientCreateModalOpen;
   const shouldRenderSettingsCreateModals = (
