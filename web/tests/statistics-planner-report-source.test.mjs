@@ -22,6 +22,12 @@ test("statistics planner report detail table uses 20-row pagination and summary 
 
   assert.match(
     source,
+    /function getTodayBounds\(\) \{[\s\S]*const today = `\$\{year\}-\$\{month\}-\$\{day\}`;[\s\S]*from: today,[\s\S]*to: today[\s\S]*const initialBounds = getTodayBounds\(\);/s,
+    "Profile dashboard should open with today's lessons only; wider report ranges should come from the date filters."
+  );
+
+  assert.match(
+    source,
     /const requestId = reportRequestIdRef\.current \+ 1;[\s\S]*if \(requestId !== reportRequestIdRef\.current\) \{\s*return;\s*\}/s,
     "Planner report should ignore stale responses so rapid filter changes keep the latest result."
   );

@@ -42,14 +42,15 @@ function storePlannerReportColumnIds(columnIds) {
   }
 }
 
-function getCurrentMonthBounds() {
+function getTodayBounds() {
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
+  const today = `${year}-${month}-${day}`;
   return {
-    from: `${year}-${month}-01`,
-    to: `${year}-${month}-${day}`
+    from: today,
+    to: today
   };
 }
 
@@ -123,7 +124,7 @@ function StatisticsPlannerReportPanel({
   showBootstrapSkeleton = false
 }) {
   const { translate } = useI18n();
-  const initialBounds = getCurrentMonthBounds();
+  const initialBounds = getTodayBounds();
   const [from, setFrom] = useState(initialBounds.from);
   const [to, setTo] = useState(initialBounds.to);
   const [specialistId, setSpecialistId] = useState("");
