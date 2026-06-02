@@ -80,8 +80,10 @@ function AllUsersPanel({
               <th>Position</th>
               <th>Role</th>
               <th>Created At</th>
-              <th>Edit</th>
-              <th>Delete</th>
+              <th aria-label="Edit">✎</th>
+              <th aria-label="Delete">
+                <span className="table-trash-icon" aria-hidden="true" />
+              </th>
             </tr>
           </thead>
           <tbody id="allUsersTableBody">
@@ -110,21 +112,25 @@ function AllUsersPanel({
                 <td>
                   <button
                     type="button"
-                    className="table-action-btn"
+                    className="table-action-btn profile-table-icon-btn"
+                    aria-label="Edit"
+                    title="Edit"
                     disabled={!canUpdateUsers}
                     onClick={() => openAllUsersEditModal(user.id)}
                   >
-                    Edit
+                    ✎
                   </button>
                 </td>
                 <td>
                   <button
                     type="button"
-                    className="table-action-btn table-action-btn-danger"
+                    className="table-action-btn table-action-btn-danger profile-table-icon-btn"
+                    aria-label="Delete"
+                    title="Delete"
                     disabled={!canDeleteUsers}
                     onClick={() => openAllUsersDeleteModal(user.id)}
                   >
-                    Delete
+                    <span className="table-trash-icon" aria-hidden="true" />
                   </button>
                 </td>
               </tr>

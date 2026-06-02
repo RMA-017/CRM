@@ -61,6 +61,7 @@ function ProfileMainContent({
   clientsTotalPages,
   clientsSearch,
   clientsActiveOnly,
+  clientsColumnFilters,
   setClientsSearch,
   setClientsActiveOnly,
   loadClients,
@@ -239,8 +240,10 @@ function ProfileMainContent({
           <th>Active</th>
           <th>Created At</th>
           <th>Note</th>
-          <th>Edit</th>
-          <th>Delete</th>
+          <th aria-label="Edit">✎</th>
+          <th aria-label="Delete">
+            <span className="table-trash-icon" aria-hidden="true" />
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -273,21 +276,25 @@ function ProfileMainContent({
               <td>
                 <button
                   type="button"
-                  className="table-action-btn"
+                  className="table-action-btn profile-table-icon-btn"
+                  aria-label="Edit"
+                  title="Edit"
                   disabled={!canUpdateClients}
                   onClick={() => startClientEdit(item)}
                 >
-                  Edit
+                  ✎
                 </button>
               </td>
               <td>
                 <button
                   type="button"
-                  className="table-action-btn table-action-btn-danger"
+                  className="table-action-btn table-action-btn-danger profile-table-icon-btn"
+                  aria-label="Delete"
+                  title="Delete"
                   disabled={!canDeleteClients}
                   onClick={() => openClientsDeleteModal(item)}
                 >
-                  Delete
+                  <span className="table-trash-icon" aria-hidden="true" />
                 </button>
               </td>
             </tr>
@@ -378,6 +385,7 @@ function ProfileMainContent({
               closeAllClientsPanel={closeAllClientsPanel}
               clientsSearch={clientsSearch}
               clientsActiveOnly={clientsActiveOnly}
+              clientsColumnFilters={clientsColumnFilters}
               setClientsSearch={setClientsSearch}
               setClientsActiveOnly={setClientsActiveOnly}
               loadClients={loadClients}

@@ -29,6 +29,36 @@ const EMPTY_CLIENT_EDIT_FORM = {
   isVip: false
 };
 
+const EMPTY_CLIENT_COLUMN_FILTERS = Object.freeze({
+  clientId: "",
+  firstName: "",
+  lastName: "",
+  middleName: "",
+  birthdayFrom: "",
+  birthdayTo: "",
+  phone: "",
+  email: "",
+  createdFrom: "",
+  createdTo: "",
+  note: ""
+});
+
+function normalizeClientColumnFilters(value = {}) {
+  return {
+    clientId: String(value?.clientId || "").trim(),
+    firstName: String(value?.firstName || "").trim(),
+    lastName: String(value?.lastName || "").trim(),
+    middleName: String(value?.middleName || "").trim(),
+    birthdayFrom: String(value?.birthdayFrom || "").trim(),
+    birthdayTo: String(value?.birthdayTo || "").trim(),
+    phone: String(value?.phone || "").trim(),
+    email: String(value?.email || "").trim(),
+    createdFrom: String(value?.createdFrom || "").trim(),
+    createdTo: String(value?.createdTo || "").trim(),
+    note: String(value?.note || "").trim()
+  };
+}
+
 export function useClientsSection({
   canReadClients,
   canCreateClients,
@@ -44,8 +74,10 @@ export function useClientsSection({
   const [clientsTotalPages, setClientsTotalPages] = useState(1);
   const [clientsSearch, setClientsSearch] = useState("");
   const [clientsActiveOnly, setClientsActiveOnlyState] = useState(false);
+  const [clientsColumnFilters, setClientsColumnFiltersState] = useState({ ...EMPTY_CLIENT_COLUMN_FILTERS });
   const clientsSearchRef = useRef("");
   const clientsActiveOnlyRef = useRef(false);
+  const clientsColumnFiltersRef = useRef({ ...EMPTY_CLIENT_COLUMN_FILTERS });
   const lastClientsRequestKeyRef = useRef("");
   const clientsListRequestIdRef = useRef(0);
 
@@ -195,14 +227,25 @@ export function useClientsSection({
     const activeOnly = overrides?.activeOnly !== undefined
       ? Boolean(overrides.activeOnly)
       : clientsActiveOnlyRef.current;
+    const columnFilters = normalizeClientColumnFilters(
+      overrides?.filters !== undefined ? overrides.filters : clientsColumnFiltersRef.current
+    );
     const requestKey = JSON.stringify({
       page: nextPage,
       search: trimmedSearch,
-      activeOnly
+      activeOnly,
+      columnFilters
     });
     if (!force && lastClientsRequestKeyRef.current === requestKey) {
       return;
     }
+
+    clientsSearchRef.current = trimmedSearch;
+    clientsActiveOnlyRef.current = activeOnly;
+    clientsColumnFiltersRef.current = columnFilters;
+    setClientsSearch(trimmedSearch);
+    setClientsActiveOnlyState(activeOnly);
+    setClientsColumnFiltersState(columnFilters);
 
     const requestId = clientsListRequestIdRef.current + 1;
     clientsListRequestIdRef.current = requestId;
@@ -220,6 +263,12 @@ export function useClientsSection({
       if (activeOnly) {
         query.set("active", "true");
       }
+      Object.entries(columnFilters).forEach(([key, value]) => {
+        const normalized = String(value || "").trim();
+        if (normalized) {
+          query.set(key, normalized);
+        }
+      });
 
       const response = await apiFetch(`/api/clients?${query.toString()}`, {
         method: "GET",
@@ -561,6 +610,7 @@ export function useClientsSection({
     clientsTotalPages,
     clientsSearch,
     clientsActiveOnly,
+    clientsColumnFilters,
     setClientsSearch: updateClientsSearch,
     setClientsActiveOnly: updateClientsActiveOnly,
     clientCreateForm,
