@@ -7107,8 +7107,9 @@ label.field > span:first-child,
 #financeTicketsPanel .finance-ticket-trash-icon {
   position: relative;
   display: inline-block;
-  width: 11px;
-  height: 12px;
+  box-sizing: border-box;
+  width: 13px;
+  height: 13px;
   border: 1.5px solid currentColor;
   border-top: 0;
   border-radius: 0 0 3px 3px;
@@ -7120,9 +7121,9 @@ label.field > span:first-child,
 #financeTicketsPanel .finance-ticket-trash-icon::before {
   content: "";
   position: absolute;
-  left: -1.5px;
-  top: -4px;
-  width: 11px;
+  left: -2px;
+  top: -2px;
+  width: calc(100% + 4px);
   height: 2px;
   border-radius: 2px;
   background: currentColor;
@@ -7131,12 +7132,13 @@ label.field > span:first-child,
 #financeTicketsPanel .finance-ticket-trash-icon::after {
   content: "";
   position: absolute;
-  left: 3px;
-  top: -7px;
-  width: 4px;
+  left: 50%;
+  top: -5px;
+  width: 5px;
   height: 2px;
   border-radius: 2px 2px 0 0;
   background: currentColor;
+  transform: translateX(-50%);
 }
 
 .finance-panel-shell .all-users-table {
@@ -8748,8 +8750,9 @@ label.field > span:first-child,
 :is(#servicesSettingsPanel, #financeSettingsPanel) .services-settings-trash-icon {
   position: relative;
   display: inline-block;
-  width: 11px;
-  height: 12px;
+  box-sizing: border-box;
+  width: 13px;
+  height: 13px;
   border: 1.5px solid currentColor;
   border-top: 0;
   border-radius: 0 0 3px 3px;
@@ -8761,9 +8764,9 @@ label.field > span:first-child,
 :is(#servicesSettingsPanel, #financeSettingsPanel) .services-settings-trash-icon::before {
   content: "";
   position: absolute;
-  left: -1.5px;
-  top: -4px;
-  width: 11px;
+  left: -2px;
+  top: -2px;
+  width: calc(100% + 4px);
   height: 2px;
   border-radius: 2px;
   background: currentColor;
@@ -8772,12 +8775,13 @@ label.field > span:first-child,
 :is(#servicesSettingsPanel, #financeSettingsPanel) .services-settings-trash-icon::after {
   content: "";
   position: absolute;
-  left: 3px;
-  top: -7px;
-  width: 4px;
+  left: 50%;
+  top: -5px;
+  width: 5px;
   height: 2px;
   border-radius: 2px 2px 0 0;
   background: currentColor;
+  transform: translateX(-50%);
 }
 
 .services-panel .all-users-head {

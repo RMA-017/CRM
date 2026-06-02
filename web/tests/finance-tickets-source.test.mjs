@@ -38,6 +38,24 @@ test("ticket edit change reason field uses full width and compact height", async
   );
 });
 
+test("finance delete icons use a closed trash lid", async () => {
+  const styles = await readFile(
+    new URL("../src/css/components/components.css", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    styles,
+    /#financeTicketsPanel \.finance-ticket-trash-icon \{[\s\S]*box-sizing: border-box;[\s\S]*width: 13px;[\s\S]*#financeTicketsPanel \.finance-ticket-trash-icon::before \{[\s\S]*left: -2px;[\s\S]*top: -2px;[\s\S]*width: calc\(100% \+ 4px\);[\s\S]*#financeTicketsPanel \.finance-ticket-trash-icon::after \{[\s\S]*left: 50%;[\s\S]*transform: translateX\(-50%\);/s,
+    "Finance ticket delete icon lid should fully cover the trash body."
+  );
+  assert.match(
+    styles,
+    /:is\(#servicesSettingsPanel, #financeSettingsPanel\) \.services-settings-trash-icon \{[\s\S]*box-sizing: border-box;[\s\S]*width: 13px;[\s\S]*:is\(#servicesSettingsPanel, #financeSettingsPanel\) \.services-settings-trash-icon::before \{[\s\S]*left: -2px;[\s\S]*top: -2px;[\s\S]*width: calc\(100% \+ 4px\);[\s\S]*:is\(#servicesSettingsPanel, #financeSettingsPanel\) \.services-settings-trash-icon::after \{[\s\S]*left: 50%;[\s\S]*transform: translateX\(-50%\);/s,
+    "Finance settings delete icon lid should fully cover the trash body."
+  );
+});
+
 test("ticket edit modal uses one shared discount and distributes it to line items", async () => {
   const source = await readFile(
     new URL("../src/pages/profile/panels/FinanceTicketsPanel.jsx", import.meta.url),

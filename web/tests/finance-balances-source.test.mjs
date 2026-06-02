@@ -37,6 +37,12 @@ test("client balance rows open a read-only client transaction ledger", () => {
     "Client ledger modal should show detailed transaction rows."
   );
 
+  assert.match(
+    balancesPanelSource,
+    /onChange=\{\(event\) => \{[\s\S]*const value = event\.currentTarget\.value;[\s\S]*setFilters\(\(current\) => \(\{ \.\.\.current, client: value \}\)\);[\s\S]*\}\}/s,
+    "Balances search should read the input value before the state updater runs."
+  );
+
   assert.doesNotMatch(
     balancesPanelSource,
     /client-balances\/deposit|pay-from-deposit|openOperation|submitOperation|openTicketPayment|submitTicketPayment/,

@@ -215,7 +215,10 @@ function FinanceBalancesPanel({ onClose }) {
               className="panel-search-input"
               placeholder={translate("Client")}
               value={filters.client}
-              onChange={(event) => setFilters((current) => ({ ...current, client: event.currentTarget.value }))}
+              onChange={(event) => {
+                const value = event.currentTarget.value;
+                setFilters((current) => ({ ...current, client: value }));
+              }}
             />
             <button type="submit" className="table-action-btn" disabled={loading}>
               {translate("Search")}
