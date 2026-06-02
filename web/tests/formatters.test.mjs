@@ -9,11 +9,13 @@ test("getInitial returns first letter or U", () => {
 
 test("formatDateYMD formats YYYY-MM-DD into DD.MM.YYYY", () => {
   assert.equal(formatDateYMD("2026-02-22"), "22.02.2026");
+  assert.equal(formatDateYMD("2026-02-22T00:00:00.000Z"), "22.02.2026");
   assert.equal(formatDateYMD("invalid"), "-");
 });
 
 test("formatDateForInput keeps valid date and rejects invalid", () => {
   assert.equal(formatDateForInput("2026-02-22"), "2026-02-22");
+  assert.equal(formatDateForInput("2026-02-22T00:00:00.000Z"), "2026-02-22");
   assert.equal(formatDateForInput("not-a-date"), "");
 });
 

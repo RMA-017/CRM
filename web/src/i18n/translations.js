@@ -354,6 +354,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Amount UZS", uz: "Summa UZS", ru: "Сумма UZS" },
   { en: "Ticket Date", uz: "Talon sanasi", ru: "Дата талона" },
   { en: "Ticket date is required.", uz: "Talon sanasi majburiy.", ru: "Дата талона обязательна." },
+  { en: "Future ticket dates are not allowed.", uz: "Kelajak sanasiga talon yaratib bo'lmaydi.", ru: "Нельзя создавать талоны на будущую дату." },
   { en: "Item", uz: "Qator", ru: "Строка" },
   { en: "Bill", uz: "Hisob", ru: "Счет" },
   { en: "Add Service", uz: "Xizmat qo'shish", ru: "Добавить услугу" },

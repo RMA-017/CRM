@@ -11,14 +11,21 @@ export function getInitial(text) {
   return (value[0] || "U").toUpperCase();
 }
 
+function matchDateOnlyValue(raw) {
+  return String(raw || "").trim().match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:[T\s]00:00(?::00(?:\.0{1,6})?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/
+  );
+}
+
 export function formatDateYMD(value) {
   if (!value) {
     return "-";
   }
 
   const raw = String(value).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-    const [year, month, day] = raw.split("-");
+  const dateOnlyMatch = matchDateOnlyValue(raw);
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
     return `${day}.${month}.${year}`;
   }
 
@@ -42,8 +49,10 @@ export function formatDateForInput(value) {
     return "";
   }
   const raw = String(value).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-    return raw;
+  const dateOnlyMatch = matchDateOnlyValue(raw);
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    return `${year}-${month}-${day}`;
   }
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) {

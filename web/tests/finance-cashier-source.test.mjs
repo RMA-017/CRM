@@ -80,6 +80,29 @@ test("appointment ticket modal derives price from the selected service before sa
   );
 });
 
+test("manual ticket modal blocks future ticket dates", async () => {
+  const translations = await readFile(
+    new URL("../src/i18n/translations.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    cashierPanelSource,
+    /function isFutureDateValue\(value\) \{[\s\S]*normalized > todayDateValue\(\);[\s\S]*const maxManualTicketDate = todayDateValue\(\);/s,
+    "Manual ticket modal should derive today's date and detect future ticket dates."
+  );
+  assert.match(
+    cashierPanelSource,
+    /if \(isFutureDateValue\(ticketDate\)\) \{[\s\S]*translate\("Future ticket dates are not allowed\."\)[\s\S]*return;[\s\S]*<input[\s\S]*type="date"[\s\S]*max=\{maxManualTicketDate\}[\s\S]*value=\{manualForm\.ticketDate\}/s,
+    "Manual ticket submit and date input should both prevent future ticket dates."
+  );
+  assert.match(
+    translations,
+    /Future ticket dates are not allowed\.", uz: "Kelajak sanasiga talon yaratib bo'lmaydi\.", ru: "Нельзя создавать талоны на будущую дату\."/,
+    "Future ticket date validation should have Uzbek and Russian text."
+  );
+});
+
 test("cashier board filters live in header actions without visible labels", async () => {
   const styles = await readFile(
     new URL("../src/css/components/components.css", import.meta.url),

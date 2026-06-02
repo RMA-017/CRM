@@ -60,6 +60,15 @@ function addDaysToDateYmd(value, days) {
   return `${nextYear}-${nextMonth}-${nextDay}`;
 }
 
+function assertTicketDateIsNotFuture(ticketDate) {
+  const normalizedTicketDate = normalizeDate(ticketDate);
+  if (normalizedTicketDate && normalizedTicketDate > getTodayYmdInTashkent()) {
+    const error = new Error("Future ticket dates are not allowed.");
+    error.statusCode = 400;
+    throw error;
+  }
+}
+
 function normalizePage(value) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
@@ -109,7 +118,7 @@ function mapTicket(row) {
   return {
     id: row.id,
     ticketNumber: row.ticket_number,
-    ticketDate: row.ticket_date,
+    ticketDate: normalizeDate(row.ticket_date),
     source: row.source,
     appointmentScheduleId: row.appointment_schedule_id,
     clientId: row.client_id,
@@ -129,7 +138,7 @@ function mapTicket(row) {
     ),
     status: row.status,
     note: row.note || "",
-    appointmentDate: row.appointment_date,
+    appointmentDate: normalizeDate(row.appointment_date),
     startTime: row.start_time,
     paymentMethodId: row.payment_method_id,
     paymentMethodName: row.payment_method_name,
@@ -231,10 +240,10 @@ function mapFinanceReportDetail(row) {
     ticketId: row.ticket_id,
     ticketNumber: row.ticket_number,
     ticketCreatedAt: row.ticket_created_at,
-    ticketDate: row.ticket_date,
+    ticketDate: normalizeDate(row.ticket_date),
     clientId: row.client_id,
     clientName: row.client_name || "",
-    clientBirthday: row.client_birthday,
+    clientBirthday: normalizeDate(row.client_birthday),
     clientGender: row.client_gender || "",
     clientPhone: row.client_phone || "",
     ticketItemId: row.ticket_item_id,
@@ -303,7 +312,7 @@ function mapClientDebtTicket(row) {
   return {
     id: row.id,
     ticketNumber: row.ticket_number,
-    ticketDate: row.ticket_date,
+    ticketDate: normalizeDate(row.ticket_date),
     clientId: row.client_id,
     clientName: row.client_name || "",
     serviceName: row.service_name || "",
@@ -357,7 +366,7 @@ function mapAppointment(row) {
     serviceName: row.service_name,
     servicePriceUzs: row.service_price_uzs,
     status: row.status,
-    appointmentDate: row.appointment_date,
+    appointmentDate: normalizeDate(row.appointment_date),
     startTime: row.start_time,
     endTime: row.end_time
   };
@@ -3264,7 +3273,7 @@ async function getTicketHistorySnapshot(db, { organizationId, ticketId }) {
   if (!row) return null;
   return {
     ticketNumber: row.ticket_number,
-    ticketDate: row.ticket_date,
+    ticketDate: normalizeDate(row.ticket_date),
     source: row.source,
     appointmentScheduleId: row.appointment_schedule_id,
     clientId: row.client_id,
@@ -3448,7 +3457,8 @@ export async function createFinanceTicket({ organizationId, payload, actorUserId
       amountUzs = requestedAmount > 0 ? requestedAmount : normalizeAmount(appointment.service_price_uzs, 0);
       ticketDate = normalizeDate(appointment.appointment_date) || ticketDate;
     }
-    ticketDate = ticketDate || new Date().toISOString().slice(0, 10);
+    ticketDate = ticketDate || getTodayYmdInTashkent();
+    assertTicketDateIsNotFuture(ticketDate);
 
     if (!ticketClientId) {
       const error = new Error("Client is required.");
@@ -3573,6 +3583,9 @@ export async function updateFinanceTicket({ organizationId, id, payload, actorUs
     const error = new Error("Ticket date is required.");
     error.statusCode = 400;
     throw error;
+  }
+  if (hasTicketDate) {
+    assertTicketDateIsNotFuture(ticketDate);
   }
   if (hasClientId && !clientId) {
     const error = new Error("Client is required.");

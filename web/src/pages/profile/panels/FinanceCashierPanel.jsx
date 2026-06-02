@@ -13,6 +13,11 @@ function todayDateValue() {
   return `${year}-${month}-${day}`;
 }
 
+function isFutureDateValue(value) {
+  const normalized = String(value || "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(normalized) && normalized > todayDateValue();
+}
+
 function createManualItem() {
   return {
     key: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -863,6 +868,7 @@ function FinanceCashierPanel({
       totalUzs: Math.max(subtotalUzs - discountUzs, 0)
     };
   }, [board.services, manualForm.discountType, manualForm.discountValue, manualForm.items]);
+  const maxManualTicketDate = todayDateValue();
 
   const submitBatchPayment = async (event) => {
     event.preventDefault();
@@ -925,6 +931,10 @@ function FinanceCashierPanel({
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(ticketDate)) {
       window.alert?.(translate("Ticket date is required."));
+      return;
+    }
+    if (isFutureDateValue(ticketDate)) {
+      window.alert?.(translate("Future ticket dates are not allowed."));
       return;
     }
     const manualItemsWithServices = manualForm.items.map((item) => ({
@@ -1475,6 +1485,7 @@ function FinanceCashierPanel({
                     <span>{translate("Ticket Date")}</span>
                     <input
                       type="date"
+                      max={maxManualTicketDate}
                       value={manualForm.ticketDate}
                       onChange={(event) => {
                         const value = event.currentTarget.value;

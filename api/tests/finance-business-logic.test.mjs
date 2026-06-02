@@ -61,6 +61,12 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
 
   assert.match(
     financeServiceSource,
+    /function mapTicket\(row\) \{[\s\S]*ticketDate: normalizeDate\(row\.ticket_date\)[\s\S]*appointmentDate: normalizeDate\(row\.appointment_date\)/s,
+    "Finance ticket list should return date-only ticket fields so browser timezones cannot shift the visible ticket date."
+  );
+
+  assert.match(
+    financeServiceSource,
     /if \(error\?\.code === "23505"\)[\s\S]*Ticket already exists for this appointment/s,
     "Duplicate active appointment tickets should be mapped to a user-facing conflict."
   );
@@ -107,6 +113,18 @@ test("finance ticket creation only accepts confirmed appointments and snapshots 
     financeServiceSource,
     /const requestedPriceUzs = normalizeAmount\(rawItem\?\.priceUzs[\s\S]*const priceUzs = requestedPriceUzs > 0 \? requestedPriceUzs : normalizeAmount\(service\.price_uzs, 0\)/s,
     "Ticket line items should allow appointment ticket price overrides while falling back to the service catalog price."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /function assertTicketDateIsNotFuture\(ticketDate\) \{[\s\S]*normalizedTicketDate > getTodayYmdInTashkent\(\)[\s\S]*Future ticket dates are not allowed\.[\s\S]*export async function createFinanceTicket[\s\S]*ticketDate = ticketDate \|\| getTodayYmdInTashkent\(\);[\s\S]*assertTicketDateIsNotFuture\(ticketDate\);/s,
+    "Finance ticket creation should reject manual future ticket dates and use the Tashkent business date fallback."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /export async function updateFinanceTicket[\s\S]*if \(hasTicketDate\) \{[\s\S]*assertTicketDateIsNotFuture\(ticketDate\);[\s\S]*\}/s,
+    "Finance ticket edits should not be able to move a ticket into a future date."
   );
 });
 
