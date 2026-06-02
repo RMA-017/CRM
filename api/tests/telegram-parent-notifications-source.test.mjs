@@ -424,6 +424,39 @@ test("planner status cancellation skips parents who already cancelled the lesson
   );
 });
 
+test("Telegram parent single cancellation only updates the selected lesson", async () => {
+  const [serviceSource, settingsServiceSource] = await Promise.all([
+    readFile(
+      new URL("../src/modules/telegram-bot/telegram-bot.service.js", import.meta.url),
+      "utf8"
+    ),
+    readFile(
+      new URL("../src/modules/appointments/appointment-settings.service.js", import.meta.url),
+      "utf8"
+    )
+  ]);
+  const singleCancelMatch = serviceSource.match(
+    /async function cancelParentAppointment[\s\S]*?\nasync function getPendingDayCancelAppointments/
+  );
+
+  assert.ok(singleCancelMatch, "Telegram service should keep the single parent cancel flow discoverable.");
+  assert.match(
+    singleCancelMatch[0],
+    /updateAppointmentSchedulesByIds\(\{[\s\S]*ids: \[appointment\.id\],[\s\S]*status: "cancelled"[\s\S]*note: scheduleNote/s,
+    "Single parent cancellations should update only the selected appointment id."
+  );
+  assert.doesNotMatch(
+    singleCancelMatch[0],
+    /repeatGroupKey|repeat_group_key|seriesItems|scope: "all"|scope: "future"/,
+    "Single parent cancellations should not use recurring-series metadata or series scopes."
+  );
+  assert.match(
+    settingsServiceSource,
+    /export async function updateAppointmentSchedulesByIds[\s\S]*clearRepeatMeta = false[\s\S]*WHERE s\.organization_id = \$13[\s\S]*AND s\.id = ANY\(\$14::integer\[\]\)[\s\S]*repeat_group_key = CASE WHEN \$12::boolean THEN NULL ELSE s\.repeat_group_key END/s,
+    "The schedule update helper should constrain updates by explicit ids and preserve repeat metadata unless explicitly cleared."
+  );
+});
+
 test("Telegram parent cancel shows already-cancelled text for specialist-cancelled lessons", async () => {
   const serviceSource = await readFile(
     new URL("../src/modules/telegram-bot/telegram-bot.service.js", import.meta.url),
