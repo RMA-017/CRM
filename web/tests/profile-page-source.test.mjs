@@ -41,7 +41,7 @@ test("user and client tables render edit and delete actions as compact icons", a
   );
   assert.match(
     profileMainSource,
-    /<th aria-label="Edit">✎<\/th>[\s\S]*<th aria-label="Delete">[\s\S]*<span className="table-trash-icon" aria-hidden="true" \/>/s,
+    /id: "edit"[\s\S]*label: "Edit"[\s\S]*header: <span aria-hidden="true">✎<\/span>[\s\S]*id: "delete"[\s\S]*label: "Delete"[\s\S]*header: <span className="table-trash-icon" aria-hidden="true" \/>/s,
     "Clients table headers should use the shared edit/delete icons."
   );
   assert.match(
@@ -56,7 +56,7 @@ test("user and client tables render edit and delete actions as compact icons", a
   );
 });
 
-test("clients table uses a finance-style filter modal for column filters", async () => {
+test("clients table uses a finance-style table columns modal", async () => {
   const [clientsPanelSource, clientsHookSource, profilePageSource, profileMainSource, stylesSource] = await Promise.all([
     readFile(new URL("../src/pages/profile/panels/ClientsPanel.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/pages/profile/useClientsSection.js", import.meta.url), "utf8"),
@@ -67,42 +67,52 @@ test("clients table uses a finance-style filter modal for column filters", async
 
   assert.match(
     clientsPanelSource,
-    /className="table-action-btn finance-head-icon-btn"[\s\S]*aria-label="Filter"[\s\S]*<span className="finance-head-icon finance-head-icon-filter" aria-hidden="true" \/>/s,
-    "Clients panel should expose the same compact filter icon used in finance tables."
+    /className="table-action-btn finance-head-icon-btn"[\s\S]*aria-label="Столбцы таблицы"[\s\S]*<span className="finance-head-icon finance-head-icon-columns" aria-hidden="true" \/>/s,
+    "Clients panel should expose the same compact table columns icon used in finance tables."
   );
   assert.match(
     clientsPanelSource,
-    /id="clientsFilterModal"[\s\S]*className="logout-confirm-modal all-users-edit-modal finance-modal clients-filter-modal"[\s\S]*First Name[\s\S]*Last Name[\s\S]*Birthday From[\s\S]*Created To[\s\S]*Note/s,
-    "Clients filter modal should include client table column filters."
+    /id="clientsColumnsModal"[\s\S]*className="logout-confirm-modal all-users-edit-modal finance-modal finance-ticket-columns-modal clients-columns-modal"[\s\S]*<h3>Столбцы таблицы<\/h3>[\s\S]*clientsTableColumns\.map[\s\S]*visibleClientsTableColumnIds\.includes\(column\.id\)/s,
+    "Clients columns modal should render finance-style column checkboxes."
   );
   assert.match(
     clientsPanelSource,
-    /void loadClients\(1, \{[\s\S]*search: filterDraft\.search,[\s\S]*activeOnly: filterDraft\.activeOnly,[\s\S]*filters: \{[\s\S]*clientId: filterDraft\.clientId,[\s\S]*createdTo: filterDraft\.createdTo,[\s\S]*note: filterDraft\.note/s,
-    "Clients filter modal should apply draft filters only when submitted."
+    /className="panel-search-bar"[\s\S]*placeholder="Search by ID, name, phone\.\.\."/s,
+    "Clients global search row should remain available outside the columns modal."
+  );
+  assert.match(
+    clientsPanelSource,
+    /void loadClients\(1, \{[\s\S]*search: clientsSearch,[\s\S]*activeOnly: clientsActiveOnly,[\s\S]*force: true/s,
+    "Clients global search row should keep using the existing applied search and active filters."
   );
   assert.doesNotMatch(
     clientsPanelSource,
-    /className="panel-search-bar"/,
-    "Clients filters should no longer render as a separate search row."
-  );
-  assert.match(
-    clientsHookSource,
-    /const EMPTY_CLIENT_COLUMN_FILTERS = Object\.freeze\(\{[\s\S]*clientId: ""[\s\S]*createdTo: ""[\s\S]*note: ""[\s\S]*Object\.entries\(columnFilters\)\.forEach/s,
-    "Clients hook should keep applied column filters and send them to the API."
-  );
-  assert.match(
-    profilePageSource,
-    /clientsColumnFilters,[\s\S]*clientsColumnFilters=\{clientsColumnFilters\}/s,
-    "ProfilePage should pass applied client column filters down to the panel."
+    /clientsFilterModal|finance-head-icon-filter|filterDraft/,
+    "Clients panel should not render the mistaken filter modal."
   );
   assert.match(
     profileMainSource,
-    /clientsColumnFilters,[\s\S]*clientsColumnFilters=\{clientsColumnFilters\}/s,
-    "ProfileMainContent should forward applied client column filters to ClientsPanel."
+    /CLIENTS_TABLE_COLUMNS_STORAGE_KEY[\s\S]*DEFAULT_CLIENTS_TABLE_COLUMN_IDS[\s\S]*loadStoredClientsTableColumnIds[\s\S]*storeClientsTableColumnIds/s,
+    "Client table column visibility should persist in localStorage like finance table columns."
+  );
+  assert.match(
+    profileMainSource,
+    /visibleClientsTableColumns\.map\(\(column\) => \([\s\S]*<th[\s\S]*key=\{column\.id\}[\s\S]*className=\{column\.className \|\| undefined\}[\s\S]*\{column\.header \|\| column\.label\}[\s\S]*colSpan=\{clientsTableVisibleColumnCount\}[\s\S]*visibleClientsTableColumns\.map\(\(column\) => \([\s\S]*<td key=\{column\.id\} className=\{column\.className \|\| undefined\}>\{column\.render\(item\)\}<\/td>/s,
+    "Clients table should render only the selected visible columns."
+  );
+  assert.match(
+    profileMainSource,
+    /clientsTableColumns=\{clientsTableColumnOptions\}[\s\S]*visibleClientsTableColumnIds=\{visibleClientsTableColumnIds\}[\s\S]*toggleClientsTableColumnVisibility=\{toggleClientsTableColumnVisibility\}/s,
+    "ProfileMainContent should pass client column controls to ClientsPanel."
   );
   assert.match(
     stylesSource,
-    /#clientsPanel \.all-users-head-actions \.finance-head-icon-btn \{[\s\S]*width: 30px;[\s\S]*#clientsFilterModal\.clients-filter-modal \{[\s\S]*width: min\(640px,[\s\S]*#clientsFilterModal \.clients-filter-grid \{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s,
-    "Clients filter modal should have the finance-style icon button and compact modal layout."
+    /#clientsPanel \.all-users-head-actions \.finance-head-icon-btn \{[\s\S]*width: 30px;[\s\S]*clients-table-col-id[\s\S]*clients-table-col-action[\s\S]*#clientsColumnsModal\.finance-ticket-columns-modal[\s\S]*#clientsColumnsModal \.finance-ticket-columns-list[\s\S]*#clientsColumnsModal \.finance-ticket-column-option/s,
+    "Clients columns modal should reuse finance-style button and modal layout."
+  );
+  assert.doesNotMatch(
+    clientsHookSource + profilePageSource,
+    /clientsColumnFilters|EMPTY_CLIENT_COLUMN_FILTERS|columnFilters/,
+    "The mistaken API-backed column filter state should not remain."
   );
 });

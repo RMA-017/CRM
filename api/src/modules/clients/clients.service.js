@@ -2446,13 +2446,6 @@ export async function getClientsPage({
   lastName = "",
   middleName = "",
   clientId = null,
-  birthdayFrom = "",
-  birthdayTo = "",
-  phone = "",
-  email = "",
-  createdFrom = "",
-  createdTo = "",
-  note = "",
   activeOnly = false
 }) {
   const whereParts = ["c.organization_id = $1", "o.is_active = TRUE"];
@@ -2483,48 +2476,6 @@ export async function getClientsPage({
   if (Number.isInteger(clientId) && clientId > 0) {
     params.push(clientId);
     whereParts.push(`c.id = $${params.length}`);
-  }
-
-  const normalizedBirthdayFrom = String(birthdayFrom || "").trim();
-  if (isDateYmd(normalizedBirthdayFrom)) {
-    params.push(normalizedBirthdayFrom);
-    whereParts.push(`c.birthday >= $${params.length}::date`);
-  }
-
-  const normalizedBirthdayTo = String(birthdayTo || "").trim();
-  if (isDateYmd(normalizedBirthdayTo)) {
-    params.push(normalizedBirthdayTo);
-    whereParts.push(`c.birthday <= $${params.length}::date`);
-  }
-
-  const normalizedPhone = String(phone || "").trim();
-  if (normalizedPhone) {
-    params.push(`%${normalizedPhone}%`);
-    whereParts.push(`COALESCE(c.phone_number, '') LIKE $${params.length}`);
-  }
-
-  const normalizedEmail = normalizeSearchToken(email);
-  if (normalizedEmail) {
-    params.push(`%${normalizedEmail}%`);
-    whereParts.push(`LOWER(COALESCE(c.tg_mail, '')) LIKE $${params.length}`);
-  }
-
-  const normalizedCreatedFrom = String(createdFrom || "").trim();
-  if (isDateYmd(normalizedCreatedFrom)) {
-    params.push(normalizedCreatedFrom);
-    whereParts.push(`c.created_at::date >= $${params.length}::date`);
-  }
-
-  const normalizedCreatedTo = String(createdTo || "").trim();
-  if (isDateYmd(normalizedCreatedTo)) {
-    params.push(normalizedCreatedTo);
-    whereParts.push(`c.created_at::date <= $${params.length}::date`);
-  }
-
-  const normalizedNote = normalizeSearchToken(note);
-  if (normalizedNote) {
-    params.push(`%${normalizedNote}%`);
-    whereParts.push(`LOWER(COALESCE(c.note, '')) LIKE $${params.length}`);
   }
 
   const normalizedSearch = normalizeSearchToken(search);

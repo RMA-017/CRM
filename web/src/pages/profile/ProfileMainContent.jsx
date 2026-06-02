@@ -39,6 +39,44 @@ const PANEL_LOADING_FALLBACK = (
 
 const MODAL_LOADING_FALLBACK = null;
 
+const CLIENTS_TABLE_COLUMNS_STORAGE_KEY = "aaron_crm_clients_table_columns";
+const DEFAULT_CLIENTS_TABLE_COLUMN_IDS = Object.freeze([
+  "id",
+  "firstName",
+  "lastName",
+  "middleName",
+  "birthday",
+  "phone",
+  "email",
+  "active",
+  "createdAt",
+  "note",
+  "edit",
+  "delete"
+]);
+
+function loadStoredClientsTableColumnIds() {
+  if (typeof window === "undefined") return [...DEFAULT_CLIENTS_TABLE_COLUMN_IDS];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(CLIENTS_TABLE_COLUMNS_STORAGE_KEY) || "[]");
+    const stored = Array.isArray(parsed) ? parsed : [];
+    const allowed = new Set(DEFAULT_CLIENTS_TABLE_COLUMN_IDS);
+    const normalized = DEFAULT_CLIENTS_TABLE_COLUMN_IDS.filter((id) => stored.includes(id) && allowed.has(id));
+    return normalized.length > 0 ? normalized : [...DEFAULT_CLIENTS_TABLE_COLUMN_IDS];
+  } catch {
+    return [...DEFAULT_CLIENTS_TABLE_COLUMN_IDS];
+  }
+}
+
+function storeClientsTableColumnIds(columnIds) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(CLIENTS_TABLE_COLUMNS_STORAGE_KEY, JSON.stringify(columnIds));
+  } catch {
+    // Keep the current state even if browser storage is unavailable.
+  }
+}
+
 function ProfileMainContent({
   mainView,
   allUsersLoading,
@@ -61,7 +99,6 @@ function ProfileMainContent({
   clientsTotalPages,
   clientsSearch,
   clientsActiveOnly,
-  clientsColumnFilters,
   setClientsSearch,
   setClientsActiveOnly,
   loadClients,
@@ -226,83 +263,177 @@ function ProfileMainContent({
     setPositionCreateModalOpen(false);
   }, [mainView]);
 
+  const [visibleClientsTableColumnIds, setVisibleClientsTableColumnIds] = useState(() => loadStoredClientsTableColumnIds());
+
+  const clientsTableColumns = useMemo(() => [
+    {
+      id: "id",
+      label: "ID",
+      className: "clients-table-col-id",
+      render: (item) => String(item?.id || "").trim() || "-"
+    },
+    {
+      id: "firstName",
+      label: "First Name",
+      className: "clients-table-col-first-name",
+      render: (item) => String(item?.firstName || item?.first_name || "").trim() || "-"
+    },
+    {
+      id: "lastName",
+      label: "Last Name",
+      className: "clients-table-col-last-name",
+      render: (item) => String(item?.lastName || item?.last_name || "").trim() || "-"
+    },
+    {
+      id: "middleName",
+      label: "Middle Name",
+      className: "clients-table-col-middle-name",
+      render: (item) => String(item?.middleName || item?.middle_name || "").trim() || "-"
+    },
+    {
+      id: "birthday",
+      label: "Birthday",
+      className: "clients-table-col-birthday",
+      render: (item) => formatDateYMD(item?.birthday || item?.birthdate || "")
+    },
+    {
+      id: "phone",
+      label: "Phone",
+      className: "clients-table-col-phone",
+      render: (item) => item?.phone || item?.phone_number || "-"
+    },
+    {
+      id: "email",
+      label: "Email",
+      className: "clients-table-col-email",
+      render: (item) => String(
+        item?.tgMail || item?.telegramOrEmail || item?.telegram_or_email || item?.tg_mail || ""
+      ).trim() || "-"
+    },
+    {
+      id: "active",
+      label: "Active",
+      className: "clients-table-col-active",
+      render: (item) => (item?.isVip || item?.is_vip ? "Yes" : "No")
+    },
+    {
+      id: "createdAt",
+      label: "Created At",
+      className: "clients-table-col-created-at",
+      render: (item) => formatDateYMD(item?.createdAt || item?.created_at || "")
+    },
+    {
+      id: "note",
+      label: "Note",
+      className: "clients-table-col-note",
+      render: (item) => String(item?.note || "").trim() || "-"
+    },
+    {
+      id: "edit",
+      label: "Edit",
+      className: "clients-table-col-action",
+      header: <span aria-hidden="true">✎</span>,
+      render: (item) => (
+        <button
+          type="button"
+          className="table-action-btn profile-table-icon-btn"
+          aria-label="Edit"
+          title="Edit"
+          disabled={!canUpdateClients}
+          onClick={() => startClientEdit(item)}
+        >
+          ✎
+        </button>
+      )
+    },
+    {
+      id: "delete",
+      label: "Delete",
+      className: "clients-table-col-action",
+      header: <span className="table-trash-icon" aria-hidden="true" />,
+      render: (item) => (
+        <button
+          type="button"
+          className="table-action-btn table-action-btn-danger profile-table-icon-btn"
+          aria-label="Delete"
+          title="Delete"
+          disabled={!canDeleteClients}
+          onClick={() => openClientsDeleteModal(item)}
+        >
+          <span className="table-trash-icon" aria-hidden="true" />
+        </button>
+      )
+    }
+  ], [canDeleteClients, canUpdateClients, openClientsDeleteModal, startClientEdit]);
+
+  const clientsTableColumnOptions = useMemo(
+    () => clientsTableColumns.map((column) => ({ id: column.id, label: column.label })),
+    [clientsTableColumns]
+  );
+
+  const visibleClientsTableColumns = useMemo(() => {
+    const selected = new Set(visibleClientsTableColumnIds);
+    const visible = clientsTableColumns.filter((column) => selected.has(column.id));
+    return visible.length > 0 ? visible : clientsTableColumns;
+  }, [clientsTableColumns, visibleClientsTableColumnIds]);
+
+  const toggleClientsTableColumnVisibility = (columnId) => {
+    const normalizedColumnId = String(columnId || "").trim();
+    if (!DEFAULT_CLIENTS_TABLE_COLUMN_IDS.includes(normalizedColumnId)) return;
+    setVisibleClientsTableColumnIds((current) => {
+      const currentIds = Array.isArray(current) && current.length > 0
+        ? current
+        : [...DEFAULT_CLIENTS_TABLE_COLUMN_IDS];
+      const selected = new Set(currentIds);
+      if (selected.has(normalizedColumnId)) {
+        if (selected.size <= 1) return currentIds;
+        selected.delete(normalizedColumnId);
+      } else {
+        selected.add(normalizedColumnId);
+      }
+      const nextIds = DEFAULT_CLIENTS_TABLE_COLUMN_IDS.filter((id) => selected.has(id));
+      storeClientsTableColumnIds(nextIds);
+      return nextIds;
+    });
+  };
+
+  const clientsTableVisibleColumnCount = visibleClientsTableColumns.length || 1;
+
   const clientsTable = useMemo(() => (
     <table className="all-users-table" aria-label="Clients table">
       <thead>
         <tr>
-          <th>ID</th>
-          <th>First Name</th>
-          <th>Last Name</th>
-          <th>Middle Name</th>
-          <th>Birthday</th>
-          <th>Phone</th>
-          <th>Email</th>
-          <th>Active</th>
-          <th>Created At</th>
-          <th>Note</th>
-          <th aria-label="Edit">✎</th>
-          <th aria-label="Delete">
-            <span className="table-trash-icon" aria-hidden="true" />
-          </th>
+          {visibleClientsTableColumns.map((column) => (
+            <th
+              key={column.id}
+              className={column.className || undefined}
+              aria-label={column.id === "edit" || column.id === "delete" ? column.label : undefined}
+            >
+              {column.header || column.label}
+            </th>
+          ))}
         </tr>
       </thead>
       <tbody>
         {clientsLoading ? (
           [0, 1, 2, 3, 4].map((index) => (
             <tr key={index} aria-hidden="true">
-              <td colSpan="12" className="skel" />
+              <td colSpan={clientsTableVisibleColumnCount} className="skel" />
             </tr>
           ))
         ) : clients.map((item) => {
           const rowId = String(item?.id || "");
-          const displayTgMail = String(
-            item?.tgMail || item?.telegramOrEmail || item?.telegram_or_email || item?.tg_mail || ""
-          ).trim();
-          const displayNote = String(item?.note || "").trim() || "-";
-          const createdAt = item?.createdAt || item?.created_at || "";
-
           return (
             <tr key={rowId}>
-              <td>{rowId || "-"}</td>
-              <td>{String(item?.firstName || item?.first_name || "").trim() || "-"}</td>
-              <td>{String(item?.lastName || item?.last_name || "").trim() || "-"}</td>
-              <td>{String(item?.middleName || item?.middle_name || "").trim() || "-"}</td>
-              <td>{formatDateYMD(item?.birthday || item?.birthdate || "")}</td>
-              <td>{item?.phone || item?.phone_number || "-"}</td>
-              <td>{displayTgMail || "-"}</td>
-              <td>{item?.isVip || item?.is_vip ? "Yes" : "No"}</td>
-              <td>{formatDateYMD(createdAt)}</td>
-              <td>{displayNote}</td>
-              <td>
-                <button
-                  type="button"
-                  className="table-action-btn profile-table-icon-btn"
-                  aria-label="Edit"
-                  title="Edit"
-                  disabled={!canUpdateClients}
-                  onClick={() => startClientEdit(item)}
-                >
-                  ✎
-                </button>
-              </td>
-              <td>
-                <button
-                  type="button"
-                  className="table-action-btn table-action-btn-danger profile-table-icon-btn"
-                  aria-label="Delete"
-                  title="Delete"
-                  disabled={!canDeleteClients}
-                  onClick={() => openClientsDeleteModal(item)}
-                >
-                  <span className="table-trash-icon" aria-hidden="true" />
-                </button>
-              </td>
+              {visibleClientsTableColumns.map((column) => (
+                <td key={column.id} className={column.className || undefined}>{column.render(item)}</td>
+              ))}
             </tr>
           );
         })}
       </tbody>
     </table>
-  ), [canDeleteClients, canUpdateClients, clients, clientsLoading, openClientsDeleteModal, startClientEdit]);
+  ), [clients, clientsLoading, clientsTableVisibleColumnCount, visibleClientsTableColumns]);
 
   const shouldRenderProfileEntityModals = userCreateModalOpen || clientCreateModalOpen;
   const shouldRenderSettingsCreateModals = (
@@ -385,9 +516,11 @@ function ProfileMainContent({
               closeAllClientsPanel={closeAllClientsPanel}
               clientsSearch={clientsSearch}
               clientsActiveOnly={clientsActiveOnly}
-              clientsColumnFilters={clientsColumnFilters}
               setClientsSearch={setClientsSearch}
               setClientsActiveOnly={setClientsActiveOnly}
+              clientsTableColumns={clientsTableColumnOptions}
+              visibleClientsTableColumnIds={visibleClientsTableColumnIds}
+              toggleClientsTableColumnVisibility={toggleClientsTableColumnVisibility}
               loadClients={loadClients}
               clientsLoading={clientsLoading}
               clientsMessage={clientsMessage}

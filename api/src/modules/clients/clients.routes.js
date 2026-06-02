@@ -263,13 +263,6 @@ async function clientsRoutes(fastify) {
       const lastName = String(request.query?.lastName || "").trim();
       const middleName = String(request.query?.middleName || "").trim();
       const clientId = parsePositiveInteger(request.query?.clientId ?? request.query?.client_id);
-      const birthdayFrom = String(request.query?.birthdayFrom ?? request.query?.birthday_from ?? "").trim();
-      const birthdayTo = String(request.query?.birthdayTo ?? request.query?.birthday_to ?? "").trim();
-      const phone = String(request.query?.phone ?? request.query?.phoneNumber ?? request.query?.phone_number ?? "").trim();
-      const email = String(request.query?.email ?? request.query?.tgMail ?? request.query?.tg_mail ?? "").trim();
-      const createdFrom = String(request.query?.createdFrom ?? request.query?.created_from ?? "").trim();
-      const createdTo = String(request.query?.createdTo ?? request.query?.created_to ?? "").trim();
-      const note = String(request.query?.note ?? "").trim();
       const activeOnly = normalizeBooleanFlag(
         request.query?.active
         ?? request.query?.activeOnly
@@ -295,13 +288,6 @@ async function clientsRoutes(fastify) {
           lastName,
           middleName,
           clientId,
-          birthdayFrom,
-          birthdayTo,
-          phone,
-          email,
-          createdFrom,
-          createdTo,
-          note,
           activeOnly
         });
 
