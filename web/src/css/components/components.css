@@ -3556,12 +3556,12 @@ label.field > span:first-child,
 
 .appointment-grid tbody td.appointment-day-col-gap.appointment-common-free-slot-td,
 .appointment-grid tbody tr:nth-child(even) td.appointment-day-col-gap.appointment-common-free-slot-td:not(.appointment-off-slot-td):not(.appointment-break-type-lunch-td):not(.appointment-break-type-meeting-td):not(.appointment-break-type-training-td):not(.appointment-break-type-other-td):not(.appointment-work-schedule-blocked-td) {
-  background: #F1FCFB;
+  background: #F3F2ED;
 }
 
 .appointment-grid tbody td.appointment-day-col-gap.appointment-common-free-slot-td:hover,
 .appointment-grid tbody tr:nth-child(even) td.appointment-day-col-gap.appointment-common-free-slot-td:not(.appointment-off-slot-td):not(.appointment-break-type-lunch-td):not(.appointment-break-type-meeting-td):not(.appointment-break-type-training-td):not(.appointment-break-type-other-td):not(.appointment-work-schedule-blocked-td):hover {
-  background: #F1FCFB;
+  background: #F3F2ED;
 }
 
 .appointment-grid tbody td.appointment-editable-block-slot-td:hover {
