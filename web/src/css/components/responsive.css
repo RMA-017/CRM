@@ -8,17 +8,9 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  #clientsPanel .all-users-table {
-    width: max-content;
-    min-width: 1280px;
-    table-layout: auto;
-  }
-
-  #clientsPanel .all-users-table th,
-  #clientsPanel .all-users-table td {
-    overflow: visible;
-    text-overflow: clip;
-    white-space: nowrap;
+  #clientsPanel .clients-table {
+    width: 100%;
+    min-width: var(--clients-table-min-width, 1124px);
   }
 }
 
@@ -39,14 +31,6 @@
     width: min(100%, 640px);
   }
 
-  #clientsPanel .all-users-table th:nth-child(11),
-  #clientsPanel .all-users-table td:nth-child(11),
-  #clientsPanel .all-users-table th:nth-child(12),
-  #clientsPanel .all-users-table td:nth-child(12) {
-    width: 90px;
-    min-width: 90px;
-    max-width: 90px;
-  }
 }
 
 @media (max-width: 860px) {
@@ -239,17 +223,9 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  #clientsPanel .all-users-table {
-    width: max-content;
-    min-width: 1280px;
-    table-layout: auto;
-  }
-
-  #clientsPanel .all-users-table th,
-  #clientsPanel .all-users-table td {
-    overflow: visible;
-    text-overflow: clip;
-    white-space: nowrap;
+  #clientsPanel .clients-table {
+    width: 100%;
+    min-width: var(--clients-table-min-width, 1124px);
   }
 
   /* Appointment scheduler */
@@ -739,13 +715,8 @@
 
 }
 
-/* Statistics panels — desktop layout preserved at all screen sizes.
-   ID selectors override any class-only responsive rules from components.css. */
-
 main.home-main:has(#statisticsPlannerReportPanel) {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-x: contain;
+  overflow-x: hidden;
 }
 
 /* Organization Settings — horizontal scroll via parent for better UX (scrollbar stays at viewport bottom) */
@@ -768,13 +739,13 @@ main.home-main:has(#organizationsPanel) {
 
 /* Statistics / Lesson Status Report */
 #statisticsPlannerReportPanel {
-  overflow-x: visible;
-  min-width: 820px;
+  overflow-x: hidden;
+  min-width: 0;
 }
 
 #statisticsPlannerReportPanel .planner-report-toolbar {
   align-items: flex-end;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
 }
 
 #statisticsPlannerReportPanel .planner-report-field {
@@ -806,14 +777,50 @@ main.home-main:has(#organizationsPanel) {
 #statisticsPlannerReportPanel .all-users-table-wrap {
   width: 100%;
   max-height: none;
-  overflow-x: visible;
+  overflow-x: auto;
   overflow-y: visible;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 #statisticsPlannerReportPanel .planner-report-table {
   width: 100%;
-  min-width: 0;
+  min-width: 760px;
   table-layout: fixed;
+}
+
+@media (max-width: 1100px) {
+  #statisticsPlannerReportPanel .planner-report-summary-grid,
+  #statisticsPlannerReportPanel .planner-report-skeleton .planner-report-summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  #statisticsPlannerReportPanel .planner-report-toolbar {
+    align-items: stretch;
+  }
+
+  #statisticsPlannerReportPanel .planner-report-field,
+  #statisticsPlannerReportPanel .planner-report-field-specialist,
+  #statisticsPlannerReportPanel .planner-report-load-btn {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  #statisticsPlannerReportPanel .planner-report-summary-grid,
+  #statisticsPlannerReportPanel .planner-report-skeleton .planner-report-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  #statisticsPlannerReportPanel .planner-report-summary-grid,
+  #statisticsPlannerReportPanel .planner-report-skeleton .planner-report-summary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* Appointment Settings panel — the form stacks responsively, so avoid forcing a

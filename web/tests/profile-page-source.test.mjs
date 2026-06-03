@@ -57,12 +57,13 @@ test("user and client tables render edit and delete actions as compact icons", a
 });
 
 test("clients table uses a finance-style table columns modal", async () => {
-  const [clientsPanelSource, clientsHookSource, profilePageSource, profileMainSource, stylesSource] = await Promise.all([
+  const [clientsPanelSource, clientsHookSource, profilePageSource, profileMainSource, stylesSource, responsiveStylesSource] = await Promise.all([
     readFile(new URL("../src/pages/profile/panels/ClientsPanel.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/pages/profile/useClientsSection.js", import.meta.url), "utf8"),
     readFile(new URL("../src/pages/ProfilePage.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/pages/profile/ProfileMainContent.jsx", import.meta.url), "utf8"),
-    readFile(new URL("../src/css/components/components.css", import.meta.url), "utf8")
+    readFile(new URL("../src/css/components/components.css", import.meta.url), "utf8"),
+    readFile(new URL("../src/css/components/responsive.css", import.meta.url), "utf8")
   ]);
 
   assert.match(
@@ -114,6 +115,11 @@ test("clients table uses a finance-style table columns modal", async () => {
     stylesSource,
     /#clientsPanel \.all-users-head-actions \.finance-head-icon-btn \{[\s\S]*width: 30px;[\s\S]*#clientsPanel \.clients-table \{[\s\S]*--clients-action-column-width: 42px;[\s\S]*min-width: var\(--clients-table-min-width[\s\S]*table-layout: auto;[\s\S]*clients-table-col-action[\s\S]*#clientsColumnsModal\.finance-ticket-columns-modal[\s\S]*#clientsColumnsModal \.finance-ticket-columns-list[\s\S]*#clientsColumnsModal \.finance-ticket-column-option/s,
     "Clients columns modal should reuse finance-style button and modal layout."
+  );
+  assert.doesNotMatch(
+    responsiveStylesSource,
+    /#clientsPanel \.all-users-table[\s\S]*min-width: 1280px|#clientsPanel \.all-users-table th:nth-child\(11\)|#clientsPanel \.all-users-table td:nth-child\(12\)/,
+    "Clients responsive styles should not override dynamic visible-column table width or compact action columns."
   );
   assert.doesNotMatch(
     clientsHookSource + profilePageSource,

@@ -3,13 +3,17 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 
 test("statistics planner report detail table uses 20-row pagination and summary filters", async () => {
-  const [source, css] = await Promise.all([
+  const [source, css, responsiveCss] = await Promise.all([
     readFile(
       new URL("../src/pages/profile/panels/StatisticsPlannerReportPanel.jsx", import.meta.url),
       "utf8"
     ),
     readFile(
       new URL("../src/css/components/components.css", import.meta.url),
+      "utf8"
+    ),
+    readFile(
+      new URL("../src/css/components/responsive.css", import.meta.url),
       "utf8"
     )
   ]);
@@ -120,6 +124,12 @@ test("statistics planner report detail table uses 20-row pagination and summary 
     css,
     /\.planner-report-cell-cancelled \{[\s\S]*color: #64748b;[\s\S]*\.planner-report-cell-no-show \{[\s\S]*color: #e11d48;/s,
     "Planner report detail status labels should use the same cancelled and no-show colors as the appointment planner."
+  );
+
+  assert.match(
+    responsiveCss,
+    /main\.home-main:has\(#statisticsPlannerReportPanel\) \{[\s\S]*overflow-x: hidden;[\s\S]*#statisticsPlannerReportPanel \{[\s\S]*min-width: 0;[\s\S]*#statisticsPlannerReportPanel \.planner-report-toolbar \{[\s\S]*flex-wrap: wrap;[\s\S]*#statisticsPlannerReportPanel \.all-users-table-wrap \{[\s\S]*overflow-x: auto;[\s\S]*#statisticsPlannerReportPanel \.planner-report-table \{[\s\S]*min-width: 760px;[\s\S]*@media \(max-width: 1100px\) \{[\s\S]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);[\s\S]*@media \(max-width: 700px\) \{[\s\S]*flex: 1 1 100%;[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[\s\S]*@media \(max-width: 420px\) \{[\s\S]*grid-template-columns: minmax\(0, 1fr\);/s,
+    "Profile dashboard should keep main content responsive while scrolling only the detail table when needed."
   );
 
   assert.match(
