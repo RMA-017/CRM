@@ -315,6 +315,12 @@ test("finance client balance filters use the projected balance columns", () => {
 
   assert.match(
     financeServiceSource,
+    /const hasExplicitClientLookup = Boolean\(client\) \|\| clientIds\.length > 0;[\s\S]*type === "active" && !hasExplicitClientLookup[\s\S]*else if \(!hasExplicitClientLookup\)/s,
+    "Client balance search should show matching clients even when they have no current debt or deposit."
+  );
+
+  assert.match(
+    financeServiceSource,
     /export async function getFinanceClientTransactions[\s\S]*WHERE t\.organization_id = \$1[\s\S]*AND t\.client_id = \$2[\s\S]*mapClientLedgerTransaction\(row, runningDepositUzs\)/s,
     "Client balance rows should expose a full client transaction ledger with cash, deposit and debt summary fields."
   );

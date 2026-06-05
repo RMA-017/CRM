@@ -6306,9 +6306,11 @@ label.field > span:first-child,
   margin-bottom: 8px;
 }
 
-.finance-client-ledger-title {
+#financeClientLedgerModal .finance-client-ledger-title {
   margin: 0;
   min-width: 0;
+  width: 100%;
+  justify-self: start;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -6371,11 +6373,13 @@ label.field > span:first-child,
 }
 
 .finance-client-ledger-table {
-  min-width: 1680px;
   table-layout: fixed;
 }
 
-.finance-client-ledger-table :is(th, td) {
+#financeClientLedgerModal .finance-client-ledger-table :is(th, td) {
+  width: auto;
+  min-width: 0;
+  max-width: none;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

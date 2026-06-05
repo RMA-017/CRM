@@ -2741,14 +2741,15 @@ export async function getFinanceClientBalances({ organizationId, filters = {} })
     )`);
   }
 
+  const hasExplicitClientLookup = Boolean(client) || clientIds.length > 0;
   const having = [];
   if (type === "debt") {
     having.push("COALESCE(debt_uzs, 0) > 0");
   } else if (type === "deposit") {
     having.push("COALESCE(deposit_uzs, 0) > 0");
-  } else if (type === "active") {
+  } else if (type === "active" && !hasExplicitClientLookup) {
     having.push("(COALESCE(debt_uzs, 0) > 0 OR COALESCE(deposit_uzs, 0) > 0)");
-  } else if (!client && clientIds.length === 0) {
+  } else if (!hasExplicitClientLookup) {
     having.push("(COALESCE(debt_uzs, 0) > 0 OR COALESCE(deposit_uzs, 0) > 0)");
   }
 

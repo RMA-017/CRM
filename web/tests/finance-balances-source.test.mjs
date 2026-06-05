@@ -69,6 +69,12 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     balancesPanelSource,
+    /visibleLedgerTableMinWidth = Math\.max\([\s\S]*visibleLedgerColumns\.reduce\(\(sum, column\) => sum \+[\s\S]*column\.widthPx[\s\S]*style=\{\{ minWidth: `\$\{visibleLedgerTableMinWidth\}px` \}\}/s,
+    "Client ledger table spacing should follow the currently visible columns."
+  );
+
+  assert.match(
+    balancesPanelSource,
     /exportClientLedger[\s\S]*buildExportFilename\(`finance-client-\$\{clientId \|\| "ledger"\}-transactions`\)[\s\S]*visibleLedgerColumns\.map\(\(column\) => translate\(column\.label\)\)[\s\S]*visibleLedgerColumns\.map\(\(column\) => column\.exportValue\(item\)\)/s,
     "Client ledger export should follow the visible columns."
   );
@@ -93,8 +99,14 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     styles,
-    /#financeClientLedgerModal\.finance-client-ledger-modal[\s\S]*width: min\(1380px,[\s\S]*height: min\(780px, calc\(100dvh - 24px\)\);[\s\S]*grid-template-rows: auto minmax\(0, 1fr\);[\s\S]*\.finance-client-ledger-table[\s\S]*min-width: 1680px/s,
+    /#financeClientLedgerModal\.finance-client-ledger-modal[\s\S]*width: min\(1380px,[\s\S]*height: min\(780px, calc\(100dvh - 24px\)\);[\s\S]*grid-template-rows: auto minmax\(0, 1fr\);/s,
     "Client ledger modal should have a wide, scannable layout."
+  );
+
+  assert.doesNotMatch(
+    styles,
+    /\.finance-client-ledger-table \{[\s\S]*min-width: 1680px/s,
+    "Client ledger table should not keep a static width after columns are hidden."
   );
 
   assert.match(

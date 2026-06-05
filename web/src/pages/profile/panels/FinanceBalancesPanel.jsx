@@ -147,6 +147,7 @@ function FinanceBalancesPanel({ onClose }) {
       id: "operationDate",
       label: "Operation Date",
       className: "finance-client-ledger-col-date",
+      widthPx: 128,
       render: (item) => formatDateTime(item.transactionAt || item.createdAt),
       exportValue: (item) => formatDateTime(item.transactionAt || item.createdAt)
     },
@@ -154,6 +155,7 @@ function FinanceBalancesPanel({ onClose }) {
       id: "operationNumber",
       label: "Operation Number",
       className: "finance-client-ledger-col-operation",
+      widthPx: 96,
       render: (item) => item.id ? `#${item.id}` : "-",
       exportValue: (item) => item.id || ""
     },
@@ -161,6 +163,7 @@ function FinanceBalancesPanel({ onClose }) {
       id: "action",
       label: "Action",
       className: "finance-client-ledger-col-action",
+      widthPx: 190,
       render: (item) => getTransactionActionLabel(translate, item),
       exportValue: (item) => getTransactionActionLabel(translate, item)
     },
@@ -168,6 +171,7 @@ function FinanceBalancesPanel({ onClose }) {
       id: "ticketNumber",
       label: "Ticket Number",
       className: "finance-client-ledger-col-ticket",
+      widthPx: 92,
       render: (item) => item.ticketNumber ? `#${item.ticketNumber}` : "-",
       exportValue: (item) => item.ticketNumber || ""
     },
@@ -175,6 +179,7 @@ function FinanceBalancesPanel({ onClose }) {
       id: "serviceName",
       label: "Service Name",
       className: "finance-client-ledger-col-service",
+      widthPx: 180,
       render: (item) => item.serviceName || "-",
       exportValue: (item) => item.serviceName || ""
     },
@@ -182,6 +187,7 @@ function FinanceBalancesPanel({ onClose }) {
       id: "paymentMethod",
       label: "Payment Method",
       className: "finance-client-ledger-col-method",
+      widthPx: 132,
       render: (item) => item.paymentMethodName || translate("Balance"),
       exportValue: (item) => item.paymentMethodName || translate("Balance")
     },
@@ -190,6 +196,7 @@ function FinanceBalancesPanel({ onClose }) {
       label: "Cash In",
       className: "finance-client-ledger-col-money",
       cellClassName: "finance-client-ledger-money-cell",
+      widthPx: 122,
       render: (item) => formatMoney(getClientLedgerCashInUzs(item)),
       exportValue: (item) => getClientLedgerCashInUzs(item)
     },
@@ -198,6 +205,7 @@ function FinanceBalancesPanel({ onClose }) {
       label: "Cash Out",
       className: "finance-client-ledger-col-money",
       cellClassName: "finance-client-ledger-money-cell",
+      widthPx: 122,
       render: (item) => formatMoney(getClientLedgerCashOutUzs(item)),
       exportValue: (item) => getClientLedgerCashOutUzs(item)
     },
@@ -205,6 +213,7 @@ function FinanceBalancesPanel({ onClose }) {
       id: "depositChange",
       label: "Deposit +/-",
       className: "finance-client-ledger-col-deposit-change",
+      widthPx: 122,
       cellClassName: (item) => [
         "finance-client-ledger-money-cell",
         item.depositChangeUzs > 0 ? "finance-balance-positive" : "",
@@ -218,6 +227,7 @@ function FinanceBalancesPanel({ onClose }) {
       label: "Deposit Balance",
       className: "finance-client-ledger-col-deposit-balance",
       cellClassName: "finance-client-ledger-money-cell",
+      widthPx: 132,
       render: (item) => formatMoney(item.depositBalanceAfterUzs),
       exportValue: (item) => toIntegerAmount(item.depositBalanceAfterUzs)
     },
@@ -225,6 +235,7 @@ function FinanceBalancesPanel({ onClose }) {
       id: "cashier",
       label: "Cashier",
       className: "finance-client-ledger-col-cashier",
+      widthPx: 120,
       render: (item) => item.cashierName || "-",
       exportValue: (item) => item.cashierName || ""
     },
@@ -232,6 +243,7 @@ function FinanceBalancesPanel({ onClose }) {
       id: "status",
       label: "Status",
       className: "finance-client-ledger-col-status",
+      widthPx: 96,
       render: (item) => (
         <span className={item.status === "voided" ? "finance-transaction-status-voided" : "finance-transaction-status-active"}>
           {getTransactionStatusLabel(translate, item.status)}
@@ -243,6 +255,7 @@ function FinanceBalancesPanel({ onClose }) {
       id: "note",
       label: "Note",
       className: "finance-client-ledger-col-note",
+      widthPx: 210,
       render: (item) => getClientLedgerNote(translate, item),
       exportValue: (item) => getClientLedgerNote(translate, item)
     }
@@ -250,6 +263,10 @@ function FinanceBalancesPanel({ onClose }) {
 
   const visibleLedgerColumns = ledgerColumns.filter((column) => visibleLedgerColumnIds.includes(column.id));
   const visibleLedgerColumnCount = Math.max(visibleLedgerColumns.length, 1);
+  const visibleLedgerTableMinWidth = Math.max(
+    640,
+    visibleLedgerColumns.reduce((sum, column) => sum + (Number.parseInt(String(column.widthPx || 0), 10) || 120), 0)
+  );
 
   const toggleLedgerColumnVisibility = (columnId) => {
     setVisibleLedgerColumnIds((current) => {
@@ -581,7 +598,11 @@ function FinanceBalancesPanel({ onClose }) {
               </div>
             </div>
             <div className="all-users-table-scroll finance-client-ledger-table-scroll">
-              <table className="all-users-table finance-client-ledger-table" aria-label="Client transaction ledger table">
+              <table
+                className="all-users-table finance-client-ledger-table"
+                aria-label="Client transaction ledger table"
+                style={{ minWidth: `${visibleLedgerTableMinWidth}px` }}
+              >
                 <colgroup>
                   {visibleLedgerColumns.map((column) => (
                     <col key={column.id} className={column.className || undefined} />
