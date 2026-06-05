@@ -545,7 +545,10 @@ function FinanceBalancesPanel({ onClose }) {
           />
           <div id="financeClientLedgerModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-client-ledger-modal">
             <div className="finance-client-ledger-head">
-              <h3>{`${translate("Client Transactions")} - ${ledgerData?.client?.clientName || ledgerClient.clientName || "-"}`}</h3>
+              <h3 className="finance-client-ledger-title">{translate("Client Transactions")}</h3>
+              <div className="finance-client-ledger-client-name" title={ledgerData?.client?.clientName || ledgerClient.clientName || "-"}>
+                {ledgerData?.client?.clientName || ledgerClient.clientName || "-"}
+              </div>
               <div className="finance-client-ledger-head-actions">
                 <button
                   type="button"
@@ -565,6 +568,15 @@ function FinanceBalancesPanel({ onClose }) {
                   onClick={exportClientLedger}
                 >
                   <span className="finance-head-icon finance-head-icon-export" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className="table-action-btn finance-head-icon-btn finance-client-ledger-close-btn"
+                  aria-label={translate("Close client transactions modal")}
+                  title={translate("Close")}
+                  onClick={closeClientLedger}
+                >
+                  ×
                 </button>
               </div>
             </div>
@@ -612,9 +624,6 @@ function FinanceBalancesPanel({ onClose }) {
                   ) : null}
                 </tbody>
               </table>
-            </div>
-            <div className="edit-actions">
-              <button type="button" className="btn btn-secondary" onClick={closeClientLedger}>{translate("Close")}</button>
             </div>
           </div>
           {ledgerColumnsOpen ? (

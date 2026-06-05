@@ -6292,32 +6292,66 @@ label.field > span:first-child,
 
 #financeClientLedgerModal.finance-client-ledger-modal {
   width: min(1380px, calc(100vw - 24px));
-  height: auto;
+  height: min(780px, calc(100dvh - 24px));
   min-height: 0;
-  max-height: min(820px, calc(100dvh - 24px));
-  grid-template-rows: auto minmax(0, auto) auto;
+  max-height: calc(100dvh - 24px);
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .finance-client-ledger-head {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(160px, 1fr) minmax(0, 1.4fr) minmax(160px, 1fr);
   align-items: center;
   gap: 10px;
   margin-bottom: 8px;
 }
 
-.finance-client-ledger-head h3 {
+.finance-client-ledger-title {
   margin: 0;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: left;
+}
+
+.finance-client-ledger-client-name {
+  min-width: 0;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-main);
+  font-size: var(--fs-base);
+  font-weight: 800;
 }
 
 .finance-client-ledger-head-actions {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
+}
+
+.finance-client-ledger-head-actions .finance-head-icon-btn {
+  flex: 0 0 30px;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  border-radius: 8px;
+}
+
+.finance-client-ledger-close-btn {
+  color: var(--text-secondary);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.finance-client-ledger-close-btn:hover {
+  color: var(--danger);
 }
 
 .finance-client-ledger-modal .finance-balance-positive {
@@ -6329,7 +6363,9 @@ label.field > span:first-child,
 }
 
 .finance-client-ledger-table-scroll {
-  max-height: min(560px, calc(100dvh - 190px));
+  height: 100%;
+  min-height: 0;
+  max-height: none;
   overflow-x: auto;
   overflow-y: auto;
 }

@@ -45,6 +45,24 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     balancesPanelSource,
+    /finance-client-ledger-title">\{translate\("Client Transactions"\)\}[\s\S]*finance-client-ledger-client-name[\s\S]*ledgerData\?\.client\?\.clientName \|\| ledgerClient\.clientName/s,
+    "Client ledger modal should keep the title left and the client name separate."
+  );
+
+  assert.match(
+    balancesPanelSource,
+    /finance-client-ledger-head-actions[\s\S]*aria-label=\{translate\("Export Excel"\)\}[\s\S]*finance-client-ledger-close-btn[\s\S]*aria-label=\{translate\("Close client transactions modal"\)\}[\s\S]*×/s,
+    "Client ledger modal should keep the close button in the top-right actions."
+  );
+
+  assert.doesNotMatch(
+    balancesPanelSource,
+    /<button type="button" className="btn btn-secondary" onClick=\{closeClientLedger\}>\{translate\("Close"\)\}<\/button>/,
+    "Client ledger modal should not keep a duplicate bottom close button."
+  );
+
+  assert.match(
+    balancesPanelSource,
     /financeClientLedgerColumnsModal[\s\S]*Table columns[\s\S]*toggleLedgerColumnVisibility/s,
     "Client ledger modal should expose a columns modal."
   );
@@ -75,8 +93,14 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     styles,
-    /#financeClientLedgerModal\.finance-client-ledger-modal[\s\S]*width: min\(1380px,[\s\S]*\.finance-client-ledger-table[\s\S]*min-width: 1680px/s,
+    /#financeClientLedgerModal\.finance-client-ledger-modal[\s\S]*width: min\(1380px,[\s\S]*height: min\(780px, calc\(100dvh - 24px\)\);[\s\S]*grid-template-rows: auto minmax\(0, 1fr\);[\s\S]*\.finance-client-ledger-table[\s\S]*min-width: 1680px/s,
     "Client ledger modal should have a wide, scannable layout."
+  );
+
+  assert.match(
+    styles,
+    /\.finance-client-ledger-table-scroll \{\s*height: 100%;\s*min-height: 0;\s*max-height: none;\s*overflow-x: auto;\s*overflow-y: auto;\s*\}/,
+    "Client ledger table should keep a stable modal height and scroll inside the table area."
   );
 
   assert.match(
