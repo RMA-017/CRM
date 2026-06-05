@@ -378,10 +378,14 @@ function makeHistoryItemsLine(translate, items) {
   );
 }
 
-function buildTicketHistoryDetails(item) {
+function buildTicketHistoryDetails(translate, item) {
   const details = item?.details && typeof item.details === "object" ? item.details : {};
   const reason = String(details.reason || details.changeReason || "").trim();
-  return reason ? [reason] : [];
+  const note = String(details.note || details.ticketNote || "").trim();
+  return [
+    reason,
+    note ? `${translate("Note")}: ${note}` : ""
+  ].filter(Boolean);
 }
 
 function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
@@ -1589,7 +1593,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                   {historyLoading ? (
                     <tr><td colSpan="5" className="skel" /></tr>
                   ) : historyItems.map((item) => {
-                    const detailLines = buildTicketHistoryDetails(item);
+                    const detailLines = buildTicketHistoryDetails(translate, item);
                     return (
                       <tr key={String(item.id)}>
                         <td>{formatDateTime(item.createdAt)}</td>

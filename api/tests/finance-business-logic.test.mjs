@@ -129,6 +129,18 @@ test("finance ticket creation only accepts confirmed appointments and snapshots 
 
   assert.match(
     financeServiceSource,
+    /action: "created"[\s\S]*details: \{[\s\S]*ticketDate,[\s\S]*note,[\s\S]*totals,[\s\S]*items: historyItems/s,
+    "Ticket creation history should preserve the ticket note in details."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /export async function getFinanceTicketHistory[\s\S]*SELECT id,[\s\S]*note[\s\S]*const ticketNote = normalizeText\(ticketResult\.rows\[0\]\?\.note\);[\s\S]*details: details\.note \? details : \{ \.\.\.details, note: ticketNote \}/s,
+    "Ticket history should backfill created details from the ticket note for existing tickets."
+  );
+
+  assert.match(
+    financeServiceSource,
     /const requestedPriceUzs = normalizeAmount\(rawItem\?\.priceUzs[\s\S]*const priceUzs = requestedPriceUzs > 0 \? requestedPriceUzs : normalizeAmount\(service\.price_uzs, 0\)/s,
     "Ticket line items should allow appointment ticket price overrides while falling back to the service catalog price."
   );

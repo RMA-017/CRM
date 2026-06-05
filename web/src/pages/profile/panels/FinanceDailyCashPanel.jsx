@@ -107,6 +107,7 @@ function getPaymentMethodSummaryCards(paymentMethods, paymentSummary) {
     const summaryItem = summaryById.get(id) || {};
     return {
       key: `method-${id || method?.name || index}`,
+      paymentMethodId: id,
       paymentMethodName: method?.name || summaryItem.paymentMethodName || "-",
       totalInUzs: Number.parseInt(String(summaryItem.totalInUzs || 0), 10) || 0,
       totalOutUzs: Number.parseInt(String(summaryItem.totalOutUzs || 0), 10) || 0,
@@ -119,6 +120,7 @@ function getPaymentMethodSummaryCards(paymentMethods, paymentSummary) {
     if (!id || methodIds.has(id)) return;
     cards.push({
       key: `summary-method-${id}`,
+      paymentMethodId: id,
       paymentMethodName: item?.paymentMethodName || `#${id}`,
       totalInUzs: Number.parseInt(String(item?.totalInUzs || 0), 10) || 0,
       totalOutUzs: Number.parseInt(String(item?.totalOutUzs || 0), 10) || 0,
@@ -129,6 +131,7 @@ function getPaymentMethodSummaryCards(paymentMethods, paymentSummary) {
   unmatchedSummaries.forEach((item, index) => {
     cards.push({
       key: `summary-${item?.paymentMethodName || index}`,
+      paymentMethodId: "",
       paymentMethodName: item?.paymentMethodName || "No payment method",
       totalInUzs: Number.parseInt(String(item?.totalInUzs || 0), 10) || 0,
       totalOutUzs: Number.parseInt(String(item?.totalOutUzs || 0), 10) || 0,
@@ -420,6 +423,18 @@ function FinanceDailyCashPanel({ onClose, canPayFinanceCashier = false, currentU
     void loadDailyCash(1, filters);
   };
 
+  const applyPaymentMethodSummaryFilter = (paymentMethodId) => {
+    const normalizedPaymentMethodId = String(paymentMethodId || "").trim();
+    if (!normalizedPaymentMethodId || loading) return;
+    const nextFilters = {
+      ...appliedFilters,
+      paymentMethodId: normalizedPaymentMethodId
+    };
+    setFilters(nextFilters);
+    setAppliedFilters(nextFilters);
+    void loadDailyCash(1, nextFilters);
+  };
+
   const openSessionModal = (type) => {
     if (!canPayFinanceCashier) return;
     setSessionModal(type);
@@ -594,15 +609,26 @@ function FinanceDailyCashPanel({ onClose, canPayFinanceCashier = false, currentU
       </div>
 
       <div className="finance-daily-cash-method-summary" aria-busy={loading ? "true" : "false"}>
-        {paymentMethodSummaryCards.length > 0 ? paymentMethodSummaryCards.map((item) => (
-          <article className="finance-daily-cash-method-card" key={item.key}>
+        {paymentMethodSummaryCards.length > 0 ? paymentMethodSummaryCards.map((item) => {
+          const paymentMethodId = String(item.paymentMethodId || "").trim();
+          const isActive = paymentMethodId && paymentMethodId === String(appliedFilters.paymentMethodId || "");
+          return (
+          <button
+            type="button"
+            className={`finance-daily-cash-method-card${isActive ? " is-active" : ""}`}
+            key={item.key}
+            disabled={!paymentMethodId || loading}
+            aria-pressed={isActive ? "true" : "false"}
+            onClick={() => applyPaymentMethodSummaryFilter(paymentMethodId)}
+          >
             <span title={item.paymentMethodName}>{item.paymentMethodName}</span>
             <strong>{formatMoneyValue(item.totalInUzs)}</strong>
             {item.totalOutUzs > 0 ? (
               <small>{translate("Total Out")}: {formatMoneyValue(item.totalOutUzs)}</small>
             ) : null}
-          </article>
-        )) : (
+          </button>
+          );
+        }) : (
           <article className="finance-daily-cash-method-card">
             <span>{translate("Payment Method")}</span>
             <strong>{formatMoneyValue(0)}</strong>

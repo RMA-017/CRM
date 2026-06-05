@@ -1453,7 +1453,8 @@ export async function getFinanceTicketHistory({ organizationId, id }) {
     throw error;
   }
   const ticketResult = await pool.query(
-    `SELECT id
+    `SELECT id,
+            note
        FROM finance_tickets
       WHERE organization_id = $1
         AND id = $2
@@ -1482,7 +1483,17 @@ export async function getFinanceTicketHistory({ organizationId, id }) {
       ORDER BY h.changed_at DESC, h.id DESC`,
     [organizationId, ticketId]
   );
-  return result.rows.map(mapTicketHistory);
+  const ticketNote = normalizeText(ticketResult.rows[0]?.note);
+  return result.rows.map((row) => {
+    if (row.action !== "created" || !ticketNote) {
+      return mapTicketHistory(row);
+    }
+    const details = row.details && typeof row.details === "object" ? row.details : {};
+    return mapTicketHistory({
+      ...row,
+      details: details.note ? details : { ...details, note: ticketNote }
+    });
+  });
 }
 
 export async function getCurrentCashSession({ organizationId, actorUserId }) {
@@ -3559,6 +3570,7 @@ export async function createFinanceTicket({ organizationId, payload, actorUserId
         appointmentScheduleId: appointmentScheduleId || null,
         ticketNumber,
         ticketDate,
+        note,
         totals,
         items: historyItems
       },

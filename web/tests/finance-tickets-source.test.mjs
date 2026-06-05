@@ -23,6 +23,11 @@ test("ticket edit modal keeps only change reason and preserves existing note", a
     /className="field finance-ticket-edit-reason-field"[\s\S]*<span>\{translate\("Change reason"\)\}<\/span>[\s\S]*required[\s\S]*value=\{editForm\.reason\}/s,
     "Edit ticket modal should keep the required change reason textarea."
   );
+  assert.match(
+    source,
+    /function buildTicketHistoryDetails\(translate, item\)[\s\S]*details\.note \|\| details\.ticketNote[\s\S]*`\$\{translate\("Note"\)\}: \$\{note\}`[\s\S]*buildTicketHistoryDetails\(translate, item\)/s,
+    "Ticket history details should show the creation note in the Details column."
+  );
 });
 
 test("ticket edit change reason field uses full width and compact height", async () => {

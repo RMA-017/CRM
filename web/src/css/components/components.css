@@ -6101,11 +6101,36 @@ label.field > span:first-child,
   display: grid;
   min-width: 0;
   gap: 5px;
+  width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
   box-shadow: var(--shadow-xs);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+button.finance-daily-cash-method-card {
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  transition:
+    border-color var(--dur) ease,
+    background var(--dur) ease,
+    box-shadow var(--dur) ease;
+}
+
+button.finance-daily-cash-method-card:hover:not(:disabled),
+button.finance-daily-cash-method-card.is-active {
+  border-color: rgba(64, 138, 243, 0.42);
+  background: rgba(64, 138, 243, 0.08);
+  box-shadow: 0 0 0 2px rgba(64, 138, 243, 0.10);
+}
+
+button.finance-daily-cash-method-card:disabled {
+  cursor: default;
 }
 
 .finance-daily-cash-method-card span {

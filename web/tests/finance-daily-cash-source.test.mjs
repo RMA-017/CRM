@@ -27,13 +27,25 @@ test("daily cash shows payment method totals below the header", () => {
 
   assert.match(
     dailyCashSource,
+    /function getPaymentMethodSummaryCards[\s\S]*paymentMethodId: id[\s\S]*const applyPaymentMethodSummaryFilter = \(paymentMethodId\) =>[\s\S]*paymentMethodId: normalizedPaymentMethodId[\s\S]*loadDailyCash\(1, nextFilters\)/s,
+    "Payment method summary cards should apply the daily cash payment method filter."
+  );
+
+  assert.match(
+    dailyCashSource,
+    /paymentMethodSummaryCards\.map\(\(item\) => \{[\s\S]*aria-pressed=\{isActive \? "true" : "false"\}[\s\S]*onClick=\{\(\) => applyPaymentMethodSummaryFilter\(paymentMethodId\)\}/s,
+    "Payment method summary cards should be clickable filter controls."
+  );
+
+  assert.match(
+    dailyCashSource,
     /<span>\{translate\("Payment Method"\)\}<\/span>[\s\S]*<strong>\{formatMoneyValue\(0\)\}<\/strong>/s,
     "Daily cash should keep a stable zero state when no payment methods are available."
   );
 
   assert.match(
     styles,
-    /\.finance-daily-cash-method-summary[\s\S]*grid-template-columns: repeat\(auto-fit, minmax\(150px, 1fr\)\);[\s\S]*\.finance-daily-cash-method-card strong/s,
+    /\.finance-daily-cash-method-summary[\s\S]*grid-template-columns: repeat\(auto-fit, minmax\(150px, 1fr\)\);[\s\S]*button\.finance-daily-cash-method-card\.is-active[\s\S]*\.finance-daily-cash-method-card strong/s,
     "Daily cash payment method cards should use a responsive summary block."
   );
 });
