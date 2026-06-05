@@ -40,7 +40,6 @@ const ALL_FINANCE_TICKET_COLUMN_IDS = Object.freeze([
   "paid",
   "remaining",
   "paymentMethod",
-  "paidAt",
   "actions"
 ]);
 const DEFAULT_FINANCE_TICKET_COLUMN_IDS = Object.freeze([
@@ -114,9 +113,20 @@ const EMPTY_TICKET_EDIT_FORM = Object.freeze({
   items: []
 });
 
+const EMPTY_TICKET_LIST_SUMMARY = Object.freeze({
+  totalAmountUzs: 0,
+  paidAmountUzs: 0,
+  remainingAmountUzs: 0
+});
+
 function formatMoney(value) {
   const amount = Number.parseInt(String(value ?? 0), 10) || 0;
   return amount > 0 ? `${amount.toLocaleString("ru-RU")} UZS` : "-";
+}
+
+function formatSummaryMoney(value) {
+  const amount = Number.parseInt(String(value ?? 0), 10) || 0;
+  return `${Math.max(amount, 0).toLocaleString("ru-RU")} UZS`;
 }
 
 function formatDateTime(value) {
@@ -266,6 +276,14 @@ function makeClientOption(item) {
   return { value: id, label };
 }
 
+function normalizeTicketListSummary(summary) {
+  return {
+    totalAmountUzs: Number.parseInt(String(summary?.totalAmountUzs ?? 0), 10) || 0,
+    paidAmountUzs: Number.parseInt(String(summary?.paidAmountUzs ?? 0), 10) || 0,
+    remainingAmountUzs: Number.parseInt(String(summary?.remainingAmountUzs ?? 0), 10) || 0
+  };
+}
+
 function mergeOptions(baseOptions, nextOptions) {
   const map = new Map();
   [...baseOptions, ...nextOptions].forEach((option) => {
@@ -365,6 +383,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
   const [filters, setFilters] = useState(() => createInitialAppliedFilters());
   const [appliedFilters, setAppliedFilters] = useState(() => createInitialAppliedFilters());
   const [items, setItems] = useState([]);
+  const [ticketSummary, setTicketSummary] = useState(EMPTY_TICKET_LIST_SUMMARY);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -411,15 +430,18 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
       if (!response.ok) {
         const nextMessage = data?.message || "Failed to load tickets.";
         setMessage(nextMessage);
+        setTicketSummary(EMPTY_TICKET_LIST_SUMMARY);
         window.alert?.(translate(nextMessage));
         return;
       }
       setItems(Array.isArray(data?.items) ? data.items : []);
+      setTicketSummary(normalizeTicketListSummary(data?.summary));
       setPage(Number.parseInt(String(data?.page || nextPage), 10) || 1);
       setTotalPages(Number.parseInt(String(data?.totalPages || 1), 10) || 1);
       setTotal(Number.parseInt(String(data?.total || 0), 10) || 0);
       setMessage("");
     } catch {
+      setTicketSummary(EMPTY_TICKET_LIST_SUMMARY);
       setMessage("Failed to load tickets.");
       window.alert?.(translate("Failed to load tickets."));
     } finally {
@@ -566,12 +588,6 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
       label: "Payment Method",
       render: (item) => item.paymentMethodName || "-",
       exportValue: (item) => item.paymentMethodName || ""
-    },
-    {
-      id: "paidAt",
-      label: "Paid At",
-      render: (item) => formatDateTime(item.paidAt),
-      exportValue: (item) => formatDateTime(item.paidAt)
     },
     {
       id: "actions",
@@ -1297,6 +1313,21 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
 
       <p className="all-users-state" hidden={!message}>{translate(message)}</p>
 
+      <div className="finance-ticket-list-summary" aria-busy={loading ? "true" : "false"}>
+        <div>
+          <span>{translate("To Pay")}</span>
+          <strong>{formatSummaryMoney(ticketSummary.totalAmountUzs)}</strong>
+        </div>
+        <div>
+          <span>{translate("Paid")}</span>
+          <strong>{formatSummaryMoney(ticketSummary.paidAmountUzs)}</strong>
+        </div>
+        <div>
+          <span>{translate("Remaining")}</span>
+          <strong>{formatSummaryMoney(ticketSummary.remainingAmountUzs)}</strong>
+        </div>
+      </div>
+
       <div className="all-users-table-scroll">
         <table className="all-users-table" aria-label="Finance tickets table">
           <thead>
@@ -1431,7 +1462,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                           searchPlaceholder={translate("Search")}
                           searchThreshold={8}
                           menuPortal
-                          disabled={editReferencesLoading}
+                          disabled
                           onChange={(value) => updateEditItem(index, { specialistId: value })}
                         />
                         <CustomSelect

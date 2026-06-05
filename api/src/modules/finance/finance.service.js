@@ -1382,6 +1382,17 @@ export async function getFinanceTickets({ organizationId, filters = {} }) {
    WHERE ${whereSql}`;
   const countResult = await pool.query(`SELECT COUNT(*) AS total ${fromSql}`, params);
   const total = Number.parseInt(String(countResult.rows[0]?.total || "0"), 10) || 0;
+  const summaryResult = await pool.query(
+    `SELECT COALESCE(SUM(COALESCE(ft.total_uzs, ft.amount_uzs, 0)), 0) AS total_amount_uzs,
+            COALESCE(SUM(COALESCE(fpaid.paid_amount_uzs, 0)), 0) AS paid_amount_uzs,
+            COALESCE(SUM(GREATEST(
+              COALESCE(ft.total_uzs, ft.amount_uzs, 0) - COALESCE(fpaid.paid_amount_uzs, 0),
+              0
+            )), 0) AS remaining_amount_uzs
+       ${fromSql}`,
+    params
+  );
+  const summaryRow = summaryResult.rows[0] || {};
   const listParams = [...params, pageSize, offset];
   const result = await pool.query(
     `SELECT ft.id,
@@ -1425,6 +1436,11 @@ export async function getFinanceTickets({ organizationId, filters = {} }) {
     page,
     pageSize,
     total,
+    summary: {
+      totalAmountUzs: normalizeAmount(summaryRow.total_amount_uzs, 0),
+      paidAmountUzs: normalizeAmount(summaryRow.paid_amount_uzs, 0),
+      remainingAmountUzs: normalizeAmount(summaryRow.remaining_amount_uzs, 0)
+    },
     totalPages: Math.max(1, Math.ceil(total / pageSize))
   };
 }

@@ -481,7 +481,6 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Active", uz: "Faol", ru: "Активный" },
   { en: "Created", uz: "Yaratilgan", ru: "Создано" },
   { en: "Created At", uz: "Yaratilgan vaqt", ru: "Создано" },
-  { en: "Paid At", uz: "To'langan vaqt", ru: "Время оплаты" },
   { en: "Code", uz: "Kod", ru: "Код" },
   { en: "Name", uz: "Nomi", ru: "Название" },
   { en: "Label", uz: "Nomi", ru: "Название" },

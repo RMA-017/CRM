@@ -73,6 +73,12 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
 
   assert.match(
     financeServiceSource,
+    /const summaryResult = await pool\.query\([\s\S]*SUM\(COALESCE\(ft\.total_uzs, ft\.amount_uzs, 0\)\)[\s\S]*SUM\(COALESCE\(fpaid\.paid_amount_uzs, 0\)\)[\s\S]*SUM\(GREATEST\([\s\S]*COALESCE\(ft\.total_uzs, ft\.amount_uzs, 0\) - COALESCE\(fpaid\.paid_amount_uzs, 0\)[\s\S]*summary: \{[\s\S]*totalAmountUzs:[\s\S]*paidAmountUzs:[\s\S]*remainingAmountUzs:/s,
+    "Finance ticket list should return summary totals for the full current filter, not only the visible page."
+  );
+
+  assert.match(
+    financeServiceSource,
     /function formatDateYmdInTashkent\(value\) \{[\s\S]*timeZone: "Asia\/Tashkent"[\s\S]*function normalizeDate\(value\) \{[\s\S]*return formatDateYmdInTashkent\(value\);/s,
     "Finance date-only normalization should keep Tashkent calendar dates instead of shifting them through UTC."
   );

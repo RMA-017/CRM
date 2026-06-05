@@ -103,17 +103,14 @@ test("ticket edit and delete actions are hidden for tickets with payment activit
 });
 
 test("ticket table exposes payment progress columns through the columns modal", async () => {
-  const [source, translations] = await Promise.all([
-    readFile(
-      new URL("../src/pages/profile/panels/FinanceTicketsPanel.jsx", import.meta.url),
-      "utf8"
-    ),
-    readFile(new URL("../src/i18n/translations.js", import.meta.url), "utf8")
-  ]);
+  const source = await readFile(
+    new URL("../src/pages/profile/panels/FinanceTicketsPanel.jsx", import.meta.url),
+    "utf8"
+  );
 
   assert.match(
     source,
-    /const ALL_FINANCE_TICKET_COLUMN_IDS = Object\.freeze\(\[[\s\S]*"status",[\s\S]*"paid",[\s\S]*"remaining",[\s\S]*"paymentMethod",[\s\S]*"paidAt",[\s\S]*"actions"[\s\S]*const DEFAULT_FINANCE_TICKET_COLUMN_IDS = Object\.freeze\(\[[\s\S]*"status",[\s\S]*"toPay",[\s\S]*"paid",[\s\S]*"remaining",[\s\S]*"actions"/s,
+    /const ALL_FINANCE_TICKET_COLUMN_IDS = Object\.freeze\(\[[\s\S]*"status",[\s\S]*"paid",[\s\S]*"remaining",[\s\S]*"paymentMethod",[\s\S]*"actions"[\s\S]*const DEFAULT_FINANCE_TICKET_COLUMN_IDS = Object\.freeze\(\[[\s\S]*"status",[\s\S]*"toPay",[\s\S]*"paid",[\s\S]*"remaining",[\s\S]*"actions"/s,
     "Ticket columns should make payment progress fields available while keeping the daily status columns visible by default."
   );
   assert.match(
@@ -123,13 +120,60 @@ test("ticket table exposes payment progress columns through the columns modal", 
   );
   assert.match(
     source,
-    /id: "status",[\s\S]*label: "Status",[\s\S]*translateTicketStatus\(translate, item\.status\)[\s\S]*id: "paid",[\s\S]*label: "Paid",[\s\S]*formatMoney\(item\.paidAmountUzs\)[\s\S]*id: "remaining",[\s\S]*label: "Remaining",[\s\S]*getTicketRemainingAmount\(item\)[\s\S]*id: "paymentMethod",[\s\S]*label: "Payment Method",[\s\S]*item\.paymentMethodName[\s\S]*id: "paidAt",[\s\S]*label: "Paid At",[\s\S]*formatDateTime\(item\.paidAt\)/s,
-    "Ticket table should render status, paid, remaining, payment method and paid-at columns."
+    /id: "status",[\s\S]*label: "Status",[\s\S]*translateTicketStatus\(translate, item\.status\)[\s\S]*id: "paid",[\s\S]*label: "Paid",[\s\S]*formatMoney\(item\.paidAmountUzs\)[\s\S]*id: "remaining",[\s\S]*label: "Remaining",[\s\S]*getTicketRemainingAmount\(item\)[\s\S]*id: "paymentMethod",[\s\S]*label: "Payment Method",[\s\S]*item\.paymentMethodName/s,
+    "Ticket table should render status, paid, remaining and payment method columns."
   );
-  assert.match(
+  assert.doesNotMatch(
+    source,
+    /id: "paidAt"|label: "Paid At"|formatDateTime\(item\.paidAt\)/,
+    "Ticket table should not expose a paid-at column because split payments make it ambiguous."
+  );
+});
+
+test("ticket table does not translate removed paid-at column", async () => {
+  const translations = await readFile(
+    new URL("../src/i18n/translations.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.doesNotMatch(
     translations,
     /Paid At", uz: "To'langan vaqt", ru: "Время оплаты"/s,
-    "The paid-at ticket column should be translated."
+    "The removed paid-at ticket column should not stay in translations."
+  );
+});
+
+test("ticket table shows current query totals above the rows", async () => {
+  const [source, styles] = await Promise.all([
+    readFile(
+      new URL("../src/pages/profile/panels/FinanceTicketsPanel.jsx", import.meta.url),
+      "utf8"
+    ),
+    readFile(
+      new URL("../src/css/components/components.css", import.meta.url),
+      "utf8"
+    )
+  ]);
+
+  assert.match(
+    source,
+    /const EMPTY_TICKET_LIST_SUMMARY = Object\.freeze\(\{[\s\S]*totalAmountUzs: 0,[\s\S]*paidAmountUzs: 0,[\s\S]*remainingAmountUzs: 0[\s\S]*function normalizeTicketListSummary\(summary\)/s,
+    "Ticket list should normalize summary totals returned from the API."
+  );
+  assert.match(
+    source,
+    /setTicketSummary\(normalizeTicketListSummary\(data\?\.summary\)\)/,
+    "Ticket list should keep backend summary totals instead of summing only the current page."
+  );
+  assert.match(
+    source,
+    /<div className="finance-ticket-list-summary"[\s\S]*translate\("To Pay"\)[\s\S]*formatSummaryMoney\(ticketSummary\.totalAmountUzs\)[\s\S]*translate\("Paid"\)[\s\S]*formatSummaryMoney\(ticketSummary\.paidAmountUzs\)[\s\S]*translate\("Remaining"\)[\s\S]*formatSummaryMoney\(ticketSummary\.remainingAmountUzs\)/s,
+    "Ticket list should render to-pay, paid and remaining totals for the current query."
+  );
+  assert.match(
+    styles,
+    /\.finance-ticket-list-summary \{[\s\S]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);[\s\S]*\.finance-ticket-list-summary strong \{[\s\S]*font-size: 13px;/s,
+    "Ticket summary should stay compact above the table."
   );
 });
 
@@ -162,6 +206,11 @@ test("ticket edit modal uses one shared discount and distributes it to line item
     source,
     /className="finance-ticket-summary finance-ticket-total finance-ticket-edit-total"[\s\S]*translate\("Discount Type"\)[\s\S]*value=\{editForm\.discountType\}[\s\S]*translate\("Discount"\)[\s\S]*max=\{editForm\.discountType === "percent" \? "100" : undefined\}[\s\S]*value=\{editForm\.discountValue\}/s,
     "Edit ticket modal should expose one shared discount block like manual ticket creation."
+  );
+  assert.match(
+    source,
+    /<CustomSelect[\s\S]*value=\{item\.specialistId\}[\s\S]*placeholder=\{translate\("Select specialist"\)\}[\s\S]*disabled[\s\S]*onChange=\{\(value\) => updateEditItem\(index, \{ specialistId: value \}\)\}/s,
+    "Edit ticket modal should show the specialist select but keep it disabled."
   );
   assert.match(
     source,
