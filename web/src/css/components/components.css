@@ -6330,6 +6330,8 @@ label.field > span:first-child,
 
 .finance-client-ledger-table-scroll {
   max-height: min(560px, calc(100dvh - 190px));
+  overflow-x: auto;
+  overflow-y: auto;
 }
 
 .finance-client-ledger-table {
@@ -6394,12 +6396,6 @@ label.field > span:first-child,
 
 .finance-client-ledger-col-note {
   width: 210px;
-}
-
-.finance-client-ledger-columns-modal {
-  height: auto;
-  min-height: 0;
-  max-height: min(560px, calc(100dvh - 24px));
 }
 
 .finance-transactions-table {
@@ -7040,6 +7036,7 @@ label.field > span:first-child,
 #financeTicketColumnsModal.finance-ticket-columns-modal,
 #financeTransactionColumnsModal.finance-transaction-columns-modal,
 #financeDailyCashColumnsModal.finance-daily-cash-columns-modal,
+#financeClientLedgerColumnsModal.finance-client-ledger-columns-modal,
 #clientsColumnsModal.finance-ticket-columns-modal,
 #plannerReportColumnsModal.finance-ticket-columns-modal {
   width: min(420px, calc(100vw - 32px));
@@ -7052,6 +7049,7 @@ label.field > span:first-child,
 #financeTicketColumnsModal .finance-ticket-columns-list,
 #financeTransactionColumnsModal .finance-ticket-columns-list,
 #financeDailyCashColumnsModal .finance-ticket-columns-list,
+#financeClientLedgerColumnsModal .finance-ticket-columns-list,
 #clientsColumnsModal .finance-ticket-columns-list,
 #plannerReportColumnsModal .finance-ticket-columns-list {
   display: grid;
@@ -7066,6 +7064,7 @@ label.field > span:first-child,
 #financeTicketColumnsModal .finance-ticket-column-option,
 #financeTransactionColumnsModal .finance-ticket-column-option,
 #financeDailyCashColumnsModal .finance-ticket-column-option,
+#financeClientLedgerColumnsModal .finance-ticket-column-option,
 #clientsColumnsModal .finance-ticket-column-option,
 #plannerReportColumnsModal .finance-ticket-column-option {
   display: flex;
@@ -7085,6 +7084,7 @@ label.field > span:first-child,
 #financeTicketColumnsModal .finance-ticket-column-option input,
 #financeTransactionColumnsModal .finance-ticket-column-option input,
 #financeDailyCashColumnsModal .finance-ticket-column-option input,
+#financeClientLedgerColumnsModal .finance-ticket-column-option input,
 #clientsColumnsModal .finance-ticket-column-option input,
 #plannerReportColumnsModal .finance-ticket-column-option input {
   flex: 0 0 auto;
@@ -7095,6 +7095,7 @@ label.field > span:first-child,
 #financeTicketColumnsModal .finance-ticket-column-option span,
 #financeTransactionColumnsModal .finance-ticket-column-option span,
 #financeDailyCashColumnsModal .finance-ticket-column-option span,
+#financeClientLedgerColumnsModal .finance-ticket-column-option span,
 #clientsColumnsModal .finance-ticket-column-option span,
 #plannerReportColumnsModal .finance-ticket-column-option span {
   display: block;
