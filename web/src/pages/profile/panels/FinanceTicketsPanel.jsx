@@ -39,7 +39,6 @@ const ALL_FINANCE_TICKET_COLUMN_IDS = Object.freeze([
   "toPay",
   "paid",
   "remaining",
-  "paymentMethod",
   "actions"
 ]);
 const DEFAULT_FINANCE_TICKET_COLUMN_IDS = Object.freeze([
@@ -282,6 +281,13 @@ function normalizeTicketListSummary(summary) {
     paidAmountUzs: Number.parseInt(String(summary?.paidAmountUzs ?? 0), 10) || 0,
     remainingAmountUzs: Number.parseInt(String(summary?.remainingAmountUzs ?? 0), 10) || 0
   };
+}
+
+function getTicketSummaryColumnValue(columnId, summary) {
+  if (columnId === "toPay") return Number.parseInt(String(summary?.totalAmountUzs ?? 0), 10) || 0;
+  if (columnId === "paid") return Number.parseInt(String(summary?.paidAmountUzs ?? 0), 10) || 0;
+  if (columnId === "remaining") return Number.parseInt(String(summary?.remainingAmountUzs ?? 0), 10) || 0;
+  return null;
 }
 
 function mergeOptions(baseOptions, nextOptions) {
@@ -582,12 +588,6 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
       label: "Remaining",
       render: (item) => formatMoney(getTicketRemainingAmount(item)),
       exportValue: (item) => getTicketRemainingAmount(item)
-    },
-    {
-      id: "paymentMethod",
-      label: "Payment Method",
-      render: (item) => item.paymentMethodName || "-",
-      exportValue: (item) => item.paymentMethodName || ""
     },
     {
       id: "actions",
@@ -1058,6 +1058,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
 
   const fetchAllTickets = async () => {
     const allItems = [];
+    let summary = ticketSummary;
     let nextPage = 1;
     let nextTotalPages = 1;
     do {
@@ -1075,23 +1076,31 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
       if (!response.ok) {
         throw new Error(data?.message || "Export failed.");
       }
+      if (nextPage === 1) {
+        summary = normalizeTicketListSummary(data?.summary);
+      }
       allItems.push(...(Array.isArray(data?.items) ? data.items : []));
       nextTotalPages = Number.parseInt(String(data?.totalPages || 1), 10) || 1;
       nextPage += 1;
     } while (nextPage <= nextTotalPages);
-    return allItems;
+    return { items: allItems, summary };
   };
 
   const exportTickets = async () => {
     if (exporting) return;
     setExporting(true);
     try {
-      const rows = await fetchAllTickets();
+      const exportData = await fetchAllTickets();
       exportExcelWorkbook(buildExportFilename("finance-tickets"), [{
         name: translate("Tickets"),
         rows: [
           visibleColumns.map((column) => translate(column.label)),
-          ...rows.map((item) => visibleColumns.map((column) => column.exportValue(item)))
+          ...exportData.items.map((item) => visibleColumns.map((column) => column.exportValue(item))),
+          visibleColumns.map((column, index) => {
+            const summaryValue = getTicketSummaryColumnValue(column.id, exportData.summary);
+            if (summaryValue !== null) return summaryValue;
+            return index === 0 ? translate("Total") : "";
+          })
         ]
       }]);
     } catch (error) {
@@ -1313,21 +1322,6 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
 
       <p className="all-users-state" hidden={!message}>{translate(message)}</p>
 
-      <div className="finance-ticket-list-summary" aria-busy={loading ? "true" : "false"}>
-        <div>
-          <span>{translate("To Pay")}</span>
-          <strong>{formatSummaryMoney(ticketSummary.totalAmountUzs)}</strong>
-        </div>
-        <div>
-          <span>{translate("Paid")}</span>
-          <strong>{formatSummaryMoney(ticketSummary.paidAmountUzs)}</strong>
-        </div>
-        <div>
-          <span>{translate("Remaining")}</span>
-          <strong>{formatSummaryMoney(ticketSummary.remainingAmountUzs)}</strong>
-        </div>
-      </div>
-
       <div className="all-users-table-scroll">
         <table className="all-users-table" aria-label="Finance tickets table">
           <thead>
@@ -1364,6 +1358,25 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
               </tr>
             ) : null}
           </tbody>
+          <tfoot>
+            <tr className="finance-ticket-total-row">
+              {visibleColumns.map((column, index) => {
+                const summaryValue = getTicketSummaryColumnValue(column.id, ticketSummary);
+                if (summaryValue !== null) {
+                  return (
+                    <td key={column.id} className="finance-ticket-total-value">
+                      {formatSummaryMoney(summaryValue)}
+                    </td>
+                  );
+                }
+                return (
+                  <td key={column.id} className={index === 0 ? "finance-ticket-total-label" : undefined}>
+                    {index === 0 ? translate("Total") : ""}
+                  </td>
+                );
+              })}
+            </tr>
+          </tfoot>
         </table>
       </div>
 

@@ -110,7 +110,7 @@ test("ticket table exposes payment progress columns through the columns modal", 
 
   assert.match(
     source,
-    /const ALL_FINANCE_TICKET_COLUMN_IDS = Object\.freeze\(\[[\s\S]*"status",[\s\S]*"paid",[\s\S]*"remaining",[\s\S]*"paymentMethod",[\s\S]*"actions"[\s\S]*const DEFAULT_FINANCE_TICKET_COLUMN_IDS = Object\.freeze\(\[[\s\S]*"status",[\s\S]*"toPay",[\s\S]*"paid",[\s\S]*"remaining",[\s\S]*"actions"/s,
+    /const ALL_FINANCE_TICKET_COLUMN_IDS = Object\.freeze\(\[[\s\S]*"status",[\s\S]*"paid",[\s\S]*"remaining",[\s\S]*"actions"[\s\S]*const DEFAULT_FINANCE_TICKET_COLUMN_IDS = Object\.freeze\(\[[\s\S]*"status",[\s\S]*"toPay",[\s\S]*"paid",[\s\S]*"remaining",[\s\S]*"actions"/s,
     "Ticket columns should make payment progress fields available while keeping the daily status columns visible by default."
   );
   assert.match(
@@ -120,13 +120,13 @@ test("ticket table exposes payment progress columns through the columns modal", 
   );
   assert.match(
     source,
-    /id: "status",[\s\S]*label: "Status",[\s\S]*translateTicketStatus\(translate, item\.status\)[\s\S]*id: "paid",[\s\S]*label: "Paid",[\s\S]*formatMoney\(item\.paidAmountUzs\)[\s\S]*id: "remaining",[\s\S]*label: "Remaining",[\s\S]*getTicketRemainingAmount\(item\)[\s\S]*id: "paymentMethod",[\s\S]*label: "Payment Method",[\s\S]*item\.paymentMethodName/s,
-    "Ticket table should render status, paid, remaining and payment method columns."
+    /id: "status",[\s\S]*label: "Status",[\s\S]*translateTicketStatus\(translate, item\.status\)[\s\S]*id: "paid",[\s\S]*label: "Paid",[\s\S]*formatMoney\(item\.paidAmountUzs\)[\s\S]*id: "remaining",[\s\S]*label: "Remaining",[\s\S]*getTicketRemainingAmount\(item\)/s,
+    "Ticket table should render status, paid and remaining columns."
   );
   assert.doesNotMatch(
     source,
-    /id: "paidAt"|label: "Paid At"|formatDateTime\(item\.paidAt\)/,
-    "Ticket table should not expose a paid-at column because split payments make it ambiguous."
+    /id: "paidAt"|label: "Paid At"|formatDateTime\(item\.paidAt\)|id: "paymentMethod"|label: "Payment Method"|item\.paymentMethodName/,
+    "Ticket table should not expose paid-at or payment-method columns because split payments make them ambiguous."
   );
 });
 
@@ -143,7 +143,7 @@ test("ticket table does not translate removed paid-at column", async () => {
   );
 });
 
-test("ticket table shows current query totals above the rows", async () => {
+test("ticket table shows current query totals under matching columns", async () => {
   const [source, styles] = await Promise.all([
     readFile(
       new URL("../src/pages/profile/panels/FinanceTicketsPanel.jsx", import.meta.url),
@@ -162,18 +162,33 @@ test("ticket table shows current query totals above the rows", async () => {
   );
   assert.match(
     source,
+    /function getTicketSummaryColumnValue\(columnId, summary\) \{[\s\S]*columnId === "toPay"[\s\S]*summary\?\.totalAmountUzs[\s\S]*columnId === "paid"[\s\S]*summary\?\.paidAmountUzs[\s\S]*columnId === "remaining"[\s\S]*summary\?\.remainingAmountUzs/s,
+    "Ticket list should map query summary totals to their matching table columns."
+  );
+  assert.match(
+    source,
     /setTicketSummary\(normalizeTicketListSummary\(data\?\.summary\)\)/,
     "Ticket list should keep backend summary totals instead of summing only the current page."
   );
   assert.match(
     source,
-    /<div className="finance-ticket-list-summary"[\s\S]*translate\("To Pay"\)[\s\S]*formatSummaryMoney\(ticketSummary\.totalAmountUzs\)[\s\S]*translate\("Paid"\)[\s\S]*formatSummaryMoney\(ticketSummary\.paidAmountUzs\)[\s\S]*translate\("Remaining"\)[\s\S]*formatSummaryMoney\(ticketSummary\.remainingAmountUzs\)/s,
-    "Ticket list should render to-pay, paid and remaining totals for the current query."
+    /<tfoot>[\s\S]*className="finance-ticket-total-row"[\s\S]*getTicketSummaryColumnValue\(column\.id, ticketSummary\)[\s\S]*className="finance-ticket-total-value"[\s\S]*formatSummaryMoney\(summaryValue\)/s,
+    "Ticket summary should render as a table footer under the matching visible columns."
+  );
+  assert.match(
+    source,
+    /visibleColumns\.map\(\(column, index\) => \{[\s\S]*getTicketSummaryColumnValue\(column\.id, exportData\.summary\)[\s\S]*if \(summaryValue !== null\) return summaryValue;[\s\S]*index === 0 \? translate\("Total"\) : ""/s,
+    "Ticket export should include a final totals row aligned to the same columns."
   );
   assert.match(
     styles,
-    /\.finance-ticket-list-summary \{[\s\S]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);[\s\S]*\.finance-ticket-list-summary strong \{[\s\S]*font-size: 13px;/s,
-    "Ticket summary should stay compact above the table."
+    /\.finance-ticket-total-row td \{[\s\S]*border-top: 1px solid var\(--line\);[\s\S]*font-weight: 800;[\s\S]*\.finance-ticket-total-value \{[\s\S]*text-align: right;/s,
+    "Ticket summary footer should look like a compact total row."
+  );
+  assert.doesNotMatch(
+    source,
+    /finance-ticket-list-summary/,
+    "Ticket summary should not render as a separate block above the table."
   );
 });
 
