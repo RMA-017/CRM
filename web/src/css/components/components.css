@@ -6291,8 +6291,33 @@ label.field > span:first-child,
 }
 
 #financeClientLedgerModal.finance-client-ledger-modal {
-  width: min(1180px, calc(100vw - 32px));
-  max-height: min(760px, calc(100vh - 32px));
+  width: min(1380px, calc(100vw - 24px));
+  height: auto;
+  min-height: 0;
+  max-height: min(820px, calc(100dvh - 24px));
+  grid-template-rows: auto minmax(0, auto) auto;
+}
+
+.finance-client-ledger-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.finance-client-ledger-head h3 {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finance-client-ledger-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .finance-client-ledger-modal .finance-balance-positive {
@@ -6304,11 +6329,11 @@ label.field > span:first-child,
 }
 
 .finance-client-ledger-table-scroll {
-  max-height: 460px;
+  max-height: min(560px, calc(100dvh - 190px));
 }
 
 .finance-client-ledger-table {
-  min-width: 1320px;
+  min-width: 1680px;
   table-layout: fixed;
 }
 
@@ -6318,44 +6343,63 @@ label.field > span:first-child,
   white-space: nowrap;
 }
 
-.finance-client-ledger-table :is(th:nth-child(6), td:nth-child(6), th:nth-child(7), td:nth-child(7), th:nth-child(8), td:nth-child(8), th:nth-child(9), td:nth-child(9)) {
+.finance-client-ledger-table .finance-client-ledger-money-cell {
   text-align: right;
 }
 
-.finance-client-ledger-table :is(th:nth-child(1), td:nth-child(1)) {
-  width: 118px;
+.finance-client-ledger-voided-row {
+  color: var(--text-muted);
 }
 
-.finance-client-ledger-table :is(th:nth-child(2), td:nth-child(2)) {
+.finance-client-ledger-col-date {
+  width: 128px;
+}
+
+.finance-client-ledger-col-operation {
+  width: 96px;
+}
+
+.finance-client-ledger-col-action {
   width: 190px;
 }
 
-.finance-client-ledger-table :is(th:nth-child(3), td:nth-child(3)) {
-  width: 90px;
+.finance-client-ledger-col-ticket {
+  width: 92px;
 }
 
-.finance-client-ledger-table :is(th:nth-child(4), td:nth-child(4)) {
-  width: 170px;
+.finance-client-ledger-col-service {
+  width: 180px;
 }
 
-.finance-client-ledger-table :is(th:nth-child(5), td:nth-child(5)) {
-  width: 130px;
+.finance-client-ledger-col-method {
+  width: 132px;
 }
 
-.finance-client-ledger-table :is(th:nth-child(6), td:nth-child(6), th:nth-child(7), td:nth-child(7), th:nth-child(8), td:nth-child(8), th:nth-child(9), td:nth-child(9)) {
+.finance-client-ledger-col-money,
+.finance-client-ledger-col-deposit-change {
+  width: 122px;
+}
+
+.finance-client-ledger-col-deposit-balance {
+  width: 132px;
+}
+
+.finance-client-ledger-col-cashier {
   width: 120px;
 }
 
-.finance-client-ledger-table :is(th:nth-child(10), td:nth-child(10)) {
-  width: 120px;
+.finance-client-ledger-col-status {
+  width: 96px;
 }
 
-.finance-client-ledger-table :is(th:nth-child(11), td:nth-child(11)) {
-  width: 90px;
+.finance-client-ledger-col-note {
+  width: 210px;
 }
 
-.finance-client-ledger-table :is(th:nth-child(12), td:nth-child(12)) {
-  width: 170px;
+.finance-client-ledger-columns-modal {
+  height: auto;
+  min-height: 0;
+  max-height: min(560px, calc(100dvh - 24px));
 }
 
 .finance-transactions-table {

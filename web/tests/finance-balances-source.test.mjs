@@ -33,8 +33,26 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     balancesPanelSource,
-    /finance-client-ledger-table[\s\S]*Created At[\s\S]*Action[\s\S]*Ticket Number[\s\S]*Service Name[\s\S]*Payment Method[\s\S]*Deposit \+\/-[\s\S]*Deposit Balance[\s\S]*Cashier[\s\S]*Note/s,
-    "Client ledger modal should show detailed transaction rows."
+    /DEFAULT_FINANCE_CLIENT_LEDGER_COLUMN_IDS[\s\S]*operationDate[\s\S]*operationNumber[\s\S]*action[\s\S]*ticketNumber[\s\S]*serviceName[\s\S]*paymentMethod[\s\S]*cashIn[\s\S]*cashOut[\s\S]*depositChange[\s\S]*depositBalance[\s\S]*cashier[\s\S]*status[\s\S]*note/s,
+    "Client ledger modal should show detailed cash-flow columns."
+  );
+
+  assert.match(
+    balancesPanelSource,
+    /label: "Operation Number"[\s\S]*render: \(item\) => item\.id \? `#\$\{item\.id\}` : "-"[\s\S]*label: "Note"[\s\S]*getClientLedgerNote\(translate, item\)/s,
+    "Client ledger modal should include operation numbers and cancellation-aware notes."
+  );
+
+  assert.match(
+    balancesPanelSource,
+    /financeClientLedgerColumnsModal[\s\S]*Table columns[\s\S]*toggleLedgerColumnVisibility/s,
+    "Client ledger modal should expose a columns modal."
+  );
+
+  assert.match(
+    balancesPanelSource,
+    /exportClientLedger[\s\S]*buildExportFilename\(`finance-client-\$\{clientId \|\| "ledger"\}-transactions`\)[\s\S]*visibleLedgerColumns\.map\(\(column\) => translate\(column\.label\)\)[\s\S]*visibleLedgerColumns\.map\(\(column\) => column\.exportValue\(item\)\)/s,
+    "Client ledger export should follow the visible columns."
   );
 
   assert.match(
@@ -57,7 +75,7 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     styles,
-    /#financeClientLedgerModal\.finance-client-ledger-modal[\s\S]*width: min\(1180px,[\s\S]*\.finance-client-ledger-table[\s\S]*min-width: 1320px/s,
+    /#financeClientLedgerModal\.finance-client-ledger-modal[\s\S]*width: min\(1380px,[\s\S]*\.finance-client-ledger-table[\s\S]*min-width: 1680px/s,
     "Client ledger modal should have a wide, scannable layout."
   );
 

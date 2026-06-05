@@ -10,13 +10,56 @@ const EMPTY_FILTERS = Object.freeze({
   type: "active"
 });
 
+const FINANCE_CLIENT_LEDGER_COLUMNS_STORAGE_KEY = "aaron_crm_finance_client_ledger_columns";
+const DEFAULT_FINANCE_CLIENT_LEDGER_COLUMN_IDS = Object.freeze([
+  "operationDate",
+  "operationNumber",
+  "action",
+  "ticketNumber",
+  "serviceName",
+  "paymentMethod",
+  "cashIn",
+  "cashOut",
+  "depositChange",
+  "depositBalance",
+  "cashier",
+  "status",
+  "note"
+]);
+
+function loadStoredClientLedgerColumnIds() {
+  if (typeof window === "undefined") return [...DEFAULT_FINANCE_CLIENT_LEDGER_COLUMN_IDS];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(FINANCE_CLIENT_LEDGER_COLUMNS_STORAGE_KEY) || "[]");
+    const stored = Array.isArray(parsed) ? parsed : [];
+    const allowed = new Set(DEFAULT_FINANCE_CLIENT_LEDGER_COLUMN_IDS);
+    const normalized = DEFAULT_FINANCE_CLIENT_LEDGER_COLUMN_IDS.filter((id) => stored.includes(id) && allowed.has(id));
+    return normalized.length > 0 ? normalized : [...DEFAULT_FINANCE_CLIENT_LEDGER_COLUMN_IDS];
+  } catch {
+    return [...DEFAULT_FINANCE_CLIENT_LEDGER_COLUMN_IDS];
+  }
+}
+
+function storeClientLedgerColumnIds(columnIds) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(FINANCE_CLIENT_LEDGER_COLUMNS_STORAGE_KEY, JSON.stringify(columnIds));
+  } catch {
+    // Ignore storage failures; the current session state still works.
+  }
+}
+
+function toIntegerAmount(value) {
+  return Number.parseInt(String(value ?? 0), 10) || 0;
+}
+
 function formatMoney(value) {
-  const amount = Number.parseInt(String(value ?? 0), 10) || 0;
+  const amount = toIntegerAmount(value);
   return amount !== 0 ? `${amount.toLocaleString("ru-RU")} UZS` : "-";
 }
 
 function formatSignedMoney(value) {
-  const amount = Number.parseInt(String(value ?? 0), 10) || 0;
+  const amount = toIntegerAmount(value);
   if (amount === 0) return "-";
   const sign = amount > 0 ? "+" : "-";
   return `${sign}${Math.abs(amount).toLocaleString("ru-RU")} UZS`;
@@ -61,6 +104,27 @@ function getTransactionActionLabel(translate, item) {
     : base;
 }
 
+function getTransactionStatusLabel(translate, status) {
+  return String(status || "") === "voided" ? translate("Cancelled") : translate("Active");
+}
+
+function getClientLedgerCashInUzs(item) {
+  return String(item?.direction || "") === "in" ? toIntegerAmount(item?.amountUzs) : 0;
+}
+
+function getClientLedgerCashOutUzs(item) {
+  return String(item?.direction || "") === "out" ? toIntegerAmount(item?.amountUzs) : 0;
+}
+
+function getClientLedgerNote(translate, item) {
+  const note = String(item?.note || "").trim();
+  const metadata = item?.metadata && typeof item.metadata === "object" ? item.metadata : {};
+  const voidReason = String(metadata.voidReason || "").trim();
+  if (String(item?.status || "") !== "voided") return note || "-";
+  const cancelledText = voidReason ? `${translate("Cancelled")}: ${voidReason}` : translate("Cancelled");
+  return note ? `${note} | ${cancelledText}` : cancelledText;
+}
+
 function FinanceBalancesPanel({ onClose }) {
   const { translate } = useI18n();
   const [filters, setFilters] = useState(EMPTY_FILTERS);
@@ -74,6 +138,137 @@ function FinanceBalancesPanel({ onClose }) {
   const [ledgerClient, setLedgerClient] = useState(null);
   const [ledgerData, setLedgerData] = useState(null);
   const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [ledgerExporting, setLedgerExporting] = useState(false);
+  const [ledgerColumnsOpen, setLedgerColumnsOpen] = useState(false);
+  const [visibleLedgerColumnIds, setVisibleLedgerColumnIds] = useState(() => loadStoredClientLedgerColumnIds());
+
+  const ledgerColumns = [
+    {
+      id: "operationDate",
+      label: "Operation Date",
+      className: "finance-client-ledger-col-date",
+      render: (item) => formatDateTime(item.transactionAt || item.createdAt),
+      exportValue: (item) => formatDateTime(item.transactionAt || item.createdAt)
+    },
+    {
+      id: "operationNumber",
+      label: "Operation Number",
+      className: "finance-client-ledger-col-operation",
+      render: (item) => item.id ? `#${item.id}` : "-",
+      exportValue: (item) => item.id || ""
+    },
+    {
+      id: "action",
+      label: "Action",
+      className: "finance-client-ledger-col-action",
+      render: (item) => getTransactionActionLabel(translate, item),
+      exportValue: (item) => getTransactionActionLabel(translate, item)
+    },
+    {
+      id: "ticketNumber",
+      label: "Ticket Number",
+      className: "finance-client-ledger-col-ticket",
+      render: (item) => item.ticketNumber ? `#${item.ticketNumber}` : "-",
+      exportValue: (item) => item.ticketNumber || ""
+    },
+    {
+      id: "serviceName",
+      label: "Service Name",
+      className: "finance-client-ledger-col-service",
+      render: (item) => item.serviceName || "-",
+      exportValue: (item) => item.serviceName || ""
+    },
+    {
+      id: "paymentMethod",
+      label: "Payment Method",
+      className: "finance-client-ledger-col-method",
+      render: (item) => item.paymentMethodName || translate("Balance"),
+      exportValue: (item) => item.paymentMethodName || translate("Balance")
+    },
+    {
+      id: "cashIn",
+      label: "Cash In",
+      className: "finance-client-ledger-col-money",
+      cellClassName: "finance-client-ledger-money-cell",
+      render: (item) => formatMoney(getClientLedgerCashInUzs(item)),
+      exportValue: (item) => getClientLedgerCashInUzs(item)
+    },
+    {
+      id: "cashOut",
+      label: "Cash Out",
+      className: "finance-client-ledger-col-money",
+      cellClassName: "finance-client-ledger-money-cell",
+      render: (item) => formatMoney(getClientLedgerCashOutUzs(item)),
+      exportValue: (item) => getClientLedgerCashOutUzs(item)
+    },
+    {
+      id: "depositChange",
+      label: "Deposit +/-",
+      className: "finance-client-ledger-col-deposit-change",
+      cellClassName: (item) => [
+        "finance-client-ledger-money-cell",
+        item.depositChangeUzs > 0 ? "finance-balance-positive" : "",
+        item.depositChangeUzs < 0 ? "finance-balance-negative" : ""
+      ].filter(Boolean).join(" "),
+      render: (item) => formatSignedMoney(item.depositChangeUzs),
+      exportValue: (item) => toIntegerAmount(item.depositChangeUzs)
+    },
+    {
+      id: "depositBalance",
+      label: "Deposit Balance",
+      className: "finance-client-ledger-col-deposit-balance",
+      cellClassName: "finance-client-ledger-money-cell",
+      render: (item) => formatMoney(item.depositBalanceAfterUzs),
+      exportValue: (item) => toIntegerAmount(item.depositBalanceAfterUzs)
+    },
+    {
+      id: "cashier",
+      label: "Cashier",
+      className: "finance-client-ledger-col-cashier",
+      render: (item) => item.cashierName || "-",
+      exportValue: (item) => item.cashierName || ""
+    },
+    {
+      id: "status",
+      label: "Status",
+      className: "finance-client-ledger-col-status",
+      render: (item) => (
+        <span className={item.status === "voided" ? "finance-transaction-status-voided" : "finance-transaction-status-active"}>
+          {getTransactionStatusLabel(translate, item.status)}
+        </span>
+      ),
+      exportValue: (item) => getTransactionStatusLabel(translate, item.status)
+    },
+    {
+      id: "note",
+      label: "Note",
+      className: "finance-client-ledger-col-note",
+      render: (item) => getClientLedgerNote(translate, item),
+      exportValue: (item) => getClientLedgerNote(translate, item)
+    }
+  ];
+
+  const visibleLedgerColumns = ledgerColumns.filter((column) => visibleLedgerColumnIds.includes(column.id));
+  const visibleLedgerColumnCount = Math.max(visibleLedgerColumns.length, 1);
+
+  const toggleLedgerColumnVisibility = (columnId) => {
+    setVisibleLedgerColumnIds((current) => {
+      const currentIds = Array.isArray(current) ? current : DEFAULT_FINANCE_CLIENT_LEDGER_COLUMN_IDS;
+      const nextIds = new Set(currentIds);
+      if (nextIds.has(columnId)) {
+        if (nextIds.size <= 1) return currentIds;
+        nextIds.delete(columnId);
+      } else if (ledgerColumns.some((column) => column.id === columnId)) {
+        nextIds.add(columnId);
+      }
+      const next = ledgerColumns.map((column) => column.id).filter((id) => nextIds.has(id));
+      if (next.length > 0) {
+        storeClientLedgerColumnIds(next);
+        return next;
+      }
+      return currentIds;
+    });
+  };
 
   const loadBalances = useCallback(async (nextPage = 1, nextFilters = EMPTY_FILTERS) => {
     setLoading(true);
@@ -174,6 +369,25 @@ function FinanceBalancesPanel({ onClose }) {
     }
   };
 
+  const exportClientLedger = () => {
+    if (ledgerExporting || ledgerLoading) return;
+    setLedgerExporting(true);
+    try {
+      const clientId = String(ledgerData?.client?.clientId || ledgerClient?.clientId || "").trim();
+      exportExcelWorkbook(buildExportFilename(`finance-client-${clientId || "ledger"}-transactions`), [{
+        name: translate("Client Transactions"),
+        rows: [
+          visibleLedgerColumns.map((column) => translate(column.label)),
+          ...ledgerItems.map((item) => visibleLedgerColumns.map((column) => column.exportValue(item)))
+        ]
+      }]);
+    } catch (error) {
+      window.alert?.(translate(error?.message || "Export failed."));
+    } finally {
+      setLedgerExporting(false);
+    }
+  };
+
   const openClientLedger = async (item) => {
     const clientId = String(item?.clientId || "");
     if (!clientId || ledgerLoading) return;
@@ -198,8 +412,13 @@ function FinanceBalancesPanel({ onClose }) {
   };
 
   const closeClientLedger = () => {
+    setLedgerColumnsOpen(false);
     setLedgerClient(null);
     setLedgerData(null);
+  };
+
+  const closeLedgerColumns = () => {
+    setLedgerColumnsOpen(false);
   };
 
   const ledgerItems = Array.isArray(ledgerData?.items) ? ledgerData.items : [];
@@ -325,53 +544,70 @@ function FinanceBalancesPanel({ onClose }) {
             onClick={closeClientLedger}
           />
           <div id="financeClientLedgerModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-client-ledger-modal">
-            <h3>{`${translate("Client Transactions")} - ${ledgerData?.client?.clientName || ledgerClient.clientName || "-"}`}</h3>
+            <div className="finance-client-ledger-head">
+              <h3>{`${translate("Client Transactions")} - ${ledgerData?.client?.clientName || ledgerClient.clientName || "-"}`}</h3>
+              <div className="finance-client-ledger-head-actions">
+                <button
+                  type="button"
+                  className="table-action-btn finance-head-icon-btn"
+                  aria-label={translate("Table columns")}
+                  title={translate("Table columns")}
+                  onClick={() => setLedgerColumnsOpen(true)}
+                >
+                  <span className="finance-head-icon finance-head-icon-columns" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className="table-action-btn finance-head-icon-btn"
+                  aria-label={translate("Export Excel")}
+                  title={translate("Export Excel")}
+                  disabled={ledgerLoading || ledgerExporting}
+                  onClick={exportClientLedger}
+                >
+                  <span className="finance-head-icon finance-head-icon-export" aria-hidden="true" />
+                </button>
+              </div>
+            </div>
             <div className="all-users-table-scroll finance-client-ledger-table-scroll">
               <table className="all-users-table finance-client-ledger-table" aria-label="Client transaction ledger table">
+                <colgroup>
+                  {visibleLedgerColumns.map((column) => (
+                    <col key={column.id} className={column.className || undefined} />
+                  ))}
+                </colgroup>
                 <thead>
                   <tr>
-                    <th>{translate("Created At")}</th>
-                    <th>{translate("Action")}</th>
-                    <th>{translate("Ticket Number")}</th>
-                    <th>{translate("Service Name")}</th>
-                    <th>{translate("Payment Method")}</th>
-                    <th>{translate("Cash In")}</th>
-                    <th>{translate("Cash Out")}</th>
-                    <th>{translate("Deposit +/-")}</th>
-                    <th>{translate("Deposit Balance")}</th>
-                    <th>{translate("Cashier")}</th>
-                    <th>{translate("Status")}</th>
-                    <th>{translate("Note")}</th>
+                    {visibleLedgerColumns.map((column) => (
+                      <th key={column.id} className={typeof column.cellClassName === "string" ? column.cellClassName : undefined}>
+                        {translate(column.label)}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {ledgerLoading ? (
                     [0, 1, 2].map((index) => (
                       <tr key={index} aria-hidden="true">
-                        <td colSpan="12" className="skel" />
+                        <td colSpan={visibleLedgerColumnCount} className="skel" />
                       </tr>
                     ))
                   ) : ledgerItems.map((item) => (
-                    <tr key={String(item.id)}>
-                      <td>{formatDateTime(item.createdAt || item.transactionAt)}</td>
-                      <td>{getTransactionActionLabel(translate, item)}</td>
-                      <td>{item.ticketNumber ? `#${item.ticketNumber}` : "-"}</td>
-                      <td>{item.serviceName || "-"}</td>
-                      <td>{item.paymentMethodName || translate("Balance")}</td>
-                      <td>{formatMoney(item.cashInUzs)}</td>
-                      <td>{formatMoney(item.cashOutUzs)}</td>
-                      <td className={item.depositChangeUzs > 0 ? "finance-balance-positive" : item.depositChangeUzs < 0 ? "finance-balance-negative" : undefined}>
-                        {formatSignedMoney(item.depositChangeUzs)}
-                      </td>
-                      <td>{formatMoney(item.depositBalanceAfterUzs)}</td>
-                      <td>{item.cashierName || "-"}</td>
-                      <td>{item.status === "voided" ? translate("Cancelled") : translate("Active")}</td>
-                      <td>{item.note || "-"}</td>
+                    <tr key={String(item.id)} className={item.status === "voided" ? "finance-client-ledger-voided-row" : undefined}>
+                      {visibleLedgerColumns.map((column) => {
+                        const cellClassName = typeof column.cellClassName === "function"
+                          ? column.cellClassName(item)
+                          : column.cellClassName;
+                        return (
+                          <td key={column.id} className={cellClassName || undefined}>
+                            {column.render(item)}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                   {!ledgerLoading && ledgerItems.length === 0 ? (
                     <tr>
-                      <td colSpan="12" className="all-users-state">{translate("No items found.")}</td>
+                      <td colSpan={visibleLedgerColumnCount} className="all-users-state">{translate("No items found.")}</td>
                     </tr>
                   ) : null}
                 </tbody>
@@ -381,6 +617,38 @@ function FinanceBalancesPanel({ onClose }) {
               <button type="button" className="btn btn-secondary" onClick={closeClientLedger}>{translate("Close")}</button>
             </div>
           </div>
+          {ledgerColumnsOpen ? (
+            <>
+              <button
+                type="button"
+                className="login-overlay stacked-modal-overlay finance-modal-overlay"
+                aria-label={translate("Close table columns modal")}
+                onClick={closeLedgerColumns}
+              />
+              <div id="financeClientLedgerColumnsModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-ticket-columns-modal finance-client-ledger-columns-modal">
+                <h3>{translate("Table columns")}</h3>
+                <div className="finance-ticket-columns-list">
+                  {ledgerColumns.map((column) => {
+                    const checked = visibleLedgerColumnIds.includes(column.id);
+                    return (
+                      <label className="finance-ticket-column-option" key={column.id}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={checked && visibleLedgerColumnIds.length <= 1}
+                          onChange={() => toggleLedgerColumnVisibility(column.id)}
+                        />
+                        <span>{translate(column.label)}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div className="edit-actions">
+                  <button type="button" className="btn btn-secondary" onClick={closeLedgerColumns}>{translate("Close")}</button>
+                </div>
+              </div>
+            </>
+          ) : null}
         </>
       ), document.body) : null}
 
