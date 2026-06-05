@@ -104,7 +104,7 @@ function makeClientOption(item) {
   return { value: id, label };
 }
 
-function FinanceTransactionsPanel({ onClose }) {
+function FinanceTransactionsPanel({ onClose, canPayFinanceCashier = false }) {
   const { translate } = useI18n();
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
@@ -195,6 +195,8 @@ function FinanceTransactionsPanel({ onClose }) {
         <span className="finance-transactions-status-cell">
           {item.status === "voided" ? (
             <span className="finance-transaction-status-voided">{translate("Cancelled")}</span>
+          ) : !canPayFinanceCashier ? (
+            <span className="finance-transaction-status-active">{translate("Active")}</span>
           ) : (
             <button
               type="button"
@@ -391,7 +393,7 @@ function FinanceTransactionsPanel({ onClose }) {
   };
 
   const openVoidTransaction = (item) => {
-    if (!item || item.status === "voided" || voidingId) return;
+    if (!canPayFinanceCashier || !item || item.status === "voided" || voidingId) return;
     setVoidTarget(item);
     setVoidReason("");
   };
@@ -404,6 +406,7 @@ function FinanceTransactionsPanel({ onClose }) {
 
   const submitVoidTransaction = async (event) => {
     event.preventDefault();
+    if (!canPayFinanceCashier) return;
     const id = String(voidTarget?.id || "");
     const reason = voidReason.trim();
     if (!id || voidingId) return;

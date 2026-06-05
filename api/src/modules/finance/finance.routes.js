@@ -6,7 +6,6 @@ import { financeRouteSchemas } from "./finance.route-schemas.js";
 import {
   closeCashSession,
   confirmCashierAppointment,
-  createFinanceDepositTransaction,
   createFinanceTicket,
   getCashierBoard,
   getCurrentCashSession,
@@ -225,10 +224,7 @@ async function financeRoutes(fastify) {
     },
     async (request, reply) => {
       try {
-        const requester = await requireAnyFinanceAccess(request, reply, [
-          PERMISSIONS.FINANCE_CASHIER_PAY,
-          PERMISSIONS.FINANCE_BALANCES_UPDATE
-        ]);
+        const requester = await requireCashierAccess(request, reply, "pay");
         if (!requester) return null;
         const item = await voidFinanceTransaction({
           organizationId: request.authContext.organizationId,
@@ -343,31 +339,6 @@ async function financeRoutes(fastify) {
     }
   );
 
-  fastify.post(
-    "/client-balances/deposit",
-    {
-      config: { rateLimit: fastify.apiRateLimit },
-      schema: {
-        body: financeRouteSchemas.clientDepositBody
-      }
-    },
-    async (request, reply) => {
-      try {
-        const requester = await requireBalancesAccess(request, reply, "update");
-        if (!requester) return null;
-        const item = await createFinanceDepositTransaction({
-          organizationId: request.authContext.organizationId,
-          payload: request.body,
-          actorUserId: requester.id
-        });
-        return reply.status(201).send({ item });
-      } catch (error) {
-        request.log.error({ err: error }, "Error creating finance deposit transaction:");
-        return sendRouteError(reply, error, "Deposit transaction failed.");
-      }
-    }
-  );
-
   fastify.get(
     "/client-balances/:id/transactions",
     {
@@ -426,7 +397,7 @@ async function financeRoutes(fastify) {
     },
     async (request, reply) => {
       try {
-        const requester = await requireBalancesAccess(request, reply, "update");
+        const requester = await requireCashierAccess(request, reply, "pay");
         if (!requester) return null;
         return reply.send(await payFinanceTicketsFromDeposit({
           organizationId: request.authContext.organizationId,

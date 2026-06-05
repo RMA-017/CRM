@@ -67,6 +67,12 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
 
   assert.match(
     financeServiceSource,
+    /export async function getFinanceTickets[\s\S]*LEFT JOIN LATERAL \([\s\S]*t\.status = 'posted' AND t\.transaction_type IN \('ticket_payment', 'deposit_ticket_payment'\)[\s\S]*COUNT\(\*\) AS payment_activity_count,[\s\S]*COUNT\(\*\) FILTER \(WHERE t\.status = 'posted'\) AS posted_payment_activity_count[\s\S]*AND t\.transaction_type IN \('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund'\)[\s\S]*\) fpaid ON TRUE[\s\S]*COALESCE\(fpaid\.paid_amount_uzs, 0\) AS paid_amount_uzs,[\s\S]*COALESCE\(fpaid\.payment_activity_count, 0\) AS payment_activity_count,[\s\S]*COALESCE\(fpaid\.posted_payment_activity_count, 0\) AS posted_payment_activity_count/s,
+    "Finance ticket list should expose posted paid totals, posted payment activity and all payment activity so touched tickets can gate edit/delete actions separately."
+  );
+
+  assert.match(
+    financeServiceSource,
     /function formatDateYmdInTashkent\(value\) \{[\s\S]*timeZone: "Asia\/Tashkent"[\s\S]*function normalizeDate\(value\) \{[\s\S]*return formatDateYmdInTashkent\(value\);/s,
     "Finance date-only normalization should keep Tashkent calendar dates instead of shifting them through UTC."
   );
@@ -157,14 +163,50 @@ test("cashier can confirm pending planner cards before creating tickets without 
 test("finance payments, deposits and refunds preserve cash-session and balance rules", () => {
   assert.match(
     financeServiceSource,
-    /export async function payFinanceTicket[\s\S]*paymentMethodId[\s\S]*AND is_active = TRUE[\s\S]*paid_amount_uzs[\s\S]*payableAmountUzs[\s\S]*if \(amountUzs > payableAmountUzs\)[\s\S]*Payment amount exceeds selected tickets total\.[\s\S]*const nextStatus = nextPaidAmountUzs >= totalAmountUzs \? "paid" : "unpaid"[\s\S]*transactionType: "ticket_payment"[\s\S]*direction: "in"[\s\S]*SET status = \$3/s,
-    "Ticket payment should require an active method, allow partial payment up to the remaining amount, and only mark tickets paid when fully covered."
+    /export async function payFinanceTicket[\s\S]*getTicketById\(db, \{ organizationId, id: ticketId, forUpdate: true \}\)[\s\S]*paymentMethodId[\s\S]*AND is_active = TRUE[\s\S]*paid_amount_uzs[\s\S]*payableAmountUzs[\s\S]*if \(amountUzs > payableAmountUzs\)[\s\S]*Payment amount exceeds selected tickets total\.[\s\S]*const nextStatus = nextPaidAmountUzs >= totalAmountUzs \? "paid" : "unpaid"[\s\S]*transactionType: "ticket_payment"[\s\S]*direction: "in"[\s\S]*SET status = \$3/s,
+    "Ticket payment should lock the ticket, require an active method, allow partial payment up to the remaining amount, and only mark tickets paid when fully covered."
   );
 
   assert.match(
     financeServiceSource,
-    /export async function createFinanceDepositTransaction[\s\S]*if \(operation === "out"\)[\s\S]*const currentDeposit = await getClientDepositBalance[\s\S]*if \(amountUzs > currentDeposit\)[\s\S]*Deposit balance is not enough\.[\s\S]*transactionType: operation === "in" \? "deposit_in" : "deposit_out"/s,
-    "Deposit withdrawal should be blocked when it would make the client deposit negative."
+    /export async function updateFinanceTicket[\s\S]*const paymentActivityCount = await getTicketPostedPaymentActivityCount\(db, \{ organizationId, ticketId \}\);[\s\S]*Tickets with payments cannot be edited\./s,
+    "Ticket edits should be blocked while the ticket has posted payment or refund activity."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /async function updateTicketStatus[\s\S]*if \(action === "voided"\) \{[\s\S]*const paymentActivityCount = await getTicketPaymentActivityCount\(db, \{ organizationId, ticketId \}\);[\s\S]*if \(paymentActivityCount > 0\) \{[\s\S]*Tickets with payments cannot be deleted\./s,
+    "Ticket delete/void should be blocked once the ticket has any payment or refund history."
+  );
+
+  assert.doesNotMatch(
+    financeRoutesSource,
+    /"\/client-balances\/deposit"/,
+    "Direct client balance deposit mutations should not be exposed; finance operations must go through tickets."
+  );
+
+  assert.doesNotMatch(
+    financeServiceSource,
+    /export async function createFinanceDepositTransaction/,
+    "Direct deposit in/out creation should not remain as a finance service entry point."
+  );
+
+  assert.match(
+    financeRoutesSource,
+    /"\/transactions\/:id\/void"[\s\S]*requireCashierAccess\(request, reply, "pay"\)[\s\S]*voidFinanceTransaction/s,
+    "Transaction voids should require cashier payment permission, not balance maintenance permission."
+  );
+
+  assert.match(
+    financeRoutesSource,
+    /"\/client-balances\/pay-from-deposit"[\s\S]*requireCashierAccess\(request, reply, "pay"\)[\s\S]*payFinanceTicketsFromDeposit/s,
+    "Deposit ticket payments should remain a cashier payment operation even when initiated from a balance context."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /async function lockClientFinanceBalance[\s\S]*pg_advisory_xact_lock[\s\S]*export async function voidFinanceTransaction[\s\S]*transaction_type IN \('refund', 'deposit_ticket_refund'\)[\s\S]*Cancel the refund before cancelling the original payment\.[\s\S]*const depositBalanceImpact = getLedgerDepositChange\(current\);[\s\S]*currentDeposit - depositBalanceImpact < 0[\s\S]*Transaction cancellation would make client deposit negative\./s,
+    "Transaction voids should respect refund dependencies, serialize deposit-affecting changes and block negative deposits."
   );
 
   assert.match(
@@ -181,16 +223,16 @@ test("finance payments, deposits and refunds preserve cash-session and balance r
 
   assert.match(
     financeServiceSource,
-    /export async function refundFinanceTicket[\s\S]*if \(current\.status !== "paid"\)[\s\S]*Only paid tickets can be refunded\.[\s\S]*NOT EXISTS \([\s\S]*refunded\.transaction_type IN \('refund', 'deposit_ticket_refund'\)[\s\S]*for \(const payment of payments\)[\s\S]*paymentGroupId: payment\.payment_group_id \|\| null[\s\S]*transactionType: isDepositTicketPayment \? "deposit_ticket_refund" : "refund"[\s\S]*direction: isDepositTicketPayment \? "transfer" : "out"[\s\S]*SET status = 'issued'[\s\S]*paymentIds: refundedPaymentIds/s,
-    "Refund should reverse every active payment allocation either back to deposit transfer or cash out, then reopen the ticket."
+    /export async function refundFinanceTicket[\s\S]*getTicketById\(db, \{ organizationId, id: ticketId, forUpdate: true \}\)[\s\S]*if \(current\.status !== "paid"\)[\s\S]*Only paid tickets can be refunded\.[\s\S]*JOIN LATERAL \([\s\S]*t\.status = 'posted'[\s\S]*t\.transaction_type IN \('ticket_payment', 'deposit_ticket_payment'\)[\s\S]*NOT EXISTS \([\s\S]*refunded\.transaction_type IN \('refund', 'deposit_ticket_refund'\)[\s\S]*for \(const payment of payments\)[\s\S]*paymentGroupId: payment\.payment_group_id \|\| null[\s\S]*transactionType: isDepositTicketPayment \? "deposit_ticket_refund" : "refund"[\s\S]*direction: isDepositTicketPayment \? "transfer" : "out"[\s\S]*SET status = 'issued'[\s\S]*paymentIds: refundedPaymentIds/s,
+    "Refund should only reverse currently posted payment allocations either back to deposit transfer or cash out, then reopen the ticket."
   );
 });
 
 test("finance daily cash and reports separate real cash movement from deposit transfers", () => {
   assert.match(
     financeServiceSource,
-    /export async function getFinanceDailyCash[\s\S]*"t\.direction IN \('in', 'out'\)"[\s\S]*SUM\(CASE WHEN t\.direction = 'in' THEN t\.amount_uzs ELSE 0 END\)[\s\S]*SUM\(CASE WHEN t\.direction = 'out' THEN t\.amount_uzs ELSE 0 END\)/s,
-    "Daily cash should include only real cash in/out movement and exclude transfer-only deposit ticket payments."
+    /export async function getFinanceDailyCash[\s\S]*const today = getTodayYmdInTashkent\(\);[\s\S]*"t\.direction IN \('in', 'out'\)"[\s\S]*SUM\(CASE WHEN t\.direction = 'in' THEN t\.amount_uzs ELSE 0 END\)[\s\S]*SUM\(CASE WHEN t\.direction = 'out' THEN t\.amount_uzs ELSE 0 END\)/s,
+    "Daily cash should use the Tashkent business date, include only real cash in/out movement, and exclude transfer-only deposit ticket payments."
   );
 
   assert.match(

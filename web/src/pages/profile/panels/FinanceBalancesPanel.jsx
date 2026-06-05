@@ -12,7 +12,7 @@ const EMPTY_FILTERS = Object.freeze({
 
 function formatMoney(value) {
   const amount = Number.parseInt(String(value ?? 0), 10) || 0;
-  return amount > 0 ? `${amount.toLocaleString("ru-RU")} UZS` : "-";
+  return amount !== 0 ? `${amount.toLocaleString("ru-RU")} UZS` : "-";
 }
 
 function formatSignedMoney(value) {

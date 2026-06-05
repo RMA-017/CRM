@@ -600,7 +600,10 @@ function ProfileMainContent({
 
         {mainView === "finance-transactions" ? (
           <Suspense fallback={PANEL_LOADING_FALLBACK}>
-            <FinanceTransactionsPanel onClose={closeFinanceTransactionsPanel} />
+            <FinanceTransactionsPanel
+              onClose={closeFinanceTransactionsPanel}
+              canPayFinanceCashier={canPayFinanceCashier}
+            />
           </Suspense>
         ) : null}
 

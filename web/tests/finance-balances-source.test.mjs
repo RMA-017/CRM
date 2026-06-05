@@ -50,6 +50,12 @@ test("client balance rows open a read-only client transaction ledger", () => {
   );
 
   assert.match(
+    balancesPanelSource,
+    /function formatMoney\(value\) \{[\s\S]*return amount !== 0 \? `\$\{amount\.toLocaleString\("ru-RU"\)\} UZS` : "-";/s,
+    "Balances should not hide a negative deposit if historical data is already inconsistent."
+  );
+
+  assert.match(
     styles,
     /#financeClientLedgerModal\.finance-client-ledger-modal[\s\S]*width: min\(1180px,[\s\S]*\.finance-client-ledger-table[\s\S]*min-width: 1320px/s,
     "Client ledger modal should have a wide, scannable layout."

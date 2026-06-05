@@ -56,6 +56,83 @@ test("finance delete icons use a closed trash lid", async () => {
   );
 });
 
+test("ticket edit and delete actions are hidden for tickets with payment activity", async () => {
+  const [source, translations] = await Promise.all([
+    readFile(
+      new URL("../src/pages/profile/panels/FinanceTicketsPanel.jsx", import.meta.url),
+      "utf8"
+    ),
+    readFile(new URL("../src/i18n/translations.js", import.meta.url), "utf8")
+  ]);
+
+  assert.match(
+    source,
+    /function hasTicketPaymentActivity\(item\) \{[\s\S]*item\?\.paidAmountUzs[\s\S]*item\?\.paymentActivityCount[\s\S]*return paidAmountUzs > 0 \|\| paymentActivityCount > 0;/s,
+    "Ticket rows should detect both partial paid amount and any payment/refund activity for delete protection."
+  );
+  assert.match(
+    source,
+    /function hasTicketPostedPaymentActivity\(item\) \{[\s\S]*item\?\.paidAmountUzs[\s\S]*item\?\.postedPaymentActivityCount[\s\S]*return paidAmountUzs > 0 \|\| paymentActivityCount > 0;/s,
+    "Ticket rows should detect posted payment/refund activity for edit protection."
+  );
+  assert.match(
+    source,
+    /const canEditRow = canUpdateFinanceCashier[\s\S]*item\.status !== "paid"[\s\S]*item\.status !== "voided"[\s\S]*!hasTicketPostedPaymentActivity\(item\);[\s\S]*const canDeleteRow = canEditRow && !hasTicketPaymentActivity\(item\);[\s\S]*\{canEditRow \? \(/s,
+    "The edit icon should only render without posted payment activity while delete also requires no payment history."
+  );
+  assert.match(
+    source,
+    /const openEditTicket = \(item\) => \{[\s\S]*if \(hasTicketPostedPaymentActivity\(item\)\) \{[\s\S]*Tickets with payments cannot be edited\./s,
+    "The edit handler should also block stale clicks on tickets with posted payment activity."
+  );
+  assert.match(
+    source,
+    /const deleteTicket = async \(item\) => \{[\s\S]*if \(hasTicketPaymentActivity\(item\)\) \{[\s\S]*Tickets with payments cannot be deleted\./s,
+    "The delete handler should also block stale clicks on tickets with payment activity."
+  );
+  assert.match(
+    translations,
+    /Tickets with payments cannot be deleted\.", uz: "To'lovi bor talonlarni o'chirib bo'lmaydi\.", ru: "Талоны с оплатами нельзя удалить\."/s,
+    "The payment-protected delete message should be translated."
+  );
+  assert.match(
+    translations,
+    /Tickets with payments cannot be edited\.", uz: "To'lovi bor talonlarni tahrirlab bo'lmaydi\.", ru: "Талоны с оплатами нельзя редактировать\."/s,
+    "The payment-protected edit message should be translated."
+  );
+});
+
+test("ticket table exposes payment progress columns through the columns modal", async () => {
+  const [source, translations] = await Promise.all([
+    readFile(
+      new URL("../src/pages/profile/panels/FinanceTicketsPanel.jsx", import.meta.url),
+      "utf8"
+    ),
+    readFile(new URL("../src/i18n/translations.js", import.meta.url), "utf8")
+  ]);
+
+  assert.match(
+    source,
+    /const ALL_FINANCE_TICKET_COLUMN_IDS = Object\.freeze\(\[[\s\S]*"status",[\s\S]*"paid",[\s\S]*"remaining",[\s\S]*"paymentMethod",[\s\S]*"paidAt",[\s\S]*"actions"[\s\S]*const DEFAULT_FINANCE_TICKET_COLUMN_IDS = Object\.freeze\(\[[\s\S]*"status",[\s\S]*"toPay",[\s\S]*"paid",[\s\S]*"remaining",[\s\S]*"actions"/s,
+    "Ticket columns should make payment progress fields available while keeping the daily status columns visible by default."
+  );
+  assert.match(
+    source,
+    /const allowed = new Set\(ALL_FINANCE_TICKET_COLUMN_IDS\);[\s\S]*const normalized = ALL_FINANCE_TICKET_COLUMN_IDS\.filter/s,
+    "Stored table column choices should persist optional payment columns through the table columns modal."
+  );
+  assert.match(
+    source,
+    /id: "status",[\s\S]*label: "Status",[\s\S]*translateTicketStatus\(translate, item\.status\)[\s\S]*id: "paid",[\s\S]*label: "Paid",[\s\S]*formatMoney\(item\.paidAmountUzs\)[\s\S]*id: "remaining",[\s\S]*label: "Remaining",[\s\S]*getTicketRemainingAmount\(item\)[\s\S]*id: "paymentMethod",[\s\S]*label: "Payment Method",[\s\S]*item\.paymentMethodName[\s\S]*id: "paidAt",[\s\S]*label: "Paid At",[\s\S]*formatDateTime\(item\.paidAt\)/s,
+    "Ticket table should render status, paid, remaining, payment method and paid-at columns."
+  );
+  assert.match(
+    translations,
+    /Paid At", uz: "To'langan vaqt", ru: "Время оплаты"/s,
+    "The paid-at ticket column should be translated."
+  );
+});
+
 test("ticket edit modal uses one shared discount and distributes it to line items", async () => {
   const source = await readFile(
     new URL("../src/pages/profile/panels/FinanceTicketsPanel.jsx", import.meta.url),

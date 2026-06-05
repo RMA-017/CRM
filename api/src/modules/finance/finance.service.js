@@ -13,6 +13,11 @@ function normalizeAmount(value, fallback = 0) {
   return parsed;
 }
 
+function parseIntegerAmount(value, fallback = 0) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function normalizeOptionalAmount(value) {
   const raw = String(value ?? "").trim();
   if (!raw) return null;
@@ -136,6 +141,8 @@ function mapTicket(row) {
     discountUzs: row.discount_uzs ?? 0,
     totalUzs: row.total_uzs ?? row.amount_uzs,
     paidAmountUzs: row.paid_amount_uzs ?? 0,
+    paymentActivityCount: Number.parseInt(String(row.payment_activity_count ?? 0), 10) || 0,
+    postedPaymentActivityCount: Number.parseInt(String(row.posted_payment_activity_count ?? 0), 10) || 0,
     remainingAmountUzs: Math.max(
       normalizeAmount(row.total_uzs ?? row.amount_uzs, 0) - normalizeAmount(row.paid_amount_uzs, 0),
       0
@@ -300,7 +307,7 @@ async function runFinanceReportQuery(sql, params, fallbackRows = []) {
 function mapClientBalance(row) {
   if (!row) return null;
   const debtUzs = normalizeAmount(row.debt_uzs, 0);
-  const depositUzs = normalizeAmount(row.deposit_uzs, 0);
+  const depositUzs = parseIntegerAmount(row.deposit_uzs, 0);
   return {
     clientId: row.client_id,
     clientName: row.client_name || "",
@@ -489,6 +496,31 @@ async function getTicketPaidAmount(db, { organizationId, ticketId }) {
   return normalizeAmount(result.rows[0]?.paid_amount_uzs, 0);
 }
 
+async function getTicketPaymentActivityCount(db, { organizationId, ticketId }) {
+  const result = await db.query(
+    `SELECT COUNT(*) AS payment_activity_count
+       FROM finance_transactions
+      WHERE organization_id = $1
+        AND ticket_id = $2
+        AND transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')`,
+    [organizationId, ticketId]
+  );
+  return Number.parseInt(String(result.rows[0]?.payment_activity_count ?? 0), 10) || 0;
+}
+
+async function getTicketPostedPaymentActivityCount(db, { organizationId, ticketId }) {
+  const result = await db.query(
+    `SELECT COUNT(*) AS payment_activity_count
+       FROM finance_transactions
+      WHERE organization_id = $1
+        AND ticket_id = $2
+        AND status = 'posted'
+        AND transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')`,
+    [organizationId, ticketId]
+  );
+  return Number.parseInt(String(result.rows[0]?.payment_activity_count ?? 0), 10) || 0;
+}
+
 async function getOpenCashSession(db, { organizationId, cashierUserId, forUpdate = false }) {
   const result = await db.query(
     `SELECT s.*,
@@ -504,6 +536,15 @@ async function getOpenCashSession(db, { organizationId, cashierUserId, forUpdate
     [organizationId, cashierUserId]
   );
   return result.rows[0] || null;
+}
+
+async function lockClientFinanceBalance(db, { organizationId, clientId }) {
+  const normalizedClientId = parsePositiveInteger(clientId);
+  if (!normalizedClientId) return;
+  await db.query(
+    "SELECT pg_advisory_xact_lock($1::int, $2::int)",
+    [organizationId, normalizedClientId]
+  );
 }
 
 async function getCashSessionExpectedBalance(db, { organizationId, cashSessionId }) {
@@ -1298,6 +1339,19 @@ export async function getFinanceTickets({ organizationId, filters = {} }) {
     ) fp ON TRUE
     LEFT JOIN finance_payment_methods fpm ON fpm.organization_id = ft.organization_id AND fpm.id = fp.payment_method_id
     LEFT JOIN LATERAL (
+      SELECT COALESCE(SUM(CASE
+               WHEN t.status = 'posted' AND t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN t.amount_uzs
+               WHEN t.status = 'posted' AND t.transaction_type IN ('refund', 'deposit_ticket_refund') THEN -t.amount_uzs
+               ELSE 0
+             END), 0) AS paid_amount_uzs,
+             COUNT(*) AS payment_activity_count,
+             COUNT(*) FILTER (WHERE t.status = 'posted') AS posted_payment_activity_count
+        FROM finance_transactions t
+       WHERE t.organization_id = ft.organization_id
+         AND t.ticket_id = ft.id
+         AND t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')
+    ) fpaid ON TRUE
+    LEFT JOIN LATERAL (
       SELECT COUNT(*) AS item_count,
              COALESCE(
                json_agg(
@@ -1346,6 +1400,9 @@ export async function getFinanceTickets({ organizationId, filters = {} }) {
             ft.subtotal_uzs,
             ft.discount_uzs,
             ft.total_uzs,
+            COALESCE(fpaid.paid_amount_uzs, 0) AS paid_amount_uzs,
+            COALESCE(fpaid.payment_activity_count, 0) AS payment_activity_count,
+            COALESCE(fpaid.posted_payment_activity_count, 0) AS posted_payment_activity_count,
             ft.status,
             ft.note,
             a.appointment_date,
@@ -1693,6 +1750,52 @@ export async function voidFinanceTransaction({ organizationId, id, payload, acto
       throw error;
     }
 
+    if (
+      ["ticket_payment", "deposit_ticket_payment"].includes(current.transaction_type)
+      && current.ticket_payment_id
+    ) {
+      const refundResult = await db.query(
+        `SELECT 1
+           FROM finance_transactions
+          WHERE organization_id = $1
+            AND ticket_id = $2
+            AND ticket_payment_id = $3
+            AND status = 'posted'
+            AND transaction_type IN ('refund', 'deposit_ticket_refund')
+          LIMIT 1`,
+        [organizationId, current.ticket_id, current.ticket_payment_id]
+      );
+      if (refundResult.rows[0]) {
+        const error = new Error("Cancel the refund before cancelling the original payment.");
+        error.statusCode = 400;
+        throw error;
+      }
+    }
+
+    const depositBalanceImpact = getLedgerDepositChange(current);
+    if (current.client_id && depositBalanceImpact !== 0) {
+      await lockClientFinanceBalance(db, { organizationId, clientId: current.client_id });
+      const currentDeposit = await getClientDepositBalance(db, {
+        organizationId,
+        clientId: current.client_id
+      });
+      if (currentDeposit - depositBalanceImpact < 0) {
+        const error = new Error("Transaction cancellation would make client deposit negative.");
+        error.statusCode = 400;
+        throw error;
+      }
+    }
+
+    let previousTicketStatus = null;
+    if (current.ticket_id) {
+      const ticketBeforeVoid = await getTicketById(db, {
+        organizationId,
+        id: current.ticket_id,
+        forUpdate: true
+      });
+      previousTicketStatus = ticketBeforeVoid?.status || null;
+    }
+
     const updatedResult = await db.query(
       `UPDATE finance_transactions
           SET status = 'voided',
@@ -1723,7 +1826,7 @@ export async function voidFinanceTransaction({ organizationId, id, payload, acto
         organizationId,
         ticketId: refreshedTicket.id,
         action: "transaction_voided",
-        fromStatus: current.transaction_type,
+        fromStatus: previousTicketStatus || current.transaction_type,
         toStatus: refreshedTicket.status,
         details: {
           transactionId,
@@ -1746,7 +1849,7 @@ export async function voidFinanceTransaction({ organizationId, id, payload, acto
 }
 
 export async function getFinanceDailyCash({ organizationId, filters = {}, actorUserId = null }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getTodayYmdInTashkent();
   const dateFrom = normalizeDate(filters.dateFrom ?? filters.date_from) || today;
   const dateTo = normalizeDate(filters.dateTo ?? filters.date_to) || dateFrom;
   const cashier = normalizeText(filters.cashier, 96).toLowerCase();
@@ -2722,111 +2825,7 @@ async function getClientDepositBalance(db, { organizationId, clientId }) {
         AND transaction_type IN ('deposit_in', 'deposit_out', 'deposit_ticket_payment', 'deposit_ticket_refund')`,
     [organizationId, clientId]
   );
-  return normalizeAmount(result.rows[0]?.deposit_uzs, 0);
-}
-
-export async function createFinanceDepositTransaction({ organizationId, payload, actorUserId }) {
-  const clientId = parsePositiveInteger(payload?.clientId ?? payload?.client_id);
-  const paymentMethodId = parsePositiveInteger(payload?.paymentMethodId ?? payload?.payment_method_id);
-  const amountUzs = normalizeAmount(payload?.amountUzs ?? payload?.amount_uzs, 0);
-  const operation = String(payload?.operation || "").trim().toLowerCase();
-  const note = normalizeText(payload?.note);
-  if (!clientId) {
-    const error = new Error("Client is required.");
-    error.statusCode = 400;
-    throw error;
-  }
-  if (!paymentMethodId) {
-    const error = new Error("Payment method is required.");
-    error.statusCode = 400;
-    throw error;
-  }
-  if (amountUzs <= 0) {
-    const error = new Error("Payment amount is required.");
-    error.statusCode = 400;
-    throw error;
-  }
-  if (!["in", "out"].includes(operation)) {
-    const error = new Error("Deposit operation is required.");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const db = await pool.connect();
-  try {
-    await db.query("BEGIN");
-    const clientResult = await db.query(
-      `SELECT id
-         FROM clients
-        WHERE organization_id = $1
-          AND id = $2
-        LIMIT 1`,
-      [organizationId, clientId]
-    );
-    if (!clientResult.rows[0]) {
-      const error = new Error("Client not found.");
-      error.statusCode = 404;
-      throw error;
-    }
-
-    const methodResult = await db.query(
-      `SELECT id
-         FROM finance_payment_methods
-        WHERE organization_id = $1
-          AND id = $2
-          AND is_active = TRUE
-        LIMIT 1`,
-      [organizationId, paymentMethodId]
-    );
-    if (!methodResult.rows[0]) {
-      const error = new Error("Payment method not found.");
-      error.statusCode = 400;
-      throw error;
-    }
-
-    const cashSession = await getOpenCashSession(db, {
-      organizationId,
-      cashierUserId: actorUserId,
-      forUpdate: true
-    });
-    if (!cashSession) {
-      const error = new Error("Cash session is required.");
-      error.statusCode = 400;
-      throw error;
-    }
-
-    if (operation === "out") {
-      const currentDeposit = await getClientDepositBalance(db, { organizationId, clientId });
-      if (amountUzs > currentDeposit) {
-        const error = new Error("Deposit balance is not enough.");
-        error.statusCode = 400;
-        throw error;
-      }
-    }
-
-    const transaction = await insertFinanceTransaction(db, {
-      organizationId,
-      cashSessionId: cashSession.id,
-      transactionType: operation === "in" ? "deposit_in" : "deposit_out",
-      direction: operation === "in" ? "in" : "out",
-      clientId,
-      ticketId: null,
-      ticketPaymentId: null,
-      paymentMethodId,
-      amountUzs,
-      note,
-      metadata: { source: operation === "in" ? "deposit_topup" : "deposit_withdraw" },
-      actorUserId
-    });
-
-    await db.query("COMMIT");
-    return mapTransaction(transaction);
-  } catch (error) {
-    await db.query("ROLLBACK").catch(() => {});
-    throw error;
-  } finally {
-    db.release();
-  }
+  return parseIntegerAmount(result.rows[0]?.deposit_uzs, 0);
 }
 
 export async function getFinanceClientDebtTickets({ organizationId, clientId }) {
@@ -3018,6 +3017,7 @@ export async function payFinanceTicketsFromDeposit({ organizationId, payload, ac
   const db = await pool.connect();
   try {
     await db.query("BEGIN");
+    await lockClientFinanceBalance(db, { organizationId, clientId });
 
     const cashSession = await getOpenCashSession(db, {
       organizationId,
@@ -3175,13 +3175,14 @@ async function getAppointmentForTicket(db, { organizationId, appointmentSchedule
   return result.rows[0] || null;
 }
 
-async function getTicketById(db, { organizationId, id }) {
+async function getTicketById(db, { organizationId, id, forUpdate = false }) {
   const result = await db.query(
     `SELECT *
        FROM finance_tickets
       WHERE organization_id = $1
         AND id = $2
-      LIMIT 1`,
+      LIMIT 1
+      ${forUpdate ? "FOR UPDATE" : ""}`,
     [organizationId, id]
   );
   return result.rows[0] || null;
@@ -3605,7 +3606,7 @@ export async function updateFinanceTicket({ organizationId, id, payload, actorUs
   const db = await pool.connect();
   try {
     await db.query("BEGIN");
-    const current = await getTicketById(db, { organizationId, id: ticketId });
+    const current = await getTicketById(db, { organizationId, id: ticketId, forUpdate: true });
     if (!current) {
       const error = new Error("Ticket not found.");
       error.statusCode = 404;
@@ -3613,6 +3614,12 @@ export async function updateFinanceTicket({ organizationId, id, payload, actorUs
     }
     if (current.status === "paid" || current.status === "voided") {
       const error = new Error("Paid or voided tickets cannot be edited.");
+      error.statusCode = 400;
+      throw error;
+    }
+    const paymentActivityCount = await getTicketPostedPaymentActivityCount(db, { organizationId, ticketId });
+    if (paymentActivityCount > 0) {
+      const error = new Error("Tickets with payments cannot be edited.");
       error.statusCode = 400;
       throw error;
     }
@@ -3793,7 +3800,7 @@ async function updateTicketStatus({ organizationId, id, status, action, reason =
   const db = await pool.connect();
   try {
     await db.query("BEGIN");
-    const current = await getTicketById(db, { organizationId, id: ticketId });
+    const current = await getTicketById(db, { organizationId, id: ticketId, forUpdate: true });
     if (!current) {
       const error = new Error("Ticket not found.");
       error.statusCode = 404;
@@ -3803,6 +3810,14 @@ async function updateTicketStatus({ organizationId, id, status, action, reason =
       const error = new Error("Paid tickets cannot be changed.");
       error.statusCode = 400;
       throw error;
+    }
+    if (action === "voided") {
+      const paymentActivityCount = await getTicketPaymentActivityCount(db, { organizationId, ticketId });
+      if (paymentActivityCount > 0) {
+        const error = new Error("Tickets with payments cannot be deleted.");
+        error.statusCode = 400;
+        throw error;
+      }
     }
     const beforeSnapshot = await getTicketHistorySnapshot(db, { organizationId, ticketId });
     const result = await db.query(
@@ -3852,7 +3867,7 @@ export async function payFinanceTicket({ organizationId, id, payload, actorUserI
   const db = await pool.connect();
   try {
     await db.query("BEGIN");
-    const current = await getTicketById(db, { organizationId, id: ticketId });
+    const current = await getTicketById(db, { organizationId, id: ticketId, forUpdate: true });
     if (!current) {
       const error = new Error("Ticket not found.");
       error.statusCode = 404;
@@ -4032,6 +4047,12 @@ export async function payFinanceTicketsBatch({ organizationId, payload, actorUse
   const db = await pool.connect();
   try {
     await db.query("BEGIN");
+    const depositClientIds = depositPayments
+      .map((payment) => payment.clientId)
+      .sort((left, right) => left - right);
+    for (const depositClientId of depositClientIds) {
+      await lockClientFinanceBalance(db, { organizationId, clientId: depositClientId });
+    }
     const cashSession = await getOpenCashSession(db, {
       organizationId,
       cashierUserId: actorUserId,
@@ -4299,7 +4320,7 @@ export async function refundFinanceTicket({ organizationId, id, payload, actorUs
   const db = await pool.connect();
   try {
     await db.query("BEGIN");
-    const current = await getTicketById(db, { organizationId, id: ticketId });
+    const current = await getTicketById(db, { organizationId, id: ticketId, forUpdate: true });
     if (!current) {
       const error = new Error("Ticket not found.");
       error.statusCode = 404;
@@ -4310,6 +4331,7 @@ export async function refundFinanceTicket({ organizationId, id, payload, actorUs
       error.statusCode = 400;
       throw error;
     }
+    await lockClientFinanceBalance(db, { organizationId, clientId: current.client_id });
 
     const cashSession = await getOpenCashSession(db, {
       organizationId,
@@ -4329,7 +4351,7 @@ export async function refundFinanceTicket({ organizationId, id, payload, actorUs
               p.amount_uzs,
               original.transaction_type AS original_transaction_type
          FROM finance_ticket_payments p
-         LEFT JOIN LATERAL (
+         JOIN LATERAL (
            SELECT t.transaction_type
              FROM finance_transactions t
             WHERE t.organization_id = p.organization_id

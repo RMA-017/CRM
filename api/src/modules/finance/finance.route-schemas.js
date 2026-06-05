@@ -254,25 +254,6 @@ export const financeRouteSchemas = Object.freeze({
       page_size: positiveIntegerLikeSchema
     }
   },
-  clientDepositBody: {
-    type: "object",
-    additionalProperties: true,
-    required: ["operation"],
-    properties: {
-      clientId: positiveIntegerLikeSchema,
-      client_id: positiveIntegerLikeSchema,
-      paymentMethodId: positiveIntegerLikeSchema,
-      payment_method_id: positiveIntegerLikeSchema,
-      amountUzs: positiveIntegerLikeSchema,
-      amount_uzs: positiveIntegerLikeSchema,
-      operation: { type: "string", enum: ["in", "out"] },
-      note: { type: "string", maxLength: 255 }
-    },
-    anyOf: [
-      { required: ["clientId", "paymentMethodId", "amountUzs"] },
-      { required: ["client_id", "payment_method_id", "amount_uzs"] }
-    ]
-  },
   clientDepositTicketPaymentBody: {
     type: "object",
     additionalProperties: true,

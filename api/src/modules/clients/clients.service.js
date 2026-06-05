@@ -3289,6 +3289,14 @@ export async function updateClientById({
           AND s.organization_id = $11
           AND s.client_id = $10
           AND s.client_id = tc.id
+          AND s.status = 'pending'
+          AND s.appointment_date >= TIMEZONE('Asia/Tashkent', NOW())::date
+          AND NOT EXISTS (
+            SELECT 1
+              FROM finance_tickets ft
+             WHERE ft.organization_id = s.organization_id
+               AND ft.appointment_schedule_id = s.id
+          )
           AND EXISTS (SELECT 1 FROM updated_client)
        RETURNING s.*
      ),

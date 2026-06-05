@@ -455,7 +455,7 @@ test("client update persists VIP flag", { concurrency: false }, async () => {
   }
 });
 
-test("client update from VIP to inactive removes all planner lessons", { concurrency: false }, async () => {
+test("client update from VIP to inactive removes pending planner lessons from today onward", { concurrency: false }, async () => {
   const recorder = createRouteRecorder();
   await clientsRoutes(recorder.fastify);
 
@@ -483,7 +483,10 @@ test("client update from VIP to inactive removes all planner lessons", { concurr
       assert.match(queryText, /DELETE FROM appointment_schedules s/);
       assert.match(queryText, /\$8::boolean = FALSE/);
       assert.match(queryText, /tc\.was_vip IS TRUE/);
-      assert.doesNotMatch(queryText, /s\.appointment_date > TIMEZONE/);
+      assert.match(queryText, /s\.status = 'pending'/);
+      assert.doesNotMatch(queryText, /s\.status IN \('pending', 'confirmed'\)/);
+      assert.match(queryText, /s\.appointment_date >= TIMEZONE\('Asia\/Tashkent', NOW\(\)\)::date/);
+      assert.match(queryText, /NOT EXISTS \([\s\S]*FROM finance_tickets ft[\s\S]*ft\.appointment_schedule_id = s\.id/s);
       assert.deepEqual(params, [
         "Ali",
         "Valiyev",

@@ -26,6 +26,23 @@ const TICKET_STATUS_FILTER_OPTIONS = Object.freeze([
 
 const DEFAULT_TICKET_STATUS_FILTER = "issued,unpaid,paid";
 const FINANCE_TICKET_COLUMNS_STORAGE_KEY = "aaron_crm_finance_ticket_columns";
+const ALL_FINANCE_TICKET_COLUMN_IDS = Object.freeze([
+  "ticketNumber",
+  "createdAt",
+  "clientName",
+  "clientId",
+  "ticketDate",
+  "service",
+  "department",
+  "specialist",
+  "status",
+  "toPay",
+  "paid",
+  "remaining",
+  "paymentMethod",
+  "paidAt",
+  "actions"
+]);
 const DEFAULT_FINANCE_TICKET_COLUMN_IDS = Object.freeze([
   "ticketNumber",
   "createdAt",
@@ -35,7 +52,10 @@ const DEFAULT_FINANCE_TICKET_COLUMN_IDS = Object.freeze([
   "service",
   "department",
   "specialist",
+  "status",
   "toPay",
+  "paid",
+  "remaining",
   "actions"
 ]);
 
@@ -44,8 +64,8 @@ function loadStoredTicketColumnIds() {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(FINANCE_TICKET_COLUMNS_STORAGE_KEY) || "[]");
     const stored = Array.isArray(parsed) ? parsed : [];
-    const allowed = new Set(DEFAULT_FINANCE_TICKET_COLUMN_IDS);
-    const normalized = DEFAULT_FINANCE_TICKET_COLUMN_IDS.filter((id) => stored.includes(id) && allowed.has(id));
+    const allowed = new Set(ALL_FINANCE_TICKET_COLUMN_IDS);
+    const normalized = ALL_FINANCE_TICKET_COLUMN_IDS.filter((id) => stored.includes(id) && allowed.has(id));
     return normalized.length > 0 ? normalized : [...DEFAULT_FINANCE_TICKET_COLUMN_IDS];
   } catch {
     return [...DEFAULT_FINANCE_TICKET_COLUMN_IDS];
@@ -115,6 +135,28 @@ function formatDateInput(value) {
 function normalizeMoneyInput(value) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function getTicketRemainingAmount(item) {
+  const provided = Number.parseInt(String(item?.remainingAmountUzs ?? ""), 10);
+  if (Number.isFinite(provided)) {
+    return Math.max(provided, 0);
+  }
+  const totalUzs = normalizeMoneyInput(item?.totalUzs ?? item?.amountUzs);
+  const paidAmountUzs = normalizeMoneyInput(item?.paidAmountUzs);
+  return Math.max(totalUzs - paidAmountUzs, 0);
+}
+
+function hasTicketPaymentActivity(item) {
+  const paidAmountUzs = Number.parseInt(String(item?.paidAmountUzs ?? 0), 10) || 0;
+  const paymentActivityCount = Number.parseInt(String(item?.paymentActivityCount ?? 0), 10) || 0;
+  return paidAmountUzs > 0 || paymentActivityCount > 0;
+}
+
+function hasTicketPostedPaymentActivity(item) {
+  const paidAmountUzs = Number.parseInt(String(item?.paidAmountUzs ?? 0), 10) || 0;
+  const paymentActivityCount = Number.parseInt(String(item?.postedPaymentActivityCount ?? 0), 10) || 0;
+  return paidAmountUzs > 0 || paymentActivityCount > 0;
 }
 
 function calculateDiscountUzs({ priceUzs, discountType, discountValue }) {
@@ -496,17 +538,51 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
       exportValue: (item) => getTicketSpecialistText(item)
     },
     {
+      id: "status",
+      label: "Status",
+      render: (item) => translateTicketStatus(translate, item.status),
+      exportValue: (item) => translateTicketStatus(translate, item.status)
+    },
+    {
       id: "toPay",
       label: "To Pay",
       render: (item) => formatMoney(item.totalUzs ?? item.amountUzs),
       exportValue: (item) => Number.parseInt(String(item.totalUzs ?? item.amountUzs ?? 0), 10) || 0
     },
     {
+      id: "paid",
+      label: "Paid",
+      render: (item) => formatMoney(item.paidAmountUzs),
+      exportValue: (item) => Number.parseInt(String(item.paidAmountUzs ?? 0), 10) || 0
+    },
+    {
+      id: "remaining",
+      label: "Remaining",
+      render: (item) => formatMoney(getTicketRemainingAmount(item)),
+      exportValue: (item) => getTicketRemainingAmount(item)
+    },
+    {
+      id: "paymentMethod",
+      label: "Payment Method",
+      render: (item) => item.paymentMethodName || "-",
+      exportValue: (item) => item.paymentMethodName || ""
+    },
+    {
+      id: "paidAt",
+      label: "Paid At",
+      render: (item) => formatDateTime(item.paidAt),
+      exportValue: (item) => formatDateTime(item.paidAt)
+    },
+    {
       id: "actions",
       label: "Actions",
       render: (item) => {
         const id = String(item.id);
-        const canEditRow = canUpdateFinanceCashier && item.status !== "paid" && item.status !== "voided";
+        const canEditRow = canUpdateFinanceCashier
+          && item.status !== "paid"
+          && item.status !== "voided"
+          && !hasTicketPostedPaymentActivity(item);
+        const canDeleteRow = canEditRow && !hasTicketPaymentActivity(item);
         const hasAction = canEditRow || item.status === "paid";
         return hasAction ? (
           <div className="finance-ticket-action-group">
@@ -522,16 +598,18 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                 >
                   ✎
                 </button>
-                <button
-                  type="button"
-                  className="table-action-btn table-action-btn-danger finance-ticket-icon-btn"
-                  aria-label={translate("Delete")}
-                  title={translate("Delete")}
-                  disabled={voidingId === id}
-                  onClick={() => deleteTicket(item)}
-                >
-                  {voidingId === id ? "..." : <span className="finance-ticket-trash-icon" aria-hidden="true" />}
-                </button>
+                {canDeleteRow ? (
+                  <button
+                    type="button"
+                    className="table-action-btn table-action-btn-danger finance-ticket-icon-btn"
+                    aria-label={translate("Delete")}
+                    title={translate("Delete")}
+                    disabled={voidingId === id}
+                    onClick={() => deleteTicket(item)}
+                  >
+                    {voidingId === id ? "..." : <span className="finance-ticket-trash-icon" aria-hidden="true" />}
+                  </button>
+                ) : null}
               </>
             ) : null}
             {item.status === "paid" ? (
@@ -793,6 +871,10 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
       window.alert?.(translate("Paid or voided tickets cannot be edited."));
       return;
     }
+    if (hasTicketPostedPaymentActivity(item)) {
+      window.alert?.(translate("Tickets with payments cannot be edited."));
+      return;
+    }
     const form = createTicketEditForm(item);
     const clientOption = makeClientOption(item);
     setEditTicket(item);
@@ -903,6 +985,10 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
     if (!id || voidingId || !canUpdateFinanceCashier) return;
     if (item?.status === "paid" || item?.status === "voided") {
       window.alert?.(translate("Paid or voided tickets cannot be edited."));
+      return;
+    }
+    if (hasTicketPaymentActivity(item)) {
+      window.alert?.(translate("Tickets with payments cannot be deleted."));
       return;
     }
     const reason = String(window.prompt?.(translate("Enter ticket delete reason")) || "").trim();
