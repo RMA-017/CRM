@@ -4171,6 +4171,7 @@ export async function updateAppointmentSchedulesByIds({
   applyAppointmentDate = true,
   clearRepeatMeta = false,
   scheduleScope = "default",
+  activateClient = true,
   db = pool
 }) {
   await ensureAppointmentStatusHistorySchema();
@@ -4216,6 +4217,7 @@ export async function updateAppointmentSchedulesByIds({
           SET is_vip = TRUE
         WHERE c.organization_id = $13
           AND c.id = $2
+          AND $17::boolean
           AND c.is_vip IS DISTINCT FROM TRUE
           AND EXISTS (SELECT 1 FROM target)
        RETURNING c.id
@@ -4359,7 +4361,8 @@ export async function updateAppointmentSchedulesByIds({
       organizationId,
       normalizedIds,
       serviceId || null,
-      servicePriceUzs || 0
+      servicePriceUzs || 0,
+      Boolean(activateClient)
     ]
   );
 

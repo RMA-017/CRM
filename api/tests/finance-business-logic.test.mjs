@@ -144,6 +144,11 @@ test("finance ticket creation only accepts confirmed appointments and snapshots 
     /const requestedPriceUzs = normalizeAmount\(rawItem\?\.priceUzs[\s\S]*const priceUzs = requestedPriceUzs > 0 \? requestedPriceUzs : normalizeAmount\(service\.price_uzs, 0\)/s,
     "Ticket line items should allow appointment ticket price overrides while falling back to the service catalog price."
   );
+  assert.match(
+    financeServiceSource,
+    /const requestedDiscountUzs = normalizeAmount\(rawItem\?\.discountUzs \?\? rawItem\?\.discount_uzs, -1\);[\s\S]*const discountUzs = requestedDiscountUzs >= 0[\s\S]*Math\.min\(priceUzs, requestedDiscountUzs\)[\s\S]*calculateDiscountUzs\(\{ priceUzs, discountType, discountValue \}\)/s,
+    "Ticket line items should accept exact distributed UZS discounts while preserving the submitted discount metadata."
+  );
 
   assert.match(
     financeServiceSource,
@@ -189,6 +194,31 @@ test("finance payments, deposits and refunds preserve cash-session and balance r
     financeServiceSource,
     /export async function updateFinanceTicket[\s\S]*const paymentActivityCount = await getTicketPostedPaymentActivityCount\(db, \{ organizationId, ticketId \}\);[\s\S]*Tickets with payments cannot be edited\./s,
     "Ticket edits should be blocked while the ticket has posted payment or refund activity."
+  );
+  assert.match(
+    financeServiceSource,
+    /const isAppointmentTicket = current\.source === "appointment" \|\| Boolean\(current\.appointment_schedule_id\);[\s\S]*if \(hasClientId && clientId !== currentClientId\) \{[\s\S]*Ticket client cannot be changed\.[\s\S]*if \(isAppointmentTicket && hasTicketDate && ticketDate !== currentTicketDate\) \{[\s\S]*Appointment ticket date cannot be changed\./s,
+    "Ticket edits should keep clients immutable and lock appointment-backed ticket dates."
+  );
+  assert.match(
+    financeServiceSource,
+    /if \(isAppointmentTicket\) \{[\s\S]*expectedItemCount[\s\S]*Appointment ticket line count cannot be changed\.[\s\S]*previousSpecialistId[\s\S]*nextSpecialistId[\s\S]*Appointment ticket specialist cannot be changed\./s,
+    "Appointment-backed ticket edits should only allow service changes, not specialist or line-count changes."
+  );
+  assert.match(
+    financeServiceSource,
+    /async function syncAppointmentTicketService\(db, \{ organizationId, actorUserId, appointmentScheduleId, item \}\)[\s\S]*getAppointmentForTicket\(db, \{[\s\S]*forUpdate: true[\s\S]*nextServiceId[\s\S]*nextServiceName[\s\S]*nextServicePriceUzs[\s\S]*updateAppointmentSchedulesByIds\(\{[\s\S]*ids: \[appointment\.id\],[\s\S]*serviceId: nextServiceId,[\s\S]*serviceName: nextServiceName,[\s\S]*servicePriceUzs: nextServicePriceUzs,[\s\S]*applyAppointmentDate: false,[\s\S]*activateClient: false/s,
+    "Appointment-backed ticket service edits should sync the linked planner slot service without reactivating the client."
+  );
+  assert.match(
+    financeServiceSource,
+    /if \(nextItems\) \{[\s\S]*await insertTicketItems\(db, \{ organizationId, ticketId, items: nextItems \}\);[\s\S]*if \(isAppointmentTicket\) \{[\s\S]*await syncAppointmentTicketService\(db, \{[\s\S]*appointmentScheduleId,[\s\S]*item: nextItems\[0\]/s,
+    "Ticket update flow should apply the appointment service sync in the same transaction as the ticket item update."
+  );
+  assert.match(
+    appointmentSettingsServiceSource,
+    /export async function updateAppointmentSchedulesByIds\(\{[\s\S]*activateClient = true,[\s\S]*AND \$17::boolean[\s\S]*Boolean\(activateClient\)/s,
+    "Appointment schedule updates should allow finance service sync to avoid unintended client reactivation."
   );
 
   assert.match(

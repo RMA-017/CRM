@@ -3183,7 +3183,7 @@ export async function payFinanceTicketsFromDeposit({ organizationId, payload, ac
   }
 }
 
-async function getAppointmentForTicket(db, { organizationId, appointmentScheduleId }) {
+async function getAppointmentForTicket(db, { organizationId, appointmentScheduleId, forUpdate = false }) {
   const result = await db.query(
     `SELECT id,
             organization_id,
@@ -3193,14 +3193,75 @@ async function getAppointmentForTicket(db, { organizationId, appointmentSchedule
             service_name,
             service_price_uzs,
             appointment_date,
+            start_time,
+            end_time,
+            duration_minutes,
+            note,
             status
        FROM appointment_schedules
       WHERE organization_id = $1
         AND id = $2
-      LIMIT 1`,
+      LIMIT 1
+      ${forUpdate ? "FOR UPDATE" : ""}`,
     [organizationId, appointmentScheduleId]
   );
   return result.rows[0] || null;
+}
+
+async function syncAppointmentTicketService(db, { organizationId, actorUserId, appointmentScheduleId, item }) {
+  const appointment = await getAppointmentForTicket(db, {
+    organizationId,
+    appointmentScheduleId,
+    forUpdate: true
+  });
+  if (!appointment) {
+    const error = new Error("Appointment not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const appointmentSpecialistId = parsePositiveInteger(appointment.specialist_id);
+  const itemSpecialistId = parsePositiveInteger(item?.specialistId);
+  if (appointmentSpecialistId !== itemSpecialistId) {
+    const error = new Error("Appointment ticket specialist cannot be changed.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const nextServiceId = parsePositiveInteger(item?.serviceId) || null;
+  const nextServiceName = normalizeText(item?.serviceName, 128);
+  const nextServicePriceUzs = normalizeAmount(item?.priceUzs, 0);
+  const currentServiceId = parsePositiveInteger(appointment.service_id) || null;
+  const currentServiceName = normalizeText(appointment.service_name, 128);
+  const currentServicePriceUzs = normalizeAmount(appointment.service_price_uzs, 0);
+
+  if (
+    currentServiceId === nextServiceId
+    && currentServiceName === nextServiceName
+    && currentServicePriceUzs === nextServicePriceUzs
+  ) {
+    return;
+  }
+
+  await updateAppointmentSchedulesByIds({
+    db,
+    organizationId,
+    actorUserId,
+    ids: [appointment.id],
+    specialistId: appointment.specialist_id,
+    clientId: appointment.client_id,
+    appointmentDate: normalizeDate(appointment.appointment_date),
+    startTime: appointment.start_time,
+    endTime: appointment.end_time,
+    durationMinutes: appointment.duration_minutes,
+    serviceId: nextServiceId,
+    serviceName: nextServiceName,
+    servicePriceUzs: nextServicePriceUzs,
+    status: appointment.status,
+    note: appointment.note || "",
+    applyAppointmentDate: false,
+    activateClient: false
+  });
 }
 
 async function getTicketById(db, { organizationId, id, forUpdate = false }) {
@@ -3365,7 +3426,10 @@ async function buildTicketItems(db, { organizationId, payload, appointment, fall
       }
       const discountType = normalizeDiscountType(rawItem?.discountType ?? rawItem?.discount_type);
       const discountValue = normalizeAmount(rawItem?.discountValue ?? rawItem?.discount_value, 0);
-      const discountUzs = calculateDiscountUzs({ priceUzs, discountType, discountValue });
+      const requestedDiscountUzs = normalizeAmount(rawItem?.discountUzs ?? rawItem?.discount_uzs, -1);
+      const discountUzs = requestedDiscountUzs >= 0
+        ? Math.min(priceUzs, requestedDiscountUzs)
+        : calculateDiscountUzs({ priceUzs, discountType, discountValue });
       items.push({
         specialistId: specialistId || null,
         serviceId,
@@ -3654,6 +3718,19 @@ export async function updateFinanceTicket({ organizationId, id, payload, actorUs
     }
     const beforeSnapshot = await getTicketHistorySnapshot(db, { organizationId, ticketId });
     const nextClientId = hasClientId ? clientId : current.client_id;
+    const isAppointmentTicket = current.source === "appointment" || Boolean(current.appointment_schedule_id);
+    const currentClientId = parsePositiveInteger(current.client_id);
+    if (hasClientId && clientId !== currentClientId) {
+      const error = new Error("Ticket client cannot be changed.");
+      error.statusCode = 400;
+      throw error;
+    }
+    const currentTicketDate = normalizeDate(current.ticket_date);
+    if (isAppointmentTicket && hasTicketDate && ticketDate !== currentTicketDate) {
+      const error = new Error("Appointment ticket date cannot be changed.");
+      error.statusCode = 400;
+      throw error;
+    }
     if (hasClientId) {
       const clientResult = await db.query(
         `SELECT id
@@ -3693,6 +3770,27 @@ export async function updateFinanceTicket({ organizationId, id, payload, actorUs
         const error = new Error("Ticket amount is required.");
         error.statusCode = 400;
         throw error;
+      }
+      if (isAppointmentTicket) {
+        const beforeItems = Array.isArray(beforeSnapshot?.items) ? beforeSnapshot.items : [];
+        const expectedItemCount = beforeItems.length > 0 ? beforeItems.length : 1;
+        if (nextItems.length !== expectedItemCount) {
+          const error = new Error("Appointment ticket line count cannot be changed.");
+          error.statusCode = 400;
+          throw error;
+        }
+        nextItems.forEach((item, index) => {
+          const beforeItem = beforeItems[index] || {};
+          const previousSpecialistId = parsePositiveInteger(
+            beforeItem.specialistId ?? beforeItem.specialist_id ?? current.specialist_id
+          );
+          const nextSpecialistId = parsePositiveInteger(item.specialistId);
+          if (nextSpecialistId !== previousSpecialistId) {
+            const error = new Error("Appointment ticket specialist cannot be changed.");
+            error.statusCode = 400;
+            throw error;
+          }
+        });
       }
       const firstItem = nextItems[0];
       nextSpecialistId = firstItem.specialistId || null;
@@ -3761,6 +3859,20 @@ export async function updateFinanceTicket({ organizationId, id, payload, actorUs
         [organizationId, ticketId]
       );
       await insertTicketItems(db, { organizationId, ticketId, items: nextItems });
+      if (isAppointmentTicket) {
+        const appointmentScheduleId = parsePositiveInteger(current.appointment_schedule_id);
+        if (!appointmentScheduleId) {
+          const error = new Error("Appointment not found.");
+          error.statusCode = 404;
+          throw error;
+        }
+        await syncAppointmentTicketService(db, {
+          organizationId,
+          actorUserId,
+          appointmentScheduleId,
+          item: nextItems[0]
+        });
+      }
     }
     const paidAmountUzs = await getTicketPaidAmount(db, { organizationId, ticketId });
     if (paidAmountUzs > nextTotalUzs) {

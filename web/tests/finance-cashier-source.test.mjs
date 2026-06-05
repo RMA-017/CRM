@@ -75,8 +75,8 @@ test("appointment ticket modal derives price from the selected service before sa
 
   assert.match(
     cashierPanelSource,
-    /payload\.items = \[\{[\s\S]*serviceId,[\s\S]*priceUzs,[\s\S]*discountType: appointmentTicketForm\.discountType/s,
-    "Create Ticket should submit the selected service and derived price as a ticket line item."
+    /payload\.items = \[\{[\s\S]*serviceId,[\s\S]*priceUzs,[\s\S]*discountType: appointmentTicketForm\.discountType,[\s\S]*discountValue: appointmentTicketForm\.discountValue,[\s\S]*discountUzs: appointmentDiscountUzs/s,
+    "Create Ticket should submit the selected service, derived price and exact discount as a ticket line item."
   );
 });
 
@@ -95,6 +95,11 @@ test("manual ticket modal blocks future ticket dates", async () => {
     cashierPanelSource,
     /if \(isFutureDateValue\(ticketDate\)\) \{[\s\S]*translate\("Future ticket dates are not allowed\."\)[\s\S]*return;[\s\S]*<input[\s\S]*type="date"[\s\S]*max=\{maxManualTicketDate\}[\s\S]*value=\{manualForm\.ticketDate\}/s,
     "Manual ticket submit and date input should both prevent future ticket dates."
+  );
+  assert.match(
+    cashierPanelSource,
+    /items: manualForm\.items\.map\(\(item, index\) => \(\{[\s\S]*discountType: manualForm\.discountType === "percent" \? "percent" : "amount",[\s\S]*discountValue: manualForm\.discountType === "percent"[\s\S]*manualForm\.discountValue[\s\S]*manualItemDiscounts\[index\] \|\| 0,[\s\S]*discountUzs: manualItemDiscounts\[index\] \|\| 0/s,
+    "Manual ticket creation should preserve shared percent metadata while sending exact distributed UZS discounts."
   );
   assert.match(
     translations,
@@ -123,5 +128,13 @@ test("cashier board filters live in header actions without visible labels", asyn
     styles,
     /\.finance-cashier-panel \.all-users-head-actions \{[\s\S]*justify-content: flex-end;[\s\S]*\.finance-cashier-panel \.all-users-head-actions \.finance-board-head-client-filter[\s\S]*max-width: 288px;[\s\S]*\.finance-cashier-panel \.all-users-head-actions \.finance-board-head-select-filter[\s\S]*max-width: 288px;/s,
     "Cashier header filters should be right-aligned and wider in the header."
+  );
+});
+
+test("batch ticket payments omit empty unrelated source fields", () => {
+  assert.match(
+    cashierPanelSource,
+    /const payment = \{[\s\S]*source,[\s\S]*amountUzs: normalizeMoneyInput\(row\.amountUzs\)[\s\S]*if \(source === "deposit"\) \{[\s\S]*payment\.clientId = String\(row\.clientId \|\| ""\)\.trim\(\);[\s\S]*\} else \{[\s\S]*payment\.paymentMethodId = String\(row\.paymentMethodId \|\| ""\)\.trim\(\);/s,
+    "Batch payments should only send clientId for deposit payments and paymentMethodId for external payments."
   );
 });

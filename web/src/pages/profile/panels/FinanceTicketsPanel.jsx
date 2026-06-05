@@ -221,10 +221,15 @@ function getTicketEditRowDiscountUzs(row) {
 
 function createTicketEditDiscountForm(item) {
   const rows = Array.isArray(item?.items) && item.items.length > 0 ? item.items : [];
-  if (rows.length === 1 && String(rows[0]?.discountType || "").toLowerCase() === "percent") {
+  const percentValue = String(rows[0]?.discountValue ?? 0);
+  const usesSharedPercent = rows.length > 0 && rows.every((row) => (
+    String(row?.discountType || "").toLowerCase() === "percent"
+      && String(row?.discountValue ?? 0) === percentValue
+  ));
+  if (usesSharedPercent) {
     return {
       discountType: "percent",
-      discountValue: String(rows[0]?.discountValue ?? 0)
+      discountValue: percentValue
     };
   }
   const discountUzs = rows.length > 0
@@ -266,6 +271,10 @@ function createTicketEditForm(item = null) {
     reason: "",
     items: createTicketEditItemRows(item)
   };
+}
+
+function isAppointmentSourceTicket(item) {
+  return String(item?.source || "").toLowerCase() === "appointment" || Boolean(item?.appointmentScheduleId);
 }
 
 function makeClientOption(item) {
@@ -934,7 +943,8 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
     event.preventDefault();
     const id = String(editTicket?.id || "");
     if (!id || editSubmitting || !canUpdateFinanceCashier) return;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(editForm.ticketDate)) {
+    const isAppointmentTicket = isAppointmentSourceTicket(editTicket);
+    if (!isAppointmentTicket && !/^\d{4}-\d{2}-\d{2}$/.test(editForm.ticketDate)) {
       window.alert?.(translate("Ticket date is required."));
       return;
     }
@@ -971,20 +981,25 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
 
     setEditSubmitting(true);
     try {
+      const payload = {
+        items: editForm.items.map((item, index) => ({
+          specialistId: item.specialistId,
+          serviceId: item.serviceId,
+          discountType: editForm.discountType === "percent" ? "percent" : "amount",
+          discountValue: editForm.discountType === "percent"
+            ? editForm.discountValue
+            : editItemDiscounts[index] || 0,
+          discountUzs: editItemDiscounts[index] || 0
+        })),
+        reason
+      };
+      if (!isAppointmentTicket) {
+        payload.ticketDate = editForm.ticketDate;
+      }
       const response = await apiFetch(`/api/finance/cashier/tickets/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ticketDate: editForm.ticketDate,
-          clientId: editForm.clientId,
-          items: editForm.items.map((item, index) => ({
-            specialistId: item.specialistId,
-            serviceId: item.serviceId,
-            discountType: "amount",
-            discountValue: editItemDiscounts[index] || 0
-          })),
-          reason
-        })
+        body: JSON.stringify(payload)
       });
       const data = await readApiResponseData(response);
       if (!response.ok) {
@@ -1415,6 +1430,9 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
           <div id="financeTicketEditModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-ticket-edit-modal">
             <h3 className="finance-modal-title-with-number">
               <span>{translate("Edit Ticket")}</span>
+              <span className={`finance-ticket-source-badge ${isAppointmentSourceTicket(editTicket) ? "is-appointment" : "is-manual"}`}>
+                {translate(isAppointmentSourceTicket(editTicket) ? "Appointment Ticket" : "Manual Ticket")}
+              </span>
               {editTicket.ticketNumber ? (
                 <span className="finance-modal-ticket-number">{`#${editTicket.ticketNumber}`}</span>
               ) : null}
@@ -1427,6 +1445,8 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                     <input
                       type="date"
                       value={editForm.ticketDate}
+                      disabled={isAppointmentSourceTicket(editTicket)}
+                      title={isAppointmentSourceTicket(editTicket) ? translate("Field is locked because ticket was created from appointment.") : undefined}
                       onChange={(event) => {
                         const value = event.currentTarget.value;
                         setEditForm((current) => ({ ...current, ticketDate: value }));
@@ -1445,6 +1465,8 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                       searchThreshold={0}
                       menuPortal
                       menuHeightScale={1.2}
+                      disabled
+                      title={translate("Ticket client cannot be changed.")}
                       emptyText={editClientSearchBusy ? "..." : translate("No clients found.")}
                       onSearchChange={setEditClientSearch}
                       onChange={(value) => setEditForm((current) => ({ ...current, clientId: value }))}
@@ -1463,7 +1485,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                             className="table-action-btn table-action-btn-danger finance-ticket-icon-btn"
                             aria-label={translate("Remove")}
                             title={translate("Remove")}
-                            disabled={editForm.items.length <= 1}
+                            disabled={isAppointmentSourceTicket(editTicket) || editForm.items.length <= 1}
                             onClick={() => removeEditItem(index)}
                           >
                             ×
@@ -1479,7 +1501,8 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                           searchPlaceholder={translate("Search")}
                           searchThreshold={8}
                           menuPortal
-                          disabled
+                          disabled={isAppointmentSourceTicket(editTicket) || editReferencesLoading}
+                          title={isAppointmentSourceTicket(editTicket) ? translate("Field is locked because ticket was created from appointment.") : undefined}
                           onChange={(value) => updateEditItem(index, { specialistId: value })}
                         />
                         <CustomSelect

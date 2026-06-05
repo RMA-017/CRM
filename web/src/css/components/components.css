@@ -7174,7 +7174,8 @@ button.finance-daily-cash-method-card:disabled {
 
 #financeTicketHistoryModal.logout-confirm-modal.all-users-edit-modal {
   width: min(960px, calc(100vw - 32px));
-  max-height: min(760px, calc(100dvh - 24px));
+  height: 50dvh;
+  max-height: min(532px, calc(70dvh - 17px));
 }
 
 #financeTicketHistoryModal .all-users-table {
@@ -7807,6 +7808,29 @@ button.finance-daily-cash-method-card:disabled {
   font-size: 12px;
   font-weight: 800;
   line-height: 1.2;
+}
+
+.finance-modal .finance-ticket-source-badge {
+  padding: 2px 8px;
+  border: 1px solid rgba(100, 116, 139, 0.22);
+  border-radius: 999px;
+  background: rgba(248, 250, 252, 0.92);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.finance-modal .finance-ticket-source-badge.is-manual {
+  border-color: rgba(16, 185, 129, 0.24);
+  background: rgba(236, 253, 245, 0.86);
+  color: #047857;
+}
+
+.finance-modal .finance-ticket-source-badge.is-appointment {
+  border-color: rgba(64, 138, 243, 0.24);
+  background: rgba(219, 234, 254, 0.86);
+  color: #1d4ed8;
 }
 
 #financeBatchPaymentModal .finance-modal-ticket-number {

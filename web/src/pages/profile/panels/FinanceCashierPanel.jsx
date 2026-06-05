@@ -715,7 +715,8 @@ function FinanceCashierPanel({
         specialistId: item.specialistId,
         priceUzs,
         discountType: appointmentTicketForm.discountType,
-        discountValue: appointmentTicketForm.discountValue
+        discountValue: appointmentTicketForm.discountValue,
+        discountUzs: appointmentDiscountUzs
       }];
       const response = await apiFetch("/api/finance/cashier/tickets", {
         method: "POST",
@@ -877,12 +878,16 @@ function FinanceCashierPanel({
     const payments = batchPaymentRows
       .map((row) => {
         const source = row.source === "deposit" ? "deposit" : "method";
-        return {
+        const payment = {
           source,
-          paymentMethodId: String(row.paymentMethodId || "").trim(),
-          clientId: String(row.clientId || "").trim(),
           amountUzs: normalizeMoneyInput(row.amountUzs)
         };
+        if (source === "deposit") {
+          payment.clientId = String(row.clientId || "").trim();
+        } else {
+          payment.paymentMethodId = String(row.paymentMethodId || "").trim();
+        }
+        return payment;
       })
       .filter((row) => row.amountUzs > 0 && (row.source === "deposit" ? row.clientId : row.paymentMethodId));
     if (ticketIds.length === 0) return;
@@ -974,8 +979,11 @@ function FinanceCashierPanel({
           items: manualForm.items.map((item, index) => ({
             specialistId: item.specialistId,
             serviceId: item.serviceId,
-            discountType: "amount",
-            discountValue: manualItemDiscounts[index] || 0
+            discountType: manualForm.discountType === "percent" ? "percent" : "amount",
+            discountValue: manualForm.discountType === "percent"
+              ? manualForm.discountValue
+              : manualItemDiscounts[index] || 0,
+            discountUzs: manualItemDiscounts[index] || 0
           })),
           note: manualForm.note
         })

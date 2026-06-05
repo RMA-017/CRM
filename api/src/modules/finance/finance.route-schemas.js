@@ -35,7 +35,9 @@ const ticketItemSchema = {
     discountType: { type: "string", enum: ["amount", "percent"] },
     discount_type: { type: "string", enum: ["amount", "percent"] },
     discountValue: integerLikeSchema,
-    discount_value: integerLikeSchema
+    discount_value: integerLikeSchema,
+    discountUzs: nonNegativeIntegerLikeSchema,
+    discount_uzs: nonNegativeIntegerLikeSchema
   }
 };
 

@@ -43,6 +43,19 @@ test("ticket edit change reason field uses full width and compact height", async
   );
 });
 
+test("ticket history modal uses a shorter vertical size", async () => {
+  const styles = await readFile(
+    new URL("../src/css/components/components.css", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    styles,
+    /#financeTicketHistoryModal\.logout-confirm-modal\.all-users-edit-modal \{[\s\S]*height: 50dvh;[\s\S]*max-height: min\(532px, calc\(70dvh - 17px\)\);/s,
+    "Ticket history modal should open about 30% shorter on the y axis."
+  );
+});
+
 test("finance delete icons use a closed trash lid", async () => {
   const styles = await readFile(
     new URL("../src/css/components/components.css", import.meta.url),
@@ -230,12 +243,37 @@ test("ticket edit modal uses one shared discount and distributes it to line item
   assert.match(
     source,
     /<CustomSelect[\s\S]*value=\{item\.specialistId\}[\s\S]*placeholder=\{translate\("Select specialist"\)\}[\s\S]*disabled[\s\S]*onChange=\{\(value\) => updateEditItem\(index, \{ specialistId: value \}\)\}/s,
-    "Edit ticket modal should show the specialist select but keep it disabled."
+    "Edit ticket modal should show the specialist select and conditionally disable it."
   );
   assert.match(
     source,
-    /const editItemDiscounts = distributeDiscountUzs\([\s\S]*editTotals\.discountUzs[\s\S]*items: editForm\.items\.map\(\(item, index\) => \(\{[\s\S]*discountType: "amount",[\s\S]*discountValue: editItemDiscounts\[index\] \|\| 0/s,
-    "Edited shared discount should be distributed across ticket items before update."
+    /<CustomSelect[\s\S]*value=\{editForm\.clientId\}[\s\S]*placeholder=\{translate\("Select client"\)\}[\s\S]*menuHeightScale=\{1\.2\}[\s\S]*disabled[\s\S]*onChange=\{\(value\) => setEditForm\(\(current\) => \(\{ \.\.\.current, clientId: value \}\)\)\}/s,
+    "Edit ticket modal should show the client select but keep it disabled."
+  );
+  assert.match(
+    source,
+    /function isAppointmentSourceTicket\(item\) \{[\s\S]*source[\s\S]*"appointment"[\s\S]*appointmentScheduleId[\s\S]*const isAppointmentTicket = isAppointmentSourceTicket\(editTicket\);[\s\S]*if \(!isAppointmentTicket && ![\s\S]*editForm\.ticketDate[\s\S]*if \(!isAppointmentTicket\) \{[\s\S]*payload\.ticketDate = editForm\.ticketDate;[\s\S]*\}/s,
+    "Edit ticket submit should use ticket source so appointment tickets keep their original date while manual tickets can edit it."
+  );
+  assert.match(
+    source,
+    /className=\{`finance-ticket-source-badge \$\{isAppointmentSourceTicket\(editTicket\) \? "is-appointment" : "is-manual"\}`\}[\s\S]*translate\(isAppointmentSourceTicket\(editTicket\) \? "Appointment Ticket" : "Manual Ticket"\)/s,
+    "Edit ticket modal should show whether the ticket was created manually or from an appointment."
+  );
+  assert.match(
+    source,
+    /value=\{editForm\.ticketDate\}[\s\S]*disabled=\{isAppointmentSourceTicket\(editTicket\)\}[\s\S]*Field is locked because ticket was created from appointment\.[\s\S]*value=\{item\.specialistId\}[\s\S]*disabled=\{isAppointmentSourceTicket\(editTicket\) \|\| editReferencesLoading\}/s,
+    "Appointment tickets should lock ticket date and specialist while manual tickets can edit both."
+  );
+  assert.match(
+    source,
+    /const percentValue = String\(rows\[0\]\?\.discountValue \?\? 0\);[\s\S]*const usesSharedPercent = rows\.length > 0 && rows\.every[\s\S]*discountType[\s\S]*"percent"[\s\S]*discountValue[\s\S]*percentValue[\s\S]*discountType: "percent",[\s\S]*discountValue: percentValue/s,
+    "Edit ticket modal should restore a shared percent discount when all ticket lines store the same percent."
+  );
+  assert.match(
+    source,
+    /const editItemDiscounts = distributeDiscountUzs\([\s\S]*editTotals\.discountUzs[\s\S]*items: editForm\.items\.map\(\(item, index\) => \(\{[\s\S]*discountType: editForm\.discountType === "percent" \? "percent" : "amount",[\s\S]*discountValue: editForm\.discountType === "percent"[\s\S]*editForm\.discountValue[\s\S]*editItemDiscounts\[index\] \|\| 0,[\s\S]*discountUzs: editItemDiscounts\[index\] \|\| 0/s,
+    "Edited shared percent discounts should keep percent metadata while sending exact distributed UZS discounts."
   );
   assert.match(
     styles,
