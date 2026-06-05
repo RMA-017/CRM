@@ -75,6 +75,12 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     balancesPanelSource,
+    /id: "ticketNumber"[\s\S]*className: "finance-client-ledger-col-ticket"[\s\S]*widthPx: 124/s,
+    "Client ledger ticket number column should fit the translated header."
+  );
+
+  assert.match(
+    balancesPanelSource,
     /exportClientLedger[\s\S]*buildExportFilename\(`finance-client-\$\{clientId \|\| "ledger"\}-transactions`\)[\s\S]*visibleLedgerColumns\.map\(\(column\) => translate\(column\.label\)\)[\s\S]*visibleLedgerColumns\.map\(\(column\) => column\.exportValue\(item\)\)/s,
     "Client ledger export should follow the visible columns."
   );

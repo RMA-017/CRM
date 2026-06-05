@@ -171,7 +171,7 @@ function FinanceBalancesPanel({ onClose }) {
       id: "ticketNumber",
       label: "Ticket Number",
       className: "finance-client-ledger-col-ticket",
-      widthPx: 92,
+      widthPx: 124,
       render: (item) => item.ticketNumber ? `#${item.ticketNumber}` : "-",
       exportValue: (item) => item.ticketNumber || ""
     },
