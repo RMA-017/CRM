@@ -275,6 +275,11 @@ test("batch payment modal keeps a polished dense payment layout", async () => {
     /#financeBatchPaymentModal \.finance-payment-checkout-summary \{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[\s\S]*align-content: start;/s,
     "Checkout summary should show two compact totals per row in the first block."
   );
+  assert.match(
+    styles,
+    /#financeBatchPaymentModal \.finance-payment-checkout-summary > \.finance-total-cell \{[\s\S]*height: 22px;[\s\S]*grid-template-columns: minmax\(0, 1fr\) max-content;/s,
+    "Checkout summary cells should stay short enough to match the client balances block height."
+  );
   assert.doesNotMatch(
     styles,
     /#financeBatchPaymentModal [^{]*finance-(?:ticket-total|payment-checkout-summary)[^{]*::before/,

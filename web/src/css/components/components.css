@@ -8325,7 +8325,7 @@ button.finance-daily-cash-method-card:disabled {
 
 #financeBatchPaymentModal .finance-payment-checkout-summary {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
+  gap: 3px;
   align-content: start;
   padding: 5px;
 }
@@ -8360,12 +8360,13 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 #financeBatchPaymentModal .finance-payment-checkout-summary > .finance-total-cell {
-  height: auto;
-  min-height: 34px;
-  grid-template-columns: 1fr;
+  height: 22px;
+  min-height: 22px;
+  grid-template-columns: minmax(0, 1fr) max-content;
   align-content: center;
-  gap: 2px;
-  padding: 4px 7px;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 7px;
 }
 
 #financeBatchPaymentModal .finance-total-cell-external {
@@ -8462,7 +8463,7 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 #financeBatchPaymentModal .finance-payment-checkout-summary.is-balanced .finance-total-cell-remaining > span:last-child {
-  color: #15803d;
+  color: var(--text-main);
 }
 
 #financeBatchPaymentModal .finance-payment-checkout-summary.is-overpaid .finance-total-cell-remaining {
@@ -8705,11 +8706,11 @@ button.finance-daily-cash-method-card:disabled {
   align-items: center;
   width: fit-content;
   max-width: 100%;
-  min-height: 26px;
-  padding: 0 8px;
-  border: 1px solid rgba(37, 99, 235, 0.14);
-  border-radius: 999px;
-  background: rgba(219, 234, 254, 0.56);
+  min-height: 22px;
+  padding: 0 0 0 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: #1d4ed8;
 }
 
@@ -8721,7 +8722,7 @@ button.finance-daily-cash-method-card:disabled {
   padding: 0 8px;
   border: 0;
   background: transparent;
-  color: #0f766e;
+  color: var(--text-main);
 }
 
 #financeBatchPaymentModal .finance-batch-ticket-lines {
