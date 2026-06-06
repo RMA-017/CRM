@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import CustomSelect from "../../../components/CustomSelect.jsx";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
@@ -1226,7 +1226,7 @@ function FinanceCashierPanel({
                     <strong>{formatMoney(batchPaymentTotalUzs)}</strong>
                   </header>
                   <div className="finance-batch-ticket-list">
-                    <div className="finance-batch-ticket-row finance-batch-ticket-head">
+                    <div className="finance-batch-ticket-head">
                       <span>{translate("Ticket Number")}</span>
                       <span>{translate("Ticket Date")}</span>
                       <span>{translate("Client")}</span>
@@ -1236,14 +1236,12 @@ function FinanceCashierPanel({
                     </div>
                     {batchPaymentTickets.map((ticket) => (
                       <div className="finance-batch-ticket-group" key={String(ticket.id)}>
-                        <div className="finance-batch-ticket-row">
-                          <strong>{formatTicketNumber(ticket.ticketNumber)}</strong>
-                          <span>{formatDateYMD(ticket.ticketDate || ticket.appointmentDate)}</span>
-                          <span>{ticket.clientName || "-"}</span>
-                          <span>{getTicketSpecialistSummary(ticket)}</span>
-                          <span>{getTicketServiceSummary(ticket)}</span>
-                          <span>{formatMoney(getTicketPayableAmount(ticket))}</span>
-                        </div>
+                        <strong>{formatTicketNumber(ticket.ticketNumber)}</strong>
+                        <span>{formatDateYMD(ticket.ticketDate || ticket.appointmentDate)}</span>
+                        <span>{ticket.clientName || "-"}</span>
+                        <span>{getTicketSpecialistSummary(ticket)}</span>
+                        <span>{getTicketServiceSummary(ticket)}</span>
+                        <span>{formatMoney(getTicketPayableAmount(ticket))}</span>
                         {getTicketLineItems(ticket).length > 1 ? (
                           <div className="finance-batch-ticket-lines">
                             <div className="finance-batch-ticket-line finance-batch-ticket-line-head">
@@ -1275,11 +1273,8 @@ function FinanceCashierPanel({
                   </header>
                   <div className="finance-batch-payment-list">
                     {batchPaymentRows.map((row) => (
-                      <div
-                        className={`finance-batch-payment-row finance-batch-payment-row-${row.source === "deposit" ? "deposit" : "method"}`}
-                        key={row.key}
-                      >
-                        <label className="field">
+                      <Fragment key={row.key}>
+                        <label className={`field finance-batch-payment-source finance-batch-payment-source-${row.source === "deposit" ? "deposit" : "method"}`}>
                           <CustomSelect
                             value={row.source || "method"}
                             options={[
@@ -1291,7 +1286,7 @@ function FinanceCashierPanel({
                           />
                         </label>
                         {row.source === "deposit" ? (
-                          <label className="field">
+                          <label className="field finance-batch-payment-target">
                             <CustomSelect
                               value={row.clientId}
                               options={batchClientOptions}
@@ -1301,7 +1296,7 @@ function FinanceCashierPanel({
                             />
                           </label>
                         ) : (
-                          <label className="field">
+                          <label className="field finance-batch-payment-target">
                             <CustomSelect
                               value={row.paymentMethodId}
                               options={paymentMethodOptions}
@@ -1311,7 +1306,7 @@ function FinanceCashierPanel({
                             />
                           </label>
                         )}
-                        <label className="field">
+                        <label className="field finance-batch-payment-amount">
                           <input
                             type="number"
                             min="0"
@@ -1343,7 +1338,7 @@ function FinanceCashierPanel({
                             ×
                           </button>
                         </div>
-                      </div>
+                      </Fragment>
                     ))}
                   </div>
                 </section>

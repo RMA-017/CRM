@@ -7934,7 +7934,7 @@ button.finance-daily-cash-method-card:disabled {
 
 #financeBatchPaymentModal .finance-payment-checkout-top {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(270px, 0.36fr);
+  grid-template-columns: minmax(280px, 0.64fr) minmax(360px, 1fr);
   gap: 8px;
   align-items: stretch;
   min-width: 0;
@@ -8324,8 +8324,8 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 #financeBatchPaymentModal .finance-payment-checkout-summary {
-  grid-template-columns: 1fr;
-  gap: 5px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
   align-content: stretch;
   padding: 8px;
 }
@@ -8361,10 +8361,10 @@ button.finance-daily-cash-method-card:disabled {
 
 #financeBatchPaymentModal .finance-payment-checkout-summary > .finance-total-cell {
   height: auto;
-  min-height: 34px;
-  grid-template-columns: minmax(104px, 0.72fr) minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
+  min-height: 46px;
+  grid-template-columns: 1fr;
+  align-content: center;
+  gap: 4px;
   padding: 6px 8px;
 }
 
@@ -8462,6 +8462,13 @@ button.finance-daily-cash-method-card:disabled {
 #financeBatchPaymentModal .finance-payment-checkout-summary .finance-total-cell > span:last-child {
   justify-content: flex-end;
   text-align: right;
+}
+
+#financeBatchPaymentModal .finance-payment-checkout-summary .finance-total-cell > strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 #financeBatchPaymentModal .finance-total-cell-total > span:last-child {
@@ -8609,10 +8616,10 @@ button.finance-daily-cash-method-card:disabled {
 #financeBatchPaymentModal .finance-batch-client-balance-row {
   display: grid;
   grid-template-columns:
-    minmax(170px, 1fr)
-    minmax(112px, 0.56fr)
-    minmax(112px, 0.56fr);
-  gap: 7px;
+    minmax(132px, 1fr)
+    minmax(78px, 0.48fr)
+    minmax(78px, 0.48fr);
+  gap: 5px;
   align-items: center;
 }
 
@@ -8660,7 +8667,7 @@ button.finance-daily-cash-method-card:disabled {
   align-items: center;
   justify-content: flex-end;
   min-height: 26px;
-  padding: 0 8px;
+  padding: 0 6px;
   border-radius: 999px;
   background: transparent;
 }
@@ -8676,7 +8683,8 @@ button.finance-daily-cash-method-card:disabled {
   color: #b91c1c;
 }
 
-#financeBatchPaymentModal .finance-batch-ticket-row {
+#financeBatchPaymentModal .finance-batch-ticket-head,
+#financeBatchPaymentModal .finance-batch-ticket-group {
   display: grid;
   grid-template-columns:
     minmax(76px, 0.45fr)
@@ -8687,27 +8695,17 @@ button.finance-daily-cash-method-card:disabled {
     minmax(112px, 0.55fr);
   gap: 8px;
   align-items: center;
-  padding: 3px 5px;
-  border: 1px solid rgba(148, 163, 184, 0.20);
-  border-radius: 8px;
-  background: rgba(248, 250, 252, 0.80);
-}
-
-#financeBatchPaymentModal .finance-batch-ticket-group {
-  display: grid;
-  gap: 7px;
   min-width: 0;
 }
 
-#financeBatchPaymentModal .finance-batch-ticket-row:not(.finance-batch-ticket-head) {
-  border-color: rgba(37, 99, 235, 0.14);
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.035);
+#financeBatchPaymentModal .finance-batch-ticket-group {
+  gap: 7px 8px;
+  padding: 4px 5px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
 }
 
-#financeBatchPaymentModal .finance-batch-ticket-row:not(.finance-batch-ticket-head):hover {
-  border-color: rgba(37, 99, 235, 0.28);
-  background: rgba(255, 255, 255, 0.94);
+#financeBatchPaymentModal .finance-batch-ticket-group:last-child {
+  border-bottom: 0;
 }
 
 #financeBatchPaymentModal .finance-batch-section-title {
@@ -8738,14 +8736,12 @@ button.finance-daily-cash-method-card:disabled {
 #financeBatchPaymentModal .finance-batch-ticket-head {
   padding-top: 0;
   padding-bottom: 2px;
-  border-color: transparent;
-  border-bottom-color: rgba(148, 163, 184, 0.14);
-  border-radius: 0;
-  background: transparent;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
 }
 
-#financeBatchPaymentModal .finance-batch-ticket-row strong,
-#financeBatchPaymentModal .finance-batch-ticket-row span {
+#financeBatchPaymentModal .finance-batch-ticket-group > strong,
+#financeBatchPaymentModal .finance-batch-ticket-group > span,
+#financeBatchPaymentModal .finance-batch-ticket-head span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -8759,12 +8755,12 @@ button.finance-daily-cash-method-card:disabled {
   font-weight: 800;
 }
 
-#financeBatchPaymentModal .finance-batch-ticket-row span:last-child {
+#financeBatchPaymentModal .finance-batch-ticket-group > span:last-of-type {
   text-align: right;
   font-weight: 800;
 }
 
-#financeBatchPaymentModal .finance-batch-ticket-row:not(.finance-batch-ticket-head) strong {
+#financeBatchPaymentModal .finance-batch-ticket-group > strong {
   display: inline-flex;
   align-items: center;
   width: fit-content;
@@ -8777,7 +8773,7 @@ button.finance-daily-cash-method-card:disabled {
   color: #1d4ed8;
 }
 
-#financeBatchPaymentModal .finance-batch-ticket-row:not(.finance-batch-ticket-head) span:last-child {
+#financeBatchPaymentModal .finance-batch-ticket-group > span:last-of-type {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -8789,6 +8785,7 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 #financeBatchPaymentModal .finance-batch-ticket-lines {
+  grid-column: 1 / -1;
   display: grid;
   gap: 4px;
   padding: 6px 8px;
@@ -8834,81 +8831,38 @@ button.finance-daily-cash-method-card:disabled {
   color: var(--text-main);
 }
 
-#financeBatchPaymentModal .finance-batch-payment-row {
-  display: grid;
-  grid-template-columns: minmax(170px, 0.72fr) minmax(260px, 1fr) minmax(130px, 0.48fr) auto;
-  grid-template-areas:
-    "source target amount actions";
-  gap: 6px;
-  align-items: center;
-  padding: 3px 5px 3px 10px;
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.86);
-  position: relative;
-  overflow: hidden;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-}
-
-#financeBatchPaymentModal .finance-batch-payment-row::before {
-  content: "";
-  position: absolute;
-  inset: 8px auto 8px 0;
-  width: 4px;
-  border-radius: 0 999px 999px 0;
-  background: #0891b2;
-}
-
-#financeBatchPaymentModal .finance-batch-payment-row-method::before {
-  background: #0891b2;
-}
-
-#financeBatchPaymentModal .finance-batch-payment-row-deposit::before {
-  background: #16a34a;
-}
-
-#financeBatchPaymentModal .finance-batch-payment-row:hover {
-  border-color: rgba(124, 58, 237, 0.22);
-  background: rgba(255, 255, 255, 0.95);
-}
-
-#financeBatchPaymentModal .finance-batch-payment-row .field > span {
-  color: #475569;
-  font-weight: 900;
-}
-
-#financeBatchPaymentModal .finance-batch-payment-row .field {
-  gap: 0;
-}
-
-#financeBatchPaymentModal .finance-batch-payment-row .field:nth-of-type(1) {
-  grid-area: source;
-}
-
-#financeBatchPaymentModal .finance-batch-payment-row .field:nth-of-type(2) {
-  grid-area: target;
-}
-
-#financeBatchPaymentModal .finance-batch-payment-row .field:nth-of-type(3) {
-  grid-area: amount;
-}
-
-#financeBatchPaymentModal .finance-batch-payment-row input,
-#financeBatchPaymentModal .finance-batch-payment-row .custom-select-trigger {
-  min-height: 30px;
-  height: 30px;
-  border-color: rgba(148, 163, 184, 0.28);
-  background: rgba(255, 255, 255, 0.92);
-}
-
 #financeBatchPaymentModal .finance-batch-payment-list {
   display: grid;
+  grid-template-columns: minmax(170px, 0.72fr) minmax(260px, 1fr) minmax(130px, 0.48fr) auto;
   gap: 6px;
+  align-items: center;
   max-height: none;
   min-height: 0;
   overflow: visible;
   padding-right: 0;
   scrollbar-gutter: auto;
+}
+
+#financeBatchPaymentModal .finance-batch-payment-list > .field,
+#financeBatchPaymentModal .finance-batch-payment-actions {
+  min-width: 0;
+}
+
+#financeBatchPaymentModal .finance-batch-payment-list .field > span {
+  color: #475569;
+  font-weight: 900;
+}
+
+#financeBatchPaymentModal .finance-batch-payment-list .field {
+  gap: 0;
+}
+
+#financeBatchPaymentModal .finance-batch-payment-list input,
+#financeBatchPaymentModal .finance-batch-payment-list .custom-select-trigger {
+  min-height: 30px;
+  height: 30px;
+  border-color: rgba(148, 163, 184, 0.28);
+  background: rgba(255, 255, 255, 0.92);
 }
 
 #financeBatchPaymentModal .finance-batch-payment-list::-webkit-scrollbar {
@@ -8927,10 +8881,10 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 #financeBatchPaymentModal .finance-batch-payment-actions {
-  grid-area: actions;
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  justify-content: flex-end;
 }
 
 #financeBatchPaymentModal .finance-payment-note-field {
@@ -9270,19 +9224,11 @@ button.finance-daily-cash-method-card:disabled {
   #financeAppointmentTicketModal .finance-ticket-total,
   #financeBatchPaymentModal .finance-ticket-total,
   #financeBatchPaymentModal .finance-batch-client-balance-row,
-  #financeBatchPaymentModal .finance-batch-ticket-row,
+  #financeBatchPaymentModal .finance-batch-ticket-head,
+  #financeBatchPaymentModal .finance-batch-ticket-group,
   #financeBatchPaymentModal .finance-batch-ticket-line,
-  #financeBatchPaymentModal .finance-batch-payment-row {
+  #financeBatchPaymentModal .finance-batch-payment-list {
     grid-template-columns: 1fr;
-  }
-
-  #financeBatchPaymentModal .finance-batch-payment-row {
-    grid-template-areas: none;
-  }
-
-  #financeBatchPaymentModal .finance-batch-payment-row .field,
-  #financeBatchPaymentModal .finance-batch-payment-actions {
-    grid-area: auto;
   }
 
   #financeTransactionsFilterModal .finance-transactions-filter-date-row {

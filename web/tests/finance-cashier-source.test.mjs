@@ -161,7 +161,7 @@ test("batch ticket payments omit empty unrelated source fields", () => {
   );
 });
 
-test("batch payment modal uses compact row padding", async () => {
+test("batch payment modal keeps ticket and payment inputs wrapperless", async () => {
   const styles = await readFile(
     new URL("../src/css/components/components.css", import.meta.url),
     "utf8"
@@ -172,15 +172,25 @@ test("batch payment modal uses compact row padding", async () => {
     /#financeBatchPaymentModal \.finance-batch-client-balance-row:not\(\.finance-batch-client-balance-head\) \{[\s\S]*padding: 3px 5px;/s,
     "Client balance rows in the payment modal should use compact padding."
   );
-  assert.match(
+  assert.doesNotMatch(
+    cashierPanelSource,
+    /finance-batch-ticket-row|finance-batch-payment-row/,
+    "Ticket and payment row wrappers should not be rendered in the payment modal."
+  );
+  assert.doesNotMatch(
     styles,
-    /#financeBatchPaymentModal \.finance-batch-ticket-row \{[\s\S]*padding: 3px 5px;/s,
-    "Ticket rows in the payment modal should use compact padding."
+    /\.finance-batch-ticket-row|\.finance-batch-payment-row/,
+    "Ticket and payment row wrapper styles should not remain after flattening the modal."
   );
   assert.match(
     styles,
-    /#financeBatchPaymentModal \.finance-batch-payment-row \{[\s\S]*padding: 3px 5px 3px 10px;/s,
-    "Payment source rows in the payment modal should keep a little extra left padding for the marker."
+    /#financeBatchPaymentModal \.finance-batch-ticket-head,[\s\S]*#financeBatchPaymentModal \.finance-batch-ticket-group \{[\s\S]*grid-template-columns:/s,
+    "Ticket cells should be laid out by the ticket group instead of an inner row wrapper."
+  );
+  assert.match(
+    styles,
+    /#financeBatchPaymentModal \.finance-batch-payment-list \{[\s\S]*grid-template-columns: minmax\(170px, 0\.72fr\) minmax\(260px, 1fr\) minmax\(130px, 0\.48fr\) auto;/s,
+    "Payment source controls should be laid out directly by the payment list grid."
   );
 });
 
@@ -217,7 +227,7 @@ test("batch payment modal keeps a polished dense payment layout", async () => {
   );
   assert.match(
     styles,
-    /#financeBatchPaymentModal \.finance-payment-checkout-top \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) minmax\(270px, 0\.36fr\);/s,
+    /#financeBatchPaymentModal \.finance-payment-checkout-top \{[\s\S]*grid-template-columns: minmax\(280px, 0\.64fr\) minmax\(360px, 1fr\);/s,
     "Payment modal first block should place client balances on the left and a compact summary on the right."
   );
   assert.match(
@@ -227,8 +237,8 @@ test("batch payment modal keeps a polished dense payment layout", async () => {
   );
   assert.match(
     styles,
-    /#financeBatchPaymentModal \.finance-payment-checkout-summary \{[\s\S]*grid-template-columns: 1fr;[\s\S]*align-content: stretch;/s,
-    "Checkout summary should stack its totals vertically in the first block."
+    /#financeBatchPaymentModal \.finance-payment-checkout-summary \{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[\s\S]*align-content: stretch;/s,
+    "Checkout summary should show two totals per row in the first block."
   );
   assert.match(
     styles,
@@ -237,8 +247,8 @@ test("batch payment modal keeps a polished dense payment layout", async () => {
   );
   assert.match(
     styles,
-    /#financeBatchPaymentModal \.finance-batch-payment-row \{[\s\S]*grid-template-areas:[\s\S]*"source target amount actions";/s,
-    "Payment rows should use a single full-width checkout input row."
+    /#financeBatchPaymentModal \.finance-batch-payment-list \{[\s\S]*grid-template-columns: minmax\(170px, 0\.72fr\) minmax\(260px, 1fr\) minmax\(130px, 0\.48fr\) auto;/s,
+    "Payment controls should use a single full-width checkout input grid without an extra row wrapper."
   );
   assert.match(
     styles,
