@@ -250,13 +250,18 @@ test("ticket edit modal uses one shared discount and distributes it to line item
   );
   assert.match(
     source,
-    /isAppointmentSourceTicket\(editTicket\) \? \([\s\S]*className="finance-ticket-edit-readonly-input"[\s\S]*getSelectedOptionLabel\(editSpecialistOptions, item\.specialistId, item\.specialistName \|\| translate\("Select specialist"\)\)[\s\S]*readOnly[\s\S]*<CustomSelect[\s\S]*value=\{item\.specialistId\}[\s\S]*placeholder=\{translate\("Select specialist"\)\}[\s\S]*disabled=\{editReferencesLoading\}[\s\S]*const specialist = editSpecialists\.find[\s\S]*specialistId: value,[\s\S]*specialistName: specialist\?\.fullName \|\| item\.specialistName/s,
+    /isAppointmentSourceTicket\(editTicket\) \? \([\s\S]*className="finance-ticket-edit-readonly-input"[\s\S]*getSelectedOptionLabel\(editSpecialistOptions, item\.specialistId, item\.specialistName \|\| translate\("Select specialist"\)\)[\s\S]*readOnly[\s\S]*<CustomSelect[\s\S]*value=\{item\.specialistId\}[\s\S]*placeholder=\{translate\("Select specialist"\)\}[\s\S]*disabled=\{editReferencesLoading && editSpecialistOptions\.length === 0\}[\s\S]*const specialist = editSpecialists\.find[\s\S]*specialistId: value,[\s\S]*specialistName: specialist\?\.fullName \|\| item\.specialistName/s,
     "Edit ticket modal should render appointment specialists as readable locked inputs while manual specialists stay selectable."
   );
   assert.match(
     source,
     /function mergeOptions\(baseOptions, nextOptions\) \{[\s\S]*const key = String\(option\.value\);[\s\S]*if \(!map\.has\(key\)\) \{[\s\S]*map\.set\(key, option\);/s,
     "Edit ticket option fallbacks should only fill missing values so stale row labels cannot override fresh specialist options."
+  );
+  assert.match(
+    source,
+    /const editServiceOptions = useMemo\(\(\) => \{[\s\S]*const selectedLabelById = new Map[\s\S]*selectedLabel: selectedLabelById\.get\(String\(item\.id\)\)[\s\S]*const editSpecialistOptions = useMemo\(\(\) => \{[\s\S]*selectedLabel: selectedLabelById\.get\(String\(item\.id\)\)[\s\S]*disabled=\{editReferencesLoading && editServiceOptions\.length === 0\}/s,
+    "Edit ticket modal should keep selected service and specialist labels stable while references load."
   );
   assert.match(
     source,
@@ -270,8 +275,13 @@ test("ticket edit modal uses one shared discount and distributes it to line item
   );
   assert.match(
     source,
-    /className=\{`finance-ticket-source-badge \$\{isAppointmentSourceTicket\(editTicket\) \? "is-appointment" : "is-manual"\}`\}[\s\S]*translate\(isAppointmentSourceTicket\(editTicket\) \? "Appointment Ticket" : "Manual Ticket"\)/s,
+    /className="finance-ticket-edit-title-meta"[\s\S]*className=\{`finance-ticket-source-badge \$\{isAppointmentSourceTicket\(editTicket\) \? "is-appointment" : "is-manual"\}`\}[\s\S]*translate\(isAppointmentSourceTicket\(editTicket\) \? "Appointment Ticket" : "Manual Ticket"\)[\s\S]*finance-modal-ticket-number/s,
     "Edit ticket modal should show whether the ticket was created manually or from an appointment."
+  );
+  assert.match(
+    styles,
+    /#financeTicketEditModal \.finance-modal-title-with-number \{[\s\S]*justify-content: space-between;[\s\S]*#financeTicketEditModal \.finance-ticket-edit-title-meta \{[\s\S]*justify-content: flex-end;/s,
+    "Edit ticket modal title should keep the title on the left and source/number meta on the right."
   );
   assert.match(
     source,

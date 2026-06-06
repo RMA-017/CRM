@@ -895,10 +895,26 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
               COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS full_name,
               p.label AS position_label
          FROM users u
+         JOIN organizations o ON o.id = u.organization_id
+         JOIN role_options r
+           ON r.organization_id = u.organization_id
+          AND r.id = u.role_id
          LEFT JOIN position_options p
            ON p.organization_id = u.organization_id
           AND p.id = u.position_id
         WHERE u.organization_id = $1
+          AND o.is_active = TRUE
+          AND r.is_active = TRUE
+          AND (
+            LOWER(TRIM(r.label)) LIKE '%specialist%'
+            OR LOWER(TRIM(r.label)) LIKE '%spetsialist%'
+            OR LOWER(TRIM(r.label)) LIKE '%mutaxassis%'
+            OR LOWER(TRIM(r.label)) LIKE '%специалист%'
+            OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%specialist%'
+            OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%spetsialist%'
+            OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%mutaxassis%'
+            OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%специалист%'
+          )
        ORDER BY full_name ASC, u.id ASC`,
       [organizationId]
     ),
@@ -1141,10 +1157,26 @@ export async function getFinanceTicketFilterReferences({ organizationId }) {
               u.position_id,
               p.label AS position_label
          FROM users u
+         JOIN organizations o ON o.id = u.organization_id
+         JOIN role_options r
+           ON r.organization_id = u.organization_id
+          AND r.id = u.role_id
          LEFT JOIN position_options p
            ON p.organization_id = u.organization_id
           AND p.id = u.position_id
         WHERE u.organization_id = $1
+          AND o.is_active = TRUE
+          AND r.is_active = TRUE
+          AND (
+            LOWER(TRIM(r.label)) LIKE '%specialist%'
+            OR LOWER(TRIM(r.label)) LIKE '%spetsialist%'
+            OR LOWER(TRIM(r.label)) LIKE '%mutaxassis%'
+            OR LOWER(TRIM(r.label)) LIKE '%специалист%'
+            OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%specialist%'
+            OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%spetsialist%'
+            OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%mutaxassis%'
+            OR LOWER(TRIM(COALESCE(p.label, ''))) LIKE '%специалист%'
+          )
         ORDER BY full_name ASC, u.id ASC`,
       [organizationId]
     ),

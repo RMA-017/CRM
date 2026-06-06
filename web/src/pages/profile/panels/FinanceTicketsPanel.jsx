@@ -482,9 +482,18 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
   }, [loadTickets]);
 
   const editServiceOptions = useMemo(() => {
+    const selectedLabelById = new Map(
+      editForm.items
+        .filter((item) => item.serviceId && item.serviceName)
+        .map((item) => [
+          String(item.serviceId),
+          `${item.serviceName} - ${formatMoney(item.priceUzs)}`
+        ])
+    );
     const options = editServices.map((item) => ({
       value: String(item.id),
       label: `${item.name || item.id} - ${formatMoney(item.priceUzs)}`,
+      selectedLabel: selectedLabelById.get(String(item.id)),
       item
     }));
     const fallbackOptions = editForm.items
@@ -498,9 +507,15 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
   }, [editForm.items, editServices]);
 
   const editSpecialistOptions = useMemo(() => {
+    const selectedLabelById = new Map(
+      editForm.items
+        .filter((item) => item.specialistId && item.specialistName)
+        .map((item) => [String(item.specialistId), item.specialistName])
+    );
     const options = editSpecialists.map((item) => ({
       value: String(item.id),
-      label: `${item.fullName || item.id}${item.positionLabel ? ` - ${item.positionLabel}` : ""}`
+      label: `${item.fullName || item.id}${item.positionLabel ? ` - ${item.positionLabel}` : ""}`,
+      selectedLabel: selectedLabelById.get(String(item.id))
     }));
     const fallbackOptions = editForm.items
       .filter((item) => item.specialistId && item.specialistName)
@@ -1400,12 +1415,14 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
           <div id="financeTicketEditModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-ticket-edit-modal">
             <h3 className="finance-modal-title-with-number">
               <span>{translate("Edit Ticket")}</span>
-              <span className={`finance-ticket-source-badge ${isAppointmentSourceTicket(editTicket) ? "is-appointment" : "is-manual"}`}>
-                {translate(isAppointmentSourceTicket(editTicket) ? "Appointment Ticket" : "Manual Ticket")}
+              <span className="finance-ticket-edit-title-meta">
+                <span className={`finance-ticket-source-badge ${isAppointmentSourceTicket(editTicket) ? "is-appointment" : "is-manual"}`}>
+                  {translate(isAppointmentSourceTicket(editTicket) ? "Appointment Ticket" : "Manual Ticket")}
+                </span>
+                {editTicket.ticketNumber ? (
+                  <span className="finance-modal-ticket-number">{`#${editTicket.ticketNumber}`}</span>
+                ) : null}
               </span>
-              {editTicket.ticketNumber ? (
-                <span className="finance-modal-ticket-number">{`#${editTicket.ticketNumber}`}</span>
-              ) : null}
             </h3>
             <form className="auth-form finance-ticket-edit-form" onSubmit={submitEditTicket}>
               <div className="all-users-edit-fields">
@@ -1472,7 +1489,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                             searchPlaceholder={translate("Search")}
                             searchThreshold={8}
                             menuPortal
-                            disabled={editReferencesLoading}
+                            disabled={editReferencesLoading && editSpecialistOptions.length === 0}
                             onChange={(value) => {
                               const specialist = editSpecialists.find((row) => String(row?.id || "") === String(value));
                               updateEditItem(index, {
@@ -1490,7 +1507,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                           searchPlaceholder={translate("Search")}
                           searchThreshold={8}
                           menuPortal
-                          disabled={editReferencesLoading}
+                          disabled={editReferencesLoading && editServiceOptions.length === 0}
                           onChange={(value) => {
                             const service = editServiceById.get(String(value)) || {};
                             updateEditItem(index, {

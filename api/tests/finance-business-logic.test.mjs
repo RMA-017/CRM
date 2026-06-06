@@ -109,6 +109,18 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
 
   assert.match(
     financeServiceSource,
+    /export async function getCashierBoard[\s\S]*JOIN role_options r[\s\S]*r\.id = u\.role_id[\s\S]*LOWER\(TRIM\(r\.label\)\) LIKE '%specialist%'[\s\S]*LOWER\(TRIM\(COALESCE\(p\.label, ''\)\)\) LIKE '%mutaxassis%'[\s\S]*specialists: specialistsResult\.rows\.map\(mapSpecialistOption\)/s,
+    "Cashier board specialist references should only include appointment specialist role or position users."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /export async function getFinanceTicketFilterReferences[\s\S]*JOIN role_options r[\s\S]*r\.id = u\.role_id[\s\S]*LOWER\(TRIM\(r\.label\)\) LIKE '%specialist%'[\s\S]*LOWER\(TRIM\(COALESCE\(p\.label, ''\)\)\) LIKE '%mutaxassis%'[\s\S]*specialists: specialistsResult\.rows\.map\(mapSpecialistOption\)/s,
+    "Finance ticket filter and edit references should only include appointment specialist role or position users."
+  );
+
+  assert.match(
+    financeServiceSource,
     /getAppointmentHistoryLockDaysByOrganization\(organizationId\)[\s\S]*historyLockCutoffDate[\s\S]*overdueAppointmentFilters[\s\S]*"a\.status = 'confirmed'"[\s\S]*"ft\.id IS NULL"[\s\S]*"a\.appointment_date >= \$2::date"[\s\S]*"a\.appointment_date < \$3::date"[\s\S]*overdueConfirmedAppointments: overdueAppointments/s,
     "Cashier board should expose past confirmed appointment cards without tickets only inside the history-lock window."
   );

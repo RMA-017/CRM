@@ -7995,6 +7995,19 @@ button.finance-daily-cash-method-card:disabled {
   padding-right: 8px;
 }
 
+#financeTicketEditModal .finance-modal-title-with-number {
+  justify-content: space-between;
+  width: 100%;
+}
+
+#financeTicketEditModal .finance-ticket-edit-title-meta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+}
+
 #financeTicketEditModal .finance-ticket-edit-top-row {
   display: grid;
   grid-template-columns: minmax(130px, 0.34fr) minmax(260px, 1fr);
