@@ -466,12 +466,8 @@ function FinanceCashierPanel({
       if (!clientId) return;
       const current = byClient.get(clientId) || {
         clientId,
-        clientName: ticket?.clientName || "-",
-        selectedTotalUzs: 0,
-        ticketCount: 0
+        clientName: ticket?.clientName || "-"
       };
-      current.selectedTotalUzs += getTicketPayableAmount(ticket);
-      current.ticketCount += 1;
       byClient.set(clientId, current);
     });
     return Array.from(byClient.values()).map((item) => {
@@ -1194,178 +1190,173 @@ function FinanceCashierPanel({
             </h3>
             <form className="auth-form" onSubmit={submitBatchPayment}>
               <div className="all-users-edit-fields finance-payment-checkout">
-                <section
-                  className={`finance-payment-checkout-summary finance-ticket-summary finance-ticket-total${batchOverpaidUzs > 0 ? " is-overpaid" : ""}${batchRemainingUzs === 0 && batchPaidTotalUzs > 0 ? " is-balanced" : ""}`}
-                  aria-label={translate("Ticket Payment")}
-                >
-                  <div className="finance-total-cell finance-total-cell-total"><strong>{translate("To Pay")}</strong><span>{formatMoney(batchPaymentTotalUzs)}</span></div>
-                  <div className="finance-total-cell finance-total-cell-pay"><strong>{translate("Entered")}</strong><span>{formatMoney(batchPaidTotalUzs)}</span></div>
-                  <div className="finance-total-cell finance-total-cell-external"><strong>{translate("External Payment")}</strong><span>{formatMoney(batchExternalTotalUzs)}</span></div>
-                  <div className="finance-total-cell finance-total-cell-deposit"><strong>{translate("From Client Balance")}</strong><span>{formatMoney(batchDepositTotalUzs)}</span></div>
-                  <div className="finance-total-cell finance-total-cell-remaining"><strong>{translate(batchOverpaidUzs > 0 ? "Overpaid" : "Remaining")}</strong><span>{formatMoney(batchOverpaidUzs > 0 ? batchOverpaidUzs : batchRemainingUzs)}</span></div>
-                </section>
-
-                <div className="finance-payment-checkout-grid">
-                  <section className="finance-payment-checkout-panel finance-payment-tickets-panel">
+                <div className="finance-payment-checkout-top">
+                  <section className="finance-payment-checkout-panel finance-batch-client-balances" aria-busy={batchClientBalancesLoading ? "true" : "false"}>
                     <header className="finance-payment-panel-head">
-                      <span>{translate("Tickets")}</span>
-                      <strong>{formatMoney(batchPaymentTotalUzs)}</strong>
+                      <span>{translate("Client Balances")}</span>
                     </header>
-                    <div className="finance-batch-ticket-list">
-                      <div className="finance-batch-ticket-row finance-batch-ticket-head">
-                        <span>{translate("Ticket Number")}</span>
-                        <span>{translate("Ticket Date")}</span>
-                        <span>{translate("Client")}</span>
-                        <span>{translate("Specialist")}</span>
-                        <span>{translate("Service")}</span>
-                        <span>{translate("Total")}</span>
-                      </div>
-                      {batchPaymentTickets.map((ticket) => (
-                        <div className="finance-batch-ticket-group" key={String(ticket.id)}>
-                          <div className="finance-batch-ticket-row">
-                            <strong>{formatTicketNumber(ticket.ticketNumber)}</strong>
-                            <span>{formatDateYMD(ticket.ticketDate || ticket.appointmentDate)}</span>
-                            <span>{ticket.clientName || "-"}</span>
-                            <span>{getTicketSpecialistSummary(ticket)}</span>
-                            <span>{getTicketServiceSummary(ticket)}</span>
-                            <span>{formatMoney(getTicketPayableAmount(ticket))}</span>
-                          </div>
-                          {getTicketLineItems(ticket).length > 1 ? (
-                            <div className="finance-batch-ticket-lines">
-                              <div className="finance-batch-ticket-line finance-batch-ticket-line-head">
-                                <span>{translate("Service")}</span>
-                                <span>{translate("Specialist")}</span>
-                                <span>{translate("Price")}</span>
-                                <span>{translate("Discount")}</span>
-                                <span>{translate("Final")}</span>
-                              </div>
-                              {getTicketLineItems(ticket).map((lineItem, lineIndex) => (
-                                <div className="finance-batch-ticket-line" key={`${lineItem?.id || lineItem?.lineNumber || lineIndex}-${lineIndex}`}>
-                                  <strong>{lineItem?.serviceName || "-"}</strong>
-                                  <span>{lineItem?.specialistName || "-"}</span>
-                                  <span>{formatMoney(lineItem?.priceUzs ?? lineItem?.finalAmountUzs)}</span>
-                                  <span>{formatMoney(lineItem?.discountUzs)}</span>
-                                  <span>{formatMoney(lineItem?.finalAmountUzs ?? lineItem?.priceUzs)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : null}
-                        </div>
-                      ))}
+                    <div className="finance-batch-client-balance-row finance-batch-client-balance-head">
+                      <span>{translate("Client")}</span>
+                      <span>{translate("Deposit")}</span>
+                      <span>{translate("Debt")}</span>
                     </div>
+                    {batchClientSummaries.map((client) => (
+                      <div className="finance-batch-client-balance-row" key={client.clientId}>
+                        <strong>{client.clientName}</strong>
+                        <span className={client.depositUzs > 0 ? "finance-balance-positive" : ""}>{formatMoney(client.depositUzs)}</span>
+                        <span className={client.debtUzs > 0 ? "finance-balance-negative" : ""}>{formatMoney(client.debtUzs)}</span>
+                      </div>
+                    ))}
                   </section>
 
-                  <aside className="finance-payment-checkout-side">
-                    <section className="finance-payment-checkout-panel finance-batch-client-balances" aria-busy={batchClientBalancesLoading ? "true" : "false"}>
-                      <header className="finance-payment-panel-head">
-                        <span>{translate("Client Balances")}</span>
-                      </header>
-                      <div className="finance-batch-client-balance-row finance-batch-client-balance-head">
-                        <span>{translate("Client")}</span>
-                        <span>{translate("Selected Total")}</span>
-                        <span>{translate("Deposit")}</span>
-                        <span>{translate("Debt")}</span>
-                      </div>
-                      {batchClientSummaries.map((client) => (
-                        <div className="finance-batch-client-balance-row" key={client.clientId}>
-                          <strong>{client.clientName}</strong>
-                          <span>{formatMoney(client.selectedTotalUzs)}</span>
-                          <span className={client.depositUzs > 0 ? "finance-balance-positive" : ""}>{formatMoney(client.depositUzs)}</span>
-                          <span className={client.debtUzs > 0 ? "finance-balance-negative" : ""}>{formatMoney(client.debtUzs)}</span>
-                        </div>
-                      ))}
-                    </section>
-
-                    <section className="finance-payment-checkout-panel finance-batch-payment-methods">
-                      <header className="finance-payment-panel-head">
-                        <span>{translate("Payment Sources")}</span>
-                      </header>
-                      <div className="finance-batch-payment-list">
-                        {batchPaymentRows.map((row) => (
-                          <div
-                            className={`finance-batch-payment-row finance-batch-payment-row-${row.source === "deposit" ? "deposit" : "method"}`}
-                            key={row.key}
-                          >
-                            <label className="field">
-                              <CustomSelect
-                                value={row.source || "method"}
-                                options={[
-                                  { value: "method", label: translate("External Payment") },
-                                  { value: "deposit", label: translate("From Client Balance") }
-                                ]}
-                                menuPortal
-                                onChange={(value) => updateBatchPaymentRow(row.key, { source: value })}
-                              />
-                            </label>
-                            {row.source === "deposit" ? (
-                              <label className="field">
-                                <CustomSelect
-                                  value={row.clientId}
-                                  options={batchClientOptions}
-                                  placeholder={translate("Client")}
-                                  menuPortal
-                                  onChange={(value) => updateBatchPaymentRow(row.key, { clientId: value })}
-                                />
-                              </label>
-                            ) : (
-                              <label className="field">
-                                <CustomSelect
-                                  value={row.paymentMethodId}
-                                  options={paymentMethodOptions}
-                                  placeholder={translate("Payment Method")}
-                                  menuPortal
-                                  onChange={(value) => updateBatchPaymentRow(row.key, { paymentMethodId: value })}
-                                />
-                              </label>
-                            )}
-                            <label className="field">
-                              <input
-                                type="number"
-                                min="0"
-                                placeholder={translate("Amount")}
-                                aria-label={translate("Amount")}
-                                value={row.amountUzs}
-                                onWheel={(event) => event.currentTarget.blur()}
-                                onChange={(event) => updateBatchPaymentRow(row.key, { amountUzs: event.currentTarget.value })}
-                              />
-                            </label>
-                            <div className="finance-batch-payment-actions">
-                              <button
-                                type="button"
-                                className="table-action-btn finance-manual-icon-btn finance-manual-add-btn"
-                                aria-label={translate("Add")}
-                                title={translate("Add")}
-                                onClick={addBatchPaymentRow}
-                              >
-                                +
-                              </button>
-                              <button
-                                type="button"
-                                className="table-action-btn finance-manual-icon-btn"
-                                aria-label={translate("Remove")}
-                                title={translate("Remove")}
-                                disabled={batchPaymentRows.length <= 1}
-                                onClick={() => removeBatchPaymentRow(row.key)}
-                              >
-                                ×
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </section>
-
-                    <label className="field finance-payment-note-field">
-                      <span>{translate("Note")}</span>
-                      <input
-                        type="text"
-                        maxLength={255}
-                        value={batchPaymentNote}
-                        onChange={(event) => setBatchPaymentNote(event.currentTarget.value)}
-                      />
-                    </label>
-                  </aside>
+                  <section
+                    className={`finance-payment-checkout-summary finance-ticket-summary finance-ticket-total${batchOverpaidUzs > 0 ? " is-overpaid" : ""}${batchRemainingUzs === 0 && batchPaidTotalUzs > 0 ? " is-balanced" : ""}`}
+                    aria-label={translate("Ticket Payment")}
+                  >
+                    <div className="finance-total-cell finance-total-cell-total"><strong>{translate("To Pay")}</strong><span>{formatMoney(batchPaymentTotalUzs)}</span></div>
+                    <div className="finance-total-cell finance-total-cell-external"><strong>{translate("External Payment")}</strong><span>{formatMoney(batchExternalTotalUzs)}</span></div>
+                    <div className="finance-total-cell finance-total-cell-deposit"><strong>{translate("From Client Balance")}</strong><span>{formatMoney(batchDepositTotalUzs)}</span></div>
+                    <div className="finance-total-cell finance-total-cell-remaining"><strong>{translate(batchOverpaidUzs > 0 ? "Overpaid" : "Remaining")}</strong><span>{formatMoney(batchOverpaidUzs > 0 ? batchOverpaidUzs : batchRemainingUzs)}</span></div>
+                  </section>
                 </div>
+
+                <section className="finance-payment-checkout-panel finance-payment-tickets-panel">
+                  <header className="finance-payment-panel-head">
+                    <span>{translate("Tickets")}</span>
+                    <strong>{formatMoney(batchPaymentTotalUzs)}</strong>
+                  </header>
+                  <div className="finance-batch-ticket-list">
+                    <div className="finance-batch-ticket-row finance-batch-ticket-head">
+                      <span>{translate("Ticket Number")}</span>
+                      <span>{translate("Ticket Date")}</span>
+                      <span>{translate("Client")}</span>
+                      <span>{translate("Specialist")}</span>
+                      <span>{translate("Service")}</span>
+                      <span>{translate("Total")}</span>
+                    </div>
+                    {batchPaymentTickets.map((ticket) => (
+                      <div className="finance-batch-ticket-group" key={String(ticket.id)}>
+                        <div className="finance-batch-ticket-row">
+                          <strong>{formatTicketNumber(ticket.ticketNumber)}</strong>
+                          <span>{formatDateYMD(ticket.ticketDate || ticket.appointmentDate)}</span>
+                          <span>{ticket.clientName || "-"}</span>
+                          <span>{getTicketSpecialistSummary(ticket)}</span>
+                          <span>{getTicketServiceSummary(ticket)}</span>
+                          <span>{formatMoney(getTicketPayableAmount(ticket))}</span>
+                        </div>
+                        {getTicketLineItems(ticket).length > 1 ? (
+                          <div className="finance-batch-ticket-lines">
+                            <div className="finance-batch-ticket-line finance-batch-ticket-line-head">
+                              <span>{translate("Service")}</span>
+                              <span>{translate("Specialist")}</span>
+                              <span>{translate("Price")}</span>
+                              <span>{translate("Discount")}</span>
+                              <span>{translate("Final")}</span>
+                            </div>
+                            {getTicketLineItems(ticket).map((lineItem, lineIndex) => (
+                              <div className="finance-batch-ticket-line" key={`${lineItem?.id || lineItem?.lineNumber || lineIndex}-${lineIndex}`}>
+                                <strong>{lineItem?.serviceName || "-"}</strong>
+                                <span>{lineItem?.specialistName || "-"}</span>
+                                <span>{formatMoney(lineItem?.priceUzs ?? lineItem?.finalAmountUzs)}</span>
+                                <span>{formatMoney(lineItem?.discountUzs)}</span>
+                                <span>{formatMoney(lineItem?.finalAmountUzs ?? lineItem?.priceUzs)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="finance-payment-checkout-panel finance-batch-payment-methods">
+                  <header className="finance-payment-panel-head">
+                    <span>{translate("Payment Sources")}</span>
+                  </header>
+                  <div className="finance-batch-payment-list">
+                    {batchPaymentRows.map((row) => (
+                      <div
+                        className={`finance-batch-payment-row finance-batch-payment-row-${row.source === "deposit" ? "deposit" : "method"}`}
+                        key={row.key}
+                      >
+                        <label className="field">
+                          <CustomSelect
+                            value={row.source || "method"}
+                            options={[
+                              { value: "method", label: translate("External Payment") },
+                              { value: "deposit", label: translate("From Client Balance") }
+                            ]}
+                            menuPortal
+                            onChange={(value) => updateBatchPaymentRow(row.key, { source: value })}
+                          />
+                        </label>
+                        {row.source === "deposit" ? (
+                          <label className="field">
+                            <CustomSelect
+                              value={row.clientId}
+                              options={batchClientOptions}
+                              placeholder={translate("Client")}
+                              menuPortal
+                              onChange={(value) => updateBatchPaymentRow(row.key, { clientId: value })}
+                            />
+                          </label>
+                        ) : (
+                          <label className="field">
+                            <CustomSelect
+                              value={row.paymentMethodId}
+                              options={paymentMethodOptions}
+                              placeholder={translate("Payment Method")}
+                              menuPortal
+                              onChange={(value) => updateBatchPaymentRow(row.key, { paymentMethodId: value })}
+                            />
+                          </label>
+                        )}
+                        <label className="field">
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder={translate("Amount")}
+                            aria-label={translate("Amount")}
+                            value={row.amountUzs}
+                            onWheel={(event) => event.currentTarget.blur()}
+                            onChange={(event) => updateBatchPaymentRow(row.key, { amountUzs: event.currentTarget.value })}
+                          />
+                        </label>
+                        <div className="finance-batch-payment-actions">
+                          <button
+                            type="button"
+                            className="table-action-btn finance-manual-icon-btn finance-manual-add-btn"
+                            aria-label={translate("Add")}
+                            title={translate("Add")}
+                            onClick={addBatchPaymentRow}
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            className="table-action-btn finance-manual-icon-btn"
+                            aria-label={translate("Remove")}
+                            title={translate("Remove")}
+                            disabled={batchPaymentRows.length <= 1}
+                            onClick={() => removeBatchPaymentRow(row.key)}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <label className="field finance-payment-note-field">
+                  <span>{translate("Note")}</span>
+                  <input
+                    type="text"
+                    maxLength={255}
+                    value={batchPaymentNote}
+                    onChange={(event) => setBatchPaymentNote(event.currentTarget.value)}
+                  />
+                </label>
               </div>
 
               <div className="edit-actions">

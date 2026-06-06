@@ -192,8 +192,18 @@ test("batch payment modal keeps a polished dense payment layout", async () => {
 
   assert.match(
     cashierPanelSource,
-    /className="all-users-edit-fields finance-payment-checkout"[\s\S]*finance-payment-checkout-summary finance-ticket-summary finance-ticket-total[\s\S]*finance-payment-checkout-grid[\s\S]*finance-payment-tickets-panel[\s\S]*finance-payment-checkout-side[\s\S]*finance-batch-client-balances[\s\S]*finance-batch-payment-methods[\s\S]*finance-payment-note-field/s,
-    "Payment modal should use a checkout layout with one summary band, ticket detail area, payment side rail and note field."
+    /className="all-users-edit-fields finance-payment-checkout"[\s\S]*finance-payment-checkout-top[\s\S]*finance-batch-client-balances[\s\S]*finance-payment-checkout-summary finance-ticket-summary finance-ticket-total[\s\S]*finance-payment-tickets-panel[\s\S]*finance-batch-payment-methods[\s\S]*finance-payment-note-field/s,
+    "Payment modal should render client balances plus checkout summary first, then tickets, payment sources and note."
+  );
+  assert.doesNotMatch(
+    cashierPanelSource,
+    /finance-payment-checkout-summary[\s\S]*translate\("Entered"\)/,
+    "Checkout summary should not include the Entered total inside the first block."
+  );
+  assert.doesNotMatch(
+    cashierPanelSource,
+    /finance-batch-client-balances[\s\S]*translate\("Selected Total"\)/,
+    "Client balances should not repeat the selected total because the checkout summary already shows the amount to pay."
   );
   assert.doesNotMatch(
     cashierPanelSource,
@@ -207,8 +217,8 @@ test("batch payment modal keeps a polished dense payment layout", async () => {
   );
   assert.match(
     styles,
-    /#financeBatchPaymentModal \.finance-payment-checkout-grid \{[\s\S]*grid-template-columns: minmax\(0, 1\.48fr\) minmax\(360px, 0\.72fr\);/s,
-    "Payment modal should keep a left ticket area and right payment rail inside the existing modal width."
+    /#financeBatchPaymentModal \.finance-payment-checkout-top \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) minmax\(270px, 0\.36fr\);/s,
+    "Payment modal first block should place client balances on the left and a compact summary on the right."
   );
   assert.match(
     styles,
@@ -217,13 +227,18 @@ test("batch payment modal keeps a polished dense payment layout", async () => {
   );
   assert.match(
     styles,
+    /#financeBatchPaymentModal \.finance-payment-checkout-summary \{[\s\S]*grid-template-columns: 1fr;[\s\S]*align-content: stretch;/s,
+    "Checkout summary should stack its totals vertically in the first block."
+  );
+  assert.match(
+    styles,
     /#financeBatchPaymentModal \.finance-payment-checkout-panel \{[\s\S]*padding: 8px;[\s\S]*box-shadow: 0 1px 2px rgba\(15, 23, 42, 0\.04\);/s,
     "Payment modal sections should use lighter panel styling for frequent cashier use."
   );
   assert.match(
     styles,
-    /#financeBatchPaymentModal \.finance-batch-payment-row \{[\s\S]*grid-template-areas:[\s\S]*"source amount actions"[\s\S]*"target target target";/s,
-    "Payment rows should use a compact checkout input layout instead of a wide repeated table row."
+    /#financeBatchPaymentModal \.finance-batch-payment-row \{[\s\S]*grid-template-areas:[\s\S]*"source target amount actions";/s,
+    "Payment rows should use a single full-width checkout input row."
   );
   assert.match(
     styles,
