@@ -294,13 +294,13 @@ test("finance payments, deposits and refunds preserve cash-session and balance r
 
   assert.match(
     financeServiceSource,
-    /export async function payFinanceTicketsFromDeposit[\s\S]*AND ft\.status IN \('issued', 'unpaid'\)[\s\S]*payableAmountUzs[\s\S]*const currentDeposit = await getClientDepositBalance[\s\S]*if \(totalAmountUzs > currentDeposit\)[\s\S]*VALUES \(\$1, \$2, NULL, \$3, \$4, \$5\)[\s\S]*transactionType: "deposit_ticket_payment"[\s\S]*direction: "transfer"[\s\S]*paymentMethodId: null[\s\S]*SET status = 'paid'/s,
+    /export async function payFinanceTicketsFromDeposit[\s\S]*LEFT JOIN LATERAL[\s\S]*AND ft\.status IN \('issued', 'unpaid'\)[\s\S]*FOR UPDATE OF ft[\s\S]*payableAmountUzs[\s\S]*const currentDeposit = await getClientDepositBalance[\s\S]*if \(totalAmountUzs > currentDeposit\)[\s\S]*VALUES \(\$1, \$2, NULL, \$3, \$4, \$5\)[\s\S]*transactionType: "deposit_ticket_payment"[\s\S]*direction: "transfer"[\s\S]*paymentMethodId: null[\s\S]*SET status = 'paid'/s,
     "Deposit ticket payments should close remaining payable debt tickets and use transfer transactions without cash payment methods."
   );
 
   assert.match(
     financeServiceSource,
-    /export async function payFinanceTicketsBatch[\s\S]*paid_amount_uzs[\s\S]*payableAmountUzs[\s\S]*if \(paidAmountUzs > totalAmountUzs\)[\s\S]*Payment amount exceeds selected tickets total\.[\s\S]*break;[\s\S]*const nextStatus = nextPaidAmountUzs >= ticket\.totalAmountUzs \? "paid" : "unpaid"[\s\S]*SET status = \$3/s,
+    /export async function payFinanceTicketsBatch[\s\S]*LEFT JOIN LATERAL[\s\S]*FOR UPDATE OF ft[\s\S]*paid_amount_uzs[\s\S]*payableAmountUzs[\s\S]*if \(paidAmountUzs > totalAmountUzs\)[\s\S]*Payment amount exceeds selected tickets total\.[\s\S]*break;[\s\S]*const nextStatus = nextPaidAmountUzs >= ticket\.totalAmountUzs \? "paid" : "unpaid"[\s\S]*SET status = \$3/s,
     "Batch ticket payments should accept partial allocations and leave partially paid tickets in unpaid status."
   );
 

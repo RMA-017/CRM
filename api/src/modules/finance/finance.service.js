@@ -3132,7 +3132,7 @@ export async function payFinanceTicketsFromDeposit({ organizationId, payload, ac
           AND ft.id = ANY($3::bigint[])
           AND ft.status IN ('issued', 'unpaid')
         ORDER BY ft.ticket_date ASC, ft.id ASC
-        FOR UPDATE`,
+        FOR UPDATE OF ft`,
       [organizationId, clientId, ticketIds]
     );
     if (ticketsResult.rows.length !== ticketIds.length) {
@@ -4339,7 +4339,7 @@ export async function payFinanceTicketsBatch({ organizationId, payload, actorUse
           AND ft.id = ANY($2::bigint[])
           AND ft.status IN ('issued', 'unpaid')
         ORDER BY ft.ticket_date ASC, ft.id ASC
-        FOR UPDATE`,
+        FOR UPDATE OF ft`,
       [organizationId, ticketIds]
     );
     if (ticketsResult.rows.length !== ticketIds.length) {

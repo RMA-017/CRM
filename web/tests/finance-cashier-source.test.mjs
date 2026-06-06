@@ -191,19 +191,39 @@ test("batch payment modal keeps a polished dense payment layout", async () => {
   );
 
   assert.match(
+    cashierPanelSource,
+    /className="all-users-edit-fields finance-payment-checkout"[\s\S]*finance-payment-checkout-summary finance-ticket-summary finance-ticket-total[\s\S]*finance-payment-checkout-grid[\s\S]*finance-payment-tickets-panel[\s\S]*finance-payment-checkout-side[\s\S]*finance-batch-client-balances[\s\S]*finance-batch-payment-methods[\s\S]*finance-payment-note-field/s,
+    "Payment modal should use a checkout layout with one summary band, ticket detail area, payment side rail and note field."
+  );
+  assert.doesNotMatch(
+    cashierPanelSource,
+    /finance-batch-section-title[\s\S]*formatMoney\(batchPaidTotalUzs\)/,
+    "Payment source title should not repeat the entered total because the checkout summary owns totals."
+  );
+  assert.match(
     styles,
     /#financeBatchPaymentModal h3\.finance-modal-title-with-number \{[\s\S]*justify-content: space-between;[\s\S]*border-bottom: 1px solid rgba\(148, 163, 184, 0\.18\);/s,
     "Payment modal header should separate the title and ticket count cleanly."
   );
   assert.match(
     styles,
-    /#financeBatchPaymentModal \.finance-ticket-total \{[\s\S]*gap: 6px;[\s\S]*padding: 8px;[\s\S]*background: rgba\(255, 255, 255, 0\.84\);/s,
+    /#financeBatchPaymentModal \.finance-payment-checkout-grid \{[\s\S]*grid-template-columns: minmax\(0, 1\.48fr\) minmax\(360px, 0\.72fr\);/s,
+    "Payment modal should keep a left ticket area and right payment rail inside the existing modal width."
+  );
+  assert.match(
+    styles,
+    /#financeBatchPaymentModal \.finance-ticket-total \{[\s\S]*gap: 6px;[\s\S]*padding: 7px;[\s\S]*background: linear-gradient\(180deg, rgba\(255, 255, 255, 0\.96\), rgba\(248, 250, 252, 0\.92\)\);/s,
     "Payment modal totals should be grouped in a compact summary band."
   );
   assert.match(
     styles,
-    /#financeBatchPaymentModal \.finance-batch-client-balances,[\s\S]*#financeBatchPaymentModal \.finance-batch-payment-methods \{[\s\S]*padding: 8px;[\s\S]*box-shadow: 0 1px 2px rgba\(15, 23, 42, 0\.04\);/s,
+    /#financeBatchPaymentModal \.finance-payment-checkout-panel \{[\s\S]*padding: 8px;[\s\S]*box-shadow: 0 1px 2px rgba\(15, 23, 42, 0\.04\);/s,
     "Payment modal sections should use lighter panel styling for frequent cashier use."
+  );
+  assert.match(
+    styles,
+    /#financeBatchPaymentModal \.finance-batch-payment-row \{[\s\S]*grid-template-areas:[\s\S]*"source amount actions"[\s\S]*"target target target";/s,
+    "Payment rows should use a compact checkout input layout instead of a wide repeated table row."
   );
   assert.match(
     styles,
