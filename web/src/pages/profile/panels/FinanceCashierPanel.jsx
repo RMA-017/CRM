@@ -1235,7 +1235,6 @@ function FinanceCashierPanel({
                 <section className="finance-payment-checkout-panel finance-payment-tickets-panel">
                   <header className="finance-payment-panel-head">
                     <span>{translate("Tickets")}</span>
-                    <strong>{formatMoney(batchPaymentTotalUzs)}</strong>
                   </header>
                   <div className="finance-batch-ticket-list">
                     <div className="finance-batch-ticket-head">

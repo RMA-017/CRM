@@ -8310,12 +8310,12 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 #financeBatchPaymentModal .finance-ticket-total {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
   align-items: stretch;
   flex-shrink: 0;
   min-width: 0;
-  padding: 7px;
+  padding: 6px;
   border: 1px solid rgba(34, 197, 94, 0.20);
   border-radius: 8px;
   background: linear-gradient(180deg, rgba(240, 253, 244, 0.46), rgba(255, 255, 255, 0.92));
@@ -8325,9 +8325,9 @@ button.finance-daily-cash-method-card:disabled {
 
 #financeBatchPaymentModal .finance-payment-checkout-summary {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
+  gap: 5px;
   align-content: stretch;
-  padding: 8px;
+  padding: 6px;
 }
 
 #financeManualTicketModal .finance-ticket-total > .finance-total-cell,
@@ -8361,11 +8361,11 @@ button.finance-daily-cash-method-card:disabled {
 
 #financeBatchPaymentModal .finance-payment-checkout-summary > .finance-total-cell {
   height: auto;
-  min-height: 46px;
+  min-height: 38px;
   grid-template-columns: 1fr;
   align-content: center;
-  gap: 4px;
-  padding: 6px 8px;
+  gap: 3px;
+  padding: 5px 7px;
 }
 
 #financeBatchPaymentModal .finance-total-cell-external {
@@ -8492,7 +8492,7 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 #financeBatchPaymentModal .finance-payment-checkout-panel {
-  padding: 8px;
+  padding: 7px;
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.86);
@@ -8502,13 +8502,14 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 #financeBatchPaymentModal .finance-batch-client-balances {
+  padding: 6px;
   border-color: rgba(34, 197, 94, 0.20);
   background: linear-gradient(180deg, rgba(240, 253, 244, 0.46), rgba(255, 255, 255, 0.92));
   grid-template-columns:
     minmax(132px, 1fr)
     minmax(78px, 0.48fr)
     minmax(78px, 0.48fr);
-  gap: 5px;
+  gap: 4px;
   align-items: center;
 }
 
@@ -8531,8 +8532,8 @@ button.finance-daily-cash-method-card:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 26px;
-  padding: 0 0 3px;
+  min-height: 22px;
+  padding: 0 0 2px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.14);
   color: var(--text-main);
 }
@@ -8575,7 +8576,7 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 #financeBatchPaymentModal .finance-batch-client-balance-head-cell {
-  padding: 0 5px 2px;
+  padding: 0 5px 1px;
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 800;
@@ -8586,7 +8587,7 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 #financeBatchPaymentModal .finance-batch-client-balance-client {
-  padding: 3px 5px;
+  padding: 2px 5px;
   font-weight: 800;
 }
 
@@ -8594,7 +8595,7 @@ button.finance-daily-cash-method-card:disabled {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  min-height: 26px;
+  min-height: 22px;
   padding: 0 6px;
   border-radius: 999px;
   background: transparent;
@@ -8615,21 +8616,23 @@ button.finance-daily-cash-method-card:disabled {
 #financeBatchPaymentModal .finance-batch-ticket-head,
 #financeBatchPaymentModal .finance-batch-ticket-group {
   display: grid;
-  grid-template-columns:
-    minmax(76px, 0.44fr)
-    minmax(92px, 0.52fr)
-    minmax(128px, 0.76fr)
+  grid-template-columns: var(
+    --finance-batch-ticket-columns,
+    minmax(104px, 0.56fr)
+    minmax(96px, 0.54fr)
+    minmax(134px, 0.78fr)
     minmax(150px, 1fr)
-    minmax(104px, 0.54fr)
-    minmax(92px, 0.46fr)
-    minmax(112px, 0.56fr);
-  gap: 8px;
+    minmax(112px, 0.56fr)
+    minmax(96px, 0.48fr)
+    minmax(116px, 0.58fr)
+  );
+  column-gap: 8px;
+  row-gap: 6px;
   align-items: center;
   min-width: 0;
 }
 
 #financeBatchPaymentModal .finance-batch-ticket-group {
-  gap: 7px 8px;
   padding: 4px 5px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);
 }
@@ -8664,8 +8667,7 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 #financeBatchPaymentModal .finance-batch-ticket-head {
-  padding-top: 0;
-  padding-bottom: 2px;
+  padding: 0 5px 2px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.14);
 }
 
@@ -8688,6 +8690,14 @@ button.finance-daily-cash-method-card:disabled {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
+}
+
+#financeBatchPaymentModal .finance-batch-ticket-head .finance-batch-ticket-cell.is-number {
+  padding-left: 8px;
+}
+
+#financeBatchPaymentModal .finance-batch-ticket-head .finance-batch-ticket-cell.is-payable {
+  padding-right: 8px;
 }
 
 #financeBatchPaymentModal .finance-batch-ticket-group > .finance-batch-ticket-cell.is-number {

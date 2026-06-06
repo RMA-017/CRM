@@ -189,8 +189,8 @@ test("batch payment modal keeps client balance, ticket and payment inputs wrappe
   );
   assert.match(
     styles,
-    /#financeBatchPaymentModal \.finance-batch-ticket-head,[\s\S]*#financeBatchPaymentModal \.finance-batch-ticket-group \{[\s\S]*grid-template-columns:/s,
-    "Ticket cells should be laid out by the ticket group instead of an inner row wrapper."
+    /#financeBatchPaymentModal \.finance-batch-ticket-head,[\s\S]*#financeBatchPaymentModal \.finance-batch-ticket-group \{[\s\S]*grid-template-columns: var\([\s\S]*--finance-batch-ticket-columns,/s,
+    "Ticket header and value cells should share one grid template for stable vertical alignment."
   );
   assert.match(
     cashierPanelSource,
@@ -211,6 +211,11 @@ test("batch payment modal keeps client balance, ticket and payment inputs wrappe
     styles,
     /#financeBatchPaymentModal \.finance-batch-ticket-cell\.is-money \{[\s\S]*text-align: right;[\s\S]*font-variant-numeric: tabular-nums;/s,
     "Ticket amount columns should align consistently under their headers."
+  );
+  assert.match(
+    styles,
+    /#financeBatchPaymentModal \.finance-batch-ticket-head \{[\s\S]*padding: 0 5px 2px;/s,
+    "Ticket headers should use the same horizontal padding as ticket values."
   );
   assert.match(
     styles,
@@ -245,6 +250,11 @@ test("batch payment modal keeps a polished dense payment layout", async () => {
     /finance-batch-section-title[\s\S]*formatMoney\(batchPaidTotalUzs\)/,
     "Payment source title should not repeat the entered total because the checkout summary owns totals."
   );
+  assert.doesNotMatch(
+    cashierPanelSource,
+    /finance-payment-tickets-panel[\s\S]*finance-payment-panel-head[\s\S]*formatMoney\(batchPaymentTotalUzs\)[\s\S]*finance-batch-ticket-list/,
+    "Tickets panel header should not repeat the total because the checkout summary already shows amount to pay."
+  );
   assert.match(
     styles,
     /#financeBatchPaymentModal h3\.finance-modal-title-with-number \{[\s\S]*justify-content: space-between;[\s\S]*border-bottom: 1px solid rgba\(148, 163, 184, 0\.18\);/s,
@@ -257,7 +267,7 @@ test("batch payment modal keeps a polished dense payment layout", async () => {
   );
   assert.match(
     styles,
-    /#financeBatchPaymentModal \.finance-ticket-total \{[\s\S]*gap: 6px;[\s\S]*padding: 7px;[\s\S]*border: 1px solid rgba\(34, 197, 94, 0\.20\);[\s\S]*background: linear-gradient\(180deg, rgba\(240, 253, 244, 0\.46\), rgba\(255, 255, 255, 0\.92\)\);/s,
+    /#financeBatchPaymentModal \.finance-ticket-total \{[\s\S]*gap: 5px;[\s\S]*padding: 6px;[\s\S]*border: 1px solid rgba\(34, 197, 94, 0\.20\);[\s\S]*background: linear-gradient\(180deg, rgba\(240, 253, 244, 0\.46\), rgba\(255, 255, 255, 0\.92\)\);/s,
     "Payment modal totals should match the client balances green summary background."
   );
   assert.match(
@@ -277,7 +287,7 @@ test("batch payment modal keeps a polished dense payment layout", async () => {
   );
   assert.match(
     styles,
-    /#financeBatchPaymentModal \.finance-payment-checkout-panel \{[\s\S]*padding: 8px;[\s\S]*box-shadow: 0 1px 2px rgba\(15, 23, 42, 0\.04\);/s,
+    /#financeBatchPaymentModal \.finance-payment-checkout-panel \{[\s\S]*padding: 7px;[\s\S]*box-shadow: 0 1px 2px rgba\(15, 23, 42, 0\.04\);/s,
     "Payment modal sections should use lighter panel styling for frequent cashier use."
   );
   assert.match(
