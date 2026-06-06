@@ -250,13 +250,18 @@ test("ticket edit modal uses one shared discount and distributes it to line item
   );
   assert.match(
     source,
-    /<CustomSelect[\s\S]*value=\{item\.specialistId\}[\s\S]*placeholder=\{translate\("Select specialist"\)\}[\s\S]*disabled[\s\S]*onChange=\{\(value\) => updateEditItem\(index, \{ specialistId: value \}\)\}/s,
-    "Edit ticket modal should show the specialist select and conditionally disable it."
+    /isAppointmentSourceTicket\(editTicket\) \? \([\s\S]*className="finance-ticket-edit-readonly-input"[\s\S]*getSelectedOptionLabel\(editSpecialistOptions, item\.specialistId, item\.specialistName \|\| translate\("Select specialist"\)\)[\s\S]*readOnly[\s\S]*<CustomSelect[\s\S]*value=\{item\.specialistId\}[\s\S]*placeholder=\{translate\("Select specialist"\)\}[\s\S]*disabled=\{editReferencesLoading\}[\s\S]*const specialist = editSpecialists\.find[\s\S]*specialistId: value,[\s\S]*specialistName: specialist\?\.fullName \|\| item\.specialistName/s,
+    "Edit ticket modal should render appointment specialists as readable locked inputs while manual specialists stay selectable."
   );
   assert.match(
     source,
-    /<CustomSelect[\s\S]*value=\{editForm\.clientId\}[\s\S]*placeholder=\{translate\("Select client"\)\}[\s\S]*menuHeightScale=\{1\.2\}[\s\S]*disabled[\s\S]*onChange=\{\(value\) => setEditForm\(\(current\) => \(\{ \.\.\.current, clientId: value \}\)\)\}/s,
-    "Edit ticket modal should show the client select but keep it disabled."
+    /function mergeOptions\(baseOptions, nextOptions\) \{[\s\S]*const key = String\(option\.value\);[\s\S]*if \(!map\.has\(key\)\) \{[\s\S]*map\.set\(key, option\);/s,
+    "Edit ticket option fallbacks should only fill missing values so stale row labels cannot override fresh specialist options."
+  );
+  assert.match(
+    source,
+    /<input[\s\S]*className="finance-ticket-edit-readonly-input"[\s\S]*value=\{editClientDisplayName \|\| translate\("Select client"\)\}[\s\S]*readOnly[\s\S]*title=\{translate\("Ticket client cannot be changed\."\)\}/s,
+    "Edit ticket modal should show the client as a readable locked input instead of a dimmed disabled select."
   );
   assert.match(
     source,
@@ -270,8 +275,8 @@ test("ticket edit modal uses one shared discount and distributes it to line item
   );
   assert.match(
     source,
-    /value=\{editForm\.ticketDate\}[\s\S]*disabled=\{isAppointmentSourceTicket\(editTicket\)\}[\s\S]*Field is locked because ticket was created from appointment\.[\s\S]*value=\{item\.specialistId\}[\s\S]*disabled=\{isAppointmentSourceTicket\(editTicket\) \|\| editReferencesLoading\}/s,
-    "Appointment tickets should lock ticket date and specialist while manual tickets can edit both."
+    /value=\{editForm\.ticketDate\}[\s\S]*disabled=\{isAppointmentSourceTicket\(editTicket\)\}[\s\S]*Field is locked because ticket was created from appointment\.[\s\S]*isAppointmentSourceTicket\(editTicket\) \? \([\s\S]*finance-ticket-edit-readonly-input[\s\S]*value=\{getSelectedOptionLabel\(editSpecialistOptions, item\.specialistId, item\.specialistName \|\| translate\("Select specialist"\)\)\}/s,
+    "Appointment tickets should lock ticket date and specialist while keeping locked specialist text readable."
   );
   assert.match(
     source,
@@ -285,8 +290,8 @@ test("ticket edit modal uses one shared discount and distributes it to line item
   );
   assert.match(
     styles,
-    /#financeTicketEditModal \.finance-ticket-edit-item-grid \{[\s\S]*grid-template-columns: minmax\(0, 0\.85fr\) minmax\(0, 1\.15fr\);[\s\S]*#financeTicketEditModal \.finance-ticket-edit-total \{[\s\S]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/s,
-    "Edit ticket item rows should only contain specialist and service selects while the shared total row has four cells."
+    /#financeTicketEditModal \.finance-ticket-edit-item-grid \{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[\s\S]*#financeTicketEditModal \.finance-ticket-edit-readonly-input \{[\s\S]*color: var\(--text-main\);[\s\S]*#financeTicketEditModal \.finance-ticket-edit-total \{[\s\S]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/s,
+    "Edit ticket item rows should show equal controls and readable locked inputs while the shared total row has four cells."
   );
   assert.doesNotMatch(
     source,

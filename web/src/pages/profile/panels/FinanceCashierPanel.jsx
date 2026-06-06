@@ -65,6 +65,16 @@ function createAppointmentTicketForm(item = null) {
   };
 }
 
+function getAppointmentTicketServiceName({ source, services, serviceId }) {
+  const selectedService = (Array.isArray(services) ? services : [])
+    .find((entry) => String(entry?.id || "") === String(serviceId || ""));
+  const sourceServiceName = String(source?.serviceName || "").trim();
+  if (String(serviceId || "") === String(source?.serviceId || "") && sourceServiceName) {
+    return sourceServiceName;
+  }
+  return String(selectedService?.name || sourceServiceName || "").trim();
+}
+
 function formatMoney(value) {
   const amount = Number.parseInt(String(value ?? 0), 10) || 0;
   return amount > 0 ? `${amount.toLocaleString("ru-RU")} UZS` : "-";
@@ -712,6 +722,11 @@ function FinanceCashierPanel({
       };
       payload.items = [{
         serviceId,
+        serviceName: getAppointmentTicketServiceName({
+          source: item,
+          services: board.services,
+          serviceId
+        }),
         specialistId: item.specialistId,
         priceUzs,
         discountType: appointmentTicketForm.discountType,

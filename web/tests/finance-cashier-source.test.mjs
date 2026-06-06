@@ -75,8 +75,8 @@ test("appointment ticket modal derives price from the selected service before sa
 
   assert.match(
     cashierPanelSource,
-    /payload\.items = \[\{[\s\S]*serviceId,[\s\S]*priceUzs,[\s\S]*discountType: appointmentTicketForm\.discountType,[\s\S]*discountValue: appointmentTicketForm\.discountValue,[\s\S]*discountUzs: appointmentDiscountUzs/s,
-    "Create Ticket should submit the selected service, derived price and exact discount as a ticket line item."
+    /function getAppointmentTicketServiceName\(\{ source, services, serviceId \}\)[\s\S]*sourceServiceName[\s\S]*String\(serviceId \|\| ""\) === String\(source\?\.serviceId \|\| ""\)[\s\S]*payload\.items = \[\{[\s\S]*serviceId,[\s\S]*serviceName: getAppointmentTicketServiceName\(\{[\s\S]*source: item,[\s\S]*services: board\.services,[\s\S]*serviceId[\s\S]*priceUzs,[\s\S]*discountType: appointmentTicketForm\.discountType,[\s\S]*discountValue: appointmentTicketForm\.discountValue,[\s\S]*discountUzs: appointmentDiscountUzs/s,
+    "Create Ticket should submit the selected service, real appointment service name and exact discount as a ticket line item."
   );
 });
 

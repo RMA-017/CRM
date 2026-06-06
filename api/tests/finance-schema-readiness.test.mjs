@@ -3,15 +3,24 @@ import test from "node:test";
 import {
   REQUIRED_FINANCE_CONSTRAINTS,
   REQUIRED_FINANCE_INDEXES,
+  REQUIRED_FINANCE_NULLABLE_COLUMNS,
   REQUIRED_FINANCE_TABLE_COLUMNS,
   buildFinanceSchemaReadinessReport
 } from "../src/config/finance-schema-readiness.js";
+
+function isRequiredNullableColumn(tableName, columnName) {
+  return (REQUIRED_FINANCE_NULLABLE_COLUMNS[tableName] || []).includes(columnName);
+}
 
 function buildCompleteSchemaSnapshot() {
   return {
     tables: Object.keys(REQUIRED_FINANCE_TABLE_COLUMNS),
     columns: Object.entries(REQUIRED_FINANCE_TABLE_COLUMNS).flatMap(([tableName, columnNames]) => (
-      columnNames.map((columnName) => ({ tableName, columnName }))
+      columnNames.map((columnName) => ({
+        tableName,
+        columnName,
+        isNullable: isRequiredNullableColumn(tableName, columnName) ? "YES" : "NO"
+      }))
     )),
     constraints: [...REQUIRED_FINANCE_CONSTRAINTS],
     indexes: [...REQUIRED_FINANCE_INDEXES]
@@ -46,4 +55,18 @@ test("finance schema readiness reports missing tables, columns, constraints and 
   assert.ok(report.errors.includes("Missing finance column: finance_tickets.total_uzs"));
   assert.ok(report.errors.includes("Missing finance constraint: chk_finance_transactions_type"));
   assert.ok(report.errors.includes("Missing finance index: uq_finance_tickets_org_appointment"));
+});
+
+test("finance schema readiness catches payment method columns that still block deposit transfers", () => {
+  const snapshot = buildCompleteSchemaSnapshot();
+  const report = buildFinanceSchemaReadinessReport({
+    ...snapshot,
+    columns: snapshot.columns.map((column) => (
+      column.tableName === "finance_ticket_payments" && column.columnName === "payment_method_id"
+        ? { ...column, isNullable: "NO" }
+        : column
+    ))
+  });
+
+  assert.ok(report.errors.includes("Finance column must be nullable: finance_ticket_payments.payment_method_id"));
 });

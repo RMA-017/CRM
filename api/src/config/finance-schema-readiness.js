@@ -194,6 +194,11 @@ export const REQUIRED_FINANCE_INDEXES = Object.freeze([
   "idx_finance_transactions_org_method"
 ]);
 
+export const REQUIRED_FINANCE_NULLABLE_COLUMNS = Object.freeze({
+  finance_ticket_payments: ["payment_method_id"],
+  finance_transactions: ["payment_method_id"]
+});
+
 function toNameSet(values) {
   return new Set(
     (Array.isArray(values) ? values : [])
@@ -202,13 +207,32 @@ function toNameSet(values) {
   );
 }
 
-function buildColumnSet(columns) {
-  const result = new Set();
+function normalizeIsNullable(value) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  const normalized = String(value ?? "").trim().toUpperCase();
+  if (!normalized) {
+    return null;
+  }
+  if (["YES", "TRUE", "1"].includes(normalized)) {
+    return true;
+  }
+  if (["NO", "FALSE", "0"].includes(normalized)) {
+    return false;
+  }
+  return null;
+}
+
+function buildColumnMap(columns) {
+  const result = new Map();
   for (const column of Array.isArray(columns) ? columns : []) {
     const tableName = String(column?.tableName || column?.table_name || "").trim();
     const columnName = String(column?.columnName || column?.column_name || "").trim();
     if (tableName && columnName) {
-      result.add(`${tableName}.${columnName}`);
+      result.set(`${tableName}.${columnName}`, {
+        isNullable: normalizeIsNullable(column?.isNullable ?? column?.is_nullable)
+      });
     }
   }
   return result;
@@ -225,7 +249,7 @@ export function buildFinanceSchemaReadinessReport({
   const tableSet = toNameSet(tables);
   const constraintSet = toNameSet(constraints);
   const indexSet = toNameSet(indexes);
-  const columnSet = buildColumnSet(columns);
+  const columnMap = buildColumnMap(columns);
 
   for (const [tableName, requiredColumns] of Object.entries(REQUIRED_FINANCE_TABLE_COLUMNS)) {
     if (!tableSet.has(tableName)) {
@@ -233,8 +257,17 @@ export function buildFinanceSchemaReadinessReport({
       continue;
     }
     for (const columnName of requiredColumns) {
-      if (!columnSet.has(`${tableName}.${columnName}`)) {
+      if (!columnMap.has(`${tableName}.${columnName}`)) {
         errors.push(`Missing finance column: ${tableName}.${columnName}`);
+      }
+    }
+  }
+
+  for (const [tableName, columnNames] of Object.entries(REQUIRED_FINANCE_NULLABLE_COLUMNS)) {
+    for (const columnName of columnNames) {
+      const metadata = columnMap.get(`${tableName}.${columnName}`);
+      if (metadata && metadata.isNullable === false) {
+        errors.push(`Finance column must be nullable: ${tableName}.${columnName}`);
       }
     }
   }
@@ -274,7 +307,7 @@ export async function getFinanceSchemaReadiness({ db } = {}) {
       [requiredTables]
     ),
     db.query(
-      `SELECT table_name, column_name
+      `SELECT table_name, column_name, is_nullable
          FROM information_schema.columns
         WHERE table_schema = current_schema()
           AND table_name = ANY($1::text[])`,
@@ -299,7 +332,8 @@ export async function getFinanceSchemaReadiness({ db } = {}) {
     tables: (tablesResult.rows || []).map((row) => row.table_name),
     columns: (columnsResult.rows || []).map((row) => ({
       tableName: row.table_name,
-      columnName: row.column_name
+      columnName: row.column_name,
+      isNullable: row.is_nullable
     })),
     constraints: (constraintsResult.rows || []).map((row) => row.constraint_name),
     indexes: (indexesResult.rows || []).map((row) => row.index_name)

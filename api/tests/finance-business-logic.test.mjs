@@ -49,6 +49,12 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
 
   assert.match(
     financeServiceSource,
+    /export async function getCashierBoard[\s\S]*'serviceName', COALESCE\(NULLIF\(TRIM\(a\.service_name\), ''\), fti_item\.service_name\)/s,
+    "Cashier payment details should prefer the real appointment service name for appointment-backed tickets."
+  );
+
+  assert.match(
+    financeServiceSource,
     /function buildTicketsListWhere[\s\S]*const statuses = Array\.from\(new Set\([\s\S]*"issued", "paid", "unpaid", "voided"[\s\S]*if \(statuses\.length > 0\)[\s\S]*where\.push\(`ft\.status = ANY\(\$\$\{params\.length\}::text\[\]\)`\)[\s\S]*else \{[\s\S]*where\.push\("ft\.status <> 'voided'"\)/s,
     "Finance ticket list filters should support multiple statuses and hide deleted/voided tickets unless explicitly requested."
   );
@@ -143,6 +149,11 @@ test("finance ticket creation only accepts confirmed appointments and snapshots 
     financeServiceSource,
     /const requestedPriceUzs = normalizeAmount\(rawItem\?\.priceUzs[\s\S]*const priceUzs = requestedPriceUzs > 0 \? requestedPriceUzs : normalizeAmount\(service\.price_uzs, 0\)/s,
     "Ticket line items should allow appointment ticket price overrides while falling back to the service catalog price."
+  );
+  assert.match(
+    financeServiceSource,
+    /const submittedServiceName = normalizeText\(rawItem\?\.serviceName \?\? rawItem\?\.service_name, 128\);[\s\S]*const itemServiceName = appointment[\s\S]*submittedServiceName \|\| normalizeText\(appointment\.service_name, 128\) \|\| normalizeText\(service\.name, 128\)[\s\S]*serviceName: itemServiceName/s,
+    "Appointment-backed ticket line items should keep the real appointment service name instead of falling back to specialist position-like catalog labels."
   );
   assert.match(
     financeServiceSource,

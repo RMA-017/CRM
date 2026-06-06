@@ -5,6 +5,7 @@ import {
   getDatabaseMigrationReadiness as getSharedDatabaseMigrationReadiness,
   listMigrationFileMetadata
 } from "../src/config/deployment-readiness.js";
+import { getFinanceSchemaReadiness } from "../src/config/finance-schema-readiness.js";
 import { getProductionPreflightReport } from "../src/config/production-preflight.js";
 
 const MIGRATIONS_DIR = resolve(process.cwd(), "database", "migrations");
@@ -91,9 +92,18 @@ try {
     process.exit(1);
   }
 
+  const financeSchemaReport = await getFinanceSchemaReadiness({ db: pool });
+  if (financeSchemaReport.errors.length > 0) {
+    for (const error of financeSchemaReport.errors) {
+      console.error(`[preflight:error] ${error}`);
+    }
+    process.exit(1);
+  }
+
   console.log(
     `[preflight:ok] production config looks valid for ${report.allowedOrigins.join(", ")}; `
-    + `migrations=${migrationReport.appliedCount}/${migrationReport.totalMigrations}`
+    + `migrations=${migrationReport.appliedCount}/${migrationReport.totalMigrations}; `
+    + `finance-schema=${financeSchemaReport.tableCount}/${financeSchemaReport.requiredTableCount}`
   );
 } catch (error) {
   console.error(`[preflight:error] ${formatPreflightError(error)}`);

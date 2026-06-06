@@ -852,7 +852,7 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
                         'specialistName', COALESCE(NULLIF(TRIM(iu.full_name), ''), NULLIF(TRIM(iu.username), ''), ''),
                         'positionLabel', ip.label,
                         'serviceId', fti_item.service_id,
-                        'serviceName', fti_item.service_name,
+                        'serviceName', COALESCE(NULLIF(TRIM(a.service_name), ''), fti_item.service_name),
                         'priceUzs', fti_item.price_uzs,
                         'discountType', fti_item.discount_type,
                         'discountValue', fti_item.discount_value,
@@ -3430,10 +3430,14 @@ async function buildTicketItems(db, { organizationId, payload, appointment, fall
       const discountUzs = requestedDiscountUzs >= 0
         ? Math.min(priceUzs, requestedDiscountUzs)
         : calculateDiscountUzs({ priceUzs, discountType, discountValue });
+      const submittedServiceName = normalizeText(rawItem?.serviceName ?? rawItem?.service_name, 128);
+      const itemServiceName = appointment
+        ? (submittedServiceName || normalizeText(appointment.service_name, 128) || normalizeText(service.name, 128))
+        : normalizeText(service.name, 128);
       items.push({
         specialistId: specialistId || null,
         serviceId,
-        serviceName: normalizeText(service.name, 128),
+        serviceName: itemServiceName,
         priceUzs,
         discountType,
         discountValue,

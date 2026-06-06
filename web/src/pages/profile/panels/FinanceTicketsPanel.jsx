@@ -278,10 +278,18 @@ function isAppointmentSourceTicket(item) {
 }
 
 function makeClientOption(item) {
-  const id = String(item?.id ?? item?.clientId ?? "").trim();
+  const id = String(item?.clientId ?? item?.id ?? "").trim();
   if (!id) return null;
   const label = String(item?.fullName || item?.clientName || `#${id}`).trim() || `#${id}`;
   return { value: id, label };
+}
+
+function getSelectedOptionLabel(options, value, fallback = "") {
+  const normalizedValue = String(value || "").trim();
+  if (!normalizedValue) return fallback;
+  const option = (Array.isArray(options) ? options : [])
+    .find((item) => String(item?.value || "") === normalizedValue);
+  return String(option?.selectedLabel || option?.label || fallback || "").trim();
 }
 
 function normalizeTicketListSummary(summary) {
@@ -303,7 +311,10 @@ function mergeOptions(baseOptions, nextOptions) {
   const map = new Map();
   [...baseOptions, ...nextOptions].forEach((option) => {
     if (option?.value) {
-      map.set(String(option.value), option);
+      const key = String(option.value);
+      if (!map.has(key)) {
+        map.set(key, option);
+      }
     }
   });
   return Array.from(map.values());
@@ -419,9 +430,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
   const [editServices, setEditServices] = useState([]);
   const [editSpecialists, setEditSpecialists] = useState([]);
   const [editReferencesLoading, setEditReferencesLoading] = useState(false);
-  const [editClientSearch, setEditClientSearch] = useState("");
   const [editClientOptions, setEditClientOptions] = useState([]);
-  const [editClientSearchBusy, setEditClientSearchBusy] = useState(false);
   const [voidingId, setVoidingId] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [columnsOpen, setColumnsOpen] = useState(false);
@@ -501,6 +510,14 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
       }));
     return mergeOptions(options, fallbackOptions);
   }, [editForm.items, editSpecialists]);
+
+  const editClientDisplayName = useMemo(() => (
+    getSelectedOptionLabel(
+      editClientOptions,
+      editForm.clientId,
+      editTicket?.clientName || (editForm.clientId ? `#${editForm.clientId}` : "")
+    )
+  ), [editClientOptions, editForm.clientId, editTicket]);
 
   const filterSpecialistOptions = useMemo(() => {
     const options = (Array.isArray(filterReferences.specialists) ? filterReferences.specialists : [])
@@ -849,51 +866,6 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
     };
   }, [filterClientSearch, filtersOpen, translate]);
 
-  useEffect(() => {
-    if (!editTicket) return undefined;
-    const query = editClientSearch.trim();
-    const selectedOption = makeClientOption(editTicket);
-    if (!query || (!/^\d+$/.test(query) && query.length < 3)) {
-      setEditClientSearchBusy(false);
-      setEditClientOptions((current) => mergeOptions(selectedOption ? [selectedOption] : [], current));
-      return undefined;
-    }
-
-    let cancelled = false;
-    const timer = window.setTimeout(async () => {
-      setEditClientSearchBusy(true);
-      try {
-        const response = await apiFetch(`/api/finance/cashier/clients?q=${encodeURIComponent(query)}&limit=30`);
-        const data = await readApiResponseData(response);
-        if (!response.ok) {
-          if (!cancelled) {
-            window.alert?.(translate(data?.message || "Failed to search clients."));
-          }
-          return;
-        }
-        if (!cancelled) {
-          const options = (Array.isArray(data?.items) ? data.items : [])
-            .map(makeClientOption)
-            .filter(Boolean);
-          setEditClientOptions(mergeOptions(selectedOption ? [selectedOption] : [], options));
-        }
-      } catch {
-        if (!cancelled) {
-          window.alert?.(translate("Failed to search clients."));
-        }
-      } finally {
-        if (!cancelled) {
-          setEditClientSearchBusy(false);
-        }
-      }
-    }, 250);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [editClientSearch, editTicket, translate]);
-
   const openEditTicket = (item) => {
     if (!canUpdateFinanceCashier) return;
     if (item?.status === "paid" || item?.status === "voided") {
@@ -908,7 +880,6 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
     const clientOption = makeClientOption(item);
     setEditTicket(item);
     setEditForm(form);
-    setEditClientSearch("");
     setEditClientOptions(clientOption ? [clientOption] : []);
     void loadEditReferences();
   };
@@ -917,7 +888,6 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
     if (editSubmitting && !force) return;
     setEditTicket(null);
     setEditForm(EMPTY_TICKET_EDIT_FORM);
-    setEditClientSearch("");
     setEditClientOptions([]);
   };
 
@@ -1456,20 +1426,12 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                   </label>
                   <label className="field">
                     <span>{translate("Client")}</span>
-                    <CustomSelect
-                      value={editForm.clientId}
-                      options={editClientOptions}
-                      placeholder={translate("Select client")}
-                      searchable
-                      searchPlaceholder={translate("Search by name or ID")}
-                      searchThreshold={0}
-                      menuPortal
-                      menuHeightScale={1.2}
-                      disabled
+                    <input
+                      type="text"
+                      className="finance-ticket-edit-readonly-input"
+                      value={editClientDisplayName || translate("Select client")}
+                      readOnly
                       title={translate("Ticket client cannot be changed.")}
-                      emptyText={editClientSearchBusy ? "..." : translate("No clients found.")}
-                      onSearchChange={setEditClientSearch}
-                      onChange={(value) => setEditForm((current) => ({ ...current, clientId: value }))}
                     />
                   </label>
                 </div>
@@ -1493,18 +1455,33 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                         </div>
                       </div>
                       <div className="finance-ticket-edit-item-grid">
-                        <CustomSelect
-                          value={item.specialistId}
-                          options={editSpecialistOptions}
-                          placeholder={translate("Select specialist")}
-                          searchable
-                          searchPlaceholder={translate("Search")}
-                          searchThreshold={8}
-                          menuPortal
-                          disabled={isAppointmentSourceTicket(editTicket) || editReferencesLoading}
-                          title={isAppointmentSourceTicket(editTicket) ? translate("Field is locked because ticket was created from appointment.") : undefined}
-                          onChange={(value) => updateEditItem(index, { specialistId: value })}
-                        />
+                        {isAppointmentSourceTicket(editTicket) ? (
+                          <input
+                            type="text"
+                            className="finance-ticket-edit-readonly-input"
+                            value={getSelectedOptionLabel(editSpecialistOptions, item.specialistId, item.specialistName || translate("Select specialist"))}
+                            readOnly
+                            title={translate("Field is locked because ticket was created from appointment.")}
+                          />
+                        ) : (
+                          <CustomSelect
+                            value={item.specialistId}
+                            options={editSpecialistOptions}
+                            placeholder={translate("Select specialist")}
+                            searchable
+                            searchPlaceholder={translate("Search")}
+                            searchThreshold={8}
+                            menuPortal
+                            disabled={editReferencesLoading}
+                            onChange={(value) => {
+                              const specialist = editSpecialists.find((row) => String(row?.id || "") === String(value));
+                              updateEditItem(index, {
+                                specialistId: value,
+                                specialistName: specialist?.fullName || item.specialistName
+                              });
+                            }}
+                          />
+                        )}
                         <CustomSelect
                           value={item.serviceId}
                           options={editServiceOptions}
