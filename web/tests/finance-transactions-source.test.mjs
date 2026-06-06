@@ -23,6 +23,26 @@ test("finance transaction void action is only exposed to cashier payment users",
     /item\.status === "voided"[\s\S]*!canPayFinanceCashier \? \([\s\S]*finance-transaction-status-active[\s\S]*finance-transaction-void-btn/s,
     "Rows should render an active status instead of the void button when the user cannot pay cashier transactions."
   );
+  assert.match(
+    transactionsPanelSource,
+    /className="table-action-btn table-action-btn-danger services-settings-action-btn finance-transaction-void-btn"[\s\S]*services-settings-trash-icon/s,
+    "Transaction void action should use the same trash icon style as finance settings."
+  );
+  assert.doesNotMatch(
+    transactionsPanelSource,
+    /ⓧ/,
+    "Transaction void action should not render the circled x glyph."
+  );
+  assert.match(
+    transactionsPanelSource,
+    /type="submit" className="btn" disabled=\{Boolean\(voidingId\)\}>\{voidingId \? "\.\.\." : translate\("Void"\)\}/,
+    "Void modal submit button should use the shorter cancellation label."
+  );
+  assert.doesNotMatch(
+    transactionsPanelSource,
+    /<h3>\{translate\("Cancel transaction"\)\}<\/h3>[\s\S]*btn btn-secondary[\s\S]*translate\("Cancel"\)/,
+    "Void modal should not show a secondary cancel button."
+  );
 
   assert.match(
     transactionsPanelSource,
@@ -46,5 +66,15 @@ test("finance transaction void action is only exposed to cashier payment users",
     styles,
     /\.finance-transaction-status-active \{[\s\S]*font-size: 11px;[\s\S]*font-weight: 700;/s,
     "Readonly transaction status should have a compact table style."
+  );
+  assert.match(
+    transactionsPanelSource,
+    /<th key=\{column\.id\} className=\{column\.className\}>[\s\S]*className=\{\[[\s\S]*column\.className,[\s\S]*finance-transactions-amount-cell/s,
+    "Transaction table should apply column classes to visible headers and cells."
+  );
+  assert.match(
+    styles,
+    /\.finance-transactions-table :is\(th, td\)\.finance-transactions-col-status \{[\s\S]*text-align: center;/s,
+    "Transaction status column should be centered."
   );
 });

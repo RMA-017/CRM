@@ -200,13 +200,15 @@ function FinanceTransactionsPanel({ onClose, canPayFinanceCashier = false }) {
           ) : (
             <button
               type="button"
-              className="finance-transaction-void-btn"
+              className="table-action-btn table-action-btn-danger services-settings-action-btn finance-transaction-void-btn"
               title={translate("Cancel transaction")}
               aria-label={translate("Cancel transaction")}
               disabled={voidingId === String(item.id)}
               onClick={() => openVoidTransaction(item)}
             >
-              ⓧ
+              {voidingId === String(item.id) ? "..." : (
+                <span className="services-settings-trash-icon" aria-hidden="true" />
+              )}
             </button>
           )}
         </span>
@@ -600,8 +602,7 @@ function FinanceTransactionsPanel({ onClose, canPayFinanceCashier = false }) {
                 </label>
               </div>
               <div className="edit-actions">
-                <button type="button" className="btn btn-secondary" disabled={Boolean(voidingId)} onClick={closeVoidTransaction}>{translate("Cancel")}</button>
-                <button type="submit" className="btn" disabled={Boolean(voidingId)}>{voidingId ? "..." : translate("Confirm")}</button>
+                <button type="submit" className="btn" disabled={Boolean(voidingId)}>{voidingId ? "..." : translate("Void")}</button>
               </div>
             </form>
           </div>
@@ -620,7 +621,7 @@ function FinanceTransactionsPanel({ onClose, canPayFinanceCashier = false }) {
           <thead>
             <tr>
               {visibleColumns.map((column) => (
-                <th key={column.id}>{translate(column.label)}</th>
+                <th key={column.id} className={column.className}>{translate(column.label)}</th>
               ))}
             </tr>
           </thead>
@@ -634,7 +635,13 @@ function FinanceTransactionsPanel({ onClose, canPayFinanceCashier = false }) {
             ) : items.map((item) => (
               <tr key={String(item.id)}>
                 {visibleColumns.map((column) => (
-                  <td key={column.id} className={column.id === "amount" ? "finance-transactions-amount-cell" : undefined}>
+                  <td
+                    key={column.id}
+                    className={[
+                      column.className,
+                      column.id === "amount" ? "finance-transactions-amount-cell" : ""
+                    ].filter(Boolean).join(" ")}
+                  >
                     {column.render(item)}
                   </td>
                 ))}

@@ -155,6 +155,25 @@ function getTicketPayableAmount(ticket) {
   return normalizeMoneyInput(ticket?.remainingAmountUzs ?? ticket?.remaining_amount_uzs ?? ticket?.totalUzs ?? ticket?.amountUzs);
 }
 
+function getTicketPaidAmount(ticket) {
+  return normalizeMoneyInput(ticket?.paidAmountUzs ?? ticket?.paid_amount_uzs);
+}
+
+function getBatchPaymentRowAmountLimit(rows, key, totalUzs) {
+  const otherRowsTotal = (Array.isArray(rows) ? rows : []).reduce((sum, row) => (
+    row?.key === key ? sum : sum + normalizeMoneyInput(row?.amountUzs)
+  ), 0);
+  return Math.max(normalizeMoneyInput(totalUzs) - otherRowsTotal, 0);
+}
+
+function clampBatchPaymentAmountInput(value, maxAmountUzs) {
+  const rawValue = String(value ?? "").trim();
+  if (!rawValue) return "";
+  const amount = normalizeMoneyInput(rawValue);
+  const maxAmount = Math.max(normalizeMoneyInput(maxAmountUzs), 0);
+  return String(Math.min(amount, maxAmount));
+}
+
 function getTicketServicePriceAmount(ticket) {
   return getTicketLineItems(ticket).reduce((sum, item) => {
     const price = normalizeMoneyInput(item?.priceUzs);
@@ -835,7 +854,7 @@ function FinanceCashierPanel({
       ? selectedItems
       : (item ? [item] : selectedItems);
     if (nextTickets.length === 0) return;
-    const totalUzs = nextTickets.reduce((sum, ticket) => sum + normalizeMoneyInput(ticket?.totalUzs ?? ticket?.amountUzs), 0);
+    const totalUzs = nextTickets.reduce((sum, ticket) => sum + getTicketPayableAmount(ticket), 0);
     setBatchPaymentTickets(nextTickets);
     setBatchPaymentRows([createBatchPaymentRow(totalUzs)]);
     setBatchPaymentNote("");
@@ -854,8 +873,15 @@ function FinanceCashierPanel({
   const updateBatchPaymentRow = (key, updates) => {
     setBatchPaymentRows((current) => current.map((row) => {
       if (row.key !== key) return row;
-      const next = { ...row, ...updates };
-      if (Object.prototype.hasOwnProperty.call(updates, "source")) {
+      const nextUpdates = { ...updates };
+      if (Object.prototype.hasOwnProperty.call(nextUpdates, "amountUzs")) {
+        nextUpdates.amountUzs = clampBatchPaymentAmountInput(
+          nextUpdates.amountUzs,
+          getBatchPaymentRowAmountLimit(current, key, batchPaymentTotalUzs)
+        );
+      }
+      const next = { ...row, ...nextUpdates };
+      if (Object.prototype.hasOwnProperty.call(nextUpdates, "source")) {
         next.paymentMethodId = "";
         next.clientId = "";
       }
@@ -917,7 +943,8 @@ function FinanceCashierPanel({
       window.alert?.(translate("Payment method is required."));
       return;
     }
-    if (batchOverpaidUzs > 0) {
+    const paymentTotalUzs = payments.reduce((sum, row) => sum + normalizeMoneyInput(row.amountUzs), 0);
+    if (paymentTotalUzs > batchPaymentTotalUzs) {
       window.alert?.(translate("Payment amount exceeds selected tickets total."));
       return;
     }
@@ -1225,9 +1252,8 @@ function FinanceCashierPanel({
                     className={`finance-payment-checkout-summary finance-ticket-summary finance-ticket-total${batchOverpaidUzs > 0 ? " is-overpaid" : ""}${batchRemainingUzs === 0 && batchPaidTotalUzs > 0 ? " is-balanced" : ""}`}
                     aria-label={translate("Ticket Payment")}
                   >
-                    <div className="finance-total-cell finance-total-cell-total"><strong>{translate("To Pay")}</strong><span>{formatMoney(batchPaymentTotalUzs)}</span></div>
+                    <div className="finance-total-cell finance-total-cell-total"><strong>{translate("Total To Pay")}</strong><span>{formatMoney(batchPaymentTotalUzs)}</span></div>
                     <div className="finance-total-cell finance-total-cell-external"><strong>{translate("External Payment")}</strong><span>{formatMoney(batchExternalTotalUzs)}</span></div>
-                    <div className="finance-total-cell finance-total-cell-remaining"><strong>{translate(batchOverpaidUzs > 0 ? "Overpaid" : "Remaining")}</strong><span>{formatMoney(batchOverpaidUzs > 0 ? batchOverpaidUzs : batchRemainingUzs)}</span></div>
                     <div className="finance-total-cell finance-total-cell-deposit"><strong>{translate("From Client Balance")}</strong><span>{formatMoney(batchDepositTotalUzs)}</span></div>
                   </section>
                 </div>
@@ -1245,6 +1271,7 @@ function FinanceCashierPanel({
                       <span className="finance-batch-ticket-cell is-money">{translate("Service Price")}</span>
                       <span className="finance-batch-ticket-cell is-money">{translate("Discount")}</span>
                       <span className="finance-batch-ticket-cell is-money is-payable">{translate("To Pay")}</span>
+                      <span className="finance-batch-ticket-cell is-money is-paid">{translate("Paid")}</span>
                     </div>
                     {batchPaymentTickets.map((ticket) => (
                       <div className="finance-batch-ticket-group" key={String(ticket.id)}>
@@ -1255,6 +1282,7 @@ function FinanceCashierPanel({
                         <span className="finance-batch-ticket-cell is-money">{formatMoney(getTicketServicePriceAmount(ticket))}</span>
                         <span className="finance-batch-ticket-cell is-money">{formatMoney(getTicketDiscountAmount(ticket))}</span>
                         <span className="finance-batch-ticket-cell is-money is-payable">{formatMoney(getTicketPayableAmount(ticket))}</span>
+                        <span className="finance-batch-ticket-cell is-money is-paid">{formatMoney(getTicketPaidAmount(ticket))}</span>
                         {getTicketLineItems(ticket).length > 1 ? (
                           <div className="finance-batch-ticket-lines">
                             <div className="finance-batch-ticket-line finance-batch-ticket-line-head">
@@ -1285,7 +1313,9 @@ function FinanceCashierPanel({
                     <span>{translate("Payment Sources")}</span>
                   </header>
                   <div className="finance-batch-payment-list">
-                    {batchPaymentRows.map((row) => (
+                    {batchPaymentRows.map((row) => {
+                      const rowAmountLimit = getBatchPaymentRowAmountLimit(batchPaymentRows, row.key, batchPaymentTotalUzs);
+                      return (
                       <Fragment key={row.key}>
                         <label className={`field finance-batch-payment-source finance-batch-payment-source-${row.source === "deposit" ? "deposit" : "method"}`}>
                           <CustomSelect
@@ -1323,6 +1353,8 @@ function FinanceCashierPanel({
                           <input
                             type="number"
                             min="0"
+                            max={rowAmountLimit}
+                            step="1"
                             placeholder={translate("Amount")}
                             aria-label={translate("Amount")}
                             value={row.amountUzs}
@@ -1352,7 +1384,8 @@ function FinanceCashierPanel({
                           </button>
                         </div>
                       </Fragment>
-                    ))}
+                      );
+                    })}
                   </div>
                 </section>
 

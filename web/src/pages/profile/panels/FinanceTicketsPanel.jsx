@@ -1596,7 +1596,14 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
           <div id="financeTicketHistoryModal" className="logout-confirm-modal all-users-edit-modal">
             <h3>{`${translate("Ticket History")} #${historyTicket.ticketNumber || ""}`}</h3>
             <div className="all-users-table-scroll">
-              <table className="all-users-table" aria-label="Ticket history table">
+              <table className="all-users-table finance-ticket-history-table" aria-label="Ticket history table">
+                <colgroup>
+                  <col className="finance-ticket-history-date-col" />
+                  <col className="finance-ticket-history-action-col" />
+                  <col className="finance-ticket-history-status-col" />
+                  <col className="finance-ticket-history-user-col" />
+                  <col className="finance-ticket-history-details-col" />
+                </colgroup>
                 <thead>
                   <tr>
                     <th>{translate("Date")}</th>

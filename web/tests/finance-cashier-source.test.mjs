@@ -161,6 +161,54 @@ test("batch ticket payments omit empty unrelated source fields", () => {
   );
 });
 
+test("batch ticket payment modal uses remaining totals and caps payment source amounts", () => {
+  assert.match(
+    cashierPanelSource,
+    /function getTicketPayableAmount\(ticket\) \{[\s\S]*remainingAmountUzs[\s\S]*remaining_amount_uzs[\s\S]*totalUzs[\s\S]*amountUzs/s,
+    "Payment modal should prefer the remaining amount for partially paid tickets."
+  );
+  assert.match(
+    cashierPanelSource,
+    /const totalUzs = nextTickets\.reduce\(\(sum, ticket\) => sum \+ getTicketPayableAmount\(ticket\), 0\);[\s\S]*setBatchPaymentRows\(\[createBatchPaymentRow\(totalUzs\)\]\);/s,
+    "Opening the payment modal should prefill only the remaining payable amount, not the original ticket total."
+  );
+  assert.match(
+    cashierPanelSource,
+    /function getBatchPaymentRowAmountLimit\(rows, key, totalUzs\)[\s\S]*otherRowsTotal[\s\S]*return Math\.max\(normalizeMoneyInput\(totalUzs\) - otherRowsTotal, 0\);[\s\S]*function clampBatchPaymentAmountInput\(value, maxAmountUzs\)[\s\S]*return String\(Math\.min\(amount, maxAmount\)\);/s,
+    "Payment source input values should be clamped against the selected tickets payable total."
+  );
+  assert.match(
+    cashierPanelSource,
+    /nextUpdates\.amountUzs = clampBatchPaymentAmountInput\([\s\S]*getBatchPaymentRowAmountLimit\(current, key, batchPaymentTotalUzs\)[\s\S]*\);/s,
+    "Changing a payment source amount should cap that row by the remaining amount after other rows."
+  );
+  assert.match(
+    cashierPanelSource,
+    /const rowAmountLimit = getBatchPaymentRowAmountLimit\(batchPaymentRows, row\.key, batchPaymentTotalUzs\);[\s\S]*max=\{rowAmountLimit\}[\s\S]*onChange=\{\(event\) => updateBatchPaymentRow\(row\.key, \{ amountUzs: event\.currentTarget\.value \}\)\}/s,
+    "Payment amount inputs should expose the same max limit used by the clamp logic."
+  );
+  assert.match(
+    cashierPanelSource,
+    /finance-total-cell-total"><strong>\{translate\("Total To Pay"\)\}<\/strong><span>\{formatMoney\(batchPaymentTotalUzs\)\}<\/span>/,
+    "Checkout summary should label the total as Total To Pay instead of the ticket-row To Pay label."
+  );
+  assert.doesNotMatch(
+    cashierPanelSource,
+    /finance-payment-checkout-summary[\s\S]*translate\("Remaining"\)[\s\S]*finance-payment-tickets-panel/,
+    "Checkout summary should not render a separate Remaining indicator."
+  );
+  assert.doesNotMatch(
+    cashierPanelSource,
+    /translate\(batchOverpaidUzs > 0 \? "Overpaid" : "Remaining"\)/,
+    "Checkout summary should never switch the Remaining label to Overpaid."
+  );
+  assert.match(
+    cashierPanelSource,
+    /const paymentTotalUzs = payments\.reduce\(\(sum, row\) => sum \+ normalizeMoneyInput\(row\.amountUzs\), 0\);[\s\S]*if \(paymentTotalUzs > batchPaymentTotalUzs\) \{[\s\S]*Payment amount exceeds selected tickets total\./s,
+    "Submit should re-check total payments against the payable amount."
+  );
+});
+
 test("batch payment modal keeps client balance, ticket and payment inputs wrapperless", async () => {
   const styles = await readFile(
     new URL("../src/css/components/components.css", import.meta.url),
@@ -194,7 +242,7 @@ test("batch payment modal keeps client balance, ticket and payment inputs wrappe
   );
   assert.match(
     cashierPanelSource,
-    /finance-batch-ticket-head[\s\S]*className="finance-batch-ticket-cell is-number"[\s\S]*translate\("Ticket Number"\)[\s\S]*className="finance-batch-ticket-cell is-date"[\s\S]*translate\("Ticket Date"\)[\s\S]*className="finance-batch-ticket-cell is-specialist"[\s\S]*translate\("Specialist"\)[\s\S]*className="finance-batch-ticket-cell is-service"[\s\S]*translate\("Service"\)[\s\S]*className="finance-batch-ticket-cell is-money"[\s\S]*translate\("Service Price"\)[\s\S]*className="finance-batch-ticket-cell is-money"[\s\S]*translate\("Discount"\)[\s\S]*className="finance-batch-ticket-cell is-money is-payable"[\s\S]*translate\("To Pay"\)[\s\S]*batchPaymentTickets\.map/s,
+    /finance-batch-ticket-head[\s\S]*className="finance-batch-ticket-cell is-number"[\s\S]*translate\("Ticket Number"\)[\s\S]*className="finance-batch-ticket-cell is-date"[\s\S]*translate\("Ticket Date"\)[\s\S]*className="finance-batch-ticket-cell is-specialist"[\s\S]*translate\("Specialist"\)[\s\S]*className="finance-batch-ticket-cell is-service"[\s\S]*translate\("Service"\)[\s\S]*className="finance-batch-ticket-cell is-money"[\s\S]*translate\("Service Price"\)[\s\S]*className="finance-batch-ticket-cell is-money"[\s\S]*translate\("Discount"\)[\s\S]*className="finance-batch-ticket-cell is-money is-payable"[\s\S]*translate\("To Pay"\)[\s\S]*className="finance-batch-ticket-cell is-money is-paid"[\s\S]*translate\("Paid"\)[\s\S]*batchPaymentTickets\.map/s,
     "Ticket payment headers should use explicit column classes for stable vertical alignment."
   );
   assert.doesNotMatch(
@@ -204,8 +252,13 @@ test("batch payment modal keeps client balance, ticket and payment inputs wrappe
   );
   assert.match(
     cashierPanelSource,
-    /className="finance-batch-ticket-cell is-number"[\s\S]*formatTicketNumber\(ticket\.ticketNumber\)[\s\S]*className="finance-batch-ticket-cell is-date"[\s\S]*formatDateYMD\(ticket\.ticketDate \|\| ticket\.appointmentDate\)[\s\S]*className="finance-batch-ticket-cell is-specialist"[\s\S]*getTicketSpecialistSummary\(ticket\)[\s\S]*className="finance-batch-ticket-cell is-service"[\s\S]*getTicketServiceSummary\(ticket\)[\s\S]*className="finance-batch-ticket-cell is-money"[\s\S]*formatMoney\(getTicketServicePriceAmount\(ticket\)\)[\s\S]*className="finance-batch-ticket-cell is-money"[\s\S]*formatMoney\(getTicketDiscountAmount\(ticket\)\)[\s\S]*className="finance-batch-ticket-cell is-money is-payable"[\s\S]*formatMoney\(getTicketPayableAmount\(ticket\)\)/,
+    /className="finance-batch-ticket-cell is-number"[\s\S]*formatTicketNumber\(ticket\.ticketNumber\)[\s\S]*className="finance-batch-ticket-cell is-date"[\s\S]*formatDateYMD\(ticket\.ticketDate \|\| ticket\.appointmentDate\)[\s\S]*className="finance-batch-ticket-cell is-specialist"[\s\S]*getTicketSpecialistSummary\(ticket\)[\s\S]*className="finance-batch-ticket-cell is-service"[\s\S]*getTicketServiceSummary\(ticket\)[\s\S]*className="finance-batch-ticket-cell is-money"[\s\S]*formatMoney\(getTicketServicePriceAmount\(ticket\)\)[\s\S]*className="finance-batch-ticket-cell is-money"[\s\S]*formatMoney\(getTicketDiscountAmount\(ticket\)\)[\s\S]*className="finance-batch-ticket-cell is-money is-payable"[\s\S]*formatMoney\(getTicketPayableAmount\(ticket\)\)[\s\S]*className="finance-batch-ticket-cell is-money is-paid"[\s\S]*formatMoney\(getTicketPaidAmount\(ticket\)\)/,
     "Ticket payment row values should use the same explicit column classes as their headers."
+  );
+  assert.match(
+    cashierPanelSource,
+    /function getTicketPaidAmount\(ticket\) \{[\s\S]*paidAmountUzs[\s\S]*paid_amount_uzs/s,
+    "Ticket payment rows should show how much has already been paid for each ticket."
   );
   assert.match(
     styles,
@@ -272,8 +325,13 @@ test("batch payment modal keeps a polished dense payment layout", async () => {
   );
   assert.match(
     styles,
-    /#financeBatchPaymentModal \.finance-payment-checkout-summary \{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[\s\S]*grid-template-rows: repeat\(2, minmax\(0, 1fr\)\);[\s\S]*align-self: stretch;[\s\S]*align-content: stretch;/s,
-    "Checkout summary should show two totals per row and fill the first block height."
+    /#financeBatchPaymentModal \.finance-payment-checkout-summary \{[\s\S]*grid-template-columns: minmax\(0, 1\.12fr\) minmax\(0, 0\.88fr\);[\s\S]*grid-template-rows: repeat\(2, minmax\(0, 1fr\)\);[\s\S]*align-self: stretch;[\s\S]*align-content: stretch;/s,
+    "Checkout summary should let Total To Pay occupy the removed Remaining space."
+  );
+  assert.match(
+    styles,
+    /#financeBatchPaymentModal \.finance-payment-checkout-summary \.finance-total-cell-total \{[\s\S]*grid-row: 1 \/ span 2;/s,
+    "Total To Pay should span both rows in the checkout summary."
   );
   assert.match(
     styles,

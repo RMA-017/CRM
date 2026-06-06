@@ -64,6 +64,37 @@ test("ticket history modal uses a shorter vertical size", async () => {
   );
 });
 
+test("ticket history table sizes columns by content without spilling into neighboring cells", async () => {
+  const [source, styles] = await Promise.all([
+    readFile(
+      new URL("../src/pages/profile/panels/FinanceTicketsPanel.jsx", import.meta.url),
+      "utf8"
+    ),
+    readFile(new URL("../src/css/components/components.css", import.meta.url), "utf8")
+  ]);
+
+  assert.match(
+    source,
+    /<table className="all-users-table finance-ticket-history-table"[\s\S]*<colgroup>[\s\S]*finance-ticket-history-date-col[\s\S]*finance-ticket-history-details-col[\s\S]*<thead>/s,
+    "Ticket history table should expose explicit column hooks for responsive sizing."
+  );
+  assert.match(
+    styles,
+    /#financeTicketHistoryModal \.finance-ticket-history-table \{[\s\S]*width: max-content;[\s\S]*min-width: 100%;[\s\S]*table-layout: auto;/s,
+    "Ticket history table should size columns by content instead of fixed layout."
+  );
+  assert.match(
+    styles,
+    /#financeTicketHistoryModal \.all-users-table :is\(th, td\) \{[\s\S]*max-width: none;[\s\S]*overflow: hidden;[\s\S]*overflow-wrap: anywhere;/s,
+    "Ticket history cells should prevent long values from spilling into neighboring columns."
+  );
+  assert.match(
+    styles,
+    /#financeTicketHistoryModal \.all-users-table :is\(th:nth-child\(5\), td:nth-child\(5\)\) \{[\s\S]*min-width: 360px;[\s\S]*white-space: normal;[\s\S]*overflow: hidden;/s,
+    "Ticket history details should keep a wider wrapped column without visible overflow."
+  );
+});
+
 test("finance delete icons use a closed trash lid", async () => {
   const styles = await readFile(
     new URL("../src/css/components/components.css", import.meta.url),
@@ -77,8 +108,8 @@ test("finance delete icons use a closed trash lid", async () => {
   );
   assert.match(
     styles,
-    /:is\(#servicesSettingsPanel, #financeSettingsPanel\) \.services-settings-trash-icon \{[\s\S]*box-sizing: border-box;[\s\S]*width: 13px;[\s\S]*:is\(#servicesSettingsPanel, #financeSettingsPanel\) \.services-settings-trash-icon::before \{[\s\S]*left: -2px;[\s\S]*top: -2px;[\s\S]*width: calc\(100% \+ 4px\);[\s\S]*:is\(#servicesSettingsPanel, #financeSettingsPanel\) \.services-settings-trash-icon::after \{[\s\S]*left: 50%;[\s\S]*transform: translateX\(-50%\);/s,
-    "Finance settings delete icon lid should fully cover the trash body."
+    /:is\(#servicesSettingsPanel, #financeSettingsPanel, #financeTransactionsPanel\) \.services-settings-trash-icon \{[\s\S]*box-sizing: border-box;[\s\S]*width: 13px;[\s\S]*:is\(#servicesSettingsPanel, #financeSettingsPanel, #financeTransactionsPanel\) \.services-settings-trash-icon::before \{[\s\S]*left: -2px;[\s\S]*top: -2px;[\s\S]*width: calc\(100% \+ 4px\);[\s\S]*:is\(#servicesSettingsPanel, #financeSettingsPanel, #financeTransactionsPanel\) \.services-settings-trash-icon::after \{[\s\S]*left: 50%;[\s\S]*transform: translateX\(-50%\);/s,
+    "Finance settings and transaction delete icons should fully cover the trash body."
   );
 });
 
