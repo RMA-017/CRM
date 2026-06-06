@@ -5,7 +5,7 @@ import { getAppointmentHistoryLockDaysByOrganization } from "../appointments/app
 import { updateAppointmentSchedulesByIds } from "../appointments/services/appointment-schedules.service.js";
 
 const BOARD_LIMIT = 80;
-const FINANCE_BATCH_PAYMENT_SCHEMA_ERROR_CODES = new Set(["42P01", "42703", "23502"]);
+const FINANCE_BATCH_PAYMENT_SCHEMA_ERROR_CODES = new Set(["42P01", "42703", "23502", "23514"]);
 
 function normalizeAmount(value, fallback = 0) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -31,7 +31,11 @@ function isFinanceBatchPaymentSchemaError(error) {
     "payment_group_id",
     "payment_method_id",
     "finance_ticket_payments",
-    "finance_transactions"
+    "finance_transactions",
+    "chk_finance_transactions_type",
+    "finance_transactions_transaction_type_check",
+    "chk_finance_transactions_direction",
+    "finance_transactions_direction_check"
   ].some((token) => message.includes(token));
 }
 

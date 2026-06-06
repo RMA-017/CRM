@@ -183,3 +183,31 @@ test("batch payment modal uses compact row padding", async () => {
     "Payment source rows in the payment modal should keep a little extra left padding for the marker."
   );
 });
+
+test("batch payment modal keeps a polished dense payment layout", async () => {
+  const styles = await readFile(
+    new URL("../src/css/components/components.css", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    styles,
+    /#financeBatchPaymentModal h3\.finance-modal-title-with-number \{[\s\S]*justify-content: space-between;[\s\S]*border-bottom: 1px solid rgba\(148, 163, 184, 0\.18\);/s,
+    "Payment modal header should separate the title and ticket count cleanly."
+  );
+  assert.match(
+    styles,
+    /#financeBatchPaymentModal \.finance-ticket-total \{[\s\S]*gap: 6px;[\s\S]*padding: 8px;[\s\S]*background: rgba\(255, 255, 255, 0\.84\);/s,
+    "Payment modal totals should be grouped in a compact summary band."
+  );
+  assert.match(
+    styles,
+    /#financeBatchPaymentModal \.finance-batch-client-balances,[\s\S]*#financeBatchPaymentModal \.finance-batch-payment-methods \{[\s\S]*padding: 8px;[\s\S]*box-shadow: 0 1px 2px rgba\(15, 23, 42, 0\.04\);/s,
+    "Payment modal sections should use lighter panel styling for frequent cashier use."
+  );
+  assert.match(
+    styles,
+    /#financeBatchPaymentModal \.edit-actions \{[\s\S]*padding-top: 8px;[\s\S]*border-top: 1px solid rgba\(148, 163, 184, 0\.18\);/s,
+    "Payment modal actions should be visually separated from payment details."
+  );
+});

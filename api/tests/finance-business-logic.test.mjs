@@ -306,7 +306,7 @@ test("finance payments, deposits and refunds preserve cash-session and balance r
 
   assert.match(
     financeServiceSource,
-    /function isFinanceBatchPaymentSchemaError\(error\) \{[\s\S]*FINANCE_BATCH_PAYMENT_SCHEMA_ERROR_CODES[\s\S]*finance_payment_groups[\s\S]*payment_group_id[\s\S]*payment_method_id[\s\S]*export async function payFinanceTicketsBatch[\s\S]*createMigrationRequiredError\("Finance payment migration is required before batch payments can be processed\.",[\s\S]*20260606_000001_finance_payment_method_nullable_safety\.sql/s,
+    /FINANCE_BATCH_PAYMENT_SCHEMA_ERROR_CODES[\s\S]*23514[\s\S]*function isFinanceBatchPaymentSchemaError\(error\) \{[\s\S]*finance_payment_groups[\s\S]*payment_group_id[\s\S]*payment_method_id[\s\S]*chk_finance_transactions_type[\s\S]*export async function payFinanceTicketsBatch[\s\S]*createMigrationRequiredError\("Finance payment migration is required before batch payments can be processed\.",[\s\S]*20260606_000001_finance_payment_method_nullable_safety\.sql/s,
     "Batch ticket payment schema mismatches should be reported as migration-required instead of a generic 500."
   );
 

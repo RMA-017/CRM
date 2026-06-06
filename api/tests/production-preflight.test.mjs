@@ -109,4 +109,13 @@ test("migration readiness report requires finance migrations to stay in the repo
   assert.ok(
     report.errors.some((error) => error.includes("20260518_000006_finance_deposit_ticket_payments.sql"))
   );
+  assert.ok(
+    report.errors.some((error) => error.includes("20260525_000001_finance_payment_groups.sql"))
+  );
+  assert.ok(
+    report.errors.some((error) => error.includes("20260525_000002_finance_cash_sessions_cashier_fk.sql"))
+  );
+  assert.ok(
+    report.errors.some((error) => error.includes("20260606_000001_finance_payment_method_nullable_safety.sql"))
+  );
 });
