@@ -8521,7 +8521,7 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 #financeBatchPaymentModal .finance-batch-client-balance-row:not(.finance-batch-client-balance-head) {
-  padding: 8px 9px;
+  padding: 3px 5px;
   border: 1px solid rgba(34, 197, 94, 0.16);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.72);
@@ -8571,7 +8571,7 @@ button.finance-daily-cash-method-card:disabled {
     minmax(112px, 0.55fr);
   gap: 8px;
   align-items: center;
-  padding: 7px;
+  padding: 3px 5px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(248, 250, 255, 0.72);
@@ -8719,7 +8719,7 @@ button.finance-daily-cash-method-card:disabled {
   grid-template-columns: minmax(160px, 0.7fr) minmax(240px, 1fr) minmax(140px, 0.55fr) auto;
   gap: 8px;
   align-items: center;
-  padding: 9px 9px 9px 12px;
+  padding: 3px 5px 3px 10px;
   border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.78);

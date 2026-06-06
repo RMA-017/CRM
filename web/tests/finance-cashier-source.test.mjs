@@ -40,8 +40,8 @@ test("cashier ticket cards stay compact while payment modal shows multi-service 
 
   assert.match(
     cashierPanelSource,
-    /function formatTicketNumberList\(tickets\) \{[\s\S]*formatTicketNumber\(ticket\?\.ticketNumber \?\? ticket\?\.ticket_number\)[\s\S]*numbers\.join\(", "\)[\s\S]*finance-modal-ticket-number">\{formatTicketNumberList\(batchPaymentTickets\)\}/s,
-    "The payment modal header should show real ticket numbers, not the selected ticket count."
+    /function formatTicketCountLabel\(translate, tickets\) \{[\s\S]*const count = Array\.isArray\(tickets\) \? tickets\.length : 0;[\s\S]*translate\("Ticket count"\)\.replace\("\{count\}", String\(count\)\)[\s\S]*finance-modal-ticket-number">\{formatTicketCountLabel\(translate, batchPaymentTickets\)\}/s,
+    "The payment modal header should show the selected ticket count while ticket numbers remain in the table."
   );
   assert.doesNotMatch(
     cashierPanelSource,
@@ -158,5 +158,28 @@ test("batch ticket payments omit empty unrelated source fields", () => {
     cashierPanelSource,
     /const payment = \{[\s\S]*source,[\s\S]*amountUzs: normalizeMoneyInput\(row\.amountUzs\)[\s\S]*if \(source === "deposit"\) \{[\s\S]*payment\.clientId = String\(row\.clientId \|\| ""\)\.trim\(\);[\s\S]*\} else \{[\s\S]*payment\.paymentMethodId = String\(row\.paymentMethodId \|\| ""\)\.trim\(\);/s,
     "Batch payments should only send clientId for deposit payments and paymentMethodId for external payments."
+  );
+});
+
+test("batch payment modal uses compact row padding", async () => {
+  const styles = await readFile(
+    new URL("../src/css/components/components.css", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    styles,
+    /#financeBatchPaymentModal \.finance-batch-client-balance-row:not\(\.finance-batch-client-balance-head\) \{[\s\S]*padding: 3px 5px;/s,
+    "Client balance rows in the payment modal should use compact padding."
+  );
+  assert.match(
+    styles,
+    /#financeBatchPaymentModal \.finance-batch-ticket-row \{[\s\S]*padding: 3px 5px;/s,
+    "Ticket rows in the payment modal should use compact padding."
+  );
+  assert.match(
+    styles,
+    /#financeBatchPaymentModal \.finance-batch-payment-row \{[\s\S]*padding: 3px 5px 3px 10px;/s,
+    "Payment source rows in the payment modal should keep a little extra left padding for the marker."
   );
 });

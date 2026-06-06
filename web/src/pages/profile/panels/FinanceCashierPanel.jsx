@@ -92,13 +92,9 @@ function formatTicketNumber(value) {
   return number > 0 ? `#${String(number).padStart(5, "0")}` : "#-----";
 }
 
-function formatTicketNumberList(tickets) {
-  const numbers = (Array.isArray(tickets) ? tickets : [])
-    .map((ticket) => formatTicketNumber(ticket?.ticketNumber ?? ticket?.ticket_number))
-    .filter((value) => value !== "#-----");
-  if (numbers.length === 0) return "#-----";
-  if (numbers.length <= 3) return numbers.join(", ");
-  return `${numbers.slice(0, 3).join(", ")} +${numbers.length - 3}`;
+function formatTicketCountLabel(translate, tickets) {
+  const count = Array.isArray(tickets) ? tickets.length : 0;
+  return translate("Ticket count").replace("{count}", String(count));
 }
 
 function formatTime(value) {
@@ -1194,7 +1190,7 @@ function FinanceCashierPanel({
           <div id="financeBatchPaymentModal" className="logout-confirm-modal all-users-edit-modal finance-modal">
             <h3 className="finance-modal-title-with-number">
               <span>{translate("Ticket Payment")}</span>
-              <span className="finance-modal-ticket-number">{formatTicketNumberList(batchPaymentTickets)}</span>
+              <span className="finance-modal-ticket-number">{formatTicketCountLabel(translate, batchPaymentTickets)}</span>
             </h3>
             <form className="auth-form" onSubmit={submitBatchPayment}>
               <div className="all-users-edit-fields">
