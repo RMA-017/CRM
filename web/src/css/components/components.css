@@ -8504,6 +8504,16 @@ button.finance-daily-cash-method-card:disabled {
 #financeBatchPaymentModal .finance-batch-client-balances {
   border-color: rgba(34, 197, 94, 0.20);
   background: linear-gradient(180deg, rgba(240, 253, 244, 0.46), rgba(255, 255, 255, 0.92));
+  grid-template-columns:
+    minmax(132px, 1fr)
+    minmax(78px, 0.48fr)
+    minmax(78px, 0.48fr);
+  gap: 5px;
+  align-items: center;
+}
+
+#financeBatchPaymentModal .finance-batch-client-balances .finance-payment-panel-head {
+  grid-column: 1 / -1;
 }
 
 #financeBatchPaymentModal .finance-payment-tickets-panel {
@@ -8554,18 +8564,9 @@ button.finance-daily-cash-method-card:disabled {
   min-height: 0;
 }
 
-#financeBatchPaymentModal .finance-batch-client-balance-row {
-  display: grid;
-  grid-template-columns:
-    minmax(132px, 1fr)
-    minmax(78px, 0.48fr)
-    minmax(78px, 0.48fr);
-  gap: 5px;
-  align-items: center;
-}
-
-#financeBatchPaymentModal .finance-batch-client-balance-row strong,
-#financeBatchPaymentModal .finance-batch-client-balance-row span {
+#financeBatchPaymentModal .finance-batch-client-balance-head-cell,
+#financeBatchPaymentModal .finance-batch-client-balance-client,
+#financeBatchPaymentModal .finance-batch-client-balance-value {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -8573,37 +8574,23 @@ button.finance-daily-cash-method-card:disabled {
   font-size: 12px;
 }
 
-#financeBatchPaymentModal .finance-batch-client-balance-head span {
+#financeBatchPaymentModal .finance-batch-client-balance-head-cell {
+  padding: 0 5px 2px;
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 800;
 }
 
-#financeBatchPaymentModal .finance-batch-client-balance-head {
-  padding: 0 5px 2px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
-}
-
-#financeBatchPaymentModal .finance-batch-client-balance-row:not(.finance-batch-client-balance-head) {
-  padding: 3px 5px;
-  border: 1px solid rgba(34, 197, 94, 0.16);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.84);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.035);
-}
-
-#financeBatchPaymentModal .finance-batch-client-balance-row:not(.finance-batch-client-balance-head):hover {
-  border-color: rgba(34, 197, 94, 0.30);
-  background: rgba(255, 255, 255, 0.92);
-}
-
-#financeBatchPaymentModal .finance-batch-client-balance-row span:not(:first-child) {
+#financeBatchPaymentModal .finance-batch-client-balance-head-cell.is-amount {
   text-align: right;
+}
+
+#financeBatchPaymentModal .finance-batch-client-balance-client {
+  padding: 3px 5px;
   font-weight: 800;
 }
 
-#financeBatchPaymentModal .finance-batch-client-balance-row:not(.finance-batch-client-balance-head) span:nth-child(2),
-#financeBatchPaymentModal .finance-batch-client-balance-row:not(.finance-batch-client-balance-head) span:nth-child(3) {
+#financeBatchPaymentModal .finance-batch-client-balance-value {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -8611,6 +8598,7 @@ button.finance-daily-cash-method-card:disabled {
   padding: 0 6px;
   border-radius: 999px;
   background: transparent;
+  font-weight: 800;
 }
 
 #financeBatchPaymentModal .finance-balance-positive {
@@ -8681,9 +8669,7 @@ button.finance-daily-cash-method-card:disabled {
   border-bottom: 1px solid rgba(148, 163, 184, 0.14);
 }
 
-#financeBatchPaymentModal .finance-batch-ticket-group > strong,
-#financeBatchPaymentModal .finance-batch-ticket-group > span,
-#financeBatchPaymentModal .finance-batch-ticket-head span {
+#financeBatchPaymentModal .finance-batch-ticket-cell {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -8691,22 +8677,20 @@ button.finance-daily-cash-method-card:disabled {
   font-size: 12px;
 }
 
-#financeBatchPaymentModal .finance-batch-ticket-head span {
+#financeBatchPaymentModal .finance-batch-ticket-head .finance-batch-ticket-cell {
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 800;
 }
 
-#financeBatchPaymentModal .finance-batch-ticket-head span:nth-child(n + 5) {
-  text-align: right;
-}
-
-#financeBatchPaymentModal .finance-batch-ticket-group > span:nth-of-type(n + 4) {
+#financeBatchPaymentModal .finance-batch-ticket-cell.is-money {
   text-align: right;
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 
-#financeBatchPaymentModal .finance-batch-ticket-group > strong {
+#financeBatchPaymentModal .finance-batch-ticket-group > .finance-batch-ticket-cell.is-number {
   display: inline-flex;
   align-items: center;
   width: fit-content;
@@ -8719,7 +8703,7 @@ button.finance-daily-cash-method-card:disabled {
   color: #1d4ed8;
 }
 
-#financeBatchPaymentModal .finance-batch-ticket-group > span:last-of-type {
+#financeBatchPaymentModal .finance-batch-ticket-group > .finance-batch-ticket-cell.is-payable {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -9169,7 +9153,7 @@ button.finance-daily-cash-method-card:disabled {
   #financeManualTicketModal .finance-ticket-total,
   #financeAppointmentTicketModal .finance-ticket-total,
   #financeBatchPaymentModal .finance-ticket-total,
-  #financeBatchPaymentModal .finance-batch-client-balance-row,
+  #financeBatchPaymentModal .finance-batch-client-balances,
   #financeBatchPaymentModal .finance-batch-ticket-head,
   #financeBatchPaymentModal .finance-batch-ticket-group,
   #financeBatchPaymentModal .finance-batch-ticket-line,

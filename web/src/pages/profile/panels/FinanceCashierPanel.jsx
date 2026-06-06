@@ -1209,17 +1209,15 @@ function FinanceCashierPanel({
                     <header className="finance-payment-panel-head">
                       <span>{translate("Client Balances")}</span>
                     </header>
-                    <div className="finance-batch-client-balance-row finance-batch-client-balance-head">
-                      <span>{translate("Client")}</span>
-                      <span>{translate("Deposit")}</span>
-                      <span>{translate("Debt")}</span>
-                    </div>
+                    <span className="finance-batch-client-balance-head-cell">{translate("Client")}</span>
+                    <span className="finance-batch-client-balance-head-cell is-amount">{translate("Deposit")}</span>
+                    <span className="finance-batch-client-balance-head-cell is-amount">{translate("Debt")}</span>
                     {batchClientSummaries.map((client) => (
-                      <div className="finance-batch-client-balance-row" key={client.clientId}>
-                        <strong>{client.clientName}</strong>
-                        <span className={client.depositUzs > 0 ? "finance-balance-positive" : ""}>{formatMoney(client.depositUzs)}</span>
-                        <span className={client.debtUzs > 0 ? "finance-balance-negative" : ""}>{formatMoney(client.debtUzs)}</span>
-                      </div>
+                      <Fragment key={client.clientId}>
+                        <strong className="finance-batch-client-balance-client">{client.clientName}</strong>
+                        <span className={`finance-batch-client-balance-value${client.depositUzs > 0 ? " finance-balance-positive" : ""}`}>{formatMoney(client.depositUzs)}</span>
+                        <span className={`finance-batch-client-balance-value${client.debtUzs > 0 ? " finance-balance-negative" : ""}`}>{formatMoney(client.debtUzs)}</span>
+                      </Fragment>
                     ))}
                   </section>
 
@@ -1241,23 +1239,23 @@ function FinanceCashierPanel({
                   </header>
                   <div className="finance-batch-ticket-list">
                     <div className="finance-batch-ticket-head">
-                      <span>{translate("Ticket Number")}</span>
-                      <span>{translate("Ticket Date")}</span>
-                      <span>{translate("Specialist")}</span>
-                      <span>{translate("Service")}</span>
-                      <span>{translate("Service Price")}</span>
-                      <span>{translate("Discount")}</span>
-                      <span>{translate("To Pay")}</span>
+                      <span className="finance-batch-ticket-cell is-number">{translate("Ticket Number")}</span>
+                      <span className="finance-batch-ticket-cell is-date">{translate("Ticket Date")}</span>
+                      <span className="finance-batch-ticket-cell is-specialist">{translate("Specialist")}</span>
+                      <span className="finance-batch-ticket-cell is-service">{translate("Service")}</span>
+                      <span className="finance-batch-ticket-cell is-money">{translate("Service Price")}</span>
+                      <span className="finance-batch-ticket-cell is-money">{translate("Discount")}</span>
+                      <span className="finance-batch-ticket-cell is-money is-payable">{translate("To Pay")}</span>
                     </div>
                     {batchPaymentTickets.map((ticket) => (
                       <div className="finance-batch-ticket-group" key={String(ticket.id)}>
-                        <strong>{formatTicketNumber(ticket.ticketNumber)}</strong>
-                        <span>{formatDateYMD(ticket.ticketDate || ticket.appointmentDate)}</span>
-                        <span>{getTicketSpecialistSummary(ticket)}</span>
-                        <span>{getTicketServiceSummary(ticket)}</span>
-                        <span>{formatMoney(getTicketServicePriceAmount(ticket))}</span>
-                        <span>{formatMoney(getTicketDiscountAmount(ticket))}</span>
-                        <span>{formatMoney(getTicketPayableAmount(ticket))}</span>
+                        <strong className="finance-batch-ticket-cell is-number">{formatTicketNumber(ticket.ticketNumber)}</strong>
+                        <span className="finance-batch-ticket-cell is-date">{formatDateYMD(ticket.ticketDate || ticket.appointmentDate)}</span>
+                        <span className="finance-batch-ticket-cell is-specialist">{getTicketSpecialistSummary(ticket)}</span>
+                        <span className="finance-batch-ticket-cell is-service">{getTicketServiceSummary(ticket)}</span>
+                        <span className="finance-batch-ticket-cell is-money">{formatMoney(getTicketServicePriceAmount(ticket))}</span>
+                        <span className="finance-batch-ticket-cell is-money">{formatMoney(getTicketDiscountAmount(ticket))}</span>
+                        <span className="finance-batch-ticket-cell is-money is-payable">{formatMoney(getTicketPayableAmount(ticket))}</span>
                         {getTicketLineItems(ticket).length > 1 ? (
                           <div className="finance-batch-ticket-lines">
                             <div className="finance-batch-ticket-line finance-batch-ticket-line-head">

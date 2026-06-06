@@ -161,26 +161,31 @@ test("batch ticket payments omit empty unrelated source fields", () => {
   );
 });
 
-test("batch payment modal keeps ticket and payment inputs wrapperless", async () => {
+test("batch payment modal keeps client balance, ticket and payment inputs wrapperless", async () => {
   const styles = await readFile(
     new URL("../src/css/components/components.css", import.meta.url),
     "utf8"
   );
 
-  assert.match(
-    styles,
-    /#financeBatchPaymentModal \.finance-batch-client-balance-row:not\(\.finance-batch-client-balance-head\) \{[\s\S]*padding: 3px 5px;/s,
-    "Client balance rows in the payment modal should use compact padding."
-  );
   assert.doesNotMatch(
     cashierPanelSource,
-    /finance-batch-ticket-row|finance-batch-payment-row/,
-    "Ticket and payment row wrappers should not be rendered in the payment modal."
+    /finance-batch-client-balance-row|finance-batch-ticket-row|finance-batch-payment-row/,
+    "Client balance, ticket and payment row wrappers should not be rendered in the payment modal."
   );
   assert.doesNotMatch(
     styles,
-    /\.finance-batch-ticket-row|\.finance-batch-payment-row/,
-    "Ticket and payment row wrapper styles should not remain after flattening the modal."
+    /\.finance-batch-client-balance-row|\.finance-batch-ticket-row|\.finance-batch-payment-row/,
+    "Client balance, ticket and payment row wrapper styles should not remain after flattening the modal."
+  );
+  assert.match(
+    styles,
+    /#financeBatchPaymentModal \.finance-batch-client-balances \{[\s\S]*grid-template-columns:[\s\S]*minmax\(132px, 1fr\)[\s\S]*minmax\(78px, 0\.48fr\)[\s\S]*minmax\(78px, 0\.48fr\);/s,
+    "Client balance cells should be laid out directly by the balances panel grid."
+  );
+  assert.match(
+    cashierPanelSource,
+    /finance-batch-client-balance-head-cell[\s\S]*finance-batch-client-balance-client[\s\S]*finance-batch-client-balance-value/s,
+    "Client balance labels and values should render directly without a row wrapper."
   );
   assert.match(
     styles,
@@ -189,8 +194,8 @@ test("batch payment modal keeps ticket and payment inputs wrapperless", async ()
   );
   assert.match(
     cashierPanelSource,
-    /finance-batch-ticket-head[\s\S]*translate\("Ticket Number"\)[\s\S]*translate\("Ticket Date"\)[\s\S]*translate\("Specialist"\)[\s\S]*translate\("Service"\)[\s\S]*translate\("Service Price"\)[\s\S]*translate\("Discount"\)[\s\S]*translate\("To Pay"\)[\s\S]*batchPaymentTickets\.map/s,
-    "Ticket payment rows should show service price, discount and amount to pay instead of the client column."
+    /finance-batch-ticket-head[\s\S]*className="finance-batch-ticket-cell is-number"[\s\S]*translate\("Ticket Number"\)[\s\S]*className="finance-batch-ticket-cell is-date"[\s\S]*translate\("Ticket Date"\)[\s\S]*className="finance-batch-ticket-cell is-specialist"[\s\S]*translate\("Specialist"\)[\s\S]*className="finance-batch-ticket-cell is-service"[\s\S]*translate\("Service"\)[\s\S]*className="finance-batch-ticket-cell is-money"[\s\S]*translate\("Service Price"\)[\s\S]*className="finance-batch-ticket-cell is-money"[\s\S]*translate\("Discount"\)[\s\S]*className="finance-batch-ticket-cell is-money is-payable"[\s\S]*translate\("To Pay"\)[\s\S]*batchPaymentTickets\.map/s,
+    "Ticket payment headers should use explicit column classes for stable vertical alignment."
   );
   assert.doesNotMatch(
     cashierPanelSource,
@@ -199,8 +204,13 @@ test("batch payment modal keeps ticket and payment inputs wrapperless", async ()
   );
   assert.match(
     cashierPanelSource,
-    /formatMoney\(getTicketServicePriceAmount\(ticket\)\)[\s\S]*formatMoney\(getTicketDiscountAmount\(ticket\)\)[\s\S]*formatMoney\(getTicketPayableAmount\(ticket\)\)/,
-    "Ticket payment rows should include service price, discount and to-pay amounts."
+    /className="finance-batch-ticket-cell is-number"[\s\S]*formatTicketNumber\(ticket\.ticketNumber\)[\s\S]*className="finance-batch-ticket-cell is-date"[\s\S]*formatDateYMD\(ticket\.ticketDate \|\| ticket\.appointmentDate\)[\s\S]*className="finance-batch-ticket-cell is-specialist"[\s\S]*getTicketSpecialistSummary\(ticket\)[\s\S]*className="finance-batch-ticket-cell is-service"[\s\S]*getTicketServiceSummary\(ticket\)[\s\S]*className="finance-batch-ticket-cell is-money"[\s\S]*formatMoney\(getTicketServicePriceAmount\(ticket\)\)[\s\S]*className="finance-batch-ticket-cell is-money"[\s\S]*formatMoney\(getTicketDiscountAmount\(ticket\)\)[\s\S]*className="finance-batch-ticket-cell is-money is-payable"[\s\S]*formatMoney\(getTicketPayableAmount\(ticket\)\)/,
+    "Ticket payment row values should use the same explicit column classes as their headers."
+  );
+  assert.match(
+    styles,
+    /#financeBatchPaymentModal \.finance-batch-ticket-cell\.is-money \{[\s\S]*text-align: right;[\s\S]*font-variant-numeric: tabular-nums;/s,
+    "Ticket amount columns should align consistently under their headers."
   );
   assert.match(
     styles,
