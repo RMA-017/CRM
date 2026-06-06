@@ -155,6 +155,20 @@ function getTicketPayableAmount(ticket) {
   return normalizeMoneyInput(ticket?.remainingAmountUzs ?? ticket?.remaining_amount_uzs ?? ticket?.totalUzs ?? ticket?.amountUzs);
 }
 
+function getTicketServicePriceAmount(ticket) {
+  return getTicketLineItems(ticket).reduce((sum, item) => {
+    const price = normalizeMoneyInput(item?.priceUzs);
+    if (price > 0) {
+      return sum + price;
+    }
+    return sum + normalizeMoneyInput(item?.finalAmountUzs) + normalizeMoneyInput(item?.discountUzs);
+  }, 0);
+}
+
+function getTicketDiscountAmount(ticket) {
+  return getTicketLineItems(ticket).reduce((sum, item) => sum + normalizeMoneyInput(item?.discountUzs), 0);
+}
+
 function getTicketLineItems(item) {
   const rows = Array.isArray(item?.items)
     ? item.items.filter((row) => row && typeof row === "object")
@@ -1229,18 +1243,20 @@ function FinanceCashierPanel({
                     <div className="finance-batch-ticket-head">
                       <span>{translate("Ticket Number")}</span>
                       <span>{translate("Ticket Date")}</span>
-                      <span>{translate("Client")}</span>
                       <span>{translate("Specialist")}</span>
                       <span>{translate("Service")}</span>
-                      <span>{translate("Total")}</span>
+                      <span>{translate("Service Price")}</span>
+                      <span>{translate("Discount")}</span>
+                      <span>{translate("To Pay")}</span>
                     </div>
                     {batchPaymentTickets.map((ticket) => (
                       <div className="finance-batch-ticket-group" key={String(ticket.id)}>
                         <strong>{formatTicketNumber(ticket.ticketNumber)}</strong>
                         <span>{formatDateYMD(ticket.ticketDate || ticket.appointmentDate)}</span>
-                        <span>{ticket.clientName || "-"}</span>
                         <span>{getTicketSpecialistSummary(ticket)}</span>
                         <span>{getTicketServiceSummary(ticket)}</span>
+                        <span>{formatMoney(getTicketServicePriceAmount(ticket))}</span>
+                        <span>{formatMoney(getTicketDiscountAmount(ticket))}</span>
                         <span>{formatMoney(getTicketPayableAmount(ticket))}</span>
                         {getTicketLineItems(ticket).length > 1 ? (
                           <div className="finance-batch-ticket-lines">

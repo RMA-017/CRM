@@ -160,6 +160,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Services table", uz: "Xizmatlar jadvali", ru: "Таблица услуг" },
   { en: "Service settings table", uz: "Xizmat sozlamalari jadvali", ru: "Таблица настроек услуг" },
   { en: "Service Name", uz: "Xizmat nomi", ru: "Название услуги" },
+  { en: "Service Price", uz: "Xizmat narxi", ru: "Цена услуг" },
   { en: "Price", uz: "Narx", ru: "Цена" },
   { en: "Select service", uz: "Xizmatni tanlang", ru: "Выберите услугу" },
   { en: "No services found.", uz: "Xizmatlar topilmadi.", ru: "Услуги не найдены." },

@@ -188,6 +188,21 @@ test("batch payment modal keeps ticket and payment inputs wrapperless", async ()
     "Ticket cells should be laid out by the ticket group instead of an inner row wrapper."
   );
   assert.match(
+    cashierPanelSource,
+    /finance-batch-ticket-head[\s\S]*translate\("Ticket Number"\)[\s\S]*translate\("Ticket Date"\)[\s\S]*translate\("Specialist"\)[\s\S]*translate\("Service"\)[\s\S]*translate\("Service Price"\)[\s\S]*translate\("Discount"\)[\s\S]*translate\("To Pay"\)[\s\S]*batchPaymentTickets\.map/s,
+    "Ticket payment rows should show service price, discount and amount to pay instead of the client column."
+  );
+  assert.doesNotMatch(
+    cashierPanelSource,
+    /finance-batch-ticket-head[\s\S]*translate\("Client"\)[\s\S]*batchPaymentTickets\.map/,
+    "Ticket payment rows should not repeat the client name because client balances already show it."
+  );
+  assert.match(
+    cashierPanelSource,
+    /formatMoney\(getTicketServicePriceAmount\(ticket\)\)[\s\S]*formatMoney\(getTicketDiscountAmount\(ticket\)\)[\s\S]*formatMoney\(getTicketPayableAmount\(ticket\)\)/,
+    "Ticket payment rows should include service price, discount and to-pay amounts."
+  );
+  assert.match(
     styles,
     /#financeBatchPaymentModal \.finance-batch-payment-list \{[\s\S]*grid-template-columns: minmax\(170px, 0\.72fr\) minmax\(260px, 1fr\) minmax\(130px, 0\.48fr\) auto;/s,
     "Payment source controls should be laid out directly by the payment list grid."
@@ -227,18 +242,28 @@ test("batch payment modal keeps a polished dense payment layout", async () => {
   );
   assert.match(
     styles,
-    /#financeBatchPaymentModal \.finance-payment-checkout-top \{[\s\S]*grid-template-columns: minmax\(280px, 0\.64fr\) minmax\(360px, 1fr\);/s,
-    "Payment modal first block should place client balances on the left and a compact summary on the right."
+    /#financeBatchPaymentModal \.finance-payment-checkout-top \{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s,
+    "Payment modal first block should split client balances and checkout summary evenly."
   );
   assert.match(
     styles,
-    /#financeBatchPaymentModal \.finance-ticket-total \{[\s\S]*gap: 6px;[\s\S]*padding: 7px;[\s\S]*background: linear-gradient\(180deg, rgba\(255, 255, 255, 0\.96\), rgba\(248, 250, 252, 0\.92\)\);/s,
-    "Payment modal totals should be grouped in a compact summary band."
+    /#financeBatchPaymentModal \.finance-ticket-total \{[\s\S]*gap: 6px;[\s\S]*padding: 7px;[\s\S]*border: 1px solid rgba\(34, 197, 94, 0\.20\);[\s\S]*background: linear-gradient\(180deg, rgba\(240, 253, 244, 0\.46\), rgba\(255, 255, 255, 0\.92\)\);/s,
+    "Payment modal totals should match the client balances green summary background."
   );
   assert.match(
     styles,
     /#financeBatchPaymentModal \.finance-payment-checkout-summary \{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[\s\S]*align-content: stretch;/s,
     "Checkout summary should show two totals per row in the first block."
+  );
+  assert.doesNotMatch(
+    styles,
+    /#financeBatchPaymentModal [^{]*finance-(?:ticket-total|payment-checkout-summary)[^{]*::before/,
+    "Checkout summary total cells should not draw horizontal line indicators."
+  );
+  assert.doesNotMatch(
+    styles,
+    /#financeBatchPaymentModal [^{]*(?:finance-payment-checkout-panel|finance-batch-client-balances|finance-payment-tickets-panel|finance-batch-payment-methods)[^{]*::before/,
+    "Payment checkout panels should not draw top horizontal line indicators."
   );
   assert.match(
     styles,
