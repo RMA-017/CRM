@@ -262,8 +262,8 @@ test("batch payment modal keeps a polished dense payment layout", async () => {
   );
   assert.match(
     styles,
-    /#financeBatchPaymentModal \.finance-payment-checkout-top \{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s,
-    "Payment modal first block should split client balances and checkout summary evenly."
+    /#financeBatchPaymentModal \.finance-payment-checkout-top \{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[\s\S]*align-items: start;/s,
+    "Payment modal first block should split client balances and checkout summary evenly without stretching the shorter block."
   );
   assert.match(
     styles,
@@ -272,8 +272,8 @@ test("batch payment modal keeps a polished dense payment layout", async () => {
   );
   assert.match(
     styles,
-    /#financeBatchPaymentModal \.finance-payment-checkout-summary \{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[\s\S]*align-content: stretch;/s,
-    "Checkout summary should show two totals per row in the first block."
+    /#financeBatchPaymentModal \.finance-payment-checkout-summary \{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[\s\S]*align-content: start;/s,
+    "Checkout summary should show two compact totals per row in the first block."
   );
   assert.doesNotMatch(
     styles,

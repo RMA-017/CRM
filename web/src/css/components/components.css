@@ -7936,7 +7936,7 @@ button.finance-daily-cash-method-card:disabled {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  align-items: stretch;
+  align-items: start;
   min-width: 0;
   min-height: 0;
 }
@@ -8325,9 +8325,9 @@ button.finance-daily-cash-method-card:disabled {
 
 #financeBatchPaymentModal .finance-payment-checkout-summary {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 5px;
-  align-content: stretch;
-  padding: 6px;
+  gap: 4px;
+  align-content: start;
+  padding: 5px;
 }
 
 #financeManualTicketModal .finance-ticket-total > .finance-total-cell,
@@ -8361,11 +8361,11 @@ button.finance-daily-cash-method-card:disabled {
 
 #financeBatchPaymentModal .finance-payment-checkout-summary > .finance-total-cell {
   height: auto;
-  min-height: 38px;
+  min-height: 34px;
   grid-template-columns: 1fr;
   align-content: center;
-  gap: 3px;
-  padding: 5px 7px;
+  gap: 2px;
+  padding: 4px 7px;
 }
 
 #financeBatchPaymentModal .finance-total-cell-external {
@@ -8502,14 +8502,14 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 #financeBatchPaymentModal .finance-batch-client-balances {
-  padding: 6px;
+  padding: 5px;
   border-color: rgba(34, 197, 94, 0.20);
   background: linear-gradient(180deg, rgba(240, 253, 244, 0.46), rgba(255, 255, 255, 0.92));
   grid-template-columns:
     minmax(132px, 1fr)
     minmax(78px, 0.48fr)
     minmax(78px, 0.48fr);
-  gap: 4px;
+  gap: 3px;
   align-items: center;
 }
 
@@ -8532,8 +8532,8 @@ button.finance-daily-cash-method-card:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 22px;
-  padding: 0 0 2px;
+  min-height: 20px;
+  padding: 0 0 1px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.14);
   color: var(--text-main);
 }
@@ -8576,7 +8576,7 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 #financeBatchPaymentModal .finance-batch-client-balance-head-cell {
-  padding: 0 5px 1px;
+  padding: 0 5px 1px 8px;
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 800;
@@ -8587,7 +8587,7 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 #financeBatchPaymentModal .finance-batch-client-balance-client {
-  padding: 2px 5px;
+  padding: 2px 5px 2px 8px;
   font-weight: 800;
 }
 
@@ -8595,8 +8595,8 @@ button.finance-daily-cash-method-card:disabled {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  min-height: 22px;
-  padding: 0 6px;
+  min-height: 20px;
+  padding: 0 5px;
   border-radius: 999px;
   background: transparent;
   font-weight: 800;
