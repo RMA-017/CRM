@@ -8325,8 +8325,10 @@ button.finance-daily-cash-method-card:disabled {
 
 #financeBatchPaymentModal .finance-payment-checkout-summary {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
   gap: 3px;
-  align-content: start;
+  align-self: stretch;
+  align-content: stretch;
   padding: 5px;
 }
 
@@ -8360,8 +8362,8 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 #financeBatchPaymentModal .finance-payment-checkout-summary > .finance-total-cell {
-  height: 22px;
-  min-height: 22px;
+  height: auto;
+  min-height: 26px;
   grid-template-columns: minmax(0, 1fr) max-content;
   align-content: center;
   align-items: center;

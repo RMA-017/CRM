@@ -1227,8 +1227,8 @@ function FinanceCashierPanel({
                   >
                     <div className="finance-total-cell finance-total-cell-total"><strong>{translate("To Pay")}</strong><span>{formatMoney(batchPaymentTotalUzs)}</span></div>
                     <div className="finance-total-cell finance-total-cell-external"><strong>{translate("External Payment")}</strong><span>{formatMoney(batchExternalTotalUzs)}</span></div>
-                    <div className="finance-total-cell finance-total-cell-deposit"><strong>{translate("From Client Balance")}</strong><span>{formatMoney(batchDepositTotalUzs)}</span></div>
                     <div className="finance-total-cell finance-total-cell-remaining"><strong>{translate(batchOverpaidUzs > 0 ? "Overpaid" : "Remaining")}</strong><span>{formatMoney(batchOverpaidUzs > 0 ? batchOverpaidUzs : batchRemainingUzs)}</span></div>
+                    <div className="finance-total-cell finance-total-cell-deposit"><strong>{translate("From Client Balance")}</strong><span>{formatMoney(batchDepositTotalUzs)}</span></div>
                   </section>
                 </div>
 
