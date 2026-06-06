@@ -44,7 +44,7 @@ function CustomSelect({
   const optionLabelByValue = useMemo(() => {
     const map = new Map();
     normalizedOptions.forEach((option) => {
-      map.set(option.value, option.selectedLabel || option.label);
+      map.set(String(option.value), option.selectedLabel || option.label);
     });
     return map;
   }, [normalizedOptions]);
@@ -73,7 +73,7 @@ function CustomSelect({
   }, [normalizedOptions, searchQuery, shouldShowSearch]);
 
   const selectedLabel = useMemo(() => {
-    return optionLabelByValue.get(value) || placeholder;
+    return optionLabelByValue.get(String(value)) || placeholder;
   }, [optionLabelByValue, placeholder, value]);
 
   useEffect(() => {
@@ -263,7 +263,7 @@ function CustomSelect({
               key={option.value}
               type="button"
               className="custom-select-option"
-              aria-selected={option.value === value ? "true" : "false"}
+              aria-selected={String(option.value) === String(value) ? "true" : "false"}
               onClick={() => {
                 onChange(option.value);
                 setOpen(false);

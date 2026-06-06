@@ -3,10 +3,13 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 
 test("ticket edit modal keeps only change reason and preserves existing note", async () => {
-  const source = await readFile(
-    new URL("../src/pages/profile/panels/FinanceTicketsPanel.jsx", import.meta.url),
-    "utf8"
-  );
+  const [source, customSelectSource] = await Promise.all([
+    readFile(
+      new URL("../src/pages/profile/panels/FinanceTicketsPanel.jsx", import.meta.url),
+      "utf8"
+    ),
+    readFile(new URL("../src/components/CustomSelect.jsx", import.meta.url), "utf8")
+  ]);
 
   assert.doesNotMatch(
     source,
@@ -27,6 +30,11 @@ test("ticket edit modal keeps only change reason and preserves existing note", a
     source,
     /function buildTicketHistoryDetails\(translate, item\)[\s\S]*details\.note \|\| details\.ticketNote[\s\S]*`\$\{translate\("Note"\)\}: \$\{note\}`[\s\S]*buildTicketHistoryDetails\(translate, item\)/s,
     "Ticket history details should show the creation note in the Details column."
+  );
+  assert.match(
+    customSelectSource,
+    /map\.set\(String\(option\.value\), option\.selectedLabel \|\| option\.label\);[\s\S]*optionLabelByValue\.get\(String\(value\)\)[\s\S]*aria-selected=\{String\(option\.value\) === String\(value\) \? "true" : "false"\}/s,
+    "Disabled client selects should still show labels when API ids arrive as numbers but form ids are strings."
   );
 });
 
