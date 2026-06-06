@@ -37,6 +37,17 @@ test("cashier ticket cards stay compact while payment modal shows multi-service 
     /finance-batch-ticket-lines[\s\S]*getTicketLineItems\(ticket\)\.map[\s\S]*lineItem\?\.serviceName[\s\S]*lineItem\?\.specialistName[\s\S]*lineItem\?\.finalAmountUzs/s,
     "The double-click payment modal should render each ticket line item with service, specialist and final amount."
   );
+
+  assert.match(
+    cashierPanelSource,
+    /function formatTicketNumberList\(tickets\) \{[\s\S]*formatTicketNumber\(ticket\?\.ticketNumber \?\? ticket\?\.ticket_number\)[\s\S]*numbers\.join\(", "\)[\s\S]*finance-modal-ticket-number">\{formatTicketNumberList\(batchPaymentTickets\)\}/s,
+    "The payment modal header should show real ticket numbers, not the selected ticket count."
+  );
+  assert.doesNotMatch(
+    cashierPanelSource,
+    /finance-modal-ticket-number">\{batchPaymentTickets\.length\}/,
+    "The payment modal ticket badge should not show 1 for every single-ticket payment."
+  );
 });
 
 test("appointment ticket modal derives price from the selected service before save", async () => {
@@ -77,6 +88,17 @@ test("appointment ticket modal derives price from the selected service before sa
     cashierPanelSource,
     /function getAppointmentTicketServiceName\(\{ source, services, serviceId \}\)[\s\S]*sourceServiceName[\s\S]*String\(serviceId \|\| ""\) === String\(source\?\.serviceId \|\| ""\)[\s\S]*payload\.items = \[\{[\s\S]*serviceId,[\s\S]*serviceName: getAppointmentTicketServiceName\(\{[\s\S]*source: item,[\s\S]*services: board\.services,[\s\S]*serviceId[\s\S]*priceUzs,[\s\S]*discountType: appointmentTicketForm\.discountType,[\s\S]*discountValue: appointmentTicketForm\.discountValue,[\s\S]*discountUzs: appointmentDiscountUzs/s,
     "Create Ticket should submit the selected service, real appointment service name and exact discount as a ticket line item."
+  );
+
+  assert.match(
+    cashierPanelSource,
+    /const openAppointmentTicketFromCard = async \(item\) => \{[\s\S]*if \(!item \|\| busyId \|\| !canCreateFinanceCashier\) return;[\s\S]*openAppointmentTicketModal\(item\);[\s\S]*\};/s,
+    "Double-clicking a pending appointment card should only open the ticket modal; status confirmation happens on save."
+  );
+  assert.doesNotMatch(
+    cashierPanelSource,
+    /openAppointmentTicketFromCard[\s\S]*updateAppointmentStatus\(item, "confirmed"/s,
+    "Opening the ticket modal should not move pending appointments into the confirmed column before save."
   );
 });
 

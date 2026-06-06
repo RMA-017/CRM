@@ -129,6 +129,13 @@ async function requireReportsAccess(request, reply, action) {
 }
 
 function sendRouteError(reply, error, fallbackMessage) {
+  if (error?.code === "MIGRATION_REQUIRED") {
+    return reply.status(409).send({
+      message: error?.message || "Database migration is required.",
+      code: error.code,
+      details: error.details || undefined
+    });
+  }
   const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
   return reply.status(statusCode).send({
     message: statusCode >= 500 ? fallbackMessage : (error?.message || fallbackMessage)

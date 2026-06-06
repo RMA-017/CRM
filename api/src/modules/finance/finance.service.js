@@ -1,9 +1,11 @@
 import pool from "../../config/db.js";
 import { parsePositiveInteger } from "../../lib/number.js";
+import { createMigrationRequiredError } from "../../lib/schema-guard.js";
 import { getAppointmentHistoryLockDaysByOrganization } from "../appointments/appointment-settings.service.js";
 import { updateAppointmentSchedulesByIds } from "../appointments/services/appointment-schedules.service.js";
 
 const BOARD_LIMIT = 80;
+const FINANCE_BATCH_PAYMENT_SCHEMA_ERROR_CODES = new Set(["42P01", "42703", "23502"]);
 
 function normalizeAmount(value, fallback = 0) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -16,6 +18,21 @@ function normalizeAmount(value, fallback = 0) {
 function parseIntegerAmount(value, fallback = 0) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function isFinanceBatchPaymentSchemaError(error) {
+  const code = String(error?.code || "");
+  if (!FINANCE_BATCH_PAYMENT_SCHEMA_ERROR_CODES.has(code)) {
+    return false;
+  }
+  const message = String(error?.message || "").toLowerCase();
+  return [
+    "finance_payment_groups",
+    "payment_group_id",
+    "payment_method_id",
+    "finance_ticket_payments",
+    "finance_transactions"
+  ].some((token) => message.includes(token));
 }
 
 function normalizeOptionalAmount(value) {
@@ -3572,14 +3589,20 @@ export async function createFinanceTicket({ organizationId, payload, actorUserId
 
     if (appointmentScheduleId) {
       source = "appointment";
-      appointment = await getAppointmentForTicket(db, { organizationId, appointmentScheduleId });
+      appointment = await getAppointmentForTicket(db, { organizationId, appointmentScheduleId, forUpdate: true });
       if (!appointment) {
         const error = new Error("Appointment not found.");
         error.statusCode = 404;
         throw error;
       }
-      if (appointment.status !== "confirmed") {
-        const error = new Error("Only confirmed appointments can become tickets.");
+      if (!["pending", "confirmed"].includes(appointment.status)) {
+        const error = new Error("Only pending or confirmed appointments can become tickets.");
+        error.statusCode = 400;
+        throw error;
+      }
+      const appointmentDate = normalizeDate(appointment.appointment_date);
+      if (appointment.status === "pending" && appointmentDate && appointmentDate > getTodayYmdInTashkent()) {
+        const error = new Error(`Future appointments cannot be confirmed. Requested date: ${appointmentDate}.`);
         error.statusCode = 400;
         throw error;
       }
@@ -3588,7 +3611,7 @@ export async function createFinanceTicket({ organizationId, payload, actorUserId
       ticketServiceId = appointment.service_id || null;
       serviceName = normalizeText(appointment.service_name, 128);
       amountUzs = requestedAmount > 0 ? requestedAmount : normalizeAmount(appointment.service_price_uzs, 0);
-      ticketDate = normalizeDate(appointment.appointment_date) || ticketDate;
+      ticketDate = appointmentDate || ticketDate;
     }
     ticketDate = ticketDate || getTodayYmdInTashkent();
     assertTicketDateIsNotFuture(ticketDate);
@@ -3629,6 +3652,41 @@ export async function createFinanceTicket({ organizationId, payload, actorUserId
     ticketServiceId = firstItem.serviceId || ticketServiceId || null;
     serviceName = firstItem.serviceName;
     amountUzs = totals.totalUzs;
+    if (appointmentScheduleId && appointment) {
+      const nextServiceId = parsePositiveInteger(firstItem.serviceId) || null;
+      const nextServiceName = normalizeText(firstItem.serviceName, 128);
+      const nextServicePriceUzs = normalizeAmount(firstItem.priceUzs, 0);
+      const currentServiceId = parsePositiveInteger(appointment.service_id) || null;
+      const currentServiceName = normalizeText(appointment.service_name, 128);
+      const currentServicePriceUzs = normalizeAmount(appointment.service_price_uzs, 0);
+      const shouldConfirmAppointment = appointment.status === "pending";
+      const shouldSyncService = (
+        currentServiceId !== nextServiceId
+        || currentServiceName !== nextServiceName
+        || currentServicePriceUzs !== nextServicePriceUzs
+      );
+      if (shouldConfirmAppointment || shouldSyncService) {
+        await updateAppointmentSchedulesByIds({
+          db,
+          organizationId,
+          actorUserId,
+          ids: [appointment.id],
+          specialistId: appointment.specialist_id,
+          clientId: appointment.client_id,
+          appointmentDate: normalizeDate(appointment.appointment_date),
+          startTime: appointment.start_time,
+          endTime: appointment.end_time,
+          durationMinutes: appointment.duration_minutes,
+          serviceId: nextServiceId,
+          serviceName: nextServiceName,
+          servicePriceUzs: nextServicePriceUzs,
+          status: shouldConfirmAppointment ? "confirmed" : appointment.status,
+          note: appointment.note || "",
+          applyAppointmentDate: false,
+          activateClient: false
+        });
+      }
+    }
     const ticketNumber = await getNextTicketNumber(db, organizationId);
 
     const insertResult = await db.query(
@@ -4479,6 +4537,13 @@ export async function payFinanceTicketsBatch({ organizationId, payload, actorUse
     };
   } catch (error) {
     await db.query("ROLLBACK").catch(() => {});
+    if (isFinanceBatchPaymentSchemaError(error)) {
+      throw createMigrationRequiredError("Finance payment migration is required before batch payments can be processed.", {
+        code: error?.code,
+        detail: error?.detail || error?.message || "",
+        migration: "20260606_000001_finance_payment_method_nullable_safety.sql"
+      });
+    }
     throw error;
   } finally {
     db.release();

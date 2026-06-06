@@ -92,6 +92,15 @@ function formatTicketNumber(value) {
   return number > 0 ? `#${String(number).padStart(5, "0")}` : "#-----";
 }
 
+function formatTicketNumberList(tickets) {
+  const numbers = (Array.isArray(tickets) ? tickets : [])
+    .map((ticket) => formatTicketNumber(ticket?.ticketNumber ?? ticket?.ticket_number))
+    .filter((value) => value !== "#-----");
+  if (numbers.length === 0) return "#-----";
+  if (numbers.length <= 3) return numbers.join(", ");
+  return `${numbers.slice(0, 3).join(", ")} +${numbers.length - 3}`;
+}
+
 function formatTime(value) {
   return String(value || "").slice(0, 5) || "-";
 }
@@ -673,15 +682,7 @@ function FinanceCashierPanel({
 
   const openAppointmentTicketFromCard = async (item) => {
     if (!item || busyId || !canCreateFinanceCashier) return;
-    const currentStatus = normalizeStatusKey(item.status);
-    if (currentStatus === "confirmed") {
-      openAppointmentTicketModal(item);
-      return;
-    }
-    const ticketSource = await updateAppointmentStatus(item, "confirmed");
-    if (ticketSource) {
-      openAppointmentTicketModal(ticketSource);
-    }
+    openAppointmentTicketModal(item);
   };
 
   const getCreateTicketDoubleClickProps = (item) => ({
@@ -1193,7 +1194,7 @@ function FinanceCashierPanel({
           <div id="financeBatchPaymentModal" className="logout-confirm-modal all-users-edit-modal finance-modal">
             <h3 className="finance-modal-title-with-number">
               <span>{translate("Ticket Payment")}</span>
-              <span className="finance-modal-ticket-number">{batchPaymentTickets.length}</span>
+              <span className="finance-modal-ticket-number">{formatTicketNumberList(batchPaymentTickets)}</span>
             </h3>
             <form className="auth-form" onSubmit={submitBatchPayment}>
               <div className="all-users-edit-fields">

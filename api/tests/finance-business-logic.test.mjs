@@ -126,17 +126,29 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
   );
 });
 
-test("finance ticket creation only accepts confirmed appointments and snapshots ticket item totals", () => {
+test("finance ticket creation accepts pending or confirmed appointments and snapshots ticket item totals", () => {
   assert.match(
     financeServiceSource,
-    /appointment = await getAppointmentForTicket[\s\S]*if \(appointment\.status !== "confirmed"\)[\s\S]*Only confirmed appointments can become tickets/s,
-    "Appointment-backed tickets must only be created from confirmed planner lessons."
+    /appointment = await getAppointmentForTicket\(db, \{ organizationId, appointmentScheduleId, forUpdate: true \}\)[\s\S]*if \(!\["pending", "confirmed"\]\.includes\(appointment\.status\)\)[\s\S]*Only pending or confirmed appointments can become tickets/s,
+    "Appointment-backed tickets should lock the planner lesson and only accept pending or confirmed statuses."
   );
 
   assert.match(
     financeServiceSource,
-    /ticketClientId = appointment\.client_id[\s\S]*ticketSpecialistId = appointment\.specialist_id[\s\S]*amountUzs = requestedAmount > 0 \? requestedAmount : normalizeAmount\(appointment\.service_price_uzs, 0\)[\s\S]*ticketDate = normalizeDate\(appointment\.appointment_date\) \|\| ticketDate/s,
+    /const appointmentDate = normalizeDate\(appointment\.appointment_date\);[\s\S]*appointment\.status === "pending" && appointmentDate && appointmentDate > getTodayYmdInTashkent\(\)[\s\S]*Future appointments cannot be confirmed/s,
+    "Pending appointment tickets should still block future appointments before confirming them."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /ticketClientId = appointment\.client_id[\s\S]*ticketSpecialistId = appointment\.specialist_id[\s\S]*amountUzs = requestedAmount > 0 \? requestedAmount : normalizeAmount\(appointment\.service_price_uzs, 0\)[\s\S]*ticketDate = appointmentDate \|\| ticketDate/s,
     "Appointment-backed tickets should snapshot client, specialist, service price and appointment date."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /const shouldConfirmAppointment = appointment\.status === "pending";[\s\S]*if \(shouldConfirmAppointment \|\| shouldSyncService\) \{[\s\S]*updateAppointmentSchedulesByIds[\s\S]*status: shouldConfirmAppointment \? "confirmed" : appointment\.status,[\s\S]*activateClient: false/s,
+    "Pending appointment cards should only be confirmed inside the ticket creation save transaction."
   );
 
   assert.match(
@@ -290,6 +302,18 @@ test("finance payments, deposits and refunds preserve cash-session and balance r
     financeServiceSource,
     /export async function payFinanceTicketsBatch[\s\S]*paid_amount_uzs[\s\S]*payableAmountUzs[\s\S]*if \(paidAmountUzs > totalAmountUzs\)[\s\S]*Payment amount exceeds selected tickets total\.[\s\S]*break;[\s\S]*const nextStatus = nextPaidAmountUzs >= ticket\.totalAmountUzs \? "paid" : "unpaid"[\s\S]*SET status = \$3/s,
     "Batch ticket payments should accept partial allocations and leave partially paid tickets in unpaid status."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /function isFinanceBatchPaymentSchemaError\(error\) \{[\s\S]*FINANCE_BATCH_PAYMENT_SCHEMA_ERROR_CODES[\s\S]*finance_payment_groups[\s\S]*payment_group_id[\s\S]*payment_method_id[\s\S]*export async function payFinanceTicketsBatch[\s\S]*createMigrationRequiredError\("Finance payment migration is required before batch payments can be processed\.",[\s\S]*20260606_000001_finance_payment_method_nullable_safety\.sql/s,
+    "Batch ticket payment schema mismatches should be reported as migration-required instead of a generic 500."
+  );
+
+  assert.match(
+    financeRoutesSource,
+    /function sendRouteError\(reply, error, fallbackMessage\) \{[\s\S]*error\?\.code === "MIGRATION_REQUIRED"[\s\S]*reply\.status\(409\)[\s\S]*code: error\.code/s,
+    "Finance routes should return migration-required errors without masking them as generic payment failures."
   );
 
   assert.match(
