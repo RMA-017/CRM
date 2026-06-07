@@ -89,4 +89,10 @@ test("finance transaction void action is only exposed to cashier payment users",
     /#financeTransactionsPanel \.finance-transaction-void-btn \.services-settings-trash-icon \{[\s\S]*width: 12px;[\s\S]*max-width: 12px;[\s\S]*height: 12px;[\s\S]*max-height: 12px;[\s\S]*\}[\s\S]*#financeTransactionsPanel \.finance-transaction-void-btn \.services-settings-trash-icon::before \{[\s\S]*width: 14px;[\s\S]*max-width: 14px;/,
     "Transaction status trash icon should keep compact fixed lid and body lines."
   );
+
+  assert.match(
+    styles,
+    /#financeTransactionsPanel \.finance-transactions-table \.finance-transaction-void-btn \{[\s\S]*width: 30px;[\s\S]*min-width: 30px;[\s\S]*max-width: 30px;[\s\S]*height: 30px;[\s\S]*max-height: 30px;[\s\S]*padding: 0;/,
+    "Transaction status void button should override generic table action sizing."
+  );
 });

@@ -6548,6 +6548,17 @@ button.finance-daily-cash-method-card:disabled {
   flex: 0 0 30px;
 }
 
+#financeTransactionsPanel .finance-transactions-table .finance-transaction-void-btn {
+  flex: 0 0 30px;
+  width: 30px;
+  min-width: 30px;
+  max-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  max-height: 30px;
+  padding: 0;
+}
+
 .finance-transaction-void-btn .services-settings-trash-icon {
   flex: 0 0 13px;
   width: 13px;
