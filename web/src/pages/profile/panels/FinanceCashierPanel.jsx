@@ -155,6 +155,17 @@ function getTicketPayableAmount(ticket) {
   return normalizeMoneyInput(ticket?.remainingAmountUzs ?? ticket?.remaining_amount_uzs ?? ticket?.totalUzs ?? ticket?.amountUzs);
 }
 
+function getTicketClientId(ticket) {
+  return String(ticket?.clientId ?? ticket?.client_id ?? "").trim();
+}
+
+function getSelectedTicketClientId(ticketIds, tickets) {
+  const ids = ticketIds instanceof Set ? ticketIds : new Set();
+  const selectedTicket = (Array.isArray(tickets) ? tickets : [])
+    .find((ticket) => ids.has(String(ticket?.id || "")));
+  return getTicketClientId(selectedTicket);
+}
+
 function getTicketPaidAmount(ticket) {
   return normalizeMoneyInput(ticket?.paidAmountUzs ?? ticket?.paid_amount_uzs);
 }
@@ -325,14 +336,18 @@ function TicketCard({
   showShortDate = false,
   selectable = false,
   selected = false,
+  selectableDisabled = false,
+  selectableDisabledTitle = "",
   onSelectionChange
 }) {
   const statusKey = normalizeStatusKey(item?.status);
+  const selectionBlocked = selectableDisabled && !selected;
   const className = [
     "settings-card",
     compact ? "finance-card-compact" : "",
     statusKey ? `finance-board-card-${statusKey}` : "",
     selected ? "finance-board-card-selected" : "",
+    selectionBlocked ? "finance-board-card-selection-disabled" : "",
     onClick ? "settings-card-clickable" : "",
     onDoubleClick ? "finance-board-card-ticketable" : ""
   ].filter(Boolean).join(" ");
@@ -368,16 +383,19 @@ function TicketCard({
         <strong>{clientName}</strong>
         {selectable ? (
           <label
-            className="finance-ticket-select-control"
-            aria-label={selected ? "Deselect ticket" : "Select ticket"}
+            className={`finance-ticket-select-control${selectionBlocked ? " finance-ticket-select-control-disabled" : ""}`}
+            aria-label={selectionBlocked ? selectableDisabledTitle || "Select another client first" : (selected ? "Deselect ticket" : "Select ticket")}
+            title={selectionBlocked ? selectableDisabledTitle : undefined}
             onClick={(event) => event.stopPropagation()}
             onDoubleClick={(event) => event.stopPropagation()}
           >
             <input
               type="checkbox"
               checked={selected}
+              disabled={selectionBlocked}
               onChange={(event) => {
                 event.stopPropagation();
+                if (selectionBlocked) return;
                 onSelectionChange?.(event.currentTarget.checked);
               }}
               onClick={(event) => event.stopPropagation()}
@@ -483,6 +501,10 @@ function FinanceCashierPanel({
     || boardFilters.serviceId
     || boardFilters.specialistId
   );
+  const selectedTicketClientId = useMemo(
+    () => getSelectedTicketClientId(selectedTicketIds, board.issuedTickets),
+    [board.issuedTickets, selectedTicketIds]
+  );
   const selectedTicketCount = selectedTicketIds.size;
   const batchPaymentTotalUzs = useMemo(() => (
     batchPaymentTickets.reduce((sum, item) => sum + getTicketPayableAmount(item), 0)
@@ -514,14 +536,36 @@ function FinanceCashierPanel({
       };
     });
   }, [batchPaymentTickets, batchClientBalances]);
-  const batchClientOptions = useMemo(() => batchClientSummaries.map((client) => ({
-    value: client.clientId,
-    label: `${client.clientName} - ${translate("Deposit")}: ${formatMoney(client.depositUzs)}`
-  })), [batchClientSummaries, translate]);
+  const batchPaymentClient = batchClientSummaries[0] || null;
+  const batchPaymentClientName = String(batchPaymentClient?.clientName || batchPaymentTickets[0]?.clientName || "-").trim() || "-";
   const batchDepositTotalUzs = useMemo(() => (
     batchPaymentRows.reduce((sum, row) => row.source === "deposit" ? sum + normalizeMoneyInput(row.amountUzs) : sum, 0)
   ), [batchPaymentRows]);
   const batchExternalTotalUzs = Math.max(batchPaidTotalUzs - batchDepositTotalUzs, 0);
+
+  useEffect(() => {
+    setSelectedTicketIds((current) => {
+      const ticketClientIds = new Map(
+        board.issuedTickets.map((ticket) => [String(ticket?.id || ""), getTicketClientId(ticket)])
+      );
+      const next = new Set();
+      let scopeClientId = "";
+      current.forEach((id) => {
+        const clientId = ticketClientIds.get(String(id)) || "";
+        if (!clientId) return;
+        if (!scopeClientId) {
+          scopeClientId = clientId;
+        }
+        if (clientId === scopeClientId) {
+          next.add(String(id));
+        }
+      });
+      if (next.size === current.size && Array.from(next).every((id) => current.has(id))) {
+        return current;
+      }
+      return next;
+    });
+  }, [board.issuedTickets]);
 
   const loadBoard = useCallback(async () => {
     const requestId = boardRequestRef.current + 1;
@@ -801,9 +845,14 @@ function FinanceCashierPanel({
   const toggleTicketSelection = (item, checked) => {
     const id = String(item?.id || "");
     if (!id) return;
+    const clientId = getTicketClientId(item);
     setSelectedTicketIds((current) => {
       const next = new Set(current);
       if (checked) {
+        const scopeClientId = getSelectedTicketClientId(current, board.issuedTickets);
+        if (scopeClientId && clientId !== scopeClientId) {
+          return current;
+        }
         next.add(id);
       } else {
         next.delete(id);
@@ -848,11 +897,12 @@ function FinanceCashierPanel({
       window.alert?.(translate("Cash is closed. Open cash before accepting payments."));
       return;
     }
-    const itemId = String(item?.id || "");
     const selectedItems = board.issuedTickets.filter((ticket) => selectedTicketIds.has(String(ticket.id)));
-    const nextTickets = selectedItems.length > 0 && selectedTicketIds.has(itemId)
-      ? selectedItems
-      : (item ? [item] : selectedItems);
+    const scopeClientId = selectedItems.length > 0
+      ? getSelectedTicketClientId(selectedTicketIds, board.issuedTickets)
+      : getTicketClientId(item);
+    const candidates = selectedItems.length > 0 ? selectedItems : (item ? [item] : selectedItems);
+    const nextTickets = candidates.filter((ticket) => getTicketClientId(ticket) === scopeClientId);
     if (nextTickets.length === 0) return;
     const totalUzs = nextTickets.reduce((sum, ticket) => sum + getTicketPayableAmount(ticket), 0);
     setBatchPaymentTickets(nextTickets);
@@ -923,6 +973,12 @@ function FinanceCashierPanel({
     event.preventDefault();
     if (batchPaymentSubmitting || !canPayFinanceCashier) return;
     const ticketIds = batchPaymentTickets.map((ticket) => Number.parseInt(String(ticket.id), 10)).filter(Boolean);
+    const batchClientIds = new Set(batchPaymentTickets.map(getTicketClientId).filter(Boolean));
+    if (batchClientIds.size !== 1) {
+      window.alert?.(translate("Select tickets from one client only."));
+      return;
+    }
+    const batchClientId = Array.from(batchClientIds)[0] || "";
     const payments = batchPaymentRows
       .map((row) => {
         const source = row.source === "deposit" ? "deposit" : "method";
@@ -931,7 +987,7 @@ function FinanceCashierPanel({
           amountUzs: normalizeMoneyInput(row.amountUzs)
         };
         if (source === "deposit") {
-          payment.clientId = String(row.clientId || "").trim();
+          payment.clientId = batchClientId;
         } else {
           payment.paymentMethodId = String(row.paymentMethodId || "").trim();
         }
@@ -1197,19 +1253,30 @@ function FinanceCashierPanel({
 
         <section className="settings-card-column">
           <BoardColumnTitle count={selectedTicketCount} total={board.issuedTickets.length} label="Tickets" translate={translate} />
-          {visibleBoard.issuedTickets.map((item) => (
-            <TicketCard
-              key={String(item.id)}
-              item={item}
-              compact
-              showShortDate
-              selectable
-              selected={selectedTicketIds.has(String(item.id))}
-              onSelectionChange={(checked) => toggleTicketSelection(item, checked)}
-              onDoubleClick={() => openBatchPaymentModal(item)}
-              actionTitle={selectedTicketCount > 0 ? translate("Double-click to pay selected tickets") : translate("Double-click to pay ticket")}
-            />
-          ))}
+          {visibleBoard.issuedTickets.map((item) => {
+            const itemId = String(item.id);
+            const selected = selectedTicketIds.has(itemId);
+            const selectionDisabled = Boolean(
+              selectedTicketClientId
+              && getTicketClientId(item) !== selectedTicketClientId
+              && !selected
+            );
+            return (
+              <TicketCard
+                key={itemId}
+                item={item}
+                compact
+                showShortDate
+                selectable
+                selected={selected}
+                selectableDisabled={selectionDisabled}
+                selectableDisabledTitle={translate("Select tickets from one client only.")}
+                onSelectionChange={(checked) => toggleTicketSelection(item, checked)}
+                onDoubleClick={() => openBatchPaymentModal(item)}
+                actionTitle={selectedTicketCount > 0 ? translate("Double-click to pay selected tickets") : translate("Double-click to pay ticket")}
+              />
+            );
+          })}
           {visibleBoard.issuedTickets.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
         </section>
 
@@ -1329,15 +1396,9 @@ function FinanceCashierPanel({
                           />
                         </label>
                         {row.source === "deposit" ? (
-                          <label className="field finance-batch-payment-target">
-                            <CustomSelect
-                              value={row.clientId}
-                              options={batchClientOptions}
-                              placeholder={translate("Client")}
-                              menuPortal
-                              onChange={(value) => updateBatchPaymentRow(row.key, { clientId: value })}
-                            />
-                          </label>
+                          <div className="finance-batch-payment-target finance-batch-payment-client-locked" aria-label={translate("Client")}>
+                            <span>{batchPaymentClientName}</span>
+                          </div>
                         ) : (
                           <label className="field finance-batch-payment-target">
                             <CustomSelect

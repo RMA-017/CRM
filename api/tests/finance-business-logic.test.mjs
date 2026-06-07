@@ -79,8 +79,8 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
 
   assert.match(
     financeServiceSource,
-    /const summaryResult = await pool\.query\([\s\S]*SUM\(COALESCE\(ft\.total_uzs, ft\.amount_uzs, 0\)\)[\s\S]*SUM\(COALESCE\(fpaid\.paid_amount_uzs, 0\)\)[\s\S]*SUM\(GREATEST\([\s\S]*COALESCE\(ft\.total_uzs, ft\.amount_uzs, 0\) - COALESCE\(fpaid\.paid_amount_uzs, 0\)[\s\S]*summary: \{[\s\S]*totalAmountUzs:[\s\S]*paidAmountUzs:[\s\S]*remainingAmountUzs:/s,
-    "Finance ticket list should return summary totals for the full current filter, not only the visible page."
+    /const summaryResult = await pool\.query\([\s\S]*SUM\(COALESCE\(ft\.subtotal_uzs, ft\.amount_uzs, 0\)\)[\s\S]*SUM\(COALESCE\(ft\.discount_uzs, 0\)\)[\s\S]*SUM\(COALESCE\(ft\.total_uzs, ft\.amount_uzs, 0\)\)[\s\S]*SUM\(COALESCE\(fpaid\.paid_amount_uzs, 0\)\)[\s\S]*SUM\(GREATEST\([\s\S]*COALESCE\(ft\.total_uzs, ft\.amount_uzs, 0\) - COALESCE\(fpaid\.paid_amount_uzs, 0\)[\s\S]*summary: \{[\s\S]*subtotalAmountUzs:[\s\S]*discountAmountUzs:[\s\S]*totalAmountUzs:[\s\S]*paidAmountUzs:[\s\S]*remainingAmountUzs:/s,
+    "Finance ticket list should return service price, discount and payment summary totals for the full current filter, not only the visible page."
   );
 
   assert.match(
@@ -302,6 +302,12 @@ test("finance payments, deposits and refunds preserve cash-session and balance r
     financeServiceSource,
     /export async function payFinanceTicketsBatch[\s\S]*LEFT JOIN LATERAL[\s\S]*FOR UPDATE OF ft[\s\S]*paid_amount_uzs[\s\S]*payableAmountUzs[\s\S]*if \(paidAmountUzs > totalAmountUzs\)[\s\S]*Payment amount exceeds selected tickets total\.[\s\S]*break;[\s\S]*const nextStatus = nextPaidAmountUzs >= ticket\.totalAmountUzs \? "paid" : "unpaid"[\s\S]*SET status = \$3/s,
     "Batch ticket payments should accept partial allocations and leave partially paid tickets in unpaid status."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /export async function payFinanceTicketsBatch[\s\S]*const selectedClientIds = new Set\(tickets\.map\(\(ticket\) => parsePositiveInteger\(ticket\.client_id\)\)\.filter\(Boolean\)\);[\s\S]*if \(selectedClientIds\.size !== 1\) \{[\s\S]*Select tickets from one client only\./s,
+    "Batch ticket payments should reject tickets from multiple clients."
   );
 
   assert.match(

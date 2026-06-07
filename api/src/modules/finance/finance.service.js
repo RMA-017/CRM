@@ -1436,7 +1436,9 @@ export async function getFinanceTickets({ organizationId, filters = {} }) {
   const countResult = await pool.query(`SELECT COUNT(*) AS total ${fromSql}`, params);
   const total = Number.parseInt(String(countResult.rows[0]?.total || "0"), 10) || 0;
   const summaryResult = await pool.query(
-    `SELECT COALESCE(SUM(COALESCE(ft.total_uzs, ft.amount_uzs, 0)), 0) AS total_amount_uzs,
+    `SELECT COALESCE(SUM(COALESCE(ft.subtotal_uzs, ft.amount_uzs, 0)), 0) AS subtotal_amount_uzs,
+            COALESCE(SUM(COALESCE(ft.discount_uzs, 0)), 0) AS discount_amount_uzs,
+            COALESCE(SUM(COALESCE(ft.total_uzs, ft.amount_uzs, 0)), 0) AS total_amount_uzs,
             COALESCE(SUM(COALESCE(fpaid.paid_amount_uzs, 0)), 0) AS paid_amount_uzs,
             COALESCE(SUM(GREATEST(
               COALESCE(ft.total_uzs, ft.amount_uzs, 0) - COALESCE(fpaid.paid_amount_uzs, 0),
@@ -1490,6 +1492,8 @@ export async function getFinanceTickets({ organizationId, filters = {} }) {
     pageSize,
     total,
     summary: {
+      subtotalAmountUzs: normalizeAmount(summaryRow.subtotal_amount_uzs, 0),
+      discountAmountUzs: normalizeAmount(summaryRow.discount_amount_uzs, 0),
       totalAmountUzs: normalizeAmount(summaryRow.total_amount_uzs, 0),
       paidAmountUzs: normalizeAmount(summaryRow.paid_amount_uzs, 0),
       remainingAmountUzs: normalizeAmount(summaryRow.remaining_amount_uzs, 0)
@@ -4356,6 +4360,12 @@ export async function payFinanceTicketsBatch({ organizationId, payload, actorUse
         0
       )
     }));
+    const selectedClientIds = new Set(tickets.map((ticket) => parsePositiveInteger(ticket.client_id)).filter(Boolean));
+    if (selectedClientIds.size !== 1) {
+      const error = new Error("Select tickets from one client only.");
+      error.statusCode = 400;
+      throw error;
+    }
     const totalAmountUzs = tickets.reduce((sum, ticket) => sum + ticket.payableAmountUzs, 0);
     const paidAmountUzs = payments.reduce((sum, payment) => sum + payment.amountUzs, 0)
       + depositPayments.reduce((sum, payment) => sum + payment.amountUzs, 0);

@@ -343,6 +343,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Overpaid", uz: "Ortiqcha", ru: "Переплата" },
   { en: "Payment total must match selected tickets total.", uz: "To'lov summasi tanlangan talonlar jami bilan teng bo'lishi kerak.", ru: "Сумма оплаты должна совпадать с итогом выбранных талонов." },
   { en: "Payment amount exceeds selected tickets total.", uz: "To'lov summasi tanlangan talonlar jami summasidan oshib ketdi.", ru: "Сумма оплаты превышает итог выбранных талонов." },
+  { en: "Select tickets from one client only.", uz: "Faqat bitta klientning talonlarini tanlang.", ru: "Выберите талоны только одного клиента." },
   { en: "Close ticket payment modal", uz: "Talonlar to'lovi oynasini yopish", ru: "Закрыть окно оплаты талонов" },
   { en: "Failed to load client balances.", uz: "Client balanslarini yuklab bo'lmadi.", ru: "Не удалось загрузить балансы клиентов." },
   { en: "Deposit transaction failed.", uz: "Depozit tranzaksiyasini bajarib bo'lmadi.", ru: "Не удалось выполнить депозитную транзакцию." },

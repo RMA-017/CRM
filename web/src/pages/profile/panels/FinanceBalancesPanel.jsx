@@ -87,7 +87,6 @@ function translateTransactionType(translate, type) {
 }
 
 function getTransactionActionLabel(translate, item) {
-  const ticket = item?.ticketNumber ? ` #${item.ticketNumber}` : "";
   const labels = {
     ticket_payment: "Ticket payment",
     deposit_in: "Client balance top-up",
@@ -98,10 +97,7 @@ function getTransactionActionLabel(translate, item) {
     correction: "Balance correction"
   };
   const type = String(item?.transactionType || "");
-  const base = translate(labels[type] || translateTransactionType(translate, type));
-  return ticket && ["ticket_payment", "deposit_ticket_payment", "deposit_ticket_refund", "refund"].includes(type)
-    ? `${base}${ticket}`
-    : base;
+  return translate(labels[type] || translateTransactionType(translate, type));
 }
 
 function getTransactionStatusLabel(translate, status) {
@@ -235,7 +231,7 @@ function FinanceBalancesPanel({ onClose }) {
       id: "cashier",
       label: "Cashier",
       className: "finance-client-ledger-col-cashier",
-      widthPx: 120,
+      widthPx: 160,
       render: (item) => item.cashierName || "-",
       exportValue: (item) => item.cashierName || ""
     },
@@ -610,11 +606,17 @@ function FinanceBalancesPanel({ onClose }) {
                 </colgroup>
                 <thead>
                   <tr>
-                    {visibleLedgerColumns.map((column) => (
-                      <th key={column.id} className={typeof column.cellClassName === "string" ? column.cellClassName : undefined}>
-                        {translate(column.label)}
-                      </th>
-                    ))}
+                    {visibleLedgerColumns.map((column) => {
+                      const headClassName = [
+                        column.className,
+                        typeof column.cellClassName === "string" ? column.cellClassName : ""
+                      ].filter(Boolean).join(" ");
+                      return (
+                        <th key={column.id} className={headClassName || undefined}>
+                          {translate(column.label)}
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -630,8 +632,9 @@ function FinanceBalancesPanel({ onClose }) {
                         const cellClassName = typeof column.cellClassName === "function"
                           ? column.cellClassName(item)
                           : column.cellClassName;
+                        const mergedCellClassName = [column.className, cellClassName].filter(Boolean).join(" ");
                         return (
-                          <td key={column.id} className={cellClassName || undefined}>
+                          <td key={column.id} className={mergedCellClassName || undefined}>
                             {column.render(item)}
                           </td>
                         );

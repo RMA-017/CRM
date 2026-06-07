@@ -167,18 +167,18 @@ test("ticket table exposes payment progress columns through the columns modal", 
 
   assert.match(
     source,
-    /const ALL_FINANCE_TICKET_COLUMN_IDS = Object\.freeze\(\[[\s\S]*"status",[\s\S]*"paid",[\s\S]*"remaining",[\s\S]*"actions"[\s\S]*const DEFAULT_FINANCE_TICKET_COLUMN_IDS = Object\.freeze\(\[[\s\S]*"status",[\s\S]*"toPay",[\s\S]*"paid",[\s\S]*"remaining",[\s\S]*"actions"/s,
-    "Ticket columns should make payment progress fields available while keeping the daily status columns visible by default."
+    /const ALL_FINANCE_TICKET_COLUMN_IDS = Object\.freeze\(\[[\s\S]*"status",[\s\S]*"servicePrice",[\s\S]*"discount",[\s\S]*"paid",[\s\S]*"remaining",[\s\S]*"actions"[\s\S]*const DEFAULT_FINANCE_TICKET_COLUMN_IDS = Object\.freeze\(\[[\s\S]*"status",[\s\S]*"servicePrice",[\s\S]*"discount",[\s\S]*"toPay",[\s\S]*"paid",[\s\S]*"remaining",[\s\S]*"actions"/s,
+    "Ticket columns should make service price, discount and payment progress fields available while keeping the daily status columns visible by default."
   );
   assert.match(
     source,
-    /const allowed = new Set\(ALL_FINANCE_TICKET_COLUMN_IDS\);[\s\S]*const normalized = ALL_FINANCE_TICKET_COLUMN_IDS\.filter/s,
-    "Stored table column choices should persist optional payment columns through the table columns modal."
+    /const allowed = new Set\(ALL_FINANCE_TICKET_COLUMN_IDS\);[\s\S]*const normalized = ALL_FINANCE_TICKET_COLUMN_IDS\.filter[\s\S]*FINANCE_TICKET_COLUMNS_STORAGE_VERSION[\s\S]*new Set\(\[...normalized, "servicePrice", "discount"\]\)/s,
+    "Stored table column choices should persist optional columns and add newly introduced defaults once."
   );
   assert.match(
     source,
-    /id: "status",[\s\S]*label: "Status",[\s\S]*translateTicketStatus\(translate, item\.status\)[\s\S]*id: "paid",[\s\S]*label: "Paid",[\s\S]*formatMoney\(item\.paidAmountUzs\)[\s\S]*id: "remaining",[\s\S]*label: "Remaining",[\s\S]*getTicketRemainingAmount\(item\)/s,
-    "Ticket table should render status, paid and remaining columns."
+    /id: "status",[\s\S]*label: "Status",[\s\S]*id: "servicePrice",[\s\S]*label: "Service Price",[\s\S]*getTicketServicePriceAmount\(item\)[\s\S]*id: "discount",[\s\S]*label: "Discount",[\s\S]*getTicketDiscountAmount\(item\)[\s\S]*id: "paid",[\s\S]*label: "Paid",[\s\S]*formatMoney\(item\.paidAmountUzs\)[\s\S]*id: "remaining",[\s\S]*label: "Remaining",[\s\S]*getTicketRemainingAmount\(item\)/s,
+    "Ticket table should render status, service price, discount, paid and remaining columns."
   );
   assert.doesNotMatch(
     source,
@@ -214,12 +214,12 @@ test("ticket table shows current query totals under matching columns", async () 
 
   assert.match(
     source,
-    /const EMPTY_TICKET_LIST_SUMMARY = Object\.freeze\(\{[\s\S]*totalAmountUzs: 0,[\s\S]*paidAmountUzs: 0,[\s\S]*remainingAmountUzs: 0[\s\S]*function normalizeTicketListSummary\(summary\)/s,
+    /const EMPTY_TICKET_LIST_SUMMARY = Object\.freeze\(\{[\s\S]*subtotalAmountUzs: 0,[\s\S]*discountAmountUzs: 0,[\s\S]*totalAmountUzs: 0,[\s\S]*paidAmountUzs: 0,[\s\S]*remainingAmountUzs: 0[\s\S]*function normalizeTicketListSummary\(summary\)/s,
     "Ticket list should normalize summary totals returned from the API."
   );
   assert.match(
     source,
-    /function getTicketSummaryColumnValue\(columnId, summary\) \{[\s\S]*columnId === "toPay"[\s\S]*summary\?\.totalAmountUzs[\s\S]*columnId === "paid"[\s\S]*summary\?\.paidAmountUzs[\s\S]*columnId === "remaining"[\s\S]*summary\?\.remainingAmountUzs/s,
+    /function getTicketSummaryColumnValue\(columnId, summary\) \{[\s\S]*columnId === "servicePrice"[\s\S]*summary\?\.subtotalAmountUzs[\s\S]*columnId === "discount"[\s\S]*summary\?\.discountAmountUzs[\s\S]*columnId === "toPay"[\s\S]*summary\?\.totalAmountUzs[\s\S]*columnId === "paid"[\s\S]*summary\?\.paidAmountUzs[\s\S]*columnId === "remaining"[\s\S]*summary\?\.remainingAmountUzs/s,
     "Ticket list should map query summary totals to their matching table columns."
   );
   assert.match(

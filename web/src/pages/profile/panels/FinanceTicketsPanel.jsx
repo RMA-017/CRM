@@ -26,6 +26,8 @@ const TICKET_STATUS_FILTER_OPTIONS = Object.freeze([
 
 const DEFAULT_TICKET_STATUS_FILTER = "issued,unpaid,paid";
 const FINANCE_TICKET_COLUMNS_STORAGE_KEY = "aaron_crm_finance_ticket_columns";
+const FINANCE_TICKET_COLUMNS_STORAGE_VERSION_KEY = `${FINANCE_TICKET_COLUMNS_STORAGE_KEY}_version`;
+const FINANCE_TICKET_COLUMNS_STORAGE_VERSION = "2026-06-service-price-discount";
 const ALL_FINANCE_TICKET_COLUMN_IDS = Object.freeze([
   "ticketNumber",
   "createdAt",
@@ -36,6 +38,8 @@ const ALL_FINANCE_TICKET_COLUMN_IDS = Object.freeze([
   "department",
   "specialist",
   "status",
+  "servicePrice",
+  "discount",
   "toPay",
   "paid",
   "remaining",
@@ -51,6 +55,8 @@ const DEFAULT_FINANCE_TICKET_COLUMN_IDS = Object.freeze([
   "department",
   "specialist",
   "status",
+  "servicePrice",
+  "discount",
   "toPay",
   "paid",
   "remaining",
@@ -64,6 +70,12 @@ function loadStoredTicketColumnIds() {
     const stored = Array.isArray(parsed) ? parsed : [];
     const allowed = new Set(ALL_FINANCE_TICKET_COLUMN_IDS);
     const normalized = ALL_FINANCE_TICKET_COLUMN_IDS.filter((id) => stored.includes(id) && allowed.has(id));
+    if (normalized.length > 0 && window.localStorage.getItem(FINANCE_TICKET_COLUMNS_STORAGE_VERSION_KEY) !== FINANCE_TICKET_COLUMNS_STORAGE_VERSION) {
+      const nextIds = new Set([...normalized, "servicePrice", "discount"]);
+      const next = ALL_FINANCE_TICKET_COLUMN_IDS.filter((id) => nextIds.has(id));
+      storeTicketColumnIds(next);
+      return next;
+    }
     return normalized.length > 0 ? normalized : [...DEFAULT_FINANCE_TICKET_COLUMN_IDS];
   } catch {
     return [...DEFAULT_FINANCE_TICKET_COLUMN_IDS];
@@ -74,6 +86,7 @@ function storeTicketColumnIds(columnIds) {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(FINANCE_TICKET_COLUMNS_STORAGE_KEY, JSON.stringify(columnIds));
+    window.localStorage.setItem(FINANCE_TICKET_COLUMNS_STORAGE_VERSION_KEY, FINANCE_TICKET_COLUMNS_STORAGE_VERSION);
   } catch {
     // Ignore storage failures; the current session state still works.
   }
@@ -113,6 +126,8 @@ const EMPTY_TICKET_EDIT_FORM = Object.freeze({
 });
 
 const EMPTY_TICKET_LIST_SUMMARY = Object.freeze({
+  subtotalAmountUzs: 0,
+  discountAmountUzs: 0,
   totalAmountUzs: 0,
   paidAmountUzs: 0,
   remainingAmountUzs: 0
@@ -154,6 +169,26 @@ function getTicketRemainingAmount(item) {
   const totalUzs = normalizeMoneyInput(item?.totalUzs ?? item?.amountUzs);
   const paidAmountUzs = normalizeMoneyInput(item?.paidAmountUzs);
   return Math.max(totalUzs - paidAmountUzs, 0);
+}
+
+function getTicketServicePriceAmount(item) {
+  const provided = normalizeMoneyInput(item?.subtotalUzs ?? item?.subtotal_uzs);
+  if (provided > 0) return provided;
+  const rows = Array.isArray(item?.items) ? item.items : [];
+  const rowsTotal = rows.reduce((sum, row) => {
+    const priceUzs = normalizeMoneyInput(row?.priceUzs ?? row?.price_uzs);
+    if (priceUzs > 0) return sum + priceUzs;
+    return sum + normalizeMoneyInput(row?.finalAmountUzs ?? row?.final_amount_uzs) + normalizeMoneyInput(row?.discountUzs ?? row?.discount_uzs);
+  }, 0);
+  if (rowsTotal > 0) return rowsTotal;
+  return normalizeMoneyInput(item?.totalUzs ?? item?.amountUzs) + normalizeMoneyInput(item?.discountUzs ?? item?.discount_uzs);
+}
+
+function getTicketDiscountAmount(item) {
+  const provided = normalizeMoneyInput(item?.discountUzs ?? item?.discount_uzs);
+  if (provided > 0) return provided;
+  const rows = Array.isArray(item?.items) ? item.items : [];
+  return rows.reduce((sum, row) => sum + normalizeMoneyInput(row?.discountUzs ?? row?.discount_uzs), 0);
 }
 
 function hasTicketPaymentActivity(item) {
@@ -294,6 +329,8 @@ function getSelectedOptionLabel(options, value, fallback = "") {
 
 function normalizeTicketListSummary(summary) {
   return {
+    subtotalAmountUzs: Number.parseInt(String(summary?.subtotalAmountUzs ?? 0), 10) || 0,
+    discountAmountUzs: Number.parseInt(String(summary?.discountAmountUzs ?? 0), 10) || 0,
     totalAmountUzs: Number.parseInt(String(summary?.totalAmountUzs ?? 0), 10) || 0,
     paidAmountUzs: Number.parseInt(String(summary?.paidAmountUzs ?? 0), 10) || 0,
     remainingAmountUzs: Number.parseInt(String(summary?.remainingAmountUzs ?? 0), 10) || 0
@@ -301,6 +338,8 @@ function normalizeTicketListSummary(summary) {
 }
 
 function getTicketSummaryColumnValue(columnId, summary) {
+  if (columnId === "servicePrice") return Number.parseInt(String(summary?.subtotalAmountUzs ?? 0), 10) || 0;
+  if (columnId === "discount") return Number.parseInt(String(summary?.discountAmountUzs ?? 0), 10) || 0;
   if (columnId === "toPay") return Number.parseInt(String(summary?.totalAmountUzs ?? 0), 10) || 0;
   if (columnId === "paid") return Number.parseInt(String(summary?.paidAmountUzs ?? 0), 10) || 0;
   if (columnId === "remaining") return Number.parseInt(String(summary?.remainingAmountUzs ?? 0), 10) || 0;
@@ -615,6 +654,18 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
       label: "Status",
       render: (item) => translateTicketStatus(translate, item.status),
       exportValue: (item) => translateTicketStatus(translate, item.status)
+    },
+    {
+      id: "servicePrice",
+      label: "Service Price",
+      render: (item) => formatMoney(getTicketServicePriceAmount(item)),
+      exportValue: (item) => getTicketServicePriceAmount(item)
+    },
+    {
+      id: "discount",
+      label: "Discount",
+      render: (item) => formatMoney(getTicketDiscountAmount(item)),
+      exportValue: (item) => getTicketDiscountAmount(item)
     },
     {
       id: "toPay",

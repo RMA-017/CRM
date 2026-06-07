@@ -75,6 +75,12 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     balancesPanelSource,
+    /const headClassName = \[[\s\S]*column\.className[\s\S]*className=\{headClassName \|\| undefined\}[\s\S]*const mergedCellClassName = \[column\.className, cellClassName\][\s\S]*className=\{mergedCellClassName \|\| undefined\}/s,
+    "Client ledger table should apply column sizing classes directly to visible header and body cells."
+  );
+
+  assert.match(
+    balancesPanelSource,
     /id: "ticketNumber"[\s\S]*className: "finance-client-ledger-col-ticket"[\s\S]*widthPx: 124/s,
     "Client ledger ticket number column should fit the translated header."
   );
@@ -113,6 +119,12 @@ test("client balance rows open a read-only client transaction ledger", () => {
     styles,
     /\.finance-client-ledger-table \{[\s\S]*min-width: 1680px/s,
     "Client ledger table should not keep a static width after columns are hidden."
+  );
+
+  assert.match(
+    styles,
+    /\.finance-client-ledger-table \{\s*width: max-content;\s*min-width: 100%;\s*table-layout: auto;\s*\}[\s\S]*#financeClientLedgerModal \.finance-client-ledger-table :is\(th, td\) \{[\s\S]*min-width: max-content;[\s\S]*overflow: visible;[\s\S]*text-overflow: clip;/,
+    "Client ledger columns should size automatically from their visible content instead of clipping cashier names."
   );
 
   assert.match(

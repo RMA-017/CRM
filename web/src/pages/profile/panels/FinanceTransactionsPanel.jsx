@@ -76,7 +76,6 @@ function translateTransactionType(translate, type) {
 }
 
 function getTransactionActionLabel(translate, item) {
-  const ticket = item?.ticketNumber ? ` #${item.ticketNumber}` : "";
   const labels = {
     ticket_payment: "Ticket payment",
     deposit_in: "Client balance top-up",
@@ -87,10 +86,7 @@ function getTransactionActionLabel(translate, item) {
     correction: "Balance correction"
   };
   const type = String(item?.transactionType || "");
-  const base = translate(labels[type] || translateTransactionType(translate, type));
-  return ticket && ["ticket_payment", "deposit_ticket_payment", "deposit_ticket_refund", "refund"].includes(type)
-    ? `${base}${ticket}`
-    : base;
+  return translate(labels[type] || translateTransactionType(translate, type));
 }
 
 function getTransactionStatusLabel(translate, status) {

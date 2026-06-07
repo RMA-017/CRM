@@ -6400,15 +6400,17 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 .finance-client-ledger-table {
-  table-layout: fixed;
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
 }
 
 #financeClientLedgerModal .finance-client-ledger-table :is(th, td) {
   width: auto;
-  min-width: 0;
+  min-width: max-content;
   max-width: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
   white-space: nowrap;
 }
 
@@ -6421,48 +6423,48 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 .finance-client-ledger-col-date {
-  width: 128px;
+  min-width: 128px;
 }
 
 .finance-client-ledger-col-operation {
-  width: 96px;
+  min-width: 96px;
 }
 
 .finance-client-ledger-col-action {
-  width: 190px;
+  min-width: 170px;
 }
 
 .finance-client-ledger-col-ticket {
-  width: 124px;
+  min-width: 124px;
 }
 
 .finance-client-ledger-col-service {
-  width: 180px;
+  min-width: 180px;
 }
 
 .finance-client-ledger-col-method {
-  width: 132px;
+  min-width: 132px;
 }
 
 .finance-client-ledger-col-money,
 .finance-client-ledger-col-deposit-change {
-  width: 122px;
+  min-width: 122px;
 }
 
 .finance-client-ledger-col-deposit-balance {
-  width: 132px;
+  min-width: 132px;
 }
 
 .finance-client-ledger-col-cashier {
-  width: 120px;
+  min-width: 160px;
 }
 
 .finance-client-ledger-col-status {
-  width: 96px;
+  min-width: 96px;
 }
 
 .finance-client-ledger-col-note {
-  width: 210px;
+  min-width: 210px;
 }
 
 .finance-transactions-table {
@@ -6531,13 +6533,30 @@ button.finance-daily-cash-method-card:disabled {
 .finance-transaction-void-btn {
   width: 30px;
   min-width: 30px;
+  max-width: 30px;
   height: 30px;
   min-height: 30px;
+  max-height: 30px;
   padding: 0;
   margin: 0 auto;
   border-radius: 8px;
   font-size: 16px;
   line-height: 1;
+  flex: 0 0 30px;
+}
+
+.finance-transaction-void-btn .services-settings-trash-icon {
+  flex: 0 0 13px;
+  width: 13px;
+  min-width: 13px;
+  max-width: 13px;
+  height: 13px;
+  min-height: 13px;
+  max-height: 13px;
+}
+
+.finance-transaction-void-btn .services-settings-trash-icon::before {
+  width: 17px;
 }
 
 .finance-transaction-void-btn:hover,
@@ -7558,6 +7577,10 @@ button.finance-daily-cash-method-card:disabled {
   box-shadow: 0 0 0 2px rgba(64, 138, 243, 0.14), var(--shadow-xs);
 }
 
+.finance-cashier-panel .finance-board-card-selection-disabled {
+  opacity: 0.62;
+}
+
 .finance-cashier-panel .settings-card-row {
   align-items: center;
   color: var(--text-secondary);
@@ -7638,6 +7661,15 @@ button.finance-daily-cash-method-card:disabled {
   margin: 0;
   accent-color: var(--brand);
   cursor: pointer;
+}
+
+.finance-cashier-panel .finance-ticket-select-control-disabled,
+.finance-cashier-panel .finance-ticket-select-control-disabled input {
+  cursor: not-allowed;
+}
+
+.finance-cashier-panel .finance-ticket-select-control-disabled input {
+  opacity: 0.45;
 }
 
 .finance-cashier-panel .settings-card-row:nth-child(2) span:first-child {
@@ -8629,9 +8661,9 @@ button.finance-daily-cash-method-card:disabled {
   display: grid;
   grid-template-columns: var(
     --finance-batch-ticket-columns,
-    minmax(104px, 0.58fr)
+    minmax(92px, 0.46fr)
     minmax(88px, 0.48fr)
-    minmax(124px, 0.72fr)
+    minmax(144px, 0.84fr)
     minmax(142px, 1fr)
     minmax(104px, 0.54fr)
     minmax(88px, 0.44fr)
@@ -8828,6 +8860,28 @@ button.finance-daily-cash-method-card:disabled {
   height: 30px;
   border-color: rgba(148, 163, 184, 0.28);
   background: rgba(255, 255, 255, 0.92);
+}
+
+#financeBatchPaymentModal .finance-batch-payment-client-locked {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 30px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  background: rgba(248, 250, 252, 0.72);
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+#financeBatchPaymentModal .finance-batch-payment-client-locked span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 #financeBatchPaymentModal .finance-batch-payment-list::-webkit-scrollbar {

@@ -156,8 +156,41 @@ test("cashier board filters live in header actions without visible labels", asyn
 test("batch ticket payments omit empty unrelated source fields", () => {
   assert.match(
     cashierPanelSource,
-    /const payment = \{[\s\S]*source,[\s\S]*amountUzs: normalizeMoneyInput\(row\.amountUzs\)[\s\S]*if \(source === "deposit"\) \{[\s\S]*payment\.clientId = String\(row\.clientId \|\| ""\)\.trim\(\);[\s\S]*\} else \{[\s\S]*payment\.paymentMethodId = String\(row\.paymentMethodId \|\| ""\)\.trim\(\);/s,
-    "Batch payments should only send clientId for deposit payments and paymentMethodId for external payments."
+    /const batchClientId = Array\.from\(batchClientIds\)\[0\] \|\| "";[\s\S]*const payment = \{[\s\S]*source,[\s\S]*amountUzs: normalizeMoneyInput\(row\.amountUzs\)[\s\S]*if \(source === "deposit"\) \{[\s\S]*payment\.clientId = batchClientId;[\s\S]*\} else \{[\s\S]*payment\.paymentMethodId = String\(row\.paymentMethodId \|\| ""\)\.trim\(\);/s,
+    "Batch payments should send the selected single client id for deposit payments and paymentMethodId for external payments."
+  );
+});
+
+test("batch ticket selection is limited to one client", () => {
+  assert.match(
+    cashierPanelSource,
+    /function getTicketClientId\(ticket\) \{[\s\S]*function getSelectedTicketClientId\(ticketIds, tickets\)/s,
+    "Cashier board should derive a stable selected client scope from selected tickets."
+  );
+  assert.match(
+    cashierPanelSource,
+    /const selectedTicketClientId = useMemo\([\s\S]*getSelectedTicketClientId\(selectedTicketIds, board\.issuedTickets\)[\s\S]*selectedTicketClientId[\s\S]*getTicketClientId\(item\) !== selectedTicketClientId[\s\S]*selectableDisabled=\{selectionDisabled\}/s,
+    "Ticket checkboxes should be disabled for other clients after one client is selected."
+  );
+  assert.match(
+    cashierPanelSource,
+    /const scopeClientId = selectedItems\.length > 0[\s\S]*const candidates = selectedItems\.length > 0 \? selectedItems : \(item \? \[item\] : selectedItems\);[\s\S]*const nextTickets = candidates\.filter\(\(ticket\) => getTicketClientId\(ticket\) === scopeClientId\);/s,
+    "Opening the payment modal should keep selected tickets within the selected client scope."
+  );
+  assert.match(
+    cashierPanelSource,
+    /const batchClientIds = new Set\(batchPaymentTickets\.map\(getTicketClientId\)\.filter\(Boolean\)\);[\s\S]*if \(batchClientIds\.size !== 1\) \{[\s\S]*Select tickets from one client only\./s,
+    "Payment submit should reject a stale mixed-client selection before calling the API."
+  );
+  assert.match(
+    cashierPanelSource,
+    /row\.source === "deposit" \? \([\s\S]*finance-batch-payment-client-locked[\s\S]*\{batchPaymentClientName\}[\s\S]*\) : \(/s,
+    "Deposit payment rows should show the locked single client instead of asking for a client select."
+  );
+  assert.doesNotMatch(
+    cashierPanelSource,
+    /options=\{batchClientOptions\}|onChange=\{\(value\) => updateBatchPaymentRow\(row\.key, \{ clientId: value \}\)\}/,
+    "Deposit payment rows should not render a selectable client dropdown."
   );
 });
 
