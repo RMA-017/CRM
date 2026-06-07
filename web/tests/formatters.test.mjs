@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatDateForInput, formatDateYMD, getInitial, normalizeProfile } from "../src/lib/formatters.js";
+import { formatDateForInput, formatDateTimeTashkent, formatDateYMD, getInitial, normalizeProfile } from "../src/lib/formatters.js";
 
 test("getInitial returns first letter or U", () => {
   assert.equal(getInitial("Ali"), "A");
@@ -11,6 +11,12 @@ test("formatDateYMD formats YYYY-MM-DD into DD.MM.YYYY", () => {
   assert.equal(formatDateYMD("2026-02-22"), "22.02.2026");
   assert.equal(formatDateYMD("2026-02-22T00:00:00.000Z"), "22.02.2026");
   assert.equal(formatDateYMD("invalid"), "-");
+});
+
+test("formatDateTimeTashkent converts UTC timestamps to Tashkent time", () => {
+  assert.equal(formatDateTimeTashkent("2026-06-07T15:45:00.000Z"), "07.06.2026 20:45");
+  assert.equal(formatDateTimeTashkent("2026-06-07T15:45:00.000"), "07.06.2026 20:45");
+  assert.equal(formatDateTimeTashkent("invalid"), "-");
 });
 
 test("formatDateForInput keeps valid date and rejects invalid", () => {

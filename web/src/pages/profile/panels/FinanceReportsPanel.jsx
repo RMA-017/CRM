@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import CustomSelect from "../../../components/CustomSelect.jsx";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { buildExportFilename, exportExcelWorkbook } from "../../../lib/excel-export.js";
-import { formatDateYMD } from "../../../lib/formatters.js";
+import { formatDateTimeTashkent, formatDateYMD } from "../../../lib/formatters.js";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 
 const EMPTY_FILTERS = Object.freeze({
@@ -131,14 +131,6 @@ function formatMoney(value) {
   return amount !== 0 ? `${amount.toLocaleString("ru-RU")} UZS` : "-";
 }
 
-function formatDateTime(value) {
-  const raw = String(value || "");
-  if (!raw) return "-";
-  const date = formatDateYMD(raw);
-  const timeMatch = raw.match(/T(\d{2}:\d{2})/);
-  return timeMatch ? `${date} ${timeMatch[1]}` : date;
-}
-
 function makeClientOption(item) {
   const id = String(item?.id ?? item?.clientId ?? "").trim();
   if (!id) return null;
@@ -229,11 +221,11 @@ function getReportColumnValue(columnKey, item, translate, forExport = false) {
   };
   switch (columnKey) {
     case "ticketCreatedAt":
-      return formatDateTime(item.ticketCreatedAt);
+      return formatDateTimeTashkent(item.ticketCreatedAt);
     case "ticketDate":
       return formatDateYMD(item.ticketDate);
     case "paymentDate":
-      return formatDateTime(item.transactionAt);
+      return formatDateTimeTashkent(item.transactionAt);
     case "ticketNumber":
       return forExport ? (item.ticketNumber || "") : (item.ticketNumber ? `#${item.ticketNumber}` : "-");
     case "client":

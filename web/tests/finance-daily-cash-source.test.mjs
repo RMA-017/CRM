@@ -45,8 +45,8 @@ test("daily cash shows payment method totals below the header", () => {
 
   assert.match(
     styles,
-    /\.finance-daily-cash-method-summary[\s\S]*grid-template-columns: repeat\(auto-fit, minmax\(170px, 1fr\)\);[\s\S]*\.finance-daily-cash-method-card[\s\S]*min-height: 78px;[\s\S]*button\.finance-daily-cash-method-card\.is-active[\s\S]*\.finance-daily-cash-method-card span[\s\S]*overflow-wrap: anywhere;[\s\S]*\.finance-daily-cash-method-card strong[\s\S]*overflow-wrap: anywhere;/s,
-    "Daily cash payment method cards should use a responsive summary block without clipping text."
+    /\.finance-daily-cash-method-summary[\s\S]*grid-template-columns: repeat\(auto-fit, minmax\(170px, 1fr\)\);[\s\S]*\.finance-daily-cash-method-card[\s\S]*min-height: 58px;[\s\S]*padding: 7px 10px;[\s\S]*button\.finance-daily-cash-method-card\.is-active[\s\S]*\.finance-daily-cash-method-card span[\s\S]*overflow-wrap: anywhere;[\s\S]*\.finance-daily-cash-method-card strong[\s\S]*overflow-wrap: anywhere;/s,
+    "Daily cash payment method cards should use a compact responsive summary block without clipping text."
   );
 });
 

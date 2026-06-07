@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import CustomSelect from "../../../components/CustomSelect.jsx";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { buildExportFilename, exportExcelWorkbook } from "../../../lib/excel-export.js";
-import { formatDateYMD, getTodayYmd } from "../../../lib/formatters.js";
+import { formatDateTimeTashkent, getTodayYmd } from "../../../lib/formatters.js";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 
 const EMPTY_FILTERS = Object.freeze({
@@ -52,14 +52,6 @@ function storeTransactionColumnIds(columnIds) {
 function formatMoney(value) {
   const amount = Number.parseInt(String(value ?? 0), 10) || 0;
   return amount > 0 ? `${amount.toLocaleString("ru-RU")} UZS` : "-";
-}
-
-function formatDateTime(value) {
-  const raw = String(value || "");
-  if (!raw) return "-";
-  const date = formatDateYMD(raw);
-  const timeMatch = raw.match(/T(\d{2}:\d{2})/);
-  return timeMatch ? `${date} ${timeMatch[1]}` : date;
 }
 
 function translateTransactionType(translate, type) {
@@ -131,8 +123,8 @@ function FinanceTransactionsPanel({ onClose, canPayFinanceCashier = false }) {
       id: "date",
       label: "Date",
       className: "finance-transactions-col-date",
-      render: (item) => formatDateTime(item.transactionAt),
-      exportValue: (item) => formatDateTime(item.transactionAt)
+      render: (item) => formatDateTimeTashkent(item.transactionAt),
+      exportValue: (item) => formatDateTimeTashkent(item.transactionAt)
     },
     {
       id: "action",

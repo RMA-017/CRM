@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { buildExportFilename, exportExcelWorkbook } from "../../../lib/excel-export.js";
-import { formatDateYMD } from "../../../lib/formatters.js";
+import { formatDateTimeTashkent } from "../../../lib/formatters.js";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 
 const EMPTY_FILTERS = Object.freeze({
@@ -63,14 +63,6 @@ function formatSignedMoney(value) {
   if (amount === 0) return "-";
   const sign = amount > 0 ? "+" : "-";
   return `${sign}${Math.abs(amount).toLocaleString("ru-RU")} UZS`;
-}
-
-function formatDateTime(value) {
-  const raw = String(value || "");
-  if (!raw) return "-";
-  const date = formatDateYMD(raw);
-  const timeMatch = raw.match(/T(\d{2}:\d{2})/);
-  return timeMatch ? `${date} ${timeMatch[1]}` : date;
 }
 
 function translateTransactionType(translate, type) {
@@ -144,8 +136,8 @@ function FinanceBalancesPanel({ onClose }) {
       label: "Operation Date",
       className: "finance-client-ledger-col-date",
       widthPx: 128,
-      render: (item) => formatDateTime(item.transactionAt || item.createdAt),
-      exportValue: (item) => formatDateTime(item.transactionAt || item.createdAt)
+      render: (item) => formatDateTimeTashkent(item.transactionAt || item.createdAt),
+      exportValue: (item) => formatDateTimeTashkent(item.transactionAt || item.createdAt)
     },
     {
       id: "operationNumber",

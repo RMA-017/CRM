@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { buildExportFilename, exportExcelWorkbook } from "../../../lib/excel-export.js";
-import { formatDateYMD } from "../../../lib/formatters.js";
+import { formatDateTimeTashkent, formatDateYMD } from "../../../lib/formatters.js";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 import CustomSelect from "../../../components/CustomSelect.jsx";
 
@@ -141,14 +141,6 @@ function formatMoney(value) {
 function formatSummaryMoney(value) {
   const amount = Number.parseInt(String(value ?? 0), 10) || 0;
   return `${Math.max(amount, 0).toLocaleString("ru-RU")} UZS`;
-}
-
-function formatDateTime(value) {
-  const raw = String(value || "");
-  if (!raw) return "-";
-  const date = formatDateYMD(raw);
-  const timeMatch = raw.match(/T(\d{2}:\d{2})/);
-  return timeMatch ? `${date} ${timeMatch[1]}` : date;
 }
 
 function formatDateInput(value) {
@@ -610,8 +602,8 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
     {
       id: "createdAt",
       label: "Created At",
-      render: (item) => formatDateTime(item.createdAt),
-      exportValue: (item) => formatDateTime(item.createdAt)
+      render: (item) => formatDateTimeTashkent(item.createdAt),
+      exportValue: (item) => formatDateTimeTashkent(item.createdAt)
     },
     {
       id: "clientName",
@@ -1671,7 +1663,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                     const detailLines = buildTicketHistoryDetails(translate, item);
                     return (
                       <tr key={String(item.id)}>
-                        <td>{formatDateTime(item.createdAt)}</td>
+                        <td>{formatDateTimeTashkent(item.createdAt)}</td>
                         <td>{getHistoryActionLabel(translate, item.action)}</td>
                         <td>{[item.fromStatus, item.toStatus].filter(Boolean).map((status) => translateTicketStatus(translate, status)).join(" -> ") || "-"}</td>
                         <td>{item.actorName || "-"}</td>

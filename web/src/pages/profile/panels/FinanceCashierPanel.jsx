@@ -1022,7 +1022,7 @@ function FinanceCashierPanel({
       }
       closeBatchPaymentModal(true);
       setSelectedTicketIds(new Set());
-      await refreshCashier();
+      await Promise.all([loadBoard(), loadCashSession()]);
     } catch {
       window.alert?.(translate("Ticket payment failed."));
     } finally {

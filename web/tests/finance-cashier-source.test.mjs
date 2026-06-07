@@ -240,6 +240,16 @@ test("batch ticket payment modal uses remaining totals and caps payment source a
     /const paymentTotalUzs = payments\.reduce\(\(sum, row\) => sum \+ normalizeMoneyInput\(row\.amountUzs\), 0\);[\s\S]*if \(paymentTotalUzs > batchPaymentTotalUzs\) \{[\s\S]*Payment amount exceeds selected tickets total\./s,
     "Submit should re-check total payments against the payable amount."
   );
+  assert.match(
+    cashierPanelSource,
+    /closeBatchPaymentModal\(true\);[\s\S]*setSelectedTicketIds\(new Set\(\)\);[\s\S]*await Promise\.all\(\[loadBoard\(\), loadCashSession\(\)\]\);/s,
+    "Successful batch payments should refresh cashier state with existing loaders after the payment commit."
+  );
+  assert.doesNotMatch(
+    cashierPanelSource,
+    /refreshCashier/,
+    "Successful batch payments should not call a missing refresh helper and show a false payment failure."
+  );
 });
 
 test("batch payment modal keeps client balance, ticket and payment inputs wrapperless", async () => {

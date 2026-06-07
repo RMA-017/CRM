@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import CustomSelect from "../../../components/CustomSelect.jsx";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { buildExportFilename, exportExcelWorkbook } from "../../../lib/excel-export.js";
-import { formatDateYMD, getTodayYmd } from "../../../lib/formatters.js";
+import { formatDateTimeTashkent, getTodayYmd } from "../../../lib/formatters.js";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 
 const EMPTY_FILTERS = Object.freeze({
@@ -69,14 +69,6 @@ function formatMoneyValue(value) {
 function normalizeMoneyInput(value) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-}
-
-function formatDateTime(value) {
-  const raw = String(value || "");
-  if (!raw) return "-";
-  const date = formatDateYMD(raw);
-  const timeMatch = raw.match(/T(\d{2}:\d{2})/);
-  return timeMatch ? `${date} ${timeMatch[1]}` : date;
 }
 
 function makeClientOption(item) {
@@ -167,7 +159,7 @@ function FinanceDailyCashPanel({ onClose, canPayFinanceCashier = false, currentU
   const [sessionForm, setSessionForm] = useState(EMPTY_SESSION_FORM);
   const [sessionSubmitting, setSessionSubmitting] = useState(false);
   const currentCashierName = String(currentUser?.fullName || currentUser?.username || "").trim();
-  const nowLabel = formatDateTime(new Date().toISOString());
+  const nowLabel = formatDateTimeTashkent(new Date().toISOString());
 
   const paymentMethodOptions = useMemo(() => paymentMethods.map((item) => ({
     value: String(item.id),
@@ -212,8 +204,8 @@ function FinanceDailyCashPanel({ onClose, canPayFinanceCashier = false, currentU
       id: "date",
       label: "Date",
       className: "finance-daily-cash-col-date",
-      render: (item) => formatDateTime(item.transactionAt),
-      exportValue: (item) => formatDateTime(item.transactionAt)
+      render: (item) => formatDateTimeTashkent(item.transactionAt),
+      exportValue: (item) => formatDateTimeTashkent(item.transactionAt)
     },
     {
       id: "paymentMethod",
@@ -817,7 +809,7 @@ function FinanceDailyCashPanel({ onClose, canPayFinanceCashier = false, currentU
                   <span>{translate("Cashier")}</span>
                   <strong>{sessionModal === "open" ? (currentCashierName || "-") : (cashSession?.cashierName || currentCashierName || "-")}</strong>
                   <span>{translate(sessionModal === "open" ? "Opening Time" : "Opened At")}</span>
-                  <strong>{sessionModal === "open" ? nowLabel : formatDateTime(cashSession?.openedAt)}</strong>
+                  <strong>{sessionModal === "open" ? nowLabel : formatDateTimeTashkent(cashSession?.openedAt)}</strong>
                   {sessionModal === "close" ? (
                     <>
                       <span>{translate("Closing Time")}</span>

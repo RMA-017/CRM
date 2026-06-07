@@ -11,10 +11,45 @@ export function getInitial(text) {
   return (value[0] || "U").toUpperCase();
 }
 
+const TASHKENT_TIME_ZONE = "Asia/Tashkent";
+
+const tashkentDateFormatter = new Intl.DateTimeFormat("ru-RU", {
+  timeZone: TASHKENT_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit"
+});
+
+const tashkentDateTimeFormatter = new Intl.DateTimeFormat("ru-RU", {
+  timeZone: TASHKENT_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false
+});
+
 function matchDateOnlyValue(raw) {
   return String(raw || "").trim().match(
     /^(\d{4})-(\d{2})-(\d{2})(?:[T\s]00:00(?::00(?:\.0{1,6})?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/
   );
+}
+
+function normalizeDateTimeValue(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const normalized = raw.replace(" ", "T");
+  const hasTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(normalized);
+  const hasTimeZone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(normalized);
+  return hasTime && !hasTimeZone ? `${normalized}Z` : normalized;
+}
+
+function formatParts(formatter, date) {
+  const parts = Object.fromEntries(
+    formatter.formatToParts(date).map((part) => [part.type, part.value])
+  );
+  return parts;
 }
 
 export function formatDateYMD(value) {
@@ -33,15 +68,39 @@ export function formatDateYMD(value) {
     return "-";
   }
 
-  const date = new Date(raw);
+  const date = new Date(normalizeDateTimeValue(raw));
   if (Number.isNaN(date.getTime())) {
     return "-";
   }
 
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const year = String(date.getFullYear());
+  const { day, month, year } = formatParts(tashkentDateFormatter, date);
   return `${day}.${month}.${year}`;
+}
+
+export function formatDateTimeTashkent(value) {
+  if (!value) {
+    return "-";
+  }
+
+  const raw = String(value).trim();
+  const dateOnlyMatch = matchDateOnlyValue(raw);
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    return `${day}.${month}.${year}`;
+  }
+
+  const normalized = normalizeDateTimeValue(raw);
+  if (!/^\d{4}-\d{2}-\d{2}(?:[T\s].*)?$/.test(normalized)) {
+    return "-";
+  }
+
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  const { day, month, year, hour, minute } = formatParts(tashkentDateTimeFormatter, date);
+  return `${day}.${month}.${year} ${hour}:${minute}`;
 }
 
 export function formatDateForInput(value) {
