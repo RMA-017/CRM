@@ -2005,6 +2005,8 @@ export async function getFinanceDailyCash({ organizationId, filters = {}, actorU
       )
     )`);
   }
+  const paymentSummaryParams = [...params];
+  const paymentSummaryWhereSql = where.join(" AND ");
   if (paymentMethodId) {
     params.push(paymentMethodId);
     where.push(`t.payment_method_id = $${params.length}`);
@@ -2018,7 +2020,15 @@ export async function getFinanceDailyCash({ organizationId, filters = {}, actorU
     LEFT JOIN finance_tickets ft ON ft.organization_id = t.organization_id AND ft.id = t.ticket_id
     LEFT JOIN finance_payment_methods fpm ON fpm.organization_id = t.organization_id AND fpm.id = t.payment_method_id
     LEFT JOIN users cu ON cu.id = s.cashier_user_id
-   WHERE ${whereSql}`;
+       WHERE ${whereSql}`;
+  const paymentSummaryFromSql = `
+    FROM finance_transactions t
+    JOIN finance_cash_sessions s ON s.organization_id = t.organization_id AND s.id = t.cash_session_id
+    LEFT JOIN clients c ON c.organization_id = t.organization_id AND c.id = t.client_id
+    LEFT JOIN finance_tickets ft ON ft.organization_id = t.organization_id AND ft.id = t.ticket_id
+    LEFT JOIN finance_payment_methods fpm ON fpm.organization_id = t.organization_id AND fpm.id = t.payment_method_id
+    LEFT JOIN users cu ON cu.id = s.cashier_user_id
+   WHERE ${paymentSummaryWhereSql}`;
   const countResult = await pool.query(`SELECT COUNT(*) AS total ${fromSql}`, params);
   const total = Number.parseInt(String(countResult.rows[0]?.total || "0"), 10) || 0;
   const summaryResult = await pool.query(
@@ -2034,10 +2044,10 @@ export async function getFinanceDailyCash({ organizationId, filters = {}, actorU
             COALESCE(SUM(CASE WHEN t.direction = 'in' THEN t.amount_uzs ELSE 0 END), 0) AS total_in_uzs,
             COALESCE(SUM(CASE WHEN t.direction = 'out' THEN t.amount_uzs ELSE 0 END), 0) AS total_out_uzs,
             COUNT(*) AS transaction_count
-       ${fromSql}
+       ${paymentSummaryFromSql}
       GROUP BY t.payment_method_id, fpm.name
       ORDER BY payment_method_name ASC`,
-    params
+    paymentSummaryParams
   );
   const listParams = [...params, pageSize, offset];
   const result = await pool.query(

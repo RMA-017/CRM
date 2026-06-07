@@ -6468,43 +6468,45 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 .finance-transactions-table {
-  table-layout: fixed;
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
 }
 
 .finance-transactions-col-date {
-  width: 118px;
+  min-width: 118px;
 }
 
 .finance-transactions-col-action {
-  width: 210px;
+  min-width: 170px;
 }
 
 .finance-transactions-col-ticket {
-  width: 92px;
+  min-width: 92px;
 }
 
 .finance-transactions-col-client {
-  width: 170px;
+  min-width: 180px;
 }
 
 .finance-transactions-col-client-id {
-  width: 86px;
+  min-width: 86px;
 }
 
 .finance-transactions-col-method {
-  width: 140px;
+  min-width: 140px;
 }
 
 .finance-transactions-col-amount {
-  width: 120px;
+  min-width: 120px;
 }
 
 .finance-transactions-col-cashier {
-  width: 130px;
+  min-width: 160px;
 }
 
 .finance-transactions-col-status {
-  width: 80px;
+  min-width: 80px;
 }
 
 .finance-transactions-table :is(th, td).finance-transactions-col-status {
@@ -6512,8 +6514,9 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 .finance-transactions-table :is(th, td) {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: max-content;
+  overflow: visible;
+  text-overflow: clip;
   white-space: nowrap;
 }
 
@@ -9100,6 +9103,34 @@ button.finance-daily-cash-method-card:disabled {
   border-radius: 2px 2px 0 0;
   background: currentColor;
   transform: translateX(-50%);
+}
+
+#financeTransactionsPanel .finance-transaction-void-btn .services-settings-trash-icon {
+  display: block;
+  flex: 0 0 12px;
+  width: 12px;
+  min-width: 12px;
+  max-width: 12px;
+  height: 12px;
+  min-height: 12px;
+  max-height: 12px;
+  border-width: 1.4px;
+  transform: translateY(0);
+}
+
+#financeTransactionsPanel .finance-transaction-void-btn .services-settings-trash-icon::before {
+  left: -1px;
+  top: -2px;
+  width: 14px;
+  max-width: 14px;
+  height: 2px;
+}
+
+#financeTransactionsPanel .finance-transaction-void-btn .services-settings-trash-icon::after {
+  top: -5px;
+  width: 5px;
+  max-width: 5px;
+  height: 2px;
 }
 
 .services-panel .all-users-head {

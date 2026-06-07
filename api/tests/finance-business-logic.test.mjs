@@ -350,8 +350,8 @@ test("finance daily cash and reports separate real cash movement from deposit tr
 
   assert.match(
     financeServiceSource,
-    /const paymentSummaryResult = await pool\.query\([\s\S]*COALESCE\(fpm\.name, 'No payment method'\) AS payment_method_name[\s\S]*GROUP BY t\.payment_method_id, fpm\.name[\s\S]*paymentMethods: paymentSummaryResult\.rows\.map/s,
-    "Daily cash should return totals grouped by payment method for the payment-method indicator block."
+    /const paymentSummaryParams = \[\.\.\.params\];[\s\S]*const paymentSummaryWhereSql = where\.join\(" AND "\);[\s\S]*if \(paymentMethodId\) \{[\s\S]*where\.push\(`t\.payment_method_id = \$\$\{params\.length\}`\);[\s\S]*const paymentSummaryResult = await pool\.query\([\s\S]*COALESCE\(fpm\.name, 'No payment method'\) AS payment_method_name[\s\S]*\$\{paymentSummaryFromSql\}[\s\S]*GROUP BY t\.payment_method_id, fpm\.name[\s\S]*paymentSummaryParams[\s\S]*paymentMethods: paymentSummaryResult\.rows\.map/s,
+    "Daily cash should keep payment method indicator totals independent from the selected payment-method table filter."
   );
 
   assert.match(

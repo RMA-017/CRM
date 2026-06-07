@@ -77,4 +77,16 @@ test("finance transaction void action is only exposed to cashier payment users",
     /\.finance-transactions-table :is\(th, td\)\.finance-transactions-col-status \{[\s\S]*text-align: center;/s,
     "Transaction status column should be centered."
   );
+
+  assert.match(
+    styles,
+    /\.finance-transactions-table \{\s*width: max-content;\s*min-width: 100%;\s*table-layout: auto;\s*\}[\s\S]*\.finance-transactions-col-cashier \{\s*min-width: 160px;\s*\}[\s\S]*\.finance-transactions-table :is\(th, td\) \{[\s\S]*min-width: max-content;[\s\S]*overflow: visible;[\s\S]*text-overflow: clip;/,
+    "Transaction table columns should size from visible content instead of clipping cashier names."
+  );
+
+  assert.match(
+    styles,
+    /#financeTransactionsPanel \.finance-transaction-void-btn \.services-settings-trash-icon \{[\s\S]*width: 12px;[\s\S]*max-width: 12px;[\s\S]*height: 12px;[\s\S]*max-height: 12px;[\s\S]*\}[\s\S]*#financeTransactionsPanel \.finance-transaction-void-btn \.services-settings-trash-icon::before \{[\s\S]*width: 14px;[\s\S]*max-width: 14px;/,
+    "Transaction status trash icon should keep compact fixed lid and body lines."
+  );
 });
