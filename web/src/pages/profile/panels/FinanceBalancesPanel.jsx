@@ -945,7 +945,8 @@ function FinanceBalancesPanel({ onClose }) {
                       value={depositForm.amountUzs}
                       onWheel={(event) => event.currentTarget.blur()}
                       onChange={(event) => {
-                        setDepositForm((current) => ({ ...current, amountUzs: event.currentTarget.value }));
+                        const value = event.currentTarget.value;
+                        setDepositForm((current) => ({ ...current, amountUzs: value }));
                       }}
                     />
                   </label>

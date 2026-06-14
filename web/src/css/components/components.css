@@ -6283,7 +6283,7 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 .finance-balances-col-client {
-  width: 40%;
+  width: 39%;
 }
 
 .finance-balances-col-debt {
@@ -6295,7 +6295,7 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 .finance-balances-col-actions {
-  width: 11%;
+  width: 12%;
 }
 
 .finance-balances-table :is(th, td) {
@@ -6337,29 +6337,31 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 .finance-balances-actions-cell {
-  padding-left: 5px;
-  padding-right: 5px;
+  padding-left: 6px;
+  padding-right: 6px;
 }
 
 .finance-balances-row-actions {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  width: max-content;
+  gap: 6px;
+  width: 100%;
   max-width: 100%;
   min-width: 0;
 }
 
 .finance-balances-panel .finance-balance-action-btn {
   box-sizing: border-box;
-  flex: 0 0 28px;
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
-  min-height: 28px;
+  display: inline-grid;
+  flex: 0 0 30px;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  place-items: center;
   padding: 0;
-  border-radius: 7px;
+  border-radius: 8px;
   border-color: rgba(148, 163, 184, 0.28);
   background: rgba(255, 255, 255, 0.82);
   color: var(--text-secondary);
