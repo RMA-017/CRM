@@ -189,14 +189,32 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     styles,
-    /\.finance-balances-col-actions \{\s*width: 12%;\s*\}[\s\S]*\.finance-balances-row-actions \{[\s\S]*gap: 6px;[\s\S]*width: 100%;[\s\S]*\.finance-balances-panel \.finance-balance-action-btn \{[\s\S]*width: 30px;[\s\S]*height: 30px;/,
-    "Balances deposit action buttons should stay aligned and use compact 30px controls."
+    /\.finance-balances-col-debt \{\s*width: 220px;\s*\}[\s\S]*\.finance-balances-col-deposit \{\s*width: 220px;\s*\}[\s\S]*\.finance-balances-col-actions \{\s*width: 220px;\s*\}[\s\S]*\.finance-balances-row-actions \{[\s\S]*gap: 6px;[\s\S]*width: 100%;[\s\S]*\.finance-balances-panel \.finance-balance-action-btn \{[\s\S]*flex-grow: 0;[\s\S]*flex-shrink: 0;[\s\S]*width: 30px;[\s\S]*max-width: 30px;[\s\S]*height: 30px;[\s\S]*max-height: 30px;/,
+    "Balances debt, deposit and action columns should be equal 220px columns while action buttons stay locked to 30px."
   );
 
   assert.match(
     styles,
-    /#financeDepositOperationModal\.finance-deposit-operation-modal\.is-topup \{\s*width: min\(874px,[\s\S]*#financeDepositOperationModal\.finance-deposit-operation-modal\.is-refund \{\s*width: min\(874px,[\s\S]*height: min\(560px,/,
-    "Deposit operation modals should share the same width and refund should keep a stable vertical size."
+    /#financeDepositOperationModal \.finance-deposit-operation-fields \{[\s\S]*padding: 0;/,
+    "Deposit operation fields should not add inner padding."
+  );
+
+  assert.match(
+    styles,
+    /#financeDepositOperationModal\.finance-deposit-operation-modal\.is-topup \{\s*width: min\(874px,[\s\S]*#financeDepositOperationModal\.finance-deposit-operation-modal\.is-refund \{\s*width: min\(874px,[\s\S]*height: auto;[\s\S]*max-height: min\(520px,/,
+    "Deposit operation modals should share the same width while refund stays compact vertically."
+  );
+
+  assert.match(
+    styles,
+    /#financeDepositOperationModal \.finance-deposit-source-list \{[\s\S]*height: 96px;[\s\S]*max-height: 96px;/,
+    "Refund deposit history list should reserve a compact stable height while loading rows."
+  );
+
+  assert.doesNotMatch(
+    styles,
+    /#financeDepositOperationModal\.is-refund \.auth-form \{\s*height: 100%;\s*\}/,
+    "Refund modal form should not stretch to a fixed tall height."
   );
 
   assert.match(
