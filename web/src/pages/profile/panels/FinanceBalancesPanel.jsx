@@ -133,16 +133,22 @@ function getClientLedgerNote(translate, item) {
   return note ? `${note} | ${cancelledText}` : cancelledText;
 }
 
-function getDepositSourceRows(items) {
+function getDepositSourceRows(items, currentDepositUzs) {
+  let remainingDepositUzs = Math.max(0, toIntegerAmount(currentDepositUzs));
   return (Array.isArray(items) ? items : [])
     .filter((item) => item?.status === "posted" && toIntegerAmount(item?.depositChangeUzs) > 0)
-    .map((item) => ({
-      id: item.id,
-      date: item.transactionAt || item.createdAt,
-      paymentMethodName: item.paymentMethodName || "",
-      amountUzs: toIntegerAmount(item.depositChangeUzs),
-      note: item.note || ""
-    }));
+    .map((item) => {
+      const amountUzs = Math.min(toIntegerAmount(item.depositChangeUzs), remainingDepositUzs);
+      remainingDepositUzs -= amountUzs;
+      return {
+        id: item.id,
+        date: item.transactionAt || item.createdAt,
+        paymentMethodName: item.paymentMethodName || "",
+        amountUzs,
+        note: item.note || ""
+      };
+    })
+    .filter((item) => item.amountUzs > 0);
 }
 
 function FinanceBalancesPanel({ onClose }) {
@@ -483,7 +489,7 @@ function FinanceBalancesPanel({ onClose }) {
     setLedgerColumnsOpen(false);
   };
 
-  const loadDepositSources = async (clientId) => {
+  const loadDepositSources = async (clientId, currentDepositUzs = 0) => {
     setDepositSourceRows([]);
     if (!clientId) return;
     setDepositSourceLoading(true);
@@ -494,7 +500,7 @@ function FinanceBalancesPanel({ onClose }) {
         window.alert?.(translate(data?.message || "Failed to load client transactions."));
         return;
       }
-      setDepositSourceRows(getDepositSourceRows(data?.items));
+      setDepositSourceRows(getDepositSourceRows(data?.items, data?.summary?.depositUzs ?? currentDepositUzs));
     } catch {
       window.alert?.(translate("Failed to load client transactions."));
     } finally {
@@ -508,7 +514,7 @@ function FinanceBalancesPanel({ onClose }) {
     setDepositSourceRows([]);
     void loadPaymentMethods();
     if (type === "refund") {
-      void loadDepositSources(item?.clientId);
+      void loadDepositSources(item?.clientId, item?.depositUzs);
     }
   };
 

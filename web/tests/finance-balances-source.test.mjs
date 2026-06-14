@@ -147,8 +147,14 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     balancesPanelSource,
-    /function getDepositSourceRows\(items\)[\s\S]*depositChangeUzs[\s\S]*Deposit income history[\s\S]*depositSourceRows\.length > 0/s,
-    "Refund modal should show how the client's deposit was funded before cashier chooses the refund method."
+    /function getDepositSourceRows\(items, currentDepositUzs\) \{[\s\S]*remainingDepositUzs = Math\.max\(0, toIntegerAmount\(currentDepositUzs\)\)[\s\S]*Math\.min\(toIntegerAmount\(item\.depositChangeUzs\), remainingDepositUzs\)[\s\S]*filter\(\(item\) => item\.amountUzs > 0\)/s,
+    "Refund modal should cap deposit source rows to the client's current actual deposit."
+  );
+
+  assert.match(
+    balancesPanelSource,
+    /getDepositSourceRows\(data\?\.items, data\?\.summary\?\.depositUzs \?\? currentDepositUzs\)[\s\S]*loadDepositSources\(item\?\.clientId, item\?\.depositUzs\)/s,
+    "Refund modal should derive source rows from the current deposit amount, not full historical income."
   );
 
   assert.match(
@@ -191,6 +197,12 @@ test("client balance rows open a read-only client transaction ledger", () => {
     styles,
     /\.finance-balances-col-debt \{\s*width: 220px;\s*\}[\s\S]*\.finance-balances-col-deposit \{\s*width: 220px;\s*\}[\s\S]*\.finance-balances-col-actions \{\s*width: 220px;\s*\}[\s\S]*\.finance-balances-row-actions \{[\s\S]*gap: 6px;[\s\S]*width: 100%;[\s\S]*\.finance-balances-panel \.finance-balance-action-btn \{[\s\S]*flex-grow: 0;[\s\S]*flex-shrink: 0;[\s\S]*width: 30px;[\s\S]*max-width: 30px;[\s\S]*height: 30px;[\s\S]*max-height: 30px;/,
     "Balances debt, deposit and action columns should be equal 220px columns while action buttons stay locked to 30px."
+  );
+
+  assert.match(
+    styles,
+    /\.finance-balance-action-icon-refund \{[\s\S]*linear-gradient\(currentColor, currentColor\) no-repeat 6px 4px \/ 7px 2px;[\s\S]*\.finance-balance-action-icon-refund::before \{[\s\S]*border-top: 0;[\s\S]*\.finance-balance-action-icon-refund::after \{[\s\S]*border-left: 2px solid currentColor;[\s\S]*border-bottom: 2px solid currentColor;/,
+    "Balance refund action should use a compact arrow-to-tray icon."
   );
 
   assert.match(
