@@ -317,6 +317,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Deposit", uz: "Depozit", ru: "Депозит" },
   { en: "Balance", uz: "Balans", ru: "Баланс" },
   { en: "Deposit In", uz: "Depozit qo'shish", ru: "Пополнить депозит" },
+  { en: "Top up", uz: "To'ldirish", ru: "Пополнить" },
   { en: "Deposit Out", uz: "Depozitdan yechish", ru: "Списать депозит" },
   { en: "Pay Tickets", uz: "Talonlarni yopish", ru: "Закрыть талоны" },
   { en: "Pay Tickets From Deposit", uz: "Talonlarni depozitdan yopish", ru: "Закрыть талоны с депозита" },

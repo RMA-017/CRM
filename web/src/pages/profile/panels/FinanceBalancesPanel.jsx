@@ -883,7 +883,6 @@ function FinanceBalancesPanel({ onClose }) {
           >
             <h3 className="finance-modal-title-with-number">
               <span>{translate(depositModalTitle)}</span>
-              <span className="finance-modal-ticket-number">{depositModalClient?.clientName || "-"}</span>
             </h3>
             <form className="auth-form" onSubmit={submitDepositOperation}>
               <div className="all-users-edit-fields finance-deposit-operation-fields">
@@ -942,16 +941,11 @@ function FinanceBalancesPanel({ onClose }) {
                     <input
                       type="number"
                       min="1"
-                      max={isDepositRefund ? toIntegerAmount(depositModalClient?.depositUzs) : undefined}
                       step="1"
                       value={depositForm.amountUzs}
                       onWheel={(event) => event.currentTarget.blur()}
                       onChange={(event) => {
-                        const rawValue = event.currentTarget.value;
-                        const amount = toIntegerAmount(rawValue);
-                        const maxAmount = isDepositRefund ? toIntegerAmount(depositModalClient?.depositUzs) : 0;
-                        const nextValue = rawValue && isDepositRefund && amount > maxAmount ? String(maxAmount) : rawValue;
-                        setDepositForm((current) => ({ ...current, amountUzs: nextValue }));
+                        setDepositForm((current) => ({ ...current, amountUzs: event.currentTarget.value }));
                       }}
                     />
                   </label>
@@ -976,7 +970,7 @@ function FinanceBalancesPanel({ onClose }) {
               <div className="edit-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => closeDepositModal()}>{translate("Cancel")}</button>
                 <button type="submit" className="btn" disabled={depositSubmitting || paymentMethodsLoading}>
-                  {depositSubmitting ? "..." : translate(isDepositRefund ? "Refund money" : "Top up deposit")}
+                  {depositSubmitting ? "..." : translate(isDepositRefund ? "Refund money" : "Top up")}
                 </button>
               </div>
             </form>

@@ -6271,7 +6271,7 @@ button.finance-daily-cash-method-card:disabled {
 
 .finance-balances-table {
   table-layout: fixed;
-  min-width: 780px;
+  min-width: 800px;
 }
 
 .finance-balances-col-index {
@@ -6283,7 +6283,7 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 .finance-balances-col-client {
-  width: 42%;
+  width: 40%;
 }
 
 .finance-balances-col-debt {
@@ -6295,7 +6295,7 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 .finance-balances-col-actions {
-  width: 9%;
+  width: 11%;
 }
 
 .finance-balances-table :is(th, td) {
@@ -6314,6 +6314,8 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 .finance-balances-table :is(th:nth-child(6), td:nth-child(6)) {
+  padding-left: 6px;
+  padding-right: 6px;
   text-align: center;
 }
 
@@ -6335,8 +6337,8 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 .finance-balances-actions-cell {
-  padding-left: 4px;
-  padding-right: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
 }
 
 .finance-balances-row-actions {
@@ -6344,10 +6346,13 @@ button.finance-daily-cash-method-card:disabled {
   align-items: center;
   justify-content: center;
   gap: 4px;
+  width: max-content;
+  max-width: 100%;
   min-width: 0;
 }
 
 .finance-balances-panel .finance-balance-action-btn {
+  box-sizing: border-box;
   flex: 0 0 28px;
   width: 28px;
   min-width: 28px;
@@ -6429,7 +6434,7 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 #financeDepositOperationModal.finance-deposit-operation-modal {
-  width: min(680px, calc(100vw - 24px));
+  width: min(780px, calc(100vw - 24px));
   height: auto;
   min-height: 0;
   max-height: min(620px, calc(100dvh - 24px));
@@ -6438,12 +6443,13 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 #financeDepositOperationModal.finance-deposit-operation-modal.is-topup {
-  width: min(620px, calc(100vw - 24px));
+  width: min(874px, calc(100vw - 24px));
   max-height: min(440px, calc(100dvh - 24px));
 }
 
 #financeDepositOperationModal.finance-deposit-operation-modal.is-refund {
-  width: min(760px, calc(100vw - 24px));
+  width: min(874px, calc(100vw - 24px));
+  height: min(560px, calc(100dvh - 24px));
   max-height: min(660px, calc(100dvh - 24px));
 }
 
@@ -6458,13 +6464,6 @@ button.finance-daily-cash-method-card:disabled {
 
 #financeDepositOperationModal h3.finance-modal-title-with-number > span:first-child {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-#financeDepositOperationModal .finance-modal-ticket-number {
-  max-width: min(320px, 48vw);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -6493,7 +6492,12 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 #financeDepositOperationModal.is-refund .finance-deposit-operation-fields {
+  height: 100%;
   max-height: 472px;
+}
+
+#financeDepositOperationModal.is-refund .auth-form {
+  height: 100%;
 }
 
 #financeDepositOperationModal .finance-deposit-operation-summary {
@@ -6633,6 +6637,14 @@ button.finance-daily-cash-method-card:disabled {
 #financeDepositOperationModal .edit-actions .btn {
   min-width: 118px;
   height: 32px;
+}
+
+#financeDepositOperationModal.is-topup .edit-actions .btn {
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+  padding-right: 6px;
+  padding-left: 6px;
 }
 
 #financeClientLedgerModal.finance-client-ledger-modal {
@@ -9629,10 +9641,6 @@ button.finance-daily-cash-method-card:disabled {
   #financeDepositOperationModal h3.finance-modal-title-with-number {
     flex-wrap: wrap;
     justify-content: flex-start;
-  }
-
-  #financeDepositOperationModal .finance-modal-ticket-number {
-    max-width: 100%;
   }
 
   #financeDepositOperationModal .finance-deposit-operation-summary,

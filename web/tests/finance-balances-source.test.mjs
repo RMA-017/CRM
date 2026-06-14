@@ -117,6 +117,30 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     balancesPanelSource,
+    /if \(isRefund && amountUzs > toIntegerAmount\(depositModal\.item\.depositUzs\)\) \{[\s\S]*window\.alert\?\.\(translate\("Refund amount exceeds client deposit\."\)\);[\s\S]*return;[\s\S]*\}/s,
+    "Refund submit should alert and stop when the amount exceeds the client's deposit."
+  );
+
+  assert.doesNotMatch(
+    balancesPanelSource,
+    /const nextValue = rawValue && isDepositRefund && amount > maxAmount|max=\{isDepositRefund \? toIntegerAmount\(depositModalClient\?\.depositUzs\) : undefined\}/,
+    "Refund amount input should not silently clamp over-limit values before the alert can run."
+  );
+
+  assert.doesNotMatch(
+    balancesPanelSource,
+    /depositModalClientIdLabel|finance-modal-ticket-number">\{depositModalClientIdLabel\}/,
+    "Deposit operation modal should not show a ticket number/client ID badge in the header."
+  );
+
+  assert.match(
+    balancesPanelSource,
+    /translate\(isDepositRefund \? "Refund money" : "Top up"\)/,
+    "Deposit top-up submit button should use the shorter top-up label."
+  );
+
+  assert.match(
+    balancesPanelSource,
     /function getDepositSourceRows\(items\)[\s\S]*depositChangeUzs[\s\S]*Deposit income history[\s\S]*depositSourceRows\.length > 0/s,
     "Refund modal should show how the client's deposit was funded before cashier chooses the refund method."
   );
@@ -159,7 +183,19 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     styles,
-    /\.finance-balances-col-actions \{\s*width: 9%;\s*\}[\s\S]*\.finance-panel-shell \.finance-balances-table :is\(th:nth-child\(5\), td:nth-child\(5\)\) \{\s*padding-right: 18px;\s*\}[\s\S]*\.finance-balances-panel \.finance-balance-action-btn \{[\s\S]*width: 28px;[\s\S]*height: 28px;/,
+    /\.finance-balances-col-actions \{\s*width: 11%;\s*\}[\s\S]*\.finance-panel-shell \.finance-balances-table :is\(th:nth-child\(5\), td:nth-child\(5\)\) \{\s*padding-right: 18px;\s*\}[\s\S]*\.finance-balances-panel \.finance-balance-action-btn \{[\s\S]*width: 28px;[\s\S]*height: 28px;/,
     "Balances deposit spacing and action buttons should stay compact after adding row actions."
+  );
+
+  assert.match(
+    styles,
+    /#financeDepositOperationModal\.finance-deposit-operation-modal\.is-topup \{\s*width: min\(874px,[\s\S]*#financeDepositOperationModal\.finance-deposit-operation-modal\.is-refund \{\s*width: min\(874px,[\s\S]*height: min\(560px,/,
+    "Deposit operation modals should share the same width and refund should keep a stable vertical size."
+  );
+
+  assert.match(
+    styles,
+    /#financeDepositOperationModal\.is-topup \.edit-actions \.btn \{\s*width: 72px;\s*min-width: 72px;\s*max-width: 72px;/,
+    "Deposit top-up modal buttons should stay compact at 72px."
   );
 });
