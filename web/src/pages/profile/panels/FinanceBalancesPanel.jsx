@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import CustomSelect from "../../../components/CustomSelect.jsx";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { buildExportFilename, exportExcelWorkbook } from "../../../lib/excel-export.js";
 import { formatDateTimeTashkent } from "../../../lib/formatters.js";
@@ -8,6 +9,13 @@ import { useI18n } from "../../../i18n/I18nProvider.jsx";
 const EMPTY_FILTERS = Object.freeze({
   client: "",
   type: "active"
+});
+
+const EMPTY_DEPOSIT_FORM = Object.freeze({
+  paymentMethodId: "",
+  amountUzs: "",
+  note: "",
+  reason: ""
 });
 
 const FINANCE_CLIENT_LEDGER_COLUMNS_STORAGE_KEY = "aaron_crm_finance_client_ledger_columns";
@@ -92,8 +100,15 @@ function getTransactionActionLabel(translate, item) {
   return translate(labels[type] || translateTransactionType(translate, type));
 }
 
-function getTransactionStatusLabel(translate, status) {
-  return String(status || "") === "voided" ? translate("Cancelled") : translate("Active");
+function isTransactionReversed(item) {
+  const metadata = item?.metadata && typeof item.metadata === "object" ? item.metadata : {};
+  return Boolean(metadata.reversalTransactionId || metadata.reversal_transaction_id);
+}
+
+function getTransactionStatusLabel(translate, item) {
+  if (String(item?.status || "") === "voided") return translate("Cancelled");
+  if (isTransactionReversed(item)) return translate("Corrected");
+  return translate("Active");
 }
 
 function getClientLedgerCashInUzs(item) {
@@ -108,9 +123,26 @@ function getClientLedgerNote(translate, item) {
   const note = String(item?.note || "").trim();
   const metadata = item?.metadata && typeof item.metadata === "object" ? item.metadata : {};
   const voidReason = String(metadata.voidReason || "").trim();
+  const reversalReason = String(metadata.reversalReason || metadata.reversal_reason || "").trim();
+  if (isTransactionReversed(item)) {
+    const correctedText = reversalReason ? `${translate("Corrected")}: ${reversalReason}` : translate("Corrected");
+    return note ? `${note} | ${correctedText}` : correctedText;
+  }
   if (String(item?.status || "") !== "voided") return note || "-";
   const cancelledText = voidReason ? `${translate("Cancelled")}: ${voidReason}` : translate("Cancelled");
   return note ? `${note} | ${cancelledText}` : cancelledText;
+}
+
+function getDepositSourceRows(items) {
+  return (Array.isArray(items) ? items : [])
+    .filter((item) => item?.status === "posted" && toIntegerAmount(item?.depositChangeUzs) > 0)
+    .map((item) => ({
+      id: item.id,
+      date: item.transactionAt || item.createdAt,
+      paymentMethodName: item.paymentMethodName || "",
+      amountUzs: toIntegerAmount(item.depositChangeUzs),
+      note: item.note || ""
+    }));
 }
 
 function FinanceBalancesPanel({ onClose }) {
@@ -129,6 +161,13 @@ function FinanceBalancesPanel({ onClose }) {
   const [ledgerExporting, setLedgerExporting] = useState(false);
   const [ledgerColumnsOpen, setLedgerColumnsOpen] = useState(false);
   const [visibleLedgerColumnIds, setVisibleLedgerColumnIds] = useState(() => loadStoredClientLedgerColumnIds());
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(false);
+  const [depositModal, setDepositModal] = useState(null);
+  const [depositForm, setDepositForm] = useState(EMPTY_DEPOSIT_FORM);
+  const [depositSubmitting, setDepositSubmitting] = useState(false);
+  const [depositSourceRows, setDepositSourceRows] = useState([]);
+  const [depositSourceLoading, setDepositSourceLoading] = useState(false);
 
   const ledgerColumns = [
     {
@@ -233,11 +272,11 @@ function FinanceBalancesPanel({ onClose }) {
       className: "finance-client-ledger-col-status",
       widthPx: 96,
       render: (item) => (
-        <span className={item.status === "voided" ? "finance-transaction-status-voided" : "finance-transaction-status-active"}>
-          {getTransactionStatusLabel(translate, item.status)}
+        <span className={item.status === "voided" ? "finance-transaction-status-voided" : isTransactionReversed(item) ? "finance-transaction-status-reversed" : "finance-transaction-status-active"}>
+          {getTransactionStatusLabel(translate, item)}
         </span>
       ),
-      exportValue: (item) => getTransactionStatusLabel(translate, item.status)
+      exportValue: (item) => getTransactionStatusLabel(translate, item)
     },
     {
       id: "note",
@@ -306,6 +345,24 @@ function FinanceBalancesPanel({ onClose }) {
       setLoading(false);
     }
   }, [translate]);
+
+  const loadPaymentMethods = useCallback(async () => {
+    if (paymentMethodsLoading || paymentMethods.length > 0) return;
+    setPaymentMethodsLoading(true);
+    try {
+      const response = await apiFetch("/api/finance/payment-methods");
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        window.alert?.(translate(data?.message || "Failed to load payment methods."));
+        return;
+      }
+      setPaymentMethods(Array.isArray(data?.items) ? data.items : []);
+    } catch {
+      window.alert?.(translate("Failed to load payment methods."));
+    } finally {
+      setPaymentMethodsLoading(false);
+    }
+  }, [paymentMethods.length, paymentMethodsLoading, translate]);
 
   useEffect(() => {
     void loadBalances(1, EMPTY_FILTERS);
@@ -426,7 +483,109 @@ function FinanceBalancesPanel({ onClose }) {
     setLedgerColumnsOpen(false);
   };
 
+  const loadDepositSources = async (clientId) => {
+    setDepositSourceRows([]);
+    if (!clientId) return;
+    setDepositSourceLoading(true);
+    try {
+      const response = await apiFetch(`/api/finance/client-balances/${clientId}/transactions`);
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        window.alert?.(translate(data?.message || "Failed to load client transactions."));
+        return;
+      }
+      setDepositSourceRows(getDepositSourceRows(data?.items));
+    } catch {
+      window.alert?.(translate("Failed to load client transactions."));
+    } finally {
+      setDepositSourceLoading(false);
+    }
+  };
+
+  const openDepositModal = (type, item) => {
+    setDepositModal({ type, item });
+    setDepositForm(EMPTY_DEPOSIT_FORM);
+    setDepositSourceRows([]);
+    void loadPaymentMethods();
+    if (type === "refund") {
+      void loadDepositSources(item?.clientId);
+    }
+  };
+
+  const closeDepositModal = (force = false) => {
+    if (depositSubmitting && !force) return;
+    setDepositModal(null);
+    setDepositForm(EMPTY_DEPOSIT_FORM);
+    setDepositSourceRows([]);
+    setDepositSourceLoading(false);
+  };
+
+  const submitDepositOperation = async (event) => {
+    event.preventDefault();
+    if (depositSubmitting || !depositModal?.item) return;
+    const clientId = String(depositModal.item.clientId || "").trim();
+    const amountUzs = toIntegerAmount(depositForm.amountUzs);
+    const paymentMethodId = String(depositForm.paymentMethodId || "").trim();
+    const isRefund = depositModal.type === "refund";
+    const reason = String(depositForm.reason || "").trim();
+    if (!clientId) {
+      window.alert?.(translate("Client is required."));
+      return;
+    }
+    if (!paymentMethodId) {
+      window.alert?.(translate("Payment method is required."));
+      return;
+    }
+    if (amountUzs <= 0) {
+      window.alert?.(translate("Payment amount is required."));
+      return;
+    }
+    if (isRefund && amountUzs > toIntegerAmount(depositModal.item.depositUzs)) {
+      window.alert?.(translate("Refund amount exceeds client deposit."));
+      return;
+    }
+    if (isRefund && !reason) {
+      window.alert?.(translate("Refund reason is required."));
+      return;
+    }
+    setDepositSubmitting(true);
+    try {
+      const response = await apiFetch(`/api/finance/client-balances/${isRefund ? "refund" : "deposit"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId,
+          paymentMethodId,
+          amountUzs,
+          note: isRefund ? reason : depositForm.note,
+          reason: isRefund ? reason : undefined
+        })
+      });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        window.alert?.(translate(data?.message || "Deposit transaction failed."));
+        return;
+      }
+      closeDepositModal(true);
+      await loadBalances(page, appliedFilters);
+      if (ledgerClient && String(ledgerClient.clientId || "") === clientId) {
+        await openClientLedger(ledgerClient);
+      }
+    } catch {
+      window.alert?.(translate("Deposit transaction failed."));
+    } finally {
+      setDepositSubmitting(false);
+    }
+  };
+
   const ledgerItems = Array.isArray(ledgerData?.items) ? ledgerData.items : [];
+  const paymentMethodOptions = paymentMethods.map((item) => ({
+    value: String(item.id),
+    label: item.name || String(item.id)
+  }));
+  const depositModalClient = depositModal?.item || null;
+  const isDepositRefund = depositModal?.type === "refund";
+  const depositModalTitle = isDepositRefund ? "Refund money" : "Top up deposit";
 
   return (
     <section id="financeBalancesPanel" className="all-users-panel settings-panel ops-panel-shell finance-panel-shell finance-balances-panel">
@@ -474,6 +633,7 @@ function FinanceBalancesPanel({ onClose }) {
             <col className="finance-balances-col-client" />
             <col className="finance-balances-col-debt" />
             <col className="finance-balances-col-deposit" />
+            <col className="finance-balances-col-actions" />
           </colgroup>
           <thead>
             <tr>
@@ -482,13 +642,14 @@ function FinanceBalancesPanel({ onClose }) {
               <th>{translate("Client")}</th>
               <th>{translate("Debt")}</th>
               <th>{translate("Deposit")}</th>
+              <th>{translate("Action")}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               [0, 1, 2, 3, 4].map((index) => (
                 <tr key={index} aria-hidden="true">
-                  <td colSpan="5" className="skel" />
+                  <td colSpan="6" className="skel" />
                 </tr>
               ))
             ) : items.map((item, index) => (
@@ -509,11 +670,42 @@ function FinanceBalancesPanel({ onClose }) {
                 <td>{item.clientName || "-"}</td>
                 <td>{formatMoney(item.debtUzs)}</td>
                 <td>{formatMoney(item.depositUzs)}</td>
+                <td className="finance-balances-actions-cell">
+                  <div className="finance-balances-row-actions">
+                    <button
+                      type="button"
+                      className="table-action-btn finance-balance-action-btn"
+                      aria-label={translate("Top up deposit")}
+                      title={translate("Top up deposit")}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openDepositModal("topup", item);
+                      }}
+                      onDoubleClick={(event) => event.stopPropagation()}
+                    >
+                      <span className="finance-balance-action-icon finance-balance-action-icon-topup" aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      className="table-action-btn finance-balance-action-btn finance-balance-refund-btn"
+                      aria-label={translate("Refund money")}
+                      title={translate("Refund money")}
+                      disabled={toIntegerAmount(item.depositUzs) <= 0}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openDepositModal("refund", item);
+                      }}
+                      onDoubleClick={(event) => event.stopPropagation()}
+                    >
+                      <span className="finance-balance-action-icon finance-balance-action-icon-refund" aria-hidden="true" />
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
             {!loading && items.length === 0 ? (
               <tr>
-                <td colSpan="5" className="all-users-state">{translate("No items found.")}</td>
+                <td colSpan="6" className="all-users-state">{translate("No items found.")}</td>
               </tr>
             ) : null}
           </tbody>
@@ -674,6 +866,118 @@ function FinanceBalancesPanel({ onClose }) {
               </div>
             </>
           ) : null}
+        </>
+      ), document.body) : null}
+
+      {depositModal && typeof document !== "undefined" ? createPortal((
+        <>
+          <button
+            type="button"
+            className="login-overlay stacked-modal-overlay finance-modal-overlay"
+            aria-label={translate("Close deposit modal")}
+            onClick={() => closeDepositModal()}
+          />
+          <div id="financeDepositOperationModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-deposit-operation-modal">
+            <h3 className="finance-modal-title-with-number">
+              <span>{translate(depositModalTitle)}</span>
+              <span className="finance-modal-ticket-number">{depositModalClient?.clientName || "-"}</span>
+            </h3>
+            <form className="auth-form" onSubmit={submitDepositOperation}>
+              <div className="all-users-edit-fields finance-deposit-operation-fields">
+                <div className="finance-deposit-operation-summary">
+                  <div className="finance-total-cell">
+                    <strong>{translate("Client")}</strong>
+                    <span>{depositModalClient?.clientName || "-"}</span>
+                  </div>
+                  <div className="finance-total-cell">
+                    <strong>{translate("Current Deposit")}</strong>
+                    <span>{formatMoney(depositModalClient?.depositUzs)}</span>
+                  </div>
+                  <div className="finance-total-cell">
+                    <strong>{translate("Debt")}</strong>
+                    <span>{formatMoney(depositModalClient?.debtUzs)}</span>
+                  </div>
+                </div>
+
+                {isDepositRefund ? (
+                  <section className="finance-deposit-source-panel">
+                    <header className="finance-payment-panel-head">
+                      <span>{translate("Deposit income history")}</span>
+                    </header>
+                    <div className="finance-deposit-source-list" aria-busy={depositSourceLoading ? "true" : "false"}>
+                      <span className="finance-deposit-source-head">{translate("Operation Date")}</span>
+                      <span className="finance-deposit-source-head">{translate("Payment Method")}</span>
+                      <span className="finance-deposit-source-head is-money">{translate("Amount")}</span>
+                      {depositSourceLoading ? (
+                        <span className="all-users-state finance-deposit-source-empty">{translate("Loading...")}</span>
+                      ) : depositSourceRows.length > 0 ? depositSourceRows.map((row) => (
+                        <div className="finance-deposit-source-row" key={String(row.id)}>
+                          <span>{formatDateTimeTashkent(row.date)}</span>
+                          <span>{row.paymentMethodName || translate("Client Balance")}</span>
+                          <strong>{formatMoney(row.amountUzs)}</strong>
+                        </div>
+                      )) : (
+                        <span className="all-users-state finance-deposit-source-empty">{translate("No items found.")}</span>
+                      )}
+                    </div>
+                  </section>
+                ) : null}
+
+                <div className="finance-deposit-operation-grid">
+                  <label className="field">
+                    <span>{translate(isDepositRefund ? "Refund Method" : "Payment Method")}</span>
+                    <CustomSelect
+                      value={depositForm.paymentMethodId}
+                      options={paymentMethodOptions}
+                      placeholder={paymentMethodsLoading ? "..." : translate("Payment Method")}
+                      menuPortal
+                      onChange={(value) => setDepositForm((current) => ({ ...current, paymentMethodId: value }))}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>{translate(isDepositRefund ? "Refund Amount" : "Amount")}</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max={isDepositRefund ? toIntegerAmount(depositModalClient?.depositUzs) : undefined}
+                      step="1"
+                      value={depositForm.amountUzs}
+                      onWheel={(event) => event.currentTarget.blur()}
+                      onChange={(event) => {
+                        const rawValue = event.currentTarget.value;
+                        const amount = toIntegerAmount(rawValue);
+                        const maxAmount = isDepositRefund ? toIntegerAmount(depositModalClient?.depositUzs) : 0;
+                        const nextValue = rawValue && isDepositRefund && amount > maxAmount ? String(maxAmount) : rawValue;
+                        setDepositForm((current) => ({ ...current, amountUzs: nextValue }));
+                      }}
+                    />
+                  </label>
+                </div>
+
+                <label className="field">
+                  <span>{translate(isDepositRefund ? "Reason" : "Note")}</span>
+                  <input
+                    type="text"
+                    maxLength={255}
+                    value={isDepositRefund ? depositForm.reason : depositForm.note}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setDepositForm((current) => isDepositRefund
+                        ? { ...current, reason: value }
+                        : { ...current, note: value });
+                    }}
+                  />
+                </label>
+              </div>
+
+              <div className="edit-actions">
+                <button type="button" className="btn btn-secondary" onClick={() => closeDepositModal()}>{translate("Cancel")}</button>
+                <button type="submit" className="btn" disabled={depositSubmitting || paymentMethodsLoading}>
+                  {depositSubmitting ? "..." : translate(isDepositRefund ? "Refund money" : "Top up deposit")}
+                </button>
+              </div>
+            </form>
+          </div>
         </>
       ), document.body) : null}
 

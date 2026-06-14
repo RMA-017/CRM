@@ -45,6 +45,12 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     balancesPanelSource,
+    /function isTransactionReversed\(item\)[\s\S]*metadata\.reversalTransactionId[\s\S]*getTransactionStatusLabel\(translate, item\)[\s\S]*translate\("Corrected"\)[\s\S]*const reversalReason = String\(metadata\.reversalReason/s,
+    "Client ledger should show corrected closed-session transactions with their reversal reason."
+  );
+
+  assert.match(
+    balancesPanelSource,
     /finance-client-ledger-title">\{translate\("Client Transactions"\)\}[\s\S]*finance-client-ledger-client-name[\s\S]*ledgerData\?\.client\?\.clientName \|\| ledgerClient\.clientName/s,
     "Client ledger modal should keep the title left and the client name separate."
   );
@@ -97,10 +103,22 @@ test("client balance rows open a read-only client transaction ledger", () => {
     "Balances search should read the input value before the state updater runs."
   );
 
-  assert.doesNotMatch(
+  assert.match(
     balancesPanelSource,
-    /client-balances\/deposit|pay-from-deposit|openOperation|submitOperation|openTicketPayment|submitTicketPayment/,
-    "Balances page should not expose direct balance mutation actions."
+    /finance-balances-col-actions[\s\S]*translate\("Action"\)[\s\S]*openDepositModal\("topup", item\)[\s\S]*openDepositModal\("refund", item\)/s,
+    "Balances table should expose a compact action column for deposit top-up and money refund."
+  );
+
+  assert.match(
+    balancesPanelSource,
+    /\/api\/finance\/client-balances\/\$\{isRefund \? "refund" : "deposit"\}[\s\S]*paymentMethodId[\s\S]*amountUzs[\s\S]*reason: isRefund \? reason : undefined/s,
+    "Balances deposit actions should call explicit top-up/refund endpoints with payment method, amount and refund reason."
+  );
+
+  assert.match(
+    balancesPanelSource,
+    /function getDepositSourceRows\(items\)[\s\S]*depositChangeUzs[\s\S]*Deposit income history[\s\S]*depositSourceRows\.length > 0/s,
+    "Refund modal should show how the client's deposit was funded before cashier chooses the refund method."
   );
 
   assert.match(

@@ -281,6 +281,41 @@ export const financeRouteSchemas = Object.freeze({
       { required: ["client_id", "ticket_ids"] }
     ]
   },
+  clientDepositTopUpBody: {
+    type: "object",
+    additionalProperties: true,
+    properties: {
+      clientId: positiveIntegerLikeSchema,
+      client_id: positiveIntegerLikeSchema,
+      paymentMethodId: positiveIntegerLikeSchema,
+      payment_method_id: positiveIntegerLikeSchema,
+      amountUzs: integerLikeSchema,
+      amount_uzs: integerLikeSchema,
+      note: { type: "string", maxLength: 255 }
+    },
+    anyOf: [
+      { required: ["clientId", "paymentMethodId", "amountUzs"] },
+      { required: ["client_id", "payment_method_id", "amount_uzs"] }
+    ]
+  },
+  clientDepositRefundBody: {
+    type: "object",
+    additionalProperties: true,
+    properties: {
+      clientId: positiveIntegerLikeSchema,
+      client_id: positiveIntegerLikeSchema,
+      paymentMethodId: positiveIntegerLikeSchema,
+      payment_method_id: positiveIntegerLikeSchema,
+      amountUzs: integerLikeSchema,
+      amount_uzs: integerLikeSchema,
+      reason: { type: "string", minLength: 1, maxLength: 255 },
+      note: { type: "string", maxLength: 255 }
+    },
+    anyOf: [
+      { required: ["clientId", "paymentMethodId", "amountUzs", "reason"] },
+      { required: ["client_id", "payment_method_id", "amount_uzs", "reason"] }
+    ]
+  },
   cashSessionOpenBody: {
     type: "object",
     additionalProperties: true,

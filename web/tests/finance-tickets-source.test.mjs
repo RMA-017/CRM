@@ -124,18 +124,13 @@ test("ticket edit and delete actions are hidden for tickets with payment activit
 
   assert.match(
     source,
-    /function hasTicketPaymentActivity\(item\) \{[\s\S]*item\?\.paidAmountUzs[\s\S]*item\?\.paymentActivityCount[\s\S]*return paidAmountUzs > 0 \|\| paymentActivityCount > 0;/s,
-    "Ticket rows should detect both partial paid amount and any payment/refund activity for delete protection."
-  );
-  assert.match(
-    source,
     /function hasTicketPostedPaymentActivity\(item\) \{[\s\S]*item\?\.paidAmountUzs[\s\S]*item\?\.postedPaymentActivityCount[\s\S]*return paidAmountUzs > 0 \|\| paymentActivityCount > 0;/s,
-    "Ticket rows should detect posted payment/refund activity for edit protection."
+    "Ticket rows should detect posted payment/refund activity for edit and delete protection."
   );
   assert.match(
     source,
-    /const canEditRow = canUpdateFinanceCashier[\s\S]*item\.status !== "paid"[\s\S]*item\.status !== "voided"[\s\S]*!hasTicketPostedPaymentActivity\(item\);[\s\S]*const canDeleteRow = canEditRow && !hasTicketPaymentActivity\(item\);[\s\S]*\{canEditRow \? \(/s,
-    "The edit icon should only render without posted payment activity while delete also requires no payment history."
+    /const canEditRow = canUpdateFinanceCashier[\s\S]*item\.status !== "paid"[\s\S]*item\.status !== "voided"[\s\S]*!hasTicketPostedPaymentActivity\(item\);[\s\S]*const canDeleteRow = canEditRow && !hasTicketPostedPaymentActivity\(item\);[\s\S]*\{canEditRow \? \(/s,
+    "Edit and delete icons should render when a ticket has no active posted payment activity."
   );
   assert.match(
     source,
@@ -144,8 +139,8 @@ test("ticket edit and delete actions are hidden for tickets with payment activit
   );
   assert.match(
     source,
-    /const deleteTicket = async \(item\) => \{[\s\S]*if \(hasTicketPaymentActivity\(item\)\) \{[\s\S]*Tickets with payments cannot be deleted\./s,
-    "The delete handler should also block stale clicks on tickets with payment activity."
+    /const deleteTicket = async \(item\) => \{[\s\S]*if \(hasTicketPostedPaymentActivity\(item\)\) \{[\s\S]*Tickets with payments cannot be deleted\./s,
+    "The delete handler should block stale clicks only when posted payment activity still exists."
   );
   assert.match(
     translations,

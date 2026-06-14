@@ -20,8 +20,8 @@ test("finance transaction void action is only exposed to cashier payment users",
 
   assert.match(
     transactionsPanelSource,
-    /item\.status === "voided"[\s\S]*!canPayFinanceCashier \? \([\s\S]*finance-transaction-status-active[\s\S]*finance-transaction-void-btn/s,
-    "Rows should render an active status instead of the void button when the user cannot pay cashier transactions."
+    /item\.status === "voided"[\s\S]*isTransactionReversed\(item\)[\s\S]*finance-transaction-status-reversed[\s\S]*!canPayFinanceCashier \? \([\s\S]*finance-transaction-status-active[\s\S]*finance-transaction-void-btn/s,
+    "Rows should render fixed statuses instead of the void button when transactions are cancelled, corrected, or readonly."
   );
   assert.match(
     transactionsPanelSource,
@@ -46,8 +46,8 @@ test("finance transaction void action is only exposed to cashier payment users",
 
   assert.match(
     transactionsPanelSource,
-    /const openVoidTransaction = \(item\) => \{[\s\S]*if \(!canPayFinanceCashier \|\| !item \|\| item\.status === "voided" \|\| voidingId\) return;/s,
-    "Stale or manual clicks should also be blocked before opening the void modal."
+    /const openVoidTransaction = \(item\) => \{[\s\S]*if \(!canPayFinanceCashier \|\| !item \|\| item\.status === "voided" \|\| isTransactionReversed\(item\) \|\| voidingId\) return;/s,
+    "Stale or manual clicks should also be blocked for cancelled or corrected transactions before opening the void modal."
   );
 
   assert.match(
@@ -66,6 +66,11 @@ test("finance transaction void action is only exposed to cashier payment users",
     styles,
     /\.finance-transaction-status-active \{[\s\S]*font-size: 11px;[\s\S]*font-weight: 700;/s,
     "Readonly transaction status should have a compact table style."
+  );
+  assert.match(
+    styles,
+    /\.finance-transaction-status-reversed \{[\s\S]*font-size: 11px;[\s\S]*font-weight: 700;/s,
+    "Corrected transaction status should match the compact table style."
   );
   assert.match(
     transactionsPanelSource,

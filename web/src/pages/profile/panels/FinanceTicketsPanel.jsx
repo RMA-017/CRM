@@ -183,12 +183,6 @@ function getTicketDiscountAmount(item) {
   return rows.reduce((sum, row) => sum + normalizeMoneyInput(row?.discountUzs ?? row?.discount_uzs), 0);
 }
 
-function hasTicketPaymentActivity(item) {
-  const paidAmountUzs = Number.parseInt(String(item?.paidAmountUzs ?? 0), 10) || 0;
-  const paymentActivityCount = Number.parseInt(String(item?.paymentActivityCount ?? 0), 10) || 0;
-  return paidAmountUzs > 0 || paymentActivityCount > 0;
-}
-
 function hasTicketPostedPaymentActivity(item) {
   const paidAmountUzs = Number.parseInt(String(item?.paidAmountUzs ?? 0), 10) || 0;
   const paymentActivityCount = Number.parseInt(String(item?.postedPaymentActivityCount ?? 0), 10) || 0;
@@ -686,7 +680,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
           && item.status !== "paid"
           && item.status !== "voided"
           && !hasTicketPostedPaymentActivity(item);
-        const canDeleteRow = canEditRow && !hasTicketPaymentActivity(item);
+        const canDeleteRow = canEditRow && !hasTicketPostedPaymentActivity(item);
         const hasAction = canEditRow || item.status === "paid";
         return hasAction ? (
           <div className="finance-ticket-action-group">
@@ -1050,7 +1044,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
       window.alert?.(translate("Paid or voided tickets cannot be edited."));
       return;
     }
-    if (hasTicketPaymentActivity(item)) {
+    if (hasTicketPostedPaymentActivity(item)) {
       window.alert?.(translate("Tickets with payments cannot be deleted."));
       return;
     }

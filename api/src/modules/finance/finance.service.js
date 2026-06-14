@@ -373,6 +373,61 @@ function getLedgerDepositChange(row) {
   }
 }
 
+function getTransactionReversalSpec(row) {
+  const type = String(row?.transaction_type || "").trim();
+  switch (type) {
+    case "ticket_payment":
+      return {
+        transactionType: "refund",
+        direction: "out",
+        paymentMethodId: row?.payment_method_id || null
+      };
+    case "refund":
+      return {
+        transactionType: "ticket_payment",
+        direction: "in",
+        paymentMethodId: row?.payment_method_id || null
+      };
+    case "deposit_ticket_payment":
+      return {
+        transactionType: "deposit_ticket_refund",
+        direction: "transfer",
+        paymentMethodId: null
+      };
+    case "deposit_ticket_refund":
+      return {
+        transactionType: "deposit_ticket_payment",
+        direction: "transfer",
+        paymentMethodId: null
+      };
+    case "deposit_in":
+      return {
+        transactionType: "deposit_out",
+        direction: "out",
+        paymentMethodId: row?.payment_method_id || null
+      };
+    case "deposit_out":
+      return {
+        transactionType: "deposit_in",
+        direction: "in",
+        paymentMethodId: row?.payment_method_id || null
+      };
+    case "correction":
+      return {
+        transactionType: "correction",
+        direction: row?.direction === "in" ? "out" : "in",
+        paymentMethodId: row?.payment_method_id || null
+      };
+    default:
+      return null;
+  }
+}
+
+function hasTransactionReversal(row) {
+  const metadata = row?.metadata && typeof row.metadata === "object" ? row.metadata : {};
+  return Boolean(metadata.reversalTransactionId || metadata.reversal_transaction_id);
+}
+
 function mapClientLedgerTransaction(row, depositBalanceAfterUzs) {
   const transaction = mapTransaction(row);
   const amountUzs = normalizeAmount(row.amount_uzs, 0);
@@ -515,18 +570,6 @@ async function getTicketPaidAmount(db, { organizationId, ticketId }) {
     [organizationId, ticketId]
   );
   return normalizeAmount(result.rows[0]?.paid_amount_uzs, 0);
-}
-
-async function getTicketPaymentActivityCount(db, { organizationId, ticketId }) {
-  const result = await db.query(
-    `SELECT COUNT(*) AS payment_activity_count
-       FROM finance_transactions
-      WHERE organization_id = $1
-        AND ticket_id = $2
-        AND transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')`,
-    [organizationId, ticketId]
-  );
-  return Number.parseInt(String(result.rows[0]?.payment_activity_count ?? 0), 10) || 0;
 }
 
 async function getTicketPostedPaymentActivityCount(db, { organizationId, ticketId }) {
@@ -1815,11 +1858,15 @@ export async function voidFinanceTransaction({ organizationId, id, payload, acto
   try {
     await db.query("BEGIN");
     const currentResult = await db.query(
-      `SELECT *
-         FROM finance_transactions
-        WHERE organization_id = $1
-          AND id = $2
-        FOR UPDATE`,
+      `SELECT t.*,
+              s.status AS cash_session_status
+         FROM finance_transactions t
+         JOIN finance_cash_sessions s
+           ON s.organization_id = t.organization_id
+          AND s.id = t.cash_session_id
+        WHERE t.organization_id = $1
+          AND t.id = $2
+        FOR UPDATE OF t, s`,
       [organizationId, transactionId]
     );
     const current = currentResult.rows[0];
@@ -1830,6 +1877,11 @@ export async function voidFinanceTransaction({ organizationId, id, payload, acto
     }
     if (current.status !== "posted") {
       const error = new Error("Transaction is already cancelled.");
+      error.statusCode = 400;
+      throw error;
+    }
+    if (hasTransactionReversal(current)) {
+      const error = new Error("Transaction is already corrected.");
       error.statusCode = 400;
       throw error;
     }
@@ -1856,14 +1908,31 @@ export async function voidFinanceTransaction({ organizationId, id, payload, acto
       }
     }
 
-    const depositBalanceImpact = getLedgerDepositChange(current);
+    const isClosedCashSession = current.cash_session_status === "closed";
+    const reversalSpec = isClosedCashSession ? getTransactionReversalSpec(current) : null;
+    if (isClosedCashSession && !reversalSpec) {
+      const error = new Error("Transaction cannot be corrected.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const depositBalanceImpact = isClosedCashSession
+      ? getLedgerDepositChange({
+          status: "posted",
+          transaction_type: reversalSpec.transactionType,
+          amount_uzs: current.amount_uzs
+        })
+      : getLedgerDepositChange(current);
     if (current.client_id && depositBalanceImpact !== 0) {
       await lockClientFinanceBalance(db, { organizationId, clientId: current.client_id });
       const currentDeposit = await getClientDepositBalance(db, {
         organizationId,
         clientId: current.client_id
       });
-      if (currentDeposit - depositBalanceImpact < 0) {
+      const nextDeposit = isClosedCashSession
+        ? currentDeposit + depositBalanceImpact
+        : currentDeposit - depositBalanceImpact;
+      if (nextDeposit < 0) {
         const error = new Error("Transaction cancellation would make client deposit negative.");
         error.statusCode = 400;
         throw error;
@@ -1880,22 +1949,80 @@ export async function voidFinanceTransaction({ organizationId, id, payload, acto
       previousTicketStatus = ticketBeforeVoid?.status || null;
     }
 
-    const updatedResult = await db.query(
-      `UPDATE finance_transactions
-          SET status = 'voided',
-              voided_by = $3,
-              voided_at = CURRENT_TIMESTAMP,
-              metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
-                'voidReason', $4::text,
-                'voidedBy', $3::int,
-                'voidedAt', CURRENT_TIMESTAMP
-              ),
-              updated_at = CURRENT_TIMESTAMP
-        WHERE organization_id = $1
-          AND id = $2
-        RETURNING *`,
-      [organizationId, transactionId, actorUserId || null, reason]
-    );
+    let updatedResult = null;
+    let reversalTransaction = null;
+    if (isClosedCashSession) {
+      const cashSession = await getOpenCashSession(db, {
+        organizationId,
+        cashierUserId: actorUserId,
+        forUpdate: true
+      });
+      if (!cashSession) {
+        const error = new Error("Cash session is required.");
+        error.statusCode = 400;
+        throw error;
+      }
+      reversalTransaction = await insertFinanceTransaction(db, {
+        organizationId,
+        cashSessionId: cashSession.id,
+        paymentGroupId: current.payment_group_id || null,
+        transactionType: reversalSpec.transactionType,
+        direction: reversalSpec.direction,
+        clientId: current.client_id,
+        ticketId: current.ticket_id,
+        ticketPaymentId: current.ticket_payment_id,
+        paymentMethodId: reversalSpec.paymentMethodId,
+        amountUzs: normalizeAmount(current.amount_uzs, 0),
+        note: normalizeText(`Correction for transaction #${transactionId}: ${reason}`),
+        metadata: {
+          source: "closed_session_transaction_reversal",
+          reversedTransactionId: transactionId,
+          reversedTransactionType: current.transaction_type,
+          reversedCashSessionId: current.cash_session_id,
+          reason
+        },
+        actorUserId
+      });
+      updatedResult = await db.query(
+        `UPDATE finance_transactions
+            SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                  'reversalTransactionId', $3::bigint,
+                  'reversalCashSessionId', $4::bigint,
+                  'reversalReason', $5::text,
+                  'reversedBy', $6::int,
+                  'reversedAt', CURRENT_TIMESTAMP
+                ),
+                updated_at = CURRENT_TIMESTAMP
+          WHERE organization_id = $1
+            AND id = $2
+          RETURNING *`,
+        [
+          organizationId,
+          transactionId,
+          reversalTransaction.id,
+          cashSession.id,
+          reason,
+          actorUserId || null
+        ]
+      );
+    } else {
+      updatedResult = await db.query(
+        `UPDATE finance_transactions
+            SET status = 'voided',
+                voided_by = $3,
+                voided_at = CURRENT_TIMESTAMP,
+                metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                  'voidReason', $4::text,
+                  'voidedBy', $3::int,
+                  'voidedAt', CURRENT_TIMESTAMP
+                ),
+                updated_at = CURRENT_TIMESTAMP
+          WHERE organization_id = $1
+            AND id = $2
+          RETURNING *`,
+        [organizationId, transactionId, actorUserId || null, reason]
+      );
+    }
 
     const refreshedTicket = current.ticket_id
       ? await refreshTicketPaymentStatus(db, {
@@ -1916,7 +2043,8 @@ export async function voidFinanceTransaction({ organizationId, id, payload, acto
           transactionId,
           transactionType: current.transaction_type,
           amountUzs: current.amount_uzs,
-          reason
+          reason,
+          reversalTransactionId: reversalTransaction?.id || undefined
         },
         actorUserId
       });
@@ -2921,6 +3049,152 @@ async function getClientDepositBalance(db, { organizationId, clientId }) {
     [organizationId, clientId]
   );
   return parseIntegerAmount(result.rows[0]?.deposit_uzs, 0);
+}
+
+async function getActivePaymentMethod(db, { organizationId, paymentMethodId }) {
+  const result = await db.query(
+    `SELECT id, name
+       FROM finance_payment_methods
+      WHERE organization_id = $1
+        AND id = $2
+        AND is_active = TRUE
+      LIMIT 1`,
+    [organizationId, paymentMethodId]
+  );
+  return result.rows[0] || null;
+}
+
+async function assertFinanceClientExists(db, { organizationId, clientId }) {
+  const result = await db.query(
+    `SELECT id
+       FROM clients
+      WHERE organization_id = $1
+        AND id = $2
+      LIMIT 1`,
+    [organizationId, clientId]
+  );
+  if (!result.rows[0]) {
+    const error = new Error("Client not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+}
+
+async function createFinanceDepositTransaction({
+  organizationId,
+  payload,
+  actorUserId,
+  transactionType,
+  direction,
+  metadataSource,
+  requireReason = false
+}) {
+  const clientId = parsePositiveInteger(payload?.clientId ?? payload?.client_id);
+  const paymentMethodId = parsePositiveInteger(payload?.paymentMethodId ?? payload?.payment_method_id);
+  const amountUzs = normalizeAmount(payload?.amountUzs ?? payload?.amount_uzs, 0);
+  const note = normalizeText(payload?.reason ?? payload?.note);
+  if (!clientId) {
+    const error = new Error("Client is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!paymentMethodId) {
+    const error = new Error("Payment method is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (amountUzs <= 0) {
+    const error = new Error("Payment amount is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (requireReason && !note) {
+    const error = new Error("Refund reason is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const db = await pool.connect();
+  try {
+    await db.query("BEGIN");
+    await lockClientFinanceBalance(db, { organizationId, clientId });
+    await assertFinanceClientExists(db, { organizationId, clientId });
+
+    const method = await getActivePaymentMethod(db, { organizationId, paymentMethodId });
+    if (!method) {
+      const error = new Error("Payment method not found.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (transactionType === "deposit_out") {
+      const currentDeposit = await getClientDepositBalance(db, { organizationId, clientId });
+      if (amountUzs > currentDeposit) {
+        const error = new Error("Refund amount exceeds client deposit.");
+        error.statusCode = 400;
+        throw error;
+      }
+    }
+
+    const cashSession = await getOpenCashSession(db, {
+      organizationId,
+      cashierUserId: actorUserId,
+      forUpdate: true
+    });
+    if (!cashSession) {
+      const error = new Error("Cash session is required.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const transaction = await insertFinanceTransaction(db, {
+      organizationId,
+      cashSessionId: cashSession.id,
+      transactionType,
+      direction,
+      clientId,
+      ticketId: null,
+      ticketPaymentId: null,
+      paymentMethodId,
+      amountUzs,
+      note,
+      metadata: {
+        source: metadataSource,
+        paymentMethodName: method.name || ""
+      },
+      actorUserId
+    });
+    await db.query("COMMIT");
+    return { item: mapTransaction(transaction) };
+  } catch (error) {
+    await db.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    db.release();
+  }
+}
+
+export async function topUpFinanceClientDeposit({ organizationId, payload, actorUserId }) {
+  return createFinanceDepositTransaction({
+    organizationId,
+    payload,
+    actorUserId,
+    transactionType: "deposit_in",
+    direction: "in",
+    metadataSource: "client_deposit_top_up"
+  });
+}
+
+export async function refundFinanceClientDeposit({ organizationId, payload, actorUserId }) {
+  return createFinanceDepositTransaction({
+    organizationId,
+    payload,
+    actorUserId,
+    transactionType: "deposit_out",
+    direction: "out",
+    metadataSource: "client_deposit_refund",
+    requireReason: true
+  });
 }
 
 export async function getFinanceClientDebtTickets({ organizationId, clientId }) {
@@ -4065,7 +4339,7 @@ async function updateTicketStatus({ organizationId, id, status, action, reason =
       throw error;
     }
     if (action === "voided") {
-      const paymentActivityCount = await getTicketPaymentActivityCount(db, { organizationId, ticketId });
+      const paymentActivityCount = await getTicketPostedPaymentActivityCount(db, { organizationId, ticketId });
       if (paymentActivityCount > 0) {
         const error = new Error("Tickets with payments cannot be deleted.");
         error.statusCode = 400;

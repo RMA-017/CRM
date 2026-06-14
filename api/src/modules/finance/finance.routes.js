@@ -24,8 +24,10 @@ import {
   openCashSession,
   payFinanceTicketsFromDeposit,
   payFinanceTicket,
+  refundFinanceClientDeposit,
   refundFinanceTicket,
   searchCashierClients,
+  topUpFinanceClientDeposit,
   updateCashierAppointmentStatus,
   updateFinanceTicket,
   voidFinanceTransaction,
@@ -366,6 +368,54 @@ async function financeRoutes(fastify) {
       } catch (error) {
         request.log.error({ err: error }, "Error fetching finance client transactions:");
         return sendRouteError(reply, error, "Failed to load client transactions.");
+      }
+    }
+  );
+
+  fastify.post(
+    "/client-balances/deposit",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        body: financeRouteSchemas.clientDepositTopUpBody
+      }
+    },
+    async (request, reply) => {
+      try {
+        const requester = await requireCashierAccess(request, reply, "pay");
+        if (!requester) return null;
+        return reply.status(201).send(await topUpFinanceClientDeposit({
+          organizationId: request.authContext.organizationId,
+          payload: request.body,
+          actorUserId: requester.id
+        }));
+      } catch (error) {
+        request.log.error({ err: error }, "Error topping up finance client deposit:");
+        return sendRouteError(reply, error, "Deposit transaction failed.");
+      }
+    }
+  );
+
+  fastify.post(
+    "/client-balances/refund",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        body: financeRouteSchemas.clientDepositRefundBody
+      }
+    },
+    async (request, reply) => {
+      try {
+        const requester = await requireCashierAccess(request, reply, "pay");
+        if (!requester) return null;
+        return reply.status(201).send(await refundFinanceClientDeposit({
+          organizationId: request.authContext.organizationId,
+          payload: request.body,
+          actorUserId: requester.id
+        }));
+      } catch (error) {
+        request.log.error({ err: error }, "Error refunding finance client deposit:");
+        return sendRouteError(reply, error, "Deposit transaction failed.");
       }
     }
   );

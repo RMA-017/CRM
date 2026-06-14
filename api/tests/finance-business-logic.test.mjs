@@ -258,20 +258,32 @@ test("finance payments, deposits and refunds preserve cash-session and balance r
 
   assert.match(
     financeServiceSource,
-    /async function updateTicketStatus[\s\S]*if \(action === "voided"\) \{[\s\S]*const paymentActivityCount = await getTicketPaymentActivityCount\(db, \{ organizationId, ticketId \}\);[\s\S]*if \(paymentActivityCount > 0\) \{[\s\S]*Tickets with payments cannot be deleted\./s,
-    "Ticket delete/void should be blocked once the ticket has any payment or refund history."
+    /async function updateTicketStatus[\s\S]*if \(action === "voided"\) \{[\s\S]*const paymentActivityCount = await getTicketPostedPaymentActivityCount\(db, \{ organizationId, ticketId \}\);[\s\S]*if \(paymentActivityCount > 0\) \{[\s\S]*Tickets with payments cannot be deleted\./s,
+    "Ticket delete/void should be blocked only while posted payment or refund activity still exists."
   );
 
-  assert.doesNotMatch(
+  assert.match(
     financeRoutesSource,
-    /"\/client-balances\/deposit"/,
-    "Direct client balance deposit mutations should not be exposed; finance operations must go through tickets."
+    /"\/client-balances\/deposit"[\s\S]*requireCashierAccess\(request, reply, "pay"\)[\s\S]*topUpFinanceClientDeposit/s,
+    "Client deposit top-up should be exposed only as a cashier payment operation."
   );
 
-  assert.doesNotMatch(
+  assert.match(
+    financeRoutesSource,
+    /"\/client-balances\/refund"[\s\S]*requireCashierAccess\(request, reply, "pay"\)[\s\S]*refundFinanceClientDeposit/s,
+    "Client deposit refunds should be exposed only as cashier payment operations."
+  );
+
+  assert.match(
     financeServiceSource,
-    /export async function createFinanceDepositTransaction/,
-    "Direct deposit in/out creation should not remain as a finance service entry point."
+    /export async function topUpFinanceClientDeposit[\s\S]*transactionType: "deposit_in"[\s\S]*direction: "in"[\s\S]*export async function refundFinanceClientDeposit[\s\S]*transactionType: "deposit_out"[\s\S]*direction: "out"[\s\S]*requireReason: true/s,
+    "Client deposit top-up and refund operations should create explicit deposit transactions with history."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /async function createFinanceDepositTransaction[\s\S]*lockClientFinanceBalance[\s\S]*getActivePaymentMethod[\s\S]*Payment method not found\.[\s\S]*if \(transactionType === "deposit_out"\)[\s\S]*getClientDepositBalance[\s\S]*Refund amount exceeds client deposit\.[\s\S]*getOpenCashSession/s,
+    "Client deposit operations should lock the balance, validate payment method, prevent negative deposit and require an open cash session."
   );
 
   assert.match(
@@ -288,8 +300,20 @@ test("finance payments, deposits and refunds preserve cash-session and balance r
 
   assert.match(
     financeServiceSource,
-    /async function lockClientFinanceBalance[\s\S]*pg_advisory_xact_lock[\s\S]*export async function voidFinanceTransaction[\s\S]*transaction_type IN \('refund', 'deposit_ticket_refund'\)[\s\S]*Cancel the refund before cancelling the original payment\.[\s\S]*const depositBalanceImpact = getLedgerDepositChange\(current\);[\s\S]*currentDeposit - depositBalanceImpact < 0[\s\S]*Transaction cancellation would make client deposit negative\./s,
+    /async function lockClientFinanceBalance[\s\S]*pg_advisory_xact_lock[\s\S]*export async function voidFinanceTransaction[\s\S]*transaction_type IN \('refund', 'deposit_ticket_refund'\)[\s\S]*Cancel the refund before cancelling the original payment\.[\s\S]*const depositBalanceImpact = isClosedCashSession[\s\S]*getLedgerDepositChange\(\{[\s\S]*reversalSpec\.transactionType[\s\S]*getLedgerDepositChange\(current\)[\s\S]*nextDeposit < 0[\s\S]*Transaction cancellation would make client deposit negative\./s,
     "Transaction voids should respect refund dependencies, serialize deposit-affecting changes and block negative deposits."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /function getTransactionReversalSpec\(row\)[\s\S]*case "ticket_payment":[\s\S]*transactionType: "refund"[\s\S]*case "refund":[\s\S]*transactionType: "ticket_payment"[\s\S]*case "deposit_ticket_payment":[\s\S]*transactionType: "deposit_ticket_refund"[\s\S]*case "deposit_ticket_refund":[\s\S]*transactionType: "deposit_ticket_payment"/s,
+    "Closed cash-session transaction corrections should use accounting-aware reversal transaction types."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /const isClosedCashSession = current\.cash_session_status === "closed";[\s\S]*const cashSession = await getOpenCashSession\(db,[\s\S]*insertFinanceTransaction\(db, \{[\s\S]*cashSessionId: cashSession\.id,[\s\S]*transactionType: reversalSpec\.transactionType,[\s\S]*source: "closed_session_transaction_reversal"[\s\S]*reversalTransactionId[\s\S]*status = 'voided'/s,
+    "Voiding a closed-session transaction should create a current-session reversal and metadata link instead of changing the closed session movement."
   );
 
   assert.match(

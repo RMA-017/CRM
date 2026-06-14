@@ -81,8 +81,15 @@ function getTransactionActionLabel(translate, item) {
   return translate(labels[type] || translateTransactionType(translate, type));
 }
 
-function getTransactionStatusLabel(translate, status) {
-  return String(status || "") === "voided" ? translate("Cancelled") : translate("Active");
+function isTransactionReversed(item) {
+  const metadata = item?.metadata && typeof item.metadata === "object" ? item.metadata : {};
+  return Boolean(metadata.reversalTransactionId || metadata.reversal_transaction_id);
+}
+
+function getTransactionStatusLabel(translate, item) {
+  if (String(item?.status || "") === "voided") return translate("Cancelled");
+  if (isTransactionReversed(item)) return translate("Corrected");
+  return translate("Active");
 }
 
 function makeClientOption(item) {
@@ -183,6 +190,8 @@ function FinanceTransactionsPanel({ onClose, canPayFinanceCashier = false }) {
         <span className="finance-transactions-status-cell">
           {item.status === "voided" ? (
             <span className="finance-transaction-status-voided">{translate("Cancelled")}</span>
+          ) : isTransactionReversed(item) ? (
+            <span className="finance-transaction-status-reversed">{translate("Corrected")}</span>
           ) : !canPayFinanceCashier ? (
             <span className="finance-transaction-status-active">{translate("Active")}</span>
           ) : (
@@ -201,7 +210,7 @@ function FinanceTransactionsPanel({ onClose, canPayFinanceCashier = false }) {
           )}
         </span>
       ),
-      exportValue: (item) => getTransactionStatusLabel(translate, item.status)
+      exportValue: (item) => getTransactionStatusLabel(translate, item)
     }
   ];
   const visibleColumns = transactionColumns.filter((column) => visibleColumnIds.includes(column.id));
@@ -383,7 +392,7 @@ function FinanceTransactionsPanel({ onClose, canPayFinanceCashier = false }) {
   };
 
   const openVoidTransaction = (item) => {
-    if (!canPayFinanceCashier || !item || item.status === "voided" || voidingId) return;
+    if (!canPayFinanceCashier || !item || item.status === "voided" || isTransactionReversed(item) || voidingId) return;
     setVoidTarget(item);
     setVoidReason("");
   };
