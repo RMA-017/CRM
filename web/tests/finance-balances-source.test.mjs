@@ -159,7 +159,7 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     styles,
-    /\.finance-panel-shell \.finance-balances-table :is\(th:nth-child\(5\), td:nth-child\(5\)\) \{\s*padding-right: 44px;\s*\}/,
-    "Balances deposit header and values should keep right-side spacing inside finance panels."
+    /\.finance-balances-col-actions \{\s*width: 9%;\s*\}[\s\S]*\.finance-panel-shell \.finance-balances-table :is\(th:nth-child\(5\), td:nth-child\(5\)\) \{\s*padding-right: 18px;\s*\}[\s\S]*\.finance-balances-panel \.finance-balance-action-btn \{[\s\S]*width: 28px;[\s\S]*height: 28px;/,
+    "Balances deposit spacing and action buttons should stay compact after adding row actions."
   );
 });

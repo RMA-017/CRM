@@ -877,7 +877,10 @@ function FinanceBalancesPanel({ onClose }) {
             aria-label={translate("Close deposit modal")}
             onClick={() => closeDepositModal()}
           />
-          <div id="financeDepositOperationModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-deposit-operation-modal">
+          <div
+            id="financeDepositOperationModal"
+            className={`logout-confirm-modal all-users-edit-modal finance-modal finance-deposit-operation-modal ${isDepositRefund ? "is-refund" : "is-topup"}`}
+          >
             <h3 className="finance-modal-title-with-number">
               <span>{translate(depositModalTitle)}</span>
               <span className="finance-modal-ticket-number">{depositModalClient?.clientName || "-"}</span>
