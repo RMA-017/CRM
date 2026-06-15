@@ -1375,21 +1375,21 @@ function FinanceCashierPanel({
                         {getTicketLineItems(ticket).length > 1 ? (
                           <div className="finance-batch-ticket-lines">
                             <div className="finance-batch-ticket-line finance-batch-ticket-line-head">
-                              <span>{translate("Service")}</span>
-                              <span>{translate("Specialist")}</span>
-                              <span>{translate("Service Price")}</span>
-                              <span>{translate("Discount")}</span>
-                              <span>{translate("To Pay")}</span>
-                              <span>{translate("Paid")}</span>
+                              <span className="finance-batch-ticket-line-cell is-specialist">{translate("Specialist")}</span>
+                              <span className="finance-batch-ticket-line-cell is-service">{translate("Service")}</span>
+                              <span className="finance-batch-ticket-line-cell is-money is-price">{translate("Service Price")}</span>
+                              <span className="finance-batch-ticket-line-cell is-money is-discount">{translate("Discount")}</span>
+                              <span className="finance-batch-ticket-line-cell is-money is-payable">{translate("To Pay")}</span>
+                              <span className="finance-batch-ticket-line-cell is-money is-paid">{translate("Paid")}</span>
                             </div>
                             {getTicketLineItems(ticket).map((lineItem, lineIndex) => (
                               <div className="finance-batch-ticket-line" key={`${lineItem?.id || lineItem?.lineNumber || lineIndex}-${lineIndex}`}>
-                                <strong>{lineItem?.serviceName || "-"}</strong>
-                                <span>{lineItem?.specialistName || "-"}</span>
-                                <span>{formatMoney(getTicketLineServicePriceAmount(lineItem))}</span>
-                                <span>{formatMoney(lineItem?.discountUzs)}</span>
-                                <span>{formatMoney(getTicketLineFinalAmount(lineItem))}</span>
-                                <span>{formatMoney(getTicketLinePaidAmount(ticket, lineIndex))}</span>
+                                <span className="finance-batch-ticket-line-cell is-specialist">{lineItem?.specialistName || "-"}</span>
+                                <strong className="finance-batch-ticket-line-cell is-service">{lineItem?.serviceName || "-"}</strong>
+                                <span className="finance-batch-ticket-line-cell is-money is-price">{formatMoney(getTicketLineServicePriceAmount(lineItem))}</span>
+                                <span className="finance-batch-ticket-line-cell is-money is-discount">{formatMoney(lineItem?.discountUzs)}</span>
+                                <span className="finance-batch-ticket-line-cell is-money is-payable">{formatMoney(getTicketLineFinalAmount(lineItem))}</span>
+                                <span className="finance-batch-ticket-line-cell is-money is-paid">{formatMoney(getTicketLinePaidAmount(ticket, lineIndex))}</span>
                               </div>
                             ))}
                           </div>
