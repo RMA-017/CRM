@@ -219,6 +219,11 @@ function getReportColumnValue(columnKey, item, translate, forExport = false) {
     if (!hasTicket) return forExport ? "" : "-";
     return forExport ? toNumber(item[field]) : formatMoney(item[field]);
   };
+  const serviceScopedValue = (serviceField, ticketField) => {
+    if (!hasTicket) return forExport ? "" : "-";
+    const value = item.ticketItemId ? item[serviceField] : item[ticketField];
+    return forExport ? toNumber(value) : formatMoney(value);
+  };
   switch (columnKey) {
     case "ticketCreatedAt":
       return formatDateTimeTashkent(item.ticketCreatedAt);
@@ -253,13 +258,18 @@ function getReportColumnValue(columnKey, item, translate, forExport = false) {
     case "ticketDiscount":
       return ticketNumberValue("serviceDiscountUzs");
     case "ticketToPay":
-      return ticketNumberValue("ticketTotalUzs");
+      return serviceScopedValue("serviceFinalAmountUzs", "ticketTotalUzs");
     case "ticketPaid":
-      return ticketNumberValue("ticketPaidUzs");
+      return serviceScopedValue("servicePaidUzs", "ticketPaidUzs");
     case "ticketRemaining":
-      return ticketNumberValue("ticketRemainingUzs");
+      return serviceScopedValue("serviceRemainingUzs", "ticketRemainingUzs");
     case "ticketClosed":
       if (!hasTicket) return forExport ? "" : "-";
+      if (item.ticketItemId) {
+        return toNumber(item.serviceFinalAmountUzs) > 0 && toNumber(item.servicePaidUzs) >= toNumber(item.serviceFinalAmountUzs)
+          ? translate("Yes")
+          : translate("No");
+      }
       return toNumber(item.ticketTotalUzs) > 0 && toNumber(item.ticketPaidUzs) >= toNumber(item.ticketTotalUzs)
         ? translate("Yes")
         : translate("No");

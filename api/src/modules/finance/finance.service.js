@@ -288,6 +288,8 @@ function mapFinanceReportDetail(row) {
     ticketDiscountUzs: Number.parseInt(String(row.ticket_discount_uzs || row.service_discount_uzs || 0), 10) || 0,
     serviceDiscountUzs: Number.parseInt(String(row.service_discount_uzs || 0), 10) || 0,
     serviceFinalAmountUzs: Number.parseInt(String(row.service_final_amount_uzs || 0), 10) || 0,
+    servicePaidUzs: Number.parseInt(String(row.service_paid_uzs || 0), 10) || 0,
+    serviceRemainingUzs: Number.parseInt(String(row.service_remaining_uzs || 0), 10) || 0,
     ticketTotalUzs: Number.parseInt(String(row.ticket_total_uzs || 0), 10) || 0,
     ticketPaidUzs: Number.parseInt(String(row.ticket_paid_uzs || 0), 10) || 0,
     ticketRemainingUzs: Math.max(
@@ -299,6 +301,7 @@ function mapFinanceReportDetail(row) {
     paymentMethodName: row.payment_method_name || "",
     amountUzs: Number.parseInt(String(row.amount_uzs || 0), 10) || 0,
     signedAmountUzs: Number.parseInt(String(row.signed_amount_uzs || 0), 10) || 0,
+    signedItemAmountUzs: Number.parseInt(String(row.signed_item_amount_uzs || 0), 10) || 0,
     transactionAt: row.transaction_at,
     cashierUserId: row.cashier_user_id,
     cashierName: row.cashier_name || "",
@@ -2552,12 +2555,29 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
 
   const reportWhereSql = reportWhere.join("\n    AND ");
   const ticketMovementWhere = ticketMovementWhereParts.join("\n    AND ");
+  const itemFinalAmountSql = "COALESCE(fti.final_amount_uzs, ft.total_uzs, ft.amount_uzs, 0)";
+  const itemStartAmountSql = "COALESCE(fti_order.item_start_uzs, 0)";
+  const itemEndAmountSql = `(${itemStartAmountSql} + ${itemFinalAmountSql})`;
+  const ticketPaidBeforeTransactionSql = "COALESCE(ftx_prior.paid_before_uzs, 0)";
+  const servicePaidAmountSql = `
+    GREATEST(
+      LEAST(COALESCE(fpaid.paid_amount_uzs, 0), ${itemEndAmountSql}) - ${itemStartAmountSql},
+      0
+    )`;
   const signedItemAmountSql = `
     CASE
       WHEN t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN
-        ROUND((t.amount_uzs::numeric * fti.final_amount_uzs::numeric) / COALESCE(NULLIF(ft.total_uzs::numeric, 0), NULLIF(ft.amount_uzs::numeric, 0)))
+        GREATEST(
+          LEAST(${itemEndAmountSql}, ${ticketPaidBeforeTransactionSql} + t.amount_uzs)
+            - GREATEST(${itemStartAmountSql}, ${ticketPaidBeforeTransactionSql}),
+          0
+        )
       WHEN t.transaction_type IN ('refund', 'deposit_ticket_refund') THEN
-        -ROUND((t.amount_uzs::numeric * fti.final_amount_uzs::numeric) / COALESCE(NULLIF(ft.total_uzs::numeric, 0), NULLIF(ft.amount_uzs::numeric, 0)))
+        -GREATEST(
+          LEAST(${itemEndAmountSql}, ${ticketPaidBeforeTransactionSql})
+            - GREATEST(${itemStartAmountSql}, ${ticketPaidBeforeTransactionSql} - t.amount_uzs),
+          0
+        )
       ELSE 0
     END`;
   const signedTicketAmountSql = `
@@ -2614,6 +2634,35 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
          AND pt.status = 'posted'
          AND pt.transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')
     ) fpaid ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(SUM(COALESCE(fti_prev.final_amount_uzs, 0)), 0) AS item_start_uzs
+        FROM finance_ticket_items fti_prev
+       WHERE fti_prev.organization_id = fti.organization_id
+         AND fti_prev.ticket_id = fti.ticket_id
+         AND (
+           COALESCE(fti_prev.line_number, 0) < COALESCE(fti.line_number, 0)
+           OR (
+             COALESCE(fti_prev.line_number, 0) = COALESCE(fti.line_number, 0)
+             AND fti_prev.id < fti.id
+           )
+         )
+    ) fti_order ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(SUM(CASE
+               WHEN pt.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN pt.amount_uzs
+               WHEN pt.transaction_type IN ('refund', 'deposit_ticket_refund') THEN -pt.amount_uzs
+               ELSE 0
+             END), 0) AS paid_before_uzs
+        FROM finance_transactions pt
+       WHERE pt.organization_id = t.organization_id
+         AND pt.ticket_id = t.ticket_id
+         AND pt.status = 'posted'
+         AND pt.transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')
+         AND (
+           pt.transaction_at < t.transaction_at
+           OR (pt.transaction_at = t.transaction_at AND pt.id < t.id)
+         )
+    ) ftx_prior ON TRUE
     LEFT JOIN finance_payment_methods fpm ON fpm.organization_id = t.organization_id AND fpm.id = t.payment_method_id
     LEFT JOIN users cu ON cu.id = s.cashier_user_id
     LEFT JOIN users ts ON ts.organization_id = ft.organization_id AND ts.id = ft.specialist_id
@@ -2811,6 +2860,35 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
          AND pt.status = 'posted'
          AND pt.transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')
     ) fpaid ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(SUM(COALESCE(fti_prev.final_amount_uzs, 0)), 0) AS item_start_uzs
+        FROM finance_ticket_items fti_prev
+       WHERE fti_prev.organization_id = fti.organization_id
+         AND fti_prev.ticket_id = fti.ticket_id
+         AND (
+           COALESCE(fti_prev.line_number, 0) < COALESCE(fti.line_number, 0)
+           OR (
+             COALESCE(fti_prev.line_number, 0) = COALESCE(fti.line_number, 0)
+             AND fti_prev.id < fti.id
+           )
+         )
+    ) fti_order ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(SUM(CASE
+               WHEN pt.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN pt.amount_uzs
+               WHEN pt.transaction_type IN ('refund', 'deposit_ticket_refund') THEN -pt.amount_uzs
+               ELSE 0
+             END), 0) AS paid_before_uzs
+        FROM finance_transactions pt
+       WHERE pt.organization_id = t.organization_id
+         AND pt.ticket_id = t.ticket_id
+         AND pt.status = 'posted'
+         AND pt.transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')
+         AND (
+           pt.transaction_at < t.transaction_at
+           OR (pt.transaction_at = t.transaction_at AND pt.id < t.id)
+         )
+    ) ftx_prior ON TRUE
     LEFT JOIN finance_payment_methods fpm ON fpm.organization_id = t.organization_id AND fpm.id = t.payment_method_id
     LEFT JOIN users cu ON cu.id = s.cashier_user_id
     LEFT JOIN users ts ON ts.organization_id = ft.organization_id AND ts.id = ft.specialist_id
@@ -2838,7 +2916,9 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
             COALESCE(NULLIF(TRIM(fti.service_name), ''), NULLIF(TRIM(ft.service_name), ''), '') AS service_name,
             COALESCE(fti.price_uzs, ft.amount_uzs, 0) AS service_amount_uzs,
             COALESCE(fti.discount_uzs, ft.discount_uzs, 0) AS service_discount_uzs,
-            COALESCE(fti.final_amount_uzs, ft.total_uzs, ft.amount_uzs, 0) AS service_final_amount_uzs,
+            ${itemFinalAmountSql} AS service_final_amount_uzs,
+            ${servicePaidAmountSql} AS service_paid_uzs,
+            GREATEST(${itemFinalAmountSql} - ${servicePaidAmountSql}, 0) AS service_remaining_uzs,
             COALESCE(NULLIF(TRIM(isu.full_name), ''), NULLIF(TRIM(isu.username), ''), NULLIF(TRIM(ts.full_name), ''), NULLIF(TRIM(ts.username), ''), '') AS specialist_name,
             COALESCE(NULLIF(TRIM(ip.label), ''), NULLIF(TRIM(tp.label), ''), '') AS position_label,
             COALESCE(ft.subtotal_uzs, ft.amount_uzs, 0) AS ticket_subtotal_uzs,
@@ -2849,6 +2929,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
             COALESCE(NULLIF(TRIM(fpm.name), ''), CASE WHEN t.direction = 'transfer' THEN 'Client Balance' ELSE '' END) AS payment_method_name,
             t.amount_uzs,
             ${signedReportAmountSql} AS signed_amount_uzs,
+            ${signedItemAmountSql} AS signed_item_amount_uzs,
             t.transaction_at,
             t.note,
             s.cashier_user_id,

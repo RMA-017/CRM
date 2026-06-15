@@ -380,8 +380,8 @@ test("finance daily cash and reports separate real cash movement from deposit tr
 
   assert.match(
     financeServiceSource,
-    /export async function getFinanceReports[\s\S]*t\.transaction_type IN \('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund'\)[\s\S]*t\.amount_uzs::numeric \* fti\.final_amount_uzs::numeric[\s\S]*NULLIF\(ft\.total_uzs::numeric, 0\)[\s\S]*COUNT\(DISTINCT fti\.id\) AS item_count/s,
-    "Finance reports should allocate split payment transaction amounts across ticket items and avoid duplicate item counts."
+    /export async function getFinanceReports[\s\S]*item_start_uzs[\s\S]*paid_before_uzs[\s\S]*WHEN t\.transaction_type IN \('ticket_payment', 'deposit_ticket_payment'\) THEN[\s\S]*LEAST\(\$\{itemEndAmountSql\}, \$\{ticketPaidBeforeTransactionSql\} \+ t\.amount_uzs\)[\s\S]*WHEN t\.transaction_type IN \('refund', 'deposit_ticket_refund'\) THEN[\s\S]*GREATEST\(\$\{itemStartAmountSql\}, \$\{ticketPaidBeforeTransactionSql\} - t\.amount_uzs\)[\s\S]*COUNT\(DISTINCT fti\.id\) AS item_count/s,
+    "Finance reports should allocate ticket payments across services in FIFO order and avoid duplicate item counts."
   );
 
   assert.doesNotMatch(
