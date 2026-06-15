@@ -9185,15 +9185,17 @@ button.finance-daily-cash-method-card:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11.5px;
+  font-size: 11px;
 }
 
 #financeBatchPaymentModal .finance-batch-ticket-line-cell.is-specialist {
   grid-column: 3;
+  text-align: left;
 }
 
 #financeBatchPaymentModal .finance-batch-ticket-line-cell.is-service {
   grid-column: 4;
+  text-align: left;
 }
 
 #financeBatchPaymentModal .finance-batch-ticket-line-cell.is-price {
