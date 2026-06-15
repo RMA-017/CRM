@@ -6295,7 +6295,7 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 .finance-balances-col-actions {
-  width: 220px;
+  width: 154px;
 }
 
 .finance-balances-table :is(th, td) {
@@ -8288,6 +8288,12 @@ button.finance-daily-cash-method-card:disabled {
   gap: 7px;
   padding-right: 8px;
   scrollbar-gutter: stable;
+}
+
+#financeDepositOperationModal .all-users-edit-fields.finance-deposit-operation-fields {
+  padding: 0 !important;
+  padding-inline: 0 !important;
+  scrollbar-gutter: auto;
 }
 
 #financeManualTicketModal.logout-confirm-modal.all-users-edit-modal,
