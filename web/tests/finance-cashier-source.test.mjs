@@ -424,6 +424,11 @@ test("batch payment modal keeps a polished dense payment layout", async () => {
   );
   assert.match(
     styles,
+    /#financeBatchPaymentModal \.finance-batch-ticket-lines \{[\s\S]*padding: 5px 0;[\s\S]*border-left: 0;[\s\S]*box-shadow: inset 2px 0 0 rgba\(37, 99, 235, 0\.18\);/s,
+    "Nested ticket service wrapper should not add horizontal padding or layout-affecting borders that misalign child columns."
+  );
+  assert.match(
+    styles,
     /#financeBatchPaymentModal \.finance-batch-ticket-line-cell \{[\s\S]*font-weight: 400;[\s\S]*#financeBatchPaymentModal \.finance-batch-ticket-line-cell\.is-money \{[\s\S]*font-weight: 400;[\s\S]*#financeBatchPaymentModal \.finance-batch-ticket-line strong \{[\s\S]*font-weight: 400;/s,
     "Nested ticket service row text should not render bold."
   );
