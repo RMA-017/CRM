@@ -34,8 +34,14 @@ test("cashier ticket cards stay compact while payment modal shows multi-service 
 
   assert.match(
     cashierPanelSource,
-    /function getTicketLinePaidAmount\(ticket, lineIndex\)[\s\S]*const paidAmount = getTicketPaidAmount\(ticket\);[\s\S]*previousFinalAmount[\s\S]*finance-batch-ticket-lines[\s\S]*translate\("Service Price"\)[\s\S]*translate\("Discount"\)[\s\S]*translate\("To Pay"\)[\s\S]*translate\("Paid"\)[\s\S]*getTicketLineServicePriceAmount\(lineItem\)[\s\S]*lineItem\?\.discountUzs[\s\S]*getTicketLineFinalAmount\(lineItem\)[\s\S]*getTicketLinePaidAmount\(ticket, lineIndex\)/s,
+    /function getTicketLinePaidAmount\(ticket, lineIndex\)[\s\S]*const paidAmount = getTicketPaidAmount\(ticket\);[\s\S]*previousFinalAmount[\s\S]*finance-batch-ticket-lines[\s\S]*finance-batch-ticket-line-cell is-specialist[\s\S]*finance-batch-ticket-line-cell is-service[\s\S]*finance-batch-ticket-line-cell is-money is-price[\s\S]*getTicketLineServicePriceAmount\(lineItem\)[\s\S]*finance-batch-ticket-line-cell is-money is-discount[\s\S]*lineItem\?\.discountUzs[\s\S]*finance-batch-ticket-line-cell is-money is-payable[\s\S]*getTicketLineFinalAmount\(lineItem\)[\s\S]*finance-batch-ticket-line-cell is-money is-paid[\s\S]*getTicketLinePaidAmount\(ticket, lineIndex\)/s,
     "The double-click payment modal should render each ticket line item with service-level price, discount, payable and FIFO paid amount."
+  );
+
+  assert.doesNotMatch(
+    cashierPanelSource,
+    /finance-batch-ticket-line-head/,
+    "The double-click payment modal should not repeat a nested header inside multi-service ticket lines."
   );
 
   assert.match(

@@ -1374,14 +1374,6 @@ function FinanceCashierPanel({
                         <span className="finance-batch-ticket-cell is-money is-paid">{formatMoney(getTicketPaidAmount(ticket))}</span>
                         {getTicketLineItems(ticket).length > 1 ? (
                           <div className="finance-batch-ticket-lines">
-                            <div className="finance-batch-ticket-line finance-batch-ticket-line-head">
-                              <span className="finance-batch-ticket-line-cell is-specialist">{translate("Specialist")}</span>
-                              <span className="finance-batch-ticket-line-cell is-service">{translate("Service")}</span>
-                              <span className="finance-batch-ticket-line-cell is-money is-price">{translate("Service Price")}</span>
-                              <span className="finance-batch-ticket-line-cell is-money is-discount">{translate("Discount")}</span>
-                              <span className="finance-batch-ticket-line-cell is-money is-payable">{translate("To Pay")}</span>
-                              <span className="finance-batch-ticket-line-cell is-money is-paid">{translate("Paid")}</span>
-                            </div>
                             {getTicketLineItems(ticket).map((lineItem, lineIndex) => (
                               <div className="finance-batch-ticket-line" key={`${lineItem?.id || lineItem?.lineNumber || lineIndex}-${lineIndex}`}>
                                 <span className="finance-batch-ticket-line-cell is-specialist">{lineItem?.specialistName || "-"}</span>
