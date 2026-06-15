@@ -278,6 +278,16 @@ test("batch payment modal keeps client balance, ticket and payment inputs wrappe
     /finance-batch-client-balance-head-cell[\s\S]*finance-batch-client-balance-client[\s\S]*finance-batch-client-balance-value/s,
     "Client balance labels and values should render directly without a row wrapper."
   );
+  assert.doesNotMatch(
+    cashierPanelSource,
+    /finance-batch-client-balance-value[^`]*finance-balance-positive/,
+    "Deposit value in the payment modal should not use the green positive pill background."
+  );
+  assert.doesNotMatch(
+    styles,
+    /#financeBatchPaymentModal \.finance-balance-positive/,
+    "Payment modal should not keep a scoped positive balance background style."
+  );
   assert.match(
     styles,
     /#financeBatchPaymentModal \.finance-batch-ticket-head,[\s\S]*#financeBatchPaymentModal \.finance-batch-ticket-group \{[\s\S]*grid-template-columns: var\([\s\S]*--finance-batch-ticket-columns,/s,

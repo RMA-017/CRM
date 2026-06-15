@@ -1309,7 +1309,7 @@ function FinanceCashierPanel({
                     {batchClientSummaries.map((client) => (
                       <Fragment key={client.clientId}>
                         <strong className="finance-batch-client-balance-client">{client.clientName}</strong>
-                        <span className={`finance-batch-client-balance-value${client.depositUzs > 0 ? " finance-balance-positive" : ""}`}>{formatMoney(client.depositUzs)}</span>
+                        <span className="finance-batch-client-balance-value">{formatMoney(client.depositUzs)}</span>
                         <span className={`finance-batch-client-balance-value${client.debtUzs > 0 ? " finance-balance-negative" : ""}`}>{formatMoney(client.debtUzs)}</span>
                       </Fragment>
                     ))}

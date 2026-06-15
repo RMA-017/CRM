@@ -9018,11 +9018,6 @@ button.finance-daily-cash-method-card:disabled {
   font-weight: 800;
 }
 
-#financeBatchPaymentModal .finance-balance-positive {
-  background: rgba(220, 252, 231, 0.70);
-  color: #15803d;
-}
-
 #financeBatchPaymentModal .finance-balance-negative {
   border: 0;
   background: transparent;
