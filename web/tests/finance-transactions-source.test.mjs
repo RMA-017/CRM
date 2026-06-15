@@ -91,7 +91,7 @@ test("finance transaction void action is only exposed to cashier payment users",
 
   assert.match(
     styles,
-    /#financeTransactionsPanel \.finance-transaction-void-btn \.services-settings-trash-icon \{[\s\S]*width: 12px;[\s\S]*max-width: 12px;[\s\S]*height: 12px;[\s\S]*max-height: 12px;[\s\S]*\}[\s\S]*#financeTransactionsPanel \.finance-transaction-void-btn \.services-settings-trash-icon::before \{[\s\S]*left: 0;[\s\S]*width: 12px;[\s\S]*max-width: 12px;/,
+    /#financeTransactionsPanel \.finance-transaction-void-btn \.services-settings-trash-icon \{[\s\S]*width: 12px;[\s\S]*max-width: 12px;[\s\S]*height: 12px;[\s\S]*max-height: 12px;[\s\S]*\}[\s\S]*#financeTransactionsPanel \.finance-transaction-void-btn \.services-settings-trash-icon::before \{[\s\S]*left: -1\.4px;[\s\S]*width: calc\(100% \+ 2\.8px\);[\s\S]*max-width: calc\(100% \+ 2\.8px\);/,
     "Transaction status trash icon should keep compact fixed lid and body lines."
   );
 

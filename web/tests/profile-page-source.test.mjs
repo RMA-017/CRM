@@ -51,7 +51,7 @@ test("user and client tables render edit and delete actions as compact icons", a
   );
   assert.match(
     stylesSource,
-    /\.all-users-table \.profile-table-icon-btn \{[\s\S]*width: 30px;[\s\S]*height: 30px;[\s\S]*\.table-trash-icon \{[\s\S]*box-sizing: border-box;[\s\S]*width: 12px;[\s\S]*\.table-trash-icon::before \{[\s\S]*left: 0;[\s\S]*width: 12px;[\s\S]*\.table-trash-icon::after \{[\s\S]*left: 50%;[\s\S]*transform: translateX\(-50%\);/s,
+    /\.all-users-table \.profile-table-icon-btn \{[\s\S]*width: 30px;[\s\S]*height: 30px;[\s\S]*\.table-trash-icon \{[\s\S]*box-sizing: border-box;[\s\S]*width: 12px;[\s\S]*\.table-trash-icon::before \{[\s\S]*left: -1\.4px;[\s\S]*width: calc\(100% \+ 2\.8px\);[\s\S]*\.table-trash-icon::after \{[\s\S]*left: 50%;[\s\S]*transform: translateX\(-50%\);/s,
     "Shared table icon CSS should keep action buttons compact and the trash lid closed."
   );
 });

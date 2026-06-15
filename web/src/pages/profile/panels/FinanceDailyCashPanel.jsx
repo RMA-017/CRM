@@ -66,6 +66,11 @@ function formatMoneyValue(value) {
   return `${amount.toLocaleString("ru-RU")} UZS`;
 }
 
+function getDailyCashSignedAmount(item) {
+  const amount = Number.parseInt(String(item?.amountUzs || 0), 10) || 0;
+  return String(item?.direction || "") === "out" ? -Math.abs(amount) : amount;
+}
+
 function normalizeMoneyInput(value) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
@@ -219,8 +224,8 @@ function FinanceDailyCashPanel({ onClose, canPayFinanceCashier = false, currentU
       label: "Amount UZS",
       className: "finance-daily-cash-col-amount",
       cellClassName: "finance-daily-cash-cell-amount",
-      render: (item) => formatMoney(item.amountUzs),
-      exportValue: (item) => Number.parseInt(String(item.amountUzs || 0), 10) || 0
+      render: (item) => formatMoney(getDailyCashSignedAmount(item)),
+      exportValue: (item) => getDailyCashSignedAmount(item)
     },
     {
       id: "ticketNumber",
@@ -614,10 +619,7 @@ function FinanceDailyCashPanel({ onClose, canPayFinanceCashier = false, currentU
             onClick={() => applyPaymentMethodSummaryFilter(paymentMethodId)}
           >
             <span title={item.paymentMethodName}>{item.paymentMethodName}</span>
-            <strong>{formatMoneyValue(item.totalInUzs)}</strong>
-            {item.totalOutUzs > 0 ? (
-              <small>{translate("Total Out")}: {formatMoneyValue(item.totalOutUzs)}</small>
-            ) : null}
+            <strong>{formatMoneyValue(item.netUzs)}</strong>
           </button>
           );
         }) : (

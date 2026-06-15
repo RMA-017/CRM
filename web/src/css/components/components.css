@@ -5674,10 +5674,10 @@ label.field > span:first-child,
 .table-trash-icon::before {
   content: "";
   position: absolute;
-  left: 0;
-  top: -2px;
-  width: 12px;
-  max-width: 12px;
+  left: -1.4px;
+  top: -2.2px;
+  width: calc(100% + 2.8px);
+  max-width: calc(100% + 2.8px);
   height: 2px;
   border-radius: 2px;
   background: currentColor;
@@ -5687,9 +5687,9 @@ label.field > span:first-child,
   content: "";
   position: absolute;
   left: 50%;
-  top: -5px;
-  width: 5px;
-  max-width: 5px;
+  top: -5.2px;
+  width: 4.8px;
+  max-width: 4.8px;
   height: 2px;
   border-radius: 2px 2px 0 0;
   background: currentColor;
@@ -6374,6 +6374,19 @@ button.finance-daily-cash-method-card:disabled {
     border-color var(--dur) ease,
     background var(--dur) ease,
     color var(--dur) ease;
+}
+
+.finance-panel-shell .finance-balances-panel .all-users-table .finance-balance-action-btn {
+  flex: 0 0 30px;
+  inline-size: 30px;
+  block-size: 30px;
+  width: 30px;
+  min-width: 30px;
+  max-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  max-height: 30px;
+  padding: 0;
 }
 
 .finance-balances-panel .finance-balance-action-btn:hover:not(:disabled) {
@@ -7682,10 +7695,10 @@ button.finance-daily-cash-method-card:disabled {
 #financeTicketsPanel .finance-ticket-trash-icon::before {
   content: "";
   position: absolute;
-  left: 0;
-  top: -2px;
-  width: 12px;
-  max-width: 12px;
+  left: -1.4px;
+  top: -2.2px;
+  width: calc(100% + 2.8px);
+  max-width: calc(100% + 2.8px);
   height: 2px;
   border-radius: 2px;
   background: currentColor;
@@ -7695,9 +7708,9 @@ button.finance-daily-cash-method-card:disabled {
   content: "";
   position: absolute;
   left: 50%;
-  top: -5px;
-  width: 5px;
-  max-width: 5px;
+  top: -5.2px;
+  width: 4.8px;
+  max-width: 4.8px;
   height: 2px;
   border-radius: 2px 2px 0 0;
   background: currentColor;
@@ -9446,10 +9459,10 @@ button.finance-daily-cash-method-card:disabled {
 :is(#servicesSettingsPanel, #financeSettingsPanel, #financeTransactionsPanel) .services-settings-trash-icon::before {
   content: "";
   position: absolute;
-  left: 0;
-  top: -2px;
-  width: 12px;
-  max-width: 12px;
+  left: -1.4px;
+  top: -2.2px;
+  width: calc(100% + 2.8px);
+  max-width: calc(100% + 2.8px);
   height: 2px;
   border-radius: 2px;
   background: currentColor;
@@ -9459,9 +9472,9 @@ button.finance-daily-cash-method-card:disabled {
   content: "";
   position: absolute;
   left: 50%;
-  top: -5px;
-  width: 5px;
-  max-width: 5px;
+  top: -5.2px;
+  width: 4.8px;
+  max-width: 4.8px;
   height: 2px;
   border-radius: 2px 2px 0 0;
   background: currentColor;
@@ -9482,17 +9495,17 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 #financeTransactionsPanel .finance-transaction-void-btn .services-settings-trash-icon::before {
-  left: 0;
-  top: -2px;
-  width: 12px;
-  max-width: 12px;
+  left: -1.4px;
+  top: -2.2px;
+  width: calc(100% + 2.8px);
+  max-width: calc(100% + 2.8px);
   height: 2px;
 }
 
 #financeTransactionsPanel .finance-transaction-void-btn .services-settings-trash-icon::after {
-  top: -5px;
-  width: 5px;
-  max-width: 5px;
+  top: -5.2px;
+  width: 4.8px;
+  max-width: 4.8px;
   height: 2px;
 }
 

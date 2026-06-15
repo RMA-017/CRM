@@ -15,14 +15,26 @@ const styles = await readFile(
 test("daily cash shows payment method totals below the header", () => {
   assert.match(
     dailyCashSource,
-    /function getPaymentMethodSummaryCards\(paymentMethods, paymentSummary\)[\s\S]*summaryById\.set\(id, item\)[\s\S]*Array\.isArray\(paymentMethods\)[\s\S]*totalInUzs/s,
+    /function getPaymentMethodSummaryCards\(paymentMethods, paymentSummary\)[\s\S]*summaryById\.set\(id, item\)[\s\S]*Array\.isArray\(paymentMethods\)[\s\S]*netUzs/s,
     "Daily cash should combine DB payment method names with returned method totals."
   );
 
   assert.match(
     dailyCashSource,
-    /<div className="all-users-head">[\s\S]*<\/div>\s*<div className="finance-daily-cash-method-summary"[\s\S]*paymentMethodSummaryCards\.map[\s\S]*formatMoneyValue\(item\.totalInUzs\)/s,
-    "Payment method total cards should render directly under the daily cash header."
+    /<div className="all-users-head">[\s\S]*<\/div>\s*<div className="finance-daily-cash-method-summary"[\s\S]*paymentMethodSummaryCards\.map[\s\S]*formatMoneyValue\(item\.netUzs\)/s,
+    "Payment method total cards should render net method totals directly under the daily cash header."
+  );
+
+  assert.doesNotMatch(
+    dailyCashSource,
+    /<small>\{translate\("Total Out"\)\}/,
+    "Daily cash method cards should not show a separate расход line."
+  );
+
+  assert.match(
+    dailyCashSource,
+    /function getDailyCashSignedAmount\(item\)[\s\S]*String\(item\?\.direction \|\| ""\) === "out" \? -Math\.abs\(amount\) : amount[\s\S]*render: \(item\) => formatMoney\(getDailyCashSignedAmount\(item\)\)[\s\S]*exportValue: \(item\) => getDailyCashSignedAmount\(item\)/s,
+    "Daily cash table and export should show outgoing rows as negative amounts."
   );
 
   assert.match(

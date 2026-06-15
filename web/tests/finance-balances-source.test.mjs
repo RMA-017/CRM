@@ -195,7 +195,7 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     styles,
-    /\.finance-balances-col-debt \{\s*width: 220px;\s*\}[\s\S]*\.finance-balances-col-deposit \{\s*width: 220px;\s*\}[\s\S]*\.finance-balances-col-actions \{\s*width: 220px;\s*\}[\s\S]*\.finance-balances-row-actions \{[\s\S]*gap: 6px;[\s\S]*width: 100%;[\s\S]*\.finance-balances-panel \.finance-balance-action-btn \{[\s\S]*flex-grow: 0;[\s\S]*flex-shrink: 0;[\s\S]*width: 30px;[\s\S]*max-width: 30px;[\s\S]*height: 30px;[\s\S]*max-height: 30px;/,
+    /\.finance-balances-col-debt \{\s*width: 220px;\s*\}[\s\S]*\.finance-balances-col-deposit \{\s*width: 220px;\s*\}[\s\S]*\.finance-balances-col-actions \{\s*width: 220px;\s*\}[\s\S]*\.finance-balances-row-actions \{[\s\S]*gap: 6px;[\s\S]*width: 100%;[\s\S]*\.finance-balances-panel \.finance-balance-action-btn \{[\s\S]*flex-grow: 0;[\s\S]*flex-shrink: 0;[\s\S]*width: 30px;[\s\S]*max-width: 30px;[\s\S]*height: 30px;[\s\S]*max-height: 30px;[\s\S]*\.finance-panel-shell \.finance-balances-panel \.all-users-table \.finance-balance-action-btn \{[\s\S]*flex: 0 0 30px;[\s\S]*inline-size: 30px;[\s\S]*block-size: 30px;/,
     "Balances debt, deposit and action columns should be equal 220px columns while action buttons stay locked to 30px."
   );
 

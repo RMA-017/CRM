@@ -103,12 +103,12 @@ test("finance delete icons use a closed trash lid", async () => {
 
   assert.match(
     styles,
-    /#financeTicketsPanel \.finance-ticket-trash-icon \{[\s\S]*box-sizing: border-box;[\s\S]*width: 12px;[\s\S]*#financeTicketsPanel \.finance-ticket-trash-icon::before \{[\s\S]*left: 0;[\s\S]*top: -2px;[\s\S]*width: 12px;[\s\S]*#financeTicketsPanel \.finance-ticket-trash-icon::after \{[\s\S]*left: 50%;[\s\S]*transform: translateX\(-50%\);/s,
+    /#financeTicketsPanel \.finance-ticket-trash-icon \{[\s\S]*box-sizing: border-box;[\s\S]*width: 12px;[\s\S]*#financeTicketsPanel \.finance-ticket-trash-icon::before \{[\s\S]*left: -1\.4px;[\s\S]*top: -2\.2px;[\s\S]*width: calc\(100% \+ 2\.8px\);[\s\S]*#financeTicketsPanel \.finance-ticket-trash-icon::after \{[\s\S]*left: 50%;[\s\S]*transform: translateX\(-50%\);/s,
     "Finance ticket delete icon lid should fully cover the trash body."
   );
   assert.match(
     styles,
-    /:is\(#servicesSettingsPanel, #financeSettingsPanel, #financeTransactionsPanel\) \.services-settings-trash-icon \{[\s\S]*box-sizing: border-box;[\s\S]*width: 12px;[\s\S]*:is\(#servicesSettingsPanel, #financeSettingsPanel, #financeTransactionsPanel\) \.services-settings-trash-icon::before \{[\s\S]*left: 0;[\s\S]*top: -2px;[\s\S]*width: 12px;[\s\S]*:is\(#servicesSettingsPanel, #financeSettingsPanel, #financeTransactionsPanel\) \.services-settings-trash-icon::after \{[\s\S]*left: 50%;[\s\S]*transform: translateX\(-50%\);/s,
+    /:is\(#servicesSettingsPanel, #financeSettingsPanel, #financeTransactionsPanel\) \.services-settings-trash-icon \{[\s\S]*box-sizing: border-box;[\s\S]*width: 12px;[\s\S]*:is\(#servicesSettingsPanel, #financeSettingsPanel, #financeTransactionsPanel\) \.services-settings-trash-icon::before \{[\s\S]*left: -1\.4px;[\s\S]*top: -2\.2px;[\s\S]*width: calc\(100% \+ 2\.8px\);[\s\S]*:is\(#servicesSettingsPanel, #financeSettingsPanel, #financeTransactionsPanel\) \.services-settings-trash-icon::after \{[\s\S]*left: 50%;[\s\S]*transform: translateX\(-50%\);/s,
     "Finance settings and transaction delete icons should fully cover the trash body."
   );
 });
