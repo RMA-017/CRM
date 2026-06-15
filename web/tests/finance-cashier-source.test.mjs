@@ -419,6 +419,16 @@ test("batch payment modal keeps a polished dense payment layout", async () => {
   );
   assert.match(
     styles,
+    /#financeBatchPaymentModal \.finance-batch-ticket-head,[\s\S]*#financeBatchPaymentModal \.finance-batch-ticket-group \{[\s\S]*--finance-batch-ticket-column-gap: 8px;[\s\S]*column-gap: var\(--finance-batch-ticket-column-gap\);[\s\S]*#financeBatchPaymentModal \.finance-batch-ticket-line \{[\s\S]*column-gap: var\(--finance-batch-ticket-column-gap\);/s,
+    "Nested ticket service rows should use the same column gap as their parent ticket row."
+  );
+  assert.match(
+    styles,
+    /#financeBatchPaymentModal \.finance-batch-ticket-line-cell \{[\s\S]*font-weight: 400;[\s\S]*#financeBatchPaymentModal \.finance-batch-ticket-line-cell\.is-money \{[\s\S]*font-weight: 400;[\s\S]*#financeBatchPaymentModal \.finance-batch-ticket-line strong \{[\s\S]*font-weight: 400;/s,
+    "Nested ticket service row text should not render bold."
+  );
+  assert.match(
+    styles,
     /#financeBatchPaymentModal \.edit-actions \{[\s\S]*padding-top: 8px;[\s\S]*border-top: 1px solid rgba\(148, 163, 184, 0\.18\);/s,
     "Payment modal actions should be visually separated from payment details."
   );

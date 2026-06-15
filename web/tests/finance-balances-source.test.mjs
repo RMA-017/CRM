@@ -207,7 +207,7 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     styles,
-    /#financeDepositOperationModal \.finance-deposit-operation-fields \{[\s\S]*padding: 0;[\s\S]*#financeDepositOperationModal \.all-users-edit-fields\.finance-deposit-operation-fields \{[\s\S]*padding: 0;/,
+    /#financeDepositOperationModal \.finance-deposit-operation-fields \{[\s\S]*padding: 0;[\s\S]*#financeDepositOperationModal \.all-users-edit-fields\.finance-deposit-operation-fields \{[\s\S]*padding: 0 !important;[\s\S]*padding-inline: 0 !important;[\s\S]*scrollbar-gutter: auto;/,
     "Deposit operation fields should not add inner padding."
   );
 
