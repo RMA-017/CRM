@@ -1356,16 +1356,12 @@ function FinanceCashierPanel({
                               <span>{translate("Service")}</span>
                               <span>{translate("Specialist")}</span>
                               <span>{translate("Price")}</span>
-                              <span>{translate("Discount")}</span>
-                              <span>{translate("Final")}</span>
                             </div>
                             {getTicketLineItems(ticket).map((lineItem, lineIndex) => (
                               <div className="finance-batch-ticket-line" key={`${lineItem?.id || lineItem?.lineNumber || lineIndex}-${lineIndex}`}>
                                 <strong>{lineItem?.serviceName || "-"}</strong>
                                 <span>{lineItem?.specialistName || "-"}</span>
                                 <span>{formatMoney(lineItem?.priceUzs ?? lineItem?.finalAmountUzs)}</span>
-                                <span>{formatMoney(lineItem?.discountUzs)}</span>
-                                <span>{formatMoney(lineItem?.finalAmountUzs ?? lineItem?.priceUzs)}</span>
                               </div>
                             ))}
                           </div>
