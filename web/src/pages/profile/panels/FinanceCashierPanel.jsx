@@ -187,16 +187,38 @@ function clampBatchPaymentAmountInput(value, maxAmountUzs) {
 
 function getTicketServicePriceAmount(ticket) {
   return getTicketLineItems(ticket).reduce((sum, item) => {
-    const price = normalizeMoneyInput(item?.priceUzs);
-    if (price > 0) {
-      return sum + price;
-    }
-    return sum + normalizeMoneyInput(item?.finalAmountUzs) + normalizeMoneyInput(item?.discountUzs);
+    return sum + getTicketLineServicePriceAmount(item);
   }, 0);
 }
 
 function getTicketDiscountAmount(ticket) {
   return getTicketLineItems(ticket).reduce((sum, item) => sum + normalizeMoneyInput(item?.discountUzs), 0);
+}
+
+function getTicketLineServicePriceAmount(lineItem) {
+  const price = normalizeMoneyInput(lineItem?.priceUzs);
+  if (price > 0) {
+    return price;
+  }
+  return normalizeMoneyInput(lineItem?.finalAmountUzs) + normalizeMoneyInput(lineItem?.discountUzs);
+}
+
+function getTicketLineFinalAmount(lineItem) {
+  const finalAmount = normalizeMoneyInput(lineItem?.finalAmountUzs);
+  if (finalAmount > 0) {
+    return finalAmount;
+  }
+  return Math.max(getTicketLineServicePriceAmount(lineItem) - normalizeMoneyInput(lineItem?.discountUzs), 0);
+}
+
+function getTicketLinePaidAmount(ticket, lineIndex) {
+  const rows = getTicketLineItems(ticket);
+  const paidAmount = getTicketPaidAmount(ticket);
+  const currentFinalAmount = getTicketLineFinalAmount(rows[lineIndex]);
+  const previousFinalAmount = rows
+    .slice(0, lineIndex)
+    .reduce((sum, item) => sum + getTicketLineFinalAmount(item), 0);
+  return Math.max(Math.min(paidAmount - previousFinalAmount, currentFinalAmount), 0);
 }
 
 function getTicketLineItems(item) {
@@ -1355,13 +1377,19 @@ function FinanceCashierPanel({
                             <div className="finance-batch-ticket-line finance-batch-ticket-line-head">
                               <span>{translate("Service")}</span>
                               <span>{translate("Specialist")}</span>
-                              <span>{translate("Price")}</span>
+                              <span>{translate("Service Price")}</span>
+                              <span>{translate("Discount")}</span>
+                              <span>{translate("To Pay")}</span>
+                              <span>{translate("Paid")}</span>
                             </div>
                             {getTicketLineItems(ticket).map((lineItem, lineIndex) => (
                               <div className="finance-batch-ticket-line" key={`${lineItem?.id || lineItem?.lineNumber || lineIndex}-${lineIndex}`}>
                                 <strong>{lineItem?.serviceName || "-"}</strong>
                                 <span>{lineItem?.specialistName || "-"}</span>
-                                <span>{formatMoney(lineItem?.priceUzs ?? lineItem?.finalAmountUzs)}</span>
+                                <span>{formatMoney(getTicketLineServicePriceAmount(lineItem))}</span>
+                                <span>{formatMoney(lineItem?.discountUzs)}</span>
+                                <span>{formatMoney(getTicketLineFinalAmount(lineItem))}</span>
+                                <span>{formatMoney(getTicketLinePaidAmount(ticket, lineIndex))}</span>
                               </div>
                             ))}
                           </div>

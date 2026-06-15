@@ -6376,8 +6376,9 @@ button.finance-daily-cash-method-card:disabled {
     color var(--dur) ease;
 }
 
-.finance-panel-shell .finance-balances-panel .all-users-table .finance-balance-action-btn {
+#financeBalancesPanel.finance-panel-shell.finance-balances-panel .all-users-table .finance-balance-action-btn {
   flex: 0 0 30px;
+  flex-basis: 30px;
   inline-size: 30px;
   block-size: 30px;
   width: 30px;
@@ -6386,7 +6387,9 @@ button.finance-daily-cash-method-card:disabled {
   height: 30px;
   min-height: 30px;
   max-height: 30px;
+  aspect-ratio: 1 / 1;
   padding: 0;
+  line-height: 1;
 }
 
 .finance-balances-panel .finance-balance-action-btn:hover:not(:disabled) {
@@ -6407,22 +6410,22 @@ button.finance-daily-cash-method-card:disabled {
 
 .finance-balance-action-icon {
   position: relative;
-  display: inline-block;
-  width: 15px;
-  height: 15px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
   color: inherit;
 }
 
 .finance-balance-action-icon-topup::before {
   content: "+";
   position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
+  top: 50%;
+  left: 50%;
   font-size: 18px;
   font-weight: 900;
   line-height: 1;
-  transform: translateY(-0.5px);
+  transform: translate(-50%, -50%);
 }
 
 .finance-balance-action-icon-refund::before,
@@ -6439,13 +6442,12 @@ button.finance-daily-cash-method-card:disabled {
 
 .finance-balance-action-icon-refund::before {
   content: "↩";
-  inset: 0;
-  display: grid;
-  place-items: center;
+  top: 50%;
+  left: 50%;
   font-size: 18px;
   font-weight: 900;
   line-height: 1;
-  transform: translateY(-1px);
+  transform: translate(-50%, -50%);
 }
 
 .finance-balance-action-icon-refund::after {
@@ -9162,10 +9164,13 @@ button.finance-daily-cash-method-card:disabled {
 #financeBatchPaymentModal .finance-batch-ticket-line {
   display: grid;
   grid-template-columns:
-    minmax(220px, 1.2fr)
-    minmax(170px, 0.95fr)
-    minmax(110px, 0.45fr);
-  gap: 8px;
+    minmax(160px, 1.05fr)
+    minmax(130px, 0.82fr)
+    minmax(92px, 0.46fr)
+    minmax(86px, 0.42fr)
+    minmax(92px, 0.46fr)
+    minmax(86px, 0.42fr);
+  gap: 7px;
   align-items: center;
   min-height: 24px;
 }

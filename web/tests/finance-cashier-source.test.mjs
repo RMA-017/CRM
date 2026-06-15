@@ -34,8 +34,8 @@ test("cashier ticket cards stay compact while payment modal shows multi-service 
 
   assert.match(
     cashierPanelSource,
-    /finance-batch-ticket-lines[\s\S]*getTicketLineItems\(ticket\)\.map[\s\S]*lineItem\?\.serviceName[\s\S]*lineItem\?\.specialistName[\s\S]*lineItem\?\.finalAmountUzs/s,
-    "The double-click payment modal should render each ticket line item with service, specialist and final amount."
+    /function getTicketLinePaidAmount\(ticket, lineIndex\)[\s\S]*const paidAmount = getTicketPaidAmount\(ticket\);[\s\S]*previousFinalAmount[\s\S]*finance-batch-ticket-lines[\s\S]*translate\("Service Price"\)[\s\S]*translate\("Discount"\)[\s\S]*translate\("To Pay"\)[\s\S]*translate\("Paid"\)[\s\S]*getTicketLineServicePriceAmount\(lineItem\)[\s\S]*lineItem\?\.discountUzs[\s\S]*getTicketLineFinalAmount\(lineItem\)[\s\S]*getTicketLinePaidAmount\(ticket, lineIndex\)/s,
+    "The double-click payment modal should render each ticket line item with service-level price, discount, payable and FIFO paid amount."
   );
 
   assert.match(
