@@ -58,12 +58,12 @@ function storeDailyCashColumnIds(columnIds) {
 
 function formatMoney(value) {
   const amount = Number.parseInt(String(value ?? 0), 10) || 0;
-  return amount !== 0 ? `${amount.toLocaleString("ru-RU")} UZS` : "-";
+  return amount !== 0 ? amount.toLocaleString("ru-RU") : "-";
 }
 
 function formatMoneyValue(value) {
   const amount = Number.parseInt(String(value ?? 0), 10) || 0;
-  return `${amount.toLocaleString("ru-RU")} UZS`;
+  return amount.toLocaleString("ru-RU");
 }
 
 function getDailyCashSignedAmount(item) {
@@ -221,7 +221,7 @@ function FinanceDailyCashPanel({ onClose, canPayFinanceCashier = false, currentU
     },
     {
       id: "amount",
-      label: "Amount UZS",
+      label: "Amount",
       className: "finance-daily-cash-col-amount",
       cellClassName: "finance-daily-cash-cell-amount",
       render: (item) => formatMoney(getDailyCashSignedAmount(item)),
@@ -527,7 +527,7 @@ function FinanceDailyCashPanel({ onClose, canPayFinanceCashier = false, currentU
         {
           name: translate("Reports"),
           rows: [
-            [translate("Name"), translate("Amount UZS")],
+            [translate("Name"), translate("Amount")],
             [translate("Total In"), Number.parseInt(String(result.summary.totalInUzs || 0), 10) || 0],
             [translate("Total Out"), Number.parseInt(String(result.summary.totalOutUzs || 0), 10) || 0],
             [translate("Net Total"), Number.parseInt(String(result.summary.netUzs || 0), 10) || 0],

@@ -63,14 +63,14 @@ function toIntegerAmount(value) {
 
 function formatMoney(value) {
   const amount = toIntegerAmount(value);
-  return amount !== 0 ? `${amount.toLocaleString("ru-RU")} UZS` : "-";
+  return amount !== 0 ? amount.toLocaleString("ru-RU") : "-";
 }
 
 function formatSignedMoney(value) {
   const amount = toIntegerAmount(value);
   if (amount === 0) return "-";
   const sign = amount > 0 ? "+" : "-";
-  return `${sign}${Math.abs(amount).toLocaleString("ru-RU")} UZS`;
+  return `${sign}${Math.abs(amount).toLocaleString("ru-RU")}`;
 }
 
 function translateTransactionType(translate, type) {

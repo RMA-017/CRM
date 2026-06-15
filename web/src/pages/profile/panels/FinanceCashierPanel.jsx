@@ -77,14 +77,14 @@ function getAppointmentTicketServiceName({ source, services, serviceId }) {
 
 function formatMoney(value) {
   const amount = Number.parseInt(String(value ?? 0), 10) || 0;
-  return amount > 0 ? `${amount.toLocaleString("ru-RU")} UZS` : "-";
+  return amount > 0 ? amount.toLocaleString("ru-RU") : "-";
 }
 
 function formatSignedMoney(value) {
   const amount = Number.parseInt(String(value ?? 0), 10) || 0;
   if (amount === 0) return "-";
   const prefix = amount > 0 ? "+" : "-";
-  return `${prefix}${Math.abs(amount).toLocaleString("ru-RU")} UZS`;
+  return `${prefix}${Math.abs(amount).toLocaleString("ru-RU")}`;
 }
 
 function formatTicketNumber(value) {

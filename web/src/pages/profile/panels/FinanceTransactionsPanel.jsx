@@ -51,7 +51,7 @@ function storeTransactionColumnIds(columnIds) {
 
 function formatMoney(value) {
   const amount = Number.parseInt(String(value ?? 0), 10) || 0;
-  return amount > 0 ? `${amount.toLocaleString("ru-RU")} UZS` : "-";
+  return amount > 0 ? amount.toLocaleString("ru-RU") : "-";
 }
 
 function translateTransactionType(translate, type) {
@@ -170,7 +170,7 @@ function FinanceTransactionsPanel({ onClose, canPayFinanceCashier = false }) {
     },
     {
       id: "amount",
-      label: "Amount UZS",
+      label: "Amount",
       className: "finance-transactions-col-amount",
       render: (item) => formatMoney(item.amountUzs),
       exportValue: (item) => Number.parseInt(String(item.amountUzs || 0), 10) || 0

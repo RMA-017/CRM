@@ -159,7 +159,7 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     balancesPanelSource,
-    /function formatMoney\(value\) \{[\s\S]*return amount !== 0 \? `\$\{amount\.toLocaleString\("ru-RU"\)\} UZS` : "-";/s,
+    /function formatMoney\(value\) \{[\s\S]*return amount !== 0 \? amount\.toLocaleString\("ru-RU"\) : "-";/s,
     "Balances should not hide a negative deposit if historical data is already inconsistent."
   );
 

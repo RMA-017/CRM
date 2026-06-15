@@ -135,12 +135,12 @@ const EMPTY_TICKET_LIST_SUMMARY = Object.freeze({
 
 function formatMoney(value) {
   const amount = Number.parseInt(String(value ?? 0), 10) || 0;
-  return amount > 0 ? `${amount.toLocaleString("ru-RU")} UZS` : "-";
+  return amount > 0 ? amount.toLocaleString("ru-RU") : "-";
 }
 
 function formatSummaryMoney(value) {
   const amount = Number.parseInt(String(value ?? 0), 10) || 0;
-  return `${Math.max(amount, 0).toLocaleString("ru-RU")} UZS`;
+  return Math.max(amount, 0).toLocaleString("ru-RU");
 }
 
 function formatDateInput(value) {

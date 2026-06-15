@@ -128,7 +128,7 @@ function toNumber(value) {
 
 function formatMoney(value) {
   const amount = toNumber(value);
-  return amount !== 0 ? `${amount.toLocaleString("ru-RU")} UZS` : "-";
+  return amount !== 0 ? amount.toLocaleString("ru-RU") : "-";
 }
 
 function makeClientOption(item) {
