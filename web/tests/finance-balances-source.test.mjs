@@ -141,8 +141,8 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     balancesPanelSource,
-    /translate\(isDepositRefund \? "Refund money" : "Top up"\)/,
-    "Deposit top-up submit button should use the shorter top-up label."
+    /translate\(isDepositRefund \? "Refund" : "Top up"\)/,
+    "Deposit operation submit buttons should use short labels."
   );
 
   assert.match(
@@ -153,8 +153,8 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     balancesPanelSource,
-    /getDepositSourceRows\(data\?\.items, data\?\.summary\?\.depositUzs \?\? currentDepositUzs\)[\s\S]*loadDepositSources\(item\?\.clientId, item\?\.depositUzs\)/s,
-    "Refund modal should derive source rows from the current deposit amount, not full historical income."
+    /getDepositSourceRows\(data\?\.items, data\?\.summary\?\.depositUzs \?\? currentDepositUzs\)[\s\S]*const loaded = await loadDepositSources\(item\?\.clientId, item\?\.depositUzs\);[\s\S]*if \(!loaded\) return;[\s\S]*setDepositModal\(\{ type, item \}\);/s,
+    "Refund modal should load current deposit source rows before opening."
   );
 
   assert.match(
@@ -201,8 +201,8 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     styles,
-    /\.finance-balance-action-icon-refund \{[\s\S]*linear-gradient\(currentColor, currentColor\) no-repeat 6px 4px \/ 7px 2px;[\s\S]*\.finance-balance-action-icon-refund::before \{[\s\S]*border-top: 0;[\s\S]*\.finance-balance-action-icon-refund::after \{[\s\S]*border-left: 2px solid currentColor;[\s\S]*border-bottom: 2px solid currentColor;/,
-    "Balance refund action should use a compact arrow-to-tray icon."
+    /\.finance-balance-action-icon-refund \{[\s\S]*display: grid;[\s\S]*place-items: center;[\s\S]*\.finance-balance-action-icon-refund::before \{[\s\S]*content: "↩";[\s\S]*font-size: 18px;[\s\S]*\.finance-balance-action-icon-refund::after \{[\s\S]*display: none;/,
+    "Balance refund action should use a compact return arrow icon."
   );
 
   assert.match(
@@ -219,8 +219,8 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     styles,
-    /#financeDepositOperationModal \.finance-deposit-source-list \{[\s\S]*height: 96px;[\s\S]*max-height: 96px;/,
-    "Refund deposit history list should reserve a compact stable height while loading rows."
+    /#financeDepositOperationModal \.finance-deposit-source-list \{[\s\S]*height: auto;[\s\S]*max-height: 96px;/,
+    "Refund deposit history list should not keep a fixed empty height after rows load."
   );
 
   assert.doesNotMatch(
@@ -231,7 +231,7 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     styles,
-    /#financeDepositOperationModal\.is-topup \.edit-actions \.btn \{\s*width: 72px;\s*min-width: 72px;\s*max-width: 72px;/,
-    "Deposit top-up modal buttons should stay compact at 72px."
+    /#financeDepositOperationModal:is\(\.is-topup, \.is-refund\) \.edit-actions \.btn \{\s*width: 72px;\s*min-width: 72px;\s*max-width: 72px;/,
+    "Deposit top-up and refund modal buttons should stay compact at 72px."
   );
 });

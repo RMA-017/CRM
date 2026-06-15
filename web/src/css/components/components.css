@@ -6420,29 +6420,23 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 .finance-balance-action-icon-refund {
-  background:
-    linear-gradient(currentColor, currentColor) no-repeat 6px 4px / 7px 2px;
+  display: grid;
+  place-items: center;
 }
 
 .finance-balance-action-icon-refund::before {
-  left: 3px;
-  top: 8px;
-  width: 10px;
-  height: 5px;
-  border: 1.6px solid currentColor;
-  border-top: 0;
-  border-radius: 0 0 4px 4px;
-  opacity: 0.9;
+  content: "↩";
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1;
+  transform: translateY(-1px);
 }
 
 .finance-balance-action-icon-refund::after {
-  left: 3px;
-  top: 1px;
-  width: 7px;
-  height: 7px;
-  border-left: 2px solid currentColor;
-  border-bottom: 2px solid currentColor;
-  transform: rotate(45deg);
+  display: none;
 }
 
 #financeDepositOperationModal.finance-deposit-operation-modal {
@@ -6571,7 +6565,7 @@ button.finance-daily-cash-method-card:disabled {
   grid-template-columns: minmax(124px, 0.72fr) minmax(180px, 1fr) minmax(116px, 0.52fr);
   gap: 4px 8px;
   align-items: center;
-  height: 96px;
+  height: auto;
   max-height: 96px;
   overflow-y: auto;
   padding-right: 2px;
@@ -6647,7 +6641,7 @@ button.finance-daily-cash-method-card:disabled {
   height: 32px;
 }
 
-#financeDepositOperationModal.is-topup .edit-actions .btn {
+#financeDepositOperationModal:is(.is-topup, .is-refund) .edit-actions .btn {
   width: 72px;
   min-width: 72px;
   max-width: 72px;

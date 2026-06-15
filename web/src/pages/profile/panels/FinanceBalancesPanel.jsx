@@ -491,31 +491,34 @@ function FinanceBalancesPanel({ onClose }) {
 
   const loadDepositSources = async (clientId, currentDepositUzs = 0) => {
     setDepositSourceRows([]);
-    if (!clientId) return;
+    if (!clientId) return false;
     setDepositSourceLoading(true);
     try {
       const response = await apiFetch(`/api/finance/client-balances/${clientId}/transactions`);
       const data = await readApiResponseData(response);
       if (!response.ok) {
         window.alert?.(translate(data?.message || "Failed to load client transactions."));
-        return;
+        return false;
       }
       setDepositSourceRows(getDepositSourceRows(data?.items, data?.summary?.depositUzs ?? currentDepositUzs));
+      return true;
     } catch {
       window.alert?.(translate("Failed to load client transactions."));
+      return false;
     } finally {
       setDepositSourceLoading(false);
     }
   };
 
-  const openDepositModal = (type, item) => {
-    setDepositModal({ type, item });
+  const openDepositModal = async (type, item) => {
     setDepositForm(EMPTY_DEPOSIT_FORM);
     setDepositSourceRows([]);
     void loadPaymentMethods();
     if (type === "refund") {
-      void loadDepositSources(item?.clientId, item?.depositUzs);
+      const loaded = await loadDepositSources(item?.clientId, item?.depositUzs);
+      if (!loaded) return;
     }
+    setDepositModal({ type, item });
   };
 
   const closeDepositModal = (force = false) => {
@@ -591,7 +594,7 @@ function FinanceBalancesPanel({ onClose }) {
   }));
   const depositModalClient = depositModal?.item || null;
   const isDepositRefund = depositModal?.type === "refund";
-  const depositModalTitle = isDepositRefund ? "Refund money" : "Top up deposit";
+  const depositModalTitle = isDepositRefund ? "Refund" : "Top up deposit";
 
   return (
     <section id="financeBalancesPanel" className="all-users-panel settings-panel ops-panel-shell finance-panel-shell finance-balances-panel">
@@ -685,7 +688,7 @@ function FinanceBalancesPanel({ onClose }) {
                       title={translate("Top up deposit")}
                       onClick={(event) => {
                         event.stopPropagation();
-                        openDepositModal("topup", item);
+                        void openDepositModal("topup", item);
                       }}
                       onDoubleClick={(event) => event.stopPropagation()}
                     >
@@ -694,12 +697,12 @@ function FinanceBalancesPanel({ onClose }) {
                     <button
                       type="button"
                       className="table-action-btn finance-balance-action-btn finance-balance-refund-btn"
-                      aria-label={translate("Refund money")}
-                      title={translate("Refund money")}
+                      aria-label={translate("Refund")}
+                      title={translate("Refund")}
                       disabled={toIntegerAmount(item.depositUzs) <= 0}
                       onClick={(event) => {
                         event.stopPropagation();
-                        openDepositModal("refund", item);
+                        void openDepositModal("refund", item);
                       }}
                       onDoubleClick={(event) => event.stopPropagation()}
                     >
@@ -977,7 +980,7 @@ function FinanceBalancesPanel({ onClose }) {
               <div className="edit-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => closeDepositModal()}>{translate("Cancel")}</button>
                 <button type="submit" className="btn" disabled={depositSubmitting || paymentMethodsLoading}>
-                  {depositSubmitting ? "..." : translate(isDepositRefund ? "Refund money" : "Top up")}
+                  {depositSubmitting ? "..." : translate(isDepositRefund ? "Refund" : "Top up")}
                 </button>
               </div>
             </form>
