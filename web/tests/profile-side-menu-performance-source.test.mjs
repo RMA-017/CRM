@@ -21,6 +21,18 @@ test("profile side menu keeps submenu state batched and is pre-mounted for smoot
     "Profile side menu should avoid separate submenu state setters."
   );
 
+  assert.match(
+    menuSource,
+    /statistics: false[\s\S]*canOpenAppointmentStatistics,[\s\S]*canOpenStatisticsPlannerReport,[\s\S]*openStatisticsPlannerReportPanel,[\s\S]*id="statisticsMenuGroup"[\s\S]*hidden=\{!canOpenAppointmentStatistics && !canOpenStatisticsPlannerReport\}[\s\S]*id="openStatisticsPlannerReportBtn"[\s\S]*hidden=\{!canOpenStatisticsPlannerReport\}[\s\S]*onClick=\{openStatisticsPlannerReportPanel\}/s,
+    "Profile side menu should expose Statistics > Lesson Status Report when the planner report permission is granted."
+  );
+
+  assert.match(
+    pageSource,
+    /canOpenAppointmentStatistics=\{canOpenAppointmentStatistics\}[\s\S]*canOpenStatisticsPlannerReport=\{canOpenStatisticsPlannerReport\}[\s\S]*openStatisticsPlannerReportPanel=\{openStatisticsPlannerReportPanel\}/s,
+    "Profile page should pass planner report access and open handlers into the side menu."
+  );
+
   assert.doesNotMatch(
     pageSource,
     /sideMenuMounted/,
