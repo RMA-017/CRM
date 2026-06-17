@@ -3094,6 +3094,13 @@ export async function getFinanceClientBalances({ organizationId, filters = {} })
 
   const countResult = await pool.query(`SELECT COUNT(*) AS total ${baseSql}`, params);
   const total = Number.parseInt(String(countResult.rows[0]?.total || "0"), 10) || 0;
+  const summaryResult = await pool.query(
+    `SELECT COALESCE(SUM(COALESCE(debt_uzs, 0)), 0) AS debt_uzs,
+            COALESCE(SUM(COALESCE(deposit_uzs, 0)), 0) AS deposit_uzs
+       ${baseSql}`,
+    params
+  );
+  const summaryRow = summaryResult.rows[0] || {};
   const listParams = [...params, pageSize, offset];
   const result = await pool.query(
     `SELECT *
@@ -3109,6 +3116,10 @@ export async function getFinanceClientBalances({ organizationId, filters = {} })
     page,
     pageSize,
     total,
+    summary: {
+      debtUzs: normalizeAmount(summaryRow.debt_uzs, 0),
+      depositUzs: parseIntegerAmount(summaryRow.deposit_uzs, 0)
+    },
     totalPages: Math.max(1, Math.ceil(total / pageSize))
   };
 }

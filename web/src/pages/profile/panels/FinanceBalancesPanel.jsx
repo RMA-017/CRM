@@ -11,6 +11,11 @@ const EMPTY_FILTERS = Object.freeze({
   type: "active"
 });
 
+const EMPTY_BALANCE_LIST_SUMMARY = Object.freeze({
+  debtUzs: 0,
+  depositUzs: 0
+});
+
 const EMPTY_DEPOSIT_FORM = Object.freeze({
   paymentMethodId: "",
   amountUzs: "",
@@ -66,11 +71,22 @@ function formatMoney(value) {
   return amount !== 0 ? amount.toLocaleString("ru-RU") : "-";
 }
 
+function formatBalanceSummaryMoney(value) {
+  return toIntegerAmount(value).toLocaleString("ru-RU");
+}
+
 function formatSignedMoney(value) {
   const amount = toIntegerAmount(value);
   if (amount === 0) return "-";
   const sign = amount > 0 ? "+" : "-";
   return `${sign}${Math.abs(amount).toLocaleString("ru-RU")}`;
+}
+
+function normalizeBalanceListSummary(summary) {
+  return {
+    debtUzs: toIntegerAmount(summary?.debtUzs),
+    depositUzs: toIntegerAmount(summary?.depositUzs)
+  };
 }
 
 function translateTransactionType(translate, type) {
@@ -156,6 +172,7 @@ function FinanceBalancesPanel({ onClose }) {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
   const [items, setItems] = useState([]);
+  const [balanceSummary, setBalanceSummary] = useState(EMPTY_BALANCE_LIST_SUMMARY);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -337,14 +354,17 @@ function FinanceBalancesPanel({ onClose }) {
       if (!response.ok) {
         const nextMessage = data?.message || "Failed to load client balances.";
         setMessage(nextMessage);
+        setBalanceSummary(EMPTY_BALANCE_LIST_SUMMARY);
         window.alert?.(translate(nextMessage));
         return;
       }
       setItems(Array.isArray(data?.items) ? data.items : []);
+      setBalanceSummary(normalizeBalanceListSummary(data?.summary));
       setPage(Number.parseInt(String(data?.page || nextPage), 10) || 1);
       setTotalPages(Number.parseInt(String(data?.totalPages || 1), 10) || 1);
       setMessage("");
     } catch {
+      setBalanceSummary(EMPTY_BALANCE_LIST_SUMMARY);
       setMessage("Failed to load client balances.");
       window.alert?.(translate("Failed to load client balances."));
     } finally {
@@ -382,6 +402,7 @@ function FinanceBalancesPanel({ onClose }) {
 
   const fetchAllBalances = async () => {
     const allItems = [];
+    let summary = balanceSummary;
     let nextPage = 1;
     let nextTotalPages = 1;
     do {
@@ -399,18 +420,21 @@ function FinanceBalancesPanel({ onClose }) {
       if (!response.ok) {
         throw new Error(data?.message || "Export failed.");
       }
+      if (nextPage === 1) {
+        summary = normalizeBalanceListSummary(data?.summary);
+      }
       allItems.push(...(Array.isArray(data?.items) ? data.items : []));
       nextTotalPages = Number.parseInt(String(data?.totalPages || 1), 10) || 1;
       nextPage += 1;
     } while (nextPage <= nextTotalPages);
-    return allItems;
+    return { items: allItems, summary };
   };
 
   const exportBalances = async () => {
     if (exporting) return;
     setExporting(true);
     try {
-      const rows = await fetchAllBalances();
+      const exportData = await fetchAllBalances();
       exportExcelWorkbook(buildExportFilename("finance-balances"), [{
         name: translate("Client Balances"),
         rows: [
@@ -421,13 +445,20 @@ function FinanceBalancesPanel({ onClose }) {
             translate("Debt"),
             translate("Deposit")
           ],
-          ...rows.map((item, index) => [
+          ...exportData.items.map((item, index) => [
             index + 1,
             item.clientId || "",
             item.clientName || "",
             Number.parseInt(String(item.debtUzs || 0), 10) || 0,
             Number.parseInt(String(item.depositUzs || 0), 10) || 0
-          ])
+          ]),
+          [
+            translate("Total"),
+            "",
+            "",
+            toIntegerAmount(exportData.summary?.debtUzs),
+            toIntegerAmount(exportData.summary?.depositUzs)
+          ]
         ]
       }]);
     } catch (error) {
@@ -718,6 +749,16 @@ function FinanceBalancesPanel({ onClose }) {
               </tr>
             ) : null}
           </tbody>
+          <tfoot>
+            <tr className="finance-ticket-total-row finance-balances-total-row">
+              <td className="finance-ticket-total-label">{translate("Total")}</td>
+              <td />
+              <td />
+              <td className="finance-ticket-total-value">{formatBalanceSummaryMoney(balanceSummary.debtUzs)}</td>
+              <td className="finance-ticket-total-value">{formatBalanceSummaryMoney(balanceSummary.depositUzs)}</td>
+              <td />
+            </tr>
+          </tfoot>
         </table>
       </div>
 
