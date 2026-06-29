@@ -1379,22 +1379,46 @@ function AppointmentPlannerGrid({
       Object.prototype.hasOwnProperty.call(appointmentRowSpanByDay[day.key] || {}, slot)
     )));
   }, [appointmentRowSpanByDay, compactOccupiedOnly, timeSlots, weekDays]);
-  const compactTimeColumnLabelSlots = useMemo(() => {
+  const compactTimeColumnCellsBySlot = useMemo(() => {
     if (!compactOccupiedOnly) {
       return {};
     }
-    const labelBySlot = {};
-    timeSlots.forEach((slot) => {
-      const hasAppointmentStart = weekDays.some((day) => {
-        const span = appointmentRowSpanByDay[day.key]?.[slot];
-        return span && span > 0;
-      });
-      if (hasAppointmentStart) {
-        labelBySlot[slot] = true;
+    const slotSubDivisionsNum = Math.max(1, Number.parseInt(String(settings?.slotSubDivisions || "1"), 10) || 1);
+    const cellsBySlot = {};
+    let activeGroupKey = "";
+    let activeGroupStartSlot = "";
+    let activeGroupSpan = 0;
+
+    renderedTimeSlots.forEach((slot) => {
+      const slotIndex = slotIndexByValue[slot];
+      const groupStartIndex = Number.isInteger(slotIndex)
+        ? slotIndex - (slotIndex % slotSubDivisionsNum)
+        : slotIndex;
+      const groupLabel = Number.isInteger(groupStartIndex) ? (timeSlots[groupStartIndex] || slot) : slot;
+
+      if (groupLabel !== activeGroupKey) {
+        if (activeGroupStartSlot) {
+          cellsBySlot[activeGroupStartSlot].rowSpan = activeGroupSpan;
+        }
+        activeGroupKey = groupLabel;
+        activeGroupStartSlot = slot;
+        activeGroupSpan = 1;
+        cellsBySlot[slot] = {
+          label: groupLabel,
+          rowSpan: 1
+        };
+        return;
       }
+
+      activeGroupSpan += 1;
     });
-    return labelBySlot;
-  }, [appointmentRowSpanByDay, compactOccupiedOnly, timeSlots, weekDays]);
+
+    if (activeGroupStartSlot) {
+      cellsBySlot[activeGroupStartSlot].rowSpan = activeGroupSpan;
+    }
+
+    return cellsBySlot;
+  }, [compactOccupiedOnly, renderedTimeSlots, settings?.slotSubDivisions, slotIndexByValue, timeSlots]);
   const appointmentBlockedSlotsByDay = useMemo(() => (
     weekDays.reduce((acc, day) => {
       const dayItems = Array.isArray(rawAppointmentsByDay?.[day.key]) ? rawAppointmentsByDay[day.key] : [];
@@ -2169,12 +2193,14 @@ function AppointmentPlannerGrid({
               const slotSubDivisionsNum = Math.max(1, Number.parseInt(String(settings?.slotSubDivisions || "1"), 10) || 1);
               const slotIndex = slotIndexByValue[slot];
               const isMajorSlot = slotSubDivisionsNum <= 1 || slotIndex % slotSubDivisionsNum === 0;
-              const compactTimeColumnHasLabel = compactOccupiedOnly ? Boolean(compactTimeColumnLabelSlots[slot]) : false;
-              const shouldRenderTimeColumn = compactOccupiedOnly || isMajorSlot;
-              const timeColRowSpan = !compactOccupiedOnly && isMajorSlot && slotSubDivisionsNum > 1
-                ? Math.min(slotSubDivisionsNum, timeSlots.length - slotIndex)
-                : 1;
-              const rowIsMajorSlot = compactOccupiedOnly ? compactTimeColumnHasLabel : isMajorSlot;
+              const compactTimeColumnCell = compactOccupiedOnly ? compactTimeColumnCellsBySlot[slot] : null;
+              const shouldRenderTimeColumn = compactOccupiedOnly ? Boolean(compactTimeColumnCell) : isMajorSlot;
+              const timeColRowSpan = compactOccupiedOnly
+                ? (compactTimeColumnCell?.rowSpan || 1)
+                : (isMajorSlot && slotSubDivisionsNum > 1
+                    ? Math.min(slotSubDivisionsNum, timeSlots.length - slotIndex)
+                    : 1);
+              const rowIsMajorSlot = compactOccupiedOnly ? Boolean(compactTimeColumnCell) : isMajorSlot;
 
               return (
                 <tr
@@ -2184,11 +2210,11 @@ function AppointmentPlannerGrid({
                 >
                   {shouldRenderTimeColumn ? (
                     <th
-                      className={["appointment-time-col", compactOccupiedOnly && !compactTimeColumnHasLabel ? "appointment-time-col-empty" : ""].filter(Boolean).join(" ")}
+                      className="appointment-time-col"
                       scope="row"
                       rowSpan={timeColRowSpan > 1 ? timeColRowSpan : undefined}
                     >
-                      {compactOccupiedOnly ? (compactTimeColumnHasLabel ? slot : "") : slot}
+                      {compactOccupiedOnly ? compactTimeColumnCell.label : slot}
                     </th>
                   ) : null}
                   {weekDays.map((day) => {
