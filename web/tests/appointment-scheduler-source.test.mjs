@@ -136,13 +136,13 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /const compactTimeColumnSpanBySlot = useMemo\(\(\) => \{[\s\S]*maxAppointmentSpan[\s\S]*spanBySlot\[slot\] = maxAppointmentSpan;[\s\S]*appointmentRowSpanByDay\[day\.key\]\?\.\[slot\] === 0[\s\S]*spanBySlot\[slot\] = 0;/s,
-    "Booked-only mode should hide time labels for internal duration rows while keeping start-time labels."
+    /const compactTimeColumnLabelSlots = useMemo\(\(\) => \{[\s\S]*const hasAppointmentStart = weekDays\.some\(\(day\) => \{[\s\S]*return span && span > 0;[\s\S]*labelBySlot\[slot\] = true;/s,
+    "Booked-only mode should only label rows that start an appointment."
   );
   assert.match(
     source,
-    /renderedTimeSlots\.map\(\(slot\) => \{[\s\S]*const compactTimeColRowSpan = compactOccupiedOnly \? compactTimeColumnSpanBySlot\[slot\] : null;[\s\S]*const shouldRenderTimeColumn = compactOccupiedOnly \? compactTimeColRowSpan !== 0 : isMajorSlot;[\s\S]*if \(appointmentRowSpan === 0 \|\| \(!compactOccupiedOnly && specialCellRowSpan === 0\)\)[\s\S]*compactOccupiedOnly[\s\S]*\? \(appointmentRowSpan && appointmentRowSpan > 1 \? appointmentRowSpan : 1\)/s,
-    "Booked-only mode should preserve appointment row spans so long lessons keep their height."
+    /renderedTimeSlots\.map\(\(slot\) => \{[\s\S]*const compactTimeColumnHasLabel = compactOccupiedOnly \? Boolean\(compactTimeColumnLabelSlots\[slot\]\) : false;[\s\S]*const shouldRenderTimeColumn = compactOccupiedOnly \|\| isMajorSlot;[\s\S]*\{compactOccupiedOnly \? \(compactTimeColumnHasLabel \? slot : ""\) : slot\}[\s\S]*if \(appointmentRowSpan === 0 \|\| \(!compactOccupiedOnly && specialCellRowSpan === 0\)\)[\s\S]*compactOccupiedOnly[\s\S]*\? \(appointmentRowSpan && appointmentRowSpan > 1 \? appointmentRowSpan : 1\)/s,
+    "Booked-only mode should keep the time column stable while preserving appointment row spans."
   );
   assert.match(
     source,
@@ -161,7 +161,7 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     css,
-    /#appointmentPanel \.appointment-booked-only-toggle[\s\S]*width: 30px;[\s\S]*height: 30px;[\s\S]*#appointmentPanel \.appointment-booked-only-toggle\.is-active[\s\S]*background: #d2e5fc;[\s\S]*\.appointment-grid-wrap-booked-only \.appointment-grid tbody tr/s,
+    /#appointmentPanel \.appointment-booked-only-toggle[\s\S]*width: 30px;[\s\S]*height: 30px;[\s\S]*#appointmentPanel \.appointment-booked-only-toggle\.is-active[\s\S]*background: #d2e5fc;[\s\S]*\.appointment-grid-wrap-booked-only \.appointment-grid tbody tr[\s\S]*appointment-time-col-empty/s,
     "Booked-only planner toggle should be a compact header icon and mark the condensed grid state."
   );
   assert.match(

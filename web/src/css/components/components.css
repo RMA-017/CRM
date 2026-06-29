@@ -3007,6 +3007,10 @@ label.field > span:first-child,
   height: auto;
 }
 
+.appointment-grid-wrap-booked-only .appointment-grid tbody th.appointment-time-col-empty {
+  color: transparent;
+}
+
 .appointment-week-range {
   margin: 0;
   font-size: 12px;
