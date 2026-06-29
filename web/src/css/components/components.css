@@ -2986,10 +2986,10 @@ label.field > span:first-child,
 }
 
 #appointmentPanel .appointment-booked-only-toggle {
-  width: 36px;
-  min-width: 36px;
-  height: 36px;
-  min-height: 36px;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
   padding: 0;
   justify-content: center;
   font-size: 18px;

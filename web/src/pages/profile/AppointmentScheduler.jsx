@@ -1340,12 +1340,6 @@ function AppointmentPlannerGrid({
       return acc;
     }, {})
   ), [appointmentsByDay, weekDays]);
-  const renderedTimeSlots = useMemo(() => {
-    if (!compactOccupiedOnly) {
-      return timeSlots;
-    }
-    return timeSlots.filter((slot) => weekDays.some((day) => Boolean(appointmentLookupByDay[day.key]?.[slot])));
-  }, [appointmentLookupByDay, compactOccupiedOnly, timeSlots, weekDays]);
   const appointmentRowSpanByDay = useMemo(() => {
     const interval = Number.parseInt(String(settings?.slotInterval || "30"), 10) || 30;
     const subDivisions = Math.max(1, Number.parseInt(String(settings?.slotSubDivisions || "1"), 10) || 1);
@@ -1377,6 +1371,14 @@ function AppointmentPlannerGrid({
       return acc;
     }, {});
   }, [appointmentLookupByDay, settings?.slotInterval, settings?.slotSubDivisions, slotIndexByValue, timeSlots, weekDays]);
+  const renderedTimeSlots = useMemo(() => {
+    if (!compactOccupiedOnly) {
+      return timeSlots;
+    }
+    return timeSlots.filter((slot) => weekDays.some((day) => (
+      Object.prototype.hasOwnProperty.call(appointmentRowSpanByDay[day.key] || {}, slot)
+    )));
+  }, [appointmentRowSpanByDay, compactOccupiedOnly, timeSlots, weekDays]);
   const appointmentBlockedSlotsByDay = useMemo(() => (
     weekDays.reduce((acc, day) => {
       const dayItems = Array.isArray(rawAppointmentsByDay?.[day.key]) ? rawAppointmentsByDay[day.key] : [];
@@ -2188,13 +2190,13 @@ function AppointmentPlannerGrid({
                     const appointmentRowSpan = appointmentRowSpanByDay[day.key]?.[slot];
                     const specialCellRowSpan = specialCellRowSpanByDay[day.key]?.[slot];
 
-                    if (!compactOccupiedOnly && (appointmentRowSpan === 0 || specialCellRowSpan === 0)) {
+                    if (appointmentRowSpan === 0 || (!compactOccupiedOnly && specialCellRowSpan === 0)) {
                       return null;
                     }
 
                     const effectiveRowSpan = (
                       compactOccupiedOnly
-                        ? 1
+                        ? (appointmentRowSpan && appointmentRowSpan > 1 ? appointmentRowSpan : 1)
                         : (appointmentRowSpan && appointmentRowSpan > 1
                         ? appointmentRowSpan
                         : (specialCellRowSpan && specialCellRowSpan > 1 ? specialCellRowSpan : 1))

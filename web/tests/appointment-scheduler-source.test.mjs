@@ -131,13 +131,13 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /const renderedTimeSlots = useMemo\(\(\) => \{[\s\S]*if \(!compactOccupiedOnly\) \{[\s\S]*return timeSlots;[\s\S]*return timeSlots\.filter\(\(slot\) => weekDays\.some\(\(day\) => Boolean\(appointmentLookupByDay\[day\.key\]\?\.\[slot\]\)\)\);/s,
-    "Booked-only mode should keep only time rows with visible appointment starts."
+    /const renderedTimeSlots = useMemo\(\(\) => \{[\s\S]*if \(!compactOccupiedOnly\) \{[\s\S]*return timeSlots;[\s\S]*Object\.prototype\.hasOwnProperty\.call\(appointmentRowSpanByDay\[day\.key\] \|\| \{\}, slot\)/s,
+    "Booked-only mode should keep appointment duration rows while removing empty gaps."
   );
   assert.match(
     source,
-    /renderedTimeSlots\.map\(\(slot\) => \{[\s\S]*const isMajorSlot = compactOccupiedOnly \|\|[\s\S]*if \(!compactOccupiedOnly && \(appointmentRowSpan === 0 \|\| specialCellRowSpan === 0\)\)[\s\S]*compactOccupiedOnly[\s\S]*\? 1/s,
-    "Booked-only mode should render compact one-row appointment entries instead of spanning hidden rows."
+    /renderedTimeSlots\.map\(\(slot\) => \{[\s\S]*const isMajorSlot = compactOccupiedOnly \|\|[\s\S]*if \(appointmentRowSpan === 0 \|\| \(!compactOccupiedOnly && specialCellRowSpan === 0\)\)[\s\S]*compactOccupiedOnly[\s\S]*\? \(appointmentRowSpan && appointmentRowSpan > 1 \? appointmentRowSpan : 1\)/s,
+    "Booked-only mode should preserve appointment row spans so long lessons keep their height."
   );
   assert.match(
     source,
@@ -156,7 +156,7 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     css,
-    /#appointmentPanel \.appointment-booked-only-toggle[\s\S]*width: 36px;[\s\S]*#appointmentPanel \.appointment-booked-only-toggle\.is-active[\s\S]*background: #d2e5fc;[\s\S]*\.appointment-grid-wrap-booked-only \.appointment-grid tbody tr/s,
+    /#appointmentPanel \.appointment-booked-only-toggle[\s\S]*width: 30px;[\s\S]*height: 30px;[\s\S]*#appointmentPanel \.appointment-booked-only-toggle\.is-active[\s\S]*background: #d2e5fc;[\s\S]*\.appointment-grid-wrap-booked-only \.appointment-grid tbody tr/s,
     "Booked-only planner toggle should be a compact header icon and mark the condensed grid state."
   );
   assert.match(
