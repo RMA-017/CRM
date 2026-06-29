@@ -1102,6 +1102,21 @@ function shouldIncludeClientFocusedPlannerItem(item, selectedClientId = "") {
   return String(item?.clientId || "").trim() === String(selectedClientId || "").trim();
 }
 
+function isPlannerCreatedLessonItem(item) {
+  if (!item || typeof item !== "object") {
+    return false;
+  }
+  const itemType = String(item?.itemType || "").trim().toLowerCase();
+  if (itemType === "daily-routine" || itemType === "break" || itemType === "blocked") {
+    return false;
+  }
+  const startTime = String(item?.time || item?.startTime || "").trim();
+  const appointmentId = String(item?.appointmentId || item?.id || "").trim();
+  const clientId = String(item?.clientId || "").trim();
+  const serviceId = String(item?.serviceId || "").trim();
+  return Boolean(startTime && (itemType === "appointment" || appointmentId || clientId || serviceId));
+}
+
 function normalizePlannerBreakItems(items) {
   return (Array.isArray(items) ? items : []).map((item) => ({
     id: String(item?.id || "").trim(),
@@ -1371,14 +1386,48 @@ function AppointmentPlannerGrid({
       return acc;
     }, {});
   }, [appointmentLookupByDay, settings?.slotInterval, settings?.slotSubDivisions, slotIndexByValue, timeSlots, weekDays]);
+  const compactAppointmentRowSpanByDay = useMemo(() => {
+    if (!compactOccupiedOnly) {
+      return {};
+    }
+    const interval = Number.parseInt(String(settings?.slotInterval || "30"), 10) || 30;
+    const subDivisions = Math.max(1, Number.parseInt(String(settings?.slotSubDivisions || "1"), 10) || 1);
+    const effectiveInterval = Math.max(1, Math.floor(interval / subDivisions));
+    return weekDays.reduce((acc, day) => {
+      const byTime = appointmentLookupByDay[day.key] || {};
+      const spanMap = {};
+      timeSlots.forEach((slot) => {
+        if (spanMap[slot] === 0) {
+          return;
+        }
+        const apptItem = byTime[slot];
+        if (!isPlannerCreatedLessonItem(apptItem)) {
+          return;
+        }
+        const duration = Number.parseInt(String(apptItem?.durationMinutes || "30"), 10) || 30;
+        const span = Math.max(1, Math.round(duration / effectiveInterval));
+        spanMap[slot] = span;
+        const startIndex = slotIndexByValue[slot];
+        if (Number.isInteger(startIndex)) {
+          for (let i = startIndex + 1; i < startIndex + span && i < timeSlots.length; i += 1) {
+            if (!spanMap[timeSlots[i]]) {
+              spanMap[timeSlots[i]] = 0;
+            }
+          }
+        }
+      });
+      acc[day.key] = spanMap;
+      return acc;
+    }, {});
+  }, [appointmentLookupByDay, compactOccupiedOnly, settings?.slotInterval, settings?.slotSubDivisions, slotIndexByValue, timeSlots, weekDays]);
   const renderedTimeSlots = useMemo(() => {
     if (!compactOccupiedOnly) {
       return timeSlots;
     }
     return timeSlots.filter((slot) => weekDays.some((day) => (
-      Object.prototype.hasOwnProperty.call(appointmentRowSpanByDay[day.key] || {}, slot)
+      Object.prototype.hasOwnProperty.call(compactAppointmentRowSpanByDay[day.key] || {}, slot)
     )));
-  }, [appointmentRowSpanByDay, compactOccupiedOnly, timeSlots, weekDays]);
+  }, [compactAppointmentRowSpanByDay, compactOccupiedOnly, timeSlots, weekDays]);
   const compactTimeColumnCellsBySlot = useMemo(() => {
     if (!compactOccupiedOnly) {
       return {};
@@ -2226,13 +2275,16 @@ function AppointmentPlannerGrid({
                       && slotMinutes >= dayMinutes.start
                       && slotMinutes < dayMinutes.end
                     );
-                    const item = appointmentLookupByDay[day.key]?.[slot] || null;
-                    const blockedItem = appointmentBlockedSlotsByDay[day.key]?.[slot] || null;
-                    const overlayBusyItem = overlayBusySlotsByDay[day.key]?.[slot] || null;
-                    const breakBlockedItem = appointmentBreakSlotsByDay[day.key]?.[slot] || null;
-                    const absenceBlockedItem = appointmentSpecialistAbsenceSlotsByDay[day.key]?.[slot] || null;
-                    const workScheduleBlockedItem = appointmentWorkScheduleBlockedSlotsByDay[day.key]?.[slot] || null;
-                    const appointmentRowSpan = appointmentRowSpanByDay[day.key]?.[slot];
+                    const rawItem = appointmentLookupByDay[day.key]?.[slot] || null;
+                    const item = compactOccupiedOnly && !isPlannerCreatedLessonItem(rawItem) ? null : rawItem;
+                    const blockedItem = compactOccupiedOnly ? null : (appointmentBlockedSlotsByDay[day.key]?.[slot] || null);
+                    const overlayBusyItem = compactOccupiedOnly ? null : (overlayBusySlotsByDay[day.key]?.[slot] || null);
+                    const breakBlockedItem = compactOccupiedOnly ? null : (appointmentBreakSlotsByDay[day.key]?.[slot] || null);
+                    const absenceBlockedItem = compactOccupiedOnly ? null : (appointmentSpecialistAbsenceSlotsByDay[day.key]?.[slot] || null);
+                    const workScheduleBlockedItem = compactOccupiedOnly ? null : (appointmentWorkScheduleBlockedSlotsByDay[day.key]?.[slot] || null);
+                    const appointmentRowSpan = compactOccupiedOnly
+                      ? compactAppointmentRowSpanByDay[day.key]?.[slot]
+                      : appointmentRowSpanByDay[day.key]?.[slot];
                     const specialCellRowSpan = specialCellRowSpanByDay[day.key]?.[slot];
 
                     if (appointmentRowSpan === 0 || (!compactOccupiedOnly && specialCellRowSpan === 0)) {
@@ -2289,7 +2341,7 @@ function AppointmentPlannerGrid({
                           : "appointment-booked-time-td"
                       )
                       : "";
-                    const isOffSlotCell = !isInsideWorkingHours;
+                    const isOffSlotCell = !compactOccupiedOnly && !isInsideWorkingHours;
                     const blockedStatus = (
                       blockedItem && blockedItem.hiddenByFilter !== true
                         ? String(blockedItem.status || "")
@@ -2313,7 +2365,8 @@ function AppointmentPlannerGrid({
                       ? " appointment-parent-response-coming"
                       : "";
                     const canOpenCreateFromCell = (
-                      isInsideWorkingHours
+                      !compactOccupiedOnly
+                      && isInsideWorkingHours
                       && !item
                       && !blockedItem
                       && !absenceBlockedItem
@@ -2325,7 +2378,8 @@ function AppointmentPlannerGrid({
                       && typeof onOpenCreateModal === "function"
                     );
                     const canDropAppointmentToCell = (
-                      isInsideWorkingHours
+                      !compactOccupiedOnly
+                      && isInsideWorkingHours
                       && !item
                       && !blockedItem
                       && !absenceBlockedItem
@@ -2338,14 +2392,16 @@ function AppointmentPlannerGrid({
                       && typeof onMoveAppointment === "function"
                     );
                     const canOpenBreakBlockFromCell = Boolean(
-                      isInsideWorkingHours
+                      !compactOccupiedOnly
+                      && isInsideWorkingHours
                       && breakBlockedItem
                       && canUpdateAppointmentBreaks
                       && canMutatePlannerSpecialist
                       && typeof onOpenPlannerBlockModal === "function"
                     );
                     const canOpenWorkScheduleBlockFromCell = Boolean(
-                      isInsideWorkingHours
+                      !compactOccupiedOnly
+                      && isInsideWorkingHours
                       && workScheduleBlockedItem
                       && canMutatePlannerSpecialist
                       && (canUpdateAppointmentWorkSchedule || canDeleteAppointmentWorkSchedule)

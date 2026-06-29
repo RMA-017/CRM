@@ -131,8 +131,18 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /const renderedTimeSlots = useMemo\(\(\) => \{[\s\S]*if \(!compactOccupiedOnly\) \{[\s\S]*return timeSlots;[\s\S]*Object\.prototype\.hasOwnProperty\.call\(appointmentRowSpanByDay\[day\.key\] \|\| \{\}, slot\)/s,
-    "Booked-only mode should keep appointment duration rows while removing empty gaps."
+    /function isPlannerCreatedLessonItem\(item\) \{[\s\S]*itemType === "daily-routine" \|\| itemType === "break" \|\| itemType === "blocked"[\s\S]*return Boolean\(startTime && \(itemType === "appointment" \|\| appointmentId \|\| clientId \|\| serviceId\)\);/s,
+    "Booked-only mode should treat only planner-created lessons as compact filter matches."
+  );
+  assert.match(
+    source,
+    /const compactAppointmentRowSpanByDay = useMemo\(\(\) => \{[\s\S]*if \(!isPlannerCreatedLessonItem\(apptItem\)\) \{[\s\S]*return;[\s\S]*spanMap\[slot\] = span;/s,
+    "Booked-only mode should ignore routine and blocker items when computing compact rows."
+  );
+  assert.match(
+    source,
+    /const renderedTimeSlots = useMemo\(\(\) => \{[\s\S]*if \(!compactOccupiedOnly\) \{[\s\S]*return timeSlots;[\s\S]*Object\.prototype\.hasOwnProperty\.call\(compactAppointmentRowSpanByDay\[day\.key\] \|\| \{\}, slot\)/s,
+    "Booked-only mode should keep lesson duration rows while removing non-lesson gaps."
   );
   assert.match(
     source,
@@ -141,7 +151,7 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
-    /renderedTimeSlots\.map\(\(slot\) => \{[\s\S]*const compactTimeColumnCell = compactOccupiedOnly \? compactTimeColumnCellsBySlot\[slot\] : null;[\s\S]*const shouldRenderTimeColumn = compactOccupiedOnly \? Boolean\(compactTimeColumnCell\) : isMajorSlot;[\s\S]*\? \(compactTimeColumnCell\?\.rowSpan \|\| 1\)[\s\S]*\{compactOccupiedOnly \? compactTimeColumnCell\.label : slot\}[\s\S]*if \(appointmentRowSpan === 0 \|\| \(!compactOccupiedOnly && specialCellRowSpan === 0\)\)[\s\S]*compactOccupiedOnly[\s\S]*\? \(appointmentRowSpan && appointmentRowSpan > 1 \? appointmentRowSpan : 1\)/s,
+    /renderedTimeSlots\.map\(\(slot\) => \{[\s\S]*const compactTimeColumnCell = compactOccupiedOnly \? compactTimeColumnCellsBySlot\[slot\] : null;[\s\S]*const shouldRenderTimeColumn = compactOccupiedOnly \? Boolean\(compactTimeColumnCell\) : isMajorSlot;[\s\S]*\? \(compactTimeColumnCell\?\.rowSpan \|\| 1\)[\s\S]*\{compactOccupiedOnly \? compactTimeColumnCell\.label : slot\}[\s\S]*const rawItem = appointmentLookupByDay\[day\.key\]\?\.\[slot\] \|\| null;[\s\S]*const item = compactOccupiedOnly && !isPlannerCreatedLessonItem\(rawItem\) \? null : rawItem;[\s\S]*const breakBlockedItem = compactOccupiedOnly \? null[\s\S]*const appointmentRowSpan = compactOccupiedOnly[\s\S]*\? compactAppointmentRowSpanByDay\[day\.key\]\?\.\[slot\][\s\S]*if \(appointmentRowSpan === 0 \|\| \(!compactOccupiedOnly && specialCellRowSpan === 0\)\)[\s\S]*compactOccupiedOnly[\s\S]*\? \(appointmentRowSpan && appointmentRowSpan > 1 \? appointmentRowSpan : 1\)/s,
     "Booked-only mode should keep time labels aligned to base intervals while preserving appointment row spans."
   );
   assert.match(
