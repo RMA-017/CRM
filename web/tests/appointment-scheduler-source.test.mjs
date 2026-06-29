@@ -126,6 +126,26 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
+    /function AppointmentPlannerGrid\([\s\S]*compactOccupiedOnly = false[\s\S]*function AppointmentScheduler\([\s\S]*compactOccupiedOnly = false/s,
+    "Appointment scheduler should accept a booked-only compact mode and forward it to the shared planner grid."
+  );
+  assert.match(
+    source,
+    /const renderedTimeSlots = useMemo\(\(\) => \{[\s\S]*if \(!compactOccupiedOnly\) \{[\s\S]*return timeSlots;[\s\S]*return timeSlots\.filter\(\(slot\) => weekDays\.some\(\(day\) => Boolean\(appointmentLookupByDay\[day\.key\]\?\.\[slot\]\)\)\);/s,
+    "Booked-only mode should keep only time rows with visible appointment starts."
+  );
+  assert.match(
+    source,
+    /renderedTimeSlots\.map\(\(slot\) => \{[\s\S]*const isMajorSlot = compactOccupiedOnly \|\|[\s\S]*if \(!compactOccupiedOnly && \(appointmentRowSpan === 0 \|\| specialCellRowSpan === 0\)\)[\s\S]*compactOccupiedOnly[\s\S]*\? 1/s,
+    "Booked-only mode should render compact one-row appointment entries instead of spanning hidden rows."
+  );
+  assert.match(
+    source,
+    /<AppointmentPlannerGrid[\s\S]*cardDisplayMode="client"[\s\S]*compactOccupiedOnly=\{compactOccupiedOnly\}[\s\S]*<AppointmentPlannerGrid[\s\S]*rawAppointmentsByDay=\{rawAppointmentsByDay\}[\s\S]*compactOccupiedOnly=\{compactOccupiedOnly\}/s,
+    "Both client-focused and specialist planner grids should receive the booked-only compact mode."
+  );
+  assert.match(
+    source,
     /const isCommonFreeSlot = Boolean\(highlightAvailableCommonSlots && canOpenCreateFromCell\);[\s\S]*appointment-common-free-slot-td/s,
     "Planner should only mark a common free slot green when the cell is actually open for creating an appointment."
   );
@@ -133,6 +153,16 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
     css,
     /appointment-common-free-slot-td[\s\S]*background: #d2e5fc;/,
     "Common free appointment slots should use a soft neutral background."
+  );
+  assert.match(
+    css,
+    /#appointmentPanel \.appointment-booked-only-toggle[\s\S]*width: 36px;[\s\S]*#appointmentPanel \.appointment-booked-only-toggle\.is-active[\s\S]*background: #d2e5fc;[\s\S]*\.appointment-grid-wrap-booked-only \.appointment-grid tbody tr/s,
+    "Booked-only planner toggle should be a compact header icon and mark the condensed grid state."
+  );
+  assert.match(
+    translations,
+    /Show booked planner slots only", uz: "Faqat band dars slotlarini ko'rsatish", ru: "Показать только занятые слоты"[\s\S]*Show all planner slots", uz: "Barcha dars slotlarini ko'rsatish", ru: "Показать все слоты"/s,
+    "Booked-only planner toggle labels should be translated."
   );
   assert.match(
     source,

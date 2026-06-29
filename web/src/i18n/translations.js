@@ -152,6 +152,8 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Appointments", uz: "Darslar", ru: "Занятия" },
   { en: "Appointment", uz: "Dars", ru: "Занятие" },
   { en: "Appointment planner", uz: "Dars jadvali", ru: "Расписание занятий" },
+  { en: "Show booked planner slots only", uz: "Faqat band dars slotlarini ko'rsatish", ru: "Показать только занятые слоты" },
+  { en: "Show all planner slots", uz: "Barcha dars slotlarini ko'rsatish", ru: "Показать все слоты" },
   { en: "Planner", uz: "Jadval", ru: "Расписание" },
   { en: "Lesson", uz: "Dars", ru: "Занятие" },
   { en: "Services", uz: "Xizmatlar", ru: "Услуги" },

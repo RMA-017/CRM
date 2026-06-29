@@ -155,6 +155,16 @@ function getTicketPayableAmount(ticket) {
   return normalizeMoneyInput(ticket?.remainingAmountUzs ?? ticket?.remaining_amount_uzs ?? ticket?.totalUzs ?? ticket?.amountUzs);
 }
 
+function getTicketTotalPayableAmount(ticket) {
+  const totalAmount = normalizeMoneyInput(
+    ticket?.totalUzs ?? ticket?.total_uzs ?? ticket?.amountUzs ?? ticket?.amount_uzs
+  );
+  if (totalAmount > 0) {
+    return totalAmount;
+  }
+  return getTicketLineItems(ticket).reduce((sum, item) => sum + getTicketLineFinalAmount(item), 0);
+}
+
 function getTicketClientId(ticket) {
   return String(ticket?.clientId ?? ticket?.client_id ?? "").trim();
 }
@@ -1370,7 +1380,7 @@ function FinanceCashierPanel({
                         <span className="finance-batch-ticket-cell is-service">{getTicketServiceSummary(ticket)}</span>
                         <span className="finance-batch-ticket-cell is-money">{formatMoney(getTicketServicePriceAmount(ticket))}</span>
                         <span className="finance-batch-ticket-cell is-money">{formatMoney(getTicketDiscountAmount(ticket))}</span>
-                        <span className="finance-batch-ticket-cell is-money is-payable">{formatMoney(getTicketPayableAmount(ticket))}</span>
+                        <span className="finance-batch-ticket-cell is-money is-payable">{formatMoney(getTicketTotalPayableAmount(ticket))}</span>
                         <span className="finance-batch-ticket-cell is-money is-paid">{formatMoney(getTicketPaidAmount(ticket))}</span>
                         {getTicketLineItems(ticket).length > 1 ? (
                           <div className="finance-batch-ticket-lines">

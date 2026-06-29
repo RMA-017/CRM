@@ -40,6 +40,18 @@ test("appointment planner read-only mode keeps report filters gated while planne
   );
 
   assert.match(
+    panelSource,
+    /const \[showBookedOnly, setShowBookedOnly\] = useState\(false\);[\s\S]*id="appointmentBookedOnlyToggle"[\s\S]*aria-pressed=\{showBookedOnly \? "true" : "false"\}[\s\S]*onClick=\{\(\) => setShowBookedOnly\(\(current\) => !current\)\}[\s\S]*id="closeAppointmentBtn"/s,
+    "Appointment planner header should render a booked-only toggle immediately before the close button."
+  );
+
+  assert.match(
+    panelSource,
+    /<AppointmentScheduler[\s\S]*compactOccupiedOnly=\{showBookedOnly\}/s,
+    "Appointment planner panel should pass the booked-only toggle state into the scheduler."
+  );
+
+  assert.match(
     mainContentSource,
     /canReadStatisticsPlannerReport={canReadStatisticsPlannerReportPermission}/,
     "Profile main content should connect planner report read permission into the planner panel."

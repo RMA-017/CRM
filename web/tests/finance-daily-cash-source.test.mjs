@@ -36,6 +36,21 @@ test("daily cash shows payment method totals below the header", () => {
     /function getDailyCashSignedAmount\(item\)[\s\S]*String\(item\?\.direction \|\| ""\) === "out" \? -Math\.abs\(amount\) : amount[\s\S]*render: \(item\) => formatMoney\(getDailyCashSignedAmount\(item\)\)[\s\S]*exportValue: \(item\) => getDailyCashSignedAmount\(item\)/s,
     "Daily cash table and export should show outgoing rows as negative amounts."
   );
+  assert.match(
+    dailyCashSource,
+    /function getDailyCashSummaryColumnValue\(columnId, summary\) \{[\s\S]*columnId === "amount"[\s\S]*summary\?\.netUzs[\s\S]*return null;/s,
+    "Daily cash summary should map the net total to the Amount column."
+  );
+  assert.match(
+    dailyCashSource,
+    /<tfoot>[\s\S]*className="finance-ticket-total-row finance-daily-cash-total-row"[\s\S]*getDailyCashSummaryColumnValue\(column\.id, summary\)[\s\S]*className="finance-ticket-total-value finance-daily-cash-cell-amount"[\s\S]*formatMoneyValue\(summaryValue\)/s,
+    "Daily cash table should render a compact footer total under the visible Amount column."
+  );
+  assert.match(
+    dailyCashSource,
+    /visibleColumns\.map\(\(column, index\) => \{[\s\S]*getDailyCashSummaryColumnValue\(column\.id, result\.summary\)[\s\S]*if \(summaryValue !== null\) return summaryValue;[\s\S]*index === 0 \? translate\("Total"\) : ""/s,
+    "Daily cash export should include a final totals row aligned to the same visible columns."
+  );
 
   assert.match(
     dailyCashSource,

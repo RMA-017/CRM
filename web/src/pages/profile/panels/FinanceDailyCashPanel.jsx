@@ -71,6 +71,13 @@ function getDailyCashSignedAmount(item) {
   return String(item?.direction || "") === "out" ? -Math.abs(amount) : amount;
 }
 
+function getDailyCashSummaryColumnValue(columnId, summary) {
+  if (columnId === "amount") {
+    return Number.parseInt(String(summary?.netUzs ?? 0), 10) || 0;
+  }
+  return null;
+}
+
 function normalizeMoneyInput(value) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
@@ -521,7 +528,12 @@ function FinanceDailyCashPanel({ onClose, canPayFinanceCashier = false, currentU
           name: translate("Daily Cash"),
           rows: [
             visibleColumns.map((column) => column.label === "#" ? "#" : translate(column.label)),
-            ...result.items.map((item, index) => visibleColumns.map((column) => column.exportValue(item, index)))
+            ...result.items.map((item, index) => visibleColumns.map((column) => column.exportValue(item, index))),
+            visibleColumns.map((column, index) => {
+              const summaryValue = getDailyCashSummaryColumnValue(column.id, result.summary);
+              if (summaryValue !== null) return summaryValue;
+              return index === 0 ? translate("Total") : "";
+            })
           ]
         },
         {
@@ -782,6 +794,25 @@ function FinanceDailyCashPanel({ onClose, canPayFinanceCashier = false, currentU
               <tr><td colSpan={visibleColumnCount} className="all-users-state">{translate("No items found.")}</td></tr>
             ) : null}
           </tbody>
+          <tfoot>
+            <tr className="finance-ticket-total-row finance-daily-cash-total-row">
+              {visibleColumns.map((column, index) => {
+                const summaryValue = getDailyCashSummaryColumnValue(column.id, summary);
+                if (summaryValue !== null) {
+                  return (
+                    <td key={column.id} className="finance-ticket-total-value finance-daily-cash-cell-amount">
+                      {formatMoneyValue(summaryValue)}
+                    </td>
+                  );
+                }
+                return (
+                  <td key={column.id} className={index === 0 ? "finance-ticket-total-label" : undefined}>
+                    {index === 0 ? translate("Total") : ""}
+                  </td>
+                );
+              })}
+            </tr>
+          </tfoot>
         </table>
       </div>
 

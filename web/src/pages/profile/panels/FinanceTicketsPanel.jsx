@@ -447,7 +447,6 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
   const [historyTicket, setHistoryTicket] = useState(null);
   const [historyItems, setHistoryItems] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [refundingId, setRefundingId] = useState("");
   const [exporting, setExporting] = useState(false);
   const [editTicket, setEditTicket] = useState(null);
   const [editForm, setEditForm] = useState(EMPTY_TICKET_EDIT_FORM);
@@ -681,43 +680,28 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
           && item.status !== "voided"
           && !hasTicketPostedPaymentActivity(item);
         const canDeleteRow = canEditRow && !hasTicketPostedPaymentActivity(item);
-        const hasAction = canEditRow || item.status === "paid";
-        return hasAction ? (
+        return canEditRow ? (
           <div className="finance-ticket-action-group">
-            {canEditRow ? (
-              <>
-                <button
-                  type="button"
-                  className="table-action-btn finance-ticket-icon-btn"
-                  aria-label={translate("Edit")}
-                  title={translate("Edit")}
-                  disabled={editSubmitting}
-                  onClick={() => openEditTicket(item)}
-                >
-                  ✎
-                </button>
-                {canDeleteRow ? (
-                  <button
-                    type="button"
-                    className="table-action-btn table-action-btn-danger finance-ticket-icon-btn"
-                    aria-label={translate("Delete")}
-                    title={translate("Delete")}
-                    disabled={voidingId === id}
-                    onClick={() => deleteTicket(item)}
-                  >
-                    {voidingId === id ? "..." : <span className="finance-ticket-trash-icon" aria-hidden="true" />}
-                  </button>
-                ) : null}
-              </>
-            ) : null}
-            {item.status === "paid" ? (
+            <button
+              type="button"
+              className="table-action-btn finance-ticket-icon-btn"
+              aria-label={translate("Edit")}
+              title={translate("Edit")}
+              disabled={editSubmitting}
+              onClick={() => openEditTicket(item)}
+            >
+              ✎
+            </button>
+            {canDeleteRow ? (
               <button
                 type="button"
-                className="table-action-btn"
-                disabled={refundingId === id}
-                onClick={() => refundTicket(item)}
+                className="table-action-btn table-action-btn-danger finance-ticket-icon-btn"
+                aria-label={translate("Delete")}
+                title={translate("Delete")}
+                disabled={voidingId === id}
+                onClick={() => deleteTicket(item)}
               >
-                {translate("Refund")}
+                {voidingId === id ? "..." : <span className="finance-ticket-trash-icon" aria-hidden="true" />}
               </button>
             ) : null}
           </div>
@@ -1070,30 +1054,6 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
       window.alert?.(translate("Ticket delete failed."));
     } finally {
       setVoidingId("");
-    }
-  };
-
-  const refundTicket = async (item) => {
-    const id = String(item?.id || "");
-    if (!id || refundingId) return;
-    const confirmed = window.confirm?.(translate("Refund this ticket?")) ?? true;
-    if (!confirmed) return;
-    setRefundingId(id);
-    try {
-      const response = await apiFetch(`/api/finance/cashier/tickets/${id}/refund`, {
-        method: "POST",
-        body: JSON.stringify({})
-      });
-      const data = await readApiResponseData(response);
-      if (!response.ok) {
-        window.alert?.(translate(data?.message || "Ticket refund failed."));
-        return;
-      }
-      await loadTickets(page, appliedFilters);
-    } catch {
-      window.alert?.(translate("Ticket refund failed."));
-    } finally {
-      setRefundingId("");
     }
   };
 

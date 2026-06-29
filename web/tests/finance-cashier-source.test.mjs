@@ -208,6 +208,11 @@ test("batch ticket payment modal uses remaining totals and caps payment source a
   );
   assert.match(
     cashierPanelSource,
+    /function getTicketTotalPayableAmount\(ticket\) \{[\s\S]*totalUzs[\s\S]*total_uzs[\s\S]*amountUzs[\s\S]*amount_uzs[\s\S]*getTicketLineFinalAmount/s,
+    "Ticket rows in the payment modal should show the original payable total, not the remaining payment amount."
+  );
+  assert.match(
+    cashierPanelSource,
     /const totalUzs = nextTickets\.reduce\(\(sum, ticket\) => sum \+ getTicketPayableAmount\(ticket\), 0\);[\s\S]*setBatchPaymentRows\(\[createBatchPaymentRow\(totalUzs\)\]\);/s,
     "Opening the payment modal should prefill only the remaining payable amount, not the original ticket total."
   );
@@ -300,6 +305,11 @@ test("batch payment modal keeps client balance, ticket and payment inputs wrappe
     "Ticket header and value cells should share one grid template for stable vertical alignment."
   );
   assert.match(
+    styles,
+    /minmax\(142px, 1fr\)\s*minmax\(104px, 0\.54fr\)\s*minmax\(104px, 0\.54fr\)\s*minmax\(104px, 0\.54fr\)\s*minmax\(104px, 0\.54fr\)/s,
+    "Ticket payment money columns should use equal widths for service price, discount, payable and paid amounts."
+  );
+  assert.match(
     cashierPanelSource,
     /finance-batch-ticket-head[\s\S]*className="finance-batch-ticket-cell is-number"[\s\S]*translate\("Ticket Number"\)[\s\S]*className="finance-batch-ticket-cell is-date"[\s\S]*translate\("Ticket Date"\)[\s\S]*className="finance-batch-ticket-cell is-specialist"[\s\S]*translate\("Specialist"\)[\s\S]*className="finance-batch-ticket-cell is-service"[\s\S]*translate\("Service"\)[\s\S]*className="finance-batch-ticket-cell is-money"[\s\S]*translate\("Service Price"\)[\s\S]*className="finance-batch-ticket-cell is-money"[\s\S]*translate\("Discount"\)[\s\S]*className="finance-batch-ticket-cell is-money is-payable"[\s\S]*translate\("To Pay"\)[\s\S]*className="finance-batch-ticket-cell is-money is-paid"[\s\S]*translate\("Paid"\)[\s\S]*batchPaymentTickets\.map/s,
     "Ticket payment headers should use explicit column classes for stable vertical alignment."
@@ -311,7 +321,7 @@ test("batch payment modal keeps client balance, ticket and payment inputs wrappe
   );
   assert.match(
     cashierPanelSource,
-    /className="finance-batch-ticket-cell is-number"[\s\S]*formatTicketNumber\(ticket\.ticketNumber\)[\s\S]*className="finance-batch-ticket-cell is-date"[\s\S]*formatDateYMD\(ticket\.ticketDate \|\| ticket\.appointmentDate\)[\s\S]*className="finance-batch-ticket-cell is-specialist"[\s\S]*getTicketSpecialistSummary\(ticket\)[\s\S]*className="finance-batch-ticket-cell is-service"[\s\S]*getTicketServiceSummary\(ticket\)[\s\S]*className="finance-batch-ticket-cell is-money"[\s\S]*formatMoney\(getTicketServicePriceAmount\(ticket\)\)[\s\S]*className="finance-batch-ticket-cell is-money"[\s\S]*formatMoney\(getTicketDiscountAmount\(ticket\)\)[\s\S]*className="finance-batch-ticket-cell is-money is-payable"[\s\S]*formatMoney\(getTicketPayableAmount\(ticket\)\)[\s\S]*className="finance-batch-ticket-cell is-money is-paid"[\s\S]*formatMoney\(getTicketPaidAmount\(ticket\)\)/,
+    /className="finance-batch-ticket-cell is-number"[\s\S]*formatTicketNumber\(ticket\.ticketNumber\)[\s\S]*className="finance-batch-ticket-cell is-date"[\s\S]*formatDateYMD\(ticket\.ticketDate \|\| ticket\.appointmentDate\)[\s\S]*className="finance-batch-ticket-cell is-specialist"[\s\S]*getTicketSpecialistSummary\(ticket\)[\s\S]*className="finance-batch-ticket-cell is-service"[\s\S]*getTicketServiceSummary\(ticket\)[\s\S]*className="finance-batch-ticket-cell is-money"[\s\S]*formatMoney\(getTicketServicePriceAmount\(ticket\)\)[\s\S]*className="finance-batch-ticket-cell is-money"[\s\S]*formatMoney\(getTicketDiscountAmount\(ticket\)\)[\s\S]*className="finance-batch-ticket-cell is-money is-payable"[\s\S]*formatMoney\(getTicketTotalPayableAmount\(ticket\)\)[\s\S]*className="finance-batch-ticket-cell is-money is-paid"[\s\S]*formatMoney\(getTicketPaidAmount\(ticket\)\)/,
     "Ticket payment row values should use the same explicit column classes as their headers."
   );
   assert.match(

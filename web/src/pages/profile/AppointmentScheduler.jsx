@@ -1212,7 +1212,8 @@ function AppointmentPlannerGrid({
   onOpenDayBulkModal = null,
   onOpenPlannerBlockModal = null,
   cardDisplayMode = "specialist",
-  wrapperClassName = ""
+  wrapperClassName = "",
+  compactOccupiedOnly = false
 }) {
   const { translate } = useI18n();
   const weekDays = useMemo(
@@ -1339,6 +1340,12 @@ function AppointmentPlannerGrid({
       return acc;
     }, {})
   ), [appointmentsByDay, weekDays]);
+  const renderedTimeSlots = useMemo(() => {
+    if (!compactOccupiedOnly) {
+      return timeSlots;
+    }
+    return timeSlots.filter((slot) => weekDays.some((day) => Boolean(appointmentLookupByDay[day.key]?.[slot])));
+  }, [appointmentLookupByDay, compactOccupiedOnly, timeSlots, weekDays]);
   const appointmentRowSpanByDay = useMemo(() => {
     const interval = Number.parseInt(String(settings?.slotInterval || "30"), 10) || 30;
     const subDivisions = Math.max(1, Number.parseInt(String(settings?.slotSubDivisions || "1"), 10) || 1);
@@ -2087,7 +2094,7 @@ function AppointmentPlannerGrid({
           <p className="appointment-client-focused-section-title">{sectionTitle}</p>
         </div>
       ) : null}
-      <div className={["appointment-grid-wrap", mouseDragPreview ? "appointment-grid-dragging" : "", wrapperClassName].filter(Boolean).join(" ") || undefined}>
+      <div className={["appointment-grid-wrap", compactOccupiedOnly ? "appointment-grid-wrap-booked-only" : "", mouseDragPreview ? "appointment-grid-dragging" : "", wrapperClassName].filter(Boolean).join(" ") || undefined}>
         <table className="appointment-grid" aria-label={ariaLabel || sectionTitle || "Appointment week table"}>
           <thead>
             <tr>
@@ -2139,12 +2146,12 @@ function AppointmentPlannerGrid({
             </tr>
           </thead>
           <tbody>
-            {timeSlots.map((slot) => {
+            {renderedTimeSlots.map((slot) => {
               const slotMinutes = slotMinutesByValue[slot];
               const slotSubDivisionsNum = Math.max(1, Number.parseInt(String(settings?.slotSubDivisions || "1"), 10) || 1);
               const slotIndex = slotIndexByValue[slot];
-              const isMajorSlot = slotSubDivisionsNum <= 1 || slotIndex % slotSubDivisionsNum === 0;
-              const timeColRowSpan = isMajorSlot && slotSubDivisionsNum > 1
+              const isMajorSlot = compactOccupiedOnly || slotSubDivisionsNum <= 1 || slotIndex % slotSubDivisionsNum === 0;
+              const timeColRowSpan = !compactOccupiedOnly && isMajorSlot && slotSubDivisionsNum > 1
                 ? Math.min(slotSubDivisionsNum, timeSlots.length - slotIndex)
                 : 1;
 
@@ -2181,14 +2188,16 @@ function AppointmentPlannerGrid({
                     const appointmentRowSpan = appointmentRowSpanByDay[day.key]?.[slot];
                     const specialCellRowSpan = specialCellRowSpanByDay[day.key]?.[slot];
 
-                    if (appointmentRowSpan === 0 || specialCellRowSpan === 0) {
+                    if (!compactOccupiedOnly && (appointmentRowSpan === 0 || specialCellRowSpan === 0)) {
                       return null;
                     }
 
                     const effectiveRowSpan = (
-                      appointmentRowSpan && appointmentRowSpan > 1
+                      compactOccupiedOnly
+                        ? 1
+                        : (appointmentRowSpan && appointmentRowSpan > 1
                         ? appointmentRowSpan
-                        : (specialCellRowSpan && specialCellRowSpan > 1 ? specialCellRowSpan : 1)
+                        : (specialCellRowSpan && specialCellRowSpan > 1 ? specialCellRowSpan : 1))
                     );
                     const tdRowSpan = effectiveRowSpan > 1 ? effectiveRowSpan : undefined;
                     const appointmentCardHeightPx = effectiveRowSpan * slotCellHeightPx;
@@ -2526,6 +2535,7 @@ function AppointmentScheduler({
   vipOnly = false,
   recurringOnly = false,
   showWeekSwitcher = true,
+  compactOccupiedOnly = false,
   vipClassDailyRoutines = []
 }) {
   const { t, translate } = useI18n();
@@ -7445,6 +7455,7 @@ function AppointmentScheduler({
               onOpenPlannerBlockModal={openPlannerBlockModal}
               cardDisplayMode="client"
               wrapperClassName="appointment-grid-wrap-client"
+              compactOccupiedOnly={compactOccupiedOnly}
             />
           </>
         ) : (
@@ -7476,6 +7487,7 @@ function AppointmentScheduler({
             onMoveAppointment={moveAppointmentToSlot}
             onOpenDayBulkModal={openDayBulkModal}
             onOpenPlannerBlockModal={openPlannerBlockModal}
+            compactOccupiedOnly={compactOccupiedOnly}
           />
         )
         )

@@ -129,8 +129,13 @@ test("ticket edit and delete actions are hidden for tickets with payment activit
   );
   assert.match(
     source,
-    /const canEditRow = canUpdateFinanceCashier[\s\S]*item\.status !== "paid"[\s\S]*item\.status !== "voided"[\s\S]*!hasTicketPostedPaymentActivity\(item\);[\s\S]*const canDeleteRow = canEditRow && !hasTicketPostedPaymentActivity\(item\);[\s\S]*\{canEditRow \? \(/s,
+    /const canEditRow = canUpdateFinanceCashier[\s\S]*item\.status !== "paid"[\s\S]*item\.status !== "voided"[\s\S]*!hasTicketPostedPaymentActivity\(item\);[\s\S]*const canDeleteRow = canEditRow && !hasTicketPostedPaymentActivity\(item\);[\s\S]*return canEditRow \? \(/s,
     "Edit and delete icons should render when a ticket has no active posted payment activity."
+  );
+  assert.doesNotMatch(
+    source,
+    /refundTicket|refundingId|\/api\/finance\/cashier\/tickets\/\$\{id\}\/refund|translate\("Refund"\)/,
+    "Ticket rows should not expose a separate refund action; payment returns are handled from transactions."
   );
   assert.match(
     source,
