@@ -424,6 +424,46 @@ test("planner status cancellation skips parents who already cancelled the lesson
   );
 });
 
+test("planner specialist range bulk cancellation groups Telegram parent messages", async () => {
+  const [scheduleRoutesSource, settingsServiceSource, telegramServiceSource, routeSchemaSource] = await Promise.all([
+    readFile(new URL("../src/modules/appointments/routes/schedules.routes.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/modules/appointments/appointment-settings.service.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/modules/telegram-bot/telegram-bot.service.js", import.meta.url), "utf8"),
+    readFile(new URL("../src/modules/appointments/routes/appointment.route-schemas.js", import.meta.url), "utf8")
+  ]);
+
+  assert.match(
+    routeSchemaSource,
+    /scheduleBulkCancelBody:[\s\S]*required:\s*\["specialistId", "dateFrom", "dateTo"\][\s\S]*reason:\s*\{ type: "string", maxLength: 255 \}/s,
+    "Bulk cancellation should validate specialist, date range, and reason."
+  );
+  assert.match(
+    settingsServiceSource,
+    /export async function cancelAppointmentSchedulesForSpecialistRange[\s\S]*appointment_date BETWEEN \$3::date AND \$4::date[\s\S]*status IN \('pending', 'confirmed'\)[\s\S]*status = 'cancelled'/s,
+    "Bulk cancellation should cancel active specialist lessons across the selected date range."
+  );
+  assert.match(
+    scheduleRoutesSource,
+    /fastify\.post\(\s*"\/schedules\/bulk-cancel"[\s\S]*cancelAppointmentSchedulesForSpecialistRange[\s\S]*notifyAppointmentParentsOnly\(access,\s*\{[\s\S]*bulkSpecialistCancellation:\s*true[\s\S]*cancellationScope:\s*"specialist_range"/s,
+    "Planner bulk cancellation endpoint should send one parent-notification context for the whole operation."
+  );
+  assert.match(
+    telegramServiceSource,
+    /specialistLessonsCancelled:\s*"\{child\} uchun quyidagi darslar bekor qilindi:\\n\{lessons\}\\nSabab: \{reason\}"/,
+    "Telegram defaults should include a grouped Uzbek specialist cancellation template."
+  );
+  assert.match(
+    telegramServiceSource,
+    /function isBulkSpecialistCancellationNotification[\s\S]*statusChangedTo === "cancelled"[\s\S]*cancellationScope === "specialist_range"[\s\S]*items\.length > 1/s,
+    "Telegram service should detect planner specialist range cancellations."
+  );
+  assert.match(
+    telegramServiceSource,
+    /if \(isBulkSpecialistCancellationNotification\([\s\S]*for \(const group of buildClientDeleteGroups\(normalizedItems\)\)[\s\S]*shouldSkipCancelledParentNotification[\s\S]*buildSpecialistLessonsCancelledNotificationMessage[\s\S]*appointmentScheduleId:\s*null/s,
+    "Telegram service should group bulk cancellation messages by child while preserving duplicate-cancel skips."
+  );
+});
+
 test("Telegram parent single cancellation only updates the selected lesson", async () => {
   const [serviceSource, settingsServiceSource] = await Promise.all([
     readFile(

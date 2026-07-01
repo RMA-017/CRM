@@ -91,6 +91,7 @@ test("appointments routes expose stable contract", async () => {
     "PATCH /work-schedule/:id",
     "POST /absences",
     "POST /schedules",
+    "POST /schedules/bulk-cancel",
     "POST /work-schedule",
     "PUT /breaks",
     "PUT /work-schedule/default-weekly"
@@ -111,6 +112,9 @@ test("appointments routes expose stable contract", async () => {
 
   const schedulesPost = findRoute(recorder.routes, "POST", "/schedules");
   assert.equal(typeof schedulesPost?.options?.schema?.body, "object");
+
+  const schedulesBulkCancelPost = findRoute(recorder.routes, "POST", "/schedules/bulk-cancel");
+  assert.equal(typeof schedulesBulkCancelPost?.options?.schema?.body, "object");
 
   const schedulesPatch = findRoute(recorder.routes, "PATCH", "/schedules/:id");
   assert.equal(typeof schedulesPatch?.options?.schema?.params, "object");

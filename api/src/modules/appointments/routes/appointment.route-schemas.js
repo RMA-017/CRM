@@ -242,6 +242,20 @@ export const appointmentRouteSchemas = Object.freeze({
       repeat: repeatPayloadSchema
     }
   },
+  scheduleBulkCancelBody: {
+    type: "object",
+    additionalProperties: true,
+    required: ["specialistId", "dateFrom", "dateTo"],
+    properties: {
+      specialistId: positiveIntegerLikeSchema,
+      dateFrom: dateYmdSchema,
+      dateTo: dateYmdSchema,
+      startTime: timeHmSchema,
+      endTime: timeHmSchema,
+      reason: { type: "string", maxLength: 255 },
+      note: { type: "string", maxLength: 255 }
+    }
+  },
   scheduleIdParams: {
     type: "object",
     additionalProperties: true,

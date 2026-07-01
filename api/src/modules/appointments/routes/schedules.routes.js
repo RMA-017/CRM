@@ -322,6 +322,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     hasAppointmentScheduleConflict,
     hasVipRoutineConflictForSpecialist,
     hasVipRoutineConflictForClient,
+    cancelAppointmentSchedulesForSpecialistRange,
     createAppointmentSchedule,
     updateAppointmentScheduleByIdWithRepeatMeta,
     updateAppointmentSchedulesByIds,
@@ -1663,6 +1664,123 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           return reply.status(400).send({ message: "Invalid appointment data." });
         }
         request.log.error({ err: error }, "Error creating appointment schedule");
+        return reply.status(500).send({ message: "Internal server error." });
+      }
+    }
+  );
+
+  fastify.post(
+    "/schedules/bulk-cancel",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        body: appointmentRouteSchemas.scheduleBulkCancelBody
+      }
+    },
+    async (request, reply) => {
+      try {
+        const access = await requireAppointmentsAccess(
+          request,
+          reply,
+          PERMISSIONS.APPOINTMENTS_PLANNER_UPDATE,
+          "appointments.planner"
+        );
+        if (!access) {
+          return;
+        }
+
+        const requestedSpecialistId = parsePositiveIntegerOr(request.body?.specialistId, 0);
+        const ownSpecialistUserId = resolveOwnAppointmentSpecialistUserId(access);
+        if (ownSpecialistUserId && requestedSpecialistId && requestedSpecialistId !== ownSpecialistUserId) {
+          return reply.status(403).send({ message: "Forbidden." });
+        }
+        const specialistId = ownSpecialistUserId || requestedSpecialistId;
+        if (!specialistId) {
+          return reply.status(400).send({ field: "specialistId", message: "Specialist is required." });
+        }
+
+        const dateFrom = String(request.body?.dateFrom || "").trim();
+        const dateTo = String(request.body?.dateTo || "").trim();
+        const startTime = String(request.body?.startTime || "").trim();
+        const endTime = String(request.body?.endTime || "").trim();
+        if (!DATE_REGEX.test(dateFrom)) {
+          return reply.status(400).send({ field: "dateFrom", message: "Valid date from is required." });
+        }
+        if (!DATE_REGEX.test(dateTo)) {
+          return reply.status(400).send({ field: "dateTo", message: "Valid date to is required." });
+        }
+        if (dateFrom > dateTo) {
+          return reply.status(400).send({ field: "dateRange", message: "Date to must be on or after date from." });
+        }
+        if ((startTime && !endTime) || (!startTime && endTime)) {
+          return reply.status(400).send({ field: "timeRange", message: "Both start and end time are required." });
+        }
+        if ((startTime && !/^\d{2}:\d{2}$/.test(startTime)) || (endTime && !/^\d{2}:\d{2}$/.test(endTime))) {
+          return reply.status(400).send({ field: "timeRange", message: "Invalid time range." });
+        }
+        if (startTime && endTime && startTime >= endTime) {
+          return reply.status(400).send({ field: "timeRange", message: "End time must be after start time." });
+        }
+
+        const historyLockDays = await getAppointmentHistoryLockDaysByOrganization(
+          access.authContext.organizationId
+        );
+        const historyLockError = getHistoryLockErrorForRequester(access.requester, [dateFrom, dateTo], historyLockDays);
+        if (historyLockError) {
+          return reply.status(403).send(historyLockError);
+        }
+
+        const rawReason = String(request.body?.reason || request.body?.note || "").trim();
+        const note = typeof formatAppointmentCancellationNote === "function"
+          ? formatAppointmentCancellationNote(rawReason, "cancelled", access)
+          : rawReason;
+        const items = typeof cancelAppointmentSchedulesForSpecialistRange === "function"
+          ? await cancelAppointmentSchedulesForSpecialistRange({
+              organizationId: access.authContext.organizationId,
+              actorUserId: access.authContext.userId,
+              specialistId,
+              dateFrom,
+              dateTo,
+              startTime,
+              endTime,
+              note
+            })
+          : [];
+
+        schedulesReadCache.clear();
+        const cancelledCount = Array.isArray(items) ? items.length : 0;
+        if (cancelledCount > 0) {
+          await notifyAppointmentParentsOnly(access, {
+            type: "schedule-updated",
+            items,
+            data: {
+              items,
+              statusChangedTo: "cancelled",
+              bulkSpecialistCancellation: true,
+              cancellationScope: "specialist_range",
+              specialistId: String(specialistId),
+              dateFrom,
+              dateTo,
+              startTime,
+              endTime,
+              cancelledCount
+            }
+          });
+        }
+
+        return reply.send({
+          message: cancelledCount > 0
+            ? `${cancelledCount} appointments cancelled.`
+            : "No appointments matched the selected interval.",
+          cancelledCount,
+          items,
+          dateFrom,
+          dateTo,
+          startTime,
+          endTime
+        });
+      } catch (error) {
+        request.log.error({ err: error }, "Error bulk cancelling appointment schedules");
         return reply.status(500).send({ message: "Internal server error." });
       }
     }

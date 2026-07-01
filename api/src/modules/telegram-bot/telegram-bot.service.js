@@ -200,6 +200,7 @@ const DEFAULT_TEMPLATES = Object.freeze({
     scheduleDeleted: "{child} uchun {date} {time} dagi {service} darsi o'chirildi. Mutaxassis: {specialist}.",
     scheduleSeriesDeleted: "{child} uchun {service} darslari bekor qilindi. Mutaxassis: {specialist}.",
     specialistLessonsDeleted: "{child} uchun rejalashtirilgan darslar bekor qilindi:\n{lessons}",
+    specialistLessonsCancelled: "{child} uchun quyidagi darslar bekor qilindi:\n{lessons}\nSabab: {reason}",
     reminder24h: "{date} {time} da {service} darsi bor. Mutaxassis: {specialist}. Kelasizmi?",
     reminder2h: "Bugun {time} da {service} darsingiz bor. Mutaxassis: {specialist}.",
     parentCancelNotification: "Ota-ona {child} uchun {date} {time} dagi {service} darsini bekor qildi. Mutaxassis: {specialist}. Sabab: {reason}."
@@ -213,6 +214,7 @@ const DEFAULT_TEMPLATES = Object.freeze({
     scheduleDeleted: "Урок {service} для {child} на {date} {time} удален. Специалист: {specialist}.",
     scheduleSeriesDeleted: "Занятия {service} для {child} отменены. Специалист: {specialist}.",
     specialistLessonsDeleted: "Запланированные занятия для {child} отменены:\n{lessons}",
+    specialistLessonsCancelled: "Следующие занятия для {child} отменены:\n{lessons}\nПричина: {reason}",
     reminder24h: "{date} в {time} урок {service}. Специалист: {specialist}. Вы придете?",
     reminder2h: "Сегодня в {time} у вас урок {service}. Специалист: {specialist}.",
     parentCancelNotification: "Родитель отменил урок {service} для {child} на {date} {time}. Специалист: {specialist}. Причина: {reason}."
@@ -3001,6 +3003,19 @@ function isSpecialistLessonsDeleteNotification({ eventType, notificationContext,
   return type === "specialist-lessons-deleted" || scope === "specialist_removed";
 }
 
+function isBulkSpecialistCancellationNotification({ eventType, notificationContext, items }) {
+  const type = String(eventType || "").trim().toLowerCase();
+  if (isCreatedEvent(type) || isDeletedEvent(type) || !type.includes("updated")) {
+    return false;
+  }
+  const statusChangedTo = String(notificationContext?.statusChangedTo || "").trim().toLowerCase();
+  const cancellationScope = String(notificationContext?.cancellationScope || "").trim().toLowerCase();
+  return statusChangedTo === "cancelled"
+    && cancellationScope === "specialist_range"
+    && notificationContext?.bulkSpecialistCancellation === true
+    && items.length > 1;
+}
+
 function compareNotificationItemsByDateTime(left, right) {
   return [
     String(left?.appointmentDate || "").trim(),
@@ -3213,6 +3228,44 @@ function buildSpecialistLessonsDeletedNotificationMessage({ settings, parent, gr
   });
 }
 
+function buildSpecialistLessonsCancelledNotificationMessage({ settings, parent, group, actorName }) {
+  const language = normalizeLanguage(parent.language, settings.defaultLanguage);
+  const templates = settings.templates?.[language] || DEFAULT_TEMPLATES[language];
+  const items = Array.isArray(group?.items) ? group.items : [];
+  const firstItem = items[0] || {};
+  const lastItem = items[items.length - 1] || firstItem;
+  const reason = String(items.find((item) => String(item?.note || "").trim())?.note || "").trim()
+    || (language === "ru" ? "не указано" : "ko'rsatilmagan");
+  const lessons = items.map((item, index) => [
+    `${index + 1}. ${formatDateDmy(item.appointmentDate)} ${item.startTime}`,
+    item.serviceName,
+    getSpecialistName(item)
+  ].filter(Boolean).join(" - ")).join("\n");
+  const serviceName = firstItem.serviceName || "Service";
+  const specialistName = getSpecialistName(firstItem);
+  const message = renderTemplateWithLines(
+    templates.specialistLessonsCancelled || DEFAULT_TEMPLATES[language].specialistLessonsCancelled,
+    {
+      child: getClientName({ ...firstItem, ...parent }),
+      date: firstItem.appointmentDate,
+      time: firstItem.startTime,
+      dateFrom: firstItem.appointmentDate,
+      dateTo: lastItem.appointmentDate,
+      count: items.length,
+      service: serviceName,
+      specialist: specialistName,
+      actor: String(actorName || specialistName || "CRM").trim(),
+      reason,
+      lessons
+    }
+  );
+  return appendRequiredAppointmentParts(message, {
+    language,
+    serviceName,
+    specialistName
+  });
+}
+
 export async function notifyTelegramParentsForAppointmentChange({
   organizationId,
   eventType,
@@ -3305,6 +3358,42 @@ export async function notifyTelegramParentsForAppointmentChange({
             settings,
             parent,
             group,
+            actorName
+          });
+          await sendAndLogParentMessage({
+            settings,
+            parent,
+            appointmentScheduleId: null,
+            eventType,
+            message
+          });
+          sentCount += 1;
+        }
+      }
+      return { sentCount };
+    }
+
+    if (isBulkSpecialistCancellationNotification({ eventType, notificationContext, items: normalizedItems })) {
+      for (const group of buildClientDeleteGroups(normalizedItems)) {
+        const parents = await getParentsForClient(group.clientId);
+        for (const parent of parents) {
+          const parentItems = [];
+          for (const item of group.items) {
+            if (await shouldSkipCancelledParentNotification({ parent, item })) {
+              continue;
+            }
+            parentItems.push(item);
+          }
+          if (parentItems.length === 0) {
+            continue;
+          }
+          const message = buildSpecialistLessonsCancelledNotificationMessage({
+            settings,
+            parent,
+            group: {
+              ...group,
+              items: parentItems
+            },
             actorName
           });
           await sendAndLogParentMessage({

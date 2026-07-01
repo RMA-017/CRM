@@ -2985,7 +2985,8 @@ label.field > span:first-child,
   flex-wrap: nowrap;
 }
 
-#appointmentPanel .appointment-booked-only-toggle {
+#appointmentPanel .appointment-booked-only-toggle,
+#appointmentPanel .appointment-bulk-cancel-toggle {
   width: 30px;
   min-width: 30px;
   height: 30px;
@@ -2995,6 +2996,17 @@ label.field > span:first-child,
   font-size: 18px;
   font-weight: 900;
   line-height: 1;
+}
+
+#appointmentPanel .appointment-bulk-cancel-toggle {
+  border-color: rgba(220, 38, 38, 0.28);
+  color: #b91c1c;
+}
+
+#appointmentPanel .appointment-bulk-cancel-toggle:hover:not(:disabled),
+#appointmentPanel .appointment-bulk-cancel-toggle:focus-visible:not(:disabled) {
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 #appointmentPanel .appointment-booked-only-toggle.is-active {
@@ -4025,6 +4037,37 @@ label.field > span:first-child,
 .appointment-day-bulk-modal .appointment-form-error {
   display: block;
   margin-top: 6px;
+}
+
+.appointment-specialist-bulk-cancel-modal {
+  width: min(520px, calc(100vw - 24px));
+}
+
+.appointment-specialist-bulk-section {
+  gap: 12px;
+}
+
+.appointment-specialist-bulk-summary {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.appointment-specialist-bulk-summary span {
+  font-size: 11px;
+  line-height: 1.2;
+  color: #64748b;
+}
+
+.appointment-specialist-bulk-summary strong {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.25;
+  color: #0f172a;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 640px) {

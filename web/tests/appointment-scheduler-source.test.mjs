@@ -396,8 +396,8 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.equal(
     (source.match(/await refreshPlannerServerState\(\);/g) || []).length,
-    9,
-    "Planner appointment, drag-move, day-bulk, break, and work-schedule save/delete flows should await a server refresh after mutation."
+    10,
+    "Planner appointment, drag-move, day-bulk, specialist bulk-cancel, break, and work-schedule save/delete flows should await a server refresh after mutation."
   );
   assert.match(
     source,
@@ -473,6 +473,46 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
     source,
     /function isFutureDateYmd\(value\)[\s\S]*targetDate > today;[\s\S]*status === "confirmed" && isFutureDateYmd\(appointmentDate\)[\s\S]*errors\.status = "Future appointments cannot be confirmed\.";[\s\S]*<small className="field-error">\{createErrors\.status \|\| ""\}<\/small>/s,
     "Planner should prevent future appointments from being marked confirmed in the modal."
+  );
+});
+
+test("Appointment planner exposes specialist range bulk cancellation", async () => {
+  const [panelSource, schedulerSource, css, translations] = await Promise.all([
+    readFile(new URL("../src/pages/profile/panels/AppointmentPlannerPanel.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/pages/profile/AppointmentScheduler.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/css/components/components.css", import.meta.url), "utf8"),
+    readFile(new URL("../src/i18n/translations.js", import.meta.url), "utf8")
+  ]);
+
+  assert.match(
+    panelSource,
+    /id="appointmentBulkCancelToggle"[\s\S]*openSpecialistBulkCancelModal[\s\S]*id="appointmentBookedOnlyToggle"/s,
+    "Planner header should place the specialist bulk-cancel button before the booked-only toggle."
+  );
+  assert.match(
+    schedulerSource,
+    /forwardRef\(function AppointmentScheduler[\s\S]*useImperativeHandle\(ref,[\s\S]*openSpecialistBulkCancelModal/s,
+    "Appointment scheduler should expose an imperative opener for the header bulk-cancel button."
+  );
+  assert.match(
+    schedulerSource,
+    /specialistBulkCancelModal[\s\S]*dateFrom[\s\S]*dateTo[\s\S]*startTime[\s\S]*endTime[\s\S]*reason/s,
+    "Bulk-cancel modal state should capture date range, optional time range, and reason."
+  );
+  assert.match(
+    schedulerSource,
+    /apiFetch\("\/api\/appointments\/schedules\/bulk-cancel"[\s\S]*method:\s*"POST"/s,
+    "Bulk-cancel modal should submit one backend request instead of patching lessons one by one."
+  );
+  assert.match(
+    css,
+    /#appointmentPanel \.appointment-booked-only-toggle,\s*#appointmentPanel \.appointment-bulk-cancel-toggle \{[\s\S]*width:\s*30px;[\s\S]*height:\s*30px;/s,
+    "Bulk-cancel header button should share the compact 30px planner action size."
+  );
+  assert.match(
+    translations,
+    /Bulk cancel specialist lessons", uz: "Mutaxassis darslarini ommaviy bekor qilish", ru: "Массово отменить занятия специалиста"/,
+    "Bulk-cancel action should be translated."
   );
 });
 

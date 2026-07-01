@@ -2,6 +2,7 @@ export {
   hasVipRoutineConflictForSpecialist,
   hasVipRoutineConflictForClient,
   createAppointmentSchedule,
+  cancelAppointmentSchedulesForSpecialistRange,
   deleteAppointmentSchedulesByIds,
   ensureAutoRollingRecurringSchedulesCoverRange,
   hasAppointmentClientConflict,

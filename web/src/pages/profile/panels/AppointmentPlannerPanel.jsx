@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 import AppointmentScheduler from "../AppointmentScheduler.jsx";
 
@@ -21,12 +21,24 @@ function AppointmentPlannerPanel({
 }) {
   const { translate } = useI18n();
   const [showBookedOnly, setShowBookedOnly] = useState(false);
+  const schedulerRef = useRef(null);
 
   return (
     <section id="appointmentPanel" className="all-users-panel">
       <div className="all-users-head">
         <h3>{translate("Appointment planner")}</h3>
         <div className="all-users-head-actions appointment-planner-head-actions">
+          <button
+            id="appointmentBulkCancelToggle"
+            type="button"
+            className="header-btn appointment-bulk-cancel-toggle"
+            aria-label={translate("Bulk cancel specialist lessons")}
+            title={translate("Bulk cancel specialist lessons")}
+            disabled={!canUpdateAppointments}
+            onClick={() => schedulerRef.current?.openSpecialistBulkCancelModal?.()}
+          >
+            <span aria-hidden="true">!</span>
+          </button>
           <button
             id="appointmentBookedOnlyToggle"
             type="button"
@@ -50,6 +62,7 @@ function AppointmentPlannerPanel({
         </div>
       </div>
       <AppointmentScheduler
+        ref={schedulerRef}
         canReadAppointments={canReadAppointments}
         canReadAppointmentBreaks={canReadAppointmentBreaks}
         canViewAppointmentSpecialistAbsenceBlocks={canViewAppointmentSpecialistAbsenceBlocks}

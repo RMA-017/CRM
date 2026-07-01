@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import CustomSelect from "../../components/CustomSelect.jsx";
 import { useI18n } from "../../i18n/I18nProvider.jsx";
@@ -2620,7 +2620,7 @@ function AppointmentPlannerGrid({
   );
 }
 
-function AppointmentScheduler({
+const AppointmentScheduler = forwardRef(function AppointmentScheduler({
   canReadAppointments = true,
   canReadAppointmentBreaks = true,
   canViewAppointmentSpecialistAbsenceBlocks = true,
@@ -2640,7 +2640,7 @@ function AppointmentScheduler({
   showWeekSwitcher = true,
   compactOccupiedOnly = false,
   vipClassDailyRoutines = []
-}) {
+}, ref) {
   const { t, translate } = useI18n();
   const showPlannerAlert = useCallback((text) => {
     showImmediateAlert(translate(text));
@@ -2737,6 +2737,19 @@ function AppointmentScheduler({
     submitting: false,
     deleting: false,
     error: ""
+  });
+  const [specialistBulkCancelModal, setSpecialistBulkCancelModal] = useState({
+    open: false,
+    specialistId: "",
+    specialistName: "",
+    dateFrom: "",
+    dateTo: "",
+    startTime: "",
+    endTime: "",
+    reason: "",
+    submitting: false,
+    error: "",
+    cancelledCount: null
   });
   const [clientSearch, setClientSearch] = useState(createEmptyClientSearchForm);
   const [clientSearchMessage, setClientSearchMessage] = useState("");
@@ -5119,6 +5132,69 @@ function AppointmentScheduler({
     });
   }
 
+  function closeSpecialistBulkCancelModal() {
+    if (specialistBulkCancelModal.submitting) {
+      return;
+    }
+    setSpecialistBulkCancelModal({
+      open: false,
+      specialistId: "",
+      specialistName: "",
+      dateFrom: "",
+      dateTo: "",
+      startTime: "",
+      endTime: "",
+      reason: "",
+      submitting: false,
+      error: "",
+      cancelledCount: null
+    });
+  }
+
+  function openSpecialistBulkCancelModal() {
+    if (vipOnly) {
+      return;
+    }
+    if (!canUpdateAppointments) {
+      setMessage("You do not have permission to update appointments.");
+      return;
+    }
+    const specialistId = String(selectedSpecialistId || "").trim();
+    if (!specialistId) {
+      setSpecialistSelectError(true);
+      setMessage("Select specialist first.");
+      return;
+    }
+    if (!canMutateSpecialistId(specialistId)) {
+      setMessage("You can only edit appointments in your own planner.");
+      return;
+    }
+
+    const firstVisibleDate = formatDateYmd(weekDays[0]?.date || weekStartDate);
+    const lastVisibleDate = formatDateYmd(weekDays[weekDays.length - 1]?.date || weekEndDate);
+    const specialistName = String(
+      specialistOptions.find((option) => String(option?.value || "").trim() === specialistId)?.label
+      || `Specialist #${specialistId}`
+    ).trim();
+    setSpecialistBulkCancelModal({
+      open: true,
+      specialistId,
+      specialistName,
+      dateFrom: firstVisibleDate,
+      dateTo: lastVisibleDate || firstVisibleDate,
+      startTime: "",
+      endTime: "",
+      reason: "",
+      submitting: false,
+      error: "",
+      cancelledCount: null
+    });
+  }
+
+  useImperativeHandle(ref, () => ({
+    openSpecialistBulkCancelModal
+  }));
+
   function openDayBulkModal(day, items = []) {
     if (vipOnly) {
       return;
@@ -6925,6 +7001,96 @@ function AppointmentScheduler({
     return dayBulkModal.items.filter((item) => selectedSet.has(String(item?.id || "").trim()));
   }
 
+  async function handleSpecialistBulkCancelSubmit(event) {
+    event.preventDefault();
+    const specialistId = String(specialistBulkCancelModal.specialistId || "").trim();
+    const dateFrom = String(specialistBulkCancelModal.dateFrom || "").trim();
+    const dateTo = String(specialistBulkCancelModal.dateTo || "").trim();
+    const startTime = String(specialistBulkCancelModal.startTime || "").trim();
+    const endTime = String(specialistBulkCancelModal.endTime || "").trim();
+    const reason = String(specialistBulkCancelModal.reason || "").trim();
+    const setBulkCancelError = (error) => {
+      setSpecialistBulkCancelModal((prev) => ({ ...prev, error, submitting: false }));
+    };
+
+    if (!canUpdateAppointments) {
+      setBulkCancelError("You do not have permission to update appointments.");
+      return;
+    }
+    if (!specialistId) {
+      setBulkCancelError("Specialist is required.");
+      return;
+    }
+    if (!canMutateSpecialistId(specialistId)) {
+      setBulkCancelError("You can only edit appointments in your own planner.");
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
+      setBulkCancelError("Valid date range is required.");
+      return;
+    }
+    if (dateFrom > dateTo) {
+      setBulkCancelError("Date to must be on or after date from.");
+      return;
+    }
+    if ((startTime && !endTime) || (!startTime && endTime)) {
+      setBulkCancelError("Both start and end time are required.");
+      return;
+    }
+    if (startTime && endTime && startTime >= endTime) {
+      setBulkCancelError("End time must be after start time.");
+      return;
+    }
+    if (reason.length > 255) {
+      setBulkCancelError("Reason is too long.");
+      return;
+    }
+
+    try {
+      setSpecialistBulkCancelModal((prev) => ({ ...prev, submitting: true, error: "" }));
+      const payload = {
+        specialistId,
+        dateFrom,
+        dateTo,
+        reason
+      };
+      if (startTime && endTime) {
+        payload.startTime = startTime;
+        payload.endTime = endTime;
+      }
+      const response = await apiFetch("/api/appointments/schedules/bulk-cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        throw new Error(String(data?.message || "Failed to cancel selected appointments.").trim());
+      }
+      await refreshPlannerServerState();
+      setMessage(String(data?.message || "Appointments cancelled.").trim());
+      setSpecialistBulkCancelModal({
+        open: false,
+        specialistId: "",
+        specialistName: "",
+        dateFrom: "",
+        dateTo: "",
+        startTime: "",
+        endTime: "",
+        reason: "",
+        submitting: false,
+        error: "",
+        cancelledCount: null
+      });
+    } catch (error) {
+      setSpecialistBulkCancelModal((prev) => ({
+        ...prev,
+        submitting: false,
+        error: String(error?.message || "Failed to cancel selected appointments.").trim()
+      }));
+    }
+  }
+
   async function handleDayBulkEditSubmit(event) {
     event.preventDefault();
     const selectedItems = getDayBulkSelectedItems();
@@ -7814,6 +7980,149 @@ function AppointmentScheduler({
         return typeof document !== "undefined" ? createPortal(modalContent, document.body) : modalContent;
       })()}
 
+      {specialistBulkCancelModal.open && !vipOnly && (() => {
+        const modalContent = (
+          <>
+          <section className="logout-confirm-modal appointment-create-modal appointment-specialist-bulk-cancel-modal">
+            <div className="appointment-create-head appointment-day-bulk-head">
+              <h2>{translate("Bulk cancel lessons")}</h2>
+              <button
+                type="button"
+                className="header-btn panel-close-btn appointment-create-close-btn"
+                aria-label={translate("Close bulk cancel modal")}
+                onClick={closeSpecialistBulkCancelModal}
+                disabled={specialistBulkCancelModal.submitting}
+              >
+                ×
+              </button>
+            </div>
+            <form className="auth-form appointment-create-form" noValidate onSubmit={handleSpecialistBulkCancelSubmit}>
+              <div className="appointment-modal-section appointment-specialist-bulk-section">
+                <div className="appointment-specialist-bulk-summary">
+                  <span>{specialistLabel}</span>
+                  <strong>{specialistBulkCancelModal.specialistName || `Specialist #${specialistBulkCancelModal.specialistId}`}</strong>
+                </div>
+                <div className="appointment-create-date-time-row appointment-create-date-time-row-two">
+                  <div className="field">
+                    <label htmlFor="appointmentBulkCancelDateFrom">{translate("Date from")}</label>
+                    <input
+                      id="appointmentBulkCancelDateFrom"
+                      type="date"
+                      value={specialistBulkCancelModal.dateFrom}
+                      disabled={specialistBulkCancelModal.submitting}
+                      onInput={(event) => {
+                        const nextValue = event.currentTarget.value;
+                        setSpecialistBulkCancelModal((prev) => ({
+                          ...prev,
+                          dateFrom: nextValue,
+                          dateTo: prev.dateTo && prev.dateTo < nextValue ? nextValue : prev.dateTo,
+                          error: ""
+                        }));
+                      }}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="appointmentBulkCancelDateTo">{translate("Date to")}</label>
+                    <input
+                      id="appointmentBulkCancelDateTo"
+                      type="date"
+                      value={specialistBulkCancelModal.dateTo}
+                      min={specialistBulkCancelModal.dateFrom || undefined}
+                      disabled={specialistBulkCancelModal.submitting}
+                      onInput={(event) => {
+                        setSpecialistBulkCancelModal((prev) => ({
+                          ...prev,
+                          dateTo: event.currentTarget.value,
+                          error: ""
+                        }));
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="appointment-create-date-time-row appointment-create-date-time-row-two">
+                  <div className="field">
+                    <label htmlFor="appointmentBulkCancelStartTime">{translate("Start time")}</label>
+                    <input
+                      id="appointmentBulkCancelStartTime"
+                      type="time"
+                      value={specialistBulkCancelModal.startTime}
+                      disabled={specialistBulkCancelModal.submitting}
+                      onInput={(event) => {
+                        setSpecialistBulkCancelModal((prev) => ({
+                          ...prev,
+                          startTime: event.currentTarget.value,
+                          error: ""
+                        }));
+                      }}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="appointmentBulkCancelEndTime">{translate("End time")}</label>
+                    <input
+                      id="appointmentBulkCancelEndTime"
+                      type="time"
+                      value={specialistBulkCancelModal.endTime}
+                      disabled={specialistBulkCancelModal.submitting}
+                      onInput={(event) => {
+                        setSpecialistBulkCancelModal((prev) => ({
+                          ...prev,
+                          endTime: event.currentTarget.value,
+                          error: ""
+                        }));
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="field">
+                  <label htmlFor="appointmentBulkCancelReason">{translate("Reason")}</label>
+                  <input
+                    id="appointmentBulkCancelReason"
+                    type="text"
+                    value={specialistBulkCancelModal.reason}
+                    maxLength={255}
+                    disabled={specialistBulkCancelModal.submitting}
+                    onInput={(event) => {
+                      setSpecialistBulkCancelModal((prev) => ({
+                        ...prev,
+                        reason: event.currentTarget.value,
+                        error: ""
+                      }));
+                    }}
+                  />
+                </div>
+                {specialistBulkCancelModal.error ? (
+                  <small className="field-error appointment-form-error">{specialistBulkCancelModal.error}</small>
+                ) : null}
+              </div>
+              <div className="edit-actions appointment-create-actions">
+                <button
+                  className="btn"
+                  type="submit"
+                  disabled={specialistBulkCancelModal.submitting || !canUpdateAppointments}
+                >
+                  {specialistBulkCancelModal.submitting ? translate("Saving...") : translate("Cancel lessons")}
+                </button>
+                <button
+                  className="header-btn"
+                  type="button"
+                  disabled={specialistBulkCancelModal.submitting}
+                  onClick={closeSpecialistBulkCancelModal}
+                >
+                  {translate("Close")}
+                </button>
+              </div>
+            </form>
+          </section>
+          <div
+            id="appointmentSpecialistBulkCancelOverlay"
+            className="login-overlay"
+            onClick={specialistBulkCancelModal.submitting ? undefined : closeSpecialistBulkCancelModal}
+          />
+          </>
+        );
+        return typeof document !== "undefined" ? createPortal(modalContent, document.body) : modalContent;
+      })()}
+
       {createModal.open && !vipOnly && (() => {
         const modalContent = (
           <>
@@ -8688,6 +8997,6 @@ function AppointmentScheduler({
 
     </section>
   );
-}
+});
 
 export default AppointmentScheduler;

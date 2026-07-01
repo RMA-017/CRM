@@ -2553,6 +2553,195 @@ async function cancelAppointmentSchedulesForSpecialistAbsence({
   return (rows || []).map(toScheduleItem);
 }
 
+export async function cancelAppointmentSchedulesForSpecialistRange({
+  organizationId,
+  actorUserId = null,
+  specialistId,
+  dateFrom,
+  dateTo,
+  startTime = null,
+  endTime = null,
+  note = "",
+  db = pool
+}) {
+  await ensureAppointmentStatusHistorySchema();
+
+  const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
+  const normalizedDateFrom = normalizeWorkScheduleDate(dateFrom);
+  const normalizedDateTo = normalizeWorkScheduleDate(dateTo);
+  const normalizedStartTime = normalizeWorkScheduleTime(startTime) || null;
+  const normalizedEndTime = normalizeWorkScheduleTime(endTime) || null;
+  const normalizedNote = String(note || "").trim().slice(0, 255);
+  if (!normalizedSpecialistId || !normalizedDateFrom || !normalizedDateTo || normalizedDateFrom > normalizedDateTo) {
+    return [];
+  }
+
+  const changedFieldsSql = buildScheduleChangedFieldsSql("u");
+  const previousSnapshotSql = buildScheduleSnapshotSql("u", "prev_");
+  const nextSnapshotSql = buildScheduleSnapshotSql("u");
+
+  const { rows } = await db.query(
+    `WITH target AS (
+       SELECT
+         s.id,
+         s.organization_id,
+         s.specialist_id,
+         s.client_id,
+         s.appointment_date,
+         s.start_time,
+         s.end_time,
+         s.duration_minutes,
+         s.service_id,
+         s.service_name,
+         s.service_price_uzs,
+         s.status,
+         s.note,
+         s.repeat_group_key,
+         s.repeat_type,
+         s.repeat_until_date,
+         s.repeat_days,
+         s.repeat_anchor_date,
+         s.is_repeat_root,
+         s.is_auto_rolling_repeat
+       FROM appointment_schedules s
+       WHERE s.organization_id = $1
+         AND s.specialist_id = $2
+         AND s.appointment_date BETWEEN $3::date AND $4::date
+         AND (
+           $5::time IS NULL
+           OR $6::time IS NULL
+           OR (s.start_time < $6::time AND $5::time < s.end_time)
+         )
+         AND s.status IN ('pending', 'confirmed')
+         AND (
+           s.appointment_date > TIMEZONE('Asia/Tashkent', NOW())::date
+           OR (
+             s.appointment_date = TIMEZONE('Asia/Tashkent', NOW())::date
+             AND s.end_time > TIMEZONE('Asia/Tashkent', NOW())::time
+           )
+         )
+     ),
+     updated AS (
+       UPDATE appointment_schedules s
+          SET status = 'cancelled',
+              note = COALESCE(NULLIF($7::text, ''), s.note),
+              updated_by = $8::integer,
+              updated_at = CURRENT_TIMESTAMP
+         FROM target t
+        WHERE s.organization_id = t.organization_id
+          AND s.id = t.id
+       RETURNING
+         s.*,
+         t.specialist_id AS prev_specialist_id,
+         t.client_id AS prev_client_id,
+         t.appointment_date AS prev_appointment_date,
+         t.start_time AS prev_start_time,
+         t.end_time AS prev_end_time,
+         t.duration_minutes AS prev_duration_minutes,
+         t.service_id AS prev_service_id,
+         t.service_name AS prev_service_name,
+         t.service_price_uzs AS prev_service_price_uzs,
+         t.status AS prev_status,
+         t.note AS prev_note,
+         t.repeat_group_key AS prev_repeat_group_key,
+         t.repeat_type AS prev_repeat_type,
+         t.repeat_until_date AS prev_repeat_until_date,
+         t.repeat_days AS prev_repeat_days,
+         t.repeat_anchor_date AS prev_repeat_anchor_date,
+         t.is_repeat_root AS prev_is_repeat_root,
+         t.is_auto_rolling_repeat AS prev_is_auto_rolling_repeat
+     ),
+     history_rows AS (
+       SELECT
+         u.organization_id,
+         u.id AS appointment_schedule_id,
+         'status-changed' AS event_type,
+         u.prev_status AS previous_status,
+         u.status AS next_status,
+         ${changedFieldsSql} AS changed_fields,
+         jsonb_build_object(
+           'before', ${previousSnapshotSql},
+           'after', ${nextSnapshotSql},
+           'reason', 'planner_bulk_cancel'
+         ) AS details,
+         $8::integer AS changed_by
+       FROM updated u
+     ),
+     history_inserted AS (
+       INSERT INTO ${APPOINTMENT_STATUS_HISTORY_TABLE} (
+         organization_id,
+         appointment_schedule_id,
+         event_type,
+         previous_status,
+         next_status,
+         changed_fields,
+         details,
+         changed_by
+       )
+       SELECT
+         h.organization_id,
+         h.appointment_schedule_id,
+         h.event_type,
+         h.previous_status,
+         h.next_status,
+         h.changed_fields,
+         h.details,
+         h.changed_by
+       FROM history_rows h
+       WHERE CARDINALITY(h.changed_fields) > 0
+     )
+     SELECT
+       u.id,
+       u.organization_id,
+       u.specialist_id,
+       u.client_id,
+       u.appointment_date,
+       u.start_time,
+       u.end_time,
+       u.duration_minutes,
+       u.service_id,
+       u.service_name,
+       u.service_price_uzs,
+       u.status,
+       u.note,
+       u.repeat_group_key,
+       u.repeat_type,
+       u.repeat_until_date,
+       u.repeat_days,
+       u.repeat_anchor_date,
+       u.is_repeat_root,
+       u.is_auto_rolling_repeat,
+       u.created_at,
+       u.updated_at,
+       COALESCE(NULLIF(TRIM(specialist_u.full_name), ''), NULLIF(TRIM(specialist_u.username), ''), CONCAT('Specialist #', u.specialist_id::text)) AS specialist_name,
+       c.first_name,
+       c.last_name,
+       c.middle_name,
+       c.is_vip
+      FROM updated u
+      LEFT JOIN users specialist_u
+        ON specialist_u.id = u.specialist_id
+       AND specialist_u.organization_id = u.organization_id
+      JOIN clients c
+        ON c.id = u.client_id
+       AND c.organization_id = u.organization_id
+      ORDER BY u.appointment_date ASC, u.start_time ASC, u.id ASC`,
+    [
+      organizationId,
+      normalizedSpecialistId,
+      normalizedDateFrom,
+      normalizedDateTo,
+      normalizedStartTime,
+      normalizedEndTime,
+      normalizedNote,
+      actorUserId || null
+    ]
+  );
+
+  clearAppointmentPlannerReportFilterCaches();
+  return (rows || []).map(toScheduleItem);
+}
+
 export async function createAppointmentSpecialistAbsence({
   organizationId,
   actorUserId = null,

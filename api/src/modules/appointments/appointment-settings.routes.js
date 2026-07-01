@@ -32,6 +32,7 @@ import {
   replaceAppointmentBreaksBySpecialist
 } from "./services/appointment-breaks.service.js";
 import {
+  cancelAppointmentSchedulesForSpecialistRange,
   hasVipRoutineConflictForSpecialist,
   hasVipRoutineConflictForClient,
   createAppointmentSchedule,
@@ -213,6 +214,7 @@ async function appointmentSettingsRoutes(fastify) {
     getFinanceTicketLockedAppointmentIds,
     hasAppointmentClientConflict,
     hasAppointmentScheduleConflict,
+    cancelAppointmentSchedulesForSpecialistRange,
     createAppointmentSchedule,
     updateAppointmentScheduleByIdWithRepeatMeta,
     updateAppointmentSchedulesByIds,
