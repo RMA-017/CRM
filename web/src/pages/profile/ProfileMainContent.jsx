@@ -226,6 +226,7 @@ function ProfileMainContent({
 
   const profileRoleText = `${String(profile?.role || "").trim().toLowerCase()} ${String(profile?.position || "").trim().toLowerCase()}`;
   const isSpecialistUser = SPECIALIST_ROLE_MATCHERS.some((matcher) => profileRoleText.includes(matcher));
+  const canReadDashboardReport = canReadStatisticsPlannerReportPermission || (isSpecialistUser && canReadAppointments);
 
   useEffect(() => {
     if (mainView === "create-user") {
@@ -665,7 +666,7 @@ function ProfileMainContent({
             <StatisticsPlannerReportPanel
               closeStatisticsPanel={closeStatisticsPanel}
               showBootstrapSkeleton={!profile?.username}
-              canReadReport={canReadStatisticsPlannerReportPermission}
+              canReadReport={canReadDashboardReport}
             />
           </Suspense>
         ) : null}

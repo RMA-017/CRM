@@ -523,6 +523,90 @@ test("planner report only permission scopes report endpoints to requester", asyn
   });
 });
 
+test("planner report lets planner readers load their own dashboard without statistics permission", async () => {
+  const recorder = createRouteRecorder();
+  const calls = [];
+
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      requesterHasPermission: async (_requester, permissionCode) => (
+        permissionCode === "appointments.planner.read"
+      ),
+      resolveOwnAppointmentSpecialistUserId,
+      getAppointmentPlannerReportFilters: async (args) => {
+        calls.push({ type: "filters", args });
+        return { specialists: [{ id: "7", name: "Teacher One" }], clients: [] };
+      },
+      getAppointmentPlannerReport: async (args) => {
+        calls.push({ type: "report", args });
+        return { summary: { total: 2, confirmed: 1, pending: 0, cancelled: 1, noShow: 0 }, details: [], specialists: [], period: {} };
+      }
+    })
+  );
+
+  const filtersRoute = findRoute(recorder.routes, "GET", "/report/filters");
+  const reportRoute = findRoute(recorder.routes, "GET", "/report");
+
+  const filtersReply = createReplyRecorder();
+  await filtersRoute.handler(createAccessRequest({ role: "specialist" }), filtersReply);
+
+  const reportReply = createReplyRecorder();
+  await reportRoute.handler(
+    {
+      ...createAccessRequest({ role: "specialist" }),
+      query: {
+        from: "2026-03-01",
+        to: "2026-03-09"
+      }
+    },
+    reportReply
+  );
+
+  assert.equal(filtersReply.state.statusCode, 200);
+  assert.equal(reportReply.state.statusCode, 200);
+  assert.deepEqual(calls.map((call) => call.type), ["filters", "report"]);
+  assert.deepEqual(calls.map((call) => call.args.assignedUserId), [7, 7]);
+  assert.deepEqual(calls.map((call) => call.args.specialistId), [7, 7]);
+  assert.deepEqual(reportReply.state.payload?.scope, {
+    specialistId: 7,
+    specialistLocked: true
+  });
+});
+
+test("planner report still requires statistics permission for non-specialist planner readers", async () => {
+  const recorder = createRouteRecorder();
+
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      requesterHasPermission: async (_requester, permissionCode) => (
+        permissionCode === "appointments.planner.read"
+      ),
+      resolveOwnAppointmentSpecialistUserId,
+      getAppointmentPlannerReport: async () => {
+        throw new Error("Report should not load for a non-specialist planner reader.");
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "GET", "/report");
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ role: "manager" }),
+      query: {
+        from: "2026-03-01",
+        to: "2026-03-09"
+      }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 403);
+  assert.equal(reply.state.payload?.message, "Forbidden.");
+});
+
 test("planner report endpoints reject unauthenticated users", async () => {
   const recorder = createRouteRecorder();
   registerAppointmentScheduleRoutes(

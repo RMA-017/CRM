@@ -22,6 +22,21 @@ test("ProfilePage forwards work-schedule action permissions to ProfileMainConten
   );
 });
 
+test("profile dashboard allows specialist planner readers to see their own report", async () => {
+  const profileMainSource = await readFile(new URL("../src/pages/profile/ProfileMainContent.jsx", import.meta.url), "utf8");
+
+  assert.match(
+    profileMainSource,
+    /const canReadDashboardReport = canReadStatisticsPlannerReportPermission \|\| \(isSpecialistUser && canReadAppointments\);/,
+    "Specialist users with planner read access should be allowed to load their own profile dashboard report."
+  );
+  assert.match(
+    profileMainSource,
+    /<StatisticsPlannerReportPanel[\s\S]*canReadReport=\{canReadDashboardReport\}/s,
+    "Profile dashboard should pass the combined specialist dashboard report access to the report panel."
+  );
+});
+
 test("user and client tables render edit and delete actions as compact icons", async () => {
   const [allUsersSource, profileMainSource, stylesSource] = await Promise.all([
     readFile(new URL("../src/pages/profile/panels/AllUsersPanel.jsx", import.meta.url), "utf8"),

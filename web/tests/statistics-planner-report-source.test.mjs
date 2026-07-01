@@ -38,8 +38,14 @@ test("statistics planner report detail table uses 20-row pagination and summary 
 
   assert.match(
     source,
-    /const \[appliedFilters, setAppliedFilters\] = useState\(\(\) => \(\{[\s\S]*fromDate: initialBounds\.from,[\s\S]*toDate: initialBounds\.to,[\s\S]*specialistId: ""[\s\S]*useEffect\(\(\) => \{[\s\S]*void loadReport\(\{[\s\S]*fromDate: appliedFilters\.fromDate,[\s\S]*toDate: appliedFilters\.toDate,[\s\S]*nextSpecialistId: appliedFilters\.specialistId[\s\S]*\}, \[appliedFilters, loadReport, showBootstrapSkeleton\]\);[\s\S]*onSubmit=\{\(event\) => \{[\s\S]*event\.preventDefault\(\);[\s\S]*setAppliedFilters\(\{[\s\S]*fromDate: from,[\s\S]*toDate: to,[\s\S]*specialistId[\s\S]*\}\);/s,
+    /const \[appliedFilters, setAppliedFilters\] = useState\(\(\) => \(\{[\s\S]*fromDate: initialBounds\.from,[\s\S]*toDate: initialBounds\.to,[\s\S]*specialistId: ""[\s\S]*useEffect\(\(\) => \{[\s\S]*if \(showBootstrapSkeleton \|\| !canReadReport\) \{[\s\S]*void loadReport\(\{[\s\S]*fromDate: appliedFilters\.fromDate,[\s\S]*toDate: appliedFilters\.toDate,[\s\S]*nextSpecialistId: appliedFilters\.specialistId[\s\S]*\}, \[appliedFilters, canReadReport, loadReport, showBootstrapSkeleton\]\);[\s\S]*onSubmit=\{\(event\) => \{[\s\S]*event\.preventDefault\(\);[\s\S]*setAppliedFilters\(\{[\s\S]*fromDate: from,[\s\S]*toDate: to,[\s\S]*specialistId[\s\S]*\}\);/s,
     "Planner report should keep toolbar filter changes local until Reload applies them."
+  );
+
+  assert.match(
+    source,
+    /function StatisticsPlannerReportPanel\(\{[\s\S]*canReadReport = false[\s\S]*if \(showBootstrapSkeleton \|\| !canReadReport \|\| hasLoadedFilterOptions\)[\s\S]*const isLoading = showBootstrapSkeleton \|\| \(canReadReport && reportLoading\)[\s\S]*\{canReadReport \? reportMessage : translate\("Forbidden\."\)\}/s,
+    "Profile dashboard should only fetch report data when the caller has dashboard report access."
   );
 
   assert.match(

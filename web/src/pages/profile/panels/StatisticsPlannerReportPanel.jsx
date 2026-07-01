@@ -121,7 +121,8 @@ function normalizePlannerReportStatusFilter(statusValue) {
 
 function StatisticsPlannerReportPanel({
   closeStatisticsPanel,
-  showBootstrapSkeleton = false
+  showBootstrapSkeleton = false,
+  canReadReport = false
 }) {
   const { translate } = useI18n();
   const initialBounds = getTodayBounds();
@@ -251,7 +252,7 @@ function StatisticsPlannerReportPanel({
   }, [initialBounds.from, initialBounds.to]);
 
   useEffect(() => {
-    if (showBootstrapSkeleton) {
+    if (showBootstrapSkeleton || !canReadReport) {
       return;
     }
     void loadReport({
@@ -259,15 +260,15 @@ function StatisticsPlannerReportPanel({
       toDate: appliedFilters.toDate,
       nextSpecialistId: appliedFilters.specialistId
     });
-  }, [appliedFilters, loadReport, showBootstrapSkeleton]);
+  }, [appliedFilters, canReadReport, loadReport, showBootstrapSkeleton]);
 
   useEffect(() => {
-    if (showBootstrapSkeleton || hasLoadedFilterOptions) {
+    if (showBootstrapSkeleton || !canReadReport || hasLoadedFilterOptions) {
       return;
     }
     void loadFilterOptions();
     setHasLoadedFilterOptions(true);
-  }, [hasLoadedFilterOptions, loadFilterOptions, showBootstrapSkeleton]);
+  }, [canReadReport, hasLoadedFilterOptions, loadFilterOptions, showBootstrapSkeleton]);
 
   useEffect(() => {
     if (isSpecialistLocked) {
@@ -288,7 +289,7 @@ function StatisticsPlannerReportPanel({
     setPage(1);
   }, [detailStatusFilter, reportData]);
 
-  const isLoading = showBootstrapSkeleton || reportLoading;
+  const isLoading = showBootstrapSkeleton || (canReadReport && reportLoading);
   const summary = reportData?.summary || {
     total: 0,
     confirmed: 0,
@@ -517,8 +518,8 @@ function StatisticsPlannerReportPanel({
         </div>
       ) : null}
 
-      <p className="all-users-state" hidden={isLoading || !reportMessage}>
-        {reportMessage}
+      <p className="all-users-state" hidden={isLoading || (canReadReport && !reportMessage)}>
+        {canReadReport ? reportMessage : translate("Forbidden.")}
       </p>
 
       {!isLoading && reportData ? (

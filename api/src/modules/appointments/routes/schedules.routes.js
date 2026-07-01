@@ -424,12 +424,15 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
       return null;
     }
 
-    const [canReadBase, canReadOnly, canReadAll] = await Promise.all([
+    const [canReadBase, canReadOnly, canReadAll, canReadOwnPlanner] = await Promise.all([
       requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT),
       requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT_ONLY),
-      requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT_ALL)
+      requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_STATISTICS_PLANNER_REPORT_ALL),
+      requesterHasPermission(requester, PERMISSIONS.APPOINTMENTS_PLANNER_READ)
     ]);
-    if (!canReadBase && !canReadOnly && !canReadAll) {
+    const ownPlannerSpecialistId = resolveOwnAppointmentSpecialistUserId({ authContext, requester });
+    const canReadOwnPlannerReport = Boolean(canReadOwnPlanner && ownPlannerSpecialistId);
+    if (!canReadBase && !canReadOnly && !canReadAll && !canReadOwnPlannerReport) {
       reply.status(403).send({ message: "Forbidden." });
       return null;
     }
@@ -437,6 +440,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     return {
       authContext,
       requester,
+      ownSpecialistUserId: canReadAll ? null : (ownPlannerSpecialistId || parsePositiveIntegerOr(authContext?.userId, 0) || null),
       reportScope: canReadAll ? "all" : "only"
     };
   }
@@ -862,8 +866,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const includeAllClients = parseNullableBoolean(
           request.query?.includeAllClients ?? request.query?.include_all_clients
         ) === true;
-        const requesterUserId = parsePositiveIntegerOr(access.authContext?.userId, 0);
-        const ownSpecialistUserId = access.reportScope === "only" ? (requesterUserId || null) : null;
+        const ownSpecialistUserId = access.reportScope === "only"
+          ? (parsePositiveIntegerOr(access.ownSpecialistUserId, 0) || null)
+          : null;
         const assignedUserId = access.reportScope === "all"
           ? null
           : ownSpecialistUserId;
@@ -922,8 +927,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
       const isVip = parseNullableBoolean(request.query?.isVip ?? request.query?.is_vip);
 
       try {
-        const requesterUserId = parsePositiveIntegerOr(access.authContext?.userId, 0);
-        const ownSpecialistUserId = access.reportScope === "only" ? (requesterUserId || null) : null;
+        const ownSpecialistUserId = access.reportScope === "only"
+          ? (parsePositiveIntegerOr(access.ownSpecialistUserId, 0) || null)
+          : null;
         if (access.reportScope !== "all" && !ownSpecialistUserId) {
           return reply.status(403).send({ message: "Forbidden." });
         }
