@@ -8102,14 +8102,6 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
                 >
                   {specialistBulkCancelModal.submitting ? translate("Saving...") : translate("Cancel lessons")}
                 </button>
-                <button
-                  className="header-btn"
-                  type="button"
-                  disabled={specialistBulkCancelModal.submitting}
-                  onClick={closeSpecialistBulkCancelModal}
-                >
-                  {translate("Close")}
-                </button>
               </div>
             </form>
           </section>

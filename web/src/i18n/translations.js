@@ -157,7 +157,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Bulk cancel specialist lessons", uz: "Mutaxassis darslarini ommaviy bekor qilish", ru: "Массово отменить занятия специалиста" },
   { en: "Bulk cancel lessons", uz: "Darslarni ommaviy bekor qilish", ru: "Массовая отмена занятий" },
   { en: "Close bulk cancel modal", uz: "Ommaviy bekor qilish oynasini yopish", ru: "Закрыть окно массовой отмены" },
-  { en: "Cancel lessons", uz: "Darslarni bekor qilish", ru: "Отменить занятия" },
+  { en: "Cancel lessons", uz: "Bekor qilish", ru: "Отменить" },
   { en: "Date from", uz: "Boshlanish sanasi", ru: "Дата с" },
   { en: "Date to", uz: "Tugash sanasi", ru: "Дата по" },
   { en: "Start time", uz: "Boshlanish vaqti", ru: "Время начала" },
