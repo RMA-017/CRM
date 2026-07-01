@@ -1,8 +1,17 @@
 import { useMemo } from "react";
 import { PERMISSIONS } from "../../constants/permissions.js";
 
+const SPECIALIST_ROLE_MATCHERS = Object.freeze([
+  "specialist",
+  "spetsialist",
+  "mutaxassis",
+  "специалист"
+]);
+
 export function useProfileAccess(profile, forcedView) {
   const isPlatformAdmin = Boolean(profile?.isPlatformAdmin);
+  const profileRoleText = `${String(profile?.role || "").trim().toLowerCase()} ${String(profile?.position || "").trim().toLowerCase()}`;
+  const isSpecialistUser = SPECIALIST_ROLE_MATCHERS.some((matcher) => profileRoleText.includes(matcher));
   const permissionSet = useMemo(() => {
     if (!Array.isArray(profile?.permissions)) {
       return new Set();
@@ -234,7 +243,8 @@ export function useProfileAccess(profile, forcedView) {
   const canDeleteAppointmentWorkSchedule = canDeleteAppointments;
   const canOpenAppointmentWorkSchedule = false;
 
-  const canOpenAppointmentStatistics = canReadStatisticsPlannerReportPermission;
+  const canReadDashboardReport = canReadStatisticsPlannerReportPermission || (isSpecialistUser && canReadAppointments);
+  const canOpenAppointmentStatistics = canReadDashboardReport;
   const canOpenStatisticsPlannerReport = canOpenAppointmentStatistics;
 
   const canOpenSettingsOrganizations = isPlatformAdmin;
@@ -425,6 +435,7 @@ export function useProfileAccess(profile, forcedView) {
     canDeleteAppointmentBreaks,
     canOpenAppointmentStatistics,
     canOpenStatisticsPlannerReport,
+    canReadDashboardReport,
     canReadSettingsAppointments,
     canUpdateSettingsAppointments,
     canOpenTelegramBotSettings,

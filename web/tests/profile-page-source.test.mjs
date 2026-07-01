@@ -20,6 +20,11 @@ test("ProfilePage forwards work-schedule action permissions to ProfileMainConten
     /canDeleteAppointmentWorkSchedule=\{canDeleteAppointmentWorkSchedule\}/,
     "ProfilePage should forward work-schedule delete access."
   );
+  assert.match(
+    source,
+    /canReadDashboardReport=\{canReadDashboardReport\}/,
+    "ProfilePage should forward dashboard report access."
+  );
 });
 
 test("profile dashboard allows specialist planner readers to see their own report", async () => {
@@ -27,12 +32,12 @@ test("profile dashboard allows specialist planner readers to see their own repor
 
   assert.match(
     profileMainSource,
-    /const canReadDashboardReport = canReadStatisticsPlannerReportPermission \|\| \(isSpecialistUser && canReadAppointments\);/,
-    "Specialist users with planner read access should be allowed to load their own profile dashboard report."
+    /const canReadDashboardReportAccess = Boolean\([\s\S]*canReadDashboardReport[\s\S]*canReadStatisticsPlannerReportPermission[\s\S]*\(isSpecialistUser && canReadAppointments\)[\s\S]*\);/,
+    "Dashboard report access should use the shared profile access flag and keep the specialist planner-read fallback."
   );
   assert.match(
     profileMainSource,
-    /<StatisticsPlannerReportPanel[\s\S]*canReadReport=\{canReadDashboardReport\}/s,
+    /<StatisticsPlannerReportPanel[\s\S]*canReadReport=\{canReadDashboardReportAccess\}/s,
     "Profile dashboard should pass the combined specialist dashboard report access to the report panel."
   );
 });

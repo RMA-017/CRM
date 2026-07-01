@@ -85,6 +85,7 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenAppointmentStatistics,
     canOpenStatisticsPlannerReport,
     canReadStatisticsPlannerReportPermission,
+    canReadDashboardReport,
     canOpenAppointmentSettings,
     canUpdateSettingsAppointments,
     canOpenTelegramBotSettings,
@@ -721,7 +722,7 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenFinanceReports,
     canOpenServices,
     canOpenAppointmentSchedule,
-    canOpenAppointmentStatistics,
+    canOpenStatisticsPlannerReport,
     canOpenAppointmentSettings,
     canOpenTelegramBotSettings,
     canOpenSmsNotifications,
@@ -1235,6 +1236,7 @@ function ProfilePage({ forcedView = "none" }) {
             canReadAppointmentBreaks={canReadAppointmentBreaks}
             canViewAppointmentSpecialistAbsenceBlocks={canViewAppointmentSpecialistAbsenceBlocks}
             canReadStatisticsPlannerReportPermission={canReadStatisticsPlannerReportPermission}
+            canReadDashboardReport={canReadDashboardReport}
             canUpdateAppointmentBreaks={canUpdateAppointmentBreaks}
             canUpdateSettingsAppointments={canUpdateSettingsAppointments}
             canUpdateSettingsTelegramBot={canUpdateSettingsTelegramBot}

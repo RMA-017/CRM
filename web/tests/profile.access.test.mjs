@@ -90,8 +90,26 @@ test("planner statistics permission unlocks statistics menu without clients read
 
     assert.equal(plannerReportAccess.canOpenAppointmentStatistics, true);
     assert.equal(plannerReportAccess.canOpenStatisticsPlannerReport, true);
+    assert.equal(plannerReportAccess.canReadDashboardReport, true);
     assert.equal(plannerReportAccess.canAccessForcedView, true);
   }
+});
+
+test("specialist planner read access unlocks own profile dashboard", () => {
+  const access = readAccessSnapshot({
+    isAdmin: false,
+    isPlatformAdmin: false,
+    role: "Specialist",
+    position: "",
+    permissions: ["appointments.planner.read"],
+    orgFeatures: ["appointments.planner"]
+  }, "statistics-planner-report");
+
+  assert.equal(access.canReadAppointments, true);
+  assert.equal(access.canOpenAppointmentStatistics, true);
+  assert.equal(access.canOpenStatisticsPlannerReport, true);
+  assert.equal(access.canReadDashboardReport, true);
+  assert.equal(access.canAccessForcedView, true);
 });
 
 test("website management permissions unlock site content without admin role", () => {
