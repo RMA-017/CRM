@@ -956,6 +956,23 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           }
         }
 
+        try {
+          const autoRollingResult = await ensureAutoRollingRecurringSchedulesCoverRange({
+            organizationId: access.authContext.organizationId,
+            specialistId: effectiveSpecialistId,
+            clientId,
+            classId: null,
+            assignedUserId,
+            dateTo: toRaw,
+            vipOnly: isVip === true || clientScopeInfo?.isVip === true
+          });
+          if (autoRollingResult?.changed) {
+            schedulesReadCache.clear();
+          }
+        } catch (error) {
+          request.log.error({ err: error }, "Error extending auto-rolling appointment schedules for planner report");
+        }
+
         const data = await getAppointmentPlannerReport({
           organizationId: access.authContext.organizationId,
           from: fromRaw,

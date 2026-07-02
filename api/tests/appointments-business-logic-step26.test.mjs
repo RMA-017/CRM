@@ -523,6 +523,55 @@ test("planner report only permission scopes report endpoints to requester", asyn
   });
 });
 
+test("planner report extends auto-rolling repeats before loading scoped dashboard", async () => {
+  const recorder = createRouteRecorder();
+  const calls = [];
+
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      requesterHasPermission: async (_requester, permissionCode) => (
+        permissionCode === "appointments.statistics.planner-report.only"
+      ),
+      ensureAutoRollingRecurringSchedulesCoverRange: async (args) => {
+        calls.push({ type: "autoRolling", args });
+        return { changed: true };
+      },
+      getAppointmentPlannerReport: async (args) => {
+        calls.push({ type: "report", args });
+        return { summary: {}, details: [], specialists: [], period: {} };
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "GET", "/report");
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest(),
+      query: {
+        from: "2026-07-02",
+        to: "2026-07-02"
+      }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 200);
+  assert.deepEqual(calls.map((call) => call.type), ["autoRolling", "report"]);
+  assert.deepEqual(calls[0].args, {
+    organizationId: 3,
+    specialistId: 7,
+    clientId: null,
+    classId: null,
+    assignedUserId: 7,
+    dateTo: "2026-07-02",
+    vipOnly: false
+  });
+  assert.equal(calls[1].args.specialistId, 7);
+  assert.equal(calls[1].args.assignedUserId, 7);
+});
+
 test("planner report lets planner readers load their own dashboard without statistics permission", async () => {
   const recorder = createRouteRecorder();
   const calls = [];
