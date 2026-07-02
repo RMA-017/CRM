@@ -32,7 +32,14 @@ test("normalizeProfile maps and normalizes known fields", () => {
     organization_code: "org-1",
     role_id: 3,
     full_name: "Ali Aliyev",
-    permissions: ["CLIENTS_READ", "appointments_create", "", null]
+    permissions: [
+      "CLIENTS_READ",
+      "appointments_create",
+      { code: "appointments.statistics.planner-report.only" },
+      { value: "finance.tickets.read" },
+      "",
+      null
+    ]
   });
 
   assert.equal(normalized.username, "admin");
@@ -40,5 +47,10 @@ test("normalizeProfile maps and normalizes known fields", () => {
   assert.equal(normalized.organizationCode, "org-1");
   assert.equal(normalized.roleId, "3");
   assert.equal(normalized.fullName, "Ali Aliyev");
-  assert.deepEqual(normalized.permissions, ["clients_read", "appointments_create"]);
+  assert.deepEqual(normalized.permissions, [
+    "clients_read",
+    "appointments_create",
+    "appointments.statistics.planner-report.only",
+    "finance.tickets.read"
+  ]);
 });

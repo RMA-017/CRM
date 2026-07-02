@@ -8,6 +8,18 @@ const SPECIALIST_ROLE_MATCHERS = Object.freeze([
   "специалист"
 ]);
 
+function normalizeProfilePermissionCode(permission) {
+  if (typeof permission === "string") {
+    return permission.trim().toLowerCase();
+  }
+  if (!permission || typeof permission !== "object") {
+    return "";
+  }
+  return String(permission.code || permission.value || permission.permissionCode || "")
+    .trim()
+    .toLowerCase();
+}
+
 export function useProfileAccess(profile, forcedView) {
   const isPlatformAdmin = Boolean(profile?.isPlatformAdmin);
   const profileRoleText = `${String(profile?.role || "").trim().toLowerCase()} ${String(profile?.position || "").trim().toLowerCase()}`;
@@ -18,7 +30,7 @@ export function useProfileAccess(profile, forcedView) {
     }
     return new Set(
       profile.permissions
-        .map((permission) => String(permission || "").trim().toLowerCase())
+        .map(normalizeProfilePermissionCode)
         .filter(Boolean)
     );
   }, [profile?.permissions]);
@@ -435,6 +447,7 @@ export function useProfileAccess(profile, forcedView) {
     canDeleteAppointmentBreaks,
     canOpenAppointmentStatistics,
     canOpenStatisticsPlannerReport,
+    canReadStatisticsPlannerReportPermission,
     canReadDashboardReport,
     canReadSettingsAppointments,
     canUpdateSettingsAppointments,

@@ -123,6 +123,18 @@ export function formatDateForInput(value) {
   return `${y}-${m}-${d}`;
 }
 
+function normalizePermissionValue(permission) {
+  if (typeof permission === "string") {
+    return permission.trim().toLowerCase();
+  }
+  if (!permission || typeof permission !== "object") {
+    return "";
+  }
+  return String(permission.code || permission.value || permission.permissionCode || "")
+    .trim()
+    .toLowerCase();
+}
+
 export function normalizeProfile(profile) {
   if (!profile || typeof profile !== "object") {
     return {};
@@ -130,7 +142,7 @@ export function normalizeProfile(profile) {
 
   const permissions = Array.isArray(profile.permissions)
     ? profile.permissions
-      .map((permission) => String(permission || "").trim().toLowerCase())
+      .map(normalizePermissionValue)
       .filter(Boolean)
     : [];
 

@@ -90,9 +90,25 @@ test("planner statistics permission unlocks statistics menu without clients read
 
     assert.equal(plannerReportAccess.canOpenAppointmentStatistics, true);
     assert.equal(plannerReportAccess.canOpenStatisticsPlannerReport, true);
+    assert.equal(plannerReportAccess.canReadStatisticsPlannerReportPermission, true);
     assert.equal(plannerReportAccess.canReadDashboardReport, true);
     assert.equal(plannerReportAccess.canAccessForcedView, true);
   }
+});
+
+test("planner statistics access accepts object-shaped permission payloads", () => {
+  const access = readAccessSnapshot({
+    isAdmin: false,
+    isPlatformAdmin: false,
+    permissions: [
+      { code: "appointments.statistics.planner-report.only" }
+    ],
+    orgFeatures: ["statistics.planner_report"]
+  }, "statistics-planner-report");
+
+  assert.equal(access.canReadStatisticsPlannerReportPermission, true);
+  assert.equal(access.canReadDashboardReport, true);
+  assert.equal(access.canAccessForcedView, true);
 });
 
 test("specialist planner read access unlocks own profile dashboard", () => {
