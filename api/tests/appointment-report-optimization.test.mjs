@@ -135,3 +135,49 @@ test("getAppointmentPlannerReport derives summary from detail rows without extra
     clearAppointmentReferenceCaches();
   }
 });
+
+test("getAppointmentPlannerReport does not apply assigned VIP scope when specialist is locked", async () => {
+  clearAppointmentReferenceCaches();
+  let detailQuery = "";
+  const restoreQuery = stubPoolQuery(async (sql) => {
+    const text = String(sql || "");
+
+    if (text.includes("AS role")) {
+      return {
+        rows: [{ id: "7", name: "Alice Specialist", role: "Specialist" }]
+      };
+    }
+
+    if (text.includes("FROM appointment_working_hours")) {
+      return { rows: [] };
+    }
+
+    if (text.includes("FROM appointment_breaks")) {
+      return { rows: [] };
+    }
+
+    if (text.includes("s.id::text AS appointment_id")) {
+      detailQuery = text;
+      return { rows: [] };
+    }
+
+    return { rows: [] };
+  });
+
+  try {
+    await getAppointmentPlannerReport({
+      organizationId: 3,
+      from: "2026-07-02",
+      to: "2026-07-02",
+      specialistId: 7,
+      assignedUserId: 7
+    });
+
+    assert.match(detailQuery, /s\.specialist_id = \$4/);
+    assert.doesNotMatch(detailQuery, /vta_scope/);
+    assert.doesNotMatch(detailQuery, /c\.is_vip = FALSE/);
+  } finally {
+    restoreQuery();
+    clearAppointmentReferenceCaches();
+  }
+});

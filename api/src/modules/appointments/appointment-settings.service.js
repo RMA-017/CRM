@@ -5269,12 +5269,13 @@ export async function getAppointmentPlannerReport({
   await ensureAppointmentPlannerReportIndexes();
 
   const params = [organizationId, from, to];
+  const normalizedSpecialistId = Number.parseInt(String(specialistId || "").trim(), 10) || 0;
   let specialistFilterSql = "";
   let clientFilterSql = "";
   let vipFilterSql = "";
   let vipScopeSql = "";
-  if (specialistId) {
-    params.push(specialistId);
+  if (normalizedSpecialistId > 0) {
+    params.push(normalizedSpecialistId);
     specialistFilterSql = `AND s.specialist_id = $${params.length}`;
   }
   if (clientId) {
@@ -5289,7 +5290,7 @@ export async function getAppointmentPlannerReport({
     vipFilterSql = `AND c.is_vip = $${params.length}`;
   }
   const normalizedAssignedUserId = Number.parseInt(String(assignedUserId || "").trim(), 10) || 0;
-  if (normalizedAssignedUserId > 0) {
+  if (normalizedAssignedUserId > 0 && normalizedSpecialistId <= 0) {
     params.push(normalizedAssignedUserId);
     const assignedVipExistsSql = buildAssignedVipClientExistsSql({
       organizationRef: "s.organization_id",
@@ -5460,7 +5461,7 @@ export async function getAppointmentPlannerReportFilters({
     specialistFilterSql = `AND s.specialist_id = $${clientQueryParams.length}`;
   }
   let vipScopeSql = "";
-  if (normalizedAssignedUserId > 0) {
+  if (normalizedAssignedUserId > 0 && normalizedSpecialistId <= 0) {
     clientQueryParams.push(normalizedAssignedUserId);
     vipScopeSql = `AND (
           c.is_vip = FALSE

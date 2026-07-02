@@ -995,8 +995,9 @@ test("planner report includes cancellation notes from appointments and parent re
   );
 });
 
-test("planner report blocks assigned-scope access to an unassigned VIP client filter", async () => {
+test("planner report allows own specialist dashboard to filter VIP clients without assignment rows", async () => {
   const recorder = createRouteRecorder();
+  let capturedArgs = null;
   registerAppointmentScheduleRoutes(
     recorder.fastify,
     createScheduleContext({
@@ -1004,9 +1005,12 @@ test("planner report blocks assigned-scope access to an unassigned VIP client fi
         permissionCode === "appointments.statistics.planner-report.only"
       ),
       getAppointmentClientScopeInfo: async () => ({ id: "44", isVip: true }),
-      isVipClientAssignedToUser: async () => false,
-      getAppointmentPlannerReport: async () => {
-        throw new Error("Report should not load for forbidden VIP client.");
+      isVipClientAssignedToUser: async () => {
+        throw new Error("Own specialist dashboard should not require VIP assignment rows.");
+      },
+      getAppointmentPlannerReport: async (args) => {
+        capturedArgs = args;
+        return { summary: {}, details: [], specialists: [], period: {} };
       }
     })
   );
@@ -1027,8 +1031,16 @@ test("planner report blocks assigned-scope access to an unassigned VIP client fi
     reply
   );
 
-  assert.equal(reply.state.statusCode, 403);
-  assert.equal(reply.state.payload?.message, "Forbidden.");
+  assert.equal(reply.state.statusCode, 200);
+  assert.deepEqual(capturedArgs, {
+    organizationId: 3,
+    from: "2026-03-01",
+    to: "2026-03-09",
+    specialistId: 7,
+    clientId: 44,
+    isVip: null,
+    assignedUserId: 7
+  });
 });
 
 test("planner report blocks specialist users from querying another specialist", async () => {

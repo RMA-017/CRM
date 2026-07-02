@@ -945,7 +945,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
               clientId
             })
           : null;
-        if (clientScopeInfo?.isVip && assignedUserId) {
+        if (clientScopeInfo?.isVip && assignedUserId && !effectiveSpecialistId) {
           const isAssignedClient = await isVipClientAssignedToUser({
             organizationId: access.authContext.organizationId,
             clientId,
