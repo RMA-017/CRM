@@ -38,4 +38,9 @@ test("finance reports exposes the yearly Google Sheets export workflow", () => {
     /\.finance-google-sheets-fields[\s\S]*grid-template-columns:[\s\S]*@media \(max-width: 520px\)[\s\S]*grid-template-columns: 1fr;/s,
     "The modal fields should collapse cleanly on mobile."
   );
+  assert.match(
+    styles,
+    /#financeGoogleSheetsExportModal\.finance-google-sheets-modal \{[\s\S]*height: auto;[\s\S]*max-height: min\(540px, calc\(100dvh - 24px\)\);[\s\S]*\.finance-google-sheets-status \{[\s\S]*min-height: 82px;/s,
+    "The modal height should not scale with the viewport or jump when export status changes."
+  );
 });

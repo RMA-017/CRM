@@ -993,25 +993,27 @@ function FinanceReportsPanel({ onClose }) {
                 <span>Балансы клиентов</span>
               </div>
 
-              {googleSheetsConfigLoading ? (
-                <p className="all-users-state">{translate("Loading...")}</p>
-              ) : null}
-              {!googleSheetsConfigLoading && googleSheetsConfig && !googleSheetsConfig.configured ? (
-                <p className="all-users-state is-error">
-                  {translate("Google Sheets service account is not configured.")}
-                </p>
-              ) : null}
-              {googleSheetsError ? (
-                <p className="all-users-state is-error">{translate(googleSheetsError)}</p>
-              ) : null}
-              {googleSheetsResult ? (
-                <div className="finance-google-sheets-result">
-                  <strong>{translate("Export completed.")}</strong>
-                  <span>Талоны: {toNumber(googleSheetsResult.counts?.tickets)}</span>
-                  <span>Транзакции: {toNumber(googleSheetsResult.counts?.transactions)}</span>
-                  <span>Балансы клиентов: {toNumber(googleSheetsResult.counts?.balances)}</span>
-                </div>
-              ) : null}
+              <div className="finance-google-sheets-status" aria-live="polite">
+                {googleSheetsConfigLoading ? (
+                  <p className="all-users-state">{translate("Loading...")}</p>
+                ) : null}
+                {!googleSheetsConfigLoading && googleSheetsConfig && !googleSheetsConfig.configured ? (
+                  <p className="all-users-state is-error">
+                    {translate("Google Sheets service account is not configured.")}
+                  </p>
+                ) : null}
+                {googleSheetsError ? (
+                  <p className="all-users-state is-error">{translate(googleSheetsError)}</p>
+                ) : null}
+                {googleSheetsResult ? (
+                  <div className="finance-google-sheets-result">
+                    <strong>{translate("Export completed.")}</strong>
+                    <span>Талоны: {toNumber(googleSheetsResult.counts?.tickets)}</span>
+                    <span>Транзакции: {toNumber(googleSheetsResult.counts?.transactions)}</span>
+                    <span>Балансы клиентов: {toNumber(googleSheetsResult.counts?.balances)}</span>
+                  </div>
+                ) : null}
+              </div>
 
               <div className="edit-actions">
                 <button

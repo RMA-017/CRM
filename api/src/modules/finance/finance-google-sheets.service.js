@@ -47,13 +47,13 @@ const SHEET_DEFINITIONS = Object.freeze([
   {
     key: "balances",
     title: "Балансы клиентов",
-    lastColumn: "E",
+    lastColumn: "D",
+    clearLastColumn: "E",
     headers: [
       "ID клиента",
       "Клиент",
       "Долг",
-      "Депозит",
-      "Дата выгрузки"
+      "Депозит"
     ],
     moneyColumns: [2, 3]
   }
@@ -226,21 +226,6 @@ async function createSheetsClient(credentials) {
   return google.sheets({ version: "v4", auth });
 }
 
-function getTashkentTimestamp() {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tashkent",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23"
-  }).formatToParts(new Date());
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${values.year}-${values.month}-${values.day} ${values.hour}:${values.minute}:${values.second}`;
-}
-
 function getExportYearBounds(year) {
   return [`${year}-01-01`, `${year + 1}-01-01`];
 }
@@ -298,7 +283,9 @@ function makeTransactionExportRow(row) {
     row.payment_method_name || (row.direction === "transfer" ? "Баланс клиента" : ""),
     Math.max(toInteger(row.amount_uzs), 0),
     row.cashier_name || "",
-    row.cash_session_id ? toInteger(row.cash_session_id) : "",
+    row.cash_session_id
+      ? `#${row.cash_session_id}${row.cash_session_opened_at_text ? ` / ${row.cash_session_opened_at_text}` : ""}`
+      : "Не указана",
     status,
     makeTransactionNote(row)
   ];
@@ -396,6 +383,7 @@ async function fetchTransactionRows({ organizationId, year, cursor }) {
             t.amount_uzs,
             COALESCE(NULLIF(TRIM(cu.full_name), ''), NULLIF(TRIM(cu.username), ''), '') AS cashier_name,
             t.cash_session_id,
+            TO_CHAR(cs.opened_at, 'YYYY-MM-DD HH24:MI:SS') AS cash_session_opened_at_text,
             t.note,
             t.metadata
        FROM finance_transactions t
@@ -529,7 +517,7 @@ async function prepareSheets({ sheets, spreadsheetId }) {
     spreadsheetId,
     requestBody: {
       ranges: SHEET_DEFINITIONS.map((definition) => (
-        `${escapeA1SheetTitle(definition.title)}!A:${definition.lastColumn}`
+        `${escapeA1SheetTitle(definition.title)}!A:${definition.clearLastColumn || definition.lastColumn}`
       ))
     }
   }));
@@ -686,7 +674,6 @@ async function exportTransactions({ organizationId, year, writeRows }) {
 
 async function exportBalances({ organizationId, writeRows }) {
   const definition = SHEET_DEFINITIONS[2];
-  const exportedAt = getTashkentTimestamp();
   let cursor = 0;
   let outputRow = 2;
   let totalRows = 0;
@@ -697,8 +684,7 @@ async function exportBalances({ organizationId, writeRows }) {
       toInteger(row.client_id),
       row.client_name || "",
       Math.max(toInteger(row.debt_uzs), 0),
-      toInteger(row.deposit_uzs),
-      exportedAt
+      toInteger(row.deposit_uzs)
     ]);
     await writeRows(definition, outputRow, rows);
     outputRow += rows.length;

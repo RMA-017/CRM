@@ -7381,7 +7381,16 @@ button.finance-daily-cash-method-card:disabled {
 
 #financeGoogleSheetsExportModal.finance-google-sheets-modal {
   width: min(520px, calc(100vw - 24px));
-  max-height: calc(100vh - 24px);
+  height: auto;
+  min-height: 0;
+  max-height: min(540px, calc(100dvh - 24px));
+  grid-template-rows: auto auto;
+  overflow: hidden;
+}
+
+#financeGoogleSheetsExportModal .auth-form {
+  grid-template-rows: none;
+  grid-auto-rows: auto;
   overflow-y: auto;
 }
 
@@ -7436,6 +7445,18 @@ button.finance-daily-cash-method-card:disabled {
   background: rgba(240, 253, 244, 0.9);
   color: #166534;
   font-size: 13px;
+}
+
+.finance-google-sheets-status {
+  display: grid;
+  min-height: 82px;
+  max-height: 104px;
+  align-content: start;
+  overflow-y: auto;
+}
+
+.finance-google-sheets-status:empty {
+  visibility: hidden;
 }
 
 @media (max-width: 520px) {

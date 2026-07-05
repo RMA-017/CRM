@@ -69,8 +69,7 @@ test("finance Google Sheets export owns the agreed Russian tabs and columns", ()
     "ID клиента",
     "Клиент",
     "Долг",
-    "Депозит",
-    "Дата выгрузки"
+    "Депозит"
   ]);
 });
 
@@ -111,10 +110,12 @@ test("ticket and transaction export rows preserve finance audit values", () => {
     amount_uzs: 40000,
     cashier_name: "Cashier",
     cash_session_id: 12,
+    cash_session_opened_at_text: "2026-07-05 08:00:00",
     note: "",
     metadata: { voidReason: "Ошибка кассира" }
   });
   assert.equal(transactionRow[2], "Оплата талона");
+  assert.equal(transactionRow[9], "#12 / 2026-07-05 08:00:00");
   assert.equal(transactionRow[10], "Отменена");
   assert.equal(transactionRow[11], "Ошибка кассира");
 });
@@ -122,12 +123,12 @@ test("ticket and transaction export rows preserve finance audit values", () => {
 test("Google Sheets export preserves formula columns and uses report access", () => {
   assert.match(
     serviceSource,
-    /ranges: SHEET_DEFINITIONS\.map[\s\S]*!A:\$\{definition\.lastColumn\}/s,
+    /ranges: SHEET_DEFINITIONS\.map[\s\S]*definition\.clearLastColumn \|\| definition\.lastColumn/s,
     "Only CRM-owned columns should be cleared."
   );
   assert.match(
     serviceSource,
-    /SHEET_DEFINITIONS[\s\S]*lastColumn: "N"[\s\S]*lastColumn: "L"[\s\S]*lastColumn: "E"/s,
+    /SHEET_DEFINITIONS[\s\S]*lastColumn: "N"[\s\S]*lastColumn: "L"[\s\S]*lastColumn: "D"[\s\S]*clearLastColumn: "E"/s,
     "Clear ranges should stop before user formula columns."
   );
   assert.match(
