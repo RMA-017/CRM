@@ -3887,7 +3887,9 @@ async function buildTicketItems(db, { organizationId, payload, appointment, fall
   let priceUzs = normalizeAmount(fallbackAmount, 0);
   if (serviceId) {
     const service = await getServiceById(db, { organizationId, serviceId });
-    if (service) {
+    const appointmentServiceId = parsePositiveInteger(appointment?.service_id) || null;
+    const usesAppointmentSnapshot = Boolean(appointment) && appointmentServiceId === serviceId;
+    if (service && !usesAppointmentSnapshot) {
       serviceName = normalizeText(service.name, 128);
       priceUzs = normalizeAmount(service.price_uzs, 0);
     } else if (!appointment) {
