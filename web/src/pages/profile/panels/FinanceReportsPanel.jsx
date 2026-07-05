@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import CustomSelect from "../../../components/CustomSelect.jsx";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
@@ -124,6 +124,13 @@ const REPORT_FILTER_KEYS_BY_COLUMN = Object.freeze({
 
 function toNumber(value) {
   return Number.parseInt(String(value ?? 0), 10) || 0;
+}
+
+function getCurrentTashkentYear() {
+  return Number.parseInt(new Intl.DateTimeFormat("en", {
+    timeZone: "Asia/Tashkent",
+    year: "numeric"
+  }).format(new Date()), 10);
 }
 
 function formatMoney(value) {
@@ -386,6 +393,15 @@ function FinanceReportsPanel({ onClose }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [googleSheetsOpen, setGoogleSheetsOpen] = useState(false);
+  const [googleSheetsYear, setGoogleSheetsYear] = useState(() => String(getCurrentTashkentYear()));
+  const [googleSheetsUrl, setGoogleSheetsUrl] = useState("");
+  const [googleSheetsConfig, setGoogleSheetsConfig] = useState(null);
+  const [googleSheetsConfigLoading, setGoogleSheetsConfigLoading] = useState(false);
+  const [googleSheetsExporting, setGoogleSheetsExporting] = useState(false);
+  const [googleSheetsError, setGoogleSheetsError] = useState("");
+  const [googleSheetsResult, setGoogleSheetsResult] = useState(null);
+  const googleSheetsConfigRequestRef = useRef(0);
 
   const paymentMethodOptions = useMemo(() => paymentMethods.map((item) => ({
     value: String(item.id),
@@ -504,6 +520,51 @@ function FinanceReportsPanel({ onClose }) {
       setLoading(false);
     }
   }, [translate]);
+
+  const loadGoogleSheetsConfig = useCallback(async (year) => {
+    const normalizedYear = Number.parseInt(String(year || ""), 10);
+    if (!Number.isInteger(normalizedYear) || normalizedYear < 2000 || normalizedYear > 2100) {
+      return;
+    }
+    const requestId = googleSheetsConfigRequestRef.current + 1;
+    googleSheetsConfigRequestRef.current = requestId;
+    setGoogleSheetsConfigLoading(true);
+    setGoogleSheetsError("");
+    try {
+      const response = await apiFetch(
+        `/api/finance/reports/google-sheets/config?year=${encodeURIComponent(normalizedYear)}`
+      );
+      const data = await readApiResponseData(response);
+      if (requestId !== googleSheetsConfigRequestRef.current) return;
+      if (!response.ok) {
+        setGoogleSheetsError(data?.message || "Failed to load Google Sheets export settings.");
+        return;
+      }
+      setGoogleSheetsConfig(data || null);
+      setGoogleSheetsUrl(String(data?.spreadsheetUrl || ""));
+    } catch {
+      if (requestId === googleSheetsConfigRequestRef.current) {
+        setGoogleSheetsError("Failed to load Google Sheets export settings.");
+      }
+    } finally {
+      if (requestId === googleSheetsConfigRequestRef.current) {
+        setGoogleSheetsConfigLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!googleSheetsOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const timer = window.setTimeout(() => {
+      void loadGoogleSheetsConfig(googleSheetsYear);
+    }, 250);
+    return () => {
+      window.clearTimeout(timer);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [googleSheetsOpen, googleSheetsYear, loadGoogleSheetsConfig]);
 
   useEffect(() => {
     if (!filtersOpen) return undefined;
@@ -712,6 +773,58 @@ function FinanceReportsPanel({ onClose }) {
     }
   };
 
+  const openGoogleSheetsExport = () => {
+    setGoogleSheetsError("");
+    setGoogleSheetsResult(null);
+    setGoogleSheetsOpen(true);
+  };
+
+  const closeGoogleSheetsExport = () => {
+    if (googleSheetsExporting) return;
+    setGoogleSheetsOpen(false);
+  };
+
+  const submitGoogleSheetsExport = async (event) => {
+    event.preventDefault();
+    if (googleSheetsExporting) return;
+    const year = Number.parseInt(String(googleSheetsYear || ""), 10);
+    const spreadsheetUrl = String(googleSheetsUrl || "").trim();
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      setGoogleSheetsError("Export year is invalid.");
+      return;
+    }
+    if (!spreadsheetUrl) {
+      setGoogleSheetsError("Google Sheets URL is required.");
+      return;
+    }
+    setGoogleSheetsExporting(true);
+    setGoogleSheetsError("");
+    setGoogleSheetsResult(null);
+    try {
+      const response = await apiFetch("/api/finance/reports/google-sheets/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ year, spreadsheetUrl })
+      });
+      const data = await readApiResponseData(response);
+      if (!response.ok) {
+        setGoogleSheetsError(data?.message || "Google Sheets export failed.");
+        return;
+      }
+      setGoogleSheetsResult(data || null);
+      setGoogleSheetsUrl(String(data?.spreadsheetUrl || spreadsheetUrl));
+      setGoogleSheetsConfig((current) => ({
+        ...(current || {}),
+        configured: true,
+        spreadsheetUrl: data?.spreadsheetUrl || spreadsheetUrl
+      }));
+    } catch {
+      setGoogleSheetsError("Google Sheets export failed.");
+    } finally {
+      setGoogleSheetsExporting(false);
+    }
+  };
+
   const details = Array.isArray(report?.details) ? report.details : [];
   const detailsTableMinWidth = Math.max(620, appliedColumnDefinitions.length * 148);
   const isColumnSelected = (columnKey) => selectedColumnSet.has(columnKey);
@@ -807,11 +920,116 @@ function FinanceReportsPanel({ onClose }) {
           >
             <span className="finance-head-icon finance-head-icon-export" aria-hidden="true" />
           </button>
+          <button
+            type="button"
+            className="table-action-btn finance-head-icon-btn"
+            aria-label={translate("Export to Google Sheets")}
+            title={translate("Export to Google Sheets")}
+            onClick={openGoogleSheetsExport}
+          >
+            <span className="finance-head-icon finance-head-icon-google-sheets" aria-hidden="true" />
+          </button>
           <button type="button" className="header-btn panel-close-btn" aria-label={translate("Close finance reports panel")} onClick={onClose}>
             ×
           </button>
         </div>
       </div>
+
+      {googleSheetsOpen && typeof document !== "undefined" ? createPortal((
+        <>
+          <button
+            type="button"
+            className="login-overlay stacked-modal-overlay finance-modal-overlay"
+            aria-label={translate("Close")}
+            onClick={closeGoogleSheetsExport}
+          />
+          <div
+            id="financeGoogleSheetsExportModal"
+            className="logout-confirm-modal all-users-edit-modal finance-modal finance-google-sheets-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="financeGoogleSheetsExportTitle"
+          >
+            <h3 id="financeGoogleSheetsExportTitle">{translate("Google Sheets export")}</h3>
+            <form className="auth-form" onSubmit={submitGoogleSheetsExport}>
+              <div className="all-users-edit-fields finance-google-sheets-fields">
+                <label className="field">
+                  <span>{translate("Google Sheets URL")}</span>
+                  <input
+                    type="url"
+                    inputMode="url"
+                    autoComplete="off"
+                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                    value={googleSheetsUrl}
+                    disabled={googleSheetsExporting}
+                    onChange={(event) => setGoogleSheetsUrl(event.currentTarget.value)}
+                  />
+                </label>
+                <label className="field">
+                  <span>{translate("Year")}</span>
+                  <input
+                    type="number"
+                    min="2000"
+                    max="2100"
+                    inputMode="numeric"
+                    value={googleSheetsYear}
+                    disabled={googleSheetsExporting}
+                    onChange={(event) => {
+                      setGoogleSheetsYear(event.currentTarget.value);
+                      setGoogleSheetsResult(null);
+                    }}
+                  />
+                </label>
+              </div>
+
+              <div className="finance-google-sheets-meta">
+                <span>{translate("Editor access")}</span>
+                <strong>{googleSheetsConfig?.serviceAccountEmail || "-"}</strong>
+              </div>
+
+              <div className="finance-google-sheets-tabs" aria-label={translate("Sheets")}>
+                <span>Талоны</span>
+                <span>Транзакции</span>
+                <span>Балансы клиентов</span>
+              </div>
+
+              {googleSheetsConfigLoading ? (
+                <p className="all-users-state">{translate("Loading...")}</p>
+              ) : null}
+              {!googleSheetsConfigLoading && googleSheetsConfig && !googleSheetsConfig.configured ? (
+                <p className="all-users-state is-error">
+                  {translate("Google Sheets service account is not configured.")}
+                </p>
+              ) : null}
+              {googleSheetsError ? (
+                <p className="all-users-state is-error">{translate(googleSheetsError)}</p>
+              ) : null}
+              {googleSheetsResult ? (
+                <div className="finance-google-sheets-result">
+                  <strong>{translate("Export completed.")}</strong>
+                  <span>Талоны: {toNumber(googleSheetsResult.counts?.tickets)}</span>
+                  <span>Транзакции: {toNumber(googleSheetsResult.counts?.transactions)}</span>
+                  <span>Балансы клиентов: {toNumber(googleSheetsResult.counts?.balances)}</span>
+                </div>
+              ) : null}
+
+              <div className="edit-actions">
+                <button
+                  type="submit"
+                  className="btn"
+                  disabled={
+                    googleSheetsConfigLoading
+                    || googleSheetsExporting
+                    || googleSheetsConfig?.configured === false
+                  }
+                >
+                  {googleSheetsExporting ? translate("Exporting...") : translate("Export")}
+                </button>
+              </div>
+            </form>
+          </div>
+        </>
+      ), document.body) : null}
 
       {filtersOpen && typeof document !== "undefined" ? createPortal((
         <>

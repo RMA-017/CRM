@@ -233,6 +233,7 @@ test("finance routes expose stable contract", async () => {
     "GET /payment-methods",
     "GET /reports",
     "GET /reports/clients",
+    "GET /reports/google-sheets/config",
     "GET /tickets",
     "GET /tickets/:id/history",
     "GET /tickets/clients",
@@ -253,6 +254,7 @@ test("finance routes expose stable contract", async () => {
     "POST /client-balances/deposit",
     "POST /client-balances/pay-from-deposit",
     "POST /client-balances/refund",
+    "POST /reports/google-sheets/export",
     "POST /transactions/:id/void"
   ]);
 
@@ -276,6 +278,12 @@ test("finance routes expose stable contract", async () => {
 
   const reportClientsGet = findRoute(recorder.routes, "GET", "/reports/clients");
   assert.equal(typeof reportClientsGet?.options?.schema?.querystring, "object");
+
+  const googleSheetsConfigGet = findRoute(recorder.routes, "GET", "/reports/google-sheets/config");
+  assert.equal(typeof googleSheetsConfigGet?.options?.schema?.querystring, "object");
+
+  const googleSheetsExportPost = findRoute(recorder.routes, "POST", "/reports/google-sheets/export");
+  assert.equal(typeof googleSheetsExportPost?.options?.schema?.body, "object");
 
   const clientBalancesGet = findRoute(recorder.routes, "GET", "/client-balances");
   assert.equal(typeof clientBalancesGet?.options?.schema?.querystring, "object");

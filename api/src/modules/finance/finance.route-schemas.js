@@ -243,6 +243,37 @@ export const financeRouteSchemas = Object.freeze({
       all_dates: { type: "string", enum: ["", "1", "true", "false", "yes", "no", "on", "off"] }
     }
   },
+  googleSheetsConfigQuery: {
+    type: "object",
+    additionalProperties: false,
+    required: ["year"],
+    properties: {
+      year: {
+        anyOf: [
+          { type: "integer", minimum: 2000, maximum: 2100 },
+          { type: "string", pattern: "^(20\\d{2}|2100)$" }
+        ]
+      }
+    }
+  },
+  googleSheetsExportBody: {
+    type: "object",
+    additionalProperties: false,
+    required: ["year", "spreadsheetUrl"],
+    properties: {
+      year: {
+        anyOf: [
+          { type: "integer", minimum: 2000, maximum: 2100 },
+          { type: "string", pattern: "^(20\\d{2}|2100)$" }
+        ]
+      },
+      spreadsheetUrl: {
+        type: "string",
+        minLength: 20,
+        maxLength: 512
+      }
+    }
+  },
   clientBalanceListQuery: {
     type: "object",
     additionalProperties: true,

@@ -7150,6 +7150,35 @@ button.finance-daily-cash-method-card:disabled {
   transform: translateY(1px);
 }
 
+.finance-head-icon-google-sheets::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 1px;
+  width: 12px;
+  height: 16px;
+  border: 1.6px solid currentColor;
+  border-radius: 2px;
+  background:
+    linear-gradient(135deg, transparent 49%, currentColor 50% 58%, transparent 59%) right top / 5px 5px no-repeat;
+}
+
+.finance-head-icon-google-sheets::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 7px;
+  width: 7px;
+  height: 7px;
+  background:
+    linear-gradient(currentColor 0 0) 0 0 / 100% 1.3px no-repeat,
+    linear-gradient(currentColor 0 0) 0 50% / 100% 1.3px no-repeat,
+    linear-gradient(currentColor 0 0) 0 100% / 100% 1.3px no-repeat,
+    linear-gradient(currentColor 0 0) 0 0 / 1.3px 100% no-repeat,
+    linear-gradient(currentColor 0 0) 50% 0 / 1.3px 100% no-repeat,
+    linear-gradient(currentColor 0 0) 100% 0 / 1.3px 100% no-repeat;
+}
+
 .finance-head-icon-filter::before {
   content: "";
   position: absolute;
@@ -7348,6 +7377,71 @@ button.finance-daily-cash-method-card:disabled {
   min-height: 0;
   max-height: min(640px, calc(100dvh - 24px));
   grid-template-rows: auto minmax(0, auto);
+}
+
+#financeGoogleSheetsExportModal.finance-google-sheets-modal {
+  width: min(520px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+}
+
+.finance-google-sheets-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  gap: 12px;
+}
+
+.finance-google-sheets-meta {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 8px;
+  background: rgba(248, 250, 252, 0.84);
+}
+
+.finance-google-sheets-meta span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.finance-google-sheets-meta strong {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.finance-google-sheets-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.finance-google-sheets-tabs span {
+  padding: 5px 8px;
+  border: 1px solid rgba(22, 163, 74, 0.28);
+  border-radius: 6px;
+  background: rgba(240, 253, 244, 0.92);
+  color: #166534;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.finance-google-sheets-result {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  padding: 10px 12px;
+  border-left: 3px solid #16a34a;
+  background: rgba(240, 253, 244, 0.9);
+  color: #166534;
+  font-size: 13px;
+}
+
+@media (max-width: 520px) {
+  .finance-google-sheets-fields {
+    grid-template-columns: 1fr;
+  }
 }
 
 #financeReportsFilterModal .auth-form {

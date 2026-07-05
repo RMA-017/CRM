@@ -28,6 +28,7 @@
 		"@fastify/rate-limit": "^10.2.0",
 		"argon2": "^0.41.1",
 		"fastify": "^5.0.0",
+		"googleapis": "^173.0.0",
 		"jsonwebtoken": "^9.0.3",
 		"pg": "^8.18.0"
 	},

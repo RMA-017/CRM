@@ -4,6 +4,10 @@ import { PERMISSIONS } from "../users/users.constants.js";
 import { findSettingsRequester } from "../settings/settings.service.js";
 import { financeRouteSchemas } from "./finance.route-schemas.js";
 import {
+  exportFinanceToGoogleSheets,
+  getFinanceGoogleSheetsConfig
+} from "./finance-google-sheets.service.js";
+import {
   closeCashSession,
   confirmCashierAppointment,
   createFinanceTicket,
@@ -296,6 +300,55 @@ async function financeRoutes(fastify) {
       } catch (error) {
         request.log.error({ err: error }, "Error searching finance report clients:");
         return sendRouteError(reply, error, "Failed to search clients.");
+      }
+    }
+  );
+
+  fastify.get(
+    "/reports/google-sheets/config",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        querystring: financeRouteSchemas.googleSheetsConfigQuery
+      }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+      try {
+        const requester = await requireReportsAccess(request, reply, "read");
+        if (!requester) return null;
+        return reply.send(await getFinanceGoogleSheetsConfig({
+          organizationId: request.authContext.organizationId,
+          year: request.query.year
+        }));
+      } catch (error) {
+        request.log.error({ err: error }, "Error fetching Google Sheets export config:");
+        return sendRouteError(reply, error, "Failed to load Google Sheets export settings.");
+      }
+    }
+  );
+
+  fastify.post(
+    "/reports/google-sheets/export",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        body: financeRouteSchemas.googleSheetsExportBody
+      }
+    },
+    async (request, reply) => {
+      try {
+        const requester = await requireReportsAccess(request, reply, "read");
+        if (!requester) return null;
+        return reply.send(await exportFinanceToGoogleSheets({
+          organizationId: request.authContext.organizationId,
+          year: request.body.year,
+          spreadsheetUrl: request.body.spreadsheetUrl,
+          actorUserId: requester.id
+        }));
+      } catch (error) {
+        request.log.error({ err: error }, "Error exporting finance data to Google Sheets:");
+        return sendRouteError(reply, error, "Google Sheets export failed.");
       }
     }
   );
