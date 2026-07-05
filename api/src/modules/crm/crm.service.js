@@ -5,6 +5,20 @@ import { normalizePhoneDigits, normalizePhoneNumber } from "../../lib/phone-numb
 
 const LEAD_STATUSES = new Set(["new", "contacted", "converted", "lost"]);
 const LEAD_SOURCES = new Set(["website", "telegram"]);
+const CLIENT_PHONE_DIGITS_SQL = `(
+  CASE
+    WHEN regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g') LIKE '00%'
+      THEN SUBSTRING(regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g') FROM 3)
+    WHEN LENGTH(regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g')) = 9
+      THEN '998' || regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g')
+    WHEN LENGTH(regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g')) = 10
+      THEN '7' || regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g')
+    WHEN LENGTH(regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g')) = 11
+      AND regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g') LIKE '8%'
+      THEN '7' || SUBSTRING(regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g') FROM 2)
+    ELSE regexp_replace(COALESCE(c.phone_number, ''), '\\D', '', 'g')
+  END
+)`;
 
 function normalizeLeadStatus(value, fallback = "new") {
   const normalized = String(value || "").trim().toLowerCase();
@@ -153,20 +167,16 @@ export async function createOrUpdateCrmLead({
        telegram_user_id,
        telegram_chat_id,
        payload
-     ) VALUES ($1,$2,$3,$4,$5,NULLIF($6::text, ''),$7,$8,$9::jsonb)
+     )
+     SELECT $1,$2,$3,$4,$5,NULLIF($6::text, ''),$7,$8,$9::jsonb
+      WHERE NOT EXISTS (
+        SELECT 1
+          FROM clients c
+         WHERE c.organization_id = $1
+           AND ${CLIENT_PHONE_DIGITS_SQL} = $4
+      )
      ON CONFLICT (organization_id, phone_digits)
-     DO UPDATE SET
-       full_name = CASE
-         WHEN crm_leads.full_name = 'Telegram contact' THEN EXCLUDED.full_name
-         ELSE crm_leads.full_name
-       END,
-       phone_number = EXCLUDED.phone_number,
-       source = EXCLUDED.source,
-       note = COALESCE(NULLIF(EXCLUDED.note, ''), crm_leads.note),
-       telegram_user_id = COALESCE(EXCLUDED.telegram_user_id, crm_leads.telegram_user_id),
-       telegram_chat_id = COALESCE(EXCLUDED.telegram_chat_id, crm_leads.telegram_chat_id),
-       payload = crm_leads.payload || EXCLUDED.payload,
-       updated_at = CURRENT_TIMESTAMP
+     DO NOTHING
      RETURNING *`,
     [
       normalizedOrganizationId,
@@ -180,7 +190,7 @@ export async function createOrUpdateCrmLead({
       JSON.stringify(normalizedPayload)
     ]
   );
-  return mapLeadRow(rows[0]);
+  return rows[0] ? mapLeadRow(rows[0]) : null;
 }
 
 export async function getCrmLeadsPage({

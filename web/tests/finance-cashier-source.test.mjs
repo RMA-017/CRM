@@ -306,7 +306,7 @@ test("batch payment modal keeps client balance, ticket and payment inputs wrappe
   );
   assert.match(
     styles,
-    /minmax\(142px, 1fr\)\s*minmax\(104px, 0\.54fr\)\s*minmax\(104px, 0\.54fr\)\s*minmax\(104px, 0\.54fr\)\s*minmax\(104px, 0\.54fr\)/s,
+    /minmax\(0, 1\.08fr\)\s*minmax\(0, 0\.7fr\)\s*minmax\(0, 0\.7fr\)\s*minmax\(0, 0\.7fr\)\s*minmax\(0, 0\.7fr\)/s,
     "Ticket payment money columns should use equal widths for service price, discount, payable and paid amounts."
   );
   assert.match(
@@ -446,5 +446,28 @@ test("batch payment modal keeps a polished dense payment layout", async () => {
     styles,
     /#financeBatchPaymentModal \.edit-actions \{[\s\S]*padding-top: 8px;[\s\S]*border-top: 1px solid rgba\(148, 163, 184, 0\.18\);/s,
     "Payment modal actions should be visually separated from payment details."
+  );
+});
+
+test("batch payment ticket groups contain every nested line cell", async () => {
+  const styles = await readFile(
+    new URL("../src/css/components/components.css", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    styles,
+    /#financeBatchPaymentModal \.finance-batch-ticket-list \{[\s\S]*--finance-batch-ticket-columns:[\s\S]*minmax\(0,[\s\S]*width: 100%;[\s\S]*max-width: 100%;[\s\S]*overflow: hidden;/s,
+    "Ticket columns should be allowed to shrink inside their panel."
+  );
+  assert.match(
+    styles,
+    /#financeBatchPaymentModal \.finance-batch-ticket-lines \{[\s\S]*max-width: 100%;[\s\S]*min-width: 0;[\s\S]*overflow: hidden;[\s\S]*#financeBatchPaymentModal \.finance-batch-ticket-line \{[\s\S]*max-width: 100%;[\s\S]*overflow: hidden;/s,
+    "Nested ticket rows should not exceed the ticket group width."
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 640px\)[\s\S]*#financeBatchPaymentModal \.finance-batch-ticket-line-cell \{[\s\S]*grid-column: 1 !important;/s,
+    "Mobile rows should reset desktop column placements instead of creating implicit overflow columns."
   );
 });

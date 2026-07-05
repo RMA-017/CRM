@@ -58,7 +58,7 @@ export async function crmPublicRoutes(fastify) {
       if (!isValidPhoneInput(payload.phoneNumber)) {
         return reply.status(400).send({ field: "phone", message: "Phone number is required." });
       }
-      const item = await createOrUpdateCrmLead({
+      await createOrUpdateCrmLead({
         organizationCode: payload.organizationCode,
         fullName: payload.fullName,
         phoneNumber: normalizePhoneNumber(payload.phoneNumber),
@@ -69,10 +69,7 @@ export async function crmPublicRoutes(fastify) {
           submittedAt: new Date().toISOString()
         }
       });
-      if (!item) {
-        return reply.status(400).send({ message: "Lead could not be saved." });
-      }
-      return reply.status(201).send({ message: "Request saved.", item });
+      return reply.status(201).send({ message: "Request saved." });
     }
   );
 }

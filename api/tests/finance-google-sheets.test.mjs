@@ -128,6 +128,11 @@ test("Google Sheets export preserves formula columns and uses report access", ()
     "Clear ranges should stop before user formula columns."
   );
   assert.match(
+    serviceSource,
+    /clearedColumnCount > definition\.headers\.length[\s\S]*startColumnIndex: definition\.headers\.length[\s\S]*cell: \{[\s\S]*userEnteredFormat: \{\}[\s\S]*fields: "userEnteredFormat"/s,
+    "Retired exported columns should lose their old header formatting."
+  );
+  assert.match(
     routesSource,
     /"\/reports\/google-sheets\/config"[\s\S]*requireReportsAccess\(request, reply, "read"\)[\s\S]*"\/reports\/google-sheets\/export"[\s\S]*requireReportsAccess\(request, reply, "read"\)/s,
     "Both endpoints should use the existing finance reports permission."

@@ -97,6 +97,16 @@ function escapeA1SheetTitle(title) {
   return `'${String(title).replaceAll("'", "''")}'`;
 }
 
+function columnLetterToIndex(columnLetter) {
+  return String(columnLetter || "")
+    .trim()
+    .toUpperCase()
+    .split("")
+    .reduce((index, character) => (
+      (index * 26) + character.charCodeAt(0) - 64
+    ), 0);
+}
+
 function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
@@ -580,6 +590,26 @@ async function prepareSheets({ sheets, spreadsheetId }) {
         }
       });
     });
+    const clearedColumnCount = columnLetterToIndex(
+      definition.clearLastColumn || definition.lastColumn
+    );
+    if (clearedColumnCount > definition.headers.length) {
+      formatRequests.push({
+        repeatCell: {
+          range: {
+            sheetId,
+            startRowIndex: 0,
+            endRowIndex: 1,
+            startColumnIndex: definition.headers.length,
+            endColumnIndex: clearedColumnCount
+          },
+          cell: {
+            userEnteredFormat: {}
+          },
+          fields: "userEnteredFormat"
+        }
+      });
+    }
   });
   await withGoogleRetry(() => sheets.spreadsheets.batchUpdate({
     spreadsheetId,
