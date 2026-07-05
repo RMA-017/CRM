@@ -27,7 +27,8 @@ const SHEET_DEFINITIONS = Object.freeze([
   {
     key: "transactions",
     title: "Транзакции",
-    lastColumn: "L",
+    lastColumn: "K",
+    clearLastColumn: "L",
     headers: [
       "ID транзакции",
       "Дата",
@@ -38,7 +39,6 @@ const SHEET_DEFINITIONS = Object.freeze([
       "Способ оплаты",
       "Сумма",
       "Кассир",
-      "Кассовая сессия",
       "Статус",
       "Примечание / Причина"
     ],
@@ -283,9 +283,6 @@ function makeTransactionExportRow(row) {
     row.payment_method_name || (row.direction === "transfer" ? "Баланс клиента" : ""),
     Math.max(toInteger(row.amount_uzs), 0),
     row.cashier_name || "",
-    row.cash_session_id
-      ? `#${row.cash_session_id}${row.cash_session_opened_at_text ? ` / ${row.cash_session_opened_at_text}` : ""}`
-      : "Не указана",
     status,
     makeTransactionNote(row)
   ];
@@ -382,8 +379,6 @@ async function fetchTransactionRows({ organizationId, year, cursor }) {
             pm.name AS payment_method_name,
             t.amount_uzs,
             COALESCE(NULLIF(TRIM(cu.full_name), ''), NULLIF(TRIM(cu.username), ''), '') AS cashier_name,
-            t.cash_session_id,
-            TO_CHAR(cs.opened_at, 'YYYY-MM-DD HH24:MI:SS') AS cash_session_opened_at_text,
             t.note,
             t.metadata
        FROM finance_transactions t
