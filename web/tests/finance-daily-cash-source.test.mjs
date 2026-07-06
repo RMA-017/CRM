@@ -118,3 +118,19 @@ test("daily cash owns cash session open and close controls", async () => {
     "Cashier board should no longer own cash session controls or the session modal."
   );
 });
+
+test("daily cash date filters include closed cash sessions", () => {
+  assert.match(
+    dailyCashSource,
+    /const applyFilters = \(event\) => \{[\s\S]*const nextFilters = \{[\s\S]*\.\.\.filters,[\s\S]*sessionScope: "all"[\s\S]*setAppliedFilters\(nextFilters\)[\s\S]*loadDailyCash\(1, nextFilters\)/s,
+    "Applying daily cash filters should query historical sessions instead of requiring a currently open cash session."
+  );
+});
+
+test("daily cash filter does not show a cashier input", () => {
+  assert.doesNotMatch(
+    dailyCashSource,
+    /value=\{filters\.cashier\}/,
+    "The daily cash filter should not expose the removed cashier input."
+  );
+});

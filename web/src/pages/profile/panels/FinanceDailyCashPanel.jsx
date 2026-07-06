@@ -9,7 +9,6 @@ import { useI18n } from "../../../i18n/I18nProvider.jsx";
 const EMPTY_FILTERS = Object.freeze({
   dateFrom: getTodayYmd(),
   dateTo: getTodayYmd(),
-  cashier: "",
   client: "",
   service: "",
   paymentMethodId: "",
@@ -422,9 +421,14 @@ function FinanceDailyCashPanel({ onClose, canPayFinanceCashier = false, currentU
 
   const applyFilters = (event) => {
     event.preventDefault();
-    setAppliedFilters(filters);
+    const nextFilters = {
+      ...filters,
+      sessionScope: "all"
+    };
+    setFilters(nextFilters);
+    setAppliedFilters(nextFilters);
     setFiltersOpen(false);
-    void loadDailyCash(1, filters);
+    void loadDailyCash(1, nextFilters);
   };
 
   const applyPaymentMethodSummaryFilter = (paymentMethodId) => {
@@ -702,14 +706,6 @@ function FinanceDailyCashPanel({ onClose, canPayFinanceCashier = false, currentU
                     />
                   </label>
                 </div>
-                <label className="field">
-                  <span>{translate("Cashier")}</span>
-                  <input
-                    type="search"
-                    value={filters.cashier}
-                    onChange={(event) => setFilters((current) => ({ ...current, cashier: event.currentTarget.value }))}
-                  />
-                </label>
                 <label className="field">
                   <span>{translate("Client")}</span>
                   <CustomSelect
