@@ -8915,7 +8915,8 @@ button.finance-daily-cash-method-card:disabled {
   line-height: 1;
 }
 
-.ops-panel-shell .finance-manual-item-grid {
+.ops-panel-shell .finance-manual-item-grid,
+#financeManualTicketModal .finance-manual-item-grid {
   grid-template-columns:
     minmax(150px, 0.75fr)
     minmax(260px, 1.25fr);
@@ -8923,14 +8924,16 @@ button.finance-daily-cash-method-card:disabled {
   align-items: end;
 }
 
-.ops-panel-shell .finance-manual-item-grid.has-manual-price {
+.ops-panel-shell .finance-manual-item-grid.has-manual-price,
+#financeManualTicketModal .finance-manual-item-grid.has-manual-price {
   grid-template-columns:
     minmax(140px, 0.7fr)
     minmax(220px, 1.1fr)
     minmax(120px, 0.52fr);
 }
 
-.ops-panel-shell .finance-manual-price-field {
+.ops-panel-shell .finance-manual-price-field,
+#financeManualTicketModal .finance-manual-price-field {
   min-width: 0;
 }
 
@@ -9884,11 +9887,13 @@ button.finance-daily-cash-method-card:disabled {
     grid-template-columns: minmax(108px, 0.36fr) minmax(0, 1fr);
   }
 
-  .ops-panel-shell .finance-manual-item-grid {
+  .ops-panel-shell .finance-manual-item-grid,
+  #financeManualTicketModal .finance-manual-item-grid {
     grid-template-columns: 1fr;
   }
 
-  .ops-panel-shell .finance-manual-item-grid.has-manual-price {
+  .ops-panel-shell .finance-manual-item-grid.has-manual-price,
+  #financeManualTicketModal .finance-manual-item-grid.has-manual-price {
     grid-template-columns: 1fr;
   }
 

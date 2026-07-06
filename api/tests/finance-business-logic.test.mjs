@@ -171,12 +171,12 @@ test("finance ticket creation accepts pending or confirmed appointments and snap
 
   assert.match(
     financeServiceSource,
-    /const requestedPriceUzs = normalizeAmount\(rawItem\?\.priceUzs[\s\S]*const priceUzs = requestedPriceUzs > 0 \? requestedPriceUzs : normalizeAmount\(service\.price_uzs, 0\)/s,
-    "Ticket line items should allow appointment ticket price overrides while falling back to the service catalog price."
+    /const requestedPriceUzs = normalizeAmount\(rawItem\?\.priceUzs[\s\S]*const snapshotPriceUzs = usesAppointmentSnapshot[\s\S]*appointment\.service_price_uzs[\s\S]*const priceUzs = requestedPriceUzs > 0[\s\S]*snapshotPriceUzs > 0 \? snapshotPriceUzs : normalizeAmount\(service\?\.price_uzs, 0\)/s,
+    "Ticket line items should prefer the submitted price, then the appointment snapshot, then the active catalog price."
   );
   assert.match(
     financeServiceSource,
-    /const submittedServiceName = normalizeText\(rawItem\?\.serviceName \?\? rawItem\?\.service_name, 128\);[\s\S]*const itemServiceName = appointment[\s\S]*submittedServiceName \|\| normalizeText\(appointment\.service_name, 128\) \|\| normalizeText\(service\.name, 128\)[\s\S]*serviceName: itemServiceName/s,
+    /const submittedServiceName = normalizeText\(rawItem\?\.serviceName \?\? rawItem\?\.service_name, 128\);[\s\S]*const itemServiceName = appointment[\s\S]*submittedServiceName \|\| normalizeText\(appointment\.service_name, 128\) \|\| normalizeText\(service\?\.name, 128\)[\s\S]*serviceName: itemServiceName/s,
     "Appointment-backed ticket line items should keep the real appointment service name instead of falling back to specialist position-like catalog labels."
   );
   assert.match(

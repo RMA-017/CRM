@@ -76,6 +76,36 @@ function getAppointmentTicketServiceName({ source, services, serviceId }) {
   return String(selectedService?.name || sourceServiceName || "").trim();
 }
 
+function buildAppointmentServiceOptions({ services, source }) {
+  const options = (Array.isArray(services) ? services : []).filter(Boolean).map((item) => ({
+    value: String(item.id),
+    label: `${item.name || item.id} - ${formatMoney(item.priceUzs)}`,
+    item
+  }));
+  const sourceServiceId = String(source?.serviceId || "").trim();
+  if (!sourceServiceId) return options;
+
+  const matchingIndex = options.findIndex((option) => option.value === sourceServiceId);
+  const matchingService = matchingIndex >= 0 ? options[matchingIndex].item : null;
+  const snapshotService = {
+    ...matchingService,
+    id: sourceServiceId,
+    name: String(source?.serviceName || matchingService?.name || sourceServiceId).trim(),
+    priceUzs: normalizeMoneyInput(source?.servicePriceUzs)
+  };
+  const snapshotOption = {
+    value: sourceServiceId,
+    label: `${snapshotService.name} - ${formatMoney(snapshotService.priceUzs)}`,
+    item: snapshotService
+  };
+
+  if (matchingIndex >= 0) {
+    options[matchingIndex] = snapshotOption;
+    return options;
+  }
+  return [snapshotOption, ...options];
+}
+
 function formatMoney(value) {
   const amount = Number.parseInt(String(value ?? 0), 10) || 0;
   return amount > 0 ? amount.toLocaleString("ru-RU") : "-";
@@ -515,6 +545,10 @@ function FinanceCashierPanel({
     label: `${item.name || item.id} - ${formatMoney(item.priceUzs)}`,
     item
   })), [board.services]);
+  const appointmentServiceOptions = useMemo(() => buildAppointmentServiceOptions({
+    services: board.services,
+    source: appointmentTicketSource
+  }), [appointmentTicketSource, board.services]);
 
   const specialistOptions = useMemo(() => board.specialists.filter(Boolean).map((item) => ({
     value: String(item.id),
@@ -1552,14 +1586,15 @@ function FinanceCashierPanel({
                         <span>{translate("Service")}</span>
                         <CustomSelect
                           value={appointmentTicketForm.serviceId}
-                          options={manualServiceOptions}
+                          options={appointmentServiceOptions}
                           placeholder={translate("Select service type")}
                           searchable
                           searchPlaceholder={translate("Search")}
                           searchThreshold={8}
                           menuPortal
                           onChange={(value) => {
-                            const service = board.services.find((entry) => String(entry.id) === String(value || "")) || {};
+                            const service = appointmentServiceOptions
+                              .find((option) => option.value === String(value || ""))?.item || {};
                             setAppointmentTicketForm((current) => ({
                               ...current,
                               serviceId: value,

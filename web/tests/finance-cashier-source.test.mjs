@@ -70,8 +70,13 @@ test("appointment ticket modal derives price from the selected service before sa
 
   assert.match(
     cashierPanelSource,
-    /value=\{appointmentTicketForm\.serviceId\}[\s\S]*options=\{manualServiceOptions\}[\s\S]*Select service type[\s\S]*priceUzs: String\(normalizeMoneyInput\(service\.priceUzs \?\? current\.priceUzs\)\)/s,
+    /value=\{appointmentTicketForm\.serviceId\}[\s\S]*options=\{appointmentServiceOptions\}[\s\S]*Select service type[\s\S]*priceUzs: String\(normalizeMoneyInput\(service\.priceUzs \?\? current\.priceUzs\)\)/s,
     "The service field in Create Ticket should be a selectable service dropdown that refreshes the price."
+  );
+  assert.match(
+    cashierPanelSource,
+    /function buildAppointmentServiceOptions\(\{ services, source \}\)[\s\S]*source\?\.serviceId[\s\S]*source\?\.serviceName[\s\S]*source\?\.servicePriceUzs[\s\S]*options\[matchingIndex\] = snapshotOption;[\s\S]*return \[snapshotOption, \.\.\.options\];/s,
+    "Create Ticket should show the planner service snapshot even when the catalog entry was renamed or deactivated."
   );
   assert.doesNotMatch(
     cashierPanelSource,
@@ -155,7 +160,7 @@ test("manual ticket modal blocks future ticket dates", async () => {
   );
   assert.match(
     styles,
-    /\.ops-panel-shell \.finance-manual-item-grid\.has-manual-price \{[\s\S]*grid-template-columns:[\s\S]*minmax\(120px, 0\.52fr\);[\s\S]*@media \(max-width: 640px\)[\s\S]*\.ops-panel-shell \.finance-manual-item-grid\.has-manual-price \{[\s\S]*grid-template-columns: 1fr;/s,
+    /\.ops-panel-shell \.finance-manual-item-grid\.has-manual-price,[\s\S]*#financeManualTicketModal \.finance-manual-item-grid\.has-manual-price \{[\s\S]*grid-template-columns:[\s\S]*minmax\(120px, 0\.52fr\);[\s\S]*@media \(max-width: 640px\)[\s\S]*#financeManualTicketModal \.finance-manual-item-grid\.has-manual-price \{[\s\S]*grid-template-columns: 1fr;/s,
     "The optional price field should fit desktop and mobile manual ticket layouts."
   );
 });

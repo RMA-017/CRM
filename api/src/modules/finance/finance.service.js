@@ -3844,14 +3844,21 @@ async function buildTicketItems(db, { organizationId, payload, appointment, fall
         error.statusCode = 400;
         throw error;
       }
+      const appointmentServiceId = parsePositiveInteger(appointment?.service_id) || null;
+      const usesAppointmentSnapshot = Boolean(appointment) && appointmentServiceId === serviceId;
       const service = await getServiceById(db, { organizationId, serviceId });
-      if (!service) {
+      if (!service && !usesAppointmentSnapshot) {
         const error = new Error("Service not found.");
         error.statusCode = 404;
         throw error;
       }
       const requestedPriceUzs = normalizeAmount(rawItem?.priceUzs ?? rawItem?.price_uzs ?? rawItem?.amountUzs ?? rawItem?.amount_uzs, 0);
-      const priceUzs = requestedPriceUzs > 0 ? requestedPriceUzs : normalizeAmount(service.price_uzs, 0);
+      const snapshotPriceUzs = usesAppointmentSnapshot
+        ? normalizeAmount(appointment.service_price_uzs, 0)
+        : 0;
+      const priceUzs = requestedPriceUzs > 0
+        ? requestedPriceUzs
+        : (snapshotPriceUzs > 0 ? snapshotPriceUzs : normalizeAmount(service?.price_uzs, 0));
       if (priceUzs <= 0) {
         const error = new Error("Service price is required.");
         error.statusCode = 400;
@@ -3865,8 +3872,8 @@ async function buildTicketItems(db, { organizationId, payload, appointment, fall
         : calculateDiscountUzs({ priceUzs, discountType, discountValue });
       const submittedServiceName = normalizeText(rawItem?.serviceName ?? rawItem?.service_name, 128);
       const itemServiceName = appointment
-        ? (submittedServiceName || normalizeText(appointment.service_name, 128) || normalizeText(service.name, 128))
-        : normalizeText(service.name, 128);
+        ? (submittedServiceName || normalizeText(appointment.service_name, 128) || normalizeText(service?.name, 128))
+        : normalizeText(service?.name, 128);
       items.push({
         specialistId: specialistId || null,
         serviceId,

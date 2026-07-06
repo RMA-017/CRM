@@ -186,6 +186,9 @@ function buildScheduleSnapshotSql(alias, previousPrefix = "") {
     'appointmentDate', ${col("appointment_date")},
     'startTime', ${col("start_time")},
     'endTime', ${col("end_time")},
+    'serviceId', ${col("service_id")},
+    'serviceName', ${col("service_name")},
+    'servicePriceUzs', ${col("service_price_uzs")},
     'status', ${col("status")}
   )`;
 }
@@ -199,6 +202,9 @@ function buildScheduleChangedFieldsSql(alias, previousPrefix = "prev_") {
     CASE WHEN ${prev("appointment_date")} IS DISTINCT FROM ${next("appointment_date")} THEN 'appointment_date' END,
     CASE WHEN ${prev("start_time")} IS DISTINCT FROM ${next("start_time")} THEN 'start_time' END,
     CASE WHEN ${prev("end_time")} IS DISTINCT FROM ${next("end_time")} THEN 'end_time' END,
+    CASE WHEN ${prev("service_id")} IS DISTINCT FROM ${next("service_id")} THEN 'service_id' END,
+    CASE WHEN ${prev("service_name")} IS DISTINCT FROM ${next("service_name")} THEN 'service_name' END,
+    CASE WHEN ${prev("service_price_uzs")} IS DISTINCT FROM ${next("service_price_uzs")} THEN 'service_price_uzs' END,
     CASE WHEN ${prev("status")} IS DISTINCT FROM ${next("status")} THEN 'status' END
   ]::text[], NULL)`;
 }
