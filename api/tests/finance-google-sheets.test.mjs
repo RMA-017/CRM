@@ -158,8 +158,13 @@ test("Google Sheets export preserves formula columns and uses report access", ()
   );
   assert.match(
     serviceSource,
-    /SHEET_DEFINITIONS[\s\S]*lastColumn: "N"[\s\S]*lastColumn: "K"[\s\S]*clearLastColumn: "L"[\s\S]*lastColumn: "D"[\s\S]*clearLastColumn: "E"/s,
+    /SHEET_DEFINITIONS[\s\S]*lastColumn: "N"[\s\S]*lastColumn: "K"[\s\S]*clearLastColumn: "L"[\s\S]*lastColumn: "D"[\s\S]*trimEmptyTrailingColumns: true/s,
     "Clear ranges should stop before user formula columns."
+  );
+  assert.match(
+    serviceSource,
+    /async function trimEmptyTrailingColumns[\s\S]*spreadsheets\.values\.get[\s\S]*hasTrailingValues[\s\S]*if \(hasTrailingValues\) continue;[\s\S]*deleteDimension:[\s\S]*startIndex: requiredColumnCount,[\s\S]*endIndex: properties\.columnCount/s,
+    "The balances sheet should shrink to four columns only when all trailing columns are empty."
   );
   assert.match(
     serviceSource,

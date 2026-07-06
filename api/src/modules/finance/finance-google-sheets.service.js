@@ -55,7 +55,6 @@ const SHEET_DEFINITIONS = Object.freeze([
     key: "balances",
     title: "Балансы клиентов",
     lastColumn: "D",
-    clearLastColumn: "E",
     headers: [
       "ID клиента",
       "Клиент",
@@ -63,7 +62,8 @@ const SHEET_DEFINITIONS = Object.freeze([
       "Депозит"
     ],
     moneyColumns: [2, 3],
-    dateColumns: []
+    dateColumns: [],
+    trimEmptyTrailingColumns: true
   }
 ]);
 
@@ -623,8 +623,53 @@ async function ensureSheets(sheets, spreadsheetId) {
   return existing;
 }
 
+async function trimEmptyTrailingColumns({ sheets, spreadsheetId, sheetProperties }) {
+  const pendingDeletes = [];
+  for (const definition of SHEET_DEFINITIONS) {
+    if (!definition.trimEmptyTrailingColumns) continue;
+    const properties = sheetProperties.get(definition.title);
+    const requiredColumnCount = definition.headers.length;
+    if (!properties || properties.columnCount <= requiredColumnCount) continue;
+
+    const firstTrailingColumn = columnIndexToLetter(requiredColumnCount + 1);
+    const lastTrailingColumn = columnIndexToLetter(properties.columnCount);
+    const response = await withGoogleRetry(() => sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `${escapeA1SheetTitle(definition.title)}!${firstTrailingColumn}:${lastTrailingColumn}`,
+      majorDimension: "ROWS"
+    }));
+    const hasTrailingValues = (response.data.values || []).some((row) => (
+      (Array.isArray(row) ? row : []).some((value) => String(value ?? "").trim() !== "")
+    ));
+    if (hasTrailingValues) continue;
+
+    pendingDeletes.push({
+      properties,
+      request: {
+        deleteDimension: {
+          range: {
+            sheetId: properties.sheetId,
+            dimension: "COLUMNS",
+            startIndex: requiredColumnCount,
+            endIndex: properties.columnCount
+          }
+        }
+      }
+    });
+  }
+  if (pendingDeletes.length === 0) return;
+  await withGoogleRetry(() => sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: { requests: pendingDeletes.map((item) => item.request) }
+  }));
+  pendingDeletes.forEach(({ properties, request }) => {
+    properties.columnCount = request.deleteDimension.range.startIndex;
+  });
+}
+
 async function prepareSheets({ sheets, spreadsheetId }) {
   const sheetProperties = await ensureSheets(sheets, spreadsheetId);
+  await trimEmptyTrailingColumns({ sheets, spreadsheetId, sheetProperties });
   const sheetIds = new Map(
     Array.from(sheetProperties, ([title, properties]) => [title, properties.sheetId])
   );
