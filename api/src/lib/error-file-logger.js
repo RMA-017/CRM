@@ -2,6 +2,36 @@ import { createWriteStream, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
 const NOOP = () => {};
+const REDACTED = "[REDACTED]";
+const SENSITIVE_LOG_KEYS = new Set([
+  "authorization",
+  "cookie",
+  "cookies",
+  "rawheaders",
+  "password",
+  "passwd",
+  "privatekey",
+  "private_key",
+  "secret",
+  "set-cookie",
+  "token"
+]);
+
+function isSensitiveLogKey(key) {
+  const normalized = String(key || "").trim().toLowerCase();
+  if (SENSITIVE_LOG_KEYS.has(normalized)) return true;
+  return normalized.endsWith("password")
+    || normalized.endsWith("secret")
+    || normalized.endsWith("token")
+    || normalized.endsWith("privatekey")
+    || normalized.endsWith("private_key");
+}
+
+function redactSensitiveText(value) {
+  return String(value)
+    .replace(/\bBearer\s+[^\s"',;]+/gi, `Bearer ${REDACTED}`)
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, REDACTED);
+}
 
 function toSerializableError(error) {
   if (!(error instanceof Error)) {
@@ -16,9 +46,15 @@ function toSerializableError(error) {
 
 function createSafeJsonReplacer() {
   const seen = new WeakSet();
-  return (_key, value) => {
+  return (key, value) => {
+    if (isSensitiveLogKey(key)) {
+      return REDACTED;
+    }
     if (value instanceof Error) {
       return toSerializableError(value);
+    }
+    if (typeof value === "string") {
+      return redactSensitiveText(value);
     }
     if (typeof value === "bigint") {
       return value.toString();
@@ -170,3 +206,7 @@ export function createErrorFileLogger({
   const writeLine = pathValue ? createLineWriter(pathValue) : NOOP;
   return buildLogger({ writeLine });
 }
+
+export const __errorFileLoggerContracts = Object.freeze({
+  safeStringify
+});
