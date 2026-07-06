@@ -8923,6 +8923,17 @@ button.finance-daily-cash-method-card:disabled {
   align-items: end;
 }
 
+.ops-panel-shell .finance-manual-item-grid.has-manual-price {
+  grid-template-columns:
+    minmax(140px, 0.7fr)
+    minmax(220px, 1.1fr)
+    minmax(120px, 0.52fr);
+}
+
+.ops-panel-shell .finance-manual-price-field {
+  min-width: 0;
+}
+
 #financeManualTicketModal .finance-ticket-total,
 #financeAppointmentTicketModal .finance-ticket-total {
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -9874,6 +9885,10 @@ button.finance-daily-cash-method-card:disabled {
   }
 
   .ops-panel-shell .finance-manual-item-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ops-panel-shell .finance-manual-item-grid.has-manual-price {
     grid-template-columns: 1fr;
   }
 

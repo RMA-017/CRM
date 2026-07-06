@@ -113,6 +113,10 @@ test("manual ticket modal blocks future ticket dates", async () => {
     new URL("../src/i18n/translations.js", import.meta.url),
     "utf8"
   );
+  const styles = await readFile(
+    new URL("../src/css/components/components.css", import.meta.url),
+    "utf8"
+  );
 
   assert.match(
     cashierPanelSource,
@@ -133,6 +137,26 @@ test("manual ticket modal blocks future ticket dates", async () => {
     translations,
     /Future ticket dates are not allowed\.", uz: "Kelajak sanasiga talon yaratib bo'lmaydi\.", ru: "Нельзя создавать талоны на будущую дату\."/,
     "Future ticket date validation should have Uzbek and Russian text."
+  );
+  assert.match(
+    cashierPanelSource,
+    /function createManualItem\(\) \{[\s\S]*priceUzs: ""[\s\S]*const getManualItemPrice = useCallback\(\(item\) => \{[\s\S]*catalogPriceUzs > 0 \? catalogPriceUzs : normalizeMoneyInput\(item\?\.priceUzs\)/s,
+    "Manual ticket lines should fall back to an entered price only when the catalog has no price."
+  );
+  assert.match(
+    cashierPanelSource,
+    /const requiresManualPrice = Boolean\(item\.serviceId\)[\s\S]*normalizeMoneyInput\(selectedService\?\.priceUzs\) <= 0;[\s\S]*finance-manual-item-grid\$\{requiresManualPrice \? " has-manual-price" : ""\}[\s\S]*translate\("Price"\)[\s\S]*value=\{item\.priceUzs\}/s,
+    "A price input should appear for a selected zero-price service."
+  );
+  assert.match(
+    cashierPanelSource,
+    /items: manualForm\.items\.map\(\(item, index\) => \(\{[\s\S]*priceUzs: manualItemsWithServices\[index\]\?\.priceUzs \|\| 0/,
+    "The manually entered price should be persisted in the ticket item snapshot."
+  );
+  assert.match(
+    styles,
+    /\.ops-panel-shell \.finance-manual-item-grid\.has-manual-price \{[\s\S]*grid-template-columns:[\s\S]*minmax\(120px, 0\.52fr\);[\s\S]*@media \(max-width: 640px\)[\s\S]*\.ops-panel-shell \.finance-manual-item-grid\.has-manual-price \{[\s\S]*grid-template-columns: 1fr;/s,
+    "The optional price field should fit desktop and mobile manual ticket layouts."
   );
 });
 

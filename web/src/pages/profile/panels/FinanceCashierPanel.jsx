@@ -22,7 +22,8 @@ function createManualItem() {
   return {
     key: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     specialistId: "",
-    serviceId: ""
+    serviceId: "",
+    priceUzs: ""
   };
 }
 
@@ -744,6 +745,12 @@ function FinanceCashierPanel({
     board.services.find((service) => String(service.id) === String(item?.serviceId || "")) || null
   ), [board.services]);
 
+  const getManualItemPrice = useCallback((item) => {
+    const service = getManualItemService(item);
+    const catalogPriceUzs = normalizeMoneyInput(service?.priceUzs);
+    return catalogPriceUzs > 0 ? catalogPriceUzs : normalizeMoneyInput(item?.priceUzs);
+  }, [getManualItemService]);
+
   const openAppointmentTicketModal = (item) => {
     if (!canCreateFinanceCashier) return;
     setAppointmentTicketSource(item);
@@ -988,17 +995,17 @@ function FinanceCashierPanel({
   const appointmentFinalUzs = Math.max(appointmentPriceUzs - appointmentDiscountUzs, 0);
 
   const manualTotals = useMemo(() => {
-    const subtotalUzs = manualForm.items.reduce((sum, item) => {
-      const service = board.services.find((entry) => String(entry.id) === String(item.serviceId || ""));
-      return sum + normalizeMoneyInput(service?.priceUzs);
-    }, 0);
+    const subtotalUzs = manualForm.items.reduce(
+      (sum, item) => sum + getManualItemPrice(item),
+      0
+    );
     const discountUzs = calculateDiscount(subtotalUzs, manualForm.discountType, manualForm.discountValue);
     return {
       subtotalUzs,
       discountUzs,
       totalUzs: Math.max(subtotalUzs - discountUzs, 0)
     };
-  }, [board.services, manualForm.discountType, manualForm.discountValue, manualForm.items]);
+  }, [getManualItemPrice, manualForm.discountType, manualForm.discountValue, manualForm.items]);
   const maxManualTicketDate = todayDateValue();
 
   const submitBatchPayment = async (event) => {
@@ -1081,9 +1088,10 @@ function FinanceCashierPanel({
     }
     const manualItemsWithServices = manualForm.items.map((item) => ({
       item,
-      service: getManualItemService(item)
+      service: getManualItemService(item),
+      priceUzs: getManualItemPrice(item)
     }));
-    for (const { item, service } of manualItemsWithServices) {
+    for (const { item, priceUzs } of manualItemsWithServices) {
       if (!String(item.specialistId || "").trim()) {
         window.alert?.(translate("Specialist is required."));
         return;
@@ -1092,7 +1100,7 @@ function FinanceCashierPanel({
         window.alert?.(translate("Service is required."));
         return;
       }
-      if (normalizeMoneyInput(service?.priceUzs) <= 0) {
+      if (priceUzs <= 0) {
         window.alert?.(translate("Service price is required."));
         return;
       }
@@ -1102,7 +1110,7 @@ function FinanceCashierPanel({
       return;
     }
     const manualItemDiscounts = distributeDiscountUzs(
-      manualItemsWithServices.map(({ service }) => service?.priceUzs),
+      manualItemsWithServices.map(({ priceUzs }) => priceUzs),
       manualTotals.discountUzs
     );
     setManualSubmitting(true);
@@ -1116,6 +1124,7 @@ function FinanceCashierPanel({
           items: manualForm.items.map((item, index) => ({
             specialistId: item.specialistId,
             serviceId: item.serviceId,
+            priceUzs: manualItemsWithServices[index]?.priceUzs || 0,
             discountType: manualForm.discountType === "percent" ? "percent" : "amount",
             discountValue: manualForm.discountType === "percent"
               ? manualForm.discountValue
@@ -1667,6 +1676,9 @@ function FinanceCashierPanel({
 
                 <div className="finance-manual-items">
                   {manualForm.items.map((item, index) => {
+                    const selectedService = getManualItemService(item);
+                    const requiresManualPrice = Boolean(item.serviceId)
+                      && normalizeMoneyInput(selectedService?.priceUzs) <= 0;
                     return (
                       <div className="finance-manual-item" key={item.key}>
                         <div className="settings-card-row finance-manual-item-head">
@@ -1693,7 +1705,7 @@ function FinanceCashierPanel({
                             </button>
                           </div>
                         </div>
-                        <div className="finance-manual-item-grid">
+                        <div className={`finance-manual-item-grid${requiresManualPrice ? " has-manual-price" : ""}`}>
                           <label className="field">
                             <CustomSelect
                               value={item.specialistId}
@@ -1715,9 +1727,32 @@ function FinanceCashierPanel({
                               searchThreshold={1}
                               menuPortal
                               emptyText={translate("No items found.")}
-                              onChange={(value) => updateManualItem(item.key, { serviceId: value })}
+                              onChange={(value) => {
+                                const service = board.services.find(
+                                  (entry) => String(entry.id) === String(value || "")
+                                );
+                                const catalogPriceUzs = normalizeMoneyInput(service?.priceUzs);
+                                updateManualItem(item.key, {
+                                  serviceId: value,
+                                  priceUzs: catalogPriceUzs > 0 ? String(catalogPriceUzs) : ""
+                                });
+                              }}
                             />
                           </label>
+                          {requiresManualPrice ? (
+                            <label className="field finance-manual-price-field">
+                              <span>{translate("Price")}</span>
+                              <input
+                                type="number"
+                                min="1"
+                                inputMode="numeric"
+                                value={item.priceUzs}
+                                onChange={(event) => updateManualItem(item.key, {
+                                  priceUzs: event.currentTarget.value
+                                })}
+                              />
+                            </label>
+                          ) : null}
                         </div>
                       </div>
                     );
