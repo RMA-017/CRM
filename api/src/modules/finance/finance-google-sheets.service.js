@@ -22,7 +22,11 @@ const SHEET_DEFINITIONS = Object.freeze([
       "Оплачено",
       "Осталось"
     ],
-    moneyColumns: [9, 10, 11, 12, 13]
+    moneyColumns: [9, 10, 11, 12, 13],
+    dateColumns: [
+      { columnIndex: 1, pattern: "dd.mm.yyyy hh:mm" },
+      { columnIndex: 4, pattern: "dd.mm.yyyy" }
+    ]
   },
   {
     key: "transactions",
@@ -42,7 +46,10 @@ const SHEET_DEFINITIONS = Object.freeze([
       "Статус",
       "Примечание / Причина"
     ],
-    moneyColumns: [7]
+    moneyColumns: [7],
+    dateColumns: [
+      { columnIndex: 1, pattern: "dd.mm.yyyy hh:mm" }
+    ]
   },
   {
     key: "balances",
@@ -55,7 +62,8 @@ const SHEET_DEFINITIONS = Object.freeze([
       "Долг",
       "Депозит"
     ],
-    moneyColumns: [2, 3]
+    moneyColumns: [2, 3],
+    dateColumns: []
   }
 ]);
 
@@ -65,6 +73,8 @@ const BALANCE_BATCH_SIZE = 2500;
 const SHEETS_WRITE_CHUNK_SIZE = 2500;
 const GOOGLE_RETRY_ATTEMPTS = 5;
 const WRITE_THROTTLE_MS = 1050;
+const GOOGLE_SHEETS_EPOCH_UTC_MS = Date.UTC(1899, 11, 30);
+const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
 
 const TICKET_STATUS_LABELS = Object.freeze({
   issued: "Выдан",
@@ -91,6 +101,41 @@ function normalizeYear(value) {
 function toInteger(value) {
   const parsed = Number.parseInt(String(value ?? 0), 10);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function toGoogleSheetsDateValue(value) {
+  const match = String(value || "").trim().match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/
+  );
+  if (!match) return "";
+  const [, yearRaw, monthRaw, dayRaw, hourRaw = "0", minuteRaw = "0", secondRaw = "0"] = match;
+  const year = Number.parseInt(yearRaw, 10);
+  const month = Number.parseInt(monthRaw, 10);
+  const day = Number.parseInt(dayRaw, 10);
+  const hour = Number.parseInt(hourRaw, 10);
+  const minute = Number.parseInt(minuteRaw, 10);
+  const second = Number.parseInt(secondRaw, 10);
+  const dateOnlyUtcMs = Date.UTC(year, month - 1, day);
+  const parsedDate = new Date(dateOnlyUtcMs);
+  if (
+    parsedDate.getUTCFullYear() !== year
+    || parsedDate.getUTCMonth() !== month - 1
+    || parsedDate.getUTCDate() !== day
+    || hour < 0
+    || hour > 23
+    || minute < 0
+    || minute > 59
+    || second < 0
+    || second > 59
+  ) {
+    return "";
+  }
+  return (
+    (dateOnlyUtcMs - GOOGLE_SHEETS_EPOCH_UTC_MS) / DAY_IN_MILLISECONDS
+    + hour / 24
+    + minute / (24 * 60)
+    + second / (24 * 60 * 60)
+  );
 }
 
 function escapeA1SheetTitle(title) {
@@ -245,10 +290,10 @@ function makeTicketExportRow(row, allocatedPaid) {
   const paid = Math.max(Math.min(toInteger(allocatedPaid), finalAmount), 0);
   return [
     toInteger(row.ticket_number),
-    row.created_at_text || "",
+    toGoogleSheetsDateValue(row.created_at_text),
     row.client_name || "",
     toInteger(row.client_id),
-    row.ticket_date_text || "",
+    toGoogleSheetsDateValue(row.ticket_date_text),
     row.service_name || "",
     row.position_label || "",
     row.specialist_name || "",
@@ -285,7 +330,7 @@ function makeTransactionExportRow(row) {
     : (isCorrected ? "Скорректирована" : "Активна");
   return [
     toInteger(row.id),
-    row.transaction_at_text || "",
+    toGoogleSheetsDateValue(row.transaction_at_text),
     TRANSACTION_ACTION_LABELS[row.transaction_type] || row.transaction_type || "",
     row.ticket_number ? toInteger(row.ticket_number) : "",
     row.client_name || "",
@@ -313,7 +358,7 @@ async function fetchTicketRows({ organizationId, year, cursor }) {
      )
      SELECT ft.id AS ticket_id,
             ft.ticket_number,
-            TO_CHAR(ft.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at_text,
+            TO_CHAR(ft.created_at AT TIME ZONE 'Asia/Tashkent', 'YYYY-MM-DD HH24:MI') AS created_at_text,
             CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
             ft.client_id,
             TO_CHAR(ft.ticket_date, 'YYYY-MM-DD') AS ticket_date_text,
@@ -379,7 +424,7 @@ async function fetchTransactionRows({ organizationId, year, cursor }) {
   const [dateFrom, dateTo] = getExportYearBounds(year);
   const result = await pool.query(
     `SELECT t.id,
-            TO_CHAR(t.transaction_at, 'YYYY-MM-DD HH24:MI:SS') AS transaction_at_text,
+            TO_CHAR(t.transaction_at AT TIME ZONE 'Asia/Tashkent', 'YYYY-MM-DD HH24:MI') AS transaction_at_text,
             t.transaction_type,
             t.direction,
             t.status,
@@ -584,6 +629,24 @@ async function prepareSheets({ sheets, spreadsheetId }) {
           cell: {
             userEnteredFormat: {
               numberFormat: { type: "NUMBER", pattern: "#,##0" }
+            }
+          },
+          fields: "userEnteredFormat.numberFormat"
+        }
+      });
+    });
+    definition.dateColumns.forEach(({ columnIndex, pattern }) => {
+      formatRequests.push({
+        repeatCell: {
+          range: {
+            sheetId,
+            startRowIndex: 1,
+            startColumnIndex: columnIndex,
+            endColumnIndex: columnIndex + 1
+          },
+          cell: {
+            userEnteredFormat: {
+              numberFormat: { type: "DATE_TIME", pattern }
             }
           },
           fields: "userEnteredFormat.numberFormat"
@@ -880,5 +943,6 @@ export const __financeGoogleSheetsContracts = Object.freeze({
   makeTicketExportRow,
   makeTransactionExportRow,
   normalizeYear,
-  parseGoogleSpreadsheetUrl
+  parseGoogleSpreadsheetUrl,
+  toGoogleSheetsDateValue
 });

@@ -73,9 +73,11 @@ test("finance Google Sheets export owns the agreed Russian tabs and columns", ()
 });
 
 test("ticket and transaction export rows preserve finance audit values", () => {
+  const expectedTicketDate = __financeGoogleSheetsContracts.toGoogleSheetsDateValue("2026-07-05");
+  const expectedTicketCreatedAt = __financeGoogleSheetsContracts.toGoogleSheetsDateValue("2026-07-05 09:00");
   const ticketRow = __financeGoogleSheetsContracts.makeTicketExportRow({
     ticket_number: 10001,
-    created_at_text: "2026-07-05 09:00:00",
+    created_at_text: "2026-07-05 09:00",
     client_name: "Test Client",
     client_id: 1000,
     ticket_date_text: "2026-07-05",
@@ -87,6 +89,8 @@ test("ticket and transaction export rows preserve finance audit values", () => {
     discount_uzs: 10000,
     final_amount_uzs: 90000
   }, 40000);
+  assert.equal(ticketRow[1], expectedTicketCreatedAt);
+  assert.equal(ticketRow[4], expectedTicketDate);
   assert.deepEqual(ticketRow.slice(8), [
     "Частично оплачен",
     100000,
@@ -98,7 +102,7 @@ test("ticket and transaction export rows preserve finance audit values", () => {
 
   const transactionRow = __financeGoogleSheetsContracts.makeTransactionExportRow({
     id: 77,
-    transaction_at_text: "2026-07-05 09:05:00",
+    transaction_at_text: "2026-07-05 09:05",
     transaction_type: "ticket_payment",
     direction: "in",
     status: "voided",
@@ -111,9 +115,30 @@ test("ticket and transaction export rows preserve finance audit values", () => {
     note: "",
     metadata: { voidReason: "Ошибка кассира" }
   });
+  assert.equal(
+    transactionRow[1],
+    __financeGoogleSheetsContracts.toGoogleSheetsDateValue("2026-07-05 09:05")
+  );
   assert.equal(transactionRow[2], "Оплата талона");
   assert.equal(transactionRow[9], "Отменена");
   assert.equal(transactionRow[10], "Ошибка кассира");
+});
+
+test("Google Sheets export stores real dates with the unified day-month-year format", () => {
+  assert.equal(__financeGoogleSheetsContracts.toGoogleSheetsDateValue("invalid"), "");
+  assert.equal(__financeGoogleSheetsContracts.toGoogleSheetsDateValue("2026-02-30"), "");
+  assert.deepEqual(__financeGoogleSheetsContracts.SHEET_DEFINITIONS[0].dateColumns, [
+    { columnIndex: 1, pattern: "dd.mm.yyyy hh:mm" },
+    { columnIndex: 4, pattern: "dd.mm.yyyy" }
+  ]);
+  assert.deepEqual(__financeGoogleSheetsContracts.SHEET_DEFINITIONS[1].dateColumns, [
+    { columnIndex: 1, pattern: "dd.mm.yyyy hh:mm" }
+  ]);
+  assert.match(
+    serviceSource,
+    /AT TIME ZONE 'Asia\/Tashkent'[\s\S]*definition\.dateColumns\.forEach[\s\S]*numberFormat: \{ type: "DATE_TIME", pattern \}/s,
+    "Timestamp exports should use Tashkent time and Google Sheets date formatting."
+  );
 });
 
 test("Google Sheets export preserves formula columns and uses report access", () => {
