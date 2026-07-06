@@ -5,6 +5,13 @@ export function registerAppointmentEventRoutes(fastify, context) {
     isAllowedCorsOrigin,
     subscribeAppointmentEvents
   } = context;
+  const activeConnections = new Set();
+
+  fastify.addHook("preClose", (done) => {
+    Array.from(activeConnections).forEach((cleanUp) => cleanUp());
+    activeConnections.clear();
+    done();
+  });
 
   fastify.get(
     "/events",
@@ -65,12 +72,14 @@ export function registerAppointmentEventRoutes(fastify, context) {
           return;
         }
         cleaned = true;
+        activeConnections.delete(cleanUp);
         clearInterval(pingTimer);
         unsubscribe();
         if (!reply.raw.writableEnded) {
           reply.raw.end();
         }
       };
+      activeConnections.add(cleanUp);
 
       request.raw.on("close", cleanUp);
       request.raw.on("error", cleanUp);

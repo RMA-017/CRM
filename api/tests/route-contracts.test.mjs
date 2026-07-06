@@ -21,6 +21,7 @@ const { default: usersRoutes } = await import("../src/modules/users/users.routes
 
 function createRouteRecorder() {
   const routes = [];
+  const hooks = [];
 
   function record(method, path, optionsOrHandler, maybeHandler) {
     const hasOptions = typeof optionsOrHandler === "object" && optionsOrHandler !== null;
@@ -36,8 +37,10 @@ function createRouteRecorder() {
 
   return {
     routes,
+    hooks,
     fastify: {
       apiRateLimit: { max: 1, timeWindow: 1000 },
+      addHook: (name, handler) => hooks.push({ name, handler }),
       get: (path, optionsOrHandler, maybeHandler) => record("GET", path, optionsOrHandler, maybeHandler),
       post: (path, optionsOrHandler, maybeHandler) => record("POST", path, optionsOrHandler, maybeHandler),
       put: (path, optionsOrHandler, maybeHandler) => record("PUT", path, optionsOrHandler, maybeHandler),
@@ -71,6 +74,11 @@ test("appointments routes expose stable contract", async () => {
   await appointmentSettingsRoutes(recorder.fastify);
 
   assertRateLimitConfigured(recorder.routes);
+  assert.equal(
+    recorder.hooks.some((hook) => hook.name === "preClose"),
+    true,
+    "Appointment routes should register graceful SSE shutdown cleanup."
+  );
 
   assert.deepEqual(toRouteSignatures(recorder.routes), [
     "DELETE /absences/:id",
