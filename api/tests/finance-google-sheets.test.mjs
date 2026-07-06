@@ -142,10 +142,19 @@ test("Google Sheets export stores real dates with the unified day-month-year for
 });
 
 test("Google Sheets export preserves formula columns and uses report access", () => {
+  const transactionDefinition = __financeGoogleSheetsContracts.SHEET_DEFINITIONS[1];
+  assert.equal(
+    __financeGoogleSheetsContracts.getSheetClearLastColumn(transactionDefinition, 11),
+    "K"
+  );
+  assert.equal(
+    __financeGoogleSheetsContracts.getSheetClearLastColumn(transactionDefinition, 12),
+    "L"
+  );
   assert.match(
     serviceSource,
-    /ranges: SHEET_DEFINITIONS\.map[\s\S]*definition\.clearLastColumn \|\| definition\.lastColumn/s,
-    "Only CRM-owned columns should be cleared."
+    /fields: "sheets\.properties\(sheetId,title,gridProperties\(columnCount\)\)"[\s\S]*getSheetClearLastColumn\([\s\S]*clearEndColumnIndex = Math\.min\(clearedColumnCount, availableColumnCount\)/s,
+    "Clearing retired columns should stay inside each sheet's actual grid limits."
   );
   assert.match(
     serviceSource,
@@ -154,7 +163,7 @@ test("Google Sheets export preserves formula columns and uses report access", ()
   );
   assert.match(
     serviceSource,
-    /clearedColumnCount > definition\.headers\.length[\s\S]*startColumnIndex: definition\.headers\.length[\s\S]*cell: \{[\s\S]*userEnteredFormat: \{\}[\s\S]*fields: "userEnteredFormat"/s,
+    /clearEndColumnIndex > definition\.headers\.length[\s\S]*startColumnIndex: definition\.headers\.length[\s\S]*endColumnIndex: clearEndColumnIndex[\s\S]*cell: \{[\s\S]*userEnteredFormat: \{\}[\s\S]*fields: "userEnteredFormat"/s,
     "Retired exported columns should lose their old header formatting."
   );
   assert.match(

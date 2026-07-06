@@ -152,6 +152,30 @@ function columnLetterToIndex(columnLetter) {
     ), 0);
 }
 
+function columnIndexToLetter(columnIndex) {
+  let index = Number.parseInt(String(columnIndex || ""), 10);
+  if (!Number.isInteger(index) || index <= 0) return "";
+  let output = "";
+  while (index > 0) {
+    const remainder = (index - 1) % 26;
+    output = String.fromCharCode(65 + remainder) + output;
+    index = Math.floor((index - 1) / 26);
+  }
+  return output;
+}
+
+function getSheetClearLastColumn(definition, gridColumnCount) {
+  const exportedColumnCount = columnLetterToIndex(definition.lastColumn);
+  const desiredColumnCount = columnLetterToIndex(
+    definition.clearLastColumn || definition.lastColumn
+  );
+  const availableColumnCount = Number.parseInt(String(gridColumnCount || ""), 10);
+  const safeColumnCount = Number.isInteger(availableColumnCount) && availableColumnCount > 0
+    ? Math.max(exportedColumnCount, Math.min(desiredColumnCount, availableColumnCount))
+    : exportedColumnCount;
+  return columnIndexToLetter(safeColumnCount);
+}
+
 function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
@@ -533,12 +557,18 @@ async function fetchBalanceRows({ organizationId, cursor }) {
 async function ensureSheets(sheets, spreadsheetId) {
   const metadata = await withGoogleRetry(() => sheets.spreadsheets.get({
     spreadsheetId,
-    fields: "sheets.properties(sheetId,title)"
+    fields: "sheets.properties(sheetId,title,gridProperties(columnCount))"
   }));
   const existing = new Map(
     (metadata.data.sheets || []).map((sheet) => [
       sheet.properties?.title,
-      sheet.properties?.sheetId
+      {
+        sheetId: sheet.properties?.sheetId,
+        columnCount: Number.parseInt(
+          String(sheet.properties?.gridProperties?.columnCount || ""),
+          10
+        ) || 0
+      }
     ])
   );
   const missing = SHEET_DEFINITIONS.filter((definition) => !existing.has(definition.title));
@@ -554,20 +584,58 @@ async function ensureSheets(sheets, spreadsheetId) {
     (response.data.replies || []).forEach((reply, index) => {
       existing.set(
         missing[index].title,
-        reply.addSheet?.properties?.sheetId
+        {
+          sheetId: reply.addSheet?.properties?.sheetId,
+          columnCount: Number.parseInt(
+            String(reply.addSheet?.properties?.gridProperties?.columnCount || ""),
+            10
+          ) || 26
+        }
       );
     });
+  }
+  const columnExpansionRequests = SHEET_DEFINITIONS.flatMap((definition) => {
+    const properties = existing.get(definition.title);
+    const requiredColumnCount = definition.headers.length;
+    if (
+      properties?.sheetId === undefined
+      || properties?.sheetId === null
+      || properties.columnCount >= requiredColumnCount
+    ) {
+      return [];
+    }
+    const missingColumnCount = requiredColumnCount - properties.columnCount;
+    properties.columnCount = requiredColumnCount;
+    return [{
+      appendDimension: {
+        sheetId: properties.sheetId,
+        dimension: "COLUMNS",
+        length: missingColumnCount
+      }
+    }];
+  });
+  if (columnExpansionRequests.length > 0) {
+    await withGoogleRetry(() => sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: { requests: columnExpansionRequests }
+    }));
   }
   return existing;
 }
 
 async function prepareSheets({ sheets, spreadsheetId }) {
-  const sheetIds = await ensureSheets(sheets, spreadsheetId);
+  const sheetProperties = await ensureSheets(sheets, spreadsheetId);
+  const sheetIds = new Map(
+    Array.from(sheetProperties, ([title, properties]) => [title, properties.sheetId])
+  );
   await withGoogleRetry(() => sheets.spreadsheets.values.batchClear({
     spreadsheetId,
     requestBody: {
       ranges: SHEET_DEFINITIONS.map((definition) => (
-        `${escapeA1SheetTitle(definition.title)}!A:${definition.clearLastColumn || definition.lastColumn}`
+        `${escapeA1SheetTitle(definition.title)}!A:${getSheetClearLastColumn(
+          definition,
+          sheetProperties.get(definition.title)?.columnCount
+        )}`
       ))
     }
   }));
@@ -656,7 +724,9 @@ async function prepareSheets({ sheets, spreadsheetId }) {
     const clearedColumnCount = columnLetterToIndex(
       definition.clearLastColumn || definition.lastColumn
     );
-    if (clearedColumnCount > definition.headers.length) {
+    const availableColumnCount = sheetProperties.get(definition.title)?.columnCount || 0;
+    const clearEndColumnIndex = Math.min(clearedColumnCount, availableColumnCount);
+    if (clearEndColumnIndex > definition.headers.length) {
       formatRequests.push({
         repeatCell: {
           range: {
@@ -664,7 +734,7 @@ async function prepareSheets({ sheets, spreadsheetId }) {
             startRowIndex: 0,
             endRowIndex: 1,
             startColumnIndex: definition.headers.length,
-            endColumnIndex: clearedColumnCount
+            endColumnIndex: clearEndColumnIndex
           },
           cell: {
             userEnteredFormat: {}
@@ -944,5 +1014,6 @@ export const __financeGoogleSheetsContracts = Object.freeze({
   makeTransactionExportRow,
   normalizeYear,
   parseGoogleSpreadsheetUrl,
-  toGoogleSheetsDateValue
+  toGoogleSheetsDateValue,
+  getSheetClearLastColumn
 });
