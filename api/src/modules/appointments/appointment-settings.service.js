@@ -167,6 +167,21 @@ function isAppointmentParentResponsesSchemaMissing(error) {
     || message.includes("response_status");
 }
 
+function isAppointmentAutoRollingRepeatSchemaMissing(error) {
+  if (String(error?.code || "").trim() !== "42703") {
+    return false;
+  }
+  return String(error?.message || "").trim().toLowerCase().includes("is_auto_rolling_repeat");
+}
+
+function createAppointmentAutoRollingRepeatMigrationError() {
+  return createMigrationRequiredError("Appointment auto-rolling repeat migration is required.", {
+    missingColumns: {
+      [APPOINTMENT_SCHEDULES_TABLE]: ["is_auto_rolling_repeat"]
+    }
+  });
+}
+
 export {
   DEFAULT_APPOINTMENT_HISTORY_LOCK_DAYS,
   DEFAULT_APPOINTMENT_SLOT_CELL_HEIGHT_PX,
@@ -3109,25 +3124,16 @@ export async function getAppointmentSchedulesByRange({
       if (includeParentResponses && isAppointmentParentResponsesSchemaMissing(error)) {
         return fetchAppointmentRows({ includeParentResponses: false });
       }
+      if (isAppointmentAutoRollingRepeatSchemaMissing(error)) {
+        throw createAppointmentAutoRollingRepeatMigrationError();
+      }
       throw error;
     }
   };
 
-  const [appointmentResult, vipRoutineRows] = await Promise.all([
-    fetchAppointmentRows(),
-    ((!vipOnly && normalizedSpecialistId > 0) || (vipOnly && normalizedClientId > 0))
-      ? listVipDailyRoutineScheduleItems({
-          organizationId,
-          specialistId: normalizedSpecialistId || null,
-          clientId: normalizedClientId || null,
-          dateFrom,
-          dateTo
-        })
-      : Promise.resolve([])
-  ]);
+  const appointmentResult = await fetchAppointmentRows();
 
-  const items = [...(appointmentResult?.rows || []), ...(Array.isArray(vipRoutineRows) ? vipRoutineRows : [])]
-    .map(toScheduleItem);
+  const items = (appointmentResult?.rows || []).map(toScheduleItem);
 
   items.sort((left, right) => (
     String(left?.appointmentDate || "").localeCompare(String(right?.appointmentDate || ""))
@@ -3238,6 +3244,9 @@ async function listAutoRollingRepeatRoots({
 
     return Array.isArray(rows) ? rows : [];
   } catch (error) {
+    if (isAppointmentAutoRollingRepeatSchemaMissing(error)) {
+      throw createAppointmentAutoRollingRepeatMigrationError();
+    }
     // Older VIP schemas can miss assignment tables/columns used only for auto-rolling scope checks.
     // In that case we skip auto-extension instead of failing the whole planner read.
     if (isMissingVipAssignmentScopeSchemaError(error)) {

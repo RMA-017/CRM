@@ -40,4 +40,14 @@ test("Appointment auto-rolling repeat wiring is present in schema, service, and 
     /ensureAutoRollingRecurringSchedulesCoverRange\(/,
     "Schedule routes should extend auto-rolling repeat series before reading planner data."
   );
+  assert.match(
+    serviceSource,
+    /isAppointmentAutoRollingRepeatSchemaMissing\(/,
+    "Appointment service should recognize a missing auto-rolling repeat column."
+  );
+  assert.match(
+    serviceSource,
+    /Appointment auto-rolling repeat migration is required\./,
+    "Appointment service should return a clear migration error instead of a generic schedule read failure."
+  );
 });

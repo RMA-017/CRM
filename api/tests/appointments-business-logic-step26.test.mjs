@@ -1111,6 +1111,46 @@ test("schedule read allows planner readers to query another specialist planner",
   assert.equal(capturedArgs?.specialistId, 9);
 });
 
+test("schedule read returns migration details when auto-rolling repeat schema is missing", async () => {
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      getAppointmentSchedulesByRange: async () => {
+        const error = new Error("Appointment auto-rolling repeat migration is required.");
+        error.code = "MIGRATION_REQUIRED";
+        error.details = {
+          missingColumns: {
+            appointment_schedules: ["is_auto_rolling_repeat"]
+          }
+        };
+        throw error;
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "GET", "/schedules");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      query: {
+        specialistId: "5",
+        dateFrom: "2027-07-05",
+        dateTo: "2027-07-10"
+      }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 409);
+  assert.equal(reply.state.payload?.code, "MIGRATION_REQUIRED");
+  assert.equal(reply.state.payload?.message, "Appointment auto-rolling repeat migration is required.");
+  assert.deepEqual(reply.state.payload?.details?.missingColumns?.appointment_schedules, ["is_auto_rolling_repeat"]);
+});
+
 test("breaks read allows planner readers to query another specialist", async () => {
   const recorder = createRouteRecorder();
   let capturedArgs = null;
