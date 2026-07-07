@@ -139,6 +139,11 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
     /const compactAppointmentRowSpanByDay = useMemo\(\(\) => \{[\s\S]*if \(!isPlannerCreatedLessonItem\(apptItem\)\) \{[\s\S]*return;[\s\S]*spanMap\[slot\] = span;/s,
     "Booked-only mode should ignore routine and blocker items when computing compact rows."
   );
+  assert.doesNotMatch(
+    source,
+    /vipClassDailyRoutines/,
+    "VIP daily routines should not be mixed into planner rows."
+  );
   assert.match(
     source,
     /const renderedTimeSlots = useMemo\(\(\) => \{[\s\S]*if \(!compactOccupiedOnly\) \{[\s\S]*return timeSlots;[\s\S]*Object\.prototype\.hasOwnProperty\.call\(compactAppointmentRowSpanByDay\[day\.key\] \|\| \{\}, slot\)/s,

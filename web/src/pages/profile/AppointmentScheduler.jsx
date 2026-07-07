@@ -788,29 +788,6 @@ function formatAppointmentStatusLabel(value) {
   return normalized ? `${normalized.slice(0, 1).toUpperCase()}${normalized.slice(1)}` : "-";
 }
 
-function formatVipDailyRoutineActivityLabel(value) {
-  const normalized = String(value || "").trim().toLowerCase();
-  if (normalized === "lesson") {
-    return "Group lesson";
-  }
-  if (normalized === "breakfast") {
-    return "Breakfast";
-  }
-  if (normalized === "lunch") {
-    return "Lunch";
-  }
-  if (normalized === "afternoon-snack") {
-    return "Afternoon snack";
-  }
-  if (normalized === "sleep") {
-    return "Sleep time";
-  }
-  if (normalized === "other") {
-    return "Other";
-  }
-  return "Daily routine";
-}
-
 function compareVipWeeklyItems(left, right) {
   const leftStart = Number.isInteger(left?.startMinutes) ? left.startMinutes : Number.MAX_SAFE_INTEGER;
   const rightStart = Number.isInteger(right?.startMinutes) ? right.startMinutes : Number.MAX_SAFE_INTEGER;
@@ -2638,8 +2615,7 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
   vipOnly = false,
   recurringOnly = false,
   showWeekSwitcher = true,
-  compactOccupiedOnly = false,
-  vipClassDailyRoutines = []
+  compactOccupiedOnly = false
 }, ref) {
   const { t, translate } = useI18n();
   const showPlannerAlert = useCallback((text) => {
@@ -4068,59 +4044,6 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
     )
       ? vipSchedulesByClass[classId]
       : {};
-    const routineItemsByDay = weekDays.reduce((acc, day) => {
-      acc[day.key] = [];
-      return acc;
-    }, {});
-
-    if (classId) {
-      const classRoutines = Array.isArray(vipClassDailyRoutines) ? vipClassDailyRoutines : [];
-      classRoutines.forEach((routine, index) => {
-        const routineClassId = String(routine?.classId || routine?.class_assignment_id || "").trim();
-        if (!routineClassId || routineClassId !== classId) {
-          return;
-        }
-        const dayOfWeek = Number.parseInt(String(routine?.dayOfWeek ?? routine?.day_of_week ?? "").trim(), 10);
-        const dayKey = DAY_NUM_TO_KEY[dayOfWeek] || "";
-        if (!dayKey || !Array.isArray(routineItemsByDay[dayKey])) {
-          return;
-        }
-        const startTime = String(routine?.startTime || routine?.start_time || "").trim();
-        const endTime = String(routine?.endTime || routine?.end_time || "").trim();
-        if (!startTime) {
-          return;
-        }
-
-        const routineId = String(routine?.id || "").trim() || `${classId}-${dayKey}-${startTime}-${index}`;
-        const activityLabel = formatVipDailyRoutineActivityLabel(routine?.activityType || routine?.activity_type);
-        const note = String(routine?.note || "").trim();
-        const timeLabel = formatAppointmentTimeRangeLabel(startTime, endTime) || startTime;
-        const startMinutes = normalizeTimeToMinutes(startTime);
-
-        routineItemsByDay[dayKey].push({
-          id: `routine-${routineId}`,
-          itemType: "daily-routine",
-          appointmentId: "",
-          startMinutes,
-          timeLabel,
-          primaryText: activityLabel,
-          secondaryText: note || "Daily routine",
-          status: "routine",
-          specialistId: "",
-          clientId: "",
-          appointmentDate: "",
-          startTime,
-          endTime,
-          durationMinutes: getDurationMinutesFromTimes(startTime, endTime),
-          serviceName: activityLabel,
-          note
-        });
-      });
-    }
-
-    Object.keys(routineItemsByDay).forEach((dayKey) => {
-      routineItemsByDay[dayKey].sort(compareVipWeeklyItems);
-    });
 
     const rows = selectedVipClassClients
       .filter((client) => {
@@ -4145,8 +4068,7 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
         weekDays.forEach((day) => {
           const dayKey = String(day?.key || "").trim().toLowerCase();
           const scheduledDayItems = Array.isArray(clientSchedules[dayKey]) ? clientSchedules[dayKey] : [];
-          const routineDayItems = Array.isArray(routineItemsByDay[dayKey]) ? routineItemsByDay[dayKey] : [];
-          const dayItems = [...scheduledDayItems, ...routineDayItems];
+          const dayItems = [...scheduledDayItems];
           dayItems.sort(compareVipWeeklyItems);
           dayItemsByKey[dayKey] = dayItems;
         });
@@ -4166,7 +4088,6 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
     selectedVipClassClients,
     selectedVipClientFilterId,
     vipOnly,
-    vipClassDailyRoutines,
     vipSchedulesByClass,
     vipSchedulesWeekKeyByClass,
     weekDataKey,
