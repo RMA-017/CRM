@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import CustomSelect from "../../../components/CustomSelect.jsx";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { formatDateYMD } from "../../../lib/formatters.js";
+import { useEscapeKey } from "../../../lib/use-escape-key.js";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 
 function todayDateValue() {
@@ -1041,6 +1042,20 @@ function FinanceCashierPanel({
     };
   }, [getManualItemPrice, manualForm.discountType, manualForm.discountValue, manualForm.items]);
   const maxManualTicketDate = todayDateValue();
+
+  useEscapeKey(Boolean(batchPaymentTickets.length > 0 || appointmentTicketSource || manualModalOpen), () => {
+    if (batchPaymentTickets.length > 0) {
+      closeBatchPaymentModal();
+      return;
+    }
+    if (appointmentTicketSource) {
+      closeAppointmentTicketModal();
+      return;
+    }
+    if (manualModalOpen) {
+      closeManualModal();
+    }
+  });
 
   const submitBatchPayment = async (event) => {
     event.preventDefault();

@@ -4,6 +4,7 @@ import CustomSelect from "../../../components/CustomSelect.jsx";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { buildExportFilename, exportExcelWorkbook } from "../../../lib/excel-export.js";
 import { formatDateTimeTashkent, getTodayYmd } from "../../../lib/formatters.js";
+import { useEscapeKey } from "../../../lib/use-escape-key.js";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 
 const EMPTY_FILTERS = Object.freeze({
@@ -457,6 +458,20 @@ function FinanceDailyCashPanel({ onClose, canPayFinanceCashier = false, currentU
     setSessionModal("");
     setSessionForm(EMPTY_SESSION_FORM);
   };
+
+  useEscapeKey(Boolean(sessionModal || filtersOpen || columnsOpen), () => {
+    if (sessionModal) {
+      closeSessionModal();
+      return;
+    }
+    if (filtersOpen) {
+      setFiltersOpen(false);
+      return;
+    }
+    if (columnsOpen) {
+      closeColumns();
+    }
+  });
 
   const submitCashSession = async (event) => {
     event.preventDefault();

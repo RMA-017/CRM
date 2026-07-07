@@ -4,6 +4,7 @@ import CustomSelect from "../../../components/CustomSelect.jsx";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { buildExportFilename, exportExcelWorkbook } from "../../../lib/excel-export.js";
 import { formatDateTimeTashkent, getTodayYmd } from "../../../lib/formatters.js";
+import { useEscapeKey } from "../../../lib/use-escape-key.js";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 
 const EMPTY_FILTERS = Object.freeze({
@@ -402,6 +403,20 @@ function FinanceTransactionsPanel({ onClose, canPayFinanceCashier = false }) {
     setVoidTarget(null);
     setVoidReason("");
   };
+
+  useEscapeKey(Boolean(voidTarget || filtersOpen || columnsOpen), () => {
+    if (voidTarget) {
+      closeVoidTransaction();
+      return;
+    }
+    if (filtersOpen) {
+      setFiltersOpen(false);
+      return;
+    }
+    if (columnsOpen) {
+      closeColumns();
+    }
+  });
 
   const submitVoidTransaction = async (event) => {
     event.preventDefault();

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { buildExportFilename, exportExcelWorkbook } from "../../../lib/excel-export.js";
 import { formatDateTimeTashkent, formatDateYMD } from "../../../lib/formatters.js";
+import { useEscapeKey } from "../../../lib/use-escape-key.js";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 import CustomSelect from "../../../components/CustomSelect.jsx";
 
@@ -1119,6 +1120,24 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
   const closeColumns = () => {
     setColumnsOpen(false);
   };
+
+  useEscapeKey(Boolean(editTicket || historyTicket || filtersOpen || columnsOpen), () => {
+    if (editTicket) {
+      closeEditTicket();
+      return;
+    }
+    if (historyTicket) {
+      closeHistory();
+      return;
+    }
+    if (filtersOpen) {
+      closeFilters();
+      return;
+    }
+    if (columnsOpen) {
+      closeColumns();
+    }
+  });
 
   return (
     <section id="financeTicketsPanel" className="all-users-panel settings-panel ops-panel-shell finance-panel-shell finance-tickets-panel">

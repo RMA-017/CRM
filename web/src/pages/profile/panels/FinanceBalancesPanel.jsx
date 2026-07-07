@@ -4,6 +4,7 @@ import CustomSelect from "../../../components/CustomSelect.jsx";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { buildExportFilename, exportExcelWorkbook } from "../../../lib/excel-export.js";
 import { formatDateTimeTashkent } from "../../../lib/formatters.js";
+import { useEscapeKey } from "../../../lib/use-escape-key.js";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 
 const EMPTY_FILTERS = Object.freeze({
@@ -559,6 +560,20 @@ function FinanceBalancesPanel({ onClose }) {
     setDepositSourceRows([]);
     setDepositSourceLoading(false);
   };
+
+  useEscapeKey(Boolean(depositModal || ledgerColumnsOpen || ledgerClient), () => {
+    if (depositModal) {
+      closeDepositModal();
+      return;
+    }
+    if (ledgerColumnsOpen) {
+      closeLedgerColumns();
+      return;
+    }
+    if (ledgerClient) {
+      closeClientLedger();
+    }
+  });
 
   const submitDepositOperation = async (event) => {
     event.preventDefault();

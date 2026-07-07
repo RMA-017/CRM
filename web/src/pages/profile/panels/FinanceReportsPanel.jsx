@@ -4,6 +4,7 @@ import CustomSelect from "../../../components/CustomSelect.jsx";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { buildExportFilename, exportExcelWorkbook } from "../../../lib/excel-export.js";
 import { formatDateTimeTashkent, formatDateYMD } from "../../../lib/formatters.js";
+import { useEscapeKey } from "../../../lib/use-escape-key.js";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 
 const EMPTY_FILTERS = Object.freeze({
@@ -783,6 +784,16 @@ function FinanceReportsPanel({ onClose }) {
     if (googleSheetsExporting) return;
     setGoogleSheetsOpen(false);
   };
+
+  useEscapeKey(Boolean(googleSheetsOpen || filtersOpen), () => {
+    if (googleSheetsOpen) {
+      closeGoogleSheetsExport();
+      return;
+    }
+    if (filtersOpen) {
+      setFiltersOpen(false);
+    }
+  });
 
   const submitGoogleSheetsExport = async (event) => {
     event.preventDefault();

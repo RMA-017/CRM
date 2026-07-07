@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 import { formatDateYMD } from "../../../lib/formatters.js";
+import { useEscapeKey } from "../../../lib/use-escape-key.js";
 
 const EMPTY_FORM = Object.freeze({
   id: "",
@@ -66,6 +67,8 @@ function FinanceSettingsPanel({
     setModalOpen(false);
     resetForm();
   };
+
+  useEscapeKey(modalOpen, closeModal);
 
   const submitForm = async (event) => {
     event.preventDefault();
