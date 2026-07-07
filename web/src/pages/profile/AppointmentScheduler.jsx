@@ -3927,8 +3927,10 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
     && createModal.repeatType === "weekly"
     && Boolean(String(createModal.repeatGroupKey || "").trim());
   const normalizedEditScope = normalizeEditScopeValue(createForm.editScope);
+  const isCancelledRecurringEdit = isEditRecurring
+    && String(createModal.originalStatus || "").trim().toLowerCase() === "cancelled";
   const showRecurringEditNextToggle = createModal.mode === "edit" && isEditRecurring;
-  const shouldShowRecurringEditNextToggle = showRecurringEditNextToggle && !isSpecialistLimitedEditMode;
+  const shouldShowRecurringEditNextToggle = showRecurringEditNextToggle && !isSpecialistLimitedEditMode && !isCancelledRecurringEdit;
   const canEditRecurringSeriesPattern = !isEditRecurring || normalizedEditScope !== "single";
   const shouldLockEditDate = isEditRecurring && normalizedEditScope !== "single";
   const isSingleEntryMode = !createForm.repeatEnabled;
@@ -5359,10 +5361,12 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
       });
     }
 
+    const existingStatus = String(existingItem?.status || "").trim().toLowerCase();
     const isExistingRecurring = Boolean(
       String(existingItem?.repeatType || "").trim().toLowerCase() === "weekly"
       && String(existingItem?.repeatGroupKey || "").trim()
     );
+    const shouldDefaultRecurringEditToSingle = isExistingRecurring && existingStatus === "cancelled";
     const existingRepeatDays = inferCurrentSeriesRepeatDayKeys(
       existingItem,
       Array.isArray(existingItem?.repeatDays) ? existingItem.repeatDays : []
@@ -5382,7 +5386,7 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
       repeatType: String(existingItem?.repeatType || "none").trim().toLowerCase(),
       repeatGroupKey: String(existingItem?.repeatGroupKey || "").trim(),
       originalRepeatDays: existingRepeatDays,
-      originalStatus: String(existingItem?.status || "").trim(),
+      originalStatus: existingStatus,
       plannerBlockType: "",
       plannerBlockOriginal: null
     });
@@ -5401,9 +5405,9 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
         serviceId: String(existingItem?.serviceId || ""),
         service: String(existingItem?.service || DEFAULT_APPOINTMENT_SERVICE_NAME),
         servicePriceUzs: String(existingItem?.servicePriceUzs ?? 0),
-        status: String(existingItem?.status || "pending"),
+        status: existingStatus || "pending",
         note: String(existingItem?.note || ""),
-        editScope: isExistingRecurring ? "future" : "single",
+        editScope: isExistingRecurring && !shouldDefaultRecurringEditToSingle ? "future" : "single",
         repeatEnabled: isExistingRecurring,
         repeatUntil: isExistingRecurring
           ? String(existingItem?.repeatUntilDate || appointmentDate || "").trim()
@@ -6618,7 +6622,7 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
         servicePriceUzs: String(createForm.servicePriceUzs ?? "0").trim(),
         status: String(createForm.status || "pending").trim().toLowerCase(),
         note: String(createForm.note || "").trim(),
-        editScope: isSpecialistLimitedEditMode ? "single" : normalizeEditScopeValue(createForm.editScope),
+        editScope: isSpecialistLimitedEditMode || isCancelledRecurringEdit ? "single" : normalizeEditScopeValue(createForm.editScope),
         repeatEnabled: Boolean(createForm.repeatEnabled),
         repeatUntil: String(createForm.repeatUntil || "").trim(),
         repeatDays: Array.isArray(createForm.repeatDays)
@@ -6937,7 +6941,7 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
       setCreateDeleting(true);
       setCreateErrors({});
 
-      const deleteScope = isSpecialistLimitedEditMode ? "single" : normalizeEditScopeValue(createForm.editScope);
+      const deleteScope = isSpecialistLimitedEditMode || isCancelledRecurringEdit ? "single" : normalizeEditScopeValue(createForm.editScope);
       const queryParams = new URLSearchParams({ scope: deleteScope });
       if (isEditRecurring && (deleteScope === "future" || deleteScope === "single")) {
         const deleteDayKeys = deleteScope === "single"

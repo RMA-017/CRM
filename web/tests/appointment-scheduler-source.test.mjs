@@ -546,8 +546,8 @@ test("Appointment scheduler recurring edit restores and submits series repeat se
   );
   assert.match(
     source,
-    /editScope: isExistingRecurring \? "future" : "single"/,
-    "Recurring edits should default to series scope."
+    /const shouldDefaultRecurringEditToSingle = isExistingRecurring && existingStatus === "cancelled";[\s\S]*editScope: isExistingRecurring && !shouldDefaultRecurringEditToSingle \? "future" : "single"/,
+    "Recurring edits should default to series scope except cancelled occurrences, which stay single-slot scoped."
   );
   assert.match(
     source,
@@ -571,7 +571,7 @@ test("Appointment scheduler recurring edit restores and submits series repeat se
   );
   assert.match(
     source,
-    /const deleteScope = isSpecialistLimitedEditMode \? "single" : normalizeEditScopeValue\(createForm\.editScope\);[\s\S]*if \(isEditRecurring && \(deleteScope === "future" \|\| deleteScope === "single"\)\) \{[\s\S]*const deleteDayKeys = deleteScope === "single"[\s\S]*normalizeRepeatDayKeys\(\[selectedSingleRecurringEditDayKey\]\)[\s\S]*normalizeRepeatDayKeys\(createForm\.repeatDays\)[\s\S]*queryParams\.set\("dayKeys", deleteDayKeys\.join\(","\)\);/s,
+    /const deleteScope = isSpecialistLimitedEditMode \|\| isCancelledRecurringEdit \? "single" : normalizeEditScopeValue\(createForm\.editScope\);[\s\S]*if \(isEditRecurring && \(deleteScope === "future" \|\| deleteScope === "single"\)\) \{[\s\S]*const deleteDayKeys = deleteScope === "single"[\s\S]*normalizeRepeatDayKeys\(\[selectedSingleRecurringEditDayKey\]\)[\s\S]*normalizeRepeatDayKeys\(createForm\.repeatDays\)[\s\S]*queryParams\.set\("dayKeys", deleteDayKeys\.join\(","\)\);/s,
     "Recurring deletes should forward explicit weekday targets for all-series scope."
   );
   assert.match(

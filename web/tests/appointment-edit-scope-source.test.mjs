@@ -17,7 +17,17 @@ test("recurring appointment edit scope uses the shared series one checkbox", asy
   );
   assert.match(
     source,
-    /editScope: isExistingRecurring \? "future" : "single"/,
-    "Recurring edits should default to the full series scope until One is checked."
+    /const shouldDefaultRecurringEditToSingle = isExistingRecurring && existingStatus === "cancelled";[\s\S]*editScope: isExistingRecurring && !shouldDefaultRecurringEditToSingle \? "future" : "single"/,
+    "Recurring edits should default to series scope, except cancelled occurrences should reopen as a single-slot edit."
+  );
+  assert.match(
+    source,
+    /const isCancelledRecurringEdit = isEditRecurring[\s\S]*createModal\.originalStatus[\s\S]*"cancelled";[\s\S]*shouldShowRecurringEditNextToggle = showRecurringEditNextToggle && !isSpecialistLimitedEditMode && !isCancelledRecurringEdit/s,
+    "Cancelled recurring appointments should not expose the future-series edit toggle from a cancelled slot."
+  );
+  assert.match(
+    source,
+    /editScope: isSpecialistLimitedEditMode \|\| isCancelledRecurringEdit \? "single" : normalizeEditScopeValue\(createForm\.editScope\)[\s\S]*const deleteScope = isSpecialistLimitedEditMode \|\| isCancelledRecurringEdit \? "single" : normalizeEditScopeValue\(createForm\.editScope\)/s,
+    "Submitting or deleting a cancelled recurring appointment should stay scoped to the selected slot."
   );
 });
