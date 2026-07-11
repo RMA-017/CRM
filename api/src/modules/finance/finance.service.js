@@ -4,7 +4,6 @@ import { createMigrationRequiredError } from "../../lib/schema-guard.js";
 import { getAppointmentHistoryLockDaysByOrganization } from "../appointments/appointment-settings.service.js";
 import { updateAppointmentSchedulesByIds } from "../appointments/services/appointment-schedules.service.js";
 
-const BOARD_LIMIT = 80;
 const FINANCE_BATCH_PAYMENT_SCHEMA_ERROR_CODES = new Set(["42P01", "42703", "23502", "23514"]);
 
 function normalizeAmount(value, fallback = 0) {
@@ -751,8 +750,6 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
       OR a.client_id::text = $${exactParam}
     )`);
   }
-  appointmentParams.push(BOARD_LIMIT);
-
   const overdueAppointmentParams = [organizationId, historyLockCutoffDate, todayYmd];
   const overdueAppointmentFilters = [
     "a.organization_id = $1",
@@ -774,8 +771,6 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
       OR a.client_id::text = $${exactParam}
     )`);
   }
-  overdueAppointmentParams.push(BOARD_LIMIT);
-
   const ticketParams = [organizationId];
   const ticketFilters = [
     "ft.organization_id = $1",
@@ -796,7 +791,6 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
       OR ft.appointment_schedule_id::text = $${exactParam}
     )`);
   }
-  ticketParams.push(BOARD_LIMIT);
   const [
     appointmentsResult,
     overdueAppointmentsResult,
@@ -827,8 +821,7 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
           AND ft.appointment_schedule_id = a.id
           AND ft.status <> 'voided'
         WHERE ${appointmentFilters.join(" AND ")}
-        ORDER BY a.appointment_date ASC, a.start_time ASC, a.id ASC
-        LIMIT $${appointmentParams.length}`,
+        ORDER BY a.appointment_date ASC, a.start_time ASC, a.id ASC`,
       appointmentParams
     ),
     pool.query(
@@ -852,8 +845,7 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
           AND ft.appointment_schedule_id = a.id
           AND ft.status <> 'voided'
         WHERE ${overdueAppointmentFilters.join(" AND ")}
-        ORDER BY a.appointment_date DESC, a.start_time ASC, a.id ASC
-        LIMIT $${overdueAppointmentParams.length}`,
+        ORDER BY a.appointment_date DESC, a.start_time ASC, a.id ASC`,
       overdueAppointmentParams
     ),
     pool.query(
@@ -937,8 +929,7 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
               AND fti_item.ticket_id = ft.id
          ) fti ON TRUE
         WHERE ${ticketFilters.join(" AND ")}
-        ORDER BY ft.updated_at DESC, ft.id DESC
-        LIMIT $${ticketParams.length}`,
+        ORDER BY ft.updated_at DESC, ft.id DESC`,
       ticketParams
     ),
     pool.query(

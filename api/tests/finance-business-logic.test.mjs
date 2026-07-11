@@ -98,13 +98,31 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
   assert.match(
     financeServiceSource,
     /export async function getCashierBoard\(\{ organizationId, dateFrom, dateTo, query \}\)[\s\S]*normalizeText\(query, 96\)[\s\S]*appointmentFilters\.push\(`\([\s\S]*a\.client_id::text = \$\$\{exactParam\}[\s\S]*ticketFilters\.push\(`\([\s\S]*ft\.ticket_number::text = \$\$\{exactParam\}/s,
-    "Cashier board search should be applied server-side for appointments and tickets before the board limit."
+    "Cashier board search should be applied server-side for appointments and tickets before grouping."
   );
 
   assert.match(
     financeServiceSource,
     /const todayYmd = getTodayYmdInTashkent\(\);[\s\S]*const boardDateFrom = dates\.from \|\| dates\.to \|\| todayYmd;[\s\S]*const boardDateTo = dates\.to \|\| boardDateFrom;[\s\S]*"a\.appointment_date >= \$2::date"[\s\S]*"a\.appointment_date <= \$3::date"[\s\S]*const ticketParams = \[organizationId\];[\s\S]*"ft\.status IN \('issued', 'unpaid'\)"/s,
     "Cashier board appointment columns should stay date-scoped while open tickets remain visible until paid."
+  );
+
+  assert.doesNotMatch(
+    financeServiceSource,
+    /appointmentParams\.push\(BOARD_LIMIT\)/,
+    "Cashier appointment status columns should not limit today cards; every in-date appointment without a ticket must stay visible."
+  );
+
+  assert.doesNotMatch(
+    financeServiceSource,
+    /ticketParams\.push\(BOARD_LIMIT\)/,
+    "Cashier ticket column should not limit open tickets; issued and partially paid tickets must stay available for payment."
+  );
+
+  assert.doesNotMatch(
+    financeServiceSource,
+    /overdueAppointmentParams\.push\(BOARD_LIMIT\)/,
+    "Awaiting Ticket should stay scoped by history lock days but should not hide older in-window cards behind a board limit."
   );
 
   assert.match(
