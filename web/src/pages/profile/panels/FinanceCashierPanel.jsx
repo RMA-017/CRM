@@ -348,44 +348,6 @@ function normalizeSearchValue(value) {
   return String(value ?? "").trim().toLowerCase();
 }
 
-function ticketCardMatchesFilters(item, filters) {
-  const clientQuery = normalizeSearchValue(filters?.clientQuery);
-  const serviceId = String(filters?.serviceId || "").trim();
-  const specialistId = String(filters?.specialistId || "").trim();
-  if (clientQuery) {
-    const clientHaystack = [
-      item?.clientName,
-      item?.clientId
-    ].map(normalizeSearchValue).join(" ");
-    if (!clientHaystack.includes(clientQuery)) {
-      return false;
-    }
-  }
-  if (serviceId && String(item?.serviceId || "") !== serviceId) {
-    const hasMatchingItem = getTicketLineItems(item).some((row) => String(row?.serviceId || "") === serviceId);
-    if (!hasMatchingItem) {
-      return false;
-    }
-  }
-  if (specialistId && String(item?.specialistId || "") !== specialistId) {
-    const hasMatchingItem = getTicketLineItems(item).some((row) => String(row?.specialistId || "") === specialistId);
-    if (!hasMatchingItem) {
-      return false;
-    }
-  }
-  return true;
-}
-
-function filterBoardItems(items, filters) {
-  const hasFilters = Boolean(
-    normalizeSearchValue(filters?.clientQuery)
-    || String(filters?.serviceId || "").trim()
-    || String(filters?.specialistId || "").trim()
-  );
-  if (!hasFilters) return items;
-  return items.filter((item) => ticketCardMatchesFilters(item, filters));
-}
-
 function normalizeStatusKey(value) {
   return String(value || "").trim().toLowerCase().replace(/_/g, "-");
 }
@@ -587,13 +549,13 @@ function FinanceCashierPanel({
   })), [board.specialists]);
 
   const visibleBoard = useMemo(() => ({
-    pendingAppointments: filterBoardItems(board.pendingAppointments, boardFilters),
-    cancelledAppointments: filterBoardItems(board.cancelledAppointments, boardFilters),
-    noShowAppointments: filterBoardItems(board.noShowAppointments, boardFilters),
-    confirmedAppointments: filterBoardItems(board.confirmedAppointments, boardFilters),
-    overdueConfirmedAppointments: filterBoardItems(board.overdueConfirmedAppointments, boardFilters),
-    issuedTickets: filterBoardItems(board.issuedTickets, boardFilters)
-  }), [board, boardFilters]);
+    pendingAppointments: board.pendingAppointments,
+    cancelledAppointments: board.cancelledAppointments,
+    noShowAppointments: board.noShowAppointments,
+    confirmedAppointments: board.confirmedAppointments,
+    overdueConfirmedAppointments: board.overdueConfirmedAppointments,
+    issuedTickets: board.issuedTickets
+  }), [board]);
   const isBoardFilterActive = Boolean(
     normalizeSearchValue(boardFilters.clientQuery)
     || boardFilters.serviceId
@@ -602,9 +564,7 @@ function FinanceCashierPanel({
   const hasMoreBoardItems = CASHIER_BOARD_COLUMN_KEYS.some((key) => (
     getBoardLoadedCount(board, key) < getBoardTotalCount(board, key)
   ));
-  const getBoardDisplayTotal = (key) => (
-    isBoardFilterActive ? getBoardLoadedCount(board, key) : getBoardTotalCount(board, key)
-  );
+  const getBoardDisplayTotal = (key) => getBoardTotalCount(board, key);
   const loadMoreBoardItems = () => {
     setBoardLimit((current) => current + CASHIER_BOARD_LIMIT_STEP);
   };
@@ -681,6 +641,18 @@ function FinanceCashierPanel({
     setBoardLoading(true);
     try {
       const query = new URLSearchParams({ limit: String(boardLimit) });
+      const clientQuery = String(boardFilters.clientQuery || "").trim();
+      const serviceId = String(boardFilters.serviceId || "").trim();
+      const specialistId = String(boardFilters.specialistId || "").trim();
+      if (clientQuery) {
+        query.set("clientQuery", clientQuery);
+      }
+      if (serviceId) {
+        query.set("serviceId", serviceId);
+      }
+      if (specialistId) {
+        query.set("specialistId", specialistId);
+      }
       const response = await apiFetch(`/api/finance/cashier/board?${query.toString()}`);
       const data = await readApiResponseData(response);
       if (!isCurrentRequest()) return;
@@ -716,7 +688,7 @@ function FinanceCashierPanel({
         setBoardLoading(false);
       }
     }
-  }, [boardLimit, translate]);
+  }, [boardFilters.clientQuery, boardFilters.serviceId, boardFilters.specialistId, boardLimit, translate]);
 
   const loadCashSession = useCallback(async () => {
     if (!canPayFinanceCashier) {
@@ -1257,6 +1229,7 @@ function FinanceCashierPanel({
             placeholder={translate("Client")}
             onChange={(event) => {
               const value = event.currentTarget.value;
+              setBoardLimit(CASHIER_BOARD_LIMIT_STEP);
               setBoardFilters((current) => ({ ...current, clientQuery: value }));
             }}
           />
@@ -1270,7 +1243,10 @@ function FinanceCashierPanel({
               searchThreshold={1}
               menuPortal
               maxVisibleOptions={8}
-              onChange={(value) => setBoardFilters((current) => ({ ...current, serviceId: value }))}
+              onChange={(value) => {
+                setBoardLimit(CASHIER_BOARD_LIMIT_STEP);
+                setBoardFilters((current) => ({ ...current, serviceId: value }));
+              }}
             />
           </div>
           <div className="finance-board-head-select-filter" aria-label={translate("Specialist")}>
@@ -1283,14 +1259,20 @@ function FinanceCashierPanel({
               searchThreshold={1}
               menuPortal
               maxVisibleOptions={8}
-              onChange={(value) => setBoardFilters((current) => ({ ...current, specialistId: value }))}
+              onChange={(value) => {
+                setBoardLimit(CASHIER_BOARD_LIMIT_STEP);
+                setBoardFilters((current) => ({ ...current, specialistId: value }));
+              }}
             />
           </div>
           <button
             type="button"
             className="table-action-btn finance-board-head-reset"
             disabled={!isBoardFilterActive}
-            onClick={() => setBoardFilters({ clientQuery: "", serviceId: "", specialistId: "" })}
+            onClick={() => {
+              setBoardLimit(CASHIER_BOARD_LIMIT_STEP);
+              setBoardFilters({ clientQuery: "", serviceId: "", specialistId: "" });
+            }}
           >
             {translate("Reset")}
           </button>
@@ -1427,7 +1409,8 @@ function FinanceCashierPanel({
             disabled={boardLoading}
             onClick={loadMoreBoardItems}
           >
-            {translate("Show more")}
+            <span>{translate("Show more")}</span>
+            <span className="finance-board-load-more-icon" aria-hidden="true" />
           </button>
         </div>
       ) : null}

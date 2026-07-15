@@ -205,6 +205,16 @@ test("cashier board uses one shared load-more control for all columns", async ()
   );
   assert.match(
     cashierPanelSource,
+    /const clientQuery = String\(boardFilters\.clientQuery \|\| ""\)\.trim\(\);[\s\S]*query\.set\("clientQuery", clientQuery\);[\s\S]*query\.set\("serviceId", serviceId\);[\s\S]*query\.set\("specialistId", specialistId\);[\s\S]*\}, \[boardFilters\.clientQuery, boardFilters\.serviceId, boardFilters\.specialistId, boardLimit, translate\]\);/s,
+    "Cashier board filters should be sent to the API before the 100-card batch is applied."
+  );
+  assert.match(
+    cashierPanelSource,
+    /setBoardLimit\(CASHIER_BOARD_LIMIT_STEP\);[\s\S]*setBoardFilters\(\(current\) => \(\{ \.\.\.current, clientQuery: value \}\)\);[\s\S]*setBoardFilters\(\(current\) => \(\{ \.\.\.current, serviceId: value \}\)\);[\s\S]*setBoardFilters\(\(current\) => \(\{ \.\.\.current, specialistId: value \}\)\);/s,
+    "Changing any cashier board filter should restart the shared batch from the first 100 matching records."
+  );
+  assert.match(
+    cashierPanelSource,
     /const hasMoreBoardItems = CASHIER_BOARD_COLUMN_KEYS\.some[\s\S]*getBoardLoadedCount\(board, key\) < getBoardTotalCount\(board, key\)[\s\S]*const loadMoreBoardItems = \(\) => \{[\s\S]*setBoardLimit\(\(current\) => current \+ CASHIER_BOARD_LIMIT_STEP\);[\s\S]*finance-board-load-more-row[\s\S]*translate\("Show more"\)/s,
     "A single Show more button should expand every cashier board column together."
   );
@@ -215,8 +225,8 @@ test("cashier board uses one shared load-more control for all columns", async ()
   );
   assert.match(
     styles,
-    /\.finance-cashier-panel \.finance-board-load-more-row \{[\s\S]*justify-content: center;[\s\S]*\.finance-cashier-panel \.finance-board-load-more \{[\s\S]*min-width: 140px;/s,
-    "The shared load-more button should sit below the cashier board."
+    /\.finance-cashier-panel \.finance-board-load-more-row \{[\s\S]*justify-content: center;[\s\S]*\.finance-cashier-panel \.finance-board-load-more \{[\s\S]*display: inline-flex;[\s\S]*min-width: 154px;[\s\S]*\.finance-cashier-panel \.finance-board-load-more-icon \{[\s\S]*transform: translateY\(-2px\) rotate\(45deg\);/s,
+    "The shared load-more button should sit below the cashier board with a down chevron."
   );
 });
 

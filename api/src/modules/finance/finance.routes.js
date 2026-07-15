@@ -734,6 +734,9 @@ async function financeRoutes(fastify) {
           organizationId: request.authContext.organizationId,
           dateFrom: request.query?.dateFrom ?? request.query?.date_from,
           dateTo: request.query?.dateTo ?? request.query?.date_to,
+          clientQuery: request.query?.clientQuery ?? request.query?.client_query,
+          serviceId: request.query?.serviceId ?? request.query?.service_id,
+          specialistId: request.query?.specialistId ?? request.query?.specialist_id,
           query: request.query?.q ?? request.query?.query ?? request.query?.search,
           limit: request.query?.limit
         }));

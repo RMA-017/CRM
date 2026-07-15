@@ -8074,12 +8074,40 @@ button.finance-daily-cash-method-card:disabled {
 .finance-cashier-panel .finance-board-load-more-row {
   display: flex;
   justify-content: center;
-  padding: 2px 0 10px;
+  padding: 4px 0 12px;
 }
 
 .finance-cashier-panel .finance-board-load-more {
-  min-width: 140px;
-  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 154px;
+  height: 34px;
+  padding: 0 14px;
+  border-color: rgba(64, 138, 243, 0.28);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(239, 246, 255, 0.92));
+  color: var(--brand);
+  box-shadow: 0 8px 20px rgba(64, 138, 243, 0.12);
+}
+
+.finance-cashier-panel .finance-board-load-more:hover:not(:disabled) {
+  border-color: rgba(64, 138, 243, 0.42);
+  background: linear-gradient(180deg, #fff, rgba(219, 234, 254, 0.96));
+  box-shadow: 0 10px 24px rgba(64, 138, 243, 0.18);
+}
+
+.finance-cashier-panel .finance-board-load-more-icon {
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  opacity: 0.86;
+}
+
+.finance-cashier-panel .finance-board-load-more:disabled .finance-board-load-more-icon {
+  opacity: 0.45;
 }
 
 .finance-cashier-panel .settings-card {

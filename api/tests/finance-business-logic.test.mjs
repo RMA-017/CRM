@@ -97,8 +97,20 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
 
   assert.match(
     financeServiceSource,
-    /export async function getCashierBoard\(\{ organizationId, dateFrom, dateTo, query, limit \}\)[\s\S]*normalizeText\(query, 96\)[\s\S]*appointmentFilters\.push\(`\([\s\S]*a\.client_id::text = \$\$\{exactParam\}[\s\S]*ticketFilters\.push\(`\([\s\S]*ft\.ticket_number::text = \$\$\{exactParam\}/s,
+    /export async function getCashierBoard\(\{[\s\S]*clientQuery,[\s\S]*serviceId,[\s\S]*specialistId,[\s\S]*query,[\s\S]*limit[\s\S]*\}\)[\s\S]*normalizeText\(query, 96\)[\s\S]*appointmentFilters\.push\(`\([\s\S]*a\.client_id::text = \$\$\{exactParam\}[\s\S]*ticketFilters\.push\(`\([\s\S]*ft\.ticket_number::text = \$\$\{exactParam\}/s,
     "Cashier board search should be applied server-side for appointments and tickets before grouping."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /const normalizedClientQuery = normalizeText\(clientQuery, 96\)[\s\S]*appointmentFilters\.push\(`\([\s\S]*LOWER\(CONCAT_WS\(' ', c\.last_name, c\.first_name, c\.middle_name\)\) LIKE \$\$\{likeParam\}[\s\S]*a\.client_id::text = \$\$\{exactParam\}[\s\S]*appointmentFilters\.push\(`a\.service_id = \$\$\{appointmentParams\.length\}`\)[\s\S]*appointmentFilters\.push\(`a\.specialist_id = \$\$\{appointmentParams\.length\}`\)/s,
+    "Cashier appointment columns should apply client, service and specialist filters before the board limit."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /ticketFilters\.push\(`\([\s\S]*LOWER\(CONCAT_WS\(' ', c\.last_name, c\.first_name, c\.middle_name\)\) LIKE \$\$\{likeParam\}[\s\S]*ft\.client_id::text = \$\$\{exactParam\}[\s\S]*ticketFilters\.push\(`\([\s\S]*ft\.service_id = \$\$\{serviceParam\}[\s\S]*FROM finance_ticket_items fti_filter[\s\S]*fti_filter\.service_id = \$\$\{serviceParam\}[\s\S]*ticketFilters\.push\(`\([\s\S]*ft\.specialist_id = \$\$\{specialistParam\}[\s\S]*fti_filter\.specialist_id = \$\$\{specialistParam\}/s,
+    "Cashier ticket column should apply client, service and specialist filters, including multi-service ticket items, before the board limit."
   );
 
   assert.match(

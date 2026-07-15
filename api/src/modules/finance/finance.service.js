@@ -743,7 +743,16 @@ function getStatusTotalCountFromRows(rows, status) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 }
 
-export async function getCashierBoard({ organizationId, dateFrom, dateTo, query, limit }) {
+export async function getCashierBoard({
+  organizationId,
+  dateFrom,
+  dateTo,
+  clientQuery,
+  serviceId,
+  specialistId,
+  query,
+  limit
+}) {
   const dates = getBoardDates({ dateFrom, dateTo });
   const todayYmd = getTodayYmdInTashkent();
   const historyLockDays = await getAppointmentHistoryLockDaysByOrganization(organizationId);
@@ -751,6 +760,10 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query,
   const boardDateFrom = dates.from || dates.to || todayYmd;
   const boardDateTo = dates.to || boardDateFrom;
   const boardLimit = normalizeCashierBoardLimit(limit);
+  const boardServiceId = parsePositiveInteger(serviceId);
+  const boardSpecialistId = parsePositiveInteger(specialistId);
+  const normalizedClientQuery = normalizeText(clientQuery, 96);
+  const normalizedClientQueryLike = `%${normalizedClientQuery.toLowerCase()}%`;
   const normalizedQuery = normalizeText(query, 96);
   const normalizedQueryLike = `%${normalizedQuery.toLowerCase()}%`;
   const appointmentParams = [organizationId, boardDateFrom, boardDateTo];
@@ -773,6 +786,24 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query,
       OR a.id::text = $${exactParam}
       OR a.client_id::text = $${exactParam}
     )`);
+  }
+  if (normalizedClientQuery) {
+    appointmentParams.push(normalizedClientQueryLike);
+    const likeParam = appointmentParams.length;
+    appointmentParams.push(normalizedClientQuery);
+    const exactParam = appointmentParams.length;
+    appointmentFilters.push(`(
+      LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE $${likeParam}
+      OR a.client_id::text = $${exactParam}
+    )`);
+  }
+  if (boardServiceId) {
+    appointmentParams.push(boardServiceId);
+    appointmentFilters.push(`a.service_id = $${appointmentParams.length}`);
+  }
+  if (boardSpecialistId) {
+    appointmentParams.push(boardSpecialistId);
+    appointmentFilters.push(`a.specialist_id = $${appointmentParams.length}`);
   }
   appointmentParams.push(boardLimit);
   const appointmentLimitParam = appointmentParams.length;
@@ -797,6 +828,24 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query,
       OR a.client_id::text = $${exactParam}
     )`);
   }
+  if (normalizedClientQuery) {
+    overdueAppointmentParams.push(normalizedClientQueryLike);
+    const likeParam = overdueAppointmentParams.length;
+    overdueAppointmentParams.push(normalizedClientQuery);
+    const exactParam = overdueAppointmentParams.length;
+    overdueAppointmentFilters.push(`(
+      LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE $${likeParam}
+      OR a.client_id::text = $${exactParam}
+    )`);
+  }
+  if (boardServiceId) {
+    overdueAppointmentParams.push(boardServiceId);
+    overdueAppointmentFilters.push(`a.service_id = $${overdueAppointmentParams.length}`);
+  }
+  if (boardSpecialistId) {
+    overdueAppointmentParams.push(boardSpecialistId);
+    overdueAppointmentFilters.push(`a.specialist_id = $${overdueAppointmentParams.length}`);
+  }
   overdueAppointmentParams.push(boardLimit);
   const overdueAppointmentLimitParam = overdueAppointmentParams.length;
   const ticketParams = [organizationId];
@@ -817,6 +866,44 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query,
       OR ft.id::text = $${exactParam}
       OR ft.client_id::text = $${exactParam}
       OR ft.appointment_schedule_id::text = $${exactParam}
+    )`);
+  }
+  if (normalizedClientQuery) {
+    ticketParams.push(normalizedClientQueryLike);
+    const likeParam = ticketParams.length;
+    ticketParams.push(normalizedClientQuery);
+    const exactParam = ticketParams.length;
+    ticketFilters.push(`(
+      LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE $${likeParam}
+      OR ft.client_id::text = $${exactParam}
+    )`);
+  }
+  if (boardServiceId) {
+    ticketParams.push(boardServiceId);
+    const serviceParam = ticketParams.length;
+    ticketFilters.push(`(
+      ft.service_id = $${serviceParam}
+      OR EXISTS (
+        SELECT 1
+          FROM finance_ticket_items fti_filter
+         WHERE fti_filter.organization_id = ft.organization_id
+           AND fti_filter.ticket_id = ft.id
+           AND fti_filter.service_id = $${serviceParam}
+      )
+    )`);
+  }
+  if (boardSpecialistId) {
+    ticketParams.push(boardSpecialistId);
+    const specialistParam = ticketParams.length;
+    ticketFilters.push(`(
+      ft.specialist_id = $${specialistParam}
+      OR EXISTS (
+        SELECT 1
+          FROM finance_ticket_items fti_filter
+         WHERE fti_filter.organization_id = ft.organization_id
+           AND fti_filter.ticket_id = ft.id
+           AND fti_filter.specialist_id = $${specialistParam}
+      )
     )`);
   }
   ticketParams.push(boardLimit);
