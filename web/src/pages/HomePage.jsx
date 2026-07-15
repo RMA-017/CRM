@@ -27,7 +27,6 @@ const HOME_I18N = {
       { href: "#kids", label: "Bolalar ijodi" },
       { href: "#blog", label: "Maqolalar" },
       { href: "#signup", label: "Onlayn yozilish" },
-      { href: "#partners", label: "Hamkorlar" },
       { href: "#contact", label: "Aloqa" }
     ],
     actions: {
@@ -123,12 +122,6 @@ const HOME_I18N = {
         phone: "Telefon raqamni to'liq kiriting."
       }
     },
-    partners: {
-      kicker: "Hamkorlar",
-      title: "Hamkorlarimiz",
-      text: "Birgalikda yaxshiroq natijalar uchun",
-      empty: "Hozircha hamkorlar yo'q"
-    },
     contact: {
       kicker: "Aloqa",
       title: "Biz bilan bog'laning",
@@ -160,7 +153,6 @@ const HOME_I18N = {
       { href: "#kids", label: "Творчество детей" },
       { href: "#blog", label: "Статьи" },
       { href: "#signup", label: "Онлайн запись" },
-      { href: "#partners", label: "Партнеры" },
       { href: "#contact", label: "Контакты" }
     ],
     actions: {
@@ -255,12 +247,6 @@ const HOME_I18N = {
         fullName: "Ф.И.О. должно содержать минимум 3 символа.",
         phone: "Введите полный номер телефона."
       }
-    },
-    partners: {
-      kicker: "Партнеры",
-      title: "Наши партнеры",
-      text: "Вместе ради лучших результатов",
-      empty: "Пока партнеров нет"
     },
     contact: {
       kicker: "Контакты",
@@ -438,30 +424,6 @@ function getBlogPath(item) {
   return `/blog/${encodeURIComponent(`${id}-${slugifyBlogTitle(item?.name || item?.nameUz || item?.nameRu)}`)}`;
 }
 
-function getUniquePartners(items, language) {
-  const seen = new Set();
-  return (items || []).filter((item) => {
-    const partnerName = getLocalizedSiteContentName(item, language).trim().toLowerCase();
-    const partnerImage = String(item?.image || "").trim().toLowerCase();
-    const key = partnerImage || partnerName;
-    if (seen.has(key)) {
-      return false;
-    }
-    seen.add(key);
-    return true;
-  });
-}
-
-function getLocalizedSiteContentName(item, language) {
-  if (!item || typeof item !== "object") {
-    return "";
-  }
-  if (language === "ru") {
-    return item.nameRu || item.name_ru || item.name || "";
-  }
-  return item.nameUz || item.name_uz || item.name || "";
-}
-
 function HomePage() {
   const navigate = useNavigate();
   const menuRef = useRef(null);
@@ -482,7 +444,6 @@ function HomePage() {
   const [blogItems, setBlogItems] = useState([]);
   const [teamItems, setTeamItems] = useState([]);
   const [teamPage, setTeamPage] = useState(1);
-  const [partnerItems, setPartnerItems] = useState([]);
   const { language, setLanguage, t } = useI18n();
   const homeText = HOME_I18N[language];
 
@@ -530,11 +491,6 @@ function HomePage() {
     const startIndex = (teamPage - 1) * TEAM_ITEMS_PER_PAGE;
     return teamItems.slice(startIndex, startIndex + TEAM_ITEMS_PER_PAGE);
   }, [teamItems, teamPage]);
-
-  const visiblePartnerItems = useMemo(
-    () => getUniquePartners(partnerItems, language),
-    [language, partnerItems]
-  );
 
   useEffect(() => {
     let active = true;
@@ -600,7 +556,6 @@ function HomePage() {
         setKidsArtItems(localizedItems.kids);
         setBlogItems(localizedItems.blog);
         setTeamItems(localizedItems.team);
-        setPartnerItems(localizedItems.partners);
       } catch {
         if (!active) {
           return;
@@ -608,7 +563,6 @@ function HomePage() {
         setKidsArtItems([]);
         setBlogItems([]);
         setTeamItems([]);
-        setPartnerItems([]);
       }
     }
 
@@ -1288,40 +1242,6 @@ function HomePage() {
               {signupErrors.phone ? <p className="home-signup-status is-error">{signupErrors.phone}</p> : null}
               {signupMessage ? <p className="home-signup-status">{signupMessage}</p> : null}
             </form>
-          </section>
-
-          <section id="partners" className="home-empty-section home-partners-section" aria-labelledby="partnersTitle">
-            <div className="home-section-head">
-              <p className="home-section-kicker">{homeText.partners.kicker}</p>
-              <h2 id="partnersTitle">{homeText.partners.title}</h2>
-              <p>{homeText.partners.text}</p>
-            </div>
-            {visiblePartnerItems.length > 0 ? (
-              <div className="home-partner-strip" aria-label={homeText.partners.title}>
-                <div className={`home-partner-track${visiblePartnerItems.length > 1 ? "" : " is-static"}`}>
-                  {visiblePartnerItems.map((item) => {
-                    const partnerName = getLocalizedSiteContentName(item, language);
-                    return (
-                      <article key={item.id} className="home-partner-item">
-                        {item.image ? <img src={item.image} alt={partnerName || homeText.partners.title} /> : null}
-                        <h3>{partnerName}</h3>
-                      </article>
-                    );
-                  })}
-                  {visiblePartnerItems.length > 1 ? visiblePartnerItems.map((item) => {
-                    const partnerName = getLocalizedSiteContentName(item, language);
-                    return (
-                      <article key={`${item.id}-loop`} className="home-partner-item" aria-hidden="true">
-                        {item.image ? <img src={item.image} alt={partnerName || homeText.partners.title} /> : null}
-                        <h3>{partnerName}</h3>
-                      </article>
-                    );
-                  }) : null}
-                </div>
-              </div>
-            ) : (
-              <p className="home-empty-message">{homeText.partners.empty}</p>
-            )}
           </section>
 
           <section id="contact" className="home-contact-section" aria-labelledby="contactTitle">
