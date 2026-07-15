@@ -41,7 +41,7 @@ test("CRM lead ingestion inserts only phone numbers absent from clients and lead
   assert.equal(capturedParams[3], "998901234567");
   assert.match(
     capturedQuery,
-    /INSERT INTO crm_leads[\s\S]*SELECT \$1,\$2,\$3,\$4[\s\S]*WHERE NOT EXISTS \([\s\S]*FROM clients c[\s\S]*c\.organization_id = \$1[\s\S]*= \$4[\s\S]*ON CONFLICT \(organization_id, phone_digits\)[\s\S]*DO NOTHING/s
+    /INSERT INTO crm_leads[\s\S]*SELECT \$1,\$2,\$3,\$4::text[\s\S]*WHERE NOT EXISTS \([\s\S]*FROM clients c[\s\S]*c\.organization_id = \$1[\s\S]*= \$4::text[\s\S]*ON CONFLICT \(organization_id, phone_digits\)[\s\S]*DO NOTHING/s
   );
   assert.doesNotMatch(capturedQuery, /DO UPDATE SET/);
 });

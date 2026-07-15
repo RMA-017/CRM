@@ -168,12 +168,12 @@ export async function createOrUpdateCrmLead({
        telegram_chat_id,
        payload
      )
-     SELECT $1,$2,$3,$4,$5,NULLIF($6::text, ''),$7,$8,$9::jsonb
+     SELECT $1,$2,$3,$4::text,$5,NULLIF($6::text, ''),$7,$8,$9::jsonb
       WHERE NOT EXISTS (
         SELECT 1
           FROM clients c
          WHERE c.organization_id = $1
-           AND ${CLIENT_PHONE_DIGITS_SQL} = $4
+           AND ${CLIENT_PHONE_DIGITS_SQL} = $4::text
       )
      ON CONFLICT (organization_id, phone_digits)
      DO NOTHING
