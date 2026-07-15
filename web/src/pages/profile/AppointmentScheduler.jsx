@@ -7955,9 +7955,10 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
                       min={specialistBulkCancelModal.dateFrom || undefined}
                       disabled={specialistBulkCancelModal.submitting}
                       onInput={(event) => {
+                        const nextValue = event.currentTarget.value;
                         setSpecialistBulkCancelModal((prev) => ({
                           ...prev,
-                          dateTo: event.currentTarget.value,
+                          dateTo: nextValue,
                           error: ""
                         }));
                       }}
@@ -7973,9 +7974,10 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
                       value={specialistBulkCancelModal.startTime}
                       disabled={specialistBulkCancelModal.submitting}
                       onInput={(event) => {
+                        const nextValue = event.currentTarget.value;
                         setSpecialistBulkCancelModal((prev) => ({
                           ...prev,
-                          startTime: event.currentTarget.value,
+                          startTime: nextValue,
                           error: ""
                         }));
                       }}
@@ -7989,9 +7991,10 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
                       value={specialistBulkCancelModal.endTime}
                       disabled={specialistBulkCancelModal.submitting}
                       onInput={(event) => {
+                        const nextValue = event.currentTarget.value;
                         setSpecialistBulkCancelModal((prev) => ({
                           ...prev,
-                          endTime: event.currentTarget.value,
+                          endTime: nextValue,
                           error: ""
                         }));
                       }}
@@ -8007,9 +8010,10 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
                     maxLength={255}
                     disabled={specialistBulkCancelModal.submitting}
                     onInput={(event) => {
+                      const nextValue = event.currentTarget.value;
                       setSpecialistBulkCancelModal((prev) => ({
                         ...prev,
-                        reason: event.currentTarget.value,
+                        reason: nextValue,
                         error: ""
                       }));
                     }}

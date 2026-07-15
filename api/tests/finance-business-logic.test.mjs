@@ -504,4 +504,10 @@ test("appointments with non-voided finance tickets are locked against planner up
     2,
     "Schedule update and delete routes should both reject target appointments that have a finance ticket."
   );
+
+  assert.match(
+    appointmentSettingsServiceSource,
+    /export async function cancelAppointmentSchedulesForSpecialistRange[\s\S]*NOT EXISTS \([\s\S]*FROM finance_tickets ft[\s\S]*ft\.appointment_schedule_id = s\.id[\s\S]*ft\.status <> 'voided'[\s\S]*status = 'cancelled'/s,
+    "Planner range bulk cancellation should skip appointments that already have a non-voided finance ticket."
+  );
 });

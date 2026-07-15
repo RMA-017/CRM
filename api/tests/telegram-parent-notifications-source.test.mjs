@@ -439,13 +439,18 @@ test("planner specialist range bulk cancellation groups Telegram parent messages
   );
   assert.match(
     settingsServiceSource,
-    /export async function cancelAppointmentSchedulesForSpecialistRange[\s\S]*appointment_date BETWEEN \$3::date AND \$4::date[\s\S]*status IN \('pending', 'confirmed'\)[\s\S]*status = 'cancelled'/s,
-    "Bulk cancellation should cancel active specialist lessons across the selected date range."
+    /export async function cancelAppointmentSchedulesForSpecialistRange[\s\S]*appointment_date BETWEEN \$3::date AND \$4::date[\s\S]*s\.status = 'pending'[\s\S]*status = 'cancelled'/s,
+    "Bulk cancellation should cancel only pending specialist lessons across the selected date range."
   );
   assert.match(
     scheduleRoutesSource,
     /fastify\.post\(\s*"\/schedules\/bulk-cancel"[\s\S]*cancelAppointmentSchedulesForSpecialistRange[\s\S]*notifyAppointmentParentsOnly\(access,\s*\{[\s\S]*bulkSpecialistCancellation:\s*true[\s\S]*cancellationScope:\s*"specialist_range"/s,
     "Planner bulk cancellation endpoint should send one parent-notification context for the whole operation."
+  );
+  assert.match(
+    scheduleRoutesSource,
+    /fastify\.post\(\s*"\/schedules\/bulk-cancel"[\s\S]*ensureAutoRollingRecurringSchedulesCoverRange\(\{[\s\S]*specialistId,[\s\S]*dateTo,[\s\S]*cancelAppointmentSchedulesForSpecialistRange/s,
+    "Planner bulk cancellation should extend auto-rolling lessons through the selected date before cancelling."
   );
   assert.match(
     telegramServiceSource,

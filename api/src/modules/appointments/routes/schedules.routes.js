@@ -1769,6 +1769,21 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           return reply.status(403).send(historyLockError);
         }
 
+        if (typeof ensureAutoRollingRecurringSchedulesCoverRange === "function") {
+          const autoRollingResult = await ensureAutoRollingRecurringSchedulesCoverRange({
+            organizationId: access.authContext.organizationId,
+            specialistId,
+            clientId: null,
+            classId: null,
+            assignedUserId: null,
+            dateTo,
+            vipOnly: false
+          });
+          if (autoRollingResult?.changed) {
+            schedulesReadCache.clear();
+          }
+        }
+
         const rawReason = String(request.body?.reason || request.body?.note || "").trim();
         const note = typeof formatAppointmentCancellationNote === "function"
           ? formatAppointmentCancellationNote(rawReason, "cancelled", access)

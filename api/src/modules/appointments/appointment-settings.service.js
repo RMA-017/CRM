@@ -1007,7 +1007,7 @@ async function assertDefaultWeeklyWorkScheduleSupportsOrganizationChildren({
       FROM incoming i
       JOIN appointment_schedules s
         ON s.organization_id = $1
-       AND s.status IN ('pending', 'confirmed')
+        AND s.status IN ('pending', 'confirmed')
        AND (
          s.appointment_date > TIMEZONE('Asia/Tashkent', NOW())::date
          OR (
@@ -2452,11 +2452,18 @@ async function cancelAppointmentSchedulesForSpecialistAbsence({
            $4::time IS NULL
            OR $5::time IS NULL
            OR (s.start_time < $5::time AND $4::time < s.end_time)
-         )
-         AND s.status IN ('pending', 'confirmed')
-         AND (
-           s.appointment_date > TIMEZONE('Asia/Tashkent', NOW())::date
-           OR (
+          )
+           AND s.status = 'pending'
+          AND NOT EXISTS (
+            SELECT 1
+              FROM finance_tickets ft
+             WHERE ft.organization_id = s.organization_id
+               AND ft.appointment_schedule_id = s.id
+               AND ft.status <> 'voided'
+          )
+          AND (
+            s.appointment_date > TIMEZONE('Asia/Tashkent', NOW())::date
+            OR (
              s.appointment_date = TIMEZONE('Asia/Tashkent', NOW())::date
              AND s.end_time > TIMEZONE('Asia/Tashkent', NOW())::time
            )
@@ -2632,11 +2639,18 @@ export async function cancelAppointmentSchedulesForSpecialistRange({
            $5::time IS NULL
            OR $6::time IS NULL
            OR (s.start_time < $6::time AND $5::time < s.end_time)
-         )
-         AND s.status IN ('pending', 'confirmed')
-         AND (
-           s.appointment_date > TIMEZONE('Asia/Tashkent', NOW())::date
-           OR (
+          )
+           AND s.status = 'pending'
+          AND NOT EXISTS (
+            SELECT 1
+              FROM finance_tickets ft
+             WHERE ft.organization_id = s.organization_id
+               AND ft.appointment_schedule_id = s.id
+               AND ft.status <> 'voided'
+          )
+          AND (
+            s.appointment_date > TIMEZONE('Asia/Tashkent', NOW())::date
+            OR (
              s.appointment_date = TIMEZONE('Asia/Tashkent', NOW())::date
              AND s.end_time > TIMEZONE('Asia/Tashkent', NOW())::time
            )

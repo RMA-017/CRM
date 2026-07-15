@@ -510,6 +510,26 @@ test("Appointment planner exposes specialist range bulk cancellation", async () 
     "Bulk-cancel modal should submit one backend request instead of patching lessons one by one."
   );
   assert.match(
+    schedulerSource,
+    /id="appointmentBulkCancelDateTo"[\s\S]*onInput=\{\(event\) => \{[\s\S]*const nextValue = event\.currentTarget\.value;[\s\S]*dateTo: nextValue/s,
+    "Bulk-cancel date-to input should capture its value before updating React state."
+  );
+  assert.match(
+    schedulerSource,
+    /id="appointmentBulkCancelStartTime"[\s\S]*onInput=\{\(event\) => \{[\s\S]*const nextValue = event\.currentTarget\.value;[\s\S]*startTime: nextValue/s,
+    "Bulk-cancel start-time input should capture its value before updating React state."
+  );
+  assert.match(
+    schedulerSource,
+    /id="appointmentBulkCancelEndTime"[\s\S]*onInput=\{\(event\) => \{[\s\S]*const nextValue = event\.currentTarget\.value;[\s\S]*endTime: nextValue/s,
+    "Bulk-cancel end-time input should capture its value before updating React state."
+  );
+  assert.match(
+    schedulerSource,
+    /id="appointmentBulkCancelReason"[\s\S]*onInput=\{\(event\) => \{[\s\S]*const nextValue = event\.currentTarget\.value;[\s\S]*reason: nextValue/s,
+    "Bulk-cancel reason input should capture its value before updating React state."
+  );
+  assert.match(
     css,
     /#appointmentPanel \.appointment-booked-only-toggle,\s*#appointmentPanel \.appointment-bulk-cancel-toggle \{[\s\S]*width:\s*30px;[\s\S]*height:\s*30px;/s,
     "Bulk-cancel header button should share the compact 30px planner action size."
