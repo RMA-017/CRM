@@ -17,7 +17,6 @@ export function useProfilePanels({
   canOpenFinanceReports,
   canOpenServices,
   canOpenAppointmentSchedule,
-  canOpenStatisticsPlannerReport,
   canOpenAppointmentSettings,
   canOpenTelegramBotSettings,
   canOpenSmsNotifications,
@@ -162,10 +161,6 @@ export function useProfilePanels({
     closePanel("sms-notifications");
   }, [closePanel]);
 
-  const openStatisticsPlannerReportPanel = useCallback(() => {
-    openPanel("/statistics/planner-report", canOpenStatisticsPlannerReport);
-  }, [canOpenStatisticsPlannerReport, openPanel]);
-
   const closeStatisticsPanel = useCallback(() => {
     if (mainView === "statistics" || mainView === "statistics-planner-report") {
       navigate("/profile");
@@ -273,7 +268,6 @@ export function useProfilePanels({
     closeTelegramBotSettingsPanel,
     openSmsNotificationsPanel,
     closeSmsNotificationsPanel,
-    openStatisticsPlannerReportPanel,
     closeStatisticsPanel,
     openOrganizationsPanel,
     closeOrganizationsPanel,

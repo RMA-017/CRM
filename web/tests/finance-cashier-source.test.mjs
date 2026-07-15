@@ -150,8 +150,8 @@ test("manual ticket modal blocks future ticket dates", async () => {
   );
   assert.match(
     cashierPanelSource,
-    /const requiresManualPrice = Boolean\(item\.serviceId\)[\s\S]*normalizeMoneyInput\(selectedService\?\.priceUzs\) <= 0;[\s\S]*finance-manual-item-grid\$\{requiresManualPrice \? " has-manual-price" : ""\}[\s\S]*translate\("Price"\)[\s\S]*value=\{item\.priceUzs\}/s,
-    "A price input should appear for a selected zero-price service."
+    /const requiresManualPrice = Boolean\(item\.serviceId\)[\s\S]*normalizeMoneyInput\(selectedService\?\.priceUzs\) <= 0;[\s\S]*finance-manual-item-grid\$\{requiresManualPrice \? " has-manual-price" : ""\}[\s\S]*aria-label=\{translate\("Price"\)\}[\s\S]*placeholder=\{translate\("Price"\)\}[\s\S]*value=\{item\.priceUzs\}/s,
+    "A price input should appear for a selected zero-price service with the price label inside the input."
   );
   assert.match(
     cashierPanelSource,

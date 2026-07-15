@@ -3,10 +3,11 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 
 test("profile side menu keeps submenu state batched and is pre-mounted for smoother toggles", async () => {
-  const [menuSource, pageSource, layoutSource] = await Promise.all([
+  const [menuSource, pageSource, layoutSource, appSource] = await Promise.all([
     readFile(new URL("../src/pages/profile/ProfileSideMenu.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/pages/ProfilePage.jsx", import.meta.url), "utf8"),
-    readFile(new URL("../src/css/layout/profile-layout.css", import.meta.url), "utf8")
+    readFile(new URL("../src/css/layout/profile-layout.css", import.meta.url), "utf8"),
+    readFile(new URL("../src/App.jsx", import.meta.url), "utf8")
   ]);
 
   assert.match(
@@ -21,16 +22,22 @@ test("profile side menu keeps submenu state batched and is pre-mounted for smoot
     "Profile side menu should avoid separate submenu state setters."
   );
 
-  assert.match(
+  assert.doesNotMatch(
     menuSource,
-    /statistics: false[\s\S]*canOpenAppointmentStatistics,[\s\S]*canOpenStatisticsPlannerReport,[\s\S]*openStatisticsPlannerReportPanel,[\s\S]*id="statisticsMenuGroup"[\s\S]*hidden=\{!canOpenAppointmentStatistics && !canOpenStatisticsPlannerReport\}[\s\S]*id="openStatisticsPlannerReportBtn"[\s\S]*hidden=\{!canOpenStatisticsPlannerReport\}[\s\S]*onClick=\{openStatisticsPlannerReportPanel\}/s,
-    "Profile side menu should expose Statistics > Lesson Status Report when the planner report permission is granted."
+    /statisticsMenuGroup|openStatisticsPlannerReportBtn|openStatisticsPlannerReportPanel|canOpenStatisticsPlannerReport|canOpenAppointmentStatistics/,
+    "Profile side menu should not expose a separate Statistics > Lesson Status Report menu entry."
   );
 
-  assert.match(
+  assert.doesNotMatch(
     pageSource,
-    /canOpenAppointmentStatistics=\{canOpenAppointmentStatistics\}[\s\S]*canOpenStatisticsPlannerReport=\{canOpenStatisticsPlannerReport\}[\s\S]*openStatisticsPlannerReportPanel=\{openStatisticsPlannerReportPanel\}/s,
-    "Profile page should pass planner report access and open handlers into the side menu."
+    /canOpenAppointmentStatistics=\{|canOpenStatisticsPlannerReport=\{|openStatisticsPlannerReportPanel=/,
+    "Profile page should not pass removed planner report menu props into the side menu."
+  );
+
+  assert.doesNotMatch(
+    appSource,
+    /\/statistics\/planner-report|\/profile\/statistics/,
+    "Statistics planner report should not have a standalone route or legacy profile redirect."
   );
 
   assert.doesNotMatch(

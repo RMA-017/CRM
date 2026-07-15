@@ -1495,7 +1495,7 @@
 .home-signup-form {
   display: grid;
   gap: 24px;
-  width: min(620px, 100%);
+  width: min(434px, 100%);
   padding: clamp(28px, 5vw, 50px);
   box-shadow: 0 22px 46px rgba(33, 49, 39, 0.06);
 }
@@ -2649,7 +2649,7 @@
 }
 
 .home-signup-form {
-  width: min(540px, 100%);
+  width: min(378px, 100%);
   padding: 34px;
   box-shadow: 0 24px 60px rgba(33, 49, 40, 0.08);
 }
@@ -3010,7 +3010,7 @@ html {
 .home-signup-form {
   grid-template-columns: 1fr;
   gap: 14px;
-  width: min(520px, 100%);
+  width: min(364px, 100%);
   padding: 22px;
   border-radius: 12px;
   background: #ffffff;

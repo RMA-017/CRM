@@ -5,7 +5,6 @@ import { useI18n } from "../../i18n/I18nProvider.jsx";
 const CLOSED_SUBMENUS = Object.freeze({
   clients: false,
   appointments: false,
-  statistics: false,
   users: false,
   site: false,
   settings: false,
@@ -37,13 +36,10 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
   openServicesPanel,
   hasAppointmentsMenuAccess,
   canOpenAppointmentSchedule,
-  canOpenAppointmentStatistics,
-  canOpenStatisticsPlannerReport,
   canOpenAppointmentSettings,
   canOpenTelegramBotSettings,
   canOpenSmsNotifications,
   openAppointmentPanel,
-  openStatisticsPlannerReportPanel,
   openAppointmentSettingsPanel,
   openTelegramBotSettingsPanel,
   openSmsNotificationsPanel,
@@ -219,35 +215,6 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 onClick={openAppointmentPanel}
               >
                 Planner
-              </button>
-            </div>
-          </div>
-
-          <div
-            id="statisticsMenuGroup"
-            className="side-menu-group"
-            hidden={!canOpenAppointmentStatistics && !canOpenStatisticsPlannerReport}
-          >
-            <button
-              id="toggleStatisticsMenuBtn"
-              type="button"
-              className="side-menu-action side-menu-parent"
-              aria-expanded={openSubmenus.statistics ? "true" : "false"}
-              onClick={() => {
-                toggleSubmenu("statistics");
-              }}
-            >
-              Statistics
-            </button>
-            <div id="statisticsSubMenu" className="side-submenu" hidden={!openSubmenus.statistics}>
-              <button
-                id="openStatisticsPlannerReportBtn"
-                type="button"
-                className="side-submenu-link side-submenu-action"
-                hidden={!canOpenStatisticsPlannerReport}
-                onClick={openStatisticsPlannerReportPanel}
-              >
-                Lesson Status Report
               </button>
             </div>
           </div>

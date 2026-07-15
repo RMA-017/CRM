@@ -82,8 +82,6 @@ function ProfilePage({ forcedView = "none" }) {
     canCreateAppointmentWorkSchedule,
     canUpdateAppointmentWorkSchedule,
     canDeleteAppointmentWorkSchedule,
-    canOpenAppointmentStatistics,
-    canOpenStatisticsPlannerReport,
     canReadStatisticsPlannerReportPermission,
     canReadDashboardReport,
     canOpenAppointmentSettings,
@@ -688,7 +686,6 @@ function ProfilePage({ forcedView = "none" }) {
     closeTelegramBotSettingsPanel,
     openSmsNotificationsPanel,
     closeSmsNotificationsPanel,
-    openStatisticsPlannerReportPanel,
     closeStatisticsPanel,
     openOrganizationsPanel,
     closeOrganizationsPanel,
@@ -722,7 +719,6 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenFinanceReports,
     canOpenServices,
     canOpenAppointmentSchedule,
-    canOpenStatisticsPlannerReport,
     canOpenAppointmentSettings,
     canOpenTelegramBotSettings,
     canOpenSmsNotifications,
@@ -1440,14 +1436,11 @@ function ProfilePage({ forcedView = "none" }) {
         openFinanceReportsPanel={openFinanceReportsPanel}
         hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
         canOpenAppointmentSchedule={canOpenAppointmentSchedule}
-        canOpenAppointmentStatistics={canOpenAppointmentStatistics}
-        canOpenStatisticsPlannerReport={canOpenStatisticsPlannerReport}
         canOpenAppointmentSettings={canOpenAppointmentSettings}
         canOpenTelegramBotSettings={canOpenTelegramBotSettings}
         canOpenSmsNotifications={canOpenSmsNotifications}
         canOpenServices={canOpenServices}
         openAppointmentPanel={openAppointmentPanel}
-        openStatisticsPlannerReportPanel={openStatisticsPlannerReportPanel}
         openAppointmentSettingsPanel={openAppointmentSettingsPanel}
         openTelegramBotSettingsPanel={openTelegramBotSettingsPanel}
         openSmsNotificationsPanel={openSmsNotificationsPanel}

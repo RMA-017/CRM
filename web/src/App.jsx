@@ -24,7 +24,6 @@ const PROFILE_VIEW_ROUTES = Object.freeze([
   { path: "/sms-xabarnoma", forcedView: "sms-notifications" },
   { path: "/settings/appointments", forcedView: "appointment-settings" },
   { path: "/settings/telegram-bot", forcedView: "telegram-bot-settings" },
-  { path: "/statistics/planner-report", forcedView: "statistics-planner-report" },
   { path: "/admin-settings/organizations", forcedView: "settings-organizations" },
   { path: "/settings/roles", forcedView: "settings-roles" },
   { path: "/settings/positions", forcedView: "settings-positions" },
@@ -46,10 +45,6 @@ const REDIRECT_ROUTE_GROUPS = Object.freeze([
   {
     to: "/appointments/planner",
     paths: ["/settings/work-schedule", "/profile/settings/work-schedule", "/profile/appointments/work-schedule"]
-  },
-  {
-    to: "/statistics/planner-report",
-    paths: ["/statistics", "/profile/statistics"]
   },
   {
     to: "/admin-settings/organizations",
@@ -79,7 +74,6 @@ const REDIRECT_ROUTE_GROUPS = Object.freeze([
   { to: "/settings/appointments", paths: ["/appointments/settings", "/profile/appointments/settings", "/profile/settings/appointments"] },
   { to: "/settings/telegram-bot", paths: ["/profile/settings/telegram-bot"] },
   { to: "/sms-xabarnoma", paths: ["/profile/sms-xabarnoma", "/sms-notifications"] },
-  { to: "/statistics/planner-report", paths: ["/profile/statistics/planner-report"] },
   { to: "/settings/roles", paths: ["/profile/settings/roles"] },
   { to: "/settings/positions", paths: ["/profile/settings/positions"] },
   { to: "/settings/services", paths: ["/profile/settings/services"] },

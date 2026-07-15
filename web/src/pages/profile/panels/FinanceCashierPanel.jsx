@@ -1791,11 +1791,12 @@ function FinanceCashierPanel({
                           </label>
                           {requiresManualPrice ? (
                             <label className="field finance-manual-price-field">
-                              <span>{translate("Price")}</span>
                               <input
                                 type="number"
                                 min="1"
                                 inputMode="numeric"
+                                aria-label={translate("Price")}
+                                placeholder={translate("Price")}
                                 value={item.priceUzs}
                                 onChange={(event) => updateManualItem(item.key, {
                                   priceUzs: event.currentTarget.value

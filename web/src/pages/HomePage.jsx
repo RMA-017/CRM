@@ -491,8 +491,6 @@ function HomePage() {
     canReadClients,
     hasAppointmentsMenuAccess,
     canOpenAppointmentSchedule,
-    canOpenAppointmentStatistics,
-    canOpenStatisticsPlannerReport,
     canOpenAppointmentSettings,
     canOpenSettingsOrganizations,
     canOpenSettingsRoles,
@@ -1447,12 +1445,9 @@ function HomePage() {
           openServicesPanel={() => navigateFromMenu("/services")}
           hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
           canOpenAppointmentSchedule={canOpenAppointmentSchedule}
-          canOpenAppointmentStatistics={canOpenAppointmentStatistics}
-          canOpenStatisticsPlannerReport={canOpenStatisticsPlannerReport}
           canOpenAppointmentSettings={canOpenAppointmentSettings}
           openAppointmentPanel={() => navigateFromMenu("/appointments/planner")}
           openAppointmentSettingsPanel={() => navigateFromMenu("/settings/appointments")}
-          openStatisticsPlannerReportPanel={() => navigateFromMenu("/statistics/planner-report")}
           hasUsersMenuAccess={hasUsersMenuAccess}
           canReadUsers={canReadUsers}
           closeMenu={closeMenu}
