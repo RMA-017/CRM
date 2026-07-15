@@ -97,7 +97,7 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
 
   assert.match(
     financeServiceSource,
-    /export async function getCashierBoard\(\{ organizationId, dateFrom, dateTo, query \}\)[\s\S]*normalizeText\(query, 96\)[\s\S]*appointmentFilters\.push\(`\([\s\S]*a\.client_id::text = \$\$\{exactParam\}[\s\S]*ticketFilters\.push\(`\([\s\S]*ft\.ticket_number::text = \$\$\{exactParam\}/s,
+    /export async function getCashierBoard\(\{ organizationId, dateFrom, dateTo, query, limit \}\)[\s\S]*normalizeText\(query, 96\)[\s\S]*appointmentFilters\.push\(`\([\s\S]*a\.client_id::text = \$\$\{exactParam\}[\s\S]*ticketFilters\.push\(`\([\s\S]*ft\.ticket_number::text = \$\$\{exactParam\}/s,
     "Cashier board search should be applied server-side for appointments and tickets before grouping."
   );
 
@@ -107,22 +107,28 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
     "Cashier board appointment columns should stay date-scoped while open tickets remain visible until paid."
   );
 
-  assert.doesNotMatch(
+  assert.match(
     financeServiceSource,
-    /appointmentParams\.push\(BOARD_LIMIT\)/,
-    "Cashier appointment status columns should not limit today cards; every in-date appointment without a ticket must stay visible."
+    /const CASHIER_BOARD_DEFAULT_LIMIT = 100;[\s\S]*function normalizeCashierBoardLimit\(value\)[\s\S]*return Math\.min\(parsed, CASHIER_BOARD_MAX_LIMIT\);/s,
+    "Cashier board should default to a bounded 100-card batch."
   );
 
-  assert.doesNotMatch(
+  assert.match(
     financeServiceSource,
-    /ticketParams\.push\(BOARD_LIMIT\)/,
-    "Cashier ticket column should not limit open tickets; issued and partially paid tickets must stay available for payment."
+    /appointmentParams\.push\(boardLimit\)[\s\S]*COUNT\(\*\) OVER \(PARTITION BY a\.status\) AS total_count,[\s\S]*ROW_NUMBER\(\) OVER \(PARTITION BY a\.status ORDER BY a\.appointment_date ASC, a\.start_time ASC, a\.id ASC\)[\s\S]*WHERE a\.board_row_number <= \$\$\{appointmentLimitParam\}/s,
+    "Cashier appointment status columns should be limited per status while keeping total counts."
   );
 
-  assert.doesNotMatch(
+  assert.match(
     financeServiceSource,
-    /overdueAppointmentParams\.push\(BOARD_LIMIT\)/,
-    "Awaiting Ticket should stay scoped by history lock days but should not hide older in-window cards behind a board limit."
+    /overdueAppointmentParams\.push\(boardLimit\)[\s\S]*COUNT\(\*\) OVER \(\) AS total_count,[\s\S]*ROW_NUMBER\(\) OVER \(ORDER BY a\.appointment_date DESC, a\.start_time ASC, a\.id ASC\)[\s\S]*WHERE a\.board_row_number <= \$\$\{overdueAppointmentLimitParam\}/s,
+    "Awaiting Ticket should be limited separately while keeping its full total count."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /ticketParams\.push\(boardLimit\)[\s\S]*COUNT\(\*\) OVER \(\) AS total_count[\s\S]*ORDER BY ft\.updated_at DESC, ft\.id DESC[\s\S]*LIMIT \$\$\{ticketLimitParam\}[\s\S]*const totals = \{/s,
+    "Cashier board should load cards in shared server-side batches while returning total counts for every column."
   );
 
   assert.match(

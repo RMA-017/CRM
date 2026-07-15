@@ -5,6 +5,8 @@ import { getAppointmentHistoryLockDaysByOrganization } from "../appointments/app
 import { updateAppointmentSchedulesByIds } from "../appointments/services/appointment-schedules.service.js";
 
 const FINANCE_BATCH_PAYMENT_SCHEMA_ERROR_CODES = new Set(["42P01", "42703", "23502", "23514"]);
+const CASHIER_BOARD_DEFAULT_LIMIT = 100;
+const CASHIER_BOARD_MAX_LIMIT = 10000;
 
 function normalizeAmount(value, fallback = 0) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -109,6 +111,14 @@ function normalizePageSize(value, fallback = 20) {
     return fallback;
   }
   return Math.min(parsed, 100);
+}
+
+function normalizeCashierBoardLimit(value) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return CASHIER_BOARD_DEFAULT_LIMIT;
+  }
+  return Math.min(parsed, CASHIER_BOARD_MAX_LIMIT);
 }
 
 function normalizeText(value, maxLength = 255) {
@@ -720,13 +730,27 @@ async function getNextTicketNumberPreview(organizationId) {
   return ticketNumber > 0 && ticketNumber <= 99999 ? ticketNumber : null;
 }
 
-export async function getCashierBoard({ organizationId, dateFrom, dateTo, query }) {
+function getTotalCountFromRows(rows) {
+  const first = Array.isArray(rows) ? rows[0] : null;
+  const parsed = Number.parseInt(String(first?.total_count ?? ""), 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function getStatusTotalCountFromRows(rows, status) {
+  const row = (Array.isArray(rows) ? rows : [])
+    .find((item) => String(item?.status || "") === status);
+  const parsed = Number.parseInt(String(row?.total_count ?? ""), 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+export async function getCashierBoard({ organizationId, dateFrom, dateTo, query, limit }) {
   const dates = getBoardDates({ dateFrom, dateTo });
   const todayYmd = getTodayYmdInTashkent();
   const historyLockDays = await getAppointmentHistoryLockDaysByOrganization(organizationId);
   const historyLockCutoffDate = addDaysToDateYmd(todayYmd, -historyLockDays) || todayYmd;
   const boardDateFrom = dates.from || dates.to || todayYmd;
   const boardDateTo = dates.to || boardDateFrom;
+  const boardLimit = normalizeCashierBoardLimit(limit);
   const normalizedQuery = normalizeText(query, 96);
   const normalizedQueryLike = `%${normalizedQuery.toLowerCase()}%`;
   const appointmentParams = [organizationId, boardDateFrom, boardDateTo];
@@ -750,6 +774,8 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
       OR a.client_id::text = $${exactParam}
     )`);
   }
+  appointmentParams.push(boardLimit);
+  const appointmentLimitParam = appointmentParams.length;
   const overdueAppointmentParams = [organizationId, historyLockCutoffDate, todayYmd];
   const overdueAppointmentFilters = [
     "a.organization_id = $1",
@@ -771,6 +797,8 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
       OR a.client_id::text = $${exactParam}
     )`);
   }
+  overdueAppointmentParams.push(boardLimit);
+  const overdueAppointmentLimitParam = overdueAppointmentParams.length;
   const ticketParams = [organizationId];
   const ticketFilters = [
     "ft.organization_id = $1",
@@ -791,6 +819,8 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
       OR ft.appointment_schedule_id::text = $${exactParam}
     )`);
   }
+  ticketParams.push(boardLimit);
+  const ticketLimitParam = ticketParams.length;
   const [
     appointmentsResult,
     overdueAppointmentsResult,
@@ -803,53 +833,99 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
     pool.query(
       `SELECT a.id,
               a.client_id,
-              CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+              a.client_name,
               a.specialist_id,
-              COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS specialist_name,
+              a.specialist_name,
               a.service_id,
               a.service_name,
               a.service_price_uzs,
               a.status,
               a.appointment_date,
               a.start_time,
-              a.end_time
-         FROM appointment_schedules a
-         JOIN clients c ON c.organization_id = a.organization_id AND c.id = a.client_id
-         JOIN users u ON u.organization_id = a.organization_id AND u.id = a.specialist_id
-         LEFT JOIN finance_tickets ft
-           ON ft.organization_id = a.organization_id
-          AND ft.appointment_schedule_id = a.id
-          AND ft.status <> 'voided'
-        WHERE ${appointmentFilters.join(" AND ")}
+              a.end_time,
+              total_count
+         FROM (
+           SELECT a.id,
+                  a.client_id,
+                  CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+                  a.specialist_id,
+                  COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS specialist_name,
+                  a.service_id,
+                  a.service_name,
+                  a.service_price_uzs,
+                  a.status,
+                  a.appointment_date,
+                  a.start_time,
+                  a.end_time,
+                  COUNT(*) OVER (PARTITION BY a.status) AS total_count,
+                  ROW_NUMBER() OVER (PARTITION BY a.status ORDER BY a.appointment_date ASC, a.start_time ASC, a.id ASC) AS board_row_number
+             FROM appointment_schedules a
+             JOIN clients c ON c.organization_id = a.organization_id AND c.id = a.client_id
+             JOIN users u ON u.organization_id = a.organization_id AND u.id = a.specialist_id
+             LEFT JOIN finance_tickets ft
+               ON ft.organization_id = a.organization_id
+              AND ft.appointment_schedule_id = a.id
+              AND ft.status <> 'voided'
+            WHERE ${appointmentFilters.join(" AND ")}
+         ) a
+        WHERE a.board_row_number <= $${appointmentLimitParam}
         ORDER BY a.appointment_date ASC, a.start_time ASC, a.id ASC`,
       appointmentParams
     ),
     pool.query(
       `SELECT a.id,
               a.client_id,
-              CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+              a.client_name,
               a.specialist_id,
-              COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS specialist_name,
+              a.specialist_name,
               a.service_id,
               a.service_name,
               a.service_price_uzs,
               a.status,
               a.appointment_date,
               a.start_time,
-              a.end_time
-         FROM appointment_schedules a
-         JOIN clients c ON c.organization_id = a.organization_id AND c.id = a.client_id
-         JOIN users u ON u.organization_id = a.organization_id AND u.id = a.specialist_id
-         LEFT JOIN finance_tickets ft
-           ON ft.organization_id = a.organization_id
-          AND ft.appointment_schedule_id = a.id
-          AND ft.status <> 'voided'
-        WHERE ${overdueAppointmentFilters.join(" AND ")}
+              a.end_time,
+              total_count
+         FROM (
+           SELECT a.id,
+                  a.client_id,
+                  CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+                  a.specialist_id,
+                  COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS specialist_name,
+                  a.service_id,
+                  a.service_name,
+                  a.service_price_uzs,
+                  a.status,
+                  a.appointment_date,
+                  a.start_time,
+                  a.end_time,
+                  COUNT(*) OVER () AS total_count,
+                  ROW_NUMBER() OVER (ORDER BY a.appointment_date DESC, a.start_time ASC, a.id ASC) AS board_row_number
+             FROM appointment_schedules a
+             JOIN clients c ON c.organization_id = a.organization_id AND c.id = a.client_id
+             JOIN users u ON u.organization_id = a.organization_id AND u.id = a.specialist_id
+             LEFT JOIN finance_tickets ft
+               ON ft.organization_id = a.organization_id
+              AND ft.appointment_schedule_id = a.id
+              AND ft.status <> 'voided'
+            WHERE ${overdueAppointmentFilters.join(" AND ")}
+         ) a
+        WHERE a.board_row_number <= $${overdueAppointmentLimitParam}
         ORDER BY a.appointment_date DESC, a.start_time ASC, a.id ASC`,
       overdueAppointmentParams
     ),
     pool.query(
-      `SELECT ft.id,
+      `WITH ticket_base AS (
+         SELECT ft.id,
+                COUNT(*) OVER () AS total_count
+           FROM finance_tickets ft
+           JOIN clients c ON c.organization_id = ft.organization_id AND c.id = ft.client_id
+           LEFT JOIN users u ON u.organization_id = ft.organization_id AND u.id = ft.specialist_id
+          WHERE ${ticketFilters.join(" AND ")}
+          ORDER BY ft.updated_at DESC, ft.id DESC
+          LIMIT $${ticketLimitParam}
+       )
+       SELECT ft.id,
               ft.ticket_number,
               ft.ticket_date,
               ft.source,
@@ -875,8 +951,12 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
               COALESCE(fti.item_count, 1) AS item_count,
               COALESCE(fti.items, '[]'::json) AS items,
               ft.created_at,
-              ft.updated_at
-         FROM finance_tickets ft
+              ft.updated_at,
+              tb.total_count
+         FROM ticket_base tb
+         JOIN finance_tickets ft
+           ON ft.organization_id = $1
+          AND ft.id = tb.id
          JOIN clients c ON c.organization_id = ft.organization_id AND c.id = ft.client_id
          LEFT JOIN users u ON u.organization_id = ft.organization_id AND u.id = ft.specialist_id
          LEFT JOIN appointment_schedules a ON a.organization_id = ft.organization_id AND a.id = ft.appointment_schedule_id
@@ -928,7 +1008,6 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
             WHERE fti_item.organization_id = ft.organization_id
               AND fti_item.ticket_id = ft.id
          ) fti ON TRUE
-        WHERE ${ticketFilters.join(" AND ")}
         ORDER BY ft.updated_at DESC, ft.id DESC`,
       ticketParams
     ),
@@ -982,6 +1061,14 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
   const appointments = appointmentsResult.rows.map(mapAppointment);
   const overdueAppointments = overdueAppointmentsResult.rows.map(mapAppointment);
   const tickets = ticketsResult.rows.map(mapTicket);
+  const totals = {
+    pendingAppointments: getStatusTotalCountFromRows(appointmentsResult.rows, "pending"),
+    cancelledAppointments: getStatusTotalCountFromRows(appointmentsResult.rows, "cancelled"),
+    noShowAppointments: getStatusTotalCountFromRows(appointmentsResult.rows, "no-show"),
+    confirmedAppointments: getStatusTotalCountFromRows(appointmentsResult.rows, "confirmed"),
+    overdueConfirmedAppointments: getTotalCountFromRows(overdueAppointmentsResult.rows),
+    issuedTickets: getTotalCountFromRows(ticketsResult.rows)
+  };
   return {
     pendingAppointments: appointments.filter((item) => item.status === "pending"),
     cancelledAppointments: appointments.filter((item) => item.status === "cancelled"),
@@ -1001,7 +1088,9 @@ export async function getCashierBoard({ organizationId, dateFrom, dateTo, query 
       priceUzs: row.price_uzs
     })),
     specialists: specialistsResult.rows.map(mapSpecialistOption),
-    nextTicketNumber
+    nextTicketNumber,
+    totals,
+    limit: boardLimit
   };
 }
 

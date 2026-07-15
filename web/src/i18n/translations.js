@@ -116,6 +116,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Reset", uz: "Tozalash", ru: "Сброс" },
   { en: "Previous", uz: "Oldingi", ru: "Назад" },
   { en: "Next", uz: "Keyingi", ru: "Далее" },
+  { en: "Show more", uz: "Ko'proq ko'rsatish", ru: "Показать еще" },
   { en: "Refresh", uz: "Yangilash", ru: "Обновить" },
   { en: "Export Excel", uz: "Excelga chiqarish", ru: "Экспорт в Excel" },
   { en: "Export failed.", uz: "Excelga chiqarib bo'lmadi.", ru: "Не удалось экспортировать в Excel." },

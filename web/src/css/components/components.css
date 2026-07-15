@@ -8071,6 +8071,17 @@ button.finance-daily-cash-method-card:disabled {
   text-align: center;
 }
 
+.finance-cashier-panel .finance-board-load-more-row {
+  display: flex;
+  justify-content: center;
+  padding: 2px 0 10px;
+}
+
+.finance-cashier-panel .finance-board-load-more {
+  min-width: 140px;
+  height: 32px;
+}
+
 .finance-cashier-panel .settings-card {
   position: relative;
   gap: 3px;

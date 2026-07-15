@@ -734,7 +734,8 @@ async function financeRoutes(fastify) {
           organizationId: request.authContext.organizationId,
           dateFrom: request.query?.dateFrom ?? request.query?.date_from,
           dateTo: request.query?.dateTo ?? request.query?.date_to,
-          query: request.query?.q ?? request.query?.query ?? request.query?.search
+          query: request.query?.q ?? request.query?.query ?? request.query?.search,
+          limit: request.query?.limit
         }));
       } catch (error) {
         request.log.error({ err: error }, "Error fetching finance cashier board:");

@@ -86,7 +86,8 @@ export const financeRouteSchemas = Object.freeze({
       date_to: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
       q: { type: "string", maxLength: 96 },
       query: { type: "string", maxLength: 96 },
-      search: { type: "string", maxLength: 96 }
+      search: { type: "string", maxLength: 96 },
+      limit: positiveIntegerLikeSchema
     }
   },
   clientSearchQuery: {

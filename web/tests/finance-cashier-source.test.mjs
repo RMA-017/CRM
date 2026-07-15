@@ -188,6 +188,38 @@ test("cashier board filters live in header actions without visible labels", asyn
   );
 });
 
+test("cashier board uses one shared load-more control for all columns", async () => {
+  const styles = await readFile(
+    new URL("../src/css/components/components.css", import.meta.url),
+    "utf8"
+  );
+  const translations = await readFile(
+    new URL("../src/i18n/translations.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    cashierPanelSource,
+    /const CASHIER_BOARD_LIMIT_STEP = 100;[\s\S]*CASHIER_BOARD_COLUMN_KEYS[\s\S]*pendingAppointments[\s\S]*issuedTickets[\s\S]*const \[boardLimit, setBoardLimit\] = useState\(CASHIER_BOARD_LIMIT_STEP\);[\s\S]*apiFetch\(`\/api\/finance\/cashier\/board\?\$\{query\.toString\(\)\}`\)[\s\S]*limit: normalizeBoardTotal\(data\?\.limit, boardLimit\)/s,
+    "Cashier board should request server-side batches shared by every column."
+  );
+  assert.match(
+    cashierPanelSource,
+    /const hasMoreBoardItems = CASHIER_BOARD_COLUMN_KEYS\.some[\s\S]*getBoardLoadedCount\(board, key\) < getBoardTotalCount\(board, key\)[\s\S]*const loadMoreBoardItems = \(\) => \{[\s\S]*setBoardLimit\(\(current\) => current \+ CASHIER_BOARD_LIMIT_STEP\);[\s\S]*finance-board-load-more-row[\s\S]*translate\("Show more"\)/s,
+    "A single Show more button should expand every cashier board column together."
+  );
+  assert.match(
+    translations,
+    /Show more", uz: "Ko'proq ko'rsatish", ru: "Показать еще"/,
+    "The shared load-more control should use the requested Russian label."
+  );
+  assert.match(
+    styles,
+    /\.finance-cashier-panel \.finance-board-load-more-row \{[\s\S]*justify-content: center;[\s\S]*\.finance-cashier-panel \.finance-board-load-more \{[\s\S]*min-width: 140px;/s,
+    "The shared load-more button should sit below the cashier board."
+  );
+});
+
 test("batch ticket payments omit empty unrelated source fields", () => {
   assert.match(
     cashierPanelSource,

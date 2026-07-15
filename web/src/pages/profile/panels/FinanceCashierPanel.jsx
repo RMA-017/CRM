@@ -6,6 +6,16 @@ import { formatDateYMD } from "../../../lib/formatters.js";
 import { useEscapeKey } from "../../../lib/use-escape-key.js";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 
+const CASHIER_BOARD_LIMIT_STEP = 100;
+const CASHIER_BOARD_COLUMN_KEYS = Object.freeze([
+  "pendingAppointments",
+  "cancelledAppointments",
+  "noShowAppointments",
+  "confirmedAppointments",
+  "overdueConfirmedAppointments",
+  "issuedTickets"
+]);
+
 function todayDateValue() {
   const today = new Date();
   const year = today.getFullYear();
@@ -181,6 +191,22 @@ function distributeDiscountUzs(prices, discountUzs) {
 function normalizeMoneyInput(value) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function normalizeBoardTotal(value, fallback = 0) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function getBoardLoadedCount(board, key) {
+  return Array.isArray(board?.[key]) ? board[key].length : 0;
+}
+
+function getBoardTotalCount(board, key) {
+  return Math.max(
+    normalizeBoardTotal(board?.totals?.[key], getBoardLoadedCount(board, key)),
+    getBoardLoadedCount(board, key)
+  );
 }
 
 function getTicketPayableAmount(ticket) {
@@ -502,8 +528,12 @@ function FinanceCashierPanel({
     paymentMethods: [],
     services: [],
     specialists: [],
-    nextTicketNumber: null
+    nextTicketNumber: null,
+    totals: {},
+    limit: CASHIER_BOARD_LIMIT_STEP
   });
+  const [boardLimit, setBoardLimit] = useState(CASHIER_BOARD_LIMIT_STEP);
+  const [boardLoading, setBoardLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [busyId, setBusyId] = useState("");
   const [selectedTicketIds, setSelectedTicketIds] = useState(() => new Set());
@@ -569,6 +599,15 @@ function FinanceCashierPanel({
     || boardFilters.serviceId
     || boardFilters.specialistId
   );
+  const hasMoreBoardItems = CASHIER_BOARD_COLUMN_KEYS.some((key) => (
+    getBoardLoadedCount(board, key) < getBoardTotalCount(board, key)
+  ));
+  const getBoardDisplayTotal = (key) => (
+    isBoardFilterActive ? getBoardLoadedCount(board, key) : getBoardTotalCount(board, key)
+  );
+  const loadMoreBoardItems = () => {
+    setBoardLimit((current) => current + CASHIER_BOARD_LIMIT_STEP);
+  };
   const selectedTicketClientId = useMemo(
     () => getSelectedTicketClientId(selectedTicketIds, board.issuedTickets),
     [board.issuedTickets, selectedTicketIds]
@@ -639,8 +678,10 @@ function FinanceCashierPanel({
     const requestId = boardRequestRef.current + 1;
     boardRequestRef.current = requestId;
     const isCurrentRequest = () => requestId === boardRequestRef.current;
+    setBoardLoading(true);
     try {
-      const response = await apiFetch("/api/finance/cashier/board");
+      const query = new URLSearchParams({ limit: String(boardLimit) });
+      const response = await apiFetch(`/api/finance/cashier/board?${query.toString()}`);
       const data = await readApiResponseData(response);
       if (!isCurrentRequest()) return;
       if (!response.ok) {
@@ -661,15 +702,21 @@ function FinanceCashierPanel({
         paymentMethods: Array.isArray(data?.paymentMethods) ? data.paymentMethods : [],
         services: Array.isArray(data?.services) ? data.services : [],
         specialists: Array.isArray(data?.specialists) ? data.specialists : [],
-        nextTicketNumber: data?.nextTicketNumber ?? data?.next_ticket_number ?? null
+        nextTicketNumber: data?.nextTicketNumber ?? data?.next_ticket_number ?? null,
+        totals: data?.totals && typeof data.totals === "object" ? data.totals : {},
+        limit: normalizeBoardTotal(data?.limit, boardLimit)
       });
       setMessage("");
     } catch {
       if (!isCurrentRequest()) return;
       setMessage("Failed to load cashier board.");
       window.alert?.(translate("Failed to load cashier board."));
+    } finally {
+      if (isCurrentRequest()) {
+        setBoardLoading(false);
+      }
     }
-  }, [translate]);
+  }, [boardLimit, translate]);
 
   const loadCashSession = useCallback(async () => {
     if (!canPayFinanceCashier) {
@@ -1269,7 +1316,7 @@ function FinanceCashierPanel({
         <section className="settings-card-column">
           <BoardColumnTitle
             count={visibleBoard.pendingAppointments.length}
-            total={board.pendingAppointments.length}
+            total={getBoardDisplayTotal("pendingAppointments")}
             label="Pending Appointments"
             translate={translate}
           />
@@ -1286,7 +1333,7 @@ function FinanceCashierPanel({
         </section>
 
         <section className="settings-card-column">
-          <BoardColumnTitle count={visibleBoard.cancelledAppointments.length} total={board.cancelledAppointments.length} label="Cancelled" translate={translate} />
+          <BoardColumnTitle count={visibleBoard.cancelledAppointments.length} total={getBoardDisplayTotal("cancelledAppointments")} label="Cancelled" translate={translate} />
           {visibleBoard.cancelledAppointments.map((item) => (
             <TicketCard
               key={String(item.id)}
@@ -1300,7 +1347,7 @@ function FinanceCashierPanel({
         </section>
 
         <section className="settings-card-column">
-          <BoardColumnTitle count={visibleBoard.noShowAppointments.length} total={board.noShowAppointments.length} label="No-show" translate={translate} />
+          <BoardColumnTitle count={visibleBoard.noShowAppointments.length} total={getBoardDisplayTotal("noShowAppointments")} label="No-show" translate={translate} />
           {visibleBoard.noShowAppointments.map((item) => (
             <TicketCard
               key={String(item.id)}
@@ -1314,7 +1361,7 @@ function FinanceCashierPanel({
         </section>
 
         <section className="settings-card-column">
-          <BoardColumnTitle count={visibleBoard.confirmedAppointments.length} total={board.confirmedAppointments.length} label="Confirmed Appointments" translate={translate} />
+          <BoardColumnTitle count={visibleBoard.confirmedAppointments.length} total={getBoardDisplayTotal("confirmedAppointments")} label="Confirmed Appointments" translate={translate} />
           {visibleBoard.confirmedAppointments.map((item) => (
             <TicketCard
               key={String(item.id)}
@@ -1328,7 +1375,7 @@ function FinanceCashierPanel({
         </section>
 
         <section className="settings-card-column finance-board-readonly-column">
-          <BoardColumnTitle count={visibleBoard.overdueConfirmedAppointments.length} total={board.overdueConfirmedAppointments.length} label="Awaiting Ticket" translate={translate} />
+          <BoardColumnTitle count={visibleBoard.overdueConfirmedAppointments.length} total={getBoardDisplayTotal("overdueConfirmedAppointments")} label="Awaiting Ticket" translate={translate} />
           {visibleBoard.overdueConfirmedAppointments.map((item) => (
             <TicketCard
               key={String(item.id)}
@@ -1342,7 +1389,7 @@ function FinanceCashierPanel({
         </section>
 
         <section className="settings-card-column">
-          <BoardColumnTitle count={selectedTicketCount} total={board.issuedTickets.length} label="Tickets" translate={translate} />
+          <BoardColumnTitle count={selectedTicketCount} total={getBoardDisplayTotal("issuedTickets")} label="Tickets" translate={translate} />
           {visibleBoard.issuedTickets.map((item) => {
             const itemId = String(item.id);
             const selected = selectedTicketIds.has(itemId);
@@ -1371,6 +1418,19 @@ function FinanceCashierPanel({
         </section>
 
       </div>
+
+      {hasMoreBoardItems ? (
+        <div className="finance-board-load-more-row">
+          <button
+            type="button"
+            className="table-action-btn finance-board-load-more"
+            disabled={boardLoading}
+            onClick={loadMoreBoardItems}
+          >
+            {translate("Show more")}
+          </button>
+        </div>
+      ) : null}
 
       {batchPaymentTickets.length > 0 && typeof document !== "undefined" ? createPortal((
         <>
