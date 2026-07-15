@@ -1,5 +1,6 @@
 import pool from "../../config/db.js";
 import { clearAppointmentPlannerReportFilterCaches } from "../appointments/appointment-settings.service.js";
+import { notifyTelegramParentsForAppointmentChange } from "../telegram-bot/telegram-bot.service.js";
 import { createTtlCache } from "../../lib/ttl-cache.js";
 import {
   createMigrationRequiredError,
@@ -74,6 +75,52 @@ export function isClientNameConflictError(error) {
     error?.code === "23505"
     && String(error?.constraint || "").trim().toLowerCase() === CLIENT_NAME_CONFLICT_CONSTRAINT
   );
+}
+
+function mapDeletedClientAppointmentNotificationRow(row) {
+  return {
+    id: row?.id,
+    organizationId: row?.organization_id,
+    specialistId: row?.specialist_id,
+    specialistName: row?.specialist_name,
+    clientId: row?.client_id,
+    appointmentDate: row?.appointment_date,
+    startTime: row?.start_time,
+    endTime: row?.end_time,
+    serviceName: row?.service_name,
+    status: row?.status,
+    note: row?.note,
+    firstName: row?.first_name,
+    lastName: row?.last_name,
+    middleName: row?.middle_name
+  };
+}
+
+function buildClientLessonsDeletedNotification({ organizationId, clientName, items }) {
+  const notificationItems = (Array.isArray(items) ? items : [])
+    .map(mapDeletedClientAppointmentNotificationRow)
+    .filter((item) => Number.parseInt(String(item?.id || "").trim(), 10) > 0);
+  if (!Number.parseInt(String(organizationId || "").trim(), 10) || notificationItems.length === 0) {
+    return null;
+  }
+  return {
+    organizationId,
+    eventType: "client-lessons-deleted",
+    actorName: "CRM",
+    items: notificationItems,
+    notificationContext: {
+      scope: "client_deactivated",
+      clientName: String(clientName || "").trim(),
+      deletedCount: notificationItems.length
+    }
+  };
+}
+
+async function sendClientLessonsDeletedNotification(notification) {
+  if (!notification?.organizationId || !Array.isArray(notification.items) || notification.items.length === 0) {
+    return;
+  }
+  await notifyTelegramParentsForAppointmentChange(notification).catch(() => {});
 }
 
 function buildPagedRowsResult(rows, {
@@ -3300,6 +3347,30 @@ export async function updateClientById({
           AND EXISTS (SELECT 1 FROM updated_client)
        RETURNING s.*
      ),
+     deleted_client_appointment_rows AS (
+       SELECT
+         d.id,
+         d.organization_id,
+         d.specialist_id,
+         d.client_id,
+         d.appointment_date::text AS appointment_date,
+         COALESCE(TO_CHAR(d.start_time, 'HH24:MI'), '') AS start_time,
+         COALESCE(TO_CHAR(d.end_time, 'HH24:MI'), '') AS end_time,
+         d.service_name,
+         d.status,
+         d.note,
+         uc.first_name,
+         uc.last_name,
+         uc.middle_name,
+         COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), 'Specialist #' || d.specialist_id::text) AS specialist_name
+        FROM deleted_client_appointments d
+        JOIN updated_client uc
+          ON uc.id::integer = d.client_id
+         AND uc.organization_id::integer = d.organization_id
+        LEFT JOIN users u
+          ON u.id = d.specialist_id
+         AND u.organization_id = d.organization_id
+     ),
      history_inserted AS (
        INSERT INTO appointment_status_history (
          organization_id,
@@ -3335,7 +3406,14 @@ export async function updateClientById({
      )
      SELECT
        updated_client.*,
-       (SELECT COUNT(*)::integer FROM deleted_client_appointments) AS deleted_appointment_count
+       (SELECT COUNT(*)::integer FROM deleted_client_appointments) AS deleted_appointment_count,
+       COALESCE(
+         (
+           SELECT jsonb_agg(to_jsonb(dar) ORDER BY dar.appointment_date ASC, dar.start_time ASC, dar.id ASC)
+             FROM deleted_client_appointment_rows dar
+         ),
+         '[]'::jsonb
+       ) AS deleted_appointments
       FROM updated_client`,
     params
   );
@@ -3343,6 +3421,12 @@ export async function updateClientById({
   const row = rows[0] || null;
   if (row) {
     clearAppointmentPlannerReportFilterCaches();
+    const clientLessonsDeletedNotification = buildClientLessonsDeletedNotification({
+      organizationId,
+      clientName: [lastName, firstName, middleName].filter(Boolean).join(" "),
+      items: row.deleted_appointments
+    });
+    await sendClientLessonsDeletedNotification(clientLessonsDeletedNotification);
   }
   return row;
 }

@@ -3000,7 +3000,10 @@ function isSpecialistLessonsDeleteNotification({ eventType, notificationContext,
   }
   const type = String(eventType || "").trim().toLowerCase();
   const scope = String(notificationContext?.scope || "").trim().toLowerCase();
-  return type === "specialist-lessons-deleted" || scope === "specialist_removed";
+  return type === "specialist-lessons-deleted"
+    || type === "client-lessons-deleted"
+    || scope === "specialist_removed"
+    || scope === "client_deactivated";
 }
 
 function isBulkSpecialistCancellationNotification({ eventType, notificationContext, items }) {

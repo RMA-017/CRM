@@ -178,6 +178,43 @@ test("specialist removal planner cleanup notifies Telegram parents after commit"
   );
 });
 
+test("client deactivation planner cleanup notifies Telegram parents with one grouped message", async () => {
+  const clientsServiceSource = await readFile(
+    new URL("../src/modules/clients/clients.service.js", import.meta.url),
+    "utf8"
+  );
+  const telegramServiceSource = await readFile(
+    new URL("../src/modules/telegram-bot/telegram-bot.service.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    clientsServiceSource,
+    /import \{ notifyTelegramParentsForAppointmentChange \} from "\.\.\/telegram-bot\/telegram-bot\.service\.js";/,
+    "Client cleanup should be able to notify Telegram parents."
+  );
+  assert.match(
+    clientsServiceSource,
+    /eventType:\s*"client-lessons-deleted"[\s\S]*scope:\s*"client_deactivated"/,
+    "Client deactivation cleanup should use a dedicated compact delete event."
+  );
+  assert.match(
+    clientsServiceSource,
+    /deleted_client_appointment_rows AS[\s\S]*specialist_name[\s\S]*jsonb_agg\(to_jsonb\(dar\) ORDER BY dar\.appointment_date ASC, dar\.start_time ASC, dar\.id ASC\)[\s\S]*AS deleted_appointments/s,
+    "Client deactivation cleanup should return deleted lessons with Telegram-ready names and times."
+  );
+  assert.match(
+    clientsServiceSource,
+    /const row = rows\[0\] \|\| null;[\s\S]*buildClientLessonsDeletedNotification\([\s\S]*await sendClientLessonsDeletedNotification\(clientLessonsDeletedNotification\);/s,
+    "Client deactivation cleanup should notify parents after the database update has completed."
+  );
+  assert.match(
+    telegramServiceSource,
+    /type === "client-lessons-deleted"[\s\S]*scope === "client_deactivated"/,
+    "Telegram service should route client-deactivation deletes through grouped child messages."
+  );
+});
+
 test("Telegram weekly menu opens day buttons before showing lessons", async () => {
   const serviceSource = await readFile(
     new URL("../src/modules/telegram-bot/telegram-bot.service.js", import.meta.url),

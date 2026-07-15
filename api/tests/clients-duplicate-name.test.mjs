@@ -487,6 +487,8 @@ test("client update from VIP to inactive removes pending planner lessons from to
       assert.doesNotMatch(queryText, /s\.status IN \('pending', 'confirmed'\)/);
       assert.match(queryText, /s\.appointment_date >= TIMEZONE\('Asia\/Tashkent', NOW\(\)\)::date/);
       assert.match(queryText, /NOT EXISTS \([\s\S]*FROM finance_tickets ft[\s\S]*ft\.appointment_schedule_id = s\.id/s);
+      assert.match(queryText, /deleted_client_appointment_rows AS/);
+      assert.match(queryText, /jsonb_agg\(to_jsonb\(dar\) ORDER BY dar\.appointment_date ASC, dar\.start_time ASC, dar\.id ASC\)/);
       assert.deepEqual(params, [
         "Ali",
         "Valiyev",
@@ -516,7 +518,23 @@ test("client update from VIP to inactive removes pending planner lessons from to
           created_at: "2026-01-01T00:00:00.000Z",
           updated_at: "2026-01-01T00:00:00.000Z",
           note: null,
-          deleted_appointment_count: 2
+          deleted_appointment_count: 2,
+          deleted_appointments: [{
+            id: 501,
+            organization_id: 5,
+            specialist_id: 3,
+            specialist_name: "Specialist",
+            client_id: 44,
+            appointment_date: "2026-07-22",
+            start_time: "09:00",
+            end_time: "09:30",
+            service_name: "ABA",
+            status: "pending",
+            note: null,
+            first_name: "Ali",
+            last_name: "Valiyev",
+            middle_name: null
+          }]
         }]
       };
     }
