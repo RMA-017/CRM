@@ -13,6 +13,7 @@ const FinanceTransactionsPanel = lazy(() => import("./panels/FinanceTransactions
 const FinanceBalancesPanel = lazy(() => import("./panels/FinanceBalancesPanel.jsx"));
 const FinanceDailyCashPanel = lazy(() => import("./panels/FinanceDailyCashPanel.jsx"));
 const FinanceReportsPanel = lazy(() => import("./panels/FinanceReportsPanel.jsx"));
+const FinanceAuditPanel = lazy(() => import("./panels/FinanceAuditPanel.jsx"));
 const MonitoringPanel = lazy(() => import("./MonitoringPanel.jsx"));
 const OrganizationsSettingsPanel = lazy(() => import("./panels/OrganizationsSettingsPanel.jsx"));
 const PositionsSettingsPanel = lazy(() => import("./panels/PositionsSettingsPanel.jsx"));
@@ -121,6 +122,7 @@ function ProfileMainContent({
   closeFinanceBalancesPanel,
   closeFinanceDailyCashPanel,
   closeFinanceReportsPanel,
+  closeFinanceAuditPanel,
   closeServicesPanel,
   canUpdateCrm,
   canCreateFinanceCashier,
@@ -635,6 +637,12 @@ function ProfileMainContent({
         {mainView === "finance-reports" ? (
           <Suspense fallback={PANEL_LOADING_FALLBACK}>
             <FinanceReportsPanel onClose={closeFinanceReportsPanel} />
+          </Suspense>
+        ) : null}
+
+        {mainView === "finance-audit" ? (
+          <Suspense fallback={PANEL_LOADING_FALLBACK}>
+            <FinanceAuditPanel onClose={closeFinanceAuditPanel} />
           </Suspense>
         ) : null}
 

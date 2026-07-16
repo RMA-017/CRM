@@ -15,6 +15,7 @@ export function useProfilePanels({
   canOpenFinanceBalances,
   canOpenFinanceDailyCash,
   canOpenFinanceReports,
+  canOpenFinanceAudit,
   canOpenServices,
   canOpenAppointmentSchedule,
   canOpenAppointmentSettings,
@@ -123,6 +124,14 @@ export function useProfilePanels({
 
   const closeFinanceReportsPanel = useCallback(() => {
     closePanel("finance-reports");
+  }, [closePanel]);
+
+  const openFinanceAuditPanel = useCallback(() => {
+    openPanel("/finance/audit", canOpenFinanceAudit);
+  }, [canOpenFinanceAudit, openPanel]);
+
+  const closeFinanceAuditPanel = useCallback(() => {
+    closePanel("finance-audit");
   }, [closePanel]);
 
   const closeAllClientsPanel = useCallback(() => {
@@ -259,6 +268,8 @@ export function useProfilePanels({
     closeFinanceDailyCashPanel,
     openFinanceReportsPanel,
     closeFinanceReportsPanel,
+    openFinanceAuditPanel,
+    closeFinanceAuditPanel,
     closeAllClientsPanel,
     openAppointmentPanel,
     closeAppointmentPanel,

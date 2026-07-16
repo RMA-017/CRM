@@ -32,6 +32,8 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
   openFinanceDailyCashPanel,
   canOpenFinanceReports,
   openFinanceReportsPanel,
+  canOpenFinanceAudit,
+  openFinanceAuditPanel,
   canOpenServices,
   openServicesPanel,
   hasAppointmentsMenuAccess,
@@ -333,6 +335,15 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 onClick={openFinanceReportsPanel}
               >
                 Reports
+              </button>
+              <button
+                id="openFinanceAuditBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                hidden={!canOpenFinanceAudit}
+                onClick={openFinanceAuditPanel}
+              >
+                Аудит
               </button>
             </div>
           </div>

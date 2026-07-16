@@ -7,6 +7,7 @@ import {
   exportFinanceToGoogleSheets,
   getFinanceGoogleSheetsConfig
 } from "./finance-google-sheets.service.js";
+import { getFinanceAudit } from "./finance-audit.service.js";
 import {
   closeCashSession,
   confirmCashierAppointment,
@@ -172,6 +173,31 @@ async function financeRoutes(fastify) {
       } catch (error) {
         request.log.error({ err: error }, "Error fetching finance payment methods:");
         return sendRouteError(reply, error, "Failed to load payment methods.");
+      }
+    }
+  );
+
+  fastify.get(
+    "/audit",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        querystring: financeRouteSchemas.auditQuery
+      }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+      try {
+        const requester = await requireReportsAccess(request, reply, "read");
+        if (!requester) return null;
+        const result = await getFinanceAudit({
+          organizationId: request.authContext.organizationId,
+          options: request.query || {}
+        });
+        return reply.send(result);
+      } catch (error) {
+        request.log.error({ err: error }, "Error fetching finance audit:");
+        return sendRouteError(reply, error, "Failed to load finance audit.");
       }
     }
   );

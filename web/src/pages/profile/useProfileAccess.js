@@ -223,6 +223,7 @@ export function useProfileAccess(profile, forcedView) {
   const canOpenFinanceBalances = canReadFinanceBalancesPermission;
   const canOpenFinanceDailyCash = canReadFinanceDailyCashPermission;
   const canOpenFinanceReports = canReadFinanceReportsPermission;
+  const canOpenFinanceAudit = canReadFinanceReportsPermission;
   const canOpenFinance = (
     canOpenFinanceCashier
     || canOpenFinanceTickets
@@ -230,6 +231,7 @@ export function useProfileAccess(profile, forcedView) {
     || canOpenFinanceBalances
     || canOpenFinanceDailyCash
     || canOpenFinanceReports
+    || canOpenFinanceAudit
   );
   const canReadServices = canReadServicesPermission || canReadSettingsServices;
   const hasUsersMenuAccess = canReadUsers || canCreateUsers;
@@ -346,6 +348,9 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "finance-reports") {
       return canOpenFinanceReports;
     }
+    if (forcedView === "finance-audit") {
+      return canOpenFinanceAudit;
+    }
     if (forcedView === "appointment") {
       return canOpenAppointmentSchedule;
     }
@@ -396,6 +401,7 @@ export function useProfileAccess(profile, forcedView) {
     canOpenFinanceBalances,
     canOpenFinanceDailyCash,
     canOpenFinanceReports,
+    canOpenFinanceAudit,
     canOpenSettingsOrganizations,
     canOpenSettingsPositions,
     canOpenSettingsServices,
@@ -464,6 +470,7 @@ export function useProfileAccess(profile, forcedView) {
     canOpenFinanceBalances,
     canOpenFinanceDailyCash,
     canOpenFinanceReports,
+    canOpenFinanceAudit,
     canCreateFinanceCashier: canCreateFinanceCashierPermission,
     canUpdateFinanceCashier: canUpdateFinanceCashierPermission,
     canPayFinanceCashier: canPayFinanceCashierPermission,

@@ -99,6 +99,7 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenFinanceBalances,
     canOpenFinanceDailyCash,
     canOpenFinanceReports,
+    canOpenFinanceAudit,
     canCreateFinanceCashier,
     canUpdateFinanceCashier,
     canPayFinanceCashier,
@@ -675,6 +676,8 @@ function ProfilePage({ forcedView = "none" }) {
     closeFinanceDailyCashPanel,
     openFinanceReportsPanel,
     closeFinanceReportsPanel,
+    openFinanceAuditPanel,
+    closeFinanceAuditPanel,
     openServicesPanel,
     closeServicesPanel,
     closeAllClientsPanel,
@@ -717,6 +720,7 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenFinanceBalances,
     canOpenFinanceDailyCash,
     canOpenFinanceReports,
+    canOpenFinanceAudit,
     canOpenServices,
     canOpenAppointmentSchedule,
     canOpenAppointmentSettings,
@@ -1219,6 +1223,7 @@ function ProfilePage({ forcedView = "none" }) {
             closeFinanceBalancesPanel={closeFinanceBalancesPanel}
             closeFinanceDailyCashPanel={closeFinanceDailyCashPanel}
             closeFinanceReportsPanel={closeFinanceReportsPanel}
+            closeFinanceAuditPanel={closeFinanceAuditPanel}
             closeServicesPanel={closeServicesPanel}
             canUpdateCrm={canUpdateCrm}
             canCreateFinanceCashier={canCreateFinanceCashier}
@@ -1434,6 +1439,8 @@ function ProfilePage({ forcedView = "none" }) {
         openFinanceDailyCashPanel={openFinanceDailyCashPanel}
         canOpenFinanceReports={canOpenFinanceReports}
         openFinanceReportsPanel={openFinanceReportsPanel}
+        canOpenFinanceAudit={canOpenFinanceAudit}
+        openFinanceAuditPanel={openFinanceAuditPanel}
         hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
         canOpenAppointmentSchedule={canOpenAppointmentSchedule}
         canOpenAppointmentSettings={canOpenAppointmentSettings}
