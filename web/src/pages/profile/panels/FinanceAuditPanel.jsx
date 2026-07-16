@@ -70,6 +70,9 @@ function FinanceAuditPanel({ onClose }) {
   }, [loadAudit]);
 
   const summary = audit?.summary || { status: "ok", issueCount: 0, errorCount: 0, warningCount: 0, checkCount: 0 };
+  const summaryStatusClassName = getStatusClassName(summary.status);
+  const summaryStatusLabel = loading ? "Проверка..." : (STATUS_LABELS[summary.status] || STATUS_LABELS.ok);
+  const generatedAtLabel = audit?.generatedAt ? formatDateTime(audit.generatedAt) : "-";
   const allIssues = useMemo(() => (
     (audit?.checks || []).flatMap((check) => (
       (check.issues || []).map((issue) => ({
@@ -82,14 +85,19 @@ function FinanceAuditPanel({ onClose }) {
 
   return (
     <section id="financeAuditPanel" className="all-users-panel settings-panel ops-panel-shell finance-panel-shell finance-audit-panel">
-      <div className="all-users-head">
-        <div>
-          <h3>Финансовый аудит</h3>
-          <p className="all-users-subtitle">
-            {audit?.generatedAt ? `Проверено: ${formatDateTime(audit.generatedAt)}` : "Проверка финансовых данных"}
-          </p>
+      <div className={`all-users-head finance-audit-head ${summaryStatusClassName}`}>
+        <div className="finance-audit-head-main">
+          <div className="finance-audit-title-row">
+            <span className={`finance-audit-mark ${summaryStatusClassName}`} aria-hidden="true" />
+            <h3>Финансовый аудит</h3>
+            <span className={`finance-audit-status-badge ${summaryStatusClassName}`}>{summaryStatusLabel}</span>
+          </div>
+          <div className="finance-audit-meta-row">
+            <span>Проверено</span>
+            <strong>{generatedAtLabel}</strong>
+          </div>
         </div>
-        <div className="all-users-actions">
+        <div className="all-users-head-actions finance-audit-head-actions">
           <button
             type="button"
             className="table-action-btn finance-head-icon-btn"
@@ -98,7 +106,7 @@ function FinanceAuditPanel({ onClose }) {
             title="Проверить"
             aria-label="Проверить"
           >
-            {loading ? "..." : <span className="finance-head-icon finance-head-icon-filter" aria-hidden="true" />}
+            {loading ? "..." : <span className="finance-head-icon finance-head-icon-refresh" aria-hidden="true" />}
           </button>
           <button
             type="button"
@@ -112,7 +120,7 @@ function FinanceAuditPanel({ onClose }) {
       </div>
 
       <div className="finance-ticket-summary finance-ticket-total finance-audit-summary">
-        <div className={`finance-total-cell ${getStatusClassName(summary.status)}`}>
+        <div className={`finance-total-cell ${summaryStatusClassName}`}>
           <span>Общий статус</span>
           <strong>{STATUS_LABELS[summary.status] || STATUS_LABELS.ok}</strong>
         </div>
