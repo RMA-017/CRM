@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { Component, lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useI18n } from "./i18n/I18nProvider.jsx";
 import { loadProfilePage } from "./lib/load-profile-page.js";
@@ -6,6 +6,93 @@ import { loadProfilePage } from "./lib/load-profile-page.js";
 const HomePage = lazy(() => import("./pages/HomePage.jsx"));
 const BlogArticlePage = lazy(() => import("./pages/BlogArticlePage.jsx"));
 const ProfilePage = lazy(loadProfilePage);
+const CHUNK_RELOAD_STORAGE_KEY = "aaron_crm_chunk_reload_attempt";
+const CHUNK_RELOAD_COOLDOWN_MS = 60000;
+
+function isChunkLoadError(error) {
+  const message = String(error?.message || error || "");
+  return /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Loading chunk|Unable to preload CSS/i.test(message);
+}
+
+function scheduleChunkReload(error) {
+  if (typeof window === "undefined" || !isChunkLoadError(error)) {
+    return false;
+  }
+
+  const now = Date.now();
+  const currentPath = `${window.location.pathname}${window.location.search}`;
+  try {
+    const previous = JSON.parse(window.sessionStorage.getItem(CHUNK_RELOAD_STORAGE_KEY) || "null");
+    if (
+      previous
+      && previous.path === currentPath
+      && Number.isFinite(previous.at)
+      && now - previous.at < CHUNK_RELOAD_COOLDOWN_MS
+    ) {
+      return false;
+    }
+    window.sessionStorage.setItem(CHUNK_RELOAD_STORAGE_KEY, JSON.stringify({ path: currentPath, at: now }));
+  } catch {
+    // If storage is blocked, a single normal reload is still the best recovery.
+  }
+
+  window.setTimeout(() => {
+    window.location.reload();
+  }, 50);
+  return true;
+}
+
+class ChunkErrorBoundary extends Component {
+  state = {
+    error: null,
+    reloadScheduled: false
+  };
+
+  componentDidMount() {
+    window.setTimeout(() => {
+      if (!this.state.error) {
+        try {
+          window.sessionStorage.removeItem(CHUNK_RELOAD_STORAGE_KEY);
+        } catch {
+          // Storage cleanup is optional.
+        }
+      }
+    }, 4000);
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error) {
+    if (scheduleChunkReload(error)) {
+      this.setState({ reloadScheduled: true });
+      return;
+    }
+    console.error(error);
+  }
+
+  render() {
+    if (!this.state.error) {
+      return this.props.children;
+    }
+
+    return (
+      <main className="home-main" aria-label="Application loading error">
+        {this.state.reloadScheduled ? (
+          <p>Обновляем страницу...</p>
+        ) : (
+          <>
+            <p>Не удалось загрузить обновленную часть сайта.</p>
+            <button type="button" className="btn-primary" onClick={() => window.location.reload()}>
+              Обновить
+            </button>
+          </>
+        )}
+      </main>
+    );
+  }
+}
 
 const PROFILE_VIEW_ROUTES = Object.freeze([
   { path: "/profile", forcedView: "none" },
@@ -113,29 +200,31 @@ function NotFoundPage() {
 
 function App() {
   return (
-    <Suspense fallback={null}>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/blog/:slug" element={<BlogArticlePage />} />
-        {PROFILE_VIEW_ROUTES.map(({ path, forcedView }) => (
-          <Route
-            key={path}
-            path={path}
-            element={<ProfilePage forcedView={forcedView} />}
-          />
-        ))}
-        {REDIRECT_ROUTE_GROUPS.flatMap(({ to, paths }) => (
-          paths.map((path) => (
+    <ChunkErrorBoundary>
+      <Suspense fallback={null}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/blog/:slug" element={<BlogArticlePage />} />
+          {PROFILE_VIEW_ROUTES.map(({ path, forcedView }) => (
             <Route
               key={path}
               path={path}
-              element={<Navigate to={to} replace />}
+              element={<ProfilePage forcedView={forcedView} />}
             />
-          ))
-        ))}
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
-    </Suspense>
+          ))}
+          {REDIRECT_ROUTE_GROUPS.flatMap(({ to, paths }) => (
+            paths.map((path) => (
+              <Route
+                key={path}
+                path={path}
+                element={<Navigate to={to} replace />}
+              />
+            ))
+          ))}
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </Suspense>
+    </ChunkErrorBoundary>
   );
 }
 
