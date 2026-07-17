@@ -85,8 +85,6 @@ function FinanceClientDiscountsPanel({
   const [items, setItems] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [query, setQuery] = useState("");
-  const [appliedQuery, setAppliedQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [services, setServices] = useState([]);
@@ -119,7 +117,6 @@ function FinanceClientDiscountsPanel({
       const data = await readApiResponseData(response);
       if (!response.ok) {
         setItems([]);
-        setMessage(data?.message || "Не удалось загрузить скидки клиентов.");
         return;
       }
       setItems(Array.isArray(data?.items) ? data.items : []);
@@ -127,7 +124,6 @@ function FinanceClientDiscountsPanel({
       setTotalPages(Math.max(1, toIntegerAmount(data?.totalPages) || 1));
     } catch {
       setItems([]);
-      setMessage("Не удалось загрузить скидки клиентов.");
     } finally {
       setLoading(false);
     }
@@ -290,13 +286,13 @@ function FinanceClientDiscountsPanel({
         return;
       }
       closeCreateModal();
-      await loadDiscounts(1, appliedQuery);
+      await loadDiscounts(1);
     } catch {
       setCreateError("Не удалось создать скидку.");
     } finally {
       setSubmitting(false);
     }
-  }, [appliedQuery, closeCreateModal, createForm.discountType, createForm.discountValue, createForm.note, loadDiscounts, selectedClient, serviceRows]);
+  }, [closeCreateModal, createForm.discountType, createForm.discountValue, createForm.note, loadDiscounts, selectedClient, serviceRows]);
 
   const openDetail = useCallback(async (item) => {
     const id = item?.id;
@@ -333,18 +329,11 @@ function FinanceClientDiscountsPanel({
         setMessage(data?.message || "Не удалось обновить скидку.");
         return;
       }
-      await loadDiscounts(page, appliedQuery);
+      await loadDiscounts(page);
     } catch {
       setMessage("Не удалось обновить скидку.");
     }
-  }, [appliedQuery, canUpdateFinanceDiscounts, loadDiscounts, page]);
-
-  const applySearch = useCallback((event) => {
-    event.preventDefault();
-    const nextQuery = query.trim();
-    setAppliedQuery(nextQuery);
-    void loadDiscounts(1, nextQuery);
-  }, [loadDiscounts, query]);
+  }, [canUpdateFinanceDiscounts, loadDiscounts, page]);
 
   const modalRoot = typeof document !== "undefined" ? document.body : null;
   const detailItem = detail?.item || null;
@@ -354,13 +343,11 @@ function FinanceClientDiscountsPanel({
   return (
     <section id="financeClientDiscountsPanel" className="all-users-panel settings-panel ops-panel-shell finance-panel-shell finance-discounts-panel">
       <div className="all-users-head finance-discounts-head">
-        <div>
-          <h3>Скидки клиентов</h3>
-        </div>
+        <h3>Скидки клиентов</h3>
         <div className="all-users-head-actions">
           <button
             type="button"
-            className="table-action-btn finance-head-icon-btn finance-discounts-create-btn"
+            className="header-btn appointment-breaks-add-icon-btn"
             onClick={openCreateModal}
             disabled={!canCreateFinanceDiscounts}
             title="Создать скидку"
@@ -370,37 +357,14 @@ function FinanceClientDiscountsPanel({
           </button>
           <button
             type="button"
-            className="table-action-btn finance-head-icon-btn"
-            onClick={() => loadDiscounts(page, appliedQuery)}
-            disabled={loading}
-            title="Обновить"
-            aria-label="Обновить"
-          >
-            {loading ? "..." : <span className="finance-head-icon finance-head-icon-refresh" aria-hidden="true" />}
-          </button>
-          <button
-            type="button"
-            className="all-users-close"
+            className="header-btn panel-close-btn"
             onClick={onClose}
             aria-label={translate("Close finance reports panel")}
           >
-            x
+            ×
           </button>
         </div>
       </div>
-
-      <form className="settings-inline-form finance-discounts-filter" onSubmit={applySearch}>
-        <div className="field">
-          <span>Поиск</span>
-          <input
-            type="search"
-            value={query}
-            placeholder="Клиент или ID скидки"
-            onChange={(event) => setQuery(event.currentTarget.value)}
-          />
-        </div>
-        <button type="submit" className="btn" disabled={loading}>Найти</button>
-      </form>
 
       {message ? <p className="all-users-state">{message}</p> : null}
 
@@ -466,11 +430,11 @@ function FinanceClientDiscountsPanel({
       </div>
 
       <div className="table-pagination">
-        <button type="button" disabled={page <= 1 || loading} onClick={() => loadDiscounts(page - 1, appliedQuery)}>
+        <button type="button" disabled={page <= 1 || loading} onClick={() => loadDiscounts(page - 1)}>
           Prev
         </button>
         <span>{page} / {totalPages}</span>
-        <button type="button" disabled={page >= totalPages || loading} onClick={() => loadDiscounts(page + 1, appliedQuery)}>
+        <button type="button" disabled={page >= totalPages || loading} onClick={() => loadDiscounts(page + 1)}>
           Next
         </button>
       </div>
@@ -478,122 +442,141 @@ function FinanceClientDiscountsPanel({
       {createOpen && modalRoot ? createPortal(
         <div className="finance-modal-overlay" role="presentation">
           <div id="financeClientDiscountCreateModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-discounts-modal">
-            <form className="auth-form" onSubmit={submitCreate}>
-              <h3>Новая скидка клиента</h3>
-              <div className="all-users-edit-fields finance-discounts-form-grid">
-                <div className="field finance-discounts-client-field">
-                  <span>Клиент</span>
-                  <input
-                    type="search"
-                    value={selectedClient ? normalizeClientLabel(selectedClient) : clientSearch}
-                    placeholder="Введите имя, телефон или ID"
-                    onChange={(event) => {
-                      setCreateError("");
-                      setSelectedClient(null);
-                      setClientSearch(event.currentTarget.value);
-                    }}
-                  />
-                  {!selectedClient && clientOptions.length > 0 ? (
-                    <div className="finance-discounts-client-results">
-                      {clientOptions.map((client) => (
-                        <button
-                          key={client.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedClient(client);
-                            setCreateError("");
-                            setClientSearch(normalizeClientLabel(client));
-                            setClientOptions([]);
-                          }}
-                        >
-                          {normalizeClientLabel(client)}
-                        </button>
-                      ))}
+            <form className="auth-form finance-discounts-create-form" onSubmit={submitCreate}>
+              <div className="finance-discounts-create-head">
+                <h3>Новая скидка клиента</h3>
+                <button
+                  type="button"
+                  className="header-btn panel-close-btn"
+                  onClick={closeCreateModal}
+                  disabled={submitting}
+                  aria-label="Закрыть"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="finance-discounts-create-body">
+                <section className="finance-discounts-create-section">
+                  <div className="finance-discounts-section-title">
+                    <strong>Клиент и скидка</strong>
+                  </div>
+                  <div className="all-users-edit-fields finance-discounts-form-grid">
+                    <div className="field finance-discounts-client-field">
+                      <span>Клиент</span>
+                      <input
+                        type="search"
+                        value={selectedClient ? normalizeClientLabel(selectedClient) : clientSearch}
+                        placeholder="Введите имя, телефон или ID"
+                        onChange={(event) => {
+                          setCreateError("");
+                          setSelectedClient(null);
+                          setClientSearch(event.currentTarget.value);
+                        }}
+                      />
+                      {!selectedClient && clientOptions.length > 0 ? (
+                        <div className="finance-discounts-client-results">
+                          {clientOptions.map((client) => (
+                            <button
+                              key={client.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedClient(client);
+                                setCreateError("");
+                                setClientSearch(normalizeClientLabel(client));
+                                setClientOptions([]);
+                              }}
+                            >
+                              {normalizeClientLabel(client)}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
-                </div>
 
-                <div className="field">
-                  <span>Тип скидки</span>
-                  <CustomSelect
-                    value={createForm.discountType}
-                    options={DISCOUNT_TYPE_OPTIONS}
-                    onChange={(value) => updateCreateForm("discountType", value)}
-                    placeholder="Тип скидки"
-                    menuPortal
-                  />
-                </div>
+                    <div className="field">
+                      <span>Тип скидки</span>
+                      <CustomSelect
+                        value={createForm.discountType}
+                        options={DISCOUNT_TYPE_OPTIONS}
+                        onChange={(value) => updateCreateForm("discountType", value)}
+                        placeholder="Тип скидки"
+                        menuPortal
+                      />
+                    </div>
 
-                <div className="field">
-                  <span>{createForm.discountType === "percent" ? "Процент" : "Сумма"}</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max={createForm.discountType === "percent" ? "100" : undefined}
-                    value={createForm.discountValue}
-                    onChange={(event) => updateCreateForm("discountValue", event.currentTarget.value)}
-                  />
-                </div>
+                    <div className="field">
+                      <span>{createForm.discountType === "percent" ? "Процент" : "Сумма"}</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max={createForm.discountType === "percent" ? "100" : undefined}
+                        value={createForm.discountValue}
+                        onChange={(event) => updateCreateForm("discountValue", event.currentTarget.value)}
+                      />
+                    </div>
 
-                <div className="field finance-discounts-note-field">
-                  <span>Примечание</span>
-                  <input
-                    type="text"
-                    maxLength={255}
-                    value={createForm.note}
-                    onChange={(event) => updateCreateForm("note", event.currentTarget.value)}
-                  />
-                </div>
-              </div>
+                    <div className="field finance-discounts-note-field">
+                      <span>Примечание</span>
+                      <input
+                        type="text"
+                        maxLength={255}
+                        value={createForm.note}
+                        onChange={(event) => updateCreateForm("note", event.currentTarget.value)}
+                      />
+                    </div>
+                  </div>
+                </section>
 
-              {createError ? <p className="all-users-state finance-discounts-modal-error">{createError}</p> : null}
+                {createError ? <p className="all-users-state finance-discounts-modal-error">{createError}</p> : null}
 
-              <div className="finance-discounts-services">
-                <div className="finance-discounts-services-head">
-                  <strong>Услуги</strong>
-                  <span>{serviceRows.length} выбрано</span>
-                </div>
-                <div className="finance-discounts-service-list">
-                  {services.map((service) => {
-                    const checked = selectedServiceIds.has(String(service.id));
-                    const selectedRow = serviceRows.find((row) => String(row.serviceId) === String(service.id));
-                    return (
-                      <div key={service.id} className={`finance-discounts-service-row${checked ? " is-selected" : ""}`}>
-                        <label className="settings-checkbox settings-checkbox-inline">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleService(service)}
-                          />
-                          <span>{service.name}</span>
-                        </label>
-                        {checked ? (
-                          <div className="finance-discounts-service-limit">
-                            <label className="settings-checkbox settings-checkbox-inline">
-                              <input
-                                type="checkbox"
-                                checked={Boolean(selectedRow?.isUnlimited)}
-                                onChange={(event) => updateServiceRow(service.id, { isUnlimited: event.currentTarget.checked })}
-                              />
-                              <span>Безлимит</span>
-                            </label>
+                <section className="finance-discounts-create-section finance-discounts-services">
+                  <div className="finance-discounts-services-head">
+                    <strong>Услуги</strong>
+                    <span>{serviceRows.length} выбрано</span>
+                  </div>
+                  <div className="finance-discounts-service-list">
+                    {services.map((service) => {
+                      const checked = selectedServiceIds.has(String(service.id));
+                      const selectedRow = serviceRows.find((row) => String(row.serviceId) === String(service.id));
+                      return (
+                        <div key={service.id} className={`finance-discounts-service-row${checked ? " is-selected" : ""}`}>
+                          <label className="settings-checkbox settings-checkbox-inline">
                             <input
-                              type="number"
-                              min="1"
-                              value={selectedRow?.isUnlimited ? "" : (selectedRow?.limitCount || "")}
-                              placeholder="Кол-во"
-                              disabled={Boolean(selectedRow?.isUnlimited)}
-                              onChange={(event) => updateServiceRow(service.id, { limitCount: event.currentTarget.value })}
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleService(service)}
                             />
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
+                            <span>{service.name}</span>
+                          </label>
+                          {checked ? (
+                            <div className="finance-discounts-service-limit">
+                              <label className="settings-checkbox settings-checkbox-inline">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(selectedRow?.isUnlimited)}
+                                  onChange={(event) => updateServiceRow(service.id, { isUnlimited: event.currentTarget.checked })}
+                                />
+                                <span>Безлимит</span>
+                              </label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={selectedRow?.isUnlimited ? "" : (selectedRow?.limitCount || "")}
+                                placeholder="Кол-во"
+                                disabled={Boolean(selectedRow?.isUnlimited)}
+                                onChange={(event) => updateServiceRow(service.id, { limitCount: event.currentTarget.value })}
+                              />
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
               </div>
 
-              <div className="all-users-edit-actions">
+              <div className="all-users-edit-actions finance-discounts-modal-actions">
                 <button type="submit" className="btn" disabled={submitting}>
                   {submitting ? "Сохранение..." : "Создать"}
                 </button>
