@@ -483,11 +483,10 @@ function FinanceClientDiscountsPanel({
               <div className="finance-discounts-create-body">
                 <div className="finance-discounts-simple-form">
                   <div className="field finance-discounts-client-field">
-                    <span>Клиент</span>
                     <input
                       type="search"
                       value={selectedClient ? normalizeClientLabel(selectedClient) : clientSearch}
-                      placeholder="Введите имя, телефон или ID"
+                      placeholder="Клиент"
                       onChange={(event) => {
                         setCreateError("");
                         setSelectedClient(null);
@@ -516,7 +515,6 @@ function FinanceClientDiscountsPanel({
 
                   <div className="finance-discounts-discount-row">
                     <div className="field">
-                      <span>Тип скидки</span>
                       <CustomSelect
                         value={createForm.discountType}
                         options={DISCOUNT_TYPE_OPTIONS}
@@ -527,11 +525,11 @@ function FinanceClientDiscountsPanel({
                     </div>
 
                     <div className="field">
-                      <span>{createForm.discountType === "percent" ? "Процент" : "Сумма"}</span>
                       <input
                         type="number"
                         min="1"
                         max={createForm.discountType === "percent" ? "100" : undefined}
+                        placeholder={createForm.discountType === "percent" ? "Процент" : "Сумма"}
                         value={createForm.discountValue}
                         onChange={(event) => updateCreateForm("discountValue", event.currentTarget.value)}
                       />
@@ -544,7 +542,6 @@ function FinanceClientDiscountsPanel({
                     {serviceRows.map((row) => (
                       <div className="finance-discounts-service-line" key={row.key}>
                         <label className="field finance-discounts-service-select-field">
-                          <span>Услуга</span>
                           <CustomSelect
                             value={row.serviceId}
                             options={discountServiceOptions}
@@ -563,7 +560,6 @@ function FinanceClientDiscountsPanel({
                           />
                         </label>
                         <label className="field finance-discounts-service-count-field">
-                          <span>Кол-во</span>
                           <input
                             type="number"
                             min="1"
@@ -573,13 +569,16 @@ function FinanceClientDiscountsPanel({
                             onChange={(event) => updateServiceRow(row.key, { limitCount: event.currentTarget.value })}
                           />
                         </label>
-                        <label className="settings-checkbox settings-checkbox-inline finance-discounts-unlimited-toggle">
+                        <label
+                          className="settings-checkbox settings-checkbox-inline finance-discounts-unlimited-toggle"
+                          title="Безлимит"
+                        >
                           <input
                             type="checkbox"
+                            aria-label="Безлимит"
                             checked={Boolean(row.isUnlimited)}
                             onChange={(event) => updateServiceRow(row.key, { isUnlimited: event.currentTarget.checked })}
                           />
-                          <span>Безлимит</span>
                         </label>
                         <div className="finance-discounts-service-actions">
                           <button
@@ -607,10 +606,10 @@ function FinanceClientDiscountsPanel({
                   </div>
 
                   <div className="field finance-discounts-note-field">
-                    <span>Примечание</span>
                     <input
                       type="text"
                       maxLength={255}
+                      placeholder="Примечание"
                       value={createForm.note}
                       onChange={(event) => updateCreateForm("note", event.currentTarget.value)}
                     />

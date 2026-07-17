@@ -6479,8 +6479,8 @@ label.field > span:first-child,
 }
 
 .finance-discounts-modal {
-  width: min(760px, calc(100vw - 24px));
-  max-height: min(760px, calc(100dvh - 28px));
+  width: min(680px, calc(100vw - 24px));
+  max-height: min(680px, calc(100dvh - 28px));
   padding: 0;
   overflow: hidden;
 }
@@ -6503,17 +6503,17 @@ label.field > span:first-child,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px 12px;
+  gap: 10px;
+  padding: 11px 13px 10px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.24);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94));
 }
 
 .finance-discounts-create-head h3 {
   margin: 0;
-  min-height: 30px;
+  min-height: 28px;
   justify-content: flex-start;
-  font-size: var(--fs-lg) !important;
+  font-size: var(--fs-base) !important;
   font-weight: 800;
   line-height: 1.1;
   text-align: left;
@@ -6522,7 +6522,7 @@ label.field > span:first-child,
 .finance-discounts-create-body {
   display: grid;
   min-height: 0;
-  padding: 14px;
+  padding: 12px;
   overflow: auto;
   scrollbar-gutter: stable;
   background: rgba(248, 250, 252, 0.58);
@@ -6530,14 +6530,24 @@ label.field > span:first-child,
 
 .finance-discounts-simple-form {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .finance-discounts-discount-row {
   display: grid;
   grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr);
-  gap: 10px;
-  align-items: end;
+  gap: 8px;
+  align-items: center;
+}
+
+#financeClientDiscountCreateModal .settings-checkbox-inline {
+  font-size: 11px;
+}
+
+#financeClientDiscountCreateModal :is(input, .custom-select-trigger) {
+  min-height: 30px;
+  height: 30px;
+  font-size: 12px;
 }
 
 .finance-discounts-client-field,
@@ -6557,8 +6567,8 @@ label.field > span:first-child,
   left: 0;
   display: grid;
   gap: 3px;
-  max-height: 220px;
-  padding: 6px;
+  max-height: 190px;
+  padding: 5px;
   overflow: auto;
   border: 1px solid rgba(148, 163, 184, 0.36);
   border-radius: 8px;
@@ -6584,7 +6594,7 @@ label.field > span:first-child,
 
 .finance-discounts-modal-error {
   margin: 0;
-  padding: 9px 11px;
+  padding: 7px 9px;
   border: 1px solid rgba(244, 63, 94, 0.24);
   border-radius: 8px;
   background: rgba(255, 241, 242, 0.88);
@@ -6595,14 +6605,14 @@ label.field > span:first-child,
 
 .finance-discounts-service-lines {
   display: grid;
-  gap: 8px;
+  gap: 7px;
 }
 
 .finance-discounts-service-line {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(88px, 104px) auto auto;
-  align-items: end;
-  gap: 8px;
+  grid-template-columns: minmax(220px, 1fr) 82px 34px 65px;
+  align-items: center;
+  gap: 7px;
 }
 
 .finance-discounts-service-select-field,
@@ -6615,8 +6625,14 @@ label.field > span:first-child,
 }
 
 .finance-discounts-unlimited-toggle {
-  align-self: end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  align-self: center;
   min-height: 30px;
+  height: 30px;
+  padding: 0;
   white-space: nowrap;
 }
 
@@ -6624,7 +6640,9 @@ label.field > span:first-child,
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  align-self: end;
+  align-self: center;
+  justify-content: flex-end;
+  height: 30px;
 }
 
 .finance-discounts-modal-actions {
@@ -6632,7 +6650,7 @@ label.field > span:first-child,
   justify-content: flex-end;
   gap: 8px;
   margin: 0 !important;
-  padding: 12px 14px 14px;
+  padding: 10px 12px 12px;
   border-top: 1px solid rgba(148, 163, 184, 0.24);
   background: rgba(255, 255, 255, 0.96);
 }
