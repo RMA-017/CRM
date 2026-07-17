@@ -161,3 +161,22 @@ test("finance reports permission unlocks finance audit", () => {
   assert.equal(access.canOpenFinance, true);
   assert.equal(access.canAccessForcedView, true);
 });
+
+test("finance discounts permission unlocks client discounts page", () => {
+  const access = readAccessSnapshot({
+    isAdmin: false,
+    isPlatformAdmin: false,
+    permissions: [
+      "finance.discounts.read",
+      "finance.discounts.create",
+      "finance.discounts.update"
+    ],
+    orgFeatures: ["finance"]
+  }, "finance-discounts");
+
+  assert.equal(access.canOpenFinanceDiscounts, true);
+  assert.equal(access.canCreateFinanceDiscounts, true);
+  assert.equal(access.canUpdateFinanceDiscounts, true);
+  assert.equal(access.canOpenFinance, true);
+  assert.equal(access.canAccessForcedView, true);
+});

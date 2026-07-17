@@ -100,10 +100,13 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenFinanceDailyCash,
     canOpenFinanceReports,
     canOpenFinanceAudit,
+    canOpenFinanceDiscounts,
     canCreateFinanceCashier,
     canUpdateFinanceCashier,
     canPayFinanceCashier,
     canUpdateFinanceBalances,
+    canCreateFinanceDiscounts,
+    canUpdateFinanceDiscounts,
     canOpenServices,
     canOpenSettingsOrganizations,
     canCreateSettingsOrganizations,
@@ -678,6 +681,8 @@ function ProfilePage({ forcedView = "none" }) {
     closeFinanceReportsPanel,
     openFinanceAuditPanel,
     closeFinanceAuditPanel,
+    openFinanceDiscountsPanel,
+    closeFinanceDiscountsPanel,
     openServicesPanel,
     closeServicesPanel,
     closeAllClientsPanel,
@@ -721,6 +726,7 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenFinanceDailyCash,
     canOpenFinanceReports,
     canOpenFinanceAudit,
+    canOpenFinanceDiscounts,
     canOpenServices,
     canOpenAppointmentSchedule,
     canOpenAppointmentSettings,
@@ -1224,12 +1230,15 @@ function ProfilePage({ forcedView = "none" }) {
             closeFinanceDailyCashPanel={closeFinanceDailyCashPanel}
             closeFinanceReportsPanel={closeFinanceReportsPanel}
             closeFinanceAuditPanel={closeFinanceAuditPanel}
+            closeFinanceDiscountsPanel={closeFinanceDiscountsPanel}
             closeServicesPanel={closeServicesPanel}
             canUpdateCrm={canUpdateCrm}
             canCreateFinanceCashier={canCreateFinanceCashier}
             canUpdateFinanceCashier={canUpdateFinanceCashier}
             canPayFinanceCashier={canPayFinanceCashier}
             canUpdateFinanceBalances={canUpdateFinanceBalances}
+            canCreateFinanceDiscounts={canCreateFinanceDiscounts}
+            canUpdateFinanceDiscounts={canUpdateFinanceDiscounts}
             canReadAppointments={canReadAppointments}
             canCreateAppointments={canCreateAppointments}
             canUpdateAppointments={canUpdateAppointments}
@@ -1441,6 +1450,8 @@ function ProfilePage({ forcedView = "none" }) {
         openFinanceReportsPanel={openFinanceReportsPanel}
         canOpenFinanceAudit={canOpenFinanceAudit}
         openFinanceAuditPanel={openFinanceAuditPanel}
+        canOpenFinanceDiscounts={canOpenFinanceDiscounts}
+        openFinanceDiscountsPanel={openFinanceDiscountsPanel}
         hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}
         canOpenAppointmentSchedule={canOpenAppointmentSchedule}
         canOpenAppointmentSettings={canOpenAppointmentSettings}

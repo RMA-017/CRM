@@ -78,6 +78,42 @@ test("finance audit route is wired into profile navigation", async () => {
   );
 });
 
+test("finance client discounts route is wired into profile navigation", async () => {
+  const [appSource, profilePageSource, profileMainSource, sideMenuSource, panelSource] = await Promise.all([
+    readFile(new URL("../src/App.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/pages/ProfilePage.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/pages/profile/ProfileMainContent.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/pages/profile/ProfileSideMenu.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/pages/profile/panels/FinanceClientDiscountsPanel.jsx", import.meta.url), "utf8")
+  ]);
+
+  assert.match(
+    appSource,
+    /\{ path: "\/finance\/discounts", forcedView: "finance-discounts" \}/,
+    "App should expose the finance client discounts profile route."
+  );
+  assert.match(
+    profileMainSource,
+    /const FinanceClientDiscountsPanel = lazy\(\(\) => import\("\.\/panels\/FinanceClientDiscountsPanel\.jsx"\)\);[\s\S]*mainView === "finance-discounts"[\s\S]*<FinanceClientDiscountsPanel[\s\S]*canCreateFinanceDiscounts=\{canCreateFinanceDiscounts\}[\s\S]*canUpdateFinanceDiscounts=\{canUpdateFinanceDiscounts\}/s,
+    "ProfileMainContent should lazy render the finance client discounts panel."
+  );
+  assert.match(
+    sideMenuSource,
+    /id="openFinanceDiscountsBtn"[\s\S]*hidden=\{!canOpenFinanceDiscounts\}[\s\S]*onClick=\{openFinanceDiscountsPanel\}[\s\S]*Скидки клиентов/s,
+    "Side menu should show finance client discounts for users with access."
+  );
+  assert.match(
+    profilePageSource,
+    /canOpenFinanceDiscounts=\{canOpenFinanceDiscounts\}[\s\S]*openFinanceDiscountsPanel=\{openFinanceDiscountsPanel\}/s,
+    "ProfilePage should forward finance client discounts access and navigation."
+  );
+  assert.match(
+    panelSource,
+    /\/api\/finance\/discounts[\s\S]*Новая скидка клиента[\s\S]*История использования/s,
+    "FinanceClientDiscountsPanel should load the discounts list and expose create/detail flows."
+  );
+});
+
 test("user and client tables render edit and delete actions as compact icons", async () => {
   const [allUsersSource, profileMainSource, stylesSource] = await Promise.all([
     readFile(new URL("../src/pages/profile/panels/AllUsersPanel.jsx", import.meta.url), "utf8"),

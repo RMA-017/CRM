@@ -137,6 +137,45 @@ export const REQUIRED_FINANCE_TABLE_COLUMNS = Object.freeze({
     "voided_at",
     "created_at",
     "updated_at"
+  ],
+  finance_client_discount_rules: [
+    "id",
+    "organization_id",
+    "client_id",
+    "discount_type",
+    "discount_value",
+    "note",
+    "is_active",
+    "created_by",
+    "updated_by",
+    "created_at",
+    "updated_at"
+  ],
+  finance_client_discount_rule_services: [
+    "id",
+    "organization_id",
+    "rule_id",
+    "service_id",
+    "service_name",
+    "limit_count",
+    "created_at"
+  ],
+  finance_client_discount_usages: [
+    "id",
+    "organization_id",
+    "rule_id",
+    "rule_service_id",
+    "ticket_id",
+    "ticket_item_id",
+    "appointment_schedule_id",
+    "client_id",
+    "service_id",
+    "discount_uzs",
+    "quantity",
+    "created_by",
+    "created_at",
+    "reversed_by",
+    "reversed_at"
   ]
 });
 
@@ -169,7 +208,19 @@ export const REQUIRED_FINANCE_CONSTRAINTS = Object.freeze([
   "fk_finance_transactions_ticket_payment_org",
   "fk_finance_transactions_method_org",
   "chk_finance_transactions_type",
-  "chk_finance_transactions_direction"
+  "chk_finance_transactions_direction",
+  "uq_finance_client_discount_rules_org_id",
+  "fk_finance_client_discount_rules_client_org",
+  "uq_finance_client_discount_rule_services_org_id",
+  "fk_finance_client_discount_rule_services_rule_org",
+  "fk_finance_client_discount_rule_services_service_org",
+  "fk_finance_client_discount_usages_rule_org",
+  "fk_finance_client_discount_usages_rule_service_org",
+  "fk_finance_client_discount_usages_ticket_org",
+  "fk_finance_client_discount_usages_ticket_item_org",
+  "fk_finance_client_discount_usages_appointment_org",
+  "fk_finance_client_discount_usages_client_org",
+  "fk_finance_client_discount_usages_service_org"
 ]);
 
 export const REQUIRED_FINANCE_INDEXES = Object.freeze([
@@ -191,7 +242,12 @@ export const REQUIRED_FINANCE_INDEXES = Object.freeze([
   "idx_finance_transactions_org_session",
   "idx_finance_transactions_org_group",
   "idx_finance_transactions_org_client",
-  "idx_finance_transactions_org_method"
+  "idx_finance_transactions_org_method",
+  "idx_finance_client_discount_rules_org_client",
+  "idx_finance_client_discount_rule_services_org_service",
+  "idx_finance_client_discount_usages_org_rule_service",
+  "idx_finance_client_discount_usages_org_ticket",
+  "uq_finance_client_discount_usages_active_ticket_item"
 ]);
 
 export const REQUIRED_FINANCE_NULLABLE_COLUMNS = Object.freeze({

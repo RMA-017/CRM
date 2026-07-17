@@ -7,22 +7,22 @@ const schedulesRoutesSource = await readFile(
   "utf8"
 );
 
-test("cancelled recurring appointment updates are forced to single-slot scope", () => {
-  assert.match(
+test("cancelled recurring appointment updates can use the requested series scope", () => {
+  assert.doesNotMatch(
     schedulesRoutesSource,
-    /function forceCancelledRecurringAnchorToSingleScope\(target, anchorId\) \{[\s\S]*target\?\.isRecurring[\s\S]*target\?\.scope === "single"[\s\S]*anchorItem[\s\S]*status[\s\S]*"cancelled"[\s\S]*scope: "single"[\s\S]*items: \[anchorItem\]/s,
-    "Cancelled recurring anchors should be narrowed to the clicked occurrence."
+    /forceCancelledRecurringAnchorToSingleScope/,
+    "Cancelled recurring anchors should not be force-narrowed after the user chooses a scope."
   );
 
   assert.match(
     schedulesRoutesSource,
-    /const target = resolveRecurringSingleScopeTargetByDayKeys\(\s*forceCancelledRecurringAnchorToSingleScope\(rawTarget, id\),\s*requestedScopedDayKeys\s*\);/s,
-    "Schedule update should force cancelled recurring anchors to single scope before applying changes."
+    /const target = resolveRecurringSingleScopeTargetByDayKeys\(rawTarget,\s*requestedScopedDayKeys\s*\);/s,
+    "Schedule update should preserve the requested recurring scope, including cancelled recurring anchors."
   );
 
   assert.match(
     schedulesRoutesSource,
-    /const target = resolveRecurringSingleScopeTargetByDayKeys\(\s*forceCancelledRecurringAnchorToSingleScope\(rawTarget, id\),\s*requestedDeleteDayKeys\s*\);/s,
-    "Schedule delete should force cancelled recurring anchors to single scope before applying changes."
+    /const target = resolveRecurringSingleScopeTargetByDayKeys\(rawTarget,\s*requestedDeleteDayKeys\s*\);/s,
+    "Schedule delete should preserve the requested recurring scope, including cancelled recurring anchors."
   );
 });

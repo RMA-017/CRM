@@ -103,6 +103,18 @@ export const financeRouteSchemas = Object.freeze({
       limit: positiveIntegerLikeSchema
     }
   },
+  discountListQuery: {
+    type: "object",
+    additionalProperties: true,
+    properties: {
+      q: { type: "string", maxLength: 96 },
+      query: { type: "string", maxLength: 96 },
+      search: { type: "string", maxLength: 96 },
+      page: positiveIntegerLikeSchema,
+      pageSize: positiveIntegerLikeSchema,
+      page_size: positiveIntegerLikeSchema
+    }
+  },
   clientSearchQuery: {
     type: "object",
     additionalProperties: true,
@@ -359,6 +371,72 @@ export const financeRouteSchemas = Object.freeze({
     anyOf: [
       { required: ["clientId", "paymentMethodId", "amountUzs", "reason"] },
       { required: ["client_id", "payment_method_id", "amount_uzs", "reason"] }
+    ]
+  },
+  discountServiceBody: {
+    type: "object",
+    additionalProperties: true,
+    properties: {
+      serviceId: positiveIntegerLikeSchema,
+      service_id: positiveIntegerLikeSchema,
+      limitCount: positiveIntegerLikeSchema,
+      limit_count: positiveIntegerLikeSchema,
+      isUnlimited: { type: "boolean" },
+      is_unlimited: { type: "boolean" }
+    },
+    anyOf: [
+      { required: ["serviceId"] },
+      { required: ["service_id"] }
+    ]
+  },
+  discountCreateBody: {
+    type: "object",
+    additionalProperties: true,
+    properties: {
+      clientId: positiveIntegerLikeSchema,
+      client_id: positiveIntegerLikeSchema,
+      discountType: { type: "string", enum: ["amount", "percent"] },
+      discount_type: { type: "string", enum: ["amount", "percent"] },
+      discountValue: positiveIntegerLikeSchema,
+      discount_value: positiveIntegerLikeSchema,
+      services: {
+        type: "array",
+        minItems: 1,
+        maxItems: 50,
+        items: {
+          type: "object",
+          additionalProperties: true,
+          properties: {
+            serviceId: positiveIntegerLikeSchema,
+            service_id: positiveIntegerLikeSchema,
+            limitCount: positiveIntegerLikeSchema,
+            limit_count: positiveIntegerLikeSchema,
+            isUnlimited: { type: "boolean" },
+            is_unlimited: { type: "boolean" }
+          },
+          anyOf: [
+            { required: ["serviceId"] },
+            { required: ["service_id"] }
+          ]
+        }
+      },
+      note: { type: "string", maxLength: 255 }
+    },
+    anyOf: [
+      { required: ["clientId", "discountType", "discountValue", "services"] },
+      { required: ["client_id", "discount_type", "discount_value", "services"] }
+    ]
+  },
+  discountUpdateBody: {
+    type: "object",
+    additionalProperties: true,
+    properties: {
+      isActive: { type: "boolean" },
+      is_active: { type: "boolean" }
+    },
+    anyOf: [
+      { required: ["isActive"] },
+      { required: ["is_active"] }
     ]
   },
   cashSessionOpenBody: {

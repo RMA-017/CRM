@@ -3,6 +3,11 @@ import { parsePositiveInteger } from "../../lib/number.js";
 import { createMigrationRequiredError } from "../../lib/schema-guard.js";
 import { getAppointmentHistoryLockDaysByOrganization } from "../appointments/appointment-settings.service.js";
 import { updateAppointmentSchedulesByIds } from "../appointments/services/appointment-schedules.service.js";
+import {
+  applyClientDiscountsToTicketItems,
+  insertClientDiscountUsages,
+  reverseClientDiscountUsagesForTicket
+} from "./finance-discounts.service.js";
 
 const FINANCE_BATCH_PAYMENT_SCHEMA_ERROR_CODES = new Set(["42P01", "42703", "23502", "23514"]);
 const CASHIER_BOARD_DEFAULT_LIMIT = 100;
@@ -4103,13 +4108,15 @@ function getTicketTotals(items) {
 }
 
 async function insertTicketItems(db, { organizationId, ticketId, items }) {
+  const insertedItems = [];
   for (const [index, item] of items.entries()) {
-    await db.query(
+    const result = await db.query(
       `INSERT INTO finance_ticket_items (
          organization_id, ticket_id, line_number, specialist_id, service_id,
          service_name, price_uzs, discount_type, discount_value, discount_uzs, final_amount_uzs
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING id`,
       [
         organizationId,
         ticketId,
@@ -4124,7 +4131,9 @@ async function insertTicketItems(db, { organizationId, ticketId, items }) {
         item.finalAmountUzs
       ]
     );
+    insertedItems.push({ ...item, ticketItemId: result.rows[0]?.id || null });
   }
+  return insertedItems;
 }
 
 export async function createFinanceTicket({ organizationId, payload, actorUserId }) {
@@ -4194,15 +4203,22 @@ export async function createFinanceTicket({ organizationId, payload, actorUserId
       error.statusCode = 404;
       throw error;
     }
-    const items = await buildTicketItems(db, {
+    let items = await buildTicketItems(db, {
       organizationId,
       payload,
       appointment,
       fallbackServiceName: serviceName,
       fallbackAmount: amountUzs
     });
+    if (appointmentScheduleId && appointment) {
+      items = await applyClientDiscountsToTicketItems(db, {
+        organizationId,
+        clientId: ticketClientId,
+        items
+      });
+    }
     const totals = getTicketTotals(items);
-    if (totals.totalUzs <= 0) {
+    if (totals.subtotalUzs <= 0 || (totals.totalUzs <= 0 && !appointmentScheduleId)) {
       const error = new Error("Ticket amount is required.");
       error.statusCode = 400;
       throw error;
@@ -4212,6 +4228,7 @@ export async function createFinanceTicket({ organizationId, payload, actorUserId
     ticketServiceId = firstItem.serviceId || ticketServiceId || null;
     serviceName = firstItem.serviceName;
     amountUzs = totals.totalUzs;
+    const ticketStatus = totals.totalUzs <= 0 ? "paid" : "issued";
     if (appointmentScheduleId && appointment) {
       const nextServiceId = parsePositiveInteger(firstItem.serviceId) || null;
       const nextServiceName = normalizeText(firstItem.serviceName, 128);
@@ -4255,7 +4272,7 @@ export async function createFinanceTicket({ organizationId, payload, actorUserId
          client_id, specialist_id, service_id, service_name, amount_uzs,
          subtotal_uzs, discount_uzs, total_uzs, status, note, created_by, updated_by
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'issued', $14, $15, $15)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16)
        RETURNING *`,
       [
         organizationId,
@@ -4271,12 +4288,21 @@ export async function createFinanceTicket({ organizationId, payload, actorUserId
         totals.subtotalUzs,
         totals.discountUzs,
         totals.totalUzs,
+        ticketStatus,
         note || null,
         actorUserId || null
       ]
     );
     const ticket = insertResult.rows[0];
-    await insertTicketItems(db, { organizationId, ticketId: ticket.id, items });
+    const insertedItems = await insertTicketItems(db, { organizationId, ticketId: ticket.id, items });
+    await insertClientDiscountUsages(db, {
+      organizationId,
+      ticketId: ticket.id,
+      appointmentScheduleId: appointmentScheduleId || null,
+      clientId: ticketClientId,
+      items: insertedItems,
+      actorUserId
+    });
     const historyItems = await hydrateHistoryItems(db, { organizationId, items });
     await insertHistory(db, {
       organizationId,
@@ -4420,7 +4446,7 @@ export async function updateFinanceTicket({ organizationId, id, payload, actorUs
         fallbackAmount: current.total_uzs ?? current.amount_uzs
       });
       nextTotals = getTicketTotals(nextItems);
-      if (nextTotals.totalUzs <= 0) {
+      if (nextTotals.subtotalUzs <= 0 || (nextTotals.totalUzs <= 0 && !isAppointmentTicket)) {
         const error = new Error("Ticket amount is required.");
         error.statusCode = 400;
         throw error;
@@ -4446,14 +4472,6 @@ export async function updateFinanceTicket({ organizationId, id, payload, actorUs
           }
         });
       }
-      const firstItem = nextItems[0];
-      nextSpecialistId = firstItem.specialistId || null;
-      nextServiceId = firstItem.serviceId || null;
-      nextServiceName = firstItem.serviceName;
-      nextAmountUzs = nextTotals.totalUzs;
-      nextSubtotalUzs = nextTotals.subtotalUzs;
-      nextDiscountUzs = nextTotals.discountUzs;
-      nextTotalUzs = nextTotals.totalUzs;
     } else if (amountUzs !== null) {
       nextAmountUzs = amountUzs;
       nextSubtotalUzs = amountUzs;
@@ -4470,6 +4488,32 @@ export async function updateFinanceTicket({ organizationId, id, payload, actorUs
         finalAmountUzs: amountUzs
       }];
       nextTotals = getTicketTotals(nextItems);
+    }
+
+    if (nextItems && isAppointmentTicket) {
+      await reverseClientDiscountUsagesForTicket(db, { organizationId, ticketId, actorUserId });
+      nextItems = await applyClientDiscountsToTicketItems(db, {
+        organizationId,
+        clientId: nextClientId,
+        items: nextItems
+      });
+      nextTotals = getTicketTotals(nextItems);
+      if (nextTotals.subtotalUzs <= 0) {
+        const error = new Error("Ticket amount is required.");
+        error.statusCode = 400;
+        throw error;
+      }
+    }
+
+    if (nextItems) {
+      const firstItem = nextItems[0];
+      nextSpecialistId = firstItem.specialistId || null;
+      nextServiceId = firstItem.serviceId || null;
+      nextServiceName = firstItem.serviceName;
+      nextAmountUzs = nextTotals.totalUzs;
+      nextSubtotalUzs = nextTotals.subtotalUzs;
+      nextDiscountUzs = nextTotals.discountUzs;
+      nextTotalUzs = nextTotals.totalUzs;
     }
 
     const result = await db.query(
@@ -4512,7 +4556,15 @@ export async function updateFinanceTicket({ organizationId, id, payload, actorUs
             AND ticket_id = $2`,
         [organizationId, ticketId]
       );
-      await insertTicketItems(db, { organizationId, ticketId, items: nextItems });
+      const insertedItems = await insertTicketItems(db, { organizationId, ticketId, items: nextItems });
+      await insertClientDiscountUsages(db, {
+        organizationId,
+        ticketId,
+        appointmentScheduleId: current.appointment_schedule_id || null,
+        clientId: nextClientId,
+        items: insertedItems,
+        actorUserId
+      });
       if (isAppointmentTicket) {
         const appointmentScheduleId = parsePositiveInteger(current.appointment_schedule_id);
         if (!appointmentScheduleId) {
@@ -4533,6 +4585,18 @@ export async function updateFinanceTicket({ organizationId, id, payload, actorUs
       const error = new Error("Ticket total cannot be less than paid amount.");
       error.statusCode = 400;
       throw error;
+    }
+    if (nextItems && isAppointmentTicket && nextTotalUzs <= 0) {
+      await db.query(
+        `UPDATE finance_tickets
+            SET status = 'paid',
+                updated_by = $3,
+                updated_at = CURRENT_TIMESTAMP
+          WHERE organization_id = $1
+            AND id = $2`,
+        [organizationId, ticketId, actorUserId || null]
+      );
+      result.rows[0].status = "paid";
     }
     if (paidAmountUzs > 0 && paidAmountUzs >= nextTotalUzs && current.status !== "paid") {
       await db.query(
@@ -4613,6 +4677,7 @@ async function updateTicketStatus({ organizationId, id, status, action, reason =
         error.statusCode = 400;
         throw error;
       }
+      await reverseClientDiscountUsagesForTicket(db, { organizationId, ticketId, actorUserId });
     }
     const beforeSnapshot = await getTicketHistorySnapshot(db, { organizationId, ticketId });
     const result = await db.query(

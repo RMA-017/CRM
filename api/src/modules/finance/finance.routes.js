@@ -9,6 +9,14 @@ import {
 } from "./finance-google-sheets.service.js";
 import { getFinanceAudit } from "./finance-audit.service.js";
 import {
+  createFinanceClientDiscount,
+  getFinanceClientDiscountById,
+  getFinanceClientDiscounts,
+  getFinanceDiscountReferences,
+  searchFinanceDiscountClients,
+  updateFinanceClientDiscount
+} from "./finance-discounts.service.js";
+import {
   closeCashSession,
   confirmCashierAppointment,
   createFinanceTicket,
@@ -65,6 +73,12 @@ const DAILY_CASH_PERMISSIONS = Object.freeze({
 
 const REPORTS_PERMISSIONS = Object.freeze({
   read: PERMISSIONS.FINANCE_REPORTS_READ
+});
+
+const DISCOUNTS_PERMISSIONS = Object.freeze({
+  read: PERMISSIONS.FINANCE_DISCOUNTS_READ,
+  create: PERMISSIONS.FINANCE_DISCOUNTS_CREATE,
+  update: PERMISSIONS.FINANCE_DISCOUNTS_UPDATE
 });
 
 async function requireFinanceAccess(request, reply, permissionCode) {
@@ -135,6 +149,11 @@ async function requireReportsAccess(request, reply, action) {
   return requireFinanceAccess(request, reply, permissionCode);
 }
 
+async function requireDiscountsAccess(request, reply, action) {
+  const permissionCode = DISCOUNTS_PERMISSIONS[action] || DISCOUNTS_PERMISSIONS.read;
+  return requireFinanceAccess(request, reply, permissionCode);
+}
+
 function sendRouteError(reply, error, fallbackMessage) {
   if (error?.code === "MIGRATION_REQUIRED") {
     return reply.status(409).send({
@@ -198,6 +217,156 @@ async function financeRoutes(fastify) {
       } catch (error) {
         request.log.error({ err: error }, "Error fetching finance audit:");
         return sendRouteError(reply, error, "Failed to load finance audit.");
+      }
+    }
+  );
+
+  fastify.get(
+    "/discounts",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        querystring: financeRouteSchemas.discountListQuery
+      }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+      try {
+        const requester = await requireDiscountsAccess(request, reply, "read");
+        if (!requester) return null;
+        return reply.send(await getFinanceClientDiscounts({
+          organizationId: request.authContext.organizationId,
+          filters: request.query
+        }));
+      } catch (error) {
+        request.log.error({ err: error }, "Error fetching finance client discounts:");
+        return sendRouteError(reply, error, "Failed to load client discounts.");
+      }
+    }
+  );
+
+  fastify.get(
+    "/discounts/references",
+    {
+      config: { rateLimit: fastify.apiRateLimit }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+      try {
+        const requester = await requireDiscountsAccess(request, reply, "read");
+        if (!requester) return null;
+        return reply.send(await getFinanceDiscountReferences({
+          organizationId: request.authContext.organizationId
+        }));
+      } catch (error) {
+        request.log.error({ err: error }, "Error fetching finance client discount references:");
+        return sendRouteError(reply, error, "Failed to load discount references.");
+      }
+    }
+  );
+
+  fastify.get(
+    "/discounts/clients",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        querystring: financeRouteSchemas.clientSearchQuery
+      }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+      try {
+        const requester = await requireDiscountsAccess(request, reply, "read");
+        if (!requester) return null;
+        const items = await searchFinanceDiscountClients({
+          organizationId: request.authContext.organizationId,
+          query: request.query?.q,
+          limit: request.query?.limit
+        });
+        return reply.send({ items });
+      } catch (error) {
+        request.log.error({ err: error }, "Error searching finance client discount clients:");
+        return sendRouteError(reply, error, "Failed to search clients.");
+      }
+    }
+  );
+
+  fastify.get(
+    "/discounts/:id",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        params: financeRouteSchemas.idParams
+      }
+    },
+    async (request, reply) => {
+      setNoCacheHeaders(reply);
+      try {
+        const requester = await requireDiscountsAccess(request, reply, "read");
+        if (!requester) return null;
+        const detail = await getFinanceClientDiscountById({
+          organizationId: request.authContext.organizationId,
+          id: request.params.id
+        });
+        if (!detail) {
+          return reply.status(404).send({ message: "Discount not found." });
+        }
+        return reply.send(detail);
+      } catch (error) {
+        request.log.error({ err: error }, "Error fetching finance client discount detail:");
+        return sendRouteError(reply, error, "Failed to load client discount.");
+      }
+    }
+  );
+
+  fastify.post(
+    "/discounts",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        body: financeRouteSchemas.discountCreateBody
+      }
+    },
+    async (request, reply) => {
+      try {
+        const requester = await requireDiscountsAccess(request, reply, "create");
+        if (!requester) return null;
+        const item = await createFinanceClientDiscount({
+          organizationId: request.authContext.organizationId,
+          payload: request.body,
+          actorUserId: requester.id
+        });
+        return reply.status(201).send({ item });
+      } catch (error) {
+        request.log.error({ err: error }, "Error creating finance client discount:");
+        return sendRouteError(reply, error, "Client discount create failed.");
+      }
+    }
+  );
+
+  fastify.patch(
+    "/discounts/:id",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        params: financeRouteSchemas.idParams,
+        body: financeRouteSchemas.discountUpdateBody
+      }
+    },
+    async (request, reply) => {
+      try {
+        const requester = await requireDiscountsAccess(request, reply, "update");
+        if (!requester) return null;
+        const item = await updateFinanceClientDiscount({
+          organizationId: request.authContext.organizationId,
+          id: request.params.id,
+          payload: request.body,
+          actorUserId: requester.id
+        });
+        return reply.send({ item });
+      } catch (error) {
+        request.log.error({ err: error }, "Error updating finance client discount:");
+        return sendRouteError(reply, error, "Client discount update failed.");
       }
     }
   );

@@ -239,6 +239,10 @@ test("finance routes expose stable contract", async () => {
     "GET /client-balances/:id/debt-tickets",
     "GET /client-balances/:id/transactions",
     "GET /daily-cash",
+    "GET /discounts",
+    "GET /discounts/:id",
+    "GET /discounts/clients",
+    "GET /discounts/references",
     "GET /payment-methods",
     "GET /reports",
     "GET /reports/clients",
@@ -250,6 +254,7 @@ test("finance routes expose stable contract", async () => {
     "GET /transactions",
     "GET /transactions/clients",
     "PATCH /cashier/tickets/:id",
+    "PATCH /discounts/:id",
     "POST /cashier/appointments/:id/confirm",
     "POST /cashier/appointments/:id/status",
     "POST /cashier/session/close",
@@ -263,6 +268,7 @@ test("finance routes expose stable contract", async () => {
     "POST /client-balances/deposit",
     "POST /client-balances/pay-from-deposit",
     "POST /client-balances/refund",
+    "POST /discounts",
     "POST /reports/google-sheets/export",
     "POST /transactions/:id/void"
   ]);
@@ -284,6 +290,25 @@ test("finance routes expose stable contract", async () => {
 
   const dailyCashGet = findRoute(recorder.routes, "GET", "/daily-cash");
   assert.equal(typeof dailyCashGet?.options?.schema?.querystring, "object");
+
+  const discountsGet = findRoute(recorder.routes, "GET", "/discounts");
+  assert.equal(typeof discountsGet?.options?.schema?.querystring, "object");
+
+  const discountReferencesGet = findRoute(recorder.routes, "GET", "/discounts/references");
+  assert.equal(discountReferencesGet?.method, "GET");
+
+  const discountClientsGet = findRoute(recorder.routes, "GET", "/discounts/clients");
+  assert.equal(typeof discountClientsGet?.options?.schema?.querystring, "object");
+
+  const discountDetailGet = findRoute(recorder.routes, "GET", "/discounts/:id");
+  assert.equal(typeof discountDetailGet?.options?.schema?.params, "object");
+
+  const discountPost = findRoute(recorder.routes, "POST", "/discounts");
+  assert.equal(typeof discountPost?.options?.schema?.body, "object");
+
+  const discountPatch = findRoute(recorder.routes, "PATCH", "/discounts/:id");
+  assert.equal(typeof discountPatch?.options?.schema?.params, "object");
+  assert.equal(typeof discountPatch?.options?.schema?.body, "object");
 
   const reportsGet = findRoute(recorder.routes, "GET", "/reports");
   assert.equal(typeof reportsGet?.options?.schema?.querystring, "object");

@@ -15,7 +15,8 @@ export const REQUIRED_MIGRATION_VERSIONS = Object.freeze([
   "20260518_000006_finance_deposit_ticket_payments.sql",
   "20260525_000001_finance_payment_groups.sql",
   "20260525_000002_finance_cash_sessions_cashier_fk.sql",
-  "20260606_000001_finance_payment_method_nullable_safety.sql"
+  "20260606_000001_finance_payment_method_nullable_safety.sql",
+  "20260717_000001_finance_client_discounts.sql"
 ]);
 
 export async function listMigrationFileMetadata({

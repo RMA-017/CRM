@@ -12,6 +12,11 @@ const financeRoutesSource = await readFile(
   "utf8"
 );
 
+const financeDiscountsSource = await readFile(
+  new URL("../src/modules/finance/finance-discounts.service.js", import.meta.url),
+  "utf8"
+);
+
 const appointmentScheduleRoutesSource = await readFile(
   new URL("../src/modules/appointments/routes/schedules.routes.js", import.meta.url),
   "utf8"
@@ -189,7 +194,7 @@ test("finance ticket creation accepts pending or confirmed appointments and snap
 
   assert.match(
     financeServiceSource,
-    /const items = await buildTicketItems[\s\S]*const totals = getTicketTotals\(items\)[\s\S]*INSERT INTO finance_tickets[\s\S]*subtotal_uzs, discount_uzs, total_uzs, status[\s\S]*'issued'[\s\S]*await insertTicketItems/s,
+    /let items = await buildTicketItems[\s\S]*const totals = getTicketTotals\(items\)[\s\S]*const ticketStatus = totals\.totalUzs <= 0 \? "paid" : "issued"[\s\S]*INSERT INTO finance_tickets[\s\S]*subtotal_uzs, discount_uzs, total_uzs, status[\s\S]*await insertTicketItems/s,
     "Tickets should be issued with immutable line items and calculated subtotal/discount/total."
   );
 
@@ -231,6 +236,56 @@ test("finance ticket creation accepts pending or confirmed appointments and snap
     financeServiceSource,
     /export async function updateFinanceTicket[\s\S]*if \(hasTicketDate\) \{[\s\S]*assertTicketDateIsNotFuture\(ticketDate\);[\s\S]*\}/s,
     "Finance ticket edits should not be able to move a ticket into a future date."
+  );
+});
+
+test("finance client discounts apply only to appointment tickets and keep usage limits separate", () => {
+  assert.match(
+    financeRoutesSource,
+    /from "\.\/finance-discounts\.service\.js";[\s\S]*"\/discounts"[\s\S]*requireDiscountsAccess\(request, reply, "read"\)[\s\S]*"\/discounts\/references"[\s\S]*"\/discounts\/clients"[\s\S]*"\/discounts\/:id"[\s\S]*"\/discounts"[\s\S]*requireDiscountsAccess\(request, reply, "create"\)[\s\S]*"\/discounts\/:id"[\s\S]*requireDiscountsAccess\(request, reply, "update"\)/s,
+    "Finance should expose dedicated client discount read/create/update endpoints."
+  );
+
+  assert.match(
+    financeDiscountsSource,
+    /CREATE|finance_client_discount_rules|finance_client_discount_rule_services|finance_client_discount_usages/s,
+    "Discount service source should be available for route tests."
+  );
+
+  assert.match(
+    financeDiscountsSource,
+    /getDiscountCandidatesForService[\s\S]*finance_client_discount_usages[\s\S]*reversed_at IS NULL[\s\S]*r\.is_active = TRUE[\s\S]*ORDER BY r\.created_at ASC, r\.id ASC, rs\.id ASC[\s\S]*FOR UPDATE OF r, rs/s,
+    "Discount candidates should lock active oldest rules first and count only unreversed usage."
+  );
+
+  assert.match(
+    financeDiscountsSource,
+    /export async function applyClientDiscountsToTicketItems[\s\S]*reservations = new Map\(\)[\s\S]*candidate\.limit_count === null[\s\S]*used_count[\s\S]*reserved[\s\S]*clientDiscountRuleId[\s\S]*clientDiscountRuleServiceId/s,
+    "Applying discounts should respect finite and unlimited service limits inside the current transaction."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /if \(appointmentScheduleId && appointment\) \{[\s\S]*applyClientDiscountsToTicketItems[\s\S]*\}[\s\S]*insertClientDiscountUsages/s,
+    "Automatic client discounts should be applied during appointment-backed ticket creation."
+  );
+
+  assert.doesNotMatch(
+    financeServiceSource,
+    /source = "manual"[\s\S]{0,300}applyClientDiscountsToTicketItems/s,
+    "Manual ticket creation should not auto-apply client discounts."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /if \(nextItems && isAppointmentTicket\) \{[\s\S]*reverseClientDiscountUsagesForTicket[\s\S]*applyClientDiscountsToTicketItems[\s\S]*insertClientDiscountUsages/s,
+    "Appointment ticket edits should reverse old discount usage before writing the new usage ledger."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /async function updateTicketStatus[\s\S]*if \(action === "voided"\) \{[\s\S]*reverseClientDiscountUsagesForTicket/s,
+    "Voiding a ticket should restore any client discount usage count."
   );
 });
 
@@ -283,7 +338,7 @@ test("finance payments, deposits and refunds preserve cash-session and balance r
   );
   assert.match(
     financeServiceSource,
-    /if \(nextItems\) \{[\s\S]*await insertTicketItems\(db, \{ organizationId, ticketId, items: nextItems \}\);[\s\S]*if \(isAppointmentTicket\) \{[\s\S]*await syncAppointmentTicketService\(db, \{[\s\S]*appointmentScheduleId,[\s\S]*item: nextItems\[0\]/s,
+    /if \(nextItems\) \{[\s\S]*const insertedItems = await insertTicketItems\(db, \{ organizationId, ticketId, items: nextItems \}\);[\s\S]*await insertClientDiscountUsages\(db,[\s\S]*if \(isAppointmentTicket\) \{[\s\S]*await syncAppointmentTicketService\(db, \{[\s\S]*appointmentScheduleId,[\s\S]*item: nextItems\[0\]/s,
     "Ticket update flow should apply the appointment service sync in the same transaction as the ticket item update."
   );
   assert.match(

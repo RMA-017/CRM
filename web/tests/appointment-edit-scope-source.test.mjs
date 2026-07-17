@@ -17,17 +17,22 @@ test("recurring appointment edit scope uses the shared series one checkbox", asy
   );
   assert.match(
     source,
-    /const shouldDefaultRecurringEditToSingle = isExistingRecurring && existingStatus === "cancelled";[\s\S]*editScope: isExistingRecurring && !shouldDefaultRecurringEditToSingle \? "future" : "single"/,
-    "Recurring edits should default to series scope, except cancelled occurrences should reopen as a single-slot edit."
+    /const shouldDefaultRecurringEditToSingle = isExistingRecurring;[\s\S]*editScope: isExistingRecurring && !shouldDefaultRecurringEditToSingle \? "future" : "single"/,
+    "Recurring edits should default to One so series changes require an explicit user choice."
   );
   assert.match(
     source,
-    /const isCancelledRecurringEdit = isEditRecurring[\s\S]*createModal\.originalStatus[\s\S]*"cancelled";[\s\S]*shouldShowRecurringEditNextToggle = showRecurringEditNextToggle && !isSpecialistLimitedEditMode && !isCancelledRecurringEdit/s,
-    "Cancelled recurring appointments should not expose the future-series edit toggle from a cancelled slot."
+    /const shouldShowRecurringEditNextToggle = showRecurringEditNextToggle && !isSpecialistLimitedEditMode;/,
+    "Cancelled recurring appointments should expose the same future-series One toggle as other recurring edits."
   );
   assert.match(
     source,
-    /editScope: isSpecialistLimitedEditMode \|\| isCancelledRecurringEdit \? "single" : normalizeEditScopeValue\(createForm\.editScope\)[\s\S]*const deleteScope = isSpecialistLimitedEditMode \|\| isCancelledRecurringEdit \? "single" : normalizeEditScopeValue\(createForm\.editScope\)/s,
-    "Submitting or deleting a cancelled recurring appointment should stay scoped to the selected slot."
+    /editScope: isSpecialistLimitedEditMode \? "single" : normalizeEditScopeValue\(createForm\.editScope\)[\s\S]*const deleteScope = isSpecialistLimitedEditMode \? "single" : normalizeEditScopeValue\(createForm\.editScope\)/s,
+    "Submitting or deleting a cancelled recurring appointment should respect the selected One/future scope."
+  );
+  assert.match(
+    source,
+    /function confirmRecurringSeriesScopeAction\(action\)[\s\S]*window\.confirm\(`Это серийное занятие\.[\s\S]*будущие занятия этой серии\. Продолжить\?`\);[\s\S]*isEditRecurring[\s\S]*nextPayload\.editScope !== "single"[\s\S]*!confirmRecurringSeriesScopeAction\("save"\)[\s\S]*isEditRecurring[\s\S]*deleteScope !== "single"[\s\S]*!confirmRecurringSeriesScopeAction\("delete"\)/s,
+    "Recurring future-scope saves and deletes should require a browser confirmation."
   );
 });

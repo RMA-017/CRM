@@ -478,6 +478,37 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
             actionKey: "read"
           })
         ]
+      }),
+      defineFeature({
+        key: "finance.discounts",
+        label: "Client Discounts",
+        sortOrder: 70,
+        permissions: [
+          definePermission({
+            constantKey: "FINANCE_DISCOUNTS_READ",
+            code: "finance.discounts.read",
+            label: "Read Finance Client Discounts",
+            uiLabel: "Read",
+            sortOrder: 82,
+            actionKey: "read"
+          }),
+          definePermission({
+            constantKey: "FINANCE_DISCOUNTS_CREATE",
+            code: "finance.discounts.create",
+            label: "Create Finance Client Discounts",
+            uiLabel: "Create",
+            sortOrder: 83,
+            actionKey: "create"
+          }),
+          definePermission({
+            constantKey: "FINANCE_DISCOUNTS_UPDATE",
+            code: "finance.discounts.update",
+            label: "Update Finance Client Discounts",
+            uiLabel: "Edit",
+            sortOrder: 84,
+            actionKey: "update"
+          })
+        ]
       })
     ]
   }),

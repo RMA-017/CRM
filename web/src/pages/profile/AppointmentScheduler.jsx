@@ -812,6 +812,16 @@ function showImmediateAlert(text) {
   window.alert(message);
 }
 
+function confirmRecurringSeriesScopeAction(action) {
+  if (typeof window === "undefined" || typeof window.confirm !== "function") {
+    return true;
+  }
+
+  const normalizedAction = String(action || "").trim().toLowerCase();
+  const verb = normalizedAction === "delete" ? "удалит" : "изменит";
+  return window.confirm(`Это серийное занятие. Действие ${verb} будущие занятия этой серии. Продолжить?`);
+}
+
 function createDefaultWorkingHours() {
   return {
     mon: { start: "09:00", end: "18:00" },
@@ -3903,10 +3913,8 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
     && createModal.repeatType === "weekly"
     && Boolean(String(createModal.repeatGroupKey || "").trim());
   const normalizedEditScope = normalizeEditScopeValue(createForm.editScope);
-  const isCancelledRecurringEdit = isEditRecurring
-    && String(createModal.originalStatus || "").trim().toLowerCase() === "cancelled";
   const showRecurringEditNextToggle = createModal.mode === "edit" && isEditRecurring;
-  const shouldShowRecurringEditNextToggle = showRecurringEditNextToggle && !isSpecialistLimitedEditMode && !isCancelledRecurringEdit;
+  const shouldShowRecurringEditNextToggle = showRecurringEditNextToggle && !isSpecialistLimitedEditMode;
   const canEditRecurringSeriesPattern = !isEditRecurring || normalizedEditScope !== "single";
   const shouldLockEditDate = isEditRecurring && normalizedEditScope !== "single";
   const isSingleEntryMode = !createForm.repeatEnabled;
@@ -5287,7 +5295,7 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
       String(existingItem?.repeatType || "").trim().toLowerCase() === "weekly"
       && String(existingItem?.repeatGroupKey || "").trim()
     );
-    const shouldDefaultRecurringEditToSingle = isExistingRecurring && existingStatus === "cancelled";
+    const shouldDefaultRecurringEditToSingle = isExistingRecurring;
     const existingRepeatDays = inferCurrentSeriesRepeatDayKeys(
       existingItem,
       Array.isArray(existingItem?.repeatDays) ? existingItem.repeatDays : []
@@ -6543,7 +6551,7 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
         servicePriceUzs: String(createForm.servicePriceUzs ?? "0").trim(),
         status: String(createForm.status || "pending").trim().toLowerCase(),
         note: String(createForm.note || "").trim(),
-        editScope: isSpecialistLimitedEditMode || isCancelledRecurringEdit ? "single" : normalizeEditScopeValue(createForm.editScope),
+        editScope: isSpecialistLimitedEditMode ? "single" : normalizeEditScopeValue(createForm.editScope),
         repeatEnabled: Boolean(createForm.repeatEnabled),
         repeatUntil: String(createForm.repeatUntil || "").trim(),
         repeatDays: Array.isArray(createForm.repeatDays)
@@ -6789,6 +6797,14 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
         };
       }
 
+      if (
+        isEditRecurring
+        && nextPayload.editScope !== "single"
+        && !confirmRecurringSeriesScopeAction("save")
+      ) {
+        return;
+      }
+
       let requestUrl = "/api/appointments/schedules";
       if (isEditMode) {
         const queryParams = new URLSearchParams({
@@ -6862,7 +6878,15 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
       setCreateDeleting(true);
       setCreateErrors({});
 
-      const deleteScope = isSpecialistLimitedEditMode || isCancelledRecurringEdit ? "single" : normalizeEditScopeValue(createForm.editScope);
+      const deleteScope = isSpecialistLimitedEditMode ? "single" : normalizeEditScopeValue(createForm.editScope);
+      if (
+        isEditRecurring
+        && deleteScope !== "single"
+        && !confirmRecurringSeriesScopeAction("delete")
+      ) {
+        return;
+      }
+
       const queryParams = new URLSearchParams({ scope: deleteScope });
       if (isEditRecurring && (deleteScope === "future" || deleteScope === "single")) {
         const deleteDayKeys = deleteScope === "single"

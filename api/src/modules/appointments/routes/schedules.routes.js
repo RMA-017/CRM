@@ -666,28 +666,6 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     };
   }
 
-  function forceCancelledRecurringAnchorToSingleScope(target, anchorId) {
-    if (!target?.isRecurring || target?.scope === "single") {
-      return target;
-    }
-    const normalizedAnchorId = Number.parseInt(String(anchorId || ""), 10) || 0;
-    if (!normalizedAnchorId) {
-      return target;
-    }
-    const anchorItem = sortScheduleItems([
-      ...(Array.isArray(target?.seriesItems) ? target.seriesItems : []),
-      ...(Array.isArray(target?.items) ? target.items : [])
-    ]).find((item) => Number.parseInt(String(item?.id || ""), 10) === normalizedAnchorId);
-    if (String(anchorItem?.status || "").trim().toLowerCase() !== "cancelled") {
-      return target;
-    }
-    return {
-      ...target,
-      scope: "single",
-      items: [anchorItem]
-    };
-  }
-
   async function assertRecurringSeriesUpdateHasNoConflicts({
     organizationId,
     appointmentDates,
@@ -1934,10 +1912,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           id,
           scope
         });
-        const target = resolveRecurringSingleScopeTargetByDayKeys(
-          forceCancelledRecurringAnchorToSingleScope(rawTarget, id),
-          requestedScopedDayKeys
-        );
+        const target = resolveRecurringSingleScopeTargetByDayKeys(rawTarget, requestedScopedDayKeys);
         if (!Array.isArray(target.items) || target.items.length === 0) {
           return reply.status(404).send({ message: "Appointment not found." });
         }
@@ -3445,10 +3420,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           id,
           scope
         });
-        const target = resolveRecurringSingleScopeTargetByDayKeys(
-          forceCancelledRecurringAnchorToSingleScope(rawTarget, id),
-          requestedDeleteDayKeys
-        );
+        const target = resolveRecurringSingleScopeTargetByDayKeys(rawTarget, requestedDeleteDayKeys);
         if (!Array.isArray(target.items) || target.items.length === 0) {
           return reply.status(404).send({ message: "Appointment not found." });
         }
