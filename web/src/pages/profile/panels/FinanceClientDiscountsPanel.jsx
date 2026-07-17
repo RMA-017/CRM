@@ -76,6 +76,16 @@ function normalizeClientLabel(client) {
   return [name, phone].filter(Boolean).join(" · ") || (client?.id ? `ID ${client.id}` : "");
 }
 
+function createDiscountServiceRow() {
+  return {
+    key: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    serviceId: "",
+    serviceName: "",
+    limitCount: "1",
+    isUnlimited: false
+  };
+}
+
 function FinanceClientDiscountsPanel({
   onClose,
   canCreateFinanceDiscounts = false,
@@ -99,9 +109,11 @@ function FinanceClientDiscountsPanel({
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const selectedServiceIds = useMemo(() => (
-    new Set(serviceRows.map((row) => String(row.serviceId)))
-  ), [serviceRows]);
+  const discountServiceOptions = useMemo(() => services.filter(Boolean).map((service) => ({
+    value: String(service.id),
+    label: String(service.name || service.id),
+    item: service
+  })), [services]);
 
   const loadDiscounts = useCallback(async (nextPage = 1, nextQuery = "") => {
     try {
@@ -194,6 +206,7 @@ function FinanceClientDiscountsPanel({
 
   const openCreateModal = useCallback(() => {
     setCreateOpen(true);
+    setServiceRows((current) => (current.length > 0 ? current : [createDiscountServiceRow()]));
     if (services.length === 0) {
       void loadReferences();
     }
@@ -207,33 +220,30 @@ function FinanceClientDiscountsPanel({
     }));
   }, []);
 
-  const toggleService = useCallback((service) => {
-    const serviceId = String(service?.id || "");
-    if (!serviceId) return;
+  const updateServiceRow = useCallback((key, patch) => {
     setCreateError("");
     setServiceRows((current) => {
-      if (current.some((row) => String(row.serviceId) === serviceId)) {
-        return current.filter((row) => String(row.serviceId) !== serviceId);
-      }
-      return [
-        ...current,
-        {
-          serviceId,
-          serviceName: service.name || "",
-          limitCount: "1",
-          isUnlimited: false
-        }
-      ];
+      const normalizedKey = String(key || "");
+      return current.map((row) => (
+        String(row.key || "") === normalizedKey ? { ...row, ...patch } : row
+      ));
     });
   }, []);
 
-  const updateServiceRow = useCallback((serviceId, patch) => {
+  const addServiceRow = useCallback(() => {
     setCreateError("");
-    setServiceRows((current) => current.map((row) => (
-      String(row.serviceId) === String(serviceId)
-        ? { ...row, ...patch }
-        : row
-    )));
+    setServiceRows((current) => [...current, createDiscountServiceRow()]);
+  }, []);
+
+  const removeServiceRow = useCallback((key) => {
+    setCreateError("");
+    setServiceRows((current) => {
+      if (current.length <= 1) {
+        return current;
+      }
+      const normalizedKey = String(key || "");
+      return current.filter((row) => String(row.key || "") !== normalizedKey);
+    });
   }, []);
 
   const submitCreate = useCallback(async (event) => {
@@ -251,11 +261,25 @@ function FinanceClientDiscountsPanel({
       setCreateError("Процент скидки не может быть больше 100.");
       return;
     }
-    if (serviceRows.length === 0) {
+    const selectedServiceRows = serviceRows.filter((row) => String(row.serviceId || "").trim());
+    if (selectedServiceRows.length === 0) {
       setCreateError("Выберите услуги.");
       return;
     }
-    const invalidLimit = serviceRows.some((row) => !row.isUnlimited && toIntegerAmount(row.limitCount) <= 0);
+    const selectedServiceIdSet = new Set();
+    const hasDuplicateService = selectedServiceRows.some((row) => {
+      const serviceId = String(row.serviceId || "").trim();
+      if (selectedServiceIdSet.has(serviceId)) {
+        return true;
+      }
+      selectedServiceIdSet.add(serviceId);
+      return false;
+    });
+    if (hasDuplicateService) {
+      setCreateError("Одна услуга выбрана несколько раз.");
+      return;
+    }
+    const invalidLimit = selectedServiceRows.some((row) => !row.isUnlimited && toIntegerAmount(row.limitCount) <= 0);
     if (invalidLimit) {
       setCreateError("Укажите количество для выбранных услуг.");
       return;
@@ -273,7 +297,7 @@ function FinanceClientDiscountsPanel({
           discountType: createForm.discountType,
           discountValue,
           note: createForm.note,
-          services: serviceRows.map((row) => ({
+          services: selectedServiceRows.map((row) => ({
             serviceId: row.serviceId,
             isUnlimited: Boolean(row.isUnlimited),
             limitCount: row.isUnlimited ? null : toIntegerAmount(row.limitCount)
@@ -457,43 +481,40 @@ function FinanceClientDiscountsPanel({
               </div>
 
               <div className="finance-discounts-create-body">
-                <section className="finance-discounts-create-section">
-                  <div className="finance-discounts-section-title">
-                    <strong>Клиент и скидка</strong>
+                <div className="finance-discounts-simple-form">
+                  <div className="field finance-discounts-client-field">
+                    <span>Клиент</span>
+                    <input
+                      type="search"
+                      value={selectedClient ? normalizeClientLabel(selectedClient) : clientSearch}
+                      placeholder="Введите имя, телефон или ID"
+                      onChange={(event) => {
+                        setCreateError("");
+                        setSelectedClient(null);
+                        setClientSearch(event.currentTarget.value);
+                      }}
+                    />
+                    {!selectedClient && clientOptions.length > 0 ? (
+                      <div className="finance-discounts-client-results">
+                        {clientOptions.map((client) => (
+                          <button
+                            key={client.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedClient(client);
+                              setCreateError("");
+                              setClientSearch(normalizeClientLabel(client));
+                              setClientOptions([]);
+                            }}
+                          >
+                            {normalizeClientLabel(client)}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
-                  <div className="all-users-edit-fields finance-discounts-form-grid">
-                    <div className="field finance-discounts-client-field">
-                      <span>Клиент</span>
-                      <input
-                        type="search"
-                        value={selectedClient ? normalizeClientLabel(selectedClient) : clientSearch}
-                        placeholder="Введите имя, телефон или ID"
-                        onChange={(event) => {
-                          setCreateError("");
-                          setSelectedClient(null);
-                          setClientSearch(event.currentTarget.value);
-                        }}
-                      />
-                      {!selectedClient && clientOptions.length > 0 ? (
-                        <div className="finance-discounts-client-results">
-                          {clientOptions.map((client) => (
-                            <button
-                              key={client.id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedClient(client);
-                                setCreateError("");
-                                setClientSearch(normalizeClientLabel(client));
-                                setClientOptions([]);
-                              }}
-                            >
-                              {normalizeClientLabel(client)}
-                            </button>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
 
+                  <div className="finance-discounts-discount-row">
                     <div className="field">
                       <span>Тип скидки</span>
                       <CustomSelect
@@ -515,65 +536,86 @@ function FinanceClientDiscountsPanel({
                         onChange={(event) => updateCreateForm("discountValue", event.currentTarget.value)}
                       />
                     </div>
-
-                    <div className="field finance-discounts-note-field">
-                      <span>Примечание</span>
-                      <input
-                        type="text"
-                        maxLength={255}
-                        value={createForm.note}
-                        onChange={(event) => updateCreateForm("note", event.currentTarget.value)}
-                      />
-                    </div>
                   </div>
-                </section>
 
-                {createError ? <p className="all-users-state finance-discounts-modal-error">{createError}</p> : null}
+                  {createError ? <p className="all-users-state finance-discounts-modal-error">{createError}</p> : null}
 
-                <section className="finance-discounts-create-section finance-discounts-services">
-                  <div className="finance-discounts-services-head">
-                    <strong>Услуги</strong>
-                    <span>{serviceRows.length} выбрано</span>
-                  </div>
-                  <div className="finance-discounts-service-list">
-                    {services.map((service) => {
-                      const checked = selectedServiceIds.has(String(service.id));
-                      const selectedRow = serviceRows.find((row) => String(row.serviceId) === String(service.id));
-                      return (
-                        <div key={service.id} className={`finance-discounts-service-row${checked ? " is-selected" : ""}`}>
-                          <label className="settings-checkbox settings-checkbox-inline">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => toggleService(service)}
-                            />
-                            <span>{service.name}</span>
-                          </label>
-                          {checked ? (
-                            <div className="finance-discounts-service-limit">
-                              <label className="settings-checkbox settings-checkbox-inline">
-                                <input
-                                  type="checkbox"
-                                  checked={Boolean(selectedRow?.isUnlimited)}
-                                  onChange={(event) => updateServiceRow(service.id, { isUnlimited: event.currentTarget.checked })}
-                                />
-                                <span>Безлимит</span>
-                              </label>
-                              <input
-                                type="number"
-                                min="1"
-                                value={selectedRow?.isUnlimited ? "" : (selectedRow?.limitCount || "")}
-                                placeholder="Кол-во"
-                                disabled={Boolean(selectedRow?.isUnlimited)}
-                                onChange={(event) => updateServiceRow(service.id, { limitCount: event.currentTarget.value })}
-                              />
-                            </div>
-                          ) : null}
+                  <div className="finance-discounts-service-lines">
+                    {serviceRows.map((row) => (
+                      <div className="finance-discounts-service-line" key={row.key}>
+                        <label className="field finance-discounts-service-select-field">
+                          <span>Услуга</span>
+                          <CustomSelect
+                            value={row.serviceId}
+                            options={discountServiceOptions}
+                            placeholder="Выберите услугу"
+                            searchable
+                            searchThreshold={1}
+                            menuPortal
+                            emptyText="Услуги не найдены."
+                            onChange={(value) => {
+                              const service = services.find((entry) => String(entry.id) === String(value || ""));
+                              updateServiceRow(row.key, {
+                                serviceId: value,
+                                serviceName: service?.name || ""
+                              });
+                            }}
+                          />
+                        </label>
+                        <label className="field finance-discounts-service-count-field">
+                          <span>Кол-во</span>
+                          <input
+                            type="number"
+                            min="1"
+                            value={row.isUnlimited ? "" : row.limitCount}
+                            placeholder="Кол-во"
+                            disabled={Boolean(row.isUnlimited)}
+                            onChange={(event) => updateServiceRow(row.key, { limitCount: event.currentTarget.value })}
+                          />
+                        </label>
+                        <label className="settings-checkbox settings-checkbox-inline finance-discounts-unlimited-toggle">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(row.isUnlimited)}
+                            onChange={(event) => updateServiceRow(row.key, { isUnlimited: event.currentTarget.checked })}
+                          />
+                          <span>Безлимит</span>
+                        </label>
+                        <div className="finance-discounts-service-actions">
+                          <button
+                            type="button"
+                            className="table-action-btn finance-manual-icon-btn finance-manual-add-btn"
+                            aria-label="Добавить услугу"
+                            title="Добавить услугу"
+                            onClick={addServiceRow}
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            className="table-action-btn finance-manual-icon-btn"
+                            aria-label="Удалить услугу"
+                            title="Удалить услугу"
+                            disabled={serviceRows.length <= 1}
+                            onClick={() => removeServiceRow(row.key)}
+                          >
+                            ×
+                          </button>
                         </div>
-                      );
-                    })}
+                      </div>
+                    ))}
                   </div>
-                </section>
+
+                  <div className="field finance-discounts-note-field">
+                    <span>Примечание</span>
+                    <input
+                      type="text"
+                      maxLength={255}
+                      value={createForm.note}
+                      onChange={(event) => updateCreateForm("note", event.currentTarget.value)}
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="all-users-edit-actions finance-discounts-modal-actions">

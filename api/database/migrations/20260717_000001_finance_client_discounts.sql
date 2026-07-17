@@ -61,9 +61,9 @@ CREATE TABLE IF NOT EXISTS finance_client_discount_usages (
   CONSTRAINT fk_finance_client_discount_usages_ticket_org
     FOREIGN KEY (organization_id, ticket_id)
     REFERENCES finance_tickets(organization_id, id) ON DELETE CASCADE,
-  CONSTRAINT fk_finance_client_discount_usages_ticket_item_org
-    FOREIGN KEY (organization_id, ticket_item_id)
-    REFERENCES finance_ticket_items(organization_id, id) ON DELETE SET NULL,
+  CONSTRAINT fk_finance_client_discount_usages_ticket_item
+    FOREIGN KEY (ticket_item_id)
+    REFERENCES finance_ticket_items(id) ON DELETE SET NULL,
   CONSTRAINT fk_finance_client_discount_usages_appointment_org
     FOREIGN KEY (appointment_schedule_id)
     REFERENCES appointment_schedules(id) ON DELETE SET NULL,
