@@ -3146,6 +3146,7 @@ export async function getAppointmentSchedulesByRange({
           LEFT JOIN LATERAL (
             SELECT
               ft_inner.id,
+              ft_inner.organization_id,
               ft_inner.status,
               ft_inner.amount_uzs,
               ft_inner.total_uzs

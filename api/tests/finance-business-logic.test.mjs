@@ -626,7 +626,7 @@ test("appointments with non-voided finance tickets are locked against planner up
 
   assert.match(
     appointmentSettingsServiceSource,
-    /export async function getAppointmentSchedulesByRange[\s\S]*finance_ticket_payment_state[\s\S]*LEFT JOIN LATERAL \([\s\S]*FROM finance_tickets ft_inner[\s\S]*ft_inner\.appointment_schedule_id = s\.id[\s\S]*ft_inner\.status <> 'voided'[\s\S]*FROM finance_transactions t[\s\S]*ticket_payment[\s\S]*deposit_ticket_refund/s,
+    /export async function getAppointmentSchedulesByRange[\s\S]*finance_ticket_payment_state[\s\S]*LEFT JOIN LATERAL \([\s\S]*ft_inner\.organization_id,[\s\S]*FROM finance_tickets ft_inner[\s\S]*ft_inner\.appointment_schedule_id = s\.id[\s\S]*ft_inner\.status <> 'voided'[\s\S]*FROM finance_transactions t[\s\S]*t\.organization_id = ft\.organization_id[\s\S]*ticket_payment[\s\S]*deposit_ticket_refund/s,
     "Planner schedules should expose non-voided ticket payment state so appointment slots can show payment markers."
   );
 });
