@@ -17,6 +17,16 @@ const DISCOUNT_TYPE_OPTIONS = Object.freeze([
   { value: "percent", label: "Процент" }
 ]);
 
+const DISCOUNT_MAX_LIMIT_COUNT = 22;
+const DISCOUNT_UNLIMITED_VALUE = "unlimited";
+const DISCOUNT_LIMIT_OPTIONS = Object.freeze([
+  ...Array.from({ length: DISCOUNT_MAX_LIMIT_COUNT }, (_, index) => {
+    const value = String(index + 1);
+    return { value, label: value };
+  }),
+  { value: DISCOUNT_UNLIMITED_VALUE, label: "23 - Безлимит" }
+]);
+
 const STATUS_LABELS = Object.freeze({
   active: "Активна",
   completed: "Завершена",
@@ -279,9 +289,13 @@ function FinanceClientDiscountsPanel({
       setCreateError("Одна услуга выбрана несколько раз.");
       return;
     }
-    const invalidLimit = selectedServiceRows.some((row) => !row.isUnlimited && toIntegerAmount(row.limitCount) <= 0);
+    const invalidLimit = selectedServiceRows.some((row) => {
+      if (row.isUnlimited) return false;
+      const limitCount = toIntegerAmount(row.limitCount);
+      return limitCount <= 0 || limitCount > DISCOUNT_MAX_LIMIT_COUNT;
+    });
     if (invalidLimit) {
-      setCreateError("Укажите количество для выбранных услуг.");
+      setCreateError("Количество должно быть от 1 до 22 или Безлимит.");
       return;
     }
 
@@ -394,27 +408,32 @@ function FinanceClientDiscountsPanel({
 
       <div className="all-users-table-scroll">
         <table className="all-users-table finance-discounts-table" aria-label="Client discounts">
+          <colgroup>
+            <col className="finance-discounts-col-client" />
+            <col className="finance-discounts-col-services" />
+            <col className="finance-discounts-col-discount" />
+            <col className="finance-discounts-col-remaining" />
+            <col className="finance-discounts-col-status" />
+            <col className="finance-discounts-col-actions" />
+          </colgroup>
           <thead>
             <tr>
-              <th>ID</th>
               <th>Клиент</th>
               <th>Услуги</th>
               <th>Скидка</th>
-              <th>Использовано</th>
               <th>Осталось</th>
               <th>Статус</th>
-              <th>Примечание</th>
               <th>Действия</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={9} className="all-users-state">Загрузка...</td>
+                <td colSpan={6} className="all-users-state">Загрузка...</td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={9} className="all-users-state">Скидок нет.</td>
+                <td colSpan={6} className="all-users-state">Скидок нет.</td>
               </tr>
             ) : items.map((item) => (
               <tr
@@ -422,18 +441,15 @@ function FinanceClientDiscountsPanel({
                 className="finance-discounts-row"
                 onDoubleClick={() => openDetail(item)}
               >
-                <td>#{item.id}</td>
-                <td>{item.clientName || "-"}</td>
-                <td>{getServiceSummary(item)}</td>
-                <td>{formatDiscount(item)}</td>
-                <td>{toIntegerAmount(item.usedCount)}</td>
-                <td>{item.remainingCount === null ? "безлимит" : toIntegerAmount(item.remainingCount)}</td>
+                <td className="finance-discounts-cell-client">{item.clientName || "-"}</td>
+                <td className="finance-discounts-cell-services">{getServiceSummary(item)}</td>
+                <td className="finance-discounts-cell-money">{formatDiscount(item)}</td>
+                <td className="finance-discounts-cell-remaining">{item.remainingCount === null ? "безлимит" : toIntegerAmount(item.remainingCount)}</td>
                 <td>
                   <span className={`finance-discount-status ${getStatusClassName(item.status)}`}>
                     {STATUS_LABELS[item.status] || item.status}
                   </span>
                 </td>
-                <td>{item.note || "-"}</td>
                 <td>
                   <div className="finance-discount-actions">
                     <button type="button" className="table-action-btn" onClick={() => openDetail(item)}>Детали</button>
@@ -560,24 +576,18 @@ function FinanceClientDiscountsPanel({
                           />
                         </label>
                         <label className="field finance-discounts-service-count-field">
-                          <input
-                            type="number"
-                            min="1"
-                            value={row.isUnlimited ? "" : row.limitCount}
+                          <CustomSelect
+                            value={row.isUnlimited ? DISCOUNT_UNLIMITED_VALUE : String(row.limitCount || "1")}
+                            options={DISCOUNT_LIMIT_OPTIONS}
                             placeholder="Кол-во"
-                            disabled={Boolean(row.isUnlimited)}
-                            onChange={(event) => updateServiceRow(row.key, { limitCount: event.currentTarget.value })}
-                          />
-                        </label>
-                        <label
-                          className="settings-checkbox settings-checkbox-inline finance-discounts-unlimited-toggle"
-                          title="Безлимит"
-                        >
-                          <input
-                            type="checkbox"
-                            aria-label="Безлимит"
-                            checked={Boolean(row.isUnlimited)}
-                            onChange={(event) => updateServiceRow(row.key, { isUnlimited: event.currentTarget.checked })}
+                            menuPortal
+                            onChange={(value) => {
+                              if (value === DISCOUNT_UNLIMITED_VALUE) {
+                                updateServiceRow(row.key, { isUnlimited: true, limitCount: "23" });
+                                return;
+                              }
+                              updateServiceRow(row.key, { isUnlimited: false, limitCount: value });
+                            }}
                           />
                         </label>
                         <div className="finance-discounts-service-actions">
@@ -620,9 +630,6 @@ function FinanceClientDiscountsPanel({
               <div className="all-users-edit-actions finance-discounts-modal-actions">
                 <button type="submit" className="btn" disabled={submitting}>
                   {submitting ? "Сохранение..." : "Создать"}
-                </button>
-                <button type="button" className="btn secondary" onClick={closeCreateModal} disabled={submitting}>
-                  Отмена
                 </button>
               </div>
             </form>
