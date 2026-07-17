@@ -217,7 +217,7 @@ export const REQUIRED_FINANCE_CONSTRAINTS = Object.freeze([
   "fk_finance_client_discount_usages_rule_org",
   "fk_finance_client_discount_usages_rule_service_org",
   "fk_finance_client_discount_usages_ticket_org",
-  "fk_finance_client_discount_usages_ticket_item_org",
+  "fk_finance_client_discount_usages_ticket_item",
   "fk_finance_client_discount_usages_appointment_org",
   "fk_finance_client_discount_usages_client_org",
   "fk_finance_client_discount_usages_service_org"
