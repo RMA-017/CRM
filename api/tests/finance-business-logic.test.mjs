@@ -12,6 +12,11 @@ const financeRoutesSource = await readFile(
   "utf8"
 );
 
+const financeRouteSchemasSource = await readFile(
+  new URL("../src/modules/finance/finance.route-schemas.js", import.meta.url),
+  "utf8"
+);
+
 const financeDiscountsSource = await readFile(
   new URL("../src/modules/finance/finance-discounts.service.js", import.meta.url),
   "utf8"
@@ -262,6 +267,18 @@ test("finance client discounts apply only to appointment tickets and keep usage 
     financeDiscountsSource,
     /export async function applyClientDiscountsToTicketItems[\s\S]*reservations = new Map\(\)[\s\S]*candidate\.limit_count === null[\s\S]*used_count[\s\S]*reserved[\s\S]*clientDiscountRuleId[\s\S]*clientDiscountRuleServiceId/s,
     "Applying discounts should respect finite and unlimited service limits inside the current transaction."
+  );
+
+  assert.match(
+    financeRouteSchemasSource,
+    /clientDiscountLimitCountSchema[\s\S]*maximum: 22[\s\S]*pattern: "\^\(\?:\[1-9\]\|1\\\\d\|2\[0-2\]\)\$"[\s\S]*limitCount: clientDiscountLimitCountSchema[\s\S]*limit_count: clientDiscountLimitCountSchema/s,
+    "Client discount service counts should be limited to 1..22 at the route schema level."
+  );
+
+  assert.match(
+    financeDiscountsSource,
+    /CLIENT_DISCOUNT_MAX_LIMIT_COUNT = 22[\s\S]*Service count cannot exceed 22\./s,
+    "Client discount service counts should also be capped in the service layer."
   );
 
   assert.match(
@@ -605,5 +622,11 @@ test("appointments with non-voided finance tickets are locked against planner up
     appointmentSettingsServiceSource,
     /export async function cancelAppointmentSchedulesForSpecialistRange[\s\S]*NOT EXISTS \([\s\S]*FROM finance_tickets ft[\s\S]*ft\.appointment_schedule_id = s\.id[\s\S]*ft\.status <> 'voided'[\s\S]*status = 'cancelled'/s,
     "Planner range bulk cancellation should skip appointments that already have a non-voided finance ticket."
+  );
+
+  assert.match(
+    appointmentSettingsServiceSource,
+    /export async function getAppointmentSchedulesByRange[\s\S]*finance_ticket_payment_state[\s\S]*LEFT JOIN LATERAL \([\s\S]*FROM finance_tickets ft_inner[\s\S]*ft_inner\.appointment_schedule_id = s\.id[\s\S]*ft_inner\.status <> 'voided'[\s\S]*FROM finance_transactions t[\s\S]*ticket_payment[\s\S]*deposit_ticket_refund/s,
+    "Planner schedules should expose non-voided ticket payment state so appointment slots can show payment markers."
   );
 });

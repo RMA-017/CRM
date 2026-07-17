@@ -3,6 +3,7 @@ import { parsePositiveInteger } from "../../lib/number.js";
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
+const CLIENT_DISCOUNT_MAX_LIMIT_COUNT = 22;
 
 function normalizeText(value, maxLength = 255) {
   return String(value ?? "").trim().slice(0, maxLength);
@@ -399,6 +400,11 @@ export async function createFinanceClientDiscount({ organizationId, payload, act
   }
   if (serviceInputs.some((item) => item.limitCount !== null && item.limitCount <= 0)) {
     const error = new Error("Service count is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (serviceInputs.some((item) => item.limitCount !== null && item.limitCount > CLIENT_DISCOUNT_MAX_LIMIT_COUNT)) {
+    const error = new Error("Service count cannot exceed 22.");
     error.statusCode = 400;
     throw error;
   }

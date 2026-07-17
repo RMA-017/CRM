@@ -1555,6 +1555,12 @@ function toScheduleItem(row) {
     clientLastName: String(row?.last_name || "").trim(),
     clientMiddleName: String(row?.middle_name || "").trim(),
     isVip: Boolean(row?.is_vip),
+    financeTicketId: String(row?.finance_ticket_id || "").trim(),
+    financeTicketStatus: String(row?.finance_ticket_status || "").trim().toLowerCase(),
+    financeTicketTotalUzs: Number.parseInt(String(row?.finance_ticket_total_uzs ?? 0), 10) || 0,
+    financeTicketPaidAmountUzs: Number.parseInt(String(row?.finance_ticket_paid_amount_uzs ?? 0), 10) || 0,
+    financeTicketRemainingAmountUzs: Number.parseInt(String(row?.finance_ticket_remaining_amount_uzs ?? 0), 10) || 0,
+    financeTicketPaymentState: String(row?.finance_ticket_payment_state || "").trim().toLowerCase(),
     createdAt: row?.created_at || null,
     updatedAt: row?.updated_at || null
   };
@@ -3115,7 +3121,19 @@ export async function getAppointmentSchedulesByRange({
           c.first_name,
           c.last_name,
           c.middle_name,
-          c.is_vip
+          c.is_vip,
+          ft.id AS finance_ticket_id,
+          COALESCE(ft.status, '') AS finance_ticket_status,
+          COALESCE(ft.total_uzs, ft.amount_uzs, 0) AS finance_ticket_total_uzs,
+          COALESCE(fpaid.paid_amount_uzs, 0) AS finance_ticket_paid_amount_uzs,
+          GREATEST(COALESCE(ft.total_uzs, ft.amount_uzs, 0) - COALESCE(fpaid.paid_amount_uzs, 0), 0) AS finance_ticket_remaining_amount_uzs,
+          CASE
+            WHEN ft.id IS NULL THEN ''
+            WHEN COALESCE(ft.total_uzs, ft.amount_uzs, 0) <= 0 THEN 'paid'
+            WHEN COALESCE(fpaid.paid_amount_uzs, 0) >= COALESCE(ft.total_uzs, ft.amount_uzs, 0) THEN 'paid'
+            WHEN COALESCE(fpaid.paid_amount_uzs, 0) > 0 THEN 'partial'
+            ELSE 'unpaid'
+          END AS finance_ticket_payment_state
           FROM ${tableName} s
           LEFT JOIN users u
             ON u.id = s.specialist_id
@@ -3125,6 +3143,31 @@ export async function getAppointmentSchedulesByRange({
             ON c.id = s.client_id
            AND c.organization_id = s.organization_id
           ${parentResponseJoin}
+          LEFT JOIN LATERAL (
+            SELECT
+              ft_inner.id,
+              ft_inner.status,
+              ft_inner.amount_uzs,
+              ft_inner.total_uzs
+              FROM finance_tickets ft_inner
+             WHERE ft_inner.organization_id = s.organization_id
+               AND ft_inner.appointment_schedule_id = s.id
+               AND ft_inner.status <> 'voided'
+             ORDER BY ft_inner.created_at DESC, ft_inner.id DESC
+             LIMIT 1
+          ) ft ON TRUE
+          LEFT JOIN LATERAL (
+            SELECT COALESCE(SUM(CASE
+              WHEN t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN t.amount_uzs
+              WHEN t.transaction_type IN ('refund', 'deposit_ticket_refund') THEN -t.amount_uzs
+              ELSE 0
+            END), 0) AS paid_amount_uzs
+              FROM finance_transactions t
+             WHERE t.organization_id = ft.organization_id
+               AND t.ticket_id = ft.id
+               AND t.status = 'posted'
+               AND t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')
+          ) fpaid ON TRUE
           WHERE ${whereParts.join("\n        AND ")}
           ORDER BY
             s.appointment_date ASC,

@@ -54,6 +54,12 @@ const MIN_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 12;
 const MAX_APPOINTMENT_SLOT_CELL_HEIGHT_PX = 72;
 const COMPACT_APPOINTMENT_CARD_MAX_HEIGHT_PX = 24;
 const DEFAULT_APPOINTMENT_SERVICE_NAME = "Consultation";
+const APPOINTMENT_TICKET_PAYMENT_STATES = new Set(["unpaid", "partial", "paid"]);
+const APPOINTMENT_TICKET_PAYMENT_LABELS = Object.freeze({
+  unpaid: "Талон: не оплачен",
+  partial: "Талон: частично оплачен",
+  paid: "Талон: оплачен"
+});
 const SKEL_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const SKEL_ROWS = [
   { t: true,  c: [0, 1, 0, 0, 0, 0, 0] },
@@ -103,6 +109,43 @@ function normalizeBreakTypeKey(value) {
     return "lunch";
   }
   return normalizedType;
+}
+
+function normalizeAppointmentMoneyAmount(value) {
+  const parsed = Number.parseInt(String(value ?? "").replace(/[^\d-]/g, ""), 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getAppointmentTicketPaymentState(item) {
+  if (!item || String(item?.itemType || "").trim().toLowerCase() === "daily-routine") {
+    return "";
+  }
+
+  const ticketId = String(item?.financeTicketId ?? item?.finance_ticket_id ?? "").trim();
+  if (!ticketId) {
+    return "";
+  }
+
+  const explicitState = String(item?.financeTicketPaymentState ?? item?.finance_ticket_payment_state ?? "").trim().toLowerCase();
+  if (APPOINTMENT_TICKET_PAYMENT_STATES.has(explicitState)) {
+    return explicitState;
+  }
+
+  const totalAmountUzs = normalizeAppointmentMoneyAmount(item?.financeTicketTotalUzs ?? item?.finance_ticket_total_uzs);
+  const paidAmountUzs = normalizeAppointmentMoneyAmount(item?.financeTicketPaidAmountUzs ?? item?.finance_ticket_paid_amount_uzs);
+  const ticketStatus = String(item?.financeTicketStatus ?? item?.finance_ticket_status ?? "").trim().toLowerCase();
+
+  if (totalAmountUzs <= 0 || ticketStatus === "paid" || paidAmountUzs >= totalAmountUzs) {
+    return "paid";
+  }
+  if (paidAmountUzs > 0) {
+    return "partial";
+  }
+  return "unpaid";
+}
+
+function getAppointmentTicketPaymentTitle(paymentState) {
+  return APPOINTMENT_TICKET_PAYMENT_LABELS[paymentState] || "";
 }
 
 function getUserScopedSchedulerStorageKey(baseKey, currentUserId = "") {
@@ -2351,6 +2394,9 @@ function AppointmentPlannerGrid({
                     )
                       ? " appointment-parent-response-coming"
                       : "";
+                    const ticketPaymentState = getAppointmentTicketPaymentState(item);
+                    const ticketPaymentClassName = ticketPaymentState ? ` appointment-ticket-payment-${ticketPaymentState}` : "";
+                    const ticketPaymentTitle = getAppointmentTicketPaymentTitle(ticketPaymentState);
                     const canOpenCreateFromCell = (
                       !compactOccupiedOnly
                       && isInsideWorkingHours
@@ -2487,7 +2533,8 @@ function AppointmentPlannerGrid({
                           (!isRoutineCard && canMutateAppointmentSpecialist(item) && (canUpdateAppointments || canDeleteAppointments)) ? (
                             <button
                               type="button"
-                              className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""}${isCompactAppointmentCard ? " appointment-card-compact" : ""}${isPendingAppointment && !isHistoryLockedDayCell ? " appointment-card-btn" : ""} appointment-status-${item.status}${parentResponseCardClassName}`}
+                              className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""}${isCompactAppointmentCard ? " appointment-card-compact" : ""}${isPendingAppointment && !isHistoryLockedDayCell ? " appointment-card-btn" : ""} appointment-status-${item.status}${parentResponseCardClassName}${ticketPaymentClassName}`}
+                              title={ticketPaymentTitle || undefined}
                               onMouseDown={(event) => {
                                 if (event.button !== 0 || !isPendingAppointment || isHistoryLockedDayCell || typeof onMoveAppointment !== "function") {
                                   return;
@@ -2531,7 +2578,8 @@ function AppointmentPlannerGrid({
                             </button>
                           ) : (
                             <div
-                              className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""}${isCompactAppointmentCard ? " appointment-card-compact" : ""} appointment-status-${item.status}${parentResponseCardClassName}`}
+                              className={`appointment-card${tdRowSpan ? " appointment-card-multi-slot" : ""}${isCompactAppointmentCard ? " appointment-card-compact" : ""} appointment-status-${item.status}${parentResponseCardClassName}${ticketPaymentClassName}`}
+                              title={ticketPaymentTitle || undefined}
                               aria-label={isRoutineCard ? `Daily routine on ${day.label} at ${slot}` : `Appointment on ${day.label} at ${slot}`}
                             >
                               <p className="appointment-client">{cardPrimaryText}</p>
