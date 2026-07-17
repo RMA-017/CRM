@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import CustomSelect from "../../../components/CustomSelect.jsx";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
-import { formatDateTimeTashkent } from "../../../lib/formatters.js";
+import { formatDateTimeTashkent, formatDateYMD } from "../../../lib/formatters.js";
 import { useEscapeKey } from "../../../lib/use-escape-key.js";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 
@@ -24,7 +24,7 @@ const DISCOUNT_LIMIT_OPTIONS = Object.freeze([
     const value = String(index + 1);
     return { value, label: value };
   }),
-  { value: DISCOUNT_UNLIMITED_VALUE, label: "23 - Безлимит" }
+  { value: DISCOUNT_UNLIMITED_VALUE, label: "Безлимит" }
 ]);
 
 const STATUS_LABELS = Object.freeze({
@@ -410,6 +410,7 @@ function FinanceClientDiscountsPanel({
         <table className="all-users-table finance-discounts-table" aria-label="Client discounts">
           <colgroup>
             <col className="finance-discounts-col-client" />
+            <col className="finance-discounts-col-created" />
             <col className="finance-discounts-col-services" />
             <col className="finance-discounts-col-discount" />
             <col className="finance-discounts-col-remaining" />
@@ -419,21 +420,22 @@ function FinanceClientDiscountsPanel({
           <thead>
             <tr>
               <th>Клиент</th>
+              <th>Создано</th>
               <th>Услуги</th>
               <th>Скидка</th>
               <th>Осталось</th>
               <th>Статус</th>
-              <th>Действия</th>
+              <th>Управление</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="all-users-state">Загрузка...</td>
+                <td colSpan={7} className="all-users-state">Загрузка...</td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="all-users-state">Скидок нет.</td>
+                <td colSpan={7} className="all-users-state">Скидок нет.</td>
               </tr>
             ) : items.map((item) => (
               <tr
@@ -442,6 +444,7 @@ function FinanceClientDiscountsPanel({
                 onDoubleClick={() => openDetail(item)}
               >
                 <td className="finance-discounts-cell-client">{item.clientName || "-"}</td>
+                <td className="finance-discounts-cell-created">{formatDateYMD(item.createdAt || item.created_at)}</td>
                 <td className="finance-discounts-cell-services">{getServiceSummary(item)}</td>
                 <td className="finance-discounts-cell-money">{formatDiscount(item)}</td>
                 <td className="finance-discounts-cell-remaining">{item.remainingCount === null ? "безлимит" : toIntegerAmount(item.remainingCount)}</td>
@@ -470,12 +473,22 @@ function FinanceClientDiscountsPanel({
       </div>
 
       <div className="table-pagination">
-        <button type="button" disabled={page <= 1 || loading} onClick={() => loadDiscounts(page - 1)}>
-          Prev
+        <button
+          type="button"
+          className="table-action-btn"
+          disabled={page <= 1 || loading}
+          onClick={() => loadDiscounts(page - 1)}
+        >
+          {translate("Previous")}
         </button>
-        <span>{page} / {totalPages}</span>
-        <button type="button" disabled={page >= totalPages || loading} onClick={() => loadDiscounts(page + 1)}>
-          Next
+        <span>{`${page} / ${totalPages}`}</span>
+        <button
+          type="button"
+          className="table-action-btn"
+          disabled={page >= totalPages || loading}
+          onClick={() => loadDiscounts(page + 1)}
+        >
+          {translate("Next")}
         </button>
       </div>
 
