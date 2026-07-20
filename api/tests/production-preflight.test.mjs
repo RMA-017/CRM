@@ -118,4 +118,7 @@ test("migration readiness report requires finance migrations to stay in the repo
   assert.ok(
     report.errors.some((error) => error.includes("20260606_000001_finance_payment_method_nullable_safety.sql"))
   );
+  assert.ok(
+    report.errors.some((error) => error.includes("20260720_000001_finance_client_discount_per_use.sql"))
+  );
 });

@@ -300,6 +300,18 @@ test("finance client discounts apply only to appointment tickets and keep usage 
   );
 
   assert.match(
+    financeDiscountsSource,
+    /calculatePackagePerUseDiscounts[\s\S]*priceUzs \* limitCount[\s\S]*totalDiscountUzs[\s\S]*exactPerUseDiscount[\s\S]*per_use_discount_uzs/s,
+    "Amount client discounts should be stored as package totals and distributed into per-use service discounts."
+  );
+
+  assert.match(
+    financeDiscountsSource,
+    /getDiscountCandidatesForService[\s\S]*rs\.per_use_discount_uzs[\s\S]*discountType === "amount" && perUseDiscountUzs !== null[\s\S]*discountValue: discountType === "amount" \? discountUzs : discountValue/s,
+    "Appointment ticket discounts should apply stored per-use amount discounts while preserving percentage rules."
+  );
+
+  assert.match(
     financeServiceSource,
     /if \(appointmentScheduleId && appointment\) \{[\s\S]*applyClientDiscountsToTicketItems[\s\S]*\}[\s\S]*insertClientDiscountUsages/s,
     "Automatic client discounts should be applied during appointment-backed ticket creation."

@@ -158,6 +158,7 @@ export const REQUIRED_FINANCE_TABLE_COLUMNS = Object.freeze({
     "service_id",
     "service_name",
     "limit_count",
+    "per_use_discount_uzs",
     "created_at"
   ],
   finance_client_discount_usages: [
@@ -214,6 +215,7 @@ export const REQUIRED_FINANCE_CONSTRAINTS = Object.freeze([
   "uq_finance_client_discount_rule_services_org_id",
   "fk_finance_client_discount_rule_services_rule_org",
   "fk_finance_client_discount_rule_services_service_org",
+  "chk_finance_client_discount_rule_services_per_use_discount",
   "fk_finance_client_discount_usages_rule_org",
   "fk_finance_client_discount_usages_rule_service_org",
   "fk_finance_client_discount_usages_ticket_org",
@@ -252,7 +254,8 @@ export const REQUIRED_FINANCE_INDEXES = Object.freeze([
 
 export const REQUIRED_FINANCE_NULLABLE_COLUMNS = Object.freeze({
   finance_ticket_payments: ["payment_method_id"],
-  finance_transactions: ["payment_method_id"]
+  finance_transactions: ["payment_method_id"],
+  finance_client_discount_rule_services: ["per_use_discount_uzs"]
 });
 
 function toNameSet(values) {

@@ -17,7 +17,7 @@ const EMPTY_FILTERS = Object.freeze({
   createdTo: "",
   client: "",
   service: "",
-  isActive: ""
+  isActive: "true"
 });
 
 const DISCOUNT_TYPE_OPTIONS = Object.freeze([
@@ -55,6 +55,13 @@ function toIntegerAmount(value) {
 function formatMoney(value) {
   const amount = toIntegerAmount(value);
   return amount.toLocaleString("ru-RU");
+}
+
+function formatServiceOptionLabel(service) {
+  const name = String(service?.name || service?.id || "").trim() || "-";
+  const priceUzs = toIntegerAmount(service?.priceUzs ?? service?.price_uzs);
+  const priceLabel = priceUzs > 0 ? `${formatMoney(priceUzs)} сум` : "-";
+  return `${name} - ${priceLabel}`;
 }
 
 function formatDiscount(item) {
@@ -140,7 +147,8 @@ function FinanceClientDiscountsPanel({
 
   const discountServiceOptions = useMemo(() => services.filter(Boolean).map((service) => ({
     value: String(service.id),
-    label: String(service.name || service.id),
+    label: formatServiceOptionLabel(service),
+    selectedLabel: formatServiceOptionLabel(service),
     item: service
   })), [services]);
   const filterServiceOptions = useMemo(() => [

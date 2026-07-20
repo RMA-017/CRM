@@ -115,8 +115,8 @@ test("finance client discounts route is wired into profile navigation", async ()
   );
   assert.match(
     panelSource,
-    /EMPTY_FILTERS[\s\S]*createdFrom[\s\S]*createdTo[\s\S]*client[\s\S]*service[\s\S]*isActive[\s\S]*Object\.entries\(nextFilters \|\| \{\}\)/s,
-    "FinanceClientDiscountsPanel should send client discount filters to the backend list endpoint."
+    /EMPTY_FILTERS[\s\S]*createdFrom[\s\S]*createdTo[\s\S]*client[\s\S]*service[\s\S]*isActive: "true"[\s\S]*Object\.entries\(nextFilters \|\| \{\}\)/s,
+    "FinanceClientDiscountsPanel should default to active discounts and send filters to the backend list endpoint."
   );
   assert.match(
     panelSource,
@@ -127,6 +127,11 @@ test("finance client discounts route is wired into profile navigation", async ()
     panelSource,
     /id="financeClientDiscountFilterModal"[\s\S]*Created From[\s\S]*Created To[\s\S]*Client Name[\s\S]*Service Name[\s\S]*DISCOUNT_ACTIVE_FILTER_OPTIONS/s,
     "FinanceClientDiscountsPanel should render the requested client discount filter fields."
+  );
+  assert.match(
+    panelSource,
+    /function formatServiceOptionLabel\(service\)[\s\S]*priceUzs[\s\S]*formatMoney\(priceUzs\)[\s\S]*discountServiceOptions[\s\S]*label: formatServiceOptionLabel\(service\)[\s\S]*selectedLabel: formatServiceOptionLabel\(service\)/s,
+    "Create discount service options should show the service price in the dropdown and selected value."
   );
   assert.match(
     panelSource,

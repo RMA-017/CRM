@@ -61,6 +61,76 @@ function calculateDiscountUzs({ priceUzs, discountType, discountValue }) {
   return Math.min(price, value);
 }
 
+function createBadRequestError(message) {
+  const error = new Error(message);
+  error.statusCode = 400;
+  return error;
+}
+
+function calculatePackagePerUseDiscounts({ serviceInputs, serviceById, discountValue }) {
+  if (serviceInputs.some((item) => item.limitCount === null)) {
+    throw createBadRequestError("Amount discount requires finite service counts.");
+  }
+
+  const rows = serviceInputs.map((item) => {
+    const service = serviceById.get(String(item.serviceId));
+    const priceUzs = normalizeAmount(service?.price_uzs, 0);
+    const limitCount = normalizeAmount(item.limitCount, 0);
+    return {
+      serviceId: item.serviceId,
+      priceUzs,
+      limitCount,
+      packageAmountUzs: priceUzs * limitCount
+    };
+  });
+
+  if (rows.some((item) => item.priceUzs <= 0)) {
+    throw createBadRequestError("Service price is required for amount discount.");
+  }
+
+  const packageAmountUzs = rows.reduce((sum, item) => sum + item.packageAmountUzs, 0);
+  if (packageAmountUzs <= 0) {
+    throw createBadRequestError("Package amount is required for amount discount.");
+  }
+
+  const totalDiscountUzs = Math.min(normalizeAmount(discountValue, 0), packageAmountUzs);
+  const allocations = rows.map((item) => {
+    const exactPerUseDiscount = (totalDiscountUzs * item.priceUzs) / packageAmountUzs;
+    const perUseDiscountUzs = Math.min(item.priceUzs, Math.floor(exactPerUseDiscount));
+    return {
+      ...item,
+      exactPerUseDiscount,
+      perUseDiscountUzs
+    };
+  });
+
+  const allocatedDiscountUzs = allocations.reduce(
+    (sum, item) => sum + item.perUseDiscountUzs * item.limitCount,
+    0
+  );
+  let remainingDiscountUzs = Math.max(totalDiscountUzs - allocatedDiscountUzs, 0);
+  const byFraction = [...allocations].sort((left, right) => {
+    const fractionDiff = (right.exactPerUseDiscount % 1) - (left.exactPerUseDiscount % 1);
+    if (fractionDiff !== 0) return fractionDiff;
+    const amountDiff = right.packageAmountUzs - left.packageAmountUzs;
+    if (amountDiff !== 0) return amountDiff;
+    return left.serviceId - right.serviceId;
+  });
+
+  for (const item of byFraction) {
+    if (item.perUseDiscountUzs >= item.priceUzs || remainingDiscountUzs < item.limitCount) {
+      continue;
+    }
+    item.perUseDiscountUzs += 1;
+    remainingDiscountUzs -= item.limitCount;
+  }
+
+  return new Map(allocations.map((item) => [
+    String(item.serviceId),
+    Math.min(item.priceUzs, normalizeAmount(item.perUseDiscountUzs, 0))
+  ]));
+}
+
 function normalizeBoolean(value, fallback = false) {
   if (typeof value === "boolean") return value;
   const normalized = String(value ?? "").trim().toLowerCase();
@@ -102,6 +172,7 @@ function normalizeServiceRows(value) {
         id: item.id,
         serviceId: item.serviceId ?? item.service_id,
         serviceName: item.serviceName ?? item.service_name ?? "",
+        perUseDiscountUzs: item.perUseDiscountUzs ?? item.per_use_discount_uzs ?? null,
         limitCount,
         usedCount,
         remainingCount,
@@ -259,6 +330,7 @@ async function queryDiscountRules({ organizationId, whereSql = "", params = [], 
                   'id', rs.id,
                   'serviceId', rs.service_id,
                   'serviceName', rs.service_name,
+                  'perUseDiscountUzs', rs.per_use_discount_uzs,
                   'limitCount', rs.limit_count,
                   'usedCount', COALESCE(uc.used_count, 0)
                 )
@@ -473,7 +545,7 @@ export async function createFinanceClientDiscount({ organizationId, payload, act
 
     const serviceIds = serviceInputs.map((item) => item.serviceId);
     const servicesResult = await db.query(
-      `SELECT id, name
+      `SELECT id, name, price_uzs
          FROM service_catalog
         WHERE organization_id = $1
           AND id = ANY($2::int[])
@@ -486,6 +558,9 @@ export async function createFinanceClientDiscount({ organizationId, payload, act
       error.statusCode = 404;
       throw error;
     }
+    const perUseDiscountByServiceId = discountType === "amount"
+      ? calculatePackagePerUseDiscounts({ serviceInputs, serviceById, discountValue })
+      : new Map();
 
     const insertResult = await db.query(
       `INSERT INTO finance_client_discount_rules (
@@ -498,12 +573,13 @@ export async function createFinanceClientDiscount({ organizationId, payload, act
     const ruleId = insertResult.rows[0].id;
     for (const item of serviceInputs) {
       const service = serviceById.get(String(item.serviceId));
+      const perUseDiscountUzs = perUseDiscountByServiceId.get(String(item.serviceId)) ?? null;
       await db.query(
         `INSERT INTO finance_client_discount_rule_services (
-           organization_id, rule_id, service_id, service_name, limit_count
+           organization_id, rule_id, service_id, service_name, limit_count, per_use_discount_uzs
          )
-         VALUES ($1, $2, $3, $4, $5)`,
-        [organizationId, ruleId, item.serviceId, service.name, item.limitCount]
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [organizationId, ruleId, item.serviceId, service.name, item.limitCount, perUseDiscountUzs]
       );
     }
     await db.query("COMMIT");
@@ -550,6 +626,7 @@ async function getDiscountCandidatesForService(db, { organizationId, clientId, s
             rs.id AS rule_service_id,
             r.discount_type,
             r.discount_value,
+            rs.per_use_discount_uzs,
             rs.limit_count,
             COALESCE(usage_counts.used_count, 0)::integer AS used_count
        FROM finance_client_discount_rule_services rs
@@ -597,8 +674,13 @@ export async function applyClientDiscountsToTicketItems(db, { organizationId, cl
     }
     const discountType = normalizeDiscountType(selected.discount_type);
     const discountValue = normalizeAmount(selected.discount_value, 0);
+    const perUseDiscountUzs = selected.per_use_discount_uzs === null || selected.per_use_discount_uzs === undefined
+      ? null
+      : normalizeAmount(selected.per_use_discount_uzs, 0);
     const priceUzs = normalizeAmount(item.priceUzs ?? item.price_uzs, 0);
-    const discountUzs = calculateDiscountUzs({ priceUzs, discountType, discountValue });
+    const discountUzs = discountType === "amount" && perUseDiscountUzs !== null
+      ? Math.min(priceUzs, perUseDiscountUzs)
+      : calculateDiscountUzs({ priceUzs, discountType, discountValue });
     if (discountUzs <= 0) {
       nextItems.push(item);
       continue;
@@ -607,7 +689,7 @@ export async function applyClientDiscountsToTicketItems(db, { organizationId, cl
     nextItems.push({
       ...item,
       discountType,
-      discountValue,
+      discountValue: discountType === "amount" ? discountUzs : discountValue,
       discountUzs,
       finalAmountUzs: Math.max(priceUzs - discountUzs, 0),
       clientDiscountRuleId: selected.rule_id,
