@@ -128,6 +128,11 @@ test("finance client discounts route is wired into profile navigation", async ()
     /id="financeClientDiscountFilterModal"[\s\S]*Created From[\s\S]*Created To[\s\S]*Client Name[\s\S]*Service Name[\s\S]*DISCOUNT_ACTIVE_FILTER_OPTIONS/s,
     "FinanceClientDiscountsPanel should render the requested client discount filter fields."
   );
+  assert.doesNotMatch(
+    panelSource,
+    /setFilters\(\(current\) => \(\{[\s\S]{0,120}event\.currentTarget\.value/,
+    "Client discount filter handlers should capture input values before running state updaters."
+  );
   assert.match(
     panelSource,
     /finance-discounts-col-client[\s\S]*finance-discounts-col-client-id[\s\S]*<th>\{translate\("Client"\)\}<\/th>[\s\S]*<th>\{translate\("Client ID"\)\}<\/th>[\s\S]*colSpan=\{8\}[\s\S]*finance-discounts-cell-client-id/s,
@@ -185,13 +190,18 @@ test("finance client discounts route is wired into profile navigation", async ()
   );
   assert.match(
     stylesSource,
-    /\.finance-discounts-col-client-id \{[\s\S]*width: 86px;[\s\S]*\.finance-discounts-cell-client-id \{[\s\S]*color: var\(--text-muted\);/s,
-    "Client discount client-id column should stay compact and muted."
+    /\.finance-discounts-col-client-id \{[\s\S]*width: 86px;[\s\S]*\.finance-discounts-cell-client-id \{[\s\S]*white-space: nowrap;[\s\S]*\.finance-discounts-cell-created \{[\s\S]*white-space: nowrap;/s,
+    "Client discount client-id and created columns should stay compact without muted text styling."
+  );
+  assert.doesNotMatch(
+    stylesSource,
+    /\.finance-discounts-cell-client-id \{[^}]*color: var\(--text-muted\);|\.finance-discounts-cell-created \{[^}]*color: var\(--text-muted\);/s,
+    "Client discount client-id and created cells should match the normal table text color."
   );
   assert.match(
     stylesSource,
-    /\.finance-discounts-col-actions \{[\s\S]*width: 52px;[\s\S]*\.finance-discounts-table :is\(th:last-child, td:last-child\) \{[\s\S]*text-align: center;[\s\S]*\.finance-panel-shell \.finance-discount-actions \.finance-discounts-icon-btn \{[\s\S]*width: 30px;[\s\S]*height: 30px;/s,
-    "Client discount actions column should stay narrow with one finance ticket-style icon."
+    /\.finance-discounts-col-actions \{[\s\S]*width: 76px;[\s\S]*\.finance-discounts-table :is\(th:last-child, td:last-child\) \{[\s\S]*text-align: center;[\s\S]*\.finance-panel-shell \.finance-discount-actions \.finance-discounts-icon-btn \{[\s\S]*width: 30px;[\s\S]*height: 30px;/s,
+    "Client discount actions column should fit the translated header while keeping one compact icon."
   );
   assert.match(
     stylesSource,

@@ -6534,7 +6534,7 @@ label.field > span:first-child,
 }
 
 .finance-discounts-col-actions {
-  width: 52px;
+  width: 76px;
 }
 
 .finance-discounts-table :is(th, td) {
@@ -6561,12 +6561,10 @@ label.field > span:first-child,
 }
 
 .finance-discounts-cell-client-id {
-  color: var(--text-muted);
   white-space: nowrap;
 }
 
 .finance-discounts-cell-created {
-  color: var(--text-muted);
   white-space: nowrap;
 }
 

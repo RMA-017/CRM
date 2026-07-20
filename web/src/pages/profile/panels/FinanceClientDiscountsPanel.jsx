@@ -557,7 +557,10 @@ function FinanceClientDiscountsPanel({
                     <input
                       type="date"
                       value={filters.createdFrom}
-                      onChange={(event) => setFilters((current) => ({ ...current, createdFrom: event.currentTarget.value }))}
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setFilters((current) => ({ ...current, createdFrom: value }));
+                      }}
                     />
                   </label>
                   <label className="field">
@@ -565,7 +568,10 @@ function FinanceClientDiscountsPanel({
                     <input
                       type="date"
                       value={filters.createdTo}
-                      onChange={(event) => setFilters((current) => ({ ...current, createdTo: event.currentTarget.value }))}
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setFilters((current) => ({ ...current, createdTo: value }));
+                      }}
                     />
                   </label>
                 </div>
@@ -575,7 +581,10 @@ function FinanceClientDiscountsPanel({
                     type="search"
                     value={filters.client}
                     placeholder={translate("Client Name")}
-                    onChange={(event) => setFilters((current) => ({ ...current, client: event.currentTarget.value }))}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setFilters((current) => ({ ...current, client: value }));
+                    }}
                   />
                 </label>
                 <label className="field">
