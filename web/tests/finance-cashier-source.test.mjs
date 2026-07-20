@@ -97,8 +97,8 @@ test("appointment ticket modal derives price from the selected service before sa
 
   assert.match(
     cashierPanelSource,
-    /function getAppointmentTicketServiceName\(\{ source, services, serviceId \}\)[\s\S]*sourceServiceName[\s\S]*String\(serviceId \|\| ""\) === String\(source\?\.serviceId \|\| ""\)[\s\S]*payload\.items = \[\{[\s\S]*serviceId,[\s\S]*serviceName: getAppointmentTicketServiceName\(\{[\s\S]*source: item,[\s\S]*services: board\.services,[\s\S]*serviceId[\s\S]*priceUzs,[\s\S]*discountType: appointmentTicketForm\.discountType,[\s\S]*discountValue: appointmentTicketForm\.discountValue,[\s\S]*discountUzs: appointmentDiscountUzs/s,
-    "Create Ticket should submit the selected service, real appointment service name and exact discount as a ticket line item."
+    /function getAppointmentTicketServiceName\(\{ source, services, serviceId \}\)[\s\S]*sourceServiceName[\s\S]*String\(serviceId \|\| ""\) === String\(source\?\.serviceId \|\| ""\)[\s\S]*const ticketItem = \{[\s\S]*serviceId,[\s\S]*serviceName: getAppointmentTicketServiceName\(\{[\s\S]*source: item,[\s\S]*services: board\.services,[\s\S]*serviceId[\s\S]*priceUzs[\s\S]*if \(appointmentDiscountTouched\) \{[\s\S]*ticketItem\.discountType = appointmentTicketForm\.discountType;[\s\S]*ticketItem\.discountValue = appointmentTicketForm\.discountValue;[\s\S]*ticketItem\.discountUzs = appointmentDiscountUzs;[\s\S]*payload\.items = \[ticketItem\];/s,
+    "Create Ticket should submit the selected service and only submit an exact discount when the cashier edits it manually."
   );
 
   assert.match(
@@ -137,6 +137,11 @@ test("manual ticket modal blocks future ticket dates", async () => {
     cashierPanelSource,
     /items: manualForm\.items\.map\(\(item, index\) => \(\{[\s\S]*discountType: manualForm\.discountType === "percent" \? "percent" : "amount",[\s\S]*discountValue: manualForm\.discountType === "percent"[\s\S]*manualForm\.discountValue[\s\S]*manualItemDiscounts\[index\] \|\| 0,[\s\S]*discountUzs: manualItemDiscounts\[index\] \|\| 0/s,
     "Manual ticket creation should preserve shared percent metadata while sending exact distributed UZS discounts."
+  );
+  assert.match(
+    cashierPanelSource,
+    /const DISCOUNT_MAX_PERCENT_VALUE = 100;[\s\S]*function normalizeDiscountValueInput\(discountType, value\)[\s\S]*amount > DISCOUNT_MAX_PERCENT_VALUE \? String\(DISCOUNT_MAX_PERCENT_VALUE\) : rawValue[\s\S]*discountValue: normalizeDiscountValueInput\(value, current\.discountValue\)[\s\S]*max=\{appointmentTicketForm\.discountType === "percent" \? String\(DISCOUNT_MAX_PERCENT_VALUE\) : undefined\}[\s\S]*normalizeDiscountValueInput\(appointmentTicketForm\.discountType, event\.currentTarget\.value\)[\s\S]*discountValue: normalizeDiscountValueInput\(value, current\.discountValue\)[\s\S]*max=\{manualForm\.discountType === "percent" \? String\(DISCOUNT_MAX_PERCENT_VALUE\) : undefined\}[\s\S]*normalizeDiscountValueInput\(manualForm\.discountType, event\.currentTarget\.value\)/s,
+    "Create Ticket and Create Manual Ticket should clamp percent discount inputs to 100."
   );
   assert.match(
     translations,

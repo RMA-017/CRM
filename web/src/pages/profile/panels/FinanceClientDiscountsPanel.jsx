@@ -32,6 +32,7 @@ const DISCOUNT_ACTIVE_FILTER_OPTIONS = Object.freeze([
 ]);
 
 const DISCOUNT_MAX_LIMIT_COUNT = 22;
+const DISCOUNT_MAX_PERCENT_VALUE = 100;
 const DISCOUNT_UNLIMITED_VALUE = "unlimited";
 const DISCOUNT_LIMIT_OPTIONS = Object.freeze([
   ...Array.from({ length: DISCOUNT_MAX_LIMIT_COUNT }, (_, index) => {
@@ -50,6 +51,15 @@ const STATUS_LABELS = Object.freeze({
 
 function toIntegerAmount(value) {
   return Number.parseInt(String(value ?? 0), 10) || 0;
+}
+
+function normalizeCreateDiscountValue(discountType, value) {
+  const rawValue = String(value ?? "");
+  if (String(discountType || "") !== "percent" || rawValue.trim() === "") {
+    return rawValue;
+  }
+  const amount = toIntegerAmount(rawValue);
+  return amount > DISCOUNT_MAX_PERCENT_VALUE ? String(DISCOUNT_MAX_PERCENT_VALUE) : rawValue;
 }
 
 function formatMoney(value) {
@@ -143,7 +153,6 @@ function FinanceClientDiscountsPanel({
   const [submitting, setSubmitting] = useState(false);
   const [createError, setCreateError] = useState("");
   const [detail, setDetail] = useState(null);
-  const [detailLoading, setDetailLoading] = useState(false);
   const [disableTarget, setDisableTarget] = useState(null);
   const [disableReason, setDisableReason] = useState("");
   const [disableSubmitting, setDisableSubmitting] = useState(false);
@@ -294,7 +303,6 @@ function FinanceClientDiscountsPanel({
 
   const closeDetailModal = useCallback(() => {
     setDetail(null);
-    setDetailLoading(false);
   }, []);
 
   const closeDisableModal = useCallback(() => {
@@ -331,10 +339,26 @@ function FinanceClientDiscountsPanel({
 
   const updateCreateForm = useCallback((field, value) => {
     setCreateError("");
-    setCreateForm((current) => ({
-      ...current,
-      [field]: value
-    }));
+    setCreateForm((current) => {
+      if (field === "discountType") {
+        const discountType = String(value || "amount");
+        return {
+          ...current,
+          discountType,
+          discountValue: normalizeCreateDiscountValue(discountType, current.discountValue)
+        };
+      }
+      if (field === "discountValue") {
+        return {
+          ...current,
+          discountValue: normalizeCreateDiscountValue(current.discountType, value)
+        };
+      }
+      return {
+        ...current,
+        [field]: value
+      };
+    });
   }, []);
 
   const updateServiceRow = useCallback((key, patch) => {
@@ -374,7 +398,7 @@ function FinanceClientDiscountsPanel({
       setCreateError("Укажите скидку.");
       return;
     }
-    if (createForm.discountType === "percent" && discountValue > 100) {
+    if (createForm.discountType === "percent" && discountValue > DISCOUNT_MAX_PERCENT_VALUE) {
       setCreateError("Процент скидки не может быть больше 100.");
       return;
     }
@@ -443,7 +467,6 @@ function FinanceClientDiscountsPanel({
     const id = item?.id;
     if (!id) return;
     try {
-      setDetailLoading(true);
       setDetail({ item, usages: [] });
       const response = await apiFetch(`/api/finance/discounts/${encodeURIComponent(id)}`);
       const data = await readApiResponseData(response);
@@ -456,8 +479,6 @@ function FinanceClientDiscountsPanel({
     } catch {
       setMessage("Не удалось загрузить скидку.");
       setDetail(null);
-    } finally {
-      setDetailLoading(false);
     }
   }, []);
 
@@ -794,7 +815,7 @@ function FinanceClientDiscountsPanel({
                       <input
                         type="number"
                         min="1"
-                        max={createForm.discountType === "percent" ? "100" : undefined}
+                        max={createForm.discountType === "percent" ? String(DISCOUNT_MAX_PERCENT_VALUE) : undefined}
                         placeholder={createForm.discountType === "percent" ? "Процент" : "Сумма"}
                         value={createForm.discountValue}
                         onChange={(event) => updateCreateForm("discountValue", event.currentTarget.value)}
@@ -902,11 +923,6 @@ function FinanceClientDiscountsPanel({
               </button>
             </div>
             <div className="finance-discounts-detail-body">
-              {detailLoading ? (
-                <div className="finance-discounts-detail-loading" role="status">
-                  {translate("Loading...")}
-                </div>
-              ) : null}
               <div className="finance-ticket-summary finance-discounts-detail-summary">
                 <div>
                   <span>{translate("Discount")}</span>

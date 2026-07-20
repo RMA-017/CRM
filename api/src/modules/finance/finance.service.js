@@ -12,6 +12,7 @@ import {
 const FINANCE_BATCH_PAYMENT_SCHEMA_ERROR_CODES = new Set(["42P01", "42703", "23502", "23514"]);
 const CASHIER_BOARD_DEFAULT_LIMIT = 100;
 const CASHIER_BOARD_MAX_LIMIT = 10000;
+const FINANCE_DISCOUNT_MAX_PERCENT_VALUE = 100;
 
 function normalizeAmount(value, fallback = 0) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -152,9 +153,17 @@ function calculateDiscountUzs({ priceUzs, discountType, discountValue }) {
   const price = normalizeAmount(priceUzs, 0);
   const value = normalizeAmount(discountValue, 0);
   if (discountType === "percent") {
-    return Math.min(price, Math.floor((price * Math.min(value, 100)) / 100));
+    return Math.min(price, Math.floor((price * Math.min(value, FINANCE_DISCOUNT_MAX_PERCENT_VALUE)) / 100));
   }
   return Math.min(price, value);
+}
+
+function assertDiscountValueIsAllowed({ discountType, discountValue }) {
+  if (discountType === "percent" && discountValue > FINANCE_DISCOUNT_MAX_PERCENT_VALUE) {
+    const error = new Error("Percent discount cannot be greater than 100.");
+    error.statusCode = 400;
+    throw error;
+  }
 }
 
 function mapTicket(row) {
@@ -4063,6 +4072,7 @@ async function buildTicketItems(db, { organizationId, payload, appointment, fall
       }
       const discountType = normalizeDiscountType(rawItem?.discountType ?? rawItem?.discount_type);
       const discountValue = normalizeAmount(rawItem?.discountValue ?? rawItem?.discount_value, 0);
+      assertDiscountValueIsAllowed({ discountType, discountValue });
       const requestedDiscountUzs = normalizeAmount(rawItem?.discountUzs ?? rawItem?.discount_uzs, -1);
       const discountUzs = requestedDiscountUzs >= 0
         ? Math.min(priceUzs, requestedDiscountUzs)

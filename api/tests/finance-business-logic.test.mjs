@@ -230,6 +230,11 @@ test("finance ticket creation accepts pending or confirmed appointments and snap
     /const requestedDiscountUzs = normalizeAmount\(rawItem\?\.discountUzs \?\? rawItem\?\.discount_uzs, -1\);[\s\S]*const discountUzs = requestedDiscountUzs >= 0[\s\S]*Math\.min\(priceUzs, requestedDiscountUzs\)[\s\S]*calculateDiscountUzs\(\{ priceUzs, discountType, discountValue \}\)/s,
     "Ticket line items should accept exact distributed UZS discounts while preserving the submitted discount metadata."
   );
+  assert.match(
+    financeServiceSource,
+    /const FINANCE_DISCOUNT_MAX_PERCENT_VALUE = 100;[\s\S]*function assertDiscountValueIsAllowed\(\{ discountType, discountValue \}\)[\s\S]*discountType === "percent" && discountValue > FINANCE_DISCOUNT_MAX_PERCENT_VALUE[\s\S]*Percent discount cannot be greater than 100\.[\s\S]*const discountValue = normalizeAmount\(rawItem\?\.discountValue \?\? rawItem\?\.discount_value, 0\);[\s\S]*assertDiscountValueIsAllowed\(\{ discountType, discountValue \}\);/s,
+    "Ticket line items should reject percent discounts greater than 100 before totals are calculated."
+  );
 
   assert.match(
     financeServiceSource,

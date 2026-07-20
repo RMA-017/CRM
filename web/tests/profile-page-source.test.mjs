@@ -170,6 +170,11 @@ test("finance client discounts route is wired into profile navigation", async ()
   );
   assert.match(
     panelSource,
+    /const DISCOUNT_MAX_PERCENT_VALUE = 100;[\s\S]*function normalizeCreateDiscountValue\(discountType, value\)[\s\S]*amount > DISCOUNT_MAX_PERCENT_VALUE \? String\(DISCOUNT_MAX_PERCENT_VALUE\) : rawValue[\s\S]*field === "discountType"[\s\S]*discountValue: normalizeCreateDiscountValue\(discountType, current\.discountValue\)[\s\S]*field === "discountValue"[\s\S]*discountValue: normalizeCreateDiscountValue\(current\.discountType, value\)[\s\S]*max=\{createForm\.discountType === "percent" \? String\(DISCOUNT_MAX_PERCENT_VALUE\) : undefined\}/s,
+    "New client discount modal should clamp percent discounts to 100 while typing and when switching types."
+  );
+  assert.match(
+    panelSource,
     /const clientResultsElement = showClientResults && modalRoot \? createPortal\(/,
     "Client search results should render through a portal so the modal does not clip them."
   );
@@ -215,8 +220,13 @@ test("finance client discounts route is wired into profile navigation", async ()
   );
   assert.match(
     stylesSource,
-    /\.finance-discounts-detail-modal \{[\s\S]*width: min\(680px,[\s\S]*grid-template-rows: auto minmax\(0, 1fr\);[\s\S]*\.finance-discounts-detail-body \{[\s\S]*position: relative;[\s\S]*overflow: auto;[\s\S]*\.finance-discounts-detail-loading \{[\s\S]*position: absolute;[\s\S]*\.finance-discounts-disable-note \{[\s\S]*\.finance-discounts-detail-sections \{[\s\S]*gap: 10px;[\s\S]*\.finance-discounts-usage-scroll \{[\s\S]*max-height: 230px;[\s\S]*\.finance-discounts-usage-table \{[\s\S]*table-layout: fixed;/s,
+    /\.finance-discounts-detail-modal \{[\s\S]*width: min\(680px,[\s\S]*grid-template-rows: auto minmax\(0, 1fr\);[\s\S]*\.finance-discounts-detail-body \{[\s\S]*overflow: auto;[\s\S]*\.finance-discounts-disable-note \{[\s\S]*\.finance-discounts-detail-sections \{[\s\S]*gap: 10px;[\s\S]*\.finance-discounts-usage-scroll \{[\s\S]*max-height: 230px;[\s\S]*\.finance-discounts-usage-table \{[\s\S]*table-layout: fixed;/s,
     "Client discount detail modal should use compact dimensions and show disable audit notes without growing the modal."
+  );
+  assert.doesNotMatch(
+    panelSource + stylesSource,
+    /finance-discounts-detail-loading|detailLoading/,
+    "Client discount detail modal should not show a loading text while fetching details."
   );
   assert.match(
     stylesSource,
@@ -235,22 +245,22 @@ test("finance cashier appointment ticket modal previews client discounts", async
 
   assert.match(
     cashierSource,
-    /const \[appointmentDiscountTouched, setAppointmentDiscountTouched\] = useState\(false\);[\s\S]*const \[appointmentDiscountPreviewLoading, setAppointmentDiscountPreviewLoading\] = useState\(false\);[\s\S]*appointmentDiscountPreviewRequestRef/s,
+    /const \[appointmentDiscountTouched, setAppointmentDiscountTouched\] = useState\(false\);[\s\S]*const \[appointmentDiscountLocked, setAppointmentDiscountLocked\] = useState\(false\);[\s\S]*const \[appointmentDiscountPreviewLoading, setAppointmentDiscountPreviewLoading\] = useState\(false\);[\s\S]*appointmentDiscountPreviewRequestRef/s,
     "Cashier appointment ticket modal should track automatic discount preview state."
   );
   assert.match(
     cashierSource,
-    /ticket-discount-preview[\s\S]*body: JSON\.stringify\(\{[\s\S]*amountUzs: priceUzs,[\s\S]*items: \[\{[\s\S]*serviceId,[\s\S]*priceUzs[\s\S]*discountType: discountUzs > 0 \? discountType : "amount"[\s\S]*discountValue: String\(discountUzs > 0 \? discountValue : 0\)/s,
+    /ticket-discount-preview[\s\S]*body: JSON\.stringify\(\{[\s\S]*amountUzs: priceUzs,[\s\S]*items: \[\{[\s\S]*serviceId,[\s\S]*priceUzs[\s\S]*setAppointmentDiscountLocked\(discountUzs > 0 && Boolean\(previewItem\?\.clientDiscountRuleId\)\);[\s\S]*discountType: discountUzs > 0 \? discountType : "amount"[\s\S]*discountValue: String\(discountUzs > 0 \? discountValue : 0\)/s,
     "Cashier appointment ticket modal should fetch and apply automatic client discount previews."
   );
   assert.match(
     cashierSource,
-    /setAppointmentDiscountTouched\(false\);[\s\S]*serviceId: value,[\s\S]*discountType: "amount",[\s\S]*discountValue: "0"/s,
+    /setAppointmentDiscountTouched\(false\);[\s\S]*setAppointmentDiscountLocked\(false\);[\s\S]*serviceId: value,[\s\S]*discountType: "amount",[\s\S]*discountValue: "0"/s,
     "Changing appointment ticket service should reset manual discount state and refetch the automatic preview."
   );
   assert.match(
     cashierSource,
-    /setAppointmentDiscountTouched\(true\);[\s\S]*setAppointmentTicketForm\(\(current\) => \(\{ \.\.\.current, discountType: value \}\)\)[\s\S]*setAppointmentDiscountTouched\(true\);[\s\S]*setAppointmentTicketForm\(\(current\) => \(\{ \.\.\.current, discountValue: value \}\)\)/s,
+    /disabled=\{appointmentDiscountLocked \|\| appointmentDiscountPreviewLoading\}[\s\S]*if \(appointmentDiscountLocked \|\| appointmentDiscountPreviewLoading\) return;[\s\S]*setAppointmentDiscountTouched\(true\);[\s\S]*discountType: value,[\s\S]*discountValue: normalizeDiscountValueInput\(value, current\.discountValue\)[\s\S]*disabled=\{appointmentDiscountLocked \|\| appointmentDiscountPreviewLoading\}[\s\S]*if \(appointmentDiscountLocked \|\| appointmentDiscountPreviewLoading\) return;[\s\S]*const value = normalizeDiscountValueInput\(appointmentTicketForm\.discountType, event\.currentTarget\.value\);[\s\S]*setAppointmentDiscountTouched\(true\);[\s\S]*setAppointmentTicketForm\(\(current\) => \(\{ \.\.\.current, discountValue: value \}\)\)/s,
     "Manual edits to appointment ticket discounts should stop preview from overwriting cashier input."
   );
   assert.match(

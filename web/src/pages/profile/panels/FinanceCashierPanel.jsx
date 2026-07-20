@@ -15,6 +15,7 @@ const CASHIER_BOARD_COLUMN_KEYS = Object.freeze([
   "overdueConfirmedAppointments",
   "issuedTickets"
 ]);
+const DISCOUNT_MAX_PERCENT_VALUE = 100;
 
 function todayDateValue() {
   const today = new Date();
@@ -152,9 +153,18 @@ function calculateDiscount(priceUzs, discountType, discountValue) {
   const price = Number.parseInt(String(priceUzs ?? 0), 10) || 0;
   const value = Number.parseInt(String(discountValue ?? 0), 10) || 0;
   if (discountType === "percent") {
-    return Math.min(price, Math.floor((price * Math.min(value, 100)) / 100));
+    return Math.min(price, Math.floor((price * Math.min(value, DISCOUNT_MAX_PERCENT_VALUE)) / 100));
   }
   return Math.min(price, value);
+}
+
+function normalizeDiscountValueInput(discountType, value) {
+  const rawValue = String(value ?? "");
+  if (String(discountType || "") !== "percent" || rawValue.trim() === "") {
+    return rawValue;
+  }
+  const amount = Number.parseInt(rawValue, 10) || 0;
+  return amount > DISCOUNT_MAX_PERCENT_VALUE ? String(DISCOUNT_MAX_PERCENT_VALUE) : rawValue;
 }
 
 function distributeDiscountUzs(prices, discountUzs) {
@@ -520,6 +530,7 @@ function FinanceCashierPanel({
   const [appointmentTicketForm, setAppointmentTicketForm] = useState(EMPTY_APPOINTMENT_TICKET_FORM);
   const [appointmentTicketSubmitting, setAppointmentTicketSubmitting] = useState(false);
   const [appointmentDiscountTouched, setAppointmentDiscountTouched] = useState(false);
+  const [appointmentDiscountLocked, setAppointmentDiscountLocked] = useState(false);
   const [appointmentDiscountPreviewLoading, setAppointmentDiscountPreviewLoading] = useState(false);
   const [cashSession, setCashSession] = useState(null);
   const boardRequestRef = useRef(0);
@@ -735,8 +746,8 @@ function FinanceCashierPanel({
     let cancelled = false;
     const requestId = appointmentDiscountPreviewRequestRef.current + 1;
     appointmentDiscountPreviewRequestRef.current = requestId;
+    setAppointmentDiscountPreviewLoading(true);
     const timeoutId = globalThis.setTimeout(async () => {
-      setAppointmentDiscountPreviewLoading(true);
       try {
         const response = await apiFetch(`/api/finance/cashier/appointments/${encodeURIComponent(appointmentId)}/ticket-discount-preview`, {
           method: "POST",
@@ -757,6 +768,7 @@ function FinanceCashierPanel({
         });
         const data = await readApiResponseData(response);
         if (cancelled || appointmentDiscountPreviewRequestRef.current !== requestId || !response.ok) {
+          setAppointmentDiscountLocked(false);
           return;
         }
         const previewItem = Array.isArray(data?.item?.items) ? data.item.items[0] : null;
@@ -765,6 +777,7 @@ function FinanceCashierPanel({
         const discountValue = discountType === "percent"
           ? normalizeMoneyInput(previewItem?.discountValue)
           : discountUzs;
+        setAppointmentDiscountLocked(discountUzs > 0 && Boolean(previewItem?.clientDiscountRuleId));
         setAppointmentTicketForm((current) => {
           const currentServiceId = String(current.serviceId || "").trim();
           const currentPriceUzs = normalizeMoneyInput(current.priceUzs || appointmentTicketSource.servicePriceUzs);
@@ -779,6 +792,7 @@ function FinanceCashierPanel({
         });
       } catch {
         if (!cancelled && appointmentDiscountPreviewRequestRef.current === requestId) {
+          setAppointmentDiscountLocked(false);
           setAppointmentTicketForm((current) => ({
             ...current,
             discountType: "amount",
@@ -896,6 +910,7 @@ function FinanceCashierPanel({
     setAppointmentTicketSource(item);
     setAppointmentTicketForm(createAppointmentTicketForm(item));
     setAppointmentDiscountTouched(false);
+    setAppointmentDiscountLocked(false);
     setAppointmentDiscountPreviewLoading(false);
   };
 
@@ -947,6 +962,7 @@ function FinanceCashierPanel({
     setAppointmentTicketSource(null);
     setAppointmentTicketForm(EMPTY_APPOINTMENT_TICKET_FORM);
     setAppointmentDiscountTouched(false);
+    setAppointmentDiscountLocked(false);
     setAppointmentDiscountPreviewLoading(false);
   };
 
@@ -1747,6 +1763,7 @@ function FinanceCashierPanel({
                             const service = appointmentServiceOptions
                               .find((option) => option.value === String(value || ""))?.item || {};
                             setAppointmentDiscountTouched(false);
+                            setAppointmentDiscountLocked(false);
                             setAppointmentTicketForm((current) => ({
                               ...current,
                               serviceId: value,
@@ -1772,9 +1789,15 @@ function FinanceCashierPanel({
                         { value: "percent", label: translate("Percent") }
                       ]}
                       menuPortal
+                      disabled={appointmentDiscountLocked || appointmentDiscountPreviewLoading}
                       onChange={(value) => {
+                        if (appointmentDiscountLocked || appointmentDiscountPreviewLoading) return;
                         setAppointmentDiscountTouched(true);
-                        setAppointmentTicketForm((current) => ({ ...current, discountType: value }));
+                        setAppointmentTicketForm((current) => ({
+                          ...current,
+                          discountType: value,
+                          discountValue: normalizeDiscountValueInput(value, current.discountValue)
+                        }));
                       }}
                     />
                   </label>
@@ -1783,10 +1806,12 @@ function FinanceCashierPanel({
                     <input
                       type="number"
                       min="0"
-                      max={appointmentTicketForm.discountType === "percent" ? "100" : undefined}
+                      max={appointmentTicketForm.discountType === "percent" ? String(DISCOUNT_MAX_PERCENT_VALUE) : undefined}
                       value={appointmentTicketForm.discountValue}
+                      disabled={appointmentDiscountLocked || appointmentDiscountPreviewLoading}
                       onChange={(event) => {
-                        const value = event.currentTarget.value;
+                        if (appointmentDiscountLocked || appointmentDiscountPreviewLoading) return;
+                        const value = normalizeDiscountValueInput(appointmentTicketForm.discountType, event.currentTarget.value);
                         setAppointmentDiscountTouched(true);
                         setAppointmentTicketForm((current) => ({ ...current, discountValue: value }));
                       }}
@@ -1964,7 +1989,11 @@ function FinanceCashierPanel({
                         { value: "percent", label: translate("Percent") }
                       ]}
                       menuPortal
-                      onChange={(value) => setManualForm((current) => ({ ...current, discountType: value }))}
+                      onChange={(value) => setManualForm((current) => ({
+                        ...current,
+                        discountType: value,
+                        discountValue: normalizeDiscountValueInput(value, current.discountValue)
+                      }))}
                     />
                   </label>
                   <label className="field finance-total-cell">
@@ -1972,10 +2001,10 @@ function FinanceCashierPanel({
                     <input
                       type="number"
                       min="0"
-                      max={manualForm.discountType === "percent" ? "100" : undefined}
+                      max={manualForm.discountType === "percent" ? String(DISCOUNT_MAX_PERCENT_VALUE) : undefined}
                       value={manualForm.discountValue}
                       onChange={(event) => {
-                        const value = event.currentTarget.value;
+                        const value = normalizeDiscountValueInput(manualForm.discountType, event.currentTarget.value);
                         setManualForm((current) => ({ ...current, discountValue: value }));
                       }}
                     />
