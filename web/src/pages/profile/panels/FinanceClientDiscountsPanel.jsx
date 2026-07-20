@@ -442,11 +442,16 @@ function FinanceClientDiscountsPanel({
           discountType: createForm.discountType,
           discountValue,
           note: createForm.note,
-          services: selectedServiceRows.map((row) => ({
-            serviceId: row.serviceId,
-            isUnlimited: Boolean(row.isUnlimited),
-            limitCount: row.isUnlimited ? null : toIntegerAmount(row.limitCount)
-          }))
+          services: selectedServiceRows.map((row) => {
+            const servicePayload = {
+              serviceId: row.serviceId,
+              isUnlimited: Boolean(row.isUnlimited)
+            };
+            if (!row.isUnlimited) {
+              servicePayload.limitCount = toIntegerAmount(row.limitCount);
+            }
+            return servicePayload;
+          })
         })
       });
       const data = await readApiResponseData(response);
@@ -854,7 +859,7 @@ function FinanceClientDiscountsPanel({
                             menuPortal
                             onChange={(value) => {
                               if (value === DISCOUNT_UNLIMITED_VALUE) {
-                                updateServiceRow(row.key, { isUnlimited: true, limitCount: "23" });
+                                updateServiceRow(row.key, { isUnlimited: true, limitCount: "" });
                                 return;
                               }
                               updateServiceRow(row.key, { isUnlimited: false, limitCount: value });

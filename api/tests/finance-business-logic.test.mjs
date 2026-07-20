@@ -276,8 +276,8 @@ test("finance client discounts apply only to appointment tickets and keep usage 
 
   assert.match(
     financeRouteSchemasSource,
-    /clientDiscountLimitCountSchema[\s\S]*maximum: 22[\s\S]*pattern: "\^\(\?:\[1-9\]\|1\\\\d\|2\[0-2\]\)\$"[\s\S]*limitCount: clientDiscountLimitCountSchema[\s\S]*limit_count: clientDiscountLimitCountSchema/s,
-    "Client discount service counts should be limited to 1..22 at the route schema level."
+    /clientDiscountLimitCountSchema[\s\S]*maximum: 22[\s\S]*pattern: "\^\(\?:\[1-9\]\|1\\\\d\|2\[0-2\]\)\$"[\s\S]*nullableClientDiscountLimitCountSchema[\s\S]*type: "null"[\s\S]*clientDiscountLimitCountSchema[\s\S]*limitCount: nullableClientDiscountLimitCountSchema[\s\S]*limit_count: nullableClientDiscountLimitCountSchema/s,
+    "Client discount service counts should be limited to 1..22 while allowing null for unlimited rows at the route schema level."
   );
 
   assert.match(

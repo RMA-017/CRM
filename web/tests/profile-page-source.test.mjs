@@ -139,6 +139,11 @@ test("finance client discounts route is wired into profile navigation", async ()
   );
   assert.match(
     panelSource,
+    /const servicePayload = \{[\s\S]*serviceId: row\.serviceId,[\s\S]*isUnlimited: Boolean\(row\.isUnlimited\)[\s\S]*if \(!row\.isUnlimited\) \{[\s\S]*servicePayload\.limitCount = toIntegerAmount\(row\.limitCount\);[\s\S]*return servicePayload;[\s\S]*value === DISCOUNT_UNLIMITED_VALUE[\s\S]*updateServiceRow\(row\.key, \{ isUnlimited: true, limitCount: "" \}\)/s,
+    "New client discount modal should omit limitCount for unlimited service rows."
+  );
+  assert.match(
+    panelSource,
     /const clientResultsElement = showClientResults && modalRoot \? createPortal\(/,
     "Client search results should render through a portal so the modal does not clip them."
   );

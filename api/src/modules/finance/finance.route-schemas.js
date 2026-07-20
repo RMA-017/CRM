@@ -19,6 +19,13 @@ const clientDiscountLimitCountSchema = {
   ]
 };
 
+const nullableClientDiscountLimitCountSchema = {
+  anyOf: [
+    { type: "null" },
+    clientDiscountLimitCountSchema
+  ]
+};
+
 const nonNegativeIntegerLikeSchema = {
   anyOf: [
     { type: "integer", minimum: 0 },
@@ -404,8 +411,8 @@ export const financeRouteSchemas = Object.freeze({
     properties: {
       serviceId: positiveIntegerLikeSchema,
       service_id: positiveIntegerLikeSchema,
-      limitCount: clientDiscountLimitCountSchema,
-      limit_count: clientDiscountLimitCountSchema,
+      limitCount: nullableClientDiscountLimitCountSchema,
+      limit_count: nullableClientDiscountLimitCountSchema,
       isUnlimited: { type: "boolean" },
       is_unlimited: { type: "boolean" }
     },
@@ -434,8 +441,8 @@ export const financeRouteSchemas = Object.freeze({
           properties: {
             serviceId: positiveIntegerLikeSchema,
             service_id: positiveIntegerLikeSchema,
-            limitCount: clientDiscountLimitCountSchema,
-            limit_count: clientDiscountLimitCountSchema,
+            limitCount: nullableClientDiscountLimitCountSchema,
+            limit_count: nullableClientDiscountLimitCountSchema,
             isUnlimited: { type: "boolean" },
             is_unlimited: { type: "boolean" }
           },
