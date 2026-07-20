@@ -33,7 +33,7 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     balancesPanelSource,
-    /DEFAULT_FINANCE_CLIENT_LEDGER_COLUMN_IDS[\s\S]*operationDate[\s\S]*operationNumber[\s\S]*action[\s\S]*ticketNumber[\s\S]*serviceName[\s\S]*paymentMethod[\s\S]*cashIn[\s\S]*cashOut[\s\S]*depositChange[\s\S]*depositBalance[\s\S]*cashier[\s\S]*status[\s\S]*note/s,
+    /const ledgerColumns = \[[\s\S]*id: "operationDate"[\s\S]*id: "operationNumber"[\s\S]*id: "action"[\s\S]*id: "ticketNumber"[\s\S]*id: "specialistName"[\s\S]*id: "serviceName"[\s\S]*id: "paymentMethod"[\s\S]*id: "cashIn"[\s\S]*id: "cashOut"[\s\S]*id: "depositChange"[\s\S]*id: "depositBalance"[\s\S]*id: "cashier"[\s\S]*id: "status"[\s\S]*id: "note"/s,
     "Client ledger modal should show detailed cash-flow columns."
   );
 
@@ -67,16 +67,16 @@ test("client balance rows open a read-only client transaction ledger", () => {
     "Client ledger modal should not keep a duplicate bottom close button."
   );
 
-  assert.match(
+  assert.doesNotMatch(
     balancesPanelSource,
-    /financeClientLedgerColumnsModal[\s\S]*Table columns[\s\S]*toggleLedgerColumnVisibility/s,
-    "Client ledger modal should expose a columns modal."
+    /financeClientLedgerColumnsModal|toggleLedgerColumnVisibility|setLedgerColumnsOpen|aria-label=\{translate\("Table columns"\)\}/,
+    "Client ledger modal should not expose a table columns selector."
   );
 
   assert.match(
     balancesPanelSource,
-    /visibleLedgerTableMinWidth = Math\.max\([\s\S]*visibleLedgerColumns\.reduce\(\(sum, column\) => sum \+[\s\S]*column\.widthPx[\s\S]*style=\{\{ minWidth: `\$\{visibleLedgerTableMinWidth\}px` \}\}/s,
-    "Client ledger table spacing should follow the currently visible columns."
+    /clientLedgerTableMinWidth = Math\.max\([\s\S]*ledgerColumns\.reduce\(\(sum, column\) => sum \+[\s\S]*column\.widthPx[\s\S]*style=\{\{ minWidth: `\$\{clientLedgerTableMinWidth\}px` \}\}/s,
+    "Client ledger table spacing should follow the fixed ledger columns."
   );
 
   assert.match(
@@ -93,8 +93,14 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     balancesPanelSource,
-    /exportClientLedger[\s\S]*buildExportFilename\(`finance-client-\$\{clientId \|\| "ledger"\}-transactions`\)[\s\S]*visibleLedgerColumns\.map\(\(column\) => translate\(column\.label\)\)[\s\S]*visibleLedgerColumns\.map\(\(column\) => column\.exportValue\(item\)\)/s,
-    "Client ledger export should follow the visible columns."
+    /id: "specialistName"[\s\S]*label: "Specialist"[\s\S]*className: "finance-client-ledger-col-specialist"[\s\S]*render: \(item\) => item\.specialistName \|\| "-"/s,
+    "Client ledger specialist column should render after the ticket number."
+  );
+
+  assert.match(
+    balancesPanelSource,
+    /exportClientLedger[\s\S]*buildExportFilename\(`finance-client-\$\{clientId \|\| "ledger"\}-transactions`\)[\s\S]*ledgerColumns\.map\(\(column\) => translate\(column\.label\)\)[\s\S]*ledgerColumns\.map\(\(column\) => column\.exportValue\(item\)\)/s,
+    "Client ledger export should follow the fixed ledger columns."
   );
 
   assert.match(
@@ -187,10 +193,10 @@ test("client balance rows open a read-only client transaction ledger", () => {
     "Client ledger table should keep a stable modal height and scroll inside the table area."
   );
 
-  assert.match(
+  assert.doesNotMatch(
     styles,
-    /#financeClientLedgerColumnsModal\.finance-client-ledger-columns-modal[\s\S]*width: min\(420px,[\s\S]*#financeClientLedgerColumnsModal \.finance-ticket-column-option[\s\S]*min-height: 26px/s,
-    "Client ledger columns modal should reuse the standard finance columns styling."
+    /financeClientLedgerColumnsModal/,
+    "Client ledger columns modal styles should be removed with the selector."
   );
 
   assert.match(

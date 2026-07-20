@@ -583,6 +583,12 @@ test("finance client balance filters use the projected balance columns", () => {
 
   assert.match(
     financeServiceSource,
+    /export async function getFinanceClientTransactions[\s\S]*ticket_specialists\.specialist_names[\s\S]*AS specialist_name[\s\S]*COALESCE\(ticket_specialists\.specialist_id, ft\.specialist_id\) AS specialist_id[\s\S]*FROM finance_ticket_items fti[\s\S]*LEFT JOIN users iu[\s\S]*LEFT JOIN users tu/s,
+    "Client transaction ledger should expose the ticket specialist after the ticket number."
+  );
+
+  assert.match(
+    financeServiceSource,
     /summary: \{[\s\S]*cashInUzs:[\s\S]*cashOutUzs:[\s\S]*depositUsedUzs:[\s\S]*depositUzs:[\s\S]*debtUzs:/s,
     "Client transaction ledger should return cash, deposit and debt summary fields."
   );

@@ -7557,6 +7557,10 @@ button.finance-daily-cash-method-card:disabled {
   min-width: 124px;
 }
 
+.finance-client-ledger-col-specialist {
+  min-width: 160px;
+}
+
 .finance-client-ledger-col-service {
   min-width: 180px;
 }
@@ -8376,7 +8380,6 @@ button.finance-daily-cash-method-card:disabled {
 #financeTicketColumnsModal.finance-ticket-columns-modal,
 #financeTransactionColumnsModal.finance-transaction-columns-modal,
 #financeDailyCashColumnsModal.finance-daily-cash-columns-modal,
-#financeClientLedgerColumnsModal.finance-client-ledger-columns-modal,
 #clientsColumnsModal.finance-ticket-columns-modal,
 #plannerReportColumnsModal.finance-ticket-columns-modal {
   width: min(420px, calc(100vw - 32px));
@@ -8389,7 +8392,6 @@ button.finance-daily-cash-method-card:disabled {
 #financeTicketColumnsModal .finance-ticket-columns-list,
 #financeTransactionColumnsModal .finance-ticket-columns-list,
 #financeDailyCashColumnsModal .finance-ticket-columns-list,
-#financeClientLedgerColumnsModal .finance-ticket-columns-list,
 #clientsColumnsModal .finance-ticket-columns-list,
 #plannerReportColumnsModal .finance-ticket-columns-list {
   display: grid;
@@ -8404,7 +8406,6 @@ button.finance-daily-cash-method-card:disabled {
 #financeTicketColumnsModal .finance-ticket-column-option,
 #financeTransactionColumnsModal .finance-ticket-column-option,
 #financeDailyCashColumnsModal .finance-ticket-column-option,
-#financeClientLedgerColumnsModal .finance-ticket-column-option,
 #clientsColumnsModal .finance-ticket-column-option,
 #plannerReportColumnsModal .finance-ticket-column-option {
   display: flex;
@@ -8424,7 +8425,6 @@ button.finance-daily-cash-method-card:disabled {
 #financeTicketColumnsModal .finance-ticket-column-option input,
 #financeTransactionColumnsModal .finance-ticket-column-option input,
 #financeDailyCashColumnsModal .finance-ticket-column-option input,
-#financeClientLedgerColumnsModal .finance-ticket-column-option input,
 #clientsColumnsModal .finance-ticket-column-option input,
 #plannerReportColumnsModal .finance-ticket-column-option input {
   flex: 0 0 auto;
@@ -8435,7 +8435,6 @@ button.finance-daily-cash-method-card:disabled {
 #financeTicketColumnsModal .finance-ticket-column-option span,
 #financeTransactionColumnsModal .finance-ticket-column-option span,
 #financeDailyCashColumnsModal .finance-ticket-column-option span,
-#financeClientLedgerColumnsModal .finance-ticket-column-option span,
 #clientsColumnsModal .finance-ticket-column-option span,
 #plannerReportColumnsModal .finance-ticket-column-option span {
   display: block;

@@ -243,6 +243,8 @@ function mapTransaction(row) {
     ticketId: row.ticket_id,
     ticketNumber: row.ticket_number,
     serviceName: row.service_name || "",
+    specialistId: row.specialist_id,
+    specialistName: row.specialist_name || "",
     ticketPaymentId: row.ticket_payment_id,
     paymentMethodId: row.payment_method_id,
     paymentMethodName: row.payment_method_name || "",
@@ -3539,6 +3541,13 @@ export async function getFinanceClientTransactions({ organizationId, clientId })
             t.ticket_id,
             ft.ticket_number,
             COALESCE(NULLIF(TRIM(ticket_services.service_names), ''), ft.service_name) AS service_name,
+            COALESCE(
+              NULLIF(TRIM(ticket_specialists.specialist_names), ''),
+              NULLIF(TRIM(tu.full_name), ''),
+              NULLIF(TRIM(tu.username), ''),
+              ''
+            ) AS specialist_name,
+            COALESCE(ticket_specialists.specialist_id, ft.specialist_id) AS specialist_id,
             t.ticket_payment_id,
             t.payment_method_id,
             fpm.name AS payment_method_name,
@@ -3558,10 +3567,26 @@ export async function getFinanceClientTransactions({ organizationId, clientId })
        LEFT JOIN LATERAL (
          SELECT STRING_AGG(NULLIF(TRIM(fti.service_name), ''), ', ' ORDER BY fti.line_number, fti.id) AS service_names
            FROM finance_ticket_items fti
-          WHERE fti.organization_id = ft.organization_id
-            AND fti.ticket_id = ft.id
-       ) ticket_services ON TRUE
-       LEFT JOIN finance_payment_methods fpm ON fpm.organization_id = t.organization_id AND fpm.id = t.payment_method_id
+           WHERE fti.organization_id = ft.organization_id
+             AND fti.ticket_id = ft.id
+        ) ticket_services ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT MIN(specialist_id) AS specialist_id,
+                 STRING_AGG(specialist_name, ', ' ORDER BY specialist_name) AS specialist_names
+            FROM (
+              SELECT DISTINCT
+                     fti.specialist_id,
+                     COALESCE(NULLIF(TRIM(iu.full_name), ''), NULLIF(TRIM(iu.username), ''), '') AS specialist_name
+                FROM finance_ticket_items fti
+                LEFT JOIN users iu ON iu.organization_id = fti.organization_id AND iu.id = fti.specialist_id
+               WHERE fti.organization_id = ft.organization_id
+                 AND fti.ticket_id = ft.id
+                 AND fti.specialist_id IS NOT NULL
+            ) item_specialists
+           WHERE specialist_name <> ''
+        ) ticket_specialists ON TRUE
+        LEFT JOIN users tu ON tu.organization_id = ft.organization_id AND tu.id = ft.specialist_id
+        LEFT JOIN finance_payment_methods fpm ON fpm.organization_id = t.organization_id AND fpm.id = t.payment_method_id
        LEFT JOIN users cu ON cu.id = s.cashier_user_id
       WHERE t.organization_id = $1
         AND t.client_id = $2
