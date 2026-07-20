@@ -618,6 +618,7 @@ function FinanceClientDiscountsPanel({
         <table className="all-users-table finance-discounts-table" aria-label={translate("Client Discounts")}>
           <colgroup>
             <col className="finance-discounts-col-client" />
+            <col className="finance-discounts-col-client-id" />
             <col className="finance-discounts-col-created" />
             <col className="finance-discounts-col-services" />
             <col className="finance-discounts-col-discount" />
@@ -628,22 +629,23 @@ function FinanceClientDiscountsPanel({
           <thead>
             <tr>
               <th>{translate("Client")}</th>
+              <th>{translate("Client ID")}</th>
               <th>{translate("Created")}</th>
               <th>{translate("Services")}</th>
               <th>{translate("Discount")}</th>
               <th>{translate("Remaining")}</th>
               <th>{translate("Status")}</th>
-              <th>{translate("Management")}</th>
+              <th>{translate("Actions")}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="all-users-state">{translate("Loading...")}</td>
+                <td colSpan={8} className="all-users-state">{translate("Loading...")}</td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={7} className="all-users-state">{translate("No discounts.")}</td>
+                <td colSpan={8} className="all-users-state">{translate("No discounts.")}</td>
               </tr>
             ) : items.map((item) => (
               <tr
@@ -652,6 +654,7 @@ function FinanceClientDiscountsPanel({
                 onDoubleClick={() => openDetail(item)}
               >
                 <td className="finance-discounts-cell-client">{item.clientName || "-"}</td>
+                <td className="finance-discounts-cell-client-id">{item.clientId ?? item.client_id ?? "-"}</td>
                 <td className="finance-discounts-cell-created">{formatDateYMD(item.createdAt || item.created_at)}</td>
                 <td className="finance-discounts-cell-services">{getServiceSummary(item, translate)}</td>
                 <td className="finance-discounts-cell-money">{formatDiscount(item)}</td>
@@ -663,15 +666,18 @@ function FinanceClientDiscountsPanel({
                 </td>
                 <td>
                   <div className="finance-discount-actions">
-                    <button type="button" className="table-action-btn" onClick={() => openDetail(item)}>{translate("Details")}</button>
-                    <button
-                      type="button"
-                      className="table-action-btn"
-                      onClick={() => toggleRuleActive(item)}
-                      disabled={!canUpdateFinanceDiscounts}
-                    >
-                      {translate(item.isActive ? "Disable" : "Enable")}
-                    </button>
+                    {item.isActive ? (
+                      <button
+                        type="button"
+                        className="table-action-btn table-action-btn-danger finance-discounts-icon-btn"
+                        aria-label={translate("Disable")}
+                        title={translate("Disable")}
+                        onClick={() => toggleRuleActive(item)}
+                        disabled={!canUpdateFinanceDiscounts}
+                      >
+                        <span className="table-trash-icon" aria-hidden="true" />
+                      </button>
+                    ) : "-"}
                   </div>
                 </td>
               </tr>
@@ -853,63 +859,65 @@ function FinanceClientDiscountsPanel({
               </div>
               <button type="button" className="all-users-close" onClick={closeDetailModal}>x</button>
             </div>
-            {detailLoading ? <p className="all-users-state">{translate("Loading...")}</p> : null}
-            <div className="finance-ticket-summary finance-discounts-detail-summary">
-              <div>
-                <span>{translate("Discount")}</span>
-                <strong>{formatDiscount(detailItem)}</strong>
-              </div>
-              <div>
-                <span>{translate("Used")}</span>
-                <strong>{toIntegerAmount(detailItem?.usedCount)}</strong>
-              </div>
-              <div>
-                <span>{translate("Remaining")}</span>
-                <strong>{detailItem?.remainingCount === null ? translate("Unlimited") : toIntegerAmount(detailItem?.remainingCount)}</strong>
-              </div>
-            </div>
-            <div className="finance-discounts-detail-grid">
-              <div>
-                <h4>Услуги</h4>
-                <div className="finance-discounts-detail-services">
-                  {detailServices.map((service) => (
-                    <div key={service.id} className="finance-discounts-detail-service">
-                      <strong>{service.serviceName}</strong>
-                      <span>{formatServiceProgress(service, translate)}</span>
-                    </div>
-                  ))}
+            <div className="finance-discounts-detail-body">
+              {detailLoading ? <p className="all-users-state">{translate("Loading...")}</p> : null}
+              <div className="finance-ticket-summary finance-discounts-detail-summary">
+                <div>
+                  <span>{translate("Discount")}</span>
+                  <strong>{formatDiscount(detailItem)}</strong>
+                </div>
+                <div>
+                  <span>{translate("Used")}</span>
+                  <strong>{toIntegerAmount(detailItem?.usedCount)}</strong>
+                </div>
+                <div>
+                  <span>{translate("Remaining")}</span>
+                  <strong>{detailItem?.remainingCount === null ? translate("Unlimited") : toIntegerAmount(detailItem?.remainingCount)}</strong>
                 </div>
               </div>
-              <div>
-                <h4>История использования</h4>
-                <div className="all-users-table-scroll finance-discounts-usage-scroll">
-                  <table className="all-users-table finance-discounts-usage-table">
-                    <thead>
-                      <tr>
-                        <th>Дата</th>
-                        <th>Талон</th>
-                        <th>Услуга</th>
-                        <th>Скидка</th>
-                        <th>Статус</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {detailUsages.length === 0 ? (
+              <div className="finance-discounts-detail-sections">
+                <section className="finance-discounts-detail-section">
+                  <h4>Услуги</h4>
+                  <div className="finance-discounts-detail-services">
+                    {detailServices.map((service) => (
+                      <div key={service.id} className="finance-discounts-detail-service">
+                        <strong>{service.serviceName}</strong>
+                        <span>{formatServiceProgress(service, translate)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+                <section className="finance-discounts-detail-section">
+                  <h4>История использования</h4>
+                  <div className="all-users-table-scroll finance-discounts-usage-scroll">
+                    <table className="all-users-table finance-discounts-usage-table">
+                      <thead>
                         <tr>
-                          <td colSpan={5} className="all-users-state">Использований нет.</td>
+                          <th>Дата</th>
+                          <th>Талон</th>
+                          <th>Услуга</th>
+                          <th>Скидка</th>
+                          <th>Статус</th>
                         </tr>
-                      ) : detailUsages.map((usage) => (
-                        <tr key={usage.id}>
-                          <td>{formatDateTimeTashkent(usage.createdAt || usage.created_at)}</td>
-                          <td>{usage.ticketNumber ? `#${usage.ticketNumber}` : "-"}</td>
-                          <td>{usage.serviceName || "-"}</td>
-                          <td>{formatMoney(usage.discountUzs)} сум</td>
-                          <td>{usage.isReversed ? "Отменено" : "Активно"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {detailUsages.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="all-users-state">Использований нет.</td>
+                          </tr>
+                        ) : detailUsages.map((usage) => (
+                          <tr key={usage.id}>
+                            <td>{formatDateTimeTashkent(usage.createdAt || usage.created_at)}</td>
+                            <td>{usage.ticketNumber ? `#${usage.ticketNumber}` : "-"}</td>
+                            <td>{usage.serviceName || "-"}</td>
+                            <td>{formatMoney(usage.discountUzs)} сум</td>
+                            <td>{usage.isReversed ? "Отменено" : "Активно"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
               </div>
             </div>
           </div>

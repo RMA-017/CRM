@@ -6501,12 +6501,16 @@ label.field > span:first-child,
 }
 
 .finance-discounts-table {
-  min-width: 960px;
+  min-width: 940px;
   table-layout: fixed;
 }
 
 .finance-discounts-col-client {
-  width: 19%;
+  width: 18%;
+}
+
+.finance-discounts-col-client-id {
+  width: 86px;
 }
 
 .finance-discounts-col-created {
@@ -6526,23 +6530,27 @@ label.field > span:first-child,
 }
 
 .finance-discounts-col-status {
-  width: 11%;
+  width: 10%;
 }
 
 .finance-discounts-col-actions {
-  width: 150px;
+  width: 52px;
 }
 
 .finance-discounts-table :is(th, td) {
   vertical-align: middle;
 }
 
-.finance-discounts-table :is(th:nth-child(2), td:nth-child(2), th:nth-child(4), td:nth-child(4), th:nth-child(5), td:nth-child(5), th:nth-child(6), td:nth-child(6)) {
+.finance-discounts-table tbody td {
+  font-weight: 400;
+}
+
+.finance-discounts-table :is(th:nth-child(2), td:nth-child(2), th:nth-child(3), td:nth-child(3), th:nth-child(5), td:nth-child(5), th:nth-child(6), td:nth-child(6), th:nth-child(7), td:nth-child(7)) {
   text-align: center;
 }
 
 .finance-discounts-table :is(th:last-child, td:last-child) {
-  text-align: right;
+  text-align: center;
 }
 
 .finance-discounts-cell-client,
@@ -6552,15 +6560,19 @@ label.field > span:first-child,
   white-space: nowrap;
 }
 
+.finance-discounts-cell-client-id {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 .finance-discounts-cell-created {
   color: var(--text-muted);
-  font-weight: 700;
   white-space: nowrap;
 }
 
 .finance-discounts-cell-money,
 .finance-discounts-cell-remaining {
-  font-weight: 800;
+  font-weight: 500;
   white-space: nowrap;
 }
 
@@ -6584,7 +6596,7 @@ label.field > span:first-child,
   background: rgba(239, 246, 255, 0.9);
   color: #1d4ed8;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 500;
   white-space: nowrap;
 }
 
@@ -6607,16 +6619,23 @@ label.field > span:first-child,
 }
 
 .finance-discount-actions {
-  display: flex;
+  display: inline-flex;
+  align-items: center;
   flex-wrap: nowrap;
   gap: 5px;
-  justify-content: flex-end;
+  justify-content: center;
+  min-width: 0;
 }
 
-.finance-panel-shell .finance-discount-actions .table-action-btn {
-  width: auto;
-  min-width: 58px;
-  padding: 0 8px;
+.finance-panel-shell .finance-discount-actions .finance-discounts-icon-btn {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 1;
 }
 
 #financeClientDiscountCreateModal.finance-discounts-modal {
@@ -6662,9 +6681,14 @@ label.field > span:first-child,
 }
 
 .finance-discounts-detail-modal {
-  width: min(980px, calc(100vw - 24px));
-  max-height: min(780px, calc(100vh - 28px));
-  overflow: auto;
+  width: min(680px, calc(100vw - 24px));
+  height: auto;
+  min-height: 0;
+  max-height: min(640px, calc(100dvh - 24px));
+  padding: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 #financeClientDiscountCreateModal .finance-discounts-create-form {
@@ -6829,36 +6853,99 @@ label.field > span:first-child,
 
 .finance-discounts-detail-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
+  min-width: 0;
+  padding: 11px 13px 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.24);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94));
 }
 
 .finance-discounts-detail-head h3 {
   margin: 0;
+  text-align: left !important;
+  font-size: var(--fs-base) !important;
+  line-height: 1.1;
 }
 
 .finance-discounts-detail-head p {
-  margin: 4px 0 0;
+  max-width: min(460px, calc(100vw - 110px));
+  margin: 3px 0 0;
   color: var(--text-muted);
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finance-discounts-detail-body {
+  display: grid;
+  gap: 10px;
+  min-height: 0;
+  padding: 12px;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  background: rgba(248, 250, 252, 0.58);
 }
 
 .finance-discounts-detail-summary {
-  margin-top: 12px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
-.finance-discounts-detail-grid {
+.finance-discounts-detail-summary > div {
   display: grid;
-  grid-template-columns: minmax(220px, 0.8fr) minmax(360px, 1.2fr);
-  gap: 14px;
-  margin-top: 14px;
+  grid-template-columns: 1fr;
+  gap: 3px;
+  min-height: 54px;
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
 }
 
-.finance-discounts-detail-grid h4 {
-  margin: 0 0 8px;
+.finance-discounts-detail-summary span,
+.finance-discounts-detail-summary strong {
+  font-size: 12px !important;
+  line-height: 1.15;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.finance-discounts-detail-summary span {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.finance-discounts-detail-summary strong {
+  font-weight: 700;
+}
+
+.finance-discounts-detail-sections {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.finance-discounts-detail-section {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.finance-discounts-detail-section h4 {
+  margin: 0;
   font-size: var(--fs-sm);
+  line-height: 1.15;
 }
 
 .finance-discounts-detail-services {
@@ -6871,32 +6958,43 @@ label.field > span:first-child,
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 38px;
-  padding: 8px 10px;
+  min-height: 32px;
+  padding: 6px 8px;
   border: 1px solid rgba(148, 163, 184, 0.26);
-  border-radius: 8px;
+  border-radius: 7px;
   background: rgba(248, 250, 252, 0.72);
+}
+
+.finance-discounts-detail-service strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .finance-discounts-detail-service span {
   color: #2563eb;
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 600;
   white-space: nowrap;
 }
 
 .finance-discounts-usage-scroll {
-  max-height: 360px;
+  max-height: 230px;
+  border-radius: 7px;
 }
 
 .finance-discounts-usage-table {
-  min-width: 650px;
+  min-width: 560px;
 }
 
 @media (max-width: 760px) {
   .finance-discounts-discount-row,
   #financeClientDiscountFilterModal .finance-discounts-filter-date-row,
   .finance-discounts-service-line,
-  .finance-discounts-detail-grid,
+  .finance-discounts-detail-sections,
   .finance-discounts-detail-summary {
     grid-template-columns: 1fr;
   }

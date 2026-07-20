@@ -130,6 +130,26 @@ test("finance client discounts route is wired into profile navigation", async ()
   );
   assert.match(
     panelSource,
+    /finance-discounts-col-client[\s\S]*finance-discounts-col-client-id[\s\S]*<th>\{translate\("Client"\)\}<\/th>[\s\S]*<th>\{translate\("Client ID"\)\}<\/th>[\s\S]*colSpan=\{8\}[\s\S]*finance-discounts-cell-client-id/s,
+    "Client discount table should show client id directly after the client name column."
+  );
+  assert.match(
+    panelSource,
+    /<th>\{translate\("Actions"\)\}<\/th>[\s\S]*onDoubleClick=\{\(\) => openDetail\(item\)\}[\s\S]*className="table-action-btn table-action-btn-danger finance-discounts-icon-btn"[\s\S]*aria-label=\{translate\("Disable"\)\}[\s\S]*<span className="table-trash-icon" aria-hidden="true" \/>/s,
+    "Client discount rows should open details on double-click and keep only a compact delete icon in actions."
+  );
+  assert.doesNotMatch(
+    panelSource,
+    /aria-label=\{translate\("Details"\)\}|finance-discounts-detail-icon|finance-discounts-enable-icon/,
+    "Client discount actions should not show a separate details or enable icon."
+  );
+  assert.match(
+    panelSource,
+    /finance-discounts-detail-head[\s\S]*finance-discounts-detail-body[\s\S]*finance-discounts-detail-summary[\s\S]*finance-discounts-detail-sections[\s\S]*finance-discounts-detail-section[\s\S]*finance-discounts-usage-scroll/s,
+    "Client discount detail modal should keep header, summary, services and usage history in a compact structure."
+  );
+  assert.match(
+    panelSource,
     /function formatServiceOptionLabel\(service\)[\s\S]*priceUzs[\s\S]*formatMoney\(priceUzs\)[\s\S]*discountServiceOptions[\s\S]*label: formatServiceOptionLabel\(service\)[\s\S]*selectedLabel: formatServiceOptionLabel\(service\)/s,
     "Create discount service options should show the service price in the dropdown and selected value."
   );
@@ -162,6 +182,21 @@ test("finance client discounts route is wired into profile navigation", async ()
     stylesSource,
     /#financeClientDiscountFilterModal\.finance-discounts-filter-modal \{[\s\S]*width: min\(540px,[\s\S]*#financeClientDiscountFilterModal \.finance-discounts-filter-date-row/s,
     "Client discount filters should use the compact finance filter modal layout."
+  );
+  assert.match(
+    stylesSource,
+    /\.finance-discounts-col-client-id \{[\s\S]*width: 86px;[\s\S]*\.finance-discounts-cell-client-id \{[\s\S]*color: var\(--text-muted\);/s,
+    "Client discount client-id column should stay compact and muted."
+  );
+  assert.match(
+    stylesSource,
+    /\.finance-discounts-col-actions \{[\s\S]*width: 52px;[\s\S]*\.finance-discounts-table :is\(th:last-child, td:last-child\) \{[\s\S]*text-align: center;[\s\S]*\.finance-panel-shell \.finance-discount-actions \.finance-discounts-icon-btn \{[\s\S]*width: 30px;[\s\S]*height: 30px;/s,
+    "Client discount actions column should stay narrow with one finance ticket-style icon."
+  );
+  assert.match(
+    stylesSource,
+    /\.finance-discounts-detail-modal \{[\s\S]*width: min\(680px,[\s\S]*grid-template-rows: auto minmax\(0, 1fr\);[\s\S]*\.finance-discounts-detail-body \{[\s\S]*overflow: auto;[\s\S]*\.finance-discounts-detail-sections \{[\s\S]*gap: 10px;[\s\S]*\.finance-discounts-usage-scroll \{[\s\S]*max-height: 230px;/s,
+    "Client discount detail modal should use compact dimensions and scroll only its body/history area."
   );
 });
 
