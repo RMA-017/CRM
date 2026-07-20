@@ -231,7 +231,6 @@ test("finance routes expose stable contract", async () => {
   assertRateLimitConfigured(recorder.routes);
 
   assert.deepEqual(toRouteSignatures(recorder.routes), [
-    "GET /audit",
     "GET /cashier/board",
     "GET /cashier/clients",
     "GET /cashier/session/current",
@@ -273,9 +272,6 @@ test("finance routes expose stable contract", async () => {
     "POST /reports/google-sheets/export",
     "POST /transactions/:id/void"
   ]);
-
-  const auditGet = findRoute(recorder.routes, "GET", "/audit");
-  assert.equal(typeof auditGet?.options?.schema?.querystring, "object");
 
   const boardGet = findRoute(recorder.routes, "GET", "/cashier/board");
   assert.equal(typeof boardGet?.options?.schema?.querystring, "object");

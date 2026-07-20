@@ -42,42 +42,6 @@ test("profile dashboard allows specialist planner readers to see their own repor
   );
 });
 
-test("finance audit route is wired into profile navigation", async () => {
-  const [appSource, profilePageSource, profileMainSource, sideMenuSource, panelSource] = await Promise.all([
-    readFile(new URL("../src/App.jsx", import.meta.url), "utf8"),
-    readFile(new URL("../src/pages/ProfilePage.jsx", import.meta.url), "utf8"),
-    readFile(new URL("../src/pages/profile/ProfileMainContent.jsx", import.meta.url), "utf8"),
-    readFile(new URL("../src/pages/profile/ProfileSideMenu.jsx", import.meta.url), "utf8"),
-    readFile(new URL("../src/pages/profile/panels/FinanceAuditPanel.jsx", import.meta.url), "utf8")
-  ]);
-
-  assert.match(
-    appSource,
-    /\{ path: "\/finance\/audit", forcedView: "finance-audit" \}/,
-    "App should expose the finance audit profile route."
-  );
-  assert.match(
-    profileMainSource,
-    /const FinanceAuditPanel = lazy\(\(\) => import\("\.\/panels\/FinanceAuditPanel\.jsx"\)\);[\s\S]*mainView === "finance-audit"[\s\S]*<FinanceAuditPanel onClose=\{closeFinanceAuditPanel\}/s,
-    "ProfileMainContent should lazy render the finance audit panel."
-  );
-  assert.match(
-    sideMenuSource,
-    /id="openFinanceAuditBtn"[\s\S]*hidden=\{!canOpenFinanceAudit\}[\s\S]*onClick=\{openFinanceAuditPanel\}[\s\S]*Аудит/s,
-    "Side menu should show finance audit for users with access."
-  );
-  assert.match(
-    profilePageSource,
-    /canOpenFinanceAudit=\{canOpenFinanceAudit\}[\s\S]*openFinanceAuditPanel=\{openFinanceAuditPanel\}/s,
-    "ProfilePage should forward finance audit access and navigation."
-  );
-  assert.match(
-    panelSource,
-    /\/api\/finance\/audit\?limit=100[\s\S]*Финансовый аудит[\s\S]*Ошибок не найдено\./s,
-    "FinanceAuditPanel should load and display the backend audit result."
-  );
-});
-
 test("finance client discounts route is wired into profile navigation", async () => {
   const [appSource, profilePageSource, profileMainSource, sideMenuSource, panelSource, stylesSource] = await Promise.all([
     readFile(new URL("../src/App.jsx", import.meta.url), "utf8"),

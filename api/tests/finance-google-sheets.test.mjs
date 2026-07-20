@@ -72,7 +72,7 @@ test("finance Google Sheets export owns the agreed Russian tabs and columns", ()
   ]);
 });
 
-test("ticket and transaction export rows preserve finance audit values", () => {
+test("ticket and transaction export rows preserve finance reconciliation values", () => {
   const expectedTicketDate = __financeGoogleSheetsContracts.toGoogleSheetsDateValue("2026-07-05");
   const expectedTicketCreatedAt = __financeGoogleSheetsContracts.toGoogleSheetsDateValue("2026-07-05 09:00");
   const ticketRow = __financeGoogleSheetsContracts.makeTicketExportRow({

@@ -427,21 +427,6 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
         ]
       }),
       defineFeature({
-        key: "finance.audit",
-        label: "Audit",
-        sortOrder: 35,
-        permissions: [
-          definePermission({
-            constantKey: "FINANCE_AUDIT_READ",
-            code: "finance.audit.read",
-            label: "Read Finance Audit",
-            uiLabel: "Read",
-            sortOrder: 78,
-            actionKey: "read"
-          })
-        ]
-      }),
-      defineFeature({
         key: "finance.transactions",
         label: "Transactions",
         sortOrder: 40,

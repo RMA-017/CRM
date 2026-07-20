@@ -86,7 +86,6 @@ export function useProfileAccess(profile, forcedView) {
   const canUpdateFinanceBalancesPermission = hasPermissionCode(PERMISSIONS.FINANCE_BALANCES_UPDATE);
   const canReadFinanceDailyCashPermission = hasPermissionCode(PERMISSIONS.FINANCE_DAILY_CASH_READ);
   const canReadFinanceReportsPermission = hasPermissionCode(PERMISSIONS.FINANCE_REPORTS_READ);
-  const canReadFinanceAuditPermission = hasPermissionCode(PERMISSIONS.FINANCE_AUDIT_READ);
   const canReadFinanceDiscountsPermission = hasPermissionCode(PERMISSIONS.FINANCE_DISCOUNTS_READ);
   const canCreateFinanceDiscountsPermission = hasPermissionCode(PERMISSIONS.FINANCE_DISCOUNTS_CREATE);
   const canUpdateFinanceDiscountsPermission = hasPermissionCode(PERMISSIONS.FINANCE_DISCOUNTS_UPDATE);
@@ -227,7 +226,6 @@ export function useProfileAccess(profile, forcedView) {
   const canOpenFinanceBalances = canReadFinanceBalancesPermission;
   const canOpenFinanceDailyCash = canReadFinanceDailyCashPermission;
   const canOpenFinanceReports = canReadFinanceReportsPermission;
-  const canOpenFinanceAudit = canReadFinanceAuditPermission;
   const canOpenFinanceDiscounts = canReadFinanceDiscountsPermission;
   const canOpenFinance = (
     canOpenFinanceCashier
@@ -236,7 +234,6 @@ export function useProfileAccess(profile, forcedView) {
     || canOpenFinanceBalances
     || canOpenFinanceDailyCash
     || canOpenFinanceReports
-    || canOpenFinanceAudit
     || canOpenFinanceDiscounts
   );
   const canReadServices = canReadServicesPermission || canReadSettingsServices;
@@ -354,9 +351,6 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "finance-reports") {
       return canOpenFinanceReports;
     }
-    if (forcedView === "finance-audit") {
-      return canOpenFinanceAudit;
-    }
     if (forcedView === "finance-discounts") {
       return canOpenFinanceDiscounts;
     }
@@ -410,7 +404,6 @@ export function useProfileAccess(profile, forcedView) {
     canOpenFinanceBalances,
     canOpenFinanceDailyCash,
     canOpenFinanceReports,
-    canOpenFinanceAudit,
     canOpenFinanceDiscounts,
     canOpenSettingsOrganizations,
     canOpenSettingsPositions,
@@ -480,7 +473,6 @@ export function useProfileAccess(profile, forcedView) {
     canOpenFinanceBalances,
     canOpenFinanceDailyCash,
     canOpenFinanceReports,
-    canOpenFinanceAudit,
     canOpenFinanceDiscounts,
     canCreateFinanceDiscounts: canCreateFinanceDiscountsPermission,
     canUpdateFinanceDiscounts: canUpdateFinanceDiscountsPermission,

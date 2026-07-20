@@ -99,7 +99,6 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenFinanceBalances,
     canOpenFinanceDailyCash,
     canOpenFinanceReports,
-    canOpenFinanceAudit,
     canOpenFinanceDiscounts,
     canCreateFinanceCashier,
     canUpdateFinanceCashier,
@@ -679,8 +678,6 @@ function ProfilePage({ forcedView = "none" }) {
     closeFinanceDailyCashPanel,
     openFinanceReportsPanel,
     closeFinanceReportsPanel,
-    openFinanceAuditPanel,
-    closeFinanceAuditPanel,
     openFinanceDiscountsPanel,
     closeFinanceDiscountsPanel,
     openServicesPanel,
@@ -725,7 +722,6 @@ function ProfilePage({ forcedView = "none" }) {
     canOpenFinanceBalances,
     canOpenFinanceDailyCash,
     canOpenFinanceReports,
-    canOpenFinanceAudit,
     canOpenFinanceDiscounts,
     canOpenServices,
     canOpenAppointmentSchedule,
@@ -1229,7 +1225,6 @@ function ProfilePage({ forcedView = "none" }) {
             closeFinanceBalancesPanel={closeFinanceBalancesPanel}
             closeFinanceDailyCashPanel={closeFinanceDailyCashPanel}
             closeFinanceReportsPanel={closeFinanceReportsPanel}
-            closeFinanceAuditPanel={closeFinanceAuditPanel}
             closeFinanceDiscountsPanel={closeFinanceDiscountsPanel}
             closeServicesPanel={closeServicesPanel}
             canUpdateCrm={canUpdateCrm}
@@ -1448,8 +1443,6 @@ function ProfilePage({ forcedView = "none" }) {
         openFinanceDailyCashPanel={openFinanceDailyCashPanel}
         canOpenFinanceReports={canOpenFinanceReports}
         openFinanceReportsPanel={openFinanceReportsPanel}
-        canOpenFinanceAudit={canOpenFinanceAudit}
-        openFinanceAuditPanel={openFinanceAuditPanel}
         canOpenFinanceDiscounts={canOpenFinanceDiscounts}
         openFinanceDiscountsPanel={openFinanceDiscountsPanel}
         hasAppointmentsMenuAccess={hasAppointmentsMenuAccess}

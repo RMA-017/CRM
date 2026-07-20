@@ -110,13 +110,6 @@ export const financeRouteSchemas = Object.freeze({
       limit: positiveIntegerLikeSchema
     }
   },
-  auditQuery: {
-    type: "object",
-    additionalProperties: true,
-    properties: {
-      limit: positiveIntegerLikeSchema
-    }
-  },
   discountListQuery: {
     type: "object",
     additionalProperties: true,

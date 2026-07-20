@@ -7,7 +7,6 @@ import {
   exportFinanceToGoogleSheets,
   getFinanceGoogleSheetsConfig
 } from "./finance-google-sheets.service.js";
-import { getFinanceAudit } from "./finance-audit.service.js";
 import {
   createFinanceClientDiscount,
   getFinanceClientDiscountById,
@@ -74,10 +73,6 @@ const DAILY_CASH_PERMISSIONS = Object.freeze({
 
 const REPORTS_PERMISSIONS = Object.freeze({
   read: PERMISSIONS.FINANCE_REPORTS_READ
-});
-
-const AUDIT_PERMISSIONS = Object.freeze({
-  read: PERMISSIONS.FINANCE_AUDIT_READ
 });
 
 const DISCOUNTS_PERMISSIONS = Object.freeze({
@@ -154,11 +149,6 @@ async function requireReportsAccess(request, reply, action) {
   return requireFinanceAccess(request, reply, permissionCode);
 }
 
-async function requireAuditAccess(request, reply, action) {
-  const permissionCode = AUDIT_PERMISSIONS[action] || AUDIT_PERMISSIONS.read;
-  return requireFinanceAccess(request, reply, permissionCode);
-}
-
 async function requireDiscountsAccess(request, reply, action) {
   const permissionCode = DISCOUNTS_PERMISSIONS[action] || DISCOUNTS_PERMISSIONS.read;
   return requireFinanceAccess(request, reply, permissionCode);
@@ -202,31 +192,6 @@ async function financeRoutes(fastify) {
       } catch (error) {
         request.log.error({ err: error }, "Error fetching finance payment methods:");
         return sendRouteError(reply, error, "Failed to load payment methods.");
-      }
-    }
-  );
-
-  fastify.get(
-    "/audit",
-    {
-      config: { rateLimit: fastify.apiRateLimit },
-      schema: {
-        querystring: financeRouteSchemas.auditQuery
-      }
-    },
-    async (request, reply) => {
-      setNoCacheHeaders(reply);
-      try {
-        const requester = await requireAuditAccess(request, reply, "read");
-        if (!requester) return null;
-        const result = await getFinanceAudit({
-          organizationId: request.authContext.organizationId,
-          options: request.query || {}
-        });
-        return reply.send(result);
-      } catch (error) {
-        request.log.error({ err: error }, "Error fetching finance audit:");
-        return sendRouteError(reply, error, "Failed to load finance audit.");
       }
     }
   );

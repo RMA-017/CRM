@@ -466,7 +466,6 @@ function HomePage() {
     canOpenFinanceBalances,
     canOpenFinanceDailyCash,
     canOpenFinanceReports,
-    canOpenFinanceAudit,
     canOpenFinanceDiscounts,
     canOpenServices,
     hasUsersMenuAccess,
@@ -1363,8 +1362,6 @@ function HomePage() {
           openFinanceDailyCashPanel={() => navigateFromMenu("/finance/daily-cash")}
           canOpenFinanceReports={canOpenFinanceReports}
           openFinanceReportsPanel={() => navigateFromMenu("/finance/reports")}
-          canOpenFinanceAudit={canOpenFinanceAudit}
-          openFinanceAuditPanel={() => navigateFromMenu("/finance/audit")}
           canOpenFinanceDiscounts={canOpenFinanceDiscounts}
           openFinanceDiscountsPanel={() => navigateFromMenu("/finance/discounts")}
           canOpenServices={canOpenServices}

@@ -570,29 +570,6 @@ test("finance daily cash and reports separate real cash movement from deposit tr
   );
 });
 
-test("finance audit exposes ticket, payment and balance health checks", async () => {
-  const financeAuditSource = await readFile(
-    new URL("../src/modules/finance/finance-audit.service.js", import.meta.url),
-    "utf8"
-  );
-
-  assert.match(
-    financeRoutesSource,
-    /import \{ getFinanceAudit \} from "\.\/finance-audit\.service\.js";[\s\S]*const AUDIT_PERMISSIONS = Object\.freeze\(\{[\s\S]*PERMISSIONS\.FINANCE_AUDIT_READ[\s\S]*function requireAuditAccess\(request, reply, action\)[\s\S]*fastify\.get\([\s\S]*"\/audit"[\s\S]*requireAuditAccess\(request, reply, "read"\)[\s\S]*getFinanceAudit/s,
-    "Finance audit endpoint should be available to finance audit readers."
-  );
-  assert.match(
-    financeAuditSource,
-    /export async function getFinanceAudit[\s\S]*auditTicketTotals[\s\S]*auditTicketPayments[\s\S]*auditClientBalances/s,
-    "Finance audit should run ticket totals, ticket payment and client balance checks."
-  );
-  assert.match(
-    financeAuditSource,
-    /stored_total_uzs <> stored_subtotal_uzs - stored_discount_uzs[\s\S]*paid_uzs > total_uzs[\s\S]*deposit_uzs < 0/s,
-    "Finance audit should catch broken ticket formulas, overpayments and negative balances."
-  );
-});
-
 test("finance transaction list defaults and filters by transaction creation date", () => {
   assert.match(
     financeServiceSource,
