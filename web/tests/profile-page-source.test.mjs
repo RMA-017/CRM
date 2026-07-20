@@ -140,17 +140,27 @@ test("finance client discounts route is wired into profile navigation", async ()
   );
   assert.match(
     panelSource,
-    /<th>\{translate\("Actions"\)\}<\/th>[\s\S]*onDoubleClick=\{\(\) => openDetail\(item\)\}[\s\S]*className="table-action-btn table-action-btn-danger finance-discounts-icon-btn"[\s\S]*aria-label=\{translate\("Disable"\)\}[\s\S]*<span className="table-trash-icon" aria-hidden="true" \/>/s,
+    /<th>\{translate\("Actions"\)\}<\/th>[\s\S]*onDoubleClick=\{\(\) => openDetail\(item\)\}[\s\S]*className="table-action-btn table-action-btn-danger finance-discounts-icon-btn"[\s\S]*aria-label=\{translate\("Disable"\)\}[\s\S]*onClick=\{\(\) => openDisableModal\(item\)\}[\s\S]*<span className="table-trash-icon" aria-hidden="true" \/>/s,
     "Client discount rows should open details on double-click and keep only a compact delete icon in actions."
+  );
+  assert.match(
+    panelSource,
+    /const \[disableTarget, setDisableTarget\] = useState\(null\);[\s\S]*const \[disableReason, setDisableReason\] = useState\(""\);[\s\S]*useEscapeKey\(Boolean\(disableTarget\), closeDisableModal\);[\s\S]*const submitDisableDiscount = useCallback[\s\S]*Disable reason is required\.[\s\S]*body: JSON\.stringify\(\{ isActive: false, disableReason: reason \}\)/s,
+    "Disabling a client discount should require a reason before sending the inactive update."
+  );
+  assert.match(
+    panelSource,
+    /id="financeClientDiscountDisableModal"[\s\S]*placeholder=\{translate\("Disable reason"\)\}[\s\S]*maxLength=\{255\}[\s\S]*required[\s\S]*finance-discounts-disable-actions/s,
+    "Client discount delete flow should render a compact required-reason modal."
   );
   assert.doesNotMatch(
     panelSource,
-    /aria-label=\{translate\("Details"\)\}|finance-discounts-detail-icon|finance-discounts-enable-icon/,
+    /aria-label=\{translate\("Details"\)\}|finance-discounts-detail-icon|finance-discounts-enable-icon|toggleRuleActive/,
     "Client discount actions should not show a separate details or enable icon."
   );
   assert.match(
     panelSource,
-    /finance-discounts-detail-head[\s\S]*finance-discounts-detail-body[\s\S]*finance-discounts-detail-summary[\s\S]*finance-discounts-detail-sections[\s\S]*finance-discounts-detail-section[\s\S]*finance-discounts-usage-scroll/s,
+    /finance-discounts-detail-head[\s\S]*finance-discounts-detail-body[\s\S]*finance-discounts-detail-summary[\s\S]*finance-discounts-detail-sections[\s\S]*finance-discounts-detail-section[\s\S]*finance-discounts-usage-scroll[\s\S]*finance-discounts-usage-col-date[\s\S]*finance-discounts-usage-col-service/s,
     "Client discount detail modal should keep header, summary, services and usage history in a compact structure."
   );
   assert.match(
@@ -205,8 +215,18 @@ test("finance client discounts route is wired into profile navigation", async ()
   );
   assert.match(
     stylesSource,
-    /\.finance-discounts-detail-modal \{[\s\S]*width: min\(680px,[\s\S]*grid-template-rows: auto minmax\(0, 1fr\);[\s\S]*\.finance-discounts-detail-body \{[\s\S]*overflow: auto;[\s\S]*\.finance-discounts-detail-sections \{[\s\S]*gap: 10px;[\s\S]*\.finance-discounts-usage-scroll \{[\s\S]*max-height: 230px;/s,
-    "Client discount detail modal should use compact dimensions and scroll only its body/history area."
+    /\.finance-discounts-detail-modal \{[\s\S]*width: min\(680px,[\s\S]*grid-template-rows: auto minmax\(0, 1fr\);[\s\S]*\.finance-discounts-detail-body \{[\s\S]*overflow: auto;[\s\S]*\.finance-discounts-disable-note \{[\s\S]*\.finance-discounts-detail-sections \{[\s\S]*gap: 10px;[\s\S]*\.finance-discounts-usage-scroll \{[\s\S]*max-height: 230px;[\s\S]*\.finance-discounts-usage-table \{[\s\S]*table-layout: fixed;/s,
+    "Client discount detail modal should use compact dimensions and show disable audit notes without growing the modal."
+  );
+  assert.match(
+    stylesSource,
+    /\.finance-discounts-usage-col-date \{[\s\S]*width: 128px;[\s\S]*\.finance-discounts-usage-col-ticket \{[\s\S]*width: 68px;[\s\S]*\.finance-discounts-usage-col-discount \{[\s\S]*width: 96px;[\s\S]*\.finance-discounts-usage-col-status \{[\s\S]*width: 84px;[\s\S]*\.finance-discounts-usage-table :is\(th, td\) \{[\s\S]*text-overflow: ellipsis;/s,
+    "Client discount usage history columns should keep compact metadata columns and leave room for service names."
+  );
+  assert.match(
+    stylesSource,
+    /\.finance-discounts-disable-modal \{[\s\S]*width: min\(430px,[\s\S]*\.finance-discounts-disable-body textarea \{[\s\S]*min-height: 92px;[\s\S]*\.finance-discounts-disable-actions \{[\s\S]*justify-content: center;/s,
+    "Client discount disable modal should be compact and keep the submit action centered."
   );
 });
 

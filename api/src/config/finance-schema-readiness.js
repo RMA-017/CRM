@@ -146,6 +146,9 @@ export const REQUIRED_FINANCE_TABLE_COLUMNS = Object.freeze({
     "discount_value",
     "note",
     "is_active",
+    "disabled_reason",
+    "disabled_by",
+    "disabled_at",
     "created_by",
     "updated_by",
     "created_at",
@@ -212,6 +215,8 @@ export const REQUIRED_FINANCE_CONSTRAINTS = Object.freeze([
   "chk_finance_transactions_direction",
   "uq_finance_client_discount_rules_org_id",
   "fk_finance_client_discount_rules_client_org",
+  "fk_finance_client_discount_rules_disabled_by",
+  "chk_finance_client_discount_rules_disabled_reason",
   "uq_finance_client_discount_rule_services_org_id",
   "fk_finance_client_discount_rule_services_rule_org",
   "fk_finance_client_discount_rule_services_service_org",
@@ -255,6 +260,7 @@ export const REQUIRED_FINANCE_INDEXES = Object.freeze([
 export const REQUIRED_FINANCE_NULLABLE_COLUMNS = Object.freeze({
   finance_ticket_payments: ["payment_method_id"],
   finance_transactions: ["payment_method_id"],
+  finance_client_discount_rules: ["disabled_reason", "disabled_by", "disabled_at"],
   finance_client_discount_rule_services: ["per_use_discount_uzs"]
 });
 

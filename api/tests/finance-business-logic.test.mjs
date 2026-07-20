@@ -282,6 +282,12 @@ test("finance client discounts apply only to appointment tickets and keep usage 
   );
 
   assert.match(
+    financeRouteSchemasSource,
+    /discountUpdateBody:[\s\S]*isActive[\s\S]*is_active[\s\S]*disableReason[\s\S]*disable_reason[\s\S]*reason/s,
+    "Client discount updates should accept a required cashier reason when disabling a discount."
+  );
+
+  assert.match(
     financeDiscountsSource,
     /const createdFrom = normalizeDate\(filters\.createdFrom[\s\S]*const client = normalizeText\(filters\.client \?\? filters\.clientName[\s\S]*const service = normalizeText\(filters\.service \?\? filters\.serviceName[\s\S]*const isActive = normalizeActiveFilter/s,
     "Client discount list query should normalize created date, client name, service name, and active-state filters."
@@ -309,6 +315,12 @@ test("finance client discounts apply only to appointment tickets and keep usage 
     financeDiscountsSource,
     /getDiscountCandidatesForService[\s\S]*rs\.per_use_discount_uzs[\s\S]*discountType === "amount" && perUseDiscountUzs !== null[\s\S]*discountValue: discountType === "amount" \? discountUzs : discountValue/s,
     "Appointment ticket discounts should apply stored per-use amount discounts while preserving percentage rules."
+  );
+
+  assert.match(
+    financeDiscountsSource,
+    /updateFinanceClientDiscount[\s\S]*disableReason = normalizeText[\s\S]*if \(!isActive && !disableReason\)[\s\S]*Disable reason is required\.[\s\S]*disabled_reason = \$5[\s\S]*disabled_by = \$6[\s\S]*disabled_at = CASE WHEN \$3 = FALSE/s,
+    "Disabling a client discount should require and persist the cashier's reason."
   );
 
   assert.match(

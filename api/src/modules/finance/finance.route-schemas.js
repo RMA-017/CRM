@@ -464,7 +464,10 @@ export const financeRouteSchemas = Object.freeze({
     additionalProperties: true,
     properties: {
       isActive: { type: "boolean" },
-      is_active: { type: "boolean" }
+      is_active: { type: "boolean" },
+      disableReason: { type: "string", minLength: 1, maxLength: 255 },
+      disable_reason: { type: "string", minLength: 1, maxLength: 255 },
+      reason: { type: "string", minLength: 1, maxLength: 255 }
     },
     anyOf: [
       { required: ["isActive"] },

@@ -144,6 +144,10 @@ function FinanceClientDiscountsPanel({
   const [createError, setCreateError] = useState("");
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [disableTarget, setDisableTarget] = useState(null);
+  const [disableReason, setDisableReason] = useState("");
+  const [disableSubmitting, setDisableSubmitting] = useState(false);
+  const [disableError, setDisableError] = useState("");
 
   const discountServiceOptions = useMemo(() => services.filter(Boolean).map((service) => ({
     value: String(service.id),
@@ -293,6 +297,13 @@ function FinanceClientDiscountsPanel({
     setDetailLoading(false);
   }, []);
 
+  const closeDisableModal = useCallback(() => {
+    if (disableSubmitting) return;
+    setDisableTarget(null);
+    setDisableReason("");
+    setDisableError("");
+  }, [disableSubmitting]);
+
   const closeFilters = useCallback(() => {
     if (loading) return;
     setFiltersOpen(false);
@@ -308,6 +319,7 @@ function FinanceClientDiscountsPanel({
   useEscapeKey(createOpen, closeCreateModal);
   useEscapeKey(Boolean(detail), closeDetailModal);
   useEscapeKey(filtersOpen, closeFilters);
+  useEscapeKey(Boolean(disableTarget), closeDisableModal);
 
   const openCreateModal = useCallback(() => {
     setCreateOpen(true);
@@ -449,24 +461,43 @@ function FinanceClientDiscountsPanel({
     }
   }, []);
 
-  const toggleRuleActive = useCallback(async (item) => {
+  const openDisableModal = useCallback((item) => {
     if (!canUpdateFinanceDiscounts || !item?.id) return;
+    setDisableTarget(item);
+    setDisableReason("");
+    setDisableError("");
+  }, [canUpdateFinanceDiscounts]);
+
+  const submitDisableDiscount = useCallback(async (event) => {
+    event.preventDefault();
+    if (!canUpdateFinanceDiscounts || !disableTarget?.id) return;
+    const reason = disableReason.trim();
+    if (!reason) {
+      setDisableError(translate("Disable reason is required."));
+      return;
+    }
     try {
-      const response = await apiFetch(`/api/finance/discounts/${encodeURIComponent(item.id)}`, {
+      setDisableSubmitting(true);
+      const response = await apiFetch(`/api/finance/discounts/${encodeURIComponent(disableTarget.id)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isActive: !item.isActive })
+        body: JSON.stringify({ isActive: false, disableReason: reason })
       });
       const data = await readApiResponseData(response);
       if (!response.ok) {
-        setMessage(data?.message || "Не удалось обновить скидку.");
+        setDisableError(data?.message || "Не удалось обновить скидку.");
         return;
       }
+      setDisableTarget(null);
+      setDisableReason("");
+      setDisableError("");
       await loadDiscounts(page, appliedFilters);
     } catch {
-      setMessage("Не удалось обновить скидку.");
+      setDisableError("Не удалось обновить скидку.");
+    } finally {
+      setDisableSubmitting(false);
     }
-  }, [appliedFilters, canUpdateFinanceDiscounts, loadDiscounts, page]);
+  }, [appliedFilters, canUpdateFinanceDiscounts, disableReason, disableTarget, loadDiscounts, page, translate]);
 
   const modalRoot = typeof document !== "undefined" ? document.body : null;
   const detailItem = detail?.item || null;
@@ -681,7 +712,7 @@ function FinanceClientDiscountsPanel({
                         className="table-action-btn table-action-btn-danger finance-discounts-icon-btn"
                         aria-label={translate("Disable")}
                         title={translate("Disable")}
-                        onClick={() => toggleRuleActive(item)}
+                        onClick={() => openDisableModal(item)}
                         disabled={!canUpdateFinanceDiscounts}
                       >
                         <span className="table-trash-icon" aria-hidden="true" />
@@ -866,7 +897,9 @@ function FinanceClientDiscountsPanel({
                 <h3>Скидка #{detailItem?.id}</h3>
                 <p>{detailItem?.clientName || "-"}</p>
               </div>
-              <button type="button" className="all-users-close" onClick={closeDetailModal}>x</button>
+              <button type="button" className="header-btn panel-close-btn" onClick={closeDetailModal} aria-label={translate("Close")}>
+                ×
+              </button>
             </div>
             <div className="finance-discounts-detail-body">
               {detailLoading ? <p className="all-users-state">{translate("Loading...")}</p> : null}
@@ -884,6 +917,16 @@ function FinanceClientDiscountsPanel({
                   <strong>{detailItem?.remainingCount === null ? translate("Unlimited") : toIntegerAmount(detailItem?.remainingCount)}</strong>
                 </div>
               </div>
+              {detailItem?.disabledReason ? (
+                <div className="finance-discounts-disable-note">
+                  <span>{translate("Disable reason")}</span>
+                  <strong>{detailItem.disabledReason}</strong>
+                  <small>
+                    {formatDateTimeTashkent(detailItem.disabledAt)}
+                    {detailItem.disabledByName ? ` · ${detailItem.disabledByName}` : ""}
+                  </small>
+                </div>
+              ) : null}
               <div className="finance-discounts-detail-sections">
                 <section className="finance-discounts-detail-section">
                   <h4>Услуги</h4>
@@ -902,11 +945,11 @@ function FinanceClientDiscountsPanel({
                     <table className="all-users-table finance-discounts-usage-table">
                       <thead>
                         <tr>
-                          <th>Дата</th>
-                          <th>Талон</th>
-                          <th>Услуга</th>
-                          <th>Скидка</th>
-                          <th>Статус</th>
+                          <th className="finance-discounts-usage-col-date">Дата</th>
+                          <th className="finance-discounts-usage-col-ticket">Талон</th>
+                          <th className="finance-discounts-usage-col-service">Услуга</th>
+                          <th className="finance-discounts-usage-col-discount">Скидка</th>
+                          <th className="finance-discounts-usage-col-status">Статус</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -916,11 +959,11 @@ function FinanceClientDiscountsPanel({
                           </tr>
                         ) : detailUsages.map((usage) => (
                           <tr key={usage.id}>
-                            <td>{formatDateTimeTashkent(usage.createdAt || usage.created_at)}</td>
-                            <td>{usage.ticketNumber ? `#${usage.ticketNumber}` : "-"}</td>
-                            <td>{usage.serviceName || "-"}</td>
-                            <td>{formatMoney(usage.discountUzs)} сум</td>
-                            <td>{usage.isReversed ? "Отменено" : "Активно"}</td>
+                            <td className="finance-discounts-usage-cell-date">{formatDateTimeTashkent(usage.createdAt || usage.created_at)}</td>
+                            <td className="finance-discounts-usage-cell-ticket">{usage.ticketNumber ? `#${usage.ticketNumber}` : "-"}</td>
+                            <td className="finance-discounts-usage-cell-service">{usage.serviceName || "-"}</td>
+                            <td className="finance-discounts-usage-cell-discount">{formatMoney(usage.discountUzs)} сум</td>
+                            <td className="finance-discounts-usage-cell-status">{usage.isReversed ? "Отменено" : "Активно"}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -930,6 +973,37 @@ function FinanceClientDiscountsPanel({
               </div>
             </div>
           </div>
+        </div>,
+        modalRoot
+      ) : null}
+      {disableTarget && modalRoot ? createPortal(
+        <div className="finance-modal-overlay" role="presentation">
+          <form id="financeClientDiscountDisableModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-discounts-disable-modal" onSubmit={submitDisableDiscount}>
+            <div className="finance-discounts-detail-head">
+              <h3>{translate("Disable discount")}</h3>
+              <button type="button" className="header-btn panel-close-btn" onClick={closeDisableModal} aria-label={translate("Close")}>
+                ×
+              </button>
+            </div>
+            <div className="finance-discounts-disable-body">
+              <textarea
+                value={disableReason}
+                placeholder={translate("Disable reason")}
+                maxLength={255}
+                required
+                onChange={(event) => {
+                  setDisableError("");
+                  setDisableReason(event.currentTarget.value);
+                }}
+              />
+              {disableError ? <p className="finance-discounts-modal-error">{disableError}</p> : null}
+              <div className="finance-discounts-disable-actions">
+                <button type="submit" className="btn" disabled={disableSubmitting}>
+                  {disableSubmitting ? translate("Saving...") : translate("Disable discount")}
+                </button>
+              </div>
+            </div>
+          </form>
         </div>,
         modalRoot
       ) : null}

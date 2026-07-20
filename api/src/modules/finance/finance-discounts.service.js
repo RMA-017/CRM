@@ -208,6 +208,10 @@ function mapDiscountRule(row) {
     discountValue: row.discount_value ?? 0,
     note: row.note || "",
     isActive,
+    disabledReason: row.disabled_reason || "",
+    disabledBy: row.disabled_by || null,
+    disabledByName: row.disabled_by_name || "",
+    disabledAt: row.disabled_at || null,
     status: getRuleStatus({ isActive, services }),
     services,
     totalLimitCount: hasUnlimited ? null : totalLimitCount,
@@ -322,6 +326,16 @@ async function queryDiscountRules({ organizationId, whereSql = "", params = [], 
             r.discount_value,
             r.note,
             r.is_active,
+            r.disabled_reason,
+            r.disabled_by,
+            r.disabled_at,
+            (
+              SELECT COALESCE(NULLIF(TRIM(disabled_user.full_name), ''), NULLIF(TRIM(disabled_user.username), ''), '')
+                FROM users disabled_user
+               WHERE disabled_user.organization_id = r.organization_id
+                 AND disabled_user.id = r.disabled_by
+               LIMIT 1
+            ) AS disabled_by_name,
             r.created_at,
             r.updated_at,
             COALESCE(
@@ -601,15 +615,24 @@ export async function updateFinanceClientDiscount({ organizationId, id, payload,
     throw error;
   }
   const isActive = normalizeBoolean(payload?.isActive ?? payload?.is_active, true);
+  const disableReason = normalizeText(payload?.disableReason ?? payload?.disable_reason ?? payload?.reason, 255);
+  if (!isActive && !disableReason) {
+    throw createBadRequestError("Disable reason is required.");
+  }
+  const disabledReason = !isActive ? disableReason : null;
+  const disabledBy = !isActive ? actorUserId || null : null;
   const result = await pool.query(
     `UPDATE finance_client_discount_rules
         SET is_active = $3,
             updated_by = $4,
+            disabled_reason = $5,
+            disabled_by = $6,
+            disabled_at = CASE WHEN $3 = FALSE THEN CURRENT_TIMESTAMP ELSE NULL END,
             updated_at = CURRENT_TIMESTAMP
       WHERE organization_id = $1
         AND id = $2
       RETURNING id`,
-    [organizationId, ruleId, isActive, actorUserId || null]
+    [organizationId, ruleId, isActive, actorUserId || null, disabledReason, disabledBy]
   );
   if (!result.rows[0]) {
     const error = new Error("Discount not found.");
