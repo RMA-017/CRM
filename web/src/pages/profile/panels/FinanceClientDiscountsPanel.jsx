@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import CustomSelect from "../../../components/CustomSelect.jsx";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
@@ -12,9 +12,23 @@ const EMPTY_CREATE_FORM = Object.freeze({
   note: ""
 });
 
+const EMPTY_FILTERS = Object.freeze({
+  createdFrom: "",
+  createdTo: "",
+  client: "",
+  service: "",
+  isActive: ""
+});
+
 const DISCOUNT_TYPE_OPTIONS = Object.freeze([
   { value: "amount", label: "Сумма" },
   { value: "percent", label: "Процент" }
+]);
+
+const DISCOUNT_ACTIVE_FILTER_OPTIONS = Object.freeze([
+  { value: "", label: "All" },
+  { value: "true", label: "Active" },
+  { value: "false", label: "Inactive" }
 ]);
 
 const DISCOUNT_MAX_LIMIT_COUNT = 22;
@@ -24,14 +38,14 @@ const DISCOUNT_LIMIT_OPTIONS = Object.freeze([
     const value = String(index + 1);
     return { value, label: value };
   }),
-  { value: DISCOUNT_UNLIMITED_VALUE, label: "Безлимит" }
+  { value: DISCOUNT_UNLIMITED_VALUE, label: "Unlimited" }
 ]);
 
 const STATUS_LABELS = Object.freeze({
-  active: "Активна",
-  completed: "Завершена",
-  unlimited: "Безлимит",
-  disabled: "Отключена"
+  active: "Active",
+  completed: "Completed",
+  unlimited: "Unlimited",
+  disabled: "Disabled"
 });
 
 function toIntegerAmount(value) {
@@ -58,21 +72,21 @@ function getStatusClassName(status) {
   return "is-active";
 }
 
-function formatServiceProgress(service) {
+function formatServiceProgress(service, translate) {
   if (service?.limitCount === null || service?.limit_count === null) {
-    return "безлимит";
+    return translate("Unlimited");
   }
   const usedCount = toIntegerAmount(service?.usedCount ?? service?.used_count);
   const limitCount = toIntegerAmount(service?.limitCount ?? service?.limit_count);
   return `${usedCount}/${limitCount}`;
 }
 
-function getServiceSummary(item) {
+function getServiceSummary(item, translate) {
   const services = Array.isArray(item?.services) ? item.services : [];
   if (services.length === 0) return "-";
   const visible = services.slice(0, 3).map((service) => {
     const name = String(service?.serviceName || service?.service_name || "").trim() || "-";
-    return `${name} (${formatServiceProgress(service)})`;
+    return `${name} (${formatServiceProgress(service, translate)})`;
   });
   if (services.length > visible.length) {
     visible.push(`+${services.length - visible.length}`);
@@ -107,12 +121,17 @@ function FinanceClientDiscountsPanel({
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [services, setServices] = useState([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState(EMPTY_CREATE_FORM);
   const [clientSearch, setClientSearch] = useState("");
   const [clientOptions, setClientOptions] = useState([]);
   const [selectedClient, setSelectedClient] = useState(null);
+  const clientInputRef = useRef(null);
+  const [clientResultsStyle, setClientResultsStyle] = useState(null);
   const [serviceRows, setServiceRows] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [createError, setCreateError] = useState("");
@@ -124,17 +143,28 @@ function FinanceClientDiscountsPanel({
     label: String(service.name || service.id),
     item: service
   })), [services]);
+  const filterServiceOptions = useMemo(() => [
+    { value: "", label: translate("All") },
+    ...services.filter(Boolean).map((service) => ({
+      value: String(service.name || service.id),
+      label: String(service.name || service.id)
+    }))
+  ], [services, translate]);
+  const showClientResults = createOpen && !selectedClient && clientOptions.length > 0;
 
-  const loadDiscounts = useCallback(async (nextPage = 1, nextQuery = "") => {
+  const loadDiscounts = useCallback(async (nextPage = 1, nextFilters = EMPTY_FILTERS) => {
     try {
       setLoading(true);
       setMessage("");
       const params = new URLSearchParams();
       params.set("page", String(nextPage));
       params.set("pageSize", "20");
-      if (String(nextQuery || "").trim()) {
-        params.set("q", String(nextQuery || "").trim());
-      }
+      Object.entries(nextFilters || {}).forEach(([key, value]) => {
+        const normalized = String(value || "").trim();
+        if (normalized) {
+          params.set(key, normalized);
+        }
+      });
       const response = await apiFetch(`/api/finance/discounts?${params.toString()}`);
       const data = await readApiResponseData(response);
       if (!response.ok) {
@@ -166,7 +196,7 @@ function FinanceClientDiscountsPanel({
   }, []);
 
   useEffect(() => {
-    void loadDiscounts(1, "");
+    void loadDiscounts(1, appliedFilters);
     void loadReferences();
   }, [loadDiscounts, loadReferences]);
 
@@ -195,6 +225,50 @@ function FinanceClientDiscountsPanel({
     };
   }, [clientSearch, createOpen]);
 
+  useEffect(() => {
+    if (!showClientResults || typeof window === "undefined") {
+      setClientResultsStyle(null);
+      return undefined;
+    }
+
+    const updateClientResultsLayout = () => {
+      if (!clientInputRef.current) {
+        setClientResultsStyle(null);
+        return;
+      }
+
+      const rect = clientInputRef.current.getBoundingClientRect();
+      const viewportPadding = 8;
+      const desiredMaxHeight = 190;
+      const desiredHeight = Math.min(desiredMaxHeight, (clientOptions.length * 33) + 10);
+      const spaceBelow = window.innerHeight - rect.bottom - viewportPadding;
+      const spaceAbove = rect.top - viewportPadding;
+      const openUp = spaceBelow < desiredHeight && spaceAbove > spaceBelow;
+      const availableSpace = Math.max(96, openUp ? spaceAbove : spaceBelow);
+      const maxHeight = Math.max(96, Math.min(desiredMaxHeight, availableSpace - viewportPadding));
+      const width = Math.min(Math.max(220, rect.width), window.innerWidth - (viewportPadding * 2));
+      const left = Math.max(viewportPadding, Math.min(rect.left, window.innerWidth - width - viewportPadding));
+      const preferredTop = openUp ? rect.top - maxHeight - 4 : rect.bottom + 4;
+      const top = Math.max(viewportPadding, Math.min(preferredTop, window.innerHeight - maxHeight - viewportPadding));
+
+      setClientResultsStyle({
+        position: "fixed",
+        top: `${top}px`,
+        left: `${left}px`,
+        width: `${width}px`,
+        maxHeight: `${maxHeight}px`
+      });
+    };
+
+    updateClientResultsLayout();
+    window.addEventListener("resize", updateClientResultsLayout);
+    window.addEventListener("scroll", updateClientResultsLayout, true);
+    return () => {
+      window.removeEventListener("resize", updateClientResultsLayout);
+      window.removeEventListener("scroll", updateClientResultsLayout, true);
+    };
+  }, [clientOptions.length, showClientResults]);
+
   const closeCreateModal = useCallback(() => {
     setCreateOpen(false);
     setCreateForm(EMPTY_CREATE_FORM);
@@ -211,8 +285,21 @@ function FinanceClientDiscountsPanel({
     setDetailLoading(false);
   }, []);
 
+  const closeFilters = useCallback(() => {
+    if (loading) return;
+    setFiltersOpen(false);
+  }, [loading]);
+
+  const applyFilters = useCallback((event) => {
+    event.preventDefault();
+    setAppliedFilters(filters);
+    setFiltersOpen(false);
+    void loadDiscounts(1, filters);
+  }, [filters, loadDiscounts]);
+
   useEscapeKey(createOpen, closeCreateModal);
   useEscapeKey(Boolean(detail), closeDetailModal);
+  useEscapeKey(filtersOpen, closeFilters);
 
   const openCreateModal = useCallback(() => {
     setCreateOpen(true);
@@ -324,13 +411,13 @@ function FinanceClientDiscountsPanel({
         return;
       }
       closeCreateModal();
-      await loadDiscounts(1);
+      await loadDiscounts(1, appliedFilters);
     } catch {
       setCreateError("Не удалось создать скидку.");
     } finally {
       setSubmitting(false);
     }
-  }, [closeCreateModal, createForm.discountType, createForm.discountValue, createForm.note, loadDiscounts, selectedClient, serviceRows]);
+  }, [appliedFilters, closeCreateModal, createForm.discountType, createForm.discountValue, createForm.note, loadDiscounts, selectedClient, serviceRows]);
 
   const openDetail = useCallback(async (item) => {
     const id = item?.id;
@@ -367,29 +454,67 @@ function FinanceClientDiscountsPanel({
         setMessage(data?.message || "Не удалось обновить скидку.");
         return;
       }
-      await loadDiscounts(page);
+      await loadDiscounts(page, appliedFilters);
     } catch {
       setMessage("Не удалось обновить скидку.");
     }
-  }, [canUpdateFinanceDiscounts, loadDiscounts, page]);
+  }, [appliedFilters, canUpdateFinanceDiscounts, loadDiscounts, page]);
 
   const modalRoot = typeof document !== "undefined" ? document.body : null;
   const detailItem = detail?.item || null;
   const detailServices = Array.isArray(detailItem?.services) ? detailItem.services : [];
   const detailUsages = Array.isArray(detail?.usages) ? detail.usages : [];
+  const clientResultsElement = showClientResults && modalRoot ? createPortal(
+    <div
+      className="finance-discounts-client-results"
+      style={clientResultsStyle || { position: "fixed", top: "-9999px", left: "-9999px", width: "0px", maxHeight: "0px" }}
+      onWheel={(event) => event.stopPropagation()}
+      onTouchMove={(event) => event.stopPropagation()}
+    >
+      {clientOptions.map((client) => (
+        <button
+          key={client.id}
+          type="button"
+          onClick={() => {
+            setSelectedClient(client);
+            setCreateError("");
+            setClientSearch(normalizeClientLabel(client));
+            setClientOptions([]);
+          }}
+        >
+          {normalizeClientLabel(client)}
+        </button>
+      ))}
+    </div>,
+    modalRoot
+  ) : null;
 
   return (
     <section id="financeClientDiscountsPanel" className="all-users-panel settings-panel ops-panel-shell finance-panel-shell finance-discounts-panel">
       <div className="all-users-head finance-discounts-head">
-        <h3>Скидки клиентов</h3>
+        <h3>{translate("Client Discounts")}</h3>
         <div className="all-users-head-actions">
+          <button
+            type="button"
+            className="table-action-btn finance-head-icon-btn"
+            aria-label={translate("Filter")}
+            title={translate("Filter")}
+            onClick={() => {
+              setFiltersOpen(true);
+              if (services.length === 0) {
+                void loadReferences();
+              }
+            }}
+          >
+            <span className="finance-head-icon finance-head-icon-filter" aria-hidden="true" />
+          </button>
           <button
             type="button"
             className="header-btn appointment-breaks-add-icon-btn"
             onClick={openCreateModal}
             disabled={!canCreateFinanceDiscounts}
-            title="Создать скидку"
-            aria-label="Создать скидку"
+            title={translate("Create discount")}
+            aria-label={translate("Create discount")}
           >
             +
           </button>
@@ -397,17 +522,92 @@ function FinanceClientDiscountsPanel({
             type="button"
             className="header-btn panel-close-btn"
             onClick={onClose}
-            aria-label={translate("Close finance reports panel")}
+            aria-label={translate("Close finance discounts panel")}
           >
             ×
           </button>
         </div>
       </div>
 
-      {message ? <p className="all-users-state">{message}</p> : null}
+      {message ? <p className="all-users-state">{translate(message)}</p> : null}
+
+      {filtersOpen && modalRoot ? createPortal((
+        <>
+          <button
+            type="button"
+            className="login-overlay stacked-modal-overlay finance-modal-overlay"
+            aria-label={translate("Close")}
+            onClick={closeFilters}
+          />
+          <div id="financeClientDiscountFilterModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-discounts-filter-modal">
+            <h3>{translate("Filter")}</h3>
+            <form className="auth-form" onSubmit={applyFilters}>
+              <div className="all-users-edit-fields settings-filter-grid finance-discounts-filter-grid">
+                <div className="finance-discounts-filter-date-row">
+                  <label className="field">
+                    <span>{translate("Created From")}</span>
+                    <input
+                      type="date"
+                      value={filters.createdFrom}
+                      onChange={(event) => setFilters((current) => ({ ...current, createdFrom: event.currentTarget.value }))}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>{translate("Created To")}</span>
+                    <input
+                      type="date"
+                      value={filters.createdTo}
+                      onChange={(event) => setFilters((current) => ({ ...current, createdTo: event.currentTarget.value }))}
+                    />
+                  </label>
+                </div>
+                <label className="field">
+                  <span>{translate("Client Name")}</span>
+                  <input
+                    type="search"
+                    value={filters.client}
+                    placeholder={translate("Client Name")}
+                    onChange={(event) => setFilters((current) => ({ ...current, client: event.currentTarget.value }))}
+                  />
+                </label>
+                <label className="field">
+                  <span>{translate("Service Name")}</span>
+                  <CustomSelect
+                    value={filters.service}
+                    options={filterServiceOptions}
+                    placeholder={translate("All")}
+                    searchable
+                    searchPlaceholder={translate("Search")}
+                    searchThreshold={1}
+                    menuPortal
+                    disabled={services.length === 0}
+                    onChange={(value) => setFilters((current) => ({ ...current, service: value }))}
+                  />
+                </label>
+                <label className="field">
+                  <span>{translate("Status")}</span>
+                  <CustomSelect
+                    value={filters.isActive}
+                    options={DISCOUNT_ACTIVE_FILTER_OPTIONS.map((option) => ({
+                      ...option,
+                      label: translate(option.label)
+                    }))}
+                    placeholder={translate("All")}
+                    menuPortal
+                    onChange={(value) => setFilters((current) => ({ ...current, isActive: value }))}
+                  />
+                </label>
+              </div>
+              <div className="edit-actions">
+                <button type="submit" className="btn btn-primary" disabled={loading}>{translate("Search")}</button>
+              </div>
+            </form>
+          </div>
+        </>
+      ), modalRoot) : null}
 
       <div className="all-users-table-scroll">
-        <table className="all-users-table finance-discounts-table" aria-label="Client discounts">
+        <table className="all-users-table finance-discounts-table" aria-label={translate("Client Discounts")}>
           <colgroup>
             <col className="finance-discounts-col-client" />
             <col className="finance-discounts-col-created" />
@@ -419,23 +619,23 @@ function FinanceClientDiscountsPanel({
           </colgroup>
           <thead>
             <tr>
-              <th>Клиент</th>
-              <th>Создано</th>
-              <th>Услуги</th>
-              <th>Скидка</th>
-              <th>Осталось</th>
-              <th>Статус</th>
-              <th>Управление</th>
+              <th>{translate("Client")}</th>
+              <th>{translate("Created")}</th>
+              <th>{translate("Services")}</th>
+              <th>{translate("Discount")}</th>
+              <th>{translate("Remaining")}</th>
+              <th>{translate("Status")}</th>
+              <th>{translate("Management")}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="all-users-state">Загрузка...</td>
+                <td colSpan={7} className="all-users-state">{translate("Loading...")}</td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={7} className="all-users-state">Скидок нет.</td>
+                <td colSpan={7} className="all-users-state">{translate("No discounts.")}</td>
               </tr>
             ) : items.map((item) => (
               <tr
@@ -445,24 +645,24 @@ function FinanceClientDiscountsPanel({
               >
                 <td className="finance-discounts-cell-client">{item.clientName || "-"}</td>
                 <td className="finance-discounts-cell-created">{formatDateYMD(item.createdAt || item.created_at)}</td>
-                <td className="finance-discounts-cell-services">{getServiceSummary(item)}</td>
+                <td className="finance-discounts-cell-services">{getServiceSummary(item, translate)}</td>
                 <td className="finance-discounts-cell-money">{formatDiscount(item)}</td>
-                <td className="finance-discounts-cell-remaining">{item.remainingCount === null ? "безлимит" : toIntegerAmount(item.remainingCount)}</td>
+                <td className="finance-discounts-cell-remaining">{item.remainingCount === null ? translate("Unlimited") : toIntegerAmount(item.remainingCount)}</td>
                 <td>
                   <span className={`finance-discount-status ${getStatusClassName(item.status)}`}>
-                    {STATUS_LABELS[item.status] || item.status}
+                    {translate(STATUS_LABELS[item.status] || item.status)}
                   </span>
                 </td>
                 <td>
                   <div className="finance-discount-actions">
-                    <button type="button" className="table-action-btn" onClick={() => openDetail(item)}>Детали</button>
+                    <button type="button" className="table-action-btn" onClick={() => openDetail(item)}>{translate("Details")}</button>
                     <button
                       type="button"
                       className="table-action-btn"
                       onClick={() => toggleRuleActive(item)}
                       disabled={!canUpdateFinanceDiscounts}
                     >
-                      {item.isActive ? "Откл." : "Вкл."}
+                      {translate(item.isActive ? "Disable" : "Enable")}
                     </button>
                   </div>
                 </td>
@@ -477,7 +677,7 @@ function FinanceClientDiscountsPanel({
           type="button"
           className="table-action-btn"
           disabled={page <= 1 || loading}
-          onClick={() => loadDiscounts(page - 1)}
+          onClick={() => loadDiscounts(page - 1, appliedFilters)}
         >
           {translate("Previous")}
         </button>
@@ -486,7 +686,7 @@ function FinanceClientDiscountsPanel({
           type="button"
           className="table-action-btn"
           disabled={page >= totalPages || loading}
-          onClick={() => loadDiscounts(page + 1)}
+          onClick={() => loadDiscounts(page + 1, appliedFilters)}
         >
           {translate("Next")}
         </button>
@@ -497,13 +697,13 @@ function FinanceClientDiscountsPanel({
           <div id="financeClientDiscountCreateModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-discounts-modal">
             <form className="auth-form finance-discounts-create-form" onSubmit={submitCreate}>
               <div className="finance-discounts-create-head">
-                <h3>Новая скидка клиента</h3>
+                <h3>{translate("New Client Discount")}</h3>
                 <button
                   type="button"
                   className="header-btn panel-close-btn"
                   onClick={closeCreateModal}
                   disabled={submitting}
-                  aria-label="Закрыть"
+                  aria-label={translate("Close")}
                 >
                   ×
                 </button>
@@ -513,6 +713,7 @@ function FinanceClientDiscountsPanel({
                 <div className="finance-discounts-simple-form">
                   <div className="field finance-discounts-client-field">
                     <input
+                      ref={clientInputRef}
                       type="search"
                       value={selectedClient ? normalizeClientLabel(selectedClient) : clientSearch}
                       placeholder="Клиент"
@@ -522,24 +723,6 @@ function FinanceClientDiscountsPanel({
                         setClientSearch(event.currentTarget.value);
                       }}
                     />
-                    {!selectedClient && clientOptions.length > 0 ? (
-                      <div className="finance-discounts-client-results">
-                        {clientOptions.map((client) => (
-                          <button
-                            key={client.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedClient(client);
-                              setCreateError("");
-                              setClientSearch(normalizeClientLabel(client));
-                              setClientOptions([]);
-                            }}
-                          >
-                            {normalizeClientLabel(client)}
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
                   </div>
 
                   <div className="finance-discounts-discount-row">
@@ -565,7 +748,7 @@ function FinanceClientDiscountsPanel({
                     </div>
                   </div>
 
-                  {createError ? <p className="all-users-state finance-discounts-modal-error">{createError}</p> : null}
+                  {createError ? <p className="all-users-state finance-discounts-modal-error">{translate(createError)}</p> : null}
 
                   <div className="finance-discounts-service-lines">
                     {serviceRows.map((row) => (
@@ -642,7 +825,7 @@ function FinanceClientDiscountsPanel({
 
               <div className="all-users-edit-actions finance-discounts-modal-actions">
                 <button type="submit" className="btn" disabled={submitting}>
-                  {submitting ? "Сохранение..." : "Создать"}
+                  {submitting ? translate("Saving...") : translate("Create")}
                 </button>
               </div>
             </form>
@@ -650,6 +833,7 @@ function FinanceClientDiscountsPanel({
         </div>,
         modalRoot
       ) : null}
+      {clientResultsElement}
 
       {detail && modalRoot ? createPortal(
         <div className="finance-modal-overlay" role="presentation">
@@ -661,19 +845,19 @@ function FinanceClientDiscountsPanel({
               </div>
               <button type="button" className="all-users-close" onClick={closeDetailModal}>x</button>
             </div>
-            {detailLoading ? <p className="all-users-state">Загрузка...</p> : null}
+            {detailLoading ? <p className="all-users-state">{translate("Loading...")}</p> : null}
             <div className="finance-ticket-summary finance-discounts-detail-summary">
               <div>
-                <span>Скидка</span>
+                <span>{translate("Discount")}</span>
                 <strong>{formatDiscount(detailItem)}</strong>
               </div>
               <div>
-                <span>Использовано</span>
+                <span>{translate("Used")}</span>
                 <strong>{toIntegerAmount(detailItem?.usedCount)}</strong>
               </div>
               <div>
-                <span>Осталось</span>
-                <strong>{detailItem?.remainingCount === null ? "безлимит" : toIntegerAmount(detailItem?.remainingCount)}</strong>
+                <span>{translate("Remaining")}</span>
+                <strong>{detailItem?.remainingCount === null ? translate("Unlimited") : toIntegerAmount(detailItem?.remainingCount)}</strong>
               </div>
             </div>
             <div className="finance-discounts-detail-grid">
@@ -683,7 +867,7 @@ function FinanceClientDiscountsPanel({
                   {detailServices.map((service) => (
                     <div key={service.id} className="finance-discounts-detail-service">
                       <strong>{service.serviceName}</strong>
-                      <span>{formatServiceProgress(service)}</span>
+                      <span>{formatServiceProgress(service, translate)}</span>
                     </div>
                   ))}
                 </div>

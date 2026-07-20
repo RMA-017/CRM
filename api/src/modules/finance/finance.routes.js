@@ -75,6 +75,10 @@ const REPORTS_PERMISSIONS = Object.freeze({
   read: PERMISSIONS.FINANCE_REPORTS_READ
 });
 
+const AUDIT_PERMISSIONS = Object.freeze({
+  read: PERMISSIONS.FINANCE_AUDIT_READ
+});
+
 const DISCOUNTS_PERMISSIONS = Object.freeze({
   read: PERMISSIONS.FINANCE_DISCOUNTS_READ,
   create: PERMISSIONS.FINANCE_DISCOUNTS_CREATE,
@@ -149,6 +153,11 @@ async function requireReportsAccess(request, reply, action) {
   return requireFinanceAccess(request, reply, permissionCode);
 }
 
+async function requireAuditAccess(request, reply, action) {
+  const permissionCode = AUDIT_PERMISSIONS[action] || AUDIT_PERMISSIONS.read;
+  return requireFinanceAccess(request, reply, permissionCode);
+}
+
 async function requireDiscountsAccess(request, reply, action) {
   const permissionCode = DISCOUNTS_PERMISSIONS[action] || DISCOUNTS_PERMISSIONS.read;
   return requireFinanceAccess(request, reply, permissionCode);
@@ -207,7 +216,7 @@ async function financeRoutes(fastify) {
     async (request, reply) => {
       setNoCacheHeaders(reply);
       try {
-        const requester = await requireReportsAccess(request, reply, "read");
+        const requester = await requireAuditAccess(request, reply, "read");
         if (!requester) return null;
         const result = await getFinanceAudit({
           organizationId: request.authContext.organizationId,

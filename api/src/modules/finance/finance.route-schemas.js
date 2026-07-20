@@ -5,6 +5,13 @@ const positiveIntegerLikeSchema = {
   ]
 };
 
+const booleanLikeSchema = {
+  anyOf: [
+    { type: "boolean" },
+    { type: "string", enum: ["true", "false", "1", "0", "yes", "no", "on", "off"] }
+  ]
+};
+
 const clientDiscountLimitCountSchema = {
   anyOf: [
     { type: "integer", minimum: 1, maximum: 22 },
@@ -117,6 +124,24 @@ export const financeRouteSchemas = Object.freeze({
       q: { type: "string", maxLength: 96 },
       query: { type: "string", maxLength: 96 },
       search: { type: "string", maxLength: 96 },
+      createdFrom: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      createdTo: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      created_from: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      created_to: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      createdAtFrom: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      createdAtTo: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      created_at_from: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      created_at_to: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      client: { type: "string", maxLength: 96 },
+      clientName: { type: "string", maxLength: 96 },
+      client_name: { type: "string", maxLength: 96 },
+      service: { type: "string", maxLength: 128 },
+      serviceName: { type: "string", maxLength: 128 },
+      service_name: { type: "string", maxLength: 128 },
+      status: { type: "string", maxLength: 32 },
+      active: { type: "string", maxLength: 16 },
+      isActive: booleanLikeSchema,
+      is_active: booleanLikeSchema,
       page: positiveIntegerLikeSchema,
       pageSize: positiveIntegerLikeSchema,
       page_size: positiveIntegerLikeSchema

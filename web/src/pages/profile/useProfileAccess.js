@@ -86,6 +86,7 @@ export function useProfileAccess(profile, forcedView) {
   const canUpdateFinanceBalancesPermission = hasPermissionCode(PERMISSIONS.FINANCE_BALANCES_UPDATE);
   const canReadFinanceDailyCashPermission = hasPermissionCode(PERMISSIONS.FINANCE_DAILY_CASH_READ);
   const canReadFinanceReportsPermission = hasPermissionCode(PERMISSIONS.FINANCE_REPORTS_READ);
+  const canReadFinanceAuditPermission = hasPermissionCode(PERMISSIONS.FINANCE_AUDIT_READ);
   const canReadFinanceDiscountsPermission = hasPermissionCode(PERMISSIONS.FINANCE_DISCOUNTS_READ);
   const canCreateFinanceDiscountsPermission = hasPermissionCode(PERMISSIONS.FINANCE_DISCOUNTS_CREATE);
   const canUpdateFinanceDiscountsPermission = hasPermissionCode(PERMISSIONS.FINANCE_DISCOUNTS_UPDATE);
@@ -226,7 +227,7 @@ export function useProfileAccess(profile, forcedView) {
   const canOpenFinanceBalances = canReadFinanceBalancesPermission;
   const canOpenFinanceDailyCash = canReadFinanceDailyCashPermission;
   const canOpenFinanceReports = canReadFinanceReportsPermission;
-  const canOpenFinanceAudit = canReadFinanceReportsPermission;
+  const canOpenFinanceAudit = canReadFinanceAuditPermission;
   const canOpenFinanceDiscounts = canReadFinanceDiscountsPermission;
   const canOpenFinance = (
     canOpenFinanceCashier

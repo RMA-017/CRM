@@ -276,6 +276,24 @@ test("finance client discounts apply only to appointment tickets and keep usage 
   );
 
   assert.match(
+    financeRouteSchemasSource,
+    /discountListQuery:[\s\S]*createdFrom[\s\S]*createdTo[\s\S]*clientName[\s\S]*serviceName[\s\S]*isActive: booleanLikeSchema/s,
+    "Client discount list schema should accept created date, client, service, and active-state filters."
+  );
+
+  assert.match(
+    financeDiscountsSource,
+    /const createdFrom = normalizeDate\(filters\.createdFrom[\s\S]*const client = normalizeText\(filters\.client \?\? filters\.clientName[\s\S]*const service = normalizeText\(filters\.service \?\? filters\.serviceName[\s\S]*const isActive = normalizeActiveFilter/s,
+    "Client discount list query should normalize created date, client name, service name, and active-state filters."
+  );
+
+  assert.match(
+    financeDiscountsSource,
+    /r\.created_at::date >=[\s\S]*r\.created_at::date <=[\s\S]*LOWER\(CONCAT_WS\(' ', c\.last_name, c\.first_name, c\.middle_name\)\) LIKE[\s\S]*finance_client_discount_rule_services rs_filter[\s\S]*r\.is_active =/s,
+    "Client discount list query should filter by created date, client name, service name, and active state."
+  );
+
+  assert.match(
     financeDiscountsSource,
     /CLIENT_DISCOUNT_MAX_LIMIT_COUNT = 22[\s\S]*Service count cannot exceed 22\./s,
     "Client discount service counts should also be capped in the service layer."
@@ -507,8 +525,8 @@ test("finance audit exposes ticket, payment and balance health checks", async ()
 
   assert.match(
     financeRoutesSource,
-    /import \{ getFinanceAudit \} from "\.\/finance-audit\.service\.js";[\s\S]*fastify\.get\([\s\S]*"\/audit"[\s\S]*requireReportsAccess\(request, reply, "read"\)[\s\S]*getFinanceAudit/s,
-    "Finance audit endpoint should be available to finance report readers."
+    /import \{ getFinanceAudit \} from "\.\/finance-audit\.service\.js";[\s\S]*const AUDIT_PERMISSIONS = Object\.freeze\(\{[\s\S]*PERMISSIONS\.FINANCE_AUDIT_READ[\s\S]*function requireAuditAccess\(request, reply, action\)[\s\S]*fastify\.get\([\s\S]*"\/audit"[\s\S]*requireAuditAccess\(request, reply, "read"\)[\s\S]*getFinanceAudit/s,
+    "Finance audit endpoint should be available to finance audit readers."
   );
   assert.match(
     financeAuditSource,

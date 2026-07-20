@@ -148,15 +148,15 @@ test("website management permissions unlock site content without admin role", ()
   assert.equal(access.canAccessForcedView, true);
 });
 
-test("finance reports permission unlocks finance audit", () => {
+test("finance audit permission unlocks finance audit", () => {
   const access = readAccessSnapshot({
     isAdmin: false,
     isPlatformAdmin: false,
-    permissions: ["finance.reports.read"],
+    permissions: ["finance.audit.read"],
     orgFeatures: ["finance"]
   }, "finance-audit");
 
-  assert.equal(access.canOpenFinanceReports, true);
+  assert.equal(access.canOpenFinanceReports, false);
   assert.equal(access.canOpenFinanceAudit, true);
   assert.equal(access.canOpenFinance, true);
   assert.equal(access.canAccessForcedView, true);

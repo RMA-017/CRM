@@ -79,12 +79,13 @@ test("finance audit route is wired into profile navigation", async () => {
 });
 
 test("finance client discounts route is wired into profile navigation", async () => {
-  const [appSource, profilePageSource, profileMainSource, sideMenuSource, panelSource] = await Promise.all([
+  const [appSource, profilePageSource, profileMainSource, sideMenuSource, panelSource, stylesSource] = await Promise.all([
     readFile(new URL("../src/App.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/pages/ProfilePage.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/pages/profile/ProfileMainContent.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/pages/profile/ProfileSideMenu.jsx", import.meta.url), "utf8"),
-    readFile(new URL("../src/pages/profile/panels/FinanceClientDiscountsPanel.jsx", import.meta.url), "utf8")
+    readFile(new URL("../src/pages/profile/panels/FinanceClientDiscountsPanel.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/css/components/components.css", import.meta.url), "utf8")
   ]);
 
   assert.match(
@@ -109,8 +110,53 @@ test("finance client discounts route is wired into profile navigation", async ()
   );
   assert.match(
     panelSource,
-    /\/api\/finance\/discounts[\s\S]*Новая скидка клиента[\s\S]*История использования/s,
+    /\/api\/finance\/discounts[\s\S]*New Client Discount[\s\S]*История использования/s,
     "FinanceClientDiscountsPanel should load the discounts list and expose create/detail flows."
+  );
+  assert.match(
+    panelSource,
+    /EMPTY_FILTERS[\s\S]*createdFrom[\s\S]*createdTo[\s\S]*client[\s\S]*service[\s\S]*isActive[\s\S]*Object\.entries\(nextFilters \|\| \{\}\)/s,
+    "FinanceClientDiscountsPanel should send client discount filters to the backend list endpoint."
+  );
+  assert.match(
+    panelSource,
+    /className="table-action-btn finance-head-icon-btn"[\s\S]*aria-label=\{translate\("Filter"\)\}[\s\S]*finance-head-icon-filter/s,
+    "FinanceClientDiscountsPanel should expose a finance-style filter icon button."
+  );
+  assert.match(
+    panelSource,
+    /id="financeClientDiscountFilterModal"[\s\S]*Created From[\s\S]*Created To[\s\S]*Client Name[\s\S]*Service Name[\s\S]*DISCOUNT_ACTIVE_FILTER_OPTIONS/s,
+    "FinanceClientDiscountsPanel should render the requested client discount filter fields."
+  );
+  assert.match(
+    panelSource,
+    /const clientResultsElement = showClientResults && modalRoot \? createPortal\(/,
+    "Client search results should render through a portal so the modal does not clip them."
+  );
+  assert.match(
+    panelSource,
+    /ref=\{clientInputRef\}/,
+    "Client search results should anchor to the client input."
+  );
+  assert.match(
+    stylesSource,
+    /#financeClientDiscountCreateModal \.finance-discounts-client-field > input \{[\s\S]*font-weight: 500;/s,
+    "Selected client text in the create discount modal should not render bold."
+  );
+  assert.match(
+    stylesSource,
+    /\.finance-discounts-client-results \{[\s\S]*z-index: var\(--z-popover\);/s,
+    "Client search results should be layered above the modal overlay."
+  );
+  assert.match(
+    stylesSource,
+    /\.finance-discounts-client-results button \{[\s\S]*font-weight: 500;/s,
+    "Client search option labels should not render bold."
+  );
+  assert.match(
+    stylesSource,
+    /#financeClientDiscountFilterModal\.finance-discounts-filter-modal \{[\s\S]*width: min\(540px,[\s\S]*#financeClientDiscountFilterModal \.finance-discounts-filter-date-row/s,
+    "Client discount filters should use the compact finance filter modal layout."
   );
 });
 

@@ -9,6 +9,11 @@ function normalizeText(value, maxLength = 255) {
   return String(value ?? "").trim().slice(0, maxLength);
 }
 
+function normalizeDate(value) {
+  const normalized = String(value ?? "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : "";
+}
+
 function normalizeAmount(value, fallback = 0) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
   if (!Number.isFinite(parsed) || parsed < 0) {
@@ -32,6 +37,19 @@ function normalizePageSize(value) {
 
 function normalizeDiscountType(value) {
   return String(value || "").trim().toLowerCase() === "percent" ? "percent" : "amount";
+}
+
+function normalizeActiveFilter(value) {
+  if (typeof value === "boolean") return value;
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (["active", "true", "1", "yes", "on"].includes(normalized)) return true;
+  if (["inactive", "disabled", "no_active", "not_active", "false", "0", "no", "off"].includes(normalized)) return false;
+  return null;
+}
+
+function appendSqlParam(params, value) {
+  params.push(value);
+  return `$${params.length + 1}`;
 }
 
 function calculateDiscountUzs({ priceUzs, discountType, discountValue }) {
@@ -269,14 +287,41 @@ export async function getFinanceClientDiscounts({ organizationId, filters = {} }
   const page = normalizePage(filters.page);
   const pageSize = normalizePageSize(filters.pageSize ?? filters.page_size);
   const search = normalizeText(filters.q ?? filters.query ?? filters.search, 96).toLowerCase();
+  const createdFrom = normalizeDate(filters.createdFrom ?? filters.created_from ?? filters.createdAtFrom ?? filters.created_at_from);
+  const createdTo = normalizeDate(filters.createdTo ?? filters.created_to ?? filters.createdAtTo ?? filters.created_at_to);
+  const client = normalizeText(filters.client ?? filters.clientName ?? filters.client_name, 96).toLowerCase();
+  const service = normalizeText(filters.service ?? filters.serviceName ?? filters.service_name, 128).toLowerCase();
+  const isActive = normalizeActiveFilter(filters.isActive ?? filters.is_active ?? filters.active ?? filters.status);
   const where = [];
   const params = [];
   if (search) {
-    params.push(`%${search}%`, search);
+    const searchLikeParam = appendSqlParam(params, `%${search}%`);
+    const searchExactParam = appendSqlParam(params, search);
     where.push(`AND (
-      LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE $2
-      OR r.id::text = $3
+      LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE ${searchLikeParam}
+      OR r.id::text = ${searchExactParam}
     )`);
+  }
+  if (createdFrom) {
+    where.push(`AND r.created_at::date >= ${appendSqlParam(params, createdFrom)}::date`);
+  }
+  if (createdTo) {
+    where.push(`AND r.created_at::date <= ${appendSqlParam(params, createdTo)}::date`);
+  }
+  if (client) {
+    where.push(`AND LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE ${appendSqlParam(params, `%${client}%`)}`);
+  }
+  if (service) {
+    where.push(`AND EXISTS (
+      SELECT 1
+        FROM finance_client_discount_rule_services rs_filter
+       WHERE rs_filter.organization_id = r.organization_id
+         AND rs_filter.rule_id = r.id
+         AND LOWER(COALESCE(rs_filter.service_name, '')) LIKE ${appendSqlParam(params, `%${service}%`)}
+    )`);
+  }
+  if (isActive !== null) {
+    where.push(`AND r.is_active = ${appendSqlParam(params, isActive)}::boolean`);
   }
   const countResult = await pool.query(
     `SELECT COUNT(*)::integer AS total

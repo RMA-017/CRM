@@ -76,7 +76,7 @@ test("ensureSystemPermissions deactivates and unassigns unknown permission codes
   }
 });
 
-test("ensureSystemPermissions keeps planner read submenu sync", async () => {
+test("ensureSystemPermissions keeps derived permission grants in sync", async () => {
   const executedQueries = [];
   const restoreConnect = stubPoolConnect(async (sql, params = []) => {
     const text = String(sql || "");
@@ -115,6 +115,13 @@ test("ensureSystemPermissions keeps planner read submenu sync", async () => {
         && params[1] === "appointments.planner.read"
     );
     assert.ok(plannerReadCopyQuery, "expected planner submenu to keep syncing planner read");
+
+    const financeAuditCopyQuery = executedQueries.find(
+      ({ text, params }) => text.includes("INSERT INTO role_permissions")
+        && params[0] === "finance.reports.read"
+        && params[1] === "finance.audit.read"
+    );
+    assert.ok(financeAuditCopyQuery, "expected finance reports roles to keep audit read access after the permission split");
   } finally {
     restoreConnect();
   }

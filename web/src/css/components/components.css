@@ -6628,6 +6628,39 @@ label.field > span:first-child,
   overflow: hidden;
 }
 
+#financeClientDiscountFilterModal.finance-discounts-filter-modal {
+  width: min(540px, calc(100vw - 32px));
+  height: auto;
+  min-height: 0;
+  max-height: min(620px, calc(100dvh - 24px));
+  grid-template-rows: auto minmax(0, auto);
+}
+
+#financeClientDiscountFilterModal .auth-form {
+  grid-template-rows: minmax(0, auto) auto;
+}
+
+#financeClientDiscountFilterModal .finance-discounts-filter-grid {
+  grid-template-columns: 1fr;
+  align-content: start;
+  margin: 0;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  background: transparent;
+}
+
+#financeClientDiscountFilterModal .all-users-edit-fields.settings-filter-grid.finance-discounts-filter-grid {
+  padding: 0;
+}
+
+#financeClientDiscountFilterModal .finance-discounts-filter-date-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
 .finance-discounts-detail-modal {
   width: min(980px, calc(100vw - 24px));
   max-height: min(780px, calc(100vh - 28px));
@@ -6692,6 +6725,10 @@ label.field > span:first-child,
   font-size: 12px;
 }
 
+#financeClientDiscountCreateModal .finance-discounts-client-field > input {
+  font-weight: 500;
+}
+
 .finance-discounts-client-field,
 .finance-discounts-note-field {
   position: relative;
@@ -6703,7 +6740,7 @@ label.field > span:first-child,
 
 .finance-discounts-client-results {
   position: absolute;
-  z-index: 12;
+  z-index: var(--z-popover);
   top: calc(100% + 4px);
   right: 0;
   left: 0;
@@ -6726,7 +6763,7 @@ label.field > span:first-child,
   background: transparent;
   color: var(--text-main);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
   text-align: left;
 }
 
@@ -6857,6 +6894,7 @@ label.field > span:first-child,
 
 @media (max-width: 760px) {
   .finance-discounts-discount-row,
+  #financeClientDiscountFilterModal .finance-discounts-filter-date-row,
   .finance-discounts-service-line,
   .finance-discounts-detail-grid,
   .finance-discounts-detail-summary {
