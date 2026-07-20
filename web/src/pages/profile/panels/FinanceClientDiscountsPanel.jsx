@@ -902,7 +902,11 @@ function FinanceClientDiscountsPanel({
               </button>
             </div>
             <div className="finance-discounts-detail-body">
-              {detailLoading ? <p className="all-users-state">{translate("Loading...")}</p> : null}
+              {detailLoading ? (
+                <div className="finance-discounts-detail-loading" role="status">
+                  {translate("Loading...")}
+                </div>
+              ) : null}
               <div className="finance-ticket-summary finance-discounts-detail-summary">
                 <div>
                   <span>{translate("Discount")}</span>

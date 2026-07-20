@@ -519,8 +519,11 @@ function FinanceCashierPanel({
   const [appointmentTicketSource, setAppointmentTicketSource] = useState(null);
   const [appointmentTicketForm, setAppointmentTicketForm] = useState(EMPTY_APPOINTMENT_TICKET_FORM);
   const [appointmentTicketSubmitting, setAppointmentTicketSubmitting] = useState(false);
+  const [appointmentDiscountTouched, setAppointmentDiscountTouched] = useState(false);
+  const [appointmentDiscountPreviewLoading, setAppointmentDiscountPreviewLoading] = useState(false);
   const [cashSession, setCashSession] = useState(null);
   const boardRequestRef = useRef(0);
+  const appointmentDiscountPreviewRequestRef = useRef(0);
 
   const paymentMethodOptions = useMemo(() => board.paymentMethods.filter(Boolean).map((item) => ({
     value: String(item.id),
@@ -719,6 +722,89 @@ function FinanceCashierPanel({
   }, [loadCashSession]);
 
   useEffect(() => {
+    if (!appointmentTicketSource || appointmentDiscountTouched) {
+      return undefined;
+    }
+    const appointmentId = String(appointmentTicketSource.id || "").trim();
+    const serviceId = String(appointmentTicketForm.serviceId || "").trim();
+    const priceUzs = normalizeMoneyInput(appointmentTicketForm.priceUzs || appointmentTicketSource.servicePriceUzs);
+    if (!appointmentId || !serviceId || priceUzs <= 0) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    const requestId = appointmentDiscountPreviewRequestRef.current + 1;
+    appointmentDiscountPreviewRequestRef.current = requestId;
+    const timeoutId = globalThis.setTimeout(async () => {
+      setAppointmentDiscountPreviewLoading(true);
+      try {
+        const response = await apiFetch(`/api/finance/cashier/appointments/${encodeURIComponent(appointmentId)}/ticket-discount-preview`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amountUzs: priceUzs,
+            items: [{
+              serviceId,
+              serviceName: getAppointmentTicketServiceName({
+                source: appointmentTicketSource,
+                services: board.services,
+                serviceId
+              }),
+              specialistId: appointmentTicketSource.specialistId,
+              priceUzs
+            }]
+          })
+        });
+        const data = await readApiResponseData(response);
+        if (cancelled || appointmentDiscountPreviewRequestRef.current !== requestId || !response.ok) {
+          return;
+        }
+        const previewItem = Array.isArray(data?.item?.items) ? data.item.items[0] : null;
+        const discountType = String(previewItem?.discountType || "amount");
+        const discountUzs = normalizeMoneyInput(previewItem?.discountUzs ?? data?.item?.discountUzs);
+        const discountValue = discountType === "percent"
+          ? normalizeMoneyInput(previewItem?.discountValue)
+          : discountUzs;
+        setAppointmentTicketForm((current) => {
+          const currentServiceId = String(current.serviceId || "").trim();
+          const currentPriceUzs = normalizeMoneyInput(current.priceUzs || appointmentTicketSource.servicePriceUzs);
+          if (currentServiceId !== serviceId || currentPriceUzs !== priceUzs) {
+            return current;
+          }
+          return {
+            ...current,
+            discountType: discountUzs > 0 ? discountType : "amount",
+            discountValue: String(discountUzs > 0 ? discountValue : 0)
+          };
+        });
+      } catch {
+        if (!cancelled && appointmentDiscountPreviewRequestRef.current === requestId) {
+          setAppointmentTicketForm((current) => ({
+            ...current,
+            discountType: "amount",
+            discountValue: "0"
+          }));
+        }
+      } finally {
+        if (!cancelled && appointmentDiscountPreviewRequestRef.current === requestId) {
+          setAppointmentDiscountPreviewLoading(false);
+        }
+      }
+    }, 180);
+
+    return () => {
+      cancelled = true;
+      globalThis.clearTimeout(timeoutId);
+    };
+  }, [
+    appointmentDiscountTouched,
+    appointmentTicketForm.priceUzs,
+    appointmentTicketForm.serviceId,
+    appointmentTicketSource,
+    board.services
+  ]);
+
+  useEffect(() => {
     if (!manualModalOpen) {
       return undefined;
     }
@@ -809,6 +895,8 @@ function FinanceCashierPanel({
     if (!canCreateFinanceCashier) return;
     setAppointmentTicketSource(item);
     setAppointmentTicketForm(createAppointmentTicketForm(item));
+    setAppointmentDiscountTouched(false);
+    setAppointmentDiscountPreviewLoading(false);
   };
 
   const updateAppointmentStatus = async (item, status, { reload = true } = {}) => {
@@ -858,6 +946,8 @@ function FinanceCashierPanel({
     if (appointmentTicketSubmitting && !force) return;
     setAppointmentTicketSource(null);
     setAppointmentTicketForm(EMPTY_APPOINTMENT_TICKET_FORM);
+    setAppointmentDiscountTouched(false);
+    setAppointmentDiscountPreviewLoading(false);
   };
 
   const submitAppointmentTicket = async (event) => {
@@ -883,7 +973,7 @@ function FinanceCashierPanel({
         amountUzs: priceUzs,
         note: appointmentTicketForm.note
       };
-      payload.items = [{
+      const ticketItem = {
         serviceId,
         serviceName: getAppointmentTicketServiceName({
           source: item,
@@ -891,11 +981,14 @@ function FinanceCashierPanel({
           serviceId
         }),
         specialistId: item.specialistId,
-        priceUzs,
-        discountType: appointmentTicketForm.discountType,
-        discountValue: appointmentTicketForm.discountValue,
-        discountUzs: appointmentDiscountUzs
-      }];
+        priceUzs
+      };
+      if (appointmentDiscountTouched) {
+        ticketItem.discountType = appointmentTicketForm.discountType;
+        ticketItem.discountValue = appointmentTicketForm.discountValue;
+        ticketItem.discountUzs = appointmentDiscountUzs;
+      }
+      payload.items = [ticketItem];
       const response = await apiFetch("/api/finance/cashier/tickets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1653,10 +1746,13 @@ function FinanceCashierPanel({
                           onChange={(value) => {
                             const service = appointmentServiceOptions
                               .find((option) => option.value === String(value || ""))?.item || {};
+                            setAppointmentDiscountTouched(false);
                             setAppointmentTicketForm((current) => ({
                               ...current,
                               serviceId: value,
-                              priceUzs: String(normalizeMoneyInput(service.priceUzs ?? current.priceUzs))
+                              priceUzs: String(normalizeMoneyInput(service.priceUzs ?? current.priceUzs)),
+                              discountType: "amount",
+                              discountValue: "0"
                             }));
                           }}
                         />
@@ -1676,11 +1772,14 @@ function FinanceCashierPanel({
                         { value: "percent", label: translate("Percent") }
                       ]}
                       menuPortal
-                      onChange={(value) => setAppointmentTicketForm((current) => ({ ...current, discountType: value }))}
+                      onChange={(value) => {
+                        setAppointmentDiscountTouched(true);
+                        setAppointmentTicketForm((current) => ({ ...current, discountType: value }));
+                      }}
                     />
                   </label>
                   <label className="field finance-total-cell">
-                    <span>{translate("Discount")}</span>
+                    <span>{appointmentDiscountPreviewLoading ? translate("Loading...") : translate("Discount")}</span>
                     <input
                       type="number"
                       min="0"
@@ -1688,6 +1787,7 @@ function FinanceCashierPanel({
                       value={appointmentTicketForm.discountValue}
                       onChange={(event) => {
                         const value = event.currentTarget.value;
+                        setAppointmentDiscountTouched(true);
                         setAppointmentTicketForm((current) => ({ ...current, discountValue: value }));
                       }}
                     />
@@ -1711,7 +1811,7 @@ function FinanceCashierPanel({
 
               <div className="edit-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => closeAppointmentTicketModal()}>{translate("Cancel")}</button>
-                <button type="submit" className="btn" disabled={appointmentTicketSubmitting || appointmentFinalUzs <= 0}>
+                <button type="submit" className="btn" disabled={appointmentTicketSubmitting || appointmentPriceUzs <= 0}>
                   {appointmentTicketSubmitting ? "..." : translate("Save")}
                 </button>
               </div>

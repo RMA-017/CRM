@@ -376,6 +376,8 @@ export async function getFinanceClientDiscounts({ organizationId, filters = {} }
   const createdFrom = normalizeDate(filters.createdFrom ?? filters.created_from ?? filters.createdAtFrom ?? filters.created_at_from);
   const createdTo = normalizeDate(filters.createdTo ?? filters.created_to ?? filters.createdAtTo ?? filters.created_at_to);
   const client = normalizeText(filters.client ?? filters.clientName ?? filters.client_name, 96).toLowerCase();
+  const clientPhoneDigits = client.replace(/\D/g, "");
+  const clientNameTokens = client.split(/\s+/).filter(Boolean).slice(0, 6);
   const service = normalizeText(filters.service ?? filters.serviceName ?? filters.service_name, 128).toLowerCase();
   const isActive = normalizeActiveFilter(filters.isActive ?? filters.is_active ?? filters.active ?? filters.status);
   const where = [];
@@ -395,7 +397,19 @@ export async function getFinanceClientDiscounts({ organizationId, filters = {} }
     where.push(`AND r.created_at::date <= ${appendSqlParam(params, createdTo)}::date`);
   }
   if (client) {
-    where.push(`AND LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE ${appendSqlParam(params, `%${client}%`)}`);
+    const clientLikeParam = appendSqlParam(params, `%${client}%`);
+    const clientExactParam = appendSqlParam(params, client);
+    const clientPhoneParam = appendSqlParam(params, clientPhoneDigits ? `%${clientPhoneDigits}%` : "");
+    const clientTokenConditions = clientNameTokens.map((token) => (
+      `LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE ${appendSqlParam(params, `%${token}%`)}`
+    ));
+    where.push(`AND (
+      LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE ${clientLikeParam}
+      ${clientTokenConditions.length > 1 ? `OR (${clientTokenConditions.join(" AND ")})` : ""}
+      OR r.client_id::text = ${clientExactParam}
+      OR COALESCE(c.phone_number, '') LIKE ${clientLikeParam}
+      OR (${clientPhoneParam} <> '' AND regexp_replace(COALESCE(c.phone_number, ''), '[^0-9]', '', 'g') LIKE ${clientPhoneParam})
+    )`);
   }
   if (service) {
     where.push(`AND EXISTS (
@@ -643,7 +657,7 @@ export async function updateFinanceClientDiscount({ organizationId, id, payload,
   return detail?.item || null;
 }
 
-async function getDiscountCandidatesForService(db, { organizationId, clientId, serviceId }) {
+async function getDiscountCandidatesForService(db, { organizationId, clientId, serviceId, forUpdate = true }) {
   const result = await db.query(
     `SELECT r.id AS rule_id,
             rs.id AS rule_service_id,
@@ -669,13 +683,13 @@ async function getDiscountCandidatesForService(db, { organizationId, clientId, s
         AND r.is_active = TRUE
       ORDER BY r.created_at ASC, r.id ASC, rs.id ASC
       LIMIT 20
-      FOR UPDATE OF r, rs`,
+      ${forUpdate ? "FOR UPDATE OF r, rs" : ""}`,
     [organizationId, clientId, serviceId]
   );
   return result.rows;
 }
 
-export async function applyClientDiscountsToTicketItems(db, { organizationId, clientId, items }) {
+export async function applyClientDiscountsToTicketItems(db, { organizationId, clientId, items, forUpdate = true }) {
   const sourceItems = Array.isArray(items) ? items : [];
   const reservations = new Map();
   const nextItems = [];
@@ -685,7 +699,7 @@ export async function applyClientDiscountsToTicketItems(db, { organizationId, cl
       nextItems.push(item);
       continue;
     }
-    const candidates = await getDiscountCandidatesForService(db, { organizationId, clientId, serviceId });
+    const candidates = await getDiscountCandidatesForService(db, { organizationId, clientId, serviceId, forUpdate });
     const selected = candidates.find((candidate) => {
       if (candidate.limit_count === null || candidate.limit_count === undefined) return true;
       const reserved = reservations.get(String(candidate.rule_service_id)) || 0;

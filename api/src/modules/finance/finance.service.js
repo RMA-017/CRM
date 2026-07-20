@@ -4360,6 +4360,62 @@ export async function createFinanceTicket({ organizationId, payload, actorUserId
   }
 }
 
+export async function previewFinanceAppointmentTicketDiscount({ organizationId, id, payload = {} }) {
+  const appointmentScheduleId = parsePositiveInteger(id ?? payload?.appointmentScheduleId ?? payload?.appointment_schedule_id);
+  if (!appointmentScheduleId) {
+    const error = new Error("Appointment not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+  const db = await pool.connect();
+  try {
+    const appointment = await getAppointmentForTicket(db, { organizationId, appointmentScheduleId, forUpdate: false });
+    if (!appointment) {
+      const error = new Error("Appointment not found.");
+      error.statusCode = 404;
+      throw error;
+    }
+    const appointmentDate = normalizeDate(appointment.appointment_date);
+    const fallbackAmount = normalizeAmount(payload?.amountUzs ?? payload?.amount_uzs, 0) || normalizeAmount(appointment.service_price_uzs, 0);
+    const items = await buildTicketItems(db, {
+      organizationId,
+      payload,
+      appointment,
+      fallbackServiceName: appointment.service_name,
+      fallbackAmount
+    });
+    const discountedItems = await applyClientDiscountsToTicketItems(db, {
+      organizationId,
+      clientId: appointment.client_id,
+      items,
+      forUpdate: false
+    });
+    const totals = getTicketTotals(discountedItems);
+    return {
+      appointmentScheduleId,
+      clientId: appointment.client_id,
+      ticketDate: appointmentDate,
+      subtotalUzs: totals.subtotalUzs,
+      discountUzs: totals.discountUzs,
+      totalUzs: totals.totalUzs,
+      hasClientDiscount: discountedItems.some((item) => Boolean(item.clientDiscountRuleId)),
+      items: discountedItems.map((item) => ({
+        serviceId: item.serviceId,
+        serviceName: item.serviceName,
+        priceUzs: item.priceUzs,
+        discountType: item.discountType,
+        discountValue: item.discountValue,
+        discountUzs: item.discountUzs,
+        finalAmountUzs: item.finalAmountUzs,
+        clientDiscountRuleId: item.clientDiscountRuleId || null,
+        clientDiscountRuleServiceId: item.clientDiscountRuleServiceId || null
+      }))
+    };
+  } finally {
+    db.release();
+  }
+}
+
 export async function updateFinanceTicket({ organizationId, id, payload, actorUserId }) {
   const ticketId = parsePositiveInteger(id);
   const hasTicketDate = payload?.ticketDate !== undefined || payload?.ticket_date !== undefined;

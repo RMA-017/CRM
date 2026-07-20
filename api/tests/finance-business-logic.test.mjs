@@ -288,15 +288,21 @@ test("finance client discounts apply only to appointment tickets and keep usage 
   );
 
   assert.match(
-    financeDiscountsSource,
-    /const createdFrom = normalizeDate\(filters\.createdFrom[\s\S]*const client = normalizeText\(filters\.client \?\? filters\.clientName[\s\S]*const service = normalizeText\(filters\.service \?\? filters\.serviceName[\s\S]*const isActive = normalizeActiveFilter/s,
-    "Client discount list query should normalize created date, client name, service name, and active-state filters."
+    financeRouteSchemasSource,
+    /ticketDiscountPreviewBody:[\s\S]*appointmentScheduleId[\s\S]*amountUzs[\s\S]*serviceId[\s\S]*items:[\s\S]*ticketItemSchema/s,
+    "Appointment ticket discount preview should accept service item data."
   );
 
   assert.match(
     financeDiscountsSource,
-    /r\.created_at::date >=[\s\S]*r\.created_at::date <=[\s\S]*LOWER\(CONCAT_WS\(' ', c\.last_name, c\.first_name, c\.middle_name\)\) LIKE[\s\S]*finance_client_discount_rule_services rs_filter[\s\S]*r\.is_active =/s,
-    "Client discount list query should filter by created date, client name, service name, and active state."
+    /const createdFrom = normalizeDate\(filters\.createdFrom[\s\S]*const client = normalizeText\(filters\.client \?\? filters\.clientName[\s\S]*const clientPhoneDigits = client\.replace\(\/\\D\/g, ""\);[\s\S]*const clientNameTokens = client\.split\(\/\\s\+\/\)\.filter\(Boolean\)\.slice\(0, 6\);[\s\S]*const service = normalizeText\(filters\.service \?\? filters\.serviceName[\s\S]*const isActive = normalizeActiveFilter/s,
+    "Client discount list query should normalize created date, client search, service name, and active-state filters."
+  );
+
+  assert.match(
+    financeDiscountsSource,
+    /r\.created_at::date >=[\s\S]*r\.created_at::date <=[\s\S]*clientTokenConditions = clientNameTokens\.map[\s\S]*LOWER\(CONCAT_WS\(' ', c\.last_name, c\.first_name, c\.middle_name\)\) LIKE[\s\S]*clientTokenConditions\.join\(" AND "\)[\s\S]*r\.client_id::text =[\s\S]*COALESCE\(c\.phone_number, ''\) LIKE[\s\S]*regexp_replace\(COALESCE\(c\.phone_number[\s\S]*finance_client_discount_rule_services rs_filter[\s\S]*r\.is_active =/s,
+    "Client discount list query should filter by created date, client name/id/phone, service name, and active state."
   );
 
   assert.match(
@@ -319,6 +325,12 @@ test("finance client discounts apply only to appointment tickets and keep usage 
 
   assert.match(
     financeDiscountsSource,
+    /getDiscountCandidatesForService\(db,[\s\S]*forUpdate = true[\s\S]*\$\{forUpdate \? "FOR UPDATE OF r, rs" : ""\}[\s\S]*applyClientDiscountsToTicketItems\(db,[\s\S]*forUpdate = true/s,
+    "Discount candidates should lock for writes but allow read-only preview without row locks."
+  );
+
+  assert.match(
+    financeDiscountsSource,
     /updateFinanceClientDiscount[\s\S]*disableReason = normalizeText[\s\S]*if \(!isActive && !disableReason\)[\s\S]*Disable reason is required\.[\s\S]*disabled_reason = \$5[\s\S]*disabled_by = \$6[\s\S]*disabled_at = CASE WHEN \$3 = FALSE/s,
     "Disabling a client discount should require and persist the cashier's reason."
   );
@@ -327,6 +339,18 @@ test("finance client discounts apply only to appointment tickets and keep usage 
     financeServiceSource,
     /if \(appointmentScheduleId && appointment\) \{[\s\S]*applyClientDiscountsToTicketItems[\s\S]*\}[\s\S]*insertClientDiscountUsages/s,
     "Automatic client discounts should be applied during appointment-backed ticket creation."
+  );
+
+  assert.match(
+    financeRoutesSource,
+    /"\/cashier\/appointments\/:id\/ticket-discount-preview"[\s\S]*ticketDiscountPreviewBody[\s\S]*requireCashierAccess\(request, reply, "read"\)[\s\S]*previewFinanceAppointmentTicketDiscount/s,
+    "Cashier should be able to preview automatic client discounts before creating an appointment ticket."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /export async function previewFinanceAppointmentTicketDiscount[\s\S]*getAppointmentForTicket\(db,[\s\S]*forUpdate: false[\s\S]*buildTicketItems[\s\S]*applyClientDiscountsToTicketItems\(db,[\s\S]*forUpdate: false[\s\S]*hasClientDiscount/s,
+    "Appointment ticket discount preview should calculate the same client discount without consuming usage."
   );
 
   assert.doesNotMatch(

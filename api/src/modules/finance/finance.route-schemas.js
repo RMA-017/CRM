@@ -505,6 +505,29 @@ export const financeRouteSchemas = Object.freeze({
       }
     }
   },
+  ticketDiscountPreviewBody: {
+    type: "object",
+    additionalProperties: true,
+    properties: {
+      appointmentScheduleId: positiveIntegerLikeSchema,
+      appointment_schedule_id: positiveIntegerLikeSchema,
+      amountUzs: integerLikeSchema,
+      amount_uzs: integerLikeSchema,
+      serviceId: positiveIntegerLikeSchema,
+      service_id: positiveIntegerLikeSchema,
+      items: {
+        type: "array",
+        minItems: 1,
+        maxItems: 20,
+        items: ticketItemSchema
+      }
+    },
+    anyOf: [
+      { required: ["items"] },
+      { required: ["serviceId"] },
+      { required: ["service_id"] }
+    ]
+  },
   ticketCreateBody: {
     type: "object",
     additionalProperties: true,

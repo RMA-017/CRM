@@ -36,6 +36,7 @@ import {
   payFinanceTicketsBatch,
   openCashSession,
   payFinanceTicketsFromDeposit,
+  previewFinanceAppointmentTicketDiscount,
   payFinanceTicket,
   refundFinanceClientDeposit,
   refundFinanceTicket,
@@ -999,6 +1000,32 @@ async function financeRoutes(fastify) {
       } catch (error) {
         request.log.error({ err: error }, "Error updating finance cashier appointment status:");
         return sendRouteError(reply, error, "Appointment update failed.");
+      }
+    }
+  );
+
+  fastify.post(
+    "/cashier/appointments/:id/ticket-discount-preview",
+    {
+      config: { rateLimit: fastify.apiRateLimit },
+      schema: {
+        params: financeRouteSchemas.idParams,
+        body: financeRouteSchemas.ticketDiscountPreviewBody
+      }
+    },
+    async (request, reply) => {
+      try {
+        const requester = await requireCashierAccess(request, reply, "read");
+        if (!requester) return null;
+        const preview = await previewFinanceAppointmentTicketDiscount({
+          organizationId: request.authContext.organizationId,
+          id: request.params.id,
+          payload: request.body
+        });
+        return reply.send({ item: preview });
+      } catch (error) {
+        request.log.error({ err: error }, "Error previewing finance appointment ticket discount:");
+        return sendRouteError(reply, error, "Ticket discount preview failed.");
       }
     }
   );
