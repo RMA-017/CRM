@@ -855,14 +855,27 @@ function showImmediateAlert(text) {
   window.alert(message);
 }
 
-function confirmRecurringSeriesScopeAction(action) {
+function formatDateYmdForAlert(value) {
+  const raw = String(value || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw;
+  }
+  const [year, month, day] = raw.split("-");
+  return `${day}.${month}.${year}`;
+}
+
+function confirmRecurringSeriesScopeAction(action, options = {}) {
   if (typeof window === "undefined" || typeof window.confirm !== "function") {
     return true;
   }
 
   const normalizedAction = String(action || "").trim().toLowerCase();
-  const verb = normalizedAction === "delete" ? "удалит" : "изменит";
-  return window.confirm(`Это серийное занятие. Действие ${verb} будущие занятия этой серии. Продолжить?`);
+  const actionText = normalizedAction === "delete"
+    ? "Будут удалены будущие занятия этой серии."
+    : "Будут изменены будущие занятия этой серии.";
+  const startDate = formatDateYmdForAlert(options.startDate);
+  const startDateText = startDate ? `\nНачало действия: ${startDate}.` : "";
+  return window.confirm(`Это серийное занятие.${startDateText}\n${actionText}\nПродолжить?`);
 }
 
 function createDefaultWorkingHours() {
@@ -6868,7 +6881,7 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
       if (
         isEditRecurring
         && nextPayload.editScope !== "single"
-        && !confirmRecurringSeriesScopeAction("save")
+        && !confirmRecurringSeriesScopeAction("save", { startDate: appointmentDate })
       ) {
         return;
       }
@@ -6950,7 +6963,7 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
       if (
         isEditRecurring
         && deleteScope !== "single"
-        && !confirmRecurringSeriesScopeAction("delete")
+        && !confirmRecurringSeriesScopeAction("delete", { startDate: createForm.appointmentDate })
       ) {
         return;
       }

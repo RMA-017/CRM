@@ -627,9 +627,14 @@ test("Appointment scheduler recurring edit restores and submits series repeat se
     /if \(isEditMode\) \{[\s\S]*const queryParams = new URLSearchParams\(\{[\s\S]*scope: String\(nextPayload\.editScope \|\| "single"\)[\s\S]*if \(isEditRecurring && nextPayload\.editScope === "single"\) \{[\s\S]*const singleDayKeys = normalizeRepeatDayKeys\(\[selectedSingleRecurringEditDayKey\]\);[\s\S]*queryParams\.set\("dayKeys", singleDayKeys\.join\(","\)\);/s,
     "Recurring single-scope saves should target the selected weekday within the current series week."
   );
-  assert.match(
-    source,
-    /function confirmRecurringSeriesScopeAction\(action\)[\s\S]*window\.confirm\(`Это серийное занятие\.[\s\S]*будущие занятия этой серии\. Продолжить\?`\);[\s\S]*isEditRecurring[\s\S]*nextPayload\.editScope !== "single"[\s\S]*!confirmRecurringSeriesScopeAction\("save"\)[\s\S]*isEditRecurring[\s\S]*deleteScope !== "single"[\s\S]*!confirmRecurringSeriesScopeAction\("delete"\)/s,
-    "Recurring future-scope saves and deletes should require a browser confirmation."
+  assert.ok(
+    source.includes("function formatDateYmdForAlert(value)")
+      && source.includes("return `${day}.${month}.${year}`;")
+      && source.includes("Начало действия: ${startDate}.")
+      && source.includes("Будут изменены будущие занятия этой серии.")
+      && source.includes("Будут удалены будущие занятия этой серии.")
+      && source.includes('!confirmRecurringSeriesScopeAction("save", { startDate: appointmentDate })')
+      && source.includes('!confirmRecurringSeriesScopeAction("delete", { startDate: createForm.appointmentDate })'),
+    "Recurring future-scope saves and deletes should require a browser confirmation that shows the start date."
   );
 });

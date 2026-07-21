@@ -30,9 +30,14 @@ test("recurring appointment edit scope uses the shared series one checkbox", asy
     /editScope: isSpecialistLimitedEditMode \? "single" : normalizeEditScopeValue\(createForm\.editScope\)[\s\S]*const deleteScope = isSpecialistLimitedEditMode \? "single" : normalizeEditScopeValue\(createForm\.editScope\)/s,
     "Submitting or deleting a cancelled recurring appointment should respect the selected One/future scope."
   );
-  assert.match(
-    source,
-    /function confirmRecurringSeriesScopeAction\(action\)[\s\S]*window\.confirm\(`Это серийное занятие\.[\s\S]*будущие занятия этой серии\. Продолжить\?`\);[\s\S]*isEditRecurring[\s\S]*nextPayload\.editScope !== "single"[\s\S]*!confirmRecurringSeriesScopeAction\("save"\)[\s\S]*isEditRecurring[\s\S]*deleteScope !== "single"[\s\S]*!confirmRecurringSeriesScopeAction\("delete"\)/s,
+  assert.ok(
+    source.includes("function formatDateYmdForAlert(value)")
+      && source.includes("return `${day}.${month}.${year}`;")
+      && source.includes("Начало действия: ${startDate}.")
+      && source.includes("Будут изменены будущие занятия этой серии.")
+      && source.includes("Будут удалены будущие занятия этой серии.")
+      && source.includes('!confirmRecurringSeriesScopeAction("save", { startDate: appointmentDate })')
+      && source.includes('!confirmRecurringSeriesScopeAction("delete", { startDate: createForm.appointmentDate })'),
     "Recurring future-scope saves and deletes should require a browser confirmation."
   );
 });
