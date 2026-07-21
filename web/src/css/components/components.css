@@ -5664,15 +5664,15 @@ label.field > span:first-child,
 }
 
 .appointment-repeat-day-chip.is-current-entry-day {
-  border-color: #f59e0b;
-  background: rgba(245, 158, 11, 0.14);
-  color: #92400e;
-  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.36);
+  border-color: #14b8a6;
+  background: rgba(20, 184, 166, 0.14);
+  color: #0f766e;
+  box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.34);
 }
 
 .appointment-repeat-day-chip.is-current-entry-day input[type="checkbox"]:checked {
-  border-color: #f59e0b;
-  background-color: #f59e0b;
+  border-color: #14b8a6;
+  background-color: #14b8a6;
 }
 
 .appointment-repeat-until-field {

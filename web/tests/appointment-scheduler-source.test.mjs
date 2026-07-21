@@ -599,7 +599,7 @@ test("Appointment scheduler recurring edit restores and submits series repeat se
   );
   assert.match(
     css,
-    /\.appointment-repeat-day-chip\.is-current-entry-day \{[\s\S]*border-color:\s*#f59e0b;[\s\S]*background:\s*rgba\(245, 158, 11, 0\.14\);[\s\S]*box-shadow:/s,
+    /\.appointment-repeat-day-chip\.is-current-entry-day \{[\s\S]*border-color:\s*#14b8a6;[\s\S]*background:\s*rgba\(20, 184, 166, 0\.14\);[\s\S]*box-shadow:/s,
     "The current single recurring edit day should have a distinct but subtle highlight."
   );
   assert.match(
