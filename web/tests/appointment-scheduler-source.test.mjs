@@ -542,7 +542,10 @@ test("Appointment planner exposes specialist range bulk cancellation", async () 
 });
 
 test("Appointment scheduler recurring edit restores and submits series repeat settings", async () => {
-  const source = await readFile(new URL("../src/pages/profile/AppointmentScheduler.jsx", import.meta.url), "utf8");
+  const [source, css] = await Promise.all([
+    readFile(new URL("../src/pages/profile/AppointmentScheduler.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/css/components/components.css", import.meta.url), "utf8")
+  ]);
 
   assert.match(
     source,
@@ -561,8 +564,8 @@ test("Appointment scheduler recurring edit restores and submits series repeat se
   );
   assert.match(
     source,
-    /const displayedRepeatDayKeys = useMemo\(\(\) => \{[\s\S]*if \(!isEditRecurring \|\| normalizedEditScope !== "single"\) \{[\s\S]*return normalizedFormRepeatDays;[\s\S]*if \(normalizedFormRepeatDays\.length > 0\) \{[\s\S]*return normalizedFormRepeatDays;[\s\S]*return DAY_KEYS_SET\.has\(sourceRecurringEditDayKey\) \? \[sourceRecurringEditDayKey\] : normalizedFormRepeatDays;[\s\S]*const selectedSingleRecurringEditDayKey = useMemo/s,
-    "Recurring single-scope edits should show the full stored series pattern while still tracking a single target weekday."
+    /const displayedRepeatDayKeys = useMemo\(\(\) => \{[\s\S]*if \(!isEditRecurring \|\| normalizedEditScope !== "single"\) \{[\s\S]*return normalizedFormRepeatDays;[\s\S]*if \(originalRecurringEditRepeatDays\.length > 0\) \{[\s\S]*return originalRecurringEditRepeatDays;[\s\S]*return DAY_KEYS_SET\.has\(sourceRecurringEditDayKey\) \? \[sourceRecurringEditDayKey\] : normalizedFormRepeatDays;[\s\S]*const selectedSingleRecurringEditDayKey = useMemo/s,
+    "Recurring single-scope edits should show the stored series pattern while tracking the opened weekday."
   );
   assert.match(
     source,
@@ -576,13 +579,28 @@ test("Appointment scheduler recurring edit restores and submits series repeat se
   );
   assert.match(
     source,
-    /const sourceRecurringEditDayKey = String\(createModal\.dayKey \|\| ""\)\.trim\(\)\.toLowerCase\(\);[\s\S]*const originalRecurringEditRepeatDays = normalizeRepeatDayKeys\(createModal\.originalRepeatDays\);[\s\S]*const allowedSingleRecurringEditDayKeys = isEditRecurring && normalizedEditScope === "single"/s,
-    "Recurring edits should still support a single target weekday when One is checked."
+    /const sourceRecurringEditDayKey = String\(createModal\.dayKey \|\| ""\)\.trim\(\)\.toLowerCase\(\);[\s\S]*const originalRecurringEditRepeatDays = normalizeRepeatDayKeys\(createModal\.originalRepeatDays\);[\s\S]*const allowedSingleRecurringEditDayKeys = isEditRecurring && normalizedEditScope === "single"[\s\S]*const selectedSingleRecurringEditDayKey = useMemo\(\(\) => \{[\s\S]*DAY_KEYS_SET\.has\(sourceRecurringEditDayKey\)[\s\S]*return sourceRecurringEditDayKey;/s,
+    "Recurring One edits should keep the opened weekday as the single target."
   );
   assert.match(
     source,
-    /const allowedSingleRecurringEditDayKeys = isEditRecurring && normalizedEditScope === "single"[\s\S]*const isDisabledForSingleRecurringEdit = \([\s\S]*allowedSingleRecurringEditDayKeys\.length > 0[\s\S]*!allowedSingleRecurringEditDayKeys\.includes\(day\.key\)[\s\S]*normalizedEditScope !== "single"[\s\S]*: isDisabledForSingleRecurringEdit/s,
-    "Recurring single-scope edits should allow target selection only from the original series weekdays."
+    /const currentSingleRecurringEditDayKey = \([\s\S]*isEditRecurring && normalizedEditScope === "single"[\s\S]*selectedSingleRecurringEditDayKey[\s\S]*const selectedVipClassClients/s,
+    "Recurring single-scope edits should track the opened weekday as the highlighted target."
+  );
+  assert.match(
+    source,
+    /if \(isEditRecurring && normalizedEditScope === "single"\) \{[\s\S]*return;[\s\S]*const appointmentDayKey = getDayKeyFromDateYmd\(createForm\.appointmentDate\);/s,
+    "Recurring single-scope weekday chips should be read-only, leaving the opened weekday as the target."
+  );
+  assert.match(
+    source,
+    /const isCurrentSingleRecurringEditDay = currentSingleRecurringEditDayKey === day\.key;[\s\S]*const isRepeatDayDisabled = \([\s\S]*normalizedEditScope === "single"[\s\S]*\? isEditRecurring \|\| isDisabledForSingleRecurringEdit[\s\S]*className=\{`appointment-repeat-day-chip\$\{checked \? " is-active" : ""\}\$\{isRepeatDayDisabled \? " is-disabled" : ""\}\$\{isCurrentSingleRecurringEditDay \? " is-current-entry-day" : ""\}`\}/s,
+    "Recurring single-scope repeat weekdays should disable editing and highlight the current entry day."
+  );
+  assert.match(
+    css,
+    /\.appointment-repeat-day-chip\.is-current-entry-day \{[\s\S]*border-color:\s*#f59e0b;[\s\S]*background:\s*rgba\(245, 158, 11, 0\.14\);[\s\S]*box-shadow:/s,
+    "The current single recurring edit day should have a distinct but subtle highlight."
   );
   assert.match(
     source,

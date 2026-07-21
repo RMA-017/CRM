@@ -5633,6 +5633,14 @@ label.field > span:first-child,
     background-color var(--dur) ease;
 }
 
+.appointment-repeat-day-chip.is-disabled {
+  cursor: default;
+}
+
+.appointment-repeat-day-chip.is-disabled input[type="checkbox"] {
+  cursor: default;
+}
+
 .appointment-repeat-day-chip input[type="checkbox"]:checked {
   border-color: var(--brand);
   background-color: var(--brand);
@@ -5653,6 +5661,18 @@ label.field > span:first-child,
   border-color: var(--accent-border-hover);
   background: rgba(64, 138, 243, 0.14);
   color: var(--brand);
+}
+
+.appointment-repeat-day-chip.is-current-entry-day {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.14);
+  color: #92400e;
+  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.36);
+}
+
+.appointment-repeat-day-chip.is-current-entry-day input[type="checkbox"]:checked {
+  border-color: #f59e0b;
+  background-color: #f59e0b;
 }
 
 .appointment-repeat-until-field {

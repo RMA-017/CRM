@@ -3988,14 +3988,29 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
     if (!isEditRecurring || normalizedEditScope !== "single") {
       return normalizedFormRepeatDays;
     }
+    if (originalRecurringEditRepeatDays.length > 0) {
+      return originalRecurringEditRepeatDays;
+    }
     if (normalizedFormRepeatDays.length > 0) {
       return normalizedFormRepeatDays;
     }
     return DAY_KEYS_SET.has(sourceRecurringEditDayKey) ? [sourceRecurringEditDayKey] : normalizedFormRepeatDays;
-  }, [createForm.repeatDays, isEditRecurring, normalizedEditScope, sourceRecurringEditDayKey]);
+  }, [
+    createForm.repeatDays,
+    isEditRecurring,
+    normalizedEditScope,
+    originalRecurringEditRepeatDays,
+    sourceRecurringEditDayKey
+  ]);
   const selectedSingleRecurringEditDayKey = useMemo(() => {
     if (!isEditRecurring || normalizedEditScope !== "single") {
       return "";
+    }
+    if (
+      DAY_KEYS_SET.has(sourceRecurringEditDayKey)
+      && allowedSingleRecurringEditDayKeys.includes(sourceRecurringEditDayKey)
+    ) {
+      return sourceRecurringEditDayKey;
     }
     const normalizedFormRepeatDays = normalizeRepeatDayKeys(createForm.repeatDays);
     if (
@@ -4003,12 +4018,6 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
       && allowedSingleRecurringEditDayKeys.includes(normalizedFormRepeatDays[0])
     ) {
       return normalizedFormRepeatDays[0];
-    }
-    if (
-      DAY_KEYS_SET.has(sourceRecurringEditDayKey)
-      && allowedSingleRecurringEditDayKeys.includes(sourceRecurringEditDayKey)
-    ) {
-      return sourceRecurringEditDayKey;
     }
     return allowedSingleRecurringEditDayKeys[0] || "";
   }, [
@@ -4018,6 +4027,11 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
     normalizedEditScope,
     sourceRecurringEditDayKey
   ]);
+  const currentSingleRecurringEditDayKey = (
+    isEditRecurring && normalizedEditScope === "single"
+      ? selectedSingleRecurringEditDayKey
+      : ""
+  );
   const selectedVipClassClients = useMemo(() => {
     if (!vipOnly) {
       return [];
@@ -7205,20 +7219,10 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
     if (!visibleRepeatDayKeys.includes(normalizedDayKey)) {
       return;
     }
-    const appointmentDayKey = getDayKeyFromDateYmd(createForm.appointmentDate);
     if (isEditRecurring && normalizedEditScope === "single") {
-      if (
-        allowedSingleRecurringEditDayKeys.length > 0
-        && !allowedSingleRecurringEditDayKeys.includes(normalizedDayKey)
-      ) {
-        return;
-      }
-      setCreateForm((prev) => ({ ...prev, repeatDays: [normalizedDayKey] }));
-      if (createErrors.repeatDays) {
-        setCreateErrors((prev) => ({ ...prev, repeatDays: "" }));
-      }
       return;
     }
+    const appointmentDayKey = getDayKeyFromDateYmd(createForm.appointmentDate);
 
     setCreateForm((prev) => {
       const currentDays = Array.isArray(prev.repeatDays)
@@ -8552,24 +8556,26 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
                               && allowedSingleRecurringEditDayKeys.length > 0
                               && !allowedSingleRecurringEditDayKeys.includes(day.key)
                             );
+                            const isCurrentSingleRecurringEditDay = currentSingleRecurringEditDayKey === day.key;
+                            const isRepeatDayDisabled = (
+                              isSingleEntryMode
+                              || createSubmitting
+                              || createDeleting
+                              || (
+                                normalizedEditScope === "single"
+                                  ? isEditRecurring || isDisabledForSingleRecurringEdit
+                                  : !canEditRecurringSeriesPattern
+                              )
+                            );
                             return (
                               <label
                                 key={day.key}
-                                className={`appointment-repeat-day-chip${checked ? " is-active" : ""}`}
+                                className={`appointment-repeat-day-chip${checked ? " is-active" : ""}${isRepeatDayDisabled ? " is-disabled" : ""}${isCurrentSingleRecurringEditDay ? " is-current-entry-day" : ""}`}
                               >
                                 <input
                                   type="checkbox"
                                   checked={checked}
-                                  disabled={(
-                                    isSingleEntryMode
-                                    || createSubmitting
-                                    || createDeleting
-                                    || (
-                                      normalizedEditScope !== "single"
-                                        ? !canEditRecurringSeriesPattern
-                                        : isDisabledForSingleRecurringEdit
-                                    )
-                                  )}
+                                  disabled={isRepeatDayDisabled}
                                   onChange={() => toggleRepeatDay(day.key)}
                                 />
                                 <span>{day.shortLabel}</span>
