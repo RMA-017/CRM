@@ -740,11 +740,15 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
     return map;
   }, [editServiceOptions]);
 
+  const getEditItemPrice = useCallback((item) => {
+    const service = editServiceById.get(String(item?.serviceId || ""));
+    const catalogPriceUzs = normalizeMoneyInput(service?.priceUzs);
+    return catalogPriceUzs > 0 ? catalogPriceUzs : normalizeMoneyInput(item?.priceUzs);
+  }, [editServiceById]);
+
   const editTotals = useMemo(() => {
     const subtotalUzs = editForm.items.reduce((sum, item) => {
-      const service = editServiceById.get(String(item.serviceId || ""));
-      const priceUzs = normalizeMoneyInput(service?.priceUzs ?? item.priceUzs);
-      return sum + priceUzs;
+      return sum + getEditItemPrice(item);
     }, 0);
     const discountUzs = calculateDiscountUzs({
       priceUzs: subtotalUzs,
@@ -756,7 +760,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
       discountUzs,
       totalUzs: Math.max(subtotalUzs - discountUzs, 0)
     };
-  }, [editForm.discountType, editForm.discountValue, editForm.items, editServiceById]);
+  }, [editForm.discountType, editForm.discountValue, editForm.items, getEditItemPrice]);
 
   const applyFilters = (event) => {
     event.preventDefault();
@@ -968,6 +972,10 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
         window.alert?.(translate("Service is required."));
         return;
       }
+      if (getEditItemPrice(item) <= 0) {
+        window.alert?.(translate("Service price is required."));
+        return;
+      }
     }
     if (editTotals.totalUzs <= 0) {
       window.alert?.(translate("Ticket amount is required."));
@@ -979,10 +987,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
       return;
     }
     const editItemDiscounts = distributeDiscountUzs(
-      editForm.items.map((item) => {
-        const service = editServiceById.get(String(item.serviceId || ""));
-        return normalizeMoneyInput(service?.priceUzs ?? item.priceUzs);
-      }),
+      editForm.items.map((item) => getEditItemPrice(item)),
       editTotals.discountUzs
     );
 
@@ -992,6 +997,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
         items: editForm.items.map((item, index) => ({
           specialistId: item.specialistId,
           serviceId: item.serviceId,
+          priceUzs: getEditItemPrice(item),
           discountType: editForm.discountType === "percent" ? "percent" : "amount",
           discountValue: editForm.discountType === "percent"
             ? editForm.discountValue
@@ -1470,72 +1476,94 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                 </div>
 
                 <div className="finance-ticket-edit-items">
-                  {editForm.items.map((item, index) => (
-                    <div className="finance-ticket-edit-item" key={`${index}-${item.serviceId}-${item.specialistId}`}>
-                      <div className="finance-ticket-edit-item-head">
-                        <h4>{`${translate("Bill")} ${index + 1}`}</h4>
-                        <div className="finance-ticket-edit-item-actions">
-                          <button
-                            type="button"
-                            className="table-action-btn table-action-btn-danger finance-ticket-icon-btn"
-                            aria-label={translate("Remove")}
-                            title={translate("Remove")}
-                            disabled={isAppointmentSourceTicket(editTicket) || editForm.items.length <= 1}
-                            onClick={() => removeEditItem(index)}
-                          >
-                            ×
-                          </button>
+                  {editForm.items.map((item, index) => {
+                    const selectedService = editServiceById.get(String(item.serviceId || ""));
+                    const requiresManualPrice = Boolean(item.serviceId)
+                      && normalizeMoneyInput(selectedService?.priceUzs) <= 0;
+                    return (
+                      <div className="finance-ticket-edit-item" key={`${index}-${item.serviceId}-${item.specialistId}`}>
+                        <div className="finance-ticket-edit-item-head">
+                          <h4>{`${translate("Bill")} ${index + 1}`}</h4>
+                          <div className="finance-ticket-edit-item-actions">
+                            <button
+                              type="button"
+                              className="table-action-btn table-action-btn-danger finance-ticket-icon-btn"
+                              aria-label={translate("Remove")}
+                              title={translate("Remove")}
+                              disabled={isAppointmentSourceTicket(editTicket) || editForm.items.length <= 1}
+                              onClick={() => removeEditItem(index)}
+                            >
+                              ×
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                      <div className="finance-ticket-edit-item-grid">
-                        {isAppointmentSourceTicket(editTicket) ? (
-                          <input
-                            type="text"
-                            className="finance-ticket-edit-readonly-input"
-                            value={getSelectedOptionLabel(editSpecialistOptions, item.specialistId, item.specialistName || translate("Select specialist"))}
-                            readOnly
-                            title={translate("Field is locked because ticket was created from appointment.")}
-                          />
-                        ) : (
+                        <div className={`finance-ticket-edit-item-grid${requiresManualPrice ? " has-manual-price" : ""}`}>
+                          {isAppointmentSourceTicket(editTicket) ? (
+                            <input
+                              type="text"
+                              className="finance-ticket-edit-readonly-input"
+                              value={getSelectedOptionLabel(editSpecialistOptions, item.specialistId, item.specialistName || translate("Select specialist"))}
+                              readOnly
+                              title={translate("Field is locked because ticket was created from appointment.")}
+                            />
+                          ) : (
+                            <CustomSelect
+                              value={item.specialistId}
+                              options={editSpecialistOptions}
+                              placeholder={translate("Select specialist")}
+                              searchable
+                              searchPlaceholder={translate("Search")}
+                              searchThreshold={8}
+                              menuPortal
+                              disabled={editReferencesLoading && editSpecialistOptions.length === 0}
+                              onChange={(value) => {
+                                const specialist = editSpecialists.find((row) => String(row?.id || "") === String(value));
+                                updateEditItem(index, {
+                                  specialistId: value,
+                                  specialistName: specialist?.fullName || item.specialistName
+                                });
+                              }}
+                            />
+                          )}
                           <CustomSelect
-                            value={item.specialistId}
-                            options={editSpecialistOptions}
-                            placeholder={translate("Select specialist")}
+                            value={item.serviceId}
+                            options={editServiceOptions}
+                            placeholder={translate("Select service type")}
                             searchable
                             searchPlaceholder={translate("Search")}
                             searchThreshold={8}
                             menuPortal
-                            disabled={editReferencesLoading && editSpecialistOptions.length === 0}
+                            disabled={editReferencesLoading && editServiceOptions.length === 0}
                             onChange={(value) => {
-                              const specialist = editSpecialists.find((row) => String(row?.id || "") === String(value));
+                              const service = editServiceById.get(String(value)) || {};
+                              const catalogPriceUzs = normalizeMoneyInput(service.priceUzs);
                               updateEditItem(index, {
-                                specialistId: value,
-                                specialistName: specialist?.fullName || item.specialistName
+                                serviceId: value,
+                                serviceName: service.name || item.serviceName,
+                                priceUzs: catalogPriceUzs > 0 ? String(catalogPriceUzs) : ""
                               });
                             }}
                           />
-                        )}
-                        <CustomSelect
-                          value={item.serviceId}
-                          options={editServiceOptions}
-                          placeholder={translate("Select service type")}
-                          searchable
-                          searchPlaceholder={translate("Search")}
-                          searchThreshold={8}
-                          menuPortal
-                          disabled={editReferencesLoading && editServiceOptions.length === 0}
-                          onChange={(value) => {
-                            const service = editServiceById.get(String(value)) || {};
-                            updateEditItem(index, {
-                              serviceId: value,
-                              serviceName: service.name || item.serviceName,
-                              priceUzs: normalizeMoneyInput(service.priceUzs ?? item.priceUzs)
-                            });
-                          }}
-                        />
+                          {requiresManualPrice ? (
+                            <label className="field finance-ticket-edit-price-field">
+                              <input
+                                type="number"
+                                min="1"
+                                inputMode="numeric"
+                                aria-label={translate("Price")}
+                                placeholder={translate("Price")}
+                                value={item.priceUzs}
+                                onChange={(event) => updateEditItem(index, {
+                                  priceUzs: event.currentTarget.value
+                                })}
+                                required
+                              />
+                            </label>
+                          ) : null}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <label className="field finance-ticket-edit-reason-field">

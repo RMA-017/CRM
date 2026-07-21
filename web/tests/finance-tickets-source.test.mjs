@@ -330,6 +330,26 @@ test("ticket edit modal uses one shared discount and distributes it to line item
     "Edited shared percent discounts should keep percent metadata while sending exact distributed UZS discounts."
   );
   assert.match(
+    source,
+    /const getEditItemPrice = useCallback\(\(item\) => \{[\s\S]*catalogPriceUzs > 0 \? catalogPriceUzs : normalizeMoneyInput\(item\?\.priceUzs\)/s,
+    "Edit ticket rows should fall back to an entered price when the selected service has no catalog price."
+  );
+  assert.match(
+    source,
+    /const requiresManualPrice = Boolean\(item\.serviceId\)[\s\S]*normalizeMoneyInput\(selectedService\?\.priceUzs\) <= 0;[\s\S]*finance-ticket-edit-item-grid\$\{requiresManualPrice \? " has-manual-price" : ""\}[\s\S]*aria-label=\{translate\("Price"\)\}[\s\S]*placeholder=\{translate\("Price"\)\}[\s\S]*value=\{item\.priceUzs\}/s,
+    "Edit ticket modal should show an inline price input for selected zero-price services."
+  );
+  assert.match(
+    source,
+    /if \(getEditItemPrice\(item\) <= 0\) \{[\s\S]*translate\("Service price is required\."\)[\s\S]*priceUzs: getEditItemPrice\(item\)/s,
+    "Edited ticket payloads should require and submit the manual price snapshot."
+  );
+  assert.match(
+    styles,
+    /#financeTicketEditModal \.finance-ticket-edit-item-grid\.has-manual-price \{[\s\S]*grid-template-columns:[\s\S]*minmax\(120px, 0\.55fr\);[\s\S]*#financeTicketEditModal \.finance-ticket-edit-price-field \{[\s\S]*min-width: 0;/s,
+    "The edit ticket manual price field should fit inside the row grid."
+  );
+  assert.match(
     styles,
     /#financeTicketEditModal \.finance-ticket-edit-item-grid \{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[\s\S]*#financeTicketEditModal \.finance-ticket-edit-readonly-input \{[\s\S]*color: var\(--text-main\);[\s\S]*#financeTicketEditModal \.finance-ticket-edit-total \{[\s\S]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/s,
     "Edit ticket item rows should show equal controls and readable locked inputs while the shared total row has four cells."

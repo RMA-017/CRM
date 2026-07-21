@@ -9447,6 +9447,13 @@ button.finance-daily-cash-method-card:disabled {
   align-items: end;
 }
 
+#financeTicketEditModal .finance-ticket-edit-item-grid.has-manual-price {
+  grid-template-columns:
+    minmax(140px, 0.8fr)
+    minmax(220px, 1.2fr)
+    minmax(120px, 0.55fr);
+}
+
 #financeTicketEditModal .finance-ticket-edit-item-grid > * {
   min-width: 0;
 }
@@ -9460,6 +9467,10 @@ button.finance-daily-cash-method-card:disabled {
   background: var(--input-bg);
   cursor: default;
   -webkit-text-fill-color: var(--text-main);
+}
+
+#financeTicketEditModal .finance-ticket-edit-price-field {
+  min-width: 0;
 }
 
 #financeTicketEditModal .finance-ticket-edit-reason-field {
@@ -10649,6 +10660,10 @@ button.finance-daily-cash-method-card:disabled {
 
   #financeTicketEditModal .finance-ticket-edit-item-grid,
   #financeTicketEditModal .finance-ticket-edit-total {
+    grid-template-columns: 1fr;
+  }
+
+  #financeTicketEditModal .finance-ticket-edit-item-grid.has-manual-price {
     grid-template-columns: 1fr;
   }
 
