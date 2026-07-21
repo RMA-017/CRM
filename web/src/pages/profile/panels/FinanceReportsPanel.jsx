@@ -12,6 +12,8 @@ const EMPTY_FILTERS = Object.freeze({
   ticketCreatedTo: "",
   ticketDateFrom: "",
   ticketDateTo: "",
+  appointmentDateFrom: "",
+  appointmentDateTo: "",
   paymentDateFrom: "",
   paymentDateTo: "",
   ticketNumber: "",
@@ -36,6 +38,7 @@ const EMPTY_FILTERS = Object.freeze({
   ticketPaidTo: "",
   transactionType: "",
   transactionStatus: "",
+  appointmentStatus: "",
   ticketStatus: ""
 });
 
@@ -69,9 +72,18 @@ const CLIENT_GENDER_OPTIONS = Object.freeze([
   { value: "female", label: "Female" }
 ]);
 
+const APPOINTMENT_STATUS_OPTIONS = Object.freeze([
+  { value: "", label: "All" },
+  { value: "pending", label: "Pending" },
+  { value: "confirmed", label: "Confirmed" },
+  { value: "cancelled", label: "Cancelled" },
+  { value: "no-show", label: "No Show" }
+]);
+
 const REPORT_COLUMN_OPTIONS = Object.freeze([
   { key: "ticketCreatedAt", label: "Ticket Created At" },
   { key: "ticketDate", label: "Ticket Date" },
+  { key: "appointmentDate", label: "Appointment Date" },
   { key: "paymentDate", label: "Ticket Payment Date" },
   { key: "ticketNumber", label: "Ticket Number" },
   { key: "paymentMethod", label: "Payment Method" },
@@ -90,18 +102,21 @@ const REPORT_COLUMN_OPTIONS = Object.freeze([
   { key: "ticketPaid", label: "Paid Amount" },
   { key: "operationType", label: "Operation Type" },
   { key: "operationStatus", label: "Operation Status" },
+  { key: "appointmentStatus", label: "Appointment Status" },
   { key: "ticketStatus", label: "Ticket Status" }
 ]);
 
 const REPORT_COLUMN_DEPENDENCIES = Object.freeze({
   ticketToPay: ["ticketNumber"],
   ticketPaid: ["ticketNumber", "ticketToPay"],
+  appointmentStatus: ["appointmentDate"],
   ticketStatus: ["ticketNumber"]
 });
 
 const REPORT_FILTER_KEYS_BY_COLUMN = Object.freeze({
   ticketCreatedAt: ["ticketCreatedFrom", "ticketCreatedTo"],
   ticketDate: ["ticketDateFrom", "ticketDateTo"],
+  appointmentDate: ["appointmentDateFrom", "appointmentDateTo"],
   paymentDate: ["paymentDateFrom", "paymentDateTo"],
   ticketNumber: ["ticketNumber"],
   paymentMethod: ["paymentMethodId"],
@@ -120,6 +135,7 @@ const REPORT_FILTER_KEYS_BY_COLUMN = Object.freeze({
   ticketPaid: ["ticketPaidFrom", "ticketPaidTo"],
   operationType: ["transactionType"],
   operationStatus: ["transactionStatus"],
+  appointmentStatus: ["appointmentStatus"],
   ticketStatus: ["ticketStatus"]
 });
 
@@ -201,7 +217,10 @@ function getTransactionActionLabel(translate, item) {
     deposit_ticket_payment: "Client balance ticket payment",
     deposit_ticket_refund: "Client balance ticket refund",
     refund: "Ticket refund",
-    correction: "Balance correction"
+    correction: "Balance correction",
+    appointment: "Appointment",
+    appointment_cancelled: "Cancelled appointment",
+    appointment_no_show: "No-show appointment"
   };
   const type = String(item?.transactionType || "");
   const base = translate(labels[type] || type || "-");
@@ -221,6 +240,22 @@ function getTicketStatusLabel(translate, value) {
   return status ? translate(labels[status] || status) : "-";
 }
 
+function getAppointmentStatusLabel(translate, value) {
+  const status = String(value || "").trim().toLowerCase();
+  const labels = {
+    pending: "Pending",
+    confirmed: "Confirmed",
+    cancelled: "Cancelled",
+    "no-show": "No Show"
+  };
+  return status ? translate(labels[status] || status) : "-";
+}
+
+function isAppointmentReportRow(item) {
+  const type = String(item?.transactionType || "").trim().toLowerCase();
+  return type === "appointment" || type.startsWith("appointment_");
+}
+
 function getReportColumnValue(columnKey, item, translate, forExport = false) {
   const hasTicket = Boolean(item.ticketId || item.ticketNumber);
   const ticketNumberValue = (field) => {
@@ -237,6 +272,8 @@ function getReportColumnValue(columnKey, item, translate, forExport = false) {
       return formatDateTimeTashkent(item.ticketCreatedAt);
     case "ticketDate":
       return formatDateYMD(item.ticketDate);
+    case "appointmentDate":
+      return formatDateYMD(item.appointmentDate);
     case "paymentDate":
       return formatDateTimeTashkent(item.transactionAt);
     case "ticketNumber":
@@ -262,6 +299,7 @@ function getReportColumnValue(columnKey, item, translate, forExport = false) {
     case "cashier":
       return item.cashierName || "-";
     case "paymentMethod":
+      if (isAppointmentReportRow(item)) return forExport ? "" : "-";
       return item.paymentMethodName || translate("Balance");
     case "ticketDiscount":
       return ticketNumberValue("serviceDiscountUzs");
@@ -285,7 +323,10 @@ function getReportColumnValue(columnKey, item, translate, forExport = false) {
       return getTransactionActionLabel(translate, item);
     case "ticketStatus":
       return getTicketStatusLabel(translate, item.ticketStatus);
+    case "appointmentStatus":
+      return getAppointmentStatusLabel(translate, item.appointmentStatus);
     case "operationStatus":
+      if (isAppointmentReportRow(item)) return forExport ? "" : "-";
       return item.status === "voided" ? translate("Cancelled") : translate("Active");
     default:
       return "-";
@@ -296,7 +337,7 @@ function getReportColumnClass(columnKey) {
   if (["serviceAmount", "ticketDiscount", "ticketToPay", "ticketPaid"].includes(columnKey)) {
     return "finance-reports-amount-cell";
   }
-  if (["ticketNumber", "clientId", "clientGender", "ticketStatus", "operationStatus"].includes(columnKey)) {
+  if (["ticketNumber", "clientId", "clientGender", "ticketStatus", "appointmentStatus", "operationStatus"].includes(columnKey)) {
     return "finance-reports-center-cell";
   }
   return "";
@@ -1058,6 +1099,7 @@ function FinanceReportsPanel({ onClose }) {
               <div className="all-users-edit-fields settings-filter-grid finance-reports-filter-grid">
                 {renderDateRangeField("ticketCreatedAt", "Ticket Created At", "ticketCreatedFrom", "ticketCreatedTo")}
                 {renderDateRangeField("ticketDate", "Ticket Date", "ticketDateFrom", "ticketDateTo")}
+                {renderDateRangeField("appointmentDate", "Appointment Date", "appointmentDateFrom", "appointmentDateTo")}
                 {renderDateRangeField("paymentDate", "Ticket Payment Date", "paymentDateFrom", "paymentDateTo")}
                 <div className="field finance-reports-check-field">
                   {renderColumnToggle("ticketNumber", "Ticket Number")}
@@ -1219,6 +1261,16 @@ function FinanceReportsPanel({ onClose }) {
                     menuPortal
                     disabled={!isColumnSelected("ticketStatus")}
                     onChange={(value) => updateFilterValue("ticketStatus", value)}
+                  />
+                </div>
+                <div className="field finance-reports-check-field">
+                  {renderColumnToggle("appointmentStatus", "Appointment Status")}
+                  <CustomSelect
+                    value={filters.appointmentStatus}
+                    options={APPOINTMENT_STATUS_OPTIONS.map((option) => ({ ...option, label: translate(option.label) }))}
+                    menuPortal
+                    disabled={!isColumnSelected("appointmentStatus")}
+                    onChange={(value) => updateFilterValue("appointmentStatus", value)}
                   />
                 </div>
                 <div className="field finance-reports-check-field">

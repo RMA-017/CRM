@@ -602,6 +602,58 @@ test("finance report filters expose report-scoped client search and broad cashie
     /u\.is_platform_admin = TRUE[\s\S]*FROM finance_cash_sessions fcs[\s\S]*p\.code LIKE 'finance\.%'/s,
     "Finance report cashier references should include platform admins, historical cashiers and finance-permitted users."
   );
+
+  assert.match(
+    financeRouteSchemasSource,
+    /appointmentDateFrom[\s\S]*appointmentDateTo[\s\S]*appointmentStatus[\s\S]*"pending", "confirmed", "cancelled", "no-show"/s,
+    "Finance report query schema should accept appointment date and status filters."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /const appointmentDateFrom = normalizeDate\(filters\.appointmentDateFrom \?\? filters\.appointment_date_from\);[\s\S]*const appointmentStatus = normalizeText\(filters\.appointmentStatus \?\? filters\.appointment_status, 32\)/s,
+    "Finance reports should normalize appointment date and status filters."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /const reportBaseSql = `[\s\S]*LEFT JOIN finance_tickets ft[\s\S]*LEFT JOIN appointment_schedules a ON a\.organization_id = ft\.organization_id AND a\.id = ft\.appointment_schedule_id[\s\S]*const itemBaseSql = `[\s\S]*LEFT JOIN appointment_schedules a ON a\.organization_id = ft\.organization_id AND a\.id = ft\.appointment_schedule_id[\s\S]*const detailBaseSql = `[\s\S]*LEFT JOIN appointment_schedules a ON a\.organization_id = ft\.organization_id AND a\.id = ft\.appointment_schedule_id/s,
+    "Finance report summary, grouped item and detail queries should all join appointment schedules before using appointment filters."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /commonWhere\.push\(`a\.appointment_date >= \$\$\{params\.length\}::date`\);[\s\S]*commonWhere\.push\(`a\.appointment_date <= \$\$\{params\.length\}::date`\);[\s\S]*commonWhere\.push\(`LOWER\(TRIM\(COALESCE\(a\.status, ''\)\)\) = \$\$\{params\.length\}`\);/s,
+    "Finance report filters should apply appointment date and status to appointment-backed tickets."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /let appointmentDetailsRows = \[\];[\s\S]*NOT EXISTS \([\s\S]*FROM finance_tickets aft[\s\S]*aft\.appointment_schedule_id = s\.id/s,
+    "Finance reports should include unticketed appointment rows when appointment filters are active."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /CASE[\s\S]*LOWER\(TRIM\(s\.status\)\) IN \('cancelled', 'no-show'\)[\s\S]*lost_amount_uzs[\s\S]*FROM appointment_schedules s[\s\S]*lostAmountUzs,[\s\S]*lostAppointmentCount/s,
+    "Finance reports should expose lost amounts for cancelled and no-show appointment rows."
+  );
+
+  const financeOnlyFiltersBlock = financeServiceSource.match(
+    /const hasFinanceOnlyFilters = Boolean\(([\s\S]*?)\n  \);/
+  )?.[1] || "";
+  assert.ok(financeOnlyFiltersBlock, "Finance reports should keep an explicit finance-only filter gate.");
+  assert.doesNotMatch(
+    financeOnlyFiltersBlock,
+    /client|serviceRaw|serviceId|serviceAmount|specialist|position/,
+    "Client, service, service amount, specialist and department filters should not suppress appointment-only report rows."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /if \(clientId\) \{[\s\S]*appointmentWhere\.push\(`c\.id = \$\$\{appointmentParams\.length\}`\);[\s\S]*if \(serviceId\) \{[\s\S]*appointmentWhere\.push\(`s\.service_id = \$\$\{appointmentParams\.length\}`\);[\s\S]*if \(serviceAmountFrom !== null\) \{[\s\S]*appointmentWhere\.push\(`COALESCE\(s\.service_price_uzs, 0\) >= \$\$\{appointmentParams\.length\}`\);[\s\S]*if \(serviceAmountTo !== null\) \{[\s\S]*appointmentWhere\.push\(`COALESCE\(s\.service_price_uzs, 0\) <= \$\$\{appointmentParams\.length\}`\);/s,
+    "Appointment-only report rows should support client, service name and service amount filters."
+  );
 });
 
 test("finance client balance filters use the projected balance columns", () => {

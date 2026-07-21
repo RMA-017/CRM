@@ -298,6 +298,8 @@ function mapFinanceReportDetail(row) {
     ticketNumber: row.ticket_number,
     ticketCreatedAt: row.ticket_created_at,
     ticketDate: normalizeDate(row.ticket_date),
+    appointmentDate: normalizeDate(row.appointment_date),
+    appointmentStatus: String(row.appointment_status || "").trim().toLowerCase(),
     clientId: row.client_id,
     clientName: row.client_name || "",
     clientBirthday: normalizeDate(row.client_birthday),
@@ -315,6 +317,7 @@ function mapFinanceReportDetail(row) {
     serviceFinalAmountUzs: Number.parseInt(String(row.service_final_amount_uzs || 0), 10) || 0,
     servicePaidUzs: Number.parseInt(String(row.service_paid_uzs || 0), 10) || 0,
     serviceRemainingUzs: Number.parseInt(String(row.service_remaining_uzs || 0), 10) || 0,
+    lostAmountUzs: Number.parseInt(String(row.lost_amount_uzs || 0), 10) || 0,
     ticketTotalUzs: Number.parseInt(String(row.ticket_total_uzs || 0), 10) || 0,
     ticketPaidUzs: Number.parseInt(String(row.ticket_paid_uzs || 0), 10) || 0,
     ticketRemainingUzs: Math.max(
@@ -2420,6 +2423,8 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
   const ticketCreatedTo = normalizeDate(filters.ticketCreatedTo ?? filters.ticket_created_to);
   const ticketDateFrom = normalizeDate(filters.ticketDateFrom ?? filters.ticket_date_from);
   const ticketDateTo = normalizeDate(filters.ticketDateTo ?? filters.ticket_date_to);
+  const appointmentDateFrom = normalizeDate(filters.appointmentDateFrom ?? filters.appointment_date_from);
+  const appointmentDateTo = normalizeDate(filters.appointmentDateTo ?? filters.appointment_date_to);
   const paymentDateFrom = normalizeDate(filters.paymentDateFrom ?? filters.payment_date_from ?? filters.dateFrom ?? filters.date_from);
   const paymentDateTo = normalizeDate(filters.paymentDateTo ?? filters.payment_date_to ?? filters.dateTo ?? filters.date_to);
   const ticketNumber = normalizeText(filters.ticketNumber ?? filters.ticket_number, 12);
@@ -2452,6 +2457,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
   const paymentMethodId = parsePositiveInteger(filters.paymentMethodId ?? filters.payment_method_id);
   const transactionType = normalizeText(filters.transactionType ?? filters.transaction_type, 64).toLowerCase();
   const transactionStatus = normalizeText(filters.transactionStatus ?? filters.transaction_status, 32).toLowerCase();
+  const appointmentStatus = normalizeText(filters.appointmentStatus ?? filters.appointment_status, 32).toLowerCase().replace(/_/g, "-");
   const ticketStatus = normalizeText(filters.ticketStatus ?? filters.ticket_status, 32).toLowerCase();
   const includeVoided = normalizeBooleanFlag(filters.includeVoided ?? filters.include_voided);
   const reportTransactionTypes = [
@@ -2471,6 +2477,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
   ];
   const ticketStatuses = new Set(["issued", "unpaid", "paid", "voided"]);
   const transactionStatuses = new Set(["posted", "voided"]);
+  const appointmentStatuses = new Set(["pending", "confirmed", "cancelled", "no-show"]);
   const params = [organizationId];
   const commonWhere = [
     "t.organization_id = $1"
@@ -2500,6 +2507,18 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
   if (ticketDateTo) {
     params.push(ticketDateTo);
     commonWhere.push(`ft.ticket_date <= $${params.length}::date`);
+  }
+  if (appointmentDateFrom) {
+    params.push(appointmentDateFrom);
+    commonWhere.push(`a.appointment_date >= $${params.length}::date`);
+  }
+  if (appointmentDateTo) {
+    params.push(appointmentDateTo);
+    commonWhere.push(`a.appointment_date <= $${params.length}::date`);
+  }
+  if (appointmentStatuses.has(appointmentStatus)) {
+    params.push(appointmentStatus);
+    commonWhere.push(`LOWER(TRIM(COALESCE(a.status, ''))) = $${params.length}`);
   }
 
   if (transactionStatuses.has(transactionStatus)) {
@@ -2780,6 +2799,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
     JOIN finance_cash_sessions s ON s.organization_id = t.organization_id AND s.id = t.cash_session_id
     LEFT JOIN clients c ON c.organization_id = t.organization_id AND c.id = t.client_id
     LEFT JOIN finance_tickets ft ON ft.organization_id = t.organization_id AND ft.id = t.ticket_id
+    LEFT JOIN appointment_schedules a ON a.organization_id = ft.organization_id AND a.id = ft.appointment_schedule_id
     LEFT JOIN LATERAL (
       SELECT COALESCE(SUM(CASE
                WHEN pt.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN pt.amount_uzs
@@ -2802,6 +2822,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
   const itemBaseSql = `
     FROM finance_transactions t
     JOIN finance_tickets ft ON ft.organization_id = t.organization_id AND ft.id = t.ticket_id
+    LEFT JOIN appointment_schedules a ON a.organization_id = ft.organization_id AND a.id = ft.appointment_schedule_id
     JOIN finance_ticket_items fti ON fti.organization_id = ft.organization_id AND fti.ticket_id = ft.id
     JOIN finance_cash_sessions s ON s.organization_id = t.organization_id AND s.id = t.cash_session_id
     LEFT JOIN clients c ON c.organization_id = t.organization_id AND c.id = t.client_id
@@ -2938,6 +2959,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
       LEFT JOIN finance_payment_methods fpm ON fpm.organization_id = t.organization_id AND fpm.id = t.payment_method_id
       LEFT JOIN users cu ON cu.id = s.cashier_user_id
       LEFT JOIN users ts ON ts.organization_id = ft.organization_id AND ts.id = ft.specialist_id
+      LEFT JOIN appointment_schedules a ON a.organization_id = ft.organization_id AND a.id = ft.appointment_schedule_id
       LEFT JOIN position_options tp ON tp.organization_id = ts.organization_id AND tp.id = ts.position_id`;
     const legacyTicketFromSql = `
       ${legacyTicketBaseSql}
@@ -3030,6 +3052,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
     JOIN finance_cash_sessions s ON s.organization_id = t.organization_id AND s.id = t.cash_session_id
     LEFT JOIN clients c ON c.organization_id = t.organization_id AND c.id = t.client_id
     LEFT JOIN finance_tickets ft ON ft.organization_id = t.organization_id AND ft.id = t.ticket_id
+    LEFT JOIN appointment_schedules a ON a.organization_id = ft.organization_id AND a.id = ft.appointment_schedule_id
     LEFT JOIN finance_ticket_items fti ON fti.organization_id = ft.organization_id AND fti.ticket_id = ft.id
     LEFT JOIN LATERAL (
       SELECT COALESCE(SUM(CASE
@@ -3093,6 +3116,8 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
             ft.ticket_number,
             ft.created_at AS ticket_created_at,
             ft.ticket_date,
+            a.appointment_date,
+            LOWER(TRIM(COALESCE(a.status, ''))) AS appointment_status,
             ft.status AS ticket_status,
             fti.id AS ticket_item_id,
             fti.line_number AS ticket_item_line_number,
@@ -3102,6 +3127,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
             ${itemFinalAmountSql} AS service_final_amount_uzs,
             ${servicePaidAmountSql} AS service_paid_uzs,
             GREATEST(${itemFinalAmountSql} - ${servicePaidAmountSql}, 0) AS service_remaining_uzs,
+            0::bigint AS lost_amount_uzs,
             COALESCE(NULLIF(TRIM(isu.full_name), ''), NULLIF(TRIM(isu.username), ''), NULLIF(TRIM(ts.full_name), ''), NULLIF(TRIM(ts.username), ''), '') AS specialist_name,
             COALESCE(NULLIF(TRIM(ip.label), ''), NULLIF(TRIM(tp.label), ''), '') AS position_label,
             COALESCE(ft.subtotal_uzs, ft.amount_uzs, 0) AS ticket_subtotal_uzs,
@@ -3122,10 +3148,207 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
       LIMIT 500`,
     params
   );
+  const shouldLoadAppointmentDetails = Boolean(
+    appointmentDateFrom
+    || appointmentDateTo
+    || appointmentStatuses.has(appointmentStatus)
+  );
+  const hasFinanceOnlyFilters = Boolean(
+    ticketCreatedFrom
+    || ticketCreatedTo
+    || ticketDateFrom
+    || ticketDateTo
+    || paymentDateFrom
+    || paymentDateTo
+    || ticketNumber
+    || cashier
+    || cashierId
+    || paymentMethodId
+    || reportTransactionTypes.includes(transactionType)
+    || transactionStatuses.has(transactionStatus)
+    || ticketStatuses.has(ticketStatus)
+    || discountFrom !== null
+    || discountTo !== null
+    || ticketToPayFrom !== null
+    || ticketToPayTo !== null
+    || ticketPaidFrom !== null
+    || ticketPaidTo !== null
+  );
+  let appointmentDetailsRows = [];
+  if (shouldLoadAppointmentDetails && !hasFinanceOnlyFilters) {
+    const appointmentParams = [organizationId];
+    const appointmentWhere = [
+      "s.organization_id = $1",
+      "s.client_id IS NOT NULL",
+      "LOWER(TRIM(s.status)) IN ('pending', 'confirmed', 'cancelled', 'no-show')",
+      `NOT EXISTS (
+        SELECT 1
+          FROM finance_tickets aft
+         WHERE aft.organization_id = s.organization_id
+           AND aft.appointment_schedule_id = s.id
+           AND aft.status <> 'voided'
+      )`
+    ];
+
+    if (appointmentDateFrom) {
+      appointmentParams.push(appointmentDateFrom);
+      appointmentWhere.push(`s.appointment_date >= $${appointmentParams.length}::date`);
+    }
+    if (appointmentDateTo) {
+      appointmentParams.push(appointmentDateTo);
+      appointmentWhere.push(`s.appointment_date <= $${appointmentParams.length}::date`);
+    }
+    if (appointmentStatuses.has(appointmentStatus)) {
+      appointmentParams.push(appointmentStatus);
+      appointmentWhere.push(`LOWER(TRIM(s.status)) = $${appointmentParams.length}`);
+    }
+    if (clientId) {
+      appointmentParams.push(clientId);
+      appointmentWhere.push(`c.id = $${appointmentParams.length}`);
+    } else if (client) {
+      if (/^\d+$/.test(client)) {
+        appointmentParams.push(Number.parseInt(client, 10));
+        appointmentWhere.push(`c.id = $${appointmentParams.length}`);
+      } else {
+        appointmentParams.push(`%${client}%`);
+        appointmentWhere.push(`LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE $${appointmentParams.length}`);
+      }
+    }
+    if (clientBirthdayFrom) {
+      appointmentParams.push(clientBirthdayFrom);
+      appointmentWhere.push(`c.birthday >= $${appointmentParams.length}::date`);
+    }
+    if (clientBirthdayTo) {
+      appointmentParams.push(clientBirthdayTo);
+      appointmentWhere.push(`c.birthday <= $${appointmentParams.length}::date`);
+    }
+    if (clientGender) {
+      appointmentParams.push(clientGender);
+      appointmentWhere.push(`LOWER(COALESCE(c.gender, '')) = $${appointmentParams.length}`);
+    }
+    if (clientPhone) {
+      appointmentParams.push(`%${clientPhone}%`);
+      appointmentWhere.push(`COALESCE(c.phone_number, '') LIKE $${appointmentParams.length}`);
+    }
+    if (serviceId) {
+      appointmentParams.push(serviceId);
+      appointmentWhere.push(`s.service_id = $${appointmentParams.length}`);
+    } else if (service) {
+      appointmentParams.push(`%${service}%`);
+      appointmentWhere.push(`LOWER(COALESCE(s.service_name, '')) LIKE $${appointmentParams.length}`);
+    }
+    if (serviceAmountFrom !== null) {
+      appointmentParams.push(serviceAmountFrom);
+      appointmentWhere.push(`COALESCE(s.service_price_uzs, 0) >= $${appointmentParams.length}`);
+    }
+    if (serviceAmountTo !== null) {
+      appointmentParams.push(serviceAmountTo);
+      appointmentWhere.push(`COALESCE(s.service_price_uzs, 0) <= $${appointmentParams.length}`);
+    }
+    if (specialistId) {
+      appointmentParams.push(specialistId);
+      appointmentWhere.push(`s.specialist_id = $${appointmentParams.length}`);
+    } else if (specialist) {
+      appointmentParams.push(`%${specialist}%`);
+      appointmentWhere.push(`LOWER(COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), '')) LIKE $${appointmentParams.length}`);
+    }
+    if (positionId) {
+      appointmentParams.push(positionId);
+      appointmentWhere.push(`u.position_id = $${appointmentParams.length}`);
+    } else if (position) {
+      appointmentParams.push(`%${position}%`);
+      appointmentWhere.push(`LOWER(COALESCE(p.label, '')) LIKE $${appointmentParams.length}`);
+    }
+
+    const appointmentWhereSql = appointmentWhere.join("\n    AND ");
+    const appointmentDetailsResult = await runFinanceReportQuery(
+      `SELECT ('appointment:' || s.id::text) AS id,
+              CASE
+                WHEN LOWER(TRIM(s.status)) = 'cancelled' THEN 'appointment_cancelled'
+                WHEN LOWER(TRIM(s.status)) = 'no-show' THEN 'appointment_no_show'
+                ELSE 'appointment'
+              END AS transaction_type,
+              ''::text AS direction,
+              ''::text AS status,
+              s.client_id,
+              CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+              c.birthday AS client_birthday,
+              COALESCE(c.gender, '') AS client_gender,
+              COALESCE(c.phone_number, '') AS client_phone,
+              NULL::bigint AS ticket_id,
+              NULL::bigint AS ticket_number,
+              NULL::timestamptz AS ticket_created_at,
+              NULL::date AS ticket_date,
+              s.appointment_date,
+              LOWER(TRIM(s.status)) AS appointment_status,
+              ''::text AS ticket_status,
+              NULL::bigint AS ticket_item_id,
+              0::int AS ticket_item_line_number,
+              COALESCE(NULLIF(TRIM(s.service_name), ''), 'Service') AS service_name,
+              COALESCE(s.service_price_uzs, 0) AS service_amount_uzs,
+              0::bigint AS service_discount_uzs,
+              COALESCE(s.service_price_uzs, 0) AS service_final_amount_uzs,
+              0::bigint AS service_paid_uzs,
+              COALESCE(s.service_price_uzs, 0) AS service_remaining_uzs,
+              CASE
+                WHEN LOWER(TRIM(s.status)) IN ('cancelled', 'no-show') THEN COALESCE(s.service_price_uzs, 0)
+                ELSE 0
+              END AS lost_amount_uzs,
+              COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), '') AS specialist_name,
+              COALESCE(NULLIF(TRIM(p.label), ''), '') AS position_label,
+              0::bigint AS ticket_subtotal_uzs,
+              0::bigint AS ticket_discount_uzs,
+              0::bigint AS ticket_total_uzs,
+              0::bigint AS ticket_paid_uzs,
+              NULL::bigint AS payment_method_id,
+              ''::text AS payment_method_name,
+              0::bigint AS amount_uzs,
+              0::bigint AS signed_amount_uzs,
+              0::bigint AS signed_item_amount_uzs,
+              NULL::timestamptz AS transaction_at,
+              COALESCE(NULLIF(TRIM(s.note), ''), NULLIF(TRIM(parent_cancel.reason), ''), '') AS note,
+              NULL::bigint AS cashier_user_id,
+              ''::text AS cashier_name
+         FROM appointment_schedules s
+         JOIN clients c ON c.organization_id = s.organization_id AND c.id = s.client_id
+         LEFT JOIN users u ON u.organization_id = s.organization_id AND u.id = s.specialist_id
+         LEFT JOIN position_options p ON p.organization_id = u.organization_id AND p.id = u.position_id
+         LEFT JOIN LATERAL (
+           SELECT apr.reason
+             FROM appointment_parent_responses apr
+            WHERE apr.organization_id = s.organization_id
+              AND apr.appointment_schedule_id = s.id
+              AND apr.response_status = 'not_coming'
+            ORDER BY apr.responded_at DESC, apr.id DESC
+            LIMIT 1
+         ) parent_cancel ON TRUE
+        WHERE ${appointmentWhereSql}
+        ORDER BY s.appointment_date DESC, s.start_time DESC, s.id DESC
+        LIMIT 500`,
+      appointmentParams
+    );
+    appointmentDetailsRows = appointmentDetailsResult.rows;
+  }
 
   const summaryRow = summaryResult.rows[0] || {};
   const totalInUzs = Number.parseInt(String(summaryRow.total_in_uzs || 0), 10) || 0;
   const totalOutUzs = Number.parseInt(String(summaryRow.total_out_uzs || 0), 10) || 0;
+  const financeDetails = detailsResult.rows.map(mapFinanceReportDetail);
+  const appointmentDetails = appointmentDetailsRows.map(mapFinanceReportDetail);
+  const details = [...financeDetails, ...appointmentDetails]
+    .sort((left, right) => {
+      const leftDate = String(left.transactionAt || left.appointmentDate || left.ticketDate || "");
+      const rightDate = String(right.transactionAt || right.appointmentDate || right.ticketDate || "");
+      const dateOrder = rightDate.localeCompare(leftDate);
+      if (dateOrder !== 0) {
+        return dateOrder;
+      }
+      return String(right.id || "").localeCompare(String(left.id || ""));
+    })
+    .slice(0, 500);
+  const lostAmountUzs = appointmentDetails.reduce((sum, item) => (
+    sum + (Number.parseInt(String(item?.lostAmountUzs || 0), 10) || 0)
+  ), 0);
 
   return {
     dateFrom: paymentDateFrom,
@@ -3135,6 +3358,8 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
       ticketCreatedTo,
       ticketDateFrom,
       ticketDateTo,
+      appointmentDateFrom,
+      appointmentDateTo,
       paymentDateFrom,
       paymentDateTo,
       ticketNumber,
@@ -3159,6 +3384,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
       ticketPaidTo: ticketPaidTo ?? "",
       transactionType,
       transactionStatus,
+      appointmentStatus,
       ticketStatus,
       includeVoided
     },
@@ -3172,6 +3398,8 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
       depositInUzs: Number.parseInt(String(summaryRow.deposit_in_uzs || 0), 10) || 0,
       depositOutUzs: Number.parseInt(String(summaryRow.deposit_out_uzs || 0), 10) || 0,
       refundUzs: Number.parseInt(String(summaryRow.refund_uzs || 0), 10) || 0,
+      lostAmountUzs,
+      lostAppointmentCount: appointmentDetails.filter((item) => Number.parseInt(String(item?.lostAmountUzs || 0), 10) > 0).length,
       transactionCount: Number.parseInt(String(summaryRow.transaction_count || 0), 10) || 0,
       ticketCount: Number.parseInt(String(summaryRow.ticket_count || 0), 10) || 0
     },
@@ -3182,7 +3410,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
     byCashier: byCashierResult.rows.map(mapReportRow),
     byPaymentMethod: byPaymentMethodResult.rows.map(mapReportRow),
     byDay: byDayResult.rows.map(mapReportRow),
-    details: detailsResult.rows.map(mapFinanceReportDetail)
+    details
   };
 }
 
