@@ -1377,6 +1377,63 @@ test("schedule create builds recurring appointments from normalized repeat weekd
   assert.equal(reply.state.payload?.summary?.createdCount, 3);
 });
 
+test("schedule repeat conflict preview reports skipped recurring dates before create", async () => {
+  const checkedDates = [];
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      validateRepeatDaysAgainstVisibleWeekDays: () => ({
+        error: null,
+        normalizedDayKeys: ["mon"]
+      }),
+      buildWeeklyRecurringDates: () => ["2026-03-09", "2026-03-16", "2026-03-23"],
+      hasAppointmentScheduleConflict: async ({ appointmentDate }) => {
+        checkedDates.push(appointmentDate);
+        return appointmentDate === "2026-03-16";
+      },
+      createAppointmentSchedule: async () => {
+        throw new Error("Preview should not create appointment schedules.");
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "POST", "/schedules/repeat-conflicts/preview");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      body: {
+        specialistId: "9",
+        clientId: "44",
+        appointmentDate: "2026-03-09",
+        startTime: "09:00",
+        endTime: "10:00",
+        durationMinutes: "60",
+        service: "Lesson",
+        status: "pending",
+        note: "",
+        repeat: {
+          enabled: true,
+          untilDate: "2026-03-31",
+          dayKeys: ["mon"],
+          skipConflicts: true
+        }
+      }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 200);
+  assert.deepEqual(checkedDates, ["2026-03-09", "2026-03-16", "2026-03-23"]);
+  assert.equal(reply.state.payload?.summary?.totalCount, 3);
+  assert.equal(reply.state.payload?.summary?.conflictCount, 1);
+  assert.deepEqual(reply.state.payload?.summary?.skippedDates, ["2026-03-16"]);
+  assert.equal(reply.state.payload?.summary?.conflicts?.[0]?.reason, "specialist_appointment");
+});
+
 test("schedule create recurring keeps the clicked appointment day when submitted weekdays skip it", async () => {
   const createdPayloads = [];
   let recurringDayKeysArg = null;

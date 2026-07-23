@@ -242,6 +242,54 @@ export const appointmentRouteSchemas = Object.freeze({
       repeat: repeatPayloadSchema
     }
   },
+  scheduleRepeatConflictsPreviewBody: {
+    type: "object",
+    additionalProperties: true,
+    properties: {
+      appointmentId: positiveIntegerLikeSchema,
+      appointment_id: positiveIntegerLikeSchema,
+      scope: {
+        type: "string",
+        enum: ["single", "future", "all"]
+      },
+      specialistId: positiveIntegerLikeSchema,
+      clientId: positiveIntegerLikeSchema,
+      appointmentDate: dateYmdSchema,
+      startTime: timeHmSchema,
+      endTime: timeHmSchema,
+      durationMinutes: positiveIntegerLikeSchema,
+      serviceId: positiveIntegerLikeSchema,
+      service_id: positiveIntegerLikeSchema,
+      servicePriceUzs: {
+        anyOf: [
+          { type: "integer", minimum: 0 },
+          { type: "string", pattern: "^\\d+$" }
+        ]
+      },
+      service_price_uzs: {
+        anyOf: [
+          { type: "integer", minimum: 0 },
+          { type: "string", pattern: "^\\d+$" }
+        ]
+      },
+      service: { type: "string" },
+      serviceName: { type: "string" },
+      status: {
+        type: "string",
+        enum: ["pending", "confirmed", "cancelled", "no-show"]
+      },
+      note: { type: "string" },
+      dayKeys: {
+        type: "array",
+        items: dayKeySchema
+      },
+      day_keys: {
+        type: "array",
+        items: dayKeySchema
+      },
+      repeat: repeatPayloadSchema
+    }
+  },
   scheduleBulkCancelBody: {
     type: "object",
     additionalProperties: true,

@@ -306,6 +306,16 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
+    /function confirmRecurringConflictPreview\(summary\)[\s\S]*В выбранной серии есть занятые или недоступные слоты\.[\s\S]*Продолжить\?/s,
+    "Planner modal should ask before continuing when recurring preview finds skipped slots."
+  );
+  assert.match(
+    source,
+    /const shouldPreviewRepeatConflicts = shouldSendRepeat && \(!isEditMode \|\| !isEditRecurring\);[\s\S]*apiFetch\("\/api\/appointments\/schedules\/repeat-conflicts\/preview"[\s\S]*confirmRecurringConflictPreview\(previewData\?\.summary\)/s,
+    "Planner submit should preview repeat conflicts before creating a recurring series."
+  );
+  assert.match(
+    source,
     /const shouldValidateRepeat = !isEditMode \|\| allowRepeatValidationInEdit;[\s\S]*if \(requireRepeat && !wantsRepeat\) \{[\s\S]*errors\.repeatDays = "Select at least one repeat day\.";[\s\S]*if \(!isValidDateYmd\(repeatUntil\)\) \{[\s\S]*errors\.repeatUntil = "Invalid repeat end date\.";/s,
     "Planner modal should require Repeat Until before saving any repeated planner series."
   );

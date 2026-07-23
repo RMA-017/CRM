@@ -878,6 +878,42 @@ function confirmRecurringSeriesScopeAction(action, options = {}) {
   return window.confirm(`Это серийное занятие.${startDateText}\n${actionText}\nПродолжить?`);
 }
 
+function formatRecurringConflictPreviewLine(item) {
+  const dateText = formatDateYmdForAlert(item?.appointmentDate);
+  const startTime = String(item?.startTime || "").trim();
+  const endTime = String(item?.endTime || "").trim();
+  const timeText = [startTime, endTime].filter(Boolean).join(" - ");
+  return [dateText, timeText].filter(Boolean).join(" ");
+}
+
+function confirmRecurringConflictPreview(summary) {
+  if (typeof window === "undefined" || typeof window.confirm !== "function") {
+    return true;
+  }
+
+  const conflicts = Array.isArray(summary?.conflicts) ? summary.conflicts : [];
+  const skippedDates = Array.isArray(summary?.skippedDates) ? summary.skippedDates : [];
+  const count = Number.parseInt(String(summary?.conflictCount ?? summary?.skippedCount ?? conflicts.length ?? skippedDates.length), 10) || 0;
+  if (count <= 0) {
+    return true;
+  }
+
+  const previewLines = (conflicts.length > 0
+    ? conflicts.map(formatRecurringConflictPreviewLine)
+    : skippedDates.map((dateValue) => formatDateYmdForAlert(dateValue))
+  ).filter(Boolean);
+  const visibleLines = previewLines.slice(0, 5);
+  const hiddenCount = Math.max(0, count - visibleLines.length);
+  const details = visibleLines.length > 0
+    ? `\n\nБудут пропущены:\n${visibleLines.map((line) => `- ${line}`).join("\n")}`
+    : "";
+  const restText = hiddenCount > 0 ? `\n...и еще ${hiddenCount}.` : "";
+
+  return window.confirm(
+    `В выбранной серии есть занятые или недоступные слоты.${details}${restText}\n\nПродолжить?`
+  );
+}
+
 function createDefaultWorkingHours() {
   return {
     mon: { start: "09:00", end: "18:00" },
@@ -6900,6 +6936,45 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
         requestUrl = `/api/appointments/schedules/${encodeURIComponent(String(createModal.appointmentId || ""))}?${queryParams.toString()}`;
       }
       const requestMethod = isEditMode ? "PATCH" : "POST";
+
+      const shouldPreviewRepeatConflicts = shouldSendRepeat && (!isEditMode || !isEditRecurring);
+      if (shouldPreviewRepeatConflicts) {
+        const previewPayload = { ...requestPayload };
+        if (isEditMode) {
+          previewPayload.appointmentId = String(createModal.appointmentId || "");
+          previewPayload.scope = String(nextPayload.editScope || "single");
+        }
+
+        const previewResponse = await apiFetch("/api/appointments/schedules/repeat-conflicts/preview", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(previewPayload)
+        });
+        const previewData = await readApiResponseData(previewResponse);
+
+        if (!previewResponse.ok) {
+          const serverMessage = String(previewData?.message || "").trim();
+          if (previewResponse.status === 409 && serverMessage) {
+            setMessage(serverMessage);
+            showPlannerAlert(serverMessage);
+          } else if (previewData?.errors && typeof previewData.errors === "object") {
+            setCreateErrors(previewData.errors);
+            showAppointmentError(getFirstFormErrorText(previewData.errors, "Invalid appointment data."));
+          } else if (previewData?.field) {
+            setCreateErrors({ [previewData.field]: previewData.message || "Invalid value." });
+            showAppointmentError(previewData.message || "Invalid value.");
+          } else {
+            showAppointmentError(previewData?.message || "Failed to preview recurring appointment conflicts.");
+          }
+          return;
+        }
+
+        if (!confirmRecurringConflictPreview(previewData?.summary)) {
+          return;
+        }
+      }
 
       const response = await apiFetch(requestUrl, {
         method: requestMethod,
