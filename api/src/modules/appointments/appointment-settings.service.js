@@ -3393,7 +3393,8 @@ export async function ensureAutoRollingRecurringSchedulesCoverRange({
       dayKeys: repeatDayKeys
     });
     const normalizedStatus = String(root?.status || "pending").trim().toLowerCase();
-    const shouldEnforceAvailability = normalizedStatus === "pending" || normalizedStatus === "confirmed";
+    const createdStatus = normalizedStatus === "confirmed" ? "pending" : normalizedStatus;
+    const shouldEnforceAvailability = createdStatus === "pending" || createdStatus === "confirmed";
 
     await withAppointmentTransaction(async (db) => {
       let blockedRangesByDay = new Map();
@@ -3504,7 +3505,7 @@ export async function ensureAutoRollingRecurringSchedulesCoverRange({
               serviceId: Number.parseInt(String(root?.service_id || ""), 10) || null,
               serviceName: String(root?.service_name || "").trim(),
               servicePriceUzs: Number.parseInt(String(root?.service_price_uzs ?? 0), 10) || 0,
-              status: normalizedStatus,
+              status: createdStatus,
               note: String(root?.note || "").trim(),
               repeatGroupKey,
               repeatType: "weekly",

@@ -31,6 +31,11 @@ test("Appointment auto-rolling repeat wiring is present in schema, service, and 
     "Appointment service should read and write the auto-rolling repeat column."
   );
   assert.match(
+    serviceSource,
+    /const createdStatus = normalizedStatus === "confirmed" \? "pending" : normalizedStatus;[\s\S]*status: createdStatus,/,
+    "Auto-rolling future occurrences should never inherit confirmed status from the root appointment."
+  );
+  assert.match(
     routesSource,
     /ensureVipAutoRollingRepeatUntilDate\(/,
     "Schedule routes should normalize auto-rolling repeat horizons."
