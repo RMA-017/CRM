@@ -560,7 +560,7 @@ function FinanceDailyCashPanel({ onClose, canPayFinanceCashier = false, currentU
           rows: [
             [translate("Name"), translate("Amount")],
             [translate("Total In"), Number.parseInt(String(result.summary.totalInUzs || 0), 10) || 0],
-            [translate("Total Out"), Number.parseInt(String(result.summary.totalOutUzs || 0), 10) || 0],
+            [translate("Total Out"), -Math.abs(Number.parseInt(String(result.summary.totalOutUzs || 0), 10) || 0)],
             [translate("Net Total"), Number.parseInt(String(result.summary.netUzs || 0), 10) || 0],
             [translate("Transactions"), Number.parseInt(String(result.summary.transactionCount || 0), 10) || 0],
             ...result.paymentSummary.map((item) => [

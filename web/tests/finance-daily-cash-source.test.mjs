@@ -38,6 +38,11 @@ test("daily cash shows payment method totals below the header", () => {
   );
   assert.match(
     dailyCashSource,
+    /\[translate\("Total Out"\), -Math\.abs\(Number\.parseInt\(String\(result\.summary\.totalOutUzs \|\| 0\), 10\) \|\| 0\)\]/s,
+    "Daily cash report exports should show total cash out as a negative value to match the exported amount column."
+  );
+  assert.match(
+    dailyCashSource,
     /function getDailyCashSummaryColumnValue\(columnId, summary\) \{[\s\S]*columnId === "amount"[\s\S]*summary\?\.netUzs[\s\S]*return null;/s,
     "Daily cash summary should map the net total to the Amount column."
   );
