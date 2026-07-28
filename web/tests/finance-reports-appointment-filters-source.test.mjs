@@ -48,6 +48,11 @@ test("finance reports expose appointment date and lesson status filters", () => 
     /case "appointmentDate":[\s\S]*return formatDateYMD\(item\.appointmentDate\);[\s\S]*case "appointmentStatus":[\s\S]*getAppointmentStatusLabel\(translate, item\.appointmentStatus\)/s,
     "Report rows should render appointment date and appointment status values."
   );
+  assert.match(
+    panelSource,
+    /const paymentMovementValue = \(\) => \{[\s\S]*item\.ticketItemId \? item\.signedItemAmountUzs : item\.signedAmountUzs[\s\S]*case "ticketPaid":[\s\S]*return paymentMovementValue\(\);/s,
+    "Report paid amounts should use signed transaction movement values so refunds export as negative amounts."
+  );
 
   assert.match(
     translationsSource,

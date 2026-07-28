@@ -267,6 +267,11 @@ function getReportColumnValue(columnKey, item, translate, forExport = false) {
     const value = item.ticketItemId ? item[serviceField] : item[ticketField];
     return forExport ? toNumber(value) : formatMoney(value);
   };
+  const paymentMovementValue = () => {
+    if (!hasTicket) return forExport ? "" : "-";
+    const value = item.ticketItemId ? item.signedItemAmountUzs : item.signedAmountUzs;
+    return forExport ? toNumber(value) : formatMoney(value);
+  };
   switch (columnKey) {
     case "ticketCreatedAt":
       return formatDateTimeTashkent(item.ticketCreatedAt);
@@ -306,7 +311,7 @@ function getReportColumnValue(columnKey, item, translate, forExport = false) {
     case "ticketToPay":
       return serviceScopedValue("serviceFinalAmountUzs", "ticketTotalUzs");
     case "ticketPaid":
-      return serviceScopedValue("servicePaidUzs", "ticketPaidUzs");
+      return paymentMovementValue();
     case "ticketRemaining":
       return serviceScopedValue("serviceRemainingUzs", "ticketRemainingUzs");
     case "ticketClosed":
