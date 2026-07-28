@@ -78,6 +78,11 @@ test("finance transaction void action is only exposed to cashier payment users",
     "Transaction table should apply column classes to visible headers and cells."
   );
   assert.match(
+    transactionsPanelSource,
+    /function getTransactionSignedAmount\(item\) \{[\s\S]*String\(item\?\.direction \|\| ""\) === "out" \? -Math\.abs\(amount\) : amount[\s\S]*render: \(item\) => formatMoney\(getTransactionSignedAmount\(item\)\)[\s\S]*exportValue: \(item\) => getTransactionSignedAmount\(item\)/s,
+    "Transaction table and export should show cash-out refunds as negative amounts."
+  );
+  assert.match(
     styles,
     /\.finance-transactions-table :is\(th, td\)\.finance-transactions-col-status \{[\s\S]*text-align: center;/s,
     "Transaction status column should be centered."

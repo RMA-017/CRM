@@ -122,6 +122,23 @@ test("ticket and transaction export rows preserve finance reconciliation values"
   assert.equal(transactionRow[2], "Оплата талона");
   assert.equal(transactionRow[9], "Отменена");
   assert.equal(transactionRow[10], "Ошибка кассира");
+
+  const refundRow = __financeGoogleSheetsContracts.makeTransactionExportRow({
+    id: 78,
+    transaction_at_text: "2026-07-05 09:10",
+    transaction_type: "refund",
+    direction: "out",
+    status: "posted",
+    ticket_number: 10001,
+    client_name: "Test Client",
+    client_id: 1000,
+    payment_method_name: "Наличные",
+    amount_uzs: 40000,
+    cashier_name: "Cashier",
+    note: "",
+    metadata: {}
+  });
+  assert.equal(refundRow[7], -40000);
 });
 
 test("Google Sheets export stores real dates with the unified day-month-year format", () => {

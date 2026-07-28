@@ -344,6 +344,11 @@ function makeTransactionNote(row) {
   return note || reason;
 }
 
+function getSignedTransactionAmount(row) {
+  const amount = Math.max(toInteger(row.amount_uzs), 0);
+  return row.direction === "out" ? -amount : amount;
+}
+
 function makeTransactionExportRow(row) {
   const isCorrected = Boolean(
     row.metadata?.reversalTransactionId
@@ -360,7 +365,7 @@ function makeTransactionExportRow(row) {
     row.client_name || "",
     row.client_id ? toInteger(row.client_id) : "",
     row.payment_method_name || (row.direction === "transfer" ? "Баланс клиента" : ""),
-    Math.max(toInteger(row.amount_uzs), 0),
+    getSignedTransactionAmount(row),
     row.cashier_name || "",
     status,
     makeTransactionNote(row)

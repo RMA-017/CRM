@@ -52,7 +52,12 @@ function storeTransactionColumnIds(columnIds) {
 
 function formatMoney(value) {
   const amount = Number.parseInt(String(value ?? 0), 10) || 0;
-  return amount > 0 ? amount.toLocaleString("ru-RU") : "-";
+  return amount !== 0 ? amount.toLocaleString("ru-RU") : "-";
+}
+
+function getTransactionSignedAmount(item) {
+  const amount = Number.parseInt(String(item?.amountUzs || 0), 10) || 0;
+  return String(item?.direction || "") === "out" ? -Math.abs(amount) : amount;
 }
 
 function translateTransactionType(translate, type) {
@@ -173,8 +178,8 @@ function FinanceTransactionsPanel({ onClose, canPayFinanceCashier = false }) {
       id: "amount",
       label: "Amount",
       className: "finance-transactions-col-amount",
-      render: (item) => formatMoney(item.amountUzs),
-      exportValue: (item) => Number.parseInt(String(item.amountUzs || 0), 10) || 0
+      render: (item) => formatMoney(getTransactionSignedAmount(item)),
+      exportValue: (item) => getTransactionSignedAmount(item)
     },
     {
       id: "cashier",
