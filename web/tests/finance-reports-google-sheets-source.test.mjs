@@ -40,7 +40,12 @@ test("finance reports exposes the yearly Google Sheets export workflow", () => {
   );
   assert.match(
     styles,
-    /#financeGoogleSheetsExportModal\.finance-google-sheets-modal \{[\s\S]*height: auto;[\s\S]*max-height: min\(540px, calc\(100dvh - 24px\)\);[\s\S]*\.finance-google-sheets-status \{[\s\S]*min-height: 82px;/s,
-    "The modal height should not scale with the viewport or jump when export status changes."
+    /#financeGoogleSheetsExportModal\.finance-google-sheets-modal \{[\s\S]*height: auto;[\s\S]*max-height: min\(540px, calc\(100dvh - 24px\)\);[\s\S]*\.finance-google-sheets-status \{[\s\S]*min-height: 0;[\s\S]*overflow: visible;/s,
+    "The modal should stay compact and avoid reserving empty scrollable status space."
+  );
+  assert.match(
+    panelSource,
+    /const shouldShowGoogleSheetsStatus = Boolean\([\s\S]*googleSheetsResult[\s\S]*\);[\s\S]*\{shouldShowGoogleSheetsStatus \? \([\s\S]*finance-google-sheets-status/s,
+    "The export status panel should render only when it has loading, error, or result content."
   );
 });

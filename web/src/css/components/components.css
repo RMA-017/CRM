@@ -8158,14 +8158,15 @@ button.finance-daily-cash-method-card:disabled {
 
 .finance-google-sheets-status {
   display: grid;
-  min-height: 82px;
-  max-height: 104px;
+  gap: 6px;
+  min-height: 0;
+  max-height: none;
   align-content: start;
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .finance-google-sheets-status:empty {
-  visibility: hidden;
+  display: none;
 }
 
 @media (max-width: 520px) {
