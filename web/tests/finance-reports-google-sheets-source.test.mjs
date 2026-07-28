@@ -44,8 +44,13 @@ test("finance reports exposes the yearly Google Sheets export workflow", () => {
     "The modal should stay compact and avoid reserving empty scrollable status space."
   );
   assert.match(
+    styles,
+    /#financeGoogleSheetsExportModal \.auth-form \{[\s\S]*overflow: visible;/s,
+    "The Google Sheets export form should not show an internal scrollbar while exporting."
+  );
+  assert.match(
     panelSource,
-    /const shouldShowGoogleSheetsStatus = Boolean\([\s\S]*googleSheetsResult[\s\S]*\);[\s\S]*\{shouldShowGoogleSheetsStatus \? \([\s\S]*finance-google-sheets-status/s,
-    "The export status panel should render only when it has loading, error, or result content."
+    /const shouldShowGoogleSheetsStatus = Boolean\([\s\S]*googleSheetsError[\s\S]*googleSheetsResult[\s\S]*\);[\s\S]*googleSheetsConfigLoading \? "\.\.\."[\s\S]*\{shouldShowGoogleSheetsStatus \? \([\s\S]*finance-google-sheets-status/s,
+    "The export status panel should render only when it has error or result content, while config loading stays inline."
   );
 });

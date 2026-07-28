@@ -445,8 +445,7 @@ function FinanceReportsPanel({ onClose }) {
   const [googleSheetsResult, setGoogleSheetsResult] = useState(null);
   const googleSheetsConfigRequestRef = useRef(0);
   const shouldShowGoogleSheetsStatus = Boolean(
-    googleSheetsConfigLoading
-    || googleSheetsError
+    googleSheetsError
     || googleSheetsResult
     || (!googleSheetsConfigLoading && googleSheetsConfig && !googleSheetsConfig.configured)
   );
@@ -1042,7 +1041,7 @@ function FinanceReportsPanel({ onClose }) {
 
               <div className="finance-google-sheets-meta">
                 <span>{translate("Editor access")}</span>
-                <strong>{googleSheetsConfig?.serviceAccountEmail || "-"}</strong>
+                <strong>{googleSheetsConfigLoading ? "..." : (googleSheetsConfig?.serviceAccountEmail || "-")}</strong>
               </div>
 
               <div className="finance-google-sheets-tabs" aria-label={translate("Sheets")}>
@@ -1053,9 +1052,6 @@ function FinanceReportsPanel({ onClose }) {
 
               {shouldShowGoogleSheetsStatus ? (
                 <div className="finance-google-sheets-status" aria-live="polite">
-                  {googleSheetsConfigLoading ? (
-                    <p className="all-users-state">{translate("Loading...")}</p>
-                  ) : null}
                   {!googleSheetsConfigLoading && googleSheetsConfig && !googleSheetsConfig.configured ? (
                     <p className="all-users-state is-error">
                       {translate("Google Sheets service account is not configured.")}

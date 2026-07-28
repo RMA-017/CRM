@@ -1849,11 +1849,12 @@ export async function openCashSession({ organizationId, payload, actorUserId }) 
 
 export async function closeCashSession({ organizationId, payload, actorUserId }) {
   const requestedClosingBalance = payload?.closingBalanceUzs ?? payload?.closing_balance_uzs;
-  const closingBalanceUzs = requestedClosingBalance === undefined
+  const hasRequestedClosingBalance = requestedClosingBalance !== undefined;
+  const closingBalanceUzs = !hasRequestedClosingBalance
     ? null
-    : normalizeAmount(requestedClosingBalance, -1);
+    : parseIntegerAmount(requestedClosingBalance, null);
   const closeNote = normalizeText(payload?.note ?? payload?.closeNote ?? payload?.close_note);
-  if (closingBalanceUzs !== null && closingBalanceUzs < 0) {
+  if (hasRequestedClosingBalance && closingBalanceUzs === null) {
     const error = new Error("Submitted cash is invalid.");
     error.statusCode = 400;
     throw error;

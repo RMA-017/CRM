@@ -8100,7 +8100,7 @@ button.finance-daily-cash-method-card:disabled {
 #financeGoogleSheetsExportModal .auth-form {
   grid-template-rows: none;
   grid-auto-rows: auto;
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .finance-google-sheets-fields {

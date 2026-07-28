@@ -108,6 +108,16 @@ test("daily cash owns cash session open and close controls", async () => {
     "Daily cash should render the cash session modal."
   );
   assert.match(
+    dailyCashSource,
+    /function normalizeMoneyInput\(value\) \{[\s\S]*return Number\.isFinite\(parsed\) \? parsed : 0;[\s\S]*<span>\{translate\("Submitted Cash"\)\}<\/span>[\s\S]*type="number"[\s\S]*step="1"/s,
+    "Closing a cash session should allow negative submitted cash when refunds make the cash balance negative."
+  );
+  assert.doesNotMatch(
+    dailyCashSource,
+    /<span>\{translate\("Submitted Cash"\)\}<\/span>[\s\S]*min="0"/s,
+    "Submitted cash should not use a browser minimum that blocks negative cash closure."
+  );
+  assert.match(
     profileMainSource,
     /<FinanceDailyCashPanel[\s\S]*canPayFinanceCashier=\{canPayFinanceCashier\}[\s\S]*currentUser=\{profile\}/s,
     "Daily cash should receive cashier payment permission and current user for the moved session controls."

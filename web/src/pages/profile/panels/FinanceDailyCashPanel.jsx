@@ -80,7 +80,7 @@ function getDailyCashSummaryColumnValue(columnId, summary) {
 
 function normalizeMoneyInput(value) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function makeClientOption(item) {
@@ -868,7 +868,7 @@ function FinanceDailyCashPanel({ onClose, canPayFinanceCashier = false, currentU
                     <span>{translate("Submitted Cash")}</span>
                     <input
                       type="number"
-                      min="0"
+                      step="1"
                       value={sessionForm.submittedAmountUzs}
                       onChange={(event) => {
                         const value = event.currentTarget.value;

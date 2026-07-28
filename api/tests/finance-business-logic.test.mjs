@@ -547,6 +547,12 @@ test("finance daily cash and reports separate real cash movement from deposit tr
 
   assert.match(
     financeServiceSource,
+    /export async function closeCashSession[\s\S]*const hasRequestedClosingBalance = requestedClosingBalance !== undefined;[\s\S]*parseIntegerAmount\(requestedClosingBalance, null\)[\s\S]*if \(hasRequestedClosingBalance && closingBalanceUzs === null\)[\s\S]*closingBalanceUzs === null \? expectedBalanceUzs : closingBalanceUzs/s,
+    "Closing a cash session should accept signed submitted cash values while still rejecting invalid input."
+  );
+
+  assert.match(
+    financeServiceSource,
     /export async function getFinanceDailyCash[\s\S]*getOpenCashSession\(pool, \{ organizationId, cashierUserId: actorUserId \}\)[\s\S]*where\.push\(`t\.cash_session_id = \$\$\{params\.length\}`\)/s,
     "Daily cash current-session totals should be scoped to the active session of the current cashier."
   );
