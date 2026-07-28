@@ -661,7 +661,7 @@ async function getCashSessionExpectedBalance(db, { organizationId, cashSessionId
       GROUP BY s.id`,
     [organizationId, cashSessionId]
   );
-  return normalizeAmount(result.rows[0]?.expected_balance_uzs, 0);
+  return parseIntegerAmount(result.rows[0]?.expected_balance_uzs, 0);
 }
 
 async function insertFinanceTransaction(db, {

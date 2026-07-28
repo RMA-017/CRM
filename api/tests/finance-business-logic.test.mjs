@@ -22,6 +22,11 @@ const financeDiscountsSource = await readFile(
   "utf8"
 );
 
+const financeSignedCashSessionBalancesMigrationSource = await readFile(
+  new URL("../database/migrations/20260728_000001_finance_cash_session_signed_balances.sql", import.meta.url),
+  "utf8"
+);
+
 const appointmentScheduleRoutesSource = await readFile(
   new URL("../src/modules/appointments/routes/schedules.routes.js", import.meta.url),
   "utf8"
@@ -549,6 +554,18 @@ test("finance daily cash and reports separate real cash movement from deposit tr
     financeServiceSource,
     /export async function closeCashSession[\s\S]*const hasRequestedClosingBalance = requestedClosingBalance !== undefined;[\s\S]*parseIntegerAmount\(requestedClosingBalance, null\)[\s\S]*if \(hasRequestedClosingBalance && closingBalanceUzs === null\)[\s\S]*closingBalanceUzs === null \? expectedBalanceUzs : closingBalanceUzs/s,
     "Closing a cash session should accept signed submitted cash values while still rejecting invalid input."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /async function getCashSessionExpectedBalance[\s\S]*AS expected_balance_uzs[\s\S]*return parseIntegerAmount\(result\.rows\[0\]\?\.expected_balance_uzs, 0\);/s,
+    "Cash-session expected balance should preserve negative refund-heavy totals instead of clamping them to zero."
+  );
+
+  assert.match(
+    financeSignedCashSessionBalancesMigrationSource,
+    /FOREACH target_column IN ARRAY ARRAY\['closing_balance_uzs', 'expected_balance_uzs'\][\s\S]*finance_cash_sessions[\s\S]*pg_get_constraintdef\(c\.oid\) LIKE '%>= 0%'[\s\S]*DROP CONSTRAINT/s,
+    "Cash-session closing and expected balances should drop non-negative DB checks so negative cash closures can be saved."
   );
 
   assert.match(
