@@ -58,6 +58,18 @@ test("profile side menu keeps submenu state batched and is pre-mounted for smoot
     "Profile side menu should close instantly and reset submenu state without timeout-based delay."
   );
 
+  assert.match(
+    menuSource,
+    /const \{ t, translate \} = useI18n\(\);[\s\S]*aria-label=\{t\("app\.mainMenu"\)\}[\s\S]*<strong>\{translate\("Menu"\)\}<\/strong>[\s\S]*\{translate\("Clients"\)\}[\s\S]*\{translate\("Appointments"\)\}[\s\S]*\{translate\("Services"\)\}[\s\S]*\{translate\("Finance"\)\}/s,
+    "Profile side menu should render primary labels through i18n instead of flashing hardcoded English before DOM translation catches up."
+  );
+
+  assert.doesNotMatch(
+    menuSource,
+    />\s*(Menu|Clients|Appointments|Services|Finance|Users|Settings)\s*</,
+    "Profile side menu should not keep primary visible labels as raw hardcoded text."
+  );
+
   assert.doesNotMatch(
     pageSource,
     /loadProfileSideMenu|pendingSideMenuOpenRef|onMouseEnter=\{preloadSideMenu\}|onFocus=\{preloadSideMenu\}|<Suspense fallback=\{null\}>\s*<ProfileSideMenu/s,

@@ -65,7 +65,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
   canOpenSiteContent,
   openSiteContentPanel
 }, ref) {
-  const { t } = useI18n();
+  const { t, translate } = useI18n();
   const [openSubmenus, setOpenSubmenus] = useState(CLOSED_SUBMENUS);
   const menuElementRef = useRef(null);
   const overlayElementRef = useRef(null);
@@ -164,12 +164,12 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
         id="mainMenu"
         ref={assignMenuElement}
         className="side-menu"
-        aria-label="Main menu"
+        aria-label={t("app.mainMenu")}
         aria-hidden="true"
       >
         <div className="side-menu-head">
-          <img src="/crm.svg" alt="CRM logo" className="side-logo" />
-          <strong>Menu</strong>
+          <img src="/crm.svg" alt={translate("CRM logo")} className="side-logo" />
+          <strong>{translate("Menu")}</strong>
         </div>
         <nav className="side-menu-links">
           <button
@@ -182,7 +182,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
               toggleSubmenu("clients");
             }}
           >
-            Clients
+            {translate("Clients")}
           </button>
           <div id="clientsSubMenu" className="side-submenu" hidden={!openSubmenus.clients || !hasClientsMenuAccess}>
             <button
@@ -192,7 +192,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
               hidden={!canReadClients}
               onClick={openAllClientsPanel}
             >
-              All Clients
+              {translate("All Clients")}
             </button>
           </div>
 
@@ -206,7 +206,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 toggleSubmenu("appointments");
               }}
             >
-              Appointments
+              {translate("Appointments")}
             </button>
             <div id="appointmentsSubMenu" className="side-submenu" hidden={!openSubmenus.appointments}>
               <button
@@ -216,7 +216,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 hidden={!canOpenAppointmentSchedule}
                 onClick={openAppointmentPanel}
               >
-                Planner
+                {translate("Planner")}
               </button>
             </div>
           </div>
@@ -231,7 +231,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 toggleSubmenu("users");
               }}
             >
-              Users
+              {translate("Users")}
             </button>
             <div id="usersSubMenu" className="side-submenu" hidden={!openSubmenus.users}>
               <button
@@ -244,7 +244,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                   navigate("/users/allusers");
                 }}
               >
-                All Users
+                {translate("All Users")}
               </button>
             </div>
           </div>
@@ -266,7 +266,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
             hidden={!canOpenServices}
             onClick={openServicesPanel}
           >
-            Services
+            {translate("Services")}
           </button>
 
           <div id="financeMenuGroup" className="side-menu-group" hidden={!canOpenFinance}>
@@ -279,7 +279,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 toggleSubmenu("finance");
               }}
             >
-              Finance
+              {translate("Finance")}
             </button>
             <div id="financeSubMenu" className="side-submenu" hidden={!openSubmenus.finance}>
               <button
@@ -289,7 +289,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 hidden={!canOpenFinanceCashier}
                 onClick={openFinanceCashierPanel}
               >
-                Kassa
+                {translate("Kassa")}
               </button>
               <button
                 id="openFinanceTicketsBtn"
@@ -298,7 +298,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 hidden={!canOpenFinanceTickets}
                 onClick={openFinanceTicketsPanel}
               >
-                Tickets
+                {translate("Tickets")}
               </button>
               <button
                 id="openFinanceTransactionsBtn"
@@ -307,7 +307,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 hidden={!canOpenFinanceTransactions}
                 onClick={openFinanceTransactionsPanel}
               >
-                Transactions
+                {translate("Transactions")}
               </button>
               <button
                 id="openFinanceBalancesBtn"
@@ -316,7 +316,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 hidden={!canOpenFinanceBalances}
                 onClick={openFinanceBalancesPanel}
               >
-                Balances
+                {translate("Balances")}
               </button>
               <button
                 id="openFinanceDailyCashBtn"
@@ -325,7 +325,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 hidden={!canOpenFinanceDailyCash}
                 onClick={openFinanceDailyCashPanel}
               >
-                Daily Cash
+                {translate("Daily Cash")}
               </button>
               <button
                 id="openFinanceReportsBtn"
@@ -334,7 +334,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 hidden={!canOpenFinanceReports}
                 onClick={openFinanceReportsPanel}
               >
-                Reports
+                {translate("Reports")}
               </button>
               <button
                 id="openFinanceDiscountsBtn"
@@ -343,7 +343,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 hidden={!canOpenFinanceDiscounts}
                 onClick={openFinanceDiscountsPanel}
               >
-                Скидки клиентов
+                {translate("Client Discounts")}
               </button>
             </div>
           </div>
@@ -367,23 +367,23 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 className="side-submenu-link side-submenu-action"
                 onClick={() => openSiteContentPanel("kids")}
               >
-                Children's Creativity
+                {translate("Children's Creativity")}
               </button>
               <button
                 id="openSiteBlogContentBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
                 onClick={() => openSiteContentPanel("blog")}
-            >
+              >
                 {t("siteContent.articles")}
-            </button>
+              </button>
               <button
                 id="openSiteTeamContentBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
                 onClick={() => openSiteContentPanel("team")}
               >
-                Our Specialists
+                {translate("Our Specialists")}
               </button>
               <button
                 id="openSitePartnersContentBtn"
@@ -391,7 +391,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 className="side-submenu-link side-submenu-action"
                 onClick={() => openSiteContentPanel("partners")}
               >
-                Partners
+                {translate("Partners")}
               </button>
             </div>
           </div>
@@ -416,7 +416,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 toggleSubmenu("adminSettings");
               }}
             >
-              Admin Settings
+              {translate("Admin Settings")}
             </button>
             <div id="adminSettingsSubMenu" className="side-submenu" hidden={!openSubmenus.adminSettings}>
               <button
@@ -426,7 +426,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 hidden={!canOpenSettingsOrganizations}
                 onClick={openOrganizationsPanel}
               >
-                Organizations
+                {translate("Organizations")}
               </button>
               <button
                 id="openMonitoringBtn"
@@ -434,7 +434,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 className="side-submenu-link side-submenu-action"
                 onClick={openMonitoringPanel}
               >
-                Monitoring
+                {translate("Monitoring")}
               </button>
             </div>
           </div>
@@ -449,7 +449,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 toggleSubmenu("settings");
               }}
             >
-              Settings
+              {translate("Settings")}
             </button>
             <div id="settingsSubMenu" className="side-submenu" hidden={!openSubmenus.settings}>
               <button
@@ -459,7 +459,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 hidden={!canOpenAppointmentSettings}
                 onClick={openAppointmentSettingsPanel}
               >
-                Appointments
+                {translate("Appointments")}
               </button>
               <button
                 id="openRolesBtn"
@@ -468,7 +468,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 hidden={!canOpenSettingsRoles}
                 onClick={openRolesPanel}
               >
-                Roles
+                {translate("Roles")}
               </button>
               <button
                 id="openTelegramBotSettingsBtn"
@@ -477,7 +477,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 hidden={!canOpenTelegramBotSettings}
                 onClick={openTelegramBotSettingsPanel}
               >
-                Telegram Bot
+                {translate("Telegram Bot")}
               </button>
               <button
                 id="openPositionsBtn"
@@ -486,7 +486,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 hidden={!canOpenSettingsPositions}
                 onClick={openPositionsPanel}
               >
-                Positions
+                {translate("Positions")}
               </button>
               <button
                 id="openSettingsServicesBtn"
@@ -495,7 +495,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 hidden={!canOpenSettingsServices}
                 onClick={openSettingsServicesPanel}
               >
-                Services
+                {translate("Services")}
               </button>
               <button
                 id="openSettingsFinanceBtn"
@@ -504,7 +504,7 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 hidden={!canOpenSettingsFinance}
                 onClick={openSettingsFinancePanel}
               >
-                Finance
+                {translate("Finance")}
               </button>
             </div>
           </div>

@@ -64,7 +64,7 @@ test("finance client discounts route is wired into profile navigation", async ()
   );
   assert.match(
     sideMenuSource,
-    /id="openFinanceDiscountsBtn"[\s\S]*hidden=\{!canOpenFinanceDiscounts\}[\s\S]*onClick=\{openFinanceDiscountsPanel\}[\s\S]*Скидки клиентов/s,
+    /id="openFinanceDiscountsBtn"[\s\S]*hidden=\{!canOpenFinanceDiscounts\}[\s\S]*onClick=\{openFinanceDiscountsPanel\}[\s\S]*translate\("Client Discounts"\)/s,
     "Side menu should show finance client discounts for users with access."
   );
   assert.match(
