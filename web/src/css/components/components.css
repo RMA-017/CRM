@@ -3089,6 +3089,7 @@ label.field > span:first-child,
 }
 
 .appointment-grid-wrap {
+  position: relative;
   border: 1px solid #c4d6ec;
   border-radius: 16px;
   background-color: #f0f6ff;
@@ -3140,6 +3141,46 @@ label.field > span:first-child,
   border-spacing: 0;
   table-layout: fixed;
   background: #f3f8ff;
+}
+
+.appointment-current-time-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  min-width: 900px;
+  height: 0;
+  z-index: 8;
+  pointer-events: none;
+}
+
+.appointment-current-time-indicator::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: var(--time-col-width);
+  right: 0;
+  border-top: 2px solid rgba(239, 68, 68, 0.78);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.72);
+}
+
+.appointment-current-time-label {
+  position: sticky;
+  left: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 18px;
+  padding: 0 7px;
+  border: 1px solid rgba(239, 68, 68, 0.55);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #b91c1c;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 3px 8px rgba(185, 28, 28, 0.14);
+  transform: translateY(-50%);
 }
 
 .appointment-vip-weekly-note {

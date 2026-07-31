@@ -655,6 +655,24 @@ function normalizeTimeToMinutes(value) {
   return (hours * 60) + minutes;
 }
 
+function formatClockTime(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function getEffectiveSlotStepMinutes(timeSlots, slotMinutesByValue, fallbackMinutes = 30) {
+  for (let index = 1; index < timeSlots.length; index += 1) {
+    const previous = slotMinutesByValue[timeSlots[index - 1]];
+    const next = slotMinutesByValue[timeSlots[index]];
+    if (Number.isInteger(previous) && Number.isInteger(next) && next > previous) {
+      return next - previous;
+    }
+  }
+  return Math.max(1, Number.parseInt(String(fallbackMinutes || "30"), 10) || 30);
+}
+
 function isInsideWorkingHoursByMinutes(slotMinutes, dayMinutes) {
   return (
     slotMinutes !== null
@@ -1316,6 +1334,9 @@ function AppointmentPlannerGrid({
   compactOccupiedOnly = false
 }) {
   const { translate } = useI18n();
+  const gridTableRef = useRef(null);
+  const [gridHeadHeightPx, setGridHeadHeightPx] = useState(0);
+  const [gridSlotMetricsByValue, setGridSlotMetricsByValue] = useState(() => ({}));
   const weekDays = useMemo(
     () => buildPlannerWeekDays(weekStartDate, settings?.visibleWeekDays, translate),
     [settings?.visibleWeekDays, translate, weekStartDate]
@@ -1553,6 +1574,160 @@ function AppointmentPlannerGrid({
 
     return cellsBySlot;
   }, [compactOccupiedOnly, renderedTimeSlots, settings?.slotSubDivisions, slotIndexByValue, timeSlots]);
+  useEffect(() => {
+    const table = gridTableRef.current;
+    if (!table) {
+      setGridHeadHeightPx(0);
+      return undefined;
+    }
+
+    let rafId = 0;
+    const measureGrid = () => {
+      const head = table.querySelector("thead");
+      const nextHeight = head?.getBoundingClientRect?.().height || 0;
+      setGridHeadHeightPx((current) => (
+        Math.abs(current - nextHeight) < 0.5 ? current : nextHeight
+      ));
+      const tableRect = table.getBoundingClientRect();
+      const rows = Array.from(table.querySelectorAll("tbody tr[data-appointment-slot-row]"));
+      const nextMetrics = rows.reduce((acc, row) => {
+        const slot = String(row.getAttribute("data-appointment-slot-row") || "").trim();
+        if (!slot) {
+          return acc;
+        }
+        const rowRect = row.getBoundingClientRect();
+        acc[slot] = {
+          top: rowRect.top - tableRect.top,
+          height: rowRect.height
+        };
+        return acc;
+      }, {});
+      setGridSlotMetricsByValue((current) => {
+        const currentKeys = Object.keys(current);
+        const nextKeys = Object.keys(nextMetrics);
+        const unchanged = (
+          currentKeys.length === nextKeys.length
+          && nextKeys.every((key) => (
+            current[key]
+            && Math.abs((current[key].top || 0) - (nextMetrics[key].top || 0)) < 0.5
+            && Math.abs((current[key].height || 0) - (nextMetrics[key].height || 0)) < 0.5
+          ))
+        );
+        return unchanged ? current : nextMetrics;
+      });
+    };
+    const scheduleMeasure = () => {
+      if (typeof window === "undefined") {
+        measureGrid();
+        return;
+      }
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
+      rafId = window.requestAnimationFrame(measureGrid);
+    };
+
+    scheduleMeasure();
+    const resizeObserver = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(scheduleMeasure)
+      : null;
+    if (resizeObserver) {
+      resizeObserver.observe(table);
+      const head = table.querySelector("thead");
+      if (head) {
+        resizeObserver.observe(head);
+      }
+    }
+    window.addEventListener("resize", scheduleMeasure);
+
+    return () => {
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", scheduleMeasure);
+    };
+  }, [renderedTimeSlots.length, weekDays.length]);
+  const currentTimeIndicator = useMemo(() => {
+    if (
+      compactOccupiedOnly
+      || !(now instanceof Date)
+      || Number.isNaN(now.getTime())
+      || renderedTimeSlots.length === 0
+    ) {
+      return null;
+    }
+
+    const today = weekDays.find((day) => isSameDate(day.date, now));
+    if (!today) {
+      return null;
+    }
+
+    const nowMinutes = (now.getHours() * 60) + now.getMinutes();
+    const dayMinutes = workingHoursMinutesByDay[today.key] || { start: null, end: null };
+    if (!isInsideWorkingHoursByMinutes(nowMinutes, dayMinutes)) {
+      return null;
+    }
+
+    const interval = Number.parseInt(String(settings?.slotInterval || "30"), 10) || 30;
+    const subDivisions = Math.max(1, Number.parseInt(String(settings?.slotSubDivisions || "1"), 10) || 1);
+    const fallbackSlotMinutes = Math.max(1, Math.floor(interval / subDivisions));
+    const slotStepMinutes = getEffectiveSlotStepMinutes(timeSlots, slotMinutesByValue, fallbackSlotMinutes);
+
+    let rowIndex = -1;
+    let rowFraction = 0;
+    let activeSlot = "";
+    renderedTimeSlots.some((slot, index) => {
+      const slotStartMinutes = slotMinutesByValue[slot];
+      if (!Number.isInteger(slotStartMinutes)) {
+        return false;
+      }
+      const nextSlot = renderedTimeSlots[index + 1];
+      const nextStartMinutes = nextSlot ? slotMinutesByValue[nextSlot] : null;
+      const slotEndMinutes = (
+        Number.isInteger(nextStartMinutes) && nextStartMinutes > slotStartMinutes
+          ? nextStartMinutes
+          : slotStartMinutes + slotStepMinutes
+      );
+      if (nowMinutes < slotStartMinutes || nowMinutes >= slotEndMinutes) {
+        return false;
+      }
+      rowIndex = index;
+      rowFraction = Math.max(0, Math.min(1, (nowMinutes - slotStartMinutes) / (slotEndMinutes - slotStartMinutes)));
+      activeSlot = slot;
+      return true;
+    });
+
+    if (rowIndex < 0) {
+      return null;
+    }
+
+    const slotMetric = gridSlotMetricsByValue[activeSlot] || null;
+    const rowTopPx = Number.isFinite(slotMetric?.top)
+      ? slotMetric.top
+      : gridHeadHeightPx + (rowIndex * slotCellHeightPx);
+    const rowHeightPx = Number.isFinite(slotMetric?.height) && slotMetric.height > 0
+      ? slotMetric.height
+      : slotCellHeightPx;
+
+    return {
+      label: formatClockTime(now),
+      offsetPx: Math.max(0, rowTopPx + (rowFraction * rowHeightPx))
+    };
+  }, [
+    compactOccupiedOnly,
+    gridHeadHeightPx,
+    gridSlotMetricsByValue,
+    now,
+    renderedTimeSlots,
+    settings?.slotInterval,
+    settings?.slotSubDivisions,
+    slotCellHeightPx,
+    slotMinutesByValue,
+    timeSlots,
+    weekDays,
+    workingHoursMinutesByDay
+  ]);
   const appointmentBlockedSlotsByDay = useMemo(() => (
     weekDays.reduce((acc, day) => {
       const dayItems = Array.isArray(rawAppointmentsByDay?.[day.key]) ? rawAppointmentsByDay[day.key] : [];
@@ -2271,7 +2446,7 @@ function AppointmentPlannerGrid({
         </div>
       ) : null}
       <div className={["appointment-grid-wrap", compactOccupiedOnly ? "appointment-grid-wrap-booked-only" : "", mouseDragPreview ? "appointment-grid-dragging" : "", wrapperClassName].filter(Boolean).join(" ") || undefined}>
-        <table className="appointment-grid" aria-label={ariaLabel || sectionTitle || "Appointment week table"}>
+        <table ref={gridTableRef} className="appointment-grid" aria-label={ariaLabel || sectionTitle || "Appointment week table"}>
           <thead>
             <tr>
               <th className="appointment-time-col">Time</th>
@@ -2339,6 +2514,7 @@ function AppointmentPlannerGrid({
               return (
                 <tr
                   key={slot}
+                  data-appointment-slot-row={slot}
                   className={rowIsMajorSlot ? (slotSubDivisionsNum > 1 ? "appointment-row-major-slot" : undefined) : "appointment-row-sub-slot"}
                   style={slotRowHeightStyle}
                 >
@@ -2686,6 +2862,15 @@ function AppointmentPlannerGrid({
             })}
           </tbody>
         </table>
+        {currentTimeIndicator && gridHeadHeightPx > 0 ? (
+          <div
+            className="appointment-current-time-indicator"
+            style={{ top: `${currentTimeIndicator.offsetPx}px` }}
+            aria-hidden="true"
+          >
+            <span className="appointment-current-time-label">{currentTimeIndicator.label}</span>
+          </div>
+        ) : null}
       </div>
       {mouseDragPreview?.canDrop && mouseDragPreview.targetWidth > 0 && mouseDragPreview.targetHeight > 0 ? (
         typeof document !== "undefined"
@@ -2740,6 +2925,7 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
   const canReadPlannerBreaks = canReadAppointments || canReadAppointmentBreaks;
   const [message, setMessage] = useState("");
   const [weekOffset, setWeekOffset] = useState(0);
+  const [now, setNow] = useState(() => new Date());
   const [compactWeekRange, setCompactWeekRange] = useState(() => {
     if (typeof window === "undefined") {
       return false;
@@ -3092,6 +3278,37 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
   useEffect(() => {
     void loadAppointmentSettings();
   }, [loadAppointmentSettings]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    let timeoutId = 0;
+    let intervalId = 0;
+    const refreshNow = () => setNow(new Date());
+    const scheduleMinuteTick = () => {
+      const current = new Date();
+      const delay = Math.max(1000, ((60 - current.getSeconds()) * 1000) - current.getMilliseconds());
+      timeoutId = window.setTimeout(() => {
+        refreshNow();
+        intervalId = window.setInterval(refreshNow, 60_000);
+      }, delay);
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        refreshNow();
+      }
+    };
+
+    scheduleMinuteTick();
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -4444,8 +4661,6 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
     weekStartDate,
     weekDays
   ]);
-  const now = new Date();
-
   const loadSchedulesForCurrentWeek = useCallback(async () => {
     if (!isSchedulerInitialized || !selectedSpecialistId || weekDays.length === 0) {
       return;

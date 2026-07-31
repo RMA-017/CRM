@@ -170,9 +170,29 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
     "Planner should only mark a common free slot green when the cell is actually open for creating an appointment."
   );
   assert.match(
+    source,
+    /const \[now, setNow\] = useState\(\(\) => new Date\(\)\);[\s\S]*setInterval\(refreshNow, 60_000\)/s,
+    "Appointment planner should keep the current-time indicator moving by refreshing the clock every minute."
+  );
+  assert.match(
+    source,
+    /function formatClockTime\(date\)[\s\S]*function getEffectiveSlotStepMinutes\(timeSlots, slotMinutesByValue, fallbackMinutes = 30\)[\s\S]*const currentTimeIndicator = useMemo\(\(\) => \{[\s\S]*compactOccupiedOnly[\s\S]*isInsideWorkingHoursByMinutes\(nowMinutes, dayMinutes\)[\s\S]*offsetPx:/s,
+    "Appointment planner should compute the current-time indicator from real slots and hide it in compact booked-only mode."
+  );
+  assert.match(
+    source,
+    /<table ref=\{gridTableRef\} className="appointment-grid"[\s\S]*className="appointment-current-time-indicator"[\s\S]*appointment-current-time-label/s,
+    "Appointment planner should render the current-time line as a non-table overlay."
+  );
+  assert.match(
     css,
     /appointment-common-free-slot-td[\s\S]*background: #d2e5fc;/,
     "Common free appointment slots should use a soft neutral background."
+  );
+  assert.match(
+    css,
+    /\.appointment-grid-wrap \{[\s\S]*position: relative;[\s\S]*\.appointment-current-time-indicator \{[\s\S]*pointer-events: none;[\s\S]*\.appointment-current-time-indicator::after \{[\s\S]*left: var\(--time-col-width\);[\s\S]*\.appointment-current-time-label \{[\s\S]*position: sticky;/s,
+    "The current-time indicator should be positioned over the planner grid without blocking slot interactions."
   );
   assert.match(
     css,
