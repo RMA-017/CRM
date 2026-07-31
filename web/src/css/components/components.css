@@ -3153,6 +3153,7 @@ label.field > span:first-child,
   height: var(--current-time-label-height);
   z-index: 8;
   pointer-events: none;
+  overflow: hidden;
   transform: translateY(-50%);
 }
 
