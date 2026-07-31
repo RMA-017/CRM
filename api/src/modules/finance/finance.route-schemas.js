@@ -159,8 +159,8 @@ export const financeRouteSchemas = Object.freeze({
     type: "object",
     additionalProperties: true,
     properties: {
-      ticketNumber: { type: "string", maxLength: 5 },
-      ticket_number: { type: "string", maxLength: 5 },
+      ticketNumber: { type: "string", maxLength: 16 },
+      ticket_number: { type: "string", maxLength: 16 },
       ticketCreatedFrom: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
       ticketCreatedTo: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
       ticket_created_from: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },

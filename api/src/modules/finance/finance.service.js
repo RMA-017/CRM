@@ -1502,7 +1502,7 @@ export async function getFinanceActivePaymentMethods({ organizationId }) {
 function buildTicketsListWhere({ organizationId, filters = {} }) {
   const params = [organizationId];
   const where = ["ft.organization_id = $1"];
-  const ticketNumber = normalizeText(filters.ticketNumber ?? filters.ticket_number, 5);
+  const ticketNumber = normalizeText(filters.ticketNumber ?? filters.ticket_number, 16).replace(/\D/g, "").slice(0, 5);
   const ticketCreatedFrom = normalizeDate(filters.ticketCreatedFrom ?? filters.ticket_created_from);
   const ticketCreatedTo = normalizeDate(filters.ticketCreatedTo ?? filters.ticket_created_to);
   const dateFrom = normalizeDate(filters.dateFrom ?? filters.date_from);

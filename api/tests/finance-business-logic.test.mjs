@@ -79,6 +79,11 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
     /function buildTicketsListWhere[\s\S]*const ticketCreatedFrom = normalizeDate\(filters\.ticketCreatedFrom \?\? filters\.ticket_created_from\);[\s\S]*ft\.created_at::date >= \$\$\{params\.length\}::date[\s\S]*ft\.created_at::date <= \$\$\{params\.length\}::date[\s\S]*ft\.ticket_date >= \$\$\{params\.length\}/s,
     "Finance ticket list should support created-at defaults separately from manual ticket-date filters."
   );
+  assert.match(
+    financeServiceSource,
+    /function buildTicketsListWhere[\s\S]*const ticketNumber = normalizeText\(filters\.ticketNumber \?\? filters\.ticket_number, 16\)\.replace\(\/\\D\/g, ""\)\.slice\(0, 5\);[\s\S]*ft\.ticket_number = \$\$\{params\.length\}/s,
+    "Finance ticket list should accept display-formatted ticket numbers like #10000."
+  );
 
   assert.match(
     financeServiceSource,

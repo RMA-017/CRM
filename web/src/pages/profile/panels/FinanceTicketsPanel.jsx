@@ -117,6 +117,21 @@ function createInitialAppliedFilters() {
   };
 }
 
+function getTicketNumberDigits(value) {
+  return String(value ?? "").replace(/\D/g, "").slice(0, 5);
+}
+
+function normalizeTicketFiltersForQuery(source) {
+  const next = { ...(source || {}) };
+  const ticketNumber = getTicketNumberDigits(next.ticketNumber);
+  next.ticketNumber = ticketNumber;
+  if (ticketNumber) {
+    next.ticketCreatedFrom = "";
+    next.ticketCreatedTo = "";
+  }
+  return next;
+}
+
 const EMPTY_TICKET_EDIT_FORM = Object.freeze({
   ticketDate: "",
   clientId: "",
@@ -469,10 +484,11 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
   const loadTickets = useCallback(async (nextPage = 1, nextFilters = EMPTY_FILTERS) => {
     setLoading(true);
     try {
+      const queryFilters = normalizeTicketFiltersForQuery(nextFilters);
       const query = new URLSearchParams();
       query.set("page", String(nextPage));
       query.set("pageSize", "20");
-      Object.entries(nextFilters).forEach(([key, value]) => {
+      Object.entries(queryFilters).forEach(([key, value]) => {
         const normalized = String(value || "").trim();
         if (normalized) {
           query.set(key, normalized);
@@ -764,9 +780,11 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
 
   const applyFilters = (event) => {
     event.preventDefault();
-    setAppliedFilters(filters);
+    const nextFilters = normalizeTicketFiltersForQuery(filters);
+    setFilters(nextFilters);
+    setAppliedFilters(nextFilters);
     setFiltersOpen(false);
-    void loadTickets(1, filters);
+    void loadTickets(1, nextFilters);
   };
 
   const toggleStatusFilter = (status) => {
@@ -1073,7 +1091,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
       const query = new URLSearchParams();
       query.set("page", String(nextPage));
       query.set("pageSize", "100");
-      Object.entries(appliedFilters).forEach(([key, value]) => {
+      Object.entries(normalizeTicketFiltersForQuery(appliedFilters)).forEach(([key, value]) => {
         const normalized = String(value || "").trim();
         if (normalized) {
           query.set(key, normalized);
@@ -1230,9 +1248,10 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                   <span>{translate("Ticket Number")}</span>
                   <input
                     type="text"
+                    inputMode="numeric"
                     value={filters.ticketNumber}
                     onChange={(event) => {
-                      const value = event.currentTarget.value;
+                      const value = getTicketNumberDigits(event.currentTarget.value);
                       setFilters((current) => ({ ...current, ticketNumber: value }));
                     }}
                   />

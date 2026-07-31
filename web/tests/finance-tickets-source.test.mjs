@@ -382,6 +382,21 @@ test("ticket list and filter modal use ticket creation dates", async () => {
   );
   assert.match(
     source,
+    /function getTicketNumberDigits\(value\) \{[\s\S]*replace\(\/\\D\/g, ""\)\.slice\(0, 5\);[\s\S]*function normalizeTicketFiltersForQuery\(source\) \{[\s\S]*const ticketNumber = getTicketNumberDigits\(next\.ticketNumber\);[\s\S]*next\.ticketCreatedFrom = "";[\s\S]*next\.ticketCreatedTo = "";/s,
+    "Ticket number search should strip display characters and clear default created-at dates so old tickets can be found."
+  );
+  assert.match(
+    source,
+    /const applyFilters = \(event\) => \{[\s\S]*const nextFilters = normalizeTicketFiltersForQuery\(filters\);[\s\S]*setFilters\(nextFilters\);[\s\S]*setAppliedFilters\(nextFilters\);[\s\S]*loadTickets\(1, nextFilters\);/s,
+    "Applying ticket filters should persist the normalized ticket-number query."
+  );
+  assert.match(
+    source,
+    /Object\.entries\(normalizeTicketFiltersForQuery\(appliedFilters\)\)\.forEach/s,
+    "Ticket exports should use the same normalized ticket-number filters as the visible list."
+  );
+  assert.match(
+    source,
     /translate\("Ticket Created From"\)[\s\S]*value=\{filters\.ticketCreatedFrom\}[\s\S]*ticketCreatedFrom: value[\s\S]*translate\("Ticket Created To"\)[\s\S]*value=\{filters\.ticketCreatedTo\}[\s\S]*ticketCreatedTo: value/s,
     "Finance ticket filter modal date inputs should filter by the real ticket creation date."
   );
