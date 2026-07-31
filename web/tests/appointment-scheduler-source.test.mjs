@@ -172,17 +172,22 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   assert.match(
     source,
     /const \[now, setNow\] = useState\(\(\) => new Date\(\)\);[\s\S]*setInterval\(refreshNow, 60_000\)/s,
-    "Appointment planner should keep the current-time indicator moving by refreshing the clock every minute."
+    "Appointment planner should keep the current-time line moving by refreshing the clock every minute."
   );
   assert.match(
     source,
-    /function formatClockTime\(date\)[\s\S]*function getEffectiveSlotStepMinutes\(timeSlots, slotMinutesByValue, fallbackMinutes = 30\)[\s\S]*const currentTimeIndicator = useMemo\(\(\) => \{[\s\S]*compactOccupiedOnly[\s\S]*isInsideWorkingHoursByMinutes\(nowMinutes, dayMinutes\)[\s\S]*offsetPx:/s,
-    "Appointment planner should compute the current-time indicator from real slots and hide it in compact booked-only mode."
+    /function getEffectiveSlotStepMinutes\(timeSlots, slotMinutesByValue, fallbackMinutes = 30\)[\s\S]*const currentTimeIndicator = useMemo\(\(\) => \{[\s\S]*compactOccupiedOnly[\s\S]*isInsideWorkingHoursByMinutes\(nowMinutes, dayMinutes\)[\s\S]*offsetPx:/s,
+    "Appointment planner should compute the current-time line from real slots and hide it in compact booked-only mode."
   );
   assert.match(
     source,
-    /<table ref=\{gridTableRef\} className="appointment-grid"[\s\S]*className="appointment-current-time-indicator"[\s\S]*appointment-current-time-label/s,
+    /<table ref=\{gridTableRef\} className="appointment-grid"[\s\S]*className="appointment-current-time-indicator"[\s\S]*aria-hidden="true"[\s\S]*\/>/s,
     "Appointment planner should render the current-time line as a non-table overlay."
+  );
+  assert.doesNotMatch(
+    source,
+    /appointment-current-time-label|formatClockTime/,
+    "Appointment planner should not render a current-time text pill."
   );
   assert.match(
     css,
@@ -191,8 +196,13 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     css,
-    /\.appointment-grid-wrap \{[\s\S]*position: relative;[\s\S]*\.appointment-current-time-indicator \{[\s\S]*height: var\(--current-time-label-height\);[\s\S]*pointer-events: none;[\s\S]*transform: translateY\(-50%\);[\s\S]*\.appointment-current-time-indicator::after \{[\s\S]*top: calc\(50% - 1px\);[\s\S]*left: calc\(var\(--time-col-width\) - 1px\);[\s\S]*right: 0;[\s\S]*\.appointment-current-time-label \{[\s\S]*position: sticky;[\s\S]*left: calc\(var\(--time-col-width\) - var\(--current-time-label-width\)\);[\s\S]*box-sizing: border-box;/s,
+    /\.appointment-grid-wrap \{[\s\S]*position: relative;[\s\S]*\.appointment-current-time-indicator \{[\s\S]*left: var\(--time-col-width\);[\s\S]*height: 0;[\s\S]*pointer-events: none;[\s\S]*\.appointment-current-time-indicator::after \{[\s\S]*top: -1px;[\s\S]*left: -1px;[\s\S]*right: 0;/s,
     "The current-time indicator should be positioned over the planner grid without blocking slot interactions."
+  );
+  assert.doesNotMatch(
+    css,
+    /\.appointment-current-time-label/,
+    "The current-time indicator should not style or reserve space for a time text pill."
   );
   assert.match(
     css,

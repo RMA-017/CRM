@@ -655,13 +655,6 @@ function normalizeTimeToMinutes(value) {
   return (hours * 60) + minutes;
 }
 
-function formatClockTime(date) {
-  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
-    return "";
-  }
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
-
 function getEffectiveSlotStepMinutes(timeSlots, slotMinutesByValue, fallbackMinutes = 30) {
   for (let index = 1; index < timeSlots.length; index += 1) {
     const previous = slotMinutesByValue[timeSlots[index - 1]];
@@ -1711,7 +1704,6 @@ function AppointmentPlannerGrid({
       : slotCellHeightPx;
 
     return {
-      label: formatClockTime(now),
       offsetPx: Math.max(0, rowTopPx + (rowFraction * rowHeightPx))
     };
   }, [
@@ -2867,9 +2859,7 @@ function AppointmentPlannerGrid({
             className="appointment-current-time-indicator"
             style={{ top: `${currentTimeIndicator.offsetPx}px` }}
             aria-hidden="true"
-          >
-            <span className="appointment-current-time-label">{currentTimeIndicator.label}</span>
-          </div>
+          />
         ) : null}
       </div>
       {mouseDragPreview?.canDrop && mouseDragPreview.targetWidth > 0 && mouseDragPreview.targetHeight > 0 ? (
