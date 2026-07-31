@@ -3157,29 +3157,29 @@ label.field > span:first-child,
   content: "";
   position: absolute;
   top: 0;
-  left: var(--time-col-width);
+  left: calc(var(--time-col-width) - 1px);
   right: 0;
-  border-top: 2px solid rgba(239, 68, 68, 0.78);
+  border-top: 2px solid rgba(37, 99, 235, 0.78);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.72);
 }
 
 .appointment-current-time-label {
   position: sticky;
-  left: 6px;
+  left: calc(var(--time-col-width) - 40px);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 44px;
-  height: 18px;
-  padding: 0 7px;
-  border: 1px solid rgba(239, 68, 68, 0.55);
+  width: 40px;
+  height: 16px;
+  padding: 0 4px;
+  border: 1px solid rgba(37, 99, 235, 0.55);
   border-radius: 999px;
   background: #ffffff;
-  color: #b91c1c;
-  font-size: 11px;
+  color: #2563eb;
+  font-size: 10px;
   font-weight: 800;
   line-height: 1;
-  box-shadow: 0 3px 8px rgba(185, 28, 28, 0.14);
+  box-shadow: 0 3px 8px rgba(37, 99, 235, 0.14);
   transform: translateY(-50%);
 }
 

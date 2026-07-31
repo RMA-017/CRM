@@ -191,7 +191,7 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     css,
-    /\.appointment-grid-wrap \{[\s\S]*position: relative;[\s\S]*\.appointment-current-time-indicator \{[\s\S]*pointer-events: none;[\s\S]*\.appointment-current-time-indicator::after \{[\s\S]*left: var\(--time-col-width\);[\s\S]*\.appointment-current-time-label \{[\s\S]*position: sticky;/s,
+    /\.appointment-grid-wrap \{[\s\S]*position: relative;[\s\S]*\.appointment-current-time-indicator \{[\s\S]*pointer-events: none;[\s\S]*\.appointment-current-time-indicator::after \{[\s\S]*left: calc\(var\(--time-col-width\) - 1px\);[\s\S]*\.appointment-current-time-label \{[\s\S]*position: sticky;[\s\S]*left: calc\(var\(--time-col-width\) - 40px\);/s,
     "The current-time indicator should be positioned over the planner grid without blocking slot interactions."
   );
   assert.match(
