@@ -191,7 +191,7 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     css,
-    /\.appointment-grid-wrap \{[\s\S]*position: relative;[\s\S]*\.appointment-current-time-indicator \{[\s\S]*height: var\(--current-time-label-height\);[\s\S]*pointer-events: none;[\s\S]*transform: translateY\(-50%\);[\s\S]*\.appointment-current-time-indicator::after \{[\s\S]*top: calc\(50% - 1px\);[\s\S]*left: calc\(var\(--time-col-width\) - 1px\);[\s\S]*\.appointment-current-time-label \{[\s\S]*position: sticky;[\s\S]*left: calc\(var\(--time-col-width\) - var\(--current-time-label-width\)\);[\s\S]*box-sizing: border-box;/s,
+    /\.appointment-grid-wrap \{[\s\S]*position: relative;[\s\S]*\.appointment-current-time-indicator \{[\s\S]*height: var\(--current-time-label-height\);[\s\S]*pointer-events: none;[\s\S]*transform: translateY\(-50%\);[\s\S]*\.appointment-current-time-label \{[\s\S]*position: sticky;[\s\S]*left: calc\(var\(--time-col-width\) - var\(--current-time-label-width\)\);[\s\S]*box-sizing: border-box;[\s\S]*\.appointment-current-time-label::after \{[\s\S]*top: calc\(50% - 1px\);[\s\S]*left: calc\(100% - 1px\);/s,
     "The current-time indicator should be positioned over the planner grid without blocking slot interactions."
   );
   assert.match(
