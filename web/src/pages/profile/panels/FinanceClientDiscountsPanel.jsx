@@ -34,11 +34,13 @@ const DISCOUNT_ACTIVE_FILTER_OPTIONS = Object.freeze([
 const DISCOUNT_MAX_LIMIT_COUNT = 22;
 const DISCOUNT_MAX_PERCENT_VALUE = 100;
 const DISCOUNT_UNLIMITED_VALUE = "unlimited";
+const DISCOUNT_UNLIMITED_AMOUNT_ERROR = "Amount discount requires finite service counts.";
+const DISCOUNT_FINITE_LIMIT_OPTIONS = Object.freeze(Array.from({ length: DISCOUNT_MAX_LIMIT_COUNT }, (_, index) => {
+  const value = String(index + 1);
+  return { value, label: value };
+}));
 const DISCOUNT_LIMIT_OPTIONS = Object.freeze([
-  ...Array.from({ length: DISCOUNT_MAX_LIMIT_COUNT }, (_, index) => {
-    const value = String(index + 1);
-    return { value, label: value };
-  }),
+  ...DISCOUNT_FINITE_LIMIT_OPTIONS,
   { value: DISCOUNT_UNLIMITED_VALUE, label: "Unlimited" }
 ]);
 
@@ -91,6 +93,10 @@ function getStatusClassName(status) {
 
 function isUnlimitedDiscountService(service) {
   return service?.limitCount === null || service?.limit_count === null;
+}
+
+function hasUnlimitedServiceRows(rows) {
+  return Array.isArray(rows) && rows.some((row) => Boolean(row?.isUnlimited));
 }
 
 function formatServiceProgress(service, translate) {
@@ -168,6 +174,9 @@ function FinanceClientDiscountsPanel({
     selectedLabel: formatServiceOptionLabel(service),
     item: service
   })), [services]);
+  const discountLimitOptions = useMemo(() => (
+    createForm.discountType === "amount" ? DISCOUNT_FINITE_LIMIT_OPTIONS : DISCOUNT_LIMIT_OPTIONS
+  ), [createForm.discountType]);
   const filterServiceOptions = useMemo(() => [
     { value: "", label: translate("All") },
     ...services.filter(Boolean).map((service) => ({
@@ -346,6 +355,10 @@ function FinanceClientDiscountsPanel({
     setCreateForm((current) => {
       if (field === "discountType") {
         const discountType = String(value || "amount");
+        if (discountType === "amount" && hasUnlimitedServiceRows(serviceRows)) {
+          setCreateError(DISCOUNT_UNLIMITED_AMOUNT_ERROR);
+          return current;
+        }
         return {
           ...current,
           discountType,
@@ -363,7 +376,7 @@ function FinanceClientDiscountsPanel({
         [field]: value
       };
     });
-  }, []);
+  }, [serviceRows]);
 
   const updateServiceRow = useCallback((key, patch) => {
     setCreateError("");
@@ -422,6 +435,10 @@ function FinanceClientDiscountsPanel({
     });
     if (hasDuplicateService) {
       setCreateError("Одна услуга выбрана несколько раз.");
+      return;
+    }
+    if (createForm.discountType === "amount" && hasUnlimitedServiceRows(selectedServiceRows)) {
+      setCreateError(DISCOUNT_UNLIMITED_AMOUNT_ERROR);
       return;
     }
     const invalidLimit = selectedServiceRows.some((row) => {
@@ -859,11 +876,15 @@ function FinanceClientDiscountsPanel({
                         <label className="field finance-discounts-service-count-field">
                           <CustomSelect
                             value={row.isUnlimited ? DISCOUNT_UNLIMITED_VALUE : String(row.limitCount || "1")}
-                            options={DISCOUNT_LIMIT_OPTIONS}
+                            options={discountLimitOptions}
                             placeholder="Кол-во"
                             menuPortal
                             onChange={(value) => {
                               if (value === DISCOUNT_UNLIMITED_VALUE) {
+                                if (createForm.discountType === "amount") {
+                                  setCreateError(DISCOUNT_UNLIMITED_AMOUNT_ERROR);
+                                  return;
+                                }
                                 updateServiceRow(row.key, { isUnlimited: true, limitCount: "" });
                                 return;
                               }

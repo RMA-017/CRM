@@ -442,6 +442,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Disable reason is required.", uz: "O'chirish sababini yozish shart.", ru: "Укажите причину отключения." },
   { en: "Completed", uz: "Yakunlangan", ru: "Завершена" },
   { en: "Unlimited", uz: "Bezlimit", ru: "Безлимит" },
+  { en: "Amount discount requires finite service counts.", uz: "Summali skidka uchun Bezlimit emas, darslar sonini tanlash kerak.", ru: "Для скидки суммой нужно выбрать количество занятий, а не Безлимит." },
   { en: "Disabled", uz: "O'chirilgan", ru: "Отключена" },
   { en: "Paid Amount", uz: "To'langan summa", ru: "Оплачено" },
   { en: "Remaining Amount", uz: "Qoldiq summa", ru: "Остаток" },
