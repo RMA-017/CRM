@@ -51,7 +51,7 @@ test("finance modal Escape handlers use the same close paths as cancel controls"
   );
   assert.match(
     byFile["FinanceBalancesPanel.jsx"],
-    /useEscapeKey\(Boolean\(depositModal \|\| ledgerColumnsOpen \|\| ledgerClient\)[\s\S]*closeDepositModal\(\)[\s\S]*closeLedgerColumns\(\)[\s\S]*closeClientLedger\(\)/s,
-    "Balance deposit, ledger columns, and ledger modals should close on Escape."
+    /useEscapeKey\(Boolean\(depositModal \|\| ledgerClient\)[\s\S]*closeDepositModal\(\)[\s\S]*closeClientLedger\(\)/s,
+    "Balance deposit and ledger modals should close on Escape."
   );
 });

@@ -208,6 +208,16 @@ function buildScheduleSnapshotSql(alias, previousPrefix = "") {
   )`;
 }
 
+function buildEffectiveAppointmentServicePriceSql(scheduleAlias = "s", serviceAlias = "sc") {
+  return `CASE
+    WHEN ${serviceAlias}.id IS NOT NULL
+     AND ${scheduleAlias}.created_at >= ${serviceAlias}.updated_at
+     AND COALESCE(${serviceAlias}.price_uzs, 0) > 0
+    THEN ${serviceAlias}.price_uzs
+    ELSE ${scheduleAlias}.service_price_uzs
+  END`;
+}
+
 function buildScheduleChangedFieldsSql(alias, previousPrefix = "prev_") {
   const prev = (name) => `${alias}.${previousPrefix}${name}`;
   const next = (name) => `${alias}.${name}`;
@@ -1733,6 +1743,41 @@ export async function withAppointmentTransaction(callback) {
   }
 }
 
+export async function getActiveServiceSnapshotById({ organizationId, serviceId, db = pool }) {
+  const normalizedOrganizationId = Number.parseInt(String(organizationId || ""), 10);
+  const normalizedServiceId = Number.parseInt(String(serviceId || ""), 10);
+  if (
+    !Number.isInteger(normalizedOrganizationId)
+    || normalizedOrganizationId <= 0
+    || !Number.isInteger(normalizedServiceId)
+    || normalizedServiceId <= 0
+  ) {
+    return null;
+  }
+
+  const { rows } = await db.query(
+    `SELECT id,
+            name,
+            price_uzs
+       FROM service_catalog
+      WHERE organization_id = $1
+        AND id = $2
+        AND is_active = TRUE
+      LIMIT 1`,
+    [normalizedOrganizationId, normalizedServiceId]
+  );
+  const row = rows[0] || null;
+  if (!row) {
+    return null;
+  }
+
+  return {
+    serviceId: Number.parseInt(String(row.id || ""), 10),
+    serviceName: String(row.name || "").trim(),
+    servicePriceUzs: Number.parseInt(String(row.price_uzs ?? 0), 10) || 0
+  };
+}
+
 export async function getAppointmentSpecialistsByOrganization(organizationId) {
   const cacheKey = `specialists|org:${organizationId}`;
   const cached = appointmentReferenceCache.get(cacheKey);
@@ -3103,7 +3148,7 @@ export async function getAppointmentSchedulesByRange({
            s.duration_minutes,
            s.service_id,
            s.service_name,
-           s.service_price_uzs,
+           ${buildEffectiveAppointmentServicePriceSql("s", "sc")} AS service_price_uzs,
            s.status,
            s.note,
            s.repeat_group_key,
@@ -3142,6 +3187,10 @@ export async function getAppointmentSchedulesByRange({
           JOIN clients c
             ON c.id = s.client_id
            AND c.organization_id = s.organization_id
+          LEFT JOIN service_catalog sc
+            ON sc.organization_id = s.organization_id
+           AND sc.id = s.service_id
+           AND sc.is_active = TRUE
           ${parentResponseJoin}
           LEFT JOIN LATERAL (
             SELECT
@@ -3400,6 +3449,19 @@ export async function ensureAutoRollingRecurringSchedulesCoverRange({
       let blockedRangesByDay = new Map();
       let breakRangesByDay = new Map();
       let absenceRangesByDate = new Map();
+      const rootServiceId = Number.parseInt(String(root?.service_id || ""), 10) || null;
+      const activeServiceSnapshot = rootServiceId
+        ? await getActiveServiceSnapshotById({
+            organizationId,
+            serviceId: rootServiceId,
+            db
+          })
+        : null;
+      const recurringServiceName = String(activeServiceSnapshot?.serviceName || root?.service_name || "").trim();
+      const recurringServicePriceUzs = Number.parseInt(
+        String(activeServiceSnapshot?.servicePriceUzs ?? root?.service_price_uzs ?? 0),
+        10
+      ) || 0;
 
       if (shouldEnforceAvailability && recurringDates.length > 0) {
         const settingsForRepeat = await getAppointmentSettingsByOrganization(
@@ -3502,9 +3564,9 @@ export async function ensureAutoRollingRecurringSchedulesCoverRange({
               startTime: normalizeTimeHm(root?.start_time),
               endTime: normalizeTimeHm(root?.end_time),
               durationMinutes: Number.parseInt(String(root?.duration_minutes || "").trim(), 10),
-              serviceId: Number.parseInt(String(root?.service_id || ""), 10) || null,
-              serviceName: String(root?.service_name || "").trim(),
-              servicePriceUzs: Number.parseInt(String(root?.service_price_uzs ?? 0), 10) || 0,
+              serviceId: rootServiceId,
+              serviceName: recurringServiceName,
+              servicePriceUzs: recurringServicePriceUzs,
               status: createdStatus,
               note: String(root?.note || "").trim(),
               repeatGroupKey,
@@ -4282,7 +4344,7 @@ export async function getAppointmentScheduleTargetsByScope({
        s.duration_minutes,
        s.service_id,
        s.service_name,
-       s.service_price_uzs,
+       ${buildEffectiveAppointmentServicePriceSql("s", "sc")} AS service_price_uzs,
        s.status,
        s.note,
        s.repeat_group_key,
@@ -4304,6 +4366,10 @@ export async function getAppointmentScheduleTargetsByScope({
       JOIN clients c
         ON c.id = s.client_id
        AND c.organization_id = s.organization_id
+      LEFT JOIN service_catalog sc
+        ON sc.organization_id = s.organization_id
+       AND sc.id = s.service_id
+       AND sc.is_active = TRUE
       WHERE s.organization_id = $1
         AND s.id = $2
       LIMIT 1`,
@@ -4339,7 +4405,7 @@ export async function getAppointmentScheduleTargetsByScope({
          s.duration_minutes,
          s.service_id,
          s.service_name,
-         s.service_price_uzs,
+         ${buildEffectiveAppointmentServicePriceSql("s", "sc")} AS service_price_uzs,
          s.status,
          s.note,
          s.repeat_group_key,
@@ -4361,6 +4427,10 @@ export async function getAppointmentScheduleTargetsByScope({
        JOIN clients c
          ON c.id = s.client_id
          AND c.organization_id = s.organization_id
+       LEFT JOIN service_catalog sc
+         ON sc.organization_id = s.organization_id
+        AND sc.id = s.service_id
+        AND sc.is_active = TRUE
        WHERE s.organization_id = $1
          AND s.repeat_group_key = $2::uuid
        ORDER BY s.appointment_date ASC, s.start_time ASC, s.id ASC`,

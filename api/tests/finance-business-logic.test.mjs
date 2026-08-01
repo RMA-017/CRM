@@ -227,8 +227,8 @@ test("finance ticket creation accepts pending or confirmed appointments and snap
 
   assert.match(
     financeServiceSource,
-    /const requestedPriceUzs = normalizeAmount\(rawItem\?\.priceUzs[\s\S]*const snapshotPriceUzs = usesAppointmentSnapshot[\s\S]*appointment\.service_price_uzs[\s\S]*const priceUzs = requestedPriceUzs > 0[\s\S]*snapshotPriceUzs > 0 \? snapshotPriceUzs : normalizeAmount\(service\?\.price_uzs, 0\)/s,
-    "Ticket line items should prefer the submitted price, then the appointment snapshot, then the active catalog price."
+    /const requestedPriceUzs = normalizeAmount\(rawItem\?\.priceUzs[\s\S]*const snapshotPriceUzs = usesAppointmentSnapshot[\s\S]*getAppointmentTicketPriceUzs\(\{ appointment, service \}\)[\s\S]*const priceUzs = usesAppointmentSnapshot[\s\S]*snapshotPriceUzs > 0[\s\S]*requestedPriceUzs > 0/s,
+    "Appointment-backed ticket line items should prefer the appointment/catalog snapshot rule before any submitted price."
   );
   assert.match(
     financeServiceSource,
@@ -288,6 +288,11 @@ test("finance client discounts apply only to appointment tickets and keep usage 
     financeRouteSchemasSource,
     /clientDiscountLimitCountSchema[\s\S]*maximum: 22[\s\S]*pattern: "\^\(\?:\[1-9\]\|1\\\\d\|2\[0-2\]\)\$"[\s\S]*nullableClientDiscountLimitCountSchema[\s\S]*type: "null"[\s\S]*clientDiscountLimitCountSchema[\s\S]*limitCount: nullableClientDiscountLimitCountSchema[\s\S]*limit_count: nullableClientDiscountLimitCountSchema/s,
     "Client discount service counts should be limited to 1..22 while allowing null for unlimited rows at the route schema level."
+  );
+  assert.match(
+    financeDiscountsSource,
+    /const finiteServices = services\.filter\(\(item\) => item\.limitCount !== null\);[\s\S]*const totalLimitCount = finiteServices\.reduce[\s\S]*const usedCount = services\.reduce\(\(sum, item\) => sum \+ normalizeAmount\(item\.usedCount, 0\), 0\);[\s\S]*remainingCount: hasUnlimited \? null : remainingCount/s,
+    "Client discount used count should include unlimited service usages while remaining count stays finite/null."
   );
 
   assert.match(

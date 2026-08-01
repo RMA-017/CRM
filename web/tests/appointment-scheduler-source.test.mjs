@@ -356,6 +356,11 @@ test("Appointment scheduler supports client-focused multi-specialist planner vie
   );
   assert.match(
     source,
+    /const appointmentServiceSelectOptions = useMemo\(\(\) => \{[\s\S]*const selectedSnapshotOption = \{[\s\S]*label: formatServiceOptionLabel\(\{ name: selectedServiceName, priceUzs: selectedPrice \}\)[\s\S]*if \(createModal\.mode === "edit"\) \{[\s\S]*nextOptions\[matchingIndex\] = selectedSnapshotOption;[\s\S]*return nextOptions;/s,
+    "Planner edit service select should show the appointment service price snapshot instead of the latest catalog price."
+  );
+  assert.match(
+    source,
     /if \(!service\) \{[\s\S]*errors\.service = "Service is required\.";[\s\S]*if \(status === "confirmed"/s,
     "Planner modal should require a selected service before saving an appointment."
   );

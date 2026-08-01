@@ -472,6 +472,32 @@ function mapClientLedgerTransaction(row, depositBalanceAfterUzs) {
   };
 }
 
+function toTimestampMs(value) {
+  if (!value) {
+    return 0;
+  }
+  const timestamp = Date.parse(String(value));
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function shouldUseCurrentServicePriceForAppointment(appointment, service) {
+  const appointmentCreatedAt = toTimestampMs(appointment?.created_at);
+  const serviceUpdatedAt = toTimestampMs(service?.updated_at);
+  return appointmentCreatedAt > 0 && serviceUpdatedAt > 0 && appointmentCreatedAt >= serviceUpdatedAt;
+}
+
+function getAppointmentTicketPriceUzs({ appointment, service }) {
+  const appointmentPriceUzs = normalizeAmount(appointment?.service_price_uzs, 0);
+  const currentServicePriceUzs = normalizeAmount(service?.price_uzs, 0);
+  if (
+    currentServicePriceUzs > 0
+    && shouldUseCurrentServicePriceForAppointment(appointment, service)
+  ) {
+    return currentServicePriceUzs;
+  }
+  return appointmentPriceUzs;
+}
+
 function mapAppointment(row) {
   if (!row) return null;
   return {
@@ -544,7 +570,13 @@ async function getCashierAppointmentById(db, { organizationId, id, forUpdate = f
             COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS specialist_name,
             a.service_id,
             a.service_name,
-            a.service_price_uzs,
+            CASE
+              WHEN sc.id IS NOT NULL
+               AND a.created_at >= sc.updated_at
+               AND COALESCE(sc.price_uzs, 0) > 0
+              THEN sc.price_uzs
+              ELSE a.service_price_uzs
+            END AS service_price_uzs,
             a.status,
             a.appointment_date,
             a.start_time,
@@ -555,6 +587,10 @@ async function getCashierAppointmentById(db, { organizationId, id, forUpdate = f
        FROM appointment_schedules a
        JOIN clients c ON c.organization_id = a.organization_id AND c.id = a.client_id
        JOIN users u ON u.organization_id = a.organization_id AND u.id = a.specialist_id
+       LEFT JOIN service_catalog sc
+         ON sc.organization_id = a.organization_id
+        AND sc.id = a.service_id
+        AND sc.is_active = TRUE
        LEFT JOIN finance_tickets ft
          ON ft.organization_id = a.organization_id
         AND ft.appointment_schedule_id = a.id
@@ -958,7 +994,13 @@ export async function getCashierBoard({
                   COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS specialist_name,
                   a.service_id,
                   a.service_name,
-                  a.service_price_uzs,
+                  CASE
+                    WHEN sc.id IS NOT NULL
+                     AND a.created_at >= sc.updated_at
+                     AND COALESCE(sc.price_uzs, 0) > 0
+                    THEN sc.price_uzs
+                    ELSE a.service_price_uzs
+                  END AS service_price_uzs,
                   a.status,
                   a.appointment_date,
                   a.start_time,
@@ -968,6 +1010,10 @@ export async function getCashierBoard({
              FROM appointment_schedules a
              JOIN clients c ON c.organization_id = a.organization_id AND c.id = a.client_id
              JOIN users u ON u.organization_id = a.organization_id AND u.id = a.specialist_id
+             LEFT JOIN service_catalog sc
+               ON sc.organization_id = a.organization_id
+              AND sc.id = a.service_id
+              AND sc.is_active = TRUE
              LEFT JOIN finance_tickets ft
                ON ft.organization_id = a.organization_id
               AND ft.appointment_schedule_id = a.id
@@ -1000,7 +1046,13 @@ export async function getCashierBoard({
                   COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS specialist_name,
                   a.service_id,
                   a.service_name,
-                  a.service_price_uzs,
+                  CASE
+                    WHEN sc.id IS NOT NULL
+                     AND a.created_at >= sc.updated_at
+                     AND COALESCE(sc.price_uzs, 0) > 0
+                    THEN sc.price_uzs
+                    ELSE a.service_price_uzs
+                  END AS service_price_uzs,
                   a.status,
                   a.appointment_date,
                   a.start_time,
@@ -1010,6 +1062,10 @@ export async function getCashierBoard({
              FROM appointment_schedules a
              JOIN clients c ON c.organization_id = a.organization_id AND c.id = a.client_id
              JOIN users u ON u.organization_id = a.organization_id AND u.id = a.specialist_id
+             LEFT JOIN service_catalog sc
+               ON sc.organization_id = a.organization_id
+              AND sc.id = a.service_id
+              AND sc.is_active = TRUE
              LEFT JOIN finance_tickets ft
                ON ft.organization_id = a.organization_id
               AND ft.appointment_schedule_id = a.id
@@ -4065,7 +4121,8 @@ async function getAppointmentForTicket(db, { organizationId, appointmentSchedule
             end_time,
             duration_minutes,
             note,
-            status
+            status,
+            created_at
        FROM appointment_schedules
       WHERE organization_id = $1
         AND id = $2
@@ -4256,7 +4313,8 @@ async function getServiceById(db, { organizationId, serviceId }) {
     `SELECT sc.id,
             sc.name,
             sc.price_uzs,
-            sc.position_id
+            sc.position_id,
+            sc.updated_at
        FROM service_catalog sc
       WHERE sc.organization_id = $1
         AND sc.id = $2
@@ -4289,11 +4347,11 @@ async function buildTicketItems(db, { organizationId, payload, appointment, fall
       }
       const requestedPriceUzs = normalizeAmount(rawItem?.priceUzs ?? rawItem?.price_uzs ?? rawItem?.amountUzs ?? rawItem?.amount_uzs, 0);
       const snapshotPriceUzs = usesAppointmentSnapshot
-        ? normalizeAmount(appointment.service_price_uzs, 0)
+        ? getAppointmentTicketPriceUzs({ appointment, service })
         : 0;
-      const priceUzs = requestedPriceUzs > 0
-        ? requestedPriceUzs
-        : (snapshotPriceUzs > 0 ? snapshotPriceUzs : normalizeAmount(service?.price_uzs, 0));
+      const priceUzs = usesAppointmentSnapshot
+        ? (snapshotPriceUzs > 0 ? snapshotPriceUzs : normalizeAmount(service?.price_uzs, 0))
+        : (requestedPriceUzs > 0 ? requestedPriceUzs : normalizeAmount(service?.price_uzs, 0));
       if (priceUzs <= 0) {
         const error = new Error("Service price is required.");
         error.statusCode = 400;
@@ -4332,7 +4390,12 @@ async function buildTicketItems(db, { organizationId, payload, appointment, fall
     const service = await getServiceById(db, { organizationId, serviceId });
     const appointmentServiceId = parsePositiveInteger(appointment?.service_id) || null;
     const usesAppointmentSnapshot = Boolean(appointment) && appointmentServiceId === serviceId;
-    if (service && !usesAppointmentSnapshot) {
+    if (usesAppointmentSnapshot) {
+      const snapshotPriceUzs = getAppointmentTicketPriceUzs({ appointment, service });
+      if (snapshotPriceUzs > 0) {
+        priceUzs = snapshotPriceUzs;
+      }
+    } else if (service) {
       serviceName = normalizeText(service.name, 128);
       priceUzs = normalizeAmount(service.price_uzs, 0);
     } else if (!appointment) {

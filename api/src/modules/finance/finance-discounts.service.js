@@ -196,7 +196,7 @@ function mapDiscountRule(row) {
   const services = normalizeServiceRows(row.services);
   const finiteServices = services.filter((item) => item.limitCount !== null);
   const totalLimitCount = finiteServices.reduce((sum, item) => sum + normalizeAmount(item.limitCount, 0), 0);
-  const usedCount = finiteServices.reduce((sum, item) => sum + normalizeAmount(item.usedCount, 0), 0);
+  const usedCount = services.reduce((sum, item) => sum + normalizeAmount(item.usedCount, 0), 0);
   const remainingCount = finiteServices.reduce((sum, item) => sum + normalizeAmount(item.remainingCount, 0), 0);
   const hasUnlimited = services.some((item) => item.limitCount === null);
   const isActive = Boolean(row.is_active);

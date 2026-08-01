@@ -318,6 +318,7 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     getAppointmentBreaksBySpecialistAndDays,
     getAppointmentScheduleTargetsByScope,
     getFinanceTicketLockedAppointmentIds,
+    getActiveServiceSnapshotById,
     hasAppointmentClientConflict,
     hasAppointmentScheduleConflict,
     hasVipRoutineConflictForSpecialist,
@@ -345,6 +346,65 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           ? hasPermission(requester?.role_id, permissionCode)
           : false;
       };
+
+  async function resolveActiveServiceSnapshot({
+    organizationId,
+    serviceId,
+    serviceName,
+    servicePriceUzs,
+    db = undefined
+  }) {
+    const normalizedServiceId = parsePositiveIntegerOr(serviceId, 0) || null;
+    if (!normalizedServiceId || typeof getActiveServiceSnapshotById !== "function") {
+      return {
+        serviceId: normalizedServiceId,
+        serviceName: String(serviceName || "").trim(),
+        servicePriceUzs: parseNonNegativeIntegerOr(servicePriceUzs, 0)
+      };
+    }
+
+    const serviceSnapshot = await getActiveServiceSnapshotById({
+      organizationId,
+      serviceId: normalizedServiceId,
+      db
+    });
+    if (!serviceSnapshot) {
+      throw createRouteError(404, {
+        field: "serviceId",
+        message: "Service not found."
+      });
+    }
+
+    return {
+      serviceId: normalizedServiceId,
+      serviceName: String(serviceSnapshot.serviceName || serviceName || "").trim(),
+      servicePriceUzs: parseNonNegativeIntegerOr(serviceSnapshot.servicePriceUzs, 0)
+    };
+  }
+
+  function shouldPreserveTargetServiceSnapshot(target, { serviceId, serviceName }) {
+    const items = Array.isArray(target?.items) ? target.items : [];
+    if (items.length === 0) {
+      return false;
+    }
+    const normalizedServiceId = parsePositiveIntegerOr(serviceId, 0) || null;
+    const normalizedServiceName = normalizeScheduleCompareText(serviceName);
+    return items.every((item) => {
+      const itemServiceId = parsePositiveIntegerOr(item?.serviceId, 0) || null;
+      if (itemServiceId || normalizedServiceId) {
+        return itemServiceId === normalizedServiceId;
+      }
+      return normalizeScheduleCompareText(item?.serviceName) === normalizedServiceName;
+    });
+  }
+
+  function getTargetServiceSnapshot(target) {
+    const item = Array.isArray(target?.items) ? (target.items[0] || null) : null;
+    return {
+      serviceName: String(item?.serviceName || "").trim(),
+      servicePriceUzs: parseNonNegativeIntegerOr(item?.servicePriceUzs, 0)
+    };
+  }
 
   function hasScheduleDateTimeChanges(previousItems, nextItems) {
     const previousById = new Map(
@@ -1576,9 +1636,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const endTime = String(request.body?.endTime || "").trim();
         const requestedDurationMinutes = parsePositiveIntegerOr(request.body?.durationMinutes, 0);
         const durationMinutes = requestedDurationMinutes || getDurationMinutesFromTimes(startTime, endTime);
-        const serviceName = String(request.body?.service || request.body?.serviceName || "").trim();
+        let serviceName = String(request.body?.service || request.body?.serviceName || "").trim();
         const serviceId = parsePositiveIntegerOr(request.body?.serviceId ?? request.body?.service_id, 0) || null;
-        const servicePriceUzs = parseNonNegativeIntegerOr(request.body?.servicePriceUzs ?? request.body?.service_price_uzs, 0);
+        let servicePriceUzs = parseNonNegativeIntegerOr(request.body?.servicePriceUzs ?? request.body?.service_price_uzs, 0);
         const status = normalizeAppointmentStatus(request.body?.status || "pending");
         const rawNote = String(request.body?.note || "").trim();
         const note = typeof formatAppointmentCancellationNote === "function"
@@ -1595,6 +1655,14 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
             )
           };
         }
+        const serviceSnapshot = await resolveActiveServiceSnapshot({
+          organizationId: access.authContext.organizationId,
+          serviceId,
+          serviceName,
+          servicePriceUzs
+        });
+        serviceName = serviceSnapshot.serviceName;
+        servicePriceUzs = serviceSnapshot.servicePriceUzs;
 
         const errors = validateSchedulePayload({
           specialistId,
@@ -2289,9 +2357,9 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
         const endTime = String(request.body?.endTime || "").trim();
         const requestedDurationMinutes = parsePositiveIntegerOr(request.body?.durationMinutes, 0);
         const durationMinutes = requestedDurationMinutes || getDurationMinutesFromTimes(startTime, endTime);
-        const serviceName = String(request.body?.service || request.body?.serviceName || "").trim();
+        let serviceName = String(request.body?.service || request.body?.serviceName || "").trim();
         const serviceId = parsePositiveIntegerOr(request.body?.serviceId ?? request.body?.service_id, 0) || null;
-        const servicePriceUzs = parseNonNegativeIntegerOr(request.body?.servicePriceUzs ?? request.body?.service_price_uzs, 0);
+        let servicePriceUzs = parseNonNegativeIntegerOr(request.body?.servicePriceUzs ?? request.body?.service_price_uzs, 0);
         const status = normalizeAppointmentStatus(request.body?.status || "pending");
         const rawNote = String(request.body?.note || "").trim();
         const note = typeof formatAppointmentCancellationNote === "function"
@@ -2364,6 +2432,20 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
           if (!keepsLimitedEditScope) {
             return reply.status(403).send({ message: buildOwnPlannerLimitedEditForbiddenMessage() });
           }
+        }
+        if (shouldPreserveTargetServiceSnapshot(target, { serviceId, serviceName })) {
+          const targetServiceSnapshot = getTargetServiceSnapshot(target);
+          serviceName = targetServiceSnapshot.serviceName || serviceName;
+          servicePriceUzs = targetServiceSnapshot.servicePriceUzs;
+        } else {
+          const serviceSnapshot = await resolveActiveServiceSnapshot({
+            organizationId: access.authContext.organizationId,
+            serviceId,
+            serviceName,
+            servicePriceUzs
+          });
+          serviceName = serviceSnapshot.serviceName;
+          servicePriceUzs = serviceSnapshot.servicePriceUzs;
         }
         const historyLockDays = await getAppointmentHistoryLockDaysByOrganization(
           access.authContext.organizationId

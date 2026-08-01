@@ -4060,22 +4060,30 @@ const AppointmentScheduler = forwardRef(function AppointmentScheduler({
   const appointmentServiceSelectOptions = useMemo(() => {
     const selectedServiceId = String(createForm.serviceId || "").trim();
     const selectedServiceName = String(createForm.service || "").trim();
-    const hasSelectedService = selectedServiceId
-      && serviceOptions.some((option) => option.value === selectedServiceId);
-    if (!selectedServiceId || hasSelectedService || !selectedServiceName) {
+    if (!selectedServiceId || !selectedServiceName) {
       return serviceOptions;
     }
     const selectedPrice = Number.parseInt(String(createForm.servicePriceUzs ?? 0), 10) || 0;
-    return [
-      {
-        value: selectedServiceId,
-        label: formatServiceOptionLabel({ name: selectedServiceName, priceUzs: selectedPrice }),
-        name: selectedServiceName,
-        priceUzs: selectedPrice
-      },
-      ...serviceOptions
-    ];
-  }, [createForm.service, createForm.serviceId, createForm.servicePriceUzs, serviceOptions]);
+    const selectedSnapshotOption = {
+      value: selectedServiceId,
+      label: formatServiceOptionLabel({ name: selectedServiceName, priceUzs: selectedPrice }),
+      name: selectedServiceName,
+      priceUzs: selectedPrice
+    };
+    const matchingIndex = serviceOptions.findIndex((option) => option.value === selectedServiceId);
+    if (createModal.mode === "edit") {
+      const nextOptions = [...serviceOptions];
+      if (matchingIndex >= 0) {
+        nextOptions[matchingIndex] = selectedSnapshotOption;
+        return nextOptions;
+      }
+      return [selectedSnapshotOption, ...nextOptions];
+    }
+    if (matchingIndex >= 0) {
+      return serviceOptions;
+    }
+    return [selectedSnapshotOption, ...serviceOptions];
+  }, [createForm.service, createForm.serviceId, createForm.servicePriceUzs, createModal.mode, serviceOptions]);
 
   const clientSelectOptions = useMemo(() => {
     const currentId = String(createForm.clientId || "").trim();

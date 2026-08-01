@@ -12,6 +12,7 @@ export {
   getAppointmentPlannerReport,
   getAppointmentScheduleTargetsByScope,
   getFinanceTicketLockedAppointmentIds,
+  getActiveServiceSnapshotById,
   getAppointmentSchedulesByRange,
   getAppointmentSpecialistsByOrganization,
   isVipClassAssignedToUser,
