@@ -331,6 +331,11 @@ test("finance client discounts apply only to appointment tickets and keep usage 
     /calculatePackagePerUseDiscounts[\s\S]*priceUzs \* limitCount[\s\S]*totalDiscountUzs[\s\S]*exactPerUseDiscount[\s\S]*per_use_discount_uzs/s,
     "Amount client discounts should be stored as package totals and distributed into per-use service discounts."
   );
+  assert.match(
+    financeDiscountsSource,
+    /calculatePackagePerUseDiscounts[\s\S]*serviceInputs\.some\(\(item\) => item\.limitCount === null\)[\s\S]*return new Map\(\);[\s\S]*discountType === "amount" && perUseDiscountUzs !== null[\s\S]*calculateDiscountUzs\(\{ priceUzs, discountType, discountValue \}\)/s,
+    "Unlimited amount client discounts should skip package distribution and apply the fixed amount until disabled."
+  );
 
   assert.match(
     financeDiscountsSource,

@@ -43,14 +43,13 @@ test("profile dashboard allows specialist planner readers to see their own repor
 });
 
 test("finance client discounts route is wired into profile navigation", async () => {
-  const [appSource, profilePageSource, profileMainSource, sideMenuSource, panelSource, stylesSource, translationsSource] = await Promise.all([
+  const [appSource, profilePageSource, profileMainSource, sideMenuSource, panelSource, stylesSource] = await Promise.all([
     readFile(new URL("../src/App.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/pages/ProfilePage.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/pages/profile/ProfileMainContent.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/pages/profile/ProfileSideMenu.jsx", import.meta.url), "utf8"),
     readFile(new URL("../src/pages/profile/panels/FinanceClientDiscountsPanel.jsx", import.meta.url), "utf8"),
-    readFile(new URL("../src/css/components/components.css", import.meta.url), "utf8"),
-    readFile(new URL("../src/i18n/translations.js", import.meta.url), "utf8")
+    readFile(new URL("../src/css/components/components.css", import.meta.url), "utf8")
   ]);
 
   assert.match(
@@ -155,18 +154,13 @@ test("finance client discounts route is wired into profile navigation", async ()
   );
   assert.match(
     panelSource,
-    /const DISCOUNT_UNLIMITED_AMOUNT_ERROR = "Amount discount requires finite service counts\.";[\s\S]*const DISCOUNT_FINITE_LIMIT_OPTIONS = Object\.freeze\(Array\.from[\s\S]*const DISCOUNT_LIMIT_OPTIONS = Object\.freeze\(\[[\s\S]*\.\.\.DISCOUNT_FINITE_LIMIT_OPTIONS[\s\S]*DISCOUNT_UNLIMITED_VALUE[\s\S]*const discountLimitOptions = useMemo\(\(\) => \([\s\S]*createForm\.discountType === "amount" \? DISCOUNT_FINITE_LIMIT_OPTIONS : DISCOUNT_LIMIT_OPTIONS/s,
-    "Amount discounts should hide the unlimited count option because package amounts require finite counts."
+    /const DISCOUNT_LIMIT_OPTIONS = Object\.freeze\(\[[\s\S]*DISCOUNT_UNLIMITED_VALUE[\s\S]*options=\{DISCOUNT_LIMIT_OPTIONS\}/s,
+    "New client discount modal should keep the unlimited count option available."
   );
-  assert.match(
+  assert.doesNotMatch(
     panelSource,
-    /discountType === "amount" && hasUnlimitedServiceRows\(serviceRows\)[\s\S]*setCreateError\(DISCOUNT_UNLIMITED_AMOUNT_ERROR\)[\s\S]*createForm\.discountType === "amount" && hasUnlimitedServiceRows\(selectedServiceRows\)[\s\S]*setCreateError\(DISCOUNT_UNLIMITED_AMOUNT_ERROR\)[\s\S]*if \(createForm\.discountType === "amount"\) \{[\s\S]*setCreateError\(DISCOUNT_UNLIMITED_AMOUNT_ERROR\)/s,
-    "The create discount modal should block amount + unlimited before posting to the API."
-  );
-  assert.match(
-    translationsSource,
-    /Amount discount requires finite service counts\.[\s\S]*Summali skidka uchun Bezlimit emas[\s\S]*Для скидки суммой нужно выбрать количество занятий/s,
-    "The amount + unlimited validation message should be translated."
+    /DISCOUNT_UNLIMITED_AMOUNT_ERROR|DISCOUNT_FINITE_LIMIT_OPTIONS|discountLimitOptions|hasUnlimitedServiceRows/,
+    "The create discount modal should not block amount discounts from using unlimited counts."
   );
   assert.match(
     panelSource,

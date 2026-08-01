@@ -69,7 +69,7 @@ function createBadRequestError(message) {
 
 function calculatePackagePerUseDiscounts({ serviceInputs, serviceById, discountValue }) {
   if (serviceInputs.some((item) => item.limitCount === null)) {
-    throw createBadRequestError("Amount discount requires finite service counts.");
+    return new Map();
   }
 
   const rows = serviceInputs.map((item) => {
