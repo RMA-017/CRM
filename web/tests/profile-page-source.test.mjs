@@ -129,18 +129,13 @@ test("finance client discounts route is wired into profile navigation", async ()
   );
   assert.match(
     panelSource,
-    /function isUnlimitedDiscountService\(service\)[\s\S]*function formatUnlimitedServicesSummary\(services, translate, language\)[\s\S]*services\.every\(isUnlimitedDiscountService\)[\s\S]*return formatUnlimitedServicesSummary\(services, translate, language\)/s,
-    "Unlimited client discounts should summarize selected services instead of listing each service in the table."
+    /function isUnlimitedDiscountService\(service\)[\s\S]*const detailServicesAreAllUnlimited = detailServices\.length > 0 && detailServices\.every\(isUnlimitedDiscountService\);[\s\S]*detailServices\.map\(\(service\) =>[\s\S]*detailServicesAreAllUnlimited \? null : \([\s\S]*<h4>История использования<\/h4>/s,
+    "Unlimited client discount details should keep services visible but hide the usage history list."
   );
-  assert.match(
-    panelSource,
-    /const detailServicesAreAllUnlimited = detailServices\.length > 0 && detailServices\.every\(isUnlimitedDiscountService\);[\s\S]*detailServicesAreAllUnlimited \? \([\s\S]*finance-discounts-detail-service-summary[\s\S]*formatServicesCount\(detailServices\.length, language\)[\s\S]*translate\("Unlimited"\)[\s\S]*detailServices\.map/s,
-    "Unlimited client discount details should render one compact service summary row."
-  );
-  assert.match(
-    stylesSource,
-    /\.finance-discounts-detail-service-summary \{[\s\S]*background: rgba\(240, 253, 250, 0\.78\);[\s\S]*\.finance-discounts-detail-service-summary span \{[\s\S]*color: #0f766e;/s,
-    "Unlimited client discount service summaries should have a subtle compact visual style."
+  assert.doesNotMatch(
+    panelSource + stylesSource,
+    /formatUnlimitedServicesSummary|finance-discounts-detail-service-summary/,
+    "Unlimited client discounts should not replace the selected services list with a summary row."
   );
   assert.match(
     panelSource,

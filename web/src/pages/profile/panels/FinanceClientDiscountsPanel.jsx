@@ -93,15 +93,6 @@ function isUnlimitedDiscountService(service) {
   return service?.limitCount === null || service?.limit_count === null;
 }
 
-function formatServicesCount(count, language) {
-  const amount = toIntegerAmount(count);
-  return language === "uz" ? `${amount} ta xizmat` : `${amount} услуг`;
-}
-
-function formatUnlimitedServicesSummary(services, translate, language) {
-  return `${formatServicesCount(services.length, language)} · ${translate("Unlimited")}`;
-}
-
 function formatServiceProgress(service, translate) {
   if (isUnlimitedDiscountService(service)) {
     return translate("Unlimited");
@@ -111,12 +102,9 @@ function formatServiceProgress(service, translate) {
   return `${usedCount}/${limitCount}`;
 }
 
-function getServiceSummary(item, translate, language) {
+function getServiceSummary(item, translate) {
   const services = Array.isArray(item?.services) ? item.services : [];
   if (services.length === 0) return "-";
-  if (services.every(isUnlimitedDiscountService)) {
-    return formatUnlimitedServicesSummary(services, translate, language);
-  }
   const visible = services.slice(0, 3).map((service) => {
     const name = String(service?.serviceName || service?.service_name || "").trim() || "-";
     return `${name} (${formatServiceProgress(service, translate)})`;
@@ -148,7 +136,7 @@ function FinanceClientDiscountsPanel({
   canCreateFinanceDiscounts = false,
   canUpdateFinanceDiscounts = false
 }) {
-  const { language, translate } = useI18n();
+  const { translate } = useI18n();
   const [items, setItems] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -739,7 +727,7 @@ function FinanceClientDiscountsPanel({
                 <td className="finance-discounts-cell-client">{item.clientName || "-"}</td>
                 <td className="finance-discounts-cell-client-id">{item.clientId ?? item.client_id ?? "-"}</td>
                 <td className="finance-discounts-cell-created">{formatDateYMD(item.createdAt || item.created_at)}</td>
-                <td className="finance-discounts-cell-services">{getServiceSummary(item, translate, language)}</td>
+                <td className="finance-discounts-cell-services">{getServiceSummary(item, translate)}</td>
                 <td className="finance-discounts-cell-money">{formatDiscount(item)}</td>
                 <td className="finance-discounts-cell-remaining">{item.remainingCount === null ? translate("Unlimited") : toIntegerAmount(item.remainingCount)}</td>
                 <td>
@@ -973,12 +961,7 @@ function FinanceClientDiscountsPanel({
                 <section className="finance-discounts-detail-section">
                   <h4>Услуги</h4>
                   <div className="finance-discounts-detail-services">
-                    {detailServicesAreAllUnlimited ? (
-                      <div className="finance-discounts-detail-service finance-discounts-detail-service-summary">
-                        <strong>{formatServicesCount(detailServices.length, language)}</strong>
-                        <span>{translate("Unlimited")}</span>
-                      </div>
-                    ) : detailServices.map((service) => (
+                    {detailServices.map((service) => (
                       <div key={service.id} className="finance-discounts-detail-service">
                         <strong>{service.serviceName}</strong>
                         <span>{formatServiceProgress(service, translate)}</span>
@@ -986,37 +969,39 @@ function FinanceClientDiscountsPanel({
                     ))}
                   </div>
                 </section>
-                <section className="finance-discounts-detail-section">
-                  <h4>История использования</h4>
-                  <div className="all-users-table-scroll finance-discounts-usage-scroll">
-                    <table className="all-users-table finance-discounts-usage-table">
-                      <thead>
-                        <tr>
-                          <th className="finance-discounts-usage-col-date">Дата</th>
-                          <th className="finance-discounts-usage-col-ticket">Талон</th>
-                          <th className="finance-discounts-usage-col-service">Услуга</th>
-                          <th className="finance-discounts-usage-col-discount">Скидка</th>
-                          <th className="finance-discounts-usage-col-status">Статус</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {detailUsages.length === 0 ? (
+                {detailServicesAreAllUnlimited ? null : (
+                  <section className="finance-discounts-detail-section">
+                    <h4>История использования</h4>
+                    <div className="all-users-table-scroll finance-discounts-usage-scroll">
+                      <table className="all-users-table finance-discounts-usage-table">
+                        <thead>
                           <tr>
-                            <td colSpan={5} className="all-users-state">Использований нет.</td>
+                            <th className="finance-discounts-usage-col-date">Дата</th>
+                            <th className="finance-discounts-usage-col-ticket">Талон</th>
+                            <th className="finance-discounts-usage-col-service">Услуга</th>
+                            <th className="finance-discounts-usage-col-discount">Скидка</th>
+                            <th className="finance-discounts-usage-col-status">Статус</th>
                           </tr>
-                        ) : detailUsages.map((usage) => (
-                          <tr key={usage.id}>
-                            <td className="finance-discounts-usage-cell-date">{formatDateTimeTashkent(usage.createdAt || usage.created_at)}</td>
-                            <td className="finance-discounts-usage-cell-ticket">{usage.ticketNumber ? `#${usage.ticketNumber}` : "-"}</td>
-                            <td className="finance-discounts-usage-cell-service">{usage.serviceName || "-"}</td>
-                            <td className="finance-discounts-usage-cell-discount">{formatMoney(usage.discountUzs)} сум</td>
-                            <td className="finance-discounts-usage-cell-status">{usage.isReversed ? "Отменено" : "Активно"}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </section>
+                        </thead>
+                        <tbody>
+                          {detailUsages.length === 0 ? (
+                            <tr>
+                              <td colSpan={5} className="all-users-state">Использований нет.</td>
+                            </tr>
+                          ) : detailUsages.map((usage) => (
+                            <tr key={usage.id}>
+                              <td className="finance-discounts-usage-cell-date">{formatDateTimeTashkent(usage.createdAt || usage.created_at)}</td>
+                              <td className="finance-discounts-usage-cell-ticket">{usage.ticketNumber ? `#${usage.ticketNumber}` : "-"}</td>
+                              <td className="finance-discounts-usage-cell-service">{usage.serviceName || "-"}</td>
+                              <td className="finance-discounts-usage-cell-discount">{formatMoney(usage.discountUzs)} сум</td>
+                              <td className="finance-discounts-usage-cell-status">{usage.isReversed ? "Отменено" : "Активно"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                )}
               </div>
             </div>
           </div>

@@ -6834,15 +6834,6 @@ label.field > span:first-child,
   white-space: nowrap;
 }
 
-.finance-discounts-detail-service-summary {
-  border-color: rgba(20, 184, 166, 0.26);
-  background: rgba(240, 253, 250, 0.78);
-}
-
-.finance-discounts-detail-service-summary span {
-  color: #0f766e;
-}
-
 .finance-discounts-usage-scroll {
   max-height: 230px;
   border-radius: 7px;
