@@ -211,7 +211,7 @@ function buildScheduleSnapshotSql(alias, previousPrefix = "") {
 function buildEffectiveAppointmentServicePriceSql(scheduleAlias = "s", serviceAlias = "sc") {
   return `CASE
     WHEN ${serviceAlias}.id IS NOT NULL
-     AND ${scheduleAlias}.created_at >= ${serviceAlias}.updated_at
+     AND ${scheduleAlias}.appointment_date >= ${serviceAlias}.updated_at::date
      AND COALESCE(${serviceAlias}.price_uzs, 0) > 0
     THEN ${serviceAlias}.price_uzs
     ELSE ${scheduleAlias}.service_price_uzs

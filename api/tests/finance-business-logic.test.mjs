@@ -673,7 +673,7 @@ test("finance report filters expose report-scoped client search and broad cashie
 
   assert.match(
     financeServiceSource,
-    /CASE[\s\S]*LOWER\(TRIM\(s\.status\)\) IN \('cancelled', 'no-show'\)[\s\S]*lost_amount_uzs[\s\S]*FROM appointment_schedules s[\s\S]*lostAmountUzs,[\s\S]*lostAppointmentCount/s,
+    /const appointmentServiceAmountSql = `CASE[\s\S]*s\.appointment_date >= sc\.updated_at::date[\s\S]*COALESCE\(\(\$\{appointmentServiceAmountSql\}\), 0\) AS service_amount_uzs[\s\S]*LOWER\(TRIM\(s\.status\)\) IN \('cancelled', 'no-show'\)[\s\S]*COALESCE\(\(\$\{appointmentServiceAmountSql\}\), 0\)[\s\S]*lost_amount_uzs[\s\S]*LEFT JOIN service_catalog sc[\s\S]*lostAmountUzs,[\s\S]*lostAppointmentCount/s,
     "Finance reports should expose lost amounts for cancelled and no-show appointment rows."
   );
 
@@ -689,7 +689,7 @@ test("finance report filters expose report-scoped client search and broad cashie
 
   assert.match(
     financeServiceSource,
-    /if \(clientId\) \{[\s\S]*appointmentWhere\.push\(`c\.id = \$\$\{appointmentParams\.length\}`\);[\s\S]*if \(serviceId\) \{[\s\S]*appointmentWhere\.push\(`s\.service_id = \$\$\{appointmentParams\.length\}`\);[\s\S]*if \(serviceAmountFrom !== null\) \{[\s\S]*appointmentWhere\.push\(`COALESCE\(s\.service_price_uzs, 0\) >= \$\$\{appointmentParams\.length\}`\);[\s\S]*if \(serviceAmountTo !== null\) \{[\s\S]*appointmentWhere\.push\(`COALESCE\(s\.service_price_uzs, 0\) <= \$\$\{appointmentParams\.length\}`\);/s,
+    /if \(clientId\) \{[\s\S]*appointmentWhere\.push\(`c\.id = \$\$\{appointmentParams\.length\}`\);[\s\S]*if \(serviceId\) \{[\s\S]*appointmentWhere\.push\(`s\.service_id = \$\$\{appointmentParams\.length\}`\);[\s\S]*if \(serviceAmountFrom !== null\) \{[\s\S]*appointmentWhere\.push\(`COALESCE\(\(\$\{appointmentServiceAmountSql\}\), 0\) >= \$\$\{appointmentParams\.length\}`\);[\s\S]*if \(serviceAmountTo !== null\) \{[\s\S]*appointmentWhere\.push\(`COALESCE\(\(\$\{appointmentServiceAmountSql\}\), 0\) <= \$\$\{appointmentParams\.length\}`\);/s,
     "Appointment-only report rows should support client, service name and service amount filters."
   );
 });

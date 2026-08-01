@@ -472,18 +472,18 @@ function mapClientLedgerTransaction(row, depositBalanceAfterUzs) {
   };
 }
 
-function toTimestampMs(value) {
-  if (!value) {
-    return 0;
+function normalizeServiceUpdatedDate(value) {
+  if (typeof value === "string") {
+    const normalized = value.trim().slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null;
   }
-  const timestamp = Date.parse(String(value));
-  return Number.isFinite(timestamp) ? timestamp : 0;
+  return normalizeDate(value);
 }
 
 function shouldUseCurrentServicePriceForAppointment(appointment, service) {
-  const appointmentCreatedAt = toTimestampMs(appointment?.created_at);
-  const serviceUpdatedAt = toTimestampMs(service?.updated_at);
-  return appointmentCreatedAt > 0 && serviceUpdatedAt > 0 && appointmentCreatedAt >= serviceUpdatedAt;
+  const appointmentDate = normalizeDate(appointment?.appointment_date ?? appointment?.appointmentDate);
+  const serviceUpdatedDate = normalizeServiceUpdatedDate(service?.updated_date ?? service?.updatedDate ?? service?.updated_at);
+  return Boolean(appointmentDate && serviceUpdatedDate && appointmentDate >= serviceUpdatedDate);
 }
 
 function getAppointmentTicketPriceUzs({ appointment, service }) {
@@ -572,7 +572,7 @@ async function getCashierAppointmentById(db, { organizationId, id, forUpdate = f
             a.service_name,
             CASE
               WHEN sc.id IS NOT NULL
-               AND a.created_at >= sc.updated_at
+               AND a.appointment_date >= sc.updated_at::date
                AND COALESCE(sc.price_uzs, 0) > 0
               THEN sc.price_uzs
               ELSE a.service_price_uzs
@@ -996,7 +996,7 @@ export async function getCashierBoard({
                   a.service_name,
                   CASE
                     WHEN sc.id IS NOT NULL
-                     AND a.created_at >= sc.updated_at
+                     AND a.appointment_date >= sc.updated_at::date
                      AND COALESCE(sc.price_uzs, 0) > 0
                     THEN sc.price_uzs
                     ELSE a.service_price_uzs
@@ -1048,7 +1048,7 @@ export async function getCashierBoard({
                   a.service_name,
                   CASE
                     WHEN sc.id IS NOT NULL
-                     AND a.created_at >= sc.updated_at
+                     AND a.appointment_date >= sc.updated_at::date
                      AND COALESCE(sc.price_uzs, 0) > 0
                     THEN sc.price_uzs
                     ELSE a.service_price_uzs
@@ -3234,6 +3234,13 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
   let appointmentDetailsRows = [];
   if (shouldLoadAppointmentDetails && !hasFinanceOnlyFilters) {
     const appointmentParams = [organizationId];
+    const appointmentServiceAmountSql = `CASE
+      WHEN sc.id IS NOT NULL
+       AND s.appointment_date >= sc.updated_at::date
+       AND COALESCE(sc.price_uzs, 0) > 0
+      THEN sc.price_uzs
+      ELSE s.service_price_uzs
+    END`;
     const appointmentWhere = [
       "s.organization_id = $1",
       "s.client_id IS NOT NULL",
@@ -3296,11 +3303,11 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
     }
     if (serviceAmountFrom !== null) {
       appointmentParams.push(serviceAmountFrom);
-      appointmentWhere.push(`COALESCE(s.service_price_uzs, 0) >= $${appointmentParams.length}`);
+      appointmentWhere.push(`COALESCE((${appointmentServiceAmountSql}), 0) >= $${appointmentParams.length}`);
     }
     if (serviceAmountTo !== null) {
       appointmentParams.push(serviceAmountTo);
-      appointmentWhere.push(`COALESCE(s.service_price_uzs, 0) <= $${appointmentParams.length}`);
+      appointmentWhere.push(`COALESCE((${appointmentServiceAmountSql}), 0) <= $${appointmentParams.length}`);
     }
     if (specialistId) {
       appointmentParams.push(specialistId);
@@ -3342,13 +3349,13 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
               NULL::bigint AS ticket_item_id,
               0::int AS ticket_item_line_number,
               COALESCE(NULLIF(TRIM(s.service_name), ''), 'Service') AS service_name,
-              COALESCE(s.service_price_uzs, 0) AS service_amount_uzs,
+              COALESCE((${appointmentServiceAmountSql}), 0) AS service_amount_uzs,
               0::bigint AS service_discount_uzs,
-              COALESCE(s.service_price_uzs, 0) AS service_final_amount_uzs,
+              COALESCE((${appointmentServiceAmountSql}), 0) AS service_final_amount_uzs,
               0::bigint AS service_paid_uzs,
-              COALESCE(s.service_price_uzs, 0) AS service_remaining_uzs,
+              COALESCE((${appointmentServiceAmountSql}), 0) AS service_remaining_uzs,
               CASE
-                WHEN LOWER(TRIM(s.status)) IN ('cancelled', 'no-show') THEN COALESCE(s.service_price_uzs, 0)
+                WHEN LOWER(TRIM(s.status)) IN ('cancelled', 'no-show') THEN COALESCE((${appointmentServiceAmountSql}), 0)
                 ELSE 0
               END AS lost_amount_uzs,
               COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), '') AS specialist_name,
@@ -3370,6 +3377,10 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
          JOIN clients c ON c.organization_id = s.organization_id AND c.id = s.client_id
          LEFT JOIN users u ON u.organization_id = s.organization_id AND u.id = s.specialist_id
          LEFT JOIN position_options p ON p.organization_id = u.organization_id AND p.id = u.position_id
+         LEFT JOIN service_catalog sc
+           ON sc.organization_id = s.organization_id
+          AND sc.id = s.service_id
+          AND sc.is_active = TRUE
          LEFT JOIN LATERAL (
            SELECT apr.reason
              FROM appointment_parent_responses apr
@@ -4314,7 +4325,8 @@ async function getServiceById(db, { organizationId, serviceId }) {
             sc.name,
             sc.price_uzs,
             sc.position_id,
-            sc.updated_at
+            sc.updated_at,
+            sc.updated_at::date::text AS updated_date
        FROM service_catalog sc
       WHERE sc.organization_id = $1
         AND sc.id = $2

@@ -61,12 +61,12 @@ test("appointments and tickets persist independent service price snapshots", () 
   );
   assert.ok(
     appointmentsSource.includes("function buildEffectiveAppointmentServicePriceSql(")
-      && appointmentsSource.includes("${scheduleAlias}.created_at >= ${serviceAlias}.updated_at")
+      && appointmentsSource.includes("${scheduleAlias}.appointment_date >= ${serviceAlias}.updated_at::date")
       && appointmentsSource.includes("THEN ${serviceAlias}.price_uzs")
       && appointmentsSource.includes("export async function getAppointmentSchedulesByRange")
       && appointmentsSource.includes('buildEffectiveAppointmentServicePriceSql("s", "sc")} AS service_price_uzs')
       && appointmentsSource.includes("LEFT JOIN service_catalog sc"),
-    "Planner schedule reads should show old snapshots for older slots and the active catalog price for slots created after the latest catalog update."
+    "Planner schedule reads should show old snapshots for older lesson dates and the active catalog price for lesson dates on or after the latest catalog update date."
   );
   assert.ok(
     appointmentsSource.includes("export async function getAppointmentScheduleTargetsByScope")
@@ -91,8 +91,13 @@ test("appointments and tickets persist independent service price snapshots", () 
   );
   assert.match(
     financeSource,
+    /function shouldUseCurrentServicePriceForAppointment\(appointment, service\) \{[\s\S]*const appointmentDate = normalizeDate\(appointment\?\.appointment_date \?\? appointment\?\.appointmentDate\);[\s\S]*const serviceUpdatedDate = normalizeServiceUpdatedDate[\s\S]*appointmentDate >= serviceUpdatedDate[\s\S]*function getAppointmentTicketPriceUzs\(\{ appointment, service \}\) \{/s,
+    "Appointment ticket price decisions should be based on the lesson date versus the catalog update date."
+  );
+  assert.match(
+    financeSource,
     /function getAppointmentTicketPriceUzs\(\{ appointment, service \}\) \{[\s\S]*return appointmentPriceUzs;[\s\S]*const snapshotPriceUzs = usesAppointmentSnapshot[\s\S]*getAppointmentTicketPriceUzs\(\{ appointment, service \}\)/s,
-    "An appointment ticket should accept its stored service snapshot when that service is no longer active in the catalog."
+    "An appointment ticket should accept its stored service snapshot when the lesson date is before the latest catalog price date or the service is no longer active."
   );
   assert.match(
     financeSource,
