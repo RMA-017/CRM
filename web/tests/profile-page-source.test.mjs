@@ -129,6 +129,21 @@ test("finance client discounts route is wired into profile navigation", async ()
   );
   assert.match(
     panelSource,
+    /function isUnlimitedDiscountService\(service\)[\s\S]*function formatUnlimitedServicesSummary\(services, translate, language\)[\s\S]*services\.every\(isUnlimitedDiscountService\)[\s\S]*return formatUnlimitedServicesSummary\(services, translate, language\)/s,
+    "Unlimited client discounts should summarize selected services instead of listing each service in the table."
+  );
+  assert.match(
+    panelSource,
+    /const detailServicesAreAllUnlimited = detailServices\.length > 0 && detailServices\.every\(isUnlimitedDiscountService\);[\s\S]*detailServicesAreAllUnlimited \? \([\s\S]*finance-discounts-detail-service-summary[\s\S]*formatServicesCount\(detailServices\.length, language\)[\s\S]*translate\("Unlimited"\)[\s\S]*detailServices\.map/s,
+    "Unlimited client discount details should render one compact service summary row."
+  );
+  assert.match(
+    stylesSource,
+    /\.finance-discounts-detail-service-summary \{[\s\S]*background: rgba\(240, 253, 250, 0\.78\);[\s\S]*\.finance-discounts-detail-service-summary span \{[\s\S]*color: #0f766e;/s,
+    "Unlimited client discount service summaries should have a subtle compact visual style."
+  );
+  assert.match(
+    panelSource,
     /function formatServiceOptionLabel\(service\)[\s\S]*priceUzs[\s\S]*formatMoney\(priceUzs\)[\s\S]*discountServiceOptions[\s\S]*label: formatServiceOptionLabel\(service\)[\s\S]*selectedLabel: formatServiceOptionLabel\(service\)/s,
     "Create discount service options should show the service price in the dropdown and selected value."
   );

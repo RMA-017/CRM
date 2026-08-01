@@ -6834,6 +6834,15 @@ label.field > span:first-child,
   white-space: nowrap;
 }
 
+.finance-discounts-detail-service-summary {
+  border-color: rgba(20, 184, 166, 0.26);
+  background: rgba(240, 253, 250, 0.78);
+}
+
+.finance-discounts-detail-service-summary span {
+  color: #0f766e;
+}
+
 .finance-discounts-usage-scroll {
   max-height: 230px;
   border-radius: 7px;
@@ -10545,16 +10554,19 @@ button.finance-daily-cash-method-card:disabled {
   height: 2px;
 }
 
-.services-panel .all-users-head {
+.services-panel .all-users-head,
+.services-settings-panel .all-users-head {
   align-items: center;
 }
 
-.services-panel .all-users-head-actions {
+.services-panel .all-users-head-actions,
+.services-settings-panel .all-users-head-actions {
   flex: 1 1 420px;
   justify-content: flex-end;
 }
 
-.services-panel .all-users-head-actions .panel-search-input {
+.services-panel .all-users-head-actions .panel-search-input,
+.services-settings-panel .all-users-head-actions .panel-search-input {
   flex: 0 1 360px;
   width: min(360px, 44vw);
   min-width: min(220px, 100%);
@@ -10615,7 +10627,8 @@ button.finance-daily-cash-method-card:disabled {
     min-width: 0;
   }
 
-  .services-panel .all-users-head-actions .panel-search-input {
+  .services-panel .all-users-head-actions .panel-search-input,
+  .services-settings-panel .all-users-head-actions .panel-search-input {
     flex: 1 1 auto;
     width: 100%;
     min-width: 0;

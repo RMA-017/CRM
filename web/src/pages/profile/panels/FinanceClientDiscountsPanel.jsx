@@ -89,8 +89,21 @@ function getStatusClassName(status) {
   return "is-active";
 }
 
+function isUnlimitedDiscountService(service) {
+  return service?.limitCount === null || service?.limit_count === null;
+}
+
+function formatServicesCount(count, language) {
+  const amount = toIntegerAmount(count);
+  return language === "uz" ? `${amount} ta xizmat` : `${amount} услуг`;
+}
+
+function formatUnlimitedServicesSummary(services, translate, language) {
+  return `${formatServicesCount(services.length, language)} · ${translate("Unlimited")}`;
+}
+
 function formatServiceProgress(service, translate) {
-  if (service?.limitCount === null || service?.limit_count === null) {
+  if (isUnlimitedDiscountService(service)) {
     return translate("Unlimited");
   }
   const usedCount = toIntegerAmount(service?.usedCount ?? service?.used_count);
@@ -98,9 +111,12 @@ function formatServiceProgress(service, translate) {
   return `${usedCount}/${limitCount}`;
 }
 
-function getServiceSummary(item, translate) {
+function getServiceSummary(item, translate, language) {
   const services = Array.isArray(item?.services) ? item.services : [];
   if (services.length === 0) return "-";
+  if (services.every(isUnlimitedDiscountService)) {
+    return formatUnlimitedServicesSummary(services, translate, language);
+  }
   const visible = services.slice(0, 3).map((service) => {
     const name = String(service?.serviceName || service?.service_name || "").trim() || "-";
     return `${name} (${formatServiceProgress(service, translate)})`;
@@ -132,7 +148,7 @@ function FinanceClientDiscountsPanel({
   canCreateFinanceDiscounts = false,
   canUpdateFinanceDiscounts = false
 }) {
-  const { translate } = useI18n();
+  const { language, translate } = useI18n();
   const [items, setItems] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -528,6 +544,7 @@ function FinanceClientDiscountsPanel({
   const modalRoot = typeof document !== "undefined" ? document.body : null;
   const detailItem = detail?.item || null;
   const detailServices = Array.isArray(detailItem?.services) ? detailItem.services : [];
+  const detailServicesAreAllUnlimited = detailServices.length > 0 && detailServices.every(isUnlimitedDiscountService);
   const detailUsages = Array.isArray(detail?.usages) ? detail.usages : [];
   const clientResultsElement = showClientResults && modalRoot ? createPortal(
     <div
@@ -722,7 +739,7 @@ function FinanceClientDiscountsPanel({
                 <td className="finance-discounts-cell-client">{item.clientName || "-"}</td>
                 <td className="finance-discounts-cell-client-id">{item.clientId ?? item.client_id ?? "-"}</td>
                 <td className="finance-discounts-cell-created">{formatDateYMD(item.createdAt || item.created_at)}</td>
-                <td className="finance-discounts-cell-services">{getServiceSummary(item, translate)}</td>
+                <td className="finance-discounts-cell-services">{getServiceSummary(item, translate, language)}</td>
                 <td className="finance-discounts-cell-money">{formatDiscount(item)}</td>
                 <td className="finance-discounts-cell-remaining">{item.remainingCount === null ? translate("Unlimited") : toIntegerAmount(item.remainingCount)}</td>
                 <td>
@@ -956,7 +973,12 @@ function FinanceClientDiscountsPanel({
                 <section className="finance-discounts-detail-section">
                   <h4>Услуги</h4>
                   <div className="finance-discounts-detail-services">
-                    {detailServices.map((service) => (
+                    {detailServicesAreAllUnlimited ? (
+                      <div className="finance-discounts-detail-service finance-discounts-detail-service-summary">
+                        <strong>{formatServicesCount(detailServices.length, language)}</strong>
+                        <span>{translate("Unlimited")}</span>
+                      </div>
+                    ) : detailServices.map((service) => (
                       <div key={service.id} className="finance-discounts-detail-service">
                         <strong>{service.serviceName}</strong>
                         <span>{formatServiceProgress(service, translate)}</span>

@@ -30,6 +30,7 @@ function ServicesSettingsPanel({
   const [items, setItems] = useState([]);
   const [positions, setPositions] = useState([]);
   const [message, setMessage] = useState("");
+  const [search, setSearch] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -77,6 +78,14 @@ function ServicesSettingsPanel({
       .filter((item) => item?.isActive || String(item?.id) === String(currentForm.positionId))
       .map((item) => ({ value: String(item.id), label: String(item.label || "").trim() || `#${item.id}` }))
   ), [currentForm.positionId, positions]);
+  const filteredItems = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return items;
+    return items.filter((item) => (
+      String(item?.name || "").toLowerCase().includes(query)
+      || String(item?.positionLabel || "").toLowerCase().includes(query)
+    ));
+  }, [items, search]);
 
   const resetForm = () => setForm(EMPTY_FORM);
   const isEditing = Boolean(currentForm.id);
@@ -246,6 +255,14 @@ function ServicesSettingsPanel({
       <div className="all-users-head">
         <h3>{translate("Service Settings")}</h3>
         <div className="all-users-head-actions">
+          <input
+            type="search"
+            className="panel-search-input"
+            value={search}
+            aria-label={translate("Search")}
+            placeholder={translate("Search...")}
+            onChange={(event) => setSearch(event.currentTarget.value)}
+          />
           <button
             id="openServiceCreateModalBtn"
             type="button"
@@ -265,7 +282,7 @@ function ServicesSettingsPanel({
 
       <p className="all-users-state" hidden={!message}>{translate(message)}</p>
 
-      <div className="all-users-table-wrap settings-table-wrap" hidden={items.length === 0}>
+      <div className="all-users-table-wrap settings-table-wrap" hidden={filteredItems.length === 0}>
         <table className="all-users-table settings-table" aria-label={translate("Service settings table")}>
           <thead>
             <tr>
@@ -281,7 +298,7 @@ function ServicesSettingsPanel({
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => (
+            {filteredItems.map((item) => (
               <tr key={String(item.id)}>
                 <td>{item.id}</td>
                 <td>{item.positionLabel || "-"}</td>
