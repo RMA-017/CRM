@@ -177,8 +177,8 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
 
   assert.match(
     financeServiceSource,
-    /getAppointmentHistoryLockDaysByOrganization\(organizationId\)[\s\S]*historyLockCutoffDate[\s\S]*overdueAppointmentFilters[\s\S]*"a\.status = 'confirmed'"[\s\S]*"ft\.id IS NULL"[\s\S]*"a\.appointment_date >= \$2::date"[\s\S]*"a\.appointment_date < \$3::date"[\s\S]*overdueConfirmedAppointments: overdueAppointments/s,
-    "Cashier board should expose past confirmed appointment cards without tickets only inside the history-lock window."
+    /const overdueAppointmentParams = \[organizationId, boardDateFrom, boardDateTo\];[\s\S]*overdueAppointmentFilters[\s\S]*"a\.status = 'confirmed'"[\s\S]*"ft\.id IS NULL"[\s\S]*"a\.appointment_date >= \$2::date"[\s\S]*"a\.appointment_date <= \$3::date"[\s\S]*overdueConfirmedAppointments: overdueAppointments/s,
+    "Cashier board Awaiting Ticket should expose confirmed appointment cards without tickets inside the selected board period."
   );
 });
 
@@ -211,6 +211,16 @@ test("finance ticket creation accepts pending or confirmed appointments and snap
     financeServiceSource,
     /let items = await buildTicketItems[\s\S]*const totals = getTicketTotals\(items\)[\s\S]*const ticketStatus = totals\.totalUzs <= 0 \? "paid" : "issued"[\s\S]*INSERT INTO finance_tickets[\s\S]*subtotal_uzs, discount_uzs, total_uzs, status[\s\S]*await insertTicketItems/s,
     "Tickets should be issued with immutable line items and calculated subtotal/discount/total."
+  );
+  assert.match(
+    financeServiceSource,
+    /const totals = getTicketTotals\(items\);[\s\S]*if \(totals\.subtotalUzs <= 0\) \{[\s\S]*const ticketStatus = totals\.totalUzs <= 0 \? "paid" : "issued"/s,
+    "Tickets with a positive subtotal and 100% discount should be allowed and saved as paid zero-total tickets."
+  );
+  assert.doesNotMatch(
+    financeServiceSource,
+    /totals\.totalUzs <= 0 && !appointmentScheduleId/,
+    "Manual tickets should not reject a zero total when the subtotal is positive."
   );
 
   assert.match(

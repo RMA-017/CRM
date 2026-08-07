@@ -140,6 +140,11 @@ test("manual ticket modal blocks future ticket dates", async () => {
   );
   assert.match(
     cashierPanelSource,
+    /if \(manualTotals\.subtotalUzs <= 0\) \{[\s\S]*Ticket amount is required\.[\s\S]*disabled=\{manualSubmitting \|\| manualTotals\.subtotalUzs <= 0\}/s,
+    "Manual ticket creation should allow a zero total from a 100% discount while still requiring a positive subtotal."
+  );
+  assert.match(
+    cashierPanelSource,
     /const DISCOUNT_MAX_PERCENT_VALUE = 100;[\s\S]*function normalizeDiscountValueInput\(discountType, value\)[\s\S]*amount > DISCOUNT_MAX_PERCENT_VALUE \? String\(DISCOUNT_MAX_PERCENT_VALUE\) : rawValue[\s\S]*discountValue: normalizeDiscountValueInput\(value, current\.discountValue\)[\s\S]*max=\{appointmentTicketForm\.discountType === "percent" \? String\(DISCOUNT_MAX_PERCENT_VALUE\) : undefined\}[\s\S]*normalizeDiscountValueInput\(appointmentTicketForm\.discountType, event\.currentTarget\.value\)[\s\S]*discountValue: normalizeDiscountValueInput\(value, current\.discountValue\)[\s\S]*max=\{manualForm\.discountType === "percent" \? String\(DISCOUNT_MAX_PERCENT_VALUE\) : undefined\}[\s\S]*normalizeDiscountValueInput\(manualForm\.discountType, event\.currentTarget\.value\)/s,
     "Create Ticket and Create Manual Ticket should clamp percent discount inputs to 100."
   );
@@ -178,8 +183,18 @@ test("cashier board filters live in header actions without visible labels", asyn
 
   assert.match(
     cashierPanelSource,
-    /<div className="all-users-head-actions">[\s\S]*finance-board-head-client-filter[\s\S]*placeholder=\{translate\("Client"\)\}[\s\S]*selectedLabel: translate\("Service Name"\)[\s\S]*selectedLabel: translate\("Specialist"\)[\s\S]*aria-label=\{translate\("Close cashier panel"\)\}/s,
-    "Cashier board filters should render inside the header actions before the close button with placeholder text."
+    /<div className="all-users-head-actions">[\s\S]*finance-board-head-period-filter[\s\S]*placeholder=\{translate\("Period"\)\}[\s\S]*finance-board-head-client-filter[\s\S]*placeholder=\{translate\("Client"\)\}[\s\S]*selectedLabel: translate\("Specialist"\)[\s\S]*aria-label=\{translate\("Close cashier panel"\)\}/s,
+    "Cashier board period, client and specialist filters should render inside the header actions before the close button with placeholder text."
+  );
+  assert.match(
+    cashierPanelSource,
+    /const boardPeriodOptions = useMemo\(\(\) => \[[\s\S]*translate\("Today"\)[\s\S]*translate\("Current month"\)[\s\S]*translate\("Previous month"\)/s,
+    "Cashier board should expose the requested date-period filter options."
+  );
+  assert.doesNotMatch(
+    cashierPanelSource,
+    /selectedLabel: translate\("Service Name"\)/,
+    "Cashier board should not expose a service filter in the header."
   );
   assert.doesNotMatch(
     cashierPanelSource,
@@ -210,13 +225,23 @@ test("cashier board uses one shared load-more control for all columns", async ()
   );
   assert.match(
     cashierPanelSource,
-    /const clientQuery = String\(boardFilters\.clientQuery \|\| ""\)\.trim\(\);[\s\S]*query\.set\("clientQuery", clientQuery\);[\s\S]*query\.set\("serviceId", serviceId\);[\s\S]*query\.set\("specialistId", specialistId\);[\s\S]*\}, \[boardFilters\.clientQuery, boardFilters\.serviceId, boardFilters\.specialistId, boardLimit, translate\]\);/s,
-    "Cashier board filters should be sent to the API before the 100-card batch is applied."
+    /query\.set\("dateFrom", boardPeriodBounds\.dateFrom\);[\s\S]*query\.set\("dateTo", boardPeriodBounds\.dateTo\);[\s\S]*const clientQuery = String\(boardFilters\.clientQuery \|\| ""\)\.trim\(\);[\s\S]*query\.set\("clientQuery", clientQuery\);[\s\S]*query\.set\("specialistId", specialistId\);[\s\S]*\}, \[boardFilters\.clientQuery, boardFilters\.specialistId, boardLimit, boardPeriodBounds\.dateFrom, boardPeriodBounds\.dateTo, translate\]\);/s,
+    "Cashier board period, client and specialist filters should be sent to the API before the 100-card batch is applied."
+  );
+  assert.doesNotMatch(
+    cashierPanelSource,
+    /query\.set\("serviceId", serviceId\)/,
+    "Cashier board should no longer send a service filter to the API."
   );
   assert.match(
     cashierPanelSource,
-    /setBoardLimit\(CASHIER_BOARD_LIMIT_STEP\);[\s\S]*setBoardFilters\(\(current\) => \(\{ \.\.\.current, clientQuery: value \}\)\);[\s\S]*setBoardFilters\(\(current\) => \(\{ \.\.\.current, serviceId: value \}\)\);[\s\S]*setBoardFilters\(\(current\) => \(\{ \.\.\.current, specialistId: value \}\)\);/s,
-    "Changing any cashier board filter should restart the shared batch from the first 100 matching records."
+    /setBoardLimit\(CASHIER_BOARD_LIMIT_STEP\);[\s\S]*period: value \|\| CASHIER_BOARD_PERIOD_TODAY[\s\S]*setBoardFilters\(\(current\) => \(\{ \.\.\.current, clientQuery: value \}\)\);[\s\S]*setBoardFilters\(\(current\) => \(\{ \.\.\.current, specialistId: value \}\)\);[\s\S]*period: CASHIER_BOARD_PERIOD_TODAY/s,
+    "Changing cashier board period, client or specialist filters should restart the shared batch from the first 100 matching records."
+  );
+  assert.doesNotMatch(
+    cashierPanelSource,
+    /label="Confirmed Appointments"/,
+    "Cashier board should no longer render the accepted appointments column."
   );
   assert.match(
     cashierPanelSource,

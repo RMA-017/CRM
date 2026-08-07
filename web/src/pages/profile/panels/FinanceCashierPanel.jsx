@@ -11,18 +11,43 @@ const CASHIER_BOARD_COLUMN_KEYS = Object.freeze([
   "pendingAppointments",
   "cancelledAppointments",
   "noShowAppointments",
-  "confirmedAppointments",
   "overdueConfirmedAppointments",
   "issuedTickets"
 ]);
+const CASHIER_BOARD_PERIOD_TODAY = "today";
+const CASHIER_BOARD_PERIOD_CURRENT_MONTH = "current-month";
+const CASHIER_BOARD_PERIOD_PREVIOUS_MONTH = "previous-month";
 const DISCOUNT_MAX_PERCENT_VALUE = 100;
 
+function formatDateValue(date) {
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function todayDateValue() {
+  return formatDateValue(new Date());
+}
+
+function getCashierBoardPeriodBounds(period) {
   const today = new Date();
   const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-  const day = String(today.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  const month = today.getMonth();
+  if (period === CASHIER_BOARD_PERIOD_CURRENT_MONTH) {
+    return {
+      dateFrom: formatDateValue(new Date(year, month, 1)),
+      dateTo: formatDateValue(new Date(year, month + 1, 0))
+    };
+  }
+  if (period === CASHIER_BOARD_PERIOD_PREVIOUS_MONTH) {
+    return {
+      dateFrom: formatDateValue(new Date(year, month - 1, 1)),
+      dateTo: formatDateValue(new Date(year, month, 0))
+    };
+  }
+  const date = todayDateValue();
+  return { dateFrom: date, dateTo: date };
 }
 
 function isFutureDateValue(value) {
@@ -494,7 +519,6 @@ function FinanceCashierPanel({
     pendingAppointments: [],
     cancelledAppointments: [],
     noShowAppointments: [],
-    confirmedAppointments: [],
     overdueConfirmedAppointments: [],
     issuedTickets: [],
     paymentMethods: [],
@@ -516,8 +540,8 @@ function FinanceCashierPanel({
   const [batchClientBalances, setBatchClientBalances] = useState({});
   const [batchClientBalancesLoading, setBatchClientBalancesLoading] = useState(false);
   const [boardFilters, setBoardFilters] = useState({
+    period: CASHIER_BOARD_PERIOD_TODAY,
     clientQuery: "",
-    serviceId: "",
     specialistId: ""
   });
   const [manualModalOpen, setManualModalOpen] = useState(false);
@@ -541,12 +565,6 @@ function FinanceCashierPanel({
     label: item.name
   })), [board.paymentMethods]);
 
-  const serviceOptions = useMemo(() => board.services.filter(Boolean).map((item) => ({
-      value: String(item.id),
-      label: item.name || String(item.id),
-      item
-    })), [board.services]);
-
   const manualServiceOptions = useMemo(() => board.services.filter(Boolean).map((item) => ({
     value: String(item.id),
     label: `${item.name || item.id} - ${formatMoney(item.priceUzs)}`,
@@ -562,17 +580,27 @@ function FinanceCashierPanel({
     label: `${item.fullName || item.id}${item.positionLabel ? ` - ${item.positionLabel}` : ""}`
   })), [board.specialists]);
 
+  const boardPeriodOptions = useMemo(() => [
+    { value: CASHIER_BOARD_PERIOD_TODAY, label: translate("Today") },
+    { value: CASHIER_BOARD_PERIOD_CURRENT_MONTH, label: translate("Current month") },
+    { value: CASHIER_BOARD_PERIOD_PREVIOUS_MONTH, label: translate("Previous month") }
+  ], [translate]);
+
+  const boardPeriodBounds = useMemo(
+    () => getCashierBoardPeriodBounds(boardFilters.period),
+    [boardFilters.period]
+  );
+
   const visibleBoard = useMemo(() => ({
     pendingAppointments: board.pendingAppointments,
     cancelledAppointments: board.cancelledAppointments,
     noShowAppointments: board.noShowAppointments,
-    confirmedAppointments: board.confirmedAppointments,
     overdueConfirmedAppointments: board.overdueConfirmedAppointments,
     issuedTickets: board.issuedTickets
   }), [board]);
   const isBoardFilterActive = Boolean(
-    normalizeSearchValue(boardFilters.clientQuery)
-    || boardFilters.serviceId
+    boardFilters.period !== CASHIER_BOARD_PERIOD_TODAY
+    || normalizeSearchValue(boardFilters.clientQuery)
     || boardFilters.specialistId
   );
   const hasMoreBoardItems = CASHIER_BOARD_COLUMN_KEYS.some((key) => (
@@ -655,14 +683,12 @@ function FinanceCashierPanel({
     setBoardLoading(true);
     try {
       const query = new URLSearchParams({ limit: String(boardLimit) });
+      query.set("dateFrom", boardPeriodBounds.dateFrom);
+      query.set("dateTo", boardPeriodBounds.dateTo);
       const clientQuery = String(boardFilters.clientQuery || "").trim();
-      const serviceId = String(boardFilters.serviceId || "").trim();
       const specialistId = String(boardFilters.specialistId || "").trim();
       if (clientQuery) {
         query.set("clientQuery", clientQuery);
-      }
-      if (serviceId) {
-        query.set("serviceId", serviceId);
       }
       if (specialistId) {
         query.set("specialistId", specialistId);
@@ -680,7 +706,6 @@ function FinanceCashierPanel({
         pendingAppointments: Array.isArray(data?.pendingAppointments) ? data.pendingAppointments : [],
         cancelledAppointments: Array.isArray(data?.cancelledAppointments) ? data.cancelledAppointments : [],
         noShowAppointments: Array.isArray(data?.noShowAppointments) ? data.noShowAppointments : [],
-        confirmedAppointments: Array.isArray(data?.confirmedAppointments) ? data.confirmedAppointments : [],
         overdueConfirmedAppointments: Array.isArray(data?.overdueConfirmedAppointments)
           ? data.overdueConfirmedAppointments.map((item) => ({ ...item, boardGroup: "overdue-ticket" }))
           : [],
@@ -702,7 +727,7 @@ function FinanceCashierPanel({
         setBoardLoading(false);
       }
     }
-  }, [boardFilters.clientQuery, boardFilters.serviceId, boardFilters.specialistId, boardLimit, translate]);
+  }, [boardFilters.clientQuery, boardFilters.specialistId, boardLimit, boardPeriodBounds.dateFrom, boardPeriodBounds.dateTo, translate]);
 
   const loadCashSession = useCallback(async () => {
     if (!canPayFinanceCashier) {
@@ -1282,7 +1307,7 @@ function FinanceCashierPanel({
         return;
       }
     }
-    if (manualTotals.totalUzs <= 0) {
+    if (manualTotals.subtotalUzs <= 0) {
       window.alert?.(translate("Ticket amount is required."));
       return;
     }
@@ -1330,6 +1355,22 @@ function FinanceCashierPanel({
       <div className="all-users-head">
         <h3>{translate("Cashier")}</h3>
         <div className="all-users-head-actions">
+          <div className="finance-board-head-select-filter finance-board-head-period-filter" aria-label={translate("Period")}>
+            <CustomSelect
+              value={boardFilters.period}
+              options={boardPeriodOptions}
+              placeholder={translate("Period")}
+              menuPortal
+              maxVisibleOptions={3}
+              onChange={(value) => {
+                setBoardLimit(CASHIER_BOARD_LIMIT_STEP);
+                setBoardFilters((current) => ({
+                  ...current,
+                  period: value || CASHIER_BOARD_PERIOD_TODAY
+                }));
+              }}
+            />
+          </div>
           <input
             type="search"
             className="panel-search-input finance-board-head-client-filter"
@@ -1342,22 +1383,6 @@ function FinanceCashierPanel({
               setBoardFilters((current) => ({ ...current, clientQuery: value }));
             }}
           />
-          <div className="finance-board-head-select-filter" aria-label={translate("Service Name")}>
-            <CustomSelect
-              value={boardFilters.serviceId}
-              options={[{ value: "", label: translate("All services"), selectedLabel: translate("Service Name") }, ...serviceOptions]}
-              placeholder={translate("Service Name")}
-              searchable
-              searchPlaceholder={translate("Service Name")}
-              searchThreshold={1}
-              menuPortal
-              maxVisibleOptions={8}
-              onChange={(value) => {
-                setBoardLimit(CASHIER_BOARD_LIMIT_STEP);
-                setBoardFilters((current) => ({ ...current, serviceId: value }));
-              }}
-            />
-          </div>
           <div className="finance-board-head-select-filter" aria-label={translate("Specialist")}>
             <CustomSelect
               value={boardFilters.specialistId}
@@ -1380,7 +1405,11 @@ function FinanceCashierPanel({
             disabled={!isBoardFilterActive}
             onClick={() => {
               setBoardLimit(CASHIER_BOARD_LIMIT_STEP);
-              setBoardFilters({ clientQuery: "", serviceId: "", specialistId: "" });
+              setBoardFilters({
+                period: CASHIER_BOARD_PERIOD_TODAY,
+                clientQuery: "",
+                specialistId: ""
+              });
             }}
           >
             {translate("Reset")}
@@ -1449,20 +1478,6 @@ function FinanceCashierPanel({
             />
           ))}
           {visibleBoard.noShowAppointments.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
-        </section>
-
-        <section className="settings-card-column">
-          <BoardColumnTitle count={visibleBoard.confirmedAppointments.length} total={getBoardDisplayTotal("confirmedAppointments")} label="Confirmed Appointments" translate={translate} />
-          {visibleBoard.confirmedAppointments.map((item) => (
-            <TicketCard
-              key={String(item.id)}
-              item={item}
-              compact
-              showShortDate
-              {...getCreateTicketDoubleClickProps(item)}
-            />
-          ))}
-          {visibleBoard.confirmedAppointments.length === 0 ? <p className="all-users-state">{translate("No items found.")}</p> : null}
         </section>
 
         <section className="settings-card-column finance-board-readonly-column">
@@ -2028,7 +2043,7 @@ function FinanceCashierPanel({
 
               <div className="edit-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => closeManualModal()}>{translate("Cancel")}</button>
-                <button type="submit" className="btn" disabled={manualSubmitting || manualTotals.totalUzs <= 0}>
+                <button type="submit" className="btn" disabled={manualSubmitting || manualTotals.subtotalUzs <= 0}>
                   {manualSubmitting ? "..." : translate("Create")}
                 </button>
               </div>

@@ -995,7 +995,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
         return;
       }
     }
-    if (editTotals.totalUzs <= 0) {
+    if (editTotals.subtotalUzs <= 0) {
       window.alert?.(translate("Ticket amount is required."));
       return;
     }

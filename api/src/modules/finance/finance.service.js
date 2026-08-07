@@ -1,7 +1,6 @@
 import pool from "../../config/db.js";
 import { parsePositiveInteger } from "../../lib/number.js";
 import { createMigrationRequiredError } from "../../lib/schema-guard.js";
-import { getAppointmentHistoryLockDaysByOrganization } from "../appointments/appointment-settings.service.js";
 import { updateAppointmentSchedulesByIds } from "../appointments/services/appointment-schedules.service.js";
 import {
   applyClientDiscountsToTicketItems,
@@ -83,18 +82,6 @@ function normalizeGender(value) {
 
 function getTodayYmdInTashkent() {
   return formatDateYmdInTashkent(new Date());
-}
-
-function addDaysToDateYmd(value, days) {
-  const normalized = normalizeDate(value);
-  if (!normalized) return "";
-  const [year, month, day] = normalized.split("-").map((part) => Number.parseInt(part, 10));
-  const date = new Date(Date.UTC(year, month - 1, day));
-  date.setUTCDate(date.getUTCDate() + days);
-  const nextYear = String(date.getUTCFullYear());
-  const nextMonth = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const nextDay = String(date.getUTCDate()).padStart(2, "0");
-  return `${nextYear}-${nextMonth}-${nextDay}`;
 }
 
 function assertTicketDateIsNotFuture(ticketDate) {
@@ -810,8 +797,6 @@ export async function getCashierBoard({
 }) {
   const dates = getBoardDates({ dateFrom, dateTo });
   const todayYmd = getTodayYmdInTashkent();
-  const historyLockDays = await getAppointmentHistoryLockDaysByOrganization(organizationId);
-  const historyLockCutoffDate = addDaysToDateYmd(todayYmd, -historyLockDays) || todayYmd;
   const boardDateFrom = dates.from || dates.to || todayYmd;
   const boardDateTo = dates.to || boardDateFrom;
   const boardLimit = normalizeCashierBoardLimit(limit);
@@ -824,7 +809,7 @@ export async function getCashierBoard({
   const appointmentParams = [organizationId, boardDateFrom, boardDateTo];
   const appointmentFilters = [
     "a.organization_id = $1",
-    "a.status IN ('pending', 'confirmed', 'cancelled', 'no-show')",
+    "a.status IN ('pending', 'cancelled', 'no-show')",
     "ft.id IS NULL",
     "a.appointment_date >= $2::date",
     "a.appointment_date <= $3::date"
@@ -862,13 +847,13 @@ export async function getCashierBoard({
   }
   appointmentParams.push(boardLimit);
   const appointmentLimitParam = appointmentParams.length;
-  const overdueAppointmentParams = [organizationId, historyLockCutoffDate, todayYmd];
+  const overdueAppointmentParams = [organizationId, boardDateFrom, boardDateTo];
   const overdueAppointmentFilters = [
     "a.organization_id = $1",
     "a.status = 'confirmed'",
     "ft.id IS NULL",
     "a.appointment_date >= $2::date",
-    "a.appointment_date < $3::date"
+    "a.appointment_date <= $3::date"
   ];
   if (normalizedQuery) {
     overdueAppointmentParams.push(normalizedQueryLike);
@@ -4557,7 +4542,7 @@ export async function createFinanceTicket({ organizationId, payload, actorUserId
       });
     }
     const totals = getTicketTotals(items);
-    if (totals.subtotalUzs <= 0 || (totals.totalUzs <= 0 && !appointmentScheduleId)) {
+    if (totals.subtotalUzs <= 0) {
       const error = new Error("Ticket amount is required.");
       error.statusCode = 400;
       throw error;
@@ -4841,7 +4826,7 @@ export async function updateFinanceTicket({ organizationId, id, payload, actorUs
         fallbackAmount: current.total_uzs ?? current.amount_uzs
       });
       nextTotals = getTicketTotals(nextItems);
-      if (nextTotals.subtotalUzs <= 0 || (nextTotals.totalUzs <= 0 && !isAppointmentTicket)) {
+      if (nextTotals.subtotalUzs <= 0) {
         const error = new Error("Ticket amount is required.");
         error.statusCode = 400;
         throw error;

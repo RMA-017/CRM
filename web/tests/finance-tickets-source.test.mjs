@@ -269,6 +269,11 @@ test("ticket edit modal uses one shared discount and distributes it to line item
     /const editTotals = useMemo\(\(\) => \{[\s\S]*const subtotalUzs = editForm\.items\.reduce[\s\S]*calculateDiscountUzs\(\{[\s\S]*priceUzs: subtotalUzs,[\s\S]*discountType: editForm\.discountType,[\s\S]*discountValue: editForm\.discountValue[\s\S]*totalUzs: Math\.max\(subtotalUzs - discountUzs, 0\)/s,
     "Edit ticket totals should recalculate subtotal, shared discount and total from the shared discount controls."
   );
+  assert.match(
+    source,
+    /if \(editTotals\.subtotalUzs <= 0\) \{[\s\S]*Ticket amount is required\.[\s\S]*const editItemDiscounts = distributeDiscountUzs/s,
+    "Edit ticket should allow a zero total from a 100% discount while still requiring a positive subtotal."
+  );
   assert.doesNotMatch(
     source,
     /finance-ticket-edit-discount-field/,
