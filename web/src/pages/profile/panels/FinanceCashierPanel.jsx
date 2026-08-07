@@ -34,10 +34,11 @@ function getCashierBoardPeriodBounds(period) {
   const today = new Date();
   const year = today.getFullYear();
   const month = today.getMonth();
+  const todayYmd = formatDateValue(today);
   if (period === CASHIER_BOARD_PERIOD_CURRENT_MONTH) {
     return {
       dateFrom: formatDateValue(new Date(year, month, 1)),
-      dateTo: formatDateValue(new Date(year, month + 1, 0))
+      dateTo: todayYmd
     };
   }
   if (period === CASHIER_BOARD_PERIOD_PREVIOUS_MONTH) {
@@ -46,8 +47,7 @@ function getCashierBoardPeriodBounds(period) {
       dateTo: formatDateValue(new Date(year, month, 0))
     };
   }
-  const date = todayDateValue();
-  return { dateFrom: date, dateTo: date };
+  return { dateFrom: todayYmd, dateTo: todayYmd };
 }
 
 function isFutureDateValue(value) {
@@ -1194,6 +1194,8 @@ function FinanceCashierPanel({
       totalUzs: Math.max(subtotalUzs - discountUzs, 0)
     };
   }, [getManualItemPrice, manualForm.discountType, manualForm.discountValue, manualForm.items]);
+  const manualAmountDiscountExceedsSubtotal = manualForm.discountType !== "percent"
+    && normalizeMoneyInput(manualForm.discountValue) > manualTotals.subtotalUzs;
   const maxManualTicketDate = todayDateValue();
 
   useEscapeKey(Boolean(batchPaymentTickets.length > 0 || appointmentTicketSource || manualModalOpen), () => {
@@ -1309,6 +1311,10 @@ function FinanceCashierPanel({
     }
     if (manualTotals.subtotalUzs <= 0) {
       window.alert?.(translate("Ticket amount is required."));
+      return;
+    }
+    if (manualAmountDiscountExceedsSubtotal) {
+      window.alert?.(translate("Discount cannot be greater than ticket amount."));
       return;
     }
     const manualItemDiscounts = distributeDiscountUzs(
@@ -2016,7 +2022,7 @@ function FinanceCashierPanel({
                     <input
                       type="number"
                       min="0"
-                      max={manualForm.discountType === "percent" ? String(DISCOUNT_MAX_PERCENT_VALUE) : undefined}
+                      max={manualForm.discountType === "percent" ? String(DISCOUNT_MAX_PERCENT_VALUE) : String(manualTotals.subtotalUzs || 0)}
                       value={manualForm.discountValue}
                       onChange={(event) => {
                         const value = normalizeDiscountValueInput(manualForm.discountType, event.currentTarget.value);
@@ -2043,7 +2049,7 @@ function FinanceCashierPanel({
 
               <div className="edit-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => closeManualModal()}>{translate("Cancel")}</button>
-                <button type="submit" className="btn" disabled={manualSubmitting || manualTotals.subtotalUzs <= 0}>
+                <button type="submit" className="btn" disabled={manualSubmitting || manualTotals.subtotalUzs <= 0 || manualAmountDiscountExceedsSubtotal}>
                   {manualSubmitting ? "..." : translate("Create")}
                 </button>
               </div>

@@ -140,18 +140,28 @@ test("manual ticket modal blocks future ticket dates", async () => {
   );
   assert.match(
     cashierPanelSource,
-    /if \(manualTotals\.subtotalUzs <= 0\) \{[\s\S]*Ticket amount is required\.[\s\S]*disabled=\{manualSubmitting \|\| manualTotals\.subtotalUzs <= 0\}/s,
+    /if \(manualTotals\.subtotalUzs <= 0\) \{[\s\S]*Ticket amount is required\.[\s\S]*disabled=\{manualSubmitting \|\| manualTotals\.subtotalUzs <= 0 \|\| manualAmountDiscountExceedsSubtotal\}/s,
     "Manual ticket creation should allow a zero total from a 100% discount while still requiring a positive subtotal."
   );
   assert.match(
     cashierPanelSource,
-    /const DISCOUNT_MAX_PERCENT_VALUE = 100;[\s\S]*function normalizeDiscountValueInput\(discountType, value\)[\s\S]*amount > DISCOUNT_MAX_PERCENT_VALUE \? String\(DISCOUNT_MAX_PERCENT_VALUE\) : rawValue[\s\S]*discountValue: normalizeDiscountValueInput\(value, current\.discountValue\)[\s\S]*max=\{appointmentTicketForm\.discountType === "percent" \? String\(DISCOUNT_MAX_PERCENT_VALUE\) : undefined\}[\s\S]*normalizeDiscountValueInput\(appointmentTicketForm\.discountType, event\.currentTarget\.value\)[\s\S]*discountValue: normalizeDiscountValueInput\(value, current\.discountValue\)[\s\S]*max=\{manualForm\.discountType === "percent" \? String\(DISCOUNT_MAX_PERCENT_VALUE\) : undefined\}[\s\S]*normalizeDiscountValueInput\(manualForm\.discountType, event\.currentTarget\.value\)/s,
+    /const manualAmountDiscountExceedsSubtotal = manualForm\.discountType !== "percent"[\s\S]*normalizeMoneyInput\(manualForm\.discountValue\) > manualTotals\.subtotalUzs[\s\S]*if \(manualAmountDiscountExceedsSubtotal\) \{[\s\S]*Discount cannot be greater than ticket amount\.[\s\S]*disabled=\{manualSubmitting \|\| manualTotals\.subtotalUzs <= 0 \|\| manualAmountDiscountExceedsSubtotal\}/s,
+    "Manual ticket creation should reject amount discounts greater than the ticket subtotal while allowing equal 100% discounts."
+  );
+  assert.match(
+    cashierPanelSource,
+    /const DISCOUNT_MAX_PERCENT_VALUE = 100;[\s\S]*function normalizeDiscountValueInput\(discountType, value\)[\s\S]*amount > DISCOUNT_MAX_PERCENT_VALUE \? String\(DISCOUNT_MAX_PERCENT_VALUE\) : rawValue[\s\S]*discountValue: normalizeDiscountValueInput\(value, current\.discountValue\)[\s\S]*max=\{appointmentTicketForm\.discountType === "percent" \? String\(DISCOUNT_MAX_PERCENT_VALUE\) : undefined\}[\s\S]*normalizeDiscountValueInput\(appointmentTicketForm\.discountType, event\.currentTarget\.value\)[\s\S]*discountValue: normalizeDiscountValueInput\(value, current\.discountValue\)[\s\S]*max=\{manualForm\.discountType === "percent" \? String\(DISCOUNT_MAX_PERCENT_VALUE\) : String\(manualTotals\.subtotalUzs \|\| 0\)\}[\s\S]*normalizeDiscountValueInput\(manualForm\.discountType, event\.currentTarget\.value\)/s,
     "Create Ticket and Create Manual Ticket should clamp percent discount inputs to 100."
   );
   assert.match(
     translations,
     /Future ticket dates are not allowed\.", uz: "Kelajak sanasiga talon yaratib bo'lmaydi\.", ru: "Нельзя создавать талоны на будущую дату\."/,
     "Future ticket date validation should have Uzbek and Russian text."
+  );
+  assert.match(
+    translations,
+    /Discount cannot be greater than ticket amount\.", uz: "Skidka summasi talon summasidan katta bo'lishi mumkin emas\.", ru: "Скидка не может быть больше суммы талона\."/,
+    "Manual discount amount validation should have Uzbek and Russian text."
   );
   assert.match(
     cashierPanelSource,
@@ -190,6 +200,11 @@ test("cashier board filters live in header actions without visible labels", asyn
     cashierPanelSource,
     /const boardPeriodOptions = useMemo\(\(\) => \[[\s\S]*translate\("Today"\)[\s\S]*translate\("Current month"\)[\s\S]*translate\("Previous month"\)/s,
     "Cashier board should expose the requested date-period filter options."
+  );
+  assert.match(
+    cashierPanelSource,
+    /function getCashierBoardPeriodBounds\(period\) \{[\s\S]*const todayYmd = formatDateValue\(today\);[\s\S]*period === CASHIER_BOARD_PERIOD_CURRENT_MONTH[\s\S]*dateFrom: formatDateValue\(new Date\(year, month, 1\)\),[\s\S]*dateTo: todayYmd[\s\S]*period === CASHIER_BOARD_PERIOD_PREVIOUS_MONTH[\s\S]*dateTo: formatDateValue\(new Date\(year, month, 0\)\)/s,
+    "Cashier current-month period should run from the first day of this month through today, while previous month stays a full month."
   );
   assert.doesNotMatch(
     cashierPanelSource,

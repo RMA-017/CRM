@@ -145,9 +145,14 @@ function calculateDiscountUzs({ priceUzs, discountType, discountValue }) {
   return Math.min(price, value);
 }
 
-function assertDiscountValueIsAllowed({ discountType, discountValue }) {
+function assertDiscountValueIsAllowed({ discountType, discountValue, priceUzs }) {
   if (discountType === "percent" && discountValue > FINANCE_DISCOUNT_MAX_PERCENT_VALUE) {
     const error = new Error("Percent discount cannot be greater than 100.");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (discountType === "amount" && discountValue > normalizeAmount(priceUzs, 0)) {
+    const error = new Error("Discount cannot be greater than ticket amount.");
     error.statusCode = 400;
     throw error;
   }
@@ -4356,10 +4361,15 @@ async function buildTicketItems(db, { organizationId, payload, appointment, fall
       }
       const discountType = normalizeDiscountType(rawItem?.discountType ?? rawItem?.discount_type);
       const discountValue = normalizeAmount(rawItem?.discountValue ?? rawItem?.discount_value, 0);
-      assertDiscountValueIsAllowed({ discountType, discountValue });
+      assertDiscountValueIsAllowed({ discountType, discountValue, priceUzs });
       const requestedDiscountUzs = normalizeAmount(rawItem?.discountUzs ?? rawItem?.discount_uzs, -1);
+      if (requestedDiscountUzs > priceUzs) {
+        const error = new Error("Discount cannot be greater than ticket amount.");
+        error.statusCode = 400;
+        throw error;
+      }
       const discountUzs = requestedDiscountUzs >= 0
-        ? Math.min(priceUzs, requestedDiscountUzs)
+        ? requestedDiscountUzs
         : calculateDiscountUzs({ priceUzs, discountType, discountValue });
       const submittedServiceName = normalizeText(rawItem?.serviceName ?? rawItem?.service_name, 128);
       const itemServiceName = appointment

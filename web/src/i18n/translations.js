@@ -391,6 +391,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Refund reason is required.", uz: "Qaytarish sababi majburiy.", ru: "Причина возврата обязательна." },
   { en: "Refund amount exceeds client deposit.", uz: "Qaytarish summasi client depozitidan oshib ketdi.", ru: "Сумма возврата превышает депозит клиента." },
   { en: "Deposit amount exceeds selected client tickets total.", uz: "Depozit summasi tanlangan client talonlari summasidan oshib ketdi.", ru: "Сумма с депозита больше суммы выбранных талонов клиента." },
+  { en: "Discount cannot be greater than ticket amount.", uz: "Skidka summasi talon summasidan katta bo'lishi mumkin emas.", ru: "Скидка не может быть больше суммы талона." },
   { en: "Deposit operation is required.", uz: "Depozit amaliyoti kerak.", ru: "Нужна операция депозита." },
   { en: "Paid", uz: "To'langan", ru: "Оплачено" },
   { en: "Unpaid", uz: "To'lanmagan", ru: "Не оплачено" },
