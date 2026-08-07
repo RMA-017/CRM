@@ -417,6 +417,8 @@ export const financeRouteSchemas = Object.freeze({
     properties: {
       serviceId: positiveIntegerLikeSchema,
       service_id: positiveIntegerLikeSchema,
+      discountValue: positiveIntegerLikeSchema,
+      discount_value: positiveIntegerLikeSchema,
       limitCount: nullableClientDiscountLimitCountSchema,
       limit_count: nullableClientDiscountLimitCountSchema,
       isUnlimited: { type: "boolean" },
@@ -447,6 +449,8 @@ export const financeRouteSchemas = Object.freeze({
           properties: {
             serviceId: positiveIntegerLikeSchema,
             service_id: positiveIntegerLikeSchema,
+            discountValue: positiveIntegerLikeSchema,
+            discount_value: positiveIntegerLikeSchema,
             limitCount: nullableClientDiscountLimitCountSchema,
             limit_count: nullableClientDiscountLimitCountSchema,
             isUnlimited: { type: "boolean" },
@@ -461,8 +465,8 @@ export const financeRouteSchemas = Object.freeze({
       note: { type: "string", maxLength: 255 }
     },
     anyOf: [
-      { required: ["clientId", "discountType", "discountValue", "services"] },
-      { required: ["client_id", "discount_type", "discount_value", "services"] }
+      { required: ["clientId", "discountType", "services"] },
+      { required: ["client_id", "discount_type", "services"] }
     ]
   },
   discountUpdateBody: {

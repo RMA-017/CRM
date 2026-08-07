@@ -144,13 +144,13 @@ test("finance client discounts route is wired into profile navigation", async ()
   );
   assert.match(
     panelSource,
-    /const DISCOUNT_MAX_PERCENT_VALUE = 100;[\s\S]*function normalizeCreateDiscountValue\(discountType, value\)[\s\S]*amount > DISCOUNT_MAX_PERCENT_VALUE \? String\(DISCOUNT_MAX_PERCENT_VALUE\) : rawValue[\s\S]*field === "discountType"[\s\S]*discountValue: normalizeCreateDiscountValue\(discountType, current\.discountValue\)[\s\S]*field === "discountValue"[\s\S]*discountValue: normalizeCreateDiscountValue\(current\.discountType, value\)[\s\S]*max=\{createForm\.discountType === "percent" \? String\(DISCOUNT_MAX_PERCENT_VALUE\) : undefined\}/s,
-    "New client discount modal should clamp percent discounts to 100 while typing and when switching types."
+    /const DISCOUNT_MAX_PERCENT_VALUE = 100;[\s\S]*function normalizeCreateDiscountValue\(discountType, value\)[\s\S]*amount > DISCOUNT_MAX_PERCENT_VALUE \? String\(DISCOUNT_MAX_PERCENT_VALUE\) : rawValue[\s\S]*field === "discountType"[\s\S]*setServiceRows\(\(current\) => current\.map\(\(row\) => \(\{[\s\S]*discountValue: normalizeCreateDiscountValue\(discountType, row\.discountValue\)[\s\S]*value=\{row\.discountValue\}[\s\S]*normalizeCreateDiscountValue\(createForm\.discountType, event\.currentTarget\.value\)/s,
+    "New client discount modal should clamp each service row's percent discount to 100 while typing and when switching types."
   );
   assert.match(
     panelSource,
-    /const servicePayload = \{[\s\S]*serviceId: row\.serviceId,[\s\S]*isUnlimited: Boolean\(row\.isUnlimited\)[\s\S]*if \(!row\.isUnlimited\) \{[\s\S]*servicePayload\.limitCount = toIntegerAmount\(row\.limitCount\);[\s\S]*return servicePayload;[\s\S]*value === DISCOUNT_UNLIMITED_VALUE[\s\S]*updateServiceRow\(row\.key, \{ isUnlimited: true, limitCount: "" \}\)/s,
-    "New client discount modal should omit limitCount for unlimited service rows."
+    /const servicePayload = \{[\s\S]*serviceId: row\.serviceId,[\s\S]*discountValue: toIntegerAmount\(row\.discountValue\),[\s\S]*isUnlimited: Boolean\(row\.isUnlimited\)[\s\S]*if \(!row\.isUnlimited\) \{[\s\S]*servicePayload\.limitCount = toIntegerAmount\(row\.limitCount\);[\s\S]*return servicePayload;[\s\S]*value === DISCOUNT_UNLIMITED_VALUE[\s\S]*updateServiceRow\(row\.key, \{ isUnlimited: true, limitCount: "" \}\)/s,
+    "New client discount modal should send a per-service discount value and omit limitCount for unlimited service rows."
   );
   assert.match(
     panelSource,

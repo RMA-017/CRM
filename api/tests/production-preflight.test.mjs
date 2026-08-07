@@ -121,4 +121,7 @@ test("migration readiness report requires finance migrations to stay in the repo
   assert.ok(
     report.errors.some((error) => error.includes("20260720_000001_finance_client_discount_per_use.sql"))
   );
+  assert.ok(
+    report.errors.some((error) => error.includes("20260807_000001_finance_client_discount_service_values.sql"))
+  );
 });

@@ -300,6 +300,11 @@ test("finance client discounts apply only to appointment tickets and keep usage 
     "Client discount service counts should be limited to 1..22 while allowing null for unlimited rows at the route schema level."
   );
   assert.match(
+    financeRouteSchemasSource,
+    /discountCreateBody:[\s\S]*discountValue: positiveIntegerLikeSchema[\s\S]*services:[\s\S]*discountValue: positiveIntegerLikeSchema[\s\S]*discount_value: positiveIntegerLikeSchema[\s\S]*required: \["clientId", "discountType", "services"\]/s,
+    "Client discount creation should accept separate discount values on each selected service row."
+  );
+  assert.match(
     financeDiscountsSource,
     /const finiteServices = services\.filter\(\(item\) => item\.limitCount !== null\);[\s\S]*const totalLimitCount = finiteServices\.reduce[\s\S]*const usedCount = services\.reduce\(\(sum, item\) => sum \+ normalizeAmount\(item\.usedCount, 0\), 0\);[\s\S]*remainingCount: hasUnlimited \? null : remainingCount/s,
     "Client discount used count should include unlimited service usages while remaining count stays finite/null."
@@ -343,19 +348,14 @@ test("finance client discounts apply only to appointment tickets and keep usage 
 
   assert.match(
     financeDiscountsSource,
-    /calculatePackagePerUseDiscounts[\s\S]*priceUzs \* limitCount[\s\S]*totalDiscountUzs[\s\S]*exactPerUseDiscount[\s\S]*per_use_discount_uzs/s,
-    "Amount client discounts should be stored as package totals and distributed into per-use service discounts."
-  );
-  assert.match(
-    financeDiscountsSource,
-    /calculatePackagePerUseDiscounts[\s\S]*serviceInputs\.some\(\(item\) => item\.limitCount === null\)[\s\S]*return new Map\(\);[\s\S]*discountType === "amount" && perUseDiscountUzs !== null[\s\S]*calculateDiscountUzs\(\{ priceUzs, discountType, discountValue \}\)/s,
-    "Unlimited amount client discounts should skip package distribution and apply the fixed amount until disabled."
+    /calculateServicePerUseAmountDiscount[\s\S]*Math\.floor\(value \/ count\)[\s\S]*serviceInputs\.push\(\{ serviceId, limitCount, discountValue \}\)[\s\S]*Discount cannot be greater than service total\.[\s\S]*discount_value, per_use_discount_uzs[\s\S]*item\.discountValue, perUseDiscountUzs/s,
+    "Client discount creation should persist a separate total discount value for every service and calculate per-use amount discounts from the service count."
   );
 
   assert.match(
     financeDiscountsSource,
-    /getDiscountCandidatesForService[\s\S]*rs\.per_use_discount_uzs[\s\S]*discountType === "amount" && perUseDiscountUzs !== null[\s\S]*discountValue: discountType === "amount" \? discountUzs : discountValue/s,
-    "Appointment ticket discounts should apply stored per-use amount discounts while preserving percentage rules."
+    /getDiscountCandidatesForService[\s\S]*COALESCE\(NULLIF\(rs\.discount_value, 0\), r\.discount_value, 0\) AS discount_value[\s\S]*rs\.per_use_discount_uzs[\s\S]*discountType === "amount" && perUseDiscountUzs !== null[\s\S]*calculateDiscountUzs\(\{ priceUzs, discountType, discountValue \}\)[\s\S]*discountValue: discountType === "amount" \? discountUzs : discountValue/s,
+    "Appointment ticket discounts should apply calculated per-use amount discounts while preserving percentage rules."
   );
 
   assert.match(

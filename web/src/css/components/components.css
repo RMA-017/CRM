@@ -6519,7 +6519,7 @@ label.field > span:first-child,
 
 .finance-discounts-discount-row {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr);
+  grid-template-columns: minmax(260px, 1fr) 150px;
   gap: 8px;
   align-items: center;
 }
@@ -6594,13 +6594,15 @@ label.field > span:first-child,
 
 .finance-discounts-service-line {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 122px 65px;
+  grid-template-columns: minmax(220px, 1fr) 108px 118px 65px;
   align-items: center;
   gap: 7px;
 }
 
 .finance-discounts-service-select-field,
-.finance-discounts-service-count-field {
+.finance-discounts-service-count-field,
+.finance-discounts-service-value-field,
+.finance-discounts-type-field {
   min-width: 0;
 }
 

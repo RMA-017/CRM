@@ -161,6 +161,7 @@ export const REQUIRED_FINANCE_TABLE_COLUMNS = Object.freeze({
     "service_id",
     "service_name",
     "limit_count",
+    "discount_value",
     "per_use_discount_uzs",
     "created_at"
   ],
@@ -220,6 +221,7 @@ export const REQUIRED_FINANCE_CONSTRAINTS = Object.freeze([
   "uq_finance_client_discount_rule_services_org_id",
   "fk_finance_client_discount_rule_services_rule_org",
   "fk_finance_client_discount_rule_services_service_org",
+  "chk_finance_client_discount_rule_services_discount_value",
   "chk_finance_client_discount_rule_services_per_use_discount",
   "fk_finance_client_discount_usages_rule_org",
   "fk_finance_client_discount_usages_rule_service_org",

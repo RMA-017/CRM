@@ -8,7 +8,6 @@ import { useI18n } from "../../../i18n/I18nProvider.jsx";
 
 const EMPTY_CREATE_FORM = Object.freeze({
   discountType: "amount",
-  discountValue: "",
   note: ""
 });
 
@@ -74,11 +73,32 @@ function formatServiceOptionLabel(service) {
   return `${name} - ${priceLabel}`;
 }
 
-function formatDiscount(item) {
-  const value = toIntegerAmount(item?.discountValue ?? item?.discount_value);
-  return String(item?.discountType || item?.discount_type) === "percent"
+function formatDiscount(item, translate = (value) => value) {
+  const services = Array.isArray(item?.services) ? item.services : [];
+  const discountType = String(item?.discountType || item?.discount_type) === "percent" ? "percent" : "amount";
+  const serviceValues = services
+    .map((service) => (
+      discountType === "percent"
+        ? toIntegerAmount(service?.discountValue ?? service?.discount_value)
+        : toIntegerAmount(service?.perUseDiscountUzs ?? service?.per_use_discount_uzs ?? service?.discountValue ?? service?.discount_value)
+    ))
+    .filter((value) => value > 0);
+  const uniqueValues = new Set(serviceValues);
+  if (serviceValues.length > 0 && uniqueValues.size > 1) {
+    return translate("By service");
+  }
+  const value = serviceValues[0] ?? toIntegerAmount(item?.discountValue ?? item?.discount_value);
+  return discountType === "percent"
     ? `${value}%`
     : `${formatMoney(value)} сум`;
+}
+
+function formatServiceDiscount(service, discountType) {
+  const isPercent = String(discountType || "") === "percent";
+  const value = isPercent
+    ? toIntegerAmount(service?.discountValue ?? service?.discount_value)
+    : toIntegerAmount(service?.perUseDiscountUzs ?? service?.per_use_discount_uzs ?? service?.discountValue ?? service?.discount_value);
+  return isPercent ? `${value}%` : `${formatMoney(value)} сум`;
 }
 
 function getStatusClassName(status) {
@@ -127,7 +147,8 @@ function createDiscountServiceRow() {
     serviceId: "",
     serviceName: "",
     limitCount: "1",
-    isUnlimited: false
+    isUnlimited: false,
+    discountValue: ""
   };
 }
 
@@ -343,21 +364,19 @@ function FinanceClientDiscountsPanel({
 
   const updateCreateForm = useCallback((field, value) => {
     setCreateError("");
+    if (field === "discountType") {
+      const discountType = String(value || "amount");
+      setServiceRows((current) => current.map((row) => ({
+        ...row,
+        discountValue: normalizeCreateDiscountValue(discountType, row.discountValue)
+      })));
+      setCreateForm((current) => ({
+        ...current,
+        discountType
+      }));
+      return;
+    }
     setCreateForm((current) => {
-      if (field === "discountType") {
-        const discountType = String(value || "amount");
-        return {
-          ...current,
-          discountType,
-          discountValue: normalizeCreateDiscountValue(discountType, current.discountValue)
-        };
-      }
-      if (field === "discountValue") {
-        return {
-          ...current,
-          discountValue: normalizeCreateDiscountValue(current.discountType, value)
-        };
-      }
       return {
         ...current,
         [field]: value
@@ -397,15 +416,6 @@ function FinanceClientDiscountsPanel({
       setCreateError("Выберите клиента.");
       return;
     }
-    const discountValue = toIntegerAmount(createForm.discountValue);
-    if (discountValue <= 0) {
-      setCreateError("Укажите скидку.");
-      return;
-    }
-    if (createForm.discountType === "percent" && discountValue > DISCOUNT_MAX_PERCENT_VALUE) {
-      setCreateError("Процент скидки не может быть больше 100.");
-      return;
-    }
     const selectedServiceRows = serviceRows.filter((row) => String(row.serviceId || "").trim());
     if (selectedServiceRows.length === 0) {
       setCreateError("Выберите услуги.");
@@ -423,6 +433,38 @@ function FinanceClientDiscountsPanel({
     if (hasDuplicateService) {
       setCreateError("Одна услуга выбрана несколько раз.");
       return;
+    }
+    const invalidDiscountValue = selectedServiceRows.some((row) => toIntegerAmount(row.discountValue) <= 0);
+    if (invalidDiscountValue) {
+      setCreateError("Discount is required for each service.");
+      return;
+    }
+    if (createForm.discountType === "percent" && selectedServiceRows.some((row) => toIntegerAmount(row.discountValue) > DISCOUNT_MAX_PERCENT_VALUE)) {
+      setCreateError("Percent discount cannot exceed 100.");
+      return;
+    }
+    if (createForm.discountType === "amount") {
+      const ineffectiveAmountRow = selectedServiceRows.find((row) => (
+        !row.isUnlimited
+        && toIntegerAmount(row.limitCount) > 0
+        && Math.floor(toIntegerAmount(row.discountValue) / toIntegerAmount(row.limitCount)) <= 0
+      ));
+      if (ineffectiveAmountRow) {
+        setCreateError("Discount is required for each service.");
+        return;
+      }
+      const invalidAmountRow = selectedServiceRows.find((row) => {
+        const service = services.find((entry) => String(entry.id) === String(row.serviceId || ""));
+        const priceUzs = toIntegerAmount(service?.priceUzs ?? service?.price_uzs);
+        const maxDiscountUzs = row.isUnlimited
+          ? priceUzs
+          : priceUzs * toIntegerAmount(row.limitCount);
+        return priceUzs > 0 && toIntegerAmount(row.discountValue) > maxDiscountUzs;
+      });
+      if (invalidAmountRow) {
+        setCreateError("Discount cannot be greater than service total.");
+        return;
+      }
     }
     const invalidLimit = selectedServiceRows.some((row) => {
       if (row.isUnlimited) return false;
@@ -444,11 +486,12 @@ function FinanceClientDiscountsPanel({
         body: JSON.stringify({
           clientId: selectedClient.id,
           discountType: createForm.discountType,
-          discountValue,
+          discountValue: toIntegerAmount(selectedServiceRows[0]?.discountValue),
           note: createForm.note,
           services: selectedServiceRows.map((row) => {
             const servicePayload = {
               serviceId: row.serviceId,
+              discountValue: toIntegerAmount(row.discountValue),
               isUnlimited: Boolean(row.isUnlimited)
             };
             if (!row.isUnlimited) {
@@ -470,7 +513,7 @@ function FinanceClientDiscountsPanel({
     } finally {
       setSubmitting(false);
     }
-  }, [appliedFilters, closeCreateModal, createForm.discountType, createForm.discountValue, createForm.note, loadDiscounts, selectedClient, serviceRows]);
+  }, [appliedFilters, closeCreateModal, createForm.discountType, createForm.note, loadDiscounts, selectedClient, serviceRows, services]);
 
   const openDetail = useCallback(async (item) => {
     const id = item?.id;
@@ -728,7 +771,7 @@ function FinanceClientDiscountsPanel({
                 <td className="finance-discounts-cell-client-id">{item.clientId ?? item.client_id ?? "-"}</td>
                 <td className="finance-discounts-cell-created">{formatDateYMD(item.createdAt || item.created_at)}</td>
                 <td className="finance-discounts-cell-services">{getServiceSummary(item, translate)}</td>
-                <td className="finance-discounts-cell-money">{formatDiscount(item)}</td>
+                <td className="finance-discounts-cell-money">{formatDiscount(item, translate)}</td>
                 <td className="finance-discounts-cell-remaining">{item.remainingCount === null ? translate("Unlimited") : toIntegerAmount(item.remainingCount)}</td>
                 <td>
                   <span className={`finance-discount-status ${getStatusClassName(item.status)}`}>
@@ -796,39 +839,27 @@ function FinanceClientDiscountsPanel({
 
               <div className="finance-discounts-create-body">
                 <div className="finance-discounts-simple-form">
-                  <div className="field finance-discounts-client-field">
-                    <input
-                      ref={clientInputRef}
-                      type="search"
-                      value={selectedClient ? normalizeClientLabel(selectedClient) : clientSearch}
-                      placeholder="Клиент"
-                      onChange={(event) => {
-                        setCreateError("");
-                        setSelectedClient(null);
-                        setClientSearch(event.currentTarget.value);
-                      }}
-                    />
-                  </div>
-
                   <div className="finance-discounts-discount-row">
-                    <div className="field">
+                    <div className="field finance-discounts-client-field">
+                      <input
+                        ref={clientInputRef}
+                        type="search"
+                        value={selectedClient ? normalizeClientLabel(selectedClient) : clientSearch}
+                        placeholder="Клиент"
+                        onChange={(event) => {
+                          setCreateError("");
+                          setSelectedClient(null);
+                          setClientSearch(event.currentTarget.value);
+                        }}
+                      />
+                    </div>
+                    <div className="field finance-discounts-type-field">
                       <CustomSelect
                         value={createForm.discountType}
                         options={DISCOUNT_TYPE_OPTIONS}
                         onChange={(value) => updateCreateForm("discountType", value)}
                         placeholder="Тип скидки"
                         menuPortal
-                      />
-                    </div>
-
-                    <div className="field">
-                      <input
-                        type="number"
-                        min="1"
-                        max={createForm.discountType === "percent" ? String(DISCOUNT_MAX_PERCENT_VALUE) : undefined}
-                        placeholder={createForm.discountType === "percent" ? "Процент" : "Сумма"}
-                        value={createForm.discountValue}
-                        onChange={(event) => updateCreateForm("discountValue", event.currentTarget.value)}
                       />
                     </div>
                   </div>
@@ -868,6 +899,20 @@ function FinanceClientDiscountsPanel({
                                 return;
                               }
                               updateServiceRow(row.key, { isUnlimited: false, limitCount: value });
+                            }}
+                          />
+                        </label>
+                        <label className="field finance-discounts-service-value-field">
+                          <input
+                            type="number"
+                            min="1"
+                            max={createForm.discountType === "percent" ? String(DISCOUNT_MAX_PERCENT_VALUE) : undefined}
+                            placeholder={createForm.discountType === "percent" ? "Процент" : "Сумма"}
+                            value={row.discountValue}
+                            onChange={(event) => {
+                              updateServiceRow(row.key, {
+                                discountValue: normalizeCreateDiscountValue(createForm.discountType, event.currentTarget.value)
+                              });
                             }}
                           />
                         </label>
@@ -936,7 +981,7 @@ function FinanceClientDiscountsPanel({
               <div className="finance-ticket-summary finance-discounts-detail-summary">
                 <div>
                   <span>{translate("Discount")}</span>
-                  <strong>{formatDiscount(detailItem)}</strong>
+                  <strong>{formatDiscount(detailItem, translate)}</strong>
                 </div>
                 <div>
                   <span>{translate("Used")}</span>
@@ -964,7 +1009,7 @@ function FinanceClientDiscountsPanel({
                     {detailServices.map((service) => (
                       <div key={service.id} className="finance-discounts-detail-service">
                         <strong>{service.serviceName}</strong>
-                        <span>{formatServiceProgress(service, translate)}</span>
+                        <span>{formatServiceProgress(service, translate)} · {formatServiceDiscount(service, detailItem?.discountType)}</span>
                       </div>
                     ))}
                   </div>
