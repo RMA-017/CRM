@@ -9,8 +9,8 @@ import CustomSelect from "../../../components/CustomSelect.jsx";
 
 const EMPTY_FILTERS = Object.freeze({
   ticketNumber: "",
-  ticketCreatedFrom: "",
-  ticketCreatedTo: "",
+  dateFrom: "",
+  dateTo: "",
   client: "",
   specialist: "",
   position: "",
@@ -112,8 +112,8 @@ function createInitialAppliedFilters() {
   const today = todayDateValue();
   return {
     ...createDefaultFilters(),
-    ticketCreatedFrom: today,
-    ticketCreatedTo: today
+    dateFrom: today,
+    dateTo: today
   };
 }
 
@@ -126,8 +126,8 @@ function normalizeTicketFiltersForQuery(source) {
   const ticketNumber = getTicketNumberDigits(next.ticketNumber);
   next.ticketNumber = ticketNumber;
   if (ticketNumber) {
-    next.ticketCreatedFrom = "";
-    next.ticketCreatedTo = "";
+    next.dateFrom = "";
+    next.dateTo = "";
   }
   return next;
 }
@@ -1263,24 +1263,24 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
                 </label>
                 <div className="finance-ticket-filter-date-row">
                   <label className="field">
-                    <span>{translate("Ticket Created From")}</span>
+                    <span>{translate("Ticket Date From")}</span>
                     <input
                       type="date"
-                      value={filters.ticketCreatedFrom}
+                      value={filters.dateFrom}
                       onChange={(event) => {
                         const value = event.currentTarget.value;
-                        setFilters((current) => ({ ...current, ticketCreatedFrom: value }));
+                        setFilters((current) => ({ ...current, dateFrom: value }));
                       }}
                     />
                   </label>
                   <label className="field">
-                    <span>{translate("Ticket Created To")}</span>
+                    <span>{translate("Ticket Date To")}</span>
                     <input
                       type="date"
-                      value={filters.ticketCreatedTo}
+                      value={filters.dateTo}
                       onChange={(event) => {
                         const value = event.currentTarget.value;
-                        setFilters((current) => ({ ...current, ticketCreatedTo: value }));
+                        setFilters((current) => ({ ...current, dateTo: value }));
                       }}
                     />
                   </label>

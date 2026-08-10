@@ -76,8 +76,8 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
 
   assert.match(
     financeServiceSource,
-    /function buildTicketsListWhere[\s\S]*const ticketCreatedFrom = normalizeDate\(filters\.ticketCreatedFrom \?\? filters\.ticket_created_from\);[\s\S]*ft\.created_at::date >= \$\$\{params\.length\}::date[\s\S]*ft\.created_at::date <= \$\$\{params\.length\}::date[\s\S]*ft\.ticket_date >= \$\$\{params\.length\}/s,
-    "Finance ticket list should support created-at defaults separately from manual ticket-date filters."
+    /function buildTicketsListWhere[\s\S]*const dateFrom = normalizeDate\(filters\.dateFrom \?\? filters\.date_from\);[\s\S]*const dateTo = normalizeDate\(filters\.dateTo \?\? filters\.date_to\);[\s\S]*ft\.ticket_date >= \$\$\{params\.length\}[\s\S]*ft\.ticket_date <= \$\$\{params\.length\}/s,
+    "Finance ticket list should filter date ranges by ticket date."
   );
   assert.match(
     financeServiceSource,

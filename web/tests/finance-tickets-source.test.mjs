@@ -405,7 +405,7 @@ test("ticket edit modal uses one shared discount and distributes it to line item
   );
 });
 
-test("ticket list and filter modal use ticket creation dates", async () => {
+test("ticket list and filter modal use ticket dates", async () => {
   const [source, translations] = await Promise.all([
     readFile(
       new URL("../src/pages/profile/panels/FinanceTicketsPanel.jsx", import.meta.url),
@@ -416,18 +416,18 @@ test("ticket list and filter modal use ticket creation dates", async () => {
 
   assert.match(
     source,
-    /function createDefaultFilters\(\) \{[\s\S]*\.\.\.EMPTY_FILTERS,[\s\S]*status: DEFAULT_TICKET_STATUS_FILTER[\s\S]*function createInitialAppliedFilters\(\) \{[\s\S]*ticketCreatedFrom: today,[\s\S]*ticketCreatedTo: today/s,
-    "Finance tickets should initially request tickets created today."
+    /function createDefaultFilters\(\) \{[\s\S]*\.\.\.EMPTY_FILTERS,[\s\S]*status: DEFAULT_TICKET_STATUS_FILTER[\s\S]*function createInitialAppliedFilters\(\) \{[\s\S]*dateFrom: today,[\s\S]*dateTo: today/s,
+    "Finance tickets should initially request tickets for today's ticket date."
   );
   assert.match(
     source,
     /const \[filters, setFilters\] = useState\(\(\) => createInitialAppliedFilters\(\)\);[\s\S]*const \[appliedFilters, setAppliedFilters\] = useState\(\(\) => createInitialAppliedFilters\(\)\)/s,
-    "The visible filter modal dates should mirror the active created-at filter."
+    "The visible filter modal dates should mirror the active ticket-date filter."
   );
   assert.match(
     source,
-    /function getTicketNumberDigits\(value\) \{[\s\S]*replace\(\/\\D\/g, ""\)\.slice\(0, 5\);[\s\S]*function normalizeTicketFiltersForQuery\(source\) \{[\s\S]*const ticketNumber = getTicketNumberDigits\(next\.ticketNumber\);[\s\S]*next\.ticketCreatedFrom = "";[\s\S]*next\.ticketCreatedTo = "";/s,
-    "Ticket number search should strip display characters and clear default created-at dates so old tickets can be found."
+    /function getTicketNumberDigits\(value\) \{[\s\S]*replace\(\/\\D\/g, ""\)\.slice\(0, 5\);[\s\S]*function normalizeTicketFiltersForQuery\(source\) \{[\s\S]*const ticketNumber = getTicketNumberDigits\(next\.ticketNumber\);[\s\S]*next\.dateFrom = "";[\s\S]*next\.dateTo = "";/s,
+    "Ticket number search should strip display characters and clear default ticket dates so old tickets can be found."
   );
   assert.match(
     source,
@@ -441,17 +441,12 @@ test("ticket list and filter modal use ticket creation dates", async () => {
   );
   assert.match(
     source,
-    /translate\("Ticket Created From"\)[\s\S]*value=\{filters\.ticketCreatedFrom\}[\s\S]*ticketCreatedFrom: value[\s\S]*translate\("Ticket Created To"\)[\s\S]*value=\{filters\.ticketCreatedTo\}[\s\S]*ticketCreatedTo: value/s,
-    "Finance ticket filter modal date inputs should filter by the real ticket creation date."
-  );
-  assert.doesNotMatch(
-    source,
     /translate\("Ticket Date From"\)[\s\S]*value=\{filters\.dateFrom\}[\s\S]*translate\("Ticket Date To"\)[\s\S]*value=\{filters\.dateTo\}/s,
-    "Finance ticket filter modal should not expose ticket-date date range inputs."
+    "Finance ticket filter modal date inputs should filter by ticket date."
   );
   assert.match(
     translations,
-    /Ticket Created From", uz: "Talon yaratilgan sana dan", ru: "Дата создания с"[\s\S]*Ticket Created To", uz: "Talon yaratilgan sana gacha", ru: "Дата создания до"/s,
-    "Created-at date filter labels should be translated without saying ticket date."
+    /Ticket Date From", uz: "Talon sanasi dan", ru: "Дата талона с"[\s\S]*Ticket Date To", uz: "Talon sanasi gacha", ru: "Дата талона до"/s,
+    "Ticket-date filter labels should be translated."
   );
 });
