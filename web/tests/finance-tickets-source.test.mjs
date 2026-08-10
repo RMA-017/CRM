@@ -187,6 +187,24 @@ test("ticket table exposes payment progress columns through the columns modal", 
   );
 });
 
+test("ticket specialist-filter display uses scoped items without shrinking edit payloads", async () => {
+  const source = await readFile(
+    new URL("../src/pages/profile/panels/FinanceTicketsPanel.jsx", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(
+    source,
+    /function getTicketDisplayItems\(item\) \{[\s\S]*Array\.isArray\(item\?\.scopedItems\)[\s\S]*return item\.scopedItems;[\s\S]*return Array\.isArray\(item\?\.items\) \? item\.items : \[\];[\s\S]*function getTicketServiceText\(item\)[\s\S]*getTicketDisplayItems\(item\)[\s\S]*function getTicketSpecialistText\(item\)[\s\S]*getTicketDisplayItems\(item\)[\s\S]*function getTicketPositionText\(item\)[\s\S]*getTicketDisplayItems\(item\)/s,
+    "Ticket table display should use scoped items when the backend narrows a multi-specialist ticket."
+  );
+  assert.match(
+    source,
+    /function createTicketEditItemRows\(item\)[\s\S]*const rows = Array\.isArray\(item\?\.items\) && item\.items\.length > 0[\s\S]*\? item\.items[\s\S]*: \[\{[\s\S]*specialistId: item\?\.specialistId/s,
+    "Ticket edit should keep using full ticket items so specialist-filtered rows cannot drop other services."
+  );
+});
+
 test("ticket status labels keep finance tickets terminology", async () => {
   const [source, translations] = await Promise.all([
     readFile(

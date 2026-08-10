@@ -192,6 +192,8 @@ function mapTicket(row) {
     paidAt: row.paid_at,
     itemCount: Number.parseInt(String(row.item_count ?? 1), 10) || 1,
     items: Array.isArray(row.items) ? row.items : [],
+    scopedItems: Array.isArray(row.scoped_items) ? row.scoped_items : null,
+    isItemScoped: Boolean(row.is_item_scoped),
     positionLabel: row.position_label || "",
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -1548,6 +1550,7 @@ export async function getFinanceActivePaymentMethods({ organizationId }) {
 function buildTicketsListWhere({ organizationId, filters = {} }) {
   const params = [organizationId];
   const where = ["ft.organization_id = $1"];
+  let specialistItemFilterParam = null;
   const ticketNumber = normalizeText(filters.ticketNumber ?? filters.ticket_number, 16).replace(/\D/g, "").slice(0, 5);
   const ticketCreatedFrom = normalizeDate(filters.ticketCreatedFrom ?? filters.ticket_created_from);
   const ticketCreatedTo = normalizeDate(filters.ticketCreatedTo ?? filters.ticket_created_to);
@@ -1594,9 +1597,9 @@ function buildTicketsListWhere({ organizationId, filters = {} }) {
   }
   if (specialist) {
     params.push(`%${specialist}%`);
+    specialistItemFilterParam = params.length;
     where.push(`(
-      LOWER(COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), '')) LIKE $${params.length}
-      OR EXISTS (
+      EXISTS (
         SELECT 1
           FROM finance_ticket_items fti_filter
           JOIN users iu_filter
@@ -1605,6 +1608,16 @@ function buildTicketsListWhere({ organizationId, filters = {} }) {
          WHERE fti_filter.organization_id = ft.organization_id
            AND fti_filter.ticket_id = ft.id
            AND LOWER(COALESCE(NULLIF(TRIM(iu_filter.full_name), ''), NULLIF(TRIM(iu_filter.username), ''), '')) LIKE $${params.length}
+      )
+      OR (
+        NOT EXISTS (
+          SELECT 1
+            FROM finance_ticket_items fti_any
+           WHERE fti_any.organization_id = ft.organization_id
+             AND fti_any.ticket_id = ft.id
+             AND fti_any.specialist_id IS NOT NULL
+        )
+        AND LOWER(COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), '')) LIKE $${params.length}
       )
     )`);
   }
@@ -1647,14 +1660,95 @@ function buildTicketsListWhere({ organizationId, filters = {} }) {
     where.push("ft.status <> 'voided'");
   }
 
-  return { params, whereSql: where.join(" AND ") };
+  return { params, whereSql: where.join(" AND "), specialistItemFilterParam };
 }
 
 export async function getFinanceTickets({ organizationId, filters = {} }) {
   const page = normalizePage(filters.page);
   const pageSize = normalizePageSize(filters.pageSize ?? filters.page_size, 20);
   const offset = (page - 1) * pageSize;
-  const { params, whereSql } = buildTicketsListWhere({ organizationId, filters });
+  const { params, whereSql, specialistItemFilterParam } = buildTicketsListWhere({ organizationId, filters });
+  const isItemScoped = Boolean(specialistItemFilterParam);
+  const itemScopeWhereSql = isItemScoped
+    ? `AND LOWER(COALESCE(NULLIF(TRIM(iu.full_name), ''), NULLIF(TRIM(iu.username), ''), '')) LIKE $${specialistItemFilterParam}`
+    : "";
+  const itemScopeJoinSql = isItemScoped
+    ? `LEFT JOIN LATERAL (
+      SELECT COUNT(*) AS item_count,
+             COALESCE(SUM(COALESCE(fti_scope.price_uzs, 0)), 0) AS subtotal_amount_uzs,
+             COALESCE(SUM(COALESCE(fti_scope.discount_uzs, 0)), 0) AS discount_amount_uzs,
+             COALESCE(SUM(COALESCE(fti_scope.final_amount_uzs, 0)), 0) AS total_amount_uzs,
+             COALESCE(SUM(
+               GREATEST(
+                 LEAST(
+                   COALESCE(fpaid.paid_amount_uzs, 0),
+                   COALESCE(fti_scope.item_start_uzs, 0) + COALESCE(fti_scope.final_amount_uzs, 0)
+                 ) - COALESCE(fti_scope.item_start_uzs, 0),
+                 0
+               )
+             ), 0) AS paid_amount_uzs,
+             COALESCE(
+               json_agg(
+                 json_build_object(
+                   'id', fti_scope.id,
+                   'lineNumber', fti_scope.line_number,
+                   'specialistId', fti_scope.specialist_id,
+                   'specialistName', fti_scope.specialist_name,
+                   'positionLabel', fti_scope.position_label,
+                   'serviceId', fti_scope.service_id,
+                   'serviceName', fti_scope.service_name,
+                   'priceUzs', fti_scope.price_uzs,
+                   'discountType', fti_scope.discount_type,
+                   'discountValue', fti_scope.discount_value,
+                   'discountUzs', fti_scope.discount_uzs,
+                   'finalAmountUzs', fti_scope.final_amount_uzs
+                 )
+                 ORDER BY fti_scope.line_number ASC, fti_scope.id ASC
+               ) FILTER (WHERE fti_scope.id IS NOT NULL),
+               '[]'::json
+             ) AS items
+        FROM (
+          SELECT fti.*,
+                 COALESCE(NULLIF(TRIM(iu.full_name), ''), NULLIF(TRIM(iu.username), ''), '') AS specialist_name,
+                 ip.label AS position_label,
+                 COALESCE((
+                   SELECT SUM(COALESCE(fti_prev.final_amount_uzs, 0))
+                     FROM finance_ticket_items fti_prev
+                    WHERE fti_prev.organization_id = fti.organization_id
+                      AND fti_prev.ticket_id = fti.ticket_id
+                      AND (
+                        fti_prev.line_number < fti.line_number
+                        OR (fti_prev.line_number = fti.line_number AND fti_prev.id < fti.id)
+                      )
+                 ), 0) AS item_start_uzs
+            FROM finance_ticket_items fti
+            LEFT JOIN users iu ON iu.organization_id = fti.organization_id AND iu.id = fti.specialist_id
+            LEFT JOIN position_options ip ON ip.organization_id = iu.organization_id AND ip.id = iu.position_id
+           WHERE fti.organization_id = ft.organization_id
+             AND fti.ticket_id = ft.id
+             ${itemScopeWhereSql}
+        ) fti_scope
+    ) fti_scope ON TRUE`
+    : `LEFT JOIN LATERAL (
+      SELECT 0::bigint AS item_count,
+             0::bigint AS subtotal_amount_uzs,
+             0::bigint AS discount_amount_uzs,
+             0::bigint AS total_amount_uzs,
+             0::bigint AS paid_amount_uzs,
+             '[]'::json AS items
+    ) fti_scope ON TRUE`;
+  const scopedSubtotalSql = isItemScoped
+    ? `CASE WHEN COALESCE(fti_scope.item_count, 0) > 0 THEN COALESCE(fti_scope.subtotal_amount_uzs, 0) ELSE COALESCE(ft.subtotal_uzs, ft.amount_uzs, 0) END`
+    : "COALESCE(ft.subtotal_uzs, ft.amount_uzs, 0)";
+  const scopedDiscountSql = isItemScoped
+    ? `CASE WHEN COALESCE(fti_scope.item_count, 0) > 0 THEN COALESCE(fti_scope.discount_amount_uzs, 0) ELSE COALESCE(ft.discount_uzs, 0) END`
+    : "COALESCE(ft.discount_uzs, 0)";
+  const scopedTotalSql = isItemScoped
+    ? `CASE WHEN COALESCE(fti_scope.item_count, 0) > 0 THEN COALESCE(fti_scope.total_amount_uzs, 0) ELSE COALESCE(ft.total_uzs, ft.amount_uzs, 0) END`
+    : "COALESCE(ft.total_uzs, ft.amount_uzs, 0)";
+  const scopedPaidSql = isItemScoped
+    ? `CASE WHEN COALESCE(fti_scope.item_count, 0) > 0 THEN COALESCE(fti_scope.paid_amount_uzs, 0) ELSE COALESCE(fpaid.paid_amount_uzs, 0) END`
+    : "COALESCE(fpaid.paid_amount_uzs, 0)";
   const fromSql = `
     FROM finance_tickets ft
     JOIN clients c ON c.organization_id = ft.organization_id AND c.id = ft.client_id
@@ -1710,16 +1804,17 @@ export async function getFinanceTickets({ organizationId, filters = {} }) {
        WHERE fti.organization_id = ft.organization_id
          AND fti.ticket_id = ft.id
     ) fti_summary ON TRUE
+    ${itemScopeJoinSql}
    WHERE ${whereSql}`;
   const countResult = await pool.query(`SELECT COUNT(*) AS total ${fromSql}`, params);
   const total = Number.parseInt(String(countResult.rows[0]?.total || "0"), 10) || 0;
   const summaryResult = await pool.query(
-    `SELECT COALESCE(SUM(COALESCE(ft.subtotal_uzs, ft.amount_uzs, 0)), 0) AS subtotal_amount_uzs,
-            COALESCE(SUM(COALESCE(ft.discount_uzs, 0)), 0) AS discount_amount_uzs,
-            COALESCE(SUM(COALESCE(ft.total_uzs, ft.amount_uzs, 0)), 0) AS total_amount_uzs,
-            COALESCE(SUM(COALESCE(fpaid.paid_amount_uzs, 0)), 0) AS paid_amount_uzs,
+    `SELECT COALESCE(SUM(${scopedSubtotalSql}), 0) AS subtotal_amount_uzs,
+            COALESCE(SUM(${scopedDiscountSql}), 0) AS discount_amount_uzs,
+            COALESCE(SUM(${scopedTotalSql}), 0) AS total_amount_uzs,
+            COALESCE(SUM(${scopedPaidSql}), 0) AS paid_amount_uzs,
             COALESCE(SUM(GREATEST(
-              COALESCE(ft.total_uzs, ft.amount_uzs, 0) - COALESCE(fpaid.paid_amount_uzs, 0),
+              ${scopedTotalSql} - ${scopedPaidSql},
               0
             )), 0) AS remaining_amount_uzs
        ${fromSql}`,
@@ -1740,11 +1835,11 @@ export async function getFinanceTickets({ organizationId, filters = {} }) {
             p.label AS position_label,
             ft.service_id,
             ft.service_name,
-            ft.amount_uzs,
-            ft.subtotal_uzs,
-            ft.discount_uzs,
-            ft.total_uzs,
-            COALESCE(fpaid.paid_amount_uzs, 0) AS paid_amount_uzs,
+            ${scopedTotalSql} AS amount_uzs,
+            ${scopedSubtotalSql} AS subtotal_uzs,
+            ${scopedDiscountSql} AS discount_uzs,
+            ${scopedTotalSql} AS total_uzs,
+            ${scopedPaidSql} AS paid_amount_uzs,
             COALESCE(fpaid.payment_activity_count, 0) AS payment_activity_count,
             COALESCE(fpaid.posted_payment_activity_count, 0) AS posted_payment_activity_count,
             ft.status,
@@ -1756,6 +1851,8 @@ export async function getFinanceTickets({ organizationId, filters = {} }) {
             fp.paid_at,
             COALESCE(fti_summary.item_count, 0) AS item_count,
             COALESCE(fti_summary.items, '[]'::json) AS items,
+            ${isItemScoped ? "COALESCE(fti_scope.items, '[]'::json)" : "NULL::json"} AS scoped_items,
+            ${isItemScoped ? "TRUE" : "FALSE"} AS is_item_scoped,
             ft.created_at,
             ft.updated_at
        ${fromSql}

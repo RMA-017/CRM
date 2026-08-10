@@ -93,14 +93,26 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
 
   assert.match(
     financeServiceSource,
-    /export async function getFinanceTickets[\s\S]*LEFT JOIN LATERAL \([\s\S]*t\.status = 'posted' AND t\.transaction_type IN \('ticket_payment', 'deposit_ticket_payment'\)[\s\S]*COUNT\(\*\) AS payment_activity_count,[\s\S]*COUNT\(\*\) FILTER \(WHERE t\.status = 'posted'\) AS posted_payment_activity_count[\s\S]*AND t\.transaction_type IN \('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund'\)[\s\S]*\) fpaid ON TRUE[\s\S]*COALESCE\(fpaid\.paid_amount_uzs, 0\) AS paid_amount_uzs,[\s\S]*COALESCE\(fpaid\.payment_activity_count, 0\) AS payment_activity_count,[\s\S]*COALESCE\(fpaid\.posted_payment_activity_count, 0\) AS posted_payment_activity_count/s,
-    "Finance ticket list should expose posted paid totals, posted payment activity and all payment activity so touched tickets can gate edit/delete actions separately."
+    /export async function getFinanceTickets[\s\S]*const scopedPaidSql = isItemScoped[\s\S]*COALESCE\(fti_scope\.paid_amount_uzs, 0\)[\s\S]*COALESCE\(fpaid\.paid_amount_uzs, 0\)[\s\S]*t\.status = 'posted' AND t\.transaction_type IN \('ticket_payment', 'deposit_ticket_payment'\)[\s\S]*COUNT\(\*\) AS payment_activity_count,[\s\S]*COUNT\(\*\) FILTER \(WHERE t\.status = 'posted'\) AS posted_payment_activity_count[\s\S]*AND t\.transaction_type IN \('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund'\)[\s\S]*\$\{scopedPaidSql\} AS paid_amount_uzs,[\s\S]*COALESCE\(fpaid\.payment_activity_count, 0\) AS payment_activity_count,[\s\S]*COALESCE\(fpaid\.posted_payment_activity_count, 0\) AS posted_payment_activity_count/s,
+    "Finance ticket list should expose scoped posted paid totals while keeping full payment activity so touched tickets can gate edit/delete actions separately."
   );
 
   assert.match(
     financeServiceSource,
-    /const summaryResult = await pool\.query\([\s\S]*SUM\(COALESCE\(ft\.subtotal_uzs, ft\.amount_uzs, 0\)\)[\s\S]*SUM\(COALESCE\(ft\.discount_uzs, 0\)\)[\s\S]*SUM\(COALESCE\(ft\.total_uzs, ft\.amount_uzs, 0\)\)[\s\S]*SUM\(COALESCE\(fpaid\.paid_amount_uzs, 0\)\)[\s\S]*SUM\(GREATEST\([\s\S]*COALESCE\(ft\.total_uzs, ft\.amount_uzs, 0\) - COALESCE\(fpaid\.paid_amount_uzs, 0\)[\s\S]*summary: \{[\s\S]*subtotalAmountUzs:[\s\S]*discountAmountUzs:[\s\S]*totalAmountUzs:[\s\S]*paidAmountUzs:[\s\S]*remainingAmountUzs:/s,
-    "Finance ticket list should return service price, discount and payment summary totals for the full current filter, not only the visible page."
+    /const scopedSubtotalSql = isItemScoped[\s\S]*fti_scope\.subtotal_amount_uzs[\s\S]*const scopedDiscountSql = isItemScoped[\s\S]*fti_scope\.discount_amount_uzs[\s\S]*const scopedTotalSql = isItemScoped[\s\S]*fti_scope\.total_amount_uzs[\s\S]*const summaryResult = await pool\.query\([\s\S]*SUM\(\$\{scopedSubtotalSql\}\)[\s\S]*SUM\(\$\{scopedDiscountSql\}\)[\s\S]*SUM\(\$\{scopedTotalSql\}\)[\s\S]*SUM\(\$\{scopedPaidSql\}\)[\s\S]*\$\{scopedTotalSql\} - \$\{scopedPaidSql\}[\s\S]*summary: \{[\s\S]*subtotalAmountUzs:[\s\S]*discountAmountUzs:[\s\S]*totalAmountUzs:[\s\S]*paidAmountUzs:[\s\S]*remainingAmountUzs:/s,
+    "Finance ticket list should return service price, discount and payment summary totals for the full current filter, scoped to matching ticket items when needed."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /function buildTicketsListWhere[\s\S]*let specialistItemFilterParam = null[\s\S]*specialistItemFilterParam = params\.length[\s\S]*EXISTS \([\s\S]*FROM finance_ticket_items fti_filter[\s\S]*LOWER\(COALESCE\(NULLIF\(TRIM\(iu_filter\.full_name\), ''\), NULLIF\(TRIM\(iu_filter\.username\), ''\), ''\)\) LIKE \$\$\{params\.length\}[\s\S]*NOT EXISTS \([\s\S]*FROM finance_ticket_items fti_any[\s\S]*fti_any\.specialist_id IS NOT NULL[\s\S]*return \{ params, whereSql: where\.join\(" AND "\), specialistItemFilterParam \}/s,
+    "Finance ticket specialist filtering should match item specialists first and only fall back to the ticket specialist for legacy tickets without item specialists."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /function mapTicket\(row\)[\s\S]*items: Array\.isArray\(row\.items\) \? row\.items : \[\],[\s\S]*scopedItems: Array\.isArray\(row\.scoped_items\) \? row\.scoped_items : null,[\s\S]*isItemScoped: Boolean\(row\.is_item_scoped\)/s,
+    "Finance ticket rows should keep full items for editing and expose scoped items only for filtered display."
   );
 
   assert.match(

@@ -370,24 +370,29 @@ function makeTextOption(value, label = value) {
   };
 }
 
+function getTicketDisplayItems(item) {
+  if (Array.isArray(item?.scopedItems)) return item.scopedItems;
+  return Array.isArray(item?.items) ? item.items : [];
+}
+
 function getTicketServiceText(item) {
-  const services = Array.isArray(item?.items)
-    ? item.items.map((row) => String(row?.serviceName || "").trim()).filter(Boolean)
-    : [];
+  const services = getTicketDisplayItems(item)
+    .map((row) => String(row?.serviceName || "").trim())
+    .filter(Boolean);
   return services.length > 0 ? services.join(", ") : (item?.serviceName || "-");
 }
 
 function getTicketSpecialistText(item) {
-  const specialists = Array.isArray(item?.items)
-    ? item.items.map((row) => String(row?.specialistName || "").trim()).filter(Boolean)
-    : [];
+  const specialists = getTicketDisplayItems(item)
+    .map((row) => String(row?.specialistName || "").trim())
+    .filter(Boolean);
   return specialists.length > 0 ? Array.from(new Set(specialists)).join(", ") : (item?.specialistName || "-");
 }
 
 function getTicketPositionText(item) {
-  const positions = Array.isArray(item?.items)
-    ? item.items.map((row) => String(row?.positionLabel || "").trim()).filter(Boolean)
-    : [];
+  const positions = getTicketDisplayItems(item)
+    .map((row) => String(row?.positionLabel || "").trim())
+    .filter(Boolean);
   return positions.length > 0 ? Array.from(new Set(positions)).join(", ") : (item?.positionLabel || "-");
 }
 
