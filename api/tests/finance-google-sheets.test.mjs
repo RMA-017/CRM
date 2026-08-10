@@ -92,13 +92,39 @@ test("ticket and transaction export rows preserve finance reconciliation values"
   assert.equal(ticketRow[1], expectedTicketCreatedAt);
   assert.equal(ticketRow[4], expectedTicketDate);
   assert.deepEqual(ticketRow.slice(8), [
-    "Частично оплачен",
+    "Не оплачено",
     100000,
     10000,
     90000,
     40000,
     50000
   ]);
+
+  const baseTicketExportRow = {
+    ticket_number: 10002,
+    created_at_text: "2026-07-05 10:00",
+    client_name: "Test Client",
+    client_id: 1000,
+    ticket_date_text: "2026-07-05",
+    service_name: "Service",
+    position_label: "Department",
+    specialist_name: "Specialist",
+    price_uzs: 100000,
+    discount_uzs: 0,
+    final_amount_uzs: 100000
+  };
+  assert.equal(
+    __financeGoogleSheetsContracts.makeTicketExportRow({ ...baseTicketExportRow, status: "issued" }, 0)[8],
+    "Талоны"
+  );
+  assert.equal(
+    __financeGoogleSheetsContracts.makeTicketExportRow({ ...baseTicketExportRow, status: "paid" }, 100000)[8],
+    "Оплачено"
+  );
+  assert.equal(
+    __financeGoogleSheetsContracts.makeTicketExportRow({ ...baseTicketExportRow, status: "voided" }, 0)[8],
+    "Отмена"
+  );
 
   const transactionRow = __financeGoogleSheetsContracts.makeTransactionExportRow({
     id: 77,

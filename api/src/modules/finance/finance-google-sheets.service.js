@@ -77,10 +77,10 @@ const GOOGLE_SHEETS_EPOCH_UTC_MS = Date.UTC(1899, 11, 30);
 const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
 
 const TICKET_STATUS_LABELS = Object.freeze({
-  issued: "Выдан",
-  unpaid: "Частично оплачен",
-  paid: "Оплачен",
-  voided: "Аннулирован"
+  issued: "Талоны",
+  unpaid: "Не оплачено",
+  paid: "Оплачено",
+  voided: "Отмена"
 });
 
 const TRANSACTION_ACTION_LABELS = Object.freeze({

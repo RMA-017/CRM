@@ -187,6 +187,27 @@ test("ticket table exposes payment progress columns through the columns modal", 
   );
 });
 
+test("ticket status labels keep finance tickets terminology", async () => {
+  const [source, translations] = await Promise.all([
+    readFile(
+      new URL("../src/pages/profile/panels/FinanceTicketsPanel.jsx", import.meta.url),
+      "utf8"
+    ),
+    readFile(new URL("../src/i18n/translations.js", import.meta.url), "utf8")
+  ]);
+
+  assert.match(
+    source,
+    /issued: "Tickets",[\s\S]*paid: "Paid",[\s\S]*unpaid: "Unpaid",[\s\S]*voided: "Voided"/s,
+    "Ticket table status labels should keep the finance tickets page terminology."
+  );
+  assert.match(
+    translations,
+    /Tickets", uz: "Talonlar", ru: "Талоны"[\s\S]*Voided", uz: "Bekor qilingan", ru: "Отмена"[\s\S]*Paid", uz: "To'langan", ru: "Оплачено"[\s\S]*Unpaid", uz: "To'lanmagan", ru: "Не оплачено"/s,
+    "Ticket status translations should define the Russian labels used by the tickets page."
+  );
+});
+
 test("ticket table does not translate removed paid-at column", async () => {
   const translations = await readFile(
     new URL("../src/i18n/translations.js", import.meta.url),
