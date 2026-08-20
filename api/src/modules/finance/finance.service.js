@@ -492,6 +492,32 @@ function getAppointmentTicketPriceUzs({ appointment, service }) {
   return appointmentPriceUzs;
 }
 
+function buildResolvedAppointmentServiceJoinSql(scheduleAlias = "a", serviceAlias = "sc") {
+  return `LEFT JOIN LATERAL (
+         SELECT sc_service.id,
+                sc_service.name,
+                sc_service.price_uzs,
+                sc_service.updated_at
+           FROM service_catalog sc_service
+          WHERE sc_service.organization_id = ${scheduleAlias}.organization_id
+            AND sc_service.is_active = TRUE
+            AND (
+              (${scheduleAlias}.service_id IS NOT NULL AND sc_service.id = ${scheduleAlias}.service_id)
+              OR (
+                ${scheduleAlias}.service_id IS NULL
+                AND NULLIF(TRIM(${scheduleAlias}.service_name), '') IS NOT NULL
+                AND LOWER(TRIM(sc_service.name)) = LOWER(TRIM(${scheduleAlias}.service_name))
+              )
+            )
+          ORDER BY CASE
+                     WHEN ${scheduleAlias}.service_id IS NOT NULL AND sc_service.id = ${scheduleAlias}.service_id THEN 0
+                     ELSE 1
+                   END,
+                   sc_service.id DESC
+          LIMIT 1
+       ) ${serviceAlias} ON TRUE`;
+}
+
 function mapAppointment(row) {
   if (!row) return null;
   return {
@@ -562,8 +588,8 @@ async function getCashierAppointmentById(db, { organizationId, id, forUpdate = f
             CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
             a.specialist_id,
             COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS specialist_name,
-            a.service_id,
-            a.service_name,
+            COALESCE(a.service_id, sc.id) AS service_id,
+            COALESCE(NULLIF(TRIM(a.service_name), ''), sc.name) AS service_name,
             CASE
               WHEN sc.id IS NOT NULL
                AND a.appointment_date >= sc.updated_at::date
@@ -581,10 +607,7 @@ async function getCashierAppointmentById(db, { organizationId, id, forUpdate = f
        FROM appointment_schedules a
        JOIN clients c ON c.organization_id = a.organization_id AND c.id = a.client_id
        JOIN users u ON u.organization_id = a.organization_id AND u.id = a.specialist_id
-       LEFT JOIN service_catalog sc
-         ON sc.organization_id = a.organization_id
-        AND sc.id = a.service_id
-        AND sc.is_active = TRUE
+       ${buildResolvedAppointmentServiceJoinSql("a", "sc")}
        LEFT JOIN finance_tickets ft
          ON ft.organization_id = a.organization_id
         AND ft.appointment_schedule_id = a.id
@@ -984,8 +1007,8 @@ export async function getCashierBoard({
                   CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
                   a.specialist_id,
                   COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS specialist_name,
-                  a.service_id,
-                  a.service_name,
+                  COALESCE(a.service_id, sc.id) AS service_id,
+                  COALESCE(NULLIF(TRIM(a.service_name), ''), sc.name) AS service_name,
                   CASE
                     WHEN sc.id IS NOT NULL
                      AND a.appointment_date >= sc.updated_at::date
@@ -1002,10 +1025,7 @@ export async function getCashierBoard({
              FROM appointment_schedules a
              JOIN clients c ON c.organization_id = a.organization_id AND c.id = a.client_id
              JOIN users u ON u.organization_id = a.organization_id AND u.id = a.specialist_id
-             LEFT JOIN service_catalog sc
-               ON sc.organization_id = a.organization_id
-              AND sc.id = a.service_id
-              AND sc.is_active = TRUE
+             ${buildResolvedAppointmentServiceJoinSql("a", "sc")}
              LEFT JOIN finance_tickets ft
                ON ft.organization_id = a.organization_id
               AND ft.appointment_schedule_id = a.id
@@ -1036,8 +1056,8 @@ export async function getCashierBoard({
                   CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
                   a.specialist_id,
                   COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS specialist_name,
-                  a.service_id,
-                  a.service_name,
+                  COALESCE(a.service_id, sc.id) AS service_id,
+                  COALESCE(NULLIF(TRIM(a.service_name), ''), sc.name) AS service_name,
                   CASE
                     WHEN sc.id IS NOT NULL
                      AND a.appointment_date >= sc.updated_at::date
@@ -1054,10 +1074,7 @@ export async function getCashierBoard({
              FROM appointment_schedules a
              JOIN clients c ON c.organization_id = a.organization_id AND c.id = a.client_id
              JOIN users u ON u.organization_id = a.organization_id AND u.id = a.specialist_id
-             LEFT JOIN service_catalog sc
-               ON sc.organization_id = a.organization_id
-              AND sc.id = a.service_id
-              AND sc.is_active = TRUE
+             ${buildResolvedAppointmentServiceJoinSql("a", "sc")}
              LEFT JOIN finance_tickets ft
                ON ft.organization_id = a.organization_id
               AND ft.appointment_schedule_id = a.id
@@ -4207,25 +4224,32 @@ export async function payFinanceTicketsFromDeposit({ organizationId, payload, ac
 
 async function getAppointmentForTicket(db, { organizationId, appointmentScheduleId, forUpdate = false }) {
   const result = await db.query(
-    `SELECT id,
-            organization_id,
-            specialist_id,
-            client_id,
-            service_id,
-            service_name,
-            service_price_uzs,
-            appointment_date,
-            start_time,
-            end_time,
-            duration_minutes,
-            note,
-            status,
-            created_at
-       FROM appointment_schedules
-      WHERE organization_id = $1
-        AND id = $2
+    `SELECT a.id,
+            a.organization_id,
+            a.specialist_id,
+            a.client_id,
+            COALESCE(a.service_id, sc.id) AS service_id,
+            COALESCE(NULLIF(TRIM(a.service_name), ''), sc.name) AS service_name,
+            CASE
+              WHEN sc.id IS NOT NULL
+               AND a.appointment_date >= sc.updated_at::date
+               AND COALESCE(sc.price_uzs, 0) > 0
+              THEN sc.price_uzs
+              ELSE a.service_price_uzs
+            END AS service_price_uzs,
+            a.appointment_date,
+            a.start_time,
+            a.end_time,
+            a.duration_minutes,
+            a.note,
+            a.status,
+            a.created_at
+       FROM appointment_schedules a
+       ${buildResolvedAppointmentServiceJoinSql("a", "sc")}
+      WHERE a.organization_id = $1
+        AND a.id = $2
       LIMIT 1
-      ${forUpdate ? "FOR UPDATE" : ""}`,
+      ${forUpdate ? "FOR UPDATE OF a" : ""}`,
     [organizationId, appointmentScheduleId]
   );
   return result.rows[0] || null;

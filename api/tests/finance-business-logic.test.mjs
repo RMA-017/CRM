@@ -70,6 +70,12 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
 
   assert.match(
     financeServiceSource,
+    /function buildResolvedAppointmentServiceJoinSql[\s\S]*\$\{scheduleAlias\}\.service_id IS NULL[\s\S]*LOWER\(TRIM\(sc_service\.name\)\) = LOWER\(TRIM\(\$\{scheduleAlias\}\.service_name\)\)[\s\S]*export async function getCashierBoard[\s\S]*COALESCE\(a\.service_id, sc\.id\) AS service_id[\s\S]*COALESCE\(NULLIF\(TRIM\(a\.service_name\), ''\), sc\.name\) AS service_name[\s\S]*async function getAppointmentForTicket[\s\S]*COALESCE\(a\.service_id, sc\.id\) AS service_id[\s\S]*COALESCE\(NULLIF\(TRIM\(a\.service_name\), ''\), sc\.name\) AS service_name/s,
+    "Cashier appointment cards and appointment-backed ticket creation should recover service id/name from the active catalog when older planner rows only kept service name."
+  );
+
+  assert.match(
+    financeServiceSource,
     /function buildTicketsListWhere[\s\S]*const statuses = Array\.from\(new Set\([\s\S]*"issued", "paid", "unpaid", "voided"[\s\S]*if \(statuses\.length > 0\)[\s\S]*where\.push\(`ft\.status = ANY\(\$\$\{params\.length\}::text\[\]\)`\)[\s\S]*else \{[\s\S]*where\.push\("ft\.status <> 'voided'"\)/s,
     "Finance ticket list filters should support multiple statuses and hide deleted/voided tickets unless explicitly requested."
   );
