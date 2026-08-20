@@ -136,9 +136,10 @@ function getServiceSummary(item, translate) {
 }
 
 function normalizeClientLabel(client) {
+  const id = String(client?.id ?? client?.clientId ?? "").trim();
   const name = String(client?.fullName || client?.full_name || client?.clientName || "").trim();
   const phone = String(client?.phone || client?.phone_number || "").trim();
-  return [name, phone].filter(Boolean).join(" · ") || (client?.id ? `ID ${client.id}` : "");
+  return [id ? `#${id}` : "", name, phone].filter(Boolean).join(" · ");
 }
 
 function createDiscountServiceRow() {

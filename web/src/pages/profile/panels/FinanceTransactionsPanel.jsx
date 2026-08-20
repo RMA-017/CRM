@@ -101,7 +101,9 @@ function getTransactionStatusLabel(translate, item) {
 function makeClientOption(item) {
   const id = String(item?.id ?? item?.clientId ?? "").trim();
   if (!id) return null;
-  const label = String(item?.fullName || item?.clientName || `#${id}`).trim() || `#${id}`;
+  const fullName = String(item?.fullName || item?.clientName || "").trim();
+  const phone = String(item?.phone || item?.clientPhone || item?.phoneNumber || "").trim();
+  const label = [`#${id}`, fullName, phone].filter(Boolean).join(" - ");
   return { value: id, label };
 }
 
@@ -541,7 +543,10 @@ function FinanceTransactionsPanel({ onClose, canPayFinanceCashier = false }) {
                     <input
                       type="date"
                       value={filters.dateFrom}
-                      onChange={(event) => setFilters((current) => ({ ...current, dateFrom: event.currentTarget.value }))}
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setFilters((current) => ({ ...current, dateFrom: value }));
+                      }}
                     />
                   </label>
                   <label className="field">
@@ -549,7 +554,10 @@ function FinanceTransactionsPanel({ onClose, canPayFinanceCashier = false }) {
                     <input
                       type="date"
                       value={filters.dateTo}
-                      onChange={(event) => setFilters((current) => ({ ...current, dateTo: event.currentTarget.value }))}
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setFilters((current) => ({ ...current, dateTo: value }));
+                      }}
                     />
                   </label>
                 </div>
@@ -558,7 +566,10 @@ function FinanceTransactionsPanel({ onClose, canPayFinanceCashier = false }) {
                   <input
                     type="text"
                     value={filters.ticketNumber}
-                    onChange={(event) => setFilters((current) => ({ ...current, ticketNumber: event.currentTarget.value }))}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setFilters((current) => ({ ...current, ticketNumber: value }));
+                    }}
                   />
                 </label>
                 <label className="field">
@@ -614,7 +625,10 @@ function FinanceTransactionsPanel({ onClose, canPayFinanceCashier = false }) {
                     rows={3}
                     maxLength={255}
                     required
-                    onChange={(event) => setVoidReason(event.currentTarget.value)}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setVoidReason(value);
+                    }}
                   />
                 </label>
               </div>

@@ -865,7 +865,7 @@ function FinanceCashierPanel({
         }
         setClientOptions((Array.isArray(data?.items) ? data.items : []).map((item) => ({
           value: String(item.id),
-          label: `${item.fullName || item.id}${item.phone ? ` - ${item.phone}` : ""}`
+          label: [`#${item.id}`, item.fullName, item.phone].filter(Boolean).join(" - ")
         })));
       } catch {
         if (!cancelled) {

@@ -198,6 +198,7 @@ export async function searchFinanceDiscountClients({ organizationId, query, limi
     return [];
   }
   const normalizedPhoneDigits = normalizedQuery.replace(/\D/g, "");
+  const normalizedIdPrefix = normalizedPhoneDigits ? `${normalizedPhoneDigits}%` : "";
   const result = await pool.query(
     `SELECT id,
             CONCAT_WS(' ', last_name, first_name, middle_name) AS full_name,
@@ -208,7 +209,7 @@ export async function searchFinanceDiscountClients({ organizationId, query, limi
           LOWER(CONCAT_WS(' ', last_name, first_name, middle_name)) LIKE $2
           OR phone_number LIKE $3
           OR ($4 <> '' AND regexp_replace(COALESCE(phone_number, ''), '[^0-9]', '', 'g') LIKE $4)
-          OR id::text = $5
+          OR ($5 <> '' AND id::text LIKE $5)
         )
       ORDER BY last_name ASC, first_name ASC, id ASC
       LIMIT $6`,
@@ -217,7 +218,7 @@ export async function searchFinanceDiscountClients({ organizationId, query, limi
       `%${normalizedQuery.toLowerCase()}%`,
       `${normalizedQuery}%`,
       normalizedPhoneDigits ? `%${normalizedPhoneDigits}%` : "",
-      normalizedQuery,
+      normalizedIdPrefix,
       normalizedLimit
     ]
   );

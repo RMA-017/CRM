@@ -106,3 +106,26 @@ test("finance transaction void action is only exposed to cashier payment users",
     "Transaction status void button should override generic table action sizing."
   );
 });
+
+test("finance transaction filters capture input values before state updaters", async () => {
+  const source = await readFile(
+    new URL("../src/pages/profile/panels/FinanceTransactionsPanel.jsx", import.meta.url),
+    "utf8"
+  );
+
+  for (const field of ["dateFrom", "dateTo", "ticketNumber"]) {
+    assert.match(
+      source,
+      new RegExp(
+        `value=\\{filters\\.${field}\\}[\\s\\S]*?onChange=\\{\\(event\\) => \\{[\\s\\S]*?const value = event\\.currentTarget\\.value;[\\s\\S]*?${field}: value`
+      ),
+      `${field} filter should read the input value before calling setFilters.`
+    );
+  }
+
+  assert.doesNotMatch(
+    source,
+    /setFilters\(\(current\) => \(\{ \.\.\.current, (?:dateFrom|dateTo|ticketNumber): event\.currentTarget\.value \}\)\)/,
+    "Filter state updaters should not read from React events after the handler returns."
+  );
+});

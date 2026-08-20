@@ -86,7 +86,9 @@ function normalizeMoneyInput(value) {
 function makeClientOption(item) {
   const id = String(item?.id ?? item?.clientId ?? "").trim();
   if (!id) return null;
-  const label = String(item?.fullName || item?.clientName || `#${id}`).trim() || `#${id}`;
+  const fullName = String(item?.fullName || item?.clientName || "").trim();
+  const phone = String(item?.phone || item?.clientPhone || item?.phoneNumber || "").trim();
+  const label = [`#${id}`, fullName, phone].filter(Boolean).join(" - ");
   return { value: id, label };
 }
 

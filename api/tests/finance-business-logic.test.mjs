@@ -653,8 +653,14 @@ test("finance transaction list defaults and filters by transaction creation date
 test("finance report filters expose report-scoped client search and broad cashier references", () => {
   assert.match(
     financeServiceSource,
-    /export async function searchCashierClients[\s\S]*regexp_replace\(COALESCE\(phone_number, ''\), '\[\^0-9\]', '', 'g'\) LIKE \$4/s,
-    "Finance client search should match phone numbers by their digits even when stored with formatting."
+    /export async function searchCashierClients[\s\S]*const normalizedIdPrefix = normalizedPhoneDigits \? `\$\{normalizedPhoneDigits\}%` : ""[\s\S]*regexp_replace\(COALESCE\(phone_number, ''\), '\[\^0-9\]', '', 'g'\) LIKE \$4[\s\S]*id::text LIKE \$5/s,
+    "Finance client search should match phone numbers by their digits and client IDs by prefix."
+  );
+
+  assert.match(
+    financeDiscountsSource,
+    /export async function searchFinanceDiscountClients[\s\S]*const normalizedIdPrefix = normalizedPhoneDigits \? `\$\{normalizedPhoneDigits\}%` : ""[\s\S]*regexp_replace\(COALESCE\(phone_number, ''\), '\[\^0-9\]', '', 'g'\) LIKE \$4[\s\S]*id::text LIKE \$5/s,
+    "Finance discount client search should use the same phone and client ID matching as other finance selectors."
   );
 
   assert.match(
