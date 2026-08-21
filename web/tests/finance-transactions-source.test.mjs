@@ -52,6 +52,12 @@ test("finance transaction void action is only exposed to cashier payment users",
 
   assert.match(
     transactionsPanelSource,
+    /function isTransactionReversed\(item\)[\s\S]*metadata\.reversalTransactionId[\s\S]*metadata\.reversal_transaction_id[\s\S]*metadata\.reversedTransactionId[\s\S]*metadata\.reversed_transaction_id/s,
+    "Correction originals and their reversal transactions should both hide the void action."
+  );
+
+  assert.match(
+    transactionsPanelSource,
     /const submitVoidTransaction = async \(event\) => \{[\s\S]*event\.preventDefault\(\);[\s\S]*if \(!canPayFinanceCashier\) return;/s,
     "Void submission should not call the API without cashier payment permission."
   );

@@ -450,7 +450,12 @@ function getTransactionReversalSpec(row) {
 
 function hasTransactionReversal(row) {
   const metadata = row?.metadata && typeof row.metadata === "object" ? row.metadata : {};
-  return Boolean(metadata.reversalTransactionId || metadata.reversal_transaction_id);
+  return Boolean(
+    metadata.reversalTransactionId
+      || metadata.reversal_transaction_id
+      || metadata.reversedTransactionId
+      || metadata.reversed_transaction_id
+  );
 }
 
 function mapClientLedgerTransaction(row, depositBalanceAfterUzs) {
@@ -4902,8 +4907,8 @@ export async function updateFinanceTicket({ organizationId, id, payload, actorUs
       error.statusCode = 400;
       throw error;
     }
-    const paymentActivityCount = await getTicketPostedPaymentActivityCount(db, { organizationId, ticketId });
-    if (paymentActivityCount > 0) {
+    const activePaidAmountUzs = await getTicketPaidAmount(db, { organizationId, ticketId });
+    if (activePaidAmountUzs > 0) {
       const error = new Error("Tickets with payments cannot be edited.");
       error.statusCode = 400;
       throw error;

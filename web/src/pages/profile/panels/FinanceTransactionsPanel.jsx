@@ -89,7 +89,12 @@ function getTransactionActionLabel(translate, item) {
 
 function isTransactionReversed(item) {
   const metadata = item?.metadata && typeof item.metadata === "object" ? item.metadata : {};
-  return Boolean(metadata.reversalTransactionId || metadata.reversal_transaction_id);
+  return Boolean(
+    metadata.reversalTransactionId
+      || metadata.reversal_transaction_id
+      || metadata.reversedTransactionId
+      || metadata.reversed_transaction_id
+  );
 }
 
 function getTransactionStatusLabel(translate, item) {

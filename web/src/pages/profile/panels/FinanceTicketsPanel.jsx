@@ -199,10 +199,14 @@ function getTicketDiscountAmount(item) {
   return rows.reduce((sum, row) => sum + normalizeMoneyInput(row?.discountUzs ?? row?.discount_uzs), 0);
 }
 
-function hasTicketPostedPaymentActivity(item) {
+function hasTicketActivePayment(item) {
   const paidAmountUzs = Number.parseInt(String(item?.paidAmountUzs ?? 0), 10) || 0;
+  return paidAmountUzs > 0;
+}
+
+function hasTicketPostedPaymentActivity(item) {
   const paymentActivityCount = Number.parseInt(String(item?.postedPaymentActivityCount ?? 0), 10) || 0;
-  return paidAmountUzs > 0 || paymentActivityCount > 0;
+  return paymentActivityCount > 0;
 }
 
 function calculateDiscountUzs({ priceUzs, discountType, discountValue }) {
@@ -702,7 +706,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
         const canEditRow = canUpdateFinanceCashier
           && item.status !== "paid"
           && item.status !== "voided"
-          && !hasTicketPostedPaymentActivity(item);
+          && !hasTicketActivePayment(item);
         const canDeleteRow = canEditRow && !hasTicketPostedPaymentActivity(item);
         return canEditRow ? (
           <div className="finance-ticket-action-group">
@@ -938,7 +942,7 @@ function FinanceTicketsPanel({ onClose, canUpdateFinanceCashier = false }) {
       window.alert?.(translate("Paid or voided tickets cannot be edited."));
       return;
     }
-    if (hasTicketPostedPaymentActivity(item)) {
+    if (hasTicketActivePayment(item)) {
       window.alert?.(translate("Tickets with payments cannot be edited."));
       return;
     }

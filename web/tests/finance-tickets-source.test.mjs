@@ -113,7 +113,7 @@ test("finance delete icons use a closed trash lid", async () => {
   );
 });
 
-test("ticket edit and delete actions are hidden for tickets with payment activity", async () => {
+test("ticket edit follows active paid amount while delete follows payment history", async () => {
   const [source, translations] = await Promise.all([
     readFile(
       new URL("../src/pages/profile/panels/FinanceTicketsPanel.jsx", import.meta.url),
@@ -124,13 +124,18 @@ test("ticket edit and delete actions are hidden for tickets with payment activit
 
   assert.match(
     source,
-    /function hasTicketPostedPaymentActivity\(item\) \{[\s\S]*item\?\.paidAmountUzs[\s\S]*item\?\.postedPaymentActivityCount[\s\S]*return paidAmountUzs > 0 \|\| paymentActivityCount > 0;/s,
-    "Ticket rows should detect posted payment/refund activity for edit and delete protection."
+    /function hasTicketActivePayment\(item\) \{[\s\S]*item\?\.paidAmountUzs[\s\S]*return paidAmountUzs > 0;/s,
+    "Ticket rows should use the current net paid amount for edit protection."
   );
   assert.match(
     source,
-    /const canEditRow = canUpdateFinanceCashier[\s\S]*item\.status !== "paid"[\s\S]*item\.status !== "voided"[\s\S]*!hasTicketPostedPaymentActivity\(item\);[\s\S]*const canDeleteRow = canEditRow && !hasTicketPostedPaymentActivity\(item\);[\s\S]*return canEditRow \? \(/s,
-    "Edit and delete icons should render when a ticket has no active posted payment activity."
+    /function hasTicketPostedPaymentActivity\(item\) \{[\s\S]*item\?\.postedPaymentActivityCount[\s\S]*return paymentActivityCount > 0;/s,
+    "Ticket rows should still detect posted payment/refund history for delete protection."
+  );
+  assert.match(
+    source,
+    /const canEditRow = canUpdateFinanceCashier[\s\S]*item\.status !== "paid"[\s\S]*item\.status !== "voided"[\s\S]*!hasTicketActivePayment\(item\);[\s\S]*const canDeleteRow = canEditRow && !hasTicketPostedPaymentActivity\(item\);[\s\S]*return canEditRow \? \(/s,
+    "Edit should reopen when net paid amount is zero, while delete should remain tied to transaction history."
   );
   assert.doesNotMatch(
     source,
@@ -139,8 +144,8 @@ test("ticket edit and delete actions are hidden for tickets with payment activit
   );
   assert.match(
     source,
-    /const openEditTicket = \(item\) => \{[\s\S]*if \(hasTicketPostedPaymentActivity\(item\)\) \{[\s\S]*Tickets with payments cannot be edited\./s,
-    "The edit handler should also block stale clicks on tickets with posted payment activity."
+    /const openEditTicket = \(item\) => \{[\s\S]*if \(hasTicketActivePayment\(item\)\) \{[\s\S]*Tickets with payments cannot be edited\./s,
+    "The edit handler should also block stale clicks only when an active paid amount remains."
   );
   assert.match(
     source,

@@ -454,8 +454,8 @@ test("finance payments, deposits and refunds preserve cash-session and balance r
 
   assert.match(
     financeServiceSource,
-    /export async function updateFinanceTicket[\s\S]*const paymentActivityCount = await getTicketPostedPaymentActivityCount\(db, \{ organizationId, ticketId \}\);[\s\S]*Tickets with payments cannot be edited\./s,
-    "Ticket edits should be blocked while the ticket has posted payment or refund activity."
+    /export async function updateFinanceTicket[\s\S]*const activePaidAmountUzs = await getTicketPaidAmount\(db, \{ organizationId, ticketId \}\);[\s\S]*if \(activePaidAmountUzs > 0\) \{[\s\S]*Tickets with payments cannot be edited\./s,
+    "Ticket edits should be blocked only while an active paid amount remains after payments and refunds are netted."
   );
   assert.match(
     financeServiceSource,
@@ -541,6 +541,12 @@ test("finance payments, deposits and refunds preserve cash-session and balance r
     financeServiceSource,
     /const isClosedCashSession = current\.cash_session_status === "closed";[\s\S]*const cashSession = await getOpenCashSession\(db,[\s\S]*insertFinanceTransaction\(db, \{[\s\S]*cashSessionId: cashSession\.id,[\s\S]*transactionType: reversalSpec\.transactionType,[\s\S]*source: "closed_session_transaction_reversal"[\s\S]*reversalTransactionId[\s\S]*status = 'voided'/s,
     "Voiding a closed-session transaction should create a current-session reversal and metadata link instead of changing the closed session movement."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /function hasTransactionReversal\(row\)[\s\S]*metadata\.reversalTransactionId[\s\S]*metadata\.reversal_transaction_id[\s\S]*metadata\.reversedTransactionId[\s\S]*metadata\.reversed_transaction_id/s,
+    "Original corrected transactions and their reversal transactions should both be locked from a second void."
   );
 
   assert.match(
