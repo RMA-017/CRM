@@ -6809,18 +6809,24 @@ label.field > span:first-child,
 }
 
 .finance-discounts-detail-service {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 32px;
+  gap: 8px 12px;
+  min-height: 42px;
   padding: 6px 8px;
   border: 1px solid rgba(148, 163, 184, 0.26);
   border-radius: 7px;
   background: rgba(248, 250, 252, 0.72);
 }
 
-.finance-discounts-detail-service strong {
+.finance-discounts-detail-service-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.finance-discounts-detail-service-main strong {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -6829,11 +6835,47 @@ label.field > span:first-child,
   font-weight: 600;
 }
 
-.finance-discounts-detail-service span {
-  color: #2563eb;
-  font-size: 12px;
+.finance-discounts-detail-service-main span {
+  color: var(--text-muted);
+  font-size: 11px;
   font-weight: 600;
+  line-height: 1.1;
   white-space: nowrap;
+}
+
+.finance-discounts-detail-service-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(78px, auto));
+  gap: 6px;
+}
+
+.finance-discounts-detail-service-metric {
+  display: grid;
+  gap: 2px;
+  justify-items: end;
+  min-width: 0;
+  padding-left: 6px;
+  border-left: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.finance-discounts-detail-service-metric small {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.05;
+  white-space: nowrap;
+}
+
+.finance-discounts-detail-service-metric b {
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.finance-discounts-detail-service-metric.is-final b {
+  color: #059669;
 }
 
 .finance-discounts-usage-scroll {
@@ -6889,6 +6931,20 @@ label.field > span:first-child,
 
   .finance-discounts-service-actions {
     justify-content: flex-end;
+  }
+
+  .finance-discounts-detail-service {
+    grid-template-columns: 1fr;
+  }
+
+  .finance-discounts-detail-service-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .finance-discounts-detail-service-metric {
+    justify-items: start;
+    padding-left: 0;
+    border-left: 0;
   }
 }
 

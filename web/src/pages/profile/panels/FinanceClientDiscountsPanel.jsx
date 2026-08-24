@@ -93,12 +93,32 @@ function formatDiscount(item, translate = (value) => value) {
     : `${formatMoney(value)} сум`;
 }
 
-function formatServiceDiscount(service, discountType) {
-  const isPercent = String(discountType || "") === "percent";
-  const value = isPercent
-    ? toIntegerAmount(service?.discountValue ?? service?.discount_value)
-    : toIntegerAmount(service?.perUseDiscountUzs ?? service?.per_use_discount_uzs ?? service?.discountValue ?? service?.discount_value);
-  return isPercent ? `${value}%` : `${formatMoney(value)} сум`;
+function getServicePriceUzs(service) {
+  return toIntegerAmount(service?.servicePriceUzs ?? service?.service_price_uzs ?? service?.priceUzs ?? service?.price_uzs);
+}
+
+function getServiceDiscountUzs(service, discountType) {
+  const priceUzs = getServicePriceUzs(service);
+  const normalizedDiscountType = String(discountType || "") === "percent" ? "percent" : "amount";
+  const discountValue = toIntegerAmount(service?.discountValue ?? service?.discount_value);
+  if (normalizedDiscountType === "percent") {
+    return Math.min(priceUzs, Math.floor((priceUzs * Math.min(discountValue, DISCOUNT_MAX_PERCENT_VALUE)) / 100));
+  }
+  return Math.min(priceUzs, toIntegerAmount(service?.perUseDiscountUzs ?? service?.per_use_discount_uzs ?? discountValue));
+}
+
+function formatServiceDiscountDetail(service, discountType) {
+  const normalizedDiscountType = String(discountType || "") === "percent" ? "percent" : "amount";
+  const discountUzs = getServiceDiscountUzs(service, normalizedDiscountType);
+  if (normalizedDiscountType === "percent") {
+    const discountValue = toIntegerAmount(service?.discountValue ?? service?.discount_value);
+    return `${discountValue}% · ${formatMoney(discountUzs)} сум`;
+  }
+  return `${formatMoney(discountUzs)} сум`;
+}
+
+function getServiceFinalPriceUzs(service, discountType) {
+  return Math.max(getServicePriceUzs(service) - getServiceDiscountUzs(service, discountType), 0);
 }
 
 function getStatusClassName(status) {
@@ -142,6 +162,15 @@ function normalizeClientLabel(client) {
   return [id ? `#${id}` : "", name, phone].filter(Boolean).join(" · ");
 }
 
+function makeClientOption(client) {
+  const id = String(client?.id ?? client?.clientId ?? "").trim();
+  if (!id) return null;
+  return {
+    value: id,
+    label: normalizeClientLabel(client)
+  };
+}
+
 function createDiscountServiceRow() {
   return {
     key: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -167,6 +196,10 @@ function FinanceClientDiscountsPanel({
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filterClientSearch, setFilterClientSearch] = useState("");
+  const [filterClientOptions, setFilterClientOptions] = useState([]);
+  const [filterClientSearchBusy, setFilterClientSearchBusy] = useState(false);
+  const filterClientSearchDraftRef = useRef("");
   const [services, setServices] = useState([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState(EMPTY_CREATE_FORM);
@@ -197,7 +230,32 @@ function FinanceClientDiscountsPanel({
       label: String(service.name || service.id)
     }))
   ], [services, translate]);
+  const filterClientSelectOptions = useMemo(() => {
+    const options = [{ value: "", label: translate("All"), selectedLabel: translate("All") }];
+    const seen = new Set([""]);
+    const currentClient = String(filters.client || "").trim();
+    if (currentClient && !filterClientOptions.some((option) => String(option?.value || "") === currentClient)) {
+      const label = /^\d+$/.test(currentClient) ? `#${currentClient}` : currentClient;
+      options.push({ value: currentClient, label, selectedLabel: label });
+      seen.add(currentClient);
+    }
+    filterClientOptions.forEach((option) => {
+      const value = String(option?.value || "").trim();
+      if (!value || seen.has(value)) return;
+      options.push(option);
+      seen.add(value);
+    });
+    return options;
+  }, [filterClientOptions, filters.client, translate]);
   const showClientResults = createOpen && !selectedClient && clientOptions.length > 0;
+
+  const updateFilterClientSearch = useCallback((value) => {
+    const nextValue = String(value || "");
+    setFilterClientSearch(nextValue);
+    if (nextValue.trim()) {
+      filterClientSearchDraftRef.current = nextValue;
+    }
+  }, []);
 
   const loadDiscounts = useCallback(async (nextPage = 1, nextFilters = EMPTY_FILTERS) => {
     try {
@@ -273,6 +331,39 @@ function FinanceClientDiscountsPanel({
   }, [clientSearch, createOpen]);
 
   useEffect(() => {
+    if (!filtersOpen) return undefined;
+    const normalizedSearch = String(filterClientSearch || "").trim();
+    if (!normalizedSearch || (!/^\d+$/.test(normalizedSearch) && normalizedSearch.length < 3)) {
+      setFilterClientSearchBusy(false);
+      return undefined;
+    }
+
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      setFilterClientSearchBusy(true);
+      try {
+        const response = await apiFetch(`/api/finance/discounts/clients?q=${encodeURIComponent(normalizedSearch)}&limit=30`);
+        const data = await readApiResponseData(response);
+        if (!active) return;
+        setFilterClientOptions(
+          response.ok && Array.isArray(data?.items)
+            ? data.items.map(makeClientOption).filter(Boolean)
+            : []
+        );
+      } catch {
+        if (active) setFilterClientOptions([]);
+      } finally {
+        if (active) setFilterClientSearchBusy(false);
+      }
+    }, 250);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [filterClientSearch, filtersOpen]);
+
+  useEffect(() => {
     if (!showClientResults || typeof window === "undefined") {
       setClientResultsStyle(null);
       return undefined;
@@ -345,9 +436,15 @@ function FinanceClientDiscountsPanel({
 
   const applyFilters = useCallback((event) => {
     event.preventDefault();
-    setAppliedFilters(filters);
+    const typedClientSearch = String(filterClientSearchDraftRef.current || "").trim();
+    const nextFilters = {
+      ...filters,
+      client: String(filters.client || "").trim() || typedClientSearch
+    };
+    setFilters(nextFilters);
+    setAppliedFilters(nextFilters);
     setFiltersOpen(false);
-    void loadDiscounts(1, filters);
+    void loadDiscounts(1, nextFilters);
   }, [filters, loadDiscounts]);
 
   useEscapeKey(createOpen, closeCreateModal);
@@ -682,13 +779,21 @@ function FinanceClientDiscountsPanel({
                   </label>
                 </div>
                 <label className="field">
-                  <span>{translate("Client Name")}</span>
-                  <input
-                    type="search"
+                  <span>{translate("Client")}</span>
+                  <CustomSelect
                     value={filters.client}
-                    placeholder={translate("Client Name")}
-                    onChange={(event) => {
-                      const value = event.currentTarget.value;
+                    options={filterClientSelectOptions}
+                    placeholder={translate("Client")}
+                    searchable
+                    searchPlaceholder={translate("Search by name or ID")}
+                    searchThreshold={0}
+                    menuPortal
+                    menuHeightScale={1.2}
+                    emptyText={filterClientSearchBusy ? "..." : translate("No clients found.")}
+                    onSearchChange={updateFilterClientSearch}
+                    onChange={(value) => {
+                      filterClientSearchDraftRef.current = "";
+                      setFilterClientSearch("");
                       setFilters((current) => ({ ...current, client: value }));
                     }}
                   />
@@ -1009,8 +1114,24 @@ function FinanceClientDiscountsPanel({
                   <div className="finance-discounts-detail-services">
                     {detailServices.map((service) => (
                       <div key={service.id} className="finance-discounts-detail-service">
-                        <strong>{service.serviceName}</strong>
-                        <span>{formatServiceProgress(service, translate)} · {formatServiceDiscount(service, detailItem?.discountType)}</span>
+                        <div className="finance-discounts-detail-service-main">
+                          <strong>{service.serviceName}</strong>
+                          <span>{formatServiceProgress(service, translate)}</span>
+                        </div>
+                        <div className="finance-discounts-detail-service-metrics">
+                          <span className="finance-discounts-detail-service-metric">
+                            <small>{translate("Price")}</small>
+                            <b>{formatMoney(getServicePriceUzs(service))} сум</b>
+                          </span>
+                          <span className="finance-discounts-detail-service-metric">
+                            <small>{translate("Discount")}</small>
+                            <b>{formatServiceDiscountDetail(service, detailItem?.discountType)}</b>
+                          </span>
+                          <span className="finance-discounts-detail-service-metric is-final">
+                            <small>{translate("Final")}</small>
+                            <b>{formatMoney(getServiceFinalPriceUzs(service, detailItem?.discountType))} сум</b>
+                          </span>
+                        </div>
                       </div>
                     ))}
                   </div>

@@ -117,6 +117,7 @@ function normalizeServiceRows(value) {
         id: item.id,
         serviceId: item.serviceId ?? item.service_id,
         serviceName: item.serviceName ?? item.service_name ?? "",
+        servicePriceUzs: item.servicePriceUzs ?? item.service_price_uzs ?? 0,
         discountValue: item.discountValue ?? item.discount_value ?? 0,
         perUseDiscountUzs: item.perUseDiscountUzs ?? item.per_use_discount_uzs ?? null,
         limitCount,
@@ -291,6 +292,7 @@ async function queryDiscountRules({ organizationId, whereSql = "", params = [], 
                   'id', rs.id,
                   'serviceId', rs.service_id,
                   'serviceName', rs.service_name,
+                  'servicePriceUzs', rs.service_price_uzs,
                   'discountValue', rs.discount_value,
                   'perUseDiscountUzs', rs.per_use_discount_uzs,
                   'limitCount', rs.limit_count,
@@ -582,10 +584,10 @@ export async function createFinanceClientDiscount({ organizationId, payload, act
         : null;
       await db.query(
         `INSERT INTO finance_client_discount_rule_services (
-           organization_id, rule_id, service_id, service_name, limit_count, discount_value, per_use_discount_uzs
+           organization_id, rule_id, service_id, service_name, service_price_uzs, limit_count, discount_value, per_use_discount_uzs
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [organizationId, ruleId, item.serviceId, service.name, item.limitCount, item.discountValue, perUseDiscountUzs]
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [organizationId, ruleId, item.serviceId, service.name, normalizeAmount(service.price_uzs, 0), item.limitCount, item.discountValue, perUseDiscountUzs]
       );
     }
     await db.query("COMMIT");

@@ -372,6 +372,12 @@ test("finance client discounts apply only to appointment tickets and keep usage 
 
   assert.match(
     financeDiscountsSource,
+    /servicePriceUzs: item\.servicePriceUzs \?\? item\.service_price_uzs \?\? 0[\s\S]*'servicePriceUzs', rs\.service_price_uzs[\s\S]*service_price_uzs, limit_count, discount_value, per_use_discount_uzs[\s\S]*normalizeAmount\(service\.price_uzs, 0\), item\.limitCount, item\.discountValue, perUseDiscountUzs/s,
+    "Client discount detail rows should persist and expose the service price snapshot used when the discount was created."
+  );
+
+  assert.match(
+    financeDiscountsSource,
     /getDiscountCandidatesForService[\s\S]*COALESCE\(NULLIF\(rs\.discount_value, 0\), r\.discount_value, 0\) AS discount_value[\s\S]*rs\.per_use_discount_uzs[\s\S]*discountType === "amount" && perUseDiscountUzs !== null[\s\S]*calculateDiscountUzs\(\{ priceUzs, discountType, discountValue \}\)[\s\S]*discountValue: discountType === "amount" \? discountUzs : discountValue/s,
     "Appointment ticket discounts should apply calculated per-use amount discounts while preserving percentage rules."
   );

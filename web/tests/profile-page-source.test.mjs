@@ -89,8 +89,13 @@ test("finance client discounts route is wired into profile navigation", async ()
   );
   assert.match(
     panelSource,
-    /id="financeClientDiscountFilterModal"[\s\S]*Created From[\s\S]*Created To[\s\S]*Client Name[\s\S]*Service Name[\s\S]*DISCOUNT_ACTIVE_FILTER_OPTIONS/s,
+    /\/api\/finance\/discounts\/clients[\s\S]*id="financeClientDiscountFilterModal"[\s\S]*Created From[\s\S]*Created To[\s\S]*translate\("Client"\)[\s\S]*Search by name or ID[\s\S]*Service Name[\s\S]*DISCOUNT_ACTIVE_FILTER_OPTIONS/s,
     "FinanceClientDiscountsPanel should render the requested client discount filter fields."
+  );
+  assert.match(
+    panelSource,
+    /filterClientSearchDraftRef[\s\S]*const typedClientSearch = String\(filterClientSearchDraftRef\.current \|\| ""\)\.trim\(\);[\s\S]*client: String\(filters\.client \|\| ""\)\.trim\(\) \|\| typedClientSearch[\s\S]*setFilters\(nextFilters\);[\s\S]*void loadDiscounts\(1, nextFilters\);/s,
+    "Client discount filter should apply the typed client search even when an option was not selected."
   );
   assert.doesNotMatch(
     panelSource,
@@ -126,6 +131,11 @@ test("finance client discounts route is wired into profile navigation", async ()
     panelSource,
     /finance-discounts-detail-head[\s\S]*finance-discounts-detail-body[\s\S]*finance-discounts-detail-summary[\s\S]*finance-discounts-detail-sections[\s\S]*finance-discounts-detail-section[\s\S]*finance-discounts-usage-scroll[\s\S]*finance-discounts-usage-col-date[\s\S]*finance-discounts-usage-col-service/s,
     "Client discount detail modal should keep header, summary, services and usage history in a compact structure."
+  );
+  assert.match(
+    panelSource,
+    /function getServicePriceUzs\(service\)[\s\S]*servicePriceUzs[\s\S]*function getServiceDiscountUzs\(service, discountType\)[\s\S]*function getServiceFinalPriceUzs\(service, discountType\)[\s\S]*finance-discounts-detail-service-metrics[\s\S]*translate\("Price"\)[\s\S]*translate\("Discount"\)[\s\S]*translate\("Final"\)/s,
+    "Client discount detail services should show original price, discount amount and final discounted price."
   );
   assert.match(
     panelSource,
@@ -209,7 +219,7 @@ test("finance client discounts route is wired into profile navigation", async ()
   );
   assert.match(
     stylesSource,
-    /\.finance-discounts-detail-modal \{[\s\S]*width: min\(680px,[\s\S]*grid-template-rows: auto minmax\(0, 1fr\);[\s\S]*\.finance-discounts-detail-body \{[\s\S]*overflow: auto;[\s\S]*\.finance-discounts-disable-note \{[\s\S]*\.finance-discounts-detail-sections \{[\s\S]*gap: 10px;[\s\S]*\.finance-discounts-usage-scroll \{[\s\S]*max-height: 230px;[\s\S]*\.finance-discounts-usage-table \{[\s\S]*table-layout: fixed;/s,
+    /\.finance-discounts-detail-modal \{[\s\S]*width: min\(680px,[\s\S]*grid-template-rows: auto minmax\(0, 1fr\);[\s\S]*\.finance-discounts-detail-body \{[\s\S]*overflow: auto;[\s\S]*\.finance-discounts-disable-note \{[\s\S]*\.finance-discounts-detail-sections \{[\s\S]*gap: 10px;[\s\S]*\.finance-discounts-detail-service-metrics \{[\s\S]*grid-template-columns: repeat\(3,[\s\S]*\.finance-discounts-usage-scroll \{[\s\S]*max-height: 230px;[\s\S]*\.finance-discounts-usage-table \{[\s\S]*table-layout: fixed;/s,
     "Client discount detail modal should use compact dimensions and show disable audit notes without growing the modal."
   );
   assert.doesNotMatch(
