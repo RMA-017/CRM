@@ -6278,6 +6278,22 @@ label.field > span:first-child,
   align-items: center;
 }
 
+.finance-discounts-panel .all-users-head-actions {
+  flex: 1 1 420px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.finance-discounts-panel .all-users-head-actions .finance-discounts-head-client-filter {
+  flex: 1 1 220px;
+  width: auto;
+  min-width: 168px;
+  max-width: 288px;
+  height: 30px;
+  font-size: 12px;
+}
+
 .finance-discounts-panel .finance-discounts-head h3 {
   align-self: center;
   align-items: center;

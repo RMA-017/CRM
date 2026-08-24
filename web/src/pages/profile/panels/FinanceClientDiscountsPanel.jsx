@@ -162,15 +162,6 @@ function normalizeClientLabel(client) {
   return [id ? `#${id}` : "", name, phone].filter(Boolean).join(" · ");
 }
 
-function makeClientOption(client) {
-  const id = String(client?.id ?? client?.clientId ?? "").trim();
-  if (!id) return null;
-  return {
-    value: id,
-    label: normalizeClientLabel(client)
-  };
-}
-
 function createDiscountServiceRow() {
   return {
     key: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -195,11 +186,8 @@ function FinanceClientDiscountsPanel({
   const [message, setMessage] = useState("");
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
+  const [quickClientQuery, setQuickClientQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [filterClientSearch, setFilterClientSearch] = useState("");
-  const [filterClientOptions, setFilterClientOptions] = useState([]);
-  const [filterClientSearchBusy, setFilterClientSearchBusy] = useState(false);
-  const filterClientSearchDraftRef = useRef("");
   const [services, setServices] = useState([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState(EMPTY_CREATE_FORM);
@@ -230,32 +218,7 @@ function FinanceClientDiscountsPanel({
       label: String(service.name || service.id)
     }))
   ], [services, translate]);
-  const filterClientSelectOptions = useMemo(() => {
-    const options = [{ value: "", label: translate("All"), selectedLabel: translate("All") }];
-    const seen = new Set([""]);
-    const currentClient = String(filters.client || "").trim();
-    if (currentClient && !filterClientOptions.some((option) => String(option?.value || "") === currentClient)) {
-      const label = /^\d+$/.test(currentClient) ? `#${currentClient}` : currentClient;
-      options.push({ value: currentClient, label, selectedLabel: label });
-      seen.add(currentClient);
-    }
-    filterClientOptions.forEach((option) => {
-      const value = String(option?.value || "").trim();
-      if (!value || seen.has(value)) return;
-      options.push(option);
-      seen.add(value);
-    });
-    return options;
-  }, [filterClientOptions, filters.client, translate]);
   const showClientResults = createOpen && !selectedClient && clientOptions.length > 0;
-
-  const updateFilterClientSearch = useCallback((value) => {
-    const nextValue = String(value || "");
-    setFilterClientSearch(nextValue);
-    if (nextValue.trim()) {
-      filterClientSearchDraftRef.current = nextValue;
-    }
-  }, []);
 
   const loadDiscounts = useCallback(async (nextPage = 1, nextFilters = EMPTY_FILTERS) => {
     try {
@@ -306,6 +269,22 @@ function FinanceClientDiscountsPanel({
   }, [loadDiscounts, loadReferences]);
 
   useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const normalizedClient = String(quickClientQuery || "").trim();
+      const appliedClient = String(appliedFilters.client || "").trim();
+      if (normalizedClient === appliedClient) return;
+      const nextFilters = { ...appliedFilters, client: normalizedClient };
+      setFilters((current) => ({ ...current, client: normalizedClient }));
+      setAppliedFilters(nextFilters);
+      void loadDiscounts(1, nextFilters);
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [appliedFilters, loadDiscounts, quickClientQuery]);
+
+  useEffect(() => {
     const normalizedSearch = String(clientSearch || "").trim();
     if (!createOpen || (!/^\d+$/.test(normalizedSearch) && normalizedSearch.length < 3)) {
       setClientOptions([]);
@@ -329,39 +308,6 @@ function FinanceClientDiscountsPanel({
       window.clearTimeout(timer);
     };
   }, [clientSearch, createOpen]);
-
-  useEffect(() => {
-    if (!filtersOpen) return undefined;
-    const normalizedSearch = String(filterClientSearch || "").trim();
-    if (!normalizedSearch || (!/^\d+$/.test(normalizedSearch) && normalizedSearch.length < 3)) {
-      setFilterClientSearchBusy(false);
-      return undefined;
-    }
-
-    let active = true;
-    const timer = window.setTimeout(async () => {
-      setFilterClientSearchBusy(true);
-      try {
-        const response = await apiFetch(`/api/finance/discounts/clients?q=${encodeURIComponent(normalizedSearch)}&limit=30`);
-        const data = await readApiResponseData(response);
-        if (!active) return;
-        setFilterClientOptions(
-          response.ok && Array.isArray(data?.items)
-            ? data.items.map(makeClientOption).filter(Boolean)
-            : []
-        );
-      } catch {
-        if (active) setFilterClientOptions([]);
-      } finally {
-        if (active) setFilterClientSearchBusy(false);
-      }
-    }, 250);
-
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [filterClientSearch, filtersOpen]);
 
   useEffect(() => {
     if (!showClientResults || typeof window === "undefined") {
@@ -436,13 +382,13 @@ function FinanceClientDiscountsPanel({
 
   const applyFilters = useCallback((event) => {
     event.preventDefault();
-    const typedClientSearch = String(filterClientSearchDraftRef.current || "").trim();
     const nextFilters = {
       ...filters,
-      client: String(filters.client || "").trim() || typedClientSearch
+      client: String(filters.client || "").trim()
     };
     setFilters(nextFilters);
     setAppliedFilters(nextFilters);
+    setQuickClientQuery(nextFilters.client);
     setFiltersOpen(false);
     void loadDiscounts(1, nextFilters);
   }, [filters, loadDiscounts]);
@@ -705,6 +651,17 @@ function FinanceClientDiscountsPanel({
       <div className="all-users-head finance-discounts-head">
         <h3>{translate("Client Discounts")}</h3>
         <div className="all-users-head-actions">
+          <input
+            type="search"
+            className="panel-search-input finance-board-head-client-filter finance-discounts-head-client-filter"
+            value={quickClientQuery}
+            aria-label={translate("Search by name or ID")}
+            placeholder={translate("Client")}
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              setQuickClientQuery(value);
+            }}
+          />
           <button
             type="button"
             className="table-action-btn finance-head-icon-btn"
@@ -780,20 +737,12 @@ function FinanceClientDiscountsPanel({
                 </div>
                 <label className="field">
                   <span>{translate("Client")}</span>
-                  <CustomSelect
+                  <input
+                    type="search"
                     value={filters.client}
-                    options={filterClientSelectOptions}
-                    placeholder={translate("Client")}
-                    searchable
-                    searchPlaceholder={translate("Search by name or ID")}
-                    searchThreshold={0}
-                    menuPortal
-                    menuHeightScale={1.2}
-                    emptyText={filterClientSearchBusy ? "..." : translate("No clients found.")}
-                    onSearchChange={updateFilterClientSearch}
-                    onChange={(value) => {
-                      filterClientSearchDraftRef.current = "";
-                      setFilterClientSearch("");
+                    placeholder={translate("Search by name or ID")}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
                       setFilters((current) => ({ ...current, client: value }));
                     }}
                   />

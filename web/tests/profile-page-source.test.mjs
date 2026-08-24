@@ -89,13 +89,18 @@ test("finance client discounts route is wired into profile navigation", async ()
   );
   assert.match(
     panelSource,
-    /\/api\/finance\/discounts\/clients[\s\S]*id="financeClientDiscountFilterModal"[\s\S]*Created From[\s\S]*Created To[\s\S]*translate\("Client"\)[\s\S]*Search by name or ID[\s\S]*Service Name[\s\S]*DISCOUNT_ACTIVE_FILTER_OPTIONS/s,
+    /const \[quickClientQuery, setQuickClientQuery\] = useState\(""\)[\s\S]*const nextFilters = \{ \.\.\.appliedFilters, client: normalizedClient \}[\s\S]*void loadDiscounts\(1, nextFilters\);[\s\S]*className="panel-search-input finance-board-head-client-filter finance-discounts-head-client-filter"[\s\S]*value=\{quickClientQuery\}[\s\S]*aria-label=\{translate\("Search by name or ID"\)\}[\s\S]*setQuickClientQuery\(value\)/s,
+    "FinanceClientDiscountsPanel should expose a cashier-style quick client search in the header."
+  );
+  assert.match(
+    panelSource,
+    /id="financeClientDiscountFilterModal"[\s\S]*Created From[\s\S]*Created To[\s\S]*translate\("Client"\)[\s\S]*type="search"[\s\S]*value=\{filters\.client\}[\s\S]*placeholder=\{translate\("Search by name or ID"\)\}[\s\S]*Service Name[\s\S]*DISCOUNT_ACTIVE_FILTER_OPTIONS/s,
     "FinanceClientDiscountsPanel should render the requested client discount filter fields."
   );
   assert.match(
     panelSource,
-    /filterClientSearchDraftRef[\s\S]*const typedClientSearch = String\(filterClientSearchDraftRef\.current \|\| ""\)\.trim\(\);[\s\S]*client: String\(filters\.client \|\| ""\)\.trim\(\) \|\| typedClientSearch[\s\S]*setFilters\(nextFilters\);[\s\S]*void loadDiscounts\(1, nextFilters\);/s,
-    "Client discount filter should apply the typed client search even when an option was not selected."
+    /const nextFilters = \{[\s\S]*\.\.\.filters,[\s\S]*client: String\(filters\.client \|\| ""\)\.trim\(\)[\s\S]*setFilters\(nextFilters\);[\s\S]*void loadDiscounts\(1, nextFilters\);/s,
+    "Client discount filter should apply the visible client search input."
   );
   assert.doesNotMatch(
     panelSource,
@@ -199,8 +204,8 @@ test("finance client discounts route is wired into profile navigation", async ()
   );
   assert.match(
     stylesSource,
-    /#financeClientDiscountFilterModal\.finance-discounts-filter-modal \{[\s\S]*width: min\(540px,[\s\S]*#financeClientDiscountFilterModal \.finance-discounts-filter-date-row/s,
-    "Client discount filters should use the compact finance filter modal layout."
+    /\.finance-discounts-panel \.all-users-head-actions \.finance-discounts-head-client-filter \{[\s\S]*height: 30px;[\s\S]*#financeClientDiscountFilterModal\.finance-discounts-filter-modal \{[\s\S]*width: min\(540px,[\s\S]*#financeClientDiscountFilterModal \.finance-discounts-filter-date-row/s,
+    "Client discount filters should use a compact header search and finance filter modal layout."
   );
   assert.match(
     stylesSource,
