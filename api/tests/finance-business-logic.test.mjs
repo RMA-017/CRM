@@ -354,7 +354,7 @@ test("finance client discounts apply only to appointment tickets and keep usage 
 
   assert.match(
     financeDiscountsSource,
-    /r\.created_at::date >=[\s\S]*r\.created_at::date <=[\s\S]*clientTokenConditions = clientNameTokens\.map[\s\S]*LOWER\(CONCAT_WS\(' ', c\.last_name, c\.first_name, c\.middle_name\)\) LIKE[\s\S]*clientTokenConditions\.join\(" AND "\)[\s\S]*r\.client_id::text =[\s\S]*COALESCE\(c\.phone_number, ''\) LIKE[\s\S]*regexp_replace\(COALESCE\(c\.phone_number[\s\S]*finance_client_discount_rule_services rs_filter[\s\S]*r\.is_active =/s,
+    /r\.created_at::date >=[\s\S]*r\.created_at::date <=[\s\S]*clientPhoneLikeParam[\s\S]*clientTokenConditions = clientNameTokens\.length > 1[\s\S]*clientNameTokens\.map[\s\S]*LOWER\(CONCAT_WS\(' ', c\.last_name, c\.first_name, c\.middle_name\)\) LIKE[\s\S]*clientTokenConditions\.join\(" AND "\)[\s\S]*r\.client_id::text =[\s\S]*COALESCE\(c\.phone_number, ''\) LIKE \${clientPhoneLikeParam}[\s\S]*regexp_replace\(COALESCE\(c\.phone_number[\s\S]*finance_client_discount_rule_services rs_filter[\s\S]*r\.is_active =/s,
     "Client discount list query should filter by created date, client name/id/phone, service name, and active state."
   );
 

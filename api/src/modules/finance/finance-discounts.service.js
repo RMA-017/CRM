@@ -349,15 +349,18 @@ export async function getFinanceClientDiscounts({ organizationId, filters = {} }
   if (client) {
     const clientLikeParam = appendSqlParam(params, `%${client}%`);
     const clientExactParam = appendSqlParam(params, client);
+    const clientPhoneLikeParam = appendSqlParam(params, `%${client}%`);
     const clientPhoneParam = appendSqlParam(params, clientPhoneDigits ? `%${clientPhoneDigits}%` : "");
-    const clientTokenConditions = clientNameTokens.map((token) => (
-      `LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE ${appendSqlParam(params, `%${token}%`)}`
-    ));
+    const clientTokenConditions = clientNameTokens.length > 1
+      ? clientNameTokens.map((token) => (
+        `LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE ${appendSqlParam(params, `%${token}%`)}`
+      ))
+      : [];
     where.push(`AND (
       LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE ${clientLikeParam}
       ${clientTokenConditions.length > 1 ? `OR (${clientTokenConditions.join(" AND ")})` : ""}
       OR r.client_id::text = ${clientExactParam}
-      OR COALESCE(c.phone_number, '') LIKE ${clientLikeParam}
+      OR COALESCE(c.phone_number, '') LIKE ${clientPhoneLikeParam}
       OR (${clientPhoneParam} <> '' AND regexp_replace(COALESCE(c.phone_number, ''), '[^0-9]', '', 'g') LIKE ${clientPhoneParam})
     )`);
   }
