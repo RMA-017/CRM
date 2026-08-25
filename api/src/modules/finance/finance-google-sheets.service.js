@@ -50,26 +50,11 @@ const SHEET_DEFINITIONS = Object.freeze([
     dateColumns: [
       { columnIndex: 1, pattern: "dd.mm.yyyy hh:mm" }
     ]
-  },
-  {
-    key: "balances",
-    title: "Балансы клиентов",
-    lastColumn: "D",
-    headers: [
-      "ID клиента",
-      "Клиент",
-      "Долг",
-      "Депозит"
-    ],
-    moneyColumns: [2, 3],
-    dateColumns: [],
-    trimEmptyTrailingColumns: true
   }
 ]);
 
 const TICKET_BATCH_SIZE = 1000;
 const TRANSACTION_BATCH_SIZE = 2500;
-const BALANCE_BATCH_SIZE = 2500;
 const SHEETS_WRITE_CHUNK_SIZE = 2500;
 const GOOGLE_RETRY_ATTEMPTS = 5;
 const WRITE_THROTTLE_MS = 1050;
@@ -96,6 +81,38 @@ const TRANSACTION_ACTION_LABELS = Object.freeze({
 function normalizeYear(value) {
   const year = Number.parseInt(String(value ?? ""), 10);
   return Number.isInteger(year) && year >= 2000 && year <= 2100 ? year : null;
+}
+
+function normalizeDate(value) {
+  const normalized = String(value ?? "").trim();
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return "";
+  const year = Number.parseInt(match[1], 10);
+  const month = Number.parseInt(match[2], 10);
+  const day = Number.parseInt(match[3], 10);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year
+    || parsed.getUTCMonth() !== month - 1
+    || parsed.getUTCDate() !== day
+  ) {
+    return "";
+  }
+  return normalized;
+}
+
+function formatUtcDateYmd(date) {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDaysYmd(value, days) {
+  const normalized = normalizeDate(value);
+  if (!normalized) return "";
+  const [year, month, day] = normalized.split("-").map((part) => Number.parseInt(part, 10));
+  return formatUtcDateYmd(new Date(Date.UTC(year, month - 1, day + days)));
 }
 
 function toInteger(value) {
@@ -306,7 +323,31 @@ async function createSheetsClient(credentials) {
 }
 
 function getExportYearBounds(year) {
-  return [`${year}-01-01`, `${year + 1}-01-01`];
+  return {
+    dateFrom: `${year}-01-01`,
+    dateTo: `${year}-12-31`,
+    dateToExclusive: `${year + 1}-01-01`
+  };
+}
+
+function normalizeExportDateRange({ year, dateFrom, dateTo }) {
+  const defaults = getExportYearBounds(year);
+  const hasDateFrom = String(dateFrom ?? "").trim() !== "";
+  const hasDateTo = String(dateTo ?? "").trim() !== "";
+  const normalizedDateFrom = hasDateFrom ? normalizeDate(dateFrom) : defaults.dateFrom;
+  const normalizedDateTo = hasDateTo ? normalizeDate(dateTo) : defaults.dateTo;
+  if (
+    (hasDateFrom && !normalizedDateFrom)
+    || (hasDateTo && !normalizedDateTo)
+    || normalizedDateFrom > normalizedDateTo
+  ) {
+    return null;
+  }
+  return {
+    dateFrom: normalizedDateFrom,
+    dateTo: normalizedDateTo,
+    dateToExclusive: addDaysYmd(normalizedDateTo, 1)
+  };
 }
 
 function makeTicketExportRow(row, allocatedPaid) {
@@ -372,8 +413,7 @@ function makeTransactionExportRow(row) {
   ];
 }
 
-async function fetchTicketRows({ organizationId, year, cursor }) {
-  const [dateFrom, dateTo] = getExportYearBounds(year);
+async function fetchTicketRows({ organizationId, dateFrom, dateToExclusive, cursor }) {
   const result = await pool.query(
     `WITH ticket_page AS (
        SELECT *
@@ -444,13 +484,12 @@ async function fetchTicketRows({ organizationId, year, cursor }) {
             )
        ) fpaid ON TRUE
       ORDER BY ft.id ASC, COALESCE(fti.line_number, 1) ASC, COALESCE(fti.id, 0) ASC`,
-    [organizationId, dateFrom, dateTo, cursor, TICKET_BATCH_SIZE]
+    [organizationId, dateFrom, dateToExclusive, cursor, TICKET_BATCH_SIZE]
   );
   return result.rows;
 }
 
-async function fetchTransactionRows({ organizationId, year, cursor }) {
-  const [dateFrom, dateTo] = getExportYearBounds(year);
+async function fetchTransactionRows({ organizationId, dateFrom, dateToExclusive, cursor }) {
   const result = await pool.query(
     `SELECT t.id,
             TO_CHAR(t.transaction_at AT TIME ZONE 'Asia/Tashkent', 'YYYY-MM-DD HH24:MI') AS transaction_at_text,
@@ -486,75 +525,7 @@ async function fetchTransactionRows({ organizationId, year, cursor }) {
         AND t.id > $4
       ORDER BY t.id ASC
       LIMIT $5`,
-    [organizationId, dateFrom, dateTo, cursor, TRANSACTION_BATCH_SIZE]
-  );
-  return result.rows;
-}
-
-async function fetchBalanceRows({ organizationId, cursor }) {
-  const result = await pool.query(
-    `SELECT c.id AS client_id,
-            CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
-            COALESCE(debt.debt_uzs, 0) AS debt_uzs,
-            COALESCE(deposit.deposit_uzs, 0) AS deposit_uzs
-       FROM clients c
-       LEFT JOIN (
-         SELECT ft.client_id,
-                SUM(GREATEST(
-                  COALESCE(ft.total_uzs, ft.amount_uzs, 0) - COALESCE(fpaid.paid_amount_uzs, 0),
-                  0
-                )) AS debt_uzs
-           FROM finance_tickets ft
-           LEFT JOIN LATERAL (
-             SELECT COALESCE(SUM(CASE
-                      WHEN t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN t.amount_uzs
-                      WHEN t.transaction_type IN ('refund', 'deposit_ticket_refund') THEN -t.amount_uzs
-                      ELSE 0
-                    END), 0) AS paid_amount_uzs
-               FROM finance_transactions t
-              WHERE t.organization_id = ft.organization_id
-                AND t.ticket_id = ft.id
-                AND t.status = 'posted'
-                AND t.transaction_type IN (
-                  'ticket_payment',
-                  'deposit_ticket_payment',
-                  'refund',
-                  'deposit_ticket_refund'
-                )
-           ) fpaid ON TRUE
-          WHERE ft.organization_id = $1
-            AND ft.status IN ('issued', 'unpaid')
-          GROUP BY ft.client_id
-       ) debt ON debt.client_id = c.id
-       LEFT JOIN (
-         SELECT client_id,
-                SUM(CASE
-                  WHEN transaction_type = 'deposit_in' AND direction = 'in' THEN amount_uzs
-                  WHEN transaction_type = 'deposit_out' AND direction = 'out' THEN -amount_uzs
-                  WHEN transaction_type = 'deposit_ticket_payment' AND direction = 'transfer' THEN -amount_uzs
-                  WHEN transaction_type = 'deposit_ticket_refund' AND direction = 'transfer' THEN amount_uzs
-                  ELSE 0
-                END) AS deposit_uzs
-           FROM finance_transactions
-          WHERE organization_id = $1
-            AND status = 'posted'
-            AND transaction_type IN (
-              'deposit_in',
-              'deposit_out',
-              'deposit_ticket_payment',
-              'deposit_ticket_refund'
-            )
-          GROUP BY client_id
-       ) deposit ON deposit.client_id = c.id
-      WHERE c.organization_id = $1
-        AND c.id > $2
-        AND (
-          COALESCE(debt.debt_uzs, 0) > 0
-          OR COALESCE(deposit.deposit_uzs, 0) <> 0
-        )
-      ORDER BY c.id ASC
-      LIMIT $3`,
-    [organizationId, cursor, BALANCE_BATCH_SIZE]
+    [organizationId, dateFrom, dateToExclusive, cursor, TRANSACTION_BATCH_SIZE]
   );
   return result.rows;
 }
@@ -839,13 +810,13 @@ function createSheetWriter({ sheets, spreadsheetId }) {
   };
 }
 
-async function exportTickets({ organizationId, year, writeRows }) {
+async function exportTickets({ organizationId, dateFrom, dateToExclusive, writeRows }) {
   const definition = SHEET_DEFINITIONS[0];
   let cursor = 0;
   let outputRow = 2;
   let totalRows = 0;
   while (true) {
-    const sourceRows = await fetchTicketRows({ organizationId, year, cursor });
+    const sourceRows = await fetchTicketRows({ organizationId, dateFrom, dateToExclusive, cursor });
     if (sourceRows.length === 0) break;
     const paidAllocatedByTicket = new Map();
     const rows = sourceRows.map((row) => {
@@ -863,41 +834,19 @@ async function exportTickets({ organizationId, year, writeRows }) {
   return totalRows;
 }
 
-async function exportTransactions({ organizationId, year, writeRows }) {
+async function exportTransactions({ organizationId, dateFrom, dateToExclusive, writeRows }) {
   const definition = SHEET_DEFINITIONS[1];
   let cursor = 0;
   let outputRow = 2;
   let totalRows = 0;
   while (true) {
-    const sourceRows = await fetchTransactionRows({ organizationId, year, cursor });
+    const sourceRows = await fetchTransactionRows({ organizationId, dateFrom, dateToExclusive, cursor });
     if (sourceRows.length === 0) break;
     const rows = sourceRows.map(makeTransactionExportRow);
     await writeRows(definition, outputRow, rows);
     outputRow += rows.length;
     totalRows += rows.length;
     cursor = toInteger(sourceRows[sourceRows.length - 1]?.id);
-  }
-  return totalRows;
-}
-
-async function exportBalances({ organizationId, writeRows }) {
-  const definition = SHEET_DEFINITIONS[2];
-  let cursor = 0;
-  let outputRow = 2;
-  let totalRows = 0;
-  while (true) {
-    const sourceRows = await fetchBalanceRows({ organizationId, cursor });
-    if (sourceRows.length === 0) break;
-    const rows = sourceRows.map((row) => [
-      toInteger(row.client_id),
-      row.client_name || "",
-      Math.max(toInteger(row.debt_uzs), 0),
-      toInteger(row.deposit_uzs)
-    ]);
-    await writeRows(definition, outputRow, rows);
-    outputRow += rows.length;
-    totalRows += rows.length;
-    cursor = toInteger(sourceRows[sourceRows.length - 1]?.client_id);
   }
   return totalRows;
 }
@@ -993,12 +942,20 @@ export async function getFinanceGoogleSheetsConfig({ organizationId, year }) {
 export async function exportFinanceToGoogleSheets({
   organizationId,
   year,
+  dateFrom,
+  dateTo,
   spreadsheetUrl,
   actorUserId
 }) {
   const exportYear = normalizeYear(year);
   if (!exportYear) {
     const error = new Error("Export year is invalid.");
+    error.statusCode = 400;
+    throw error;
+  }
+  const exportRange = normalizeExportDateRange({ year: exportYear, dateFrom, dateTo });
+  if (!exportRange) {
+    const error = new Error("Export date range is invalid.");
     error.statusCode = 400;
     throw error;
   }
@@ -1022,15 +979,24 @@ export async function exportFinanceToGoogleSheets({
       sheets,
       spreadsheetId: spreadsheet.spreadsheetId
     });
-    const tickets = await exportTickets({ organizationId, year: exportYear, writeRows });
-    const transactions = await exportTransactions({ organizationId, year: exportYear, writeRows });
-    const balances = await exportBalances({ organizationId, writeRows });
+    const tickets = await exportTickets({
+      organizationId,
+      dateFrom: exportRange.dateFrom,
+      dateToExclusive: exportRange.dateToExclusive,
+      writeRows
+    });
+    const transactions = await exportTransactions({
+      organizationId,
+      dateFrom: exportRange.dateFrom,
+      dateToExclusive: exportRange.dateToExclusive,
+      writeRows
+    });
     await resizeSheetColumns({
       sheets,
       spreadsheetId: spreadsheet.spreadsheetId,
       sheetIds
     });
-    const counts = { tickets, transactions, balances };
+    const counts = { tickets, transactions };
     await saveExportSuccess({
       organizationId,
       year: exportYear,
@@ -1041,6 +1007,8 @@ export async function exportFinanceToGoogleSheets({
     });
     return {
       year: exportYear,
+      dateFrom: exportRange.dateFrom,
+      dateTo: exportRange.dateTo,
       spreadsheetUrl: spreadsheet.spreadsheetUrl,
       serviceAccountEmail: credentials.clientEmail,
       counts
@@ -1062,6 +1030,7 @@ export const __financeGoogleSheetsContracts = Object.freeze({
   SHEET_DEFINITIONS,
   makeTicketExportRow,
   makeTransactionExportRow,
+  normalizeExportDateRange,
   normalizeYear,
   parseGoogleSpreadsheetUrl,
   toGoogleSheetsDateValue,

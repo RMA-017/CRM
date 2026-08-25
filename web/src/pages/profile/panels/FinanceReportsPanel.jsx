@@ -150,6 +150,21 @@ function getCurrentTashkentYear() {
   }).format(new Date()), 10);
 }
 
+function getGoogleSheetsYearDateRange(yearValue) {
+  const year = Number.parseInt(String(yearValue || ""), 10);
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+    return { dateFrom: "", dateTo: "" };
+  }
+  return {
+    dateFrom: `${year}-01-01`,
+    dateTo: `${year}-12-31`
+  };
+}
+
+function isDateInputValue(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+}
+
 function formatMoney(value) {
   const amount = toNumber(value);
   return amount !== 0 ? amount.toLocaleString("ru-RU") : "-";
@@ -444,6 +459,12 @@ function FinanceReportsPanel({ onClose }) {
   const [exporting, setExporting] = useState(false);
   const [googleSheetsOpen, setGoogleSheetsOpen] = useState(false);
   const [googleSheetsYear, setGoogleSheetsYear] = useState(() => String(getCurrentTashkentYear()));
+  const [googleSheetsDateFrom, setGoogleSheetsDateFrom] = useState(() => (
+    getGoogleSheetsYearDateRange(getCurrentTashkentYear()).dateFrom
+  ));
+  const [googleSheetsDateTo, setGoogleSheetsDateTo] = useState(() => (
+    getGoogleSheetsYearDateRange(getCurrentTashkentYear()).dateTo
+  ));
   const [googleSheetsUrl, setGoogleSheetsUrl] = useState("");
   const [googleSheetsConfig, setGoogleSheetsConfig] = useState(null);
   const [googleSheetsConfigLoading, setGoogleSheetsConfigLoading] = useState(false);
@@ -852,9 +873,15 @@ function FinanceReportsPanel({ onClose }) {
     event.preventDefault();
     if (googleSheetsExporting) return;
     const year = Number.parseInt(String(googleSheetsYear || ""), 10);
+    const dateFrom = String(googleSheetsDateFrom || "").trim();
+    const dateTo = String(googleSheetsDateTo || "").trim();
     const spreadsheetUrl = String(googleSheetsUrl || "").trim();
     if (!Number.isInteger(year) || year < 2000 || year > 2100) {
       setGoogleSheetsError("Export year is invalid.");
+      return;
+    }
+    if (!isDateInputValue(dateFrom) || !isDateInputValue(dateTo) || dateFrom > dateTo) {
+      setGoogleSheetsError("Export date range is invalid.");
       return;
     }
     if (!spreadsheetUrl) {
@@ -868,7 +895,7 @@ function FinanceReportsPanel({ onClose }) {
       const response = await apiFetch("/api/finance/reports/google-sheets/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ year, spreadsheetUrl })
+        body: JSON.stringify({ year, dateFrom, dateTo, spreadsheetUrl })
       });
       const data = await readApiResponseData(response);
       if (!response.ok) {
@@ -1017,7 +1044,7 @@ function FinanceReportsPanel({ onClose }) {
             <h3 id="financeGoogleSheetsExportTitle">{translate("Google Sheets export")}</h3>
             <form className="auth-form" onSubmit={submitGoogleSheetsExport}>
               <div className="all-users-edit-fields finance-google-sheets-fields">
-                <label className="field">
+                <label className="field finance-google-sheets-url-field">
                   <span>{translate("Google Sheets URL")}</span>
                   <input
                     type="url"
@@ -1039,7 +1066,37 @@ function FinanceReportsPanel({ onClose }) {
                     value={googleSheetsYear}
                     disabled={googleSheetsExporting}
                     onChange={(event) => {
-                      setGoogleSheetsYear(event.currentTarget.value);
+                      const nextYear = event.currentTarget.value;
+                      const nextRange = getGoogleSheetsYearDateRange(nextYear);
+                      setGoogleSheetsYear(nextYear);
+                      if (nextRange.dateFrom && nextRange.dateTo) {
+                        setGoogleSheetsDateFrom(nextRange.dateFrom);
+                        setGoogleSheetsDateTo(nextRange.dateTo);
+                      }
+                      setGoogleSheetsResult(null);
+                    }}
+                  />
+                </label>
+                <label className="field">
+                  <span>От</span>
+                  <input
+                    type="date"
+                    value={googleSheetsDateFrom}
+                    disabled={googleSheetsExporting}
+                    onChange={(event) => {
+                      setGoogleSheetsDateFrom(event.currentTarget.value);
+                      setGoogleSheetsResult(null);
+                    }}
+                  />
+                </label>
+                <label className="field">
+                  <span>До</span>
+                  <input
+                    type="date"
+                    value={googleSheetsDateTo}
+                    disabled={googleSheetsExporting}
+                    onChange={(event) => {
+                      setGoogleSheetsDateTo(event.currentTarget.value);
                       setGoogleSheetsResult(null);
                     }}
                   />
@@ -1054,7 +1111,6 @@ function FinanceReportsPanel({ onClose }) {
               <div className="finance-google-sheets-tabs" aria-label={translate("Sheets")}>
                 <span>Талоны</span>
                 <span>Транзакции</span>
-                <span>Балансы клиентов</span>
               </div>
 
               {shouldShowGoogleSheetsStatus ? (
@@ -1070,9 +1126,9 @@ function FinanceReportsPanel({ onClose }) {
                   {googleSheetsResult ? (
                     <div className="finance-google-sheets-result">
                       <strong>{translate("Export completed.")}</strong>
+                      <span>Период: {formatDateYMD(googleSheetsResult.dateFrom)} - {formatDateYMD(googleSheetsResult.dateTo)}</span>
                       <span>Талоны: {toNumber(googleSheetsResult.counts?.tickets)}</span>
                       <span>Транзакции: {toNumber(googleSheetsResult.counts?.transactions)}</span>
-                      <span>Балансы клиентов: {toNumber(googleSheetsResult.counts?.balances)}</span>
                     </div>
                   ) : null}
                 </div>

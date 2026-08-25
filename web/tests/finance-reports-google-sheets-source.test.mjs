@@ -11,7 +11,7 @@ const styles = await readFile(
   "utf8"
 );
 
-test("finance reports exposes the yearly Google Sheets export workflow", () => {
+test("finance reports exposes the date-range Google Sheets export workflow", () => {
   assert.match(
     panelSource,
     /aria-label=\{translate\("Export to Google Sheets"\)\}[\s\S]*finance-head-icon-google-sheets/s,
@@ -20,13 +20,14 @@ test("finance reports exposes the yearly Google Sheets export workflow", () => {
   assert.match(panelSource, /const openGoogleSheetsExport = \(\) => \{[\s\S]*setGoogleSheetsOpen\(true\)/s);
   assert.match(
     panelSource,
-    /id="financeGoogleSheetsExportModal"[\s\S]*type="url"[\s\S]*type="number"[\s\S]*Талоны[\s\S]*Транзакции[\s\S]*Балансы клиентов/s,
-    "The export modal should collect the spreadsheet URL and year and show all managed tabs."
+    /id="financeGoogleSheetsExportModal"[\s\S]*type="url"[\s\S]*type="number"[\s\S]*type="date"[\s\S]*type="date"[\s\S]*Талоны[\s\S]*Транзакции/s,
+    "The export modal should collect the spreadsheet URL, year, date interval, and show the managed exported tabs."
   );
+  assert.doesNotMatch(panelSource, /Балансы клиентов/);
   assert.match(
     panelSource,
-    /\/api\/finance\/reports\/google-sheets\/config\?year=[\s\S]*\/api\/finance\/reports\/google-sheets\/export[\s\S]*JSON\.stringify\(\{ year, spreadsheetUrl \}\)/s,
-    "The modal should load saved yearly settings and submit the export."
+    /\/api\/finance\/reports\/google-sheets\/config\?year=[\s\S]*\/api\/finance\/reports\/google-sheets\/export[\s\S]*JSON\.stringify\(\{ year, dateFrom, dateTo, spreadsheetUrl \}\)/s,
+    "The modal should load saved yearly settings and submit the selected export interval."
   );
   assert.match(
     styles,
@@ -35,8 +36,8 @@ test("finance reports exposes the yearly Google Sheets export workflow", () => {
   );
   assert.match(
     styles,
-    /\.finance-google-sheets-fields[\s\S]*grid-template-columns:[\s\S]*@media \(max-width: 520px\)[\s\S]*grid-template-columns: 1fr;/s,
-    "The modal fields should collapse cleanly on mobile."
+    /\.finance-google-sheets-fields[\s\S]*grid-template-columns:[\s\S]*\.finance-google-sheets-url-field[\s\S]*grid-column: 1 \/ -1;[\s\S]*@media \(max-width: 520px\)[\s\S]*grid-template-columns: 1fr;/s,
+    "The modal fields should keep the URL wide and collapse cleanly on mobile."
   );
   assert.match(
     styles,

@@ -513,6 +513,8 @@ async function financeRoutes(fastify) {
         return reply.send(await exportFinanceToGoogleSheets({
           organizationId: request.authContext.organizationId,
           year: request.body.year,
+          dateFrom: request.body.dateFrom ?? request.body.date_from,
+          dateTo: request.body.dateTo ?? request.body.date_to,
           spreadsheetUrl: request.body.spreadsheetUrl,
           actorUserId: requester.id
         }));

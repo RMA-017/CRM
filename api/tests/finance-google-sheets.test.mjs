@@ -14,6 +14,10 @@ const routesSource = await readFile(
   new URL("../src/modules/finance/finance.routes.js", import.meta.url),
   "utf8"
 );
+const routeSchemasSource = await readFile(
+  new URL("../src/modules/finance/finance.route-schemas.js", import.meta.url),
+  "utf8"
+);
 
 test("finance Google Sheets export accepts only canonical spreadsheet links", () => {
   assert.deepEqual(
@@ -28,12 +32,47 @@ test("finance Google Sheets export accepts only canonical spreadsheet links", ()
   assert.equal(parseGoogleSpreadsheetUrl("not-a-url"), null);
 });
 
+test("finance Google Sheets export normalizes date intervals", () => {
+  assert.deepEqual(
+    __financeGoogleSheetsContracts.normalizeExportDateRange({
+      year: 2026,
+      dateFrom: "2026-07-01",
+      dateTo: "2026-07-31"
+    }),
+    {
+      dateFrom: "2026-07-01",
+      dateTo: "2026-07-31",
+      dateToExclusive: "2026-08-01"
+    }
+  );
+  assert.deepEqual(
+    __financeGoogleSheetsContracts.normalizeExportDateRange({ year: 2026 }),
+    {
+      dateFrom: "2026-01-01",
+      dateTo: "2026-12-31",
+      dateToExclusive: "2027-01-01"
+    }
+  );
+  assert.equal(
+    __financeGoogleSheetsContracts.normalizeExportDateRange({
+      year: 2026,
+      dateFrom: "2026-08-10",
+      dateTo: "2026-08-01"
+    }),
+    null
+  );
+  assert.match(
+    serviceSource,
+    /fetchTicketRows\(\{ organizationId, dateFrom, dateToExclusive[\s\S]*ticket_date >= \$2::date[\s\S]*ticket_date < \$3::date[\s\S]*fetchTransactionRows\(\{ organizationId, dateFrom, dateToExclusive[\s\S]*transaction_at >= \$2::date[\s\S]*transaction_at < \$3::date/s,
+    "Tickets and transactions should export only the selected inclusive date interval."
+  );
+});
+
 test("finance Google Sheets export owns the agreed Russian tabs and columns", () => {
   const definitions = __financeGoogleSheetsContracts.SHEET_DEFINITIONS;
   assert.deepEqual(definitions.map((item) => item.title), [
     "Талоны",
-    "Транзакции",
-    "Балансы клиентов"
+    "Транзакции"
   ]);
   assert.deepEqual(definitions[0].headers, [
     "Номер талона",
@@ -64,12 +103,7 @@ test("finance Google Sheets export owns the agreed Russian tabs and columns", ()
     "Статус",
     "Примечание / Причина"
   ]);
-  assert.deepEqual(definitions[2].headers, [
-    "ID клиента",
-    "Клиент",
-    "Долг",
-    "Депозит"
-  ]);
+  assert.doesNotMatch(serviceSource, /Балансы клиентов|key: "balances"|exportBalances|fetchBalanceRows/);
 });
 
 test("ticket and transaction export rows preserve finance reconciliation values", () => {
@@ -201,13 +235,8 @@ test("Google Sheets export preserves formula columns and uses report access", ()
   );
   assert.match(
     serviceSource,
-    /SHEET_DEFINITIONS[\s\S]*lastColumn: "N"[\s\S]*lastColumn: "K"[\s\S]*clearLastColumn: "L"[\s\S]*lastColumn: "D"[\s\S]*trimEmptyTrailingColumns: true/s,
+    /SHEET_DEFINITIONS[\s\S]*lastColumn: "N"[\s\S]*lastColumn: "K"[\s\S]*clearLastColumn: "L"/s,
     "Clear ranges should stop before user formula columns."
-  );
-  assert.match(
-    serviceSource,
-    /async function trimEmptyTrailingColumns[\s\S]*spreadsheets\.values\.get[\s\S]*hasTrailingValues[\s\S]*if \(hasTrailingValues\) continue;[\s\S]*deleteDimension:[\s\S]*startIndex: requiredColumnCount,[\s\S]*endIndex: properties\.columnCount/s,
-    "The balances sheet should shrink to four columns only when all trailing columns are empty."
   );
   assert.match(
     serviceSource,
@@ -216,7 +245,12 @@ test("Google Sheets export preserves formula columns and uses report access", ()
   );
   assert.match(
     routesSource,
-    /"\/reports\/google-sheets\/config"[\s\S]*requireReportsAccess\(request, reply, "read"\)[\s\S]*"\/reports\/google-sheets\/export"[\s\S]*requireReportsAccess\(request, reply, "read"\)/s,
+    /"\/reports\/google-sheets\/config"[\s\S]*requireReportsAccess\(request, reply, "read"\)[\s\S]*"\/reports\/google-sheets\/export"[\s\S]*requireReportsAccess\(request, reply, "read"\)[\s\S]*dateFrom: request\.body\.dateFrom[\s\S]*dateTo: request\.body\.dateTo/s,
     "Both endpoints should use the existing finance reports permission."
+  );
+  assert.match(
+    routeSchemasSource,
+    /googleSheetsExportBody:[\s\S]*dateFrom[\s\S]*dateTo[\s\S]*spreadsheetUrl/s,
+    "The export schema should accept an explicit date interval."
   );
 });

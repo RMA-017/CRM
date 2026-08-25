@@ -8199,8 +8199,12 @@ button.finance-daily-cash-method-card:disabled {
 
 .finance-google-sheets-fields {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 112px;
+  grid-template-columns: minmax(104px, 0.7fr) repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.finance-google-sheets-url-field {
+  grid-column: 1 / -1;
 }
 
 .finance-google-sheets-meta {

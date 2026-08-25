@@ -331,6 +331,10 @@ export const financeRouteSchemas = Object.freeze({
           { type: "string", pattern: "^(20\\d{2}|2100)$" }
         ]
       },
+      dateFrom: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      date_from: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      dateTo: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      date_to: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
       spreadsheetUrl: {
         type: "string",
         minLength: 20,
