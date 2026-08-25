@@ -1111,6 +1111,7 @@ function FinanceReportsPanel({ onClose }) {
               <div className="finance-google-sheets-tabs" aria-label={translate("Sheets")}>
                 <span>Талоны</span>
                 <span>Транзакции</span>
+                <span>Балансы клиентов</span>
               </div>
 
               {shouldShowGoogleSheetsStatus ? (
@@ -1129,6 +1130,7 @@ function FinanceReportsPanel({ onClose }) {
                       <span>Период: {formatDateYMD(googleSheetsResult.dateFrom)} - {formatDateYMD(googleSheetsResult.dateTo)}</span>
                       <span>Талоны: {toNumber(googleSheetsResult.counts?.tickets)}</span>
                       <span>Транзакции: {toNumber(googleSheetsResult.counts?.transactions)}</span>
+                      <span>Балансы клиентов: {toNumber(googleSheetsResult.counts?.balances)}</span>
                     </div>
                   ) : null}
                 </div>

@@ -20,10 +20,9 @@ test("finance reports exposes the date-range Google Sheets export workflow", () 
   assert.match(panelSource, /const openGoogleSheetsExport = \(\) => \{[\s\S]*setGoogleSheetsOpen\(true\)/s);
   assert.match(
     panelSource,
-    /id="financeGoogleSheetsExportModal"[\s\S]*type="url"[\s\S]*type="number"[\s\S]*type="date"[\s\S]*type="date"[\s\S]*Талоны[\s\S]*Транзакции/s,
+    /id="financeGoogleSheetsExportModal"[\s\S]*type="url"[\s\S]*type="number"[\s\S]*type="date"[\s\S]*type="date"[\s\S]*Талоны[\s\S]*Транзакции[\s\S]*Балансы клиентов/s,
     "The export modal should collect the spreadsheet URL, year, date interval, and show the managed exported tabs."
   );
-  assert.doesNotMatch(panelSource, /Балансы клиентов/);
   assert.match(
     panelSource,
     /\/api\/finance\/reports\/google-sheets\/config\?year=[\s\S]*\/api\/finance\/reports\/google-sheets\/export[\s\S]*JSON\.stringify\(\{ year, dateFrom, dateTo, spreadsheetUrl \}\)/s,

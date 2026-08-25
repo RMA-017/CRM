@@ -72,7 +72,8 @@ test("finance Google Sheets export owns the agreed Russian tabs and columns", ()
   const definitions = __financeGoogleSheetsContracts.SHEET_DEFINITIONS;
   assert.deepEqual(definitions.map((item) => item.title), [
     "Талоны",
-    "Транзакции"
+    "Транзакции",
+    "Балансы клиентов"
   ]);
   assert.deepEqual(definitions[0].headers, [
     "Номер талона",
@@ -103,7 +104,17 @@ test("finance Google Sheets export owns the agreed Russian tabs and columns", ()
     "Статус",
     "Примечание / Причина"
   ]);
-  assert.doesNotMatch(serviceSource, /Балансы клиентов|key: "balances"|exportBalances|fetchBalanceRows/);
+  assert.deepEqual(definitions[2].headers, [
+    "ID клиента",
+    "Клиент",
+    "Долг",
+    "Депозит"
+  ]);
+  assert.match(
+    serviceSource,
+    /key: "balances"[\s\S]*title: "Балансы клиентов"[\s\S]*fetchBalanceRows[\s\S]*exportBalances[\s\S]*const counts = \{ tickets, transactions, balances \}/s,
+    "Client balances should be exported as the system balance snapshot."
+  );
 });
 
 test("ticket and transaction export rows preserve finance reconciliation values", () => {
@@ -235,7 +246,7 @@ test("Google Sheets export preserves formula columns and uses report access", ()
   );
   assert.match(
     serviceSource,
-    /SHEET_DEFINITIONS[\s\S]*lastColumn: "N"[\s\S]*lastColumn: "K"[\s\S]*clearLastColumn: "L"/s,
+    /SHEET_DEFINITIONS[\s\S]*lastColumn: "N"[\s\S]*lastColumn: "K"[\s\S]*clearLastColumn: "L"[\s\S]*lastColumn: "D"/s,
     "Clear ranges should stop before user formula columns."
   );
   assert.match(

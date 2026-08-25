@@ -50,11 +50,26 @@ const SHEET_DEFINITIONS = Object.freeze([
     dateColumns: [
       { columnIndex: 1, pattern: "dd.mm.yyyy hh:mm" }
     ]
+  },
+  {
+    key: "balances",
+    title: "Балансы клиентов",
+    lastColumn: "D",
+    headers: [
+      "ID клиента",
+      "Клиент",
+      "Долг",
+      "Депозит"
+    ],
+    moneyColumns: [2, 3],
+    dateColumns: [],
+    trimEmptyTrailingColumns: true
   }
 ]);
 
 const TICKET_BATCH_SIZE = 1000;
 const TRANSACTION_BATCH_SIZE = 2500;
+const BALANCE_BATCH_SIZE = 2500;
 const SHEETS_WRITE_CHUNK_SIZE = 2500;
 const GOOGLE_RETRY_ATTEMPTS = 5;
 const WRITE_THROTTLE_MS = 1050;
@@ -530,6 +545,74 @@ async function fetchTransactionRows({ organizationId, dateFrom, dateToExclusive,
   return result.rows;
 }
 
+async function fetchBalanceRows({ organizationId, cursor }) {
+  const result = await pool.query(
+    `SELECT c.id AS client_id,
+            CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+            COALESCE(debt.debt_uzs, 0) AS debt_uzs,
+            COALESCE(deposit.deposit_uzs, 0) AS deposit_uzs
+       FROM clients c
+       LEFT JOIN (
+         SELECT ft.client_id,
+                SUM(GREATEST(
+                  COALESCE(ft.total_uzs, ft.amount_uzs, 0) - COALESCE(fpaid.paid_amount_uzs, 0),
+                  0
+                )) AS debt_uzs
+           FROM finance_tickets ft
+           LEFT JOIN LATERAL (
+             SELECT COALESCE(SUM(CASE
+                      WHEN t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment') THEN t.amount_uzs
+                      WHEN t.transaction_type IN ('refund', 'deposit_ticket_refund') THEN -t.amount_uzs
+                      ELSE 0
+                    END), 0) AS paid_amount_uzs
+               FROM finance_transactions t
+              WHERE t.organization_id = ft.organization_id
+                AND t.ticket_id = ft.id
+                AND t.status = 'posted'
+                AND t.transaction_type IN (
+                  'ticket_payment',
+                  'deposit_ticket_payment',
+                  'refund',
+                  'deposit_ticket_refund'
+                )
+           ) fpaid ON TRUE
+          WHERE ft.organization_id = $1
+            AND ft.status IN ('issued', 'unpaid')
+          GROUP BY ft.client_id
+       ) debt ON debt.client_id = c.id
+       LEFT JOIN (
+         SELECT client_id,
+                SUM(CASE
+                  WHEN transaction_type = 'deposit_in' AND direction = 'in' THEN amount_uzs
+                  WHEN transaction_type = 'deposit_out' AND direction = 'out' THEN -amount_uzs
+                  WHEN transaction_type = 'deposit_ticket_payment' AND direction = 'transfer' THEN -amount_uzs
+                  WHEN transaction_type = 'deposit_ticket_refund' AND direction = 'transfer' THEN amount_uzs
+                  ELSE 0
+                END) AS deposit_uzs
+           FROM finance_transactions
+          WHERE organization_id = $1
+            AND status = 'posted'
+            AND transaction_type IN (
+              'deposit_in',
+              'deposit_out',
+              'deposit_ticket_payment',
+              'deposit_ticket_refund'
+            )
+          GROUP BY client_id
+       ) deposit ON deposit.client_id = c.id
+      WHERE c.organization_id = $1
+        AND c.id > $2
+        AND (
+          COALESCE(debt.debt_uzs, 0) > 0
+          OR COALESCE(deposit.deposit_uzs, 0) <> 0
+        )
+      ORDER BY c.id ASC
+      LIMIT $3`,
+    [organizationId, cursor, BALANCE_BATCH_SIZE]
+  );
+  return result.rows;
+}
+
 async function ensureSheets(sheets, spreadsheetId) {
   const metadata = await withGoogleRetry(() => sheets.spreadsheets.get({
     spreadsheetId,
@@ -851,6 +934,28 @@ async function exportTransactions({ organizationId, dateFrom, dateToExclusive, w
   return totalRows;
 }
 
+async function exportBalances({ organizationId, writeRows }) {
+  const definition = SHEET_DEFINITIONS[2];
+  let cursor = 0;
+  let outputRow = 2;
+  let totalRows = 0;
+  while (true) {
+    const sourceRows = await fetchBalanceRows({ organizationId, cursor });
+    if (sourceRows.length === 0) break;
+    const rows = sourceRows.map((row) => [
+      toInteger(row.client_id),
+      row.client_name || "",
+      Math.max(toInteger(row.debt_uzs), 0),
+      toInteger(row.deposit_uzs)
+    ]);
+    await writeRows(definition, outputRow, rows);
+    outputRow += rows.length;
+    totalRows += rows.length;
+    cursor = toInteger(sourceRows[sourceRows.length - 1]?.client_id);
+  }
+  return totalRows;
+}
+
 async function saveExportSuccess({
   organizationId,
   year,
@@ -991,12 +1096,13 @@ export async function exportFinanceToGoogleSheets({
       dateToExclusive: exportRange.dateToExclusive,
       writeRows
     });
+    const balances = await exportBalances({ organizationId, writeRows });
     await resizeSheetColumns({
       sheets,
       spreadsheetId: spreadsheet.spreadsheetId,
       sheetIds
     });
-    const counts = { tickets, transactions };
+    const counts = { tickets, transactions, balances };
     await saveExportSuccess({
       organizationId,
       year: exportYear,
