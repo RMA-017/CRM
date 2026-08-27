@@ -70,8 +70,8 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
 
   assert.match(
     financeServiceSource,
-    /function buildResolvedAppointmentServiceJoinSql[\s\S]*\$\{scheduleAlias\}\.service_id IS NULL[\s\S]*LOWER\(TRIM\(sc_service\.name\)\) = LOWER\(TRIM\(\$\{scheduleAlias\}\.service_name\)\)[\s\S]*export async function getCashierBoard[\s\S]*COALESCE\(a\.service_id, sc\.id\) AS service_id[\s\S]*COALESCE\(NULLIF\(TRIM\(a\.service_name\), ''\), sc\.name\) AS service_name[\s\S]*async function getAppointmentForTicket[\s\S]*COALESCE\(a\.service_id, sc\.id\) AS service_id[\s\S]*COALESCE\(NULLIF\(TRIM\(a\.service_name\), ''\), sc\.name\) AS service_name/s,
-    "Cashier appointment cards and appointment-backed ticket creation should recover service id/name from the active catalog when older planner rows only kept service name."
+    /function buildResolvedAppointmentServiceJoinSql[\s\S]*\$\{scheduleAlias\}\.service_id IS NOT NULL AND sc_service\.id = \$\{scheduleAlias\}\.service_id[\s\S]*NULLIF\(TRIM\(\$\{scheduleAlias\}\.service_name\), ''\) IS NOT NULL[\s\S]*LOWER\(TRIM\(sc_service\.name\)\) = LOWER\(TRIM\(\$\{scheduleAlias\}\.service_name\)\)[\s\S]*ORDER BY CASE[\s\S]*export async function getCashierBoard[\s\S]*COALESCE\(a\.service_id, sc\.id\) AS service_id[\s\S]*COALESCE\(NULLIF\(TRIM\(a\.service_name\), ''\), sc\.name\) AS service_name[\s\S]*async function getAppointmentForTicket[\s\S]*COALESCE\(a\.service_id, sc\.id\) AS service_id[\s\S]*COALESCE\(NULLIF\(TRIM\(a\.service_name\), ''\), sc\.name\) AS service_name/s,
+    "Cashier appointment cards and appointment-backed ticket creation should recover service id/name from the active catalog when older planner rows only kept service name or point to a stale service id."
   );
 
   assert.match(
@@ -719,8 +719,8 @@ test("finance report filters expose report-scoped client search and broad cashie
 
   assert.match(
     financeServiceSource,
-    /const appointmentServiceAmountSql = `CASE[\s\S]*s\.appointment_date >= sc\.updated_at::date[\s\S]*COALESCE\(\(\$\{appointmentServiceAmountSql\}\), 0\) AS service_amount_uzs[\s\S]*LOWER\(TRIM\(s\.status\)\) IN \('cancelled', 'no-show'\)[\s\S]*COALESCE\(\(\$\{appointmentServiceAmountSql\}\), 0\)[\s\S]*lost_amount_uzs[\s\S]*LEFT JOIN service_catalog sc[\s\S]*lostAmountUzs,[\s\S]*lostAppointmentCount/s,
-    "Finance reports should expose lost amounts for cancelled and no-show appointment rows."
+    /const appointmentServiceAmountSql = `CASE[\s\S]*s\.appointment_date >= sc\.updated_at::date[\s\S]*WHEN COALESCE\(s\.service_price_uzs, 0\) > 0[\s\S]*WHEN sc\.id IS NOT NULL[\s\S]*THEN sc\.price_uzs[\s\S]*COALESCE\(NULLIF\(TRIM\(s\.service_name\), ''\), sc\.name, 'Service'\) AS service_name[\s\S]*COALESCE\(\(\$\{appointmentServiceAmountSql\}\), 0\) AS service_amount_uzs[\s\S]*LOWER\(TRIM\(s\.status\)\) IN \('cancelled', 'no-show'\)[\s\S]*COALESCE\(\(\$\{appointmentServiceAmountSql\}\), 0\)[\s\S]*lost_amount_uzs[\s\S]*buildResolvedAppointmentServiceJoinSql\("s", "sc"\)[\s\S]*lostAmountUzs,[\s\S]*lostAppointmentCount/s,
+    "Finance reports should expose lost amounts for cancelled and no-show appointment rows, including old slots resolved by service name."
   );
 
   const financeOnlyFiltersBlock = financeServiceSource.match(
@@ -735,7 +735,7 @@ test("finance report filters expose report-scoped client search and broad cashie
 
   assert.match(
     financeServiceSource,
-    /if \(clientFilterIds\.length > 0\) \{[\s\S]*appointmentWhere\.push\(`c\.id = ANY\(\$\$\{appointmentParams\.length\}::int\[\]\)`\);[\s\S]*if \(serviceFilterIds\.length > 0\) \{[\s\S]*appointmentWhere\.push\(`s\.service_id = ANY\(\$\$\{appointmentParams\.length\}::int\[\]\)`\);[\s\S]*if \(serviceAmountFrom !== null\) \{[\s\S]*appointmentWhere\.push\(`COALESCE\(\(\$\{appointmentServiceAmountSql\}\), 0\) >= \$\$\{appointmentParams\.length\}`\);[\s\S]*if \(serviceAmountTo !== null\) \{[\s\S]*appointmentWhere\.push\(`COALESCE\(\(\$\{appointmentServiceAmountSql\}\), 0\) <= \$\$\{appointmentParams\.length\}`\);/s,
+    /if \(clientFilterIds\.length > 0\) \{[\s\S]*appointmentWhere\.push\(`c\.id = ANY\(\$\$\{appointmentParams\.length\}::int\[\]\)`\);[\s\S]*if \(serviceFilterIds\.length > 0\) \{[\s\S]*appointmentWhere\.push\(`\(s\.service_id = ANY\(\$\$\{appointmentParams\.length\}::int\[\]\) OR sc\.id = ANY\(\$\$\{appointmentParams\.length\}::int\[\]\)\)`\);[\s\S]*if \(serviceAmountFrom !== null\) \{[\s\S]*appointmentWhere\.push\(`COALESCE\(\(\$\{appointmentServiceAmountSql\}\), 0\) >= \$\$\{appointmentParams\.length\}`\);[\s\S]*if \(serviceAmountTo !== null\) \{[\s\S]*appointmentWhere\.push\(`COALESCE\(\(\$\{appointmentServiceAmountSql\}\), 0\) <= \$\$\{appointmentParams\.length\}`\);/s,
     "Appointment-only report rows should support multi client, service name and service amount filters."
   );
 

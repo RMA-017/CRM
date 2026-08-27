@@ -556,8 +556,7 @@ function buildResolvedAppointmentServiceJoinSql(scheduleAlias = "a", serviceAlia
             AND (
               (${scheduleAlias}.service_id IS NOT NULL AND sc_service.id = ${scheduleAlias}.service_id)
               OR (
-                ${scheduleAlias}.service_id IS NULL
-                AND NULLIF(TRIM(${scheduleAlias}.service_name), '') IS NOT NULL
+                NULLIF(TRIM(${scheduleAlias}.service_name), '') IS NOT NULL
                 AND LOWER(TRIM(sc_service.name)) = LOWER(TRIM(${scheduleAlias}.service_name))
               )
             )
@@ -3453,6 +3452,11 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
        AND s.appointment_date >= sc.updated_at::date
        AND COALESCE(sc.price_uzs, 0) > 0
       THEN sc.price_uzs
+      WHEN COALESCE(s.service_price_uzs, 0) > 0
+      THEN s.service_price_uzs
+      WHEN sc.id IS NOT NULL
+       AND COALESCE(sc.price_uzs, 0) > 0
+      THEN sc.price_uzs
       ELSE s.service_price_uzs
     END`;
     const appointmentWhere = [
@@ -3505,10 +3509,10 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
     }
     if (serviceFilterIds.length > 0) {
       appointmentParams.push(serviceFilterIds);
-      appointmentWhere.push(`s.service_id = ANY($${appointmentParams.length}::int[])`);
+      appointmentWhere.push(`(s.service_id = ANY($${appointmentParams.length}::int[]) OR sc.id = ANY($${appointmentParams.length}::int[]))`);
     } else if (serviceNameValues.length > 0) {
       appointmentParams.push(toLikePatterns(serviceNameValues));
-      appointmentWhere.push(`LOWER(COALESCE(s.service_name, '')) LIKE ANY($${appointmentParams.length}::text[])`);
+      appointmentWhere.push(`LOWER(COALESCE(NULLIF(TRIM(s.service_name), ''), sc.name, '')) LIKE ANY($${appointmentParams.length}::text[])`);
     }
     if (serviceAmountFrom !== null) {
       appointmentParams.push(serviceAmountFrom);
@@ -3557,7 +3561,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
               ''::text AS ticket_status,
               NULL::bigint AS ticket_item_id,
               0::int AS ticket_item_line_number,
-              COALESCE(NULLIF(TRIM(s.service_name), ''), 'Service') AS service_name,
+              COALESCE(NULLIF(TRIM(s.service_name), ''), sc.name, 'Service') AS service_name,
               COALESCE((${appointmentServiceAmountSql}), 0) AS service_amount_uzs,
               0::bigint AS service_discount_uzs,
               COALESCE((${appointmentServiceAmountSql}), 0) AS service_final_amount_uzs,
@@ -3586,10 +3590,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
          JOIN clients c ON c.organization_id = s.organization_id AND c.id = s.client_id
          LEFT JOIN users u ON u.organization_id = s.organization_id AND u.id = s.specialist_id
          LEFT JOIN position_options p ON p.organization_id = u.organization_id AND p.id = u.position_id
-         LEFT JOIN service_catalog sc
-           ON sc.organization_id = s.organization_id
-          AND sc.id = s.service_id
-          AND sc.is_active = TRUE
+         ${buildResolvedAppointmentServiceJoinSql("s", "sc")}
          LEFT JOIN LATERAL (
            SELECT apr.reason
              FROM appointment_parent_responses apr
