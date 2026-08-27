@@ -5,10 +5,45 @@ const positiveIntegerLikeSchema = {
   ]
 };
 
+const positiveIntegerListLikeSchema = {
+  anyOf: [
+    positiveIntegerLikeSchema,
+    { type: "string", pattern: "^[1-9]\\d*(?:,[1-9]\\d*)*$", maxLength: 512 }
+  ]
+};
+
 const booleanLikeSchema = {
   anyOf: [
     { type: "boolean" },
     { type: "string", enum: ["true", "false", "1", "0", "yes", "no", "on", "off"] }
+  ]
+};
+
+const clientGenderListSchema = {
+  anyOf: [
+    { type: "string", enum: ["", "male", "female"] },
+    { type: "string", pattern: "^(?:male|female)(?:,(?:male|female))*$", maxLength: 64 }
+  ]
+};
+
+const transactionStatusListSchema = {
+  anyOf: [
+    { type: "string", enum: ["", "posted", "voided"] },
+    { type: "string", pattern: "^(?:posted|voided)(?:,(?:posted|voided))*$", maxLength: 64 }
+  ]
+};
+
+const appointmentStatusListSchema = {
+  anyOf: [
+    { type: "string", enum: ["", "pending", "confirmed", "cancelled", "no-show"] },
+    { type: "string", pattern: "^(?:pending|confirmed|cancelled|no-show)(?:,(?:pending|confirmed|cancelled|no-show))*$", maxLength: 128 }
+  ]
+};
+
+const ticketStatusListSchema = {
+  anyOf: [
+    { type: "string", enum: ["", "issued", "unpaid", "paid", "voided"] },
+    { type: "string", pattern: "^(?:issued|unpaid|paid|voided)(?:,(?:issued|unpaid|paid|voided))*$", maxLength: 128 }
   ]
 };
 
@@ -251,36 +286,36 @@ export const financeRouteSchemas = Object.freeze({
       payment_date_to: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
       ticketNumber: { type: "string", maxLength: 12 },
       ticket_number: { type: "string", maxLength: 12 },
-      client: { type: "string", maxLength: 96 },
-      clientId: positiveIntegerLikeSchema,
-      client_id: positiveIntegerLikeSchema,
+      client: { type: "string", maxLength: 512 },
+      clientId: positiveIntegerListLikeSchema,
+      client_id: positiveIntegerListLikeSchema,
       clientBirthdayFrom: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
       clientBirthdayTo: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
       client_birthday_from: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
       client_birthday_to: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
-      clientGender: { type: "string", enum: ["", "male", "female"] },
-      client_gender: { type: "string", enum: ["", "male", "female"] },
-      clientPhone: { type: "string", maxLength: 32 },
-      client_phone: { type: "string", maxLength: 32 },
-      service: { type: "string", maxLength: 128 },
-      serviceId: positiveIntegerLikeSchema,
-      service_id: positiveIntegerLikeSchema,
+      clientGender: clientGenderListSchema,
+      client_gender: clientGenderListSchema,
+      clientPhone: { type: "string", maxLength: 512 },
+      client_phone: { type: "string", maxLength: 512 },
+      service: { type: "string", maxLength: 512 },
+      serviceId: positiveIntegerListLikeSchema,
+      service_id: positiveIntegerListLikeSchema,
       serviceAmountFrom: nonNegativeIntegerLikeSchema,
       serviceAmountTo: nonNegativeIntegerLikeSchema,
       service_amount_from: nonNegativeIntegerLikeSchema,
       service_amount_to: nonNegativeIntegerLikeSchema,
-      specialist: { type: "string", maxLength: 96 },
-      specialistId: positiveIntegerLikeSchema,
-      specialist_id: positiveIntegerLikeSchema,
-      position: { type: "string", maxLength: 96 },
-      department: { type: "string", maxLength: 96 },
-      positionId: positiveIntegerLikeSchema,
-      position_id: positiveIntegerLikeSchema,
-      cashier: { type: "string", maxLength: 96 },
-      cashierId: positiveIntegerLikeSchema,
-      cashier_id: positiveIntegerLikeSchema,
-      paymentMethodId: positiveIntegerLikeSchema,
-      payment_method_id: positiveIntegerLikeSchema,
+      specialist: { type: "string", maxLength: 512 },
+      specialistId: positiveIntegerListLikeSchema,
+      specialist_id: positiveIntegerListLikeSchema,
+      position: { type: "string", maxLength: 512 },
+      department: { type: "string", maxLength: 512 },
+      positionId: positiveIntegerListLikeSchema,
+      position_id: positiveIntegerListLikeSchema,
+      cashier: { type: "string", maxLength: 512 },
+      cashierId: positiveIntegerListLikeSchema,
+      cashier_id: positiveIntegerListLikeSchema,
+      paymentMethodId: positiveIntegerListLikeSchema,
+      payment_method_id: positiveIntegerListLikeSchema,
       ticketDiscountFrom: nonNegativeIntegerLikeSchema,
       ticketDiscountTo: nonNegativeIntegerLikeSchema,
       ticket_discount_from: nonNegativeIntegerLikeSchema,
@@ -293,14 +328,14 @@ export const financeRouteSchemas = Object.freeze({
       ticketPaidTo: nonNegativeIntegerLikeSchema,
       ticket_paid_from: nonNegativeIntegerLikeSchema,
       ticket_paid_to: nonNegativeIntegerLikeSchema,
-      transactionType: { type: "string", maxLength: 64 },
-      transaction_type: { type: "string", maxLength: 64 },
-      transactionStatus: { type: "string", enum: ["", "posted", "voided"] },
-      transaction_status: { type: "string", enum: ["", "posted", "voided"] },
-      appointmentStatus: { type: "string", enum: ["", "pending", "confirmed", "cancelled", "no-show"] },
-      appointment_status: { type: "string", enum: ["", "pending", "confirmed", "cancelled", "no-show"] },
-      ticketStatus: { type: "string", enum: ["", "issued", "unpaid", "paid", "voided"] },
-      ticket_status: { type: "string", enum: ["", "issued", "unpaid", "paid", "voided"] },
+      transactionType: { type: "string", maxLength: 512 },
+      transaction_type: { type: "string", maxLength: 512 },
+      transactionStatus: transactionStatusListSchema,
+      transaction_status: transactionStatusListSchema,
+      appointmentStatus: appointmentStatusListSchema,
+      appointment_status: appointmentStatusListSchema,
+      ticketStatus: ticketStatusListSchema,
+      ticket_status: ticketStatusListSchema,
       includeVoided: { type: "string", enum: ["", "1", "true", "false", "yes", "no", "on", "off"] },
       include_voided: { type: "string", enum: ["", "1", "true", "false", "yes", "no", "on", "off"] },
       allDates: { type: "string", enum: ["", "1", "true", "false", "yes", "no", "on", "off"] },

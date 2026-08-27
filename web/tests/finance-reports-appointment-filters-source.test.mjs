@@ -7,6 +7,11 @@ const panelSource = await readFile(
   "utf8"
 );
 
+const customSelectSource = await readFile(
+  new URL("../src/components/CustomSelect.jsx", import.meta.url),
+  "utf8"
+);
+
 const translationsSource = await readFile(
   new URL("../src/i18n/translations.js", import.meta.url),
   "utf8"
@@ -39,8 +44,20 @@ test("finance reports expose appointment date and lesson status filters", () => 
 
   assert.match(
     panelSource,
-    /renderDateRangeField\("appointmentDate", "Appointment Date", "appointmentDateFrom", "appointmentDateTo"\)[\s\S]*renderColumnToggle\("appointmentStatus", "Appointment Status"\)[\s\S]*APPOINTMENT_STATUS_OPTIONS[\s\S]*updateFilterValue\("appointmentStatus", value\)/s,
-    "The filter modal should render appointment date and status controls."
+    /renderDateRangeField\("appointmentDate", "Appointment Date", "appointmentDateFrom", "appointmentDateTo"\)[\s\S]*renderColumnToggle\("appointmentStatus", "Appointment Status"\)[\s\S]*APPOINTMENT_STATUS_OPTIONS[\s\S]*multiple[\s\S]*multipleSelectedLabel=\{multiSelectLabel\}[\s\S]*updateFilterValue\("appointmentStatus", value\)/s,
+    "The filter modal should render appointment date and multi-status controls."
+  );
+
+  assert.match(
+    customSelectSource,
+    /multiple = false[\s\S]*normalizeSelectedValues[\s\S]*aria-multiselectable=\{multiple \? "true" : undefined\}[\s\S]*toggleMultipleValue\(option\.value\)/s,
+    "CustomSelect should support non-breaking multi-select mode for report filters."
+  );
+
+  assert.match(
+    panelSource,
+    /function normalizeFilterQueryValue[\s\S]*return value\.map[\s\S]*query\.set\(key, normalized\);/s,
+    "Finance reports should serialize multiple selected filter values into the API query."
   );
 
   assert.match(

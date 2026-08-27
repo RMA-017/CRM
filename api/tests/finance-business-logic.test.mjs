@@ -695,8 +695,8 @@ test("finance report filters expose report-scoped client search and broad cashie
 
   assert.match(
     financeServiceSource,
-    /const appointmentDateFrom = normalizeDate\(filters\.appointmentDateFrom \?\? filters\.appointment_date_from\);[\s\S]*const appointmentStatus = normalizeText\(filters\.appointmentStatus \?\? filters\.appointment_status, 32\)/s,
-    "Finance reports should normalize appointment date and status filters."
+    /const appointmentDateFrom = normalizeDate\(filters\.appointmentDateFrom \?\? filters\.appointment_date_from\);[\s\S]*const appointmentStatusRaw = filters\.appointmentStatus \?\? filters\.appointment_status;[\s\S]*const appointmentStatusValues = normalizeAllowedTextList\(appointmentStatusRaw, appointmentStatuses,[\s\S]*replaceUnderscore: true/s,
+    "Finance reports should normalize appointment date and multi-status filters."
   );
 
   assert.match(
@@ -707,7 +707,7 @@ test("finance report filters expose report-scoped client search and broad cashie
 
   assert.match(
     financeServiceSource,
-    /commonWhere\.push\(`a\.appointment_date >= \$\$\{params\.length\}::date`\);[\s\S]*commonWhere\.push\(`a\.appointment_date <= \$\$\{params\.length\}::date`\);[\s\S]*commonWhere\.push\(`LOWER\(TRIM\(COALESCE\(a\.status, ''\)\)\) = \$\$\{params\.length\}`\);/s,
+    /commonWhere\.push\(`a\.appointment_date >= \$\$\{params\.length\}::date`\);[\s\S]*commonWhere\.push\(`a\.appointment_date <= \$\$\{params\.length\}::date`\);[\s\S]*commonWhere\.push\(`LOWER\(REPLACE\(TRIM\(COALESCE\(a\.status, ''\)\), '_', '-'\)\) = ANY\(\$\$\{params\.length\}::text\[\]\)`\);/s,
     "Finance report filters should apply appointment date and status to appointment-backed tickets."
   );
 
@@ -735,8 +735,14 @@ test("finance report filters expose report-scoped client search and broad cashie
 
   assert.match(
     financeServiceSource,
-    /if \(clientId\) \{[\s\S]*appointmentWhere\.push\(`c\.id = \$\$\{appointmentParams\.length\}`\);[\s\S]*if \(serviceId\) \{[\s\S]*appointmentWhere\.push\(`s\.service_id = \$\$\{appointmentParams\.length\}`\);[\s\S]*if \(serviceAmountFrom !== null\) \{[\s\S]*appointmentWhere\.push\(`COALESCE\(\(\$\{appointmentServiceAmountSql\}\), 0\) >= \$\$\{appointmentParams\.length\}`\);[\s\S]*if \(serviceAmountTo !== null\) \{[\s\S]*appointmentWhere\.push\(`COALESCE\(\(\$\{appointmentServiceAmountSql\}\), 0\) <= \$\$\{appointmentParams\.length\}`\);/s,
-    "Appointment-only report rows should support client, service name and service amount filters."
+    /if \(clientFilterIds\.length > 0\) \{[\s\S]*appointmentWhere\.push\(`c\.id = ANY\(\$\$\{appointmentParams\.length\}::int\[\]\)`\);[\s\S]*if \(serviceFilterIds\.length > 0\) \{[\s\S]*appointmentWhere\.push\(`s\.service_id = ANY\(\$\$\{appointmentParams\.length\}::int\[\]\)`\);[\s\S]*if \(serviceAmountFrom !== null\) \{[\s\S]*appointmentWhere\.push\(`COALESCE\(\(\$\{appointmentServiceAmountSql\}\), 0\) >= \$\$\{appointmentParams\.length\}`\);[\s\S]*if \(serviceAmountTo !== null\) \{[\s\S]*appointmentWhere\.push\(`COALESCE\(\(\$\{appointmentServiceAmountSql\}\), 0\) <= \$\$\{appointmentParams\.length\}`\);/s,
+    "Appointment-only report rows should support multi client, service name and service amount filters."
+  );
+
+  assert.match(
+    financeServiceSource,
+    /if \(serviceAmountFrom !== null\) \{[\s\S]*COALESCE\(fti_filter\.price_uzs, ft\.amount_uzs, 0\) >= \$\$\{params\.length\}[\s\S]*NOT EXISTS \([\s\S]*FROM finance_ticket_items fti_filter[\s\S]*COALESCE\(ft\.amount_uzs, 0\) >= \$\$\{params\.length\}[\s\S]*itemOnlyWhere\.push\(`COALESCE\(fti\.price_uzs, ft\.amount_uzs, 0\) >= \$\$\{params\.length\}`\);[\s\S]*if \(serviceAmountTo !== null\) \{[\s\S]*COALESCE\(fti_filter\.price_uzs, ft\.amount_uzs, 0\) <= \$\$\{params\.length\}[\s\S]*COALESCE\(ft\.amount_uzs, 0\) <= \$\$\{params\.length\}/s,
+    "Finance report service amount filters should match legacy ticket amount fallbacks when ticket item prices are missing."
   );
 });
 

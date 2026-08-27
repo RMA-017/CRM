@@ -33,7 +33,7 @@ test("ticket edit modal keeps only change reason and preserves existing note", a
   );
   assert.match(
     customSelectSource,
-    /map\.set\(String\(option\.value\), option\.selectedLabel \|\| option\.label\);[\s\S]*optionLabelByValue\.get\(String\(value\)\)[\s\S]*aria-selected=\{String\(option\.value\) === String\(value\) \? "true" : "false"\}/s,
+    /map\.set\(String\(option\.value\), option\.selectedLabel \|\| option\.label\);[\s\S]*optionLabelByValue\.get\(String\(value\)\)[\s\S]*const optionValue = String\(option\.value \?\? ""\);[\s\S]*optionValue === String\(value\)/s,
     "Disabled client selects should still show labels when API ids arrive as numbers but form ids are strings."
   );
 });

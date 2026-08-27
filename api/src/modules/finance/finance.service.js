@@ -131,6 +131,53 @@ function normalizeIdList(value, limit = 50) {
   return ids.slice(0, limit);
 }
 
+function normalizeTextList(value, maxLength = 255, limit = 50) {
+  const rawValues = Array.isArray(value) ? value : String(value ?? "").split(",");
+  const values = [];
+  const seen = new Set();
+  rawValues.forEach((item) => {
+    const normalized = normalizeText(item, maxLength);
+    if (!normalized) return;
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    values.push(normalized);
+  });
+  return values.slice(0, limit);
+}
+
+function normalizeLowerTextList(value, maxLength = 255, limit = 50) {
+  return normalizeTextList(value, maxLength, limit).map((item) => item.toLowerCase());
+}
+
+function normalizeAllowedTextList(value, allowedSet, { maxLength = 64, limit = 50, replaceUnderscore = false } = {}) {
+  const values = [];
+  const seen = new Set();
+  normalizeTextList(value, maxLength, limit).forEach((item) => {
+    const normalized = (replaceUnderscore ? item.replace(/_/g, "-") : item).toLowerCase();
+    if (!allowedSet.has(normalized) || seen.has(normalized)) return;
+    seen.add(normalized);
+    values.push(normalized);
+  });
+  return values;
+}
+
+function normalizeGenderList(value) {
+  const values = [];
+  const seen = new Set();
+  normalizeTextList(value, 24, 10).forEach((item) => {
+    const normalized = normalizeGender(item);
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    values.push(normalized);
+  });
+  return values;
+}
+
+function toLikePatterns(values) {
+  return values.map((item) => `%${item}%`);
+}
+
 function normalizeDiscountType(value) {
   const normalized = String(value || "").trim().toLowerCase();
   return normalized === "percent" ? "percent" : "amount";
@@ -2595,15 +2642,26 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
   const paymentDateFrom = normalizeDate(filters.paymentDateFrom ?? filters.payment_date_from ?? filters.dateFrom ?? filters.date_from);
   const paymentDateTo = normalizeDate(filters.paymentDateTo ?? filters.payment_date_to ?? filters.dateTo ?? filters.date_to);
   const ticketNumber = normalizeText(filters.ticketNumber ?? filters.ticket_number, 12);
-  const client = normalizeText(filters.client, 96).toLowerCase();
-  const clientId = parsePositiveInteger(filters.clientId ?? filters.client_id);
+  const clientRaw = filters.client;
+  const clientTextValues = normalizeLowerTextList(clientRaw, 96, 100);
+  const clientExplicitIdValues = normalizeIdList(filters.clientId ?? filters.client_id, 100);
+  const clientRawIdValues = normalizeIdList(clientRaw, 100);
+  const clientFilterIds = clientExplicitIdValues.length > 0
+    ? clientExplicitIdValues
+    : (clientTextValues.length > 0 && clientRawIdValues.length === clientTextValues.length ? clientRawIdValues : []);
+  const clientNameValues = clientFilterIds.length > 0 ? [] : clientTextValues;
   const clientBirthdayFrom = normalizeDate(filters.clientBirthdayFrom ?? filters.client_birthday_from);
   const clientBirthdayTo = normalizeDate(filters.clientBirthdayTo ?? filters.client_birthday_to);
-  const clientGender = normalizeGender(filters.clientGender ?? filters.client_gender);
-  const clientPhone = normalizeText(filters.clientPhone ?? filters.client_phone, 32);
+  const clientGenderValues = normalizeGenderList(filters.clientGender ?? filters.client_gender);
+  const clientPhoneValues = normalizeTextList(filters.clientPhone ?? filters.client_phone, 32, 100);
   const serviceRaw = filters.service ?? filters.serviceName ?? filters.service_name;
-  const service = normalizeText(serviceRaw, 128).toLowerCase();
-  const serviceId = parsePositiveInteger(filters.serviceId ?? filters.service_id ?? serviceRaw);
+  const serviceTextValues = normalizeLowerTextList(serviceRaw, 128, 100);
+  const serviceExplicitIdValues = normalizeIdList(filters.serviceId ?? filters.service_id, 100);
+  const serviceRawIdValues = normalizeIdList(serviceRaw, 100);
+  const serviceFilterIds = serviceExplicitIdValues.length > 0
+    ? serviceExplicitIdValues
+    : (serviceTextValues.length > 0 && serviceRawIdValues.length === serviceTextValues.length ? serviceRawIdValues : []);
+  const serviceNameValues = serviceFilterIds.length > 0 ? [] : serviceTextValues;
   const serviceAmountFrom = normalizeOptionalAmount(filters.serviceAmountFrom ?? filters.service_amount_from);
   const serviceAmountTo = normalizeOptionalAmount(filters.serviceAmountTo ?? filters.service_amount_to);
   const discountFrom = normalizeOptionalAmount(filters.ticketDiscountFrom ?? filters.ticket_discount_from ?? filters.discountFrom ?? filters.discount_from);
@@ -2613,19 +2671,34 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
   const ticketPaidFrom = normalizeOptionalAmount(filters.ticketPaidFrom ?? filters.ticket_paid_from);
   const ticketPaidTo = normalizeOptionalAmount(filters.ticketPaidTo ?? filters.ticket_paid_to);
   const specialistRaw = filters.specialist ?? filters.specialistId ?? filters.specialist_id;
-  const specialist = normalizeText(specialistRaw, 96).toLowerCase();
-  const specialistId = parsePositiveInteger(filters.specialistId ?? filters.specialist_id ?? specialistRaw);
+  const specialistTextValues = normalizeLowerTextList(specialistRaw, 96, 100);
+  const specialistExplicitIdValues = normalizeIdList(filters.specialistId ?? filters.specialist_id, 100);
+  const specialistRawIdValues = normalizeIdList(specialistRaw, 100);
+  const specialistFilterIds = specialistExplicitIdValues.length > 0
+    ? specialistExplicitIdValues
+    : (specialistTextValues.length > 0 && specialistRawIdValues.length === specialistTextValues.length ? specialistRawIdValues : []);
+  const specialistNameValues = specialistFilterIds.length > 0 ? [] : specialistTextValues;
   const positionRaw = filters.position ?? filters.department ?? filters.positionId ?? filters.position_id;
-  const position = normalizeText(positionRaw, 96).toLowerCase();
-  const positionId = parsePositiveInteger(filters.positionId ?? filters.position_id ?? positionRaw);
+  const positionTextValues = normalizeLowerTextList(positionRaw, 96, 100);
+  const positionExplicitIdValues = normalizeIdList(filters.positionId ?? filters.position_id, 100);
+  const positionRawIdValues = normalizeIdList(positionRaw, 100);
+  const positionFilterIds = positionExplicitIdValues.length > 0
+    ? positionExplicitIdValues
+    : (positionTextValues.length > 0 && positionRawIdValues.length === positionTextValues.length ? positionRawIdValues : []);
+  const positionNameValues = positionFilterIds.length > 0 ? [] : positionTextValues;
   const cashierRaw = filters.cashier ?? filters.cashierId ?? filters.cashier_id;
-  const cashier = normalizeText(cashierRaw, 96).toLowerCase();
-  const cashierId = parsePositiveInteger(filters.cashierId ?? filters.cashier_id ?? cashierRaw);
-  const paymentMethodId = parsePositiveInteger(filters.paymentMethodId ?? filters.payment_method_id);
-  const transactionType = normalizeText(filters.transactionType ?? filters.transaction_type, 64).toLowerCase();
-  const transactionStatus = normalizeText(filters.transactionStatus ?? filters.transaction_status, 32).toLowerCase();
-  const appointmentStatus = normalizeText(filters.appointmentStatus ?? filters.appointment_status, 32).toLowerCase().replace(/_/g, "-");
-  const ticketStatus = normalizeText(filters.ticketStatus ?? filters.ticket_status, 32).toLowerCase();
+  const cashierTextValues = normalizeLowerTextList(cashierRaw, 96, 100);
+  const cashierExplicitIdValues = normalizeIdList(filters.cashierId ?? filters.cashier_id, 100);
+  const cashierRawIdValues = normalizeIdList(cashierRaw, 100);
+  const cashierFilterIds = cashierExplicitIdValues.length > 0
+    ? cashierExplicitIdValues
+    : (cashierTextValues.length > 0 && cashierRawIdValues.length === cashierTextValues.length ? cashierRawIdValues : []);
+  const cashierNameValues = cashierFilterIds.length > 0 ? [] : cashierTextValues;
+  const paymentMethodIds = normalizeIdList(filters.paymentMethodId ?? filters.payment_method_id, 100);
+  const transactionTypeRaw = filters.transactionType ?? filters.transaction_type;
+  const transactionStatusRaw = filters.transactionStatus ?? filters.transaction_status;
+  const appointmentStatusRaw = filters.appointmentStatus ?? filters.appointment_status;
+  const ticketStatusRaw = filters.ticketStatus ?? filters.ticket_status;
   const includeVoided = normalizeBooleanFlag(filters.includeVoided ?? filters.include_voided);
   const reportTransactionTypes = [
     "ticket_payment",
@@ -2642,9 +2715,18 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
     "refund",
     "deposit_ticket_refund"
   ];
+  const reportTransactionTypeSet = new Set(reportTransactionTypes);
+  const ticketMovementTypeSet = new Set(ticketMovementTypes);
   const ticketStatuses = new Set(["issued", "unpaid", "paid", "voided"]);
   const transactionStatuses = new Set(["posted", "voided"]);
   const appointmentStatuses = new Set(["pending", "confirmed", "cancelled", "no-show"]);
+  const transactionTypes = normalizeAllowedTextList(transactionTypeRaw, reportTransactionTypeSet, { maxLength: 64 });
+  const transactionStatusValues = normalizeAllowedTextList(transactionStatusRaw, transactionStatuses, { maxLength: 32 });
+  const appointmentStatusValues = normalizeAllowedTextList(appointmentStatusRaw, appointmentStatuses, {
+    maxLength: 32,
+    replaceUnderscore: true
+  });
+  const ticketStatusValues = normalizeAllowedTextList(ticketStatusRaw, ticketStatuses, { maxLength: 32 });
   const params = [organizationId];
   const commonWhere = [
     "t.organization_id = $1"
@@ -2683,31 +2765,26 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
     params.push(appointmentDateTo);
     commonWhere.push(`a.appointment_date <= $${params.length}::date`);
   }
-  if (appointmentStatuses.has(appointmentStatus)) {
-    params.push(appointmentStatus);
-    commonWhere.push(`LOWER(TRIM(COALESCE(a.status, ''))) = $${params.length}`);
+  if (appointmentStatusValues.length > 0) {
+    params.push(appointmentStatusValues);
+    commonWhere.push(`LOWER(REPLACE(TRIM(COALESCE(a.status, '')), '_', '-')) = ANY($${params.length}::text[])`);
   }
 
-  if (transactionStatuses.has(transactionStatus)) {
-    params.push(transactionStatus);
-    commonWhere.push(`t.status = $${params.length}`);
+  if (transactionStatusValues.length > 0) {
+    params.push(transactionStatusValues);
+    commonWhere.push(`t.status = ANY($${params.length}::text[])`);
   } else if (includeVoided) {
     commonWhere.push("t.status IN ('posted', 'voided')");
   } else {
     commonWhere.push("t.status = 'posted'");
   }
 
-  if (clientId) {
-    params.push(clientId);
-    commonWhere.push(`c.id = $${params.length}`);
-  } else if (client) {
-    if (/^\d+$/.test(client)) {
-      params.push(Number.parseInt(client, 10));
-      commonWhere.push(`c.id = $${params.length}`);
-    } else {
-      params.push(`%${client}%`);
-      commonWhere.push(`LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE $${params.length}`);
-    }
+  if (clientFilterIds.length > 0) {
+    params.push(clientFilterIds);
+    commonWhere.push(`c.id = ANY($${params.length}::int[])`);
+  } else if (clientNameValues.length > 0) {
+    params.push(toLikePatterns(clientNameValues));
+    commonWhere.push(`LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE ANY($${params.length}::text[])`);
   }
 
   if (clientBirthdayFrom) {
@@ -2718,13 +2795,13 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
     params.push(clientBirthdayTo);
     commonWhere.push(`c.birthday <= $${params.length}::date`);
   }
-  if (clientGender) {
-    params.push(clientGender);
-    commonWhere.push(`LOWER(COALESCE(c.gender, '')) = $${params.length}`);
+  if (clientGenderValues.length > 0) {
+    params.push(clientGenderValues);
+    commonWhere.push(`LOWER(COALESCE(c.gender, '')) = ANY($${params.length}::text[])`);
   }
-  if (clientPhone) {
-    params.push(`%${clientPhone}%`);
-    commonWhere.push(`COALESCE(c.phone_number, '') LIKE $${params.length}`);
+  if (clientPhoneValues.length > 0) {
+    params.push(toLikePatterns(clientPhoneValues));
+    commonWhere.push(`COALESCE(c.phone_number, '') LIKE ANY($${params.length}::text[])`);
   }
 
   if (/^\d{1,8}$/.test(ticketNumber)) {
@@ -2732,81 +2809,81 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
     commonWhere.push(`ft.ticket_number = $${params.length}`);
   }
 
-  if (serviceId) {
-    params.push(serviceId);
+  if (serviceFilterIds.length > 0) {
+    params.push(serviceFilterIds);
     commonWhere.push(`(
-      ft.service_id = $${params.length}
+      ft.service_id = ANY($${params.length}::int[])
       OR EXISTS (
         SELECT 1
           FROM finance_ticket_items fti_filter
          WHERE fti_filter.organization_id = ft.organization_id
            AND fti_filter.ticket_id = ft.id
-          AND fti_filter.service_id = $${params.length}
+          AND fti_filter.service_id = ANY($${params.length}::int[])
       )
     )`);
-    itemOnlyWhere.push(`fti.service_id = $${params.length}`);
-  } else if (service) {
-    params.push(`%${service}%`);
+    itemOnlyWhere.push(`fti.service_id = ANY($${params.length}::int[])`);
+  } else if (serviceNameValues.length > 0) {
+    params.push(toLikePatterns(serviceNameValues));
     commonWhere.push(`(
-      LOWER(COALESCE(ft.service_name, '')) LIKE $${params.length}
+      LOWER(COALESCE(ft.service_name, '')) LIKE ANY($${params.length}::text[])
       OR EXISTS (
         SELECT 1
           FROM finance_ticket_items fti_filter
          WHERE fti_filter.organization_id = ft.organization_id
            AND fti_filter.ticket_id = ft.id
-           AND LOWER(COALESCE(fti_filter.service_name, '')) LIKE $${params.length}
+           AND LOWER(COALESCE(fti_filter.service_name, '')) LIKE ANY($${params.length}::text[])
       )
     )`);
-    itemOnlyWhere.push(`LOWER(COALESCE(fti.service_name, '')) LIKE $${params.length}`);
+    itemOnlyWhere.push(`LOWER(COALESCE(fti.service_name, '')) LIKE ANY($${params.length}::text[])`);
   }
 
-  if (specialistId) {
-    params.push(specialistId);
+  if (specialistFilterIds.length > 0) {
+    params.push(specialistFilterIds);
     commonWhere.push(`(
-      ft.specialist_id = $${params.length}
+      ft.specialist_id = ANY($${params.length}::int[])
       OR EXISTS (
         SELECT 1
           FROM finance_ticket_items fti_filter
          WHERE fti_filter.organization_id = ft.organization_id
            AND fti_filter.ticket_id = ft.id
-          AND fti_filter.specialist_id = $${params.length}
+          AND fti_filter.specialist_id = ANY($${params.length}::int[])
       )
     )`);
-    itemOnlyWhere.push(`fti.specialist_id = $${params.length}`);
-  } else if (specialist) {
-    params.push(`%${specialist}%`);
+    itemOnlyWhere.push(`fti.specialist_id = ANY($${params.length}::int[])`);
+  } else if (specialistNameValues.length > 0) {
+    params.push(toLikePatterns(specialistNameValues));
     commonWhere.push(`(
-      LOWER(COALESCE(NULLIF(TRIM(ts.full_name), ''), NULLIF(TRIM(ts.username), ''), '')) LIKE $${params.length}
+      LOWER(COALESCE(NULLIF(TRIM(ts.full_name), ''), NULLIF(TRIM(ts.username), ''), '')) LIKE ANY($${params.length}::text[])
       OR EXISTS (
         SELECT 1
           FROM finance_ticket_items fti_filter
           LEFT JOIN users iu ON iu.organization_id = fti_filter.organization_id AND iu.id = fti_filter.specialist_id
          WHERE fti_filter.organization_id = ft.organization_id
            AND fti_filter.ticket_id = ft.id
-           AND LOWER(COALESCE(NULLIF(TRIM(iu.full_name), ''), NULLIF(TRIM(iu.username), ''), '')) LIKE $${params.length}
+           AND LOWER(COALESCE(NULLIF(TRIM(iu.full_name), ''), NULLIF(TRIM(iu.username), ''), '')) LIKE ANY($${params.length}::text[])
       )
     )`);
-    itemOnlyWhere.push(`LOWER(COALESCE(NULLIF(TRIM(isu.full_name), ''), NULLIF(TRIM(isu.username), ''), '')) LIKE $${params.length}`);
+    itemOnlyWhere.push(`LOWER(COALESCE(NULLIF(TRIM(isu.full_name), ''), NULLIF(TRIM(isu.username), ''), '')) LIKE ANY($${params.length}::text[])`);
   }
 
-  if (positionId) {
-    params.push(positionId);
+  if (positionFilterIds.length > 0) {
+    params.push(positionFilterIds);
     commonWhere.push(`(
-      ts.position_id = $${params.length}
+      ts.position_id = ANY($${params.length}::int[])
       OR EXISTS (
         SELECT 1
           FROM finance_ticket_items fti_filter
           LEFT JOIN users iu ON iu.organization_id = fti_filter.organization_id AND iu.id = fti_filter.specialist_id
          WHERE fti_filter.organization_id = ft.organization_id
            AND fti_filter.ticket_id = ft.id
-           AND iu.position_id = $${params.length}
+           AND iu.position_id = ANY($${params.length}::int[])
       )
     )`);
-    itemOnlyWhere.push(`isu.position_id = $${params.length}`);
-  } else if (position) {
-    params.push(`%${position}%`);
+    itemOnlyWhere.push(`isu.position_id = ANY($${params.length}::int[])`);
+  } else if (positionNameValues.length > 0) {
+    params.push(toLikePatterns(positionNameValues));
     commonWhere.push(`(
-      LOWER(COALESCE(tp.label, '')) LIKE $${params.length}
+      LOWER(COALESCE(tp.label, '')) LIKE ANY($${params.length}::text[])
       OR EXISTS (
         SELECT 1
           FROM finance_ticket_items fti_filter
@@ -2814,50 +2891,74 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
           LEFT JOIN position_options ip ON ip.organization_id = iu.organization_id AND ip.id = iu.position_id
          WHERE fti_filter.organization_id = ft.organization_id
            AND fti_filter.ticket_id = ft.id
-           AND LOWER(COALESCE(ip.label, '')) LIKE $${params.length}
+           AND LOWER(COALESCE(ip.label, '')) LIKE ANY($${params.length}::text[])
       )
     )`);
-    itemOnlyWhere.push(`LOWER(COALESCE(ip.label, '')) LIKE $${params.length}`);
+    itemOnlyWhere.push(`LOWER(COALESCE(ip.label, '')) LIKE ANY($${params.length}::text[])`);
   }
 
-  if (cashierId) {
-    params.push(cashierId);
-    commonWhere.push(`s.cashier_user_id = $${params.length}`);
-  } else if (cashier) {
-    params.push(`%${cashier}%`);
-    params.push(cashier);
+  if (cashierFilterIds.length > 0) {
+    params.push(cashierFilterIds);
+    commonWhere.push(`s.cashier_user_id = ANY($${params.length}::int[])`);
+  } else if (cashierNameValues.length > 0) {
+    params.push(toLikePatterns(cashierNameValues));
+    params.push(cashierNameValues);
     commonWhere.push(`(
-      LOWER(COALESCE(NULLIF(TRIM(cu.full_name), ''), NULLIF(TRIM(cu.username), ''), '')) LIKE $${params.length - 1}
-      OR s.cashier_user_id::text = $${params.length}
+      LOWER(COALESCE(NULLIF(TRIM(cu.full_name), ''), NULLIF(TRIM(cu.username), ''), '')) LIKE ANY($${params.length - 1}::text[])
+      OR s.cashier_user_id::text = ANY($${params.length}::text[])
     )`);
   }
 
-  if (paymentMethodId) {
-    params.push(paymentMethodId);
-    commonWhere.push(`t.payment_method_id = $${params.length}`);
+  if (paymentMethodIds.length > 0) {
+    params.push(paymentMethodIds);
+    commonWhere.push(`t.payment_method_id = ANY($${params.length}::int[])`);
   }
 
   if (serviceAmountFrom !== null) {
     params.push(serviceAmountFrom);
-    commonWhere.push(`EXISTS (
-      SELECT 1
-        FROM finance_ticket_items fti_filter
-       WHERE fti_filter.organization_id = ft.organization_id
-         AND fti_filter.ticket_id = ft.id
-         AND fti_filter.price_uzs >= $${params.length}
+    commonWhere.push(`(
+      EXISTS (
+        SELECT 1
+          FROM finance_ticket_items fti_filter
+         WHERE fti_filter.organization_id = ft.organization_id
+           AND fti_filter.ticket_id = ft.id
+           AND COALESCE(fti_filter.price_uzs, ft.amount_uzs, 0) >= $${params.length}
+      )
+      OR (
+        ft.id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+            FROM finance_ticket_items fti_filter
+           WHERE fti_filter.organization_id = ft.organization_id
+             AND fti_filter.ticket_id = ft.id
+        )
+        AND COALESCE(ft.amount_uzs, 0) >= $${params.length}
+      )
     )`);
-    itemOnlyWhere.push(`fti.price_uzs >= $${params.length}`);
+    itemOnlyWhere.push(`COALESCE(fti.price_uzs, ft.amount_uzs, 0) >= $${params.length}`);
   }
   if (serviceAmountTo !== null) {
     params.push(serviceAmountTo);
-    commonWhere.push(`EXISTS (
-      SELECT 1
-        FROM finance_ticket_items fti_filter
-       WHERE fti_filter.organization_id = ft.organization_id
-         AND fti_filter.ticket_id = ft.id
-         AND fti_filter.price_uzs <= $${params.length}
+    commonWhere.push(`(
+      EXISTS (
+        SELECT 1
+          FROM finance_ticket_items fti_filter
+         WHERE fti_filter.organization_id = ft.organization_id
+           AND fti_filter.ticket_id = ft.id
+           AND COALESCE(fti_filter.price_uzs, ft.amount_uzs, 0) <= $${params.length}
+      )
+      OR (
+        ft.id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+            FROM finance_ticket_items fti_filter
+           WHERE fti_filter.organization_id = ft.organization_id
+             AND fti_filter.ticket_id = ft.id
+        )
+        AND COALESCE(ft.amount_uzs, 0) <= $${params.length}
+      )
     )`);
-    itemOnlyWhere.push(`fti.price_uzs <= $${params.length}`);
+    itemOnlyWhere.push(`COALESCE(fti.price_uzs, ft.amount_uzs, 0) <= $${params.length}`);
   }
   if (discountFrom !== null) {
     params.push(discountFrom);
@@ -2898,25 +2999,28 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
     commonWhere.push(`COALESCE(fpaid.paid_amount_uzs, 0) <= $${params.length}`);
   }
 
-  if (ticketStatuses.has(ticketStatus)) {
-    params.push(ticketStatus);
-    commonWhere.push(`ft.status = $${params.length}`);
+  if (ticketStatusValues.length > 0) {
+    params.push(ticketStatusValues);
+    commonWhere.push(`ft.status = ANY($${params.length}::text[])`);
   }
 
   const reportWhere = [...commonWhere];
   let transactionTypeParam = "";
-  if (reportTransactionTypes.includes(transactionType)) {
-    params.push(transactionType);
+  if (transactionTypes.length > 0) {
+    params.push(transactionTypes);
     transactionTypeParam = `$${params.length}`;
-    reportWhere.push(`t.transaction_type = ${transactionTypeParam}`);
+    reportWhere.push(`t.transaction_type = ANY(${transactionTypeParam}::text[])`);
   } else {
     reportWhere.push("t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund', 'deposit_in', 'deposit_out', 'correction')");
   }
   const ticketMovementWhereParts = [...commonWhere];
-  if (transactionType && !ticketMovementTypes.includes(transactionType)) {
+  const selectedTicketMovementTypes = transactionTypes.filter((type) => ticketMovementTypeSet.has(type));
+  if (transactionTypes.length > 0 && selectedTicketMovementTypes.length === 0) {
+    ticketMovementWhereParts.push(`t.transaction_type = ANY(${transactionTypeParam}::text[])`);
     ticketMovementWhereParts.push("FALSE");
-  } else if (transactionTypeParam) {
-    ticketMovementWhereParts.push(`t.transaction_type = ${transactionTypeParam}`);
+  } else if (selectedTicketMovementTypes.length > 0) {
+    ticketMovementWhereParts.push(`t.transaction_type = ANY(${transactionTypeParam}::text[])`);
+    ticketMovementWhereParts.push("t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')");
   } else {
     ticketMovementWhereParts.push("t.transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')");
   }
@@ -3318,7 +3422,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
   const shouldLoadAppointmentDetails = Boolean(
     appointmentDateFrom
     || appointmentDateTo
-    || appointmentStatuses.has(appointmentStatus)
+    || appointmentStatusValues.length > 0
   );
   const hasFinanceOnlyFilters = Boolean(
     ticketCreatedFrom
@@ -3328,12 +3432,12 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
     || paymentDateFrom
     || paymentDateTo
     || ticketNumber
-    || cashier
-    || cashierId
-    || paymentMethodId
-    || reportTransactionTypes.includes(transactionType)
-    || transactionStatuses.has(transactionStatus)
-    || ticketStatuses.has(ticketStatus)
+    || cashierNameValues.length > 0
+    || cashierFilterIds.length > 0
+    || paymentMethodIds.length > 0
+    || transactionTypes.length > 0
+    || transactionStatusValues.length > 0
+    || ticketStatusValues.length > 0
     || discountFrom !== null
     || discountTo !== null
     || ticketToPayFrom !== null
@@ -3354,7 +3458,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
     const appointmentWhere = [
       "s.organization_id = $1",
       "s.client_id IS NOT NULL",
-      "LOWER(TRIM(s.status)) IN ('pending', 'confirmed', 'cancelled', 'no-show')",
+      "LOWER(REPLACE(TRIM(s.status), '_', '-')) IN ('pending', 'confirmed', 'cancelled', 'no-show')",
       `NOT EXISTS (
         SELECT 1
           FROM finance_tickets aft
@@ -3372,21 +3476,16 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
       appointmentParams.push(appointmentDateTo);
       appointmentWhere.push(`s.appointment_date <= $${appointmentParams.length}::date`);
     }
-    if (appointmentStatuses.has(appointmentStatus)) {
-      appointmentParams.push(appointmentStatus);
-      appointmentWhere.push(`LOWER(TRIM(s.status)) = $${appointmentParams.length}`);
+    if (appointmentStatusValues.length > 0) {
+      appointmentParams.push(appointmentStatusValues);
+      appointmentWhere.push(`LOWER(REPLACE(TRIM(s.status), '_', '-')) = ANY($${appointmentParams.length}::text[])`);
     }
-    if (clientId) {
-      appointmentParams.push(clientId);
-      appointmentWhere.push(`c.id = $${appointmentParams.length}`);
-    } else if (client) {
-      if (/^\d+$/.test(client)) {
-        appointmentParams.push(Number.parseInt(client, 10));
-        appointmentWhere.push(`c.id = $${appointmentParams.length}`);
-      } else {
-        appointmentParams.push(`%${client}%`);
-        appointmentWhere.push(`LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE $${appointmentParams.length}`);
-      }
+    if (clientFilterIds.length > 0) {
+      appointmentParams.push(clientFilterIds);
+      appointmentWhere.push(`c.id = ANY($${appointmentParams.length}::int[])`);
+    } else if (clientNameValues.length > 0) {
+      appointmentParams.push(toLikePatterns(clientNameValues));
+      appointmentWhere.push(`LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE ANY($${appointmentParams.length}::text[])`);
     }
     if (clientBirthdayFrom) {
       appointmentParams.push(clientBirthdayFrom);
@@ -3396,20 +3495,20 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
       appointmentParams.push(clientBirthdayTo);
       appointmentWhere.push(`c.birthday <= $${appointmentParams.length}::date`);
     }
-    if (clientGender) {
-      appointmentParams.push(clientGender);
-      appointmentWhere.push(`LOWER(COALESCE(c.gender, '')) = $${appointmentParams.length}`);
+    if (clientGenderValues.length > 0) {
+      appointmentParams.push(clientGenderValues);
+      appointmentWhere.push(`LOWER(COALESCE(c.gender, '')) = ANY($${appointmentParams.length}::text[])`);
     }
-    if (clientPhone) {
-      appointmentParams.push(`%${clientPhone}%`);
-      appointmentWhere.push(`COALESCE(c.phone_number, '') LIKE $${appointmentParams.length}`);
+    if (clientPhoneValues.length > 0) {
+      appointmentParams.push(toLikePatterns(clientPhoneValues));
+      appointmentWhere.push(`COALESCE(c.phone_number, '') LIKE ANY($${appointmentParams.length}::text[])`);
     }
-    if (serviceId) {
-      appointmentParams.push(serviceId);
-      appointmentWhere.push(`s.service_id = $${appointmentParams.length}`);
-    } else if (service) {
-      appointmentParams.push(`%${service}%`);
-      appointmentWhere.push(`LOWER(COALESCE(s.service_name, '')) LIKE $${appointmentParams.length}`);
+    if (serviceFilterIds.length > 0) {
+      appointmentParams.push(serviceFilterIds);
+      appointmentWhere.push(`s.service_id = ANY($${appointmentParams.length}::int[])`);
+    } else if (serviceNameValues.length > 0) {
+      appointmentParams.push(toLikePatterns(serviceNameValues));
+      appointmentWhere.push(`LOWER(COALESCE(s.service_name, '')) LIKE ANY($${appointmentParams.length}::text[])`);
     }
     if (serviceAmountFrom !== null) {
       appointmentParams.push(serviceAmountFrom);
@@ -3419,19 +3518,19 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
       appointmentParams.push(serviceAmountTo);
       appointmentWhere.push(`COALESCE((${appointmentServiceAmountSql}), 0) <= $${appointmentParams.length}`);
     }
-    if (specialistId) {
-      appointmentParams.push(specialistId);
-      appointmentWhere.push(`s.specialist_id = $${appointmentParams.length}`);
-    } else if (specialist) {
-      appointmentParams.push(`%${specialist}%`);
-      appointmentWhere.push(`LOWER(COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), '')) LIKE $${appointmentParams.length}`);
+    if (specialistFilterIds.length > 0) {
+      appointmentParams.push(specialistFilterIds);
+      appointmentWhere.push(`s.specialist_id = ANY($${appointmentParams.length}::int[])`);
+    } else if (specialistNameValues.length > 0) {
+      appointmentParams.push(toLikePatterns(specialistNameValues));
+      appointmentWhere.push(`LOWER(COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), '')) LIKE ANY($${appointmentParams.length}::text[])`);
     }
-    if (positionId) {
-      appointmentParams.push(positionId);
-      appointmentWhere.push(`u.position_id = $${appointmentParams.length}`);
-    } else if (position) {
-      appointmentParams.push(`%${position}%`);
-      appointmentWhere.push(`LOWER(COALESCE(p.label, '')) LIKE $${appointmentParams.length}`);
+    if (positionFilterIds.length > 0) {
+      appointmentParams.push(positionFilterIds);
+      appointmentWhere.push(`u.position_id = ANY($${appointmentParams.length}::int[])`);
+    } else if (positionNameValues.length > 0) {
+      appointmentParams.push(toLikePatterns(positionNameValues));
+      appointmentWhere.push(`LOWER(COALESCE(p.label, '')) LIKE ANY($${appointmentParams.length}::text[])`);
     }
 
     const appointmentWhereSql = appointmentWhere.join("\n    AND ");
@@ -3541,29 +3640,29 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
       paymentDateFrom,
       paymentDateTo,
       ticketNumber,
-      client: clientId || client,
-      clientId: clientId || "",
+      client: clientFilterIds.length > 0 ? clientFilterIds.join(",") : clientNameValues.join(","),
+      clientId: clientExplicitIdValues.join(","),
       clientBirthdayFrom,
       clientBirthdayTo,
-      clientGender,
-      clientPhone,
-      service: serviceId || service,
+      clientGender: clientGenderValues.join(","),
+      clientPhone: clientPhoneValues.join(","),
+      service: serviceFilterIds.length > 0 ? serviceFilterIds.join(",") : serviceNameValues.join(","),
       serviceAmountFrom: serviceAmountFrom ?? "",
       serviceAmountTo: serviceAmountTo ?? "",
-      specialist: specialistId || specialist,
-      position: positionId || position,
-      cashier: cashierId || cashier,
-      paymentMethodId: paymentMethodId || "",
+      specialist: specialistFilterIds.length > 0 ? specialistFilterIds.join(",") : specialistNameValues.join(","),
+      position: positionFilterIds.length > 0 ? positionFilterIds.join(",") : positionNameValues.join(","),
+      cashier: cashierFilterIds.length > 0 ? cashierFilterIds.join(",") : cashierNameValues.join(","),
+      paymentMethodId: paymentMethodIds.join(","),
       ticketDiscountFrom: discountFrom ?? "",
       ticketDiscountTo: discountTo ?? "",
       ticketToPayFrom: ticketToPayFrom ?? "",
       ticketToPayTo: ticketToPayTo ?? "",
       ticketPaidFrom: ticketPaidFrom ?? "",
       ticketPaidTo: ticketPaidTo ?? "",
-      transactionType,
-      transactionStatus,
-      appointmentStatus,
-      ticketStatus,
+      transactionType: transactionTypes.join(","),
+      transactionStatus: transactionStatusValues.join(","),
+      appointmentStatus: appointmentStatusValues.join(","),
+      ticketStatus: ticketStatusValues.join(","),
       includeVoided
     },
     summary: {

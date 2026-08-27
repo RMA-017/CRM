@@ -6,6 +6,19 @@ const CUSTOM_SELECT_MENU_GAP_PX = 2;
 const CUSTOM_SELECT_MENU_PADDING_PX = 12;
 const CUSTOM_SELECT_SEARCH_BLOCK_HEIGHT_PX = 36;
 
+function normalizeSelectedValues(value) {
+  const rawValues = Array.isArray(value) ? value : String(value ?? "").split(",");
+  const values = [];
+  const seen = new Set();
+  rawValues.forEach((item) => {
+    const normalized = String(item ?? "").trim();
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    values.push(normalized);
+  });
+  return values;
+}
+
 function CustomSelect({
   value,
   options,
@@ -24,6 +37,8 @@ function CustomSelect({
   searchThreshold = 0,
   menuWidthScale = 1,
   menuHeightScale = 1,
+  multiple = false,
+  multipleSelectedLabel = "selected",
   emptyText = "No options found.",
   onSearchChange = null
 }) {
@@ -59,6 +74,10 @@ function CustomSelect({
     ? Math.max(0.5, Math.min(menuHeightScale, 2))
     : 1;
   const shouldShowSearch = searchable && normalizedOptions.length >= normalizedSearchThreshold;
+  const selectedValues = useMemo(() => (
+    multiple ? normalizeSelectedValues(value) : []
+  ), [multiple, value]);
+  const selectedValueSet = useMemo(() => new Set(selectedValues), [selectedValues]);
   const filteredOptions = useMemo(() => {
     if (!shouldShowSearch) {
       return normalizedOptions;
@@ -73,8 +92,17 @@ function CustomSelect({
   }, [normalizedOptions, searchQuery, shouldShowSearch]);
 
   const selectedLabel = useMemo(() => {
+    if (multiple) {
+      if (selectedValues.length === 0) {
+        return placeholder;
+      }
+      if (selectedValues.length === 1) {
+        return optionLabelByValue.get(selectedValues[0]) || selectedValues[0];
+      }
+      return `${selectedValues.length} ${multipleSelectedLabel}`;
+    }
     return optionLabelByValue.get(String(value)) || placeholder;
-  }, [optionLabelByValue, placeholder, value]);
+  }, [multiple, multipleSelectedLabel, optionLabelByValue, placeholder, selectedValues, value]);
 
   useEffect(() => {
     if (!open || !triggerRef.current) {
@@ -183,6 +211,20 @@ function CustomSelect({
           : {})
       };
 
+  const toggleMultipleValue = (rawValue) => {
+    const optionValue = String(rawValue ?? "").trim();
+    if (!optionValue) {
+      onChange("");
+      setOpen(false);
+      return;
+    }
+
+    const nextValues = selectedValueSet.has(optionValue)
+      ? selectedValues.filter((item) => item !== optionValue)
+      : [...selectedValues, optionValue];
+    onChange(nextValues.join(","));
+  };
+
   useEffect(() => {
     if (!open && searchQuery) {
       setSearchQuery("");
@@ -229,6 +271,7 @@ function CustomSelect({
       ref={menuRef}
       className="custom-select-menu"
       role="listbox"
+      aria-multiselectable={multiple ? "true" : undefined}
       hidden={!open}
       style={inlineMenuStyle}
       onWheel={(event) => {
@@ -258,20 +301,33 @@ function CustomSelect({
       ) : null}
       {open ? (
         filteredOptions.length > 0 ? (
-          filteredOptions.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className="custom-select-option"
-              aria-selected={String(option.value) === String(value) ? "true" : "false"}
-              onClick={() => {
-                onChange(option.value);
-                setOpen(false);
-              }}
-            >
-              {option.label}
-            </button>
-          ))
+          filteredOptions.map((option) => {
+            const optionValue = String(option.value ?? "");
+            const isSelected = multiple
+              ? selectedValueSet.has(optionValue)
+              : optionValue === String(value);
+            return (
+              <button
+                key={option.value}
+                type="button"
+                className={`custom-select-option${multiple ? " has-check" : ""}`}
+                aria-selected={isSelected ? "true" : "false"}
+                onClick={() => {
+                  if (multiple) {
+                    toggleMultipleValue(option.value);
+                    return;
+                  }
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+              >
+                {multiple ? (
+                  <span className="custom-select-option-check" aria-hidden="true" />
+                ) : null}
+                <span className="custom-select-option-label">{option.label}</span>
+              </button>
+            );
+          })
         ) : (
           <div className="custom-select-empty">{emptyText}</div>
         )
@@ -280,7 +336,7 @@ function CustomSelect({
   );
 
   return (
-    <div ref={wrapRef} id={id} className={`custom-select${openUp ? " open-up" : ""}`}>
+    <div ref={wrapRef} id={id} className={`custom-select${openUp ? " open-up" : ""}${multiple ? " is-multiple" : ""}`}>
       <button
         ref={triggerRef}
         type="button"

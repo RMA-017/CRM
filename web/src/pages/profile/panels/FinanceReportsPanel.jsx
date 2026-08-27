@@ -203,6 +203,29 @@ function makeClientPhoneOption(item) {
   };
 }
 
+function splitFilterSelectValues(value) {
+  const values = [];
+  const seen = new Set();
+  String(value ?? "").split(",").forEach((item) => {
+    const normalized = item.trim();
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    values.push(normalized);
+  });
+  return values;
+}
+
+function makeSelectedClientValueOption(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized) return null;
+  const isNumeric = /^\d+$/.test(normalized);
+  return {
+    value: normalized,
+    label: isNumeric ? `#${normalized}` : normalized,
+    selectedLabel: isNumeric ? `#${normalized}` : normalized
+  };
+}
+
 function mergeSelectOptions(...groups) {
   const seen = new Set();
   const merged = [];
@@ -397,6 +420,13 @@ function removeColumnWithDependents(columnKeys, columnKey) {
   return columnKeys.filter((key) => !blocked.has(key));
 }
 
+function normalizeFilterQueryValue(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || "").trim()).filter(Boolean).join(",");
+  }
+  return String(value || "").trim();
+}
+
 function buildFinanceReportsQuery(filters, columnKeys) {
   const selected = new Set(Array.isArray(columnKeys) ? columnKeys : []);
   const activeFilterKeys = new Set();
@@ -408,7 +438,7 @@ function buildFinanceReportsQuery(filters, columnKeys) {
 
   Object.entries(filters || {}).forEach(([key, value]) => {
     if (!activeFilterKeys.has(key)) return;
-    const normalized = String(value || "").trim();
+    const normalized = normalizeFilterQueryValue(value);
     if (normalized) {
       query.set(key, normalized);
     }
@@ -435,6 +465,7 @@ function applyFilterDefaultsForColumns(filters, columnKeys) {
 
 function FinanceReportsPanel({ onClose }) {
   const { translate } = useI18n();
+  const multiSelectLabel = translate("selected");
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
   const [report, setReport] = useState(null);
@@ -517,19 +548,21 @@ function FinanceReportsPanel({ onClose }) {
     return [{ value: "", label: translate("All") }, ...options];
   }, [filterReferences.cashiers, translate]);
 
+  const clientOptions = useMemo(() => mergeSelectOptions(
+    [{ value: "", label: translate("All"), selectedLabel: translate("All") }],
+    splitFilterSelectValues(filters.client).map(makeSelectedClientValueOption),
+    filterClientOptions
+  ), [filterClientOptions, filters.client, translate]);
+
   const clientIdOptions = useMemo(() => mergeSelectOptions(
     [{ value: "", label: translate("All"), selectedLabel: translate("All") }],
-    filters.clientId
-      ? [{ value: filters.clientId, label: `#${filters.clientId}`, selectedLabel: filters.clientId }]
-      : [],
+    splitFilterSelectValues(filters.clientId).map((id) => ({ value: id, label: `#${id}`, selectedLabel: id })),
     filterClientIdOptions
   ), [filterClientIdOptions, filters.clientId, translate]);
 
   const clientPhoneOptions = useMemo(() => mergeSelectOptions(
     [{ value: "", label: translate("All"), selectedLabel: translate("All") }],
-    filters.clientPhone
-      ? [{ value: filters.clientPhone, label: filters.clientPhone, selectedLabel: filters.clientPhone }]
-      : [],
+    splitFilterSelectValues(filters.clientPhone).map((phone) => ({ value: phone, label: phone, selectedLabel: phone })),
     filterClientPhoneOptions
   ), [filterClientPhoneOptions, filters.clientPhone, translate]);
 
@@ -1186,6 +1219,8 @@ function FinanceReportsPanel({ onClose }) {
                     value={filters.paymentMethodId}
                     options={[{ value: "", label: translate("All") }, ...paymentMethodOptions]}
                     menuPortal
+                    multiple
+                    multipleSelectedLabel={multiSelectLabel}
                     disabled={!isColumnSelected("paymentMethod")}
                     onChange={(value) => updateFilterValue("paymentMethodId", value)}
                   />
@@ -1200,6 +1235,8 @@ function FinanceReportsPanel({ onClose }) {
                     searchPlaceholder={translate("Search")}
                     searchThreshold={0}
                     menuPortal
+                    multiple
+                    multipleSelectedLabel={multiSelectLabel}
                     disabled={!isColumnSelected("cashier") || filterReferencesLoading}
                     onChange={(value) => updateFilterValue("cashier", value)}
                   />
@@ -1208,13 +1245,15 @@ function FinanceReportsPanel({ onClose }) {
                   {renderColumnToggle("client", "Client")}
                   <CustomSelect
                     value={filters.client}
-                    options={[{ value: "", label: translate("All") }, ...filterClientOptions]}
+                    options={clientOptions}
                     placeholder={translate("Client")}
                     searchable
                     searchPlaceholder={translate("Search by name or ID")}
                     searchThreshold={0}
                     menuPortal
                     menuHeightScale={1.2}
+                    multiple
+                    multipleSelectedLabel={multiSelectLabel}
                     disabled={!isColumnSelected("client")}
                     emptyText={filterClientSearchBusy ? "..." : translate("No clients found.")}
                     onSearchChange={setFilterClientSearch}
@@ -1232,6 +1271,8 @@ function FinanceReportsPanel({ onClose }) {
                     searchThreshold={0}
                     menuPortal
                     menuHeightScale={1.2}
+                    multiple
+                    multipleSelectedLabel={multiSelectLabel}
                     disabled={!isColumnSelected("clientId")}
                     emptyText={filterClientIdSearchBusy ? "..." : translate("No clients found.")}
                     onSearchChange={setFilterClientIdSearch}
@@ -1245,6 +1286,8 @@ function FinanceReportsPanel({ onClose }) {
                     value={filters.clientGender}
                     options={CLIENT_GENDER_OPTIONS.map((option) => ({ ...option, label: translate(option.label) }))}
                     menuPortal
+                    multiple
+                    multipleSelectedLabel={multiSelectLabel}
                     disabled={!isColumnSelected("clientGender")}
                     onChange={(value) => updateFilterValue("clientGender", value)}
                   />
@@ -1260,6 +1303,8 @@ function FinanceReportsPanel({ onClose }) {
                     searchThreshold={0}
                     menuPortal
                     menuHeightScale={1.2}
+                    multiple
+                    multipleSelectedLabel={multiSelectLabel}
                     disabled={!isColumnSelected("clientPhone")}
                     emptyText={filterClientPhoneSearchBusy ? "..." : translate("No clients found.")}
                     onSearchChange={setFilterClientPhoneSearch}
@@ -1276,6 +1321,8 @@ function FinanceReportsPanel({ onClose }) {
                     searchPlaceholder={translate("Search")}
                     searchThreshold={8}
                     menuPortal
+                    multiple
+                    multipleSelectedLabel={multiSelectLabel}
                     disabled={!isColumnSelected("specialist") || filterReferencesLoading}
                     onChange={(value) => updateFilterValue("specialist", value)}
                   />
@@ -1290,6 +1337,8 @@ function FinanceReportsPanel({ onClose }) {
                     searchPlaceholder={translate("Search")}
                     searchThreshold={8}
                     menuPortal
+                    multiple
+                    multipleSelectedLabel={multiSelectLabel}
                     disabled={!isColumnSelected("department") || filterReferencesLoading}
                     onChange={(value) => updateFilterValue("position", value)}
                   />
@@ -1304,6 +1353,8 @@ function FinanceReportsPanel({ onClose }) {
                     searchPlaceholder={translate("Search")}
                     searchThreshold={8}
                     menuPortal
+                    multiple
+                    multipleSelectedLabel={multiSelectLabel}
                     disabled={!isColumnSelected("service") || filterReferencesLoading}
                     onChange={(value) => updateFilterValue("service", value)}
                   />
@@ -1318,6 +1369,8 @@ function FinanceReportsPanel({ onClose }) {
                     value={filters.transactionType}
                     options={TRANSACTION_TYPE_OPTIONS.map((option) => ({ ...option, label: translate(option.label) }))}
                     menuPortal
+                    multiple
+                    multipleSelectedLabel={multiSelectLabel}
                     disabled={!isColumnSelected("operationType")}
                     onChange={(value) => updateFilterValue("transactionType", value)}
                   />
@@ -1328,6 +1381,8 @@ function FinanceReportsPanel({ onClose }) {
                     value={filters.ticketStatus}
                     options={TICKET_STATUS_OPTIONS.map((option) => ({ ...option, label: translate(option.label) }))}
                     menuPortal
+                    multiple
+                    multipleSelectedLabel={multiSelectLabel}
                     disabled={!isColumnSelected("ticketStatus")}
                     onChange={(value) => updateFilterValue("ticketStatus", value)}
                   />
@@ -1338,6 +1393,8 @@ function FinanceReportsPanel({ onClose }) {
                     value={filters.appointmentStatus}
                     options={APPOINTMENT_STATUS_OPTIONS.map((option) => ({ ...option, label: translate(option.label) }))}
                     menuPortal
+                    multiple
+                    multipleSelectedLabel={multiSelectLabel}
                     disabled={!isColumnSelected("appointmentStatus")}
                     onChange={(value) => updateFilterValue("appointmentStatus", value)}
                   />
@@ -1348,6 +1405,8 @@ function FinanceReportsPanel({ onClose }) {
                     value={filters.transactionStatus}
                     options={TRANSACTION_STATUS_OPTIONS.map((option) => ({ ...option, label: translate(option.label) }))}
                     menuPortal
+                    multiple
+                    multipleSelectedLabel={multiSelectLabel}
                     disabled={!isColumnSelected("operationStatus")}
                     onChange={(value) => updateFilterValue("transactionStatus", value)}
                   />

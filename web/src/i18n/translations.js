@@ -359,6 +359,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "Deposit +/-", uz: "Depozit +/-", ru: "Депозит +/-" },
   { en: "Deposit Balance", uz: "Depozit qoldig'i", ru: "Остаток депозита" },
   { en: "Selected Total", uz: "Tanlangan jami", ru: "Выбрано на сумму" },
+  { en: "selected", uz: "tanlandi", ru: "выбрано" },
   { en: "Select at least one ticket.", uz: "Kamida bitta talon tanlang.", ru: "Выберите хотя бы один талон." },
   { en: "Failed to load client debt tickets.", uz: "Client qarz talonlarini yuklab bo'lmadi.", ru: "Не удалось загрузить долговые талоны клиента." },
   { en: "Deposit ticket payment failed.", uz: "Talonlarni depozitdan yopib bo'lmadi.", ru: "Не удалось закрыть талоны с депозита." },
