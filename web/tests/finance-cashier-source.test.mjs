@@ -235,13 +235,13 @@ test("cashier board uses one shared load-more control for all columns", async ()
 
   assert.match(
     cashierPanelSource,
-    /const CASHIER_BOARD_LIMIT_STEP = 100;[\s\S]*CASHIER_BOARD_COLUMN_KEYS[\s\S]*pendingAppointments[\s\S]*issuedTickets[\s\S]*const \[boardLimit, setBoardLimit\] = useState\(CASHIER_BOARD_LIMIT_STEP\);[\s\S]*apiFetch\(`\/api\/finance\/cashier\/board\?\$\{query\.toString\(\)\}`\)[\s\S]*limit: normalizeBoardTotal\(data\?\.limit, boardLimit\)/s,
+    /const CASHIER_BOARD_LIMIT_STEP = 50;[\s\S]*CASHIER_BOARD_COLUMN_KEYS[\s\S]*pendingAppointments[\s\S]*issuedTickets[\s\S]*const \[boardLimit, setBoardLimit\] = useState\(CASHIER_BOARD_LIMIT_STEP\);[\s\S]*apiFetch\(`\/api\/finance\/cashier\/board\?\$\{query\.toString\(\)\}`\)[\s\S]*limit: normalizeBoardTotal\(data\?\.limit, boardLimit\)/s,
     "Cashier board should request server-side batches shared by every column."
   );
   assert.match(
     cashierPanelSource,
     /query\.set\("dateFrom", boardPeriodBounds\.dateFrom\);[\s\S]*query\.set\("dateTo", boardPeriodBounds\.dateTo\);[\s\S]*const clientQuery = String\(boardFilters\.clientQuery \|\| ""\)\.trim\(\);[\s\S]*query\.set\("clientQuery", clientQuery\);[\s\S]*query\.set\("specialistId", specialistId\);[\s\S]*\}, \[boardFilters\.clientQuery, boardFilters\.specialistId, boardLimit, boardPeriodBounds\.dateFrom, boardPeriodBounds\.dateTo, translate\]\);/s,
-    "Cashier board period, client and specialist filters should be sent to the API before the 100-card batch is applied."
+    "Cashier board period, client and specialist filters should be sent to the API before the 50-card batch is applied."
   );
   assert.doesNotMatch(
     cashierPanelSource,
@@ -251,7 +251,7 @@ test("cashier board uses one shared load-more control for all columns", async ()
   assert.match(
     cashierPanelSource,
     /setBoardLimit\(CASHIER_BOARD_LIMIT_STEP\);[\s\S]*period: value \|\| CASHIER_BOARD_PERIOD_TODAY[\s\S]*setBoardFilters\(\(current\) => \(\{ \.\.\.current, clientQuery: value \}\)\);[\s\S]*setBoardFilters\(\(current\) => \(\{ \.\.\.current, specialistId: value \}\)\);[\s\S]*period: CASHIER_BOARD_PERIOD_TODAY/s,
-    "Changing cashier board period, client or specialist filters should restart the shared batch from the first 100 matching records."
+    "Changing cashier board period, client or specialist filters should restart the shared batch from the first 50 matching records."
   );
   assert.doesNotMatch(
     cashierPanelSource,

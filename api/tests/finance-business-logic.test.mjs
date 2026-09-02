@@ -159,8 +159,8 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
 
   assert.match(
     financeServiceSource,
-    /const CASHIER_BOARD_DEFAULT_LIMIT = 100;[\s\S]*function normalizeCashierBoardLimit\(value\)[\s\S]*return Math\.min\(parsed, CASHIER_BOARD_MAX_LIMIT\);/s,
-    "Cashier board should default to a bounded 100-card batch."
+    /const CASHIER_BOARD_DEFAULT_LIMIT = 50;[\s\S]*function normalizeCashierBoardLimit\(value\)[\s\S]*return Math\.min\(parsed, CASHIER_BOARD_MAX_LIMIT\);/s,
+    "Cashier board should default to a bounded 50-card batch."
   );
 
   assert.match(

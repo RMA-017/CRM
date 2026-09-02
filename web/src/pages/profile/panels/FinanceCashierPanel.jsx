@@ -6,7 +6,7 @@ import { formatDateYMD } from "../../../lib/formatters.js";
 import { useEscapeKey } from "../../../lib/use-escape-key.js";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 
-const CASHIER_BOARD_LIMIT_STEP = 100;
+const CASHIER_BOARD_LIMIT_STEP = 50;
 const CASHIER_BOARD_COLUMN_KEYS = Object.freeze([
   "pendingAppointments",
   "cancelledAppointments",
