@@ -67,6 +67,10 @@ test("finance client discounts route is wired into profile navigation", async ()
     /id="openFinanceDiscountsBtn"[\s\S]*hidden=\{!canOpenFinanceDiscounts\}[\s\S]*onClick=\{openFinanceDiscountsPanel\}[\s\S]*translate\("Client Discounts"\)/s,
     "Side menu should show finance client discounts for users with access."
   );
+  assert.ok(
+    sideMenuSource.indexOf('id="openFinanceDiscountsBtn"') < sideMenuSource.indexOf('id="openFinanceReportsBtn"'),
+    "Finance reports should stay last in the finance submenu."
+  );
   assert.match(
     profilePageSource,
     /canOpenFinanceDiscounts=\{canOpenFinanceDiscounts\}[\s\S]*openFinanceDiscountsPanel=\{openFinanceDiscountsPanel\}/s,

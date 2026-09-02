@@ -328,15 +328,6 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 {translate("Daily Cash")}
               </button>
               <button
-                id="openFinanceReportsBtn"
-                type="button"
-                className="side-submenu-link side-submenu-action"
-                hidden={!canOpenFinanceReports}
-                onClick={openFinanceReportsPanel}
-              >
-                {translate("Reports")}
-              </button>
-              <button
                 id="openFinanceDiscountsBtn"
                 type="button"
                 className="side-submenu-link side-submenu-action"
@@ -344,6 +335,15 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 onClick={openFinanceDiscountsPanel}
               >
                 {translate("Client Discounts")}
+              </button>
+              <button
+                id="openFinanceReportsBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                hidden={!canOpenFinanceReports}
+                onClick={openFinanceReportsPanel}
+              >
+                {translate("Reports")}
               </button>
             </div>
           </div>
