@@ -3159,7 +3159,6 @@ label.field > span:first-child,
   left: -1px;
   right: 0;
   border-top: 2px solid rgba(37, 99, 235, 0.78);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.72);
 }
 
 .appointment-vip-weekly-note {
