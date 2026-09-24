@@ -91,6 +91,7 @@ CREATE TABLE users (
   phone_number VARCHAR(15),
   position_id INTEGER,
   role_id INTEGER NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
   is_platform_admin BOOLEAN NOT NULL DEFAULT FALSE,
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

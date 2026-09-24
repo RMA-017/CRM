@@ -3146,7 +3146,8 @@ label.field > span:first-child,
 .appointment-current-time-indicator {
   position: absolute;
   left: var(--time-col-width);
-  right: 0;
+  right: auto;
+  width: calc(max(100%, 900px) - var(--time-col-width));
   height: 0;
   z-index: 8;
   pointer-events: none;

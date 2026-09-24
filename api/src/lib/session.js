@@ -68,6 +68,7 @@ async function getRequesterByAuthContext({ userId, organizationId }) {
       LEFT JOIN position_options p ON p.id = u.position_id
      WHERE u.id = $1
        AND (u.organization_id = $2 OR COALESCE(u.is_platform_admin, FALSE) = TRUE)
+       AND COALESCE(u.is_active, TRUE) = TRUE
        AND o.is_active = TRUE
      LIMIT 1`,
     [userId, organizationId]

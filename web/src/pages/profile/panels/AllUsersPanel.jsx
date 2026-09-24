@@ -79,6 +79,7 @@ function AllUsersPanel({
               <th>Phone</th>
               <th>Position</th>
               <th>Role</th>
+              <th>Status</th>
               <th>Created At</th>
               <th aria-label="Edit">✎</th>
               <th aria-label="Delete">
@@ -90,7 +91,7 @@ function AllUsersPanel({
             {allUsersLoading ? (
               [0, 1, 2, 3, 4].map((index) => (
                 <tr key={index} aria-hidden="true">
-                  <td colSpan="12" className="skel" />
+                  <td colSpan="13" className="skel" />
                 </tr>
               ))
             ) : allUsers.map((user) => (
@@ -108,6 +109,7 @@ function AllUsersPanel({
                 <td>{user.phone || "-"}</td>
                 <td>{user.position || "-"}</td>
                 <td>{user.role || "-"}</td>
+                <td>{user.isActive === false ? "Off" : "Active"}</td>
                 <td>{formatDateYMD(user.createdAt)}</td>
                 <td>
                   <button

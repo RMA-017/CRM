@@ -594,6 +594,26 @@ function ProfileModals(props) {
               />
               <small id="allUsersEditPasswordError" className="field-error">{allUsersEdit.errors.password || ""}</small>
             </div>
+
+            <div className="field settings-inline-control">
+              <label htmlFor="allUsersEditIsActiveInput">Active</label>
+              <label className="settings-checkbox settings-checkbox-inline" htmlFor="allUsersEditIsActiveInput">
+                <input
+                  id="allUsersEditIsActiveInput"
+                  type="checkbox"
+                  checked={allUsersEdit.form.isActive !== false}
+                  onChange={(event) => {
+                    const checked = event.currentTarget.checked;
+                    setAllUsersEdit((prev) => ({
+                      ...prev,
+                      form: { ...prev.form, isActive: checked },
+                      errors: { ...prev.errors, isActive: "" }
+                    }));
+                  }}
+                />
+              </label>
+              <small id="allUsersEditIsActiveError" className="field-error">{allUsersEdit.errors.isActive || ""}</small>
+            </div>
           </div>
 
           {allUsersEdit.errors._form && (

@@ -70,6 +70,12 @@ export const usersRouteSchemas = Object.freeze({
       phone: allowBlank(phoneSchema),
       position: allowBlank(positiveIntegerLikeSchema),
       role: positiveIntegerLikeSchema,
+      isActive: {
+        type: "boolean"
+      },
+      is_active: {
+        type: "boolean"
+      },
       organizationCode: allowBlank(organizationCodeSchema),
       password: {
         type: "string",

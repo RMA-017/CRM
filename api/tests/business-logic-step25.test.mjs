@@ -572,6 +572,100 @@ test("users update deletes future planner lessons when a specialist leaves plann
   }
 });
 
+test("users update deletes future planner lessons when a specialist is deactivated", async () => {
+  let deletedSpecialistId = null;
+  let deletedCount = 0;
+  let savedActiveState = null;
+  const restoreConnect = stubPoolConnect(async (sql, params = []) => {
+    const queryText = String(sql || "");
+
+    if (queryText === "BEGIN" || queryText === "COMMIT" || queryText === "ROLLBACK") {
+      return { rows: [], rowCount: 0 };
+    }
+    if (queryText.includes("SELECT role_id, position_id, username") && queryText.includes("FROM users")) {
+      return {
+        rows: [{ role_id: 11, position_id: 5, username: "SpecUser", full_name: "Active Specialist", is_active: true }],
+        rowCount: 1
+      };
+    }
+    if (queryText.includes("SELECT label FROM role_options")) {
+      return {
+        rows: [{ label: "Specialist" }],
+        rowCount: 1
+      };
+    }
+    if (queryText.includes("SELECT label FROM position_options")) {
+      return {
+        rows: [{ label: "Specialist" }],
+        rowCount: 1
+      };
+    }
+    if (queryText.includes("UPDATE users")) {
+      savedActiveState = params[11];
+      return {
+        rows: [],
+        rowCount: 1
+      };
+    }
+    if (queryText.includes("WITH deleted AS") && queryText.includes("DELETE FROM appointment_schedules")) {
+      deletedCount += 1;
+      deletedSpecialistId = params[1];
+      return {
+        rows: [],
+        rowCount: 1
+      };
+    }
+    if (queryText.includes("SELECT") && queryText.includes("FROM users u") && queryText.includes("JOIN organizations o ON o.id = u.organization_id")) {
+      return {
+        rows: [{
+          id: "9",
+          organization_id: "3",
+          organization_code: "main",
+          organization_name: "Main",
+          username: "SpecUser",
+          email: null,
+          full_name: "Active Specialist",
+          birthday: "2000-01-01",
+          role_id: "11",
+          role: "Specialist",
+          is_active: false,
+          phone_number: null,
+          position_id: "5",
+          position: "Specialist",
+          created_at: "2026-03-12T00:00:00.000Z"
+        }],
+        rowCount: 1
+      };
+    }
+
+    throw new Error(`Unexpected client.query in test: ${queryText} :: ${JSON.stringify(params)}`);
+  });
+
+  try {
+    const user = await updateUserByAdmin({
+      currentOrganizationId: 3,
+      nextOrganizationId: null,
+      actorUserId: 7,
+      userId: 9,
+      email: "",
+      fullName: "Active Specialist",
+      birthday: "2000-01-01",
+      phone: "",
+      positionId: 5,
+      roleId: 11,
+      isActive: false,
+      password: ""
+    });
+
+    assert.equal(user?.is_active, false);
+    assert.equal(savedActiveState, false);
+    assert.equal(deletedCount, 1);
+    assert.equal(deletedSpecialistId, 9);
+  } finally {
+    restoreConnect();
+  }
+});
+
 test("getUserScopeById queries users id without ambiguous column reference", async () => {
   const restoreQuery = stubPoolQuery(async (sql, params = []) => {
     const queryText = String(sql || "");

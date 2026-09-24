@@ -123,6 +123,7 @@ export function useAllUsersSection({
         phone: String(currentUser.phone || ""),
         position: String(currentUser.positionId || ""),
         role: String(currentUser.roleId || ""),
+        isActive: currentUser.isActive !== false,
         password: ""
       },
       errors: {}
@@ -158,7 +159,8 @@ export function useAllUsersSection({
 
     const payload = {
       fullName: String(allUsersEdit.form.fullName || "").trim(),
-      role: String(allUsersEdit.form.role || "").trim()
+      role: String(allUsersEdit.form.role || "").trim(),
+      isActive: allUsersEdit.form.isActive !== false
     };
     const organizationCode = String(allUsersEdit.form.organizationCode || "").trim().toLowerCase();
     const email = String(allUsersEdit.form.email || "").trim();
@@ -241,6 +243,7 @@ export function useAllUsersSection({
     allUsersEdit.form.birthday,
     allUsersEdit.form.email,
     allUsersEdit.form.fullName,
+    allUsersEdit.form.isActive,
     allUsersEdit.form.organizationCode,
     allUsersEdit.form.password,
     allUsersEdit.form.phone,

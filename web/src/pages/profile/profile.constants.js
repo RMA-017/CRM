@@ -42,6 +42,7 @@ const EMPTY_ALL_USERS_EDIT_FORM = {
   phone: "",
   position: "",
   role: "",
+  isActive: true,
   password: ""
 };
 

@@ -1795,6 +1795,7 @@ export async function getAppointmentSpecialistsByOrganization(organizationId) {
      JOIN role_options r ON r.id = u.role_id
      LEFT JOIN position_options p ON p.id = u.position_id
      WHERE u.organization_id = $1
+       AND COALESCE(u.is_active, TRUE) = TRUE
        AND o.is_active = TRUE
        AND r.is_active = TRUE
        AND (
@@ -1832,6 +1833,7 @@ export async function listAppointmentWorkScheduleStaffByOrganization(organizatio
       FROM users u
       JOIN organizations o ON o.id = u.organization_id
      WHERE u.organization_id = $1
+       AND COALESCE(u.is_active, TRUE) = TRUE
        AND o.is_active = TRUE
      ORDER BY
        COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), u.id::text) ASC,

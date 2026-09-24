@@ -27,6 +27,7 @@ function mapUser(user) {
     birthday: user.birthday,
     roleId: user.role_id,
     role: user.role,
+    isActive: user.is_active !== false,
     positionId: user.position_id,
     phone: user.phone_number,
     position: user.position,
@@ -124,6 +125,11 @@ async function usersRoutes(fastify) {
         ? parsePositiveInteger(request.body?.position)
         : null;
       const roleId = parsePositiveInteger(request.body?.role);
+      const hasExplicitActiveState = Object.prototype.hasOwnProperty.call(request.body || {}, "isActive")
+        || Object.prototype.hasOwnProperty.call(request.body || {}, "is_active");
+      const isActive = hasExplicitActiveState
+        ? (request.body?.isActive ?? request.body?.is_active) === true
+        : null;
       const organizationCode = normalizeOrganizationCode(request.body?.organizationCode);
       const password = String(request.body?.password || "");
 
@@ -194,6 +200,12 @@ async function usersRoutes(fastify) {
             message: "Use profile password change to update your own password."
           });
         }
+        if (isSelfTarget && isActive === false) {
+          return reply.status(400).send({
+            field: "isActive",
+            message: "Use another admin account to deactivate your own user."
+          });
+        }
 
         let nextOrganizationId = null;
         if (organizationCode) {
@@ -258,6 +270,7 @@ async function usersRoutes(fastify) {
           phone,
           positionId,
           roleId,
+          isActive,
           password
         });
 

@@ -21,6 +21,7 @@ export async function findAuthUserForLogin({ username }) {
       JOIN role_options r ON r.id = u.role_id
        AND r.is_active = TRUE
       WHERE LOWER(u.username) = $1
+        AND COALESCE(u.is_active, TRUE) = TRUE
         AND o.is_active = TRUE
       LIMIT 1`,
     [normalizedUsername]
@@ -45,6 +46,7 @@ export async function findAuthUserById(userId, organizationId) {
         AND r.is_active = TRUE
       WHERE u.id = $1
         AND (u.organization_id = $2 OR COALESCE(u.is_platform_admin, FALSE) = TRUE)
+        AND COALESCE(u.is_active, TRUE) = TRUE
         AND o.is_active = TRUE`,
     [userId, organizationId]
   );

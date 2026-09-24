@@ -242,6 +242,10 @@
     table-layout: fixed;
   }
 
+  .appointment-current-time-indicator {
+    width: calc(max(100%, 1040px) - var(--time-col-width));
+  }
+
   .appointment-week-switcher {
     flex-wrap: nowrap;
     justify-content: space-between;
@@ -633,6 +637,10 @@
   .appointment-grid {
     width: 100%;
     min-width: 1040px;
+  }
+
+  .appointment-current-time-indicator {
+    width: calc(max(100%, 1040px) - var(--time-col-width));
   }
 
   .appointment-vip-weekly-grid {

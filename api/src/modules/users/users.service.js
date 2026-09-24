@@ -266,6 +266,7 @@ export async function findRequester(authContext = {}) {
         AND r.is_active = TRUE
       WHERE u.id = $1
         AND u.organization_id = $2
+        AND COALESCE(u.is_active, TRUE) = TRUE
         AND o.is_active = TRUE`,
     [userId, organizationId]
   );
@@ -333,6 +334,7 @@ export async function getUsersPage({
          u.phone_number,
          u.position_id::text AS position_id,
          u.role_id::text AS role_id,
+         COALESCE(u.is_active, TRUE) AS is_active,
          p.label AS position,
          r.label AS role,
          u.created_at
@@ -379,6 +381,7 @@ export async function getUserScopeById(userId) {
        u.id::text AS id,
        u.organization_id::text AS organization_id,
        u.role_id::text AS role_id,
+       COALESCE(u.is_active, TRUE) AS is_active,
        (COALESCE(u.is_platform_admin, FALSE) OR COALESCE(r.is_admin, FALSE)) AS is_admin,
        COALESCE(u.is_platform_admin, FALSE) AS is_platform_admin
       FROM users u
@@ -401,6 +404,7 @@ export async function updateUserByAdmin({
   phone,
   positionId,
   roleId,
+  isActive = null,
   password
 }) {
   let specialistLessonsDeletedNotification = null;
@@ -412,7 +416,7 @@ export async function updateUserByAdmin({
     const scopedOrganizationId = Number(currentOrganizationId);
 
     const currentUserResult = await client.query(
-      `SELECT role_id, position_id, username, full_name
+      `SELECT role_id, position_id, username, full_name, COALESCE(is_active, TRUE) AS is_active
          FROM users
         WHERE id = $1
           AND organization_id = $2
@@ -443,6 +447,9 @@ export async function updateUserByAdmin({
       joinNormalizedRoleLabelParts(nextRoleLabel, nextPositionLabel)
     );
     const shouldDeleteFuturePlannerLessons = wasPlannerSpecialist && !remainsPlannerSpecialist;
+    const hasExplicitActiveState = isActive === true || isActive === false;
+    const nextIsActive = hasExplicitActiveState ? isActive === true : currentUser.is_active !== false;
+    const shouldDeactivatePlannerLessons = currentUser.is_active !== false && nextIsActive === false;
 
     let updateResult;
     try {
@@ -456,6 +463,7 @@ export async function updateUserByAdmin({
                 phone_number = $6,
                 position_id = $7::int,
                 role_id = $8::int,
+                is_active = $12::boolean,
                 updated_by = $11,
                 updated_at = CURRENT_TIMESTAMP
           WHERE id = $9
@@ -471,7 +479,8 @@ export async function updateUserByAdmin({
           roleId,
           userId,
           scopedOrganizationId,
-          actorUserId || null
+          actorUserId || null,
+          nextIsActive
         ]
       );
     } catch (error) {
@@ -498,7 +507,7 @@ export async function updateUserByAdmin({
       );
     }
 
-    if (shouldDeleteFuturePlannerLessons) {
+    if (shouldDeleteFuturePlannerLessons || shouldDeactivatePlannerLessons) {
       const deletedItems = await deleteFutureAppointmentSchedulesBySpecialist({
         client,
         organizationId: scopedOrganizationId,
@@ -523,6 +532,7 @@ export async function updateUserByAdmin({
          u.birthday,
          u.role_id::text AS role_id,
          r.label AS role,
+         COALESCE(u.is_active, TRUE) AS is_active,
          u.phone_number,
          u.position_id::text AS position_id,
          p.label AS position,
