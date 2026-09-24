@@ -109,7 +109,7 @@ function AllUsersPanel({
                 <td>{user.phone || "-"}</td>
                 <td>{user.position || "-"}</td>
                 <td>{user.role || "-"}</td>
-                <td>{user.isActive === false ? "Off" : "Active"}</td>
+                <td>{user.isActive === false ? "OFF" : "ON"}</td>
                 <td>{formatDateYMD(user.createdAt)}</td>
                 <td>
                   <button

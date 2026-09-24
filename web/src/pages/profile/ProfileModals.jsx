@@ -87,6 +87,11 @@ function ProfileModals(props) {
     cancelPositionEdit
   } = props;
 
+  const userActiveOptions = [
+    { value: "on", label: "ON" },
+    { value: "off", label: "OFF" }
+  ];
+
   useEffect(() => {
     const message = String(organizationEditError || "").trim();
     if (!message) {
@@ -595,23 +600,24 @@ function ProfileModals(props) {
               <small id="allUsersEditPasswordError" className="field-error">{allUsersEdit.errors.password || ""}</small>
             </div>
 
-            <div className="field settings-inline-control">
-              <label htmlFor="allUsersEditIsActiveInput">Active</label>
-              <label className="settings-checkbox settings-checkbox-inline" htmlFor="allUsersEditIsActiveInput">
-                <input
-                  id="allUsersEditIsActiveInput"
-                  type="checkbox"
-                  checked={allUsersEdit.form.isActive !== false}
-                  onChange={(event) => {
-                    const checked = event.currentTarget.checked;
-                    setAllUsersEdit((prev) => ({
-                      ...prev,
-                      form: { ...prev.form, isActive: checked },
-                      errors: { ...prev.errors, isActive: "" }
-                    }));
-                  }}
-                />
-              </label>
+            <div className="field">
+              <label htmlFor="allUsersEditIsActiveSelect">Активный</label>
+              <CustomSelect
+                id="allUsersEditIsActiveSelect"
+                placeholder="ON"
+                value={allUsersEdit.form.isActive === false ? "off" : "on"}
+                options={userActiveOptions}
+                error={Boolean(allUsersEdit.errors.isActive)}
+                menuPortal
+                maxVisibleOptions={2}
+                onChange={(nextValue) => {
+                  setAllUsersEdit((prev) => ({
+                    ...prev,
+                    form: { ...prev.form, isActive: nextValue !== "off" },
+                    errors: { ...prev.errors, isActive: "" }
+                  }));
+                }}
+              />
               <small id="allUsersEditIsActiveError" className="field-error">{allUsersEdit.errors.isActive || ""}</small>
             </div>
           </div>
