@@ -391,10 +391,11 @@ export function registerAppointmentScheduleRoutes(fastify, context) {
     const normalizedServiceName = normalizeScheduleCompareText(serviceName);
     return items.every((item) => {
       const itemServiceId = parsePositiveIntegerOr(item?.serviceId, 0) || null;
+      const itemServiceName = normalizeScheduleCompareText(item?.serviceName);
       if (itemServiceId || normalizedServiceId) {
-        return itemServiceId === normalizedServiceId;
+        return itemServiceId === normalizedServiceId && itemServiceName === normalizedServiceName;
       }
-      return normalizeScheduleCompareText(item?.serviceName) === normalizedServiceName;
+      return itemServiceName === normalizedServiceName;
     });
   }
 

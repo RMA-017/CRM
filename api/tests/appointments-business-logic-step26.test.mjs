@@ -3275,6 +3275,122 @@ test("schedule update future scope applies all original weekdays when repeat pay
   );
 });
 
+test("schedule update future scope applies renamed service snapshot for the same service id", async () => {
+  const updateCalls = [];
+  const recorder = createRouteRecorder();
+  registerAppointmentScheduleRoutes(
+    recorder.fastify,
+    createScheduleContext({
+      randomUUID: () => "99999999-9999-9999-9999-999999999999",
+      parseDateYmdToUtcDate: (value) => new Date(`${String(value || "").trim()}T00:00:00.000Z`),
+      toDayKeyFromUtcDate: (value) => ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][value.getUTCDay()] || "",
+      toAppointmentDayNum: (value) => ({
+        mon: 1,
+        tue: 2,
+        wed: 3,
+        thu: 4,
+        fri: 5,
+        sat: 6,
+        sun: 7
+      }[String(value || "").trim().toLowerCase()] || 0),
+      buildWeeklyRecurringDates: () => [
+        "2026-03-16",
+        "2026-03-18"
+      ],
+      getActiveServiceSnapshotById: async () => ({
+        serviceId: 24,
+        serviceName: "New Lesson",
+        servicePriceUzs: 270000
+      }),
+      getAppointmentScheduleTargetsByScope: async () => ({
+        anchorId: 92,
+        anchorAppointmentDate: "2026-03-16",
+        repeatGroupKey: "old-group",
+        repeatUntilDate: "2026-03-18",
+        repeatAnchorDate: "2026-03-16",
+        repeatDays: ["mon", "wed"],
+        isAutoRollingRepeat: true,
+        isRecurring: true,
+        scope: "future",
+        items: [
+          { id: 92, specialistId: 7, clientId: 44, appointmentDate: "2026-03-16", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceId: 24, serviceName: "Old Lesson", servicePriceUzs: 190000, status: "pending", note: "", isVip: false },
+          { id: 96, specialistId: 7, clientId: 44, appointmentDate: "2026-03-18", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceId: 24, serviceName: "Old Lesson", servicePriceUzs: 190000, status: "pending", note: "", isVip: false }
+        ],
+        seriesItems: [
+          { id: 92, specialistId: 7, clientId: 44, appointmentDate: "2026-03-16", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceId: 24, serviceName: "Old Lesson", servicePriceUzs: 190000, status: "pending", note: "", isVip: false },
+          { id: 96, specialistId: 7, clientId: 44, appointmentDate: "2026-03-18", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceId: 24, serviceName: "Old Lesson", servicePriceUzs: 190000, status: "pending", note: "", isVip: false }
+        ]
+      }),
+      updateAppointmentScheduleByIdWithRepeatMeta: async (payload) => {
+        updateCalls.push(payload);
+        return {
+          id: String(payload.id),
+          specialistId: String(payload.specialistId),
+          clientId: String(payload.clientId),
+          appointmentDate: payload.appointmentDate,
+          startTime: payload.startTime,
+          endTime: payload.endTime,
+          serviceId: payload.serviceId,
+          serviceName: payload.serviceName,
+          servicePriceUzs: payload.servicePriceUzs
+        };
+      },
+      createAppointmentSchedule: async () => {
+        throw new Error("Existing dates should be reused for a service-only future update.");
+      },
+      deleteAppointmentSchedulesByIds: async () => 0,
+      updateAppointmentSchedulesByIds: async () => {
+        throw new Error("Service-only recurring future edits should preserve repeat metadata.");
+      }
+    })
+  );
+
+  const route = findRoute(recorder.routes, "PATCH", "/schedules/:id");
+  assert.equal(typeof route?.handler, "function");
+
+  const reply = createReplyRecorder();
+  await route.handler(
+    {
+      ...createAccessRequest({ features: ["appointments.planner"] }),
+      params: { id: "92" },
+      query: { scope: "future" },
+      body: {
+        specialistId: "7",
+        clientId: "44",
+        appointmentDate: "2026-03-16",
+        startTime: "09:00",
+        endTime: "10:00",
+        durationMinutes: "60",
+        serviceId: "24",
+        service: "New Lesson",
+        status: "pending",
+        note: "",
+        repeat: {
+          enabled: true,
+          untilDate: "2026-03-18",
+          dayKeys: ["mon", "wed"]
+        }
+      }
+    },
+    reply
+  );
+
+  assert.equal(reply.state.statusCode, 200);
+  assert.deepEqual(
+    updateCalls.map((item) => ({
+      id: item.id,
+      serviceId: item.serviceId,
+      serviceName: item.serviceName,
+      servicePriceUzs: item.servicePriceUzs,
+      repeatGroupKey: item.repeatGroupKey
+    })),
+    [
+      { id: 92, serviceId: 24, serviceName: "New Lesson", servicePriceUzs: 270000, repeatGroupKey: "99999999-9999-9999-9999-999999999999" },
+      { id: 96, serviceId: 24, serviceName: "New Lesson", servicePriceUzs: 270000, repeatGroupKey: "99999999-9999-9999-9999-999999999999" }
+    ]
+  );
+});
+
 test("schedule update future scope with multiple selected weekdays reuses existing dates without creating duplicates", async () => {
   const deletedIds = [];
   const updateCalls = [];
