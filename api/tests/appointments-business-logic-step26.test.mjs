@@ -3321,27 +3321,30 @@ test("schedule update future scope applies renamed service snapshot for the same
           { id: 96, specialistId: 7, clientId: 44, appointmentDate: "2026-03-18", startTime: "09:00", endTime: "10:00", durationMinutes: 60, serviceId: 24, serviceName: "Old Lesson", servicePriceUzs: 190000, status: "pending", note: "", isVip: false }
         ]
       }),
-      updateAppointmentScheduleByIdWithRepeatMeta: async (payload) => {
+      hasAppointmentScheduleConflict: async () => {
+        throw new Error("Service-only recurring future edits should not run conflict checks.");
+      },
+      updateAppointmentScheduleByIdWithRepeatMeta: async () => {
+        throw new Error("Service-only recurring future edits should preserve repeat metadata.");
+      },
+      updateAppointmentSchedulesByIds: async (payload) => {
         updateCalls.push(payload);
-        return {
-          id: String(payload.id),
+        return payload.ids.map((id) => ({
+          id: String(id),
           specialistId: String(payload.specialistId),
           clientId: String(payload.clientId),
-          appointmentDate: payload.appointmentDate,
+          appointmentDate: id === 92 ? "2026-03-16" : "2026-03-18",
           startTime: payload.startTime,
           endTime: payload.endTime,
           serviceId: payload.serviceId,
           serviceName: payload.serviceName,
           servicePriceUzs: payload.servicePriceUzs
-        };
+        }));
       },
       createAppointmentSchedule: async () => {
         throw new Error("Existing dates should be reused for a service-only future update.");
       },
-      deleteAppointmentSchedulesByIds: async () => 0,
-      updateAppointmentSchedulesByIds: async () => {
-        throw new Error("Service-only recurring future edits should preserve repeat metadata.");
-      }
+      deleteAppointmentSchedulesByIds: async () => 0
     })
   );
 
@@ -3377,16 +3380,25 @@ test("schedule update future scope applies renamed service snapshot for the same
 
   assert.equal(reply.state.statusCode, 200);
   assert.deepEqual(
-    updateCalls.map((item) => ({
-      id: item.id,
-      serviceId: item.serviceId,
-      serviceName: item.serviceName,
-      servicePriceUzs: item.servicePriceUzs,
-      repeatGroupKey: item.repeatGroupKey
-    })),
+    updateCalls,
     [
-      { id: 92, serviceId: 24, serviceName: "New Lesson", servicePriceUzs: 270000, repeatGroupKey: "99999999-9999-9999-9999-999999999999" },
-      { id: 96, serviceId: 24, serviceName: "New Lesson", servicePriceUzs: 270000, repeatGroupKey: "99999999-9999-9999-9999-999999999999" }
+      {
+        organizationId: 3,
+        actorUserId: 7,
+        ids: [92, 96],
+        specialistId: 7,
+        clientId: 44,
+        appointmentDate: "2026-03-16",
+        startTime: "09:00",
+        endTime: "10:00",
+        durationMinutes: 60,
+        serviceId: 24,
+        serviceName: "New Lesson",
+        servicePriceUzs: 270000,
+        status: "pending",
+        note: "",
+        applyAppointmentDate: false
+      }
     ]
   );
 });

@@ -146,9 +146,6 @@ function isScheduleItemStructureChangedByPayload(item, {
   startTime,
   endTime,
   durationMinutes,
-  serviceName,
-  serviceId = null,
-  servicePriceUzs = 0,
   applyAppointmentDate = true,
   getDurationMinutesFromTimes: resolveDurationMinutes
 }) {
@@ -161,9 +158,6 @@ function isScheduleItemStructureChangedByPayload(item, {
     || normalizeScheduleCompareText(item?.startTime) !== normalizeScheduleCompareText(startTime)
     || normalizeScheduleCompareText(item?.endTime) !== normalizeScheduleCompareText(endTime)
     || previousDurationMinutes !== durationMinutes
-    || (Number.parseInt(String(item?.serviceId || ""), 10) || null) !== (serviceId || null)
-    || normalizeScheduleCompareText(item?.serviceName) !== normalizeScheduleCompareText(serviceName)
-    || (Number.parseInt(String(item?.servicePriceUzs ?? 0), 10) || 0) !== (servicePriceUzs || 0)
   );
 }
 
