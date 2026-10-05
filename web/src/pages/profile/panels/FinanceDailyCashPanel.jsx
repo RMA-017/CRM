@@ -711,7 +711,10 @@ function FinanceDailyCashPanel({ onClose, canPayFinanceCashier = false, currentU
                     <input
                       type="date"
                       value={filters.dateFrom}
-                      onChange={(event) => setFilters((current) => ({ ...current, dateFrom: event.currentTarget.value }))}
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setFilters((current) => ({ ...current, dateFrom: value }));
+                      }}
                     />
                   </label>
                   <label className="field">
@@ -719,7 +722,10 @@ function FinanceDailyCashPanel({ onClose, canPayFinanceCashier = false, currentU
                     <input
                       type="date"
                       value={filters.dateTo}
-                      onChange={(event) => setFilters((current) => ({ ...current, dateTo: event.currentTarget.value }))}
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setFilters((current) => ({ ...current, dateTo: value }));
+                      }}
                     />
                   </label>
                 </div>
