@@ -8,6 +8,10 @@ const listenTimeout = Number.parseInt(String(process.env.PM2_LISTEN_TIMEOUT || "
 const killTimeout = Number.parseInt(String(process.env.PM2_KILL_TIMEOUT || "15000"), 10) || 15000;
 const restartDelay = Number.parseInt(String(process.env.PM2_RESTART_DELAY || "5000"), 10) || 5000;
 const maxRestarts = Number.parseInt(String(process.env.PM2_MAX_RESTARTS || "10"), 10) || 10;
+const nodeOptions = String(process.env.NODE_OPTIONS || "").trim();
+const productionNodeOptions = nodeOptions.includes("--dns-result-order")
+  ? nodeOptions
+  : `${nodeOptions} --dns-result-order=ipv4first`.trim();
 
 module.exports = {
   apps: [
@@ -34,6 +38,7 @@ module.exports = {
       },
       env_production: {
         NODE_ENV: "production",
+        NODE_OPTIONS: productionNodeOptions,
         TRUST_PROXY: process.env.TRUST_PROXY || "true",
         COOKIE_SECURE: process.env.COOKIE_SECURE || "true",
         BROWSER_ORIGIN_CHECK_ENABLED: process.env.BROWSER_ORIGIN_CHECK_ENABLED || "true"
