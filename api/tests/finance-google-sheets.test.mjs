@@ -229,6 +229,30 @@ test("Google Sheets export stores real dates with the unified day-month-year for
   );
 });
 
+test("Google Sheets export exposes actionable upstream errors", () => {
+  const quotaError = __financeGoogleSheetsContracts.makeGoogleApiError({
+    response: { status: 429, data: { error: { message: "Quota exceeded" } } }
+  }, "service@example.com");
+  assert.equal(quotaError.statusCode, 429);
+  assert.equal(quotaError.exposeMessage, true);
+  assert.match(quotaError.message, /request limit/i);
+
+  const temporaryError = __financeGoogleSheetsContracts.makeGoogleApiError({
+    response: { status: 503, data: { error: { message: "Backend Error" } } }
+  }, "service@example.com");
+  assert.equal(temporaryError.statusCode, 503);
+  assert.equal(temporaryError.exposeMessage, true);
+  assert.match(temporaryError.message, /temporarily unavailable/i);
+
+  const networkError = __financeGoogleSheetsContracts.makeGoogleApiError({
+    code: "ETIMEDOUT",
+    message: "request timed out"
+  }, "service@example.com");
+  assert.equal(networkError.statusCode, 503);
+  assert.equal(networkError.exposeMessage, true);
+  assert.match(networkError.message, /Could not reach Google Sheets/i);
+});
+
 test("Google Sheets export preserves formula columns and uses report access", () => {
   const transactionDefinition = __financeGoogleSheetsContracts.SHEET_DEFINITIONS[1];
   assert.equal(
@@ -263,5 +287,15 @@ test("Google Sheets export preserves formula columns and uses report access", ()
     routeSchemasSource,
     /googleSheetsExportBody:[\s\S]*dateFrom[\s\S]*dateTo[\s\S]*spreadsheetUrl/s,
     "The export schema should accept an explicit date interval."
+  );
+  assert.match(
+    routesSource,
+    /error\?\.exposeMessage === true[\s\S]*message: canExposeMessage \? \(error\?\.message \|\| fallbackMessage\) : fallbackMessage/s,
+    "Google Sheets upstream failures should be able to return actionable public messages."
+  );
+  assert.match(
+    serviceSource,
+    /saveExportFailure[\s\S]*last_export_status = 'failed'[\s\S]*last_export_error = EXCLUDED\.last_export_error/s,
+    "Failed Google Sheets export attempts should save the last visible error."
   );
 });

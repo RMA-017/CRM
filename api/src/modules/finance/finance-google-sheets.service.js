@@ -280,14 +280,15 @@ function migrationRequiredError() {
 }
 
 function makeGoogleApiError(error, clientEmail) {
-  const status = Number(error?.response?.status || error?.code || 0);
+  const rawStatus = error?.response?.status || error?.code || 0;
+  const status = Number(rawStatus);
   const sourceMessage = String(
     error?.response?.data?.error?.message
       || error?.message
       || ""
-  );
+  ).replace(/\s+/g, " ").trim();
   let message = "Google Sheets export failed.";
-  let statusCode = 502;
+  let statusCode = 503;
   if (status === 403) {
     statusCode = 400;
     message = `Share the Google Sheet with ${clientEmail} as Editor.`;
@@ -300,9 +301,22 @@ function makeGoogleApiError(error, clientEmail) {
   } else if (status === 401) {
     statusCode = 503;
     message = "Google Sheets service account credentials are invalid.";
+  } else if (status === 429) {
+    statusCode = 429;
+    message = "Google Sheets request limit was reached. Wait a minute and try again.";
+  } else if (status >= 500) {
+    statusCode = 503;
+    message = "Google Sheets is temporarily unavailable. Try again in a few minutes.";
+  } else if (sourceMessage) {
+    statusCode = 503;
+    message = `Could not reach Google Sheets. ${sourceMessage.slice(0, 240)}`;
+  } else {
+    statusCode = 503;
+    message = "Could not reach Google Sheets. Check the server connection and try again.";
   }
   const wrapped = new Error(message);
   wrapped.statusCode = statusCode;
+  wrapped.exposeMessage = true;
   wrapped.cause = error;
   return wrapped;
 }
@@ -1005,6 +1019,54 @@ async function saveExportSuccess({
   }
 }
 
+async function saveExportFailure({
+  organizationId,
+  year,
+  spreadsheetId,
+  spreadsheetUrl,
+  actorUserId,
+  errorMessage
+}) {
+  try {
+    await pool.query(
+      `INSERT INTO finance_google_sheets_exports (
+         organization_id,
+         export_year,
+         spreadsheet_id,
+         spreadsheet_url,
+         last_exported_at,
+         last_exported_by,
+         last_export_status,
+         last_export_error,
+         last_export_counts,
+         created_by,
+         updated_by
+       )
+       VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, $5, 'failed', $6, '{}'::jsonb, $5, $5)
+       ON CONFLICT (organization_id, export_year)
+       DO UPDATE SET spreadsheet_id = EXCLUDED.spreadsheet_id,
+                     spreadsheet_url = EXCLUDED.spreadsheet_url,
+                     last_exported_at = CURRENT_TIMESTAMP,
+                     last_exported_by = EXCLUDED.last_exported_by,
+                     last_export_status = 'failed',
+                     last_export_error = EXCLUDED.last_export_error,
+                     updated_by = EXCLUDED.updated_by,
+                     updated_at = CURRENT_TIMESTAMP`,
+      [
+        organizationId,
+        year,
+        spreadsheetId,
+        spreadsheetUrl,
+        actorUserId || null,
+        String(errorMessage || "Google Sheets export failed.").slice(0, 1000)
+      ]
+    );
+  } catch (error) {
+    if (isMigrationMissingError(error)) throw migrationRequiredError();
+    throw error;
+  }
+}
+
 export async function getFinanceGoogleSheetsConfig({ organizationId, year }) {
   const exportYear = normalizeYear(year);
   if (!exportYear) {
@@ -1074,6 +1136,7 @@ export async function exportFinanceToGoogleSheets({
   if (!credentials.configured) {
     const error = new Error("Google Sheets service account is not configured.");
     error.statusCode = 503;
+    error.exposeMessage = true;
     throw error;
   }
 
@@ -1121,19 +1184,34 @@ export async function exportFinanceToGoogleSheets({
     };
   } catch (error) {
     if (
-      error?.statusCode
-      || error?.code === "MIGRATION_REQUIRED"
+      error?.code === "MIGRATION_REQUIRED"
       || String(error?.code || "").startsWith("23")
       || String(error?.code || "").startsWith("42")
     ) {
       throw error;
     }
-    throw makeGoogleApiError(error, credentials.clientEmail);
+    const finalError = error?.statusCode
+      ? error
+      : makeGoogleApiError(error, credentials.clientEmail);
+    try {
+      await saveExportFailure({
+        organizationId,
+        year: exportYear,
+        spreadsheetId: spreadsheet.spreadsheetId,
+        spreadsheetUrl: spreadsheet.spreadsheetUrl,
+        actorUserId,
+        errorMessage: finalError.message
+      });
+    } catch {
+      // Preserve the original export failure.
+    }
+    throw finalError;
   }
 }
 
 export const __financeGoogleSheetsContracts = Object.freeze({
   SHEET_DEFINITIONS,
+  makeGoogleApiError,
   makeTicketExportRow,
   makeTransactionExportRow,
   normalizeExportDateRange,

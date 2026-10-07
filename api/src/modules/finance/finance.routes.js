@@ -163,8 +163,9 @@ function sendRouteError(reply, error, fallbackMessage) {
     });
   }
   const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+  const canExposeMessage = statusCode < 500 || error?.exposeMessage === true;
   return reply.status(statusCode).send({
-    message: statusCode >= 500 ? fallbackMessage : (error?.message || fallbackMessage)
+    message: canExposeMessage ? (error?.message || fallbackMessage) : fallbackMessage
   });
 }
 
