@@ -129,6 +129,12 @@ test("caregiver contact verification rejects another person's contact and then l
   assert.equal(session.view.kind, "children");
   assert.ok(calls.some((call) => call.payload.reply_markup?.keyboard?.length === 2));
   assert.ok(calls.every((call) => call.method !== "deleteMessage" && !call.payload.reply_markup?.remove_keyboard));
+  assert.ok(!calls.some((call) => call.method === "sendMessage" && call.payload.text === BOT_UI_TEXT.uz.caregiver));
+  assert.equal(calls.filter((call) => call.payload.text === BOT_UI_TEXT.uz.contactSaved).length, 1);
+  const before = calls.length;
+  await navigator.process({ message: { from, chat, text: BOT_UI_TEXT.uz.caregiver } });
+  assert.equal(session.view.kind, "children");
+  assert.ok(!calls.slice(before).some((call) => call.payload.text === BOT_UI_TEXT.uz.contactSaved || call.payload.text === BOT_UI_TEXT.uz.caregiver || call.payload.reply_markup?.keyboard?.flat().some((b) => b.request_contact)));
 });
 
 test("each role opens a separate contact/back keyboard and back restores the main keyboard", async () => {
@@ -139,7 +145,7 @@ test("each role opens a separate contact/back keyboard and back restores the mai
       assert.equal(session.awaiting_role, role);
       const keyboard = calls.at(-1).payload.reply_markup;
       assert.equal(keyboard.keyboard[0][0].request_contact, true);
-      assert.deepEqual(keyboard.keyboard, [[{ text: BOT_UI_TEXT[language].contact, request_contact: true }, { text: BOT_UI_TEXT[language].back }]]);
+      assert.deepEqual(keyboard.keyboard, [[{ text: BOT_UI_TEXT[language].contact, request_contact: true }], [{ text: BOT_UI_TEXT[language].back }]]);
       assert.equal(keyboard.is_persistent, true);
       assert.ok(calls.every((call) => call.method !== "deleteMessage"));
       await navigator.process({ message: { from, chat, text: BOT_UI_TEXT[language].back } });
@@ -163,7 +169,7 @@ test("caregiver child opens internal lessons directly and old therapy callbacks 
   await navigator.process(callback("ui:child:4"));
   assert.equal(session.view.kind, "school");
   assert.equal(session.view.clientId, 4);
-  assert.ok(calls.at(-1).payload.text.includes("Child"));
+  assert.ok(calls.at(-1).payload.text.includes("Specialist"));
   assert.ok(!calls.at(-1).payload.reply_markup.inline_keyboard.flat().some((b) => b.callback_data === "ui:section:therapy"));
   await navigator.process(callback("ui:section:therapy"));
   assert.equal(session.view.kind, "school");
@@ -238,6 +244,22 @@ test("Russian caregiver menu reopens without a main-menu message, including olde
   assert.ok(!calls.some((call) => call.payload.text === BOT_UI_TEXT.ru.main));
 });
 
+test("specialist contact flow never repeats the role title and reopening uses the saved contact", async () => {
+  const { navigator, calls, session } = setup({ state: { language: "ru" },
+    query: async (sql) => ({ rows: sql.includes("FROM users") ? [{ id: 8, name: "Ziyoda Usmanova" }] : [] })
+  });
+  await navigator.process({ message: { from, chat, text: BOT_UI_TEXT.ru.specialist } });
+  assert.equal(calls.at(-1).payload.text, BOT_UI_TEXT.ru.askContact);
+  await navigator.process(contact());
+  assert.equal(session.awaiting_role, null);
+  assert.equal(calls.at(-1).payload.text, "Ziyoda Usmanova");
+  assert.ok(calls.every((call) => !call.payload.text?.includes(BOT_UI_TEXT.ru.specialist)));
+  const before = calls.length;
+  await navigator.process({ message: { from, chat, text: BOT_UI_TEXT.ru.specialist } });
+  assert.equal(session.awaiting_role, null);
+  assert.ok(!calls.slice(before).some((call) => call.payload.text === BOT_UI_TEXT.ru.askContact || call.payload.text === BOT_UI_TEXT.ru.contactSaved));
+});
+
 test("unknown specialist contact shows only the access error without repeating role and contact instructions", async () => {
   const { navigator, calls, session } = setup({ state: { language: "ru", awaiting_role: "specialist" } });
   await navigator.process(contact());
@@ -298,13 +320,15 @@ test("caregiver reads assigned child's current schedule and latest journal mark 
     state: { active_role: "caregiver", contacts: { caregiver: "+998901234567" }, view: { kind: "school", clientId: 4 } },
     query: async (sql) => {
       if (sql.includes("FROM caregivers")) return { rows: [{ id: 9, name: "Caregiver" }] };
-      if (sql.includes("FROM internal_lessons")) return { rows: [{ id: 1, child_name: "Child", specialist_name: "Updated specialist", completed }] };
+      if (sql.includes("FROM internal_lessons")) return { rows: [{ id: 1, child_name: "Child", specialist_name: "Updated specialist", position_name: "Logoped", completed }] };
       if (sql.includes("caregiver_clients")) return { rows: [{ id: 4 }] };
       return { rows: [] };
     }
   });
   await navigator.dayView("2026-10-23");
-  assert.ok(calls.at(-1).payload.text.includes("\u2705 1. Child"));
+  assert.ok(calls.at(-1).payload.text.includes("\u2705 1. Updated specialist-Logoped"));
+  assert.ok(!calls.at(-1).payload.text.includes("1. Child"));
+  assert.ok(!calls.at(-1).payload.text.includes(`${BOT_UI_TEXT.uz.staff}:`));
   assert.ok(calls.at(-1).payload.text.includes("Updated specialist"));
   assert.ok(!calls.at(-1).payload.reply_markup.inline_keyboard.flat().some((b) => b.callback_data.startsWith("ui:complete:")));
   const school = queries.find(({ sql }) => sql.includes("FROM internal_lessons"));
@@ -330,8 +354,12 @@ test("school view merges journal-only lessons and makes future dates read-only",
     }
   });
   await navigator.dayView("2026-10-23");
-  assert.ok(calls.at(-1).payload.text.includes("Historical child"));
+  assert.ok(!calls.at(-1).payload.text.includes("Historical child"));
+  assert.ok(!calls.at(-1).payload.text.includes("Current child"));
+  assert.ok(!calls.at(-1).payload.text.includes("Специалист:"));
   const buttons = calls.at(-1).payload.reply_markup.inline_keyboard.flat();
+  assert.ok(buttons.some((b) => b.text.includes("Historical child")));
+  assert.ok(buttons.some((b) => b.text.includes("Current child")));
   assert.ok(buttons.some((b) => b.callback_data === "ui:history:20:2026-10-23"));
   assert.ok(buttons.some((b) => b.callback_data === "ui:complete:1:4:2026-10-23:0"));
   assert.ok(buttons.every((b) => Buffer.byteLength(b.callback_data) <= 64));
@@ -343,6 +371,7 @@ test("school view merges journal-only lessons and makes future dates read-only",
   assert.ok(!calls.at(-1).payload.text.includes("Historical child"));
   assert.ok(!calls.at(-1).payload.text.includes("\u2705"));
   assert.ok(!calls.at(-1).payload.reply_markup.inline_keyboard.flat().some((b) => /^ui:(history|complete):/.test(b.callback_data)));
+  assert.ok(calls.at(-1).payload.reply_markup.inline_keyboard.flat().some((b) => b.text.includes("Current child") && b.callback_data === "ui:noop"));
   assert.ok(!queries.slice(before).some(({ sql }) => sql.includes("FROM internal_lesson_completions j")));
 });
 

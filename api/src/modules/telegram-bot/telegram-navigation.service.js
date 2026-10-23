@@ -44,7 +44,7 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
     session.ui_message_id = null;
   }
 
-  async function ensureMainKeyboard(force = false, text = ui()[session.active_role] || ui().main) {
+  async function ensureMainKeyboard(force = false, text = ui().contactSaved) {
     if (!force && !session.contact_prompt_id && session.keyboard_cleared) return;
     const result = await call("sendMessage", { chat_id: chat.id, text, reply_markup: mainKeyboard() });
     session.contact_prompt_id = null;
@@ -143,8 +143,8 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
     session.active_role = role;
     session.view = { kind: "contact" };
     const result = await call("sendMessage", {
-      chat_id: chat.id, text: prefix || [ui()[role], ui().askContact].join("\n\n"),
-      reply_markup: { keyboard: [[{ text: ui().contact, request_contact: true }, { text: ui().back }]],
+      chat_id: chat.id, text: prefix || ui().askContact,
+      reply_markup: { keyboard: [[{ text: ui().contact, request_contact: true }], [{ text: ui().back }]],
         resize_keyboard: true, is_persistent: true, one_time_keyboard: false }
     });
     session.ui_message_id = null;
@@ -271,7 +271,7 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
     );
     const safe = Math.min(page, Math.max(0, Math.ceil(rows.length / PAGE_SIZE) - 1));
     session.view.page = safe;
-    return display(`${ui().caregiver}\n${caregiver.name}\n\n${rows.length ? ui().children : ui().noChildren}`, [
+    return display(`${caregiver.name}\n\n${rows.length ? ui().children : ui().noChildren}`, [
       ...rows.slice(safe * PAGE_SIZE, (safe + 1) * PAGE_SIZE).map((child) => [botButton(child.name, `ui:child:${child.id}`)]),
       ...pageRows(safe, rows.length), [botButton(ui().back, "ui:home")]
     ]);
@@ -349,9 +349,10 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
       const weekday = new Date(`${date}T12:00:00Z`).getUTCDay() || 7;
       const { rows } = await db.query(
         `SELECT l.id, l.client_id, COALESCE(journal.completed, FALSE) AS completed, concat_ws(' ', c.last_name, c.first_name, c.middle_name) AS child_name,
-           COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS specialist_name
+           COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS specialist_name, COALESCE(p.label, '') AS position_name
          FROM internal_lessons l JOIN clients c ON c.organization_id = l.organization_id AND c.id = l.client_id
          JOIN users u ON u.organization_id = l.organization_id AND u.id = l.specialist_id
+         LEFT JOIN position_options p ON p.id = u.position_id
          LEFT JOIN internal_lesson_completions lc ON lc.organization_id = l.organization_id
            AND lc.source_lesson_id = l.id AND lc.source_client_id = l.client_id
            AND lc.source_specialist_id = l.specialist_id AND lc.schedule_date = $6::date
@@ -369,7 +370,7 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
       lessons = date <= botToday() ? rows : rows.map((lesson) => ({ ...lesson, completed: false }));
       if (date <= botToday()) {
         const history = await db.query(`SELECT j.id::text AS completion_id, j.source_lesson_id AS id,
-          j.source_client_id AS client_id, j.client_name AS child_name, j.specialist_name, TRUE AS completed
+          j.source_client_id AS client_id, j.client_name AS child_name, j.specialist_name, j.position_name, TRUE AS completed
           FROM internal_lesson_completions j
           JOIN LATERAL (SELECT e.completed FROM internal_lesson_journal_events e
             WHERE e.organization_id = j.organization_id AND e.completion_id = j.id ORDER BY e.version DESC LIMIT 1) latest ON latest.completed
@@ -403,20 +404,22 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
     }
     const safe = Math.min(page, Math.max(0, Math.ceil(lessons.length / PAGE_SIZE) - 1));
     session.view.page = safe;
-    const lines = lessons.slice(safe * PAGE_SIZE, (safe + 1) * PAGE_SIZE).map((lesson, index) => [
+    const specialistSchool = session.view.kind === "school" && session.active_role === "specialist";
+    const lines = lessons.slice(safe * PAGE_SIZE, (safe + 1) * PAGE_SIZE).map((lesson, index) => specialistSchool ? "" : session.active_role === "caregiver"
+      ? `${lesson.completed ? "✅ " : ""}${safe * PAGE_SIZE + index + 1}. ${lesson.specialist_name}${lesson.position_name ? `-${lesson.position_name}` : ""}` : [
       `${lesson.completed ? "✅ " : ""}${safe * PAGE_SIZE + index + 1}. ${lesson.child_name}`,
       `${ui().staff}: ${lesson.specialist_name}`,
       lesson.start_time ? `${lesson.start_time}–${lesson.end_time} · ${lesson.service_name}` : "",
       lesson.status ? (ui().statuses[lesson.status] || lesson.status) : ""
     ].filter(Boolean).join("\n"));
-    const completionRows = session.view.kind === "school" && session.active_role === "specialist" && date <= botToday()
+    const completionRows = specialistSchool
       ? lessons.slice(safe * PAGE_SIZE, (safe + 1) * PAGE_SIZE).map((lesson, index) => [botButton(
           `${lesson.completed ? "✅" : "☐"} ${safe * PAGE_SIZE + index + 1}. ${lesson.child_name}`,
-          lesson.completion_id ? `ui:history:${lesson.completion_id}:${date}`
+          date > botToday() ? "ui:noop" : lesson.completion_id ? `ui:history:${lesson.completion_id}:${date}`
             : `ui:complete:${lesson.id}:${lesson.client_id}:${date}:${lesson.completed ? "0" : "1"}`
         )]) : [];
     return display([ui()[session.view.kind], botDayLabel(date, session.language),
-      session.view.kind === "school" ? ui().recurring : "", lines.join("\n\n") || ui().noLessons].filter(Boolean).join("\n\n"),
+      lessons.length ? lines.filter(Boolean).join("\n\n") : ui().noLessons].filter(Boolean).join("\n\n"),
     [...completionRows, ...pageRows(safe, lessons.length), ...buildBotDateNavigation(session.language, date, dayBack())]);
   }
 
