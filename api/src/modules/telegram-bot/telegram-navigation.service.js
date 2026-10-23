@@ -32,7 +32,7 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
   const ui = () => BOT_UI_TEXT[session.language] || BOT_UI_TEXT.ru;
   const call = (method, payload) => api(settings.botToken, method, payload);
   const mainKeyboard = () => ({ keyboard: [
-    [{ text: ui().parent }], [{ text: ui().caregiver }], [{ text: ui().specialist }], [{ text: ui().settings }]
+    [{ text: ui().parent }, { text: ui().caregiver }], [{ text: ui().specialist }, { text: ui().settings }]
   ], resize_keyboard: true, is_persistent: true, one_time_keyboard: false });
 
   async function clearInline() {
@@ -44,7 +44,7 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
     session.ui_message_id = null;
   }
 
-  async function ensureMainKeyboard(force = false, text = ui().main) {
+  async function ensureMainKeyboard(force = false, text = ui()[session.active_role] || ui().main) {
     if (!force && !session.contact_prompt_id && session.keyboard_cleared) return;
     const result = await call("sendMessage", { chat_id: chat.id, text, reply_markup: mainKeyboard() });
     session.contact_prompt_id = null;
@@ -62,7 +62,7 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
       session.view.textPages = pages.length > 1 ? { pages, rows } : null;
     }
     const index = Math.max(0, Math.min(textPage || 0, pages.length - 1));
-    const replyRows = [...rows];
+    const replyRows = rows.map((row) => row.filter((button) => !["ui:home", "week_back"].includes(button.callback_data))).filter((row) => row.length);
     if (pages.length > 1) {
       const controls = [];
       const textPrefix = session.active_role === "parent" && session.view.parentScreens?.[session.view.clientId] ? `ui:pt:${session.view.clientId}` : "ui:text";
@@ -99,6 +99,22 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
     if (parent) await legacy.clearPending(parent);
   }
 
+  async function resetAccount(stopped) {
+    await clearPending();
+    await clearInline();
+    await db.query("UPDATE telegram_parent_accounts SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE organization_id = $1 AND telegram_user_id = $2", [settings.organizationId, from.id]);
+    session.contacts = {};
+    session.active_role = null;
+    session.awaiting_role = null;
+    session.contact_prompt_id = null;
+    session.keyboard_cleared = false;
+    session.view = stopped ? { stopped: true } : {};
+    if (!stopped) return mainMenu();
+    return call("sendMessage", { chat_id: chat.id,
+      text: session.language === "uz" ? "Bot to‘xtatildi. Qayta boshlash uchun /start bosing." : "Бот остановлен. Для повторного запуска отправьте /start.",
+      reply_markup: { remove_keyboard: true } });
+  }
+
   async function mainMenu(prefix = "") {
     await clearInline();
     session.awaiting_role = null;
@@ -115,28 +131,21 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
     await clearPending();
     return display(ui().language, [
       [botButton("O‘zbekcha", "ui:language:uz"), botButton("Русский", "ui:language:ru")],
-      [botButton(ui().changeParent, "ui:contact:parent")], [botButton(ui().changeCaregiver, "ui:contact:caregiver")],
-      [botButton(ui().changeSpecialist, "ui:contact:specialist")], [botButton(ui().back, "ui:home")]
+      [botButton(ui().back, "ui:home")]
     ]);
   }
 
-  async function askContact(role, changing = false, prefix = "") {
+  async function askContact(role, prefix = "") {
     if (!ROLES.has(role)) return mainMenu();
     await clearPending();
-    if (changing) {
-      delete session.contacts[role];
-      if (role === "parent") await db.query(
-        "UPDATE telegram_parent_accounts SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE organization_id = $1 AND telegram_user_id = $2",
-        [settings.organizationId, from.id]
-      );
-    }
     await clearInline();
     session.awaiting_role = role;
     session.active_role = role;
     session.view = { kind: "contact" };
     const result = await call("sendMessage", {
-      chat_id: chat.id, text: [prefix, ui()[role], ui().askContact].filter(Boolean).join("\n\n"),
-      reply_markup: { ...mainKeyboard(), keyboard: [[{ text: ui().contact, request_contact: true }], ...mainKeyboard().keyboard] }
+      chat_id: chat.id, text: prefix || [ui()[role], ui().askContact].join("\n\n"),
+      reply_markup: { keyboard: [[{ text: ui().contact, request_contact: true }, { text: ui().back }]],
+        resize_keyboard: true, is_persistent: true, one_time_keyboard: false }
     });
     session.ui_message_id = null;
     session.contact_prompt_id = result.message_id;
@@ -149,7 +158,7 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
     if (!saved) return askContact(role);
     if (!(await identity(role))) {
       delete session.contacts[role];
-      return askContact(role, false, ui().noAccess);
+      return askContact(role, ui().noAccess);
     }
     await clearPending();
     await clearInline();
@@ -426,7 +435,7 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
     if (!ROLES.has(role)) return mainMenu(ui().chooseRole);
     const contact = message.contact;
     if (!contact?.user_id || String(contact.user_id) !== String(from.id) || !isValidPhoneInput(contact.phone_number)) {
-      return askContact(role, false, ui().ownContact);
+      return askContact(role, ui().ownContact);
     }
     const phone = normalizePhoneNumber(contact.phone_number);
     if (role === "parent") {
@@ -435,7 +444,7 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
       const parent = await legacy.getParent();
       if (parent) await legacy.parentLanguage(parent, session.language);
     } else if (!(await identity(role, phone))) {
-      return askContact(role, false, ui().noAccess);
+      return askContact(role, ui().noAccess);
     }
     session.contacts[role] = phone;
     session.active_role = role;
@@ -447,18 +456,22 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
 
   async function process(update) {
     const message = update.message;
-    if (message?.contact) return receiveContact(message);
     const data = String(update.callback_query?.data || "");
     const text = String(message?.text || "").trim();
-    if (text.startsWith("/start") || text === "/menu" || data === "ui:home" || [BOT_UI_TEXT.uz.back, BOT_UI_TEXT.ru.back, "🔙 Ortga", "🔙 Назад"].includes(text)) {
+    if (/^\/start(?:@[a-zA-Z0-9_]+)?(?:\s|$)/.test(text)) return resetAccount(false);
+    if (/^\/stop(?:@[a-zA-Z0-9_]+)?(?:\s|$)/.test(text)) return session.view.stopped ? undefined : resetAccount(true);
+    if (session.view.stopped) return;
+    if (message?.contact) return receiveContact(message);
+    if (text === "/menu" || data === "ui:home" || [BOT_UI_TEXT.uz.back, BOT_UI_TEXT.ru.back, "🔙 Ortga", "🔙 Назад"].includes(text)) {
       return mainMenu();
     }
     if (data === "ui:noop") return;
     for (const role of ROLES) {
-      if ([BOT_UI_TEXT.uz[role], BOT_UI_TEXT.ru[role]].includes(text)) return enterRole(role);
+      const normalizeLabel = (value) => String(value).replace(/[^\p{L}\p{N}]+/gu, "").toLowerCase();
+      if (text && [BOT_UI_TEXT.uz[role], BOT_UI_TEXT.ru[role]].some((label) => normalizeLabel(label) === normalizeLabel(text))) return enterRole(role);
     }
     if (data.startsWith("ui:role:")) return enterRole(data.slice(8));
-    if (data.startsWith("ui:contact:")) return askContact(data.slice(11), true);
+    if (data.startsWith("ui:contact:")) return settingsMenu();
     if (data === "ui:settings" || [BOT_UI_TEXT.uz.settings, BOT_UI_TEXT.ru.settings].includes(text)) return settingsMenu();
     if (data.startsWith("ui:language:") || ["O'zbekcha", "O‘zbekcha", "Русский"].includes(text)) {
       const language = data ? data.slice(12) : text === "Русский" ? "ru" : "uz";

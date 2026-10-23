@@ -6,8 +6,7 @@ export const BOT_UI_TEXT = Object.freeze({
     chooseRole: "Avval bosh menyudan bo‘limni tanlang.", children: "Biriktirilgan bolalar", noChildren: "Biriktirilgan bolalar topilmadi.",
     today: "📅 Bugungi dars jadvali", week: "🗓 Haftalik jadval / kalendar", school: "🏫 Maktab-bog‘cha", therapy: "🧩 Terapiya",
     calendar: "Kunni tanlang", noLessons: "Bu kunda darslar yo‘q.", child: "Bola", staff: "Mutaxassis", recurring: "Doimiy ichki dars jadvali",
-    changeParent: "Ota-ona kontaktini almashtirish", changeCaregiver: "Tarbiyachi kontaktini almashtirish", changeSpecialist: "Mutaxassis kontaktini almashtirish",
-    language: "Til va kontakt sozlamalari", weekdays: ["Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya"],
+    language: "Til sozlamalari", weekdays: ["Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya"],
     statuses: { pending: "Rejalashtirilgan", confirmed: "Tasdiqlangan", cancelled: "Bekor qilingan", "no-show": "Kelmagan" }
   },
   ru: {
@@ -17,8 +16,7 @@ export const BOT_UI_TEXT = Object.freeze({
     chooseRole: "Сначала выберите раздел в главном меню.", children: "Закреплённые дети", noChildren: "Закреплённые дети не найдены.",
     today: "📅 Расписание на сегодня", week: "🗓 Расписание на неделю / календарь", school: "🏫 Школа-садик", therapy: "🧩 Терапия",
     calendar: "Выберите день", noLessons: "В этот день занятий нет.", child: "Ребёнок", staff: "Специалист", recurring: "Постоянное расписание внутренних занятий",
-    changeParent: "Изменить контакт родителя", changeCaregiver: "Изменить контакт воспитателя", changeSpecialist: "Изменить контакт специалиста",
-    language: "Язык и контакты", weekdays: ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"],
+    language: "Настройки языка", weekdays: ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"],
     statuses: { pending: "Запланировано", confirmed: "Подтверждено", cancelled: "Отменено", "no-show": "Не пришёл" }
   }
 });
@@ -67,7 +65,7 @@ export function buildBotCalendar(language, month, selectedDate = botToday()) {
   const previous = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() - 1, 1, 12)).toISOString().slice(0, 7);
   const next = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1, 12)).toISOString().slice(0, 7);
   const title = new Intl.DateTimeFormat(language === "uz" ? "uz-UZ" : "ru-RU", { month: "long", year: "numeric", timeZone: "UTC" }).format(start);
-  const rows = [[botButton("◀️", isBotDate(`${previous}-01`) ? `ui:calendar:${previous}` : "ui:noop"), botButton(title, "ui:noop"), botButton("▶️", isBotDate(`${next}-01`) ? `ui:calendar:${next}` : "ui:noop")],
+  const rows = [[botButton("◀️", isBotDate(`${previous}-01`) ? `ui:calendar:${previous}` : "ui:noop"), botButton("▶️", isBotDate(`${next}-01`) ? `ui:calendar:${next}` : "ui:noop")],
     ui.weekdays.map((label) => botButton(label, "ui:noop"))];
   const cells = Array.from({ length: (start.getUTCDay() + 6) % 7 }, () => botButton("·", "ui:noop"));
   for (let day = 1; day <= last.getUTCDate(); day++) {

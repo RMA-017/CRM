@@ -57,6 +57,7 @@ test("calendar handles leap years, rejects invalid dates, and exposes every day 
   for (const language of ["uz", "ru"]) {
     const result = buildBotCalendar(language, "2028-02", "2028-02-29");
     const buttons = result.replyMarkup.inline_keyboard.flat();
+    assert.deepEqual(result.replyMarkup.inline_keyboard[0].map((button) => button.text), ["◀️", "▶️"]);
     const days = buttons.filter((button) => button.callback_data.startsWith("ui:day:") && button.text !== BOT_UI_TEXT[language].back);
     assert.equal(days.length, 29);
     assert.ok(days.some((button) => button.callback_data === "ui:day:2028-02-29"));
@@ -80,6 +81,7 @@ test("four main buttons stay in the reply keyboard and only inline controls are 
   assert.deepEqual(calls[0].payload.reply_markup.keyboard.flat().map((button) => button.text),
     [BOT_UI_TEXT.uz.parent, BOT_UI_TEXT.uz.caregiver, BOT_UI_TEXT.uz.specialist, BOT_UI_TEXT.uz.settings]);
   assert.equal(calls[0].payload.reply_markup.is_persistent, true);
+  assert.deepEqual(calls[0].payload.reply_markup.keyboard.map((row) => row.length), [2, 2]);
   assert.equal(calls[0].payload.reply_markup.one_time_keyboard, false);
   await navigator.process(callback("ui:settings"));
   await navigator.process(callback("ui:home"));
@@ -125,11 +127,11 @@ test("caregiver contact verification rejects another person's contact and then l
   assert.equal(session.awaiting_role, null);
   assert.equal(session.contact_prompt_id, null);
   assert.equal(session.view.kind, "children");
-  assert.ok(calls.some((call) => call.payload.reply_markup?.keyboard?.length === 4));
+  assert.ok(calls.some((call) => call.payload.reply_markup?.keyboard?.length === 2));
   assert.ok(calls.every((call) => call.method !== "deleteMessage" && !call.payload.reply_markup?.remove_keyboard));
 });
 
-test("reply keyboard role buttons work in both languages and remain available during contact requests", async () => {
+test("each role opens a separate contact/back keyboard and back restores the main keyboard", async () => {
   for (const language of ["uz", "ru"]) {
     for (const role of ["parent", "caregiver", "specialist"]) {
       const { navigator, session, calls } = setup({ state: { language, ui_message_id: 20 } });
@@ -137,9 +139,13 @@ test("reply keyboard role buttons work in both languages and remain available du
       assert.equal(session.awaiting_role, role);
       const keyboard = calls.at(-1).payload.reply_markup;
       assert.equal(keyboard.keyboard[0][0].request_contact, true);
-      assert.equal(keyboard.keyboard.length, 5);
+      assert.deepEqual(keyboard.keyboard, [[{ text: BOT_UI_TEXT[language].contact, request_contact: true }, { text: BOT_UI_TEXT[language].back }]]);
       assert.equal(keyboard.is_persistent, true);
       assert.ok(calls.every((call) => call.method !== "deleteMessage"));
+      await navigator.process({ message: { from, chat, text: BOT_UI_TEXT[language].back } });
+      assert.equal(session.awaiting_role, null);
+      assert.deepEqual(calls.at(-1).payload.reply_markup.keyboard.map((row) => row.length), [2, 2]);
+      assert.ok(!calls.at(-1).payload.reply_markup.keyboard.flat().some((button) => button.request_contact));
     }
   }
 });
@@ -191,12 +197,64 @@ test("verified role contacts are reused across menu visits while revoked contact
   assert.ok(calls.at(-1).payload.reply_markup.keyboard[0][0].request_contact);
 });
 
-test("changing one role's contact leaves other roles untouched and revokes parent notifications", async () => {
-  const { navigator, session, queries } = setup({ state: { contacts: { parent: "one", caregiver: "two", specialist: "three" } } });
-  await navigator.process(callback("ui:contact:parent"));
-  assert.deepEqual(session.contacts, { caregiver: "two", specialist: "three" });
+test("stop persists an inactive session, ignores old buttons and contacts, and start requires fresh verification", async () => {
+  const { navigator, session, calls, queries } = setup({
+    state: { contacts: { parent: parent.phoneNumber, caregiver: parent.phoneNumber, specialist: parent.phoneNumber }, active_role: "parent", ui_message_id: 20 },
+    adapters: { getParent: async () => parent }
+  });
+  await navigator.process({ message: { from, chat, text: "/stop" } });
+  assert.deepEqual(session.contacts, {});
+  assert.equal(session.view.stopped, true);
+  assert.equal(session.active_role, null);
+  assert.equal(calls.at(-1).payload.reply_markup.remove_keyboard, true);
+  assert.ok(queries.some(({ sql }) => sql.includes("is_active = FALSE")));
+  const before = calls.length;
+  await navigator.process(callback("resp:coming:50"));
+  await navigator.process(callback("ui:home"));
+  await navigator.process(contact());
+  await navigator.process({ message: { from, chat, text: BOT_UI_TEXT.uz.caregiver } });
+  assert.equal(calls.length, before);
+  await navigator.process({ message: { from, chat, text: "/start" } });
+  assert.equal(session.view.stopped, undefined);
+  assert.deepEqual(session.contacts, {});
+  assert.deepEqual(calls.at(-1).payload.reply_markup.keyboard.map((row) => row.length), [2, 2]);
+  await navigator.process(callback("ui:role:parent"));
   assert.equal(session.awaiting_role, "parent");
-  assert.ok(queries.some(({ sql, params }) => sql.includes("is_active = FALSE") && params[0] === 7 && params[1] === 101));
+  assert.equal(calls.at(-1).payload.reply_markup.keyboard[0][0].request_contact, true);
+});
+
+test("Russian caregiver menu reopens without a main-menu message, including older text-only keyboards", async () => {
+  const { navigator, calls, session } = setup({
+    state: { language: "ru", contacts: { caregiver: parent.phoneNumber }, contact_prompt_id: 22, keyboard_cleared: false },
+    query: async (sql) => ({ rows: sql.includes("FROM caregivers") ? [{ id: 9, name: "Caregiver" }] : [] })
+  });
+  await navigator.process({ message: { from, chat, text: "Я воспитатель" } });
+  assert.equal(session.view.kind, "children");
+  assert.ok(!calls.some((call) => call.payload.text === BOT_UI_TEXT.ru.main));
+  const before = calls.length;
+  await navigator.process({ message: { from, chat, text: BOT_UI_TEXT.ru.caregiver } });
+  assert.equal(session.view.kind, "children");
+  assert.equal(calls.slice(before).filter((call) => call.method === "sendMessage").length, 1);
+  assert.ok(!calls.some((call) => call.payload.text === BOT_UI_TEXT.ru.main));
+});
+
+test("unknown specialist contact shows only the access error without repeating role and contact instructions", async () => {
+  const { navigator, calls, session } = setup({ state: { language: "ru", awaiting_role: "specialist" } });
+  await navigator.process(contact());
+  assert.equal(calls.at(-1).payload.text, BOT_UI_TEXT.ru.noAccess);
+  assert.equal(session.contacts.specialist, undefined);
+  assert.equal(calls.at(-1).payload.reply_markup.keyboard[0][0].request_contact, true);
+});
+
+test("settings only offer language and stale contact-change buttons cannot clear verified contacts", async () => {
+  const { navigator, session, queries, calls } = setup({ state: { contacts: { parent: "one", caregiver: "two", specialist: "three" } } });
+  await navigator.process(callback("ui:settings"));
+  assert.deepEqual(calls.at(-1).payload.reply_markup.inline_keyboard.flat().map((b) => b.callback_data), ["ui:language:uz", "ui:language:ru"]);
+  await navigator.process(callback("ui:contact:parent"));
+  assert.deepEqual(session.contacts, { parent: "one", caregiver: "two", specialist: "three" });
+  assert.equal(session.awaiting_role, null);
+  assert.ok(!queries.some(({ sql }) => sql.includes("is_active = FALSE")));
+  assert.ok(!calls.some((call) => call.payload.reply_markup?.keyboard?.flat().some((b) => b.request_contact)));
 });
 
 test("unassigned caregiver children are denied on every day and cached text navigation", async () => {
