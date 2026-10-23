@@ -9,10 +9,10 @@ const querySchema = {
   properties: { q: { type: "string", maxLength: 255 }, page: { type: "integer", minimum: 1, maximum: 1000000 } }
 };
 const bodySchema = {
-  type: "object", additionalProperties: false, required: ["fullName", "phone"],
+  type: "object", additionalProperties: false, required: [],
   properties: {
-    fullName: { type: "string", minLength: 1, maxLength: 255 },
-    phone: { type: "string", minLength: 1, maxLength: 40 }, clientId: { not: {} }
+    fullName: { type: "string", maxLength: 255 },
+    phone: { type: "string", maxLength: 40 }, clientId: { not: {} }
   }
 };
 

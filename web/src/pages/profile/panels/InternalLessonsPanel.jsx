@@ -70,18 +70,18 @@ function LessonEditor({ form, setForm, options, ui, access, saving, error, onSav
         </div>
         {error && <p role="alert" className="internal-lesson-error">{error}</p>}
         <div className="internal-lesson-editor-fields">
-          <div className="field"><span id="internalLessonClientLabel">{ui.child}</span>
+          {(form.id || form.fixedField !== "clientId") && <div className="field"><span id="internalLessonClientLabel">{ui.child}</span>
             <CustomSelect value={form.clientId} onChange={(value) => setForm({ ...form, clientId: value })}
               options={options.clients.map((c) => ({ value: String(c.id), label: `${c.name} (#${c.id})` }))}
               placeholder={ui.chooseChild} searchable searchPlaceholder={ui.search} emptyText={ui.noOptions}
               disabled={saving || !editable} />
-          </div>
-          <div className="field"><span>{ui.specialist}</span>
+          </div>}
+          {(form.id || form.fixedField !== "specialistId") && <div className="field"><span>{ui.specialist}</span>
             <CustomSelect value={form.specialistId} onChange={(value) => setForm({ ...form, specialistId: value })}
               options={specialistOptions.map((s) => ({ value: String(s.id), label: `${s.name}${s.isActive ? "" : ` (${ui.inactive})`}` }))}
               placeholder={ui.chooseSpecialist} searchable searchPlaceholder={ui.search} emptyText={ui.noOptions}
               disabled={saving || !editable} />
-          </div>
+          </div>}
         </div>
         <fieldset className="internal-lesson-days" disabled={saving || !editable}><legend>{ui.days}</legend>
           {days.map((day) => <label key={day} className={form.weekDays.includes(day) ? "is-selected" : ""}>
@@ -90,12 +90,10 @@ function LessonEditor({ form, setForm, options, ui, access, saving, error, onSav
             {ui.dayNames[day]}{options.weekDays.includes(day) ? "" : ` (${ui.closed})`}
           </label>)}
         </fieldset>
-        {form.id && <p className="internal-lesson-hint">{ui.daysHint}</p>}
         {form.id && form.weekDays.length === 0 && <p role="status" className="internal-lesson-error">{ui.emptyDays}</p>}
         <div className="internal-lesson-editor-actions">
           {form.id && access.delete && <ActionIconButton type="button" className="header-btn internal-lesson-delete" disabled={saving}
             onClick={() => setForm({ ...form, weekDays: [] })} label={ui.remove} icon="remove" />}
-          <ActionIconButton type="button" className="header-btn" disabled={saving} onClick={onClose} label={ui.cancel} icon="close" />
           <ActionIconButton type="submit" className="btn" disabled={saving || (form.id && !form.weekDays.length ? !access.delete : !editable)} label={saving ? ui.loading : form.id && !form.weekDays.length ? ui.remove : ui.save} icon={form.id && !form.weekDays.length ? "remove" : "save"} />
         </div>
       </form>
@@ -133,12 +131,6 @@ export default function InternalLessonsPanel({ access, onClose }) {
   const errorText = useCallback((message) => ui.errors[message] || ui.failure, [ui]);
 
   useEffect(() => {
-    function refresh() { setRevision((value) => value + 1); }
-    window.addEventListener("focus", refresh);
-    return () => window.removeEventListener("focus", refresh);
-  }, []);
-
-  useEffect(() => {
     const controller = new AbortController();
     setOptionsLoading(true);
     setOptionsError("");
@@ -153,25 +145,6 @@ export default function InternalLessonsPanel({ access, onClose }) {
       .finally(() => { if (!controller.signal.aborted) setOptionsLoading(false); });
     return () => controller.abort();
   }, [revision, errorText]);
-
-  useEffect(() => {
-    if (!filter.clientId && !filter.specialistId) return;
-    const controller = new AbortController();
-    let inFlight = false;
-    const params = new URLSearchParams();
-    if (filter.clientId) params.set("clientId", filter.clientId);
-    if (filter.specialistId) params.set("specialistId", filter.specialistId);
-    const timer = setInterval(async () => {
-      if (document.visibilityState !== "visible" || inFlight) return;
-      inFlight = true;
-      try {
-        const data = await request(`/?${params}`, { signal: controller.signal });
-        if (!controller.signal.aborted) setItems(data.items);
-      } catch { /* Keep the displayed schedule on a temporary background refresh failure. */ }
-      finally { inFlight = false; }
-    }, 20000);
-    return () => { clearInterval(timer); controller.abort(); };
-  }, [filter.clientId, filter.specialistId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -189,8 +162,6 @@ export default function InternalLessonsPanel({ access, onClose }) {
     return () => controller.abort();
   }, [filter.clientId, filter.specialistId, revision, errorText]);
 
-  const selectedChild = options.clients.find((c) => String(c.id) === filter.clientId);
-  const selectedSpecialist = options.specialists.find((s) => String(s.id) === filter.specialistId);
   const specialistMode = filter.mode === "specialist" && Boolean(filter.specialistId);
   const hasSelection = Boolean(filter.clientId || filter.specialistId);
   const hiddenLessons = useMemo(() => items.filter((item) => item.weekDays.some((day) => !options.weekDays.includes(day))), [items, options.weekDays]);
@@ -206,7 +177,8 @@ export default function InternalLessonsPanel({ access, onClose }) {
     setFormError("");
     setForm({ id: item?.id || null, clientId: String(item?.clientId || filter.clientId || ""),
       specialistId: String(item?.specialistId || filter.specialistId || ""),
-      weekDays: item ? [...item.weekDays] : [day], originalDays: item ? [...item.weekDays] : [] });
+      fixedField: filter.clientId ? "clientId" : "specialistId",
+      weekDays: item ? [...item.weekDays] : [], originalDays: item ? [...item.weekDays] : [] });
   }
 
   async function save(event) {
@@ -264,9 +236,7 @@ export default function InternalLessonsPanel({ access, onClose }) {
     </div>
     {(optionsError || listError) && <p role="alert" className="internal-lesson-error">{optionsError || listError}</p>}
     {optionsLoading ? <p role="status">{ui.loading}</p> : optionsError ? null : <>
-      {options.clients.length === 0 && <p>{ui.noChildren}</p>}
       {!hasSelection ? <p className="all-users-state">{ui.choose}</p> : loading ? <p role="status">{ui.loading}</p> : !listError && <>
-        <h4>{specialistMode ? ui.specialistView : ui.childView}: {specialistMode ? selectedSpecialist?.name : selectedChild?.name}</h4>
         <div className="internal-lesson-grid-scroll"><div className="internal-lesson-grid" style={{ "--internal-days": Math.max(1, options.weekDays.length) }}>
           {options.weekDays.map((day) => <section key={day} className="internal-lesson-day" aria-label={ui.dayNames[day]}>
             <h4>{ui.dayNames[day]}</h4>

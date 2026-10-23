@@ -6,10 +6,11 @@ function inputError(message, statusCode = 400) { return Object.assign(new Error(
 
 export function normalizeCaregiverInput(body = {}) {
   const fullName = String(body.fullName || "").trim();
-  if (!fullName || fullName.length > 255) throw inputError("INVALID_NAME");
-  if (!isValidPhoneInput(body.phone)) throw inputError("INVALID_PHONE");
+  const phone = String(body.phone || "").trim();
+  if (fullName.length > 255 || (phone && !fullName)) throw inputError("INVALID_NAME");
+  if (phone && !isValidPhoneInput(phone)) throw inputError("INVALID_PHONE");
   if (body.clientId !== undefined && (!Number.isInteger(body.clientId) || body.clientId < 1 || body.clientId > 2147483647)) throw inputError("INVALID_CLIENTS");
-  return { fullName, phone: normalizePhoneNumber(body.phone), phoneDigits: normalizePhoneDigits(body.phone), clientId: body.clientId };
+  return { fullName, phone: phone ? normalizePhoneNumber(phone) : "", phoneDigits: phone ? normalizePhoneDigits(phone) : "", clientId: body.clientId };
 }
 
 export async function listCaregivers({ organizationId, search = "", page = 1 }) {
@@ -29,12 +30,14 @@ export async function listCaregivers({ organizationId, search = "", page = 1 }) 
   const safePage = Math.min(page, totalPages);
   const { rows } = await pool.query(`SELECT c.id, c.id AS "clientId",
     concat_ws(' ', c.last_name, c.first_name, c.middle_name) AS "clientName",
-    cg.id AS "caregiverId", COALESCE(cg.full_name, '') AS "fullName", COALESCE(cg.phone_number, '') AS phone
+    cg.id AS "caregiverId", COALESCE(cg.full_name, enrollment.caregiver_name, '') AS "fullName", COALESCE(cg.phone_number, '') AS phone
     ${join} WHERE ${where} ORDER BY LOWER(c.last_name), LOWER(c.first_name), c.id LIMIT 20 OFFSET $3`, [...params, (safePage - 1) * 20]);
   return { items: rows, pagination: { page: safePage, totalPages, total } };
 }
 
 export async function searchCaregiverClients({ organizationId, search = "", page = 1 }) {
+  search = search.trim();
+  if (search.length < 3) return { items: [], hasNext: false };
   const { rows } = await pool.query(`SELECT c.id, concat_ws(' ', c.last_name, c.first_name, c.middle_name) AS name
     FROM clients c WHERE c.organization_id = $1
     AND (concat_ws(' ', c.last_name, c.first_name, c.middle_name) ILIKE $2 OR c.id::text = $3)
@@ -74,14 +77,15 @@ export async function saveCaregiver({ organizationId, id = null, input }) {
     if (!id && enrollment.rows.length) throw inputError("ALREADY_ENROLLED", 409);
     const previous = await db.query("SELECT caregiver_id FROM caregiver_clients WHERE organization_id = $1 AND client_id = $2", [organizationId, clientId]);
     // A phone identifies one caregiver; name corrections apply to all children of that contact.
-    const result = await db.query(`INSERT INTO caregivers (organization_id, full_name, phone_number, phone_digits, is_active)
+    const result = input.phone ? await db.query(`INSERT INTO caregivers (organization_id, full_name, phone_number, phone_digits, is_active)
       VALUES ($1,$2,$3,$4,TRUE) ON CONFLICT (organization_id, phone_digits)
       DO UPDATE SET full_name = EXCLUDED.full_name, phone_number = EXCLUDED.phone_number, is_active = TRUE, updated_at = CURRENT_TIMESTAMP
-      RETURNING id`, [organizationId, input.fullName, input.phone, input.phoneDigits]);
-    const caregiverId = result.rows[0].id;
+      RETURNING id`, [organizationId, input.fullName, input.phone, input.phoneDigits]) : { rows: [] };
+    const caregiverId = result.rows[0]?.id || null;
     if (!id) await db.query("INSERT INTO internal_lesson_clients (organization_id, client_id) VALUES ($1,$2)", [organizationId, clientId]);
+    await db.query("UPDATE internal_lesson_clients SET caregiver_name = $3 WHERE organization_id = $1 AND client_id = $2", [organizationId, clientId, input.fullName]);
     await db.query("DELETE FROM caregiver_clients WHERE organization_id = $1 AND client_id = $2", [organizationId, clientId]);
-    await db.query("INSERT INTO caregiver_clients (organization_id, caregiver_id, client_id) VALUES ($1,$2,$3)", [organizationId, caregiverId, clientId]);
+    if (caregiverId) await db.query("INSERT INTO caregiver_clients (organization_id, caregiver_id, client_id) VALUES ($1,$2,$3)", [organizationId, caregiverId, clientId]);
     await cleanOrphans(db, organizationId, previous.rows.map((row) => row.caregiver_id).filter((oldId) => oldId !== caregiverId));
     return { id: clientId, caregiverId };
   });

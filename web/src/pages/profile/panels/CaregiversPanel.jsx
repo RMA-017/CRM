@@ -45,7 +45,7 @@ export default function CaregiversPanel({ canCreateUsers, canUpdateUsers, canDel
   const [form, setForm] = useState(null), [saving, setSaving] = useState(false), [deleteItem, setDeleteItem] = useState(null);
   const [clientSearch, setClientSearch] = useState(""), [clientPage, setClientPage] = useState(1);
   const [clientResult, setClientResult] = useState({ items: [], hasNext: false }), [clientsLoading, setClientsLoading] = useState(false);
-  const [clientError, setClientError] = useState(""), [matchedContact, setMatchedContact] = useState(false);
+  const [clientError, setClientError] = useState("");
   const busy = useRef(false);
   const errorText = useCallback((message) => ui.errors[message] || ui.failure, [ui]);
 
@@ -59,34 +59,36 @@ export default function CaregiversPanel({ canCreateUsers, canUpdateUsers, canDel
   }, [search, page, revision, errorText]);
 
   const creating = Boolean(form && !form.id);
+  const canSearchClients = clientSearch.trim().length >= 3;
   useEffect(() => {
-    if (!creating) return;
+    setClientResult({ items: [], hasNext: false });
+    setClientError("");
+    if (!creating || !canSearchClients) { setClientsLoading(false); return; }
     const controller = new AbortController(); setClientsLoading(true); setClientError("");
     const timer = setTimeout(() => {
-      request(`/clients?${new URLSearchParams({ q: clientSearch, page: String(clientPage) })}`, { signal: controller.signal })
+      request(`/clients?${new URLSearchParams({ q: clientSearch.trim(), page: String(clientPage) })}`, { signal: controller.signal })
         .then((data) => { if (!controller.signal.aborted) setClientResult(data); })
         .catch((err) => { if (!controller.signal.aborted) setClientError(errorText(err.message)); })
         .finally(() => { if (!controller.signal.aborted) setClientsLoading(false); });
     }, 250);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [creating, clientSearch, clientPage, errorText]);
+  }, [creating, canSearchClients, clientSearch, clientPage, errorText]);
 
   const phone = form?.phone || "";
   const originalPhone = form?.originalPhone || "";
   useEffect(() => {
-    setMatchedContact(false);
     if (!isValidPhoneInput(phone) || phone === originalPhone) return;
     const controller = new AbortController();
     const timer = setTimeout(() => {
       request(`/by-phone?phone=${encodeURIComponent(phone)}`, { signal: controller.signal })
-        .then(({ item }) => { if (!controller.signal.aborted && item) { setMatchedContact(true); setForm((current) => current?.phone === phone ? { ...current, fullName: item.fullName } : current); } })
+        .then(({ item }) => { if (!controller.signal.aborted && item) setForm((current) => current?.phone === phone ? { ...current, fullName: item.fullName } : current); })
         .catch(() => {});
     }, 300);
     return () => { clearTimeout(timer); controller.abort(); };
   }, [phone, originalPhone]);
 
   function openForm(item = null) {
-    setError(""); setDeleteItem(null); setClientSearch(""); setClientPage(1); setClientResult({ items: [], hasNext: false }); setMatchedContact(false);
+    setError(""); setDeleteItem(null); setClientSearch(""); setClientPage(1); setClientResult({ items: [], hasNext: false });
     setForm(item ? { ...item, originalPhone: item.phone } : { clientId: "", clientName: "", fullName: "", phone: "" });
   }
   async function save(event) {
@@ -124,27 +126,24 @@ export default function CaregiversPanel({ canCreateUsers, canUpdateUsers, canDel
         {error && <p role="alert" className="internal-lesson-error">{error}</p>}
         {form.id ? <div className="caregiver-fixed-child"><small>{ui.child}</small><strong>{form.clientName} (#{form.clientId})</strong></div> : <fieldset className="caregiver-assignment" disabled={saving}>
           <legend>{ui.child}</legend>
-          {form.clientName && <p className="internal-lesson-hint">{form.clientName} (#{form.clientId})</p>}
           <input type="search" aria-label={ui.childSearch} placeholder={ui.childSearch} value={clientSearch} onChange={(e) => { setClientSearch(e.target.value); setClientPage(1); }} />
           {clientError && <p role="alert" className="internal-lesson-error">{clientError}</p>}
-          <div className="caregiver-child-options">{clientsLoading ? <p>{ui.loading}</p> : clientResult.items.length === 0 ? <p>{ui.noChildren}</p> : clientResult.items.map((client) => <label key={client.id}>
+          {canSearchClients && <div className="caregiver-child-options">{clientsLoading ? <p>{ui.loading}</p> : clientResult.items.length === 0 ? <p>{ui.noChildren}</p> : clientResult.items.map((client) => <label key={client.id}>
             <input type="radio" name="caregiverChild" checked={Number(form.clientId) === client.id} onChange={() => setForm({ ...form, clientId: client.id, clientName: client.name })} />{client.name} (#{client.id})
-          </label>)}</div>
-          <div className="all-users-pagination"><ActionIconButton disabled={clientsLoading || clientPage <= 1} onClick={() => setClientPage((p) => p - 1)} label={ui.previous} icon="previous" /><span>{clientPage}</span><ActionIconButton disabled={clientsLoading || !clientResult.hasNext} onClick={() => setClientPage((p) => p + 1)} label={ui.next} icon="next" /></div>
+          </label>)}</div>}
+          {canSearchClients && clientResult.items.length > 0 && <div className="all-users-pagination"><ActionIconButton disabled={clientsLoading || clientPage <= 1} onClick={() => setClientPage((p) => p - 1)} label={ui.previous} icon="previous" /><span>{clientPage}</span><ActionIconButton disabled={clientsLoading || !clientResult.hasNext} onClick={() => setClientPage((p) => p + 1)} label={ui.next} icon="next" /></div>}
         </fieldset>}
         <div className="caregiver-identity-fields caregiver-roster-fields">
-          <label className="field">{ui.phone}<input required type="tel" maxLength={40} placeholder="+998" value={form.phone} disabled={saving} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
-          <label className="field">{ui.name}<input required maxLength={255} value={form.fullName} disabled={saving} onChange={(e) => setForm({ ...form, fullName: e.target.value })} /></label>
+          <label className="field">{ui.phone}<input type="tel" maxLength={40} placeholder="+998" value={form.phone} disabled={saving} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
+          <label className="field">{ui.name}<input required={Boolean(form.phone.trim())} maxLength={255} value={form.fullName} disabled={saving} onChange={(e) => setForm({ ...form, fullName: e.target.value })} /></label>
         </div>
-        {matchedContact && <p className="internal-lesson-hint">{ui.existing}</p>}
-        <p className="internal-lesson-hint">{ui.shared}</p>
-        <div className="internal-lesson-editor-actions"><ActionIconButton disabled={saving} onClick={() => { setForm(null); setError(""); }} label={ui.cancel} icon="close" /><ActionIconButton type="submit" className="btn" disabled={saving} label={ui.save} icon="save" /></div>
+        <div className="internal-lesson-editor-actions"><ActionIconButton type="submit" className="btn" disabled={saving} label={ui.save} icon="save" /></div>
       </form>
     </CompactDialog>}
     {deleteItem && <CompactDialog title={ui.remove} closeLabel={ui.cancel} busy={saving} onClose={() => { setDeleteItem(null); setError(""); }}>
       <strong>{deleteItem.clientName}</strong><p>{ui.confirmDelete}</p>
       {error && <p role="alert" className="internal-lesson-error">{error}</p>}
-      <div className="internal-lesson-editor-actions"><ActionIconButton disabled={saving} onClick={() => setDeleteItem(null)} label={ui.cancel} icon="close" /><ActionIconButton className="btn" disabled={saving} onClick={remove} label={ui.remove} icon="remove" /></div>
+      <div className="internal-lesson-editor-actions"><ActionIconButton className="btn" disabled={saving} onClick={remove} label={ui.remove} icon="remove" /></div>
     </CompactDialog>}
     {loading ? <p role="status">{ui.loading}</p> : <>
       <div className="all-users-table-wrap"><table className="all-users-table">

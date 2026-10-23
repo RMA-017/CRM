@@ -94,12 +94,6 @@ export default function InternalLessonJournalPanel({ access, onClose }) {
   const errorText = useCallback((message) => ui.errors[message] || ui.failure, [ui]);
 
   useEffect(() => {
-    function refresh() { setRevision((value) => value + 1); }
-    window.addEventListener("focus", refresh);
-    return () => window.removeEventListener("focus", refresh);
-  }, []);
-
-  useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError("");

@@ -3,7 +3,7 @@ import test from "node:test";
 import Fastify from "fastify";
 process.env.JWT_SECRET ||= "caregiver-test-secret";
 const { default: pool } = await import("../src/config/db.js");
-const { normalizeCaregiverInput, saveCaregiver, deleteCaregiver, findCaregiverByPhone } = await import("../src/modules/caregivers/caregivers.service.js");
+const { normalizeCaregiverInput, saveCaregiver, deleteCaregiver, findCaregiverByPhone, searchCaregiverClients } = await import("../src/modules/caregivers/caregivers.service.js");
 const { default: caregiversRoutes } = await import("../src/modules/caregivers/caregivers.routes.js");
 const { clearRolePermissionsCache } = await import("../src/modules/users/access.service.js");
 const input = { fullName: "  Test caregiver  ", phone: "90 123 45 67", clientId: 4 };
@@ -38,6 +38,19 @@ test("new roster rows reuse caregivers by phone and enroll exactly one child", a
   assert.deepEqual(calls.find(({ sql }) => sql.includes("INSERT INTO internal_lesson_clients")).params, [7, 4]);
   assert.ok(calls.find(({ sql }) => sql.includes("INSERT INTO caregivers")).sql.includes("ON CONFLICT (organization_id, phone_digits)"));
   assert.equal(calls.at(-1).sql, "COMMIT");
+});
+
+test("a child can be enrolled without a phone or caregiver and linked later without deleting lessons", async (t) => {
+  let existing = false;
+  const calls = transaction(t, (sql) => ({ rows: sql.includes("FROM clients") ? [{ id: 4 }] : sql.includes("SELECT client_id") && existing ? [{ client_id: 4 }] : sql.includes("INSERT INTO caregivers") ? [{ id: 9 }] : [] }));
+  const added = await saveCaregiver({ organizationId: 7, input: normalizeCaregiverInput({ clientId: 4 }) });
+  assert.deepEqual(added, { id: 4, caregiverId: null });
+  assert.ok(!calls.some(({ sql }) => sql.includes("INSERT INTO caregivers") || sql.includes("INSERT INTO caregiver_clients")));
+  existing = true;
+  await saveCaregiver({ organizationId: 7, id: 4, input: normalizeCaregiverInput({ fullName: "Caregiver", phone: "901234567" }) });
+  assert.ok(calls.some(({ sql }) => sql.includes("INSERT INTO caregiver_clients")));
+  assert.ok(!calls.some(({ sql }) => sql.includes("DELETE FROM internal_lesson_clients")));
+  assert.equal(normalizeCaregiverInput({ fullName: "Name only" }).phone, "");
 });
 
 test("duplicate child enrollment is rejected without creating another caregiver", async (t) => {
@@ -85,6 +98,13 @@ async function appFor(t, codes, operation = () => { throw new Error("Unexpected 
 test("client and contact lookup require read permission", async (t) => {
   const app = await appFor(t, []);
   for (const url of ["/clients", "/by-phone?phone=901234567"]) assert.equal((await app.inject({ method: "GET", url: "/api/users/caregivers" + url })).statusCode, 403);
+});
+
+test("child searches shorter than three characters do not query the database", async (t) => {
+  const original = pool.query;
+  pool.query = async () => { throw new Error("No query expected"); };
+  t.after(() => { pool.query = original; });
+  for (const search of ["", "A", "Al", "  Al  "]) assert.deepEqual(await searchCaregiverClients({ organizationId: 7, search }), { items: [], hasNext: false });
 });
 
 test("client search excludes enrolled children and other organizations", async (t) => {

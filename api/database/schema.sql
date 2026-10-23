@@ -1247,3 +1247,5 @@ ALTER TABLE internal_lesson_completions
   ADD COLUMN journal_client_name VARCHAR(255),
   ADD COLUMN journal_specialist_name VARCHAR(255),
   ADD COLUMN journal_position_name VARCHAR(255);
+
+ALTER TABLE internal_lesson_clients ADD COLUMN caregiver_name VARCHAR(255) NOT NULL DEFAULT '';
