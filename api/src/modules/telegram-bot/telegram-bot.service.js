@@ -12,6 +12,8 @@ import { createOrUpdateCrmLead } from "../crm/crm.service.js";
 import { persistNotificationEvent } from "../notifications/notifications.service.js";
 import { listPublicSiteContentItems } from "../site-content/site-content.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
+import { telegramInteractionContext } from "./telegram-interaction-context.js";
+import { handleTelegramNavigation } from "./telegram-navigation.service.js";
 
 const DEFAULT_LANGUAGE = "ru";
 const SUPPORTED_LANGUAGES = new Set(["uz", "ru"]);
@@ -806,6 +808,10 @@ async function callTelegramApi(token, method, payload = {}) {
 }
 
 async function sendTelegramMessage({ token, chatId, text, replyMarkup }) {
+  const interaction = telegramInteractionContext.getStore();
+  if (interaction?.token === token && interaction.chatId === String(chatId)) {
+    return interaction.screen(text, replyMarkup);
+  }
   return callTelegramApi(token, "sendMessage", {
     chat_id: chatId,
     text,
@@ -836,6 +842,10 @@ async function editTelegramMessageText({ token, chatId, messageId, text, replyMa
 }
 
 async function editTelegramMessageOrSend({ token, chatId, messageId, text, replyMarkup }) {
+  const interaction = telegramInteractionContext.getStore();
+  if (interaction?.token === token && interaction.chatId === String(chatId)) {
+    return interaction.screen(text, replyMarkup);
+  }
   const normalizedMessageId = normalizePositiveInteger(messageId);
   if (normalizedMessageId) {
     try {
@@ -854,6 +864,8 @@ async function editTelegramMessageOrSend({ token, chatId, messageId, text, reply
 }
 
 async function answerCallbackQuery({ token, callbackQueryId, text = "" }) {
+  const interaction = telegramInteractionContext.getStore();
+  if (interaction?.acknowledgedCallbackId === callbackQueryId && !text) return;
   if (!callbackQueryId) {
     return;
   }
@@ -2767,16 +2779,32 @@ export async function handleTelegramUpdate({ organizationId, webhookSecret, upda
     return { ok: true };
   }
 
-  const message = update.message;
-  const callbackQuery = update.callback_query;
-  if (message?.contact) {
-    await handleContactMessage({ settings, message });
-  } else if (message?.text) {
-    await handleTextMessage({ settings, message });
-  } else if (callbackQuery) {
-    await handleCallbackQuery({ settings, callbackQuery });
-  }
-  return { ok: true };
+  const message = update.message || update.callback_query?.message;
+  const from = update.message?.from || update.callback_query?.from;
+  return handleTelegramNavigation({
+    settings,
+    update,
+    api: callTelegramApi,
+    legacy: {
+      getParent: () => findParentAccount({ organizationId: settings.organizationId, telegramUserId: from?.id, chatId: message?.chat?.id }),
+      linkParent: (contactMessage) => handleContactMessage({ settings, message: contactMessage }),
+      parentLanguage: (parent, language) => updateParentLanguage({ parent, language }),
+      children: (parent) => listParentClients(parent),
+      day: ({ parent, dateYmd }) => sendWeekDaySchedule({ settings, parent, dateYmd }),
+      appointment: (parent, appointmentId) => getParentAppointment({ parent, appointmentId }),
+      callback: (callbackQuery) => handleCallbackQuery({ settings, callbackQuery }),
+      text: (textMessage) => handleTextMessage({ settings, message: textMessage }),
+      clearPending: (parent) => deletePendingCancelAction({ parent }),
+      hasPending: async (parent) => {
+        const { rows } = await pool.query(
+          `SELECT id FROM telegram_parent_pending_actions
+           WHERE organization_id = $1 AND parent_account_id = $2 AND expires_at > CURRENT_TIMESTAMP LIMIT 1`,
+          [parent.organizationId, parent.id]
+        );
+        return rows.length > 0;
+      }
+    }
+  });
 }
 
 async function listParentsForClient({ organizationId, clientId }) {

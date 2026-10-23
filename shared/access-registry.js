@@ -258,6 +258,26 @@ export const ACCESS_MENU_REGISTRY = deepFreeze([
         ]
       }),
       defineFeature({
+        key: "appointments.internal_lessons",
+        label: "School / Kindergarten",
+        sortOrder: 15,
+        permissions: [
+          definePermission({ constantKey: "INTERNAL_LESSONS_READ", code: "appointments.internal-lessons.read", label: "Read Internal Lessons", uiLabel: "Read", sortOrder: 61, actionKey: "read" }),
+          definePermission({ constantKey: "INTERNAL_LESSONS_CREATE", code: "appointments.internal-lessons.create", label: "Create Internal Lessons", uiLabel: "Create", sortOrder: 62, actionKey: "create" }),
+          definePermission({ constantKey: "INTERNAL_LESSONS_UPDATE", code: "appointments.internal-lessons.update", label: "Update Internal Lessons", uiLabel: "Edit", sortOrder: 63, actionKey: "update" }),
+          definePermission({ constantKey: "INTERNAL_LESSONS_DELETE", code: "appointments.internal-lessons.delete", label: "Delete Internal Lessons", uiLabel: "Delete", sortOrder: 64, actionKey: "delete" })
+        ]
+      }),
+      defineFeature({
+        key: "appointments.internal_journal",
+        label: "Internal Lesson Journal",
+        sortOrder: 18,
+        permissions: [
+          definePermission({ constantKey: "INTERNAL_JOURNAL_READ", code: "appointments.internal-journal.read", label: "Read Internal Lesson Journal", uiLabel: "Read", sortOrder: 65, actionKey: "read" }),
+          definePermission({ constantKey: "INTERNAL_JOURNAL_UPDATE", code: "appointments.internal-journal.update", label: "Correct Internal Lesson Journal", uiLabel: "Edit", sortOrder: 66, actionKey: "update" })
+        ]
+      }),
+      defineFeature({
         key: "appointments.notifications",
         label: "Appointment Notifications",
         sortOrder: 20,

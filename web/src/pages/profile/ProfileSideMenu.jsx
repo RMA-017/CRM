@@ -38,6 +38,8 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
   openServicesPanel,
   hasAppointmentsMenuAccess,
   canOpenAppointmentSchedule,
+  canOpenInternalLessons,
+  canOpenInternalJournal,
   canOpenAppointmentSettings,
   canOpenTelegramBotSettings,
   canOpenSmsNotifications,
@@ -218,6 +220,19 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
               >
                 {translate("Planner")}
               </button>
+              <button
+                id="openInternalLessonsBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                hidden={!canOpenInternalLessons}
+                onClick={() => { closeMenu(); navigate("/appointments/school-kindergarten"); }}
+              >
+                {translate("School / Kindergarten")}
+              </button>
+              <button id="openInternalJournalBtn" type="button" className="side-submenu-link side-submenu-action"
+                hidden={!canOpenInternalJournal} onClick={() => { closeMenu(); navigate("/appointments/internal-journal"); }}>
+                {translate("Internal Lesson Journal")}
+              </button>
             </div>
           </div>
 
@@ -245,6 +260,18 @@ const ProfileSideMenu = memo(forwardRef(function ProfileSideMenu({
                 }}
               >
                 {translate("All Users")}
+              </button>
+              <button
+                id="openCaregiversBtn"
+                type="button"
+                className="side-submenu-link side-submenu-action"
+                hidden={!canReadUsers && !hasAdminSettingsAccess}
+                onClick={() => {
+                  closeMenu();
+                  navigate("/users/caregivers");
+                }}
+              >
+                {translate("Caregivers")}
               </button>
             </div>
           </div>

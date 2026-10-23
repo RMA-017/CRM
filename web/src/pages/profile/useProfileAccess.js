@@ -48,6 +48,16 @@ export function useProfileAccess(profile, forcedView) {
   const canDeleteClients = hasPermissionCode(PERMISSIONS.CLIENTS_DELETE);
 
   const canReadAppointments = hasPermissionCode(PERMISSIONS.APPOINTMENTS_PLANNER_READ);
+  const internalLessonsAccess = {
+    read: hasPermissionCode(PERMISSIONS.INTERNAL_LESSONS_READ),
+    create: hasPermissionCode(PERMISSIONS.INTERNAL_LESSONS_CREATE),
+    update: hasPermissionCode(PERMISSIONS.INTERNAL_LESSONS_UPDATE),
+    delete: hasPermissionCode(PERMISSIONS.INTERNAL_LESSONS_DELETE)
+  };
+  const internalJournalAccess = {
+    read: hasPermissionCode(PERMISSIONS.INTERNAL_JOURNAL_READ),
+    update: hasPermissionCode(PERMISSIONS.INTERNAL_JOURNAL_UPDATE)
+  };
   const canCreateAppointments = hasPermissionCode(PERMISSIONS.APPOINTMENTS_PLANNER_CREATE);
   const canUpdateAppointments = hasPermissionCode(PERMISSIONS.APPOINTMENTS_PLANNER_UPDATE);
   const canDeleteAppointments = hasPermissionCode(PERMISSIONS.APPOINTMENTS_PLANNER_DELETE);
@@ -279,7 +289,7 @@ export function useProfileAccess(profile, forcedView) {
   const canSendSmsNotifications = canSendSmsNotificationsPermission;
 
   const hasAppointmentsMenuAccess = (
-    canOpenAppointmentSchedule
+    canOpenAppointmentSchedule || internalLessonsAccess.read || internalJournalAccess.read
   );
   const hasSettingsMenuAccess = (
     canOpenAppointmentSettings
@@ -318,7 +328,7 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "none") {
       return true;
     }
-    if (forcedView === "all-users") {
+    if (forcedView === "all-users" || forcedView === "caregivers") {
       return canReadUsers;
     }
     if (forcedView === "create-user") {
@@ -357,6 +367,12 @@ export function useProfileAccess(profile, forcedView) {
     if (forcedView === "appointment") {
       return canOpenAppointmentSchedule;
     }
+    if (forcedView === "internal-lessons") {
+      return internalLessonsAccess.read;
+    }
+    if (forcedView === "internal-journal") {
+      return internalJournalAccess.read;
+    }
     if (forcedView === "appointment-settings") {
       return canOpenAppointmentSettings;
     }
@@ -392,6 +408,8 @@ export function useProfileAccess(profile, forcedView) {
     }
     return false;
   }, [
+    internalLessonsAccess.read,
+    internalJournalAccess.read,
     canCreateUsers,
     canOpenAppointmentSchedule,
     canOpenAppointmentSettings,
@@ -423,6 +441,8 @@ export function useProfileAccess(profile, forcedView) {
   ]);
 
   return {
+    internalLessonsAccess,
+    internalJournalAccess,
     canReadUsers,
     canCreateUsers,
     canUpdateUsers,

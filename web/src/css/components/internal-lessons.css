@@ -1,0 +1,40 @@
+.internal-lessons-panel .internal-lesson-hint { margin: 5px 0 12px; color: #64748b; font-size: 13px; line-height: 1.5; }
+.internal-lesson-filters, .internal-lesson-editor-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 16px 0; }
+.internal-lesson-filters .field, .internal-lesson-editor-fields .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.internal-lesson-grid-scroll { overflow-x: auto; padding: 2px 1px 14px; }
+.internal-lesson-grid { display: grid; grid-template-columns: repeat(var(--internal-days), minmax(145px, 1fr)); gap: 12px; min-width: calc(var(--internal-days) * 157px - 12px); align-items: start; }
+.internal-lesson-day { background: #f3f6fb; border: 1px solid #e0e7f0; border-radius: 12px; padding: 10px; }
+.internal-lesson-day > h4 { margin: 4px 0 14px; font-size: 14px; text-align: center; color: #334155; }
+.internal-lesson-slots { display: flex; flex-direction: column; gap: 10px; }
+.internal-lesson-card { appearance: none; width: 100%; min-height: 90px; border: 1px solid #bed6ee; border-left: 4px solid #3b82f6; border-radius: 8px; background: #eaf3ff; padding: 12px; text-align: left; color: #1e3a5f; display: flex; flex-direction: column; justify-content: center; gap: 8px; cursor: pointer; font: inherit; overflow-wrap: anywhere; }
+.internal-lesson-card strong { font-size: 13px; line-height: 1.4; }
+.internal-lesson-card > span { font-size: 12px; line-height: 1.4; }
+.internal-lesson-card:hover { border-color: #3b82f6; background: #dcecff; }
+.internal-lesson-card.is-empty { border: 1px dashed #cbd5e1; background: #fff; align-items: center; color: #94a3b8; }
+.internal-lesson-card.is-empty > span { font-size: 24px; }
+.internal-lesson-card:disabled, .internal-lesson-add:disabled { opacity: .5; cursor: default; }
+.internal-lesson-add { width: 100%; border: 0; background: transparent; color: #2563eb; padding: 14px 4px 4px; cursor: pointer; font: inherit; font-size: 13px; }
+.internal-lesson-error { color: #b42318; padding: 10px 12px; background: #fff1f0; border-radius: 8px; font-size: 14px; }
+.internal-lesson-dialog { width: min(580px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; box-shadow: 0 24px 70px #0f172a33; color: #1e293b; }
+.internal-lesson-dialog::backdrop { background: #0f172a66; }
+.internal-lesson-dialog form { margin: 0; }
+.internal-lesson-dialog .all-users-head h3 { margin: 0; }
+.internal-lesson-days { border: 0; padding: 0; margin: 20px 0 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+.internal-lesson-days legend { margin-bottom: 10px; font-weight: 600; }
+.internal-lesson-days label { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 9px 10px; cursor: pointer; font-size: 13px; }
+.internal-lesson-days label.is-selected { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }
+.internal-lesson-days input { accent-color: #2563eb; }
+.internal-lesson-dialog .internal-lesson-hint { color: #64748b; font-size: 13px; line-height: 1.5; }
+.internal-lesson-editor-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 24px; }
+.internal-lesson-editor-actions .internal-lesson-delete { margin-right: auto; color: #b42318; }
+.internal-lesson-hidden { margin-top: 16px; }
+.internal-lesson-hidden summary { cursor: pointer; color: #64748b; margin-bottom: 10px; }
+.internal-lesson-card:focus-visible, .internal-lesson-add:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.internal-journal-filters { display: grid; grid-template-columns: 150px 150px minmax(180px, 1fr) 180px auto; align-items: end; gap: 12px; margin: 20px 0; }
+.internal-journal-filters .field { display: flex; flex-direction: column; gap: 6px; }
+.internal-journal-time { display: block; color: #64748b; margin-top: 3px; }
+@media (max-width: 1000px) { .internal-journal-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) {
+  .internal-lesson-filters, .internal-lesson-editor-fields { grid-template-columns: 1fr; gap: 10px; }
+  .internal-lesson-dialog { padding: 18px; }
+}

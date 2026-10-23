@@ -2,6 +2,9 @@ import { lazy, memo, Suspense, useEffect, useMemo, useState } from "react";
 import { formatDateYMD } from "../../lib/formatters.js";
 
 const AllUsersPanel = lazy(() => import("./panels/AllUsersPanel.jsx"));
+const CaregiversPanel = lazy(() => import("./panels/CaregiversPanel.jsx"));
+const InternalLessonsPanel = lazy(() => import("./panels/InternalLessonsPanel.jsx"));
+const InternalLessonJournalPanel = lazy(() => import("./panels/InternalLessonJournalPanel.jsx"));
 const AppointmentPlannerPanel = lazy(() => import("./panels/AppointmentPlannerPanel.jsx"));
 const AppointmentSettingsShellPanel = lazy(() => import("./panels/AppointmentSettingsShellPanel.jsx"));
 const ClientsPanel = lazy(() => import("./panels/ClientsPanel.jsx"));
@@ -79,6 +82,8 @@ function storeClientsTableColumnIds(columnIds) {
 }
 
 function ProfileMainContent({
+  internalLessonsAccess,
+  internalJournalAccess,
   mainView,
   allUsersLoading,
   allUsers,
@@ -508,6 +513,26 @@ function ProfileMainContent({
   return (
     <>
       <main className="home-main" aria-label="Main content">
+        {mainView === "internal-journal" ? (
+          <Suspense fallback={PANEL_LOADING_FALLBACK}>
+            <InternalLessonJournalPanel access={internalJournalAccess} onClose={closeAppointmentPanel} />
+          </Suspense>
+        ) : null}
+        {mainView === "internal-lessons" ? (
+          <Suspense fallback={PANEL_LOADING_FALLBACK}>
+            <InternalLessonsPanel access={internalLessonsAccess} onClose={closeAppointmentPanel} />
+          </Suspense>
+        ) : null}
+        {mainView === "caregivers" ? (
+          <Suspense fallback={PANEL_LOADING_FALLBACK}>
+            <CaregiversPanel
+              canCreateUsers={canCreateUsers}
+              canUpdateUsers={canUpdateUsers}
+              canDeleteUsers={canDeleteUsers}
+              onClose={closeAllUsersPanel}
+            />
+          </Suspense>
+        ) : null}
         {(mainView === "all-users" || mainView === "create-user") ? (
           <Suspense fallback={PANEL_LOADING_FALLBACK}>
             <AllUsersPanel

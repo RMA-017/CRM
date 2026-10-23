@@ -356,7 +356,7 @@ export async function telegramWebhookRoutes(fastify) {
         return reply.send({ ok: true });
       } catch (error) {
         request.log.error({ err: error }, "Error handling Telegram webhook update");
-        return reply.send({ ok: true });
+        return reply.status(503).send({ ok: false });
       }
     }
   );

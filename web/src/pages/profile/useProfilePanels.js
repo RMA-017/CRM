@@ -143,8 +143,8 @@ export function useProfilePanels({
   }, [canOpenAppointmentSchedule, openPanel]);
 
   const closeAppointmentPanel = useCallback(() => {
-    closePanel("appointment");
-  }, [closePanel]);
+    closePanel(["internal-lessons", "internal-journal"].includes(mainView) ? mainView : "appointment");
+  }, [closePanel, mainView]);
 
   const openAppointmentSettingsPanel = useCallback(() => {
     openPanel("/settings/appointments", canOpenAppointmentSettings);
@@ -244,8 +244,8 @@ export function useProfilePanels({
   }, [closePanel, mainView, navigate]);
 
   const closeAllUsersPanel = useCallback(() => {
-    closePanel("all-users");
-  }, [closePanel]);
+    closePanel(mainView === "caregivers" ? "caregivers" : "all-users");
+  }, [closePanel, mainView]);
 
   return {
     openMyProfilePanel,

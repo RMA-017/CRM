@@ -63,6 +63,8 @@ function ProfilePage({ forcedView = "none" }) {
 
   const {
     canReadUsers,
+    internalLessonsAccess,
+    internalJournalAccess,
     canCreateUsers,
     canUpdateUsers,
     canDeleteUsers,
@@ -1182,6 +1184,8 @@ function ProfilePage({ forcedView = "none" }) {
 
         <Suspense fallback={<main className="home-main" aria-label="Main content" />}>
           <ProfileMainContent
+            internalLessonsAccess={internalLessonsAccess}
+            internalJournalAccess={internalJournalAccess}
             mainView={mainView}
             allUsersLoading={allUsersLoading}
             allUsers={allUsers}
@@ -1423,6 +1427,8 @@ function ProfilePage({ forcedView = "none" }) {
       ) : null}
 
       <ProfileSideMenu
+        canOpenInternalLessons={internalLessonsAccess.read}
+        canOpenInternalJournal={internalJournalAccess.read}
         ref={bindSideMenuRef}
         menuRef={menuRef}
         hasClientsMenuAccess={hasClientsMenuAccess}

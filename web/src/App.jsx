@@ -97,6 +97,7 @@ class ChunkErrorBoundary extends Component {
 const PROFILE_VIEW_ROUTES = Object.freeze([
   { path: "/profile", forcedView: "none" },
   { path: "/users/allusers", forcedView: "all-users" },
+  { path: "/users/caregivers", forcedView: "caregivers" },
   { path: "/users/create", forcedView: "create-user" },
   { path: "/clients/allclients", forcedView: "clients-all" },
   { path: "/crm", forcedView: "crm" },
@@ -109,6 +110,8 @@ const PROFILE_VIEW_ROUTES = Object.freeze([
   { path: "/finance/reports", forcedView: "finance-reports" },
   { path: "/finance/discounts", forcedView: "finance-discounts" },
   { path: "/appointments/planner", forcedView: "appointment" },
+  { path: "/appointments/school-kindergarten", forcedView: "internal-lessons" },
+  { path: "/appointments/internal-journal", forcedView: "internal-journal" },
   { path: "/sms-xabarnoma", forcedView: "sms-notifications" },
   { path: "/settings/appointments", forcedView: "appointment-settings" },
   { path: "/settings/telegram-bot", forcedView: "telegram-bot-settings" },

@@ -24,6 +24,9 @@ import siteContentPublicRoutes, { siteContentProtectedRoutes } from "./modules/s
 import { telegramSettingsRoutes, telegramWebhookRoutes } from "./modules/telegram-bot/telegram-bot.routes.js";
 import { startTelegramReminderWorker } from "./modules/telegram-bot/telegram-bot.service.js";
 import usersRoutes from "./modules/users/users.routes.js";
+import caregiversRoutes from "./modules/caregivers/caregivers.routes.js";
+import internalLessonsRoutes from "./modules/internal-lessons/internal-lessons.routes.js";
+import internalLessonJournalRoutes from "./modules/internal-lessons/internal-lesson-journal.routes.js";
 import { ensureSystemPermissions } from "./modules/users/permissions.service.js";
 
 async function checkDatabaseReadiness() {
@@ -186,6 +189,9 @@ export async function buildApp() {
     await fastify.register(profileRoutes, { prefix: "/api/profile" });
     await fastify.register(createUserRoutes, { prefix: "/api/users" });
     await fastify.register(usersRoutes, { prefix: "/api/users" });
+    await fastify.register(caregiversRoutes, { prefix: "/api/users/caregivers" });
+    await fastify.register(internalLessonsRoutes, { prefix: "/api/internal-lessons" });
+    await fastify.register(internalLessonJournalRoutes, { prefix: "/api/internal-lesson-journal" });
     await fastify.register(clientsRoutes, { prefix: "/api/clients" });
     await fastify.register(servicesRoutes, { prefix: "/api/services" });
     await fastify.register(financeRoutes, { prefix: "/api/finance" });

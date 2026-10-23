@@ -1112,3 +1112,129 @@ CREATE TABLE appointment_breaks_work_history (
 
 CREATE INDEX idx_abwh_lookup
   ON appointment_breaks_work_history (organization_id, entity_type, entity_id, changed_at DESC, id DESC);
+
+CREATE TABLE caregivers (
+  id SERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  full_name VARCHAR(255) NOT NULL CHECK (length(trim(full_name)) > 0),
+  phone_number VARCHAR(16) NOT NULL,
+  phone_digits VARCHAR(15) NOT NULL CHECK (phone_digits ~ '^[0-9]{7,15}$'),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (organization_id, phone_digits),
+  UNIQUE (organization_id, id)
+);
+
+CREATE TABLE caregiver_clients (
+  organization_id INTEGER NOT NULL,
+  caregiver_id INTEGER NOT NULL,
+  client_id INTEGER NOT NULL,
+  PRIMARY KEY (organization_id, caregiver_id, client_id),
+  FOREIGN KEY (organization_id, caregiver_id)
+    REFERENCES caregivers(organization_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (organization_id, client_id)
+    REFERENCES clients(organization_id, id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_caregiver_clients_client ON caregiver_clients (organization_id, client_id);
+
+-- Enrollment is independent of current caregiver links, so unassigned children remain visible.
+CREATE TABLE internal_lesson_clients (
+  organization_id INTEGER NOT NULL,
+  client_id INTEGER NOT NULL,
+  PRIMARY KEY (organization_id, client_id),
+  FOREIGN KEY (organization_id, client_id) REFERENCES clients(organization_id, id) ON DELETE CASCADE
+);
+
+INSERT INTO internal_lesson_clients (organization_id, client_id)
+SELECT DISTINCT organization_id, client_id FROM caregiver_clients;
+
+CREATE TABLE internal_lessons (
+  id SERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  client_id INTEGER NOT NULL,
+  specialist_id INTEGER NOT NULL,
+  week_days SMALLINT[] NOT NULL,
+  FOREIGN KEY (organization_id, client_id) REFERENCES internal_lesson_clients(organization_id, client_id) ON DELETE CASCADE,
+  FOREIGN KEY (organization_id, specialist_id) REFERENCES users(organization_id, id) ON DELETE RESTRICT,
+  CHECK (cardinality(week_days) BETWEEN 1 AND 7 AND week_days <@ ARRAY[1,2,3,4,5,6,7]::SMALLINT[])
+);
+
+CREATE INDEX idx_internal_lessons_client ON internal_lessons (organization_id, client_id, id);
+CREATE INDEX idx_internal_lessons_specialist ON internal_lessons (organization_id, specialist_id, id);
+
+INSERT INTO permissions (code, label, sort_order, is_active) VALUES
+  ('appointments.internal-lessons.read', 'Read Internal Lessons', 61, TRUE),
+  ('appointments.internal-lessons.create', 'Create Internal Lessons', 62, TRUE),
+  ('appointments.internal-lessons.update', 'Update Internal Lessons', 63, TRUE),
+  ('appointments.internal-lessons.delete', 'Delete Internal Lessons', 64, TRUE)
+ON CONFLICT (code) DO UPDATE SET label = EXCLUDED.label, sort_order = EXCLUDED.sort_order, is_active = TRUE;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM role_options r CROSS JOIN permissions p
+WHERE r.is_admin = TRUE AND r.is_active = TRUE AND p.code LIKE 'appointments.internal-lessons.%'
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+CREATE TABLE telegram_bot_sessions (
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  telegram_user_id BIGINT NOT NULL,
+  chat_id BIGINT NOT NULL,
+  language VARCHAR(2) NOT NULL DEFAULT 'ru' CHECK (language IN ('uz', 'ru')),
+  active_role VARCHAR(16) CHECK (active_role IN ('parent', 'caregiver', 'specialist')),
+  awaiting_role VARCHAR(16) CHECK (awaiting_role IN ('parent', 'caregiver', 'specialist')),
+  contacts JSONB NOT NULL DEFAULT '{}'::jsonb,
+  view JSONB NOT NULL DEFAULT '{}'::jsonb,
+  ui_message_id BIGINT,
+  contact_prompt_id BIGINT,
+  keyboard_cleared BOOLEAN NOT NULL DEFAULT FALSE,
+  last_update_id BIGINT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (organization_id, telegram_user_id),
+  UNIQUE (organization_id, chat_id)
+);
+
+CREATE TABLE internal_lesson_completions (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  lesson_id INTEGER REFERENCES internal_lessons(id) ON DELETE SET NULL,
+  client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+  specialist_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  source_lesson_id INTEGER NOT NULL,
+  source_client_id INTEGER NOT NULL,
+  source_specialist_id INTEGER NOT NULL,
+  schedule_date DATE NOT NULL,
+  client_name VARCHAR(255) NOT NULL,
+  specialist_name VARCHAR(255) NOT NULL,
+  position_name VARCHAR(255) NOT NULL DEFAULT '',
+  completed BOOLEAN NOT NULL DEFAULT FALSE,
+  version INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (organization_id, source_lesson_id, source_client_id, source_specialist_id, schedule_date),
+  UNIQUE (organization_id, id)
+);
+
+CREATE TABLE internal_lesson_journal_events (
+  id BIGSERIAL PRIMARY KEY,
+  organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  completion_id BIGINT NOT NULL,
+  completed BOOLEAN NOT NULL,
+  version INTEGER NOT NULL CHECK (version > 0),
+  actor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  actor_telegram_id BIGINT,
+  actor_name VARCHAR(255) NOT NULL DEFAULT '',
+  recorded_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+  FOREIGN KEY (organization_id, completion_id) REFERENCES internal_lesson_completions(organization_id, id) ON DELETE CASCADE,
+  UNIQUE (completion_id, version)
+);
+
+CREATE INDEX idx_internal_lesson_journal_org_recorded ON internal_lesson_journal_events (organization_id, recorded_at DESC, id DESC);
+
+INSERT INTO permissions (code, label, sort_order, is_active) VALUES
+  ('appointments.internal-journal.read', 'Read Internal Lesson Journal', 65, TRUE),
+  ('appointments.internal-journal.update', 'Correct Internal Lesson Journal', 66, TRUE)
+ON CONFLICT (code) DO UPDATE SET label = EXCLUDED.label, sort_order = EXCLUDED.sort_order, is_active = TRUE;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM role_options r CROSS JOIN permissions p
+WHERE r.is_admin = TRUE AND r.is_active = TRUE AND p.code IN ('appointments.internal-journal.read', 'appointments.internal-journal.update')
+ON CONFLICT (role_id, permission_id) DO NOTHING;
