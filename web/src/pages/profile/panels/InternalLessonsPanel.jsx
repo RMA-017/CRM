@@ -1,3 +1,4 @@
+import ActionIconButton from "../../../components/ActionIconButton.jsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import CustomSelect from "../../../components/CustomSelect.jsx";
@@ -63,7 +64,7 @@ function LessonEditor({ form, setForm, options, ui, access, saving, error, onSav
       onCancel={(event) => { event.preventDefault(); if (!saving) onClose(); }}>
       <form onSubmit={onSave}>
         <div className="all-users-head"><h3 id={titleId}>{form.id ? ui.edit : ui.add}</h3>
-          <button type="button" className="header-btn panel-close-btn" disabled={saving} aria-label={ui.close} onClick={onClose}>×</button>
+          <ActionIconButton type="button" className="header-btn panel-close-btn" disabled={saving}  onClick={onClose} label={ui.close} icon="close" />
         </div>
         {error && <p role="alert" className="internal-lesson-error">{error}</p>}
         <div className="internal-lesson-editor-fields">
@@ -90,12 +91,10 @@ function LessonEditor({ form, setForm, options, ui, access, saving, error, onSav
         {form.id && <p className="internal-lesson-hint">{ui.daysHint}</p>}
         {form.id && form.weekDays.length === 0 && <p role="status" className="internal-lesson-error">{ui.emptyDays}</p>}
         <div className="internal-lesson-editor-actions">
-          {form.id && access.delete && <button type="button" className="header-btn internal-lesson-delete" disabled={saving}
-            onClick={() => setForm({ ...form, weekDays: [] })}>{ui.remove}</button>}
-          <button type="button" className="header-btn" disabled={saving} onClick={onClose}>{ui.cancel}</button>
-          <button type="submit" className="btn" disabled={saving || (form.id && !form.weekDays.length ? !access.delete : !editable)}>
-            {saving ? ui.loading : form.id && !form.weekDays.length ? ui.remove : ui.save}
-          </button>
+          {form.id && access.delete && <ActionIconButton type="button" className="header-btn internal-lesson-delete" disabled={saving}
+            onClick={() => setForm({ ...form, weekDays: [] })} label={ui.remove} icon="remove" />}
+          <ActionIconButton type="button" className="header-btn" disabled={saving} onClick={onClose} label={ui.cancel} icon="close" />
+          <ActionIconButton type="submit" className="btn" disabled={saving || (form.id && !form.weekDays.length ? !access.delete : !editable)} label={saving ? ui.loading : form.id && !form.weekDays.length ? ui.remove : ui.save} icon={form.id && !form.weekDays.length ? "remove" : "save"} />
         </div>
       </form>
     </dialog>, document.body
@@ -221,12 +220,12 @@ export default function InternalLessonsPanel({ access, onClose }) {
       onClick={() => openEditor(day)}><span aria-hidden="true">+</span></button>;
   }
 
-  return <section className="all-users-panel internal-lessons-panel">
+  return <section className="all-users-panel crm-compact-panel internal-lessons-panel">
     <div className="all-users-head"><div><h3>{ui.title}</h3><p className="internal-lesson-hint">{ui.subtitle}</p></div>
       <div className="all-users-head-actions">
-        <button type="button" className="header-btn" disabled={exporting} onClick={exportAll}>{exporting ? ui.loading : language === "ru" ? "Экспорт всех данных в Excel" : "Barchasini Excel’ga eksport"}</button>
-        <button type="button" className="header-btn" disabled={loading || optionsLoading} onClick={() => setRevision((value) => value + 1)}>{ui.retry}</button>
-        <button type="button" className="header-btn panel-close-btn" aria-label={ui.close} onClick={onClose}>×</button>
+        <ActionIconButton type="button" className="header-btn" disabled={exporting} onClick={exportAll} label={exporting ? ui.loading : language === "ru" ? "Экспорт всех данных в Excel" : "Barchasini Excel’ga eksport"} icon="export" />
+        <ActionIconButton type="button" className="header-btn" disabled={loading || optionsLoading} onClick={() => setRevision((value) => value + 1)} label={ui.retry} icon="refresh" />
+        <ActionIconButton type="button" className="header-btn panel-close-btn"  onClick={onClose} label={ui.close} icon="close" />
       </div>
     </div>
     <div className="internal-lesson-filters">
@@ -251,7 +250,7 @@ export default function InternalLessonsPanel({ access, onClose }) {
           {options.weekDays.map((day) => <section key={day} className="internal-lesson-day" aria-label={ui.dayNames[day]}>
             <h4>{ui.dayNames[day]}</h4>
             <div className="internal-lesson-slots">{getInternalLessonCards(items, day).map((item, index) => renderCard(item, index, day))}</div>
-            <button type="button" className="internal-lesson-add" disabled={!access.create} onClick={() => openEditor(day)}>+ {ui.add}</button>
+            <ActionIconButton label={ui.add} icon="add" className="internal-lesson-add" disabled={!access.create} onClick={() => openEditor(day)} />
           </section>)}
         </div></div>
         {!options.weekDays.length && <p>{ui.noDays}</p>}

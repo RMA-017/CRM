@@ -1348,8 +1348,9 @@ async function getParentAppointment({ parent, appointmentId }) {
      WHERE s.organization_id = $1
        AND s.id = $2
        AND ${CLIENT_PHONE_DIGITS_SQL} = $4
+       AND ($5::integer IS NULL OR s.client_id = $5)
      LIMIT 1`,
-    [parent.organizationId, normalizedAppointmentId, parent.id, parent.phoneDigits]
+    [parent.organizationId, normalizedAppointmentId, parent.id, parent.phoneDigits, telegramInteractionContext.getStore()?.parentClientId || null]
   );
   return rows[0] ? mapAppointmentRow(rows[0]) : null;
 }
@@ -1395,8 +1396,9 @@ async function listParentAppointments({ parent, dateFrom, dateTo }) {
      WHERE s.organization_id = $1
        AND s.appointment_date BETWEEN $2::date AND $3::date
        AND ${CLIENT_PHONE_DIGITS_SQL} = $5
+       AND ($6::integer IS NULL OR s.client_id = $6)
      ORDER BY s.appointment_date ASC, s.start_time ASC, s.id ASC`,
-    [parent.organizationId, dateFrom, dateTo, parent.id, parent.phoneDigits]
+    [parent.organizationId, dateFrom, dateTo, parent.id, parent.phoneDigits, telegramInteractionContext.getStore()?.parentClientId || null]
   );
   return (rows || []).map(mapAppointmentRow);
 }

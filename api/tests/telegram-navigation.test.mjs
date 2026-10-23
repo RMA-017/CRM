@@ -74,16 +74,18 @@ test("long screens paginate without breaking emoji or exceeding Telegram text li
   assert.ok(pages.every((page) => page.length <= 3800 && !/[\uD800-\uDBFF]$/.test(page)));
 });
 
-test("four role/menu buttons share one edited message across navigation", async () => {
+test("four main buttons stay in the reply keyboard and only inline controls are cleared", async () => {
   const { navigator, calls, session } = setup();
   await navigator.mainMenu();
-  const firstId = session.ui_message_id;
-  assert.deepEqual(calls[0].payload.reply_markup.inline_keyboard.map((row) => row[0].callback_data), ["ui:role:parent", "ui:role:caregiver", "ui:role:specialist", "ui:settings"]);
+  assert.deepEqual(calls[0].payload.reply_markup.keyboard.flat().map((button) => button.text),
+    [BOT_UI_TEXT.uz.parent, BOT_UI_TEXT.uz.caregiver, BOT_UI_TEXT.uz.specialist, BOT_UI_TEXT.uz.settings]);
+  assert.equal(calls[0].payload.reply_markup.is_persistent, true);
+  assert.equal(calls[0].payload.reply_markup.one_time_keyboard, false);
   await navigator.process(callback("ui:settings"));
   await navigator.process(callback("ui:home"));
-  assert.equal(calls.filter((call) => call.method === "sendMessage").length, 1);
-  assert.equal(calls.filter((call) => call.method === "editMessageText").length, 2);
-  assert.equal(session.ui_message_id, firstId);
+  assert.ok(calls.some((call) => call.method === "editMessageReplyMarkup" && call.payload.reply_markup.inline_keyboard.length === 0));
+  assert.ok(calls.every((call) => call.method !== "deleteMessage" && !call.payload.reply_markup?.remove_keyboard));
+  assert.equal(session.ui_message_id, null);
 });
 
 test("missing editable messages are replaced and the stale menu is cleaned up", async () => {
@@ -91,17 +93,17 @@ test("missing editable messages are replaced and the stale menu is cleaned up", 
     if (method === "editMessageText") throw new Error("Bad Request: message to edit not found");
     return { message_id: 30 };
   } });
-  await navigator.mainMenu();
+  await navigator.display("Updated inline screen");
   assert.equal(session.ui_message_id, 30);
-  assert.deepEqual(calls.map((call) => call.method), ["editMessageText", "sendMessage", "deleteMessage"]);
+  assert.deepEqual(calls.map((call) => call.method), ["editMessageText", "sendMessage", "editMessageReplyMarkup"]);
   assert.equal(calls[2].payload.message_id, 20);
 });
 
 test("unchanged messages do not create duplicates and transient API errors do not trigger a send", async () => {
   for (const [message, reject] of [["Bad Request: message is not modified", false], ["Too Many Requests: retry after 5", true]]) {
     const { navigator, calls } = setup({ state: { ui_message_id: 20 }, telegram: async () => { throw new Error(message); } });
-    if (reject) await assert.rejects(navigator.mainMenu(), /Too Many/);
-    else await navigator.mainMenu();
+    if (reject) await assert.rejects(navigator.display("Screen"), /Too Many/);
+    else await navigator.display("Screen");
     assert.equal(calls.length, 1);
     assert.equal(calls[0].method, "editMessageText");
   }
@@ -123,7 +125,70 @@ test("caregiver contact verification rejects another person's contact and then l
   assert.equal(session.awaiting_role, null);
   assert.equal(session.contact_prompt_id, null);
   assert.equal(session.view.kind, "children");
-  assert.ok(calls.some((call) => call.payload.reply_markup?.remove_keyboard));
+  assert.ok(calls.some((call) => call.payload.reply_markup?.keyboard?.length === 4));
+  assert.ok(calls.every((call) => call.method !== "deleteMessage" && !call.payload.reply_markup?.remove_keyboard));
+});
+
+test("reply keyboard role buttons work in both languages and remain available during contact requests", async () => {
+  for (const language of ["uz", "ru"]) {
+    for (const role of ["parent", "caregiver", "specialist"]) {
+      const { navigator, session, calls } = setup({ state: { language, ui_message_id: 20 } });
+      await navigator.process({ message: { message_id: 99, from, chat, text: BOT_UI_TEXT[language][role] } });
+      assert.equal(session.awaiting_role, role);
+      const keyboard = calls.at(-1).payload.reply_markup;
+      assert.equal(keyboard.keyboard[0][0].request_contact, true);
+      assert.equal(keyboard.keyboard.length, 5);
+      assert.equal(keyboard.is_persistent, true);
+      assert.ok(calls.every((call) => call.method !== "deleteMessage"));
+    }
+  }
+});
+
+test("caregiver child opens internal lessons directly and old therapy callbacks cannot expose planner", async () => {
+  const { navigator, session, calls, queries } = setup({
+    state: { active_role: "caregiver", contacts: { caregiver: "+998901234567" }, view: { kind: "children" } },
+    query: async (sql) => {
+      if (sql.includes("FROM caregivers")) return { rows: [{ id: 9, name: "Caregiver" }] };
+      if (sql.includes("FROM internal_lesson_completions")) return { rows: [] };
+      if (sql.includes("FROM internal_lessons")) return { rows: [{ id: 1, client_id: 4, child_name: "Child", specialist_name: "Specialist", completed: true }] };
+      return { rows: [{ id: 4, name: "Child" }] };
+    }
+  });
+  await navigator.process(callback("ui:child:4"));
+  assert.equal(session.view.kind, "school");
+  assert.equal(session.view.clientId, 4);
+  assert.ok(calls.at(-1).payload.text.includes("Child"));
+  assert.ok(!calls.at(-1).payload.reply_markup.inline_keyboard.flat().some((b) => b.callback_data === "ui:section:therapy"));
+  await navigator.process(callback("ui:section:therapy"));
+  assert.equal(session.view.kind, "school");
+  assert.ok(!queries.some(({ sql }) => sql.includes("FROM appointment_schedules")));
+  assert.ok(calls.every((call) => call.method !== "deleteMessage"));
+});
+
+test("verified role contacts are reused across menu visits while revoked contacts require verification again", async () => {
+  let active = true;
+  const contacts = { parent: parent.phoneNumber, caregiver: parent.phoneNumber, specialist: parent.phoneNumber };
+  const { navigator, calls, session } = setup({ state: { contacts: { ...contacts } },
+    query: async (sql) => {
+      if (sql.includes("FROM caregivers") || sql.includes("FROM users")) return { rows: active ? [{ id: 8, name: "Staff" }] : [] };
+      return { rows: [] };
+    }, adapters: { getParent: async () => parent, children: async () => [] }
+  });
+  for (const role of ["parent", "caregiver", "specialist", "caregiver", "parent"]) {
+    await navigator.process({ message: { from, chat, text: BOT_UI_TEXT.uz[role] } });
+    assert.equal(session.active_role, role);
+    assert.equal(session.awaiting_role, null);
+    await navigator.mainMenu();
+  }
+  assert.ok(!calls.some((call) => call.payload.reply_markup?.keyboard?.flat().some((b) => b.request_contact)));
+  assert.deepEqual(session.contacts, contacts);
+  active = false;
+  await navigator.process(callback("ui:role:caregiver"));
+  assert.equal(session.awaiting_role, "caregiver");
+  assert.equal(session.contacts.caregiver, undefined);
+  assert.equal(session.contacts.parent, contacts.parent);
+  assert.equal(session.contacts.specialist, contacts.specialist);
+  assert.ok(calls.at(-1).payload.reply_markup.keyboard[0][0].request_contact);
 });
 
 test("changing one role's contact leaves other roles untouched and revokes parent notifications", async () => {
@@ -235,14 +300,56 @@ test("parent linking keeps existing parent logic but suppresses its old extra me
         assert.equal(context.chatId, "101");
         await context.screen("Old menu");
       },
-      children: async () => [{ id: 4, first_name: "Child", last_name: "One" }]
+      children: async () => [{ id: 4, first_name: "Child", last_name: "One" }],
+      day: async () => telegramInteractionContext.getStore().screen("Child schedule")
     }
   });
   await navigator.process(contact());
   assert.equal(session.contacts.parent, parent.phoneNumber);
-  assert.equal(session.view.kind, "parent");
+  assert.equal(session.view.kind, "parent_day");
   assert.ok(!calls.some((call) => call.payload.text === "Old menu"));
-  assert.ok(calls.at(-1).payload.reply_markup.inline_keyboard.some((row) => row[0].callback_data === "ui:parent:today"));
+  assert.ok(calls.at(-1).payload.reply_markup.inline_keyboard.flat().some((button) => button.callback_data === `ui:pd:4:${botToday()}` || button.callback_data === `ui:pc:4:${botToday().slice(0, 7)}`));
+});
+
+test("each parent child has an independent schedule message, calendar and scoped appointment actions", async () => {
+  const days = [], actions = [];
+  let children = [{ id: 4, first_name: "Ali" }, { id: 5, first_name: "Madina" }];
+  const { navigator, session, calls } = setup({
+    state: { active_role: "parent", contacts: { parent: parent.phoneNumber } },
+    adapters: {
+      getParent: async () => parent, children: async () => children,
+      day: async ({ clientId, dateYmd }) => {
+        days.push({ clientId, dateYmd, scope: telegramInteractionContext.getStore().parentClientId });
+        return telegramInteractionContext.getStore().screen(`Lessons for ${clientId}`, { inline_keyboard: [[{ text: "Confirm", callback_data: `week_all_coming:${dateYmd}` }]] });
+      },
+      callback: async (callback) => {
+        actions.push({ data: callback.data, scope: telegramInteractionContext.getStore().parentClientId });
+        return telegramInteractionContext.getStore().screen("Confirmed");
+      }
+    }
+  });
+  await navigator.process(callback("ui:parent"));
+  assert.equal(Object.keys(session.view.parentScreens).length, 2);
+  const firstId = session.view.parentScreens[4].messageId, secondId = session.view.parentScreens[5].messageId;
+  assert.notEqual(firstId, secondId);
+  assert.deepEqual(days.map((item) => item.scope), [4, 5]);
+  assert.ok(calls.every((call) => !call.payload.reply_markup?.inline_keyboard?.flat().some((b) => /^ui:parent:(today|week)$/.test(b.callback_data))));
+  await navigator.process(callback("ui:pd:4:2026-10-22"));
+  assert.equal(calls.at(-1).payload.message_id, firstId);
+  assert.equal(session.view.parentScreens[5].date, botToday());
+  await navigator.process(callback("ui:pc:5:2028-02"));
+  assert.equal(calls.at(-1).payload.message_id, secondId);
+  assert.ok(calls.at(-1).payload.reply_markup.inline_keyboard.flat().some((b) => b.callback_data === "ui:pd:5:2028-02-29"));
+  await navigator.process(callback("ui:pa:4:week_all_coming:2026-10-22"));
+  assert.deepEqual(actions, [{ data: "week_all_coming:2026-10-22", scope: 4 }]);
+  assert.equal(calls.at(-1).payload.message_id, firstId);
+  children = children.filter((child) => child.id !== 4);
+  await navigator.process(callback("ui:pa:4:week_all_coming:2026-10-22"));
+  assert.equal(actions.length, 1);
+  await navigator.mainMenu();
+  const cleared = calls.filter((call) => call.method === "editMessageReplyMarkup").map((call) => call.payload.message_id);
+  assert.ok(cleared.includes(firstId) && cleared.includes(secondId));
+  assert.ok(calls.every((call) => call.method !== "deleteMessage"));
 });
 
 test("reminder callbacks and cancellation reasons reuse the current menu while keeping parental authorization", async () => {

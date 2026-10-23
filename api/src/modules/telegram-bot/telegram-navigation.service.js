@@ -29,23 +29,31 @@ function canReplaceMessage(error) {
 export function createTelegramNavigator({ settings, session, db, api, legacy, from, chat }) {
   session.contacts ||= {};
   session.view ||= {};
-  let cleanIncoming = false;
   const ui = () => BOT_UI_TEXT[session.language] || BOT_UI_TEXT.ru;
   const call = (method, payload) => api(settings.botToken, method, payload);
-  const remove = (messageId) => messageId
-    ? call("deleteMessage", { chat_id: chat.id, message_id: Number(messageId) }).catch(() => {}) : Promise.resolve();
+  const mainKeyboard = () => ({ keyboard: [
+    [{ text: ui().parent }], [{ text: ui().caregiver }], [{ text: ui().specialist }], [{ text: ui().settings }]
+  ], resize_keyboard: true, is_persistent: true, one_time_keyboard: false });
 
-  async function removeContactKeyboard() {
-    if (!session.contact_prompt_id && session.keyboard_cleared) return;
-    const result = await call("sendMessage", { chat_id: chat.id, text: ui().main, reply_markup: { remove_keyboard: true } });
-    await remove(session.contact_prompt_id);
+  async function clearInline() {
+    const ids = new Set([session.ui_message_id, ...Object.values(session.view.parentScreens || {}).map((screen) => screen.messageId)].filter(Boolean));
+    for (const id of ids) await call("editMessageReplyMarkup", {
+      chat_id: chat.id, message_id: Number(id), reply_markup: { inline_keyboard: [] }
+    }).catch(() => {});
+    session.view.parentScreens = {};
+    session.ui_message_id = null;
+  }
+
+  async function ensureMainKeyboard(force = false, text = ui().main) {
+    if (!force && !session.contact_prompt_id && session.keyboard_cleared) return;
+    const result = await call("sendMessage", { chat_id: chat.id, text, reply_markup: mainKeyboard() });
     session.contact_prompt_id = null;
     session.keyboard_cleared = true;
-    await remove(result.message_id);
+    return result;
   }
 
   async function display(text, rows = [[botButton(ui().back, "ui:home")]], textPage = null) {
-    await removeContactKeyboard();
+    await ensureMainKeyboard();
     let pages;
     if (textPage !== null && session.view.textPages) {
       ({ pages, rows } = session.view.textPages);
@@ -57,9 +65,10 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
     const replyRows = [...rows];
     if (pages.length > 1) {
       const controls = [];
-      if (index > 0) controls.push(botButton("◀️", `ui:text:${index - 1}`));
+      const textPrefix = session.active_role === "parent" && session.view.parentScreens?.[session.view.clientId] ? `ui:pt:${session.view.clientId}` : "ui:text";
+      if (index > 0) controls.push(botButton("◀️", `${textPrefix}:${index - 1}`));
       controls.push(botButton(`${index + 1}/${pages.length}`, "ui:noop"));
-      if (index < pages.length - 1) controls.push(botButton("▶️", `ui:text:${index + 1}`));
+      if (index < pages.length - 1) controls.push(botButton("▶️", `${textPrefix}:${index + 1}`));
       replyRows.unshift(controls);
     }
     const payload = { chat_id: chat.id, text: pages[index], reply_markup: { inline_keyboard: replyRows }, disable_web_page_preview: true };
@@ -74,12 +83,15 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
     const oldId = session.ui_message_id;
     const result = await call("sendMessage", payload);
     session.ui_message_id = result.message_id;
-    if (oldId && String(oldId) !== String(result.message_id)) await remove(oldId);
+    if (oldId && String(oldId) !== String(result.message_id)) await call("editMessageReplyMarkup", {
+      chat_id: chat.id, message_id: Number(oldId), reply_markup: { inline_keyboard: [] }
+    }).catch(() => {});
     return result;
   }
 
   function parentContext(screen) {
-    return { token: settings.botToken, chatId: String(chat.id), screen };
+    return { token: settings.botToken, chatId: String(chat.id), screen,
+      parentClientId: session.view.parentScreens?.[session.view.clientId] ? Number(session.view.clientId) : null };
   }
 
   async function clearPending() {
@@ -88,17 +100,16 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
   }
 
   async function mainMenu(prefix = "") {
+    await clearInline();
     session.awaiting_role = null;
     session.active_role = null;
     session.view = { kind: "main" };
     await clearPending();
-    return display([prefix, ui().main].filter(Boolean).join("\n\n"), [
-      [botButton(ui().parent, "ui:role:parent")], [botButton(ui().caregiver, "ui:role:caregiver")],
-      [botButton(ui().specialist, "ui:role:specialist")], [botButton(ui().settings, "ui:settings")]
-    ]);
+    return ensureMainKeyboard(true, [prefix, ui().main].filter(Boolean).join("\n\n"));
   }
 
   async function settingsMenu() {
+    await clearInline();
     session.awaiting_role = null;
     session.view = { kind: "settings" };
     await clearPending();
@@ -119,18 +130,35 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
         [settings.organizationId, from.id]
       );
     }
+    await clearInline();
     session.awaiting_role = role;
     session.active_role = role;
     session.view = { kind: "contact" };
     const result = await call("sendMessage", {
       chat_id: chat.id, text: [prefix, ui()[role], ui().askContact].filter(Boolean).join("\n\n"),
-      reply_markup: { keyboard: [[{ text: ui().contact, request_contact: true }], [{ text: ui().back }]], resize_keyboard: true, one_time_keyboard: true }
+      reply_markup: { ...mainKeyboard(), keyboard: [[{ text: ui().contact, request_contact: true }], ...mainKeyboard().keyboard] }
     });
-    await remove(session.ui_message_id);
-    await remove(session.contact_prompt_id);
     session.ui_message_id = null;
     session.contact_prompt_id = result.message_id;
     session.keyboard_cleared = false;
+  }
+
+  async function enterRole(role) {
+    if (!ROLES.has(role)) return mainMenu();
+    const saved = session.contacts[role];
+    if (!saved) return askContact(role);
+    if (!(await identity(role))) {
+      delete session.contacts[role];
+      return askContact(role, false, ui().noAccess);
+    }
+    await clearPending();
+    await clearInline();
+    session.awaiting_role = null;
+    session.active_role = role;
+    session.view = {};
+    if (role === "parent") return parentHome();
+    if (role === "caregiver") return caregiverChildren();
+    return sectionMenu();
   }
 
   async function identity(role = session.active_role, phone = session.contacts[role]) {
@@ -171,13 +199,42 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
   async function parentHome() {
     const parent = await requireIdentity("parent");
     if (!parent) return;
+    await clearInline();
     session.active_role = "parent";
-    session.view = { kind: "parent" };
+    session.view = { kind: "parent", parentScreens: {} };
     const children = await legacy.children(parent);
-    const names = children.map((child, i) => `${i + 1}. ${[child.last_name, child.first_name, child.middle_name].filter(Boolean).join(" ")}`);
-    return display([ui().parent, names.length ? names.join("\n") : ui().noChildren].join("\n\n"), [
-      [botButton(ui().today, "ui:parent:today")], [botButton(ui().week, "ui:parent:week")], [botButton(ui().back, "ui:home")]
-    ]);
+    await ensureMainKeyboard();
+    if (!children.length) return display(ui().noChildren);
+    for (const child of children) await parentChildScreen(child.id, botToday());
+  }
+
+  async function parentChildScreen(clientId, date, month = null, action = null) {
+    if (!isBotDate(date) || !Number.isInteger(clientId) || clientId <= 0) return;
+    if (month && !isBotDate(`${month}-01`)) return;
+    const parent = await requireIdentity("parent");
+    if (!parent) return;
+    const child = (await legacy.children(parent)).find((item) => Number(item.id) === clientId);
+    if (!child) return;
+    session.active_role = "parent";
+    session.view.parentScreens ||= {};
+    const screen = session.view.parentScreens[clientId] ||= {};
+    screen.name = [child.last_name, child.first_name, child.middle_name].filter(Boolean).join(" ");
+    screen.date = date;
+    session.view.kind = "parent_day";
+    session.view.clientId = clientId;
+    session.view.date = date;
+    const previousId = session.ui_message_id;
+    session.ui_message_id = screen.messageId || null;
+    session.view.textPages = screen.textPages || null;
+    try {
+      if (action) await action();
+      else if (month) {
+        const result = buildBotCalendar(session.language, month, date);
+        await renderLegacy(result.text, result.replyMarkup);
+      } else await legacyAction(() => legacy.day({ parent, dateYmd: date, clientId }));
+      screen.messageId = session.ui_message_id;
+      screen.textPages = session.view.textPages;
+    } finally { session.ui_message_id = previousId; }
   }
 
   function pageRows(page, total, prefix = "ui:page") {
@@ -229,7 +286,8 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
     if (session.active_role === "caregiver") {
       const child = await allowedChild(entity, clientId);
       if (!child) return;
-      name = child.name;
+      session.view = { kind: "school", clientId, date: botToday() };
+      return dayView();
     } else if (session.active_role !== "specialist") return mainMenu();
     session.view = { kind: "sections", clientId };
     return display(name, [[botButton(ui().school, "ui:section:school")], [botButton(ui().therapy, "ui:section:therapy")],
@@ -238,10 +296,21 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
 
   function dayBack() {
     if (session.active_role === "parent") return "ui:parent";
-    return session.active_role === "caregiver" ? `ui:child:${session.view.clientId}` : "ui:specialist";
+    return session.active_role === "caregiver" ? "ui:children" : "ui:specialist";
   }
 
   async function renderLegacy(text, replyMarkup) {
+    const childId = session.view.parentScreens?.[session.view.clientId] ? session.view.clientId : null;
+    if (childId) {
+      const screen = session.view.parentScreens[childId];
+      const calendarRows = replyMarkup?.inline_keyboard?.some((row) => row.some((b) => b.callback_data?.startsWith("ui:calendar:")));
+      let rows = (replyMarkup?.inline_keyboard || []).filter((row) => !row.some((b) => /^(week_menu:|week_nav:|week_day:)/.test(b.callback_data || "")));
+      if (!calendarRows) rows = [...rows, ...buildBotDateNavigation(session.language, screen.date, "ui:home")];
+      rows = rows.map((row) => row.map((b) => ({ ...b, callback_data: /^(resp:|week_)/.test(b.callback_data || "")
+        ? `ui:pa:${childId}:${b.callback_data}`
+        : b.callback_data?.replace(/^ui:day:/, `ui:pd:${childId}:`).replace(/^ui:calendar:/, `ui:pc:${childId}:`) })));
+      return display(`${screen.name}\n\n${text}`, rows);
+    }
     const rows = (replyMarkup?.inline_keyboard || []).filter((row) => !row.some((button) => /^(week_menu:|week_nav:|week_day:)/.test(button.callback_data || "")));
     return display(text, [...rows, ...buildBotDateNavigation(session.language, session.view.date || botToday(), "ui:parent")]);
   }
@@ -257,9 +326,11 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
     session.view.date = date;
     session.view.page = page;
     if (session.active_role === "parent") {
+      if (session.view.clientId) return parentChildScreen(Number(session.view.clientId), date);
       session.view.kind = "parent_day";
       return legacyAction(() => legacy.day({ parent: entity, dateYmd: date }));
     }
+    if (session.active_role === "caregiver") session.view.kind = "school";
     if (!["school", "therapy"].includes(session.view.kind)) return sectionMenu(session.view.clientId);
     const childId = session.active_role === "caregiver" ? Number(session.view.clientId) : null;
     if (session.active_role === "caregiver" && !(await allowedChild(entity, childId))) return;
@@ -376,27 +447,31 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
 
   async function process(update) {
     const message = update.message;
-    if (message?.contact) { cleanIncoming = true; return receiveContact(message); }
+    if (message?.contact) return receiveContact(message);
     const data = String(update.callback_query?.data || "");
     const text = String(message?.text || "").trim();
     if (text.startsWith("/start") || text === "/menu" || data === "ui:home" || [BOT_UI_TEXT.uz.back, BOT_UI_TEXT.ru.back, "🔙 Ortga", "🔙 Назад"].includes(text)) {
-      cleanIncoming = Boolean(text);
       return mainMenu();
     }
     if (data === "ui:noop") return;
-    if (data.startsWith("ui:role:")) return askContact(data.slice(8));
+    for (const role of ROLES) {
+      if ([BOT_UI_TEXT.uz[role], BOT_UI_TEXT.ru[role]].includes(text)) return enterRole(role);
+    }
+    if (data.startsWith("ui:role:")) return enterRole(data.slice(8));
     if (data.startsWith("ui:contact:")) return askContact(data.slice(11), true);
     if (data === "ui:settings" || [BOT_UI_TEXT.uz.settings, BOT_UI_TEXT.ru.settings].includes(text)) return settingsMenu();
     if (data.startsWith("ui:language:") || ["O'zbekcha", "O‘zbekcha", "Русский"].includes(text)) {
-      cleanIncoming = Boolean(text);
       const language = data ? data.slice(12) : text === "Русский" ? "ru" : "uz";
       if (!["uz", "ru"].includes(language)) return;
       session.language = language;
+      session.keyboard_cleared = false;
+      await clearInline();
       const parent = await legacy.getParent();
       if (parent) await legacy.parentLanguage(parent, language);
       return settingsMenu();
     }
     if (data.startsWith("ui:text:")) {
+      if (session.active_role === "caregiver" && session.view.kind === "therapy") return dayView(session.view.date || botToday());
       if (session.active_role) {
         const entity = await requireIdentity();
         if (!entity) return;
@@ -405,11 +480,28 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
       return session.view.textPages ? display("", [], safePage(data.slice(8))) : mainMenu();
     }
     if (data === "ui:parent") return parentHome();
+    if (data.startsWith("ui:pt:")) {
+      const match = /^ui:pt:([1-9][0-9]{0,9}):(\d{1,6})$/.exec(data);
+      const screen = match && session.view.parentScreens?.[match[1]];
+      if (!screen?.textPages) return;
+      return parentChildScreen(Number(match[1]), screen.date, null, () => display("", [], Number(match[2])));
+    }
+    if (data.startsWith("ui:pa:")) {
+      const match = /^ui:pa:([1-9][0-9]{0,9}):((?:resp:|week_).+)$/.exec(data);
+      if (!match) return;
+      const id = Number(match[1]);
+      const date = session.view.parentScreens?.[id]?.date || botToday();
+      return parentChildScreen(id, date, null, () => legacyAction(() => legacy.callback({ ...update.callback_query, data: match[2] }), update.callback_query.id));
+    }
+    if (data.startsWith("ui:pd:") || data.startsWith("ui:pc:")) {
+      const match = /^ui:p([dc]):([1-9][0-9]{0,9}):(\d{4}-\d{2}(?:-\d{2})?)$/.exec(data);
+      if (!match) return;
+      const id = Number(match[2]);
+      const date = session.view.parentScreens?.[id]?.date || botToday();
+      return match[1] === "d" ? parentChildScreen(id, match[3]) : parentChildScreen(id, date, match[3]);
+    }
     if (data.startsWith("ui:parent:")) {
-      if (!(await requireIdentity("parent"))) return;
-      session.active_role = "parent";
-      session.view = { kind: "parent_day", date: botToday() };
-      return data.endsWith(":week") ? calendar(botToday().slice(0, 7)) : dayView();
+      return parentHome();
     }
     if (data === "ui:children") {
       if (session.active_role !== "caregiver") return mainMenu();
@@ -427,6 +519,10 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
       if (!["caregiver", "specialist"].includes(session.active_role)) return mainMenu();
       const kind = data.slice(11);
       if (!["school", "therapy"].includes(kind)) return;
+      if (session.active_role === "caregiver") {
+        session.view = { kind: "school", clientId: session.view.clientId || null, date: botToday() };
+        return dayView();
+      }
       session.view = { kind, clientId: session.view.clientId || null, date: botToday() };
       return dayView();
     }
@@ -471,6 +567,13 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
       if (!parent?.isActive) return askContact("parent");
       session.contacts.parent = parent.phoneNumber;
       session.active_role = "parent";
+      const selectedChild = Object.entries(session.view.parentScreens || {}).find(([, screen]) => String(screen.messageId) === String(update.callback_query.message?.message_id));
+      if (selectedChild) {
+        const [id, screen] = selectedChild;
+        if (data.startsWith("week_day:")) return parentChildScreen(Number(id), data.slice(9));
+        if (/^week_(menu|nav):/.test(data)) return parentChildScreen(Number(id), screen.date, screen.date.slice(0, 7));
+        return parentChildScreen(Number(id), screen.date, null, () => legacyAction(() => legacy.callback(update.callback_query), update.callback_query.id));
+      }
       if (data.startsWith("week_menu:") || data.startsWith("week_nav:")) {
         session.view = { kind: "parent_day", date: isBotDate(data.split(":")[1]) ? data.split(":")[1] : botToday() };
         return calendar(session.view.date.slice(0, 7));
@@ -491,14 +594,18 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
     if (text && session.active_role === "parent" && !session.awaiting_role) {
       const parent = await requireIdentity("parent");
       if (!parent) return;
-      if (await legacy.hasPending(parent)) { cleanIncoming = true; return legacyAction(() => legacy.text(message)); }
+      if (await legacy.hasPending(parent)) {
+        const id = Number(session.view.clientId);
+        if (session.view.parentScreens?.[id]) return parentChildScreen(id, session.view.parentScreens[id].date, null, () => legacyAction(() => legacy.text(message)));
+        return legacyAction(() => legacy.text(message));
+      }
       return parentHome();
     }
     if (session.awaiting_role) return askContact(session.awaiting_role);
     return mainMenu();
   }
 
-  return { process, display, remove, identity, dayView, mainMenu, shouldRemoveIncoming: () => cleanIncoming };
+  return { process, display, identity, dayView, mainMenu };
 }
 
 export async function handleTelegramNavigation({ settings, update, api, legacy, dbPool = pool }) {
@@ -525,7 +632,6 @@ export async function handleTelegramNavigation({ settings, update, api, legacy, 
     }
     const navigator = createTelegramNavigator({ settings, session, db, api, legacy, from, chat });
     await navigator.process(update);
-    if (update.message?.message_id && navigator.shouldRemoveIncoming()) await navigator.remove(update.message.message_id);
     await db.query(
       `UPDATE telegram_bot_sessions SET language = $3, active_role = $4, awaiting_role = $5, contacts = $6::jsonb,
        view = $7::jsonb, ui_message_id = $8, contact_prompt_id = $9, last_update_id = $10, keyboard_cleared = $11, updated_at = CURRENT_TIMESTAMP

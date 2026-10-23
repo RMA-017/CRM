@@ -1,3 +1,6 @@
+import ActionIconButton from "../../../components/ActionIconButton.jsx";
+import CompactDialog from "../../../components/CompactDialog.jsx";
+import "../../../css/components/internal-lessons.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
 import { apiFetch, readApiResponseData } from "../../../lib/api.js";
@@ -126,64 +129,69 @@ export default function CaregiversPanel({ canCreateUsers, canUpdateUsers, canDel
   }
 
   return (
-    <section className="all-users-panel" id="caregiversPanel">
+    <section className="all-users-panel crm-compact-panel" id="caregiversPanel">
       <div className="all-users-head">
         <h3>{ui.title}</h3>
         <div className="all-users-head-actions">
-          <button type="button" className="btn" hidden={!canCreateUsers || editing} disabled={saving} onClick={() => openForm()}>{ui.add}</button>
-          <button type="button" className="header-btn panel-close-btn" aria-label={ui.close} disabled={saving} onClick={onClose}>×</button>
+          <ActionIconButton type="button" className="btn" hidden={!canCreateUsers || editing} disabled={saving} onClick={() => openForm()} label={ui.add} icon="add" />
+          <ActionIconButton type="button" className="header-btn panel-close-btn"  disabled={saving} onClick={onClose} label={ui.close} icon="close" />
         </div>
       </div>
-      {error && <p role="alert" className="all-users-state">{error}</p>}
-      {form ? (
-        <form className="auth-form" onSubmit={save}>
-          <h4>{form.id ? ui.edit : ui.add}</h4>
+      {error && !form && <p role="alert" className="internal-lesson-error">{error}</p>}
+      {form && <CompactDialog title={form.id ? ui.edit : ui.add} closeLabel={ui.close} busy={saving} onClose={() => { setForm(null); setError(""); }}>
+        <form className="caregiver-editor" onSubmit={save}>
+          {error && <p role="alert" className="internal-lesson-error">{error}</p>}
+          <div className="caregiver-identity-fields">
           <label className="field">{ui.name}<input required maxLength={255} value={form.fullName} disabled={saving}
             onChange={(e) => setForm({ ...form, fullName: e.target.value })} /></label>
           <label className="field">{ui.phone}<input required type="tel" maxLength={40} placeholder="+998" value={form.phone} disabled={saving}
             onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
-          <label><input type="checkbox" checked={form.isActive} disabled={saving}
+          </div>
+          <label className="caregiver-active"><input type="checkbox" checked={form.isActive} disabled={saving}
             onChange={(e) => setForm({ ...form, isActive: e.target.checked })} /> {ui.active}</label>
-          <fieldset disabled={saving}>
+          <fieldset className="caregiver-assignment" disabled={saving}>
             <legend>{ui.children} ({form.clients.length})</legend>
-            {form.clients.map((client) => <div key={client.id}>
-              {client.name} (#{client.id}) <button type="button" aria-label={`${ui.remove}: ${client.name}`}
-                onClick={() => setForm({ ...form, clients: form.clients.filter((c) => c.id !== client.id) })}>×</button>
-            </div>)}
+            <div className="caregiver-selected">{form.clients.map((client) => <div key={client.id} className="caregiver-child-chip">
+              {client.name} (#{client.id}) <ActionIconButton type="button"
+                onClick={() => setForm({ ...form, clients: form.clients.filter((c) => c.id !== client.id) })} label={`${ui.remove}: ${client.name}`} icon="close" />
+            </div>)}</div>
             <input type="search" aria-label={ui.childSearch} placeholder={ui.childSearch} value={clientSearch}
               onChange={(e) => { setClientSearch(e.target.value); setClientPage(1); }} />
             {clientError && <p role="alert">{clientError}</p>}
-            {clientsLoading ? <p>{ui.loading}</p> : clientResult.items.length === 0 ? <p>{ui.noChildren}</p> : clientResult.items.map((client) => (
-              <label key={client.id} style={{ display: "block" }}>
+            <div className="caregiver-child-options">{clientsLoading ? <p>{ui.loading}</p> : clientResult.items.length === 0 ? <p>{ui.noChildren}</p> : clientResult.items.map((client) => (
+              <label key={client.id}>
                 <input type="checkbox" checked={form.clients.some((c) => c.id === client.id)} onChange={(e) => {
                   setForm({ ...form, clients: e.target.checked
                     ? [...form.clients.filter((c) => c.id !== client.id), client]
                     : form.clients.filter((c) => c.id !== client.id) });
                 }} /> {client.name} (#{client.id})
               </label>
-            ))}
+            ))}</div>
             <div className="all-users-pagination">
-              <button type="button" disabled={clientsLoading || clientPage <= 1} onClick={() => setClientPage((p) => p - 1)}>{ui.previous}</button>
+              <ActionIconButton type="button" disabled={clientsLoading || clientPage <= 1} onClick={() => setClientPage((p) => p - 1)} label={ui.previous} icon="previous" />
               <span>{clientPage}</span>
-              <button type="button" disabled={clientsLoading || !clientResult.hasNext} onClick={() => setClientPage((p) => p + 1)}>{ui.next}</button>
+              <ActionIconButton type="button" disabled={clientsLoading || !clientResult.hasNext} onClick={() => setClientPage((p) => p + 1)} label={ui.next} icon="next" />
             </div>
           </fieldset>
-          <div className="all-users-head-actions">
-            <button type="submit" className="btn" disabled={saving}>{saving ? ui.loading : ui.save}</button>
-            <button type="button" className="header-btn" disabled={saving} onClick={() => { setForm(null); setError(""); }}>{ui.cancel}</button>
+          <div className="internal-lesson-editor-actions">
+            <ActionIconButton type="submit" className="btn" disabled={saving} label={saving ? ui.loading : ui.save} icon="save" />
+            <ActionIconButton type="button" className="header-btn" disabled={saving} onClick={() => { setForm(null); setError(""); }} label={ui.cancel} icon="close" />
           </div>
         </form>
-      ) : (
+      </CompactDialog>}
+      {(
         <>
           <form className="panel-search-bar" onSubmit={(e) => { e.preventDefault(); setSearch(query); setPage(1); setRevision((v) => v + 1); }}>
             <input className="panel-search-input" type="search" aria-label={ui.searchHint} placeholder={ui.searchHint} value={query} onChange={(e) => setQuery(e.target.value)} />
-            <button className="btn" type="submit" disabled={loading}>{ui.search}</button>
+            <ActionIconButton className="btn" type="submit" disabled={loading} label={ui.search} icon="search" />
           </form>
-          {deleteItem && <div role="alertdialog" aria-modal="false" aria-label={ui.remove}>
+          {deleteItem && <CompactDialog title={ui.remove} closeLabel={ui.cancel} busy={saving} onClose={() => setDeleteItem(null)}>
             <p>{deleteItem.fullName}: {ui.confirmDelete}</p>
-            <button className="btn" type="button" disabled={saving} onClick={remove}>{ui.remove}</button>
-            <button type="button" disabled={saving} onClick={() => setDeleteItem(null)}>{ui.cancel}</button>
-          </div>}
+            <div className="internal-lesson-editor-actions">
+            <ActionIconButton className="btn" type="button" disabled={saving} onClick={remove} label={ui.remove} icon="remove" />
+            <ActionIconButton type="button" disabled={saving} onClick={() => setDeleteItem(null)} label={ui.cancel} icon="close" />
+            </div>
+          </CompactDialog>}
           {loading ? <p>{ui.loading}</p> : <>
             <div className="all-users-table-wrap"><table className="all-users-table">
               <thead><tr><th>ID</th><th>{ui.name}</th><th>{ui.phone}</th><th>{ui.children}</th><th>{ui.active}</th><th>{ui.edit}</th><th>{ui.remove}</th></tr></thead>
@@ -191,15 +199,15 @@ export default function CaregiversPanel({ canCreateUsers, canUpdateUsers, canDel
                 <td>{item.id}</td><td>{item.fullName}</td><td>{item.phone}</td>
                 <td>{item.clients.map((c) => `${c.name} (#${c.id})`).join(", ") || "—"}</td>
                 <td>{item.isActive ? ui.yes : ui.no}</td>
-                <td><button type="button" disabled={!canUpdateUsers || saving} onClick={() => { setDeleteItem(null); openForm(item); }}>{ui.edit}</button></td>
-                <td><button type="button" disabled={!canDeleteUsers || saving} onClick={() => { setError(""); setDeleteItem(item); }}>{ui.remove}</button></td>
+                <td><ActionIconButton type="button" disabled={!canUpdateUsers || saving} onClick={() => { setDeleteItem(null); openForm(item); }} label={ui.edit} icon="edit" /></td>
+                <td><ActionIconButton type="button" disabled={!canDeleteUsers || saving} onClick={() => { setError(""); setDeleteItem(item); }} label={ui.remove} icon="remove" /></td>
               </tr>)}</tbody>
             </table></div>
             {items.length === 0 && !error && <p>{ui.empty}</p>}
             <div className="all-users-pagination">
-              <button type="button" disabled={pagination.page <= 1} onClick={() => setPage(pagination.page - 1)}>{ui.previous}</button>
+              <ActionIconButton type="button" disabled={pagination.page <= 1} onClick={() => setPage(pagination.page - 1)} label={ui.previous} icon="previous" />
               <span>{pagination.page} / {pagination.totalPages}</span>
-              <button type="button" disabled={pagination.page >= pagination.totalPages} onClick={() => setPage(pagination.page + 1)}>{ui.next}</button>
+              <ActionIconButton type="button" disabled={pagination.page >= pagination.totalPages} onClick={() => setPage(pagination.page + 1)} label={ui.next} icon="next" />
             </div>
           </>}
         </>

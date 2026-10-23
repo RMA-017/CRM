@@ -1,3 +1,4 @@
+import ActionIconButton from "../../../components/ActionIconButton.jsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "../../../i18n/I18nProvider.jsx";
@@ -40,14 +41,14 @@ async function request(path, options = {}) {
 function CorrectionDialog({ item, ui, busy, error, onClose, onConfirm }) {
   const dialogRef = useRef(null);
   useEffect(() => { dialogRef.current?.showModal(); }, []);
-  return createPortal(<dialog ref={dialogRef} className="internal-lesson-dialog" aria-labelledby="journalCorrectionTitle"
+  return createPortal(<dialog ref={dialogRef} className="internal-lesson-dialog journal-correction-dialog" aria-labelledby="journalCorrectionTitle"
     onCancel={(event) => { event.preventDefault(); if (!busy) onClose(); }}>
     <h3 id="journalCorrectionTitle">{item.currentCompleted ? ui.undo : ui.restore}</h3>
     <p>{item.clientName} · {item.specialistName}</p>
     {error && <p className="internal-lesson-error" role="alert">{error}</p>}
     <div className="internal-lesson-editor-actions">
-      <button type="button" className="header-btn" disabled={busy} onClick={onClose}>{ui.cancel}</button>
-      <button type="button" className="btn" disabled={busy} onClick={onConfirm}>{busy ? ui.loading : ui.confirm}</button>
+      <ActionIconButton type="button" className="header-btn" disabled={busy} onClick={onClose} label={ui.cancel} icon="close" />
+      <ActionIconButton type="button" className="btn" disabled={busy} onClick={onConfirm} label={busy ? ui.loading : ui.confirm} icon="check" />
     </div>
   </dialog>, document.body);
 }
@@ -122,12 +123,14 @@ export default function InternalLessonJournalPanel({ access, onClose }) {
     finally { setCorrecting(false); busy.current = false; }
   }
 
-  return <section className="all-users-panel">
+  return <section className="all-users-panel crm-compact-panel internal-journal-panel">
     <div className="all-users-head"><h3>{ui.title}</h3><div className="all-users-head-actions">
-      <button type="button" className="header-btn" aria-expanded={filterOpen} aria-controls="journalFilters" onClick={() => setFilterOpen(!filterOpen)}>{ui.filter}{Object.values(filters).some(Boolean) ? " ●" : ""}</button>
-      <button type="button" className="header-btn" disabled={exporting || loading || Boolean(error)} onClick={exportAll}>{exporting ? ui.loading : ui.excel}</button>
-      <button type="button" className="header-btn" disabled={loading} onClick={() => setRevision((value) => value + 1)}>{ui.refresh}</button>
-      <button type="button" className="header-btn panel-close-btn" aria-label={ui.close} onClick={onClose}>×</button>
+      <ActionIconButton label={ui.filter} icon="filter" className="header-btn" aria-expanded={filterOpen} aria-controls="journalFilters" onClick={() => setFilterOpen(!filterOpen)}>
+        {Object.values(filters).some(Boolean) && <span className="action-icon-dot" aria-hidden="true" />}
+      </ActionIconButton>
+      <ActionIconButton type="button" className="header-btn" disabled={exporting || loading || Boolean(error)} onClick={exportAll} label={exporting ? ui.loading : ui.excel} icon="export" />
+      <ActionIconButton type="button" className="header-btn" disabled={loading} onClick={() => setRevision((value) => value + 1)} label={ui.refresh} icon="refresh" />
+      <ActionIconButton type="button" className="header-btn panel-close-btn"  onClick={onClose} label={ui.close} icon="close" />
     </div></div>
     <p className="internal-lesson-hint">{ui.hint}</p>
     {filterOpen && <form id="journalFilters" className="internal-journal-filters" onSubmit={(event) => { event.preventDefault(); setPage(1); setFilters({ ...draft }); }}>
@@ -148,8 +151,10 @@ export default function InternalLessonJournalPanel({ access, onClose }) {
       <label className="field">{ui.status}<select value={draft.completed} onChange={(e) => setDraft({ ...draft, completed: e.target.value })}>
         <option value="">{ui.all}</option><option value="true">{ui.marked}</option><option value="false">{ui.unmarked}</option>
       </select></label>
-      <button type="submit" className="btn" disabled={loading}>{ui.apply}</button>
-      <button type="button" className="header-btn" disabled={loading} onClick={() => { setDraft(emptyFilters); setFilters(emptyFilters); setPeriod("all"); setPage(1); }}>{ui.reset}</button>
+      <div className="compact-filter-actions">
+      <ActionIconButton type="submit" className="btn" disabled={loading} label={ui.apply} icon="check" />
+      <ActionIconButton type="button" className="header-btn" disabled={loading} onClick={() => { setDraft(emptyFilters); setFilters(emptyFilters); setPeriod("all"); setPage(1); }} label={ui.reset} icon="reset" />
+      </div>
     </form>}
     {error && <p role="alert" className="internal-lesson-error">{error}</p>}
     {loading ? <p role="status">{ui.loading}</p> : <>
@@ -162,17 +167,15 @@ export default function InternalLessonJournalPanel({ access, onClose }) {
           <td>{item.clientName}</td><td>{item.specialistName}</td><td>{item.positionName || "—"}</td>
           <td title={`${ui.actor}: ${item.actorName || "—"}`}>
             <span>{item.completed ? `✅ ${ui.marked}` : `↩️ ${ui.unmarked}`}</span>
-            {access.update && item.version === item.currentVersion && <button type="button" className="header-btn" onClick={() => { setCorrectionError(""); setTarget(item); }}>
-              {item.currentCompleted ? ui.undo : ui.restore}
-            </button>}
+            {access.update && item.version === item.currentVersion && <ActionIconButton type="button" className="header-btn" onClick={() => { setCorrectionError(""); setTarget(item); }} label={item.currentCompleted ? ui.undo : ui.restore} icon={item.currentCompleted ? "undo" : "restore"} />}
           </td>
         </tr>)}</tbody>
       </table></div>
       {items.length === 0 && !error && <p>{ui.empty}</p>}
       <div className="all-users-pagination">
-        <button type="button" disabled={pagination.page <= 1} onClick={() => setPage(pagination.page - 1)}>{ui.previous}</button>
+        <ActionIconButton type="button" disabled={pagination.page <= 1} onClick={() => setPage(pagination.page - 1)} label={ui.previous} icon="previous" />
         <span>{pagination.page} / {pagination.totalPages} · {ui.records}: {pagination.total}</span>
-        <button type="button" disabled={pagination.page >= pagination.totalPages} onClick={() => setPage(pagination.page + 1)}>{ui.next}</button>
+        <ActionIconButton type="button" disabled={pagination.page >= pagination.totalPages} onClick={() => setPage(pagination.page + 1)} label={ui.next} icon="next" />
       </div>
     </>}
     {target && <CorrectionDialog item={target} ui={ui} busy={correcting} error={correctionError} onClose={() => setTarget(null)} onConfirm={correct} />}
