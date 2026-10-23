@@ -50,9 +50,21 @@ export async function listInternalLessons({ organizationId, clientId = null, spe
   const { rows } = await pool.query(
     `SELECT l.id, l.client_id AS "clientId", l.specialist_id AS "specialistId", l.week_days AS "weekDays",
        concat_ws(' ', c.last_name, c.first_name, c.middle_name) AS "clientName",
-       COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS "specialistName"
+       COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS "specialistName", COALESCE(p.label, '') AS "positionName",
+       COALESCE(completions.days, '{}'::jsonb) AS "completionByDay"
        FROM internal_lessons l JOIN clients c ON c.organization_id = l.organization_id AND c.id = l.client_id
        JOIN users u ON u.organization_id = l.organization_id AND u.id = l.specialist_id
+       LEFT JOIN position_options p ON p.id = u.position_id
+       LEFT JOIN LATERAL (
+         SELECT jsonb_object_agg(EXTRACT(ISODOW FROM entry.schedule_date)::integer::text, event.completed) AS days
+         FROM internal_lesson_completions entry
+         JOIN LATERAL (SELECT e.completed FROM internal_lesson_journal_events e
+           WHERE e.organization_id = entry.organization_id AND e.completion_id = entry.id ORDER BY e.version DESC LIMIT 1) event ON TRUE
+         WHERE entry.organization_id = l.organization_id AND entry.source_lesson_id = l.id
+           AND entry.source_client_id = l.client_id AND entry.source_specialist_id = l.specialist_id
+           AND entry.schedule_date >= date_trunc('week', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Tashkent')::date
+           AND entry.schedule_date < date_trunc('week', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Tashkent')::date + 7
+       ) completions ON TRUE
        WHERE l.organization_id = $1 AND ($2::integer IS NULL OR l.client_id = $2)
          AND ($3::integer IS NULL OR l.specialist_id = $3) ORDER BY l.id`, [organizationId, clientId, specialistId]
   );

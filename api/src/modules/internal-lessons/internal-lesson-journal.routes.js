@@ -1,7 +1,7 @@
 import { findRequester } from "../users/users.service.js";
 import { hasPermission } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
-import { correctInternalLessonCompletion, listInternalLessonJournal } from "./internal-lesson-journal.service.js";
+import { correctInternalLessonCompletion, editInternalJournalEntry, getInternalJournalOptions, listInternalLessonJournal } from "./internal-lesson-journal.service.js";
 
 export default async function internalLessonJournalRoutes(fastify) {
   function handler(permission, action) {
@@ -34,13 +34,23 @@ export default async function internalLessonJournalRoutes(fastify) {
   });
   fastify.get("/export", { config, schema: { querystring } }, handler(PERMISSIONS.INTERNAL_JOURNAL_READ, (request) => list(request, true)));
   fastify.get("/", { config, schema: { querystring } }, handler(PERMISSIONS.INTERNAL_JOURNAL_READ, (request) => list(request)));
+  fastify.get("/options", { config }, handler(PERMISSIONS.INTERNAL_JOURNAL_READ, (request) => getInternalJournalOptions({ organizationId: request.authContext.organizationId })));
   fastify.put("/:id", { config, schema: {
     params: { type: "object", required: ["id"], properties: { id: { type: "string", pattern: "^[1-9][0-9]{0,17}$" } } },
-    body: { type: "object", additionalProperties: false, required: ["completed", "expectedVersion"], properties: {
-      completed: { type: "boolean" }, expectedVersion: { type: "integer", minimum: 1, maximum: 2147483647 }
+    body: { type: "object", additionalProperties: false, required: ["date", "clientId", "specialistId", "expectedVersion"], properties: {
+      date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      clientId: { type: "integer", minimum: 1, maximum: 2147483647 }, specialistId: { type: "integer", minimum: 1, maximum: 2147483647 },
+      expectedVersion: { type: "integer", minimum: 1, maximum: 2147483647 }
     } }
+  } }, handler(PERMISSIONS.INTERNAL_JOURNAL_UPDATE, async (request) => ({ item: await editInternalJournalEntry({
+    organizationId: request.authContext.organizationId, id: request.params.id, date: request.body.date, clientId: request.body.clientId, specialistId: request.body.specialistId,
+    expectedVersion: request.body.expectedVersion, actorUserId: request.authContext.userId
+  }) })));
+  fastify.delete("/:id", { config, schema: {
+    params: { type: "object", required: ["id"], properties: { id: { type: "string", pattern: "^[1-9][0-9]{0,17}$" } } },
+    body: { type: "object", required: ["expectedVersion"], properties: { expectedVersion: { type: "integer", minimum: 1, maximum: 2147483647 } } }
   } }, handler(PERMISSIONS.INTERNAL_JOURNAL_UPDATE, async (request) => ({ item: await correctInternalLessonCompletion({
-    organizationId: request.authContext.organizationId, id: request.params.id, completed: request.body.completed,
+    organizationId: request.authContext.organizationId, id: request.params.id, completed: false,
     expectedVersion: request.body.expectedVersion, actorUserId: request.authContext.userId
   }) })));
 }

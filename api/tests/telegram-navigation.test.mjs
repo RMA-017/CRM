@@ -276,6 +276,10 @@ test("language changes refresh the keyboard without reporting a saved contact or
   await navigator.process(callback("ui:settings"));
   await navigator.process(callback("ui:language:ru"));
   assert.equal(session.language, "ru");
+  assert.equal(session.view.kind, "main");
+  assert.equal(session.ui_message_id, null);
+  assert.equal(calls.at(-1).payload.text, "Язык изменён.");
+  assert.ok(!calls.at(-1).payload.reply_markup.inline_keyboard);
   assert.deepEqual(session.contacts, contacts);
   assert.ok(!calls.some((call) => [BOT_UI_TEXT.uz.contactSaved, BOT_UI_TEXT.ru.contactSaved].includes(call.payload.text)));
   const keyboard = calls.find((call) => call.payload.reply_markup?.keyboard);

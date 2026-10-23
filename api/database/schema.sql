@@ -1238,3 +1238,12 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM role_options r CROSS JOIN permissions p
 WHERE r.is_admin = TRUE AND r.is_active = TRUE AND p.code IN ('appointments.internal-journal.read', 'appointments.internal-journal.update')
 ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+-- Journal corrections do not change the immutable lesson occurrence used by the bot.
+ALTER TABLE internal_lesson_completions
+  ADD COLUMN journal_date DATE,
+  ADD COLUMN journal_client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+  ADD COLUMN journal_specialist_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  ADD COLUMN journal_client_name VARCHAR(255),
+  ADD COLUMN journal_specialist_name VARCHAR(255),
+  ADD COLUMN journal_position_name VARCHAR(255);

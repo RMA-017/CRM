@@ -167,7 +167,7 @@ export const LITERAL_TRANSLATIONS = Object.freeze([
   { en: "All Users", uz: "Barcha xodimlar", ru: "Все пользователи" },
   { en: "Caregivers", uz: "Tarbiyachilar", ru: "Воспитатели" },
   { en: "School / Kindergarten", uz: "Maktab-bog‘cha", ru: "Школа-садик" },
-  { en: "Internal Lesson Journal", uz: "Ichki darslar jurnali", ru: "Журнал внутренних занятий" },
+  { en: "Internal Lesson Journal", uz: "Jurnal", ru: "Журнал" },
   { en: "Read Internal Lesson Journal", uz: "Ichki darslar jurnalini ko‘rish", ru: "Просмотр журнала внутренних занятий" },
   { en: "Correct Internal Lesson Journal", uz: "Ichki darslar jurnalini tuzatish", ru: "Корректировка журнала внутренних занятий" },
   { en: "Read Internal Lessons", uz: "Ichki darslarni ko‘rish", ru: "Просмотр внутренних занятий" },

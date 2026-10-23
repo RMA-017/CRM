@@ -78,19 +78,18 @@ test("editing a card replaces its weekday selection and preserves existing hidde
   assert.equal(calls.at(-1).sql, "COMMIT");
 });
 
-test("caregiver assignment enrolls children permanently even after their links are removed", async (t) => {
+test("caregiver contact edits preserve the enrolled child's existing lessons", async (t) => {
   const calls = stubTransaction(t, (sql) => {
     if (sql.includes("FROM clients")) return { rows: [{ id: 4 }] };
     if (sql.includes("INSERT INTO caregivers")) return { rows: [{ id: 9 }] };
     if (sql.includes("FROM caregivers")) return { rows: [{ id: 9 }] };
-    if (sql.includes("FROM caregiver_clients")) return { rows: [{ id: 4 }] };
+    if (sql.includes("SELECT client_id FROM internal_lesson_clients")) return { rows: [{ client_id: 4 }] };
+    if (sql.includes("FROM caregiver_clients")) return { rows: [{ caregiver_id: 9 }] };
     if (sql.includes("UPDATE caregivers")) return { rows: [{ id: 9 }] };
     return { rows: [] };
   });
-  const caregiver = { fullName: "Caregiver", phone: "+998901234567", isActive: true, clientIds: [4] };
-  await saveCaregiver({ organizationId: 7, input: normalizeCaregiverInput(caregiver) });
-  await saveCaregiver({ organizationId: 7, id: 9, input: normalizeCaregiverInput({ ...caregiver, clientIds: [] }) });
-  assert.deepEqual(calls.find(({ sql }) => sql.includes("INSERT INTO internal_lesson_clients")).params, [7, [4]]);
+  const caregiver = { fullName: "Caregiver", phone: "+998901234567" };
+  await saveCaregiver({ organizationId: 7, id: 4, input: normalizeCaregiverInput(caregiver) });
   assert.ok(calls.some(({ sql }) => sql.includes("DELETE FROM caregiver_clients")));
   assert.ok(!calls.some(({ sql }) => /DELETE FROM internal_/.test(sql)));
 });
@@ -135,12 +134,16 @@ test("planner permissions alone do not authorize access to internal lessons", as
 test("both filters read the same internal lesson records within the organization", async (t) => {
   const app = await createApp(t, ["appointments.internal-lessons.read"], (sql, params) => {
     assert.ok(sql.includes("l.organization_id = $1"));
+    assert.ok(sql.includes("entry.source_client_id = l.client_id") && sql.includes("entry.source_specialist_id = l.specialist_id"));
+    assert.ok(sql.includes("CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Tashkent'") && sql.includes("ORDER BY e.version DESC LIMIT 1"));
     assert.deepEqual(params, [7, 4, 8]);
-    return { rows: [{ id: 10, ...input }] };
+    return { rows: [{ id: 10, ...input, positionName: "Logoped", completionByDay: { 1: false, 5: true } }] };
   });
   const response = await app.inject({ method: "GET", url: "/api/internal-lessons/?clientId=4&specialistId=8" });
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().items[0].id, 10);
+  assert.equal(response.json().items[0].positionName, "Logoped");
+  assert.deepEqual(response.json().items[0].completionByDay, { 1: false, 5: true });
 });
 
 test("unchecking all days requires delete permission and deletes only the selected card", async (t) => {

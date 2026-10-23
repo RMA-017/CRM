@@ -7,7 +7,14 @@ function fail(message, statusCode = 400) { throw Object.assign(new Error(message
 async function recordChange(db, { organizationId, entry, completed, actorUserId = null, actorTelegramId = null, actorName = "" }) {
   if (entry.completed === completed) return { id: String(entry.id), completed, version: entry.version, changed: false };
   const version = entry.version + 1;
-  await db.query("UPDATE internal_lesson_completions SET completed = $3, version = $4 WHERE organization_id = $1 AND id = $2",
+  await db.query(`UPDATE internal_lesson_completions SET completed = $3, version = $4,
+    journal_date = CASE WHEN $3 THEN NULL ELSE journal_date END,
+    journal_client_id = CASE WHEN $3 THEN NULL ELSE journal_client_id END,
+    journal_specialist_id = CASE WHEN $3 THEN NULL ELSE journal_specialist_id END,
+    journal_client_name = CASE WHEN $3 THEN NULL ELSE journal_client_name END,
+    journal_specialist_name = CASE WHEN $3 THEN NULL ELSE journal_specialist_name END,
+    journal_position_name = CASE WHEN $3 THEN NULL ELSE journal_position_name END
+    WHERE organization_id = $1 AND id = $2`,
     [organizationId, entry.id, completed, version]);
   await db.query(`INSERT INTO internal_lesson_journal_events
     (organization_id, completion_id, completed, version, actor_user_id, actor_telegram_id, actor_name)
@@ -66,23 +73,65 @@ export async function correctInternalLessonCompletion({ organizationId, id, comp
   });
 }
 
+export async function getInternalJournalOptions({ organizationId }) {
+  const clients = await pool.query(`SELECT id, concat_ws(' ', last_name, first_name, middle_name) AS name
+    FROM clients WHERE organization_id = $1 ORDER BY LOWER(last_name), LOWER(first_name), id`, [organizationId]);
+  const specialists = await pool.query(`SELECT u.id, COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS name, COALESCE(p.label, '') AS position
+    FROM users u JOIN role_options r ON r.id = u.role_id LEFT JOIN position_options p ON p.id = u.position_id
+    WHERE u.organization_id = $1 AND (LOWER(CONCAT_WS(' ', r.label, p.label)) LIKE ANY(ARRAY['%specialist%', '%spetsialist%', '%mutaxassis%', '%специалист%'])
+      OR EXISTS (SELECT 1 FROM internal_lesson_completions j WHERE j.organization_id = u.organization_id AND j.source_specialist_id = u.id))
+    ORDER BY LOWER(COALESCE(NULLIF(TRIM(u.full_name), ''), u.username)), u.id`, [organizationId]);
+  return { clients: clients.rows, specialists: specialists.rows };
+}
+
+export async function editInternalJournalEntry({ organizationId, id, date, clientId, specialistId, expectedVersion, actorUserId }) {
+  if (!isBotDate(date) || !Number.isInteger(clientId) || clientId < 1 || !Number.isInteger(specialistId) || specialistId < 1
+    || !Number.isInteger(expectedVersion) || expectedVersion < 1) fail("INVALID_COMPLETION");
+  return executeTransaction(async (db) => {
+    const result = await db.query("SELECT * FROM internal_lesson_completions WHERE organization_id = $1 AND id = $2 FOR UPDATE", [organizationId, id]);
+    const entry = result.rows[0];
+    if (!entry || !entry.completed) fail("LESSON_NOT_FOUND", 404);
+    if (entry.version !== expectedVersion) fail("JOURNAL_CHANGED", 409);
+    const child = await db.query(`SELECT concat_ws(' ', last_name, first_name, middle_name) AS name FROM clients
+      WHERE organization_id = $1 AND id = $2 FOR SHARE`, [organizationId, clientId]);
+    if (!child.rows[0]) fail("INVALID_CLIENT");
+    const specialist = await db.query(`SELECT COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS name, COALESCE(p.label, '') AS position
+      FROM users u JOIN role_options r ON r.id = u.role_id LEFT JOIN position_options p ON p.id = u.position_id
+      WHERE u.organization_id = $1 AND u.id = $2 AND (LOWER(CONCAT_WS(' ', r.label, p.label)) LIKE ANY(ARRAY['%specialist%', '%spetsialist%', '%mutaxassis%', '%специалист%'])
+        OR EXISTS (SELECT 1 FROM internal_lesson_completions j WHERE j.organization_id = u.organization_id AND j.source_specialist_id = u.id)) FOR SHARE OF u`, [organizationId, specialistId]);
+    if (!specialist.rows[0]) fail("INVALID_SPECIALIST");
+    const actor = await db.query("SELECT COALESCE(NULLIF(TRIM(full_name), ''), username) AS name FROM users WHERE id = $1", [actorUserId]);
+    const version = entry.version + 1;
+    await db.query(`UPDATE internal_lesson_completions SET journal_date = $3::date, journal_client_id = $4, journal_specialist_id = $5,
+      journal_client_name = $6, journal_specialist_name = $7, journal_position_name = $8, version = $9 WHERE organization_id = $1 AND id = $2`,
+      [organizationId, id, date, clientId, specialistId, child.rows[0].name, specialist.rows[0].name, specialist.rows[0].position, version]);
+    await db.query(`INSERT INTO internal_lesson_journal_events (organization_id, completion_id, completed, version, actor_user_id, actor_name)
+      VALUES ($1,$2,TRUE,$3,$4,$5)`, [organizationId, id, version, actorUserId, actor.rows[0]?.name || ""]);
+    return { id: String(id), version };
+  });
+}
+
 export async function listInternalLessonJournal({ organizationId, search = "", dateFrom = "", dateTo = "", completed = null, page = 1, exportAll = false, child = "", specialist = "", position = "" }) {
   if ((dateFrom && !isBotDate(dateFrom)) || (dateTo && !isBotDate(dateTo)) || (dateFrom && dateTo && dateFrom > dateTo)) fail("INVALID_DATE_RANGE");
   const params = [organizationId, `%${search}%`, dateFrom || null, dateTo || null, completed, `%${child}%`, `%${specialist}%`, `%${position}%`];
-  const where = `e.organization_id = $1
-    AND (j.client_name ILIKE $2 OR j.specialist_name ILIKE $2 OR j.position_name ILIKE $2)
-    AND ($3::date IS NULL OR e.recorded_at >= ($3::date::timestamp AT TIME ZONE 'Asia/Tashkent'))
-    AND ($4::date IS NULL OR e.recorded_at < (($4::date + 1)::timestamp AT TIME ZONE 'Asia/Tashkent'))
+  const journalDate = "COALESCE(j.journal_date, (e.recorded_at AT TIME ZONE 'Asia/Tashkent')::date)";
+  const clientName = "COALESCE(j.journal_client_name, j.client_name)", specialistName = "COALESCE(j.journal_specialist_name, j.specialist_name)", positionName = "COALESCE(j.journal_position_name, j.position_name)";
+  const where = `j.organization_id = $1 AND j.completed AND e.completed
+    AND (${clientName} ILIKE $2 OR ${specialistName} ILIKE $2 OR ${positionName} ILIKE $2)
+    AND ($3::date IS NULL OR ${journalDate} >= $3::date)
+    AND ($4::date IS NULL OR ${journalDate} <= $4::date)
     AND ($5::boolean IS NULL OR e.completed = $5)
-    AND j.client_name ILIKE $6 AND j.specialist_name ILIKE $7 AND j.position_name ILIKE $8`;
-  const join = "FROM internal_lesson_journal_events e JOIN internal_lesson_completions j ON j.organization_id = e.organization_id AND j.id = e.completion_id";
+    AND ${clientName} ILIKE $6 AND ${specialistName} ILIKE $7 AND ${positionName} ILIKE $8`;
+  const join = `FROM internal_lesson_completions j JOIN LATERAL (SELECT * FROM internal_lesson_journal_events history
+    WHERE history.organization_id = j.organization_id AND history.completion_id = j.id ORDER BY history.version DESC LIMIT 1) e ON TRUE`;
   const count = await pool.query(`SELECT COUNT(*)::integer AS total ${join} WHERE ${where}`, params);
   const totalPages = Math.max(1, Math.ceil(count.rows[0].total / 20));
   const safePage = Math.min(page, totalPages);
-  const { rows } = await pool.query(`SELECT e.id::text, e.completion_id::text AS "completionId", e.completed, e.version,
-    e.recorded_at AS "recordedAt", e.actor_name AS "actorName", j.client_name AS "clientName",
-    j.specialist_name AS "specialistName", j.position_name AS "positionName", j.version AS "currentVersion",
-    j.completed AS "currentCompleted" ${join} WHERE ${where} ORDER BY e.recorded_at DESC, e.id DESC${exportAll ? "" : " LIMIT 20 OFFSET $9"}`,
+  const { rows } = await pool.query(`SELECT j.id::text, j.id::text AS "completionId", e.completed, e.version,
+    ${journalDate}::text AS "journalDate", e.recorded_at AS "recordedAt",
+    COALESCE(j.journal_client_id, j.client_id) AS "clientId", COALESCE(j.journal_specialist_id, j.specialist_id) AS "specialistId",
+    ${clientName} AS "clientName", ${specialistName} AS "specialistName", ${positionName} AS "positionName",
+    j.version AS "currentVersion", j.completed AS "currentCompleted" ${join} WHERE ${where} ORDER BY ${journalDate} DESC, j.id DESC${exportAll ? "" : " LIMIT 20 OFFSET $9"}`,
     exportAll ? params : [...params, (safePage - 1) * 20]);
   return { items: rows, pagination: { page: safePage, totalPages, total: count.rows[0].total } };
 }

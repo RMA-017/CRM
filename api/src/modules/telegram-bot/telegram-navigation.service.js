@@ -486,7 +486,10 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
       await ensureMainKeyboard(true, language === "uz" ? "Til o‘zgartirildi." : "Язык изменён.");
       const parent = await legacy.getParent();
       if (parent) await legacy.parentLanguage(parent, language);
-      return settingsMenu();
+      session.active_role = null;
+      session.awaiting_role = null;
+      session.view = { kind: "main" };
+      return;
     }
     if (data.startsWith("ui:text:")) {
       if (session.active_role === "caregiver" && session.view.kind === "therapy") return dayView(session.view.date || botToday());

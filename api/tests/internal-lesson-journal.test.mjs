@@ -4,7 +4,7 @@ import Fastify from "fastify";
 
 process.env.JWT_SECRET ||= "journal-test-secret";
 const { default: pool } = await import("../src/config/db.js");
-const { setInternalLessonCompletion, undoHistoricalInternalLesson, correctInternalLessonCompletion, listInternalLessonJournal } = await import("../src/modules/internal-lessons/internal-lesson-journal.service.js");
+const { setInternalLessonCompletion, undoHistoricalInternalLesson, correctInternalLessonCompletion, editInternalJournalEntry, listInternalLessonJournal } = await import("../src/modules/internal-lessons/internal-lesson-journal.service.js");
 const { default: journalRoutes } = await import("../src/modules/internal-lessons/internal-lesson-journal.routes.js");
 const { clearRolePermissionsCache } = await import("../src/modules/users/access.service.js");
 
@@ -129,7 +129,7 @@ test("journal filters and sorts by actual recorded time rather than the calendar
   assert.deepEqual(calls[0].params, [7, "%Child%", "2026-10-01", "2026-10-23", null, "%%", "%%", "%%"]);
 });
 
-test("journal export includes all history beyond the first page and remains organization scoped", async (t) => {
+test("journal export includes all active records beyond the first page and remains organization scoped", async (t) => {
   const original = pool.query;
   const calls = [];
   const items = Array.from({ length: 45 }, (_, id) => ({ id: String(id + 1), completed: id % 2 === 0 }));
@@ -141,7 +141,8 @@ test("journal export includes all history beyond the first page and remains orga
   const result = await listInternalLessonJournal({ organizationId: 7, exportAll: true });
   assert.equal(result.items.length, 45);
   assert.ok(!calls[1].sql.includes("LIMIT 20"));
-  assert.ok(calls[1].sql.includes("e.organization_id = $1"));
+  assert.ok(calls[1].sql.includes("j.organization_id = $1"));
+  assert.ok(calls[1].sql.includes("j.completed AND e.completed") && calls[1].sql.includes("ORDER BY history.version DESC LIMIT 1"));
   assert.deepEqual(calls[1].params, [7, "%%", null, null, null, "%%", "%%", "%%"]);
 });
 
@@ -161,6 +162,31 @@ test("journal list and Excel export apply identical period, person and status fi
   assert.ok(calls[1].sql.includes("LIMIT 20 OFFSET $9"));
   assert.ok(!calls[3].sql.includes("LIMIT 20"));
   await assert.rejects(listInternalLessonJournal({ ...filters, dateFrom: "2026-11-01" }), /INVALID_DATE_RANGE/);
+});
+
+test("journal edits validate scoped entities and keep the bot's original lesson identity", async (t) => {
+  const calls = stubTransaction(t, (sql) => {
+    if (sql.includes("SELECT *")) return { rows: [{ id: "20", completed: true, version: 3 }] };
+    if (sql.includes("FROM clients")) return { rows: [{ name: "Changed child" }] };
+    if (sql.includes("FROM users u")) return { rows: [{ name: "Changed specialist", position: "Logoped" }] };
+    if (sql.includes("FROM users WHERE")) return { rows: [{ name: "Admin" }] };
+    return { rows: [] };
+  });
+  await editInternalJournalEntry({ organizationId: 7, id: "20", date: "2026-10-20", clientId: 4, specialistId: 8, expectedVersion: 3, actorUserId: 2 });
+  const update = calls.find(({ sql }) => sql.includes("SET journal_date"));
+  assert.deepEqual(update.params, [7, "20", "2026-10-20", 4, 8, "Changed child", "Changed specialist", "Logoped", 4]);
+  assert.ok(!update.sql.includes("source_client_id =") && !update.sql.includes("schedule_date ="));
+  assert.ok(calls.some(({ sql }) => sql.includes("INSERT INTO internal_lesson_journal_events")));
+});
+
+test("journal edits reject foreign children and stale or removed records", async (t) => {
+  let entry = { completed: true, version: 3 };
+  stubTransaction(t, (sql) => ({ rows: sql.includes("SELECT *") ? [entry] : [] }));
+  const input = { organizationId: 7, id: "20", date: "2026-10-20", clientId: 99, specialistId: 8, expectedVersion: 3, actorUserId: 2 };
+  await assert.rejects(editInternalJournalEntry(input), /INVALID_CLIENT/);
+  await assert.rejects(editInternalJournalEntry({ ...input, expectedVersion: 2 }), /JOURNAL_CHANGED/);
+  entry = { completed: false, version: 3 };
+  await assert.rejects(editInternalJournalEntry(input), /LESSON_NOT_FOUND/);
 });
 
 test("journal access does not follow planner permissions", async (t) => {

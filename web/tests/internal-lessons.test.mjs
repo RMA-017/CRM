@@ -19,14 +19,14 @@ test("removing weekdays leaves other days intact and can clear a card entirely",
   assert.deepEqual(toggleInternalLessonDay([1, 5], 3), [1, 3, 5]);
 });
 
-test("choosing the specialist first retains that view when filtering by a child", () => {
+test("child and specialist selectors clear each other and switch the displayed view", () => {
   let filter = { clientId: "", specialistId: "", mode: "client" };
   filter = changeInternalLessonFilter(filter, "specialistId", "8");
   assert.equal(filter.mode, "specialist");
   filter = changeInternalLessonFilter(filter, "clientId", "4");
-  assert.deepEqual(filter, { clientId: "4", specialistId: "8", mode: "specialist" });
-  filter = changeInternalLessonFilter(filter, "specialistId", "");
-  assert.equal(filter.mode, "client");
+  assert.deepEqual(filter, { clientId: "4", specialistId: "", mode: "client" });
+  filter = changeInternalLessonFilter(filter, "specialistId", "8");
+  assert.deepEqual(filter, { clientId: "", specialistId: "8", mode: "specialist" });
 });
 
 test("internal lessons have independent route and action permissions", () => {

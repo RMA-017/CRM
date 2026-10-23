@@ -11,6 +11,27 @@
 .internal-lesson-dialog input:not([type="checkbox"]), .internal-lesson-dialog select, .internal-lesson-dialog .custom-select-trigger { width: 100%; min-width: 0; height: 34px; min-height: 34px; padding: 0 10px; border: 1px solid #dce3ed; border-radius: 7px; background: #fff; font-size: 13px; line-height: normal; color: #334155; }
 .crm-compact-panel .custom-select-trigger, .internal-lesson-dialog .custom-select-trigger { padding-right: 30px; }
 .crm-compact-panel .panel-search-bar { display: flex; width: min(420px, 100%); align-items: center; gap: 8px; margin: 0 0 12px; }
+#caregiversPanel .caregiver-header-search { width: 260px; max-width: 100%; margin: 0; gap: 6px; }
+#caregiversPanel .all-users-table { table-layout: fixed; min-width: 720px; }
+#caregiversPanel .caregiver-col-id { width: 48px; }
+#caregiversPanel .caregiver-col-name { width: 25%; }
+#caregiversPanel .caregiver-col-phone { width: 150px; }
+#caregiversPanel .caregiver-col-active { width: 72px; }
+#caregiversPanel .caregiver-col-action { width: 64px; }
+#caregiversPanel .all-users-table th, #caregiversPanel .all-users-table td { min-width: 0; max-width: none; }
+#caregiversPanel .all-users-table th:nth-child(n+5), #caregiversPanel .all-users-table td:nth-child(n+5),
+#caregiversPanel .all-users-table th:first-child, #caregiversPanel .all-users-table td:first-child { text-align: center; padding-left: 6px; padding-right: 6px; }
+#caregiversPanel .all-users-table th:nth-child(n+6) { white-space: normal; overflow-wrap: anywhere; }
+#caregiversPanel .all-users-table td:nth-child(2), #caregiversPanel .all-users-table td:nth-child(3) { white-space: normal; overflow-wrap: anywhere; }
+#caregiversPanel .all-users-table td:nth-child(4) { white-space: nowrap; }
+.caregiver-fixed-child { display: flex; flex-direction: column; gap: 5px; padding: 10px; margin-bottom: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 7px; font-size: 13px; }
+.caregiver-fixed-child small { color: #64748b; font-size: 11px; }
+.caregiver-roster-fields { margin-top: 14px; }
+.caregiver-dialog .caregiver-child-options input[type="radio"] { width: 14px; height: 14px; min-height: 0; margin: 0; flex-shrink: 0; accent-color: #2563eb; }
+@media (max-width: 560px) {
+  #caregiversPanel .all-users-head-actions { flex: 1 1 100%; flex-wrap: nowrap; }
+  #caregiversPanel .caregiver-header-search { flex: 1; min-width: 0; width: auto; }
+}
 .crm-compact-panel .all-users-table-wrap { max-height: min(62vh, 640px); border: 1px solid var(--compact-border); border-radius: 8px; }
 .crm-compact-panel .all-users-table { width: 100%; min-width: 640px; }
 .crm-compact-panel .all-users-table th, .crm-compact-panel .all-users-table td { height: auto; padding: 9px 12px; line-height: 1.4; font-size: 12px; border-bottom: 1px solid #edf1f6; }
@@ -22,17 +43,21 @@
 .crm-compact-panel .all-users-state { padding: 32px 16px; margin: 12px 0; border: 1px dashed #dce3ed; border-radius: 9px; background: #fafbfd; font-size: 13px; line-height: 1.6; }
 .crm-compact-panel .internal-lesson-hint, .internal-lesson-dialog .internal-lesson-hint { margin: 6px 0 10px; color: #64748b; font-size: 12px; line-height: 1.5; }
 .crm-compact-panel > h4 { margin: 14px 0 10px; font-size: 13px; font-weight: 600; }
-.internal-lesson-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 300px)); gap: 12px; margin: 12px 0; padding: 12px; background: #f8fafc; border: 1px solid #e8edf4; border-radius: 9px; }
+.internal-lessons-panel > .all-users-head { align-items: flex-end; }
+.internal-lesson-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 390px)); flex: 1 1 600px; max-width: 792px; gap: 12px; margin: 0; padding: 0; }
 .internal-lesson-grid-scroll { overflow-x: auto; padding-bottom: 8px; scrollbar-width: thin; }
 .internal-lesson-grid { display: grid; grid-template-columns: repeat(var(--internal-days), minmax(140px, 1fr)); gap: 8px; min-width: calc(var(--internal-days) * 148px - 8px); align-items: start; }
 .internal-lesson-day { background: #f8fafc; border: 1px solid #e5ebf3; border-radius: 9px; padding: 8px; }
 .internal-lesson-day > h4 { margin: 0 0 8px; padding: 6px 0 10px; border-bottom: 1px solid #e5ebf3; font-size: 12px; font-weight: 600; text-align: center; color: #475569; }
 .internal-lesson-slots { display: flex; flex-direction: column; gap: 6px; }
-.internal-lesson-card { appearance: none; width: 100%; min-height: 58px; border: 1px solid #d5e3f5; border-left: 3px solid #6095e6; border-radius: 7px; background: #fff; padding: 9px 8px; text-align: left; color: #334155; display: flex; flex-direction: column; justify-content: center; gap: 4px; cursor: pointer; font: inherit; overflow-wrap: anywhere; }
+.internal-lesson-card { box-sizing: border-box; appearance: none; width: 100%; min-width: 0; height: 58px; min-height: 58px; max-height: 58px; flex-shrink: 0; overflow: hidden; border: 1px solid #d5e3f5; border-left: 3px solid #6095e6; border-radius: 7px; background: #fff; padding: 9px 8px; text-align: left; color: #334155; display: flex; flex-direction: column; justify-content: center; gap: 4px; cursor: pointer; font: inherit; }
+.internal-lesson-card strong, .internal-lesson-card > span { display: block; width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .internal-lesson-card strong { font-size: 12px; line-height: 1.35; font-weight: 600; }
 .internal-lesson-card > span { font-size: 11px; line-height: 1.35; color: #64748b; }
 .internal-lesson-card:hover { border-color: #93b6e8; background: #f0f6ff; }
-.internal-lesson-card.is-empty { min-height: 48px; border: 1px dashed #dce3ed; background: transparent; align-items: center; color: #a5b4c7; }
+.internal-lesson-card.is-pending { border-left-color: rgba(217, 119, 6, 0.7); }
+.internal-lesson-card.is-confirmed { border-left-color: rgba(5, 150, 105, 0.7); }
+.internal-lesson-card.is-empty { border: 1px dashed #dce3ed; background: transparent; align-items: center; text-align: center; color: #a5b4c7; }
 .internal-lesson-card.is-empty > span { font-size: 20px; color: inherit; }
 .internal-lesson-card:disabled { opacity: .45; cursor: default; }
 .crm-compact-panel .internal-lesson-add { display: flex; margin: 8px auto 0; width: 30px; min-width: 30px; height: 28px; padding: 5px; border-style: dashed; background: transparent; color: #64748b; }
@@ -76,12 +101,16 @@ dialog.journal-correction-dialog { width: min(360px, calc(100vw - 24px)); }
 .internal-journal-time { display: block; color: #94a3b8; margin-top: 2px; font-size: 10px; }
 .internal-journal-panel .all-users-table td:last-child > span { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border-radius: 5px; background: #f1f5f9; font-size: 11px; }
 .internal-journal-panel .all-users-table td:last-child .action-icon-button { margin-left: 7px; }
+.journal-row-actions { display: flex; gap: 6px; }
+.internal-journal-panel .journal-row-actions .action-icon-button { margin-left: 0; }
 @media (max-width: 900px) { .internal-journal-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) {
   .crm-compact-panel { padding: 12px; border-radius: 9px; }
   .crm-compact-panel .all-users-head { align-items: flex-start; }
   .crm-compact-panel .all-users-head h3 { font-size: 14px; }
-  .internal-lesson-filters { grid-template-columns: 1fr; padding: 10px; gap: 10px; }
+  .internal-lessons-panel > .all-users-head > div:first-child { flex: 1; }
+  .internal-lessons-panel > .all-users-head > .all-users-head-actions { order: 1; }
+  .internal-lesson-filters { order: 2; flex-basis: 100%; max-width: none; grid-template-columns: 1fr; gap: 10px; }
   .internal-lesson-grid { grid-template-columns: repeat(var(--internal-days), 150px); min-width: max-content; }
   .internal-journal-filters { padding: 10px; gap: 9px; }
   .internal-journal-filters .field:nth-child(4), .internal-journal-filters .field:nth-child(5), .internal-journal-filters .field:nth-child(6), .internal-journal-filters .field:nth-child(7) { grid-column: 1 / -1; }

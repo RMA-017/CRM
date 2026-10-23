@@ -8,9 +8,5 @@ export function toggleInternalLessonDay(days, day) {
 }
 
 export function changeInternalLessonFilter(current, field, value) {
-  const next = { ...current, [field]: value };
-  const primaryField = current.mode === "specialist" ? "specialistId" : "clientId";
-  if (!current.clientId && !current.specialistId) next.mode = field === "clientId" ? "client" : "specialist";
-  else if (field === primaryField && !value) next.mode = next.clientId ? "client" : "specialist";
-  return next;
+  return { ...current, [field]: value, [field === "clientId" ? "specialistId" : "clientId"]: "", mode: field === "clientId" ? "client" : "specialist" };
 }

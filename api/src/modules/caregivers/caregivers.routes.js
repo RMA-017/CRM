@@ -1,7 +1,7 @@
 import { findRequester } from "../users/users.service.js";
 import { hasPermission } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
-import { deleteCaregiver, listCaregivers, normalizeCaregiverInput, saveCaregiver, searchCaregiverClients } from "./caregivers.service.js";
+import { deleteCaregiver, getCaregiverContact, listCaregivers, normalizeCaregiverInput, saveCaregiver, searchCaregiverClients } from "./caregivers.service.js";
 
 const idSchema = { type: "object", required: ["id"], properties: { id: { type: "integer", minimum: 1 } } };
 const querySchema = {
@@ -9,11 +9,10 @@ const querySchema = {
   properties: { q: { type: "string", maxLength: 255 }, page: { type: "integer", minimum: 1, maximum: 1000000 } }
 };
 const bodySchema = {
-  type: "object", additionalProperties: false, required: ["fullName", "phone", "isActive", "clientIds"],
+  type: "object", additionalProperties: false, required: ["fullName", "phone"],
   properties: {
     fullName: { type: "string", minLength: 1, maxLength: 255 },
-    phone: { type: "string", minLength: 1, maxLength: 40 }, isActive: { type: "boolean" },
-    clientIds: { type: "array", maxItems: 10000, uniqueItems: true, items: { type: "integer", minimum: 1, maximum: 2147483647 } }
+    phone: { type: "string", minLength: 1, maxLength: 40 }, clientId: { not: {} }
   }
 };
 
@@ -24,7 +23,7 @@ export default async function caregiversRoutes(fastify) {
       try {
         const requester = await findRequester(request.authContext);
         if (!requester) return reply.status(401).send({ message: "Unauthorized." });
-        if (!(await hasPermission(requester.role_id, permission))) return reply.status(403).send({ message: "Forbidden." });
+        if (!requester.is_platform_admin && !(await hasPermission(requester.role_id, permission))) return reply.status(403).send({ message: "Forbidden." });
         return await action(request, reply);
       } catch (error) {
         if (error.code === "23505") return reply.status(409).send({ message: "PHONE_EXISTS" });
@@ -36,11 +35,13 @@ export default async function caregiversRoutes(fastify) {
     };
   }
   const config = { rateLimit: fastify.apiRateLimit };
+  fastify.get("/by-phone", { config, schema: { querystring: { type: "object", required: ["phone"], properties: { phone: { type: "string", maxLength: 40 } } } } }, handler(PERMISSIONS.USERS_READ, (request) =>
+    getCaregiverContact({ organizationId: request.authContext.organizationId, phone: request.query.phone })));
   fastify.get("/", { config, schema: { querystring: querySchema } }, handler(PERMISSIONS.USERS_READ, async (request) =>
     listCaregivers({ organizationId: request.authContext.organizationId, search: request.query.q || "", page: request.query.page || 1 })));
   fastify.get("/clients", { config, schema: { querystring: querySchema } }, handler(PERMISSIONS.USERS_READ, async (request) =>
     searchCaregiverClients({ organizationId: request.authContext.organizationId, search: request.query.q || "", page: request.query.page || 1 })));
-  fastify.post("/", { config, schema: { body: bodySchema } }, handler(PERMISSIONS.USERS_CREATE, async (request, reply) => {
+  fastify.post("/", { config, schema: { body: { ...bodySchema, required: [...bodySchema.required, "clientId"], properties: { ...bodySchema.properties, clientId: { type: "integer", minimum: 1, maximum: 2147483647 } } } } }, handler(PERMISSIONS.USERS_CREATE, async (request, reply) => {
     const item = await saveCaregiver({ organizationId: request.authContext.organizationId, input: normalizeCaregiverInput(request.body) });
     return reply.status(201).send({ item });
   }));

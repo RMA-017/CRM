@@ -10,9 +10,10 @@ import "../../../css/components/internal-lessons.css";
 
 const TEXT = {
   uz: {
+    pending: "Kutilmoqda", confirmed: "Tasdiqlangan",
     title: "Maktab-bog‘cha", subtitle: "Doimiy ichki dars jadvali", child: "Bola", specialist: "Mutaxassis",
     chooseChild: "Bolani tanlang", chooseSpecialist: "Mutaxassisni tanlang", allChildren: "Barcha bolalar", allSpecialists: "Barcha mutaxassislar",
-    search: "Qidirish...", noOptions: "Topilmadi", noChildren: "Avval Tarbiyachilar bo‘limida bolani biriktiring. Keyinchalik tarbiyachisi olib tashlansa ham bola bu yerda qoladi.",
+    search: "Qidirish...", noOptions: "Topilmadi", noChildren: "Avval Tarbiyachilar bo‘limidagi ro‘yxatga bolani qo‘shing.",
     choose: "Jadvalni ochish uchun bola yoki mutaxassisni tanlang.", add: "Dars qo‘shish", edit: "Darsni o‘zgartirish",
     save: "Saqlash", remove: "Darsni o‘chirish", cancel: "Bekor qilish", close: "Yopish", loading: "Yuklanmoqda...", retry: "Yangilash",
     days: "Hafta kunlari", daysHint: "Kun belgisini olib tashlash o‘sha kundagi darsni olib tashlaydi. Barcha belgilar olib tashlansa, dars o‘chadi.",
@@ -27,9 +28,10 @@ const TEXT = {
       DATA_CHANGED: "Ma’lumotlar o‘zgargan. Jadvalni yangilang.", "Forbidden.": "Bu amal uchun ruxsat yo‘q." }
   },
   ru: {
+    pending: "Ожидается", confirmed: "Подтверждено",
     title: "Школа-садик", subtitle: "Постоянное расписание внутренних занятий", child: "Ребёнок", specialist: "Специалист",
     chooseChild: "Выберите ребёнка", chooseSpecialist: "Выберите специалиста", allChildren: "Все дети", allSpecialists: "Все специалисты",
-    search: "Поиск...", noOptions: "Не найдено", noChildren: "Сначала закрепите ребёнка в разделе «Воспитатели». После снятия воспитателя ребёнок останется здесь.",
+    search: "Поиск...", noOptions: "Не найдено", noChildren: "Сначала добавьте ребёнка в список раздела «Воспитатели».",
     choose: "Выберите ребёнка или специалиста, чтобы открыть расписание.", add: "Добавить занятие", edit: "Изменить занятие",
     save: "Сохранить", remove: "Удалить занятие", cancel: "Отмена", close: "Закрыть", loading: "Загрузка...", retry: "Обновить",
     days: "Дни недели", daysHint: "Снимите отметку дня, чтобы убрать занятие в этот день. Если снять все отметки, занятие будет удалено.",
@@ -153,6 +155,25 @@ export default function InternalLessonsPanel({ access, onClose }) {
   }, [revision, errorText]);
 
   useEffect(() => {
+    if (!filter.clientId && !filter.specialistId) return;
+    const controller = new AbortController();
+    let inFlight = false;
+    const params = new URLSearchParams();
+    if (filter.clientId) params.set("clientId", filter.clientId);
+    if (filter.specialistId) params.set("specialistId", filter.specialistId);
+    const timer = setInterval(async () => {
+      if (document.visibilityState !== "visible" || inFlight) return;
+      inFlight = true;
+      try {
+        const data = await request(`/?${params}`, { signal: controller.signal });
+        if (!controller.signal.aborted) setItems(data.items);
+      } catch { /* Keep the displayed schedule on a temporary background refresh failure. */ }
+      finally { inFlight = false; }
+    }, 20000);
+    return () => { clearInterval(timer); controller.abort(); };
+  }, [filter.clientId, filter.specialistId]);
+
+  useEffect(() => {
     const controller = new AbortController();
     setItems([]);
     setListError("");
@@ -210,11 +231,11 @@ export default function InternalLessonsPanel({ access, onClose }) {
   }
 
   function renderCard(item, index, day) {
-    return item ? <button type="button" key={item.id} className="internal-lesson-card"
-      aria-label={`${ui.edit}: ${item.clientName}, ${item.specialistName}, ${ui.dayNames[day]}`}
+    return item ? <button type="button" key={item.id} className={`internal-lesson-card ${item.completionByDay?.[day] ? "is-confirmed" : "is-pending"}`}
+      aria-label={`${ui.edit}: ${item.clientName}, ${item.specialistName}, ${ui.dayNames[day]}, ${item.completionByDay?.[day] ? ui.confirmed : ui.pending}`}
       onClick={() => openEditor(day, item)}>
-      <strong>{specialistMode ? item.clientName : item.specialistName}</strong>
-      <span>{specialistMode ? item.specialistName : item.clientName}</span>
+      <strong title={specialistMode ? item.clientName : item.specialistName}>{specialistMode ? item.clientName : item.specialistName}</strong>
+      <span title={item.positionName}>{item.positionName || "—"}</span>
     </button> : <button type="button" key={`empty-${index}`} className="internal-lesson-card is-empty"
       disabled={!access.create} aria-label={`${ui.add}: ${ui.dayNames[day]}, ${index + 1}`}
       onClick={() => openEditor(day)}><span aria-hidden="true">+</span></button>;
@@ -222,12 +243,7 @@ export default function InternalLessonsPanel({ access, onClose }) {
 
   return <section className="all-users-panel crm-compact-panel internal-lessons-panel">
     <div className="all-users-head"><div><h3>{ui.title}</h3><p className="internal-lesson-hint">{ui.subtitle}</p></div>
-      <div className="all-users-head-actions">
-        <ActionIconButton type="button" className="header-btn" disabled={exporting} onClick={exportAll} label={exporting ? ui.loading : language === "ru" ? "Экспорт всех данных в Excel" : "Barchasini Excel’ga eksport"} icon="export" />
-        <ActionIconButton type="button" className="header-btn" disabled={loading || optionsLoading} onClick={() => setRevision((value) => value + 1)} label={ui.retry} icon="refresh" />
-        <ActionIconButton type="button" className="header-btn panel-close-btn"  onClick={onClose} label={ui.close} icon="close" />
-      </div>
-    </div>
+
     <div className="internal-lesson-filters">
       <div className="field"><span>{ui.child}</span>
         <CustomSelect value={filter.clientId} onChange={(value) => changeFilter("clientId", value)}
@@ -240,10 +256,15 @@ export default function InternalLessonsPanel({ access, onClose }) {
           placeholder={ui.chooseSpecialist} disabled={optionsLoading || Boolean(optionsError)} searchable searchPlaceholder={ui.search} emptyText={ui.noOptions} />
       </div>
     </div>
+      <div className="all-users-head-actions">
+        <ActionIconButton type="button" className="header-btn" disabled={exporting} onClick={exportAll} label={exporting ? ui.loading : language === "ru" ? "Экспорт всех данных в Excel" : "Barchasini Excel’ga eksport"} icon="export" />
+        <ActionIconButton type="button" className="header-btn" disabled={loading || optionsLoading} onClick={() => setRevision((value) => value + 1)} label={ui.retry} icon="refresh" />
+        <ActionIconButton type="button" className="header-btn panel-close-btn"  onClick={onClose} label={ui.close} icon="close" />
+      </div>
+    </div>
     {(optionsError || listError) && <p role="alert" className="internal-lesson-error">{optionsError || listError}</p>}
     {optionsLoading ? <p role="status">{ui.loading}</p> : optionsError ? null : <>
       {options.clients.length === 0 && <p>{ui.noChildren}</p>}
-      {selectedChild && <p className="internal-lesson-hint">{ui.caregiver}: {selectedChild.caregiverName || ui.unassigned}</p>}
       {!hasSelection ? <p className="all-users-state">{ui.choose}</p> : loading ? <p role="status">{ui.loading}</p> : !listError && <>
         <h4>{specialistMode ? ui.specialistView : ui.childView}: {specialistMode ? selectedSpecialist?.name : selectedChild?.name}</h4>
         <div className="internal-lesson-grid-scroll"><div className="internal-lesson-grid" style={{ "--internal-days": Math.max(1, options.weekDays.length) }}>
