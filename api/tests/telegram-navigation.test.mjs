@@ -3,7 +3,7 @@ import test from "node:test";
 import Fastify from "fastify";
 import pool from "../src/config/db.js";
 import { telegramWebhookRoutes } from "../src/modules/telegram-bot/telegram-bot.routes.js";
-import { BOT_UI_TEXT, botToday, isBotDate, shiftBotDate, buildBotCalendar, buildBotDateNavigation, splitBotScreen } from "../src/modules/telegram-bot/telegram-calendar.js";
+import { BOT_UI_TEXT, botToday, botDayLabel, isBotDate, shiftBotDate, buildBotCalendar, buildBotDateNavigation, splitBotScreen } from "../src/modules/telegram-bot/telegram-calendar.js";
 import { createTelegramNavigator, handleTelegramNavigation } from "../src/modules/telegram-bot/telegram-navigation.service.js";
 import { telegramInteractionContext } from "../src/modules/telegram-bot/telegram-interaction-context.js";
 
@@ -49,6 +49,8 @@ test("webhook requests a Telegram retry when processing fails instead of acknowl
 });
 
 test("calendar handles leap years, rejects invalid dates, and exposes every day as a callback", () => {
+  assert.equal(botDayLabel("2026-10-21", "uz"), "Chorshanba 21-oktabr");
+  assert.equal(botDayLabel("2026-10-21", "ru"), "Среда 21 октября");
   assert.equal(isBotDate("2028-02-29"), true);
   assert.equal(isBotDate("2026-02-29"), false);
   assert.equal(isBotDate("2026-13-01"), false);
@@ -231,7 +233,7 @@ test("stop persists an inactive session, ignores old buttons and contacts, and s
 
 test("Russian caregiver menu reopens without a main-menu message, including older text-only keyboards", async () => {
   const { navigator, calls, session } = setup({
-    state: { language: "ru", contacts: { caregiver: parent.phoneNumber }, contact_prompt_id: 22, keyboard_cleared: false },
+    state: { language: "ru", contacts: { caregiver: parent.phoneNumber }, keyboard_cleared: true },
     query: async (sql) => ({ rows: sql.includes("FROM caregivers") ? [{ id: 9, name: "Caregiver" }] : [] })
   });
   await navigator.process({ message: { from, chat, text: "Я воспитатель" } });
@@ -266,6 +268,18 @@ test("unknown specialist contact shows only the access error without repeating r
   assert.equal(calls.at(-1).payload.text, BOT_UI_TEXT.ru.noAccess);
   assert.equal(session.contacts.specialist, undefined);
   assert.equal(calls.at(-1).payload.reply_markup.keyboard[0][0].request_contact, true);
+});
+
+test("language changes refresh the keyboard without reporting a saved contact or changing identities", async () => {
+  const contacts = { caregiver: parent.phoneNumber };
+  const { navigator, session, calls } = setup({ state: { contacts: { ...contacts } } });
+  await navigator.process(callback("ui:settings"));
+  await navigator.process(callback("ui:language:ru"));
+  assert.equal(session.language, "ru");
+  assert.deepEqual(session.contacts, contacts);
+  assert.ok(!calls.some((call) => [BOT_UI_TEXT.uz.contactSaved, BOT_UI_TEXT.ru.contactSaved].includes(call.payload.text)));
+  const keyboard = calls.find((call) => call.payload.reply_markup?.keyboard);
+  assert.deepEqual(keyboard.payload.reply_markup.keyboard.flat().map((b) => b.text), [BOT_UI_TEXT.ru.parent, BOT_UI_TEXT.ru.caregiver, BOT_UI_TEXT.ru.specialist, BOT_UI_TEXT.ru.settings]);
 });
 
 test("settings only offer language and stale contact-change buttons cannot clear verified contacts", async () => {

@@ -44,7 +44,7 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
     session.ui_message_id = null;
   }
 
-  async function ensureMainKeyboard(force = false, text = ui().contactSaved) {
+  async function ensureMainKeyboard(force = false, text = ui().main) {
     if (!force && !session.contact_prompt_id && session.keyboard_cleared) return;
     const result = await call("sendMessage", { chat_id: chat.id, text, reply_markup: mainKeyboard() });
     session.contact_prompt_id = null;
@@ -130,7 +130,7 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
     session.view = { kind: "settings" };
     await clearPending();
     return display(ui().language, [
-      [botButton("O‘zbekcha", "ui:language:uz"), botButton("Русский", "ui:language:ru")],
+      [botButton("🇺🇿 O‘zbekcha", "ui:language:uz"), botButton("🇷🇺 Русский", "ui:language:ru")],
       [botButton(ui().back, "ui:home")]
     ]);
   }
@@ -452,6 +452,7 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
     session.contacts[role] = phone;
     session.active_role = role;
     session.awaiting_role = null;
+    await ensureMainKeyboard(false, ui().contactSaved);
     if (role === "parent") return parentHome();
     if (role === "caregiver") return caregiverChildren();
     return sectionMenu();
@@ -482,6 +483,7 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
       session.language = language;
       session.keyboard_cleared = false;
       await clearInline();
+      await ensureMainKeyboard(true, language === "uz" ? "Til o‘zgartirildi." : "Язык изменён.");
       const parent = await legacy.getParent();
       if (parent) await legacy.parentLanguage(parent, language);
       return settingsMenu();

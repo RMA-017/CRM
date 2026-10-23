@@ -14,6 +14,7 @@ import { listPublicSiteContentItems } from "../site-content/site-content.service
 import { PERMISSIONS } from "../users/users.constants.js";
 import { telegramInteractionContext } from "./telegram-interaction-context.js";
 import { handleTelegramNavigation } from "./telegram-navigation.service.js";
+import { botDayLabel } from "./telegram-calendar.js";
 
 const DEFAULT_LANGUAGE = "ru";
 const SUPPORTED_LANGUAGES = new Set(["uz", "ru"]);
@@ -1688,9 +1689,7 @@ async function sendScheduleList({
 
 async function sendWeekDaySchedule({ settings, parent, dateYmd, messageId = null }) {
   const selectedDate = String(dateYmd || "").trim();
-  const title = renderTemplate(getText(parent.language, "weekDaySchedule"), {
-    date: `${getWeekdayLabel(parent.language, selectedDate)} ${formatDateDmy(selectedDate)}`.trim()
-  });
+  const title = botDayLabel(selectedDate, parent.language);
   const items = await listParentAppointments({
     parent,
     dateFrom: selectedDate,

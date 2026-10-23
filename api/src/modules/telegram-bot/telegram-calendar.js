@@ -41,9 +41,12 @@ export function shiftBotDate(value, days) {
 }
 
 export function botDayLabel(value, language) {
-  return new Intl.DateTimeFormat(language === "uz" ? "uz-UZ" : "ru-RU", {
-    timeZone: "Asia/Tashkent", weekday: "long", day: "2-digit", month: "long", year: "numeric"
-  }).format(new Date(`${value}T07:00:00Z`));
+  const parts = new Intl.DateTimeFormat(language === "uz" ? "uz-UZ" : "ru-RU", {
+    timeZone: "Asia/Tashkent", weekday: "long", day: "numeric", month: "long"
+  }).formatToParts(new Date(`${value}T07:00:00Z`));
+  const part = (type) => parts.find((item) => item.type === type)?.value || "";
+  const weekday = part("weekday");
+  return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${part("day")}${language === "uz" ? "-" : " "}${part("month")}`;
 }
 
 export function botButton(text, data) { return { text, callback_data: data }; }
