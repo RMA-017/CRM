@@ -76,8 +76,13 @@ function CorrectionDialog({ item, ui, busy, error, onClose, onConfirm }) {
 export default function InternalLessonJournalPanel({ access, onClose }) {
   const { language } = useI18n();
   const ui = TEXT[language] || TEXT.uz;
-  const emptyFilters = { dateFrom: "", dateTo: "", child: "", specialist: "", position: "" };
-  const [draft, setDraft] = useState(emptyFilters);
+  const [draft, setDraft] = useState(() => {
+    const parts = Object.fromEntries(new Intl.DateTimeFormat("en", {
+      timeZone: "Asia/Tashkent", year: "numeric", month: "2-digit", day: "2-digit"
+    }).formatToParts(new Date()).map((part) => [part.type, part.value]));
+    const today = `${parts.year}-${parts.month}-${parts.day}`;
+    return { dateFrom: today, dateTo: today, child: "", specialist: "", position: "" };
+  });
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterOptions, setFilterOptions] = useState({ child: [], specialist: [], position: [] });
   const [filterOptionsLoading, setFilterOptionsLoading] = useState(false);
@@ -93,8 +98,6 @@ export default function InternalLessonJournalPanel({ access, onClose }) {
       .finally(() => { if (!controller.signal.aborted) setFilterOptionsLoading(false); });
     return () => controller.abort();
   }, [filterOpen]);
-  const [period, setPeriod] = useState("all");
-  const [appliedPeriod, setAppliedPeriod] = useState("all");
   useEscapeKey(filterOpen, () => setFilterOpen(false));
   const [filters, setFilters] = useState(draft);
   const [page, setPage] = useState(1);
@@ -156,7 +159,7 @@ export default function InternalLessonJournalPanel({ access, onClose }) {
 
   return <section className="all-users-panel crm-compact-panel internal-journal-panel">
     <div className="all-users-head"><h3>{ui.title}</h3><div className="all-users-head-actions">
-      <ActionIconButton label={ui.filter} icon="filter" className="header-btn" aria-expanded={filterOpen} aria-controls="journalFilters" onClick={() => { setDraft({ ...filters }); setPeriod(appliedPeriod); setFilterOpen(true); }}>
+      <ActionIconButton label={ui.filter} icon="filter" className="header-btn" aria-expanded={filterOpen} aria-controls="journalFilters" onClick={() => { setDraft({ ...filters }); setFilterOpen(true); }}>
         {Object.values(filters).some(Boolean) && <span className="action-icon-dot" aria-hidden="true" />}
       </ActionIconButton>
       <ActionIconButton type="button" className="header-btn" disabled={exporting || loading || Boolean(error)} onClick={exportAll} label={exporting ? ui.loading : ui.excel} icon="export" />
@@ -167,20 +170,10 @@ export default function InternalLessonJournalPanel({ access, onClose }) {
       <button type="button" className="login-overlay stacked-modal-overlay finance-modal-overlay" aria-label={ui.close} onClick={() => setFilterOpen(false)} />
       <div id="journalFilters" role="dialog" aria-modal="true" aria-labelledby="journalFilterTitle" className="logout-confirm-modal all-users-edit-modal finance-modal journal-filter-modal">
       <div className="journal-filter-head"><h3 id="journalFilterTitle">{ui.filter}</h3><ActionIconButton type="button" className="header-btn" label={ui.close} icon="close" onClick={() => setFilterOpen(false)} /></div>
-      <form className="auth-form" onSubmit={(event) => { event.preventDefault(); setPage(1); setFilters({ ...draft }); setAppliedPeriod(period); setFilterOpen(false); }}>
+      <form className="auth-form" onSubmit={(event) => { event.preventDefault(); setPage(1); setFilters({ ...draft }); setFilterOpen(false); }}>
       <div className="all-users-edit-fields settings-filter-grid journal-filter-grid">
-      <label className="field">{ui.period}<select value={period} onChange={(e) => {
-        const value = e.target.value;
-        setPeriod(value);
-        if (value === "custom") return;
-        const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tashkent", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-        const start = new Date(`${today}T12:00:00Z`);
-        if (value === "week") start.setUTCDate(start.getUTCDate() - 6);
-        if (value === "month") start.setUTCDate(1);
-        setDraft({ ...draft, dateFrom: value === "all" ? "" : start.toISOString().slice(0, 10), dateTo: value === "all" ? "" : today });
-      }}><option value="all">{ui.all}</option><option value="today">{ui.today}</option><option value="week">{ui.week}</option><option value="month">{ui.month}</option><option value="custom">{ui.custom}</option></select></label>
-      <div className="journal-filter-date-row"><label className="field">{ui.from}<input type="date" value={draft.dateFrom} max={draft.dateTo || undefined} onChange={(e) => { setPeriod("custom"); setDraft({ ...draft, dateFrom: e.target.value }); }} /></label>
-      <label className="field">{ui.to}<input type="date" value={draft.dateTo} min={draft.dateFrom || undefined} onChange={(e) => { setPeriod("custom"); setDraft({ ...draft, dateTo: e.target.value }); }} /></label></div>
+      <div className="journal-filter-date-row"><label className="field">{ui.from}<input type="date" value={draft.dateFrom} max={draft.dateTo || undefined} onChange={(e) => { setDraft({ ...draft, dateFrom: e.target.value }); }} /></label>
+      <label className="field">{ui.to}<input type="date" value={draft.dateTo} min={draft.dateFrom || undefined} onChange={(e) => { setDraft({ ...draft, dateTo: e.target.value }); }} /></label></div>
       {["child", "specialist", "position"].map((key) => <div className="field" key={key}><span>{ui[key]}</span>
         <CustomSelect value={draft[key]} options={[{ value: "", label: ui.all },
           ...(draft[key] && !filterOptions[key].includes(draft[key]) ? [draft[key]] : []), ...filterOptions[key]]
@@ -190,8 +183,7 @@ export default function InternalLessonJournalPanel({ access, onClose }) {
       </div>)}
       {filterOptionsError && <p role="alert" className="internal-lesson-error">{ui.failure}</p>}
       </div><div className="edit-actions">
-      <ActionIconButton type="submit" className="btn" disabled={loading} label={ui.apply} icon="check" />
-      <ActionIconButton type="button" className="header-btn" disabled={loading} onClick={() => { setDraft(emptyFilters); setPeriod("all"); }} label={ui.reset} icon="reset" />
+      <button type="submit" className="btn btn-primary" disabled={loading}>{ui.search}</button>
       </div>
     </form></div></>, document.body)}
     {error && <p role="alert" className="internal-lesson-error">{error}</p>}

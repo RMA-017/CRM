@@ -112,7 +112,8 @@ dialog.journal-correction-dialog { width: min(360px, calc(100vw - 24px)); }
 .journal-row-actions { display: flex; gap: 6px; }
 .internal-journal-panel .journal-row-actions .action-icon-button { margin-left: 0; }
 .internal-journal-panel .all-users-table { table-layout: fixed; min-width: 700px; }
-.internal-journal-panel .all-users-table th, .internal-journal-panel .all-users-table td { padding-top: 5px; padding-bottom: 5px; }
+.internal-journal-panel .all-users-table th, .internal-journal-panel .all-users-table td { padding-top: 2px; padding-bottom: 2px; }
+.internal-journal-panel .journal-row-actions .action-icon-button { width: 26px; min-width: 26px; height: 26px; padding: 4px; }
 .internal-journal-panel .journal-col-date { width: 110px; }
 .internal-journal-panel .journal-col-id { width: 70px; }
 .internal-journal-panel .journal-col-child { width: 30%; }
