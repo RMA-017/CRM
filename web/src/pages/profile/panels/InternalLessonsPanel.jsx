@@ -70,13 +70,13 @@ function LessonEditor({ form, setForm, options, ui, access, saving, error, onSav
         </div>
         {error && <p role="alert" className="internal-lesson-error">{error}</p>}
         <div className="internal-lesson-editor-fields">
-          {(form.id || form.fixedField !== "clientId") && <div className="field"><span id="internalLessonClientLabel">{ui.child}</span>
+          {form.fixedField !== "clientId" && <div className="field"><span id="internalLessonClientLabel">{ui.child}</span>
             <CustomSelect value={form.clientId} onChange={(value) => setForm({ ...form, clientId: value })}
               options={options.clients.map((c) => ({ value: String(c.id), label: `${c.name} (#${c.id})` }))}
               placeholder={ui.chooseChild} searchable searchPlaceholder={ui.search} emptyText={ui.noOptions}
               disabled={saving || !editable} />
           </div>}
-          {(form.id || form.fixedField !== "specialistId") && <div className="field"><span>{ui.specialist}</span>
+          {form.fixedField !== "specialistId" && <div className="field"><span>{ui.specialist}</span>
             <CustomSelect value={form.specialistId} onChange={(value) => setForm({ ...form, specialistId: value })}
               options={specialistOptions.map((s) => ({ value: String(s.id), label: `${s.name}${s.isActive ? "" : ` (${ui.inactive})`}` }))}
               placeholder={ui.chooseSpecialist} searchable searchPlaceholder={ui.search} emptyText={ui.noOptions}
@@ -221,11 +221,13 @@ export default function InternalLessonsPanel({ access, onClose }) {
     <div className="internal-lesson-filters">
       <div className="field"><span>{ui.child}</span>
         <CustomSelect value={filter.clientId} onChange={(value) => changeFilter("clientId", value)}
+          maxVisibleOptions={12}
           options={options.clients.map((c) => ({ value: String(c.id), label: `${c.name} (#${c.id})` }))}
           placeholder={ui.chooseChild} disabled={optionsLoading || Boolean(optionsError)} searchable searchPlaceholder={ui.search} emptyText={ui.noOptions} />
       </div>
       <div className="field"><span>{ui.specialist}</span>
         <CustomSelect value={filter.specialistId} onChange={(value) => changeFilter("specialistId", value)}
+          maxVisibleOptions={12}
           options={options.specialists.map((s) => ({ value: String(s.id), label: `${s.name}${s.isActive ? "" : ` (${ui.inactive})`}` }))}
           placeholder={ui.chooseSpecialist} disabled={optionsLoading || Boolean(optionsError)} searchable searchPlaceholder={ui.search} emptyText={ui.noOptions} />
       </div>
