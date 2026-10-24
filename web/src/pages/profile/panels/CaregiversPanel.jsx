@@ -11,8 +11,7 @@ const TEXT = {
     title: "Tarbiyachilar", add: "Bola qo‘shish", child: "Bola", name: "Tarbiyachi", phone: "Telefon", edit: "Tahrirlash", remove: "O‘chirish",
     search: "Qidirish", searchHint: "Bola, tarbiyachi yoki telefon", childSearch: "Bolani ismi yoki ID orqali qidirish", save: "Saqlash", cancel: "Bekor qilish", close: "Yopish",
     empty: "Ro‘yxat bo‘sh.", loading: "Yuklanmoqda...", previous: "Oldingi", next: "Keyingi", noChildren: "Qo‘shilmagan bolalar topilmadi.",
-    shared: "Bir xil telefon — bitta tarbiyachi. Uning ismi o‘zgarsa, shu telefonli barcha qatorlarda yangilanadi. Telefon o‘zgarsa, faqat shu bola qayta biriktiriladi.",
-    existing: "Bu telefon bilan tarbiyachi mavjud. Ismi avtomatik to‘ldirildi.", unassigned: "Biriktirilmagan",
+    unassigned: "Biriktirilmagan",
     confirmDelete: "Bola maktab-bog‘cha ro‘yxatidan chiqariladi va uning ichki dars jadvali o‘chadi. Asosiy mijoz, terapiya, jurnal tarixi va boshqa bolalar saqlanadi.",
     failure: "Amalni bajarib bo‘lmadi.", errors: { INVALID_NAME: "Tarbiyachining ismini kiriting.", INVALID_PHONE: "Telefon raqamini to‘g‘ri kiriting.",
       INVALID_CLIENTS: "Bazadan bolani tanlang.", ALREADY_ENROLLED: "Bola bu ro‘yxatga allaqachon qo‘shilgan.", NOT_FOUND: "Qator topilmadi. Ro‘yxatni yangilang.", MIGRATION_REQUIRED: "Ma’lumotlar bazasi migratsiyasini bajarish kerak." }
@@ -21,8 +20,7 @@ const TEXT = {
     title: "Воспитатели", add: "Добавить ребёнка", child: "Ребёнок", name: "Воспитатель", phone: "Телефон", edit: "Редактировать", remove: "Удалить",
     search: "Поиск", searchHint: "Ребёнок, воспитатель или телефон", childSearch: "Поиск ребёнка по имени или ID", save: "Сохранить", cancel: "Отмена", close: "Закрыть",
     empty: "Список пуст.", loading: "Загрузка...", previous: "Назад", next: "Далее", noChildren: "Не добавленные дети не найдены.",
-    shared: "Одинаковый телефон — один воспитатель. Изменение имени обновит все строки с этим телефоном. Смена телефона изменит привязку только этого ребёнка.",
-    existing: "Воспитатель с этим телефоном найден. Имя заполнено автоматически.", unassigned: "Не закреплён",
+    unassigned: "Не закреплён",
     confirmDelete: "Ребёнок будет исключён из списка школы-садика, его внутреннее расписание удалится. Основной клиент, терапия, история журнала и другие дети сохранятся.",
     failure: "Не удалось выполнить действие.", errors: { INVALID_NAME: "Введите имя воспитателя.", INVALID_PHONE: "Введите корректный телефон.",
       INVALID_CLIENTS: "Выберите ребёнка из базы.", ALREADY_ENROLLED: "Ребёнок уже добавлен в этот список.", NOT_FOUND: "Строка не найдена. Обновите список.", MIGRATION_REQUIRED: "Необходимо выполнить миграцию базы данных." }

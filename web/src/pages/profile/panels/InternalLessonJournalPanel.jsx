@@ -12,25 +12,21 @@ import "../../../css/components/internal-lessons.css";
 const TEXT = {
   uz: {
     edit: "Tahrirlash", remove: "O‘chirish", save: "Saqlash", select: "Tanlang", removeConfirm: "Jurnaldan ushbu belgini o‘chirasizmi?",
-    filter: "Filtr", apply: "Qo‘llash", reset: "Tozalash", period: "Davr", today: "Bugun", week: "Oxirgi 7 kun", month: "Shu oy", custom: "Ixtiyoriy davr", excel: "Excel’ga eksport",
+    filter: "Filtr", excel: "Excel’ga eksport",
     title: "Jurnal", date: "Sana", child: "Bola", specialist: "Mutaxassis", position: "Lavozim", action: "Amal",
-    from: "Sanadan", to: "Sanagacha", search: "Qidirish", placeholder: "Bola, mutaxassis yoki lavozim", status: "Holat", all: "Barchasi",
-    marked: "Belgilandi", unmarked: "Belgi bekor qilindi", undo: "Belgini bekor qilish", restore: "Belgini qaytarish",
+    from: "Sanadan", to: "Sanagacha", search: "Qidirish", all: "Barchasi",
     refresh: "Yangilash", close: "Yopish", loading: "Yuklanmoqda...", empty: "Jurnal yozuvlari topilmadi.", previous: "Oldingi", next: "Keyingi",
-    confirm: "Tasdiqlash", cancel: "Bekor qilish", actor: "Bajargan", records: "Yozuvlar", failure: "Amalni bajarib bo‘lmadi.",
-    hint: "Sana — tugma bosilgan haqiqiy sana. Belgilash, bekor qilish va tuzatishlar alohida yozuv bo‘lib saqlanadi.",
+    records: "Yozuvlar", failure: "Amalni bajarib bo‘lmadi.",
     errors: { INVALID_CLIENT: "Bolani qayta tanlang.", INVALID_SPECIALIST: "Mutaxassisni qayta tanlang.", MIGRATION_REQUIRED: "Ma’lumotlar bazasi migratsiyasini bajarish kerak.", INVALID_DATE_RANGE: "Sana oralig‘ini to‘g‘ri kiriting.",
       JOURNAL_CHANGED: "Bu yozuv o‘zgargan. Jurnalni yangilang.", LESSON_NOT_FOUND: "Jurnal yozuvi topilmadi.", "Forbidden.": "Bu amal uchun ruxsat yo‘q." }
   },
   ru: {
     edit: "Редактировать", remove: "Удалить", save: "Сохранить", select: "Выберите", removeConfirm: "Удалить эту отметку из журнала?",
-    filter: "Фильтр", apply: "Применить", reset: "Сбросить", period: "Период", today: "Сегодня", week: "Последние 7 дней", month: "Текущий месяц", custom: "Произвольный период", excel: "Экспорт в Excel",
+    filter: "Фильтр", excel: "Экспорт в Excel",
     title: "Журнал", date: "Дата", child: "Ребёнок", specialist: "Специалист", position: "Должность", action: "Действие",
-    from: "С даты", to: "По дату", search: "Поиск", placeholder: "Ребёнок, специалист или должность", status: "Состояние", all: "Все",
-    marked: "Отмечено", unmarked: "Отметка снята", undo: "Снять отметку", restore: "Вернуть отметку",
+    from: "С даты", to: "По дату", search: "Поиск", all: "Все",
     refresh: "Обновить", close: "Закрыть", loading: "Загрузка...", empty: "Записи журнала не найдены.", previous: "Назад", next: "Далее",
-    confirm: "Подтвердить", cancel: "Отмена", actor: "Кто выполнил", records: "Записей", failure: "Не удалось выполнить действие.",
-    hint: "Дата — фактическая дата нажатия. Установка, снятие и корректировки отметки сохраняются отдельными записями.",
+    records: "Записей", failure: "Не удалось выполнить действие.",
     errors: { INVALID_CLIENT: "Выберите ребёнка заново.", INVALID_SPECIALIST: "Выберите специалиста заново.", MIGRATION_REQUIRED: "Необходимо выполнить миграцию базы данных.", INVALID_DATE_RANGE: "Введите корректный период.",
       JOURNAL_CHANGED: "Запись уже изменена. Обновите журнал.", LESSON_NOT_FOUND: "Запись журнала не найдена.", "Forbidden.": "Нет доступа для этого действия." }
   }

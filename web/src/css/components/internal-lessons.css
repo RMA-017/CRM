@@ -86,28 +86,18 @@ dialog.internal-lesson-dialog { box-sizing: border-box; width: min(460px, calc(1
 .internal-lesson-editor-actions { display: flex; justify-content: flex-end; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 16px; padding-top: 12px; border-top: 1px solid #e8edf4; }
 .internal-lesson-editor-actions .internal-lesson-delete { margin-right: auto; color: #b42318; }
 dialog.journal-correction-dialog { width: min(360px, calc(100vw - 24px)); }
-.caregiver-active { display: flex; align-items: center; gap: 8px; font-size: 12px; margin: 0 0 14px; }
 .caregiver-assignment { min-width: 0; border: 1px solid #e2e8f0; border-radius: 9px; padding: 10px; margin: 0; }
 .caregiver-assignment legend { padding: 0 5px; color: #64748b; font-size: 12px; font-weight: 600; }
-.caregiver-selected { display: flex; flex-wrap: wrap; gap: 5px; max-height: 92px; overflow: auto; margin-bottom: 8px; }
-.caregiver-selected:empty { display: none; }
-.caregiver-child-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; overflow-wrap: anywhere; padding: 3px 4px 3px 8px; border-radius: 6px; background: #eff6ff; color: #315582; font-size: 11px; }
-.caregiver-child-chip .action-icon-button { width: 22px; min-width: 22px; height: 22px; padding: 2px; border: 0; background: transparent; }
 .caregiver-child-options { max-height: 160px; overflow-y: auto; margin-top: 8px; scrollbar-width: thin; }
 .caregiver-child-options label { display: flex; align-items: center; gap: 8px; padding: 8px 5px; font-size: 12px; cursor: pointer; border-bottom: 1px solid #f1f5f9; }
 .caregiver-child-options label:hover { background: #f8fafc; }
 .internal-lesson-dialog .all-users-pagination { margin-top: 8px; }
-.internal-journal-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-items: end; padding: 12px; margin: 12px 0; border: 1px solid #e2e8f0; border-radius: 9px; background: #f8fafc; }
 #journalFilters.journal-filter-modal { width: min(560px, calc(100vw - 32px)); height: auto; min-height: 0; max-height: min(680px, calc(100dvh - 24px)); grid-template-rows: auto minmax(0, auto); }
 #journalFilters .journal-filter-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 #journalFilters .journal-filter-head h3 { margin: 0; }
 #journalFilters .auth-form { grid-template-rows: minmax(0, auto) auto; }
 #journalFilters .all-users-edit-fields.settings-filter-grid.journal-filter-grid { grid-template-columns: 1fr; align-content: start; margin: 0; padding: 0; border: 0; box-shadow: none; background: transparent; }
 #journalFilters .journal-filter-date-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; min-width: 0; }
-.internal-journal-filters .action-icon-button { align-self: end; }
-.compact-filter-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 6px; padding-top: 8px; border-top: 1px solid #e2e8f0; }
-.internal-journal-time { display: block; color: #94a3b8; margin-top: 2px; font-size: 10px; }
-.internal-journal-panel .all-users-table td:last-child > span { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border-radius: 5px; background: #f1f5f9; font-size: 11px; }
 .internal-journal-panel .all-users-table td:last-child .action-icon-button { margin-left: 7px; }
 .journal-row-actions { display: flex; gap: 6px; }
 .internal-journal-panel .journal-row-actions .action-icon-button { margin-left: 0; }
@@ -126,7 +116,6 @@ dialog.journal-correction-dialog { width: min(360px, calc(100vw - 24px)); }
 .internal-journal-panel .all-users-table th:first-child, .internal-journal-panel .all-users-table td:first-child,
 .internal-journal-panel .all-users-table th:last-child, .internal-journal-panel .all-users-table td:last-child { text-align: center; padding-left: 8px; padding-right: 8px; }
 .internal-journal-panel .journal-row-actions { justify-content: center; }
-@media (max-width: 900px) { .internal-journal-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) {
   .crm-compact-panel { padding: 12px; border-radius: 9px; }
   .crm-compact-panel .all-users-head { align-items: flex-start; }
@@ -135,8 +124,6 @@ dialog.journal-correction-dialog { width: min(360px, calc(100vw - 24px)); }
   .internal-lessons-panel > .all-users-head > .all-users-head-actions { order: 1; }
   .internal-lesson-filters { order: 2; flex-basis: 100%; max-width: none; grid-template-columns: 1fr; gap: 10px; }
   .internal-lesson-grid { grid-template-columns: repeat(var(--internal-days), 150px); min-width: max-content; }
-  .internal-journal-filters { padding: 10px; gap: 9px; }
-  .internal-journal-filters .field:nth-child(4), .internal-journal-filters .field:nth-child(5), .internal-journal-filters .field:nth-child(6), .internal-journal-filters .field:nth-child(7) { grid-column: 1 / -1; }
   dialog.internal-lesson-dialog { padding: 14px; max-height: calc(100dvh - 24px); }
   .caregiver-identity-fields { grid-template-columns: 1fr; }
   .internal-lesson-dialog input:not([type="checkbox"]), .internal-lesson-dialog select, .internal-lesson-dialog .custom-select-trigger { font-size: 16px; }

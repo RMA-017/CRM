@@ -392,12 +392,12 @@ test("caregiver reads assigned child's current schedule and latest journal mark 
   assert.equal(queries.length, before);
 });
 
-test("school view merges journal-only lessons and makes future dates read-only", async () => {
+test("school view retains standalone imported history and makes future dates read-only", async () => {
   const { navigator, calls, queries } = setup({
     state: { active_role: "specialist", contacts: { specialist: "+998901234567" }, view: { kind: "school" } },
     query: async (sql) => {
       if (sql.includes("FROM users")) return { rows: [{ id: 8, name: "Specialist" }] };
-      if (sql.includes("FROM internal_lesson_completions j")) return { rows: [{ id: 5, completion_id: "20", client_id: 4, child_name: "Historical child", specialist_name: "Specialist", completed: true }] };
+      if (sql.includes("FROM internal_lesson_completions j")) return { rows: [{ id: -1, completion_id: "20", client_id: 4, child_name: "Historical child", specialist_name: "Specialist", completed: true }] };
       if (sql.includes("FROM internal_lessons")) return { rows: [{ id: 1, client_id: 4, child_name: "Current child", specialist_name: "Specialist", completed: true }] };
       return { rows: [] };
     }
