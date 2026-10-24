@@ -114,7 +114,7 @@ export async function editInternalJournalEntry({ organizationId, id, date, clien
 export async function listInternalLessonJournal({ organizationId, search = "", dateFrom = "", dateTo = "", completed = null, page = 1, exportAll = false, child = "", specialist = "", position = "" }) {
   if ((dateFrom && !isBotDate(dateFrom)) || (dateTo && !isBotDate(dateTo)) || (dateFrom && dateTo && dateFrom > dateTo)) fail("INVALID_DATE_RANGE");
   const params = [organizationId, `%${search}%`, dateFrom || null, dateTo || null, completed, `%${child}%`, `%${specialist}%`, `%${position}%`];
-  const journalDate = "COALESCE(j.journal_date, (e.recorded_at AT TIME ZONE 'Asia/Tashkent')::date)";
+  const journalDate = "COALESCE(j.journal_date, j.schedule_date)";
   const clientName = "COALESCE(j.journal_client_name, j.client_name)", specialistName = "COALESCE(j.journal_specialist_name, j.specialist_name)", positionName = "COALESCE(j.journal_position_name, j.position_name)";
   const where = `j.organization_id = $1 AND j.completed AND e.completed
     AND (${clientName} ILIKE $2 OR ${specialistName} ILIKE $2 OR ${positionName} ILIKE $2)

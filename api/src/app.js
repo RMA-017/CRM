@@ -23,6 +23,7 @@ import settingsRoutes from "./modules/settings/settings.routes.js";
 import siteContentPublicRoutes, { siteContentProtectedRoutes } from "./modules/site-content/site-content.routes.js";
 import { telegramSettingsRoutes, telegramWebhookRoutes } from "./modules/telegram-bot/telegram-bot.routes.js";
 import { startTelegramReminderWorker } from "./modules/telegram-bot/telegram-bot.service.js";
+import { startSpecialistNotificationWorker } from "./modules/telegram-bot/telegram-specialist-notifications.service.js";
 import usersRoutes from "./modules/users/users.routes.js";
 import caregiversRoutes from "./modules/caregivers/caregivers.routes.js";
 import internalLessonsRoutes from "./modules/internal-lessons/internal-lessons.routes.js";
@@ -246,6 +247,8 @@ export async function buildApp() {
   });
 
   const stopTelegramReminderWorker = startTelegramReminderWorker({ logger: app.log });
+  const stopSpecialistNotificationWorker = startSpecialistNotificationWorker({ logger: app.log });
+  app.addHook("onClose", async () => { await stopSpecialistNotificationWorker(); });
   app.addHook("onClose", (_instance, done) => {
     stopTelegramReminderWorker();
     done();

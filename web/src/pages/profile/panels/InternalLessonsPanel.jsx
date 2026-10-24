@@ -121,8 +121,10 @@ export default function InternalLessonsPanel({ access, onClose }) {
     try {
       const data = await request("/export");
       exportExcelWorkbook(buildExportFilename("school-kindergarten"), [{ name: ui.title, rows: [
-        ["ID", ui.child, ui.specialist, ui.days],
-        ...data.items.map((item) => [item.id, item.clientName, item.specialistName, item.weekDays.map((day) => ui.dayNames[day]).join(", ")])
+        [ui.child, ui.specialist, ...[1, 2, 3, 4, 5, 6, 7].map((day) => ui.dayNames[day])],
+        ...data.items.map((item) => [item.clientName,
+          `${item.specialistName}${item.positionName ? `-${item.positionName}` : ""}`,
+          ...[1, 2, 3, 4, 5, 6, 7].map((day) => item.weekDays.includes(day) ? "✓" : "")])
       ] }]);
     } catch (err) { setListError(ui.errors[err.message] || ui.failure); }
     finally { setExporting(false); }
@@ -207,7 +209,6 @@ export default function InternalLessonsPanel({ access, onClose }) {
       aria-label={`${ui.edit}: ${item.clientName}, ${item.specialistName}, ${ui.dayNames[day]}, ${item.completionByDay?.[day] ? ui.confirmed : ui.pending}`}
       onClick={() => openEditor(day, item)}>
       <strong title={specialistMode ? item.clientName : item.specialistName}>{specialistMode ? item.clientName : item.specialistName}</strong>
-      <span title={item.positionName}>{item.positionName || "—"}</span>
     </button> : <button type="button" key={`empty-${index}`} className="internal-lesson-card is-empty"
       disabled={!access.create} aria-label={`${ui.add}: ${ui.dayNames[day]}, ${index + 1}`}
       onClick={() => openEditor(day)}><span aria-hidden="true">+</span></button>;

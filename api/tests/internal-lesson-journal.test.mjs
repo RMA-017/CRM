@@ -118,14 +118,17 @@ test("failure to save the journal rolls back the completion update", async (t) =
   assert.equal(calls.at(-1).sql, "ROLLBACK");
 });
 
-test("journal filters and sorts by actual recorded time rather than the calendar occurrence date", async (t) => {
+test("journal display, period filters and sorting use the lesson date with any admin correction", async (t) => {
   const original = pool.query;
   const calls = [];
   pool.query = async (sql, params) => { calls.push({ sql, params }); return { rows: sql.includes("COUNT(*)") ? [{ total: 0 }] : [] }; };
   t.after(() => { pool.query = original; });
   const result = await listInternalLessonJournal({ organizationId: 7, search: "Child", dateFrom: "2026-10-01", dateTo: "2026-10-23" });
   assert.equal(result.pagination.total, 0);
-  assert.ok(calls.every(({ sql }) => sql.includes("e.recorded_at") && !sql.includes("schedule_date")));
+  assert.ok(calls.every(({ sql }) => sql.includes("COALESCE(j.journal_date, j.schedule_date)")));
+  assert.ok(calls.every(({ sql }) => !sql.includes("e.recorded_at AT TIME ZONE")));
+  assert.ok(calls[1].sql.includes('COALESCE(j.journal_date, j.schedule_date)::text AS "journalDate"'));
+  assert.ok(calls[1].sql.includes("ORDER BY COALESCE(j.journal_date, j.schedule_date) DESC"));
   assert.deepEqual(calls[0].params, [7, "%Child%", "2026-10-01", "2026-10-23", null, "%%", "%%", "%%"]);
 });
 

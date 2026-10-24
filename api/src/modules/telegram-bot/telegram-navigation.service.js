@@ -1,3 +1,4 @@
+import { setTelegramTherapyStatus } from "./telegram-therapy.service.js";
 import pool from "../../config/db.js";
 import { normalizePhoneDigits, normalizePhoneNumber, isValidPhoneInput } from "../../lib/phone-number.js";
 import { telegramInteractionContext } from "./telegram-interaction-context.js";
@@ -389,7 +390,7 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
       }
     } else {
       const { rows } = await db.query(
-        `SELECT s.id, concat_ws(' ', c.last_name, c.first_name, c.middle_name) AS child_name,
+        `SELECT s.id, s.client_id, concat_ws(' ', c.last_name, c.first_name, c.middle_name) AS child_name,
            COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS specialist_name,
            TO_CHAR(s.start_time, 'HH24:MI') AS start_time, TO_CHAR(s.end_time, 'HH24:MI') AS end_time, s.service_name, s.status
          FROM appointment_schedules s JOIN clients c ON c.organization_id = s.organization_id AND c.id = s.client_id
@@ -405,7 +406,8 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
     const safe = Math.min(page, Math.max(0, Math.ceil(lessons.length / PAGE_SIZE) - 1));
     session.view.page = safe;
     const specialistSchool = session.view.kind === "school" && session.active_role === "specialist";
-    const lines = lessons.slice(safe * PAGE_SIZE, (safe + 1) * PAGE_SIZE).map((lesson, index) => specialistSchool ? "" : session.active_role === "caregiver"
+    const specialistTherapy = session.view.kind === "therapy" && session.active_role === "specialist";
+    const lines = lessons.slice(safe * PAGE_SIZE, (safe + 1) * PAGE_SIZE).map((lesson, index) => (specialistSchool || specialistTherapy) ? "" : session.active_role === "caregiver"
       ? `${lesson.completed ? "✅ " : ""}${safe * PAGE_SIZE + index + 1}. ${lesson.specialist_name}${lesson.position_name ? `-${lesson.position_name}` : ""}` : [
       `${lesson.completed ? "✅ " : ""}${safe * PAGE_SIZE + index + 1}. ${lesson.child_name}`,
       `${ui().staff}: ${lesson.specialist_name}`,
@@ -418,6 +420,13 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
           date > botToday() ? "ui:noop" : lesson.completion_id ? `ui:history:${lesson.completion_id}:${date}`
             : `ui:complete:${lesson.id}:${lesson.client_id}:${date}:${lesson.completed ? "0" : "1"}`
         )]) : [];
+    if (specialistTherapy) {
+      completionRows.push(...lessons.slice(safe * PAGE_SIZE, (safe + 1) * PAGE_SIZE).map((lesson) => [botButton(
+        `${lesson.status === "confirmed" ? "✅" : lesson.status === "pending" ? "☐" : "❌"} ${lesson.child_name}`,
+        !["pending", "confirmed"].includes(lesson.status) || date > botToday() ? "ui:noop"
+          : `ui:therapy:${lesson.id}:${lesson.client_id}:${date}:${lesson.status === "confirmed" ? "0" : "1"}`
+      )]));
+    }
     return display([ui()[session.view.kind], botDayLabel(date, session.language),
       lessons.length ? lines.filter(Boolean).join("\n\n") : ui().noLessons].filter(Boolean).join("\n\n"),
     [...completionRows, ...pageRows(safe, lessons.length), ...buildBotDateNavigation(session.language, date, dayBack())]);
@@ -559,6 +568,16 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
           completionId: match[1], date: match[2], telegramUserId: from.id, db });
       } catch (error) { if (!error.statusCode) throw error; }
       return dayView(match[2], session.view.page || 0);
+    }
+    if (data.startsWith("ui:therapy:")) {
+      if (session.active_role !== "specialist" || session.view.kind !== "therapy") return;
+      const match = /^ui:therapy:([1-9][0-9]{0,9}):([1-9][0-9]{0,9}):(\d{4}-\d{2}-\d{2}):([01])$/.exec(data);
+      if (!match || !isBotDate(match[3])) return;
+      const specialist = await requireIdentity("specialist");
+      if (!specialist) return;
+      await setTelegramTherapyStatus({ organizationId: settings.organizationId, specialistId: specialist.id,
+        appointmentId: Number(match[1]), clientId: Number(match[2]), date: match[3], confirmed: match[4] === "1", db });
+      return dayView(match[3], session.view.page || 0);
     }
     if (data.startsWith("ui:complete:")) {
       if (session.active_role !== "specialist" || session.view.kind !== "school") return;

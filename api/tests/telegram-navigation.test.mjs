@@ -329,7 +329,38 @@ test("specialist school and therapy views use separate data sources and the same
   await navigator.process(callback("ui:section:therapy"));
   assert.equal(session.view.kind, "therapy");
   assert.ok(queries.some(({ sql, params }) => sql.includes("FROM appointment_schedules") && params[3] === 8));
-  assert.ok(calls.at(-1).payload.text.includes("10:00"));
+  assert.ok(!calls.at(-1).payload.text.includes("10:00"));
+  assert.ok(calls.at(-1).payload.reply_markup.inline_keyboard.flat().some((b) => b.text.includes("Child")));
+});
+
+test("therapy reads planner marks, renders child buttons only and blocks cancelled stale callbacks", async () => {
+  const lessons = ["pending", "confirmed", "cancelled", "no-show"].map((status, i) => ({
+    id: i + 1, client_id: 4, child_name: `Child ${i + 1}`, status
+  }));
+  const { navigator, calls, queries } = setup({
+    state: { language: "ru", active_role: "specialist", contacts: { specialist: "+998901234567" }, view: { kind: "therapy" } },
+    query: async (sql) => {
+      if (sql.includes("FROM users")) return { rows: [{ id: 8, name: "Specialist" }] };
+      if (sql.includes("FOR UPDATE")) return { rows: [{ status: "cancelled" }] };
+      return { rows: lessons };
+    }
+  });
+  const date = botToday();
+  await navigator.process(callback(`ui:day:${date}`));
+  let screen = calls.at(-1).payload;
+  assert.equal(screen.text, `${BOT_UI_TEXT.ru.therapy}\n\n${botDayLabel(date, "ru")}`);
+  const buttons = screen.reply_markup.inline_keyboard.slice(0, 4).flat();
+  assert.deepEqual(buttons.map((b) => b.text), ["☐ Child 1", "✅ Child 2", "❌ Child 3", "❌ Child 4"]);
+  assert.equal(buttons[0].callback_data, `ui:therapy:1:4:${date}:1`);
+  assert.equal(buttons[1].callback_data, `ui:therapy:2:4:${date}:0`);
+  assert.equal(buttons[2].callback_data, "ui:noop");
+  assert.equal(buttons[3].callback_data, "ui:noop");
+  await navigator.process(callback(`ui:therapy:1:4:${date}:1`));
+  assert.ok(!queries.some(({ sql }) => /UPDATE appointment_schedules/.test(sql)));
+  lessons[0].status = "confirmed";
+  await navigator.process(callback(`ui:day:${date}`));
+  screen = calls.at(-1).payload;
+  assert.equal(screen.reply_markup.inline_keyboard[0][0].text, "✅ Child 1");
 });
 
 test("caregiver reads assigned child's current schedule and latest journal mark without editing it", async () => {

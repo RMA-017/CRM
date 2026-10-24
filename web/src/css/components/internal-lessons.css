@@ -50,7 +50,7 @@
 .internal-lesson-day { background: #f8fafc; border: 1px solid #e5ebf3; border-radius: 9px; padding: 8px; }
 .internal-lesson-day > h4 { margin: 0 0 8px; padding: 6px 0 10px; border-bottom: 1px solid #e5ebf3; font-size: 12px; font-weight: 600; text-align: center; color: #475569; }
 .internal-lesson-slots { display: flex; flex-direction: column; gap: 6px; }
-.internal-lesson-card { box-sizing: border-box; appearance: none; width: 100%; min-width: 0; height: 58px; min-height: 58px; max-height: 58px; flex-shrink: 0; overflow: hidden; border: 1px solid #d5e3f5; border-left: 3px solid #6095e6; border-radius: 7px; background: #fff; padding: 9px 8px; text-align: left; color: #334155; display: flex; flex-direction: column; justify-content: center; gap: 4px; cursor: pointer; font: inherit; }
+.internal-lesson-card { box-sizing: border-box; appearance: none; width: 100%; min-width: 0; height: 34px; min-height: 34px; max-height: 34px; flex-shrink: 0; overflow: hidden; border: 1px solid #d5e3f5; border-left: 3px solid #6095e6; border-radius: 7px; background: #fff; padding: 6px 8px; text-align: left; color: #334155; display: flex; flex-direction: column; justify-content: center; gap: 4px; cursor: pointer; font: inherit; }
 .internal-lesson-card strong, .internal-lesson-card > span { display: block; width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .internal-lesson-card strong { font-size: 12px; line-height: 1.35; font-weight: 600; }
 .internal-lesson-card > span { font-size: 11px; line-height: 1.35; color: #64748b; }
@@ -103,6 +103,16 @@ dialog.journal-correction-dialog { width: min(360px, calc(100vw - 24px)); }
 .internal-journal-panel .all-users-table td:last-child .action-icon-button { margin-left: 7px; }
 .journal-row-actions { display: flex; gap: 6px; }
 .internal-journal-panel .journal-row-actions .action-icon-button { margin-left: 0; }
+.internal-journal-panel .all-users-table { table-layout: fixed; min-width: 700px; }
+.internal-journal-panel .journal-col-date { width: 110px; }
+.internal-journal-panel .journal-col-child { width: 34%; }
+.internal-journal-panel .journal-col-specialist { width: 28%; }
+.internal-journal-panel .journal-col-actions { width: 94px; }
+.internal-journal-panel .all-users-table th, .internal-journal-panel .all-users-table td { min-width: 0; max-width: none; }
+.internal-journal-panel .all-users-table td:nth-child(2), .internal-journal-panel .all-users-table td:nth-child(3), .internal-journal-panel .all-users-table td:nth-child(4) { white-space: normal; overflow-wrap: anywhere; }
+.internal-journal-panel .all-users-table th:first-child, .internal-journal-panel .all-users-table td:first-child,
+.internal-journal-panel .all-users-table th:last-child, .internal-journal-panel .all-users-table td:last-child { text-align: center; padding-left: 8px; padding-right: 8px; }
+.internal-journal-panel .journal-row-actions { justify-content: center; }
 @media (max-width: 900px) { .internal-journal-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) {
   .crm-compact-panel { padding: 12px; border-radius: 9px; }

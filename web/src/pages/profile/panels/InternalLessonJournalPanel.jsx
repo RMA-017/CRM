@@ -113,8 +113,8 @@ export default function InternalLessonJournalPanel({ access, onClose }) {
       for (const [key, value] of Object.entries(filters)) if (value) query.set(key, value);
       const data = await request(`/export?${query}`);
       exportExcelWorkbook(buildExportFilename("internal-lesson-journal"), [{ name: ui.title, rows: [
-        ["ID", ui.date, ui.child, ui.specialist, ui.position],
-        ...data.items.map((item) => [item.id,
+        [ui.date, ui.child, ui.specialist, ui.position],
+        ...data.items.map((item) => [
           new Date(`${item.journalDate}T12:00:00Z`).toLocaleDateString(language === "ru" ? "ru-RU" : "uz-UZ", { timeZone: "Asia/Tashkent" }),
           item.clientName, item.specialistName, item.positionName])
       ] }]);
@@ -169,6 +169,10 @@ export default function InternalLessonJournalPanel({ access, onClose }) {
     {error && <p role="alert" className="internal-lesson-error">{error}</p>}
     {loading ? <p role="status">{ui.loading}</p> : <>
       <div className="all-users-table-wrap"><table className="all-users-table">
+        <colgroup>
+          <col className="journal-col-date" /><col className="journal-col-child" /><col className="journal-col-specialist" />
+          <col className="journal-col-position" /><col className="journal-col-actions" />
+        </colgroup>
         <thead><tr><th>{ui.date}</th><th>{ui.child}</th><th>{ui.specialist}</th><th>{ui.position}</th><th>{ui.action}</th></tr></thead>
         <tbody>{items.map((item) => <tr key={item.id}>
           <td>{new Date(`${item.journalDate}T12:00:00Z`).toLocaleDateString(language === "ru" ? "ru-RU" : "uz-UZ", { timeZone: "Asia/Tashkent" })}</td>
