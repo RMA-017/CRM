@@ -11,10 +11,10 @@ import "../../../css/components/internal-lessons.css";
 
 const TEXT = {
   uz: {
-    copy: "Nusxalash", selectMode: "Bir nechta darsni tanlash", selected: "Tanlangan darslar", selectAll: "Barchasini tanlash", clearSelection: "Tanlashni tugatish",
-    bulkEdit: "Tanlangan darslarni o‘zgartirish", bulkDelete: "Tanlangan darslarni o‘chirish", keepCurrent: "O‘zgartirmaslik", replaceDays: "Hafta kunlarini almashtirish",
-    allDaysNotice: "Tanlangan darslarning barcha hafta kunlariga ta’sir qiladi.", undo: "Oxirgi amalni qaytarish", actionDone: "Saqlandi", completedCount: "Joriy haftada bajarilgan / jami",
-    undoExpired: "Qaytarish muddati tugagan. Jadvalni yangilang.", dataChanged: "Jadval o‘zgargan. Yangilab, qayta urinib ko‘ring.", dayAlreadyAssigned: "Bu dars tanlangan kunda allaqachon bor. Yana bitta dars uchun nusxalashdan foydalaning.",
+    selectMode: "Bir nechta darsni tanlash", selected: "Tanlangan darslar", selectAll: "Barchasini tanlash", clearSelection: "Tanlashni tugatish",
+    bulkEdit: "Tanlangan darslarni o‘zgartirish", bulkDelete: "Tanlangan darslarni o‘chirish", keepCurrent: "O‘zgartirmaslik",
+    allDaysNotice: "Tanlangan darslarning barcha hafta kunlariga ta’sir qiladi.", completedCount: "Joriy haftada bajarilgan / jami",
+    dataChanged: "Jadval o‘zgargan. Yangilab, qayta urinib ko‘ring.", dayAlreadyAssigned: "Bu dars tanlangan kunda allaqachon bor. Qo‘shimcha darsni + orqali yarating.",
     pending: "Kutilmoqda", confirmed: "Tasdiqlangan",
     title: "Maktab-bog‘cha", subtitle: "Doimiy ichki dars jadvali", child: "Bola", specialist: "Mutaxassis",
     chooseChild: "Bolani tanlang", chooseSpecialist: "Mutaxassisni tanlang",
@@ -33,10 +33,10 @@ const TEXT = {
       DATA_CHANGED: "Ma’lumotlar o‘zgargan. Jadvalni yangilang.", "Forbidden.": "Bu amal uchun ruxsat yo‘q." }
   },
   ru: {
-    copy: "Копировать", selectMode: "Выбрать несколько занятий", selected: "Выбрано занятий", selectAll: "Выбрать все", clearSelection: "Завершить выбор",
-    bulkEdit: "Изменить выбранные занятия", bulkDelete: "Удалить выбранные занятия", keepCurrent: "Не изменять", replaceDays: "Заменить дни недели",
-    allDaysNotice: "Изменения затронут все дни недели выбранных занятий.", undo: "Отменить последнее действие", actionDone: "Сохранено", completedCount: "Выполнено за текущую неделю / всего",
-    undoExpired: "Время отмены истекло. Обновите расписание.", dataChanged: "Расписание изменилось. Обновите его и повторите попытку.", dayAlreadyAssigned: "Это занятие уже есть в выбранном дне. Для дополнительного занятия используйте копирование.",
+    selectMode: "Выбрать несколько занятий", selected: "Выбрано занятий", selectAll: "Выбрать все", clearSelection: "Завершить выбор",
+    bulkEdit: "Изменить выбранные занятия", bulkDelete: "Удалить выбранные занятия", keepCurrent: "Не изменять",
+    allDaysNotice: "Изменения затронут все дни недели выбранных занятий.", completedCount: "Выполнено за текущую неделю / всего",
+    dataChanged: "Расписание изменилось. Обновите его и повторите попытку.", dayAlreadyAssigned: "Это занятие уже есть в выбранном дне. Дополнительное занятие можно создать через +.",
     pending: "Ожидается", confirmed: "Подтверждено",
     title: "Школа-садик", subtitle: "Постоянное расписание внутренних занятий", child: "Ребёнок", specialist: "Специалист",
     chooseChild: "Выберите ребёнка", chooseSpecialist: "Выберите специалиста",
@@ -63,7 +63,7 @@ async function request(path, options = {}) {
   return data;
 }
 
-function LessonEditor({ form, setForm, options, ui, access, saving, error, onSave, onDelete, onCopy, onClose }) {
+function LessonEditor({ form, setForm, options, ui, access, saving, error, onSave, onDelete, onClose }) {
   const dialogRef = useRef(null);
   const titleId = "internalLessonEditorTitle";
   useEffect(() => { dialogRef.current?.showModal(); }, []);
@@ -101,7 +101,6 @@ function LessonEditor({ form, setForm, options, ui, access, saving, error, onSav
         </fieldset>
         {form.id && form.weekDays.length === 0 && <p role="status" className="internal-lesson-error">{ui.emptyDays}</p>}
         <div className="internal-lesson-editor-actions">
-          {form.id && access.create && <ActionIconButton type="button" className="header-btn" disabled={saving} onClick={onCopy} label={ui.copy} icon="copy" />}
           {form.id && form.weekDays.length > 0 && access.delete && <ActionIconButton type="button" className="header-btn internal-lesson-delete" disabled={saving}
             onClick={onDelete} label={ui.remove} icon="remove" />}
           <ActionIconButton type="submit" className="btn" disabled={saving || (form.id && !form.weekDays.length ? !access.delete : !editable)} label={saving ? ui.loading : form.id && !form.weekDays.length ? ui.remove : ui.save} icon={form.id && !form.weekDays.length ? "remove" : "save"} />
@@ -121,22 +120,17 @@ export default function InternalLessonsPanel({ access, onClose }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [listError, setListError] = useState("");
+  const [actionError, setActionError] = useState("");
   const [revision, setRevision] = useState(0);
   const [form, setForm] = useState(null);
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [undo, setUndo] = useState(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selected, setSelected] = useState([]);
   const [bulk, setBulk] = useState(null);
   const [dragOverDay, setDragOverDay] = useState(null);
   const drag = useRef(null);
   const suppressClickUntil = useRef(0);
-  useEffect(() => {
-    if (!undo) return;
-    const timer = setTimeout(() => setUndo(null), Math.max(0, new Date(undo.undoExpiresAt).getTime() - Date.now()));
-    return () => clearTimeout(timer);
-  }, [undo]);
   const [exporting, setExporting] = useState(false);
   async function exportAll() {
     setExporting(true);
@@ -152,8 +146,7 @@ export default function InternalLessonsPanel({ access, onClose }) {
     finally { setExporting(false); }
   }
   const busyRef = useRef(false);
-  const errorText = useCallback((message) => message === "UNDO_EXPIRED" ? ui.undoExpired
-    : message === "DATA_CHANGED" ? ui.dataChanged : message === "DAY_ALREADY_ASSIGNED" ? ui.dayAlreadyAssigned : ui.errors[message] || ui.failure, [ui]);
+  const errorText = useCallback((message) => message === "DATA_CHANGED" ? ui.dataChanged : message === "DAY_ALREADY_ASSIGNED" ? ui.dayAlreadyAssigned : ui.errors[message] || ui.failure, [ui]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -192,6 +185,7 @@ export default function InternalLessonsPanel({ access, onClose }) {
   const hiddenLessons = useMemo(() => items.filter((item) => item.weekDays.some((day) => !options.weekDays.includes(day))), [items, options.weekDays]);
 
   function changeFilter(field, value) {
+    setActionError("");
     setSelected([]); setSelectionMode(false); drag.current = null; setDragOverDay(null);
     setItems([]);
     setLoading(Boolean(value || (field === "clientId" ? filter.specialistId : filter.clientId)));
@@ -220,50 +214,35 @@ export default function InternalLessonsPanel({ access, onClose }) {
     setFormError("");
     try {
       const kind = deleting ? "delete" : form.id ? "update" : "create";
-      const result = await request("/actions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind,
+      await request("/actions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind,
         ...(form.id ? { items: [{ id: form.id, revision: form.revision }] } : {}),
         ...(!deleting ? { input: { clientId: Number(form.clientId), specialistId: Number(form.specialistId), weekDays: form.weekDays } } : {}) }) });
-      rememberUndo(result, kind);
+      setSelected([]);
       setForm(null);
       setRevision((value) => value + 1);
     } catch (err) { setFormError(errorText(err.message)); }
     finally { busyRef.current = false; setSaving(false); }
   }
 
-  function rememberUndo(result, kind) {
-    if (result.changed === 0) return;
-    const permitted = ["create"].includes(kind) ? access.delete : ["delete", "bulkDelete"].includes(kind) ? access.create : access.update;
-    setUndo(result.undoToken && permitted ? result : null);
-    setSelected([]);
-  }
-
   async function runAction(action) {
     if (busyRef.current) return;
-    busyRef.current = true; setSaving(true); setFormError(""); setListError("");
+    busyRef.current = true; setSaving(true); setFormError(""); setActionError("");
     try {
-      const result = await request("/actions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(action) });
-      rememberUndo(result, action.kind); setBulk(null); setSelectionMode(false); setRevision((value) => value + 1);
-    } catch (error) { if (bulk) setFormError(errorText(error.message)); else setListError(errorText(error.message)); }
-    finally { busyRef.current = false; setSaving(false); }
-  }
-
-  async function undoLast() {
-    if (!undo || busyRef.current) return;
-    busyRef.current = true; setSaving(true); setListError("");
-    try {
-      await request("/undo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: undo.undoToken }) });
-      setUndo(null); setSelected([]); setRevision((value) => value + 1);
-    } catch (error) { setListError(errorText(error.message)); setUndo(null); }
+      await request("/actions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(action) });
+      setSelected([]); setBulk(null); setSelectionMode(false); setRevision((value) => value + 1);
+    } catch (error) { if (bulk) setFormError(errorText(error.message)); else setActionError(errorText(error.message)); }
     finally { busyRef.current = false; setSaving(false); }
   }
 
   function openBulk(kind) {
     setFormError("");
-    setBulk({ kind, items: items.filter((item) => selected.includes(item.id)).map((item) => ({ id: item.id, revision: item.revision })) });
+    const lessons = items.filter((item) => selected.includes(item.id));
+    setBulk({ kind, items: lessons.map((item) => ({ id: item.id, revision: item.revision })),
+      lessons: lessons.map((item) => ({ weekDays: [...item.weekDays] })) });
   }
 
   function dropLesson(event, day) {
-    event.preventDefault(); setDragOverDay(null);
+    event.preventDefault(); event.stopPropagation(); setDragOverDay(null);
     const source = drag.current; drag.current = null;
     if (!source || source.day === day || !access.update || loading || saving || selectionMode) return;
     suppressClickUntil.current = Date.now() + 300;
@@ -287,7 +266,7 @@ export default function InternalLessonsPanel({ access, onClose }) {
   }
 
   return <section className="all-users-panel crm-compact-panel internal-lessons-panel">
-    <div className="all-users-head"><div><h3>{ui.title}</h3><p className="internal-lesson-hint">{ui.subtitle}</p></div>
+    <div className="all-users-head"><div className="internal-lesson-heading"><h3>{ui.title}</h3><p className="internal-lesson-hint">{ui.subtitle}</p></div>
 
     <div className="internal-lesson-filters">
       <div className="field"><span>{ui.child}</span>
@@ -306,14 +285,11 @@ export default function InternalLessonsPanel({ access, onClose }) {
       <div className="all-users-head-actions">
         {hasSelection && (access.update || access.delete) && <ActionIconButton className="header-btn" label={selectionMode ? ui.clearSelection : ui.selectMode} icon={selectionMode ? "close" : "check"}
           disabled={saving || loading} aria-pressed={selectionMode} onClick={() => { setSelectionMode((value) => !value); setSelected([]); }} />}
-        <ActionIconButton type="button" className="header-btn" disabled={exporting} onClick={exportAll} label={exporting ? ui.loading : language === "ru" ? "Экспорт всех данных в Excel" : "Barchasini Excel’ga eksport"} icon="export" />
+        <ActionIconButton type="button" className="header-btn internal-lesson-export" disabled={exporting} onClick={exportAll} label={exporting ? ui.loading : language === "ru" ? "Экспорт всех данных в Excel" : "Barchasini Excel’ga eksport"} icon="export" />
         <ActionIconButton type="button" className="header-btn" disabled={loading || optionsLoading || saving} onClick={() => { setSelected([]); setRevision((value) => value + 1); }} label={ui.retry} icon="refresh" />
         <ActionIconButton type="button" className="header-btn panel-close-btn"  onClick={onClose} label={ui.close} icon="close" />
       </div>
     </div>
-    {undo && <div className="internal-lesson-undo" role="status"><span>{ui.actionDone}</span>
-      <button type="button" className="header-btn" disabled={saving} onClick={undoLast}>{ui.undo}</button>
-    </div>}
     {selectionMode && <div className="internal-lesson-bulk-toolbar">
       <span>{ui.selected}: {selected.length}</span>
       <ActionIconButton className="header-btn" label={ui.selectAll} icon="check" disabled={saving || loading} onClick={() => setSelected(items.map((item) => item.id))} />
@@ -322,12 +298,13 @@ export default function InternalLessonsPanel({ access, onClose }) {
       <small>{ui.allDaysNotice}</small>
     </div>}
     {(optionsError || listError) && <p role="alert" className="internal-lesson-error">{optionsError || listError}</p>}
+    {actionError && <p role="alert" className="internal-lesson-error">{actionError}</p>}
     {optionsLoading ? <p role="status">{ui.loading}</p> : optionsError ? null : <>
       {!hasSelection ? <p className="all-users-state">{ui.choose}</p> : loading ? <p role="status">{ui.loading}</p> : !listError && <>
         <div className="internal-lesson-grid-scroll"><div className="internal-lesson-grid" style={{ "--internal-days": Math.max(1, options.weekDays.length) }}>
           {options.weekDays.map((day) => <section key={day} className={`internal-lesson-day ${dragOverDay === day ? "is-drop-target" : ""}`} aria-label={ui.dayNames[day]}
-            onDragOver={(event) => { if (drag.current && access.update && !selectionMode) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDragOverDay(day); } }}
-            onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setDragOverDay(null); }} onDrop={(event) => dropLesson(event, day)}>
+            onDragOverCapture={(event) => { if (drag.current && access.update && !selectionMode) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDragOverDay(day); } }}
+            onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setDragOverDay(null); }} onDropCapture={(event) => dropLesson(event, day)}>
             <h4>{ui.dayNames[day]} <span className="internal-lesson-day-count"
               aria-label={ui.completedCount} title={ui.completedCount}>
               {getInternalLessonDaySummary(items, day).completed}/{getInternalLessonDaySummary(items, day).total}
@@ -346,7 +323,7 @@ export default function InternalLessonsPanel({ access, onClose }) {
     </>}
     {form && <LessonEditor form={form} setForm={setForm} options={options} ui={ui} access={access} saving={saving} error={formError}
       onSave={save} onDelete={(event) => save(event, true)}
-      onCopy={() => { setFormError(""); setForm({ ...form, id: null, revision: undefined, weekDays: [], originalDays: [] }); }} onClose={() => setForm(null)} />}
+      onClose={() => setForm(null)} />}
     {bulk && <InternalLessonBulkEditor bulk={bulk} options={options} ui={ui} busy={saving} error={formError}
       onSave={runAction} onClose={() => { setBulk(null); setFormError(""); }} />}
   </section>;

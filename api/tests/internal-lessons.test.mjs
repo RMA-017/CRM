@@ -185,22 +185,24 @@ test("bulk delete requires delete permission and action payloads require revisio
   ]) assert.equal((await app.inject({ method: "POST", url: "/api/internal-lessons/actions", payload })).statusCode, 400);
 });
 
-test("create action validates payload and persists undo under the authenticated organization and user", async (t) => {
+test("create action validates payload and writes only a new schedule in the authenticated organization", async (t) => {
   const app = await createApp(t, ["appointments.internal-lessons.create"], () => { throw new Error("Unexpected non-transaction query"); });
   const calls = stubTransaction(t, (sql, params) => {
     if (sql.includes("SELECT visible_week_days")) return { rows: [{ visible_week_days: [1, 3, 5] }] };
     if (sql.includes("FROM internal_lesson_clients")) return { rows: [{ client_id: 4 }] };
     if (sql.includes("FROM users u")) return { rows: [{ id: 8, active: true, role_active: true, specialist: true }] };
     if (sql.startsWith("INSERT INTO internal_lessons")) return { rows: [{ id: 10, organization_id: 7, client_id: 4, specialist_id: 8, week_days: [1, 3], revision: 1 }] };
-    if (sql.startsWith("INSERT INTO internal_lesson_actions")) {
-      assert.deepEqual(params.slice(1, 4), [7, 1, "appointments.internal-lessons.create"]);
-      return { rows: [{ expires_at: new Date(Date.now() + 45000) }] };
-    }
     return { rows: [] };
   });
   const response = await app.inject({ method: "POST", url: "/api/internal-lessons/actions", payload: { kind: "create", input } });
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().changed, 1);
-  assert.match(response.json().undoToken, /^[\da-f-]{36}$/);
+  assert.deepEqual(response.json(), { changed: 1 });
   assert.equal(calls.at(-1).sql, "COMMIT");
+});
+
+test("removed schedule undo endpoint is unavailable", async (t) => {
+  const app = await createApp(t, ["appointments.internal-lessons.read"], () => { throw new Error("No database access expected"); });
+  const response = await app.inject({ method: "POST", url: "/api/internal-lessons/undo", payload: { token: "00000000-0000-4000-8000-000000000001" } });
+  assert.equal(response.statusCode, 404);
 });

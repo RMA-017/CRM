@@ -8,10 +8,8 @@ pnpm run migrate
 ```
 
 - Weekday badges show completed/total for the current Tashkent calendar week using existing journal marks. Empty placeholders do not count.
-- Copy is available inside a lesson's edit dialog. Choose weekdays for the new lesson. Journal marks are never copied.
-- Drag a card to another open weekday to move that weekday occurrence while preserving its other weekdays. If the lesson already includes the destination day, the move is rejected; use Copy for an additional session. Editing weekdays remains available for touch/keyboard operation.
-- Enable selection using the check icon in the header, then click lessons. Selecting a recurring lesson highlights all its weekday cards. Group edit can change the specialist and/or replace weekdays; group delete asks for confirmation. Changes affect all weekdays of the selected lessons. Group operations commit together or roll back together.
-- Successful creates, edits, moves and deletes offer Undo for 45 seconds. Only the actor's latest successful action can be undone, with the corresponding original and inverse permissions. A concurrent edit blocks Undo. Updates use a revision counter, including legacy update endpoints.
-- Undo deletion restores the original lesson ID and reconnects its previously attached journal rows. Completion records, snapshots, versions and events are never rewritten by schedule operations. Undo creation removes only the created lesson and preserves any journal history recorded meanwhile.
+- Drag a card to another open weekday to move that weekday occurrence while preserving its other weekdays. If the lesson already includes the destination day, the move is rejected; create a new lesson using + for an additional session. Editing weekdays remains available for touch/keyboard operation.
+- Enable selection using the check icon in the header, then click lessons. Selecting a recurring lesson highlights all its weekday cards. Group edit can change the specialist and/or add/remove specific weekdays; group delete asks for confirmation. Weekdays are always shown, with indeterminate checkboxes and counts for mixed selections. Untouched weekdays remain unchanged for each lesson. Clearing the last day is rejected; delete the lesson explicitly instead. Group operations commit together or roll back together.
 
-The migration adds a revision counter/trigger and a short-lived undo table. Expired records are pruned on subsequent successful actions. No existing schedule or journal rows are deleted by the migration. No planner therapy behavior is changed.
+
+The revision counter protects against concurrent edits. Schedule changes never rewrite journal completion marks or events. The follow-up migration removes the temporary undo table without affecting schedules or journal history. Historical applied migrations are retained unchanged. No planner therapy behavior is changed.

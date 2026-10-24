@@ -1,7 +1,6 @@
 import "../css/components/action-icon-button.css";
 
 const paths = {
-  copy: "M9 9h12v12H9ZM3 15V3h12",
   filter: "M4 5h16l-6 7v6l-4 2v-8Z", export: "M12 3v12m-4-4 4 4 4-4M5 16v5h14v-5",
   refresh: "M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 6M4 12l2 6a7 7 0 0 0 12-1",
   add: "M12 5v14M5 12h14", edit: "m15 5 4 4M4 20l5-1L20 8l-4-4L5 15ZM4 20h16",

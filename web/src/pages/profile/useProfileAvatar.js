@@ -3,6 +3,11 @@ import { getInitial } from "../../lib/formatters.js";
 
 const AVATAR_STORAGE_PREFIX = "crm_avatar_";
 
+export function isAvatarFileDrag(event) {
+  const transfer = event.dataTransfer;
+  return Boolean(transfer && (Array.from(transfer.types || []).includes("Files") || transfer.files?.length));
+}
+
 function isStorageQuotaExceeded(error) {
   if (!error) {
     return false;
@@ -110,11 +115,13 @@ export function useProfileAvatar({
 
   useEffect(() => {
     function preventFileDropNavigation(event) {
+      if (!isAvatarFileDrag(event)) return;
       event.preventDefault();
       event.stopPropagation();
     }
 
     function handleDrop(event) {
+      if (!isAvatarFileDrag(event)) return;
       preventFileDropNavigation(event);
       const file = event.dataTransfer?.files?.[0];
       if (file) {

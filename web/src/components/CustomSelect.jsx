@@ -355,7 +355,7 @@ function CustomSelect({
       </button>
 
       {menuPortal && typeof document !== "undefined"
-        ? createPortal(menuElement, document.body)
+        ? createPortal(menuElement, wrapRef.current?.closest("dialog") || document.body)
         : menuElement}
     </div>
   );

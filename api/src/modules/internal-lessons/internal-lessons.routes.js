@@ -2,7 +2,7 @@ import { findRequester } from "../users/users.service.js";
 import { hasPermission } from "../users/access.service.js";
 import { PERMISSIONS } from "../users/users.constants.js";
 import { deleteInternalLesson, getInternalLessonOptions, listInternalLessons, normalizeInternalLesson, saveInternalLesson } from "./internal-lessons.service.js";
-import { lessonActionPermission, performLessonAction, undoLessonAction } from "./internal-lesson-actions.service.js";
+import { lessonActionPermission, performLessonAction } from "./internal-lesson-actions.service.js";
 
 const positiveId = { type: "integer", minimum: 1, maximum: 2147483647 };
 const params = { type: "object", required: ["id"], properties: { id: positiveId } };
@@ -21,7 +21,7 @@ export default async function internalLessonsRoutes(fastify) {
         if (!requester.is_platform_admin && !(await hasPermission(requester.role_id, permission))) {
           return reply.status(403).send({ message: "Forbidden." });
         }
-        return await action(request, reply, requester);
+        return await action(request, reply);
       } catch (error) {
         if (["42P01", "42703"].includes(error.code)) return reply.status(503).send({ message: "MIGRATION_REQUIRED" });
         if (error.code === "23503") return reply.status(409).send({ message: "DATA_CHANGED" });
@@ -37,7 +37,8 @@ export default async function internalLessonsRoutes(fastify) {
     type: "object", additionalProperties: false, required: ["kind"],
     properties: { kind: { enum: ["create", "update", "delete", "move", "bulkUpdate", "bulkDelete"] }, input: body,
       items: { type: "array", minItems: 1, maxItems: 1000, items: { type: "object", additionalProperties: false, required: ["id", "revision"], properties: { id: positiveId, revision: positiveId } } },
-      fromDay: days.items, toDay: days.items, specialistId: positiveId, weekDays: days },
+      fromDay: days.items, toDay: days.items, specialistId: positiveId, weekDays: days,
+      addDays: { ...days, minItems: 0 }, removeDays: { ...days, minItems: 0 } },
     allOf: [
       { if: { properties: { kind: { const: "create" } } }, then: { required: ["input"] }, else: { required: ["items"] } },
       { if: { properties: { kind: { const: "update" } } }, then: { required: ["input"] } },
@@ -45,11 +46,7 @@ export default async function internalLessonsRoutes(fastify) {
       { if: { properties: { kind: { enum: ["update", "delete", "move"] } } }, then: { properties: { items: { type: "array", maxItems: 1 } } } }
     ]
   } } }, async (request, reply) => handler(lessonActionPermission(request.body.kind), (req) =>
-    performLessonAction({ organizationId: req.authContext.organizationId, userId: req.authContext.userId, action: req.body }))(request, reply));
-  fastify.post("/undo", { config, schema: { body: { type: "object", additionalProperties: false, required: ["token"],
-    properties: { token: { type: "string", format: "uuid" } } } } }, handler(PERMISSIONS.INTERNAL_LESSONS_READ, (request, reply, requester) =>
-    undoLessonAction({ organizationId: request.authContext.organizationId, userId: request.authContext.userId, token: request.body.token,
-      can: (permission) => requester.is_platform_admin || hasPermission(requester.role_id, permission) })));
+    performLessonAction({ organizationId: req.authContext.organizationId, action: req.body }))(request, reply));
   fastify.get("/export", { config }, handler(PERMISSIONS.INTERNAL_LESSONS_READ, (request) =>
     listInternalLessons({ organizationId: request.authContext.organizationId, exportAll: true })));
   fastify.get("/options", { config }, handler(PERMISSIONS.INTERNAL_LESSONS_READ, async (request) =>
