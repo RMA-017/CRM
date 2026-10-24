@@ -54,7 +54,7 @@ async function request(path, options = {}) {
   return data;
 }
 
-function LessonEditor({ form, setForm, options, ui, access, saving, error, onSave, onClose }) {
+function LessonEditor({ form, setForm, options, ui, access, saving, error, onSave, onDelete, onClose }) {
   const dialogRef = useRef(null);
   const titleId = "internalLessonEditorTitle";
   useEffect(() => { dialogRef.current?.showModal(); }, []);
@@ -92,8 +92,8 @@ function LessonEditor({ form, setForm, options, ui, access, saving, error, onSav
         </fieldset>
         {form.id && form.weekDays.length === 0 && <p role="status" className="internal-lesson-error">{ui.emptyDays}</p>}
         <div className="internal-lesson-editor-actions">
-          {form.id && access.delete && <ActionIconButton type="button" className="header-btn internal-lesson-delete" disabled={saving}
-            onClick={() => setForm({ ...form, weekDays: [] })} label={ui.remove} icon="remove" />}
+          {form.id && form.weekDays.length > 0 && access.delete && <ActionIconButton type="button" className="header-btn internal-lesson-delete" disabled={saving}
+            onClick={onDelete} label={ui.remove} icon="remove" />}
           <ActionIconButton type="submit" className="btn" disabled={saving || (form.id && !form.weekDays.length ? !access.delete : !editable)} label={saving ? ui.loading : form.id && !form.weekDays.length ? ui.remove : ui.save} icon={form.id && !form.weekDays.length ? "remove" : "save"} />
         </div>
       </form>
@@ -121,8 +121,8 @@ export default function InternalLessonsPanel({ access, onClose }) {
     try {
       const data = await request("/export");
       exportExcelWorkbook(buildExportFilename("school-kindergarten"), [{ name: ui.title, rows: [
-        [ui.child, ui.specialist, ...[1, 2, 3, 4, 5, 6, 7].map((day) => ui.dayNames[day])],
-        ...data.items.map((item) => [item.clientName,
+        ["ID", ui.child, ui.specialist, ...[1, 2, 3, 4, 5, 6, 7].map((day) => ui.dayNames[day])],
+        ...data.items.map((item) => [item.clientId, item.clientName,
           `${item.specialistName}${item.positionName ? `-${item.positionName}` : ""}`,
           ...[1, 2, 3, 4, 5, 6, 7].map((day) => item.weekDays.includes(day) ? 1 : "")])
       ] }]);
@@ -183,10 +183,11 @@ export default function InternalLessonsPanel({ access, onClose }) {
       weekDays: item ? [...item.weekDays] : [], originalDays: item ? [...item.weekDays] : [] });
   }
 
-  async function save(event) {
+  async function save(event, forceDelete = false) {
     event.preventDefault();
     if (busyRef.current) return;
-    const deleting = form.id && form.weekDays.length === 0;
+    const deleting = form.id && (forceDelete || form.weekDays.length === 0);
+    if (deleting && !access.delete) return;
     if (!deleting && (!form.clientId || !form.specialistId || !form.weekDays.length)) {
       setFormError(errorText(!form.clientId ? "INVALID_CLIENT" : !form.specialistId ? "INVALID_SPECIALIST" : "INVALID_DAYS")); return;
     }
@@ -195,8 +196,8 @@ export default function InternalLessonsPanel({ access, onClose }) {
     setFormError("");
     try {
       await request(form.id ? `/${form.id}` : "/", {
-        method: form.id ? "PUT" : "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId: Number(form.clientId), specialistId: Number(form.specialistId), weekDays: form.weekDays })
+        method: deleting ? "DELETE" : form.id ? "PUT" : "POST", headers: { "Content-Type": "application/json" },
+        body: deleting ? undefined : JSON.stringify({ clientId: Number(form.clientId), specialistId: Number(form.specialistId), weekDays: form.weekDays })
       });
       setForm(null);
       setRevision((value) => value + 1);
@@ -254,6 +255,6 @@ export default function InternalLessonsPanel({ access, onClose }) {
       </>}
     </>}
     {form && <LessonEditor form={form} setForm={setForm} options={options} ui={ui} access={access} saving={saving} error={formError}
-      onSave={save} onClose={() => setForm(null)} />}
+      onSave={save} onDelete={(event) => save(event, true)} onClose={() => setForm(null)} />}
   </section>;
 }

@@ -65,7 +65,6 @@ function CorrectionDialog({ item, ui, busy, error, onClose, onConfirm }) {
     </div>}
     {error && <p className="internal-lesson-error" role="alert">{error}</p>}
     <div className="internal-lesson-editor-actions">
-      <ActionIconButton type="button" className="header-btn" disabled={busy} onClick={onClose} label={ui.cancel} icon="close" />
       <ActionIconButton type="submit" className="btn" disabled={busy || loading || loadError || (!deleting && (!form.clientId || !form.specialistId))} label={busy ? ui.loading : deleting ? ui.remove : ui.save} icon={deleting ? "remove" : "save"} />
     </div>
     </form>
@@ -113,10 +112,10 @@ export default function InternalLessonJournalPanel({ access, onClose }) {
       for (const [key, value] of Object.entries(filters)) if (value) query.set(key, value);
       const data = await request(`/export?${query}`);
       exportExcelWorkbook(buildExportFilename("internal-lesson-journal"), [{ name: ui.title, rows: [
-        [ui.date, ui.child, ui.specialist, ui.position],
+        [ui.date, "ID", ui.child, ui.specialist, ui.position],
         ...data.items.map((item) => [
           new Date(`${item.journalDate}T12:00:00Z`).toLocaleDateString(language === "ru" ? "ru-RU" : "uz-UZ", { timeZone: "Asia/Tashkent" }),
-          item.clientName, item.specialistName, item.positionName])
+          item.clientId || "", item.clientName, item.specialistName, item.positionName])
       ] }]);
     } catch (err) { setError(errorText(err.message)); }
     finally { setExporting(false); }
@@ -170,13 +169,13 @@ export default function InternalLessonJournalPanel({ access, onClose }) {
     {loading ? <p role="status">{ui.loading}</p> : <>
       <div className="all-users-table-wrap"><table className="all-users-table">
         <colgroup>
-          <col className="journal-col-date" /><col className="journal-col-child" /><col className="journal-col-specialist" />
+          <col className="journal-col-date" /><col className="journal-col-id" /><col className="journal-col-child" /><col className="journal-col-specialist" />
           <col className="journal-col-position" /><col className="journal-col-actions" />
         </colgroup>
-        <thead><tr><th>{ui.date}</th><th>{ui.child}</th><th>{ui.specialist}</th><th>{ui.position}</th><th>{ui.action}</th></tr></thead>
+        <thead><tr><th>{ui.date}</th><th>ID</th><th>{ui.child}</th><th>{ui.specialist}</th><th>{ui.position}</th><th>{ui.action}</th></tr></thead>
         <tbody>{items.map((item) => <tr key={item.id}>
           <td>{new Date(`${item.journalDate}T12:00:00Z`).toLocaleDateString(language === "ru" ? "ru-RU" : "uz-UZ", { timeZone: "Asia/Tashkent" })}</td>
-          <td>{item.clientName}</td><td>{item.specialistName}</td><td>{item.positionName || "—"}</td>
+          <td>{item.clientId || "—"}</td><td>{item.clientName}</td><td>{item.specialistName}</td><td>{item.positionName || "—"}</td>
           <td>
             {access.update && <div className="journal-row-actions">
               <ActionIconButton className="header-btn" onClick={() => { setCorrectionError(""); setTarget({ ...item, mode: "edit" }); }} label={ui.edit} icon="edit" />
