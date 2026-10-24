@@ -636,7 +636,7 @@ async function getCashierAppointmentById(db, { organizationId, id, forUpdate = f
     `SELECT a.id,
             a.organization_id,
             a.client_id,
-            CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+            CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name) AS client_name,
             a.specialist_id,
             COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS specialist_name,
             COALESCE(a.service_id, sc.id) AS service_id,
@@ -901,7 +901,7 @@ export async function getCashierBoard({
     appointmentParams.push(normalizedQuery);
     const exactParam = appointmentParams.length;
     appointmentFilters.push(`(
-      LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE $${likeParam}
+      LOWER(CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name)) LIKE $${likeParam}
       OR LOWER(COALESCE(a.service_name, '')) LIKE $${likeParam}
       OR LOWER(COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), '')) LIKE $${likeParam}
       OR a.id::text = $${exactParam}
@@ -914,7 +914,7 @@ export async function getCashierBoard({
     appointmentParams.push(normalizedClientQuery);
     const exactParam = appointmentParams.length;
     appointmentFilters.push(`(
-      LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE $${likeParam}
+      LOWER(CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name)) LIKE $${likeParam}
       OR a.client_id::text = $${exactParam}
     )`);
   }
@@ -942,7 +942,7 @@ export async function getCashierBoard({
     overdueAppointmentParams.push(normalizedQuery);
     const exactParam = overdueAppointmentParams.length;
     overdueAppointmentFilters.push(`(
-      LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE $${likeParam}
+      LOWER(CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name)) LIKE $${likeParam}
       OR LOWER(COALESCE(a.service_name, '')) LIKE $${likeParam}
       OR LOWER(COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), '')) LIKE $${likeParam}
       OR a.id::text = $${exactParam}
@@ -955,7 +955,7 @@ export async function getCashierBoard({
     overdueAppointmentParams.push(normalizedClientQuery);
     const exactParam = overdueAppointmentParams.length;
     overdueAppointmentFilters.push(`(
-      LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE $${likeParam}
+      LOWER(CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name)) LIKE $${likeParam}
       OR a.client_id::text = $${exactParam}
     )`);
   }
@@ -980,7 +980,7 @@ export async function getCashierBoard({
     ticketParams.push(normalizedQuery);
     const exactParam = ticketParams.length;
     ticketFilters.push(`(
-      LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE $${likeParam}
+      LOWER(CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name)) LIKE $${likeParam}
       OR LOWER(COALESCE(ft.service_name, '')) LIKE $${likeParam}
       OR LOWER(COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), '')) LIKE $${likeParam}
       OR ft.ticket_number::text = $${exactParam}
@@ -995,7 +995,7 @@ export async function getCashierBoard({
     ticketParams.push(normalizedClientQuery);
     const exactParam = ticketParams.length;
     ticketFilters.push(`(
-      LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE $${likeParam}
+      LOWER(CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name)) LIKE $${likeParam}
       OR ft.client_id::text = $${exactParam}
     )`);
   }
@@ -1055,7 +1055,7 @@ export async function getCashierBoard({
          FROM (
            SELECT a.id,
                   a.client_id,
-                  CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+                  CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name) AS client_name,
                   a.specialist_id,
                   COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS specialist_name,
                   COALESCE(a.service_id, sc.id) AS service_id,
@@ -1104,7 +1104,7 @@ export async function getCashierBoard({
          FROM (
            SELECT a.id,
                   a.client_id,
-                  CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+                  CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name) AS client_name,
                   a.specialist_id,
                   COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS specialist_name,
                   COALESCE(a.service_id, sc.id) AS service_id,
@@ -1153,7 +1153,7 @@ export async function getCashierBoard({
               ft.source,
               ft.appointment_schedule_id,
               ft.client_id,
-              CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+              CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name) AS client_name,
               ft.specialist_id,
               COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS specialist_name,
               ft.service_id,
@@ -1479,12 +1479,12 @@ export async function searchCashierClients({ organizationId, query, limit = 20 }
   const normalizedIdPrefix = normalizedPhoneDigits ? `${normalizedPhoneDigits}%` : "";
   const result = await pool.query(
     `SELECT id,
-            CONCAT_WS(' ', last_name, first_name, middle_name) AS full_name,
+            CONCAT_WS(' ', first_name, last_name, middle_name) AS full_name,
             phone_number
        FROM clients
       WHERE organization_id = $1
         AND (
-          LOWER(CONCAT_WS(' ', last_name, first_name, middle_name)) LIKE $2
+          LOWER(CONCAT_WS(' ', first_name, last_name, middle_name)) LIKE $2
           OR phone_number LIKE $3
           OR ($4 <> '' AND regexp_replace(COALESCE(phone_number, ''), '[^0-9]', '', 'g') LIKE $4)
           OR ($5 <> '' AND id::text LIKE $5)
@@ -1660,7 +1660,7 @@ function buildTicketsListWhere({ organizationId, filters = {} }) {
     params.push(`%${client}%`);
     params.push(client);
     where.push(`(
-      LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE $${params.length - 1}
+      LOWER(CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name)) LIKE $${params.length - 1}
       OR c.id::text = $${params.length}
     )`);
   }
@@ -1898,7 +1898,7 @@ export async function getFinanceTickets({ organizationId, filters = {} }) {
             ft.source,
             ft.appointment_schedule_id,
             ft.client_id,
-            CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+            CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name) AS client_name,
             ft.specialist_id,
             COALESCE(NULLIF(TRIM(u.full_name), ''), NULLIF(TRIM(u.username), ''), CONCAT('User #', u.id::text)) AS specialist_name,
             p.label AS position_label,
@@ -2135,7 +2135,7 @@ export async function getFinanceTransactions({ organizationId, filters = {} }) {
     params.push(`%${client}%`);
     params.push(client);
     where.push(`(
-      LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE $${params.length - 1}
+      LOWER(CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name)) LIKE $${params.length - 1}
       OR c.id::text = $${params.length}
     )`);
   }
@@ -2166,7 +2166,7 @@ export async function getFinanceTransactions({ organizationId, filters = {} }) {
             t.direction,
             t.status,
             t.client_id,
-            CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+            CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name) AS client_name,
             t.ticket_id,
             ft.ticket_number,
             ft.service_name,
@@ -2518,7 +2518,7 @@ export async function getFinanceDailyCash({ organizationId, filters = {}, actorU
     params.push(`%${client}%`);
     params.push(client);
     where.push(`(
-      LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE $${params.length - 1}
+      LOWER(CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name)) LIKE $${params.length - 1}
       OR c.id::text = $${params.length}
     )`);
   }
@@ -2587,7 +2587,7 @@ export async function getFinanceDailyCash({ organizationId, filters = {}, actorU
             t.direction,
             t.status,
             t.client_id,
-            CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+            CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name) AS client_name,
             t.ticket_id,
             ft.ticket_number,
             ft.service_name,
@@ -2783,7 +2783,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
     commonWhere.push(`c.id = ANY($${params.length}::int[])`);
   } else if (clientNameValues.length > 0) {
     params.push(toLikePatterns(clientNameValues));
-    commonWhere.push(`LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE ANY($${params.length}::text[])`);
+    commonWhere.push(`LOWER(CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name)) LIKE ANY($${params.length}::text[])`);
   }
 
   if (clientBirthdayFrom) {
@@ -3275,7 +3275,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
   }
   const byClientResult = await runFinanceReportQuery(
     `SELECT c.id,
-            COALESCE(NULLIF(TRIM(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)), ''), 'No client') AS label,
+            COALESCE(NULLIF(TRIM(CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name)), ''), 'No client') AS label,
             COALESCE(SUM(${signedReportAmountSql}), 0) AS amount_uzs,
             COUNT(*) AS transaction_count
        ${reportFromSql}
@@ -3378,7 +3378,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
             t.direction,
             t.status,
             t.client_id,
-            CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+            CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name) AS client_name,
             c.birthday AS client_birthday,
             COALESCE(c.gender, '') AS client_gender,
             COALESCE(c.phone_number, '') AS client_phone,
@@ -3489,7 +3489,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
       appointmentWhere.push(`c.id = ANY($${appointmentParams.length}::int[])`);
     } else if (clientNameValues.length > 0) {
       appointmentParams.push(toLikePatterns(clientNameValues));
-      appointmentWhere.push(`LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE ANY($${appointmentParams.length}::text[])`);
+      appointmentWhere.push(`LOWER(CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name)) LIKE ANY($${appointmentParams.length}::text[])`);
     }
     if (clientBirthdayFrom) {
       appointmentParams.push(clientBirthdayFrom);
@@ -3548,7 +3548,7 @@ export async function getFinanceReports({ organizationId, filters = {} }) {
               ''::text AS direction,
               ''::text AS status,
               s.client_id,
-              CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+              CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name) AS client_name,
               c.birthday AS client_birthday,
               COALESCE(c.gender, '') AS client_gender,
               COALESCE(c.phone_number, '') AS client_phone,
@@ -3711,7 +3711,7 @@ export async function getFinanceClientBalances({ organizationId, filters = {} })
     params.push(`%${client}%`);
     params.push(client);
     where.push(`(
-      LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE $${params.length - 1}
+      LOWER(CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name)) LIKE $${params.length - 1}
       OR c.id::text = $${params.length}
       OR COALESCE(c.phone_number, '') LIKE $${params.length - 1}
     )`);
@@ -3734,7 +3734,7 @@ export async function getFinanceClientBalances({ organizationId, filters = {} })
   const baseSql = `
     FROM (
       SELECT c.id AS client_id,
-             CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+             CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name) AS client_name,
              c.phone_number,
              COALESCE(debt.debt_uzs, 0) AS debt_uzs,
              COALESCE(deposit.deposit_uzs, 0) AS deposit_uzs
@@ -3991,7 +3991,7 @@ export async function getFinanceClientDebtTickets({ organizationId, clientId }) 
             ft.ticket_number,
             ft.ticket_date,
             ft.client_id,
-            CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+            CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name) AS client_name,
             ft.service_name,
             ft.amount_uzs,
             ft.total_uzs,
@@ -4030,7 +4030,7 @@ export async function getFinanceClientTransactions({ organizationId, clientId })
 
   const clientResult = await pool.query(
     `SELECT id,
-            CONCAT_WS(' ', last_name, first_name, middle_name) AS client_name,
+            CONCAT_WS(' ', first_name, last_name, middle_name) AS client_name,
             phone_number
        FROM clients
       WHERE organization_id = $1
@@ -4052,7 +4052,7 @@ export async function getFinanceClientTransactions({ organizationId, clientId })
             t.direction,
             t.status,
             t.client_id,
-            CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+            CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name) AS client_name,
             t.ticket_id,
             ft.ticket_number,
             COALESCE(NULLIF(TRIM(ticket_services.service_names), ''), ft.service_name) AS service_name,
@@ -4479,7 +4479,7 @@ async function getTicketHistorySnapshot(db, { organizationId, ticketId }) {
             ft.source,
             ft.appointment_schedule_id,
             ft.client_id,
-            CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+            CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name) AS client_name,
             ft.subtotal_uzs,
             ft.discount_uzs,
             ft.total_uzs,

@@ -1,3 +1,4 @@
+import { telegramChildName } from "./telegram-child-name.js";
 import pool from "../../config/db.js";
 import { executeTransaction } from "../../lib/db-utils.js";
 import { normalizePermissionCodes } from "../../lib/permission-codes.js";
@@ -373,11 +374,7 @@ function normalizeTimeHm(value) {
 }
 
 function getClientName(item) {
-  return [
-    String(item?.last_name ?? item?.clientLastName ?? "").trim(),
-    String(item?.first_name ?? item?.clientFirstName ?? "").trim(),
-    String(item?.middle_name ?? item?.clientMiddleName ?? "").trim()
-  ].filter(Boolean).join(" ").trim() || "Client";
+  return telegramChildName(item) || "Client";
 }
 
 function getSpecialistName(item) {
@@ -1301,7 +1298,7 @@ async function listParentClients(parent) {
      FROM clients c
      WHERE c.organization_id = $1
        AND ${CLIENT_PHONE_DIGITS_SQL} = $2
-     ORDER BY LOWER(TRIM(c.last_name)) ASC, LOWER(TRIM(c.first_name)) ASC, c.id ASC`,
+     ORDER BY LOWER(TRIM(c.first_name)) ASC, LOWER(TRIM(c.last_name)) ASC, c.id ASC`,
     [parent.organizationId, parent.phoneDigits]
   );
   return rows || [];
@@ -2195,7 +2192,7 @@ async function handleContactMessage({ settings, message }) {
   });
   await createOrUpdateCrmLead({
     organizationId: settings.organizationId,
-    fullName: [contact.last_name, contact.first_name].filter(Boolean).join(" ") || "Telegram contact",
+    fullName: [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Telegram contact",
     phoneNumber: contact.phone_number,
     source: "telegram",
     telegramUserId: from.id,

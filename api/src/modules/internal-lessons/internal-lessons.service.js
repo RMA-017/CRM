@@ -25,7 +25,7 @@ export async function getInternalLessonWeekDays(organizationId, db = pool) {
 
 export async function getInternalLessonOptions({ organizationId, db = pool }) {
   const clients = await db.query(
-    `SELECT c.id, concat_ws(' ', c.last_name, c.first_name, c.middle_name) AS name,
+    `SELECT c.id, concat_ws(' ', c.first_name, c.last_name, c.middle_name) AS name,
        COALESCE((SELECT string_agg(cg.full_name, ', ' ORDER BY cg.full_name)
          FROM caregiver_clients cc JOIN caregivers cg ON cg.organization_id = cc.organization_id AND cg.id = cc.caregiver_id
          WHERE cc.organization_id = c.organization_id AND cc.client_id = c.id), '') AS "caregiverName"
@@ -49,7 +49,7 @@ export async function listInternalLessons({ organizationId, clientId = null, spe
   if (!clientId && !specialistId && !exportAll) fail("SELECT_FILTER");
   const { rows } = await pool.query(
     `SELECT l.id, l.client_id AS "clientId", l.specialist_id AS "specialistId", l.week_days AS "weekDays",
-       concat_ws(' ', c.last_name, c.first_name, c.middle_name) AS "clientName",
+       concat_ws(' ', c.first_name, c.last_name, c.middle_name) AS "clientName",
        COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS "specialistName", COALESCE(p.label, '') AS "positionName",
        COALESCE(completions.days, '{}'::jsonb) AS "completionByDay"
        FROM internal_lessons l JOIN clients c ON c.organization_id = l.organization_id AND c.id = l.client_id

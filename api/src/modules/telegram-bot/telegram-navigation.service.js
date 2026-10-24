@@ -1,4 +1,5 @@
-import { setTelegramTherapyStatus } from "./telegram-therapy.service.js";
+import { setTelegramTherapyStatus, therapyLessonButtonLabel } from "./telegram-therapy.service.js";
+import { telegramChildName } from "./telegram-child-name.js";
 import pool from "../../config/db.js";
 import { normalizePhoneDigits, normalizePhoneNumber, isValidPhoneInput } from "../../lib/phone-number.js";
 import { telegramInteractionContext } from "./telegram-interaction-context.js";
@@ -228,7 +229,7 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
     session.active_role = "parent";
     session.view.parentScreens ||= {};
     const screen = session.view.parentScreens[clientId] ||= {};
-    screen.name = [child.last_name, child.first_name, child.middle_name].filter(Boolean).join(" ");
+    screen.name = telegramChildName(child);
     screen.date = date;
     session.view.kind = "parent_day";
     session.view.clientId = clientId;
@@ -265,9 +266,9 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
     session.active_role = "caregiver";
     session.view = { kind: "children", page };
     const { rows } = await db.query(
-      `SELECT c.id, concat_ws(' ', c.last_name, c.first_name, c.middle_name) AS name
+      `SELECT c.id, concat_ws(' ', c.first_name, c.last_name, c.middle_name) AS name
        FROM caregiver_clients cc JOIN clients c ON c.organization_id = cc.organization_id AND c.id = cc.client_id
-       WHERE cc.organization_id = $1 AND cc.caregiver_id = $2 ORDER BY LOWER(c.last_name), LOWER(c.first_name), c.id`,
+       WHERE cc.organization_id = $1 AND cc.caregiver_id = $2 ORDER BY LOWER(c.first_name), LOWER(c.last_name), c.id`,
       [settings.organizationId, caregiver.id]
     );
     const safe = Math.min(page, Math.max(0, Math.ceil(rows.length / PAGE_SIZE) - 1));
@@ -281,7 +282,7 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
   async function allowedChild(caregiver, clientId) {
     if (!Number.isSafeInteger(clientId) || clientId <= 0 || clientId > 2147483647) return null;
     const { rows } = await db.query(
-      `SELECT c.id, concat_ws(' ', c.last_name, c.first_name, c.middle_name) AS name
+      `SELECT c.id, concat_ws(' ', c.first_name, c.last_name, c.middle_name) AS name
        FROM caregiver_clients cc JOIN clients c ON c.organization_id = cc.organization_id AND c.id = cc.client_id
        WHERE cc.organization_id = $1 AND cc.caregiver_id = $2 AND c.id = $3`, [settings.organizationId, caregiver.id, clientId]
     );
@@ -349,7 +350,7 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
     if (session.view.kind === "school") {
       const weekday = new Date(`${date}T12:00:00Z`).getUTCDay() || 7;
       const { rows } = await db.query(
-        `SELECT l.id, l.client_id, COALESCE(journal.completed, FALSE) AS completed, concat_ws(' ', c.last_name, c.first_name, c.middle_name) AS child_name,
+        `SELECT l.id, l.client_id, COALESCE(journal.completed, FALSE) AS completed, concat_ws(' ', c.first_name, c.last_name, c.middle_name) AS child_name,
            COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS specialist_name, COALESCE(p.label, '') AS position_name
          FROM internal_lessons l JOIN clients c ON c.organization_id = l.organization_id AND c.id = l.client_id
          JOIN users u ON u.organization_id = l.organization_id AND u.id = l.specialist_id
@@ -371,8 +372,11 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
       lessons = date <= botToday() ? rows : rows.map((lesson) => ({ ...lesson, completed: false }));
       if (date <= botToday()) {
         const history = await db.query(`SELECT j.id::text AS completion_id, j.source_lesson_id AS id,
-          j.source_client_id AS client_id, j.client_name AS child_name, j.specialist_name, j.position_name, TRUE AS completed
+          j.source_client_id AS client_id,
+          COALESCE(NULLIF(TRIM(concat_ws(' ', child.first_name, child.last_name, child.middle_name)), ''), j.client_name) AS child_name,
+          j.specialist_name, j.position_name, TRUE AS completed
           FROM internal_lesson_completions j
+          LEFT JOIN clients child ON child.organization_id = j.organization_id AND child.id = j.source_client_id
           JOIN LATERAL (SELECT e.completed FROM internal_lesson_journal_events e
             WHERE e.organization_id = j.organization_id AND e.completion_id = j.id ORDER BY e.version DESC LIMIT 1) latest ON latest.completed
           WHERE j.organization_id = $1 AND j.schedule_date = $2::date
@@ -390,7 +394,7 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
       }
     } else {
       const { rows } = await db.query(
-        `SELECT s.id, s.client_id, concat_ws(' ', c.last_name, c.first_name, c.middle_name) AS child_name,
+        `SELECT s.id, s.client_id, c.first_name, c.last_name, concat_ws(' ', c.first_name, c.last_name) AS child_name,
            COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS specialist_name,
            TO_CHAR(s.start_time, 'HH24:MI') AS start_time, TO_CHAR(s.end_time, 'HH24:MI') AS end_time, s.service_name, s.status
          FROM appointment_schedules s JOIN clients c ON c.organization_id = s.organization_id AND c.id = s.client_id
@@ -422,7 +426,7 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
         )]) : [];
     if (specialistTherapy) {
       completionRows.push(...lessons.slice(safe * PAGE_SIZE, (safe + 1) * PAGE_SIZE).map((lesson) => [botButton(
-        `${lesson.status === "confirmed" ? "✅" : lesson.status === "pending" ? "☐" : "❌"} ${lesson.child_name}`,
+        therapyLessonButtonLabel(lesson),
         !["pending", "confirmed"].includes(lesson.status) || date > botToday() ? "ui:noop"
           : `ui:therapy:${lesson.id}:${lesson.client_id}:${date}:${lesson.status === "confirmed" ? "0" : "1"}`
       )]));

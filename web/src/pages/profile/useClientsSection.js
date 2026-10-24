@@ -81,7 +81,7 @@ export function useClientsSection({
     const birthday = String(form?.birthday || "").trim();
     const phone = String(form?.phone || "").trim();
     const telegramOrEmail = String(form?.telegramOrEmail || "").trim();
-    const fullName = [lastName, firstName, middleName].filter(Boolean).join(" ").trim();
+    const fullName = [firstName, lastName, middleName].filter(Boolean).join(" ").trim();
 
     if (!firstName) {
       errors.firstName = "First name is required.";
@@ -471,7 +471,7 @@ export function useClientsSection({
     const firstName = String(client?.firstName || client?.first_name || "").trim();
     const lastName = String(client?.lastName || client?.last_name || "").trim();
     const middleName = String(client?.middleName || client?.middle_name || "").trim();
-    const label = [lastName, firstName, middleName].filter(Boolean).join(" ").trim();
+    const label = [firstName, lastName, middleName].filter(Boolean).join(" ").trim();
 
     setClientsDelete({
       open: true,

@@ -247,15 +247,15 @@ function formatNotificationDateText(action, dates) {
 
 function formatNotificationClientName(item) {
   const explicitName = String(item?.clientName || item?.client_name || item?.fullName || item?.full_name || "").trim();
-  if (explicitName && explicitName !== "Client") {
-    return explicitName;
-  }
   const firstName = String(item?.clientFirstName || item?.client_first_name || item?.firstName || item?.first_name || "").trim();
   const lastName = String(item?.clientLastName || item?.client_last_name || item?.lastName || item?.last_name || "").trim();
   const middleName = String(item?.clientMiddleName || item?.client_middle_name || item?.middleName || item?.middle_name || "").trim();
-  const fullName = [lastName, firstName, middleName].filter(Boolean).join(" ").trim();
+  const fullName = [firstName, lastName, middleName].filter(Boolean).join(" ").trim();
   if (fullName) {
     return fullName;
+  }
+  if (explicitName && explicitName !== "Client") {
+    return explicitName;
   }
   const clientId = parsePositiveInteger(item?.clientId || item?.client_id);
   if (clientId) {

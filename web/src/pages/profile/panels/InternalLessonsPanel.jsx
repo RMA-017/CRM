@@ -124,7 +124,7 @@ export default function InternalLessonsPanel({ access, onClose }) {
         [ui.child, ui.specialist, ...[1, 2, 3, 4, 5, 6, 7].map((day) => ui.dayNames[day])],
         ...data.items.map((item) => [item.clientName,
           `${item.specialistName}${item.positionName ? `-${item.positionName}` : ""}`,
-          ...[1, 2, 3, 4, 5, 6, 7].map((day) => item.weekDays.includes(day) ? "✓" : "")])
+          ...[1, 2, 3, 4, 5, 6, 7].map((day) => item.weekDays.includes(day) ? 1 : "")])
       ] }]);
     } catch (err) { setListError(ui.errors[err.message] || ui.failure); }
     finally { setExporting(false); }
@@ -220,12 +220,12 @@ export default function InternalLessonsPanel({ access, onClose }) {
     <div className="internal-lesson-filters">
       <div className="field"><span>{ui.child}</span>
         <CustomSelect value={filter.clientId} onChange={(value) => changeFilter("clientId", value)}
-          options={[{ value: "", label: filter.specialistId ? ui.allChildren : ui.chooseChild }, ...options.clients.map((c) => ({ value: String(c.id), label: `${c.name} (#${c.id})` }))]}
+          options={options.clients.map((c) => ({ value: String(c.id), label: `${c.name} (#${c.id})` }))}
           placeholder={ui.chooseChild} disabled={optionsLoading || Boolean(optionsError)} searchable searchPlaceholder={ui.search} emptyText={ui.noOptions} />
       </div>
       <div className="field"><span>{ui.specialist}</span>
         <CustomSelect value={filter.specialistId} onChange={(value) => changeFilter("specialistId", value)}
-          options={[{ value: "", label: filter.clientId ? ui.allSpecialists : ui.chooseSpecialist }, ...options.specialists.map((s) => ({ value: String(s.id), label: `${s.name}${s.isActive ? "" : ` (${ui.inactive})`}` }))]}
+          options={options.specialists.map((s) => ({ value: String(s.id), label: `${s.name}${s.isActive ? "" : ` (${ui.inactive})`}` }))}
           placeholder={ui.chooseSpecialist} disabled={optionsLoading || Boolean(optionsError)} searchable searchPlaceholder={ui.search} emptyText={ui.noOptions} />
       </div>
     </div>

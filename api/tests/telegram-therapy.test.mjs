@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { setTelegramTherapyStatus } from "../src/modules/telegram-bot/telegram-therapy.service.js";
+import { setTelegramTherapyStatus, therapyLessonButtonLabel } from "../src/modules/telegram-bot/telegram-therapy.service.js";
 import { botToday, shiftBotDate } from "../src/modules/telegram-bot/telegram-calendar.js";
 
 function fixture(status = "pending", { missing = false, locked = false } = {}) {
@@ -15,6 +15,18 @@ function fixture(status = "pending", { missing = false, locked = false } = {}) {
     date: botToday(), confirmed: true, db };
   return { args, queries, updates, update: async (value) => { updates.push(value); return [{ id: 20 }]; } };
 }
+
+test("therapy button keeps time then first name, abbreviating only long surnames", () => {
+  const lesson = { status: "pending", first_name: "Юсуфбек", last_name: "Лутфуллаев", middle_name: "Саидович",
+    start_time: "14:00", end_time: "14:30" };
+  assert.equal(therapyLessonButtonLabel(lesson), "☐ 14:00–14:30 · Юсуфбек Лутфуллаев");
+  const label = therapyLessonButtonLabel({ ...lesson, status: "confirmed", last_name: "Оченьдлиннаяфамилияребёнка" });
+  assert.ok(label.startsWith("✅ 14:00–14:30 · Юсуфбек "));
+  assert.ok(label.endsWith("..."));
+  assert.equal(Array.from(label).length, 40);
+  assert.ok(!label.includes("Саидович"));
+  assert.equal(therapyLessonButtonLabel({ ...lesson, status: "no-show", last_name: "" }), "❌ 14:00–14:30 · Юсуфбек");
+});
 
 test("therapy confirmation and undo preserve appointment billing, notes and recurrence defaults", async () => {
   for (const confirmed of [true, false]) {

@@ -135,7 +135,7 @@ export default function CaregiversPanel({ canCreateUsers, canUpdateUsers, canDel
         </fieldset>}
         <div className="caregiver-identity-fields caregiver-roster-fields">
           <label className="field">{ui.phone}<input type="tel" maxLength={40} placeholder="+998" value={form.phone} disabled={saving} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
-          <label className="field">{ui.name}<input required={Boolean(form.phone.trim())} maxLength={255} value={form.fullName} disabled={saving} onChange={(e) => setForm({ ...form, fullName: e.target.value })} /></label>
+          <label className="field">{ui.name}<input placeholder={language === "ru" ? "Имя Фамилия Отчество" : "Ism Familiya Otasining ismi"} required={Boolean(form.phone.trim())} maxLength={255} value={form.fullName} disabled={saving} onChange={(e) => setForm({ ...form, fullName: e.target.value })} /></label>
         </div>
         <div className="internal-lesson-editor-actions"><ActionIconButton type="submit" className="btn" disabled={saving} label={ui.save} icon="save" /></div>
       </form>

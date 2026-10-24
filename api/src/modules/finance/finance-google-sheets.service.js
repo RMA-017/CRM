@@ -457,7 +457,7 @@ async function fetchTicketRows({ organizationId, dateFrom, dateToExclusive, curs
      SELECT ft.id AS ticket_id,
             ft.ticket_number,
             TO_CHAR(ft.created_at AT TIME ZONE 'Asia/Tashkent', 'YYYY-MM-DD HH24:MI') AS created_at_text,
-            CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+            CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name) AS client_name,
             ft.client_id,
             TO_CHAR(ft.ticket_date, 'YYYY-MM-DD') AS ticket_date_text,
             COALESCE(fti.service_name, ft.service_name, '') AS service_name,
@@ -527,7 +527,7 @@ async function fetchTransactionRows({ organizationId, dateFrom, dateToExclusive,
             t.status,
             ft.ticket_number,
             t.client_id,
-            CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+            CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name) AS client_name,
             pm.name AS payment_method_name,
             t.amount_uzs,
             COALESCE(NULLIF(TRIM(cu.full_name), ''), NULLIF(TRIM(cu.username), ''), '') AS cashier_name,
@@ -562,7 +562,7 @@ async function fetchTransactionRows({ organizationId, dateFrom, dateToExclusive,
 async function fetchBalanceRows({ organizationId, cursor }) {
   const result = await pool.query(
     `SELECT c.id AS client_id,
-            CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+            CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name) AS client_name,
             COALESCE(debt.debt_uzs, 0) AS debt_uzs,
             COALESCE(deposit.deposit_uzs, 0) AS deposit_uzs
        FROM clients c

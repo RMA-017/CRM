@@ -3423,7 +3423,7 @@ export async function updateClientById({
     clearAppointmentPlannerReportFilterCaches();
     const clientLessonsDeletedNotification = buildClientLessonsDeletedNotification({
       organizationId,
-      clientName: [lastName, firstName, middleName].filter(Boolean).join(" "),
+      clientName: [firstName, lastName, middleName].filter(Boolean).join(" "),
       items: row.deleted_appointments
     });
     await sendClientLessonsDeletedNotification(clientLessonsDeletedNotification);

@@ -5545,8 +5545,8 @@ export async function getAppointmentPlannerReport({
         specialistName: String(row?.specialist_name || "").trim() || `Specialist #${currentSpecialistId}`,
         clientId: currentClientId,
         clientName: [
-          String(row?.last_name || "").trim(),
           String(row?.first_name || "").trim(),
+          String(row?.last_name || "").trim(),
           String(row?.middle_name || "").trim()
         ].filter(Boolean).join(" ").trim() || `Client #${currentClientId}`,
         serviceName: String(row?.service_name || "").trim() || "Service",

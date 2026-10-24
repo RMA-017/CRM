@@ -3,8 +3,11 @@ import { createPortal } from "react-dom";
 import CustomSelect from "../../components/CustomSelect.jsx";
 import { formatDateYMD } from "../../lib/formatters.js";
 import RolePermissionsAccordion from "./RolePermissionsAccordion.jsx";
+import { useI18n } from "../../i18n/I18nProvider.jsx";
 
 function ProfileModals(props) {
+  const { language } = useI18n();
+  const personNamePlaceholder = language === "ru" ? "Имя Фамилия Отчество" : "Ism Familiya Otasining ismi";
   const maxBirthdayYmd = new Date().toISOString().slice(0, 10);
   const [showPhotoMenu, setShowPhotoMenu] = useState(false);
   const photoWrapRef = useRef(null);
@@ -326,7 +329,7 @@ function ProfileModals(props) {
                   type="text"
                   autoComplete="name"
                   required
-                  placeholder="Full name"
+                  placeholder={personNamePlaceholder}
                   className={profileEdit.errorField === "fullName" ? "input-error" : ""}
                   value={profileEdit.form.fullName}
                   onInput={(event) => {
@@ -474,6 +477,7 @@ function ProfileModals(props) {
               <label htmlFor="allUsersEditFullName">Full Name</label>
               <input
                 id="allUsersEditFullName"
+                placeholder={personNamePlaceholder}
                 name="fullName"
                 type="text"
                 autoComplete="name"

@@ -141,13 +141,13 @@ test("finance tickets keep organization-scoped 5 digit numbering and hide appoin
 
   assert.match(
     financeServiceSource,
-    /const normalizedClientQuery = normalizeText\(clientQuery, 96\)[\s\S]*appointmentFilters\.push\(`\([\s\S]*LOWER\(CONCAT_WS\(' ', c\.last_name, c\.first_name, c\.middle_name\)\) LIKE \$\$\{likeParam\}[\s\S]*a\.client_id::text = \$\$\{exactParam\}[\s\S]*appointmentFilters\.push\(`a\.service_id = \$\$\{appointmentParams\.length\}`\)[\s\S]*appointmentFilters\.push\(`a\.specialist_id = \$\$\{appointmentParams\.length\}`\)/s,
+    /const normalizedClientQuery = normalizeText\(clientQuery, 96\)[\s\S]*appointmentFilters\.push\(`\([\s\S]*LOWER\(CONCAT_WS\(' ', c\.first_name, c\.last_name, c\.middle_name\)\) LIKE \$\$\{likeParam\}[\s\S]*a\.client_id::text = \$\$\{exactParam\}[\s\S]*appointmentFilters\.push\(`a\.service_id = \$\$\{appointmentParams\.length\}`\)[\s\S]*appointmentFilters\.push\(`a\.specialist_id = \$\$\{appointmentParams\.length\}`\)/s,
     "Cashier appointment columns should apply client, service and specialist filters before the board limit."
   );
 
   assert.match(
     financeServiceSource,
-    /ticketFilters\.push\(`\([\s\S]*LOWER\(CONCAT_WS\(' ', c\.last_name, c\.first_name, c\.middle_name\)\) LIKE \$\$\{likeParam\}[\s\S]*ft\.client_id::text = \$\$\{exactParam\}[\s\S]*ticketFilters\.push\(`\([\s\S]*ft\.service_id = \$\$\{serviceParam\}[\s\S]*FROM finance_ticket_items fti_filter[\s\S]*fti_filter\.service_id = \$\$\{serviceParam\}[\s\S]*ticketFilters\.push\(`\([\s\S]*ft\.specialist_id = \$\$\{specialistParam\}[\s\S]*fti_filter\.specialist_id = \$\$\{specialistParam\}/s,
+    /ticketFilters\.push\(`\([\s\S]*LOWER\(CONCAT_WS\(' ', c\.first_name, c\.last_name, c\.middle_name\)\) LIKE \$\$\{likeParam\}[\s\S]*ft\.client_id::text = \$\$\{exactParam\}[\s\S]*ticketFilters\.push\(`\([\s\S]*ft\.service_id = \$\$\{serviceParam\}[\s\S]*FROM finance_ticket_items fti_filter[\s\S]*fti_filter\.service_id = \$\$\{serviceParam\}[\s\S]*ticketFilters\.push\(`\([\s\S]*ft\.specialist_id = \$\$\{specialistParam\}[\s\S]*fti_filter\.specialist_id = \$\$\{specialistParam\}/s,
     "Cashier ticket column should apply client, service and specialist filters, including multi-service ticket items, before the board limit."
   );
 
@@ -354,7 +354,7 @@ test("finance client discounts apply only to appointment tickets and keep usage 
 
   assert.match(
     financeDiscountsSource,
-    /r\.created_at::date >=[\s\S]*r\.created_at::date <=[\s\S]*clientPhoneLikeParam[\s\S]*clientTokenConditions = clientNameTokens\.length > 1[\s\S]*clientNameTokens\.map[\s\S]*LOWER\(CONCAT_WS\(' ', c\.last_name, c\.first_name, c\.middle_name\)\) LIKE[\s\S]*clientTokenConditions\.join\(" AND "\)[\s\S]*r\.client_id::text =[\s\S]*COALESCE\(c\.phone_number, ''\) LIKE \${clientPhoneLikeParam}[\s\S]*regexp_replace\(COALESCE\(c\.phone_number[\s\S]*finance_client_discount_rule_services rs_filter[\s\S]*r\.is_active =/s,
+    /r\.created_at::date >=[\s\S]*r\.created_at::date <=[\s\S]*clientPhoneLikeParam[\s\S]*clientTokenConditions = clientNameTokens\.length > 1[\s\S]*clientNameTokens\.map[\s\S]*LOWER\(CONCAT_WS\(' ', c\.first_name, c\.last_name, c\.middle_name\)\) LIKE[\s\S]*clientTokenConditions\.join\(" AND "\)[\s\S]*r\.client_id::text =[\s\S]*COALESCE\(c\.phone_number, ''\) LIKE \${clientPhoneLikeParam}[\s\S]*regexp_replace\(COALESCE\(c\.phone_number[\s\S]*finance_client_discount_rule_services rs_filter[\s\S]*r\.is_active =/s,
     "Client discount list query should filter by created date, client name/id/phone, service name, and active state."
   );
 

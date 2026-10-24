@@ -29,7 +29,7 @@ export async function setInternalLessonCompletion({ organizationId, specialistId
   if (!Number.isInteger(expectedClientId) || expectedClientId <= 0 || expectedClientId > 2147483647) fail("STALE_LESSON", 409);
   await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [`internal-completion:${organizationId}:${lessonId}:${date}`]);
   const { rows: lessons } = await db.query(
-    `SELECT l.id, l.client_id, l.specialist_id, concat_ws(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+    `SELECT l.id, l.client_id, l.specialist_id, concat_ws(' ', c.first_name, c.last_name, c.middle_name) AS client_name,
       COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS specialist_name, COALESCE(p.label, '') AS position_name
      FROM internal_lessons l JOIN clients c ON c.organization_id = l.organization_id AND c.id = l.client_id
      JOIN users u ON u.organization_id = l.organization_id AND u.id = l.specialist_id
@@ -74,7 +74,7 @@ export async function correctInternalLessonCompletion({ organizationId, id, comp
 }
 
 export async function getInternalJournalOptions({ organizationId }) {
-  const clients = await pool.query(`SELECT id, concat_ws(' ', last_name, first_name, middle_name) AS name
+  const clients = await pool.query(`SELECT id, concat_ws(' ', first_name, last_name, middle_name) AS name
     FROM clients WHERE organization_id = $1 ORDER BY LOWER(last_name), LOWER(first_name), id`, [organizationId]);
   const specialists = await pool.query(`SELECT u.id, COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS name, COALESCE(p.label, '') AS position
     FROM users u JOIN role_options r ON r.id = u.role_id LEFT JOIN position_options p ON p.id = u.position_id
@@ -92,7 +92,7 @@ export async function editInternalJournalEntry({ organizationId, id, date, clien
     const entry = result.rows[0];
     if (!entry || !entry.completed) fail("LESSON_NOT_FOUND", 404);
     if (entry.version !== expectedVersion) fail("JOURNAL_CHANGED", 409);
-    const child = await db.query(`SELECT concat_ws(' ', last_name, first_name, middle_name) AS name FROM clients
+    const child = await db.query(`SELECT concat_ws(' ', first_name, last_name, middle_name) AS name FROM clients
       WHERE organization_id = $1 AND id = $2 FOR SHARE`, [organizationId, clientId]);
     if (!child.rows[0]) fail("INVALID_CLIENT");
     const specialist = await db.query(`SELECT COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS name, COALESCE(p.label, '') AS position
@@ -115,7 +115,7 @@ export async function listInternalLessonJournal({ organizationId, search = "", d
   if ((dateFrom && !isBotDate(dateFrom)) || (dateTo && !isBotDate(dateTo)) || (dateFrom && dateTo && dateFrom > dateTo)) fail("INVALID_DATE_RANGE");
   const params = [organizationId, `%${search}%`, dateFrom || null, dateTo || null, completed, `%${child}%`, `%${specialist}%`, `%${position}%`];
   const journalDate = "COALESCE(j.journal_date, j.schedule_date)";
-  const clientName = "COALESCE(j.journal_client_name, j.client_name)", specialistName = "COALESCE(j.journal_specialist_name, j.specialist_name)", positionName = "COALESCE(j.journal_position_name, j.position_name)";
+  const clientName = "COALESCE(NULLIF(TRIM(concat_ws(' ', journal_child.first_name, journal_child.last_name, journal_child.middle_name)), ''), j.journal_client_name, j.client_name)", specialistName = "COALESCE(j.journal_specialist_name, j.specialist_name)", positionName = "COALESCE(j.journal_position_name, j.position_name)";
   const where = `j.organization_id = $1 AND j.completed AND e.completed
     AND (${clientName} ILIKE $2 OR ${specialistName} ILIKE $2 OR ${positionName} ILIKE $2)
     AND ($3::date IS NULL OR ${journalDate} >= $3::date)
@@ -123,7 +123,9 @@ export async function listInternalLessonJournal({ organizationId, search = "", d
     AND ($5::boolean IS NULL OR e.completed = $5)
     AND ${clientName} ILIKE $6 AND ${specialistName} ILIKE $7 AND ${positionName} ILIKE $8`;
   const join = `FROM internal_lesson_completions j JOIN LATERAL (SELECT * FROM internal_lesson_journal_events history
-    WHERE history.organization_id = j.organization_id AND history.completion_id = j.id ORDER BY history.version DESC LIMIT 1) e ON TRUE`;
+    WHERE history.organization_id = j.organization_id AND history.completion_id = j.id ORDER BY history.version DESC LIMIT 1) e ON TRUE
+    LEFT JOIN clients journal_child ON journal_child.organization_id = j.organization_id
+      AND journal_child.id = COALESCE(j.journal_client_id, j.client_id)`;
   const count = await pool.query(`SELECT COUNT(*)::integer AS total ${join} WHERE ${where}`, params);
   const totalPages = Math.max(1, Math.ceil(count.rows[0].total / 20));
   const safePage = Math.min(page, totalPages);

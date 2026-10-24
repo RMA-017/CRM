@@ -101,15 +101,15 @@ function splitLeadName(value) {
   const parts = String(value || "").trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 3) {
     return {
-      lastName: parts[0] || "",
-      firstName: parts[1] || "",
+      firstName: parts[0] || "",
+      lastName: parts[1] || "",
       middleName: parts.slice(2).join(" ")
     };
   }
   if (parts.length === 2) {
     return {
-      lastName: parts[0] || "",
-      firstName: parts[1] || "",
+      firstName: parts[0] || "",
+      lastName: parts[1] || "",
       middleName: ""
     };
   }

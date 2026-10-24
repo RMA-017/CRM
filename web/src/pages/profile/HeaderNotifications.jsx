@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { translateLiteral, useI18n } from "../../i18n/I18nProvider.jsx";
 import { apiFetch, getApiErrorMessage, readApiResponseData } from "../../lib/api.js";
 import { handleProtectedStatus } from "./profile.helpers.js";
+import { formatPersonName } from "../../../../shared/person-name.js";
 
 const NOTIFICATION_REFRESH_MS = 30_000;
 const NOTIFICATION_LIMIT = 10;
@@ -93,6 +94,8 @@ function isGenericClientName(value) {
 function getNotificationClientName(item) {
   const payload = getNotificationPayload(item);
   const firstItem = getPayloadItems(item)[0] || {};
+  const structuredName = formatPersonName(firstItem) || formatPersonName(payload);
+  if (structuredName) return structuredName;
   const payloadName = firstText(
     payload.clientName,
     payload.client_name,
@@ -113,11 +116,7 @@ function getNotificationClientName(item) {
   if (!isGenericClientName(itemName)) {
     return itemName;
   }
-  return [
-    firstItem.lastName || firstItem.last_name || firstItem.clientLastName || firstItem.client_last_name,
-    firstItem.firstName || firstItem.first_name || firstItem.clientFirstName || firstItem.client_first_name,
-    firstItem.middleName || firstItem.middle_name || firstItem.clientMiddleName || firstItem.client_middle_name
-  ].map((part) => String(part || "").trim()).filter(Boolean).join(" ");
+  return "";
 }
 
 function getNotificationSpecialistName(item) {

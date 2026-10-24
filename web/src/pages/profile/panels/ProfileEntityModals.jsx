@@ -1,5 +1,6 @@
 import { createPortal } from "react-dom";
 import CustomSelect from "../../../components/CustomSelect.jsx";
+import { useI18n } from "../../../i18n/I18nProvider.jsx";
 
 function ProfileEntityModals({
   clientCreateModalOpen,
@@ -24,6 +25,7 @@ function ProfileEntityModals({
   setCreateErrors,
   roleOptions
 }) {
+  const { language } = useI18n();
   if (typeof document === "undefined") {
     return null;
   }
@@ -300,7 +302,7 @@ function ProfileEntityModals({
                   id="fullName"
                   name="fullName"
                   type="text"
-                  placeholder="Muhammad Rahmonov"
+                  placeholder={language === "ru" ? "Имя Фамилия Отчество" : "Ism Familiya Otasining ismi"}
                   autoComplete="name"
                   required
                   className={createErrors.fullName ? "input-error" : ""}

@@ -21,8 +21,8 @@ import {
 function splitLegacyFullName(value) {
   const tokens = String(value || "").trim().split(/\s+/).filter(Boolean);
   return {
-    lastName: tokens[0] || "",
-    firstName: tokens[1] || "",
+    firstName: tokens[0] || "",
+    lastName: tokens[1] || "",
     middleName: tokens.slice(2).join(" ")
   };
 }
@@ -147,7 +147,7 @@ function mapClient(row) {
   const birthday = normalizeDateYmdValue(row?.birthday);
   const tgMail = String(row?.tg_mail ?? row?.tgMail ?? "").trim();
   const note = String(row?.note || "").trim();
-  const fullName = [lastName, firstName, middleName].filter(Boolean).join(" ");
+  const fullName = [firstName, lastName, middleName].filter(Boolean).join(" ");
   const notes = [birthday ? `Birthday: ${birthday}` : "", tgMail ? `Contact: ${tgMail}` : "", note]
     .filter(Boolean)
     .join(" | ");

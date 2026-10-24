@@ -1,4 +1,5 @@
 import pool from "../../config/db.js";
+import { telegramChildName } from "./telegram-child-name.js";
 
 const MAX_ATTEMPTS = 8;
 
@@ -18,8 +19,8 @@ export function formatSpecialistNotification(account) {
   const items = Array.isArray(data.items) ? data.items : [];
   const ownItems = items.filter((item) => Number(item.specialistId || item.specialist_id) === Number(account.user_id));
   const first = (ownItems.length ? ownItems : items)[0] || {};
-  const child = data.clientName || data.client_name || data.childName || first.clientName || first.client_name
-    || [first.lastName || first.last_name, first.firstName || first.first_name, first.middleName || first.middle_name].filter(Boolean).join(" ");
+  const child = telegramChildName(first) || telegramChildName(data)
+    || data.clientName || data.client_name || data.childName || first.clientName || first.client_name;
   const specialist = data.specialistName || data.specialist_name || first.specialistName || first.specialist_name;
   const date = first.appointmentDate || first.appointment_date || data.appointmentDate || data.absenceDate || data.dateFrom || data.date;
   const dateMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(date || ""));

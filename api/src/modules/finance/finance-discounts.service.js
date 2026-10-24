@@ -202,12 +202,12 @@ export async function searchFinanceDiscountClients({ organizationId, query, limi
   const normalizedIdPrefix = normalizedPhoneDigits ? `${normalizedPhoneDigits}%` : "";
   const result = await pool.query(
     `SELECT id,
-            CONCAT_WS(' ', last_name, first_name, middle_name) AS full_name,
+            CONCAT_WS(' ', first_name, last_name, middle_name) AS full_name,
             phone_number
        FROM clients
       WHERE organization_id = $1
         AND (
-          LOWER(CONCAT_WS(' ', last_name, first_name, middle_name)) LIKE $2
+          LOWER(CONCAT_WS(' ', first_name, last_name, middle_name)) LIKE $2
           OR phone_number LIKE $3
           OR ($4 <> '' AND regexp_replace(COALESCE(phone_number, ''), '[^0-9]', '', 'g') LIKE $4)
           OR ($5 <> '' AND id::text LIKE $5)
@@ -269,7 +269,7 @@ async function queryDiscountRules({ organizationId, whereSql = "", params = [], 
      )
      SELECT r.id,
             r.client_id,
-            CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name) AS client_name,
+            CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name) AS client_name,
             r.discount_type,
             r.discount_value,
             r.note,
@@ -336,7 +336,7 @@ export async function getFinanceClientDiscounts({ organizationId, filters = {} }
     const searchLikeParam = appendSqlParam(params, `%${search}%`);
     const searchExactParam = appendSqlParam(params, search);
     where.push(`AND (
-      LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE ${searchLikeParam}
+      LOWER(CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name)) LIKE ${searchLikeParam}
       OR r.id::text = ${searchExactParam}
     )`);
   }
@@ -353,11 +353,11 @@ export async function getFinanceClientDiscounts({ organizationId, filters = {} }
     const clientPhoneParam = appendSqlParam(params, clientPhoneDigits ? `%${clientPhoneDigits}%` : "");
     const clientTokenConditions = clientNameTokens.length > 1
       ? clientNameTokens.map((token) => (
-        `LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE ${appendSqlParam(params, `%${token}%`)}`
+        `LOWER(CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name)) LIKE ${appendSqlParam(params, `%${token}%`)}`
       ))
       : [];
     where.push(`AND (
-      LOWER(CONCAT_WS(' ', c.last_name, c.first_name, c.middle_name)) LIKE ${clientLikeParam}
+      LOWER(CONCAT_WS(' ', c.first_name, c.last_name, c.middle_name)) LIKE ${clientLikeParam}
       ${clientTokenConditions.length > 1 ? `OR (${clientTokenConditions.join(" AND ")})` : ""}
       OR r.client_id::text = ${clientExactParam}
       OR COALESCE(c.phone_number, '') LIKE ${clientPhoneLikeParam}

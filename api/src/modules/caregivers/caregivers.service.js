@@ -22,14 +22,14 @@ export async function listCaregivers({ organizationId, search = "", page = 1 }) 
       JOIN caregivers cg ON cg.organization_id = cc.organization_id AND cg.id = cc.caregiver_id
       WHERE cc.organization_id = enrollment.organization_id AND cc.client_id = enrollment.client_id
       ORDER BY cg.is_active DESC, cg.id LIMIT 1) cg ON TRUE`;
-  const where = `enrollment.organization_id = $1 AND (concat_ws(' ', c.last_name, c.first_name, c.middle_name) ILIKE $2
+  const where = `enrollment.organization_id = $1 AND (concat_ws(' ', c.first_name, c.last_name, c.middle_name) ILIKE $2
     OR cg.full_name ILIKE $2 OR cg.phone_number ILIKE $2 OR c.id::text ILIKE $2)`;
   const count = await pool.query(`SELECT COUNT(*)::integer AS total ${join} WHERE ${where}`, params);
   const total = count.rows[0].total;
   const totalPages = Math.max(1, Math.ceil(total / 20));
   const safePage = Math.min(page, totalPages);
   const { rows } = await pool.query(`SELECT c.id, c.id AS "clientId",
-    concat_ws(' ', c.last_name, c.first_name, c.middle_name) AS "clientName",
+    concat_ws(' ', c.first_name, c.last_name, c.middle_name) AS "clientName",
     cg.id AS "caregiverId", COALESCE(cg.full_name, enrollment.caregiver_name, '') AS "fullName", COALESCE(cg.phone_number, '') AS phone
     ${join} WHERE ${where} ORDER BY LOWER(c.last_name), LOWER(c.first_name), c.id LIMIT 20 OFFSET $3`, [...params, (safePage - 1) * 20]);
   return { items: rows, pagination: { page: safePage, totalPages, total } };
@@ -38,9 +38,9 @@ export async function listCaregivers({ organizationId, search = "", page = 1 }) 
 export async function searchCaregiverClients({ organizationId, search = "", page = 1 }) {
   search = search.trim();
   if (search.length < 3) return { items: [], hasNext: false };
-  const { rows } = await pool.query(`SELECT c.id, concat_ws(' ', c.last_name, c.first_name, c.middle_name) AS name
+  const { rows } = await pool.query(`SELECT c.id, concat_ws(' ', c.first_name, c.last_name, c.middle_name) AS name
     FROM clients c WHERE c.organization_id = $1
-    AND (concat_ws(' ', c.last_name, c.first_name, c.middle_name) ILIKE $2 OR c.id::text = $3)
+    AND (concat_ws(' ', c.first_name, c.last_name, c.middle_name) ILIKE $2 OR c.id::text = $3)
     AND NOT EXISTS (SELECT 1 FROM internal_lesson_clients e WHERE e.organization_id = c.organization_id AND e.client_id = c.id)
     ORDER BY LOWER(c.last_name), LOWER(c.first_name), c.id LIMIT 51 OFFSET $4`, [organizationId, `%${search}%`, search, (page - 1) * 50]);
   return { items: rows.slice(0, 50), hasNext: rows.length > 50 };
@@ -108,7 +108,7 @@ export async function findCaregiverByPhone({ organizationId, phone }) {
   const { rows } = await pool.query(`SELECT id, full_name AS "fullName", phone_number AS phone FROM caregivers
     WHERE organization_id = $1 AND phone_digits = $2 AND is_active = TRUE`, [organizationId, normalizePhoneDigits(phone)]);
   if (!rows[0]) return null;
-  const clients = await pool.query(`SELECT c.id, concat_ws(' ', c.last_name, c.first_name, c.middle_name) AS name
+  const clients = await pool.query(`SELECT c.id, concat_ws(' ', c.first_name, c.last_name, c.middle_name) AS name
     FROM caregiver_clients cc JOIN clients c ON c.organization_id = cc.organization_id AND c.id = cc.client_id
     WHERE cc.organization_id = $1 AND cc.caregiver_id = $2 ORDER BY c.last_name, c.first_name, c.id`, [organizationId, rows[0].id]);
   return { ...rows[0], clients: clients.rows };
