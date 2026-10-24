@@ -17,7 +17,9 @@
 #caregiversPanel .caregiver-col-name { width: 25%; }
 #caregiversPanel .caregiver-col-phone { width: 150px; }
 #caregiversPanel .caregiver-col-active { width: 72px; }
-#caregiversPanel .caregiver-col-action { width: 64px; }
+#caregiversPanel .caregiver-col-action { width: 86px; }
+#caregiversPanel .caregiver-row-actions { display: flex; justify-content: center; align-items: center; gap: 6px; }
+#caregiversPanel .caregiver-row-actions .action-icon-button { margin: 0; }
 #caregiversPanel .all-users-table th, #caregiversPanel .all-users-table td { min-width: 0; max-width: none; }
 #caregiversPanel .all-users-table th, #caregiversPanel .all-users-table td { padding-top: 2px; padding-bottom: 2px; }
 #caregiversPanel .all-users-table .action-icon-button { width: 26px; min-width: 26px; height: 26px; padding: 4px; }

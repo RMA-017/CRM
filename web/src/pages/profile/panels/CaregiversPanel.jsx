@@ -8,6 +8,7 @@ import "../../../css/components/internal-lessons.css";
 
 const TEXT = {
   uz: {
+    action: "Amal",
     title: "Tarbiyachilar", add: "Bola qo‘shish", child: "Bola", name: "Tarbiyachi", phone: "Telefon", edit: "Tahrirlash", remove: "O‘chirish",
     search: "Qidirish", searchHint: "Bola, tarbiyachi yoki telefon", childSearch: "Bolani ismi yoki ID orqali qidirish", save: "Saqlash", cancel: "Bekor qilish", close: "Yopish",
     empty: "Ro‘yxat bo‘sh.", loading: "Yuklanmoqda...", previous: "Oldingi", next: "Keyingi", noChildren: "Qo‘shilmagan bolalar topilmadi.",
@@ -17,6 +18,7 @@ const TEXT = {
       INVALID_CLIENTS: "Bazadan bolani tanlang.", ALREADY_ENROLLED: "Bola bu ro‘yxatga allaqachon qo‘shilgan.", NOT_FOUND: "Qator topilmadi. Ro‘yxatni yangilang.", MIGRATION_REQUIRED: "Ma’lumotlar bazasi migratsiyasini bajarish kerak." }
   },
   ru: {
+    action: "Действие",
     title: "Воспитатели", add: "Добавить ребёнка", child: "Ребёнок", name: "Воспитатель", phone: "Телефон", edit: "Редактировать", remove: "Удалить",
     search: "Поиск", searchHint: "Ребёнок, воспитатель или телефон", childSearch: "Поиск ребёнка по имени или ID", save: "Сохранить", cancel: "Отмена", close: "Закрыть",
     empty: "Список пуст.", loading: "Загрузка...", previous: "Назад", next: "Далее", noChildren: "Не добавленные дети не найдены.",
@@ -145,11 +147,11 @@ export default function CaregiversPanel({ canCreateUsers, canUpdateUsers, canDel
     </CompactDialog>}
     {loading ? <p role="status">{ui.loading}</p> : <>
       <div className="all-users-table-wrap"><table className="all-users-table">
-        <colgroup><col className="caregiver-col-id" /><col className="caregiver-col-children" /><col className="caregiver-col-name" /><col className="caregiver-col-phone" /><col className="caregiver-col-action" /><col className="caregiver-col-action" /></colgroup>
-        <thead><tr><th>ID</th><th>{ui.child}</th><th>{ui.name}</th><th>{ui.phone}</th><th>{ui.edit}</th><th>{ui.remove}</th></tr></thead>
+        <colgroup><col className="caregiver-col-id" /><col className="caregiver-col-children" /><col className="caregiver-col-name" /><col className="caregiver-col-phone" /><col className="caregiver-col-action" /></colgroup>
+        <thead><tr><th>ID</th><th>{ui.child}</th><th>{ui.name}</th><th>{ui.phone}</th><th>{ui.action}</th></tr></thead>
         <tbody>{items.map((item) => <tr key={item.id}><td>{item.clientId}</td><td>{item.clientName}</td><td>{item.fullName || ui.unassigned}</td><td>{item.phone || "—"}</td>
-          <td><ActionIconButton disabled={!canUpdateUsers || saving} onClick={() => openForm(item)} label={ui.edit} icon="edit" /></td>
-          <td><ActionIconButton disabled={!canDeleteUsers || saving} onClick={() => { setError(""); setDeleteItem(item); }} label={ui.remove} icon="remove" /></td>
+          <td><div className="caregiver-row-actions"><ActionIconButton disabled={!canUpdateUsers || saving} onClick={() => openForm(item)} label={ui.edit} icon="edit" />
+          <ActionIconButton disabled={!canDeleteUsers || saving} onClick={() => { setError(""); setDeleteItem(item); }} label={ui.remove} icon="remove" /></div></td>
         </tr>)}</tbody>
       </table></div>
       {items.length === 0 && !error && <p className="all-users-state">{ui.empty}</p>}
