@@ -55,6 +55,14 @@
 .internal-lesson-grid { display: grid; grid-template-columns: repeat(var(--internal-days), minmax(140px, 1fr)); gap: 8px; min-width: calc(var(--internal-days) * 148px - 8px); align-items: start; }
 .internal-lesson-day { background: #f8fafc; border: 1px solid #e5ebf3; border-radius: 9px; padding: 8px; }
 .internal-lesson-day > h4 { margin: 0 0 8px; padding: 6px 0 10px; border-bottom: 1px solid #e5ebf3; font-size: 12px; font-weight: 600; text-align: center; color: #475569; }
+.internal-lesson-day-count { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; margin-left: 4px; padding: 1px 5px; border-radius: 5px; background: #e8eef6; color: #64748b; font-size: 10px; font-weight: 500; line-height: 1.5; }
+.internal-lesson-day.is-drop-target { outline: 2px dashed #3b82f6; outline-offset: -2px; background: #eff6ff; }
+.internal-lesson-card[draggable="true"] { cursor: grab; }
+.internal-lesson-card[draggable="true"]:active { cursor: grabbing; }
+.internal-lesson-card.is-selected { outline: 2px solid #2563eb; outline-offset: -2px; background: #dbeafe; }
+.internal-lesson-undo, .internal-lesson-bulk-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 10px; margin-bottom: 10px; border: 1px solid #dbeafe; border-radius: 8px; background: #eff6ff; font-size: 12px; }
+.internal-lesson-bulk-toolbar small { flex: 1 1 100%; color: #64748b; }
+.internal-lesson-replace-days { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 12px; }
 .internal-lesson-slots { display: flex; flex-direction: column; gap: 6px; }
 .internal-lesson-card { box-sizing: border-box; appearance: none; width: 100%; min-width: 0; height: 34px; min-height: 34px; max-height: 34px; flex-shrink: 0; overflow: hidden; border: 1px solid #d5e3f5; border-left: 3px solid #6095e6; border-radius: 7px; background: #fff; padding: 6px 8px; text-align: left; color: #334155; display: flex; flex-direction: column; justify-content: center; gap: 4px; cursor: pointer; font: inherit; }
 .internal-lesson-card strong, .internal-lesson-card > span { display: block; width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

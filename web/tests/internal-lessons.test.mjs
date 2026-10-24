@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { getInternalLessonCards, toggleInternalLessonDay, changeInternalLessonFilter } from "../src/pages/profile/internal-lessons.helpers.js";
+import { getInternalLessonCards, getInternalLessonDaySummary, toggleInternalLessonDay, changeInternalLessonFilter } from "../src/pages/profile/internal-lessons.helpers.js";
 import { useProfileAccess } from "../src/pages/profile/useProfileAccess.js";
 
 test("every day initially has five clickable places and grows beyond five lessons", () => {
@@ -11,6 +11,14 @@ test("every day initially has five clickable places and grows beyond five lesson
   assert.equal(getInternalLessonCards(lessons, 1).length, 6);
   assert.equal(getInternalLessonCards(lessons, 2).length, 5);
   assert.equal(getInternalLessonCards(lessons.slice(0, 1), 3).filter(Boolean).length, 1);
+});
+
+test("weekday progress counts journal marks per lesson while excluding empty slots and other days", () => {
+  const items = [{ id: 1, weekDays: [1, 3], completionByDay: { 1: true } },
+    { id: 2, weekDays: [1], completionByDay: { 1: false } }, { id: 3, weekDays: [3], completionByDay: { 3: true } }];
+  assert.deepEqual(getInternalLessonDaySummary(items, 1), { total: 2, completed: 1 });
+  assert.deepEqual(getInternalLessonDaySummary(items, 3), { total: 2, completed: 1 });
+  assert.deepEqual(getInternalLessonDaySummary(items, 7), { total: 0, completed: 0 });
 });
 
 test("removing weekdays leaves other days intact and can clear a card entirely", () => {

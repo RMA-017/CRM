@@ -48,7 +48,7 @@ export async function getInternalLessonOptions({ organizationId, db = pool }) {
 export async function listInternalLessons({ organizationId, clientId = null, specialistId = null, exportAll = false }) {
   if (!clientId && !specialistId && !exportAll) fail("SELECT_FILTER");
   const { rows } = await pool.query(
-    `SELECT l.id, l.client_id AS "clientId", l.specialist_id AS "specialistId", l.week_days AS "weekDays",
+    `SELECT l.id, l.revision, l.client_id AS "clientId", l.specialist_id AS "specialistId", l.week_days AS "weekDays",
        concat_ws(' ', c.first_name, c.last_name, c.middle_name) AS "clientName",
        COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS "specialistName", COALESCE(p.label, '') AS "positionName",
        COALESCE(completions.days, '{}'::jsonb) AS "completionByDay"

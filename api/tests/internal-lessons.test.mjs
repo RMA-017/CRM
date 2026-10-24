@@ -118,7 +118,7 @@ async function createApp(t, permissions, operation) {
   };
   const app = Fastify();
   app.addHook("preHandler", async (request) => {
-    request.authContext = { organizationId: 7, requester: { id: 1, role_id: 2, organization_id: 7 } };
+    request.authContext = { userId: 1, organizationId: 7, requester: { id: 1, role_id: 2, organization_id: 7 } };
   });
   await app.register(routes, { prefix: "/api/internal-lessons" });
   t.after(async () => { await app.close(); pool.query = originalQuery; clearRolePermissionsCache(); });
@@ -170,4 +170,37 @@ test("a nonexistent or foreign card cannot be deleted", async (t) => {
   });
   const response = await app.inject({ method: "DELETE", url: "/api/internal-lessons/999" });
   assert.equal(response.statusCode, 404);
+});
+
+test("bulk delete requires delete permission and action payloads require revision checks", async (t) => {
+  const app = await createApp(t, ["appointments.internal-lessons.update"], () => { throw new Error("No data writes expected"); });
+  const forbidden = await app.inject({ method: "POST", url: "/api/internal-lessons/actions",
+    payload: { kind: "bulkDelete", items: [{ id: 10, revision: 1 }] } });
+  assert.equal(forbidden.statusCode, 403);
+  for (const payload of [
+    { kind: "move", items: [{ id: 10 }], fromDay: 1, toDay: 3 },
+    { kind: "move", items: [{ id: 10, revision: 1 }], toDay: 3 },
+    { kind: "update", items: [{ id: 10, revision: 1 }] },
+    { kind: "delete", items: [{ id: 10, revision: 1 }, { id: 11, revision: 1 }] }
+  ]) assert.equal((await app.inject({ method: "POST", url: "/api/internal-lessons/actions", payload })).statusCode, 400);
+});
+
+test("create action validates payload and persists undo under the authenticated organization and user", async (t) => {
+  const app = await createApp(t, ["appointments.internal-lessons.create"], () => { throw new Error("Unexpected non-transaction query"); });
+  const calls = stubTransaction(t, (sql, params) => {
+    if (sql.includes("SELECT visible_week_days")) return { rows: [{ visible_week_days: [1, 3, 5] }] };
+    if (sql.includes("FROM internal_lesson_clients")) return { rows: [{ client_id: 4 }] };
+    if (sql.includes("FROM users u")) return { rows: [{ id: 8, active: true, role_active: true, specialist: true }] };
+    if (sql.startsWith("INSERT INTO internal_lessons")) return { rows: [{ id: 10, organization_id: 7, client_id: 4, specialist_id: 8, week_days: [1, 3], revision: 1 }] };
+    if (sql.startsWith("INSERT INTO internal_lesson_actions")) {
+      assert.deepEqual(params.slice(1, 4), [7, 1, "appointments.internal-lessons.create"]);
+      return { rows: [{ expires_at: new Date(Date.now() + 45000) }] };
+    }
+    return { rows: [] };
+  });
+  const response = await app.inject({ method: "POST", url: "/api/internal-lessons/actions", payload: { kind: "create", input } });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().changed, 1);
+  assert.match(response.json().undoToken, /^[\da-f-]{36}$/);
+  assert.equal(calls.at(-1).sql, "COMMIT");
 });
