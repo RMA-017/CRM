@@ -8,6 +8,7 @@ import "../../../css/components/internal-lessons.css";
 
 const TEXT = {
   uz: {
+    counts: "Bolalar / Tarbiyachilar",
     action: "Amal",
     title: "Tarbiyachilar", add: "Bola qo‘shish", child: "Bola", name: "Tarbiyachi", phone: "Telefon", edit: "Tahrirlash", remove: "O‘chirish",
     search: "Qidirish", searchHint: "Bola, tarbiyachi yoki telefon", childSearch: "Bolani ismi yoki ID orqali qidirish", save: "Saqlash", cancel: "Bekor qilish", close: "Yopish",
@@ -18,6 +19,7 @@ const TEXT = {
       INVALID_CLIENTS: "Bazadan bolani tanlang.", ALREADY_ENROLLED: "Bola bu ro‘yxatga allaqachon qo‘shilgan.", NOT_FOUND: "Qator topilmadi. Ro‘yxatni yangilang.", MIGRATION_REQUIRED: "Ma’lumotlar bazasi migratsiyasini bajarish kerak." }
   },
   ru: {
+    counts: "Дети / Воспитатели",
     action: "Действие",
     title: "Воспитатели", add: "Добавить ребёнка", child: "Ребёнок", name: "Воспитатель", phone: "Телефон", edit: "Редактировать", remove: "Удалить",
     search: "Поиск", searchHint: "Ребёнок, воспитатель или телефон", childSearch: "Поиск ребёнка по имени или ID", save: "Сохранить", cancel: "Отмена", close: "Закрыть",
@@ -112,7 +114,9 @@ export default function CaregiversPanel({ canCreateUsers, canUpdateUsers, canDel
   }
 
   return <section className="all-users-panel crm-compact-panel" id="caregiversPanel">
-    <div className="all-users-head"><h3>{ui.title}</h3><div className="all-users-head-actions">
+    <div className="all-users-head"><h3>{ui.title} <span className="caregiver-roster-count" title={ui.counts} aria-label={ui.counts}>
+      {loading ? "… / …" : `${items.length} / ${new Set(items.map((item) => item.caregiverId).filter(Boolean)).size}`}
+    </span></h3><div className="all-users-head-actions">
       <form className="panel-search-bar caregiver-header-search" onSubmit={(e) => { e.preventDefault(); setSearch(query); setRevision((v) => v + 1); }}>
         <input className="panel-search-input" type="search" aria-label={ui.searchHint} placeholder={ui.searchHint} value={query} onChange={(e) => setQuery(e.target.value)} />
         <ActionIconButton className="btn" type="submit" disabled={loading} label={ui.search} icon="search" />

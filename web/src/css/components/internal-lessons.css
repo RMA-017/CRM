@@ -11,7 +11,8 @@
 .internal-lesson-dialog input:not([type="checkbox"]), .internal-lesson-dialog select, .internal-lesson-dialog .custom-select-trigger { width: 100%; min-width: 0; height: 34px; min-height: 34px; padding: 0 10px; border: 1px solid #dce3ed; border-radius: 7px; background: #fff; font-size: 13px; line-height: normal; color: #334155; }
 .crm-compact-panel .custom-select-trigger, .internal-lesson-dialog .custom-select-trigger { padding-right: 30px; }
 .crm-compact-panel .panel-search-bar { display: flex; width: min(420px, 100%); align-items: center; gap: 8px; margin: 0 0 12px; }
-#caregiversPanel .caregiver-header-search { width: 260px; max-width: 100%; margin: 0; gap: 6px; }
+#caregiversPanel .caregiver-header-search { width: 340px; max-width: 100%; margin: 0; gap: 6px; }
+#caregiversPanel .caregiver-roster-count { display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 6px; background: #f1f5f9; color: #64748b; font-size: 12px; font-weight: 500; line-height: 1.5; white-space: nowrap; }
 #caregiversPanel .all-users-table { table-layout: fixed; min-width: 720px; }
 #caregiversPanel .caregiver-col-id { width: 48px; }
 #caregiversPanel .caregiver-col-name { width: 25%; }
