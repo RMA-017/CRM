@@ -1,3 +1,5 @@
+import { createPortal } from "react-dom";
+import { useEscapeKey } from "../../../lib/use-escape-key.js";
 import ActionIconButton from "../../../components/ActionIconButton.jsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import CompactDialog from "../../../components/CompactDialog.jsx";
@@ -74,10 +76,26 @@ function CorrectionDialog({ item, ui, busy, error, onClose, onConfirm }) {
 export default function InternalLessonJournalPanel({ access, onClose }) {
   const { language } = useI18n();
   const ui = TEXT[language] || TEXT.uz;
-  const emptyFilters = { q: "", dateFrom: "", dateTo: "", child: "", specialist: "", position: "" };
+  const emptyFilters = { dateFrom: "", dateTo: "", child: "", specialist: "", position: "" };
   const [draft, setDraft] = useState(emptyFilters);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [filterOptions, setFilterOptions] = useState({ child: [], specialist: [], position: [] });
+  const [filterOptionsLoading, setFilterOptionsLoading] = useState(false);
+  const [filterOptionsError, setFilterOptionsError] = useState(false);
+  useEffect(() => {
+    if (!filterOpen) return;
+    const controller = new AbortController();
+    setFilterOptionsLoading(true);
+    setFilterOptionsError(false);
+    request("/options", { signal: controller.signal }).then((data) => {
+      if (!controller.signal.aborted) setFilterOptions(data.filters || { child: [], specialist: [], position: [] });
+    }).catch(() => { if (!controller.signal.aborted) setFilterOptionsError(true); })
+      .finally(() => { if (!controller.signal.aborted) setFilterOptionsLoading(false); });
+    return () => controller.abort();
+  }, [filterOpen]);
   const [period, setPeriod] = useState("all");
+  const [appliedPeriod, setAppliedPeriod] = useState("all");
+  useEscapeKey(filterOpen, () => setFilterOpen(false));
   const [filters, setFilters] = useState(draft);
   const [page, setPage] = useState(1);
   const [revision, setRevision] = useState(0);
@@ -138,14 +156,19 @@ export default function InternalLessonJournalPanel({ access, onClose }) {
 
   return <section className="all-users-panel crm-compact-panel internal-journal-panel">
     <div className="all-users-head"><h3>{ui.title}</h3><div className="all-users-head-actions">
-      <ActionIconButton label={ui.filter} icon="filter" className="header-btn" aria-expanded={filterOpen} aria-controls="journalFilters" onClick={() => setFilterOpen(!filterOpen)}>
+      <ActionIconButton label={ui.filter} icon="filter" className="header-btn" aria-expanded={filterOpen} aria-controls="journalFilters" onClick={() => { setDraft({ ...filters }); setPeriod(appliedPeriod); setFilterOpen(true); }}>
         {Object.values(filters).some(Boolean) && <span className="action-icon-dot" aria-hidden="true" />}
       </ActionIconButton>
       <ActionIconButton type="button" className="header-btn" disabled={exporting || loading || Boolean(error)} onClick={exportAll} label={exporting ? ui.loading : ui.excel} icon="export" />
       <ActionIconButton type="button" className="header-btn" disabled={loading} onClick={() => setRevision((value) => value + 1)} label={ui.refresh} icon="refresh" />
       <ActionIconButton type="button" className="header-btn panel-close-btn"  onClick={onClose} label={ui.close} icon="close" />
     </div></div>
-    {filterOpen && <form id="journalFilters" className="internal-journal-filters" onSubmit={(event) => { event.preventDefault(); setPage(1); setFilters({ ...draft }); }}>
+    {filterOpen && typeof document !== "undefined" && createPortal(<>
+      <button type="button" className="login-overlay stacked-modal-overlay finance-modal-overlay" aria-label={ui.close} onClick={() => setFilterOpen(false)} />
+      <div id="journalFilters" role="dialog" aria-modal="true" aria-labelledby="journalFilterTitle" className="logout-confirm-modal all-users-edit-modal finance-modal journal-filter-modal">
+      <div className="journal-filter-head"><h3 id="journalFilterTitle">{ui.filter}</h3><ActionIconButton type="button" className="header-btn" label={ui.close} icon="close" onClick={() => setFilterOpen(false)} /></div>
+      <form className="auth-form" onSubmit={(event) => { event.preventDefault(); setPage(1); setFilters({ ...draft }); setAppliedPeriod(period); setFilterOpen(false); }}>
+      <div className="all-users-edit-fields settings-filter-grid journal-filter-grid">
       <label className="field">{ui.period}<select value={period} onChange={(e) => {
         const value = e.target.value;
         setPeriod(value);
@@ -156,15 +179,21 @@ export default function InternalLessonJournalPanel({ access, onClose }) {
         if (value === "month") start.setUTCDate(1);
         setDraft({ ...draft, dateFrom: value === "all" ? "" : start.toISOString().slice(0, 10), dateTo: value === "all" ? "" : today });
       }}><option value="all">{ui.all}</option><option value="today">{ui.today}</option><option value="week">{ui.week}</option><option value="month">{ui.month}</option><option value="custom">{ui.custom}</option></select></label>
-      <label className="field">{ui.from}<input type="date" value={draft.dateFrom} max={draft.dateTo || undefined} onChange={(e) => { setPeriod("custom"); setDraft({ ...draft, dateFrom: e.target.value }); }} /></label>
-      <label className="field">{ui.to}<input type="date" value={draft.dateTo} min={draft.dateFrom || undefined} onChange={(e) => { setPeriod("custom"); setDraft({ ...draft, dateTo: e.target.value }); }} /></label>
-      {["child", "specialist", "position"].map((key) => <label className="field" key={key}>{ui[key]}<input type="search" maxLength={255} value={draft[key]} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} /></label>)}
-      <label className="field">{ui.search}<input type="search" maxLength={255} placeholder={ui.placeholder} value={draft.q} onChange={(e) => setDraft({ ...draft, q: e.target.value })} /></label>
-      <div className="compact-filter-actions">
+      <div className="journal-filter-date-row"><label className="field">{ui.from}<input type="date" value={draft.dateFrom} max={draft.dateTo || undefined} onChange={(e) => { setPeriod("custom"); setDraft({ ...draft, dateFrom: e.target.value }); }} /></label>
+      <label className="field">{ui.to}<input type="date" value={draft.dateTo} min={draft.dateFrom || undefined} onChange={(e) => { setPeriod("custom"); setDraft({ ...draft, dateTo: e.target.value }); }} /></label></div>
+      {["child", "specialist", "position"].map((key) => <div className="field" key={key}><span>{ui[key]}</span>
+        <CustomSelect value={draft[key]} options={[{ value: "", label: ui.all },
+          ...(draft[key] && !filterOptions[key].includes(draft[key]) ? [draft[key]] : []), ...filterOptions[key]]
+          .map((value) => typeof value === "string" ? { value, label: value } : value)}
+          placeholder={ui.all} searchable searchPlaceholder={ui.search} emptyText={filterOptionsLoading ? ui.loading : ui.empty}
+          disabled={filterOptionsLoading || filterOptionsError} menuPortal onChange={(value) => setDraft({ ...draft, [key]: value })} />
+      </div>)}
+      {filterOptionsError && <p role="alert" className="internal-lesson-error">{ui.failure}</p>}
+      </div><div className="edit-actions">
       <ActionIconButton type="submit" className="btn" disabled={loading} label={ui.apply} icon="check" />
-      <ActionIconButton type="button" className="header-btn" disabled={loading} onClick={() => { setDraft(emptyFilters); setFilters(emptyFilters); setPeriod("all"); setPage(1); }} label={ui.reset} icon="reset" />
+      <ActionIconButton type="button" className="header-btn" disabled={loading} onClick={() => { setDraft(emptyFilters); setPeriod("all"); }} label={ui.reset} icon="reset" />
       </div>
-    </form>}
+    </form></div></>, document.body)}
     {error && <p role="alert" className="internal-lesson-error">{error}</p>}
     {loading ? <p role="status">{ui.loading}</p> : <>
       <div className="all-users-table-wrap"><table className="all-users-table">

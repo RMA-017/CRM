@@ -38,7 +38,7 @@ export default async function caregiversRoutes(fastify) {
   fastify.get("/by-phone", { config, schema: { querystring: { type: "object", required: ["phone"], properties: { phone: { type: "string", maxLength: 40 } } } } }, handler(PERMISSIONS.USERS_READ, (request) =>
     getCaregiverContact({ organizationId: request.authContext.organizationId, phone: request.query.phone })));
   fastify.get("/", { config, schema: { querystring: querySchema } }, handler(PERMISSIONS.USERS_READ, async (request) =>
-    listCaregivers({ organizationId: request.authContext.organizationId, search: request.query.q || "", page: request.query.page || 1 })));
+    listCaregivers({ organizationId: request.authContext.organizationId, search: request.query.q || "" })));
   fastify.get("/clients", { config, schema: { querystring: querySchema } }, handler(PERMISSIONS.USERS_READ, async (request) =>
     searchCaregiverClients({ organizationId: request.authContext.organizationId, search: request.query.q || "", page: request.query.page || 1 })));
   fastify.post("/", { config, schema: { body: { ...bodySchema, required: [...bodySchema.required, "clientId"], properties: { ...bodySchema.properties, clientId: { type: "integer", minimum: 1, maximum: 2147483647 } } } } }, handler(PERMISSIONS.USERS_CREATE, async (request, reply) => {

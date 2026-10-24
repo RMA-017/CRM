@@ -81,7 +81,16 @@ export async function getInternalJournalOptions({ organizationId }) {
     WHERE u.organization_id = $1 AND (LOWER(CONCAT_WS(' ', r.label, p.label)) LIKE ANY(ARRAY['%specialist%', '%spetsialist%', '%mutaxassis%', '%специалист%'])
       OR EXISTS (SELECT 1 FROM internal_lesson_completions j WHERE j.organization_id = u.organization_id AND j.source_specialist_id = u.id))
     ORDER BY LOWER(COALESCE(NULLIF(TRIM(u.full_name), ''), u.username)), u.id`, [organizationId]);
-  return { clients: clients.rows, specialists: specialists.rows };
+  const journal = await pool.query(`SELECT DISTINCT
+    COALESCE(NULLIF(TRIM(concat_ws(' ', c.first_name, c.last_name, c.middle_name)), ''), j.journal_client_name, j.client_name) AS child,
+    COALESCE(j.journal_specialist_name, j.specialist_name) AS specialist,
+    COALESCE(j.journal_position_name, j.position_name) AS position
+    FROM internal_lesson_completions j LEFT JOIN clients c ON c.organization_id = j.organization_id
+      AND c.id = COALESCE(j.journal_client_id, j.client_id)
+    WHERE j.organization_id = $1 AND j.completed`, [organizationId]);
+  const values = (key) => [...new Set(journal.rows.map((row) => row[key]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  return { clients: clients.rows, specialists: specialists.rows,
+    filters: { child: values("child"), specialist: values("specialist"), position: values("position") } };
 }
 
 export async function editInternalJournalEntry({ organizationId, id, date, clientId, specialistId, expectedVersion, actorUserId }) {

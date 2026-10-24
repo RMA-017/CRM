@@ -13,7 +13,7 @@ export function normalizeCaregiverInput(body = {}) {
   return { fullName, phone: phone ? normalizePhoneNumber(phone) : "", phoneDigits: phone ? normalizePhoneDigits(phone) : "", clientId: body.clientId };
 }
 
-export async function listCaregivers({ organizationId, search = "", page = 1 }) {
+export async function listCaregivers({ organizationId, search = "" }) {
   const params = [organizationId, `%${search}%`];
   // Enrollment remains the source of the child roster, including legacy unassigned children.
   const join = `FROM internal_lesson_clients enrollment
@@ -24,15 +24,11 @@ export async function listCaregivers({ organizationId, search = "", page = 1 }) 
       ORDER BY cg.is_active DESC, cg.id LIMIT 1) cg ON TRUE`;
   const where = `enrollment.organization_id = $1 AND (concat_ws(' ', c.first_name, c.last_name, c.middle_name) ILIKE $2
     OR cg.full_name ILIKE $2 OR cg.phone_number ILIKE $2 OR c.id::text ILIKE $2)`;
-  const count = await pool.query(`SELECT COUNT(*)::integer AS total ${join} WHERE ${where}`, params);
-  const total = count.rows[0].total;
-  const totalPages = Math.max(1, Math.ceil(total / 20));
-  const safePage = Math.min(page, totalPages);
   const { rows } = await pool.query(`SELECT c.id, c.id AS "clientId",
     concat_ws(' ', c.first_name, c.last_name, c.middle_name) AS "clientName",
     cg.id AS "caregiverId", COALESCE(cg.full_name, enrollment.caregiver_name, '') AS "fullName", COALESCE(cg.phone_number, '') AS phone
-    ${join} WHERE ${where} ORDER BY LOWER(c.last_name), LOWER(c.first_name), c.id LIMIT 20 OFFSET $3`, [...params, (safePage - 1) * 20]);
-  return { items: rows, pagination: { page: safePage, totalPages, total } };
+    ${join} WHERE ${where} ORDER BY LOWER(c.last_name), LOWER(c.first_name), c.id`, params);
+  return { items: rows };
 }
 
 export async function searchCaregiverClients({ organizationId, search = "", page = 1 }) {

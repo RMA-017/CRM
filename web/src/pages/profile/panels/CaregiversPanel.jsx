@@ -39,8 +39,8 @@ async function request(path, options) {
 export default function CaregiversPanel({ canCreateUsers, canUpdateUsers, canDeleteUsers, onClose }) {
   const { language } = useI18n();
   const ui = TEXT[language] || TEXT.uz;
-  const [items, setItems] = useState([]), [pagination, setPagination] = useState({ page: 1, totalPages: 1 });
-  const [query, setQuery] = useState(""), [search, setSearch] = useState(""), [page, setPage] = useState(1);
+  const [items, setItems] = useState([]);
+  const [query, setQuery] = useState(""), [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true), [error, setError] = useState(""), [revision, setRevision] = useState(0);
   const [form, setForm] = useState(null), [saving, setSaving] = useState(false), [deleteItem, setDeleteItem] = useState(null);
   const [clientSearch, setClientSearch] = useState(""), [clientPage, setClientPage] = useState(1);
@@ -51,12 +51,12 @@ export default function CaregiversPanel({ canCreateUsers, canUpdateUsers, canDel
 
   useEffect(() => {
     const controller = new AbortController(); setLoading(true); setError("");
-    request(`/?${new URLSearchParams({ q: search, page: String(page) })}`, { signal: controller.signal })
-      .then((data) => { if (!controller.signal.aborted) { setItems(data.items); setPagination(data.pagination); } })
+    request(`/?${new URLSearchParams({ q: search })}`, { signal: controller.signal })
+      .then((data) => { if (!controller.signal.aborted) { setItems(data.items); } })
       .catch((err) => { if (!controller.signal.aborted) setError(errorText(err.message)); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [search, page, revision, errorText]);
+  }, [search, revision, errorText]);
 
   const creating = Boolean(form && !form.id);
   const canSearchClients = clientSearch.trim().length >= 3;
@@ -113,7 +113,7 @@ export default function CaregiversPanel({ canCreateUsers, canUpdateUsers, canDel
 
   return <section className="all-users-panel crm-compact-panel" id="caregiversPanel">
     <div className="all-users-head"><h3>{ui.title}</h3><div className="all-users-head-actions">
-      <form className="panel-search-bar caregiver-header-search" onSubmit={(e) => { e.preventDefault(); setSearch(query); setPage(1); setRevision((v) => v + 1); }}>
+      <form className="panel-search-bar caregiver-header-search" onSubmit={(e) => { e.preventDefault(); setSearch(query); setRevision((v) => v + 1); }}>
         <input className="panel-search-input" type="search" aria-label={ui.searchHint} placeholder={ui.searchHint} value={query} onChange={(e) => setQuery(e.target.value)} />
         <ActionIconButton className="btn" type="submit" disabled={loading} label={ui.search} icon="search" />
       </form>
@@ -155,7 +155,6 @@ export default function CaregiversPanel({ canCreateUsers, canUpdateUsers, canDel
         </tr>)}</tbody>
       </table></div>
       {items.length === 0 && !error && <p className="all-users-state">{ui.empty}</p>}
-      <div className="all-users-pagination"><ActionIconButton disabled={pagination.page <= 1} onClick={() => setPage(pagination.page - 1)} label={ui.previous} icon="previous" /><span>{pagination.page} / {pagination.totalPages}</span><ActionIconButton disabled={pagination.page >= pagination.totalPages} onClick={() => setPage(pagination.page + 1)} label={ui.next} icon="next" /></div>
     </>}
   </section>;
 }

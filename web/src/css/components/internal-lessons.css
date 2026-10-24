@@ -33,7 +33,8 @@
   #caregiversPanel .caregiver-header-search { flex: 1; min-width: 0; width: auto; }
 }
 .crm-compact-panel .all-users-table-wrap { max-height: min(62vh, 640px); border: 1px solid var(--compact-border); border-radius: 8px; }
-#caregiversPanel > .all-users-table-wrap { height: auto; max-height: none; overflow-x: auto; overflow-y: visible; }
+#caregiversPanel .all-users-table-wrap,
+.internal-journal-panel .all-users-table-wrap { height: auto; max-height: none; overflow-x: auto; overflow-y: visible; }
 .crm-compact-panel .all-users-table { width: 100%; min-width: 640px; }
 .crm-compact-panel .all-users-table th, .crm-compact-panel .all-users-table td { height: auto; padding: 9px 12px; line-height: 1.4; font-size: 12px; border-bottom: 1px solid #edf1f6; }
 .crm-compact-panel .all-users-table th { z-index: 1; background: #f8fafc; color: #64748b; font-size: 11px; font-weight: 600; }
@@ -97,6 +98,12 @@ dialog.journal-correction-dialog { width: min(360px, calc(100vw - 24px)); }
 .caregiver-child-options label:hover { background: #f8fafc; }
 .internal-lesson-dialog .all-users-pagination { margin-top: 8px; }
 .internal-journal-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-items: end; padding: 12px; margin: 12px 0; border: 1px solid #e2e8f0; border-radius: 9px; background: #f8fafc; }
+#journalFilters.journal-filter-modal { width: min(560px, calc(100vw - 32px)); height: auto; min-height: 0; max-height: min(680px, calc(100dvh - 24px)); grid-template-rows: auto minmax(0, auto); }
+#journalFilters .journal-filter-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+#journalFilters .journal-filter-head h3 { margin: 0; }
+#journalFilters .auth-form { grid-template-rows: minmax(0, auto) auto; }
+#journalFilters .all-users-edit-fields.settings-filter-grid.journal-filter-grid { grid-template-columns: 1fr; align-content: start; margin: 0; padding: 0; border: 0; box-shadow: none; background: transparent; }
+#journalFilters .journal-filter-date-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; min-width: 0; }
 .internal-journal-filters .action-icon-button { align-self: end; }
 .compact-filter-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 6px; padding-top: 8px; border-top: 1px solid #e2e8f0; }
 .internal-journal-time { display: block; color: #94a3b8; margin-top: 2px; font-size: 10px; }
@@ -105,6 +112,7 @@ dialog.journal-correction-dialog { width: min(360px, calc(100vw - 24px)); }
 .journal-row-actions { display: flex; gap: 6px; }
 .internal-journal-panel .journal-row-actions .action-icon-button { margin-left: 0; }
 .internal-journal-panel .all-users-table { table-layout: fixed; min-width: 700px; }
+.internal-journal-panel .all-users-table th, .internal-journal-panel .all-users-table td { padding-top: 5px; padding-bottom: 5px; }
 .internal-journal-panel .journal-col-date { width: 110px; }
 .internal-journal-panel .journal-col-id { width: 70px; }
 .internal-journal-panel .journal-col-child { width: 30%; }
