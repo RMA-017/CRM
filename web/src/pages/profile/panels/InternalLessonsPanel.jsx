@@ -283,20 +283,21 @@ export default function InternalLessonsPanel({ access, onClose }) {
       </div>
     </div>
       <div className="all-users-head-actions">
+        <div className="internal-lesson-selection-controls">
+    {selectionMode && <div className="internal-lesson-bulk-toolbar" role="group" aria-label={ui.selected} title={ui.allDaysNotice}>
+      <span className="internal-lesson-selection-count" aria-label={`${ui.selected}: ${selected.length}`}>{selected.length}</span>
+      <ActionIconButton className="header-btn" label={ui.selectAll} icon="check" disabled={saving || loading} onClick={() => setSelected(items.map((item) => item.id))} />
+      {access.update && <ActionIconButton className="header-btn" label={ui.bulkEdit} icon="edit" disabled={saving || !selected.length} onClick={() => openBulk("bulkUpdate")} />}
+      {access.delete && <ActionIconButton className="header-btn" label={ui.bulkDelete} icon="remove" disabled={saving || !selected.length} onClick={() => openBulk("bulkDelete")} />}
+    </div>}
         {hasSelection && (access.update || access.delete) && <ActionIconButton className="header-btn" label={selectionMode ? ui.clearSelection : ui.selectMode} icon={selectionMode ? "close" : "check"}
           disabled={saving || loading} aria-pressed={selectionMode} onClick={() => { setSelectionMode((value) => !value); setSelected([]); }} />}
-        <ActionIconButton type="button" className="header-btn internal-lesson-export" disabled={exporting} onClick={exportAll} label={exporting ? ui.loading : language === "ru" ? "Экспорт всех данных в Excel" : "Barchasini Excel’ga eksport"} icon="export" />
+        </div>
+        <ActionIconButton type="button" className="header-btn" disabled={exporting} onClick={exportAll} label={exporting ? ui.loading : language === "ru" ? "Экспорт всех данных в Excel" : "Barchasini Excel’ga eksport"} icon="export" />
         <ActionIconButton type="button" className="header-btn" disabled={loading || optionsLoading || saving} onClick={() => { setSelected([]); setRevision((value) => value + 1); }} label={ui.retry} icon="refresh" />
         <ActionIconButton type="button" className="header-btn panel-close-btn"  onClick={onClose} label={ui.close} icon="close" />
       </div>
     </div>
-    {selectionMode && <div className="internal-lesson-bulk-toolbar">
-      <span>{ui.selected}: {selected.length}</span>
-      <ActionIconButton className="header-btn" label={ui.selectAll} icon="check" disabled={saving || loading} onClick={() => setSelected(items.map((item) => item.id))} />
-      {access.update && <ActionIconButton className="header-btn" label={ui.bulkEdit} icon="edit" disabled={saving || !selected.length} onClick={() => openBulk("bulkUpdate")} />}
-      {access.delete && <ActionIconButton className="header-btn" label={ui.bulkDelete} icon="remove" disabled={saving || !selected.length} onClick={() => openBulk("bulkDelete")} />}
-      <small>{ui.allDaysNotice}</small>
-    </div>}
     {(optionsError || listError) && <p role="alert" className="internal-lesson-error">{optionsError || listError}</p>}
     {actionError && <p role="alert" className="internal-lesson-error">{actionError}</p>}
     {optionsLoading ? <p role="status">{ui.loading}</p> : optionsError ? null : <>
