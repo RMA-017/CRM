@@ -11,6 +11,7 @@ import "../../../css/components/internal-lessons.css";
 
 const TEXT = {
   uz: {
+    position: "Lavozim",
     selectMode: "Bir nechta darsni tanlash", selected: "Tanlangan darslar", selectAll: "Barchasini tanlash", clearSelection: "Tanlashni tugatish",
     bulkEdit: "Tanlangan darslarni o‘zgartirish", bulkDelete: "Tanlangan darslarni o‘chirish", keepCurrent: "O‘zgartirmaslik",
     allDaysNotice: "Tanlangan darslarning barcha hafta kunlariga ta’sir qiladi.", completedCount: "Joriy haftada bajarilgan / jami",
@@ -33,6 +34,7 @@ const TEXT = {
       DATA_CHANGED: "Ma’lumotlar o‘zgargan. Jadvalni yangilang.", "Forbidden.": "Bu amal uchun ruxsat yo‘q." }
   },
   ru: {
+    position: "Должность",
     selectMode: "Выбрать несколько занятий", selected: "Выбрано занятий", selectAll: "Выбрать все", clearSelection: "Завершить выбор",
     bulkEdit: "Изменить выбранные занятия", bulkDelete: "Удалить выбранные занятия", keepCurrent: "Не изменять",
     allDaysNotice: "Изменения затронут все дни недели выбранных занятий.", completedCount: "Выполнено за текущую неделю / всего",
@@ -137,10 +139,10 @@ export default function InternalLessonsPanel({ access, onClose }) {
     try {
       const data = await request("/export");
       exportExcelWorkbook(buildExportFilename("school-kindergarten"), [{ name: ui.title, rows: [
-        ["ID", ui.child, ui.specialist, ...[1, 2, 3, 4, 5, 6, 7].map((day) => ui.dayNames[day])],
+        ["ID", ui.child, ui.specialist, ui.position, ...[1, 2, 3, 4, 5, 6].map((day) => ui.dayNames[day])],
         ...data.items.map((item) => [item.clientId, item.clientName,
-          `${item.specialistName}${item.positionName ? `-${item.positionName}` : ""}`,
-          ...[1, 2, 3, 4, 5, 6, 7].map((day) => item.weekDays.includes(day) ? 1 : "")])
+          item.specialistName, item.positionName || "",
+          ...[1, 2, 3, 4, 5, 6].map((day) => item.weekDays.includes(day) ? 1 : "")])
       ] }]);
     } catch (err) { setListError(ui.errors[err.message] || ui.failure); }
     finally { setExporting(false); }
