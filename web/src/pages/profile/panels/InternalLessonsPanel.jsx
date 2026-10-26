@@ -11,6 +11,7 @@ import "../../../css/components/internal-lessons.css";
 
 const TEXT = {
   uz: {
+    showPositions: "Lavozimlarni ko‘rsatish", showNames: "Mutaxassis ismlarini ko‘rsatish",
     position: "Lavozim",
     selectMode: "Bir nechta darsni tanlash", selected: "Tanlangan darslar", selectAll: "Barchasini tanlash", clearSelection: "Tanlashni tugatish",
     bulkEdit: "Tanlangan darslarni o‘zgartirish", bulkDelete: "Tanlangan darslarni o‘chirish", keepCurrent: "O‘zgartirmaslik",
@@ -34,6 +35,7 @@ const TEXT = {
       DATA_CHANGED: "Ma’lumotlar o‘zgargan. Jadvalni yangilang.", "Forbidden.": "Bu amal uchun ruxsat yo‘q." }
   },
   ru: {
+    showPositions: "Показать должности", showNames: "Показать имена специалистов",
     position: "Должность",
     selectMode: "Выбрать несколько занятий", selected: "Выбрано занятий", selectAll: "Выбрать все", clearSelection: "Завершить выбор",
     bulkEdit: "Изменить выбранные занятия", bulkDelete: "Удалить выбранные занятия", keepCurrent: "Не изменять",
@@ -89,7 +91,7 @@ function LessonEditor({ form, setForm, options, ui, access, saving, error, onSav
           </div>}
           {form.fixedField !== "specialistId" && <div className="field"><span>{ui.specialist}</span>
             <CustomSelect value={form.specialistId} onChange={(value) => setForm({ ...form, specialistId: value })}
-              options={specialistOptions.map((s) => ({ value: String(s.id), label: `${s.name}${s.isActive ? "" : ` (${ui.inactive})`}` }))}
+              options={specialistOptions.map((s) => ({ value: String(s.id), label: `${s.name}${s.isActive ? "" : ` (${ui.inactive})`}`, endLabel: s.positionName }))}
               placeholder={ui.chooseSpecialist} searchable searchPlaceholder={ui.search} emptyText={ui.noOptions}
               disabled={saving || !editable} />
           </div>}
@@ -128,6 +130,7 @@ export default function InternalLessonsPanel({ access, onClose }) {
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
+  const [showPositions, setShowPositions] = useState(false);
   const [selected, setSelected] = useState([]);
   const [bulk, setBulk] = useState(null);
   const [dragOverDay, setDragOverDay] = useState(null);
@@ -252,6 +255,7 @@ export default function InternalLessonsPanel({ access, onClose }) {
   }
 
   function renderCard(item, index, day) {
+    const cardLabel = item ? specialistMode ? item.clientName : showPositions ? item.positionName || "—" : item.specialistName : "";
     return item ? <button type="button" key={item.id} className={`internal-lesson-card ${item.completionByDay?.[day] ? "is-confirmed" : "is-pending"} ${selectionMode && selected.includes(item.id) ? "is-selected" : ""}`}
       disabled={saving} draggable={access.update && !saving && !selectionMode}
       aria-pressed={selectionMode ? selected.includes(item.id) : undefined}
@@ -261,10 +265,10 @@ export default function InternalLessonsPanel({ access, onClose }) {
       onClick={() => { if (Date.now() < suppressClickUntil.current) return;
         if (selectionMode) setSelected((current) => current.includes(item.id) ? current.filter((id) => id !== item.id) : [...current, item.id]);
         else openEditor(day, item); }}>
-      <strong title={specialistMode ? item.clientName : item.specialistName}>{specialistMode ? item.clientName : item.specialistName}</strong>
+      <strong title={item && !specialistMode ? [item.specialistName, item.positionName].filter(Boolean).join(" · ") : cardLabel}>{cardLabel}</strong>
     </button> : <button type="button" key={`empty-${index}`} className="internal-lesson-card is-empty"
       disabled={!access.create} aria-label={`${ui.add}: ${ui.dayNames[day]}, ${index + 1}`}
-      onClick={() => openEditor(day)}><span aria-hidden="true">+</span></button>;
+      onClick={() => openEditor(day)}><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 5v14M5 12h14" /></svg></button>;
   }
 
   return <section className="all-users-panel crm-compact-panel internal-lessons-panel">
@@ -280,11 +284,13 @@ export default function InternalLessonsPanel({ access, onClose }) {
       <div className="field"><span>{ui.specialist}</span>
         <CustomSelect value={filter.specialistId} onChange={(value) => changeFilter("specialistId", value)}
           maxVisibleOptions={12}
-          options={options.specialists.map((s) => ({ value: String(s.id), label: `${s.name}${s.isActive ? "" : ` (${ui.inactive})`}` }))}
+          options={options.specialists.map((s) => ({ value: String(s.id), label: `${s.name}${s.isActive ? "" : ` (${ui.inactive})`}`, endLabel: s.positionName }))}
           placeholder={ui.chooseSpecialist} disabled={optionsLoading || Boolean(optionsError)} searchable searchPlaceholder={ui.search} emptyText={ui.noOptions} />
       </div>
     </div>
       <div className="all-users-head-actions">
+        {filter.clientId && <ActionIconButton className="header-btn" icon="swap" aria-pressed={showPositions}
+          label={showPositions ? ui.showNames : ui.showPositions} onClick={() => setShowPositions((value) => !value)} />}
         <div className="internal-lesson-selection-controls">
     {selectionMode && <div className="internal-lesson-bulk-toolbar" role="group" aria-label={ui.selected} title={ui.allDaysNotice}>
       <span className="internal-lesson-selection-count" aria-label={`${ui.selected}: ${selected.length}`}>{selected.length}</span>

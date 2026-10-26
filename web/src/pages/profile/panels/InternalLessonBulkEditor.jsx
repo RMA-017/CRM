@@ -19,7 +19,7 @@ export default function InternalLessonBulkEditor({ bulk, options, ui, busy, erro
       {!deleting && <>
         <div className="field"><span>{ui.specialist}</span><CustomSelect value={specialistId} onChange={setSpecialistId}
           disabled={busy} searchable menuPortal maxVisibleOptions={10} placeholder={ui.keepCurrent} searchPlaceholder={ui.search}
-          options={[{ value: "", label: ui.keepCurrent }, ...options.specialists.filter((s) => s.isActive).map((s) => ({ value: String(s.id), label: s.name }))]} />
+          options={[{ value: "", label: ui.keepCurrent }, ...options.specialists.filter((s) => s.isActive).map((s) => ({ value: String(s.id), label: s.name, endLabel: s.positionName }))]} />
         </div>
         <fieldset className="internal-lesson-days" disabled={busy}><legend>{ui.days}</legend>
           {days.map((day) => {

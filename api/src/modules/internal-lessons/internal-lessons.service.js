@@ -34,7 +34,7 @@ export async function getInternalLessonOptions({ organizationId, db = pool }) {
   );
   // Keep inactive specialists with existing lessons visible; new assignments require active specialists.
   const specialists = await db.query(
-    `SELECT u.id, COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS name,
+    `SELECT u.id, COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) AS name, COALESCE(p.label, '') AS "positionName",
        (COALESCE(u.is_active, TRUE) AND r.is_active AND ${SPECIALIST_FILTER}) AS "isActive"
        FROM users u JOIN role_options r ON r.id = u.role_id LEFT JOIN position_options p ON p.id = u.position_id
        WHERE u.organization_id = $1 AND (

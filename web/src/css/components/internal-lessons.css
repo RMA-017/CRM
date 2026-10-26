@@ -85,8 +85,8 @@
 .internal-lesson-card:hover { border-color: #93b6e8; background: #f0f6ff; }
 .internal-lesson-card.is-pending { border-left-color: rgba(217, 119, 6, 0.7); }
 .internal-lesson-card.is-confirmed { border-left-color: rgba(5, 150, 105, 0.7); }
-.internal-lesson-card.is-empty { border: 1px dashed #dce3ed; background: transparent; align-items: center; text-align: center; color: #a5b4c7; }
-.internal-lesson-card.is-empty > span { font-size: 20px; color: inherit; }
+.internal-lesson-card.is-empty { border: 1px dashed #dce3ed; background: transparent; align-items: center; justify-content: center; padding: 0; text-align: center; color: #a5b4c7; }
+.internal-lesson-card.is-empty > svg { display: block; flex-shrink: 0; }
 .internal-lesson-card:disabled { opacity: .45; cursor: default; }
 .crm-compact-panel .internal-lesson-add { display: flex; margin: 8px auto 0; width: 30px; min-width: 30px; height: 28px; padding: 5px; border-style: dashed; background: transparent; color: #64748b; }
 .internal-lesson-error { color: #b42318; padding: 9px 12px; background: #fff4f2; border: 1px solid #fee4e2; border-radius: 7px; font-size: 12px; line-height: 1.5; }

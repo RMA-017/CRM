@@ -88,7 +88,7 @@ function CustomSelect({
       return normalizedOptions;
     }
 
-    return normalizedOptions.filter((option) => String(option?.label || "").toLowerCase().includes(query));
+    return normalizedOptions.filter((option) => [option?.label, option?.endLabel].filter(Boolean).join(" ").toLowerCase().includes(query));
   }, [normalizedOptions, searchQuery, shouldShowSearch]);
 
   const selectedLabel = useMemo(() => {
@@ -310,7 +310,7 @@ function CustomSelect({
               <button
                 key={option.value}
                 type="button"
-                className={`custom-select-option${multiple ? " has-check" : ""}`}
+                className={`custom-select-option${multiple ? " has-check" : ""}${option.endLabel ? " has-end-label" : ""}`}
                 aria-selected={isSelected ? "true" : "false"}
                 onClick={() => {
                   if (multiple) {
@@ -325,6 +325,7 @@ function CustomSelect({
                   <span className="custom-select-option-check" aria-hidden="true" />
                 ) : null}
                 <span className="custom-select-option-label">{option.label}</span>
+                {option.endLabel && <span className="custom-select-option-end-label" title={option.endLabel}>{option.endLabel}</span>}
               </button>
             );
           })
