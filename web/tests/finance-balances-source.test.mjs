@@ -39,7 +39,7 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     balancesPanelSource,
-    /label: "Operation Number"[\s\S]*render: \(item\) => item\.id \? `#\$\{item\.id\}` : "-"[\s\S]*label: "Note"[\s\S]*getClientLedgerNote\(translate, item\)/s,
+    /label: "Operation Number"[\s\S]*render: \(item\) => item\.id \? `#\$\{item\.id\}` : "-"[\s\S]*label: "Note"[\s\S]*getClientLedgerNote\(item\)/s,
     "Client ledger modal should include operation numbers and cancellation-aware notes."
   );
 

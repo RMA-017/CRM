@@ -97,18 +97,24 @@ function getClientLedgerCashOutUzs(item) {
   return String(item?.direction || "") === "out" ? toIntegerAmount(item?.amountUzs) : 0;
 }
 
-function getClientLedgerNote(translate, item) {
-  const note = String(item?.note || "").trim();
+function getClientLedgerNote(item) {
   const metadata = item?.metadata && typeof item.metadata === "object" ? item.metadata : {};
-  const voidReason = String(metadata.voidReason || "").trim();
+  const note = String(item?.note || "").trim();
   const reversalReason = String(metadata.reversalReason || metadata.reversal_reason || "").trim();
-  if (isTransactionReversed(item)) {
-    const correctedText = reversalReason ? `${translate("Corrected")}: ${reversalReason}` : translate("Corrected");
-    return note ? `${note} | ${correctedText}` : correctedText;
-  }
-  if (String(item?.status || "") !== "voided") return note || "-";
-  const cancelledText = voidReason ? `${translate("Cancelled")}: ${voidReason}` : translate("Cancelled");
-  return note ? `${note} | ${cancelledText}` : cancelledText;
+  const originalId = metadata.reversedTransactionId || metadata.reversed_transaction_id;
+  const generatedNote = note.match(/^Correction for transaction #(\d+):\s*([\s\S]*)$/);
+  const isCorrection = Boolean(originalId || generatedNote);
+  const cancelled = String(item?.status || "") === "voided" || isTransactionReversed(item);
+  const operationId = originalId || generatedNote?.[1] || (cancelled ? item?.id : null);
+  const reason = isCorrection
+    ? String(metadata.reason || generatedNote?.[2] || "").trim()
+    : reversalReason || String(metadata.voidReason || "").trim();
+  const originalNote = generatedNote ? "" : note;
+  return [...new Set([
+    operationId ? `#${operationId}` : "",
+    originalNote,
+    reason
+  ].filter(Boolean))].join(" | ") || "-";
 }
 
 function getDepositSourceRows(items, currentDepositUzs) {
@@ -274,8 +280,8 @@ function FinanceBalancesPanel({ onClose }) {
       label: "Note",
       className: "finance-client-ledger-col-note",
       widthPx: 210,
-      render: (item) => getClientLedgerNote(translate, item),
-      exportValue: (item) => getClientLedgerNote(translate, item)
+      render: (item) => getClientLedgerNote(item),
+      exportValue: (item) => getClientLedgerNote(item)
     }
   ];
 
