@@ -108,6 +108,9 @@ export const MESSAGES = Object.freeze({
 });
 
 export const LITERAL_TRANSLATIONS = Object.freeze([
+  { en: "Current client discounts", uz: "Bolaning amaldagi chegirmalari", ru: "Актуальные скидки клиента" },
+  { en: "No current client discounts.", uz: "Amaldagi chegirmalar yo‘q.", ru: "Актуальных скидок нет." },
+  { en: "Failed to load client discounts.", uz: "Bolaning chegirmalarini yuklab bo‘lmadi.", ru: "Не удалось загрузить скидки клиента." },
   { en: "Actions", uz: "Amallar", ru: "Действия" },
   { en: "All", uz: "Barchasi", ru: "Все" },
   { en: "Search", uz: "Qidirish", ru: "Поиск" },

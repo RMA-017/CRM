@@ -149,6 +149,7 @@ function FinanceBalancesPanel({ onClose }) {
   const [ledgerClient, setLedgerClient] = useState(null);
   const [ledgerData, setLedgerData] = useState(null);
   const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [ledgerPage, setLedgerPage] = useState(1);
   const [ledgerExporting, setLedgerExporting] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(false);
@@ -446,6 +447,7 @@ function FinanceBalancesPanel({ onClose }) {
     if (!clientId || ledgerLoading) return;
     setLedgerClient(item);
     setLedgerData(null);
+    setLedgerPage(1);
     setLedgerLoading(true);
     try {
       const response = await apiFetch(`/api/finance/client-balances/${clientId}/transactions`);
@@ -578,6 +580,9 @@ function FinanceBalancesPanel({ onClose }) {
   };
 
   const ledgerItems = Array.isArray(ledgerData?.items) ? ledgerData.items : [];
+  const ledgerTotalPages = Math.max(1, Math.ceil(ledgerItems.length / 30));
+  const currentLedgerPage = Math.min(ledgerPage, ledgerTotalPages);
+  const visibleLedgerItems = ledgerItems.slice((currentLedgerPage - 1) * 30, currentLedgerPage * 30);
   const paymentMethodOptions = paymentMethods.map((item) => ({
     value: String(item.id),
     label: item.name || String(item.id)
@@ -785,7 +790,7 @@ function FinanceBalancesPanel({ onClose }) {
               >
                 <colgroup>
                   {ledgerColumns.map((column) => (
-                    <col key={column.id} className={column.className || undefined} />
+                    <col key={column.id} className={column.className || undefined} style={{ width: `${column.widthPx}px` }} />
                   ))}
                 </colgroup>
                 <thead>
@@ -810,7 +815,7 @@ function FinanceBalancesPanel({ onClose }) {
                         <td colSpan={clientLedgerColumnCount} className="skel" />
                       </tr>
                     ))
-                  ) : ledgerItems.map((item) => (
+                  ) : visibleLedgerItems.map((item) => (
                     <tr key={String(item.id)} className={item.status === "voided" ? "finance-client-ledger-voided-row" : undefined}>
                       {ledgerColumns.map((column) => {
                         const cellClassName = typeof column.cellClassName === "function"
@@ -833,6 +838,13 @@ function FinanceBalancesPanel({ onClose }) {
                 </tbody>
               </table>
             </div>
+            {!ledgerLoading && ledgerTotalPages > 1 ? (
+              <nav className="finance-client-ledger-pagination" aria-label={translate("Client Transactions")}>
+                <button type="button" className="header-btn" disabled={currentLedgerPage === 1} onClick={() => setLedgerPage(currentLedgerPage - 1)}>{translate("Previous")}</button>
+                <span>{currentLedgerPage} / {ledgerTotalPages}</span>
+                <button type="button" className="header-btn" disabled={currentLedgerPage === ledgerTotalPages} onClick={() => setLedgerPage(currentLedgerPage + 1)}>{translate("Next")}</button>
+              </nav>
+            ) : null}
           </div>
         </>
       ), document.body) : null}

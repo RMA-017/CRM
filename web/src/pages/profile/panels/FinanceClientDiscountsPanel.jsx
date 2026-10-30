@@ -194,6 +194,7 @@ function FinanceClientDiscountsPanel({
   const [clientSearch, setClientSearch] = useState("");
   const [clientOptions, setClientOptions] = useState([]);
   const [selectedClient, setSelectedClient] = useState(null);
+  const [clientDiscounts, setClientDiscounts] = useState({ clientId: "", items: [], loading: false, error: false });
   const clientInputRef = useRef(null);
   const [clientResultsStyle, setClientResultsStyle] = useState(null);
   const [serviceRows, setServiceRows] = useState([]);
@@ -219,6 +220,41 @@ function FinanceClientDiscountsPanel({
     }))
   ], [services, translate]);
   const showClientResults = createOpen && !selectedClient && clientOptions.length > 0;
+
+  useEffect(() => {
+    const clientId = String(selectedClient?.id || "");
+    if (!createOpen || !clientId) {
+      setClientDiscounts({ clientId: "", items: [], loading: false, error: false });
+      return undefined;
+    }
+    const controller = new AbortController();
+    setClientDiscounts({ clientId, items: [], loading: true, error: false });
+    void (async () => {
+      try {
+        const rules = [];
+        let nextPage = 1;
+        let total = 1;
+        do {
+          const params = new URLSearchParams({ clientId, isActive: "true", pageSize: "100", page: String(nextPage) });
+          const response = await apiFetch(`/api/finance/discounts?${params}`, { signal: controller.signal });
+          const data = await readApiResponseData(response);
+          if (!response.ok) throw new Error("Failed to load client discounts.");
+          rules.push(...(Array.isArray(data?.items) ? data.items : []));
+          total = Number(data?.totalPages) || 1;
+          nextPage += 1;
+        } while (nextPage <= total && !controller.signal.aborted);
+        if (controller.signal.aborted) return;
+        const items = rules.filter((rule) => String(rule.clientId) === clientId && rule.isActive)
+          .flatMap((rule) => (rule.services || [])
+            .filter((service) => isUnlimitedDiscountService(service) || toIntegerAmount(service.remainingCount) > 0)
+            .map((service) => ({ ...service, ruleId: rule.id, discountType: rule.discountType })));
+        setClientDiscounts({ clientId, items, loading: false, error: false });
+      } catch {
+        if (!controller.signal.aborted) setClientDiscounts({ clientId, items: [], loading: false, error: true });
+      }
+    })();
+    return () => controller.abort();
+  }, [createOpen, selectedClient?.id]);
 
   const loadDiscounts = useCallback(async (nextPage = 1, nextFilters = EMPTY_FILTERS) => {
     try {
@@ -876,7 +912,13 @@ function FinanceClientDiscountsPanel({
       </div>
 
       {createOpen && modalRoot ? createPortal(
-        <div className="finance-modal-overlay" role="presentation">
+        <div
+          className="finance-modal-overlay"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) closeCreateModal();
+          }}
+        >
           <div id="financeClientDiscountCreateModal" className="logout-confirm-modal all-users-edit-modal finance-modal finance-discounts-modal">
             <form className="auth-form finance-discounts-create-form" onSubmit={submitCreate}>
               <div className="finance-discounts-create-head">
@@ -918,6 +960,25 @@ function FinanceClientDiscountsPanel({
                       />
                     </div>
                   </div>
+
+                  {selectedClient && clientDiscounts.clientId === String(selectedClient.id) ? (
+                    <section className="finance-discounts-current" aria-live="polite">
+                      <strong>{translate("Current client discounts")}</strong>
+                      {clientDiscounts.loading ? <p>{translate("Loading...")}</p> : clientDiscounts.error ? (
+                        <p role="alert">{translate("Failed to load client discounts.")}</p>
+                      ) : clientDiscounts.items.length ? (
+                        <ul>
+                          {clientDiscounts.items.map((service) => (
+                            <li key={`${service.ruleId}:${service.id}`}>
+                              <span>{service.serviceName}</span>
+                              <span>{formatServiceDiscountDetail(service, service.discountType)}</span>
+                              <span>{translate("Remaining")}: {isUnlimitedDiscountService(service) ? translate("Unlimited") : service.remainingCount}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : <p>{translate("No current client discounts.")}</p>}
+                    </section>
+                  ) : null}
 
                   {createError ? <p className="all-users-state finance-discounts-modal-error">{translate(createError)}</p> : null}
 

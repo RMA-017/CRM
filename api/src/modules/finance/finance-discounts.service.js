@@ -332,6 +332,10 @@ export async function getFinanceClientDiscounts({ organizationId, filters = {} }
   const isActive = normalizeActiveFilter(filters.isActive ?? filters.is_active ?? filters.active ?? filters.status);
   const where = [];
   const params = [];
+  const clientId = parsePositiveInteger(filters.clientId);
+  if (clientId) {
+    where.push(`AND r.client_id = ${appendSqlParam(params, clientId)}`);
+  }
   if (search) {
     const searchLikeParam = appendSqlParam(params, `%${search}%`);
     const searchExactParam = appendSqlParam(params, search);

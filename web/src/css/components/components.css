@@ -6533,6 +6533,25 @@ label.field > span:first-child,
   gap: 8px;
 }
 
+.finance-discounts-current {
+  padding: 9px 10px;
+  border: 1px solid #dce8f6;
+  border-radius: 8px;
+  background: #f0f7ff;
+  font-size: 12px;
+}
+
+.finance-discounts-current p { margin: 5px 0 0; }
+.finance-discounts-current ul { list-style: none; margin: 6px 0 0; padding: 0; }
+.finance-discounts-current li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 5px 0;
+  border-top: 1px solid #dce8f6;
+}
+.finance-discounts-current li > span:first-child { flex: 1 1 180px; overflow-wrap: anywhere; }
+
 .finance-discounts-discount-row {
   display: grid;
   grid-template-columns: minmax(260px, 1fr) 150px;
@@ -7534,10 +7553,10 @@ button.finance-daily-cash-method-card:disabled {
 
 #financeClientLedgerModal.finance-client-ledger-modal {
   width: min(1380px, calc(100vw - 24px));
-  height: min(780px, calc(100dvh - 24px));
+  height: auto;
   min-height: 0;
   max-height: calc(100dvh - 24px);
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
 .finance-client-ledger-head {
@@ -7607,26 +7626,40 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 .finance-client-ledger-table-scroll {
-  height: 100%;
+  height: auto;
   min-height: 0;
-  max-height: none;
+  max-height: calc(100dvh - 160px);
   overflow-x: auto;
   overflow-y: auto;
 }
 
 .finance-client-ledger-table {
-  width: max-content;
+  width: 100%;
   min-width: 100%;
-  table-layout: auto;
+  table-layout: fixed;
 }
 
 #financeClientLedgerModal .finance-client-ledger-table :is(th, td) {
   width: auto;
-  min-width: max-content;
-  max-width: none;
-  overflow: visible;
+  min-width: 0;
+  overflow: hidden;
   text-overflow: clip;
   white-space: nowrap;
+}
+
+#financeClientLedgerModal .finance-client-ledger-table :is(.finance-client-ledger-col-service, .finance-client-ledger-col-note) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+
+.finance-client-ledger-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding-top: 10px;
+  font-size: 12px;
 }
 
 .finance-client-ledger-table .finance-client-ledger-money-cell {

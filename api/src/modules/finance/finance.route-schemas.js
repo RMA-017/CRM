@@ -156,6 +156,7 @@ export const financeRouteSchemas = Object.freeze({
     type: "object",
     additionalProperties: true,
     properties: {
+      clientId: positiveIntegerLikeSchema,
       q: { type: "string", maxLength: 96 },
       query: { type: "string", maxLength: 96 },
       search: { type: "string", maxLength: 96 },

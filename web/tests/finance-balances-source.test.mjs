@@ -171,7 +171,7 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     styles,
-    /#financeClientLedgerModal\.finance-client-ledger-modal[\s\S]*width: min\(1380px,[\s\S]*height: min\(780px, calc\(100dvh - 24px\)\);[\s\S]*grid-template-rows: auto minmax\(0, 1fr\);/s,
+    /#financeClientLedgerModal\.finance-client-ledger-modal[\s\S]*width: min\(1380px,[\s\S]*height: auto;[\s\S]*grid-template-rows: auto minmax\(0, 1fr\) auto;/s,
     "Client ledger modal should have a wide, scannable layout."
   );
 
@@ -183,14 +183,14 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     styles,
-    /\.finance-client-ledger-table \{\s*width: max-content;\s*min-width: 100%;\s*table-layout: auto;\s*\}[\s\S]*#financeClientLedgerModal \.finance-client-ledger-table :is\(th, td\) \{[\s\S]*min-width: max-content;[\s\S]*overflow: visible;[\s\S]*text-overflow: clip;/,
-    "Client ledger columns should size automatically from their visible content instead of clipping cashier names."
+    /\.finance-client-ledger-table \{\s*width: 100%;\s*min-width: 100%;\s*table-layout: fixed;\s*\}[\s\S]*#financeClientLedgerModal \.finance-client-ledger-table :is\(th, td\) \{[\s\S]*min-width: 0;[\s\S]*overflow: hidden;[\s\S]*text-overflow: clip;/,
+    "Client ledger columns should retain their widths with long content."
   );
 
   assert.match(
     styles,
-    /\.finance-client-ledger-table-scroll \{\s*height: 100%;\s*min-height: 0;\s*max-height: none;\s*overflow-x: auto;\s*overflow-y: auto;\s*\}/,
-    "Client ledger table should keep a stable modal height and scroll inside the table area."
+    /\.finance-client-ledger-table-scroll \{\s*height: auto;\s*min-height: 0;\s*max-height: calc\(100dvh - 160px\);\s*overflow-x: auto;\s*overflow-y: auto;\s*\}/,
+    "Client ledger table should fit content and scroll only at the viewport limit."
   );
 
   assert.doesNotMatch(

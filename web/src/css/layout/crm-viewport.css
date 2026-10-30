@@ -16,12 +16,6 @@
   }
 
   /* Table-heavy modals are portalled outside the workspace element. */
-  body:has(.crm-layout) #financeClientLedgerModal.finance-client-ledger-modal {
-    width: calc(100vw - 48px);
-    height: calc(100dvh - 48px);
-    max-height: calc(100dvh - 48px);
-  }
-
   body:has(.crm-layout) #financeTicketHistoryModal.logout-confirm-modal.all-users-edit-modal {
     width: min(90vw, calc(100vw - 48px));
     height: 80dvh;
