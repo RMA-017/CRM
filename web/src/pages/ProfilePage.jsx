@@ -1076,7 +1076,7 @@ function ProfilePage({ forcedView = "none" }) {
 
   return (
     <>
-      <div className="home-layout">
+      <div className="home-layout crm-layout">
         <header className="home-header">
           <div className="home-header-inner">
             <div className="brand-wrap">

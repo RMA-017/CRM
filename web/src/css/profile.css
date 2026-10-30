@@ -1,6 +1,7 @@
 @import "./layout/profile-layout.css";
 @import "./components/components.css";
 @import "./components/responsive.css";
+@import "./layout/crm-viewport.css";
 
 :where(
   .btn,

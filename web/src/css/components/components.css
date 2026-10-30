@@ -2289,7 +2289,7 @@ label.field > span:first-child,
 }
 
 .all-users-table-wrap {
-  max-height: min(46vh, 420px);
+  max-height: var(--crm-table-max-height, min(46vh, 420px));
   overflow: auto;
   min-width: 0;
   max-width: 100%;

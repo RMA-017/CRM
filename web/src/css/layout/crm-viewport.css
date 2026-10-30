@@ -1,0 +1,36 @@
+/* Scope the workspace separately from the public website shell. */
+.home-layout.crm-layout {
+  width: calc(100% - 24px);
+}
+
+.crm-layout > .home-main,
+.crm-layout > .home-header > .home-header-inner,
+.crm-layout > .home-footer > .home-footer-inner {
+  width: 100%;
+  max-width: none;
+}
+
+@media (min-width: 1025px) {
+  .crm-layout {
+    --crm-table-max-height: max(240px, calc(100dvh - 240px));
+  }
+
+  /* Table-heavy modals are portalled outside the workspace element. */
+  body:has(.crm-layout) #financeClientLedgerModal.finance-client-ledger-modal {
+    width: calc(100vw - 48px);
+    height: calc(100dvh - 48px);
+    max-height: calc(100dvh - 48px);
+  }
+
+  body:has(.crm-layout) #financeTicketHistoryModal.logout-confirm-modal.all-users-edit-modal {
+    width: min(90vw, calc(100vw - 48px));
+    height: 80dvh;
+    max-height: calc(100dvh - 48px);
+  }
+}
+
+@media (max-width: 1024px) {
+  .home-layout.crm-layout {
+    width: 100%;
+  }
+}
