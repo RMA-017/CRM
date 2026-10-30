@@ -795,6 +795,7 @@ async function callTelegramApi(token, method, payload = {}) {
 
   const response = await fetch(`https://api.telegram.org/bot${normalizedToken}/${method}`, {
     method: "POST",
+    signal: AbortSignal.timeout(10000),
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   });
@@ -916,7 +917,8 @@ async function sendAndLogParentMessage({
   eventType,
   message,
   replyMarkup,
-  dedupeKey = ""
+  dedupeKey = "",
+  beforeSend = null
 }) {
   const normalizedDedupeKey = String(dedupeKey || "").trim();
   if (normalizedDedupeKey) {
@@ -932,6 +934,7 @@ async function sendAndLogParentMessage({
     if (rows.length > 0) {
       return { skipped: true };
     }
+    if (beforeSend && !(await beforeSend())) return { skipped: true };
     await sendTelegramMessage({
       token: settings.botToken,
       chatId: parent.chatId,
@@ -952,6 +955,7 @@ async function sendAndLogParentMessage({
     return { skipped: false };
   }
 
+  if (beforeSend && !(await beforeSend())) return { skipped: true };
   await sendTelegramMessage({
     token: settings.botToken,
     chatId: parent.chatId,
@@ -3601,14 +3605,33 @@ async function sendReminderRow({ row, reminderType }) {
     serviceName: item.serviceName,
     specialistName
   });
-  await sendAndLogParentMessage({
+  return sendAndLogParentMessage({
     settings,
     parent,
     appointmentScheduleId: item.id,
     eventType: reminderType,
     message,
     replyMarkup: reminderType === "reminder_24h" ? buildAppointmentButtons(language, item.id) : null,
-    dedupeKey: `${reminderType}:${item.id}:${parent.id}`
+    dedupeKey: `${reminderType}:${item.id}:${parent.id}`,
+    beforeSend: async () => {
+      // The sweep snapshot can become stale while earlier messages are sent.
+      // Check after deduplication, immediately before contacting Telegram.
+      const { rows } = await pool.query(
+        `SELECT 1 FROM appointment_schedules s
+         JOIN clients c ON c.organization_id = s.organization_id AND c.id = s.client_id
+         JOIN telegram_parent_accounts pa ON pa.organization_id = s.organization_id
+           AND pa.id = $3 AND pa.is_active = TRUE AND pa.phone_digits = ${CLIENT_PHONE_DIGITS_SQL}
+         WHERE s.organization_id = $1 AND s.id = $2
+           AND s.status IN ('pending', 'confirmed')
+           AND s.client_id = $4 AND s.specialist_id = $5
+           AND s.appointment_date = $6::date AND s.start_time = $7::time
+           AND s.service_name IS NOT DISTINCT FROM $8::text
+           AND (s.appointment_date + s.start_time) > TIMEZONE('Asia/Tashkent', NOW())`,
+        [parent.organizationId, item.id, parent.id, item.clientId, item.specialistId,
+          item.appointmentDate, item.startTime, item.serviceName]
+      );
+      return rows.length > 0;
+    }
   });
 }
 

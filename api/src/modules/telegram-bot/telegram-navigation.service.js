@@ -633,6 +633,11 @@ export function createTelegramNavigator({ settings, session, db, api, legacy, fr
         if (isBotDate(callbackDate)) date = callbackDate;
       }
       session.view = { kind: "parent_day", date };
+      // Reminder responses belong to the message whose buttons were pressed,
+      // rather than an unrelated menu screen left open earlier.
+      if (data.startsWith("resp:")) {
+        session.ui_message_id = update.callback_query.message?.message_id || null;
+      }
       return legacyAction(() => legacy.callback(update.callback_query), update.callback_query.id);
     }
     if (text && session.active_role === "parent" && !session.awaiting_role) {

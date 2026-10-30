@@ -488,7 +488,7 @@ test("each parent child has an independent schedule message, calendar and scoped
   assert.ok(calls.every((call) => call.method !== "deleteMessage"));
 });
 
-test("reminder callbacks and cancellation reasons reuse the current menu while keeping parental authorization", async () => {
+test("reminder callbacks and cancellation reasons update the pressed reminder instead of an unrelated menu", async () => {
   const { navigator, calls, session } = setup({
     state: { ui_message_id: 20 }, adapters: {
       getParent: async () => parent,
@@ -500,10 +500,30 @@ test("reminder callbacks and cancellation reasons reuse the current menu while k
   await navigator.process(callback("resp:coming:50"));
   assert.equal(session.active_role, "parent");
   assert.equal(calls.at(-1).method, "editMessageText");
-  assert.equal(calls.at(-1).payload.message_id, 20);
+  assert.equal(calls.at(-1).payload.message_id, 44);
   await navigator.process({ message: { text: "Reason", from, chat } });
   assert.equal(calls.at(-1).payload.text, "Cancelled");
   assert.ok(calls.every((call) => call.method !== "sendMessage"));
+});
+
+test("not-coming reminder buttons show the reason prompt on the pressed message", async () => {
+  const { navigator, calls } = setup({
+    state: { ui_message_id: 99 },
+    adapters: {
+      getParent: async () => parent,
+      callback: async () => {
+        assert.equal(telegramInteractionContext.getStore().acknowledgedCallbackId, "callback");
+        return telegramInteractionContext.getStore().screen("Reason?", {
+          inline_keyboard: [[{ text: "Skip", callback_data: "resp:cancel-skip:50" }]]
+        });
+      }
+    }
+  });
+  await navigator.process(callback("resp:cancel:50"));
+  assert.equal(calls.at(-1).method, "editMessageText");
+  assert.equal(calls.at(-1).payload.message_id, 44);
+  assert.equal(calls.at(-1).payload.text, "Reason?");
+  assert.ok(calls.at(-1).payload.reply_markup.inline_keyboard.flat().some(button => button.callback_data === "resp:cancel-skip:50"));
 });
 
 test("navigation is private, serialized per account, deduplicated, and stored persistently", async () => {
