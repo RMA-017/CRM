@@ -838,13 +838,11 @@ function FinanceBalancesPanel({ onClose }) {
                 </tbody>
               </table>
             </div>
-            {!ledgerLoading && ledgerTotalPages > 1 ? (
-              <nav className="finance-client-ledger-pagination" aria-label={translate("Client Transactions")}>
+              <nav className="finance-client-ledger-pagination" aria-label={translate("Client Transactions")} style={{ visibility: !ledgerLoading && ledgerTotalPages > 1 ? "visible" : "hidden" }}>
                 <button type="button" className="header-btn" disabled={currentLedgerPage === 1} onClick={() => setLedgerPage(currentLedgerPage - 1)}>{translate("Previous")}</button>
                 <span>{currentLedgerPage} / {ledgerTotalPages}</span>
                 <button type="button" className="header-btn" disabled={currentLedgerPage === ledgerTotalPages} onClick={() => setLedgerPage(currentLedgerPage + 1)}>{translate("Next")}</button>
               </nav>
-            ) : null}
           </div>
         </>
       ), document.body) : null}

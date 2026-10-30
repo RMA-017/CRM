@@ -171,7 +171,7 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     styles,
-    /#financeClientLedgerModal\.finance-client-ledger-modal[\s\S]*width: min\(1380px,[\s\S]*height: auto;[\s\S]*grid-template-rows: auto minmax\(0, 1fr\) auto;/s,
+    /#financeClientLedgerModal\.finance-client-ledger-modal[\s\S]*width: calc\(100vw - 32px\);[\s\S]*height: min\(900px, calc\(100dvh - 32px\)\);[\s\S]*grid-template-rows: auto minmax\(0, 1fr\) auto;/s,
     "Client ledger modal should have a wide, scannable layout."
   );
 
@@ -189,8 +189,8 @@ test("client balance rows open a read-only client transaction ledger", () => {
 
   assert.match(
     styles,
-    /\.finance-client-ledger-table-scroll \{\s*height: auto;\s*min-height: 0;\s*max-height: calc\(100dvh - 160px\);\s*overflow-x: auto;\s*overflow-y: auto;\s*\}/,
-    "Client ledger table should fit content and scroll only at the viewport limit."
+    /\.finance-client-ledger-table-scroll \{\s*height: 100%;\s*min-height: 0;\s*max-height: none;\s*overflow-x: auto;\s*overflow-y: auto;\s*\}/,
+    "Client ledger table should fill the stable modal height and scroll internally."
   );
 
   assert.doesNotMatch(
