@@ -7653,12 +7653,26 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 #financeClientLedgerModal .finance-client-ledger-table td:is(.finance-client-ledger-col-service, .finance-client-ledger-col-note) {
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 #financeClientLedgerModal .finance-client-ledger-table th {
   text-align: center;
   vertical-align: middle;
+}
+
+#financeClientLedgerModal .finance-client-ledger-table :is(th, td).finance-client-ledger-col-specialist {
+  padding-right: 18px;
+}
+
+#financeClientLedgerModal .finance-client-ledger-table :is(th, td).finance-client-ledger-col-service {
+  padding-left: 18px;
+  padding-right: 12px;
+}
+
+#financeClientLedgerModal .finance-client-ledger-table td.finance-client-ledger-col-specialist {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .finance-client-ledger-pagination {
@@ -7671,6 +7685,10 @@ button.finance-daily-cash-method-card:disabled {
 }
 
 .finance-client-ledger-table .finance-client-ledger-money-cell {
+  text-align: right;
+}
+
+#financeClientLedgerModal .finance-client-ledger-table td.finance-client-ledger-money-cell {
   text-align: right;
 }
 
