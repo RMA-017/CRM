@@ -491,8 +491,8 @@ test("finance payments, deposits and refunds preserve cash-session and balance r
 
   assert.match(
     financeServiceSource,
-    /async function updateTicketStatus[\s\S]*if \(action === "voided"\) \{[\s\S]*const paymentActivityCount = await getTicketPostedPaymentActivityCount\(db, \{ organizationId, ticketId \}\);[\s\S]*if \(paymentActivityCount > 0\) \{[\s\S]*Tickets with payments cannot be deleted\./s,
-    "Ticket delete/void should be blocked only while posted payment or refund activity still exists."
+    /async function updateTicketStatus[\s\S]*if \(action === "voided"\) \{[\s\S]*const paidAmountUzs = await getTicketPaidAmount\(db, \{ organizationId, ticketId \}\);[\s\S]*if \(paidAmountUzs !== 0\) \{[\s\S]*Tickets with payments cannot be deleted\./s,
+    "Ticket delete/void should be blocked only while a nonzero net payment remains."
   );
 
   assert.match(

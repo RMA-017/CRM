@@ -113,7 +113,7 @@ test("finance delete icons use a closed trash lid", async () => {
   );
 });
 
-test("ticket edit follows active paid amount while delete follows payment history", async () => {
+test("ticket edit and delete follow net paid amount", async () => {
   const [source, translations] = await Promise.all([
     readFile(
       new URL("../src/pages/profile/panels/FinanceTicketsPanel.jsx", import.meta.url),
@@ -129,13 +129,13 @@ test("ticket edit follows active paid amount while delete follows payment histor
   );
   assert.match(
     source,
-    /function hasTicketPostedPaymentActivity\(item\) \{[\s\S]*item\?\.postedPaymentActivityCount[\s\S]*return paymentActivityCount > 0;/s,
-    "Ticket rows should still detect posted payment/refund history for delete protection."
+    /function hasTicketUnsettledPayment\(item\) \{[\s\S]*item\?\.paidAmountUzs[\s\S]*return !Number.isFinite\(paidAmountUzs\) \|\| paidAmountUzs !== 0;/s,
+    "Ticket rows should block deletion for nonzero or invalid net paid amounts."
   );
   assert.match(
     source,
-    /const canEditRow = canUpdateFinanceCashier[\s\S]*item\.status !== "paid"[\s\S]*item\.status !== "voided"[\s\S]*!hasTicketActivePayment\(item\);[\s\S]*const canDeleteRow = canEditRow && !hasTicketPostedPaymentActivity\(item\);[\s\S]*return canEditRow \? \(/s,
-    "Edit should reopen when net paid amount is zero, while delete should remain tied to transaction history."
+    /const canEditRow = canUpdateFinanceCashier[\s\S]*item\.status !== "paid"[\s\S]*item\.status !== "voided"[\s\S]*!hasTicketActivePayment\(item\);[\s\S]*const canDeleteRow = canEditRow && !hasTicketUnsettledPayment\(item\);[\s\S]*return canEditRow \? \(/s,
+    "Edit and delete should reopen when net paid amount is zero."
   );
   assert.doesNotMatch(
     source,
@@ -149,8 +149,8 @@ test("ticket edit follows active paid amount while delete follows payment histor
   );
   assert.match(
     source,
-    /const deleteTicket = async \(item\) => \{[\s\S]*if \(hasTicketPostedPaymentActivity\(item\)\) \{[\s\S]*Tickets with payments cannot be deleted\./s,
-    "The delete handler should block stale clicks only when posted payment activity still exists."
+    /const deleteTicket = async \(item\) => \{[\s\S]*if \(hasTicketUnsettledPayment\(item\)\) \{[\s\S]*Tickets with payments cannot be deleted\./s,
+    "The delete handler should block stale clicks when a nonzero net payment remains."
   );
   assert.match(
     translations,

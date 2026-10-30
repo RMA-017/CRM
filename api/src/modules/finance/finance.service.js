@@ -707,19 +707,6 @@ async function getTicketPaidAmount(db, { organizationId, ticketId }) {
   return normalizeAmount(result.rows[0]?.paid_amount_uzs, 0);
 }
 
-async function getTicketPostedPaymentActivityCount(db, { organizationId, ticketId }) {
-  const result = await db.query(
-    `SELECT COUNT(*) AS payment_activity_count
-       FROM finance_transactions
-      WHERE organization_id = $1
-        AND ticket_id = $2
-        AND status = 'posted'
-        AND transaction_type IN ('ticket_payment', 'deposit_ticket_payment', 'refund', 'deposit_ticket_refund')`,
-    [organizationId, ticketId]
-  );
-  return Number.parseInt(String(result.rows[0]?.payment_activity_count ?? 0), 10) || 0;
-}
-
 async function getOpenCashSession(db, { organizationId, cashierUserId, forUpdate = false }) {
   const result = await db.query(
     `SELECT s.*,
@@ -5288,8 +5275,8 @@ async function updateTicketStatus({ organizationId, id, status, action, reason =
       throw error;
     }
     if (action === "voided") {
-      const paymentActivityCount = await getTicketPostedPaymentActivityCount(db, { organizationId, ticketId });
-      if (paymentActivityCount > 0) {
+      const paidAmountUzs = await getTicketPaidAmount(db, { organizationId, ticketId });
+      if (paidAmountUzs !== 0) {
         const error = new Error("Tickets with payments cannot be deleted.");
         error.statusCode = 400;
         throw error;
